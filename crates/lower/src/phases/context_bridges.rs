@@ -3,6 +3,7 @@
 //! Bridges of methods flattened by `ContextFunctionResults` overriding abstract methods that
 //! were not: the bridge returns a closure taking the context parameters (dotty's `etaExpand`).
 
+use super::adapt::adapt;
 use super::lift_names::fresh;
 use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
@@ -28,10 +29,14 @@ pub fn bridge(
         return unsupported(span, "bridges of methods with context function results flattened otherwise");
     }
     let m_result = l.u.result_type(m_info);
+    let other_params: Vec<(String, TypeId)> = clauses(l, other_info).concat();
     let mut captured: Vec<(String, TypeId)> = own_clauses[..own].concat();
-    for (name, _) in &mut captured {
+    for ((name, tpe), (_, other)) in captured.iter_mut().zip(&other_params) {
         *name = fresh(l, name);
+        *tpe = *other;
     }
+    let (erased, others) = (l.u.erased_method(m).0, l.u.erased_method(other).0);
+    let value_params = l.u.erased_method_value(m).0;
     let context = own_clauses[own].clone();
     let arity = context.len();
     let flags = Flags::default().with(PRIVATE).with(SYNTHETIC).with(ARTIFACT);
@@ -48,6 +53,15 @@ pub fn bridge(
     });
     l.u.set_info(anon, info);
     let anon_def = l.forwarding_def(anon, span, |l, args, result| {
+        let args: Vec<TNodeId> = args
+            .iter()
+            .enumerate()
+            .map(|(i, &a)| match (erased.get(i), others.get(i), value_params.get(i)) {
+                (Some(p), Some(o), Some(v)) if p != o => adapt(l, a, v),
+                _ => a,
+            })
+            .collect();
+        let args = &args[..];
         let this = l.this(class, span);
         let fun = l.select(this, m, span);
         l.apply(fun, args, result, span)
