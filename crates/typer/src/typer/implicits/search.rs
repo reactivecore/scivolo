@@ -162,6 +162,7 @@ impl Typer<'_> {
         let tree = applied;
         let tree = if method { self.eta_expanded_implicit(tree, pt, ctx)? } else { tree };
         let tree = self.inlined_transparent(tree, Pt::Type(pt), ctx).unwrap_or(tree);
+        self.record_inline_call(tree, ctx);
         let t = self.tpd.tpe(tree);
         let info = self.method_info(t).unwrap_or(t);
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {

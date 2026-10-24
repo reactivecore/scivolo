@@ -15,6 +15,8 @@ pub type Lent<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names, &'l mut Fresh
 pub trait Host {
     /// The context of inline call `call`, outside an inline method, as the typer recorded it.
     fn call_ctx(&self, call: TNodeId) -> Option<Ctx>;
+    /// Gives `copy` the context of call `original`, if it has one.
+    fn copied_call(&mut self, original: TNodeId, copy: TNodeId);
     /// An implicit argument of type `pt` at `at` in `ctx`, its type variables instantiated
     /// (dotty's `inferImplicitArg`); `Ok(None)` if no candidate fits.
     fn summon(
