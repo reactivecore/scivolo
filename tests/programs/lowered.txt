@@ -144,3 +144,5 @@ TDtraitlocals
 TDanonnested
 TDsupercapture
 TDcontextbridge
+tuplexxl
+Nt24xxlcons
