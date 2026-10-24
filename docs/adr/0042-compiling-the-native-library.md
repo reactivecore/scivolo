@@ -24,12 +24,15 @@ program is linked. scivolo compiles a curated copy (`native/`) with clang in `cr
 - **Stages.** Per-file compilation against the module's own published TASTy first (the measuring
   tool), then a module as one unit against its dependencies' jars, then scalalib from the patched
   3.9.0 sources, then TASTy.
-- **Oracle.** The published jar of the same Scala Native version, compared with
-  `scivolo-nir-dump --debug --sorted`, as `just nir-cmp` compares test programs.
+- **Oracle.** Scala Native's own build of the same version (`just lib-oracle`, sbt), compared
+  with `scivolo-nir-dump --debug --sorted`, as `just nir-cmp` compares test programs. The
+  published jars are compiled with Scala 3.1.3 (`scala3PublishVersion`), whose lazy values and
+  pattern matches differ from 3.9's; the build uses 3.8.3, the newest its compiler plugin
+  supports, so a few differences of 3.8 and 3.9 remain.
 
 ## Consequences
 - The library build needs `ref/scala-native` (`just fetch-scala-native`) and clang, nothing else;
-  no sbt, no JVM, except for the TASTy of a module until stage 4.
+  no sbt, no JVM, except for the TASTy of a module until stage 4 and for the oracle.
 - A compiled module whose NIR differs from upstream is a frontend bug or a documented position
   difference, never a silently different library.
 - Without `.class` files the jars are unusable for JVM-side tooling (Scaladoc, IDEs); scivolo's jars are
