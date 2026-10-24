@@ -3,8 +3,9 @@
 //   compiler/src/dotty/tools/dotc/printing/PlainPrinter.scala
 //   compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala
 //   compiler/src/dotty/tools/dotc/util/Chars.scala
-//! `codeOf`: the argument tree as dotty's `RefinedPrinter` shows it, for literals, references
-//! without a shown prefix, applications and infix operations of those.
+//! `codeOf`: the argument tree as dotty's `RefinedPrinter` shows it, for literals, unquoted
+//! references by their symbols' names without a shown prefix, applications and infix
+//! operations of those.
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
@@ -33,11 +34,14 @@ impl Inlining<'_> {
             T::Ident { name } => {
                 let tpe = self.tpd.tpe(t);
                 let prefix = match *self.u.types().get(tpe) {
-                    Type::Sym(p, _) => p,
+                    Type::Sym(p, s) if self.u.symbol(s).name == self.names.text(name.name) => p,
                     _ => return None,
                 };
                 let text = self.names.text(name.name).to_owned();
-                (!text.contains('$') && prefix.is_none_or(|p| self.is_omitted_prefix(p))).then_some(text)
+                let span = self.tpd.span(t);
+                let unquoted = span.end().checked_sub(span.start()).is_some_and(|n| n as usize == text.len());
+                (unquoted && !text.contains('$') && prefix.is_none_or(|p| self.is_omitted_prefix(p)))
+                    .then_some(text)
             }
             T::Apply { .. } if local => None,
             T::Apply { fun, args } => {

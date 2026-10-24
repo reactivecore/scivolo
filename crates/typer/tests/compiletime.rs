@@ -32,6 +32,8 @@ const CASES: &[(&str, &str)] = &[
     ("object O { def g = codeOf(Some(1)) }", "codeOf an argument"),
     ("object O { def h(using i: Int) = i; given Int = 3; def g = codeOf(h) }", "codeOf an argument"),
     ("object O { inline def f(x: Int): String = codeOf(x); def g(y: Int) = f(y + 1) }", "codeOf an argument"),
+    ("object O { def g(y: Int) = codeOf(`y`) }", "codeOf an argument"),
+    ("object O { import scala.Predef.{print as p}; def g = codeOf(p(1)) }", "codeOf an argument"),
     ("object O { def g = summonInline[Show[String]] }", "no implicit argument"),
 ];
 
