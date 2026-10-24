@@ -117,7 +117,7 @@ impl Reducer<'_, '_> {
         };
         let rhs = self.i.seq(&used, rhs)?;
         let outer = self.i.local_implicits;
-        self.i.local_implicits |= self.implicit && !bindings.is_empty();
+        self.i.local_implicits |= self.implicit && !bindings.is_empty() || self.i.has_implicit_def(rhs);
         let retyped = self.i.retype(rhs, self.args, self.owner);
         self.i.local_implicits = outer;
         retyped

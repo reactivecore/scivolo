@@ -3,7 +3,7 @@
 
 use super::{Expanded, Inlining, MacroCall, MacroError, Unsupported};
 use crate::ctx::Ctx;
-use crate::tpd::{TNodeId, Tpd, Tree as T};
+use crate::tpd::{MatchKind, TNodeId, Tpd, Tree as T};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use tasty::tags::{GIVEN, IMPLICIT};
@@ -60,7 +60,12 @@ impl Inlining<'_> {
         self.has_implicit_def(rhs)
     }
 
-    fn has_implicit_def(&self, t: TNodeId) -> bool {
+    /// Whether tree `t` defines a given or implicit term outside the cases of inline matches,
+    /// which count once their match selects them.
+    pub fn has_implicit_def(&self, t: TNodeId) -> bool {
+        if let T::Match { selector, kind: MatchKind::Inline, .. } = *self.tpd.tree(t) {
+            return selector.is_some_and(|s| self.has_implicit_def(s));
+        }
         let def = matches!(self.tpd.tree(t), T::ValDef { .. } | T::DefDef { .. });
         let implicit = self.tpd.sym(t).is_some_and(|s| {
             let flags = self.u.symbol(s).flags;
