@@ -7,7 +7,6 @@ use super::casts::class_named;
 use super::walk::{children, subtrees};
 use crate::symbols::has;
 use crate::{Lower, Result};
-use rustc_hash::FxHashSet;
 use tasty::tags::{EXTENSION, IMPLICIT};
 use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{List, TNodeId, Tree};
@@ -15,16 +14,7 @@ use typer::tpd::{List, TNodeId, Tree};
 /// Drops the trailing `map` calls of `for` comprehensions in unit `root`, inner ones first; the
 /// calls of `Inlined` trees are left as they are.
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
-    let all = subtrees(l.tpd, root);
-    let mut calls = FxHashSet::default();
-    for &t in &all {
-        if let Tree::Inlined { call: Some(call), .. } = *l.tpd.tree(t)
-            && !calls.contains(&t)
-        {
-            calls.extend(subtrees(l.tpd, call));
-        }
-    }
-    for t in all.into_iter().rev().filter(|t| !calls.contains(t)) {
+    for t in subtrees(l.tpd, root).into_iter().rev() {
         match *l.tpd.tree(t) {
             Tree::Apply { .. } => {
                 if let Some(r) = dropped(l, t) {
