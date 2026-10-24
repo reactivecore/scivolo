@@ -118,6 +118,7 @@ impl Inlining<'_> {
                     let body = self.constant_arg(body);
                     MacroArg::Expr(self.outer_inlined(body))
                 }
+                MacroArg::Type(t) => MacroArg::Type(crate::typer::simplify::normalize_all(self.u, t)),
                 arg => arg,
             });
         }
