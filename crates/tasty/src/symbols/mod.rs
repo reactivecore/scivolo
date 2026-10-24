@@ -90,6 +90,8 @@ pub struct Universe {
     comparison_owner: Option<SymbolId>,
     /// How many comparisons succeeded through a reference lifted to an object's `this`.
     opaque_lifts: u64,
+    /// Whether the sources compiled are javalib's, whose TASTy classes are then Scala classes.
+    javalib_sources: bool,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,

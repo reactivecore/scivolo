@@ -13,9 +13,9 @@ impl Typer<'_> {
     }
 
     /// Whether `c`, from TASTy, is named as a `java.*` or `javax.*` class or a Java class of the
-    /// Scala library; a class of the unit is a Scala one.
+    /// Scala library; a class of the unit, or of javalib when compiling it, is a Scala one.
     pub fn is_java_class_name(&mut self, c: SymbolId) -> bool {
-        if self.u.symbol(c).tree.is_none() && self.u.symbol(c).kind != tasty::Kind::Package {
+        if !self.u.may_be_java(c) && self.u.symbol(c).kind != tasty::Kind::Package {
             return false;
         }
         let name = self.u.full_name(c);

@@ -51,6 +51,7 @@ impl Universe {
             opaques_elided: false,
             comparison_owner: None,
             opaque_lifts: 0,
+            javalib_sources: false,
             resolving: 0,
             builtins: Builtins::PENDING,
             binders: 0,
