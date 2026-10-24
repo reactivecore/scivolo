@@ -72,6 +72,8 @@ def oracle(module):
 def dump(path):
     r = subprocess.run([str(NIR_DUMP), "--debug", "--sorted", str(path)], capture_output=True, text=True,
                        errors="replace")
+    if r.returncode != 0:
+        return [f"nir-dump failed on {path}: {r.stderr.strip()}"]
     return [l for l in r.stdout.splitlines() if not l.startswith(("// ", "# "))]
 
 

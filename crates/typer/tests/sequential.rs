@@ -363,6 +363,18 @@ fn unit_members_replace_classpath_members() {
 }
 
 #[test]
+fn each_annotation_keeps_its_string() {
+    let Some(mut u) = universe() else { return };
+    let text =
+        "class Ann(s: String) extends scala.annotation.StaticAnnotation\n@Ann(\"a\") @Ann(\"b\") object La\n";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "La.scala", text), Ok(()));
+    let root = u.package("").expect("the empty package");
+    let la = u.decl(root, "La").expect("a lookup")[0];
+    let ann = u.decl(root, "Ann").expect("a lookup")[0];
+    assert_eq!(u.annotation_strings(la, ann), [Some("a".to_owned()), Some("b".to_owned())]);
+}
+
+#[test]
 fn unit_objects_in_jdk_packages_are_values() {
     let Some(mut u) = universe() else { return };
     let text = "package java.io\nobject FilenameFilter { val self: Any = FilenameFilter }\n";

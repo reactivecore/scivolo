@@ -56,14 +56,13 @@ impl Typer<'_> {
                 _ => {}
             }
             self.u.annotate(sym, class);
-            if let Some(arg) = self.string_arg(annot) {
-                self.u.annotate_string(sym, class, arg);
-            }
             if self.defn.main_annot(self.u) == Ok(class) {
                 self.syms.main_annotations.insert(sym, self.ast.span(annot));
             }
             if !self.syms.annotation_trees.iter().any(|&(s, a, _)| (s, a) == (sym, annot)) {
                 self.syms.annotation_trees.push((sym, annot, ctx));
+                let arg = self.string_arg(annot);
+                self.u.annotate_string(sym, class, arg);
             }
         }
     }

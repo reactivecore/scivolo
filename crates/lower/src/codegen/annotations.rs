@@ -66,7 +66,7 @@ pub fn check_annotations(l: &Lower, root: TNodeId) -> Result<()> {
             let what = || format!("annotation @{}", l.u.full_name(class));
             match gives(l, class) {
                 Some(Gives::Refused) => return unsupported(l.tpd.span(t), what()),
-                Some(Gives::Named(_)) if l.u.annotation_string(sym, class).is_none() => {
+                Some(Gives::Named(_)) if l.u.annotation_strings(sym, class).iter().any(Option::is_none) => {
                     return unsupported(l.tpd.span(t), format!("{} without a string literal", what()));
                 }
                 _ => {}
@@ -115,9 +115,17 @@ impl Gen<'_, '_> {
             let annotated = ANNOTATIONS.iter().filter(|(n, _)| self.l.u.is_annotated(sym, n));
             annotated.filter(|(_, g)| !matches!(g, Gives::Named(_))).map(|&(_, g)| (g, None)).collect()
         } else {
-            let classes = self.l.u.annotations(sym).iter();
-            let string = |c| self.l.u.annotation_string(sym, c).map(str::to_owned);
-            classes.filter_map(|&c| Some((gives(self.l, c)?, string(c)))).collect()
+            let mut found = Vec::new();
+            for &c in self.l.u.annotations(sym) {
+                match gives(self.l, c) {
+                    Some(g @ Gives::Named(_)) => {
+                        found.extend(self.l.u.annotation_strings(sym, c).iter().map(|s| (g, s.clone())))
+                    }
+                    Some(g) => found.push((g, None)),
+                    None => {}
+                }
+            }
+            found
         };
         for (g, string) in found {
             match g {
@@ -139,7 +147,8 @@ fn canonical(attrs: Vec<Attr>) -> Vec<Attr> {
     let mut out: Vec<Attr> = Vec::new();
     for a in attrs {
         let r = rank(&a);
-        match out.iter().position(|o| r < 14 && rank(o) == r) {
+        let repeatable = matches!(a, Attr::Link(_) | Attr::Define(_));
+        match out.iter().position(|o| !repeatable && rank(o) == r) {
             Some(i) => out[i] = a,
             None => out.push(a),
         }
