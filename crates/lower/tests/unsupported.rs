@@ -116,6 +116,15 @@ const CASES: &[(&str, &str)] = &[
          object O { given Conversion[B.type, Ex] = _ => Ex(); def f(x: Int) = x match { case B(v) => v; case _ => 0 } }",
         "unapply of an implicit view beside unapplySeq",
     ),
+    (
+        "import scala.language.experimental.namedTypeArguments\n\
+         object O { def f[A, B](b: B): B = b; def g = f[A = List](1) }",
+        "type argument of another kind",
+    ),
+    (
+        "object O { def f(x: (a: Int, b: String) & (b: String, a: Int)): Int = x.a }",
+        "member not found",
+    ),
 ];
 
 #[test]
