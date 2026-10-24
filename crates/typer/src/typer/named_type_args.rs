@@ -13,14 +13,28 @@ use syntax::config::Features;
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
-    /// Whether `fun` is a type application to named arguments.
-    pub fn is_named_type_apply(&self, fun: NodeId) -> bool {
-        let Tree::TypeApply { args, .. } = *self.ast.tree(fun) else { return false };
-        self.ast.items(args).iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. }))
+    /// Type application `id` of `fun` to `arg_ids` if they are named, or refused if `fun` is
+    /// one; `None` for others.
+    pub fn named_type_apply(
+        &mut self,
+        id: NodeId,
+        fun: NodeId,
+        arg_ids: &[NodeId],
+        pt: Pt,
+        ctx: Ctx,
+    ) -> Option<TNodeId> {
+        let named =
+            |t: &Self, args: &[NodeId]| args.iter().any(|&a| matches!(t.ast.tree(a), Tree::NamedArg { .. }));
+        if let Tree::TypeApply { args, .. } = *self.ast.tree(fun)
+            && named(self, self.ast.items(args))
+        {
+            return Some(self.unsupported(id, "illegal repeated type application"));
+        }
+        named(self, arg_ids).then(|| self.typed_named_type_apply(id, fun, arg_ids, pt, ctx))
     }
 
     /// Type application `id` of `fun` to the named arguments `arg_ids`.
-    pub fn typed_named_type_apply(
+    fn typed_named_type_apply(
         &mut self,
         id: NodeId,
         fun: NodeId,

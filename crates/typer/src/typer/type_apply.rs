@@ -16,17 +16,15 @@ impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let poly = self.poly_protos.len();
         let arg_ids = self.ast.items(args).to_vec();
-        if self.is_named_type_apply(fun) {
-            return self.unsupported(id, "illegal repeated type application");
-        }
-        if arg_ids.iter().any(|&a| matches!(self.ast.tree(a), syntax::ast::Tree::NamedArg { .. })) {
-            return self.typed_named_type_apply(id, fun, &arg_ids, pt, ctx);
+        if let Some(named) = self.named_type_apply(id, fun, &arg_ids, pt, ctx) {
+            return named;
         }
         self.poly_protos.push(PolyProto { args: arg_ids.clone(), ctx, pt, typed: None });
         let f = self.typed(fun, Pt::PolyFun(poly), ctx);
         let fun_name = self.tpd.sym(f).map(|s| self.u.full_name(s));
         let class_of = fun_name.as_deref() == Some("scala.Predef$.classOf");
-        let f = match self.with_apply(f, Pt::PolyFun(poly), ctx) {
+        let applied = self.with_leading_using(f, ctx);
+        let f = match applied.and_then(|f| self.with_apply(f, Pt::PolyFun(poly), ctx)) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
