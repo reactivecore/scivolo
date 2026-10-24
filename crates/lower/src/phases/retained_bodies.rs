@@ -1,7 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/Erasure.scala
 //! Each retained inline method given the body of its body retainer, which is dropped; the method
-//! is then no longer inline (dotty's `Erasure.addRetainedInlineBodies`, run before the phases).
+//! is then no longer inline (dotty's `Erasure.addRetainedInlineBodies`, run before the phases;
+//! in a value class after `ExtensionMethods`).
 
 use super::lifted::substitute;
 use super::walk::subtrees;
@@ -11,33 +12,44 @@ use tasty::tags::{INLINE, TRANSPARENT};
 use typer::RETAINED_BODY;
 use typer::tpd::{TNodeId, Tree};
 
+/// Adds the retained bodies of the classes under `root` but value classes.
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     for t in subtrees(l.tpd, root) {
-        let Tree::Template { body, .. } = *l.tpd.tree(t) else { continue };
-        let stats = l.tpd.items(body).to_vec();
-        let mut retainers = Vec::new();
-        for &s in &stats {
-            if let Some(method) = retained(l, &stats, s) {
-                let Some(method) = method else {
-                    return unsupported(l.tpd.span(s), "overloaded retained inline methods");
-                };
-                retainers.push((s, method));
-            }
-        }
-        if retainers.is_empty() {
-            continue;
-        }
-        for &(r, method) in &retainers {
-            move_body(l, r, method)?;
-        }
-        let retainers: Vec<TNodeId> = retainers.into_iter().map(|(r, _)| r).collect();
-        let kept: Vec<TNodeId> = stats.into_iter().filter(|s| !retainers.contains(s)).collect();
-        let kept = l.tpd.list(&kept);
-        if let Tree::Template { body, .. } = &mut l.tpd.get_mut(t).tree {
-            *body = kept;
+        let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(t) else { continue };
+        let value_class = l.tpd.sym(t).is_some_and(|c| l.u.underlying(c).is_some());
+        if matches!(l.tpd.tree(template), Tree::Template { .. }) && !value_class {
+            add_bodies(l, template)?;
         }
     }
     Ok(())
+}
+
+/// Gives the retained inline methods of class body `template` their retainers' bodies and drops
+/// the retainers; the pairs of retainer and method definitions.
+pub fn add_bodies(l: &mut Lower, template: TNodeId) -> Result<Vec<(TNodeId, TNodeId)>> {
+    let Tree::Template { body, .. } = *l.tpd.tree(template) else { unreachable!("a class body") };
+    let stats = l.tpd.items(body).to_vec();
+    let mut retainers = Vec::new();
+    for &s in &stats {
+        if let Some(method) = retained(l, &stats, s) {
+            let Some(method) = method else {
+                return unsupported(l.tpd.span(s), "overloaded retained inline methods");
+            };
+            retainers.push((s, method));
+        }
+    }
+    if retainers.is_empty() {
+        return Ok(retainers);
+    }
+    for &(r, method) in &retainers {
+        move_body(l, r, method)?;
+    }
+    let kept: Vec<TNodeId> = stats.into_iter().filter(|s| !retainers.iter().any(|(r, _)| r == s)).collect();
+    let kept = l.tpd.list(&kept);
+    if let Tree::Template { body, .. } = &mut l.tpd.get_mut(template).tree {
+        *body = kept;
+    }
+    Ok(retainers)
 }
 
 /// If `stat` is a body retainer, the definition among `stats` of its inline method: the only one

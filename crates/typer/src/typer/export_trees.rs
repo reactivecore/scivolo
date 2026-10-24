@@ -91,7 +91,12 @@ impl Typer<'_> {
         }
         let tpt = self.type_tree(tpe, at, false);
         let clauses: Vec<&[TNodeId]> = clauses.iter().map(Vec::as_slice).collect();
-        self.build().def_def(f.sym, &clauses, tpt, Some(fun), f.span)
+        let def = self.build().def_def(f.sym, &clauses, tpt, Some(fun), f.span);
+        if self.u.symbol(f.sym).flags.has(tasty::tags::INLINE) {
+            self.make_inlineable(fun, f.sym, ctx.with_owner(f.sym));
+            self.inline_defs.insert(f.sym, super::InlineDef::Typed(def));
+        }
+        def
     }
 
     /// The definitions of forwarder parameters `syms`, type parameters if `poly`, and the

@@ -116,6 +116,48 @@ const CASES: &[(&str, &str)] = &[
          object O { given Conversion[B.type, Ex] = _ => Ex(); def f(x: Int) = x match { case B(v) => v; case _ => 0 } }",
         "unapply of an implicit view beside unapplySeq",
     ),
+    (
+        "class S\nobject S { @scala.annotation.static val x: Int = 1 }\nobject O { def g = S.x }",
+        "@static values",
+    ),
+    (
+        "class S\nobject S { val v = 1; @scala.annotation.static def f = this.v }\nobject O { def g = S.f }",
+        "@static method needing its object",
+    ),
+    (
+        "class S\nobject S { @scala.annotation.static def f = { def h = 1; h } }\nobject O { def g = S.f }",
+        "defining local methods",
+    ),
+    (
+        "trait S\nobject S { @scala.annotation.static def f = 1 }\nobject O { def g = S.f }",
+        "companion is a trait",
+    ),
+    (
+        "class D { class E; object E { @scala.annotation.static def f = 1 } }\nobject O { def g = D().E.f }",
+        "@static",
+    ),
+    (
+        "import scala.language.experimental.namedTypeArguments\n\
+         object O { def f[A, B](b: B): B = b; def g = f[A = List](1) }",
+        "type argument of another kind",
+    ),
+    ("object O { def f(x: (a: Int, b: String) & (b: String, a: Int)): Int = x.a }", "member not found"),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }",
+        "annotation @scala.scalanative.unsafe.package$.extern",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\nobject O { @name(\"g\") def f = 1 }",
+        "annotation @scala.scalanative.unsafe.name",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\nobject O { final val m = \"m\"; @link(m) def f = 1 }",
+        "annotation @scala.scalanative.unsafe.link without a string literal",
+    ),
+    (
+        "import scala.scalanative.runtime.RawPtr\nclass W(val p: RawPtr) extends AnyVal",
+        "boxing, unboxing and primitive conversions",
+    ),
 ];
 
 #[test]

@@ -82,6 +82,18 @@ impl Universe {
         annotations(ast, parts.mods).any(|(ty, _)| names_ref(ast, names, ty, name))
     }
 
+    /// Records one more annotation of class `class` on `sym`, a symbol defined outside TASTy, with
+    /// `arg` if a string literal is its only argument.
+    pub fn annotate_string(&mut self, sym: SymbolId, class: SymbolId, arg: Option<String>) {
+        self.annotation_strings.entry((sym, class)).or_default().push(arg);
+    }
+
+    /// The string literal arguments recorded for the annotations of class `class` on `sym`, one
+    /// per annotation, in order.
+    pub fn annotation_strings(&self, sym: SymbolId, class: SymbolId) -> &[Option<String>] {
+        self.annotation_strings.get(&(sym, class)).map_or(&[], Vec::as_slice)
+    }
+
     /// The first `Int` argument of the annotation of the class with full name `full` on method
     /// `sym` in its TASTy, by the class's simple name.
     pub fn annotation_int(&self, sym: SymbolId, full: &str) -> Option<i32> {

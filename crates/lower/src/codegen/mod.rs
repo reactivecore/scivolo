@@ -2,6 +2,7 @@
 //   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirCodeGen.scala
 //! NIR generation from the lowered trees: a port of Scala Native's nscplugin, no native interop.
 
+pub(crate) mod annotations;
 mod apply;
 mod args;
 mod array;

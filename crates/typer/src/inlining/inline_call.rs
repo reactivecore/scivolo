@@ -51,8 +51,10 @@ impl Inlining<'_> {
         let outer_call = std::mem::replace(&mut self.call_span, span);
         let outer_implicits = self.local_implicits;
         self.local_implicits |= self.defines_implicit(def);
+        let outer_macro = std::mem::replace(&mut self.in_macro_result, false);
         let expanded = expand::Expansion::new(self, call, owner).inlined(def);
-        (self.call_span, self.local_implicits) = (outer_call, outer_implicits);
+        (self.call_span, self.local_implicits, self.in_macro_result) =
+            (outer_call, outer_implicits, outer_macro);
         self.depth -= 1;
         let (bindings, expansion) = expanded?;
         if op.as_deref() == Some("error") {

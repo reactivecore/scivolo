@@ -15,6 +15,7 @@ mod copy_classes;
 mod erased;
 mod expand;
 mod host;
+mod implicit_args;
 mod inline_call;
 mod macros;
 mod no_inits;
@@ -29,8 +30,10 @@ mod reduce;
 mod reflect;
 mod reflect_beta;
 mod reflect_trees;
+mod reflect_vals;
 mod reselect;
 mod retype;
+mod retyped;
 mod skolems;
 mod splice;
 mod this_proxy;
@@ -88,8 +91,15 @@ pub struct Inlining<'a> {
     pub outermost_span: Span,
     /// The span of the outermost `Inlined` tree from the typer around the code being expanded.
     typer_inlined: Option<Span>,
-    /// Whether the code being expanded is in the scope of an implicit it defines.
+    /// Whether the code being expanded is in the scope of an implicit it defines other than by a
+    /// block statement.
     pub local_implicits: bool,
+    /// The implicit values and methods block statements of the code being expanded define, in
+    /// whose scope it is, by block, outermost first.
+    pub block_implicits: Vec<Vec<SymbolId>>,
+    /// Whether the code being retyped is a macro's result, whose references to methods with a
+    /// using clause take their implicit arguments.
+    pub in_macro_result: bool,
 }
 
 impl AsMut<Tpd> for Inlining<'_> {
@@ -122,6 +132,8 @@ impl<'a> Inlining<'a> {
             outermost_span: Span::NONE,
             typer_inlined: None,
             local_implicits: false,
+            block_implicits: Vec::new(),
+            in_macro_result: false,
         }
     }
 }
@@ -262,7 +274,7 @@ impl Inlining<'_> {
             let node = self.tpd.get_mut(qual);
             (node.sym, node.tpe) = (Some(c), Some(tpe));
         }
-        for c in self.tpd.children(t) {
+        for c in self.tpd.traversed(t) {
             self.type_this_qualifiers(c);
         }
     }

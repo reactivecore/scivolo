@@ -79,9 +79,6 @@ impl Typer<'_> {
                 Ok(t) => t,
                 Err(what) => return self.unsupported(id, what),
             };
-            if self.type_arity(tpe) != self.bounds_of(params[i].1).2 {
-                return self.unsupported(id, "type argument of another kind");
-            }
             args[i] = Some(tpe);
             let name = syntax::ast::TName { name: self.name(&name), is_type: true };
             let node = T::NamedArg { name, arg: typed };

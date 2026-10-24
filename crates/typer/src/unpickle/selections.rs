@@ -104,13 +104,21 @@ impl Unpickler<'_> {
                 .filter(|&s| self.u.symbol(s).kind == Kind::Def && params_sig(self.u, s) == sig)
                 .collect(),
             None if found.len() == 1 => found,
-            None => found.into_iter().filter(|&s| self.u.symbol(s).kind != Kind::Def).collect(),
+            None => found.into_iter().filter(|&s| !self.is_method_with_params(s)).collect(),
         };
         match matching[..] {
             [s] => Ok(s),
             [] => Err("selection of an unknown member in a library inline body"),
             _ => Err("selection of an overloaded member in a library inline body"),
         }
+    }
+
+    /// Whether `s` is a method with parameter lists, whose selections are signed (unlike dotty's
+    /// `Signature.NotAMethod`).
+    fn is_method_with_params(&mut self, s: SymbolId) -> bool {
+        let info = self.u.info(s);
+        self.u.symbol(s).kind == Kind::Def
+            && matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
     }
 
     /// `C.this`, its qualifier the untyped name of the class.

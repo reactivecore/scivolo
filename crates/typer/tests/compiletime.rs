@@ -14,8 +14,8 @@ const CASES: &[(&str, &str)] = &[
         "constValue of a type that is not constant",
     ),
     (
-        "object O { inline def f: String = { given x: Show[Int] = null; summonInline[Show[Int]].show(1) }; \
-         def g = f }",
+        "object O { inline def f: String = { def h(using x: Show[Int]) = summonInline[Show[Int]].show(1); \
+         h(using null) }; def g = f }",
         "implicit search in an inline body with local implicits",
     ),
     (

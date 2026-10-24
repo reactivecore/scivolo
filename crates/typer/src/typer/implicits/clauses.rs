@@ -122,15 +122,6 @@ impl Typer<'_> {
         Ok(f)
     }
 
-    /// `f` applied to the arguments of its first clause if that is a `using` clause, as before
-    /// explicit type arguments.
-    pub fn with_leading_using(&mut self, f: TNodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        match self.takes_using(f) {
-            true => self.implicit_clause_applied(f, ctx),
-            false => Ok(f),
-        }
-    }
-
     /// Whether the first parameter clause of function `f` is a `using` clause.
     pub fn takes_using(&mut self, f: TNodeId) -> bool {
         let tpe = self.tpd.tpe(f);

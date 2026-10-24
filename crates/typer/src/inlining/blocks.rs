@@ -145,11 +145,16 @@ impl Inlining<'_> {
                 }
                 p.is_some_and(|p| self.misplaced_local(p, locals, 0, depth - 1))
             }
-            Type::Sym(p, _) => {
+            Type::Sym(..) | Type::TypeRef(..) => {
                 let d = self.u.dealias(t);
                 if d != t {
                     return self.misplaced_local(d, locals, variance, depth - 1);
                 }
+                let p = match *self.u.types().get(t) {
+                    Type::TypeRef(p, _) => Some(p),
+                    Type::Sym(p, _) => p,
+                    _ => None,
+                };
                 p.is_some_and(|p| self.misplaced_local(p, locals, 0, depth - 1))
             }
             Type::Applied(tycon, args) => {
@@ -166,6 +171,10 @@ impl Inlining<'_> {
                     found = found || self.misplaced_local(a, locals, variance * param, depth - 1);
                 }
                 found
+            }
+            Type::Or(a, b, _) | Type::And(a, b) => {
+                self.misplaced_local(a, locals, variance, depth - 1)
+                    || self.misplaced_local(b, locals, variance, depth - 1)
             }
             _ => mentions_any(self.u, t, locals),
         }

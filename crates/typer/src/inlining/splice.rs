@@ -68,7 +68,10 @@ impl Inlining<'_> {
             .collect();
         let tree = self.quoted_trees(&expanded, &args)?;
         self.tpd.get_mut(tree).span = span;
-        self.retype(tree, &FxHashMap::default(), owner).map(Some)
+        let outer = std::mem::replace(&mut self.in_macro_result, true);
+        let retyped = self.retype(tree, &FxHashMap::default(), owner);
+        self.in_macro_result = outer;
+        retyped.map(Some)
     }
 
     /// The argument of `t` if it is a call `scala.quoted.runtime.Expr.<name>[T](arg)`.
@@ -118,6 +121,7 @@ impl Inlining<'_> {
                     let body = self.constant_arg(body);
                     MacroArg::Expr(self.outer_inlined(body))
                 }
+                MacroArg::Type(t) => MacroArg::Type(crate::typer::simplify::normalize_all(self.u, t)),
                 arg => arg,
             });
         }

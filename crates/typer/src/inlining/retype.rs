@@ -2,8 +2,7 @@
 //   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
 //! The typing pass over a copied inline body (dotty's `InlineTyper`, a `ReTyper`): inline
 //! arguments in place of their proxies, operations on constants folded into literals, `if`s on
-//! constants and inline matches reduced, and the types of `if`s, blocks and inlined arguments
-//! recomputed.
+//! constants and inline matches reduced, the types of `if`s recomputed.
 
 use super::copy::TreeTypeMap;
 use super::{Inlining, Unsupported};
@@ -21,10 +20,27 @@ impl Inlining<'_> {
         args: &FxHashMap<SymbolId, TNodeId>,
         owner: SymbolId,
     ) -> Result<TNodeId, Unsupported> {
+        self.retype_part(t, args, owner, true)
+    }
+
+    /// `retype`, a reference to or an application of a method whose next clause is a using clause
+    /// applied to its implicit arguments if `adapt`.
+    fn retype_part(
+        &mut self,
+        t: TNodeId,
+        args: &FxHashMap<SymbolId, TNodeId>,
+        owner: SymbolId,
+        adapt: bool,
+    ) -> Result<TNodeId, Unsupported> {
         let t = self.retype_node(t, args, owner)?;
         if let Some(expanded) = self.expand_splice(t, owner)? {
             return Ok(expanded);
         }
+        let adaptable = matches!(
+            self.tpd.tree(t),
+            T::Ident { .. } | T::Select { .. } | T::TypeApply { .. } | T::Apply { .. }
+        );
+        let t = if adapt && adaptable && self.in_macro_result { self.with_implicit_args(t)? } else { t };
         let Some(def) = self.inline_method(t)? else { return Ok(t) };
         self.inline_call(t, def, owner)
     }
@@ -120,13 +136,20 @@ impl Inlining<'_> {
                 let (inner, within) = self.owners_within(t, owner);
                 let outer_class = std::mem::replace(&mut self.enclosing_class, within);
                 let mut failed = None;
+                let mark = self.enter_block_implicits(t);
+                let unadapted = match *self.tpd.tree(t) {
+                    T::Apply { fun, .. } | T::TypeApply { fun, .. } => Some(fun),
+                    T::Closure { meth, .. } => Some(meth),
+                    _ => None,
+                };
                 map_children(self, t, &mut |i, c| match Some(c) == call {
                     true => c,
-                    false => i.retype(c, args, inner).unwrap_or_else(|e| {
+                    false => i.retype_part(c, args, inner, Some(c) != unadapted).unwrap_or_else(|e| {
                         failed.get_or_insert(e);
                         c
                     }),
                 });
+                self.block_implicits.truncate(mark);
                 self.enclosing_class = outer_class;
                 failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)
@@ -149,50 +172,5 @@ impl Inlining<'_> {
         let t = self.retype(t, args, owner);
         self.force_inline = outer;
         t
-    }
-
-    /// Node `t`, whose children are retyped, retyped itself.
-    fn retyped(&mut self, t: TNodeId, owner: SymbolId) -> Result<TNodeId, Unsupported> {
-        let applied = matches!(self.tpd.tree(t), T::Apply { .. });
-        let t = self.beta_reduce(t, owner)?;
-        match *self.tpd.tree(t) {
-            T::Select { .. } | T::Apply { .. } => {
-                self.fold_constants(t);
-                Ok(self.const_to_literal(t))
-            }
-            _ if applied => Ok(self.const_to_literal(t)),
-            T::Block { stats, expr } => {
-                let locals: Vec<SymbolId> =
-                    self.tpd.items(stats).iter().filter_map(|&s| self.tpd.sym(s)).collect();
-                let tpe = self.tpd.tpe(expr);
-                if !locals.iter().any(|&l| self.mentions(tpe, l)) {
-                    self.tpd.get_mut(t).tpe = Some(tpe);
-                } else if let Some(avoided) = self.avoid(tpe, &locals) {
-                    let span = self.tpd.span(expr);
-                    let tpt =
-                        self.tpd.node(T::TypeTree { inferred: true }, span.end_pos(), Some(avoided), None);
-                    let expr =
-                        self.tpd.node(T::Typed { expr, tpt }, span.to_synthetic(), Some(avoided), None);
-                    self.tpd.get_mut(t).tree = T::Block { stats, expr };
-                    self.tpd.get_mut(t).tpe = Some(avoided);
-                }
-                Ok(t)
-            }
-            T::Inlined { expansion, .. } => {
-                self.tpd.get_mut(t).tpe = Some(self.tpd.tpe(expansion));
-                Ok(t)
-            }
-            T::Match { cases: parts, .. } | T::Alternative { trees: parts } => {
-                let parts = self.tpd.items(parts).to_vec();
-                self.tpd.get_mut(t).tpe = Some(crate::tpd::lub_of(self.tpd, self.u, &parts));
-                Ok(t)
-            }
-            T::Try { expr, cases, .. } => {
-                let parts = [&[expr][..], self.tpd.items(cases)].concat();
-                self.tpd.get_mut(t).tpe = Some(crate::tpd::lub_of(self.tpd, self.u, &parts));
-                Ok(t)
-            }
-            _ => Ok(t),
-        }
     }
 }
