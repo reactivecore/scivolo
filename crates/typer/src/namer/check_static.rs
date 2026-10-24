@@ -37,12 +37,11 @@ impl Typer<'_> {
         if flags.is(f::LAZY) || in_companion || overrides || trait_var || field_after {
             return self.unsupported_at(span, "@static member CheckStatic rejects");
         }
-        let tree = self.syms.by_tree.iter().find(|&(_, &s)| s == sym).map(|(&t, _)| t);
-        let rhs = tree.and_then(|t| match *self.ast.tree(t) {
+        let rhs = self.syms.def_trees.get(&sym).and_then(|&t| match *self.ast.tree(t) {
             Tree::ValDef { rhs, .. } => rhs,
             _ => None,
         });
-        if rhs.is_some_and(|r| !matches!(self.ast.tree(r), Tree::Literal { .. })) {
+        if rhs.is_some_and(|r| !matches!(self.ast.tree(r), Tree::Literal { .. } | Tree::Number { .. })) {
             self.unsupported_at(span, "@static value initialized by more than a literal");
         }
     }
