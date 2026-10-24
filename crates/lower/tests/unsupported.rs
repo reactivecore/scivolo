@@ -121,10 +121,7 @@ const CASES: &[(&str, &str)] = &[
          object O { def f[A, B](b: B): B = b; def g = f[A = List](1) }",
         "type argument of another kind",
     ),
-    (
-        "object O { def f(x: (a: Int, b: String) & (b: String, a: Int)): Int = x.a }",
-        "member not found",
-    ),
+    ("object O { def f(x: (a: Int, b: String) & (b: String, a: Int)): Int = x.a }", "member not found"),
 ];
 
 #[test]
