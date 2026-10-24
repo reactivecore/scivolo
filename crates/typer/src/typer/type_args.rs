@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! The arities of type constructors and the kinds of type arguments: type constructors where
-//! higher-kinded parameters are, class constructors eta-expanded (dotty's `adaptType`).
+//! The kinds of type arguments: type constructors where higher-kinded parameters are, class
+//! constructors eta-expanded (dotty's `adaptType`).
 
 use super::Typer;
 use crate::symbols::Completion;
@@ -10,39 +10,6 @@ use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// How many type parameters type constructor `t` takes: a class's, a type lambda's.
-    pub fn type_arity(&mut self, t: TypeId) -> usize {
-        self.type_arity_within(t, 32)
-    }
-
-    fn type_arity_within(&mut self, t: TypeId, depth: u32) -> usize {
-        let Some(depth) = depth.checked_sub(1) else { return 0 };
-        match self.u.types().get(t).clone() {
-            Type::Sym(_, s) => match self.u.symbol(s).kind {
-                Kind::Class => self.u.type_params(s).len(),
-                Kind::Type | Kind::TypeParam => {
-                    self.complete(s);
-                    let info = self.u.info(s);
-                    match self.u.types().get(info).clone() {
-                        Type::Alias(a) | Type::Bounds(_, a) => self.type_arity_within(a, depth),
-                        Type::Lambda { params, .. } => params.len(),
-                        _ => 0,
-                    }
-                }
-                _ => 0,
-            },
-            Type::Lambda { params, .. } => params.len(),
-            Type::Applied(tycon, _) => {
-                if let Type::Sym(_, s) = *self.u.types().get(tycon) {
-                    self.complete(s);
-                }
-                let reduced = self.u.dealias(t);
-                if reduced == t { 0 } else { self.type_arity_within(reduced, depth) }
-            }
-            _ => 0,
-        }
-    }
-
     /// What about type arguments `args` of type constructor `tycon` taking `arity` is outside
     /// the subset: their number, `AnyKind` for a type other than a class, a constructor where a
     /// parameter of another kind is, or a class constructor where the parameters are unknown.

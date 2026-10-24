@@ -172,6 +172,7 @@ mod try_handlers;
 mod tuple_xxl;
 pub(crate) mod type_apply;
 mod type_args;
+mod type_arity;
 mod type_defs;
 mod type_lambdas;
 mod type_mismatch;

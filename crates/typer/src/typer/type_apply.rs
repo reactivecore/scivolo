@@ -133,7 +133,8 @@ impl Typer<'_> {
         for (&(_, bounds), &arg) in params.iter().zip(args) {
             let bounds = self.instantiate_poly(bounds, binder, &names, args, method);
             let (lo, hi, arity) = self.bounds_of(bounds);
-            if !fresh && self.type_arity(arg) != arity {
+            let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
+            if !fresh && !any_kind && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
             let var = match *self.u.types().get(arg) {
@@ -151,30 +152,6 @@ impl Typer<'_> {
             }
         }
         Ok(self.instantiate_poly(result, binder, &names, args, method))
-    }
-
-    /// The lower and upper bound of type parameter info `bounds` and the arity of the parameter;
-    /// of a higher-kinded one, `[X] =>> >: L <: H`, `[X] =>> L` and `[X] =>> H`, the lower one
-    /// `None` for `Nothing`.
-    pub fn bounds_of(&mut self, bounds: TypeId) -> (Option<TypeId>, TypeId, usize) {
-        match self.u.types().get(bounds).clone() {
-            Type::Bounds(lo, hi) => (Some(lo), hi, self.type_arity(hi)),
-            Type::Lambda { binder, params, result } => {
-                let (lo, hi) = match *self.u.types().get(result) {
-                    Type::Bounds(lo, hi) => (lo, hi),
-                    _ => (result, result),
-                };
-                let bottom = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
-                let arity = params.len();
-                let mut lambda = |result| {
-                    let params = params.clone();
-                    self.u.intern_type(Type::Lambda { binder, params, result })
-                };
-                let lo = lambda(lo);
-                ((!bottom).then_some(lo), lambda(hi), arity)
-            }
-            _ => (Some(bounds), bounds, self.type_arity(bounds)),
-        }
     }
 
     /// `t` with the type parameters of binder `binder`, named `names`, and the type parameter

@@ -124,6 +124,13 @@ impl Typer<'_> {
         bases.into_iter().filter(|&b| b != class).any(|b| self.u.decl(b, &name).is_ok_and(|d| !d.is_empty()))
     }
 
+    /// The info of type member `s` selected on `pre`: that a refinement of `pre`'s type gives it,
+    /// else its own.
+    pub fn refined_info(&mut self, pre: Option<TypeId>, s: SymbolId) -> TypeId {
+        let refined = pre.and_then(|p| self.u.refinement_info(p, s));
+        refined.unwrap_or_else(|| self.u.info(s))
+    }
+
     /// The type definition whose right-hand side is `rhs`: an alias or abstract type being
     /// completed, else a type parameter.
     fn type_def_with_rhs(&self, rhs: NodeId) -> Option<SymbolId> {
