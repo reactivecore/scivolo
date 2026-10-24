@@ -47,7 +47,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         if !counts.get(&m).is_some_and(|&(d, _)| d == t) {
             continue;
         }
-        if !overrides_alike(l, m, &defs, &counts) {
+        if !super::context_bridges::overrides_alike(l, m, &defs, &counts) {
             return unsupported(
                 l.tpd.span(t),
                 "overriding methods with context function results flattened otherwise",
@@ -109,48 +109,6 @@ fn context_result_count(l: &mut Lower, mut tpt: TNodeId, mut rhs: TNodeId) -> us
         (n, tpt, rhs) = (n + 1, at, ar);
     }
     n
-}
-
-/// Whether every member of the name of method `m` that `m` may override, or that may override
-/// `m`, is a method of the unit flattened by as many closures, or an abstract one of the unit's
-/// a base class declares, bridged: those of the base classes of its class and of the unit's
-/// classes deriving from it, and of `Object` and `Any`.
-fn overrides_alike(
-    l: &mut Lower,
-    m: SymbolId,
-    defs: &[SymbolId],
-    counts: &FxHashMap<SymbolId, (TNodeId, usize)>,
-) -> bool {
-    let Some(owner) = l.u.symbol(m).owner.filter(|&o| l.u.symbol(o).kind == Kind::Class) else {
-        return true;
-    };
-    let count = counts.get(&m).map(|&(_, c)| c);
-    let name = l.u.symbol(m).name.clone();
-    let mut classes = vec![owner];
-    for &d in defs {
-        let o = l.u.symbol(d).owner.filter(|&o| l.u.symbol(o).kind == Kind::Class);
-        if let Some(o) = o.filter(|&o| !classes.contains(&o) && l.u.derives_from(o, owner)) {
-            classes.push(o);
-        }
-    }
-    let mut related: Vec<SymbolId> = Vec::new();
-    for class in classes {
-        for base in l.u.linearization(class) {
-            related.extend(l.u.decl(base, &name).unwrap_or_default());
-        }
-    }
-    let roots = [("java.lang", "Object"), ("scala", "Any")];
-    let bridged = |l: &mut Lower, d| !counts.contains_key(&d) && super::context_bridges::bridged(l, owner, d);
-    related.into_iter().all(|d| d == m || counts.get(&d).map(|&(_, c)| c) == count || bridged(l, d))
-        && roots.into_iter().all(|(p, c)| !root_declares(l, p, c, &name))
-}
-
-/// Whether class `class` of package `package` declares a member `name`, or cannot be found.
-fn root_declares(l: &mut Lower, package: &str, class: &str, name: &str) -> bool {
-    let Some(pkg) = l.u.package(package) else { return true };
-    let found = l.u.decl(pkg, class).unwrap_or_default();
-    let classes: Vec<SymbolId> = found.into_iter().filter(|&c| l.u.symbol(c).kind == Kind::Class).collect();
-    classes.is_empty() || classes.into_iter().any(|c| l.u.decl(c, name).map_or(true, |d| !d.is_empty()))
 }
 
 /// Moves the parameters and bodies of the context closures of method definition `def` of `m`
