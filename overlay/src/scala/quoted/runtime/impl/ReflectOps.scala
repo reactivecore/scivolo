@@ -33,7 +33,8 @@ object ReflectOps {
 
   /** The kind of tree `x`: 1 `Ident`, 2 `Select`, 3 `Literal`, 4 `Typed`, 5 `Apply`, 6 `TypeApply`,
    *  7 `Block`, 8 `Inlined`, 9 `Repeated`, 10 `TypeTree`, 11 `Inferred`, 12 `ValDef`, 13 `NamedArg`,
-   *  14 another term, 15 `DefDef`, 16 `TypeDef`, 17 `Import`, 18 `This`, 19 `ClassDef`, 0 another tree.
+   *  14 another term, 15 `DefDef`, 16 `TypeDef`, 17 `Import`, 18 `This`, 19 `ClassDef`, 20 `Closure`,
+   *  0 another tree.
    */
   def kind(x: Any): Int = one("treeKind", id(x))
 
@@ -41,6 +42,13 @@ object ReflectOps {
   def shape(x: Any): Shape = {
     val n = run("tree", Array(id(x)), null)
     new Shape(QuoteHost.result(0), List.tabulate(n - 1)(i => QuoteHost.result(i + 1)), QuoteHost.resultText())
+  }
+
+  /** `ValDef.copy` and `DefDef.copy` of `original` with parameters `params`. */
+  def copyDef(original: Any, name: String, params: List[Any], tpt: Any, rhs: Option[Any]): Any = {
+    val args = Array(id(original), id(tpt), rhs.fold(-1)(id)) ++ params.map(id)
+    run("copyDef", args, name)
+    term(QuoteHost.result(0))
   }
 
   def term(id: Int): Any = QuoteHost.expr(id)

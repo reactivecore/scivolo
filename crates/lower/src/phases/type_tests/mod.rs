@@ -18,7 +18,7 @@ use syntax::ast::Span;
 use tasty::{Erased, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// Whether `t` is a type test or cast `x.isInstanceOf[T]`, `x.$isInstanceOf[T]`,
+/// Whether `t` is a type test or cast `x.isInstanceOf[T]`, `x.$isInstanceOf$[T]`,
 /// `x.asInstanceOf[T]` or `x.$asInstanceOf$[T]`.
 pub fn is_test_or_cast(l: &Lower, t: TNodeId) -> bool {
     let Tree::TypeApply { fun, .. } = *l.tpd.tree(t) else { return false };

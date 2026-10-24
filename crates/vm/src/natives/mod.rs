@@ -2,6 +2,7 @@
 //! runtime methods.
 
 mod callback;
+mod expansions;
 mod ffi;
 mod gc;
 mod java_thread;

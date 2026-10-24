@@ -4,11 +4,8 @@
 use super::NativeFn;
 use crate::interp::Flow;
 use crate::layout::{ARRAY_HEADER, ARRAY_LENGTH};
-use crate::{Vm, VmError, heap};
-use nir::StrId;
-use std::cell::Cell;
+use crate::{Vm, heap};
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::rc::Rc;
 
 pub const HOST: &str = "scala.quoted.runtime.impl.QuoteHost$";
 const UNSUPPORTED: &str = "scala.quoted.runtime.impl.Unsupported";
@@ -57,53 +54,10 @@ pub enum MacroArg {
 /// how many there were.
 #[derive(Default)]
 pub struct Expansions {
-    running: Option<(Box<dyn QuoteHost>, Vec<MacroArg>)>,
-    count: u32,
+    pub running: Option<(Box<dyn QuoteHost>, Vec<MacroArg>)>,
+    pub count: u32,
     /// What the last `quotes.reflect` operation answered.
     pub reflected: Reflected,
-}
-
-impl Vm {
-    /// Calls method `sig` of module `module` with `args`, `host` serving its quotes; the number
-    /// of the expression it returns. `host` is handed back whatever the outcome.
-    pub fn expand_macro(
-        &mut self,
-        host: Box<dyn QuoteHost>,
-        (module, sig): (&str, &str),
-        args: &[MacroArg],
-    ) -> (Box<dyn QuoteHost>, Result<u32, VmError>) {
-        self.quotes.running = Some((host, args.to_vec()));
-        self.quotes.count += 1;
-        let (module, quote_host) = (self.world.top(module), self.world.top(HOST));
-        let sig = StrId(self.world.pool.strings.intern(sig.into()));
-        let [made_args, id] = ["D4argsLAL16java.lang.Object_EO", "D6exprIdL17scala.quoted.ExpriEO"]
-            .map(|s| self.world.member(quote_host, s));
-        let out = Rc::new(Cell::new(0));
-        let result = out.clone();
-        let run = self.run_main_thread(move |vm| {
-            let host = vm.module(quote_host)? as u64;
-            let target = vm.module(module)?;
-            let f = vm.virtual_method(target, sig)?;
-            let arr = vm.call_global(made_args, &[host])? as usize;
-            let len: i32 = heap::read(arr + ARRAY_LENGTH);
-            let at = |i: usize| match macro_arg(vm, i as u64) {
-                Some(&MacroArg::Unboxed(bits)) => bits,
-                _ => heap::read::<u64>(arr + ARRAY_HEADER as usize + 8 * i),
-            };
-            let values: Vec<u64> = std::iter::once(target as u64).chain((0..len as usize).map(at)).collect();
-            let returned = vm.call(f, &values)?;
-            std::hint::black_box(arr);
-            result.set(vm.call_global(id, &[host, returned])? as u32);
-            Ok(())
-        });
-        let (host, _) = self.quotes.running.take().expect("the quote host of the macro expansion");
-        (host, run.map(|()| out.get()))
-    }
-
-    /// How many macro expansions ran.
-    pub fn macro_expansions(&self) -> u32 {
-        self.quotes.count
-    }
 }
 
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
@@ -158,7 +112,7 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
 }
 
 /// Argument `i` of the macro expansion running.
-fn macro_arg(vm: &Vm, i: u64) -> Option<&MacroArg> {
+pub fn macro_arg(vm: &Vm, i: u64) -> Option<&MacroArg> {
     vm.quotes.running.as_ref().and_then(|(_, a)| a.get(i as usize))
 }
 

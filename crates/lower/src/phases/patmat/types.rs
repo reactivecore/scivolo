@@ -1,6 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
-//! Type patterns: `x @ (p: T)` brought to `(x @ p): T`, the test `scrutinee.$isInstanceOf[T]`
+//! Type patterns: `x @ (p: T)` brought to `(x @ p): T`, the test `scrutinee.$isInstanceOf$[T]`
 //! and the cast `scrutinee.asInstanceOf[T]` the pattern then matches; named tuples cast to their
 //! values.
 
@@ -51,9 +51,9 @@ impl Translator<'_, '_> {
         (self.l.u.full_name(nt) == "scala.NamedTuple$.NamedTuple").then_some(values)
     }
 
-    /// The condition `scrutinee.$isInstanceOf[T]` of type pattern type `tpt`, for `p.C` of a class
-    /// `C` with an enclosing instance also `scrutinee.asInstanceOf[C].C$$$outer() eq p` for a
-    /// singleton `p`, `….$isInstanceOf[P]` for a class type `P` (dotty's `addOuterTest`).
+    /// The condition `scrutinee.$isInstanceOf$[T]` of type pattern type `tpt`, for `p.C` of a
+    /// class `C` with an enclosing instance also `scrutinee.asInstanceOf[C].C$$$outer() eq p` for
+    /// a singleton `p`, `….$isInstanceOf$[P]` for a class type `P` (dotty's `addOuterTest`).
     pub fn type_test(&mut self, scrutinee: TNodeId, tpt: TNodeId) -> TNodeId {
         let target = self.l.tpd.tpe(tpt);
         let dealiased = self.l.u.dealias(target);

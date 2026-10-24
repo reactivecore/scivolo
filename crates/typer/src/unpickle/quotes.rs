@@ -9,7 +9,7 @@ use super::{Refusal, Unpickler};
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::TName;
 use syntax::names::Names;
-use tasty::tags::{BLOCK, HOLE, TYPEDEF};
+use tasty::tags::{ANNOTATION, BLOCK, HOLE, TYPEDEF};
 use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, Type, TypeId, Universe, View, view};
 
 /// A term hole of a quote: its placeholder tree, the index its pickle gives it and its arguments.
@@ -129,6 +129,20 @@ impl Unpickler<'_> {
             spliced.push((sym, tpe));
         }
         Ok((k[0], spliced))
+    }
+
+    /// Records the annotation classes of modifiers `mods` on `s`, a definition in a quote.
+    pub fn annotate_quoted(&mut self, s: SymbolId, mods: &[NodeId]) {
+        if self.holes.is_none() {
+            return;
+        }
+        let annotations: Vec<NodeId> = mods.iter().copied().filter(|&m| self.tag(m) == ANNOTATION).collect();
+        for m in annotations {
+            let tpe = self.ty(self.kids(m)[0]);
+            if let Some(c) = self.u.class_symbol(tpe) {
+                self.u.annotate(s, c);
+            }
+        }
     }
 
     /// `HOLE`: a placeholder of the hole's type, recorded with its index and arguments.

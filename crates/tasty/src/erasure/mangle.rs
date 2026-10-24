@@ -19,7 +19,7 @@ fn ident(id: &str) -> String {
     format!("{}{dash}{id}", id.encode_utf16().count())
 }
 
-fn mangle(e: &Erased) -> String {
+pub fn mangle(e: &Erased) -> String {
     match e {
         Erased::Prim('R') => "R_".into(),
         Erased::Prim(c) => c.to_string(),
