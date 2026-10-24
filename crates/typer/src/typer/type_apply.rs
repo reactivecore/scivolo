@@ -16,6 +16,9 @@ impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let poly = self.poly_protos.len();
         let arg_ids = self.ast.items(args).to_vec();
+        if self.is_named_type_apply(fun) {
+            return self.unsupported(id, "illegal repeated type application");
+        }
         if arg_ids.iter().any(|&a| matches!(self.ast.tree(a), syntax::ast::Tree::NamedArg { .. })) {
             return self.typed_named_type_apply(id, fun, &arg_ids, pt, ctx);
         }

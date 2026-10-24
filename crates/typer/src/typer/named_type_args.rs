@@ -13,6 +13,12 @@ use syntax::config::Features;
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
+    /// Whether `fun` is a type application to named arguments.
+    pub fn is_named_type_apply(&self, fun: NodeId) -> bool {
+        let Tree::TypeApply { args, .. } = *self.ast.tree(fun) else { return false };
+        self.ast.items(args).iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. }))
+    }
+
     /// Type application `id` of `fun` to the named arguments `arg_ids`.
     pub fn typed_named_type_apply(
         &mut self,
