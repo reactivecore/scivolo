@@ -47,7 +47,14 @@ impl Universe {
         if ra != rb {
             return ra < rb;
         }
-        if let (Some(ca), Some(cb)) = (self.erased_class(a), self.erased_class(b)) {
+        let class = |u: &mut Self, t: TypeId, e: &Erased| {
+            let Erased::Class(name) = e else { return u.erased_class(t) };
+            u.erased_class(t).or_else(|| {
+                let r = u.class_ref(name);
+                u.class_symbol(r)
+            })
+        };
+        if let (Some(ca), Some(cb)) = (class(self, a, &ea), class(self, b, &eb)) {
             if self.derives_from(ca, cb) {
                 return true;
             }
