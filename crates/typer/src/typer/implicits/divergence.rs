@@ -38,12 +38,11 @@ impl Typer<'_> {
                     None => self.measure(pt)?,
                 };
                 current = Some(cur.clone());
-                if prev.size <= cur.size {
-                    if prev.covering == cur.covering
-                        && (prev.size < cur.size || self.frozen_same(wild_tp, wild_pt))
-                    {
-                        return Ok(true);
-                    }
+                if prev.size <= cur.size
+                    && prev.covering == cur.covering
+                    && (prev.size < cur.size || self.frozen_same(wild_tp, wild_pt))
+                {
+                    return Ok(true);
                 }
             }
             below |= tp_by_name;
