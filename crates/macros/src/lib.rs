@@ -35,6 +35,13 @@ impl Macros for VmMacros<'_> {
     ) -> Result<Expanded, MacroError> {
         let refused = |what: &str| MacroError::Unsupported(what.to_owned());
         let u = &mut *lent.0;
+        if call.context
+            && u.annotation_int(call.method, "scala.annotation.internal.ContextResultCount") != Some(1)
+        {
+            return Err(refused(
+                "a macro implementation returning a context function not erased to a parameter",
+            ));
+        }
         let module = u.binary_name(call.receiver);
         let sig = u
             .method_signature(call.method)
