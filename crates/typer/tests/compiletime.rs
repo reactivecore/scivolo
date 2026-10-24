@@ -29,7 +29,7 @@ const CASES: &[(&str, &str)] = &[
          def g = f }",
         "ambiguous implicit arguments",
     ),
-    ("object O { inline def f(x: Int): String = codeOf(x); def g(y: Int) = f(y) }", "codeOf an argument"),
+    ("object O { def g = codeOf(Some(1)) }", "codeOf an argument"),
     ("object O { def g = summonInline[Show[String]] }", "no implicit argument"),
 ];
 

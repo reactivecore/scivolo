@@ -148,21 +148,6 @@ impl Inlining<'_> {
         TName { name: self.names.intern(&self.u.symbol(s).name.clone()), is_type: false }
     }
 
-    /// The source text of argument `arg` as dotty shows it, for a literal whose text is the same.
-    fn code_of(&mut self, arg: TNodeId, span: Span) -> Result<TNodeId, Unsupported> {
-        let inner = match *self.tpd.tree(arg) {
-            T::Inlined { call: None, bindings, expansion } if bindings.is_empty() => expansion,
-            _ => arg,
-        };
-        let text = match self.tpd.tree(inner) {
-            T::Literal { value: C::Int(n) } => n.to_string(),
-            T::Literal { value: C::Long(n) } => format!("{n}L"),
-            T::Literal { value: C::Boolean(b) } => b.to_string(),
-            _ => return Err((span, "codeOf an argument other than an Int, Long or Boolean literal")),
-        };
-        Ok(self.literal(C::String(text.encode_utf16().collect()), span))
-    }
-
     /// Reports the message of `call` of `error` at the outermost call.
     pub fn issue_error(&mut self, call: TNodeId) -> Result<(), Unsupported> {
         let (_, vargss) = self.call_args(call);
