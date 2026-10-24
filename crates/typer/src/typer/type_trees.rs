@@ -76,6 +76,7 @@ impl Typer<'_> {
                     && let Type::Sym(_, s) = *self.u.types().get(tycon)
                     && self.u.symbol(s).kind == Kind::Type
                     && self.syms.flags.contains_key(&s)
+                    && !self.reduces_with_wildcards(s)
                 {
                     return self.unsupported(id, "parameterized type alias applied to a wildcard");
                 }
