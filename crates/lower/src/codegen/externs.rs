@@ -18,10 +18,14 @@ const EXTERN_BODY: &str = "scala.scalanative.unsafe.package$.extern";
 const NAME: &str = "scala.scalanative.unsafe.name";
 const BLOCKING: &str = "scala.scalanative.unsafe.package$.blocking";
 
-/// The C type a value of class `name` passes as (NIR's `Type.unbox`).
+/// The arity of function pointer class `name`.
+fn func_arity(name: &str) -> Option<u8> {
+    name.strip_prefix("scala.scalanative.unsafe.CFuncPtr")?.parse().ok()
+}
+
+/// The C type a value of class `name` passes as (NIR's `Type.unbox`, without `CFuncPtr22`).
 pub fn unboxed(name: &str) -> Option<Type> {
-    let func =
-        name.strip_prefix("scala.scalanative.unsafe.CFuncPtr").is_some_and(|n| n.parse::<u8>().is_ok());
+    let func = func_arity(name).is_some_and(|n| n < 22);
     Some(match name {
         _ if func => Type::Ptr,
         "scala.scalanative.unsafe.Ptr" | "scala.scalanative.unsafe.CArray" => Type::Ptr,
@@ -168,6 +172,7 @@ impl Gen<'_, '_> {
 
     pub fn extern_type(&mut self, e: &Erased) -> TypeId {
         match e {
+            Erased::Class(name) if func_arity(name).is_some() => self.ty(Type::Ptr),
             Erased::Class(name) if let Some(t) = unboxed(name) => self.ty(t),
             e => self.erased(e),
         }
