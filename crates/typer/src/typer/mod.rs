@@ -70,6 +70,7 @@ mod extension_calls;
 mod extension_fallback;
 mod features;
 mod find_ref;
+mod forward_refs;
 mod function_types;
 mod future_infix;
 mod generic_arrays;

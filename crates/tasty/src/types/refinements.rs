@@ -31,6 +31,12 @@ impl Universe {
                     return Some(info);
                 }
                 Type::Refined(p, ..) | Type::Annotated(p, _) => t = p,
+                Type::And(a, b) => {
+                    let (a, b) = (self.refinement_named(a, name), self.refinement_named(b, name));
+                    let alias =
+                        |i: &Option<TypeId>| i.is_some_and(|i| matches!(self.types().get(i), Type::Alias(_)));
+                    return if alias(&b) || a.is_none() { b } else { a };
+                }
                 _ => match self.dealias(t) {
                     d if d != t => t = d,
                     _ => return None,

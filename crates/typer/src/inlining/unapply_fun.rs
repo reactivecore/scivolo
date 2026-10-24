@@ -49,6 +49,7 @@ impl Inlining<'_> {
         let arg = self.tpd.node(T::Ident { name: arg_name }, at, Some(arg_type), Some(param));
         let args = self.tpd.list(&[arg]);
         let call = self.tpd.node(T::Apply { fun, args }, span, Some(result), None);
+        self.host.copied_call(fun, call);
         let body = match self.inline_method(call)? {
             Some(def) => self.inline_call(call, def, unapply)?,
             None => call,

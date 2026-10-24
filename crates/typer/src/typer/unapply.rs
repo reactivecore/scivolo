@@ -112,6 +112,7 @@ impl Typer<'_> {
         let (implicits, patterns) = (self.tpd.list(&implicits), self.tpd.list(&patterns));
         let span = self.ast.span(id);
         let tree = self.tpd.node(T::UnApply { fun: unapp, implicits, patterns }, span, Some(own), None);
+        self.record_inline_extractor(unapp, ctx);
         if !tested || self.is_bottom_type(sel) {
             return Ok(tree);
         }

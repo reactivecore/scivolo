@@ -12,6 +12,7 @@ mod projection;
 use super::{Inlining, Unsupported};
 use crate::tpd::{List, TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
+use tasty::tags::GIVEN;
 use tasty::{SymbolId, TypeId};
 
 /// The reduction of one inline match in an expansion.
@@ -117,10 +118,24 @@ impl Reducer<'_, '_> {
         };
         let rhs = self.i.seq(&used, rhs)?;
         let outer = self.i.local_implicits;
-        self.i.local_implicits |= self.implicit && !bindings.is_empty() || self.i.has_implicit_def(rhs);
+        self.i.local_implicits |= self.i.has_implicit_def(rhs);
+        let mark = self.with_givens(&used);
         let retyped = self.i.retype(rhs, self.args, self.owner);
+        self.i.case_givens.truncate(mark);
         self.i.local_implicits = outer;
         retyped
+    }
+
+    /// The givens among `bindings` of a `summonFrom` case added to the case givens in scope; the
+    /// number of those before.
+    fn with_givens(&mut self, bindings: &[TNodeId]) -> usize {
+        let mark = self.i.case_givens.len();
+        if self.implicit {
+            let syms = bindings.iter().filter_map(|&b| self.i.tpd.sym(b));
+            let givens: Vec<SymbolId> = syms.filter(|&s| self.i.u.symbol(s).flags.has(GIVEN)).collect();
+            self.i.case_givens.extend(givens);
+        }
+        mark
     }
 
     /// Body `rhs` of a selected case without a synthetic ascription or cast of its expression.

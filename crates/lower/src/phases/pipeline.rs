@@ -39,7 +39,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     uninitialized_defs::refuse_others(l, root)?;
     for &td in &classes {
-        getters::setter_calls(l, td)?;
+        setter_calls::transform(l, td)?;
     }
     for &td in &classes {
         interpolators::transform(l, td)?;
@@ -66,6 +66,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         explicit_self::transform(l, td)?;
     }
     explicit_outer::transform(l, &classes)?;
+    drop_imports::transform(l, root);
     let erased = erasure::erased_defs::drop(l, root);
     retain_outside(l.tpd, &mut classes, erased);
     let pending = local_classes::transform(l, root, &classes)?;

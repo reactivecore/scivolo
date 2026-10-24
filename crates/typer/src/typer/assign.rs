@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// Whether identifier `qual`'s type has a structural refinement `setter`.
@@ -116,7 +116,10 @@ impl Typer<'_> {
             return self.unsupported(id, "assignment to a non-variable");
         };
         self.complete(var);
-        let info = self.u.info(var);
+        let info = match self.tpd.get(lhs).tpe {
+            Some(t) if matches!(self.u.types().get(t), Type::Sym(Some(_), _)) => self.u.widen(t),
+            _ => self.u.info(var),
+        };
         let rhs = self.typed(rhs, Pt::Type(info), ctx);
         let unit = self.unit_type();
         let span = self.ast.span(id);
