@@ -2,8 +2,8 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Members of types (dotty's `Type.member`): through `this` and paths, of a class type, through
 //! aliases and upper bounds, both sides of an intersection, the first base class common to all
-//! parts of a union that declares the name, a match type's reduction or else its bound. Refinements carry no symbols, so a refinement's
-//! parent answers for it.
+//! parts of a union that declares the name, a match type's reduction or else its bound.
+//! Refinements carry no symbols, so a refinement's parent answers for it.
 
 use super::{Kind, SymbolId, Universe};
 use crate::tags::PRIVATE;
