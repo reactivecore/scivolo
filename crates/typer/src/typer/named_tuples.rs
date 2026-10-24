@@ -144,18 +144,25 @@ impl Typer<'_> {
         Some(self.tpd.node(T::Select { qualifier: cast, name }, self.ast.span(id), Some(tpe), Some(sym)))
     }
 
-    /// Selection `id` of element `i` of named tuple `qual` as `qual.apply(i)`.
+    /// Selection `id` of element `i` of named tuple `qual` as `NamedTuple.apply(qual)(i)`.
     fn indexed_element(&mut self, id: NodeId, qual: TNodeId, i: usize, ctx: Ctx) -> TNodeId {
         let span = self.ast.span(id);
-        let qualifier = self.spliced(qual);
+        let module = TName { name: self.name("scala.NamedTuple"), is_type: false };
+        let qualifier = self.ast.node(Tree::TypedSplice { sym: module });
         let name = TName { name: self.name("apply"), is_type: false };
         let fun = self.ast.node(Tree::Select { qualifier, name });
+        let tuple = self.spliced(qual);
+        let args = self.ast.list(&[tuple]);
+        let extension = self.ast.node(Tree::Apply { fun, args });
         let index = self.ast.node(Tree::Literal { value: Constant::Int(i as i32) });
         let args = self.ast.list(&[index]);
-        let apply = self.ast.node(Tree::Apply { fun, args });
-        for node in [fun, index, apply] {
-            self.ast.with_span(node, span.to_synthetic());
-        }
+        let apply = self.ast.node(Tree::Apply { fun: extension, args });
+        let qual_span = self.tpd.span(qual);
+        self.ast.with_span(qualifier, qual_span.start_pos().to_synthetic());
+        self.ast.with_span(fun, qual_span);
+        self.ast.with_span(extension, qual_span.to_synthetic());
+        self.ast.with_span(index, qual_span.end_pos().to_synthetic());
+        self.ast.with_span(apply, span);
         let typed = self.typed(apply, Pt::Any, ctx);
         let tpe = self.tpd.tpe(typed);
         // Forces the result type defined; temporary, until #146.

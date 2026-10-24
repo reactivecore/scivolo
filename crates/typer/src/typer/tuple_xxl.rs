@@ -103,9 +103,13 @@ impl Typer<'_> {
         acc
     }
 
-    /// The element types of tuple type `t` of any length (dotty's `tupleElementTypes`).
+    /// The element types of tuple type `t` of any length, of a named tuple those of its values
+    /// (dotty's `tupleElementTypes`).
     fn tuple_element_types(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
         let t = self.u.widen(t);
+        if let Some((_, values)) = self.named_tuple_parts(t) {
+            return Some(values);
+        }
         self.tuple_elements_within(t, usize::MAX)
     }
 
