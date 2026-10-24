@@ -78,7 +78,7 @@ impl Inlining<'_> {
                 None
             });
         }
-        for c in self.tpd.children(t) {
+        for c in self.tpd.traversed(t) {
             self.count_refs(c, count);
         }
     }

@@ -147,3 +147,10 @@ TDcontextbridge
 Nb24namerstubs
 Nb24statics
 Lh24givens
+tuplexxl
+Nt24xxlcons
+Nt24namedtargs
+Nt24hkargs
+Nt24polyusing
+Nt24projarg
+Nt24asmatchable

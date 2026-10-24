@@ -136,6 +136,12 @@ const CASES: &[(&str, &str)] = &[
         "class D { class E; object E { @scala.annotation.static def f = 1 } }\nobject O { def g = D().E.f }",
         "@static",
     ),
+    (
+        "import scala.language.experimental.namedTypeArguments\n\
+         object O { def f[A, B](b: B): B = b; def g = f[A = List](1) }",
+        "type argument of another kind",
+    ),
+    ("object O { def f(x: (a: Int, b: String) & (b: String, a: Int)): Int = x.a }", "member not found"),
 ];
 
 #[test]

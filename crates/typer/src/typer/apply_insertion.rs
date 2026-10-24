@@ -12,7 +12,8 @@ use tasty::Type;
 impl Typer<'_> {
     /// `f`, or `f.apply` if `f` is not a method, the alternative chosen by `pt`, arguments or
     /// type arguments; a context function value applied to its implicit arguments first unless
-    /// the arguments are `using` ones (dotty's `adaptToArgs`).
+    /// the arguments are `using` ones, a method with an implicit clause before type arguments
+    /// (dotty's `adaptToArgs`).
     pub fn with_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
@@ -22,6 +23,12 @@ impl Typer<'_> {
         {
             let applied = self.with_type_vars(f)?;
             return self.with_apply(applied, pt, ctx);
+        }
+        if matches!(pt, Pt::PolyFun(_))
+            && matches!(self.u.types().get(info), Type::Method { implicit: true, .. })
+        {
+            let applied = self.implicit_clause_applied(f, ctx)?;
+            return if applied == f { Ok(f) } else { self.with_apply(applied, pt, ctx) };
         }
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
             return Ok(f);

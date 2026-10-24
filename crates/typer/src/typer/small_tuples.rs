@@ -25,23 +25,6 @@ impl Typer<'_> {
         Some(self.type_cast(qual, to))
     }
 
-    /// Whether the type of `qual` is a chain `A *: B *: … *: T` of at least 22 elements.
-    pub fn is_large_generic_tuple(&mut self, qual: TNodeId) -> bool {
-        let Some(pair) = self.resolve_full_name("scala.*:", true) else { return false };
-        let tpe = self.tpd.tpe(qual);
-        let mut t = self.u.widen(tpe);
-        for _ in 0..MAX_TUPLE_ARITY {
-            let d = self.u.dealias(t);
-            match self.u.types().get(d).clone() {
-                Type::Applied(f, args) if args.len() == 2 && self.u.class_symbol(f) == Some(pair) => {
-                    t = args[1]
-                }
-                _ => return false,
-            }
-        }
-        true
-    }
-
     /// The element types of `t` if it is a chain `A *: B *: … *: T`, `T` `EmptyTuple` or a `TupleN`.
     pub fn tuple_elements(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
         self.tuple_elements_within(t, MAX_TUPLE_ARITY + 1)

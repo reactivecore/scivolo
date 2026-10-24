@@ -36,7 +36,9 @@ impl Typer<'_> {
             Pt::Type(t) => self.tuple_element_types(t),
             _ => None,
         };
-        let pts = pts.filter(|p| p.len() == elems.len()).unwrap_or_else(|| vec![tasty::ANY; elems.len()]);
+        let pts = pts.filter(|p| p.len() == elems.len());
+        let tuple_pt = pts.is_some();
+        let pts = pts.unwrap_or_else(|| vec![tasty::ANY; elems.len()]);
         let mut types = Vec::with_capacity(elems.len());
         for (&e, &p) in elems.iter().zip(&pts) {
             let typed = self.typed(e, Pt::Type(p), ctx);
@@ -49,13 +51,18 @@ impl Typer<'_> {
                 }
             }
         }
-        if ctx.mode.is(Mode::PATTERN) {
-            return self.typed(app, pt, ctx);
-        }
         let Some(class) = self.resolve_full_name("scala.runtime.TupleXXL", true) else {
             return self.unsupported(id, "TupleXXL missing from the library");
         };
         let class = crate::defn::type_ref(self.u, class);
+        if ctx.mode.is(Mode::PATTERN) && tuple_pt {
+            let tree = self.typed(app, Pt::Type(class), ctx);
+            let tpt = self.type_tree(class, span.end_pos(), false);
+            return self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(class), None);
+        }
+        if ctx.mode.is(Mode::PATTERN) {
+            return self.typed(app, pt, ctx);
+        }
         let typed = self.typed(app, Pt::Type(class), ctx);
         match self.nested_pairs(&types) {
             Ok(to) => self.type_cast(typed, to),
@@ -96,9 +103,13 @@ impl Typer<'_> {
         acc
     }
 
-    /// The element types of tuple type `t` of any length (dotty's `tupleElementTypes`).
+    /// The element types of tuple type `t` of any length, of a named tuple those of its values
+    /// (dotty's `tupleElementTypes`).
     fn tuple_element_types(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
         let t = self.u.widen(t);
+        if let Some((_, values)) = self.named_tuple_parts(t) {
+            return Some(values);
+        }
         self.tuple_elements_within(t, usize::MAX)
     }
 
