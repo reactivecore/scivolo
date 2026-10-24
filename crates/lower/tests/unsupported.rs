@@ -152,6 +152,19 @@ const CASES: &[(&str, &str)] = &[
         "import scala.scalanative.unsafe.*\n@extern object libc { def f(g: CFuncPtr): CInt = extern }",
         "extern methods of a `CFuncPtr`",
     ),
+    ("import scala.scalanative.unsafe.*\nobject O { def f: CString = c\"a\" }", "intrinsic CQuote.c"),
+    (
+        "import scala.scalanative.runtime.Intrinsics\nobject O { def f(x: Int): Long = Intrinsics.intToULong(x) }",
+        "intrinsic Intrinsics$.intToULong",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\nobject O { def f(g: CFuncPtr1[CInt, CInt]): CInt = g(1) }",
+        "intrinsic CFuncPtr1.apply",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }\nobject O { def g: CInt = libc.puts(c\"a\") }",
+        "intrinsic CQuote.c",
+    ),
     (
         "import scala.scalanative.unsafe.*\nobject O { @name(\"g\") def f = 1 }",
         "annotation @scala.scalanative.unsafe.name",

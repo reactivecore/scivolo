@@ -115,9 +115,7 @@ impl Gen<'_, '_> {
         if self.is_reflective(sym, "applyDynamic") {
             return self.gen_reflective_apply(sym, recv, args, span);
         }
-        if !is_extern(self.l.u, sym) {
-            self.check_callee(sym, span)?;
-        }
+        self.check_call(sym, span)?;
         if is_java_static(self.l.u, sym) {
             let owner = match recv {
                 Receiver::Tree(t) => self.l.tpd.sym(t),
