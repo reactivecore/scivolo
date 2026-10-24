@@ -15,6 +15,7 @@ mod copy_classes;
 mod erased;
 mod expand;
 mod host;
+mod implicit_args;
 mod inline_call;
 mod macros;
 mod no_inits;

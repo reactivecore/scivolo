@@ -21,10 +21,24 @@ impl Inlining<'_> {
         args: &FxHashMap<SymbolId, TNodeId>,
         owner: SymbolId,
     ) -> Result<TNodeId, Unsupported> {
+        self.retype_part(t, args, owner, true)
+    }
+
+    /// `retype`, a reference to a method with a using clause applied to its implicit arguments if
+    /// `adapt`.
+    fn retype_part(
+        &mut self,
+        t: TNodeId,
+        args: &FxHashMap<SymbolId, TNodeId>,
+        owner: SymbolId,
+        adapt: bool,
+    ) -> Result<TNodeId, Unsupported> {
         let t = self.retype_node(t, args, owner)?;
         if let Some(expanded) = self.expand_splice(t, owner)? {
             return Ok(expanded);
         }
+        let ref_ = matches!(self.tpd.tree(t), T::Ident { .. } | T::Select { .. } | T::TypeApply { .. });
+        let t = if adapt && ref_ { self.with_implicit_args(t)? } else { t };
         let Some(def) = self.inline_method(t)? else { return Ok(t) };
         self.inline_call(t, def, owner)
     }
@@ -120,13 +134,20 @@ impl Inlining<'_> {
                 let (inner, within) = self.owners_within(t, owner);
                 let outer_class = std::mem::replace(&mut self.enclosing_class, within);
                 let mut failed = None;
+                let mark = self.enter_block_implicits(t);
+                let unadapted = match *self.tpd.tree(t) {
+                    T::Apply { fun, .. } | T::TypeApply { fun, .. } => Some(fun),
+                    T::Closure { meth, .. } => Some(meth),
+                    _ => None,
+                };
                 map_children(self, t, &mut |i, c| match Some(c) == call {
                     true => c,
-                    false => i.retype(c, args, inner).unwrap_or_else(|e| {
+                    false => i.retype_part(c, args, inner, Some(c) != unadapted).unwrap_or_else(|e| {
                         failed.get_or_insert(e);
                         c
                     }),
                 });
+                self.block_implicits.truncate(mark);
                 self.enclosing_class = outer_class;
                 failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)

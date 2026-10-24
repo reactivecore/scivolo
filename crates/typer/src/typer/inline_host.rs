@@ -3,13 +3,13 @@
 
 use super::Typer;
 use super::implicits::is_misfit;
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Level};
 use crate::inlining::{Expanded, Host, Inlining, Lent, MacroCall, MacroError};
 use crate::tpd::{TNodeId, Tree as T};
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
-use tasty::{Kind, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Typer<'_> {
     /// `f` run on an inlining of this typer's trees and tables, the typer its host; with
@@ -58,6 +58,10 @@ impl Typer<'_> {
 impl Host for Typer<'_> {
     fn call_ctx(&self, call: TNodeId) -> Option<Ctx> {
         self.inline_ctxs.get(&call).copied()
+    }
+
+    fn within(&mut self, ctx: Ctx, locals: Vec<(String, SymbolId)>) -> Ctx {
+        Ctx { level: self.levels.push(Some(ctx.level), Level::Scope(locals)), ..ctx }
     }
 
     fn summon(

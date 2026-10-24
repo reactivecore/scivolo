@@ -17,6 +17,10 @@ impl Host for NoHost {
         None
     }
 
+    fn within(&mut self, ctx: Ctx, _: Vec<(String, SymbolId)>) -> Ctx {
+        ctx
+    }
+
     fn summon(&mut self, _: Lent<'_>, _: TypeId, _: Span, _: Ctx) -> Result<Option<TNodeId>, &'static str> {
         Err("an implicit search in Term.betaReduce")
     }
