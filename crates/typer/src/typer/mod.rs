@@ -67,6 +67,7 @@ mod escaping;
 mod eta;
 mod export_trees;
 mod extension_calls;
+mod extension_fallback;
 mod features;
 mod find_ref;
 mod function_types;

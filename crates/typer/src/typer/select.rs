@@ -79,7 +79,9 @@ impl Typer<'_> {
                 widened = true;
                 continue;
             }
-            if self.extension_visible(&text, ctx) {
+            if self.extension_visible(&text, ctx)
+                && !(self.extensions_reject(qual, &text, ctx) && self.implicit_member_found(qual, &text, ctx))
+            {
                 return self.extension_select(id, qual, name, pt, ctx);
             }
             match self.viewed(qual, Goal::Member(&text), ctx) {
