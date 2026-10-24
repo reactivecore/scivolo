@@ -162,7 +162,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   }
 
   object NamedArg extends NamedArgModule {
-    def apply(name: String, arg: Term): NamedArg = refused("NamedArg.apply")
+    def apply(name: String, arg: Term): NamedArg = { ReflectOps.run("namedArg", Array(ReflectOps.id(arg)), name); ReflectOps.term(QuoteHost.result(0)).asInstanceOf[NamedArg] }
     def copy(original: Tree)(name: String, arg: Term): NamedArg = refused("NamedArg.copy")
     def unapply(x: NamedArg): (String, Term) = {
       val s = ReflectOps.shape(x)

@@ -33,6 +33,7 @@ mod reflect;
 mod reflect_beta;
 mod reflect_classes;
 mod reflect_defs;
+mod reflect_lambdas;
 mod reflect_trees;
 mod reselect;
 mod retype;

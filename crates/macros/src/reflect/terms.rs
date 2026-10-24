@@ -5,7 +5,8 @@
 use super::{Answer, UNKNOWN, arg, numbers, symbol};
 use crate::host::Host;
 use std::collections::HashMap;
-use typer::tpd::{TNodeId, Tpd, map_children};
+use syntax::ast::TName;
+use typer::tpd::{TNodeId, Tpd, Tree as T, map_children};
 
 impl Host {
     /// Runs term operation `op` on `args`.
@@ -97,6 +98,19 @@ impl Host {
             }
             "wildcard" => {
                 let t = self.reflect().wildcard();
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "assign" => {
+                let (lhs, rhs) = (self.tree(arg(0)? as u32)?, self.tree(arg(1)? as u32)?);
+                let unit = self.u.class_ref("scala.Unit");
+                let t = self.tpd.node(T::Assign { lhs, rhs }, self.expansion, Some(unit), None);
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "namedArg" => {
+                let arg = self.tree(arg(0)? as u32)?;
+                let name = TName { name: self.names.intern(text), is_type: false };
+                let tpe = self.tpd.get(arg).tpe;
+                let t = self.tpd.node(T::NamedArg { name, arg }, self.expansion, tpe, None);
                 numbers(vec![self.add_tree(t) as i32])
             }
             "let" => {

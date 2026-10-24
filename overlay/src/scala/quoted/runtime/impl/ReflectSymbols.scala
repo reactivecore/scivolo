@@ -5,7 +5,7 @@ package scala.quoted.runtime.impl
 /** The symbols and positions of `quotes.reflect`. */
 trait ReflectSymbolSupport { this: QuotesImpl =>
 
-trait ReflectSymbols extends reflectModule { self: reflect.type =>
+trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.type =>
 
   object Symbol extends SymbolModule {
     def spliceOwner: Symbol = symbol(ReflectOps.one("spliceOwner"))
@@ -82,7 +82,7 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
   /** Kinds are numbered 0 to 6: package, class, type, type parameter, parameter, value, method;
    *  a package is its package class.
    */
-  abstract class SymbolMethodsImpl extends SymbolMethods {
+  abstract class SymbolMethodsImpl extends SymbolMethods, SymbolDeclarations {
     extension (self: Symbol) {
       def companionModule: Symbol = sym(ReflectOps.one("companionModule", ReflectOps.id(self)))
       def declaredMethod(name: String): List[Symbol] = {

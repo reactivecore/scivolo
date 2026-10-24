@@ -5,7 +5,6 @@
 use super::{Answer, UNKNOWN, arg, numbers, symbol};
 use crate::host::Host;
 use tasty::Kind;
-use typer::tpd::Tree as T;
 
 impl Host {
     /// Runs class-making operation `op` on `args` and `name`.
@@ -64,12 +63,6 @@ impl Host {
                 }
                 let (tpe, span) = (self.reflect().symbol_ref(cls), self.expansion);
                 let t = self.reflect().build()?.this(tpe, span);
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            "assign" => {
-                let (lhs, rhs) = (self.tree(arg(args, 0)? as u32)?, self.tree(arg(args, 1)? as u32)?);
-                let unit = self.u.class_ref("scala.Unit");
-                let t = self.tpd.node(T::Assign { lhs, rhs }, self.expansion, Some(unit), None);
                 numbers(vec![self.add_tree(t) as i32])
             }
             "fieldMember" => {

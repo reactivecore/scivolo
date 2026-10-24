@@ -23,6 +23,7 @@ impl Host {
             }
             "newVal" | "newMethod" => {
                 let (owner, info) = (symbol(arg(0)?)?, self.type_of(arg(1)? as u32)?);
+                let owner = if owner == self.macro_owner() { self.owner } else { owner };
                 let flags = (arg(2)? as u32 as u64) | ((arg(3)? as u32 as u64) << 32);
                 let kind = if op == "newVal" { Kind::Val } else { Kind::Def };
                 let s = self.reflect().new_term((owner, name, kind), info, flags)?;
@@ -50,6 +51,16 @@ impl Host {
                 let t = self.reflect().def_def(s, &params, rhs)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
+            "closure" => {
+                let def = self.tree(arg(0)? as u32)?;
+                let t = self.reflect().closure(def)?;
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "lambdaOf" => {
+                let t = self.tree(arg(0)? as u32)?;
+                let parts = self.lambda_parts(t).unwrap_or_default();
+                numbers(parts.into_iter().map(|p| self.add_tree(p) as i32).collect())
+            }
             "copyDef" => {
                 let (original, tpt, rhs) =
                     (self.tree(arg(0)? as u32)?, self.tree(arg(1)? as u32)?, tree(self, arg(2)?)?);
@@ -59,6 +70,20 @@ impl Host {
             }
             _ => Err(UNKNOWN),
         }
+    }
+
+    /// The parameters and body of `t` if it is `{ def f(params) = body; closure(f) }` (dotty's
+    /// `Lambda.unapply`), the body last.
+    fn lambda_parts(&self, t: TNodeId) -> Option<Vec<TNodeId>> {
+        let T::Block { stats, expr } = *self.tpd.tree(t) else { return None };
+        let (&[def], T::Closure { meth, .. }) = (self.tpd.items(stats), self.tpd.tree(expr)) else {
+            return None;
+        };
+        let T::DefDef { paramss, rhs: Some(body), .. } = *self.tpd.tree(def) else { return None };
+        let &[params] = self.tpd.clause_items(paramss) else { return None };
+        let params = self.tpd.items(params);
+        let values = params.iter().all(|&p| matches!(self.tpd.tree(p), T::ValDef { .. }));
+        (values && self.tpd.sym(*meth) == self.tpd.sym(def)).then(|| [params, &[body]].concat())
     }
 
     /// The parameter definitions of method `s` by clause: those of its definition in the unit,

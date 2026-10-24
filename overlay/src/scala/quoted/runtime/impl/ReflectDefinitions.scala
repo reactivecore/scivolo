@@ -60,6 +60,18 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
     def unapply(x: New): Some[TypeTree] = refused("New.unapply")
   }
 
+  object Lambda extends LambdaModule {
+    def apply(owner: Symbol, tpe: MethodType, rhsFn: (Symbol, List[Tree]) => Tree): Block = {
+      val meth = Symbol.newMethod(owner, "$anonfun", tpe, Flags.Synthetic, Symbol.noSymbol)
+      val definition = DefDef(meth, paramss => Some(rhsFn(meth, paramss.head).asInstanceOf[Term]))
+      ReflectOps.term(ReflectOps.one("closure", ReflectOps.id(definition))).asInstanceOf[Block]
+    }
+    def unapply(tree: Block): Option[(List[ValDef], Term)] = ReflectOps.results("lambdaOf", ReflectOps.id(tree)) match {
+      case Nil   => None
+      case parts => Some((parts.init.map(ReflectOps.term).asInstanceOf[List[ValDef]], ReflectOps.term(parts.last).asInstanceOf[Term]))
+    }
+  }
+
   object Assign extends AssignModule {
     def apply(lhs: Term, rhs: Term): Assign =
       ReflectOps.term(ReflectOps.one("assign", ReflectOps.id(lhs), ReflectOps.id(rhs))).asInstanceOf[Assign]
