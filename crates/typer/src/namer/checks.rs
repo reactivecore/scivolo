@@ -48,8 +48,12 @@ impl Typer<'_> {
             "illegal combination of modifiers"
         } else if let Some(problem) = self.inline_problem(kind, owner, flags) {
             problem
+        } else if kind == Kind::Type && flags.is_all_of(f::PRIVATE.or(f::OPAQUE)) {
+            "illegal combination of modifiers"
         } else if flags.is(f::OPAQUE) && self.is_named_package_object(owner) {
             "top-level opaque type"
+        } else if flags.is_all_of(f::DEFERRED_GIVEN_FLAGS) {
+            "deferred given"
         } else if flags.is(f::TRAIT) && flags.is_one_of(f::FINAL.or(f::OPEN)) {
             "final or open trait"
         } else if kind != Kind::Class && flags.is(f::ABSTRACT) {
