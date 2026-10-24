@@ -19,7 +19,7 @@ fn ident(id: &str) -> String {
     format!("{}{dash}{id}", id.encode_utf16().count())
 }
 
-fn mangle(e: &Erased) -> String {
+pub fn mangle(e: &Erased) -> String {
     match e {
         Erased::Prim('R') => "R_".into(),
         Erased::Prim(c) => c.to_string(),
@@ -70,12 +70,6 @@ impl Universe {
         out.push_str(&mangle(&result));
         out.push_str("EO");
         Some(out)
-    }
-
-    /// The mangled signature of constructor `ctor` of a static class, e.g. `RiE`.
-    pub fn constructor_signature(&mut self, ctor: SymbolId) -> String {
-        let (params, _) = self.erased_method(ctor);
-        format!("R{}E", params.iter().map(mangle).collect::<String>())
     }
 
     /// The erased parameter types of method `def`, `Unit` boxed, and its erased result type, also

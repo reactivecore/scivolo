@@ -55,28 +55,6 @@ impl Inlining<'_> {
         Ok(trees)
     }
 
-    /// The symbols of the definitions in definition `t`, which a macro annotation's copy of it
-    /// keeps; none if `t` is no definition.
-    fn definition_symbols(&self, t: TNodeId) -> Vec<SymbolId> {
-        let is_def = |t: TNodeId| {
-            matches!(
-                self.tpd.tree(t),
-                T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } | T::Bind { .. }
-            )
-        };
-        if !is_def(t) {
-            return Vec::new();
-        }
-        let (mut todo, mut syms) = (vec![t], Vec::new());
-        while let Some(n) = todo.pop() {
-            if is_def(n) {
-                syms.extend(self.tpd.sym(n));
-            }
-            todo.extend(self.tpd.children(n));
-        }
-        syms
-    }
-
     /// A copy of `t` through a map of `m`'s references and symbols, its outermost definitions
     /// owned by `(_, owner)` (dotty's `changeOwner`), the quotes the macro built it of but quote
     /// `own` replaced by their trees.

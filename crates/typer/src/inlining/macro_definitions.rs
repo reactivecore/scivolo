@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/MacroAnnotations.scala
-//! The definitions a macro annotation returns: the owners of what their right-hand sides define
-//! and their places among the declarations of their owners.
+//! The definitions a macro annotation returns: the symbols their copies keep, the owners of
+//! what their right-hand sides define and their places among the declarations of their owners.
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
@@ -9,6 +9,24 @@ use syntax::ast::Span;
 use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
+    /// The symbols of the definitions in definition `t`, which a macro's copy of it keeps; none
+    /// if `t` is no definition.
+    pub fn definition_symbols(&self, t: TNodeId) -> Vec<SymbolId> {
+        let is_def =
+            |t: TNodeId| is_definition(self.tpd.tree(t)) || matches!(self.tpd.tree(t), T::Bind { .. });
+        if !is_definition(self.tpd.tree(t)) {
+            return Vec::new();
+        }
+        let (mut todo, mut syms) = (vec![t], Vec::new());
+        while let Some(n) = todo.pop() {
+            if is_def(n) {
+                syms.extend(self.tpd.sym(n));
+            }
+            todo.extend(self.tpd.children(n));
+        }
+        syms
+    }
+
     /// Gives the definitions in the right-hand sides of definition `d`, or of the members of
     /// class definition `d`, the definition as owner.
     pub fn own_right_hand_sides(&mut self, d: TNodeId) {
