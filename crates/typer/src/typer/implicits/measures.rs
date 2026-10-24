@@ -33,10 +33,17 @@ impl Typer<'_> {
             Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::This(p) => vec![p],
             Type::Applied(c, args) => [vec![c], args].concat(),
             Type::Refined(p, _, i) | Type::Bounds(p, i) | Type::And(p, i) | Type::Or(p, i, _) => vec![p, i],
-            Type::ByName(r) | Type::Annotated(r, _) => vec![r],
-            Type::NoPrefix | Type::Package(_) | Type::PackageName(_) | Type::Str(_) | Type::Constant(..) => {
-                Vec::new()
+            Type::ByName(r) | Type::Annotated(r, _) | Type::Alias(r) => vec![r],
+            Type::Lambda { params, result, .. } => {
+                params.into_iter().map(|(_, b)| b).chain([result]).collect()
             }
+            Type::Param(..)
+            | Type::Local(..)
+            | Type::NoPrefix
+            | Type::Package(_)
+            | Type::PackageName(_)
+            | Type::Str(_)
+            | Type::Constant(..) => Vec::new(),
             _ => return Err(OUTSIDE),
         })
     }
@@ -49,7 +56,7 @@ impl Typer<'_> {
         let d = self.u.dealias(t);
         match self.u.types().get(d) {
             _ if d == t => Ok(None),
-            Type::Lambda { .. } | Type::Match { .. } => Err(OUTSIDE),
+            Type::Match { .. } => Err(OUTSIDE),
             _ => Ok(Some(d)),
         }
     }
@@ -73,7 +80,6 @@ impl Typer<'_> {
                 }
                 Ok(n)
             }
-            Type::Applied(c, _) if self.alias_of(c)?.is_some() => Err(OUTSIDE),
             other => {
                 let mut n = n + matches!(other, Type::Applied(..) | Type::Refined(..)) as u32;
                 for p in self.parts(t)? {
