@@ -50,6 +50,7 @@ mod splice;
 mod this_proxy;
 mod transparent;
 mod tuple_intrinsics;
+mod type_checks;
 mod type_eval;
 mod unapply_fun;
 mod unused;
