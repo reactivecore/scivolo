@@ -31,6 +31,8 @@ pub(crate) mod intrinsics;
 mod labels;
 mod layout;
 mod lazy_handles;
+mod linktime;
+mod linktime_defs;
 mod literal;
 mod method;
 mod modules;

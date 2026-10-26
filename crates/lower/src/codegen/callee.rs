@@ -55,9 +55,6 @@ impl Gen<'_, '_> {
                 return unsupported(span, format!("intrinsic {class}.{name}"));
             }
         }
-        if self.l.u.is_annotated(sym, "scala.scalanative.unsafe.resolvedAtLinktime") {
-            return unsupported(span, "values resolved at link time");
-        }
         if !self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.is_class(o)) {
             return unsupported(span, "calls of methods outside classes");
         }

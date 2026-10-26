@@ -25,6 +25,8 @@ enum Gives {
     Id,
     /// `blocking` of the `extern` attribute of an extern definition.
     Blocking,
+    /// Nothing; the code generator reads it.
+    Generated,
     Refused,
 }
 
@@ -49,7 +51,7 @@ const ANNOTATIONS: [(&str, Gives); 21] = [
     ("scala.scalanative.unsafe.name", Gives::Id),
     ("scala.scalanative.unsafe.package$.blocking", Gives::Blocking),
     ("scala.scalanative.unsafe.package$.extern", Gives::Any(|| Attr::Extern { blocking: false })),
-    ("scala.scalanative.unsafe.resolvedAtLinktime", Gives::Refused),
+    ("scala.scalanative.unsafe.resolvedAtLinktime", Gives::Generated),
 ];
 
 fn gives(l: &Lower, class: SymbolId) -> Option<Gives> {

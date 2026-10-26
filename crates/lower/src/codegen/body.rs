@@ -6,6 +6,7 @@
 use super::Gen;
 use super::annotations::canonical;
 use super::dead::remove_dead_blocks;
+use super::linktime::RESOLVED_AT_LINKTIME;
 use super::method::Method;
 use crate::symbols::{has, is_extern, is_java_static};
 use crate::{Result, unsupported};
@@ -24,6 +25,9 @@ impl Gen<'_, '_> {
         let Tree::DefDef { paramss, rhs, .. } = *self.l.tpd.tree(dd) else { unreachable!("a method") };
         self.check_method(sym, self.l.tpd.span(dd))?;
         let pos = self.pos_or(self.l.tpd.span(dd), self.no_pos);
+        if self.l.u.is_annotated(sym, RESOLVED_AT_LINKTIME) {
+            return self.gen_linktime_resolved(dd, sym, pos);
+        }
         let name = self.method_name(sym);
         let ty = self.method_sig(sym, false);
         let inline = has(self.l.u, sym, FIELDaccessor)
@@ -43,7 +47,10 @@ impl Gen<'_, '_> {
         let rhs_pos = self.pos_or(self.l.tpd.span(rhs), pos);
         self.m.scopes.push(LexicalScope { id: 0, parent: 0, pos: rhs_pos });
         self.m.pos = rhs_pos;
-        let body = self.gen_method_body(sym, paramss, rhs)?;
+        let (body, uses_linktime) = self.gen_method_body(sym, paramss, rhs)?;
+        if uses_linktime {
+            attrs = canonical(attrs.into_iter().chain([Attr::LinktimeResolved]).collect());
+        }
         Ok(Defn { name, attrs, pos, kind: DefnKind::Define { ty, body } })
     }
 
@@ -58,7 +65,8 @@ impl Gen<'_, '_> {
         Ok(())
     }
 
-    fn gen_method_body(&mut self, sym: SymbolId, paramss: Clauses, rhs: TNodeId) -> Result<Body> {
+    /// The body of method `sym`, and whether it branches on link-time conditions.
+    fn gen_method_body(&mut self, sym: SymbolId, paramss: Clauses, rhs: TNodeId) -> Result<(Body, bool)> {
         let clauses = self.l.tpd.clause_items(paramss).to_vec();
         let param_syms: Vec<SymbolId> = clauses
             .iter()
@@ -98,7 +106,9 @@ impl Gen<'_, '_> {
         let pos = self.m.pos;
         let m = std::mem::replace(&mut self.m, Method::new(None, 0, pos));
         let buf = remove_dead_blocks(m.buf);
-        Ok(Body { insts: buf.insts, positions: buf.positions, local_names: m.local_names, scopes: m.scopes })
+        let body =
+            Body { insts: buf.insts, positions: buf.positions, local_names: m.local_names, scopes: m.scopes };
+        Ok((body, m.uses_linktime))
     }
 
     /// The local variables assigned in `rhs`, in the order of their first assignment (nscplugin's
