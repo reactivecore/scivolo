@@ -6,7 +6,7 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// Lowers Scala files through the Rust frontend into NIR files; several files are typed as one
-/// unit. With `--cp`, they see the TASTy of those directories, and macro calls run in a VM over
+/// unit, with the options of their `//> using options` directives that the frontend knows. With `--cp`, they see the TASTy of those directories, and macro calls run in a VM over
 /// the library and their NIR.
 ///
 /// Environment: SCIVOLO_LIBS holds the library jars (default: ref/libs).
@@ -51,9 +51,15 @@ fn main() {
     let copies = || sources.iter().map(|s| SourceFile::new(s.name.clone(), s.text.clone())).collect();
     let mut runner = vm.as_mut().map(|vm| VmMacros { vm, sources: copies() });
     let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
+    let options: Vec<&str> = sources
+        .iter()
+        .flat_map(|s| lower::directives::directives(&s.text, "3.9").map(|d| d.options))
+        .flatten()
+        .collect();
+    let cfg = Config::from_options(&options);
     let lowered = match &sources[..] {
-        [one] => lower::compile_with(&mut u, one, Config::from_options(&[]), macros),
-        many => lower::compile_sources(&mut u, many, Config::from_options(&[]), macros),
+        [one] => lower::compile_with(&mut u, one, cfg, macros),
+        many => lower::compile_sources(&mut u, many, cfg, macros),
     };
     match lowered {
         Ok((files, _)) => {
