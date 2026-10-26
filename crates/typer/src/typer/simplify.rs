@@ -54,7 +54,9 @@ fn simplify(u: &mut tasty::Universe, t: TypeId) -> TypeId {
 fn is_class_type(u: &mut tasty::Universe, t: TypeId) -> bool {
     match *u.types().get(t) {
         Type::Sym(_, c) => u.symbol(c).kind == tasty::Kind::Class,
-        Type::Applied(tycon, _) => u.class_symbol(tycon).is_some_and(|c| u.symbol(c).kind == tasty::Kind::Class),
+        Type::Applied(tycon, _) => {
+            u.class_symbol(tycon).is_some_and(|c| u.symbol(c).kind == tasty::Kind::Class)
+        }
         _ => false,
     }
 }

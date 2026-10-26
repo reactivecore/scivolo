@@ -52,19 +52,26 @@ impl Universe {
         None
     }
 
-    /// The alias by which the class of term `prefix`'s declared type overrides abstract type
-    /// member `s`, seen from `prefix`.
+    /// The alias or class by which the class of term `prefix`'s declared type, or of `prefix` a
+    /// `this`, overrides abstract type member `s`, seen from `prefix`.
     pub fn overriding_alias(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
-        let Type::Sym(_, term) = *self.types().get(prefix) else { return None };
-        if self.symbol(s).kind != Kind::Type || !self.symbol(term).kind.is_term() {
+        if self.symbol(s).kind != Kind::Type {
             return None;
         }
+        let declared = match *self.types().get(prefix) {
+            Type::Sym(_, term) if self.symbol(term).kind.is_term() => self.info(term),
+            Type::This(c) => c,
+            _ => return None,
+        };
         let base = self.symbol(s).owner?;
-        let info = self.info(term);
-        let cls = self.class_symbol(info).filter(|&c| c != base && self.derives_from(c, base))?;
+        let cls = self.class_symbol(declared).filter(|&c| c != base && self.derives_from(c, base))?;
         let name = self.symbol(s).name.clone();
-        let found = self.member_where(cls, &name, |u, m| m != s && u.symbol(m).kind == Kind::Type);
+        let found = self
+            .member_where(cls, &name, |u, m| m != s && matches!(u.symbol(m).kind, Kind::Type | Kind::Class));
         let (&m, owner) = (found.first()?, self.symbol(found[0]).owner?);
+        if self.symbol(m).kind == Kind::Class {
+            return Some(self.intern_type(Type::Sym(Some(prefix), m)));
+        }
         let alias = self.alias_of(m)?;
         Some(self.as_seen_from(alias, prefix, owner))
     }

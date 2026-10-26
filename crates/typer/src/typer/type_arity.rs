@@ -18,7 +18,10 @@ impl Typer<'_> {
         match self.u.types().get(t).clone() {
             Type::Sym(pre, s) => match self.u.symbol(s).kind {
                 Kind::Class => {
-                    if matches!(self.syms.completions.get(&s), Some(crate::symbols::Completion::Pending { .. })) {
+                    if matches!(
+                        self.syms.completions.get(&s),
+                        Some(crate::symbols::Completion::Pending { .. })
+                    ) {
                         self.complete(s);
                     }
                     self.u.type_params(s).len()
