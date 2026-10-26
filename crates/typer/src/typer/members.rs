@@ -43,11 +43,8 @@ impl Typer<'_> {
                 }
             }
             Type::Super(this, p) if matches!(self.u.types().get(p), Type::And(..)) => {
-                let class = match *self.u.types().get(this) {
-                    Type::This(c) => self.u.class_symbol(c),
-                    _ => None,
-                };
-                class.map_or_else(Vec::new, |c| self.super_members(c, name))
+                let Type::This(c) = *self.u.types().get(this) else { return Vec::new() };
+                self.u.class_symbol(c).map_or_else(Vec::new, |c| self.super_members(c, name))
             }
             Type::Super(_, p) | Type::Skolem(_, p) => self.members_within(p, name, within),
             Type::Constant(..) | Type::Str(_) | Type::TermRef(..) => {
@@ -92,8 +89,8 @@ impl Typer<'_> {
                 self.members_within(sup, name, within)
             }
             Type::Var(v) => {
-                let hi = self.constraint.bounds(v).1;
-                self.members_within(hi, name, within)
+                let under = self.constraint.instance(v).unwrap_or(self.constraint.bounds(v).1);
+                self.members_within(under, name, within)
             }
             Type::And(a, b) => {
                 let (ma, mb) = (self.members_within(a, name, within), self.members_within(b, name, within));
