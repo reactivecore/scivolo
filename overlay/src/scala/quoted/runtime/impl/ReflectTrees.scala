@@ -12,17 +12,18 @@ trait ReflectTreeSupport { this: QuotesImpl =>
 
 trait ReflectTrees extends reflectModule { self: reflect.type =>
 
-  given TermTypeTest: TypeTest[Tree, Term] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 18, 20)
-  given StatementTypeTest: TypeTest[Tree, Statement] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20)
+  given TermTypeTest: TypeTest[Tree, Term] = test(TreeKinds.terms*)
+  given StatementTypeTest: TypeTest[Tree, Statement] = test(TreeKinds.statements*)
   given ThisTypeTest: TypeTest[Tree, This] = test(18)
 
   object This extends ThisModule {
     def apply(cls: Symbol): This = ReflectOps.term(ReflectOps.one("this", ReflectOps.id(cls))).asInstanceOf[This]
-    def copy(original: Tree)(qual: Option[String]): This = refused("This.copy")
+    def copy(original: Tree)(qual: Option[String]): This = ReflectOps.copy(original, qual.orNull).asInstanceOf[This]
     def unapply(x: This): Some[Option[String]] = Some(Option(ReflectOps.shape(x).name))
   }
-  given DefinitionTypeTest: TypeTest[Tree, Definition] = test(12, 15, 16, 19)
+  given DefinitionTypeTest: TypeTest[Tree, Definition] = test(TreeKinds.definitions*)
   given IdentTypeTest: TypeTest[Tree, Ident] = test(1)
+  given RefTypeTest: TypeTest[Tree, Ref] = test(1, 2)
   given SelectTypeTest: TypeTest[Tree, Select] = test(2)
   given LiteralTypeTest: TypeTest[Tree, Literal] = test(3)
   given TypedTypeTest: TypeTest[Tree, Typed] = test(4)
@@ -31,14 +32,14 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   given BlockTypeTest: TypeTest[Tree, Block] = test(7)
   given InlinedTypeTest: TypeTest[Tree, Inlined] = test(8)
   given RepeatedTypeTest: TypeTest[Tree, Repeated] = test(9)
-  given TypeTreeTypeTest: TypeTest[Tree, TypeTree] = test(10, 11)
+  given TypeTreeTypeTest: TypeTest[Tree, TypeTree] = test(TreeKinds.typeTrees*)
   given InferredTypeTest: TypeTest[Tree, Inferred] = test(11)
   given ValDefTypeTest: TypeTest[Tree, ValDef] = test(12)
   given NamedArgTypeTest: TypeTest[Tree, NamedArg] = test(13)
 
   object Ident extends IdentModule {
     def apply(tmref: TermRef): Term = ReflectOps.term(ReflectOps.one("identRef", ReflectOps.id(tmref))).asInstanceOf[Term]
-    def copy(original: Tree)(name: String): Ident = refused("Ident.copy")
+    def copy(original: Tree)(name: String): Ident = ReflectOps.copy(original, name).asInstanceOf[Ident]
     def unapply(tree: Ident): Some[String] = Some(ReflectOps.shape(tree).name)
   }
 
@@ -60,7 +61,8 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
     }
     def overloaded(qualifier: Term, name: String, targs: List[TypeRepr], args: List[Term], returnType: TypeRepr): Term =
       refused("Select.overloaded")
-    def copy(original: Tree)(qualifier: Term, name: String): Select = { ReflectOps.run("copySelect", Array(ReflectOps.id(original), ReflectOps.id(qualifier)), name); ReflectOps.term(QuoteHost.result(0)).asInstanceOf[Select] }
+    def copy(original: Tree)(qualifier: Term, name: String): Select =
+      ReflectOps.copy(original, name, qualifier).asInstanceOf[Select]
     def unapply(x: Select): (Term, String) = {
       val s = ReflectOps.shape(x)
       (s.child(0).asInstanceOf[Term], s.name)
@@ -69,7 +71,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
 
   object Typed extends TypedModule {
     def apply(expr: Term, tpt: TypeTree): Typed = built("typed", List(expr, tpt)).asInstanceOf[Typed]
-    def copy(original: Tree)(expr: Term, tpt: TypeTree): Typed = refused("Typed.copy")
+    def copy(original: Tree)(expr: Term, tpt: TypeTree): Typed = ReflectOps.copy(original, null, expr, tpt).asInstanceOf[Typed]
     def unapply(x: Typed): (Term, TypeTree) = {
       val s = ReflectOps.shape(x)
       (s.child(0).asInstanceOf[Term], s.child(1).asInstanceOf[TypeTree])
@@ -78,7 +80,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
 
   object Apply extends ApplyModule {
     def apply(fun: Term, args: List[Term]): Apply = built("apply", fun :: args).asInstanceOf[Apply]
-    def copy(original: Tree)(fun: Term, args: List[Term]): Apply = refused("Apply.copy")
+    def copy(original: Tree)(fun: Term, args: List[Term]): Apply = ReflectOps.copy(original, null, fun, args).asInstanceOf[Apply]
     def unapply(x: Apply): (Term, List[Term]) = {
       val s = ReflectOps.shape(x)
       (s.child(0).asInstanceOf[Term], s.from(1).asInstanceOf[List[Term]])
@@ -87,7 +89,8 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
 
   object TypeApply extends TypeApplyModule {
     def apply(fun: Term, args: List[TypeTree]): TypeApply = fun.appliedToTypes(args.map(_.tpe)).asInstanceOf[TypeApply]
-    def copy(original: Tree)(fun: Term, args: List[TypeTree]): TypeApply = refused("TypeApply.copy")
+    def copy(original: Tree)(fun: Term, args: List[TypeTree]): TypeApply =
+      ReflectOps.copy(original, null, fun, args).asInstanceOf[TypeApply]
     def unapply(x: TypeApply): (Term, List[TypeTree]) = {
       val s = ReflectOps.shape(x)
       (s.child(0).asInstanceOf[Term], s.from(1).asInstanceOf[List[TypeTree]])
@@ -96,7 +99,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
 
   object Block extends BlockModule {
     def apply(stats: List[Statement], expr: Term): Block = built("block", expr :: stats).asInstanceOf[Block]
-    def copy(original: Tree)(stats: List[Statement], expr: Term): Block = refused("Block.copy")
+    def copy(original: Tree)(stats: List[Statement], expr: Term): Block = ReflectOps.copy(original, null, expr, stats).asInstanceOf[Block]
     def unapply(x: Block): (List[Statement], Term) = {
       val s = ReflectOps.shape(x)
       (s.from(1).asInstanceOf[List[Statement]], s.child(0).asInstanceOf[Term])
@@ -106,7 +109,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   object Inlined extends InlinedModule {
     def apply(call: Option[Tree], bindings: List[Definition], expansion: Term): Inlined = refused("Inlined.apply")
     def copy(original: Tree)(call: Option[Tree], bindings: List[Definition], expansion: Term): Inlined =
-      refused("Inlined.copy")
+      ReflectOps.copy(original, null, call, expansion, bindings).asInstanceOf[Inlined]
     def unapply(x: Inlined): (Option[Tree], List[Definition], Term) = {
       val s = ReflectOps.shape(x)
       (ReflectOps.opt(s.children(0)).asInstanceOf[Option[Tree]], s.from(2).asInstanceOf[List[Definition]],
@@ -117,7 +120,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   object Repeated extends RepeatedModule {
     def apply(elems: List[Term], tpt: TypeTree): Repeated =
       ReflectOps.term(ReflectOps.one("repeated", (elems :+ tpt).map(ReflectOps.id)*)).asInstanceOf[Repeated]
-    def copy(original: Tree)(elems: List[Term], tpt: TypeTree): Repeated = refused("Repeated.copy")
+    def copy(original: Tree)(elems: List[Term], tpt: TypeTree): Repeated = ReflectOps.copy(original, null, tpt, elems).asInstanceOf[Repeated]
     def unapply(x: Repeated): (List[Term], TypeTree) = {
       val s = ReflectOps.shape(x)
       (s.from(1).asInstanceOf[List[Term]], s.child(0).asInstanceOf[TypeTree])
@@ -163,31 +166,11 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
 
   object NamedArg extends NamedArgModule {
     def apply(name: String, arg: Term): NamedArg = { ReflectOps.run("namedArg", Array(ReflectOps.id(arg)), name); ReflectOps.term(QuoteHost.result(0)).asInstanceOf[NamedArg] }
-    def copy(original: Tree)(name: String, arg: Term): NamedArg = refused("NamedArg.copy")
+    def copy(original: Tree)(name: String, arg: Term): NamedArg = ReflectOps.copy(original, name, arg).asInstanceOf[NamedArg]
     def unapply(x: NamedArg): (String, Term) = {
       val s = ReflectOps.shape(x)
       (s.name, s.child(0).asInstanceOf[Term])
     }
-  }
-
-  object Match extends MatchModule {
-    def apply(selector: Term, cases: List[CaseDef]): Match = built("match", selector :: cases).asInstanceOf[Match]
-    def copy(original: Tree)(selector: Term, cases: List[CaseDef]): Match = refused("Match.copy")
-    def unapply(x: Match): (Term, List[CaseDef]) = refused("Match.unapply")
-  }
-
-  object CaseDef extends CaseDefModule {
-    def apply(pattern: Tree, guard: Option[Term], rhs: Term): CaseDef = {
-      val args = Array(ReflectOps.id(pattern), guard.fold(-1)(ReflectOps.id), ReflectOps.id(rhs))
-      ReflectOps.term(ReflectOps.one("caseDef", args*)).asInstanceOf[CaseDef]
-    }
-    def copy(original: Tree)(pattern: Tree, guard: Option[Term], rhs: Term): CaseDef = refused("CaseDef.copy")
-    def unapply(x: CaseDef): (Tree, Option[Term], Term) = refused("CaseDef.unapply")
-  }
-
-  object Wildcard extends WildcardModule {
-    def apply(): Wildcard = ReflectOps.term(ReflectOps.one("wildcard")).asInstanceOf[Wildcard]
-    def unapply(pattern: Wildcard): true = true
   }
 
   private def built(op: String, trees: List[Tree]): Any = ReflectOps.term(ReflectOps.one(op, trees.map(ReflectOps.id)*))

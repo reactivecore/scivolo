@@ -4,11 +4,9 @@
 //! (dotty's `QuotesImpl.reflect`).
 
 use crate::defn::type_ref;
-use crate::tpd::{Build, TNodeId, Tpd, Tree as T};
-use crate::typer::type_apply::instantiate_poly;
+use crate::tpd::{Build, TNodeId, Tpd};
 use syntax::ast::Span;
 use syntax::names::Names;
-use tasty::tags::CLASSconst;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 pub struct Reflect<'a> {
@@ -60,6 +58,20 @@ impl Reflect<'_> {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => self.u.resolve_ref(t),
             Type::Applied(tycon, _) => self.type_symbol(tycon),
+            Type::Lambda { binder, ref params, result } => {
+                let types = self.u.types();
+                let eta = match types.get(result) {
+                    Type::Applied(tycon, args) if args.len() == params.len() => {
+                        let own = args
+                            .iter()
+                            .enumerate()
+                            .all(|(i, &a)| *types.get(a) == Type::Param(binder, i as u32));
+                        own.then_some(*tycon)
+                    }
+                    _ => None,
+                };
+                eta.and_then(|tycon| self.type_symbol(tycon))
+            }
             Type::Annotated(inner, _) => self.type_symbol(inner),
             Type::This(c) => self.u.class_symbol(c),
             _ => None,
@@ -114,6 +126,11 @@ impl Reflect<'_> {
         type_ref(self.u, s)
     }
 
+    /// `TypeRepr.select(s)`: the reference to member `s` of `prefix`.
+    pub fn select_type(&mut self, prefix: TypeId, s: SymbolId) -> TypeId {
+        crate::defn::ref_type(self.u, Some(prefix), s)
+    }
+
     /// `TermRef(qual, name)`: the reference to the only term member `name` of `qual`.
     pub fn term_ref(&mut self, qual: TypeId, name: &str) -> Result<TypeId, &'static str> {
         let found = match *self.u.types().get(qual) {
@@ -149,50 +166,5 @@ impl Reflect<'_> {
     pub fn select(&mut self, qual: TNodeId, m: SymbolId) -> Result<TNodeId, &'static str> {
         let span = self.span;
         Ok(self.build()?.select(qual, m, span))
-    }
-
-    /// `Apply(fun, args)` (dotty's `tpd.Apply`), of the result of `fun`'s method type for the
-    /// arguments' types.
-    pub fn apply(&mut self, fun: TNodeId, args: &[TNodeId]) -> Result<TNodeId, &'static str> {
-        let span = self.span;
-        let info = self.u.widen(self.tpd.tpe(fun));
-        let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
-            return Err("Apply of a term that takes no arguments");
-        };
-        if params.len() != args.len() {
-            return Err("Apply with another number of arguments than parameters");
-        }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
-        let tpes: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        let meth = self.tpd.sym(self.tpd.meth_part(fun));
-        let tpe =
-            crate::typer::dependent_params::applied_result(self.u, result, (binder, &names), meth, &tpes);
-        Ok(self.build()?.apply(fun, args, tpe, span))
-    }
-
-    /// `Term.appliedToTypes(args)`.
-    pub fn applied_to_types(&mut self, fun: TNodeId, args: &[TypeId]) -> Result<TNodeId, &'static str> {
-        let span = self.span;
-        let refused = "appliedToTypes of a term that takes no such type arguments";
-        if let (Some(f), &[arg]) = (self.tpd.sym(fun), args)
-            && self.u.full_name(f) == "scala.Predef$.classOf"
-        {
-            let tpe = self.u.intern_type(Type::Constant(CLASSconst, i64::from(arg.0)));
-            return Ok(self.tpd.node(T::ClassLiteral { tpe: arg }, span, Some(tpe), None));
-        }
-        let info = self.u.widen(self.tpd.tpe(fun));
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
-            return Err(refused);
-        };
-        if params.len() != args.len() {
-            return Err(refused);
-        }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
-        let tpe = instantiate_poly(self.u, result, (binder, &names), args, self.tpd.sym(fun));
-        let tpts: Vec<TNodeId> = args
-            .iter()
-            .map(|&a| self.tpd.node(T::TypeTree { inferred: false }, span, Some(a), None))
-            .collect();
-        Ok(self.build()?.type_apply(fun, &tpts, tpe, span))
     }
 }

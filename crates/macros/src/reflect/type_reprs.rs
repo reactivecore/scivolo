@@ -1,9 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
-//! The shapes of `TypeRepr`s for their type tests and extractors, and the type operations over
-//! them: a type's kind (1 `TypeRef`, 2 `TermRef`, 3 `AppliedType`, 4 `AnnotatedType`, 5
-//! `TypeBounds`, 6 `Refinement`, 7 `NoPrefix`, 8 `MethodType`, 9 `PolyType`, 0 other), its parts
-//! and its name.
+//! The operations over `TypeRepr`s: names, printing, construction and member types.
 
 use super::{Answer, UNKNOWN, arg, numbers, symbol, text};
 use crate::host::Host;
@@ -15,40 +12,6 @@ impl Host {
     pub fn run_type_repr(&mut self, op: &str, args: &[i32], name: &str) -> Answer {
         let tpe = |h: &Host, i: usize| h.type_of(arg(args, i)? as u32);
         match op {
-            "typeKind" => {
-                let t = tpe(self, 0)?;
-                numbers(vec![self.type_kind(t)])
-            }
-            "typeParts" => {
-                let t = tpe(self, 0)?;
-                let parts = match self.u.types().get(t).clone() {
-                    Type::Applied(tycon, args) => [tycon].into_iter().chain(args).collect(),
-                    Type::Annotated(inner, _) => vec![inner],
-                    Type::Sym(Some(prefix), _) => vec![prefix],
-                    Type::Sym(None, s) => vec![self.qualifier(s)?],
-                    Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => vec![prefix],
-                    Type::Bounds(lo, hi) => vec![lo, hi],
-                    Type::Alias(a) => vec![a, a],
-                    Type::Refined(parent, _, info) => vec![parent, info],
-                    _ => return Err("the parts of a type of another kind"),
-                };
-                numbers(parts.into_iter().map(|p| self.add_type(p) as i32).collect())
-            }
-            "lambdaParts" => {
-                let (flags, params, result) = match self.u.types().get(tpe(self, 0)?).clone() {
-                    Type::Method { params, result, implicit, contextual, .. } => {
-                        ([implicit, contextual], params, result)
-                    }
-                    Type::Poly { params, result, .. } => ([false, false], params, result),
-                    _ => return Err("the parts of a type other than a method or polymorphic type"),
-                };
-                let mut parts: Vec<i32> =
-                    flags.iter().map(|&f| f as i32).chain([params.len() as i32]).collect();
-                parts.extend(params.iter().map(|&(_, t)| self.add_type(t) as i32));
-                parts.push(self.add_type(result) as i32);
-                let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
-                Ok((parts, Some(names.join("\0"))))
-            }
             "showType" => {
                 let t = tpe(self, 0)?;
                 text(self.u.show_source(t)?)
@@ -56,7 +19,7 @@ impl Host {
             "typeName" => {
                 let t = tpe(self, 0)?;
                 match self.u.types().get(t).clone() {
-                    Type::Sym(_, s) => text(self.u.symbol(s).name.clone()),
+                    Type::Sym(_, s) | Type::Package(s) => text(self.u.symbol(s).name.clone()),
                     Type::TypeRef(_, n) | Type::TermRef(_, n) | Type::Refined(_, n, _) => text(n),
                     _ => Err("the name of an unnamed type"),
                 }
@@ -139,11 +102,14 @@ impl Host {
         }
     }
 
-    /// The qualifier of a reference to `s` without a prefix: its package, the `this` of its
-    /// static owner, or no prefix for a local; `Err` for a member of another class.
-    fn qualifier(&mut self, s: SymbolId) -> Result<TypeId, &'static str> {
+    /// The qualifier of a reference to `s` without a prefix (dotty's `owner.thisType`): the `this`
+    /// of its package or static owner, no prefix for a package's own type or a local; `Err` for a
+    /// member of another class.
+    pub fn qualifier(&mut self, s: SymbolId) -> Result<TypeId, &'static str> {
+        let package = |h: &Host, s| h.u.symbol(s).kind == Kind::Package;
         let t = match self.u.symbol(s).owner {
-            Some(o) if self.u.symbol(o).kind == Kind::Package => Type::Package(o),
+            _ if package(self, s) => Type::NoPrefix,
+            Some(o) if package(self, o) => return Ok(self.package_this_of(o)),
             Some(o) if self.u.is_class(o) && self.u.is_static_symbol(s) => {
                 Type::This(self.u.intern_type(Type::Sym(None, o)))
             }
@@ -179,21 +145,5 @@ impl Host {
             t = result;
         }
         Ok(None)
-    }
-
-    fn type_kind(&self, t: TypeId) -> i32 {
-        match *self.u.types().get(t) {
-            Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => 2,
-            Type::Sym(..) | Type::TypeRef(..) => 1,
-            Type::TermRef(..) => 2,
-            Type::Applied(..) => 3,
-            Type::Annotated(..) => 4,
-            Type::Bounds(..) | Type::Alias(_) => 5,
-            Type::Refined(..) => 6,
-            Type::NoPrefix => 7,
-            Type::Method { .. } => 8,
-            Type::Poly { .. } => 9,
-            _ => 0,
-        }
     }
 }

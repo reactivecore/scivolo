@@ -10,13 +10,15 @@ import scala.quoted.runtime.{QuoteMatching, QuoteUnpickler}
  */
 final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSupport, ReflectTreeSupport, ReflectTermSupport,
     ReflectTypeSupport, ReflectTypeShapeSupport,ReflectConstantSupport, ReflectSymbolSupport, ReflectFlagSupport,
-    ReflectDefinitionSupport, ReflectDeclarationSupport, ReflectPositionSupport {
+    ReflectDefinitionSupport, ReflectDeclarationSupport, ReflectPositionSupport, ReflectControlSupport,
+    ReflectTypeTreeSupport, ReflectStatementSupport, ReflectPatternSupport, ReflectTypeKindSupport,
+    ReflectLambdaTypeSupport, ReflectTypeBoundSupport {
   /** Its getter is a VM native allocating a `ReflectImpl`. */
   val reflect: reflectModule = null
 
   extension [T](self: Expr[T]) {
     def show: String = ReflectOps.text("showTree", QuoteHost.exprId(self))
-    def matches(that: Expr[Any]): Boolean = throw new Unsupported("Expr.matches")
+    def matches(that: Expr[Any]): Boolean = QuoteHost.matchPattern(QuoteHost.exprId(self), QuoteHost.exprId(that)) >= 0
     def valueOrAbort(using fromExpr: FromExpr[T]): T =
       fromExpr.unapply(self)(using this).getOrElse(throw new Unsupported("Expr.valueOrAbort of no known value"))
   }

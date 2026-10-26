@@ -9,12 +9,13 @@ use tasty::TypeId;
 use typer::inlining::Annotations;
 use typer::tpd::TNodeId;
 
-/// What the typer gives an expansion: the unit's annotations and the implicit searches answered
-/// so far; the search the expansion asks for next.
+/// What the typer gives an expansion: the unit's annotations, the implicit searches answered
+/// so far and whether it expands while typing; the search the expansion asks for next.
 #[derive(Default)]
 pub struct FromTyper {
     pub annotations: Annotations,
     pub searched: Vec<(TypeId, Option<TNodeId>)>,
+    pub while_typing: bool,
     pub wanted: Option<TypeId>,
 }
 
@@ -24,6 +25,9 @@ pub const SEARCH: &str = "an implicit search the typer answers";
 impl Host {
     /// Runs implicit operation `op` on `args`: the argument found as `[1, tree]`, `[0]` for none.
     pub fn run_implicit(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
+        if op == "isWhileTyping" {
+            return numbers(vec![self.typer.while_typing as i32]);
+        }
         if op != "search" {
             return Err(UNKNOWN);
         }

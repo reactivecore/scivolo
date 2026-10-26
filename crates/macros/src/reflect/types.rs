@@ -38,6 +38,20 @@ impl Host {
                 let c = self.u.class_symbol(t).filter(|&c| self.u.is_class(c));
                 numbers(vec![c.map_or(-1, |c| c.0 as i32)])
             }
+            "baseType" => {
+                let t = self.type_of(arg(0)? as u32)?;
+                let base = super::symbol(arg(1)?)?;
+                let b = self
+                    .u
+                    .base_type(t, base)
+                    .ok_or("TypeRepr.baseType of a class the type does not derive from")?;
+                numbers(vec![self.add_type(b) as i32])
+            }
+            "selectType" => {
+                let t = self.type_of(arg(0)? as u32)?;
+                let s = self.reflect().select_type(t, super::symbol(arg(1)?)?);
+                numbers(vec![self.add_type(s) as i32])
+            }
             "widen" => {
                 let t = self.type_of(arg(0)? as u32)?;
                 let w = self.u.widen(t);

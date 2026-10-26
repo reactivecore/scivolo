@@ -157,10 +157,35 @@ impl Inlining<'_> {
         trees.retain(|&t| self.u.class_symbol(self.tpd.tpe(t)).is_some_and(|c| self.u.derives_from(c, base)));
         let typed: Vec<_> = trees.iter().map(|&t| self.u.class_symbol(self.tpd.tpe(t))).collect();
         let classes = self.u.annotations(s).to_vec();
-        if classes.into_iter().any(|c| self.u.derives_from(c, base) && !typed.contains(&Some(c))) {
-            return Err((self.tpd.span(def), "a macro annotation in a quote or a library inline body"));
+        let span = self.tpd.span(def);
+        for c in classes {
+            if self.u.derives_from(c, base) && !typed.contains(&Some(c)) {
+                let made = self.new_annotation(c, span);
+                trees.push(made.ok_or((
+                    span,
+                    "a macro annotation with arguments in a quote or a library inline body",
+                ))?);
+            }
         }
         trees.reverse();
         Ok(trees)
+    }
+
+    /// `new c()` at `span`, if class `c` has a constructor without parameters: the annotation
+    /// of class `c` without arguments on a definition the typer did not type.
+    fn new_annotation(&mut self, c: SymbolId, span: Span) -> Option<TNodeId> {
+        let ctors = self.u.decl(c, "<init>").unwrap_or_default();
+        let ctor = ctors.into_iter().find(|&k| {
+            let info = self.u.info(k);
+            matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty())
+        })?;
+        let tpe = crate::defn::type_ref(self.u, c);
+        let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(tpe), None);
+        let new = self.tpd.node(T::New { tpt }, span, Some(tpe), None);
+        let name = self.term_name(ctor);
+        let ctor_tpe = self.u.intern_type(Type::Sym(Some(tpe), ctor));
+        let select = self.tpd.node(T::Select { qualifier: new, name }, span, Some(ctor_tpe), Some(ctor));
+        let args = self.tpd.list(&[]);
+        Some(self.tpd.node(T::Apply { fun: select, args }, span, Some(tpe), None))
     }
 }

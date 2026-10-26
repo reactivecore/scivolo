@@ -22,6 +22,12 @@ const EXPANDED: [&str; 10] = [
     "summonFrom",
 ];
 
+/// `scala.compiletime.testing.typeChecks` and `typeCheckErrors`, which inlining expands.
+const TYPE_CHECKS: [&str; 2] = [
+    "scala.compiletime.testing.package$package$.typeChecks",
+    "scala.compiletime.testing.package$package$.typeCheckErrors",
+];
+
 impl Typer<'_> {
     /// Checks a reference to `sym` from `ctx`: not to a macro or an inline `scala.compiletime`
     /// operation, nor to `erasedValue` outside an inline method, nor from an inline body to a
@@ -40,6 +46,7 @@ impl Typer<'_> {
             && !full
                 .strip_prefix("scala.compiletime.package$package$.")
                 .is_some_and(|n| EXPANDED.contains(&n))
+            && !TYPE_CHECKS.contains(&full.as_str())
         {
             return Err("scala.compiletime operation");
         }
