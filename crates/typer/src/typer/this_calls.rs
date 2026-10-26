@@ -62,12 +62,14 @@ impl Typer<'_> {
             return ctx;
         }
         let mut level = ctx.level;
+        let mut params = Vec::new();
         while let Some(outer) = self.levels.outer(level) {
+            if let Level::Scope(entries) = self.levels.get(level)
+                && entries.iter().any(|&(_, s)| self.u.symbol(s).owner == Some(ctx.owner))
+            {
+                params = entries.clone();
+            }
             if matches!(self.levels.get(outer), Level::Members(_)) {
-                let params = match self.levels.get(level) {
-                    Level::Scope(entries) => entries.clone(),
-                    _ => Vec::new(),
-                };
                 let level = self.levels.push(self.levels.outer(outer), Level::Scope(params));
                 return Ctx { level, ..ctx };
             }

@@ -147,14 +147,16 @@ impl Typer<'_> {
     }
 
     /// Whether abstract member `d` may not override concrete member `m` (dotty's `checkOverride`
-    /// for a deferred member): `m` is not `Object`'s, is final, of a final class or a value, one
+    /// for a deferred member): `m` is not `Object`'s or `Any`'s, is final, of a final class or a value, one
     /// of them is an extension method, or `d`'s result type does not conform to `m`'s.
     fn overrides_only_concretely(&mut self, d: SymbolId, m: SymbolId) -> bool {
         use tasty::tags::{EXTENSION, FINAL};
         let (sd, sm) = (self.u.symbol(d), self.u.symbol(m));
         let final_owner =
             sm.owner.is_some_and(|o| self.u.symbol(o).flags.has(FINAL) || self.u.is_module_class(o));
-        let object = sm.owner.is_some_and(|o| self.u.full_name(o) == "java.lang.Object");
+        let object = sm
+            .owner
+            .is_some_and(|o| matches!(self.u.full_name(o).as_str(), "java.lang.Object" | "scala.Any"));
         let refused = !object
             || sm.flags.has(FINAL)
             || final_owner

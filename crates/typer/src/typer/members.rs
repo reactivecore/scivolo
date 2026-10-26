@@ -188,12 +188,31 @@ impl Typer<'_> {
                     }
                 }
                 match overridden {
-                    Some(k) if self.is_concrete(m) && !self.is_concrete(out[k]) => out[k] = m,
+                    Some(k)
+                        if self.is_concrete(m)
+                            && !self.is_concrete(out[k])
+                            && !self.declared_below(c, out[k], m) =>
+                    {
+                        out[k] = m
+                    }
                     Some(_) => {}
                     None => out.push(m),
                 }
             }
         }
         out
+    }
+
+    /// Whether `o`, a member of class `c` and not private, hides `m` of a base class of its class:
+    /// `c` declares `o`, or each parent of `c` that inherits `m` does so through `o`'s class (dotty's
+    /// `mapInherited` dropping what a class's own members match).
+    fn declared_below(&mut self, c: SymbolId, o: SymbolId, m: SymbolId) -> bool {
+        let (Some(a), Some(b)) = (self.u.symbol(o).owner, self.u.symbol(m).owner) else { return false };
+        if a == b || !self.u.derives_from(a, b) || self.u.symbol(o).flags.has(tasty::tags::PRIVATE) {
+            return false;
+        }
+        let parents: Vec<SymbolId> =
+            self.u.parents(c).into_iter().filter_map(|p| self.u.class_symbol(p)).collect();
+        a == c || parents.into_iter().all(|p| !self.u.derives_from(p, b) || self.u.derives_from(p, a))
     }
 }
