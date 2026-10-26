@@ -65,8 +65,8 @@ inlining (ADR 0006).
 
 Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,321 of 1,711 pass (2026-10-24); 160 stop at the typer, 10 at
-the lowering.
+(`just dotty-lower-report`): 1,401 of 1,711 pass (2026-10-26); 92 stop at the typer, 13 at
+the lowering, 32 fail in the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
    `DesugarEnums`. Tokens match dotty on all 5,893 files, trees and desugaring on 5,891
@@ -93,7 +93,7 @@ executables. A library macro runs from its NIR in the VM; its quotes are unpickl
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
 `Quotes` is refused by name. Macro annotations expand in the inlining (ADR 0039). Circe
 0.14.10's `derives Codec.AsObject`, sourcecode 0.4.4, fastparse 3.1.1, mainargs 0.7.8, upickle,
-pprint and os-lib work. dotty's `tests/run-macros`: 188 of 321 pass (2026-10-24,
+pprint and os-lib work. dotty's `tests/run-macros`: 215 of 321 pass (2026-10-26,
 `just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
@@ -112,14 +112,19 @@ pprint and os-lib work. dotty's `tests/run-macros`: 188 of 321 pass (2026-10-24,
 Compatibility first, in order of the tests it unblocks; startup comes last and must not get
 slower meanwhile:
 1. **Typer groups**: [research 37](docs/research/37-refusals-after-1023.md)'s census;
-   [research 33](docs/research/33-typer-refusals-in-run.md)'s rest (#164: polymorphic givens as
-   import bounds); `Manifest` (#166); named-tuple leftovers (#146); match-type leftovers (#120);
-   typed-tree printing gap 2 (#122). Done 2026-10-24: Java enums (§2.7), dependent function
+   named-tuple leftovers (#146); match-type leftovers (#120); typed-tree printing gap 2 (#122).
+   Done 2026-10-26: `Selectable` and structural calls, higher-kinded aliases, named tuple
+   trees (#146); dependent matches, pattern-bound types, library sealed children (#120, #129);
+   erased definitions and saferExceptions (ADR 0054); implicit scope through prefixes,
+   ClassTag/Manifest synthesis, polymorphic givens as import bounds (#155, #164); wrong
+   overrides refused (#124). Done 2026-10-24: Java enums (§2.7), dependent function
    types, refinements adding type members (#164); extension fallback to the implicit scope,
    i16065 (#166); named tuples, XXL tuples, named and higher-kinded type arguments (#139);
    mirrors through refined paths, match-type reduction through them, `codeOf` (#129, #120).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `TypeReprStructure`,
-   higher-order holes with types, measured on `tests/run-macros`. Done 2026-10-24: macro
+   higher-order holes with types, a package prefix as `TermRef`, measured on
+   `tests/run-macros`. Done 2026-10-26: reflect tree and type operations, TreeMap/ExprMap,
+   `typeChecks` (ADR 0053). Done 2026-10-24: macro
    annotations (ADR 0039), `Symbol.newClass`, `newModule`, `newMethod`, `newVal`,
    `ClassDef`/`DefDef`/`ValDef` construction, `Term.etaExpand`.
 3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): done
@@ -127,9 +132,10 @@ slower meanwhile:
    `tprint`, os-lib paths, as scripts and native executables; earlier fastparse (R2) and
    mainargs (R5, R6; ADR 0037).
 4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md),
-   [research 35](docs/research/35-local-classes-in-inline-bodies.md), #165): local objects and
-   `super` in inline bodies; members of path-dependent aliases seen from the path
-   (typeclass-derivation2b); local lazy values of value classes. Done 2026-10-24: implicit
+   [research 35](docs/research/35-local-classes-in-inline-bodies.md), #165): the 13 lowering
+   refusals left. Done 2026-10-26: local objects and `super` in inline bodies, members of
+   path-dependent aliases seen from the path, local lazy values of value classes, `@static`
+   values (ADR 0047). Done 2026-10-24: implicit
    search in the call's context, `summonFrom` givens, polymorphic inline accessors, library
    trait variables, the forward-reference check (#90), local enums, nested context-result
    bridges.
@@ -139,11 +145,11 @@ slower meanwhile:
 7. **Scala Native's library through the own frontend** (#168,
    [research 36](docs/research/36-compiling-the-native-stdlib.md), ADR 0042, 0043): `just
    lib-compile MODULE` lowers each file and compares its NIR with Scala Native's build of it
-   (`just lib-oracle`, Scala 3.8.3; the published jars are Scala 3.1.3's). 2026-10-24: javalib
-   325 of 601 files lowered, 685 of 783 NIR files identical; nativelib 59 of 103, 179 of 295;
-   auxlib 7 of 15, 43 of 44; windowslib 5 of 34; clib and posixlib wait for `@extern` (G3).
-   Done: G1, G2, G5 (unit and javalib classes as Scala classes), G6a, G6b in part. Next: G3,
-   G4, G6c.
+   (`just lib-oracle`, Scala 3.9.0, ADR 0046; the published jars are Scala 3.1.3's).
+   2026-10-26, measured per branch: javalib 387 of 601 files lowered with G4, 380 with G6c
+   (977 of 1,063 NIR files identical); nativelib 77 of 103; posixlib 57; windowslib 32.
+   Done: G1, G2, G3, G4 (intrinsics, `CFuncPtr`, `c"…"`, link-time conditions, `@struct`,
+   ADR 0045), G5, G6a, G6b in part, G6c. Next: extern varargs, `@align`, SafeZone.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
