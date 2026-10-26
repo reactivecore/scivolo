@@ -100,6 +100,7 @@ impl Typer<'_> {
             }
             _ => return None,
         };
+        let tpe = self.u.dealias(tpe);
         match self.u.types().get(tpe).clone() {
             Type::Applied(_, args) => Some((args, self.tpd.span(qualifier).end_pos())),
             _ => None,
