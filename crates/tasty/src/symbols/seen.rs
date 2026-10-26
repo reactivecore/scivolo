@@ -46,7 +46,7 @@ impl Universe {
 
     /// Whether `t` is a stable path to a value: a skolem, or a reference to an immutable value or
     /// a parameter neither by-name nor inline, through `this`, a package, a type or such a path.
-    fn is_value_path(&mut self, t: TypeId) -> bool {
+    pub fn is_value_path(&mut self, t: TypeId) -> bool {
         let (pre, s) = match *self.types().get(t) {
             Type::Skolem(..) => return true,
             Type::Sym(pre, s) => (pre, s),
