@@ -17,7 +17,12 @@ impl Typer<'_> {
         let Some(depth) = depth.checked_sub(1) else { return 0 };
         match self.u.types().get(t).clone() {
             Type::Sym(pre, s) => match self.u.symbol(s).kind {
-                Kind::Class => self.u.type_params(s).len(),
+                Kind::Class => {
+                    if matches!(self.syms.completions.get(&s), Some(crate::symbols::Completion::Pending { .. })) {
+                        self.complete(s);
+                    }
+                    self.u.type_params(s).len()
+                }
                 Kind::Type | Kind::TypeParam => {
                     self.complete(s);
                     let info = self.refined_info(pre, s);
