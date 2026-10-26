@@ -78,8 +78,12 @@ impl Universe {
         };
         let name = full.rsplit('.').next().unwrap_or(full);
         let (ast, names) = self.file(file);
-        let View::DefDef { parts, .. } = view(ast, id) else { return false };
-        annotations(ast, parts.mods).any(|(ty, _)| names_ref(ast, names, ty, name))
+        let mods = match view(ast, id) {
+            View::DefDef { parts, .. } => parts.mods,
+            View::ValDef { mods, .. } | View::Param { mods, .. } | View::TypeDef { mods, .. } => mods,
+            _ => return false,
+        };
+        annotations(ast, mods).any(|(ty, _)| names_ref(ast, names, ty, name))
     }
 
     /// Records one more annotation of class `class` on `sym`, a symbol defined outside TASTy, with
