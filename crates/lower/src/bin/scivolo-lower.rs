@@ -58,6 +58,9 @@ fn main() {
         options
             .extend(directives.unwrap_or_else(|d| fail(&format!("the typer does not support {d}"))).options);
     }
+    let fatal =
+        options.iter().any(|o| ["-Werror", "-Xfatal-warnings"].contains(o) || o.starts_with("-Wconf"));
+    options.retain(|o| !no_code_effect(o, !cp.is_empty()) || Config::checked(&[o]).is_ok());
     let cfg = Config::checked(&options)
         .unwrap_or_else(|o| fail(&format!("the typer does not support option `{o}`")));
     let lowered = match &sources[..] {
@@ -65,6 +68,9 @@ fn main() {
         many => lower::compile_sources(&mut u, many, cfg, macros),
     };
     match lowered {
+        Ok((_, warnings)) if fatal && !warnings.items.is_empty() => {
+            fail("the typer does not support warnings under -Werror or -Wconf")
+        }
         Ok((files, _)) => {
             let _ = std::fs::remove_dir_all(&out);
             std::fs::create_dir_all(&out).expect("creating the output directory");
@@ -85,6 +91,14 @@ fn main() {
             })
         }
     }
+}
+
+/// Whether option `o` cannot change the code of a program dotty compiles, `macros` whether macro
+/// calls run.
+fn no_code_effect(o: &str, macros: bool) -> bool {
+    matches!(o, "-Werror" | "-Xfatal-warnings" | "-experimental" | "-deprecation" | "-feature" | "-unchecked")
+        || ["-W", "-opt", "-Ycheck"].iter().any(|p| o.starts_with(p))
+        || o == "-Yretain-trees" && !macros
 }
 
 fn fail(message: &str) -> ! {
