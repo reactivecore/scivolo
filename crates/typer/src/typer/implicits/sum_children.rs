@@ -12,14 +12,19 @@ use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// The children of sealed class `s` in the order of their definitions: classes, and objects
-    /// by their values; of an enum, its cases. Refused for a sealed class of the library.
+    /// by their values; of an enum, its cases. A sealed class of the library has the children
+    /// its TASTy names.
     pub fn sealed_children(&mut self, s: SymbolId) -> Result<Vec<SymbolId>, &'static str> {
-        let Some(&def) = self.syms.def_trees.get(&s) else {
-            return Err("sum Mirror of a library's sealed class");
-        };
         if self.u.symbol(s).flags.has(ENUM) {
             return Ok(sealed::enum_cases(self.u, s));
         }
+        let Some(&def) = self.syms.def_trees.get(&s) else {
+            let types = self.u.decoded_children(s).ok_or("sum Mirror of a sealed class without TASTy")?;
+            return types
+                .into_iter()
+                .map(|t| self.referenced(t).ok_or("sealed child outside the subset"))
+                .collect();
+        };
         let file = self.file_of(self.ast.span(def));
         let defs: Vec<(SymbolId, syntax::ast::NodeId)> =
             self.syms.def_trees.iter().map(|(&k, &v)| (k, v)).collect();

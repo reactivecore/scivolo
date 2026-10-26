@@ -65,11 +65,18 @@ impl Typer<'_> {
     }
 
     /// The companion of sealed class `c` if it is its sum mirror (dotty's
-    /// `useCompanionAsSumMirror`, for a class of the unit).
+    /// `useCompanionAsSumMirror`): for a class of the library, one extending `Mirror.Sum`.
     fn sum_companion(&mut self, c: SymbolId) -> Option<SymbolId> {
         let module = self.u.companion_module(c)?;
-        let case = self.u.module_class(module).is_some_and(|m| self.u.symbol(m).flags.has(CASE));
-        (!case && self.syms.def_trees.contains_key(&c)).then_some(module)
+        let module_class = self.u.module_class(module)?;
+        if self.u.symbol(module_class).flags.has(CASE) {
+            return None;
+        }
+        if self.syms.def_trees.contains_key(&c) {
+            return Some(module);
+        }
+        let sum = self.resolve_full_name("scala.deriving.Mirror$.Sum", true)?;
+        self.u.derives_from(module_class, sum).then_some(module)
     }
 
     /// Whether prefix `p` is a package or the `this` of a class, under which the children's
