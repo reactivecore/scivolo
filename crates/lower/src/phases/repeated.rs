@@ -26,6 +26,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             seq_value(l, t, elems, elemtpt)?;
             return Ok(Walk::Children);
         }
+        if let Tree::ValDef { name, tpt, rhs: Some(rhs) } = *l.tpd.tree(t)
+            && let Some(wrapped) = repeated_array(l, rhs)?
+        {
+            l.tpd.get_mut(t).tree = Tree::ValDef { name, tpt, rhs: Some(wrapped) };
+        }
         let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return Ok(Walk::Children) };
         let old = l.tpd.items(args).to_vec();
         let mut new = Vec::new();
@@ -75,6 +80,21 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
         return Ok(seq);
     }
     wrap_array(l, seq, elem, ascribed, span)
+}
+
+/// `ScalaRunTime.wrapXArray(array)` for `t`, `array: <repeated>[T]` outside an argument, as an
+/// inline method's parameter binds it.
+fn repeated_array(l: &mut Lower, t: TNodeId) -> Result<Option<TNodeId>> {
+    let Tree::Typed { expr, tpt } = *l.tpd.tree(t) else { return Ok(None) };
+    let ascribed = l.tpd.tpe(tpt);
+    let tpe = l.u.widen(l.tpd.tpe(expr));
+    if !is_class(l, ascribed, "scala.<repeated>") || !is_class(l, tpe, "scala.Array") {
+        return Ok(None);
+    }
+    let Type::Applied(_, ref elems) = *l.u.types().get(ascribed) else { return Ok(None) };
+    let elem = elems[0];
+    let span = l.tpd.span(t);
+    wrap_array(l, expr, elem, ascribed, span).map(Some)
 }
 
 /// Sequence literal `t` of `elems` outside a repeated argument, of a Scala sequence type, made

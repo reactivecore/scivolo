@@ -28,11 +28,7 @@ impl Expansion<'_, '_> {
         if let T::Typed { expr, .. } = *i.tpd.tree(arg)
             && let Some(seq) = i.seq_of_repeated(arg_tpe)
         {
-            let array = i.scala_member("Array", Kind::Class);
-            match i.tpd.get(expr).tpe.map(|t| i.u.widen(t)) {
-                Some(t) if i.u.class_symbol(t).is_some_and(|c| Some(c) == array) => {
-                    return Err(self.err("array passed to a repeated parameter of an inline method"));
-                }
+            match i.tpd.get(expr).tpe {
                 Some(_) => {}
                 None if matches!(i.tpd.tree(expr), T::SeqLiteral { .. }) => {
                     i.tpd.get_mut(expr).tpe = Some(seq)
