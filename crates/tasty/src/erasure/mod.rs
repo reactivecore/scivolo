@@ -90,9 +90,12 @@ impl Universe {
             Type::Sym(_, s) => self.erase_symbol(s),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => self.erase_symbol(s),
-                None => match self.unresolved_class(p, &n) {
-                    Some(full) => special(&full).unwrap_or(Erased::Class(full)),
-                    None => object(),
+                None => match self.refinement_named(p, &n) {
+                    Some(info) => self.erase(info),
+                    None => match self.unresolved_class(p, &n) {
+                        Some(full) => special(&full).unwrap_or(Erased::Class(full)),
+                        None => object(),
+                    },
                 },
             },
             Type::TermRef(p, n) => match self.resolve_ref(t) {
