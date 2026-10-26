@@ -107,6 +107,24 @@ impl Host for Typer<'_> {
         self.diags.has_errors()
     }
 
+    fn error_count(&self) -> usize {
+        self.diags.items.len()
+    }
+
+    fn errors_since(&mut self, mark: usize) -> bool {
+        let errors = self.diags.items[mark..].iter().any(|d| d.level == syntax::diag::Level::Error);
+        self.diags.items.truncate(mark);
+        errors
+    }
+
+    fn typed_code(&mut self, lent: Lent<'_>, code: &str, ctx: Ctx) -> Option<TNodeId> {
+        let (u, tpd, names, fresh) = lent;
+        self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
+        let typed = catch_unwind(AssertUnwindSafe(|| self.typed_code_in(code, ctx)));
+        self.swap_lent((u, tpd, names, fresh));
+        typed.unwrap_or_else(|panic| resume_unwind(panic))
+    }
+
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError> {
         self.with_macros(lent, call.span, |m, lent, annotations| m.expand(lent, call, annotations))
     }

@@ -28,6 +28,20 @@ impl Inlining<'_> {
         let [quotes] = params[..] else { return Err(refused) };
         let quotes = self.tpd.sym(quotes).ok_or(refused)?;
         let mut t = self.unwrapped(body);
+        let mut bound = Vec::new();
+        if let T::Block { stats, expr } = *self.tpd.tree(t) {
+            for &stat in self.tpd.items(stats) {
+                let (T::ValDef { rhs: Some(rhs), .. }, Some(s)) = (self.tpd.tree(stat), self.tpd.sym(stat))
+                else {
+                    return Err(refused);
+                };
+                if !self.u.symbol(s).flags.has(tasty::tags::SYNTHETIC) {
+                    return Err(refused);
+                }
+                bound.push((s, *rhs));
+            }
+            t = self.unwrapped(expr);
+        }
         let (mut clauses, mut context) = (Vec::new(), false);
         loop {
             match *self.tpd.tree(t) {
@@ -52,11 +66,19 @@ impl Inlining<'_> {
         let mut args = Vec::new();
         for arg in clauses.into_iter().rev().flatten() {
             let refused = (self.tpd.span(arg), "a macro argument other than a quote, a type or the Quotes");
+            let arg = match *self.tpd.tree(arg) {
+                T::NamedArg { arg, .. } => arg,
+                _ => arg,
+            };
+            let arg = match (self.tpd.tree(arg), self.tpd.sym(arg)) {
+                (T::Ident { .. }, Some(s)) => {
+                    bound.iter().find(|&&(b, _)| b == s).map_or(arg, |&(_, rhs)| rhs)
+                }
+                _ => arg,
+            };
             args.push(match self.macro_arg(arg, quotes).ok_or(refused)? {
                 MacroArg::Expr(body) => {
-                    if let Some(at) = self.new_instance_projection(body) {
-                        return Err((at, "a macro argument selecting a parameter of a new instance"));
-                    }
+                    let body = self.reduced_projections(body)?;
                     let body = self.constant_arg(body);
                     MacroArg::Expr(self.outer_inlined(body))
                 }
@@ -115,29 +137,6 @@ impl Inlining<'_> {
         let by_name = matches!(types.get(f), Type::Applied(_, targs)
             if targs.first().is_some_and(|&a| matches!(types.get(a), Type::ByName(_))));
         (!by_name).then_some(qualifier)
-    }
-
-    /// The span of a selection `new C(args).x` of a parameter `x` in `t`, which dotty's inliner
-    /// reduces to the argument before the macro sees it (`InlineReducer.reduceProjection`).
-    fn new_instance_projection(&mut self, t: TNodeId) -> Option<Span> {
-        let mut todo = vec![t];
-        while let Some(n) = todo.pop() {
-            if let T::Select { qualifier, .. } = *self.tpd.tree(n)
-                && let T::Apply { fun, .. } = *self.tpd.tree(qualifier)
-                && let T::Select { qualifier: new, .. } = *self.tpd.tree(fun)
-                && let T::New { tpt } = *self.tpd.tree(new)
-                && let (Some(cls), Some(x)) = (self.u.class_symbol(self.tpd.tpe(tpt)), self.tpd.sym(n))
-            {
-                let s = self.u.symbol(x);
-                let param =
-                    s.kind == Kind::Param || s.kind == Kind::Val && s.flags.has(tasty::tags::PARAMsetter);
-                if param && s.owner == Some(cls) {
-                    return Some(self.tpd.span(n));
-                }
-            }
-            todo.extend(self.tpd.children(n));
-        }
-        None
     }
 
     fn is_static_object(&self, c: SymbolId) -> bool {

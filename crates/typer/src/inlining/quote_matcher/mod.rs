@@ -29,7 +29,7 @@ pub fn quote_match(
         return Err("a type pattern matched against an expression");
     };
     let Some(bindings) = Bindings::new(u, &pattern.bindings, &pattern.spliced) else { return Ok(None) };
-    let mut m = Matcher { u, tpd, fills, bindings, env: Vec::new(), matched: Vec::new() };
+    let mut m = Matcher { u, tpd, names, fills, bindings, env: Vec::new(), matched: Vec::new() };
     if !m.matches(scrutinee, tree)? {
         return Ok(None);
     }
@@ -66,6 +66,7 @@ pub struct Captured {
 struct Matcher<'a> {
     u: &'a mut Universe,
     tpd: &'a mut Tpd,
+    names: &'a mut Names,
     fills: &'a [(TNodeId, Option<TNodeId>)],
     bindings: Bindings,
     /// The symbols the scrutinee defines with those of the pattern they stand for.
@@ -239,9 +240,10 @@ impl Matcher<'_> {
         match pt {
             T::Select { qualifier, .. } if self.same_symbol(s, p)? => match *self.tpd.tree(s) {
                 T::Select { qualifier: q, .. } => self.matches(q, qualifier),
-                _ if self.has_hole(qualifier) => {
-                    Err("a quote pattern selecting from a hole matched against an identifier")
-                }
+                _ if self.has_hole(qualifier) => match self.prefix_ref(s) {
+                    Some(q) => self.matches(q, qualifier),
+                    None => Err("a quote pattern selecting from a hole matched against an identifier"),
+                },
                 _ => Ok(true),
             },
             T::Ident { .. } if self.same_symbol(s, p)? => Ok(true),
@@ -261,10 +263,11 @@ impl Matcher<'_> {
         if sa.name != sb.name || !sa.kind.is_term() || !self.u.is_class(oa) || !self.u.is_class(ob) {
             return Ok(false);
         }
-        match self.u.derives_from(oa, ob) || self.u.derives_from(ob, oa) {
-            true => Err("a quote pattern matching a member that may override another"),
-            false => Ok(false),
-        }
+        let a = match *self.tpd.tree(s) {
+            T::Select { qualifier, .. } => self.devirtualized(a, qualifier),
+            _ => a,
+        };
+        Ok(a == b || self.env.contains(&(a, b)) || self.overrides(a, b))
     }
 
     /// The scrutinee `s` matched by a hole if it refers to no definition of the scrutinee the

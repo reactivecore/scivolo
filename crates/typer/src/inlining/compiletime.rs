@@ -16,8 +16,13 @@ impl Inlining<'_> {
         let meth = self.tpd.sym(self.tpd.meth_part(call))?;
         let owner = self.u.symbol(meth).owner?;
         let package = self.u.symbol(owner).owner?;
+        let name = &self.u.symbol(meth).name;
         let ours = crate::defn::is_named_package_object(self.u, owner)
-            && self.u.full_name(package) == "scala.compiletime";
+            && match self.u.full_name(package).as_str() {
+                "scala.compiletime" => true,
+                "scala.compiletime.testing" => name == "typeChecks",
+                _ => false,
+            };
         ours.then(|| self.u.symbol(meth).name.clone())
     }
 
@@ -46,6 +51,7 @@ impl Inlining<'_> {
                 self.tpd.node(T::Literal { value: C::Unit }, span, Some(tpe), None)
             }
             ("codeOf", Some(arg), _) => self.code_of(arg, span)?,
+            ("typeChecks", Some(arg), _) => self.type_checks(arg, owner, span)?,
             ("constValue", _, Some(t)) => {
                 let tpe = self.tpd.tpe(t);
                 let value =
@@ -63,6 +69,27 @@ impl Inlining<'_> {
             ("summonAll", _, Some(t)) => self.tuple_intrinsic(t, true, span)?,
             _ => return Ok(None),
         }))
+    }
+
+    /// `typeChecks(code)` (dotty's `Intrinsics.typeChecks`): whether the constant string `code`
+    /// parses, types in the context of the outermost call and expands without errors.
+    fn type_checks(&mut self, arg: TNodeId, owner: SymbolId, span: Span) -> Result<TNodeId, Unsupported> {
+        let tpe = self.tpd.tpe(arg);
+        let Some(C::String(code)) = self.constant_of_type(tpe) else {
+            return Err((span, "typeChecks of code that is not a constant string"));
+        };
+        let code = String::from_utf16_lossy(&code);
+        let ctx = self.ctx.ok_or((span, "typeChecks without the call's context"))?;
+        let mark = self.host.error_count();
+        let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
+        let checks = match self.host.typed_code(lent, &code, ctx) {
+            Some(typed) => {
+                self.transform(typed, owner)?;
+                !self.host.errors_since(mark)
+            }
+            None => false,
+        };
+        Ok(self.literal(C::Boolean(checks), span))
     }
 
     /// Implicit `found` of type `pt`, ascribed `pt` if its class is another one and its type

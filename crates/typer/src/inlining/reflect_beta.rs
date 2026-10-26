@@ -33,6 +33,18 @@ impl Host for NoHost {
         false
     }
 
+    fn error_count(&self) -> usize {
+        0
+    }
+
+    fn errors_since(&mut self, _: usize) -> bool {
+        false
+    }
+
+    fn typed_code(&mut self, _: Lent<'_>, _: &str, _: Ctx) -> Option<TNodeId> {
+        None
+    }
+
     fn expand_macro(&mut self, _: Lent<'_>, _: &MacroCall) -> Result<Expanded, MacroError> {
         Err(MacroError::Unsupported("a macro call in Term.betaReduce".into()))
     }

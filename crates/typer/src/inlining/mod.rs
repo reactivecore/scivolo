@@ -19,6 +19,7 @@ mod host;
 mod implicit_args;
 mod inline_call;
 mod macro_annotations;
+mod macro_args;
 mod macro_definitions;
 mod macro_impls;
 mod macro_trees;

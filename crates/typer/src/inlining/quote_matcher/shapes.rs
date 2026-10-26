@@ -4,6 +4,7 @@
 
 use super::Matcher;
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::TName;
 use syntax::ast::constant::Constant;
 use tasty::tags::{LAZY, MUTABLE};
 use tasty::{SymbolId, Type, TypeId};
@@ -73,6 +74,57 @@ impl Matcher<'_> {
             | T::RefinedTypeTree { .. } => true,
             _ => false,
         }
+    }
+
+    /// A reference to the prefix of identifier `s` that a selection's qualifier in the pattern
+    /// matches (dotty's `tpd.ref(qual)` in `=?=`): the value it is a member of, or the object
+    /// of the module class whose `this` it is; `None` for other prefixes.
+    pub fn prefix_ref(&mut self, s: TNodeId) -> Option<TNodeId> {
+        let prefix = match *self.u.types().get(self.tpd.get(s).tpe?) {
+            Type::Sym(Some(p), _) | Type::TermRef(p, _) => p,
+            _ => return None,
+        };
+        let (sym, tpe) = match *self.u.types().get(prefix) {
+            Type::Sym(_, v) if self.u.symbol(v).kind.is_term() => (v, prefix),
+            Type::This(c) => {
+                let c = self.u.class_symbol(c).filter(|&c| self.u.is_module_class(c))?;
+                let m = self.u.source_module(c)?;
+                (m, self.u.intern_type(Type::Sym(None, m)))
+            }
+            _ => return None,
+        };
+        let name = TName { name: self.names.intern(&self.u.symbol(sym).name.clone()), is_type: false };
+        let span = self.tpd.span(s);
+        Some(self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym)))
+    }
+
+    /// Member `a` selected from `qualifier` as the member of the qualifier's class that overrides
+    /// it, if there is one (dotty's `overridingSymbol` in `symbolMatch`).
+    pub fn devirtualized(&mut self, a: SymbolId, qualifier: TNodeId) -> SymbolId {
+        let Some(tpe) = self.tpd.get(qualifier).tpe else { return a };
+        let widened = self.u.widen(tpe);
+        let Some(c) = self.u.class_symbol(widened).filter(|&c| self.u.is_class(c)) else { return a };
+        let name = self.u.symbol(a).name.clone();
+        let site = self.u.this_type(c);
+        for base in self.u.linearization(c) {
+            for d in self.u.decl(base, &name).unwrap_or_default() {
+                if d == a || self.u.symbol(d).kind.is_term() && self.u.matches(site, d, a) {
+                    return d;
+                }
+            }
+        }
+        a
+    }
+
+    /// Whether member `a` overrides member `b` of a base class of its owner (dotty's
+    /// `allOverriddenSymbols.contains`).
+    pub fn overrides(&mut self, a: SymbolId, b: SymbolId) -> bool {
+        let (Some(oa), Some(ob)) = (self.u.symbol(a).owner, self.u.symbol(b).owner) else { return false };
+        if oa == ob || !self.u.derives_from(oa, ob) || self.u.symbol(a).name != self.u.symbol(b).name {
+            return false;
+        }
+        let site = self.u.this_type(oa);
+        self.u.matches(site, a, b)
     }
 
     /// Whether definitions `s` and `p` are both or neither `lazy` and both or neither `var`.
