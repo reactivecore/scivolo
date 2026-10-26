@@ -60,7 +60,7 @@ impl Typer<'_> {
         })?;
         let levels = contextual.len();
         let mut contextual = contextual.into_iter();
-        let constant = self.constant_of(tree).is_some();
+        let constant = self.constant_of_type(from).is_some();
         for _ in 0..=levels {
             let (mut group, containers) = match contextual.next() {
                 Some(group) => (group, Vec::new()),
@@ -186,6 +186,10 @@ impl Typer<'_> {
         if let Type::Method { params, implicit: true, .. } = self.u.types().get(result).clone() {
             if let Goal::Conform(pt) = goal {
                 let value = self.strip_implicit(result);
+                let (fits, _, _) = self.speculatively(|t| t.conforms(value, pt));
+                if !fits {
+                    return Err("conversion to another type");
+                }
                 self.u.is_necessary_subtype_in(value, pt, &mut self.constraint);
             }
             let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();

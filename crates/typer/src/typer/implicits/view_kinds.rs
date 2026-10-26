@@ -89,10 +89,13 @@ impl Typer<'_> {
         Ok(extensions)
     }
 
-    /// Whether dotty ranks view method `c` above each of `widened`, views that take the constant
-    /// argument only widened: its parameter's value class widens to theirs, and their owners do
-    /// not derive from its owner.
+    /// Whether dotty ranks view `c` above each of `widened`, views that take the constant
+    /// argument only widened: a value above methods; a method if its parameter's value class
+    /// widens to theirs, and their owners do not derive from its owner.
     pub fn beats_widened(&mut self, c: Candidate, widened: &[Candidate]) -> bool {
+        if self.view_kind(c) == ViewKind::Value {
+            return widened.iter().all(|&w| self.view_kind(w) == ViewKind::Method);
+        }
         let Some(p) = self.view_param_class(c) else { return widened.is_empty() };
         let owner = self.u.symbol(c.sym).owner;
         widened.iter().all(|&w| {
