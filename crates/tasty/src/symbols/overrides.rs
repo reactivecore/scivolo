@@ -12,8 +12,8 @@ const MAX_ALIASES: u32 = 64;
 
 impl Universe {
     /// `t` with references resolved to their symbols, prefixes of classes and type parameters
-    /// dropped, aliases (an abstract type's in its prefix) and applied type lambdas expanded,
-    /// annotations removed and `ImpureX` read as `X`.
+    /// dropped, aliases (an abstract type's in its prefix) and applied type lambdas expanded and
+    /// reduced, annotations removed and `ImpureX` read as `X`.
     pub fn normalize(&mut self, t: TypeId) -> TypeId {
         self.normalize_within(t, MAX_ALIASES)
     }
@@ -30,6 +30,7 @@ impl Universe {
                     }
                     _ => u.expand(tycon, &args)?,
                 };
+                let expanded = u.normalized(expanded);
                 Some(u.normalize_within(expanded, depth))
             }
             Type::Sym(_, _) | Type::TypeRef(_, _) => {

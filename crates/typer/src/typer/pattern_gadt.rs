@@ -54,7 +54,11 @@ impl Typer<'_> {
             return tpe;
         }
         for (&s, (lo, hi)) in syms.iter().zip(bounds) {
-            let info = self.u.intern_type(Type::Bounds(lo, hi));
+            let info = match lo == hi {
+                true => Type::Alias(lo),
+                false => Type::Bounds(lo, hi),
+            };
+            let info = self.u.intern_type(info);
             self.u.set_info(s, info);
             self.known_pattern_types.insert(s);
         }
