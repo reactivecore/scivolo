@@ -7,7 +7,8 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The only alternative of `syms` without parameter lists, its type conforming to `pt`
-    /// unless that is a function type, else the only one with an implicit clause only, else for a single abstract method type `pt` the only
+    /// unless that is a function type, of several the only value (more specific than a method),
+    /// else the only one with an implicit clause only, else for a single abstract method type `pt` the only
     /// method taking its parameters (dotty's `resolveOverloaded` without arguments).
     pub fn parameterless_alternative(
         &mut self,
@@ -52,8 +53,10 @@ impl Typer<'_> {
         {
             return self.taking_params(syms, prefix, &sam.params, None);
         }
-        match found[..] {
-            [s] => Ok(s),
+        let values: Vec<SymbolId> =
+            found.iter().copied().filter(|&s| self.u.symbol(s).kind != Kind::Def).collect();
+        match (&found[..], &values[..]) {
+            ([s], _) | (_, [s]) => Ok(*s),
             _ => Err("overloaded reference"),
         }
     }

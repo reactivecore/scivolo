@@ -182,6 +182,12 @@ impl Typer<'_> {
                             self.complete(s);
                         }
                     }
+                    let value = |t: &Self, s: SymbolId| t.u.symbol(s).kind == tasty::Kind::Val;
+                    if value(self, o) && self.empty_param_list(m)
+                        || value(self, m) && self.empty_param_list(o)
+                    {
+                        continue;
+                    }
                     if self.same_member(site, o, m) {
                         overridden = Some(k);
                         break;
@@ -201,6 +207,14 @@ impl Typer<'_> {
             }
         }
         out
+    }
+
+    /// Whether `s` is a method with an empty parameter list, whose signature a value's does not
+    /// match.
+    fn empty_param_list(&mut self, s: SymbolId) -> bool {
+        let info = self.u.info(s);
+        self.u.symbol(s).kind == tasty::Kind::Def
+            && matches!(self.u.types().get(info), tasty::Type::Method { params, .. } if params.is_empty())
     }
 
     /// Whether `o`, a member of class `c` and not private, hides `m` of a base class of its class:
