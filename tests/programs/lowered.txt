@@ -171,3 +171,4 @@ Lw26pathalias
 Lw26iftret
 Lw26byname
 Lw26arrayvarargs
+Lw26tuplemap
