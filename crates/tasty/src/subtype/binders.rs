@@ -33,7 +33,8 @@ impl Cmp<'_> {
     pub fn param_syms_as_refs(&mut self, t: TypeId, params: &[(String, TypeId)], binder: Binder) -> TypeId {
         self.u.map_type(t, &mut |u, x| {
             let Type::Sym(None, s) = *u.types().get(x) else { return None };
-            if u.symbol(s).kind != Kind::Param || !u.symbol(s).owner.is_some_and(|o| has_clause(u, o, binder)) {
+            if u.symbol(s).kind != Kind::Param || !u.symbol(s).owner.is_some_and(|o| has_clause(u, o, binder))
+            {
                 return None;
             }
             let i = params.iter().position(|(n, _)| *n == u.symbol(s).name)?;
