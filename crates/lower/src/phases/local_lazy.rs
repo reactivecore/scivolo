@@ -17,11 +17,13 @@ use tasty::{Erased, Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A local lazy value made methods: its holder's, its `$lzyINIT` method's and its accessor's
-/// definitions, the value and its accessor.
+/// definitions, the value, its accessor and its value class, which the accessor returns the
+/// underlying value of.
 struct Expanded {
     defs: [TNodeId; 3],
     value: SymbolId,
     accessor: SymbolId,
+    class: Option<SymbolId>,
 }
 
 /// A holder: its symbol, its class and the type of its `value`.
@@ -69,7 +71,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
                     Some(e) => {
                         holders.push(e.defs[0]);
                         others.extend(&e.defs[1..]);
-                        call_accessor(l, t, e.value, e.accessor);
+                        call_accessor(l, t, &e);
                     }
                     None => others.push(s),
                 }
@@ -91,8 +93,11 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let owner = l.u.symbol(value).owner.expect("a local value's owner");
     let name = l.u.symbol(value).name.clone();
     let mut info = l.u.info(value);
-    if l.u.value_class(info).is_some() {
-        return unsupported(span, "local lazy value of a value class");
+    let boxed = super::lazy_value_classes::underlying(l, info, span)?;
+    let mut rhs = rhs;
+    if let Some((_, v, tpe)) = boxed {
+        rhs = super::lazy_value_classes::unwrapped(l, rhs, v, tpe);
+        info = tpe;
     }
     if l.u.erase(info) == Erased::Unit {
         let boxed_unit = l.u.symbol(l.defs.boxed_unit_unit).owner.expect("BoxedUnit");
@@ -142,7 +147,8 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let body = conform(l, cond, &holder, info);
     let accessor_def = method_def(l, accessor, info, body);
     l.position_thicket(&[holder_def, init_def, accessor_def]);
-    Ok(Expanded { defs: [holder_def, init_def, accessor_def], value, accessor })
+    let class = boxed.map(|(c, _, _)| c);
+    Ok(Expanded { defs: [holder_def, init_def, accessor_def], value, accessor, class })
 }
 
 /// The holder `name$lzyN` of `owner` for a lazy value of type `info` (dotty's `LazyHolder`).
@@ -193,16 +199,21 @@ fn conform(l: &mut Lower, t: TNodeId, holder: &Holder, info: TypeId) -> TNodeId 
     l.positioned(cast)
 }
 
-/// Makes the references to local lazy value `value` in `block` calls of its accessor.
-fn call_accessor(l: &mut Lower, block: TNodeId, value: SymbolId, accessor: SymbolId) {
-    let info = l.u.info(accessor);
+/// Makes the references to the local lazy value of `e` in `block` calls of its accessor, wrapped
+/// in its value class if any.
+fn call_accessor(l: &mut Lower, block: TNodeId, e: &Expanded) {
+    let info = l.u.info(e.accessor);
     let info = l.u.result_type(info);
     for t in super::explicit_outer::terms(l, block, true) {
-        if matches!(l.tpd.tree(t), Tree::Ident { .. }) && l.tpd.sym(t) == Some(value) {
-            let fun = l.ident(accessor, l.tpd.span(t));
-            let args = l.tpd.list(&[]);
-            let node = l.tpd.get_mut(t);
-            (node.tree, node.sym, node.tpe) = (Tree::Apply { fun, args }, None, Some(info));
+        if matches!(l.tpd.tree(t), Tree::Ident { .. }) && l.tpd.sym(t) == Some(e.value) {
+            let span = l.tpd.span(t);
+            let fun = l.ident(e.accessor, span);
+            let call = l.apply(fun, &[], info, span);
+            let call = match e.class {
+                Some(c) => super::lazy_value_classes::wrapped(l, c, call),
+                None => call,
+            };
+            l.copy_node(t, call);
         }
     }
 }
