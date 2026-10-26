@@ -5,6 +5,7 @@
 
 use super::base_types::MAX_DEPTH;
 use super::{Kind, SymbolId, Universe};
+use crate::tags::{INLINE, MUTABLE};
 use crate::types::{Type, TypeId};
 
 impl Universe {
@@ -24,11 +25,19 @@ impl Universe {
         self.seen_from(t, prefix, owner, wildcards)
     }
 
-    /// Whether `prefix` is a value whose type is a class applied to a wildcard.
+    /// Whether `prefix` is a stable value whose type is a class applied to a wildcard.
     fn has_wildcard_args(&mut self, prefix: TypeId) -> bool {
         let value = match *self.types().get(prefix) {
             Type::TermRef(..) => true,
-            Type::Sym(_, s) => matches!(self.symbol(s).kind, Kind::Val | Kind::Param),
+            Type::Sym(_, s) => match self.symbol(s).kind {
+                Kind::Val => !self.symbol(s).flags.has(MUTABLE),
+                Kind::Param if self.symbol(s).flags.has(INLINE) => false,
+                Kind::Param => {
+                    let info = self.info(s);
+                    !matches!(self.types().get(info), Type::ByName(_))
+                }
+                _ => false,
+            },
             _ => false,
         };
         if !value {
