@@ -45,10 +45,30 @@ impl Typer<'_> {
         }
         self.complete(sym);
         let info = self.u.member_info(qual, sym);
-        let result = self.final_result(info);
         bounds.into_iter().flatten().any(|b| {
             let bound = self.tpd.tpe(b);
-            self.u.is_subtype(result, bound)
+            let (fits, _, _) = self.speculatively(|t| {
+                let result = t.instantiated_result(sym, info);
+                t.u.is_subtype_in(result, bound, &mut t.constraint)
+            });
+            fits
         })
+    }
+
+    /// The final result type of method type `info` of `sym`, its type parameters replaced by
+    /// fresh type variables (dotty's `normalizedCompatible`).
+    fn instantiated_result(&mut self, sym: SymbolId, info: tasty::TypeId) -> tasty::TypeId {
+        let tasty::Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+            return self.final_result(info);
+        };
+        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let vars: Vec<tasty::TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
+        let result = self.u.subst(result, binder, &names, &vars);
+        let tparams = self.u.type_params(sym);
+        let result = self.u.map_type(result, &mut |u, part| match *u.types().get(part) {
+            tasty::Type::Sym(_, s) => tparams.iter().position(|&p| p == s).and_then(|i| vars.get(i).copied()),
+            _ => None,
+        });
+        self.final_result(result)
     }
 }

@@ -49,10 +49,6 @@ impl Typer<'_> {
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
             }
-            if !defined && self.defined_fail_bottom(qual_tpe).is_some() {
-                defined = true;
-                continue;
-            }
             if let Some(apply) = self.poly_function_select(id, qual, qual_tpe, name) {
                 return apply;
             }
@@ -85,6 +81,10 @@ impl Typer<'_> {
                 Ok(Some(Viewed::Converted(q))) => qual = q,
                 Ok(Some(Viewed::Extension(c))) => {
                     return self.implicit_extension_select(id, qual, c, name, pt, ctx);
+                }
+                Ok(None) if !defined && self.defined_fail_bottom(qual_tpe).is_some() => {
+                    defined = true;
+                    continue;
                 }
                 Ok(None) if !widened => {
                     let dynamic = self.try_dynamic(id, qual, name, pt, ctx);

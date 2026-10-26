@@ -85,7 +85,10 @@ impl Typer<'_> {
         }
         Ok(match self.u.is_subtype(t, formal.pt) {
             true => t,
-            false => self.u.intern_type(Type::And(formal.pt, t)),
+            false => {
+                let pt = self.u.dealias(formal.pt);
+                self.u.intern_type(Type::And(pt, t))
+            }
         })
     }
 

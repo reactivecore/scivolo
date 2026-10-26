@@ -34,12 +34,15 @@ impl Typer<'_> {
         self.collect_parts(t, &mut Vec::new(), &mut parts);
         let mut out = ImplicitScope::default();
         for (c, prefix) in parts.classes {
-            let owner = self.u.symbol(c).owner;
+            let class_ref = match prefix {
+                Some(p) => self.u.intern_type(Type::Sym(Some(p), c)),
+                None => crate::defn::type_ref(self.u, c),
+            };
             for base in self.u.linearization(c) {
-                let base_owner = self.u.symbol(base).owner;
-                if base_owner != owner && base_owner.is_some_and(|o| self.is_instance_class(o)) {
-                    return Err("implicit scope with a base class of another class's instance");
-                }
+                let prefix = match base == c {
+                    true => prefix,
+                    false => self.base_prefix(class_ref, base),
+                };
                 let term_path = prefix.filter(
                     |&p| matches!(*self.u.types().get(p), Type::Sym(_, s) if self.u.symbol(s).kind.is_term()),
                 );
@@ -55,6 +58,11 @@ impl Typer<'_> {
                             Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
                             _ => false,
                         });
+                        if base != c
+                            && let Some(p) = path
+                        {
+                            self.add_path(p, &mut out)?;
+                        }
                         match path {
                             Some(p) => (module, self.u.intern_type(Type::Sym(Some(p), module))),
                             None if self.holds_implicits(module) => {
@@ -68,6 +76,7 @@ impl Typer<'_> {
                 self.add_members(module_class, module_ref, &mut out);
             }
             if let Some(p) = prefix {
+                self.add_static_module(p, &mut out);
                 self.add_path(p, &mut out)?;
             }
         }
@@ -91,63 +100,6 @@ impl Typer<'_> {
         Ok(out)
     }
 
-    /// Adds the implicit members of `p` to `out` if it is a static object other than a package
-    /// object (dotty's `addPath` of a module).
-    fn add_static_module(&mut self, p: TypeId, out: &mut ImplicitScope) {
-        let Some(s) = self.referenced(p) else { return };
-        if self.u.is_module(s)
-            && self.is_static_term(s)
-            && !self.is_excluded(s)
-            && let Some(class) = self.u.module_class(s)
-        {
-            self.add_members(class, p, out);
-        }
-    }
-
-    /// Adds the implicit members of `class` selected from path `prefix`, and `prefix`, to `out`.
-    fn add_members(&mut self, class: SymbolId, prefix: TypeId, out: &mut ImplicitScope) {
-        for sym in self.implicit_members(class, false) {
-            let candidate = Candidate { sym, prefix: Some(prefix) };
-            if !out.implicits.contains(&candidate) {
-                out.implicits.push(candidate);
-            }
-        }
-        if let Type::Sym(p, sym) = *self.u.types().get(prefix)
-            && !out.containers.contains(&Candidate { sym, prefix: p })
-        {
-            out.containers.push(Candidate { sym, prefix: p });
-        }
-    }
-
-    /// Adds the implicit members of the stable values that are not static objects on path `p` to
-    /// `out` (dotty's `addPath`).
-    fn add_path(&mut self, p: TypeId, out: &mut ImplicitScope) -> Result<(), &'static str> {
-        let outer = match *self.u.types().get(p) {
-            Type::Sym(outer, _) => outer,
-            Type::TermRef(outer, _) => Some(outer),
-            _ => return Ok(()),
-        };
-        let s = self.referenced(p).ok_or("implicit scope through an unresolved path")?;
-        if !self.u.symbol(s).kind.is_term()
-            || self.is_excluded(s)
-            || self.is_static_term(s) && self.u.is_module(s)
-        {
-            return Ok(());
-        }
-        self.complete(s);
-        let info = self.u.info(s);
-        if matches!(self.u.types().get(info), Type::Sym(_, x) if self.u.symbol(*x).kind.is_term()) {
-            return self.add_path(info, out);
-        }
-        let widened = self.u.widen(p);
-        let class = self.u.class_symbol(widened).ok_or("implicit scope through a value of no class type")?;
-        self.add_members(class, p, out);
-        match outer {
-            Some(outer) => self.add_path(outer, out),
-            None => Ok(()),
-        }
-    }
-
     /// Whether object `module` has implicit members or extension methods.
     fn holds_implicits(&mut self, module: SymbolId) -> bool {
         let Some(class) = self.u.module_class(module) else { return false };
@@ -156,6 +108,18 @@ impl Typer<'_> {
                 let decls = self.u.decls(b).unwrap_or_default();
                 decls.iter().any(|&d| self.u.symbol(d).flags.has(EXTENSION))
             })
+    }
+
+    /// The prefix of base class `base` in the base type of class reference `class_ref`.
+    fn base_prefix(&mut self, class_ref: TypeId, base: SymbolId) -> Option<TypeId> {
+        let mut t = self.u.base_type(class_ref, base)?;
+        loop {
+            match *self.u.types().get(t) {
+                Type::Applied(tycon, _) => t = tycon,
+                Type::Sym(p, _) => return p,
+                _ => return None,
+            }
+        }
     }
 
     /// The companion object of class `c`, the object itself of a module class.

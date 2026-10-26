@@ -10,7 +10,7 @@ use super::view_kinds::ViewKind;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::tags::PRIVATE;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Type, TypeId};
 
 /// What a conversion's result must offer.
 #[derive(Clone, Copy)]
@@ -60,7 +60,7 @@ impl Typer<'_> {
         })?;
         let levels = contextual.len();
         let mut contextual = contextual.into_iter();
-        let constant = self.constant_of(tree).is_some();
+        let constant = self.constant_of_type(from).is_some();
         for _ in 0..=levels {
             let (mut group, containers) = match contextual.next() {
                 Some(group) => (group, Vec::new()),
@@ -94,56 +94,6 @@ impl Typer<'_> {
             return Ok(Some(Viewed::Converted(converted)));
         }
         Ok(None)
-    }
-
-    /// The implicit scope of a view of `from` to `goal`, and the containers of extension methods
-    /// in that of `from`.
-    fn view_scope(
-        &mut self,
-        from: TypeId,
-        goal: Goal,
-    ) -> Result<(Vec<Candidate>, Vec<Candidate>), &'static str> {
-        let super::scope::ImplicitScope { implicits: mut scope, containers } =
-            self.implicit_scope_of(from)?;
-        if let Goal::Conform(pt) = goal {
-            scope.extend(self.implicit_scope(pt)?);
-        }
-        if let Goal::Member(name) = goal
-            && scope.iter().any(|c| {
-                let s = self.u.symbol(c.sym);
-                s.name == name && s.flags.has(tasty::tags::EXTENSION)
-            })
-        {
-            return Err("extension method in the implicit scope");
-        }
-        Ok((scope, containers))
-    }
-
-    /// Whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, no conversion's target;
-    /// not an abstract type bounded by one of them (dotty's `isRef`).
-    fn is_top_like(&mut self, pt: TypeId) -> bool {
-        let pt = self.zonk(pt);
-        let pt = self.u.dealias(pt);
-        if matches!(*self.u.types().get(pt), Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam))
-        {
-            return false;
-        }
-        let b = self.u.builtins();
-        let class = self.u.class_symbol(pt);
-        class.is_some_and(|c| {
-            c == b.any
-                || c == b.object
-                || c == b.matchable
-                || Some(c) == b.any_val
-                || self.u.full_name(c) == "scala.Unit"
-        })
-    }
-
-    /// Whether `from` is `Null` or `Nothing`, which no conversion takes (`isUnderSpecifiedArgument`).
-    fn is_underspecified_arg(&mut self, from: TypeId) -> bool {
-        let widened = self.u.widen(from);
-        let b = self.u.builtins();
-        self.u.class_symbol(widened).is_some_and(|c| c == b.nothing || c == b.null)
     }
 
     /// `c(tree)` with `c`'s implicit arguments, if it fits `goal`, constant `tree` converted to
@@ -192,6 +142,10 @@ impl Typer<'_> {
         if let Type::Method { params, implicit: true, .. } = self.u.types().get(result).clone() {
             if let Goal::Conform(pt) = goal {
                 let value = self.strip_implicit(result);
+                let (fits, _, _) = self.speculatively(|t| t.conforms(value, pt));
+                if !fits {
+                    return Err("conversion to another type");
+                }
                 self.u.is_necessary_subtype_in(value, pt, &mut self.constraint);
             }
             let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();

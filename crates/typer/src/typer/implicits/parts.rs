@@ -48,19 +48,10 @@ impl Typer<'_> {
         let class = match self.u.symbol(sym).kind.is_term() {
             true => {
                 let widened = self.u.widen(t);
-                let dealiased = self.u.dealias(widened);
-                let head = match *self.u.types().get(dealiased) {
-                    Type::Applied(tycon, _) => tycon,
-                    _ => dealiased,
-                };
-                if let Some(w) = self.referenced(head)
-                    && self.u.symbol(w).kind == Kind::Type
-                    && self.u.alias_of(w).is_none()
-                {
+                if widened != t {
                     self.collect_parts(widened, seen, parts);
                 }
-                let class = (widened != t).then(|| self.u.class_symbol(widened)).flatten();
-                class.map(|c| (c, class_prefix(self.u, widened, c)))
+                None
             }
             false => self.u.class_symbol(t).map(|c| (c, prefix.filter(|_| c == sym))),
         };
@@ -108,14 +99,5 @@ impl Typer<'_> {
             false => Some(s),
         };
         self.u.symbol(s).kind == Kind::Package || class.is_some_and(|c| self.is_named_package_object(c))
-    }
-}
-
-/// The prefix of `t` if it refers to class `c` directly.
-fn class_prefix(u: &tasty::Universe, t: TypeId, c: SymbolId) -> Option<TypeId> {
-    match *u.types().get(t) {
-        Type::Sym(p, s) if s == c => p,
-        Type::Applied(tycon, _) => class_prefix(u, tycon, c),
-        _ => None,
     }
 }

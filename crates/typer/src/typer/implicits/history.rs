@@ -95,6 +95,11 @@ impl Typer<'_> {
         if !self.is_implicit(c.sym) {
             return Err("not an implicit value");
         }
+        let info = self.u.info(c.sym);
+        let result = self.final_result(info);
+        if let Some(k) = self.u.class_symbol(result) {
+            self.complete(k);
+        }
         if self.cannot_fit(c.sym, pt) || self.is_function_type(pt) && !self.is_eligible(c, pt) {
             return Err("implicit of another type");
         }
