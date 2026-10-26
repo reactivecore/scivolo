@@ -7,7 +7,7 @@
 use super::Typer;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::tags::{ABSTRACT, CASE, MUTABLE, PRIVATE, TRAIT};
+use tasty::tags::{ABSTRACT, CASE, ENUM, MUTABLE, PRIVATE, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -19,11 +19,12 @@ impl Typer<'_> {
         }
         let bases = self.u.linearization(cls);
         let case = bases.iter().any(|&b| self.u.symbol(b).flags.has(CASE));
+        let enum_ = bases.iter().any(|&b| self.u.symbol(b).flags.has(ENUM));
         let site = self.u.intern_type(Type::This(site));
         for base in bases {
             let synthesized = match self.u.full_name(base).as_str() {
                 "scala.Product" | "scala.Equals" => case,
-                "scala.reflect.Enum" => true,
+                "scala.reflect.Enum" => enum_,
                 _ => false,
             };
             if synthesized {
@@ -32,10 +33,10 @@ impl Typer<'_> {
             let decls = self.u.symbol(base).decls.clone();
             for d in decls {
                 let (kind, name) = (self.u.symbol(d).kind, self.u.symbol(d).name.clone());
+                let mixin = !self.syms.is_script(d) && (name.contains("$$super$") || name.contains("$_setter_$"));
                 if !matches!(kind, Kind::Val | Kind::Def)
                     || name == "<init>"
-                    || name.contains("$$super$")
-                    || name.contains("$_setter_$")
+                    || mixin
                     || self.is_concrete(d)
                     || self.is_var_setter(base, d)
                 {
@@ -54,11 +55,15 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether methods `a` and `b` take as many type and value parameters in each clause, as
-    /// `matches` does not compare interleaved clauses and path-dependent parameter types.
+    /// Whether methods `a` and `b` take as many type and value parameters in each clause, with the
+    /// same erased parameter types, as `matches` does not compare interleaved clauses and
+    /// path-dependent parameter types.
     fn same_shape(&mut self, a: SymbolId, b: SymbolId) -> bool {
         let def = |t: &Self, s| t.u.symbol(s).kind == Kind::Def;
-        def(self, a) && def(self, b) && self.clause_shape(a) == self.clause_shape(b)
+        def(self, a)
+            && def(self, b)
+            && self.clause_shape(a) == self.clause_shape(b)
+            && self.u.erased_method(a).0 == self.u.erased_method(b).0
     }
 
     fn clause_shape(&mut self, s: SymbolId) -> Vec<(bool, usize)> {

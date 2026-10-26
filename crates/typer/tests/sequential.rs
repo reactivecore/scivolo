@@ -345,6 +345,14 @@ fn no_false_errors_behind_unsupported_constructs() {
             "concrete class with an unimplemented member",
         ),
         (
+            "trait A { def f(x: Int): Int }\nclass C extends A { def f(x: String) = 1 }\n",
+            "concrete class with an unimplemented member",
+        ),
+        (
+            "trait A { def a$$super$f: Int }\nclass C extends A\n",
+            "concrete class with an unimplemented member",
+        ),
+        (
             "class G:\n  val ensuring = 1\nobject M:\n  val h = G().ensuring(true)\n",
             "application of a non-method",
         ),
