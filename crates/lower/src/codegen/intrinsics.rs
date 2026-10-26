@@ -7,7 +7,7 @@
 
 use super::Gen;
 use crate::{Result, unsupported};
-use nir::{Comp, MemoryOrder, Op, Type, TypeId, ValId};
+use nir::{Comp, Conv, MemoryOrder, Op, Type, TypeId, ValId};
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
@@ -127,7 +127,8 @@ impl Gen<'_, '_> {
         Some(if is_volatile { volatile } else { MemoryOrder::Unordered })
     }
 
-    /// `left op right` for `op` one of `==`, `!=`, `eq` and `ne` of `Any` on two raw pointers.
+    /// `left op right` for `op` one of `==`, `!=`, `eq` and `ne` of `Any` on two raw pointers, a raw
+    /// pointer and a reference, or two raw sizes (nscplugin's `genBinaryOp` on `ptr` and `size`).
     fn gen_raw_ptr_equality(
         &mut self,
         sym: SymbolId,
@@ -137,23 +138,33 @@ impl Gen<'_, '_> {
         let (Tree::Select { qualifier: left, .. }, &[right]) = (self.l.tpd.tree(fun).clone(), args) else {
             return Ok(None);
         };
-        let comp = match self.l.u.symbol(sym).name.as_str() {
-            "==" | "eq" => Comp::Ieq,
-            "!=" | "ne" => Comp::Ine,
+        let op = self.l.u.symbol(sym).name.clone();
+        let comp = match op.as_str() {
+            "==" | "eq" | "!=" => Comp::Ieq,
+            "ne" => Comp::Ine,
             _ => return Ok(None),
         };
-        let ptr = self.ty(Type::Ptr);
-        let lty = self.gen_type(self.l.tpd.tpe(left));
-        if lty != ptr || self.gen_type(self.l.tpd.tpe(right)) != ptr {
-            return Ok(None);
-        }
+        let (lty, rty) = (self.gen_type(self.l.tpd.tpe(left)), self.gen_type(self.l.tpd.tpe(right)));
+        let reference = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. } | Type::Null);
+        let ty = match (self.pool.ty(lty), self.pool.ty(rty)) {
+            (Type::Ptr, r) if *r == Type::Ptr || reference(r) => lty,
+            (l, Type::Ptr) if reference(l) => rty,
+            (Type::Size, Type::Size) => lty,
+            _ => return Ok(None),
+        };
         let saved = self.at_span(self.l.tpd.span(left));
         let l = self.gen_expr(left)?;
+        let l = if lty == ty { l } else { self.emit(Op::Conv { conv: Conv::Bitcast, ty, value: l }) };
         self.at_span(self.l.tpd.span(right));
         let r = self.gen_expr(right)?;
+        let r = if rty == ty { r } else { self.emit(Op::Conv { conv: Conv::Bitcast, ty, value: r }) };
         self.at_span(self.l.tpd.span(left));
-        let v = self.emit(Op::Comp { comp, ty: ptr, l, r });
+        let v = self.emit(Op::Comp { comp, ty, l, r });
         self.m.pos = saved;
+        if op == "!=" {
+            let (bool, tru) = (self.ty(Type::Bool), self.val(nir::Val::True));
+            return Ok(Some(self.emit(Op::Bin { bin: nir::Bin::Xor, ty: bool, l: tru, r: v })));
+        }
         Ok(Some(v))
     }
 }

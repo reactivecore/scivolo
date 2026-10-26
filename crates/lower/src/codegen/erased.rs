@@ -42,8 +42,8 @@ impl Gen<'_, '_> {
     }
 
     /// Fails unless value `v` passes where type `to` is expected without boxing, unboxing or a
-    /// conversion; the `unit` constant passes as `BoxedUnit.UNIT`, a `Null$` as `null`, any value
-    /// after a block ends.
+    /// conversion; the `unit` constant passes as `BoxedUnit.UNIT`, a `Null$` as `null`, `null` as a
+    /// raw pointer, any value after a block ends.
     pub fn check_conforms(&mut self, v: ValId, to: TypeId, span: Span) -> Result<()> {
         if !self.m.buf.labeled() {
             return Ok(());
@@ -57,6 +57,7 @@ impl Gen<'_, '_> {
         let ok = f == t
             || *f == Type::Nothing
             || null_box
+            || (*t == Type::Ptr && *f == Type::Null)
             || (is_ref(t) && (is_ref(f) || *f == Type::Null || unit));
         if ok { Ok(()) } else { unsupported(span, "boxing, unboxing and primitive conversions") }
     }
