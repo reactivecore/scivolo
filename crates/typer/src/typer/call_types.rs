@@ -60,7 +60,7 @@ impl Typer<'_> {
             let (lo, hi) = (self.zonk(lo), self.zonk(hi));
             let term_ref =
                 matches!(*self.u.types().get(lo), Type::Sym(_, s) if self.u.symbol(s).kind.is_term());
-            lo != tasty::NOTHING && lo != hi && !term_ref
+            lo != tasty::NOTHING && lo != hi && hi != tasty::ANY && !term_ref
         })
     }
 
