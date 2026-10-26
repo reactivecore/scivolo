@@ -90,6 +90,10 @@ impl Typer<'_> {
                 if self.is_ground_match(tpe) {
                     return self.unsupported(id, "match type that may reduce");
                 }
+                let tpe = match ctx.mode.is(Mode::PATTERN_TYPE) {
+                    false => self.u.try_normalize(tpe).unwrap_or(tpe),
+                    true => tpe,
+                };
                 let args = self.tpd.list(&typed_args);
                 self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)
             }
