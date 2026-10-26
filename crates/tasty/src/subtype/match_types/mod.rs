@@ -11,6 +11,7 @@ mod ops;
 mod reduce;
 mod spec;
 
+use super::refs::Meaning;
 use super::{Cmp, NoVars};
 use crate::Universe;
 use crate::types::{Type, TypeId};
@@ -81,8 +82,16 @@ impl Cmp<'_> {
     }
 
     /// The instance of type variable `t`, or its bounds if they are the same type (dotty's
-    /// `tryReplace`); `t` itself otherwise.
+    /// `tryReplace`); the alias a type member of a path `t` is in the path's refinement; `t`
+    /// itself otherwise.
     fn fixed(&mut self, t: TypeId) -> TypeId {
+        if matches!(self.u.types().get(t), Type::TypeRef(..)) {
+            return match self.named(t).map(|n| n.meaning) {
+                Some(Meaning::Alias(a)) => a,
+                Some(Meaning::Abstract(lo, hi)) if lo == hi => lo,
+                _ => t,
+            };
+        }
         let Type::Var(v) = *self.u.types().get(t) else { return t };
         if let Some(i) = self.vars.instance(v) {
             return i;
