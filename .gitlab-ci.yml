@@ -151,9 +151,9 @@ nir-stale:
         files: [Cargo.lock, ci/Dockerfile]
       paths: [target]
       policy: pull
+    # Caches are local to each runner, so this job writes it too.
     - key: scivolo-suite-linux
-      paths: [.cache/coursier]
-      policy: pull
+      paths: [.cache/coursier, ref/libs]
   artifacts:
     when: on_failure
     paths: [tmp/programs/*/out/, tmp/overlay/out/]
