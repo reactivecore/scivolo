@@ -4,8 +4,7 @@
 //   compiler/src/dotty/tools/dotc/core/Definitions.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Context functions: a term expected to be one wrapped in a context closure (dotty's
-//! `makeContextualFunction`), a context function value applied to its implicit arguments
-//! (dotty's `adaptNoArgsOther`).
+//! `makeContextualFunction`).
 
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
@@ -46,10 +45,11 @@ impl Typer<'_> {
         let wildcard = formals.iter().any(|&t| self.has_proto_wildcard(t));
         let span = self.ast.span(id);
         let at = span.start_pos();
-        let mut names =
-            self.dependent_context_function(ifpt).into_iter().flat_map(|(ps, _)| ps).map(|(n, _)| n);
+        let applied = self.dependent_context_function(ifpt).or_else(|| self.erased_context_names(ifpt));
+        let mut names = applied.into_iter().flat_map(|(ps, _)| ps).map(|(n, _)| n);
+        let erased = self.erased_context_function(ifpt).map(|(_, _, e)| e).unwrap_or_default();
         let mut params = Vec::new();
-        for formal in formals {
+        for (i, formal) in formals.into_iter().enumerate() {
             let tpt = self.ast.node(Tree::TypeTree);
             self.ast.with_span(tpt, at);
             if !wildcard {
@@ -66,7 +66,8 @@ impl Typer<'_> {
                 None => self.fresh.next(self.names, "contextual$"),
             };
             let name = TName { name, is_type: false };
-            let mods = self.ast.mods(Modifiers::with_flags(f::GIVEN));
+            let flags = if erased.get(i) == Some(&true) { f::GIVEN.or(f::ERASED) } else { f::GIVEN };
+            let mods = self.ast.mods(Modifiers::with_flags(flags));
             let param = self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods });
             if named.is_some() {
                 self.hidden_params.insert(param);
@@ -118,6 +119,9 @@ impl Typer<'_> {
         if let Some((params, _)) = self.context_function_parts(d) {
             return Ok(Some((d, params)));
         }
+        if let Some((params, _, _)) = self.erased_context_function(d) {
+            return Ok(Some((d, params)));
+        }
         match self.dependent_context_function(d) {
             Some((params, result)) if self.context_function_parts(result).is_none() => {
                 Ok(Some((d, params.into_iter().map(|(_, p)| p).collect())))
@@ -156,48 +160,6 @@ impl Typer<'_> {
             }
             Tree::Block { stats, expr: Some(e) } if self.ast.items(stats).is_empty() => {
                 self.is_contextual_closure(e)
-            }
-            _ => false,
-        }
-    }
-
-    /// `tree`, a value of a context function type, applied to the implicit arguments of its
-    /// `apply` for `pt` (dotty's `adaptNoArgsOther`); `None` if it is no such value.
-    pub fn context_function_applied(
-        &mut self,
-        tree: TNodeId,
-        pt: Pt,
-        ctx: Ctx,
-    ) -> Option<Result<TNodeId, &'static str>> {
-        let type_tree = self.tpd.sym(tree).is_some_and(|s| self.u.is_type_symbol(s));
-        if ctx.mode.is(Mode::PATTERN)
-            || ctx.mode.is(Mode::ASSIGNMENT_LHS)
-            || type_tree
-            || self.is_closure_tree(tree)
-        {
-            return None;
-        }
-        let tpe = self.tpd.tpe(tree);
-        let wide = self.u.widen(tpe);
-        if self.context_function_parts(wide).is_none() {
-            let wide = self.u.dealias(wide);
-            self.dependent_context_function(wide)?;
-        }
-        let meth = self.tpd.sym(self.tpd.meth_part(tree));
-        if meth.is_some_and(|m| self.u.symbol(m).flags.has(tasty::tags::EXTENSION)) {
-            return Some(Err("context function result of an extension method"));
-        }
-        Some(self.with_apply(tree, Pt::Any, ctx).map(|apply| self.adapt(apply, pt, ctx)))
-    }
-
-    /// Whether typed tree `t` is a closure, possibly in blocks (dotty's `isContextualClosure` of a
-    /// context function value).
-    fn is_closure_tree(&self, t: TNodeId) -> bool {
-        match *self.tpd.tree(t) {
-            T::Closure { .. } => true,
-            T::Block { stats, expr } => {
-                matches!(self.tpd.tree(expr), T::Closure { .. })
-                    || self.tpd.items(stats).is_empty() && self.is_closure_tree(expr)
             }
             _ => false,
         }

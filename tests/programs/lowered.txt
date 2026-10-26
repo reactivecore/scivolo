@@ -185,3 +185,4 @@ Lw26shape
 Lw26statics
 Lw26staticvals
 Tc26matches
+Er26erased

@@ -19,7 +19,7 @@ impl Typer<'_> {
         if flags.is(f::MACRO) {
             return Some("macro definition");
         }
-        if flags.is(f::ERASED) {
+        if flags.is(f::ERASED) && (kind != Kind::Val || flags.is_one_of(f::MUTABLE.or(f::LAZY))) {
             return Some("erased definition");
         }
         if nested && kind == Kind::Class && flags.is(f::CASE) {

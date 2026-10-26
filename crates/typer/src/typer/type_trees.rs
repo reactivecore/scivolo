@@ -20,6 +20,10 @@ impl Typer<'_> {
                 self.typed(id, Pt::Any, ctx)
             }
             Tree::AppliedTypeTree { tpt: op, args } => {
+                let items = self.ast.items(args).to_vec();
+                if let Some(throws) = self.throws_type(id, op, &items, ctx) {
+                    return self.typed_type(throws, ctx);
+                }
                 let tpt = self.typed_type(op, ctx);
                 if self.is_invalid_future_infix_op(id, op, self.tpd.sym(tpt)) {
                     return self.unsupported(id, "alphanumeric infix type under -source future");

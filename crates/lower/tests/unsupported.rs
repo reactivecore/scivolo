@@ -185,6 +185,16 @@ const CASES: &[(&str, &str)] = &[
         "adaptation",
     ),
     ("trait T { def finalize(): String }", "abstract member overriding a concrete one"),
+    (
+        "import language.experimental.erasedDefinitions\n\
+         object O { def f(erased b: Boolean) = 1; def g(x: Any) = f(x.isInstanceOf[String]) }",
+        "argument of an erased parameter that is not pure",
+    ),
+    (
+        "import language.experimental.erasedDefinitions\n\
+         object O { erased val e: Int = { println(); 1 } }",
+        "right-hand side of an erased value that is not pure",
+    ),
 ];
 
 #[test]

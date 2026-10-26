@@ -3,6 +3,7 @@
 //! Methods whose results are context closures take the closures' parameters as their own, and
 //! their calls the closures' arguments (dotty's `ContextFunctionResults`).
 
+use super::erased_context_results::is_erased_context_function;
 use super::function_classes::function_class_arity;
 use super::walk::subtrees;
 use crate::{Lower, Result, unsupported};
@@ -57,6 +58,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         let clauses = super::context_bridges::clauses(l, info).len();
         let depth = integrate(l, t, m);
         l.context_results.insert(m, (info, depth));
+        super::erased_context_results::rename_direct(l, m, info);
         flattened.push(Flattened { m, clauses, depth });
     }
     let mut calls = Vec::new();
@@ -228,9 +230,13 @@ fn method_ref(l: &Lower, mut t: TNodeId) -> TNodeId {
     t
 }
 
-/// Whether `t` selects the `apply` of a `ContextFunctionN`.
+/// Whether `t` selects the `apply` of a `ContextFunctionN` or of a context function type with
+/// erased parameters.
 fn is_context_apply(l: &mut Lower, t: TNodeId) -> bool {
-    let Some(s) = l.tpd.sym(t) else { return false };
+    let Some(s) = l.tpd.sym(t) else {
+        let Type::TermRef(prefix, name) = l.u.types().get(l.tpd.tpe(t)).clone() else { return false };
+        return name == "apply" && is_erased_context_function(l, prefix);
+    };
     let owner = l.u.symbol(s).owner;
     l.u.symbol(s).name == "apply"
         && owner.and_then(|c| function_class_arity(l, c)).is_some_and(|(_, context)| context)
@@ -241,15 +247,16 @@ fn is_annotated(l: &mut Lower, s: SymbolId) -> bool {
     l.u.symbol(s).tree.is_some() && l.u.is_annotated(s, "scala.annotation.internal.ContextResultCount")
 }
 
-/// Whether `t` is a `ContextFunctionN` type.
+/// Whether `t` is a `ContextFunctionN` type, or a context function type with erased parameters.
 pub fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
-    let mut t = l.u.dealias(t);
-    while let Type::Refined(parent, ref name, _) = *l.u.types().get(t)
+    let t = l.u.dealias(t);
+    let mut base = t;
+    while let Type::Refined(parent, ref name, _) = *l.u.types().get(base)
         && name == "apply"
     {
-        t = parent;
+        base = parent;
     }
-    let Type::Applied(tycon, _) = *l.u.types().get(t) else { return false };
+    let Type::Applied(tycon, _) = *l.u.types().get(base) else { return is_erased_context_function(l, t) };
     let class = l.u.class_symbol(tycon);
     class.and_then(|c| function_class_arity(l, c)).is_some_and(|(_, context)| context)
 }

@@ -6,8 +6,9 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// Lowers Scala files through the Rust frontend into NIR files; several files are typed as one
-/// unit. With `--cp`, they see the TASTy of those directories, and macro calls run in a VM over
-/// the library and their NIR.
+/// unit, with the options of their `//> using options` directives; other directives and options
+/// the frontend does not implement are refused. With `--cp`, they see the TASTy of those
+/// directories, and macro calls run in a VM over the library and their NIR.
 ///
 /// Environment: SCIVOLO_LIBS holds the library jars (default: ref/libs).
 #[derive(Parser)]
@@ -51,11 +52,25 @@ fn main() {
     let copies = || sources.iter().map(|s| SourceFile::new(s.name.clone(), s.text.clone())).collect();
     let mut runner = vm.as_mut().map(|vm| VmMacros { vm, sources: copies() });
     let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
+    let mut options: Vec<&str> = Vec::new();
+    for s in &sources {
+        let directives = lower::directives::directives(&s.text, "3.9.0");
+        options
+            .extend(directives.unwrap_or_else(|d| fail(&format!("the typer does not support {d}"))).options);
+    }
+    let fatal =
+        options.iter().any(|o| ["-Werror", "-Xfatal-warnings"].contains(o) || o.starts_with("-Wconf"));
+    options.retain(|o| !no_code_effect(o, !cp.is_empty()) || Config::checked(&[o]).is_ok());
+    let cfg = Config::checked(&options)
+        .unwrap_or_else(|o| fail(&format!("the typer does not support option `{o}`")));
     let lowered = match &sources[..] {
-        [one] => lower::compile_with(&mut u, one, Config::from_options(&[]), macros),
-        many => lower::compile_sources(&mut u, many, Config::from_options(&[]), macros),
+        [one] => lower::compile_with(&mut u, one, cfg, macros),
+        many => lower::compile_sources(&mut u, many, cfg, macros),
     };
     match lowered {
+        Ok((_, warnings)) if fatal && !warnings.items.is_empty() => {
+            fail("the typer does not support warnings under -Werror or -Wconf")
+        }
         Ok((files, _)) => {
             let _ = std::fs::remove_dir_all(&out);
             std::fs::create_dir_all(&out).expect("creating the output directory");
@@ -76,6 +91,14 @@ fn main() {
             })
         }
     }
+}
+
+/// Whether option `o` cannot change the code of a program dotty compiles, `macros` whether macro
+/// calls run.
+fn no_code_effect(o: &str, macros: bool) -> bool {
+    matches!(o, "-Werror" | "-Xfatal-warnings" | "-experimental" | "-deprecation" | "-feature" | "-unchecked")
+        || ["-W", "-opt", "-Ycheck"].iter().any(|p| o.starts_with(p))
+        || o == "-Yretain-trees" && !macros
 }
 
 fn fail(message: &str) -> ! {
