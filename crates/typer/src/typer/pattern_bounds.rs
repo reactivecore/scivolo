@@ -110,4 +110,41 @@ impl Typer<'_> {
         };
         self.u.intern_type(Type::Bounds(lo, hi))
     }
+
+    /// The types bound in pattern `t`, appended to `out`, each with whether it is bound on an
+    /// extractor's type arguments (`in_targs`), its bounds known.
+    pub fn pattern_types(&self, t: TNodeId, out: &mut Vec<(SymbolId, bool)>, in_targs: bool) {
+        if let T::Bind { .. } = self.tpd.tree(t)
+            && let Some(s) = self.tpd.sym(t)
+            && self.u.is_type_symbol(s)
+        {
+            out.push((s, in_targs));
+        }
+        let targs = matches!(self.tpd.tree(t), T::TypeApply { .. });
+        for c in self.tpd.children(t) {
+            self.pattern_types(c, out, targs);
+        }
+    }
+
+    /// Whether `t` is `Any`, `Matchable` or `AnyRef`, or an abstract type bounded by one, against
+    /// which a pattern's type constrains none of its bound types.
+    pub fn is_top(&mut self, t: TypeId) -> bool {
+        let t = self.u.dealias(t);
+        let b = self.u.builtins();
+        let tops = [b.any, b.matchable, b.object];
+        let Type::Sym(None, s) = *self.u.types().get(t) else {
+            return matches!(*self.u.types().get(t), Type::Sym(_, s) if tops.contains(&s));
+        };
+        if tops.contains(&s) {
+            return true;
+        }
+        if !matches!(self.u.symbol(s).kind, Kind::TypeParam | Kind::Type) {
+            return false;
+        }
+        let info = self.u.info(s);
+        match *self.u.types().get(info) {
+            Type::Bounds(_, hi) => self.is_top(hi),
+            _ => false,
+        }
+    }
 }

@@ -71,7 +71,8 @@ impl Typer<'_> {
                         self.check_simple_kinded(t, a);
                     }
                 }
-                let wildcard = arg_types.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)));
+                let wildcard = !ctx.mode.is(Mode::PATTERN_TYPE)
+                    && arg_types.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)));
                 let mut reduced = false;
                 if wildcard
                     && let Type::Sym(_, s) = *self.u.types().get(tycon)
@@ -91,6 +92,10 @@ impl Typer<'_> {
                 if self.is_ground_match(tpe) {
                     return self.unsupported(id, "match type that may reduce");
                 }
+                let tpe = match ctx.mode.is(Mode::PATTERN_TYPE) {
+                    false => self.u.try_normalize(tpe).unwrap_or(tpe),
+                    true => tpe,
+                };
                 let args = self.tpd.list(&typed_args);
                 self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)
             }

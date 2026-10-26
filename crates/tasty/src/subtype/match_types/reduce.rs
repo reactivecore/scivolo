@@ -175,9 +175,10 @@ impl Cmp<'_> {
     /// The value of `t` normalized if it is a constant `Int` from 0 (dotty's `natValue`).
     pub fn nat_value(&mut self, t: TypeId) -> Option<i64> {
         let t = self.widen_term_refs(t);
+        let t = self.u.dealias(t);
         let t = self.normal(t);
         match *self.u.types().get(t) {
-            Type::Constant(INTconst, n) if (0..i32::MAX as i64).contains(&n) => Some(n),
+            Type::Constant(INTconst, n) if (0..=i32::MAX as i64).contains(&n) => Some(n),
             _ => None,
         }
     }

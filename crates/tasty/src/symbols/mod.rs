@@ -5,6 +5,7 @@ mod any_members;
 mod base_types;
 mod bodies;
 mod builtin;
+mod children;
 mod classes;
 mod companions;
 mod define;

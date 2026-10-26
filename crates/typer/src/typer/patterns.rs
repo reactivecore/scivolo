@@ -33,10 +33,11 @@ impl Typer<'_> {
         let pattern = ctx.mode.is(Mode::PATTERN);
         let tpt_id = tpt;
         let tpt = self.typed_type(tpt, ctx.with_mode(if pattern { Mode::PATTERN_TYPE } else { Mode::NONE }));
-        let tpe = self.tpd.tpe(tpt);
+        let tpe = self.bounded_pattern_type(tpt, pattern, pt);
         if pattern && !self.is_testable_type(tpe) {
             match self.try_with_type_test(id, expr, tpt_id, tpe, pt, ctx) {
                 Ok(Some(tagged)) => return tagged,
+                Ok(None) if ctx.mode.is(Mode::INLINE_CASE) => {}
                 Ok(None) if self.is_erased_test_type(tpe) => {
                     self.warn_unchecked_type_test(pt, tpe, self.ast.span(id));
                 }
@@ -120,8 +121,7 @@ impl Typer<'_> {
         self.is_class_type(t, false)
     }
 
-    /// Whether a typed pattern can test for `t`: a class type, possibly applied, a singleton
-    /// type, or a union or intersection of them.
+    /// Whether a typed pattern can test for `t`: a class, singleton, or their union or intersection.
     pub fn is_testable_type(&mut self, t: TypeId) -> bool {
         let t = self.dealiased(t);
         match *self.u.types().get(t) {

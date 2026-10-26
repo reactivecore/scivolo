@@ -184,3 +184,4 @@ Lw26tuplemap
 Lw26shape
 Lw26statics
 Lw26staticvals
+Tc26matches

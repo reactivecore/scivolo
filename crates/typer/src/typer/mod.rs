@@ -50,6 +50,7 @@ mod define_further;
 mod defs;
 mod dependent_function_types;
 mod dependent_functions;
+mod dependent_matches;
 pub(crate) mod dependent_params;
 mod dependent_results;
 mod derived;
@@ -139,6 +140,7 @@ mod parents;
 mod paths;
 mod pattern_args;
 mod pattern_bounds;
+mod pattern_gadt;
 mod patterns;
 mod plain_trees;
 mod poly_alternatives;
@@ -302,6 +304,8 @@ pub struct Typer<'a> {
     /// The definitions of the instances of each module class's `derives` clause, entered and
     /// not typed yet.
     pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving_finalize::Problem>)>>,
+    /// The types typed patterns bind whose bounds the selector gave.
+    pub known_pattern_types: FxHashSet<SymbolId>,
     /// The type lambdas of derived instances' types, by the instances that own their parameters.
     pub derived_lambdas: FxHashMap<NodeId, NodeId>,
     /// The pending dynamic calls, by their placeholder trees.
@@ -385,6 +389,7 @@ impl<'a> Typer<'a> {
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
             derived_instances: FxHashMap::default(),
+            known_pattern_types: FxHashSet::default(),
             derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
             structural_selects: FxHashSet::default(),

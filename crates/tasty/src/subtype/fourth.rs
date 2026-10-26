@@ -17,6 +17,7 @@ impl Cmp<'_> {
                 Some(Meaning::Class(c)) if c == self.u.builtins().nothing => self.is_value_type(b),
                 Some(Meaning::Class(c)) if c == self.u.builtins().null => self.nullable(b),
                 Some(Meaning::Term(_)) => self.below_singleton(a, b),
+                Some(Meaning::Class(c)) if self.u.is_module_class(c) => self.module_class_below(a, b, c),
                 _ => false,
             },
             Type::Applied(tycon, args) => self.compare_applied1(a, b, tycon, &args),
@@ -31,6 +32,16 @@ impl Cmp<'_> {
             Type::And(x, y) => self.and_below(a, b, x, y),
             _ => false,
         }
+    }
+
+    /// `a <: b` for `a` the type of module class `c`: `b` a reference to `c`'s object through a
+    /// related prefix (dotty's `compareNamed`).
+    fn module_class_below(&mut self, a: TypeId, b: TypeId, c: SymbolId) -> bool {
+        if !matches!(self.u.types().get(b), Type::TermRef(..) | Type::Sym(..)) {
+            return false;
+        }
+        let (Some(na), Some(nb)) = (self.named(a), self.named(b)) else { return false };
+        nb.sym.is_some() && nb.sym == self.u.source_module(c) && self.sub_prefix(na.prefix, nb.prefix)
     }
 
     /// `x & y <: b`: through `b` dealiased, `|` in the intersection distributed, else one of

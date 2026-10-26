@@ -11,6 +11,7 @@ mod ops;
 mod reduce;
 mod spec;
 
+use super::refs::Meaning;
 use super::{Cmp, NoVars};
 use crate::Universe;
 use crate::types::{Type, TypeId};
@@ -29,6 +30,12 @@ impl Universe {
     /// `t` normalized, if a normalization applies (dotty's `tryNormalize`).
     pub fn try_normalize(&mut self, t: TypeId) -> Option<TypeId> {
         Cmp::new(self, &mut NoVars).try_normalize(t)
+    }
+
+    /// The match type `t` stands for, unreduced (dotty's `underlyingNormalizable`).
+    pub fn underlying_match(&mut self, t: TypeId) -> Option<TypeId> {
+        let n = Cmp::new(self, &mut NoVars).underlying_normalizable(t)?;
+        matches!(self.types().get(n), Type::Match { .. }).then_some(n)
     }
 
     /// Whether match type case `case` has a pattern that reduction handles.
@@ -74,6 +81,27 @@ impl Cmp<'_> {
         None
     }
 
+    /// The instance of type variable `t`, or its bounds if they are the same type (dotty's
+    /// `tryReplace`); the alias a type member of a path `t` is in the path's refinement; `t`
+    /// itself otherwise.
+    fn fixed(&mut self, t: TypeId) -> TypeId {
+        if matches!(self.u.types().get(t), Type::TypeRef(..)) {
+            return match self.named(t).map(|n| n.meaning) {
+                Some(Meaning::Alias(a)) => a,
+                Some(Meaning::Abstract(lo, hi)) if lo == hi => lo,
+                _ => t,
+            };
+        }
+        let Type::Var(v) = *self.u.types().get(t) else { return t };
+        if let Some(i) = self.vars.instance(v) {
+            return i;
+        }
+        match self.vars.bounds(v) {
+            (lo, hi) if lo == hi => lo,
+            _ => t,
+        }
+    }
+
     /// The supertype of `tycon[args]` for `tycon` not a class: a lambda's body, an alias's or
     /// an abstract type's upper bound applied (dotty's `AppliedType.superType`).
     pub fn applied_super_type(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
@@ -98,6 +126,7 @@ impl Cmp<'_> {
         self.reductions += 1;
         let frozen = std::mem::replace(&mut self.frozen, true);
         let scrutinee = self.u.dealias(scrutinee);
+        let scrutinee = self.fixed(scrutinee);
         let scrutinee = self.normal(scrutinee);
         let reduced = self.match_cases(scrutinee, &cases);
         self.frozen = frozen;

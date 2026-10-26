@@ -44,6 +44,7 @@ impl Typer<'_> {
         }
         let bound = bound.unwrap_or(lub);
         let tpe = self.u.intern_type(Type::Match { bound, scrutinee, cases: case_types });
+        let tpe = self.u.try_normalize(tpe).unwrap_or(tpe);
         self.type_tree(tpe, self.ast.span(id), false)
     }
 
@@ -81,6 +82,7 @@ impl Typer<'_> {
             if let Type::Sym(_, s) = *u.types().get(part)
                 && s.0 >= first.0
                 && u.symbol(s).kind == Kind::Type
+                && u.symbol(s).tree.is_none()
                 && !captures.contains(&s)
             {
                 captures.push(s);
@@ -128,7 +130,7 @@ impl Typer<'_> {
         self.u.map_type(pat, &mut |u, part| {
             if let Type::Applied(tycon, args) = u.types().get(part).clone()
                 && let Type::Sym(_, c) = *u.types().get(tycon)
-                && u.symbol(c).kind == Kind::Class
+                && matches!(u.symbol(c).kind, Kind::Class | Kind::Type)
             {
                 for (i, a) in args.into_iter().enumerate() {
                     if let Type::Sym(_, s) = *u.types().get(a)
@@ -147,9 +149,30 @@ impl Typer<'_> {
             if info != unbounded {
                 continue;
             }
-            let bounds = self.with_param_bounds(info, params.get(i).copied(), &params);
+            let bounds = match params.is_empty() {
+                true => self.lambda_param_bounds(c, i).unwrap_or(info),
+                false => self.with_param_bounds(info, params.get(i).copied(), &params),
+            };
             self.u.set_info(s, bounds);
         }
+    }
+
+    /// The bounds of the `i`th parameter of the type lambda abstract type `c` stands for, if they
+    /// refer to no parameter.
+    fn lambda_param_bounds(&mut self, c: SymbolId, i: usize) -> Option<TypeId> {
+        let info = self.u.info(c);
+        let lambda = match *self.u.types().get(info) {
+            Type::Bounds(_, hi) => hi,
+            _ => info,
+        };
+        let Type::Lambda { params, .. } = self.u.types().get(lambda).clone() else { return None };
+        let bounds = params.get(i)?.1;
+        let mut dependent = false;
+        self.u.map_type(bounds, &mut |u, t| {
+            dependent |= matches!(u.types().get(t), Type::Param(..));
+            None
+        });
+        (!dependent && matches!(self.u.types().get(bounds), Type::Bounds(..))).then_some(bounds)
     }
 
     /// The names of the type variables pattern `pat` binds: its lower-case type identifiers.
