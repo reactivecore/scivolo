@@ -146,7 +146,13 @@ impl Typer<'_> {
                 }
                 _ => self.conforms(arg, hi),
             };
-            if !upper || lo.is_some_and(|lo| !self.conforms(lo, arg)) {
+            let lower = |t: &mut Self, lo: TypeId| match var {
+                Some(v) if t.u.dealias(lo) != lo && t.open_vars(lo).is_empty() => {
+                    t.constraint.add_lower(t.u, v, lo)
+                }
+                _ => t.conforms(lo, arg),
+            };
+            if !upper || lo.is_some_and(|lo| !lower(self, lo)) {
                 return Err("type argument outside its bounds");
             }
         }
