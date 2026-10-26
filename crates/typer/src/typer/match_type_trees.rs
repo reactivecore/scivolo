@@ -44,6 +44,7 @@ impl Typer<'_> {
         }
         let bound = bound.unwrap_or(lub);
         let tpe = self.u.intern_type(Type::Match { bound, scrutinee, cases: case_types });
+        let tpe = self.u.try_normalize(tpe).unwrap_or(tpe);
         self.type_tree(tpe, self.ast.span(id), false)
     }
 
