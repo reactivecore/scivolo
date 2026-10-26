@@ -91,6 +91,10 @@ impl Typer<'_> {
                 let sup = self.u.try_normalize(t).unwrap_or(bound);
                 self.members_within(sup, name, within)
             }
+            Type::Var(v) => {
+                let hi = self.constraint.bounds(v).1;
+                self.members_within(hi, name, within)
+            }
             Type::And(a, b) => {
                 let (ma, mb) = (self.members_within(a, name, within), self.members_within(b, name, within));
                 self.and_members(t, (ma, mb), ctx)
