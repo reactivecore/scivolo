@@ -149,6 +149,10 @@ const CASES: &[(&str, &str)] = &[
     ("import scala.scalanative.unsafe.*\n@extern object libc { val x: CInt = extern }", "extern fields"),
     ("import scala.scalanative.unsafe.*\nobject O { def f(x: CInt): CInt = extern }", "`extern` outside"),
     (
+        "import scala.scalanative.unsafe.*\nobject O { val n = \"p\"; @resolvedAtLinktime(n) def p: Int = resolved }",
+        "annotation @scala.scalanative.unsafe.resolvedAtLinktime without a string literal",
+    ),
+    (
         "import scala.scalanative.unsafe.*\n@extern object libc { def f(g: CFuncPtr): CInt = extern }",
         "extern methods of a `CFuncPtr`",
     ),
