@@ -30,6 +30,8 @@ impl Mode {
     pub const SPLICE: Mode = Mode(128);
     /// A case of an inline match, whose patterns the inliner matches at the call.
     pub const INLINE_CASE: Mode = Mode(256);
+    /// The name of an extractor, which refers to no method (dotty's `UnapplySelectionProto`).
+    pub const EXTRACTOR: Mode = Mode(512);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

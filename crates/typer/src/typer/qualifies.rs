@@ -7,18 +7,21 @@
 use super::Typer;
 use super::find_ref::Name;
 use super::idents::Found;
-use crate::ctx::{Ctx, Level, LevelId};
+use crate::ctx::{Ctx, Level, LevelId, Mode};
 use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     /// `found` at level `l` without the members of the empty package if `ctx` is in another
-    /// package; the root package stands for both.
+    /// package; the root package stands for both; without methods for an extractor's name.
     pub fn qualifying(&self, mut found: Found, l: LevelId, ctx: Ctx) -> Option<Found> {
         let root = self.u.root();
         if matches!(*self.levels.get(l), Level::Members(o) if o == root)
             && self.enclosing_package(ctx.owner) != root
         {
             found.syms.retain(|&s| self.u.symbol(s).kind == Kind::Package);
+        }
+        if ctx.mode.is(Mode::EXTRACTOR) {
+            found.syms.retain(|&s| self.u.symbol(s).kind != Kind::Def);
         }
         (!found.syms.is_empty()).then_some(found)
     }
