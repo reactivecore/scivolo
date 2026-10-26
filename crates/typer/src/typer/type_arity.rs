@@ -4,7 +4,8 @@
 //! type parameters of any kind.
 
 use super::Typer;
-use tasty::{Kind, Type, TypeId};
+use syntax::ast::Tree;
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// How many type parameters type constructor `t` takes: a class's, a type lambda's, a type
@@ -20,6 +21,9 @@ impl Typer<'_> {
                 Kind::Class => self.u.type_params(s).len(),
                 Kind::Type | Kind::TypeParam => {
                     self.complete(s);
+                    if let Some(n) = self.completing_arity(s) {
+                        return n;
+                    }
                     let info = self.refined_info(pre, s);
                     self.info_arity(info, depth)
                 }
@@ -42,6 +46,18 @@ impl Typer<'_> {
             }
             _ => 0,
         }
+    }
+
+    /// How many type parameters the definition of `s` being completed, or of type parameter `s`,
+    /// declares, `F[X] <: …`.
+    fn completing_arity(&self, s: SymbolId) -> Option<usize> {
+        let tree = match self.syms.completions.get(&s) {
+            Some(&crate::symbols::Completion::Completing(tree)) => tree,
+            _ => *self.syms.param_trees.get(&s)?,
+        };
+        let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return None };
+        let Tree::LambdaTypeTree { tparams, .. } = *self.ast.tree(rhs) else { return None };
+        Some(self.ast.items(tparams).len())
     }
 
     /// How many type parameters a type member of info `info` takes.
