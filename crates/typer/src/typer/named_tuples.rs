@@ -116,6 +116,7 @@ impl Typer<'_> {
         id: NodeId,
         qual: TNodeId,
         name: TName,
+        pt: Pt,
         ctx: Ctx,
     ) -> Option<TNodeId> {
         if name.is_type {
@@ -130,11 +131,11 @@ impl Typer<'_> {
                 self.error(id, "Named tuples that define an `apply` field do not allow field selection."),
             );
         }
-        (i < values.len()).then(|| self.indexed_element(id, qual, i, ctx))
+        (i < values.len()).then(|| self.indexed_element(id, qual, i, pt, ctx))
     }
 
     /// Selection `id` of element `i` of named tuple `qual` as `NamedTuple.apply(qual)(i)`.
-    fn indexed_element(&mut self, id: NodeId, qual: TNodeId, i: usize, ctx: Ctx) -> TNodeId {
+    fn indexed_element(&mut self, id: NodeId, qual: TNodeId, i: usize, pt: Pt, ctx: Ctx) -> TNodeId {
         let span = self.ast.span(id);
         let module = TName { name: self.name("scala.NamedTuple"), is_type: false };
         let qualifier = self.ast.node(Tree::TypedSplice { sym: module });
@@ -152,12 +153,13 @@ impl Typer<'_> {
         self.ast.with_span(extension, qual_span.to_synthetic());
         self.ast.with_span(index, qual_span.end_pos().to_synthetic());
         self.ast.with_span(apply, span);
-        let typed = self.typed(apply, Pt::Any, ctx);
+        let typed = self.typed(apply, pt, ctx);
         let tpe = self.tpd.tpe(typed);
-        // Forces the result type defined; temporary, until #146.
-        match self.fully_defined(tpe) {
-            Ok(t) => self.tpd.get_mut(typed).tpe = Some(t),
-            Err(what) => return self.unsupported(id, what),
+        if !self.is_fully_defined(tpe) {
+            match self.fully_defined(tpe) {
+                Ok(t) => self.tpd.get_mut(typed).tpe = Some(t),
+                Err(what) => return self.unsupported(id, what),
+            }
         }
         typed
     }

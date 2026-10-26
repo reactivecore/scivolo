@@ -14,6 +14,11 @@ impl Typer<'_> {
         self.error_tree(span)
     }
 
+    pub fn unsupported_tree(&mut self, span: Span, what: &str) -> TNodeId {
+        self.unsupported_at(span, what);
+        self.error_tree(span)
+    }
+
     pub fn unsupported_at(&mut self, span: Span, what: &str) {
         self.probe_unsupported();
         self.reports += 1;

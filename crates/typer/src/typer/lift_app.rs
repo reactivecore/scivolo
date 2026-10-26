@@ -58,6 +58,14 @@ impl Typer<'_> {
             T::Select { qualifier, name } => {
                 let Some(sym) = self.tpd.sym(f) else {
                     let tpe = self.tpd.tpe(f);
+                    if self.structural_selects.contains(&f) && !self.is_idempotent_expr(qualifier) {
+                        self.structural_selects.remove(&f);
+                        let lifted = self.lift(defs, qualifier, "", complex, ctx);
+                        return Ok(self.structural_method(lifted, name, tpe, span));
+                    }
+                    if self.structural_selects.contains(&f) {
+                        return Ok(f);
+                    }
                     self.poly_apply_info(tpe).ok_or("lifting")?;
                     if self.is_idempotent_expr(qualifier) {
                         return Ok(f);

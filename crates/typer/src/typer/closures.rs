@@ -47,12 +47,19 @@ impl Typer<'_> {
         let mut param_trees = Vec::new();
         let mut param_types = Vec::new();
         let mut missing = false;
+        let formal = |i: usize| expected.as_ref().map(|(formals, _)| formals[i]);
+        let from_callee =
+            (0..params.len()).any(|i| self.is_untyped_param(params[i]) && self.wants_callee_type(formal(i)));
+        let callee = if from_callee { self.callee_param_types(&params, body, ctx) } else { None };
         for (i, &p) in params.iter().enumerate() {
             let Tree::ValDef { name, tpt, mods, .. } = *self.ast.tree(p) else {
                 return self.unsupported(p, "function parameter");
             };
+            let callee_type = callee.as_ref().and_then(|types| self.callee_formal(formal(i), types[i]));
             let tpt = if !self.is_untyped_param(p) {
                 self.typed_type(tpt, ctx)
+            } else if let Some(t) = callee_type {
+                self.type_tree(t, self.ast.span(p).end_pos(), expected.is_some())
             } else if let Some((formals, _)) = &expected {
                 let formal = self.zonk(formals[i]);
                 let lower = match *self.u.types().get(formal) {
@@ -64,9 +71,6 @@ impl Typer<'_> {
                     return self.unsupported(p, "parameter type inferred from the target of a wildcard");
                 }
                 let formal = lower.unwrap_or(formal);
-                if contextual && !self.is_fully_defined(formal) {
-                    return self.unsupported(p, "context closure parameter of an open type");
-                }
                 let formal = match self.fully_defined(formal) {
                     Ok(t) if !self.has_proto_wildcard(t) => t,
                     Ok(_) => return self.unsupported(p, "parameter type left open by the expected type"),
