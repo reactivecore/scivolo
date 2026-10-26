@@ -80,9 +80,18 @@ impl Gen<'_, '_> {
                 let letter = "zcbsijfd".chars().find(|&c| boxed_class(c) == Some(class));
                 self.erased(&tasty::Erased::Prim(letter.expect("the class of a boxed primitive")))
             }
-            Op::Extract { .. } | Op::Insert { .. } => {
-                unreachable!("not generated yet: {op:?}")
+            Op::Extract { aggr, ref indexes } => {
+                let mut ty = self.val_ty(aggr);
+                for &i in indexes {
+                    ty = match self.pool.ty(ty) {
+                        Type::StructValue(tys) => tys[i as usize],
+                        Type::ArrayValue(elem, _) => *elem,
+                        t => unreachable!("an aggregate of type {t:?}"),
+                    };
+                }
+                ty
             }
+            Op::Insert { aggr, .. } => self.val_ty(aggr),
         }
     }
 

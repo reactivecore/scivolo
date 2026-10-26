@@ -6,13 +6,10 @@
 
 use super::Gen;
 use super::externs::unboxed;
-use crate::phases::casts::class_named;
 use crate::{Result, unsupported};
 use nir::{Type, TypeId};
 use syntax::ast::Span;
 use tasty::SymbolId;
-
-const STRUCT: &str = "scala.scalanative.runtime.struct";
 
 impl Gen<'_, '_> {
     /// `t` widened and dealiased, opaque types replaced by their aliases (nscplugin's
@@ -79,25 +76,6 @@ impl Gen<'_, '_> {
             },
             _ => ty,
         })
-    }
-
-    /// The type of the values of class `name`, a binary name, if a `@struct` class: a C struct of
-    /// its constructor's parameters (nscplugin's `genStruct`).
-    pub fn struct_type(&mut self, name: &str) -> Option<TypeId> {
-        if let Some(&t) = self.structs.get(name) {
-            return t;
-        }
-        let class = class_named(self.l, name).filter(|&c| self.l.u.is_annotated(c, STRUCT));
-        let ctor = class.and_then(|c| {
-            let decls = self.l.u.decls(c).unwrap_or_default();
-            decls.into_iter().find(|&d| self.l.u.is_constructor(d))
-        });
-        let t = ctor.map(|ctor| {
-            let fields = self.param_types(ctor);
-            self.ty(Type::StructValue(fields))
-        });
-        self.structs.insert(name.to_owned(), t);
-        t
     }
 
     /// The number type `t` of `unsafe.Nat` stands for.

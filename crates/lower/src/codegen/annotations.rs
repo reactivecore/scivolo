@@ -45,7 +45,7 @@ const ANNOTATIONS: [(&str, Gives); 21] = [
     ("scala.scalanative.annotation.align", Gives::Refused),
     ("scala.scalanative.annotation.nonExtern", Gives::Refused),
     ("scala.scalanative.reflect.annotation.EnableReflectiveInstantiation", Gives::Refused),
-    ("scala.scalanative.runtime.struct", Gives::Refused),
+    ("scala.scalanative.runtime.struct", Gives::Generated),
     ("scala.scalanative.unsafe.exportAccessors", Gives::Refused),
     ("scala.scalanative.unsafe.exported", Gives::Refused),
     ("scala.scalanative.unsafe.name", Gives::Id),

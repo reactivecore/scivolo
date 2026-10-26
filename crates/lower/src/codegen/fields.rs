@@ -14,7 +14,7 @@ use nir::{Attr, Defn, DefnKind, GlobalId, Op, PosId, Val, ValId};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
-use tasty::tags::{FIELDaccessor, MUTABLE, PRIVATE, STATIC};
+use tasty::tags::{ABSTRACT, FIELDaccessor, LAZY, MUTABLE, PRIVATE, STATIC};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -75,6 +75,10 @@ impl Gen<'_, '_> {
         }
         let ty = self.gen_type(self.l.tpd.tpe(t));
         let obj = self.field_owner(f, qual, self.l.tpd.span(t))?;
+        let owner = self.l.u.symbol(f).owner.expect("a field's class");
+        if self.is_struct(owner) {
+            return self.gen_struct_field(owner, f, obj, self.l.tpd.span(t));
+        }
         let name = self.field_name(f);
         Ok(self.emit(Op::Fieldload { ty, obj, name }))
     }
@@ -111,7 +115,8 @@ impl Gen<'_, '_> {
             let decls = self.l.u.decls(base).unwrap_or_default();
             let named: Vec<SymbolId> =
                 decls.into_iter().filter(|&d| self.l.u.symbol(d).name == name).collect();
-            found = found.or_else(|| named.iter().copied().find(|&d| self.is_field(d)));
+            found =
+                found.or_else(|| named.iter().copied().find(|&d| self.is_field(d) || self.is_library_var(d)));
             let immutable_accessor = base != class
                 && named.iter().any(|&d| has(self.l.u, d, FIELDaccessor) && !has(self.l.u, d, MUTABLE));
             if immutable_accessor {
@@ -127,6 +132,17 @@ impl Gen<'_, '_> {
         let obj = self.gen_expr(target)?;
         let name = self.field_name(f);
         Ok(self.emit(Op::Field { obj, name }))
+    }
+
+    /// Whether `v` is a variable of a library class that is neither abstract nor a trait, a field.
+    fn is_library_var(&self, v: SymbolId) -> bool {
+        let s = self.l.u.symbol(v);
+        let concrete = s.owner.is_some_and(|c| !has(self.l.u, c, ABSTRACT) && !self.l.u.is_trait(c));
+        s.tree.is_some()
+            && s.kind == tasty::Kind::Val
+            && has(self.l.u, v, MUTABLE)
+            && !has(self.l.u, v, LAZY)
+            && concrete
     }
 
     /// The object holding field `f`: `qual` if a `this`, a static object's instance, else `qual`

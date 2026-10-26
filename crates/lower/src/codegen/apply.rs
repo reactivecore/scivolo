@@ -94,6 +94,9 @@ impl Gen<'_, '_> {
         let Some(class) = self.l.u.class_symbol(self.l.tpd.tpe(tpt)) else {
             return unsupported(self.l.tpd.span(tpt), "`new` of a type that is not a class");
         };
+        if self.is_struct(class) {
+            return unsupported(span, "`new` of a `@struct` class");
+        }
         let name = self.type_name(class);
         let alloc = self.emit(Op::Classalloc { name, zone: None });
         let args = self.gen_args(ctor, args, span)?;
