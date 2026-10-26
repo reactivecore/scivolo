@@ -156,12 +156,11 @@ impl Typer<'_> {
         self.ast.with_span(apply, span);
         let typed = self.typed(apply, pt, ctx);
         let tpe = self.tpd.tpe(typed);
-        if !self.is_fully_defined(tpe) {
-            match self.fully_defined(tpe) {
-                Ok(t) => self.tpd.get_mut(typed).tpe = Some(t),
-                Err(what) => return self.unsupported(id, what),
-            }
-        }
+        let tpe = match self.fully_defined(tpe) {
+            Ok(t) => t,
+            Err(what) => return self.unsupported(id, what),
+        };
+        self.tpd.get_mut(typed).tpe = Some(self.u.normalized(tpe));
         typed
     }
 }
