@@ -1,7 +1,7 @@
 true
 not windows
 unix
-64-bit mac
+64-bit unix
 arch known
 arch not odd
 unix-like
