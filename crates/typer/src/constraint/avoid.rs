@@ -49,6 +49,14 @@ impl Constraint {
                         _ => None,
                     }
                 }
+                Kind::TypeParam => {
+                    let (lo, hi) = class_param_bounds(u, pre, s)?;
+                    match v {
+                        1 => self.avoided(u, hi, born, v),
+                        -1 => self.avoided(u, lo, born, v),
+                        _ => None,
+                    }
+                }
                 _ if v > 0 => self.widened(u, t, born, v),
                 _ => None,
             },
@@ -69,7 +77,14 @@ impl Constraint {
                 let mut out = Vec::with_capacity(args.len());
                 for (&a, &pv) in args.iter().zip(&variances) {
                     if pv == 0 && self.refers_to_local(u, a, born, 4) {
-                        return None;
+                        let bounds = match *u.types().get(a) {
+                            Type::Bounds(lo, hi) => (lo, hi),
+                            _ => (a, a),
+                        };
+                        let lo = self.avoided(u, bounds.0, born, -1).filter(|_| v != 0)?;
+                        let hi = self.avoided(u, bounds.1, born, 1)?;
+                        out.push(u.intern_type(Type::Bounds(lo, hi)));
+                        continue;
                     }
                     out.push(self.avoided(u, a, born, v * i32::from(pv))?);
                 }
@@ -79,10 +94,7 @@ impl Constraint {
                 let parent = self.avoided(u, parent, born, v)?;
                 let info = match u.types().get(info).clone() {
                     _ if !self.refers_to_local(u, info, born, 4) => info,
-                    Type::Alias(a) if v > 0 => {
-                        let (lo, hi) = (self.avoided(u, a, born, -1)?, self.avoided(u, a, born, 1)?);
-                        u.intern_type(Type::Bounds(lo, hi))
-                    }
+                    Type::Alias(_) if v > 0 => return Some(parent),
                     Type::Bounds(lo, hi) if v > 0 => {
                         let (lo, hi) = (self.avoided(u, lo, born, -1)?, self.avoided(u, hi, born, 1)?);
                         u.intern_type(Type::Bounds(lo, hi))
@@ -150,6 +162,17 @@ fn is_local_since(u: &Universe, s: SymbolId, born: SymbolId) -> bool {
         s = o;
     }
     false
+}
+
+/// The bounds of class type parameter `p` selected on `pre`: those of the wildcard argument
+/// `pre`'s type gives it, the argument itself from both sides otherwise.
+fn class_param_bounds(u: &mut Universe, pre: TypeId, p: SymbolId) -> Option<(TypeId, TypeId)> {
+    let selected = u.intern_type(Type::Sym(Some(pre), p));
+    let arg = crate::typer::seen_from::class_param_arg(u, selected)?;
+    match *u.types().get(arg) {
+        Type::Bounds(lo, hi) => Some((lo, hi)),
+        _ => Some((arg, arg)),
+    }
 }
 
 fn owned_by_term(u: &Universe, s: SymbolId) -> bool {

@@ -5,13 +5,15 @@
 
 use super::base_types::MAX_DEPTH;
 use super::{Kind, SymbolId, Universe};
+use crate::tags::MUTABLE;
 use crate::types::{Type, TypeId};
 
 impl Universe {
     /// `t`, a type in class `owner`, as seen from `prefix`, from its `this` for a `super`: the
     /// `this` of `owner`, of its base classes and of its enclosing classes replaced by `prefix`
     /// or the prefix `prefix` gives them, the type parameters of `owner` by the arguments
-    /// `prefix` gives them.
+    /// `prefix` gives them, one a wildcard by the parameter selected on a value path `prefix`
+    /// (dotty's `argForParam`).
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
         let prefix = match *self.types().get(prefix) {
             Type::Super(this, _) => this,
@@ -23,6 +25,7 @@ impl Universe {
                 let c = u.class_symbol(c)?;
                 u.this_seen_from(prefix, owner, c, MAX_DEPTH)
             }
+            Type::Sym(Some(p), _) | Type::TypeRef(p, _) if !matches!(u.types().get(p), Type::This(_)) => None,
             _ => {
                 let (c, i) = u.class_param(x)?;
                 let prefix = match u.derives_from(owner, c) {
@@ -30,12 +33,27 @@ impl Universe {
                     false => u.this_seen_from(prefix, owner, c, MAX_DEPTH)?,
                 };
                 let seen = u.base_type(prefix, c)?;
-                match u.types().get(seen) {
-                    Type::Applied(_, args) => args.get(i).copied(),
-                    _ => None,
+                let Type::Applied(_, args) = u.types().get(seen).clone() else { return None };
+                let arg = *args.get(i)?;
+                if !matches!(u.types().get(arg), Type::Bounds(..)) || !u.is_value_path(prefix) {
+                    return Some(arg);
                 }
+                let param = u.type_params(c)[i];
+                Some(u.intern_type(Type::Sym(Some(prefix), param)))
             }
         })
+    }
+
+    /// Whether `t` is a stable path to a value: a reference to an immutable value or parameter,
+    /// or a skolem.
+    fn is_value_path(&mut self, t: TypeId) -> bool {
+        match *self.types().get(t) {
+            Type::Skolem(..) => true,
+            Type::Sym(_, s) => {
+                matches!(self.symbol(s).kind, Kind::Val | Kind::Param) && !self.symbol(s).flags.has(MUTABLE)
+            }
+            _ => false,
+        }
     }
 
     /// What `this_cls.this` in class `cls` is as seen from `pre`: `pre` if it is an instance of

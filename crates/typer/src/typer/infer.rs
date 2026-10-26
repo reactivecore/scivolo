@@ -31,9 +31,10 @@ fn substituted(u: &mut Universe, constraint: &Constraint, t: TypeId, changed: &m
 }
 
 impl Typer<'_> {
-    /// Whether `a` conforms to `b`, constraining type variables.
+    /// Whether `a` conforms to `b`, constraining type variables; a stable path also with its
+    /// wildcards captured.
     pub fn conforms(&mut self, a: TypeId, b: TypeId) -> bool {
-        self.u.is_subtype_in(a, b, &mut self.constraint)
+        self.u.is_subtype_in(a, b, &mut self.constraint) || self.conforms_captured_path(a, b)
     }
 
     /// Whether `a` conforms to `b` frozen, no reference lifted to the `this` of an enclosing
