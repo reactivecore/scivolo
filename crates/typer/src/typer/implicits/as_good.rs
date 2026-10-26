@@ -7,7 +7,7 @@ use super::super::Typer;
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
 use tasty::tags::{CONTRAVARIANT, COVARIANT, EXTENSION, IMPLICIT};
-use tasty::{Type, TypeId};
+use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether `a` of type `t1` is as good as `b` of type `t2` in `ctx`, the constraint
@@ -103,11 +103,14 @@ impl Typer<'_> {
                     Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
                     _ => None,
                 };
-                let class = class?;
+                let Some(class) = class else {
+                    let open = matches!(self.u.types().get(tycon), Type::Var(_) | Type::Param(..));
+                    return open.then_some(t);
+                };
                 self.complete(class);
                 let params = self.u.type_params(class);
                 if params.len() != args.len() {
-                    return None;
+                    return (self.u.symbol(class).kind == Kind::TypeParam).then_some(t);
                 }
                 let mut out = Vec::new();
                 for (&arg, &p) in args.iter().zip(&params) {
