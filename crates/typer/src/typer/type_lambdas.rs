@@ -74,9 +74,6 @@ impl Typer<'_> {
         if bounds && self.leaks_private_type(owner, body_tpe, &syms) {
             return self.unsupported(id, "private type in the bounds of a higher-kinded type");
         }
-        if !bounds && type_def.is_some() && self.overrides_type_member(owner) {
-            return self.unsupported(id, "higher-kinded type alias overriding a type member");
-        }
         let tpe = match *self.u.types().get(body_tpe) {
             Type::Bounds(lo, hi) => {
                 let nothing = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
@@ -108,20 +105,6 @@ impl Typer<'_> {
             });
         }
         leaks
-    }
-
-    /// Whether type member `s` of a class other than an object overrides a member of a base
-    /// class of its class.
-    fn overrides_type_member(&mut self, s: SymbolId) -> bool {
-        let owner = self.u.symbol(s).owner;
-        let Some(class) =
-            owner.filter(|&o| self.u.symbol(o).kind == Kind::Class && !self.u.is_module_class(o))
-        else {
-            return false;
-        };
-        let name = self.u.symbol(s).name.clone();
-        let bases = self.u.linearization(class);
-        bases.into_iter().filter(|&b| b != class).any(|b| self.u.decl(b, &name).is_ok_and(|d| !d.is_empty()))
     }
 
     /// The info of type member `s` selected on `pre`: that a refinement of `pre`'s type gives it,
