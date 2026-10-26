@@ -20,6 +20,8 @@ mod dynmethod;
 mod equality;
 mod erased;
 mod expr;
+mod extern_calls;
+mod externs;
 mod fields;
 mod finally;
 mod interface_bridges;

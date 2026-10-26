@@ -21,6 +21,10 @@ enum Gives {
     Named(fn(StrId) -> Attr),
     /// An attribute of the fields of what it annotates, a field or a class.
     Field(fn() -> Attr),
+    /// The name of an extern definition, its string argument.
+    Id,
+    /// `blocking` of the `extern` attribute of an extern definition.
+    Blocking,
     Refused,
 }
 
@@ -42,9 +46,9 @@ const ANNOTATIONS: [(&str, Gives); 21] = [
     ("scala.scalanative.runtime.struct", Gives::Refused),
     ("scala.scalanative.unsafe.exportAccessors", Gives::Refused),
     ("scala.scalanative.unsafe.exported", Gives::Refused),
-    ("scala.scalanative.unsafe.name", Gives::Refused),
-    ("scala.scalanative.unsafe.package$.blocking", Gives::Refused),
-    ("scala.scalanative.unsafe.package$.extern", Gives::Refused),
+    ("scala.scalanative.unsafe.name", Gives::Id),
+    ("scala.scalanative.unsafe.package$.blocking", Gives::Blocking),
+    ("scala.scalanative.unsafe.package$.extern", Gives::Any(|| Attr::Extern { blocking: false })),
     ("scala.scalanative.unsafe.resolvedAtLinktime", Gives::Refused),
 ];
 
@@ -68,7 +72,13 @@ pub fn check_annotations(l: &Lower, root: TNodeId) -> Result<()> {
             let literal = !strings.is_empty() && strings.iter().all(Option::is_some);
             match gives(l, class) {
                 Some(Gives::Refused) => return unsupported(l.tpd.span(t), what()),
-                Some(Gives::Named(_)) if !literal => {
+                Some(Gives::Id | Gives::Blocking) if !crate::symbols::is_extern(l.u, sym) => {
+                    return unsupported(
+                        l.tpd.span(t),
+                        format!("{} of a definition that is not extern", what()),
+                    );
+                }
+                Some(Gives::Named(_) | Gives::Id) if !literal => {
                     return unsupported(l.tpd.span(t), format!("{} without a string literal", what()));
                 }
                 _ => {}

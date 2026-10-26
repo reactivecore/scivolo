@@ -139,8 +139,35 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { def f(x: (a: Int, b: String) & (b: String, a: Int)): Int = x.a }", "member not found"),
     (
-        "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }",
-        "annotation @scala.scalanative.unsafe.package$.extern",
+        "import scala.scalanative.unsafe.*\n@extern object libc { def printf(f: CString, xs: Any*): CInt = extern }",
+        "extern methods with variable arguments",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def f(x: CInt): CInt = x }",
+        "methods in extern objects without an extern body",
+    ),
+    ("import scala.scalanative.unsafe.*\n@extern object libc { val x: CInt = extern }", "extern fields"),
+    ("import scala.scalanative.unsafe.*\nobject O { def f(x: CInt): CInt = extern }", "`extern` outside"),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def f(g: CFuncPtr): CInt = extern }",
+        "extern methods of a `CFuncPtr`",
+    ),
+    ("import scala.scalanative.unsafe.*\nobject O { def f: CString = c\"a\" }", "intrinsic CQuote.c"),
+    (
+        "import scala.scalanative.runtime.Intrinsics\nobject O { def f(x: Int): Long = Intrinsics.intToULong(x) }",
+        "intrinsic Intrinsics$.intToULong",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\nobject O { def f(g: CFuncPtr1[CInt, CInt]): CInt = g(1) }",
+        "intrinsic CFuncPtr1.apply",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }\nobject O { def g: CInt = libc.puts(c\"a\") }",
+        "intrinsic CQuote.c",
+    ),
+    (
+        "import scala.scalanative.meta.LinktimeInfo\nobject O { def f: Int = if LinktimeInfo.isLinux then 1 else 2 }",
+        "values resolved at link time",
     ),
     (
         "import scala.scalanative.unsafe.*\nobject O { @name(\"g\") def f = 1 }",

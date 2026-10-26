@@ -46,7 +46,10 @@ impl Gen<'_, '_> {
                 ty
             }
             Op::Box { ty, .. } => match *self.pool.ty(ty) {
-                Type::Ref { name, .. } => self.ty(Type::Ref { name, exact: true, nullable: false }),
+                Type::Ref { name, .. } => {
+                    let ptr = super::externs::unboxed(self.pool.top_name(name)) == Some(Type::Ptr);
+                    self.ty(Type::Ref { name, exact: true, nullable: ptr })
+                }
                 ref t => unreachable!("a box of type {t:?}"),
             },
             Op::Bin { ty, .. } | Op::Conv { ty, .. } => ty,
@@ -71,6 +74,9 @@ impl Gen<'_, '_> {
             Op::Unbox { ty, .. } => {
                 let Type::Ref { name, .. } = *self.pool.ty(ty) else { unreachable!("a box class") };
                 let class = self.pool.top_name(name);
+                if let Some(t) = super::externs::unboxed(class).filter(|_| !class.starts_with("java.")) {
+                    return self.ty(t);
+                }
                 let letter = "zcbsijfd".chars().find(|&c| boxed_class(c) == Some(class));
                 self.erased(&tasty::Erased::Prim(letter.expect("the class of a boxed primitive")))
             }
