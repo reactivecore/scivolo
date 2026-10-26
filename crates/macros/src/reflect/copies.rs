@@ -116,8 +116,10 @@ impl Host {
             }
             (Kind::Inlined, T::Inlined { call, .. }) if new[0] == call => {
                 let (expansion, bindings) = (part(1)?, rest(2)?);
+                let avoided = r.block(&bindings, expansion)?;
+                let tpe = r.tpd.tpe(avoided);
                 let bindings = r.tpd.list(&bindings);
-                node(&mut r, T::Inlined { call, bindings, expansion }, None)
+                node(&mut r, T::Inlined { call, bindings, expansion }, Some(tpe))
             }
             (Kind::CaseDef, _) => {
                 let typed = r.tpd.get(original).tpe.is_some();

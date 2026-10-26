@@ -54,10 +54,11 @@ impl Typer<'_> {
         });
         self.u.set_owner(dummy, ctx.owner);
         self.u.set_info(dummy, tasty::ANY);
-        let mark = self.diags.items.len();
+        let (mark, erasure_mark) = (self.diags.items.len(), self.erasure_diags.items.len());
         let typed = self.typed(block, Pt::Any, ctx.with_owner(dummy));
         let errors = self.diags.items[mark..].iter().any(|d| d.level == Level::Error);
         self.diags.items.truncate(mark);
+        self.erasure_diags.items.truncate(erasure_mark);
         (!errors).then_some(typed)
     }
 }
