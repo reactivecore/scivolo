@@ -25,9 +25,7 @@ impl Typer<'_> {
         if !self.is_generic_sum(cls, (companion.is_some(), pre), ctx)? {
             return Ok(None);
         }
-        let owner = self.u.symbol(cls).owner;
-        let static_owner = owner.is_none_or(|o| !self.u.is_class(o) || self.u.is_module_class(o));
-        let path = pre.filter(|&p| !static_owner || !self.is_plain_prefix(p));
+        let path = pre.filter(|&p| !self.is_plain_prefix(p));
         let children = self.sealed_children(cls)?;
         let target = match self.u.types().get(formal.mirrored).clone() {
             Type::Lambda { result, .. } => result,
