@@ -9,9 +9,7 @@ use super::super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{Erased, Kind, SymbolId, Type, TypeId};
-
-const EMPTY_TUPLE: &str = "scala.Tuple$package$.EmptyTuple$";
+use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
     pub fn synthesized_class_tag(
@@ -20,7 +18,7 @@ impl Typer<'_> {
         at: Span,
         ctx: Ctx,
         depth: u32,
-    ) -> Result<TNodeId, &'static str> {
+    ) -> Result<Option<TNodeId>, &'static str> {
         let arg = self.class_tag_arg(arg)?;
         let dealiased = self.u.dealias(arg);
         if let Some(&[elem]) = self.class_args(dealiased, "scala.Array").as_deref() {
@@ -37,10 +35,15 @@ impl Typer<'_> {
             let prefix = self.widen_if_unstable(prefix);
             let tpe = self.u.intern_type(Type::Sym(Some(prefix), wrap));
             let name = self.build().term_name(wrap);
-            return Ok(self.tpd.node(T::Select { qualifier: elem_tag, name }, at, Some(tpe), Some(wrap)));
+            return Ok(Some(self.tpd.node(
+                T::Select { qualifier: elem_tag, name },
+                at,
+                Some(tpe),
+                Some(wrap),
+            )));
         }
         if !self.has_stable_erasure(arg) {
-            return Err("class tag of a type without a stable erasure");
+            return Ok(None);
         }
         if self.is_bottom(arg) {
             return Err("class tag of a bottom type");
@@ -67,7 +70,7 @@ impl Typer<'_> {
             let member = self.resolve_full_name(&format!("scala.reflect.ClassTag$.{special}"), false);
             let member = member.ok_or("ClassTag member")?;
             let qualifier = self.build().ident(module, module_tpe, at);
-            return Ok(self.build().select(qualifier, member, at));
+            return Ok(Some(self.build().select(qualifier, member, at)));
         }
         let erased = self.erased_class_type(arg).ok_or("class tag of a type erasing to no class")?;
         let module_class = self.u.module_class(module).ok_or("ClassTag")?;
@@ -89,7 +92,7 @@ impl Typer<'_> {
         let class = self.resolve_full_name("java.lang.Class", true).ok_or("java.lang.Class")?;
         let class_tpe = crate::defn::applied(self.u, class, vec![erased]);
         let literal = self.tpd.node(T::ClassLiteral { tpe: erased }, at, Some(class_tpe), None);
-        Ok(self.build().apply(fun, &[literal], result, at))
+        Ok(Some(self.build().apply(fun, &[literal], result, at)))
     }
 
     /// The type argument of a class tag fully defined, an intersection or union of equal sides
@@ -112,86 +115,6 @@ impl Typer<'_> {
             match *self.u.types().get(dealiased) {
                 Type::And(a, b) | Type::Or(a, b, _) if a == b => arg = a,
                 _ => return Ok(arg),
-            }
-        }
-    }
-
-    /// Whether every instance of `t` erases alike (dotty's `hasStableErasure`).
-    fn has_stable_erasure(&mut self, t: TypeId) -> bool {
-        let t = self.u.dealias(t);
-        match self.u.types().get(t).clone() {
-            Type::And(a, b) | Type::Or(a, b, _) => self.has_stable_erasure(a) && self.has_stable_erasure(b),
-            Type::Applied(inner, _) | Type::Refined(inner, ..) | Type::Annotated(inner, _) => {
-                self.has_stable_erasure(inner)
-            }
-            Type::Constant(..) | Type::Str(_) => true,
-            Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => match self.referenced(t) {
-                Some(s) if self.u.symbol(s).kind == Kind::Class => true,
-                Some(s) if self.u.symbol(s).kind.is_term() => {
-                    let widened = self.u.widen(t);
-                    widened != t && self.has_stable_erasure(widened)
-                }
-                _ => false,
-            },
-            _ => false,
-        }
-    }
-
-    /// Whether `t` is `Nothing` or `Null`, an intersection with such a side, or a union of such
-    /// sides.
-    fn is_bottom(&mut self, t: TypeId) -> bool {
-        let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
-            Type::And(a, b) => self.is_bottom(a) || self.is_bottom(b),
-            Type::Or(a, b, _) => self.is_bottom(a) && self.is_bottom(b),
-            _ => {
-                let b = self.u.builtins();
-                self.u.class_symbol(t).is_some_and(|c| c == b.nothing || c == b.null)
-            }
-        }
-    }
-
-    /// A reference to the class `t` erases to: a value class itself, else the class among those
-    /// of the sides of `t`, their base classes and `Object` that erases as `t` does; `None` for a
-    /// generic tuple.
-    fn erased_class_type(&mut self, t: TypeId) -> Option<TypeId> {
-        let mut classes = Vec::new();
-        self.side_classes(t, &mut classes);
-        if let [c] = classes[..]
-            && self.u.underlying(c).is_some()
-        {
-            return Some(crate::defn::type_ref(self.u, c));
-        }
-        let tuple = |u: &mut tasty::Universe, c| matches!(u.full_name(c).as_str(), "scala.*:" | EMPTY_TUPLE);
-        if classes.is_empty() || classes.iter().any(|&c| tuple(self.u, c)) {
-            return None;
-        }
-        let erased = self.u.erase(t);
-        let mut bases: Vec<SymbolId> = classes.iter().flat_map(|&c| self.u.linearization(c)).collect();
-        bases.extend(self.resolve_full_name("java.lang.Object", true));
-        let found = bases.into_iter().find(|&c| {
-            let class = crate::defn::type_ref(self.u, c);
-            self.u.underlying(c).is_none()
-                && match &erased {
-                    Erased::Class(name) => self.u.binary_name(c) == *name,
-                    _ => self.u.erase(class) == erased,
-                }
-        })?;
-        Some(crate::defn::type_ref(self.u, found))
-    }
-
-    /// Adds the classes of the sides of intersection or union `t`, or of `t`, to `out`.
-    fn side_classes(&mut self, t: TypeId, out: &mut Vec<SymbolId>) {
-        let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
-            Type::And(a, b) | Type::Or(a, b, _) => {
-                self.side_classes(a, out);
-                self.side_classes(b, out);
-            }
-            _ => {
-                let widened = self.u.widen(t);
-                let widened = self.u.dealias(widened);
-                out.extend(self.u.class_symbol(widened));
             }
         }
     }

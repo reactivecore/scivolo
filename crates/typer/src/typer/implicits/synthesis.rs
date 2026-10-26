@@ -30,7 +30,7 @@ impl Typer<'_> {
         let Some(class) = self.u.class_symbol(tycon) else { return Ok(None) };
         match (self.u.full_name(class).as_str(), &args[..]) {
             ("scala.CanEqual", &[l, r]) => self.synthesized_can_equal(l, r, at, ctx, depth),
-            ("scala.reflect.ClassTag", &[arg]) => self.synthesized_class_tag(arg, at, ctx, depth).map(Some),
+            ("scala.reflect.ClassTag", &[arg]) => self.synthesized_class_tag(arg, at, ctx, depth),
             ("scala.ValueOf", &[arg]) => self.synthesized_value_of(class, arg, at),
             ("scala.reflect.TypeTest", &[from, to]) => self.synthesized_type_test(from, to, at, ctx),
             ("scala.util.TupledFunction", &[fun, tupled]) => {
