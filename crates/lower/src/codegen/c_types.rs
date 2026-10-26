@@ -6,6 +6,7 @@
 
 use super::Gen;
 use super::externs::unboxed;
+use crate::phases::casts::class_named;
 use crate::{Result, unsupported};
 use nir::{Type, TypeId};
 use syntax::ast::Span;
@@ -55,8 +56,9 @@ impl Gen<'_, '_> {
             _ => Vec::new(),
         };
         let name = self.l.u.full_name(class);
-        if self.l.u.is_annotated(class, STRUCT) {
-            return unsupported(span, "the layout of a `@struct` class");
+        let binary = self.l.u.binary_name(class);
+        if let Some(t) = self.struct_type(&binary) {
+            return Ok(t);
         }
         if name.strip_prefix("scala.scalanative.unsafe.CStruct").is_some_and(|n| n.parse::<u8>().is_ok()) {
             let fields = args.iter().map(|&a| self.exact_type(a, span)).collect::<Result<Vec<_>>>()?;
@@ -77,6 +79,25 @@ impl Gen<'_, '_> {
             },
             _ => ty,
         })
+    }
+
+    /// The type of the values of class `name`, a binary name, if a `@struct` class: a C struct of
+    /// its constructor's parameters (nscplugin's `genStruct`).
+    pub fn struct_type(&mut self, name: &str) -> Option<TypeId> {
+        if let Some(&t) = self.structs.get(name) {
+            return t;
+        }
+        let class = class_named(self.l, name).filter(|&c| self.l.u.is_annotated(c, STRUCT));
+        let ctor = class.and_then(|c| {
+            let decls = self.l.u.decls(c).unwrap_or_default();
+            decls.into_iter().find(|&d| self.l.u.is_constructor(d))
+        });
+        let t = ctor.map(|ctor| {
+            let fields = self.param_types(ctor);
+            self.ty(Type::StructValue(fields))
+        });
+        self.structs.insert(name.to_owned(), t);
+        t
     }
 
     /// The number type `t` of `unsafe.Nat` stands for.

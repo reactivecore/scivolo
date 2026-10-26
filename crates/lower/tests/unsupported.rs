@@ -152,7 +152,10 @@ const CASES: &[(&str, &str)] = &[
         "import scala.scalanative.unsafe.*\n@extern object libc { def f(g: CFuncPtr): CInt = extern }",
         "extern methods of a `CFuncPtr`",
     ),
-    ("import scala.scalanative.unsafe.*\nobject O { def f: CString = c\"a\" }", "intrinsic CQuote.c"),
+    (
+        "import scala.scalanative.unsafe.*\nobject O { def f: CString = c\"a\\0\" }",
+        "C string literal with an invalid escape",
+    ),
     (
         "import scala.scalanative.runtime.Intrinsics\nclass C { val x = 1 }\nobject O { def f(c: C) = Intrinsics.classFieldRawPtr(c, \"x\") }",
         "the address of immutable field x",
@@ -162,8 +165,8 @@ const CASES: &[(&str, &str)] = &[
         "intrinsic CFuncPtr1.apply",
     ),
     (
-        "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }\nobject O { def g: CInt = libc.puts(c\"a\") }",
-        "intrinsic CQuote.c",
+        "import scala.scalanative.unsafe.*\nobject O { def g(n: Int): CString = c\"a$n\" }",
+        "C string literal that is not one literal part",
     ),
     (
         "import scala.scalanative.meta.LinktimeInfo\nobject O { def f(b: Boolean): Int = if LinktimeInfo.isLinux && b then 1 else 2 }",

@@ -15,8 +15,7 @@ pub fn is_primitive(name: &str) -> bool {
 
 /// Scala Native's methods whose body is its `intrinsic` marker, generated inline by nscplugin
 /// (`NirPrimitives`): owner and method name, besides `Intrinsics` and the `CFuncPtr`s.
-const INTRINSICS: [(&str, &str); 5] = [
-    ("scala.scalanative.unsafe.package$.CQuote", "c"),
+const INTRINSICS: [(&str, &str); 4] = [
     ("scala.scalanative.unsafe.package$", "resolved"),
     ("scala.scalanative.runtime.SafeZoneAllocator$", "allocate"),
     ("java.util.ServiceLoader$", "load"),

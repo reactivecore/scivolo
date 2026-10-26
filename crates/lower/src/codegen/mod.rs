@@ -17,6 +17,7 @@ mod closure;
 mod closure_methods;
 mod concat;
 mod conversions;
+mod cquote;
 mod dead;
 mod dynmethod;
 mod equality;
@@ -72,6 +73,8 @@ pub struct Gen<'l, 'a> {
     closures: Vec<Defn>,
     /// The number of the class's closures so far.
     lambdas: u32,
+    /// The C struct type of each class by binary name, none for a class that is not `@struct`.
+    structs: FxHashMap<String, Option<TypeId>>,
 }
 
 /// The NIR files of unit `root`, one per top-level name, in the order first defined.
@@ -100,6 +103,7 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
         deferred,
         closures: Vec::new(),
         lambdas: 0,
+        structs: FxHashMap::default(),
     };
     g.gen_companion_handle_fields(&type_defs)?;
     for td in type_defs {

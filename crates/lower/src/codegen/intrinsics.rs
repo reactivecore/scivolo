@@ -46,6 +46,12 @@ impl Gen<'_, '_> {
             let ty = self.gen_type(tpe);
             return Ok(Some(self.emit(if name == "sizeOf" { Op::SizeOf(ty) } else { Op::AlignmentOf(ty) })));
         }
+        if owner == super::cquote::CQUOTE && name == "c" {
+            let (Tree::Select { qualifier, .. }, []) = (self.l.tpd.tree(fun).clone(), args) else {
+                return unsupported(span, "a C string literal that is not a call");
+            };
+            return self.gen_cquote(qualifier, span).map(Some);
+        }
         if owner != INTRINSICS {
             return Ok(None);
         }

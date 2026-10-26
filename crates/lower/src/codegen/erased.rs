@@ -30,6 +30,7 @@ impl Gen<'_, '_> {
             Erased::Unit => Type::Unit,
             Erased::Nothing => Type::Nothing,
             Erased::Null => Type::Null,
+            Erased::Class(name) if let Some(t) = self.struct_type(name) => return t,
             Erased::Class(name) => {
                 let name = self.pool.top(&mapped(name));
                 Type::Ref { name, exact: false, nullable: true }
@@ -74,8 +75,11 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// The reference type of class `c`.
+    /// The reference type of class `c`, the C struct of a `@struct` class.
     pub fn class_ref(&mut self, c: SymbolId) -> TypeId {
+        if let Some(t) = self.struct_type(&self.l.u.binary_name(c)) {
+            return t;
+        }
         let name = self.type_name(c);
         self.ty(Type::Ref { name, exact: false, nullable: true })
     }

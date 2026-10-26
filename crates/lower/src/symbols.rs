@@ -1,6 +1,6 @@
 //! What the lowering asks of symbols (dotty's `SymDenotations` predicates).
 
-use tasty::tags::{FINAL, PRIVATE, STATIC};
+use tasty::tags::{EXTENSION, FINAL, IMPLICIT, PRIVATE, STATIC, SYNTHETIC};
 use tasty::{Kind, SymbolId, Universe};
 
 pub fn has(u: &Universe, s: SymbolId, tag: u8) -> bool {
@@ -53,11 +53,17 @@ pub fn is_static(u: &Universe, s: SymbolId) -> bool {
 
 pub const EXTERN: &str = "scala.scalanative.unsafe.package$.extern";
 
-/// Whether `s` or its owner is Scala Native's `@extern`.
+/// Whether `s` or its owner is Scala Native's `@extern`, unless `s` is not extern: an extension
+/// method or implicit class conversion of an extern object (nscplugin's `PrepNativeInterop`).
 pub fn is_extern(u: &Universe, s: SymbolId) -> bool {
     let annotated =
         |s: SymbolId| u.symbol(s).is_extern || u.annotations(s).iter().any(|&c| u.full_name(c) == EXTERN);
-    annotated(s) || u.symbol(s).owner.is_some_and(annotated)
+    let in_extern = u.symbol(s).owner.is_some_and(annotated);
+    let non_extern = match u.symbol(s).tree {
+        Some(_) => u.is_annotated(s, "scala.scalanative.annotation.nonExtern"),
+        None => in_extern && (has(u, s, EXTENSION) || (has(u, s, IMPLICIT) && has(u, s, SYNTHETIC))),
+    };
+    (annotated(s) || in_extern) && !non_extern
 }
 
 pub fn is_static_module(u: &Universe, s: SymbolId) -> bool {

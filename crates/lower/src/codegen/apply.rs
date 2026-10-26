@@ -68,7 +68,7 @@ impl Gen<'_, '_> {
                 )?,
             },
             Tree::Ident { .. } => {
-                self.check_callee(sym, span)?;
+                self.check_call(sym, span)?;
                 let prefix = match *self.l.u.types().get(self.l.tpd.tpe(fun)) {
                     tasty::Type::Sym(Some(p), _) | tasty::Type::TermRef(p, _) => p,
                     _ => return unsupported(span, "a call of a local method"),
@@ -135,6 +135,7 @@ impl Gen<'_, '_> {
         let owner = self.method_owner(sym);
         let owner_ty = self.class_ref(owner);
         self.check_conforms(receiver, owner_ty, span)?;
+        let statically = statically || matches!(self.pool.ty(owner_ty), Type::StructValue(_));
         if is_extern(self.l.u, sym) {
             return self.call_extern(sym, args, span);
         }
