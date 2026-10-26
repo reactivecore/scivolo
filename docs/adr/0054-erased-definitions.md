@@ -25,6 +25,7 @@ an erased value. The typer refused all of it.
 
 ## Consequences
 - 17 of research 38's 21 tests of erased definitions lower as Scala Native compiles them.
-- Purity follows the inliner's `isElideableExpr`, plus `unsafeErasedValue` and references to
-  inline values, not dotty's `isPureExpr` exactly; the difference is accepted or refused
-  arguments, not code.
+- Purity of erased arguments and values follows the inliner's `isElideableExpr` with
+  `isPureExpr`'s type applications, plus the erased values of `scala.caps` and references to
+  inline values: never pure where dotty finds it impure, so it refuses some arguments dotty
+  accepts.

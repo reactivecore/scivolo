@@ -5,13 +5,14 @@
 //! and values, erased values and parameters; and the arguments of erased parameters
 //! (`Erasure.Typer.typedApply`), which must be pure (`checkPureErased`).
 
+use super::super::casts::is_cast;
 use super::super::elideable::is_elideable;
 use super::super::walk::subtrees;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
-use tasty::SymbolId;
 use tasty::tags::{ERASED, INLINE};
+use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Drops the inline and erased definitions of the class bodies and blocks in unit `root`, the
@@ -26,6 +27,15 @@ pub fn drop(l: &mut Lower, root: TNodeId, inits: &FxHashSet<SymbolId>) -> Result
                     l.tpd.items(list).iter().partition(|&&s| is_effectively_erased(l, s));
                 if erased.is_empty() {
                     continue;
+                }
+                for &s in &erased {
+                    let Tree::ValDef { rhs: Some(rhs), .. } = *l.tpd.tree(s) else { continue };
+                    if is_erased(l, s) && !is_pure_arg(l, rhs, inits) {
+                        return unsupported(
+                            l.tpd.span(rhs),
+                            "right-hand side of an erased value that is not pure",
+                        );
+                    }
                 }
                 dropped.extend(erased);
                 let kept = l.tpd.list(&kept);
@@ -88,23 +98,47 @@ fn drop_erased_args(
     Ok(())
 }
 
-/// Whether argument `t` of an erased parameter is pure (dotty's `isPureExpr`): elideable, an
-/// application of `unsafeErasedValue` (`capsErasedValueMethods`), or a reference to an inline
-/// value or method without parameters of a pure qualifier, which inlining replaces.
+/// Whether argument `t` of an erased parameter or right-hand side of an erased value is pure
+/// (dotty's `isPureExpr`): elideable with pure type applications only, an erased value of
+/// `scala.caps` (`capsErasedValueMethods`), or a reference to an inline value of a pure qualifier.
 fn is_pure_arg(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
-    let inline = l.tpd.sym(t).is_some_and(|s| has(l.u, s, INLINE));
+    let type_applies = subtrees(l.tpd, t).into_iter().all(|n| match *l.tpd.tree(n) {
+        Tree::TypeApply { fun, .. } => is_pure_type_apply(l, n, fun),
+        _ => true,
+    });
+    type_applies && is_pure_expr(l, t, inits)
+}
+
+fn is_pure_expr(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
+    let inline = l.tpd.sym(t).is_some_and(|s| has(l.u, s, INLINE) && l.u.symbol(s).kind == Kind::Val);
     match *l.tpd.tree(t) {
         Tree::Ident { .. } if inline => true,
         Tree::Select { qualifier, .. } if inline => is_elideable(l, qualifier, inits),
-        Tree::TypeApply { fun, .. }
-            if l.tpd.sym(fun).is_some_and(|s| l.u.symbol(s).name == "unsafeErasedValue") =>
-        {
-            l.tpd.sym(fun).is_some_and(|s| is_erased_sym(l, s))
-        }
-        Tree::Typed { expr, .. } => is_pure_arg(l, expr, inits),
-        Tree::Block { stats, expr } if l.tpd.items(stats).is_empty() => is_pure_arg(l, expr, inits),
+        Tree::TypeApply { fun, .. } if l.tpd.sym(fun).is_some_and(|s| is_caps_erased_value(l, s)) => true,
+        Tree::Typed { expr, .. } => is_pure_expr(l, expr, inits),
+        Tree::Block { stats, expr } if l.tpd.items(stats).is_empty() => is_pure_expr(l, expr, inits),
         _ => is_elideable(l, t, inits),
     }
+}
+
+/// Whether type application `t` of `fun` is pure (dotty's `exprPurity` of a `TypeApply`): not
+/// yet applied to its arguments, a cast, an erased value of `scala.caps`, or `erasedValue` of a
+/// constant type.
+fn is_pure_type_apply(l: &mut Lower, t: TNodeId, fun: TNodeId) -> bool {
+    let tpe = l.tpd.tpe(t);
+    let wide = l.u.widen(tpe);
+    if matches!(l.u.types().get(wide), Type::Method { .. } | Type::Poly { .. }) || is_cast(l, t) {
+        return true;
+    }
+    let Some(s) = l.tpd.sym(fun).filter(|&s| is_erased_sym(l, s) && !has(l.u, s, ERASED)) else {
+        return false;
+    };
+    let tpe = l.u.dealias(tpe);
+    is_caps_erased_value(l, s) || matches!(l.u.types().get(tpe), Type::Constant(..) | Type::Str(_))
+}
+
+fn is_caps_erased_value(l: &Lower, s: SymbolId) -> bool {
+    is_erased_sym(l, s) && !has(l.u, s, ERASED) && l.u.full_name(s).starts_with("scala.caps.")
 }
 
 /// Refuses references to erased values left in unit `root` (dotty's `checkNotErased`).
