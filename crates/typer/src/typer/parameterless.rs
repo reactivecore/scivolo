@@ -21,6 +21,9 @@ impl Typer<'_> {
         {
             return self.taking_params(syms, prefix, &args, Some(p));
         }
+        if let Some(s) = self.only_without_implicits(syms) {
+            return Ok(s);
+        }
         let (mut found, mut implicit) = (Vec::new(), Vec::new());
         for &s in syms {
             self.complete(s);
@@ -59,6 +62,25 @@ impl Typer<'_> {
             ([s], _) | (_, [s]) => Ok(*s),
             _ => Err("overloaded reference"),
         }
+    }
+
+    /// The only alternative of `syms`, all polymorphic values or taking implicit arguments only,
+    /// without an implicit clause (dotty's preference of an alternative without implicit
+    /// parameters, `Option.orNull`'s).
+    fn only_without_implicits(&mut self, syms: &[SymbolId]) -> Option<SymbolId> {
+        let mut plain = None;
+        for &s in syms {
+            self.complete(s);
+            let info = self.u.info(s);
+            let Type::Poly { result, .. } = *self.u.types().get(info) else { return None };
+            match self.u.types().get(result) {
+                Type::Method { implicit: true, .. } => {}
+                Type::Method { .. } | Type::Poly { .. } => return None,
+                _ if plain.replace(s).is_some() => return None,
+                _ => {}
+            }
+        }
+        plain
     }
 
     /// Whether an alternative of result type `result` is a value that may conform to `pt`.

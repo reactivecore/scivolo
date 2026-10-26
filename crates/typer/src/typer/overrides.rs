@@ -147,8 +147,9 @@ impl Typer<'_> {
     }
 
     /// Whether abstract member `d` may not override concrete member `m` (dotty's `checkOverride`
-    /// for a deferred member): `m` is not `Object`'s or `Any`'s, is final, of a final class or a value, one
-    /// of them is an extension method, or `d`'s result type does not conform to `m`'s.
+    /// for a deferred member): `d` is not a trait's and `m` not `Object`'s or `Any`'s, `m` is
+    /// final, of a final class or a value, one of them is an extension method, or `d`'s result
+    /// type does not conform to `m`'s as seen from `d`'s class.
     fn overrides_only_concretely(&mut self, d: SymbolId, m: SymbolId) -> bool {
         use tasty::tags::{EXTENSION, FINAL};
         let (sd, sm) = (self.u.symbol(d), self.u.symbol(m));
@@ -157,12 +158,22 @@ impl Typer<'_> {
         let object = sm
             .owner
             .is_some_and(|o| matches!(self.u.full_name(o).as_str(), "java.lang.Object" | "scala.Any"));
-        let refused = !object
+        let in_trait = sd.owner.is_some_and(|o| self.u.is_trait(o));
+        let refused = !object && !in_trait
             || sm.flags.has(FINAL)
             || final_owner
             || sm.kind != Kind::Def
             || sd.flags.has(EXTENSION) != sm.flags.has(EXTENSION);
-        let (rd, rm) = (self.u.info(d), self.u.info(m));
+        let owner = sd.owner;
+        let rd = self.u.info(d);
+        let rm = match owner {
+            Some(o) => {
+                let class = crate::defn::type_ref(self.u, o);
+                let this = self.u.intern_type(tasty::Type::This(class));
+                self.u.member_info(this, m)
+            }
+            None => self.u.info(m),
+        };
         let (rd, rm) = (self.u.result_type(rd), self.u.result_type(rm));
         refused || !self.conforms(rd, rm)
     }

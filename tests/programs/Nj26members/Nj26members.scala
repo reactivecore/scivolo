@@ -36,6 +36,17 @@ object Counter:
 
 def boxedConsumer(action: Consumer[? >: Integer]): IntConsumer = (action.accept(_)): IntConsumer
 
+trait Source:
+  def read(): String = "default"
+
+trait Required extends Source:
+  def read(): String
+
+class Given extends Required:
+  override def read(): String = "given"
+
+def orEmpty(s: String): String = Option(s).map(_ + "!").orNull
+
 @main def Nj26members(): Unit =
   val n: Named = N("a")
   println(n.toString())
@@ -47,3 +58,7 @@ def boxedConsumer(action: Consumer[? >: Integer]): IntConsumer = (action.accept(
   it.each(i => println(i))
   println(new Counter(3).value)
   boxedConsumer(i => println(i)).accept(4)
+  val r: Required = Given()
+  println(r.read())
+  println(orEmpty("o"))
+  println(orEmpty(null))
