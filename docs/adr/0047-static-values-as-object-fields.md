@@ -14,6 +14,10 @@ into it through the object's instance. The lowering's phases run in another orde
   initializer (flag `STATIC`), adds a static `<clinit>` to the companion storing the initial
   values in order, and moves the setters of `@static` variables there as static methods storing
   into the field.
+- The `<clinit>` is positioned at the first initial value, or at the companion's first
+  statement if before it and the companion has lazy values (dotty's `LazyVals` offset fields
+  come first); refused for such a companion with constructor parameters, parents but `Object`
+  or synthetic objects, where the offsets' position was not checked.
 - Codegen names the static getter of such a field on the companion class, as for enum values.
 - Constant folding skips the left-hand sides of assignments, which the `<clinit>` of a `final
   val` has before `FirstTransform` runs.

@@ -34,8 +34,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         };
         let class = companion.expect("a companion class");
         let module_body = body(l, td);
-        let first = body(l, target).first().map(|&s| l.tpd.span(s));
-        let values = super::static_values::transform(l, (module, class), (&statics, &module_body), first)?;
+        let values = super::static_values::transform(l, (module, class, target), (&statics, &module_body))?;
         let mut statics: Vec<TNodeId> =
             statics.into_iter().filter(|&s| matches!(l.tpd.tree(s), Tree::DefDef { .. })).collect();
         for &stat in &statics {

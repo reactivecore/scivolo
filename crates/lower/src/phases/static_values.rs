@@ -8,19 +8,18 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::{LAZY, MUTABLE, STATIC};
+use tasty::tags::{LAZY, MUTABLE, STATIC, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the `@static` values among `stats` of object class `module` with template body `body`
 /// fields without initializers; the setters of the variables among them, with their bodies, and
-/// a `<clinit>` of companion class `class` storing their initial values, to move there, at the
-/// start of the class's first statement `first` if before them.
+/// a `<clinit>` of companion class `class`, defined by `target`, storing their initial values, to
+/// move there.
 pub fn transform(
     l: &mut Lower,
-    (module, class): (SymbolId, SymbolId),
+    (module, class, target): (SymbolId, SymbolId, TNodeId),
     (stats, body): (&[TNodeId], &[TNodeId]),
-    first: Option<Span>,
 ) -> Result<Vec<TNodeId>> {
     let mut inits = Vec::new();
     for &stat in stats {
@@ -51,12 +50,54 @@ pub fn transform(
         moved.push(def);
     }
     let at = l.tpd.span(inits[0].1);
+    let first = offsets_start(l, target)?;
     let at = match first.filter(|f| f.exists() && f.start() < at.start()) {
         Some(f) => Span::at(f.start()),
         None => at,
     };
     moved.push(clinit(l, class, source, &inits, at));
     Ok(moved)
+}
+
+/// The span of the first statement of class definition `td` if dotty's `LazyVals` gives the class
+/// offset fields, which its `<clinit>` then starts with; refused for such a class with
+/// constructor parameters, parents but `Object` or synthetic objects.
+fn offsets_start(l: &mut Lower, td: TNodeId) -> Result<Option<Span>> {
+    let (Some(class), &Tree::TypeDef { rhs, .. }) = (l.tpd.sym(td), l.tpd.tree(td)) else { return Ok(None) };
+    let Tree::Template { constr, body, .. } = *l.tpd.tree(rhs) else { return Ok(None) };
+    let stats = l.tpd.items(body).to_vec();
+    let lazy = |l: &Lower, s: SymbolId| has(l.u, s, LAZY) || l.u.is_module(s) && !l.u.is_module_class(s);
+    let own: Vec<SymbolId> = stats
+        .iter()
+        .filter_map(|&s| l.tpd.sym(s))
+        .filter(|&s| lazy(l, s) && !l.u.is_annotated(s, "scala.annotation.threadUnsafe"))
+        .collect();
+    let bases: Vec<SymbolId> = l.u.linearization(class).into_iter().skip(1).collect();
+    let traits: Vec<SymbolId> = bases.iter().copied().filter(|&b| l.u.is_trait(b)).collect();
+    let inherited: Vec<SymbolId> =
+        traits.into_iter().flat_map(|b| l.u.decls(b).unwrap_or_default()).collect();
+    let mixed = inherited.into_iter().any(|s| lazy(l, s));
+    if own.is_empty() && !mixed {
+        return Ok(None);
+    }
+    let synthetic = own.iter().any(|&s| l.u.is_module(s) && has(l.u, s, SYNTHETIC));
+    let params = match *l.tpd.tree(constr) {
+        Tree::DefDef { paramss, .. } => {
+            l.tpd.clause_items(paramss).iter().any(|&c| !l.tpd.items(c).is_empty())
+        }
+        _ => true,
+    };
+    let plain = bases
+        .iter()
+        .all(|&b| matches!(l.u.full_name(b).as_str(), "java.lang.Object" | "scala.Matchable" | "scala.Any"));
+    if params || !plain || synthetic {
+        let span = l.tpd.span(td);
+        return unsupported(
+            span,
+            "@static values of an object whose companion class has lazy values and parameters, parents or synthetic objects",
+        );
+    }
+    Ok(stats.first().map(|&s| l.tpd.span(s)))
 }
 
 /// Makes the body of setter definition `def` the store of its parameter into static field `var`
