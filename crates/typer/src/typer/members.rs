@@ -174,7 +174,7 @@ impl Typer<'_> {
                 }
                 let mut overridden = None;
                 for (k, o) in out.clone().into_iter().enumerate() {
-                    if self.u.is_type_symbol(o) {
+                    if self.u.is_type_symbol(o) || self.u.symbol(o).owner == Some(base) {
                         continue;
                     }
                     for s in [o, m] {

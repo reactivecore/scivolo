@@ -90,7 +90,10 @@ impl Typer<'_> {
                 if self.u.symbol(a).name != self.u.symbol(b).name {
                     continue;
                 }
-                if self.run_name(a) == self.run_name(b) && self.u.matches(site, a, b) {
+                if self.run_name(a) == self.run_name(b)
+                    && self.u.matches(site, a, b)
+                    && self.u.erased_method(a).0 == self.u.erased_method(b).0
+                {
                     return self.unsupported_at(span, "double definition");
                 }
                 if self.has_default_args(a) && self.has_default_args(b) {
