@@ -15,15 +15,9 @@ impl Host {
     pub fn run_type_kind(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
         let tpe = |h: &Host| h.type_shape_of(arg(args, 0)? as u32);
         match op {
-            "typeKind" if self.package_prefixes.contains(&(arg(args, 0)? as u32)) => Err(
-                "the type test of a package prefix of a member, a ThisType or a TermRef by how the type was written",
-            ),
             "typeKind" => numbers(vec![self.type_kind(tpe(self)?)]),
             "typeParts" => {
-                let t = self.u.types().get(tpe(self)?).clone();
-                let package_prefix = matches!(t, Type::Sym(Some(p), _) | Type::TypeRef(p, _) | Type::TermRef(p, _)
-                    if matches!(self.u.types().get(p), Type::Package(_)));
-                let parts = match t {
+                let parts = match self.u.types().get(tpe(self)?).clone() {
                     Type::Applied(tycon, args) => [tycon].into_iter().chain(args).collect(),
                     Type::Annotated(inner, _)
                     | Type::This(inner)
@@ -48,11 +42,7 @@ impl Host {
                     }
                     _ => return Err("the parts of a type of another kind"),
                 };
-                let ids: Vec<u32> = parts.into_iter().map(|p| self.add_type(p)).collect();
-                if package_prefix {
-                    self.package_prefixes.insert(ids[0]);
-                }
-                numbers(ids.into_iter().map(|i| i as i32).collect())
+                numbers(parts.into_iter().map(|p| self.add_type(p) as i32).collect())
             }
             "paramNum" => match *self.u.types().get(tpe(self)?) {
                 Type::Param(_, i) => numbers(vec![i as i32]),
