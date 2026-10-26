@@ -166,3 +166,4 @@ Lw24lazybyname
 Lw24ctxbridges
 Mm24typelevel
 Ni26intrinsics
+Ni26stackalloc

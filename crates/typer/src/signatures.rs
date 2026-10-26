@@ -48,6 +48,8 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
 /// The name of an erased parameter type in a signature: `scala.Int`, `java.lang.String[]`.
 fn sig_name(u: &mut Universe, t: TypeId, e: &Erased) -> String {
     match e {
+        Erased::Prim('R') => "scala.scalanative.runtime.RawPtr".into(),
+        Erased::Prim('w') => "scala.scalanative.runtime.RawSize".into(),
         Erased::Prim(c) => format!("scala.{}", prim_name(*c)),
         Erased::Unit => "scala.runtime.BoxedUnit".into(),
         Erased::Nothing => "scala.Nothing".into(),

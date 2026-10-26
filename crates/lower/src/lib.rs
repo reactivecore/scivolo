@@ -128,6 +128,9 @@ pub struct Lower<'a> {
     /// The local methods, lambdas among them, in the values `PatternMatcher` binds, which
     /// `Erasure` sees owned by the value.
     in_match_values: FxHashSet<SymbolId>,
+    /// The types before erasure of the native intrinsics' calls, with the span of the type
+    /// application, by the method reference (nscplugin's `NonErasedType(s)` attachments).
+    non_erased: FxHashMap<TNodeId, (Vec<tasty::TypeId>, Span)>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -195,6 +198,7 @@ pub fn lower_sources(
         tested_values: Vec::new(),
         was_named_args: FxHashSet::default(),
         in_match_values: FxHashSet::default(),
+        non_erased: FxHashMap::default(),
     };
     let files = codegen::annotations::check_annotations(&l, root)
         .and_then(|()| phases::run(&mut l, root))

@@ -12,6 +12,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     retained_bodies::transform(l, root)?;
     drop_for_map::transform(l, root)?;
     drop_inlined::transform(l, root)?;
+    native_interop::transform(l, root);
     context_results::transform(l, root)?;
     trait_init::find_inits(l, &class_defs(l.tpd, root));
     module_purity::record(l, root);

@@ -79,6 +79,7 @@ mod mirrors;
 mod mixin;
 mod module_purity;
 mod narrowed;
+mod native_interop;
 mod nested_reads;
 mod non_local_returns;
 mod outer_args;

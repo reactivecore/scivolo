@@ -1,17 +1,18 @@
 // Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
 //   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenExpr.scala
 //   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirPrimitives.scala
-//! The methods of `scala.scalanative.runtime.Intrinsics` generated inline: raw loads and stores,
-//! `elemRawPtr`, casts, unsigned operations, `classFieldRawPtr` (nscplugin's `genRawPtrOp`,
-//! `genRawPtrCastOp`, `genRawSizeCastOp`, `genUnsignedOp`, `genClassFieldRawPtr`).
+//! The methods of `scala.scalanative.runtime.Intrinsics` generated inline, and raw loads,
+//! stores, `elemRawPtr` and equality of raw pointers (nscplugin's `genApplyPrimitive`,
+//! `genRawPtrOp`).
 
 use super::Gen;
 use crate::{Result, unsupported};
-use nir::{Bin, Comp, Conv, MemoryOrder, Op, Type, TypeId, ValId};
+use nir::{Comp, MemoryOrder, Op, Type, TypeId, ValId};
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
 pub const INTRINSICS: &str = "scala.scalanative.runtime.Intrinsics$";
+const INTERNAL: &str = "scala.scalanative.runtime.Intrinsics$.internal$";
 
 /// The type a raw load or store of `Intrinsics` method `name` accesses.
 fn raw_type(name: &str) -> Option<&str> {
@@ -19,69 +20,6 @@ fn raw_type(name: &str) -> Option<&str> {
     ["Boolean", "Char", "Byte", "Short", "Int", "Long", "Float", "Double", "RawPtr", "RawSize", "Object"]
         .contains(&ty)
         .then_some(ty)
-}
-
-/// The conversion and result type of a raw size cast.
-fn size_cast(name: &str) -> Option<(Conv, Type)> {
-    Some(match name {
-        "castRawSizeToInt" => (Conv::SSizeCast, Type::Int),
-        "castRawSizeToLong" => (Conv::SSizeCast, Type::Long),
-        "castRawSizeToLongUnsigned" => (Conv::ZSizeCast, Type::Long),
-        "castIntToRawSize" | "castLongToRawSize" => (Conv::SSizeCast, Type::Size),
-        "castIntToRawSizeUnsigned" => (Conv::ZSizeCast, Type::Size),
-        _ => return None,
-    })
-}
-
-/// The conversion of an unsigned operation to a wider integer or a float.
-fn unsigned_conv(name: &str) -> Option<Conv> {
-    match name {
-        "byteToUInt" | "byteToULong" | "shortToUInt" | "shortToULong" | "intToULong" => Some(Conv::Zext),
-        "uintToFloat" | "ulongToFloat" | "uintToDouble" | "ulongToDouble" => Some(Conv::Uitofp),
-        _ => None,
-    }
-}
-
-const RAW_PTR_CASTS: [&str; 10] = [
-    "castRawPtrToObject",
-    "castObjectToRawPtr",
-    "castIntToFloat",
-    "castFloatToInt",
-    "castLongToDouble",
-    "castDoubleToLong",
-    "castRawPtrToInt",
-    "castRawPtrToLong",
-    "castIntToRawPtr",
-    "castLongToRawPtr",
-];
-
-/// The conversion of a cast from `from` to `to`, none if they are equal (nscplugin's `castConv`).
-fn cast_conv(from: &Type, to: &Type) -> Option<std::result::Result<Conv, ()>> {
-    let is_ref = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. } | Type::Null | Type::Nothing);
-    let is_int = |t: &Type| {
-        matches!(t, Type::Bool | Type::Char | Type::Byte | Type::Short | Type::Int | Type::Long | Type::Size)
-    };
-    let width = |t: &Type| match t {
-        Type::Int | Type::Float => Some(32),
-        Type::Long | Type::Double => Some(64),
-        _ => None,
-    };
-    let float = |t: &Type| matches!(t, Type::Float | Type::Double);
-    Some(Ok(match (from, to) {
-        (f, Type::Ptr) if is_int(f) => Conv::Inttoptr,
-        (Type::Ptr, t) if is_int(t) => Conv::Ptrtoint,
-        (f, Type::Ptr) if is_ref(f) => Conv::Bitcast,
-        (Type::Ptr, t) if is_ref(t) => Conv::Bitcast,
-        (f, t) if is_ref(f) && is_ref(t) => Conv::Bitcast,
-        (f, t) if is_ref(f) && is_int(t) => Conv::Ptrtoint,
-        (f, t) if is_int(f) && is_ref(t) => Conv::Inttoptr,
-        (f, t) if is_int(f) && float(t) && width(f).is_some() && width(f) == width(t) => Conv::Bitcast,
-        (f, t) if float(f) && is_int(t) && width(t).is_some() && width(f) == width(t) => Conv::Bitcast,
-        _ if from == to => return None,
-        (Type::Float, Type::Double) => Conv::Fpext,
-        (Type::Double, Type::Float) => Conv::Fptrunc,
-        _ => return Some(Err(())),
-    }))
 }
 
 impl Gen<'_, '_> {
@@ -98,11 +36,30 @@ impl Gen<'_, '_> {
         if [self.l.defs.any, self.l.defs.object].contains(&owner) {
             return self.gen_raw_ptr_equality(sym, fun, args);
         }
-        if self.l.u.full_name(owner) != INTRINSICS {
-            return Ok(None);
-        }
         let name = self.l.u.symbol(sym).name.clone();
         let span = self.l.tpd.span(app);
+        let owner = self.l.u.full_name(owner);
+        if owner == INTERNAL
+            && let ("sizeOf" | "alignmentOf", &[cls]) = (name.as_str(), args)
+            && let Tree::ClassLiteral { tpe } = *self.l.tpd.tree(cls)
+        {
+            let ty = self.gen_type(tpe);
+            return Ok(Some(self.emit(if name == "sizeOf" { Op::SizeOf(ty) } else { Op::AlignmentOf(ty) })));
+        }
+        if owner != INTRINSICS {
+            return Ok(None);
+        }
+        if ["sizeOf", "alignmentOf", "stackalloc"].contains(&name.as_str()) {
+            let Some((targs, targs_span)) = self.l.non_erased.get(&fun).cloned() else {
+                return unsupported(span, format!("`{name}` without its type argument"));
+            };
+            let saved = (name != "stackalloc").then(|| self.at_span(targs_span));
+            let v = self.gen_layout_op(&name, &targs, args, span);
+            if let Some(saved) = saved {
+                self.m.pos = saved;
+            }
+            return v;
+        }
         let v = match (name.as_str(), args) {
             (n, &[ptrp])
                 if n.starts_with("load")
@@ -129,43 +86,8 @@ impl Gen<'_, '_> {
                 let ty = self.ty(Type::Byte);
                 self.emit(Op::Elem { ty, ptr, indexes: vec![offset] })
             }
-            (n, &[argp]) if RAW_PTR_CASTS.contains(&n) => {
-                let from = self.gen_type(self.l.tpd.tpe(argp));
-                let to = self.gen_type(self.l.tpd.tpe(app));
-                let value = self.gen_expr(argp)?;
-                let value_ty = self.val_ty(value);
-                let (f, t, vt) =
-                    (self.pool.ty(from).clone(), self.pool.ty(to).clone(), self.pool.ty(value_ty).clone());
-                match cast_conv(&f, &t).or_else(|| cast_conv(&vt, &t)) {
-                    None => value,
-                    Some(Ok(conv)) => self.emit(Op::Conv { conv, ty: to, value }),
-                    Some(Err(())) => return unsupported(span, format!("a cast from {f:?} to {t:?}")),
-                }
-            }
-            (n, &[argp]) if let Some((conv, ty)) = size_cast(n) => {
-                let value = self.gen_expr(argp)?;
-                let ty = self.ty(ty);
-                self.emit(Op::Conv { conv, ty, value })
-            }
-            ("unsignedOf", &[argp]) => {
-                let ty = self.result_type(sym);
-                let obj = self.gen_expr(argp)?;
-                self.emit(Op::Box { ty, obj })
-            }
-            (n, &[argp]) if let Some(conv) = unsigned_conv(n) => {
-                let ty = self.gen_type(self.l.tpd.tpe(app));
-                let value = self.gen_expr(argp)?;
-                self.emit(Op::Conv { conv, ty, value })
-            }
-            ("divUInt" | "divULong" | "remUInt" | "remULong", &[leftp, rightp]) => {
-                let bin = if name.starts_with("div") { Bin::Udiv } else { Bin::Urem };
-                let ty = self.gen_type(self.l.tpd.tpe(leftp));
-                let l = self.gen_expr(leftp)?;
-                let r = self.gen_expr(rightp)?;
-                self.emit(Op::Bin { bin, ty, l, r })
-            }
             ("classFieldRawPtr", &[target, field]) => self.gen_class_field_raw_ptr(target, field, span)?,
-            _ => return Ok(None),
+            _ => return self.gen_conversion(app, (sym, &name), args, span),
         };
         Ok(Some(v))
     }
