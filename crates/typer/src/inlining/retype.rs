@@ -66,7 +66,7 @@ impl Inlining<'_> {
                 }
                 None => self.ident_as_select(t),
             },
-            T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } => Ok(t),
+            T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => Ok(t),
             T::TypeTree { .. }
             | T::SingletonTypeTree { .. }
             | T::ByNameTypeTree { .. }
@@ -154,7 +154,6 @@ impl Inlining<'_> {
                 failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)
             }
-            T::Super { .. } => Err((span, "super in an inline body")),
             _ => Err((span, "inline body with a return or label")),
         }
     }

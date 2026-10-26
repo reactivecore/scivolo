@@ -12,7 +12,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::tags::{LAZY, SYNTHETIC};
+use tasty::tags::{INLINE, LAZY, SYNTHETIC};
 use tasty::{Erased, Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -38,7 +38,11 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let mut todo = vec![(root, false)];
     while let Some((t, visited)) = todo.pop() {
         let lazy = l.tpd.sym(t).filter(|&s| has(l.u, s, LAZY) || l.u.is_module(s));
-        if !visited {
+        let inline =
+            matches!(l.tpd.tree(t), Tree::DefDef { .. }) && l.tpd.sym(t).is_some_and(|s| has(l.u, s, INLINE));
+        if inline {
+            continue;
+        } else if !visited {
             todo.push((t, true));
             todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, false)));
         } else if let (Tree::ValDef { .. }, Some(s)) = (l.tpd.tree(t), lazy)
@@ -127,6 +131,9 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let init_def = method_def(l, init, info, synced);
     let accessor = method_symbol(l, &name, owner, info);
     l.local_lazy_accessors.insert(accessor);
+    if let Some(&at) = l.inlined_at.get(&value) {
+        l.inlined_at.extend([(init, at), (accessor, at)]);
+    }
     let init_ref = l.ident(init, Span::NONE);
     let init_call = l.apply(init_ref, &[], info, Span::NONE);
     let init_call = l.positioned(init_call);

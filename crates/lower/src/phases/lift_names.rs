@@ -6,6 +6,7 @@
 //! in the order they are defined.
 
 use super::dependencies::Dependencies;
+use super::drop_inlined::naming_order;
 use super::lambda_lift::Function;
 use super::lifted::Method;
 use crate::symbols::has;
@@ -25,9 +26,9 @@ pub struct Proxy {
     pub sym: SymbolId,
 }
 
-/// A lifted local class to name, at its definition's start, and the class it is in.
+/// A lifted local class to name, at its definition's naming order, and the class it is in.
 pub struct LocalClass {
-    pub at: Offset,
+    pub at: (Offset, Offset),
     pub class: SymbolId,
     pub outer: SymbolId,
 }
@@ -58,7 +59,7 @@ pub struct Pending {
 
 impl Pending {
     /// Names the local classes defined before `at`, or at `at` unless objects, all left if `None`.
-    pub fn name_classes_before(&mut self, l: &mut Lower, at: Option<Offset>) {
+    pub fn name_classes_before(&mut self, l: &mut Lower, at: Option<(Offset, Offset)>) {
         let before = |l: &Lower, c: &LocalClass| {
             at.is_none_or(|at| c.at < at || c.at == at && !l.u.is_module_class(c.class))
         };
@@ -90,8 +91,8 @@ pub fn name_all(l: &mut Lower, named: &[Named], pending: &mut Pending) -> Result
     }
     name_proxies(l, &proxies, pending)?;
     let key = |n: &Named, f: &Function| {
-        let at = l.tpd.span(f.def).start();
-        (if f.ctor { l.tpd.span(n.td).start() } else { at }, at)
+        let at = naming_order(l, f.sym, l.tpd.span(f.def).start());
+        (if f.ctor { naming_order(l, n.class, l.tpd.span(n.td).start()) } else { at }, at)
     };
     let functions: Vec<Vec<_>> = named
         .iter()
