@@ -87,7 +87,8 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         if let Some((block, index)) = lift(l, root, td, class) {
             pending.definitions.push((block, index, free.values.clone()));
         }
-        classes.push(Some(LocalClass { at: l.tpd.span(td).start(), class, outer: named_in }));
+        let at = super::drop_inlined::naming_order(l, class, l.tpd.span(td).start());
+        classes.push(Some(LocalClass { at, class, outer: named_in }));
     }
     let mut last = None;
     for i in order {

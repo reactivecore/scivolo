@@ -66,6 +66,10 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         }
     }
     let mut handled: FxHashSet<TNodeId> = inline_rhss.into_iter().flat_map(|r| subtrees(l.tpd, r)).collect();
+    handled.extend(subtrees(l.tpd, root).into_iter().filter_map(|t| match *l.tpd.tree(t) {
+        Tree::Return { from, .. } => Some(from),
+        _ => None,
+    }));
     for (applies, r) in calls {
         handled.insert(r);
         for a in applies {
@@ -118,16 +122,19 @@ fn integrate(l: &mut Lower, def: TNodeId, m: SymbolId) -> usize {
         unreachable!("a method with a body")
     };
     let mut clauses = l.tpd.clause_items(paramss).to_vec();
-    let mut anons = Vec::new();
+    let (mut anons, mut context_params) = (Vec::new(), Vec::<Vec<SymbolId>>::new());
     while is_context_function(l, l.tpd.tpe(tpt)) {
         let Some(anon_def) = closure_def(l, rhs) else { break };
         let Tree::DefDef { paramss: ap, tpt: at, rhs: Some(ar), .. } = *l.tpd.tree(anon_def) else {
             unreachable!("a closure's method")
         };
         clauses.extend_from_slice(l.tpd.clause_items(ap));
+        let own = l.tpd.clause_items(ap).iter().flat_map(|&c| l.tpd.items(c).to_vec());
+        context_params.push(own.filter_map(|p| l.tpd.sym(p)).collect());
         anons.push(l.tpd.sym(anon_def).expect("a closure's method symbol"));
         (tpt, rhs) = (at, ar);
     }
+    super::context_returns::integrate_returns(l, rhs, m, &context_params);
     let params: Vec<TNodeId> = clauses.iter().flat_map(|&c| l.tpd.items(c).to_vec()).collect();
     for t in params.into_iter().chain(subtrees(l.tpd, rhs)) {
         let Some(s) = l.tpd.sym(t) else { continue };
@@ -236,7 +243,12 @@ fn is_annotated(l: &mut Lower, s: SymbolId) -> bool {
 
 /// Whether `t` is a `ContextFunctionN` type.
 pub fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
-    let t = l.u.dealias(t);
+    let mut t = l.u.dealias(t);
+    while let Type::Refined(parent, ref name, _) = *l.u.types().get(t)
+        && name == "apply"
+    {
+        t = parent;
+    }
     let Type::Applied(tycon, _) = *l.u.types().get(t) else { return false };
     let class = l.u.class_symbol(tycon);
     class.and_then(|c| function_class_arity(l, c)).is_some_and(|(_, context)| context)
@@ -244,7 +256,7 @@ pub fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
 
 /// The method definition `t` is a closure of, in blocks without statements (dotty's
 /// `closureDef`).
-fn closure_def(l: &Lower, t: TNodeId) -> Option<TNodeId> {
+pub fn closure_def(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::Block { stats, expr } = *l.tpd.tree(t) else { return None };
     match l.tpd.items(stats) {
         [] => closure_def(l, expr),

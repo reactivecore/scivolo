@@ -108,7 +108,7 @@ impl Universe {
         };
         let owner = self.symbol(s).owner?;
         Some(match prefix {
-            Some(p) if self.symbol(owner).kind == Kind::Class => self.as_seen_from(alias, p, owner),
+            Some(p) if self.symbol(owner).kind == Kind::Class => self.seen_from_path(alias, p, owner),
             _ => alias,
         })
     }

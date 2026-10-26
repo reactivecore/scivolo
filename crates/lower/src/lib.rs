@@ -112,6 +112,8 @@ pub struct Lower<'a> {
     inlined_spans: FxHashMap<TNodeId, Span>,
     /// The blocks `drop_inlined` made of `Inlined` trees with bindings.
     inlined_blocks: FxHashSet<TNodeId>,
+    /// The start of the outermost inline call each definition of an expansion was inlined at.
+    inlined_at: FxHashMap<SymbolId, syntax::source::Offset>,
     /// The objects the unit refers to whose creation runs code.
     impure_modules: FxHashSet<SymbolId>,
     /// The method or constructor whose trees `Erasure` types, owning the values it defines.
@@ -175,6 +177,7 @@ pub fn lower_sources(
         lifted_to: FxHashMap::default(),
         super_accessors: FxHashMap::default(),
         inlined_spans: FxHashMap::default(),
+        inlined_at: FxHashMap::default(),
         inlined_blocks: FxHashSet::default(),
         impure_modules: FxHashSet::default(),
         erasure_owner: None,

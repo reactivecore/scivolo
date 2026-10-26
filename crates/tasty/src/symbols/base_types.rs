@@ -68,7 +68,14 @@ impl Universe {
             let term = self.symbol(s).kind.is_term();
             let dealiased = match (args.is_empty(), prefix) {
                 (true, Some(p)) if term => self.member_info(p, s),
-                (true, _) => self.info(s),
+                (true, Some(p)) => {
+                    let info = self.info(s);
+                    match self.symbol(s).owner {
+                        Some(o) if self.symbol(o).kind == Kind::Class => self.seen_from_path(info, p, o),
+                        _ => info,
+                    }
+                }
+                (true, None) => self.info(s),
                 (false, _) => self.expand_upper(tycon, &args)?,
             };
             let dealiased = match *self.types().get(dealiased) {

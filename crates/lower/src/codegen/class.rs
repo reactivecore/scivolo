@@ -58,6 +58,7 @@ impl Gen<'_, '_> {
             unreachable!("a class definition")
         };
         self.gen_class_fields(sym, template, pos);
+        self.gen_companion_static_fields(sym, pos);
         self.lambdas = 0;
         self.gen_methods(td)?;
         let closures = std::mem::take(&mut self.closures);

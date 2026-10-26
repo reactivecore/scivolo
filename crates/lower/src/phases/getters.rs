@@ -51,16 +51,16 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs };
             continue;
         }
+        if has(l.u, sym, STATIC) {
+            l.fields.insert(sym, sym);
+            continue;
+        }
         if rhs.is_none() && !is_param_accessor(l, sym) {
             let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
             l.u.set_flags(sym, flags);
             l.u.set_deferred(sym, true);
             let paramss = l.tpd.clauses(&[]);
             l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: None };
-            continue;
-        }
-        if has(l.u, sym, STATIC) {
-            l.fields.insert(sym, sym);
             continue;
         }
         let private_local = has(l.u, sym, PRIVATE) && has(l.u, sym, LOCAL) && !in_trait && !in_value_class;

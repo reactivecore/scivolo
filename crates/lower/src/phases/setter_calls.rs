@@ -42,11 +42,15 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
-/// Whether `s` is a `var` parameter of a class as a library class declares it, which a library
-/// inline body assigns.
+/// Whether `s` is a `var` parameter or member of a class as a library class declares it, which
+/// a library inline body assigns.
 fn is_library_var_param(l: &Lower, s: SymbolId) -> bool {
     let sym = l.u.symbol(s);
-    sym.kind == Kind::Param && sym.flags.has(MUTABLE) && sym.owner.is_some_and(|o| l.u.is_class(o))
+    let param = sym.kind == Kind::Param && sym.owner.is_some_and(|o| l.u.is_class(o));
+    let member = sym.kind == Kind::Val
+        && sym.tree.is_some()
+        && sym.owner.is_some_and(|o| l.u.is_class(o) && !has(l.u, o, TRAIT));
+    (param || member) && sym.flags.has(MUTABLE)
 }
 
 /// The library trait whose `var` `s` is, if it is one.

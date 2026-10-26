@@ -113,7 +113,7 @@ impl Universe {
         let (ast, names) = self.file(file);
         let mods = match view(ast, id) {
             View::DefDef { parts, .. } => parts.mods,
-            View::TypeDef { mods, is_class: true, .. } => mods,
+            View::ValDef { mods, .. } | View::Param { mods, .. } | View::TypeDef { mods, .. } => mods,
             _ => return None,
         };
         let named: Vec<_> =

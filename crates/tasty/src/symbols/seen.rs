@@ -5,6 +5,7 @@
 
 use super::base_types::MAX_DEPTH;
 use super::{Kind, SymbolId, Universe};
+use crate::tags::{INLINE, MUTABLE};
 use crate::types::{Type, TypeId};
 
 impl Universe {
@@ -13,6 +14,41 @@ impl Universe {
     /// or the prefix `prefix` gives them, the type parameters of `owner` by the arguments
     /// `prefix` gives them.
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
+        self.seen_from(t, prefix, owner, false)
+    }
+
+    /// `as_seen_from`, a type parameter whose argument is a wildcard selected from `prefix` if
+    /// `prefix` is a value, as dotty's `argForParam` does: for aliases selected from a path and
+    /// the parameters of methods, whose types the typer need not avoid.
+    pub fn seen_from_path(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
+        let wildcards = self.has_wildcard_args(prefix);
+        self.seen_from(t, prefix, owner, wildcards)
+    }
+
+    /// Whether `prefix` is a stable value whose type is a class applied to a wildcard.
+    fn has_wildcard_args(&mut self, prefix: TypeId) -> bool {
+        let value = match *self.types().get(prefix) {
+            Type::TermRef(..) => true,
+            Type::Sym(_, s) => match self.symbol(s).kind {
+                Kind::Val => !self.symbol(s).flags.has(MUTABLE),
+                Kind::Param if self.symbol(s).flags.has(INLINE) => false,
+                Kind::Param => {
+                    let info = self.info(s);
+                    !matches!(self.types().get(info), Type::ByName(_))
+                }
+                _ => false,
+            },
+            _ => false,
+        };
+        if !value {
+            return false;
+        }
+        let widened = self.widen(prefix);
+        let Type::Applied(_, args) = self.types().get(widened) else { return false };
+        args.iter().any(|&a| matches!(self.types().get(a), Type::Bounds(..)))
+    }
+
+    fn seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId, wildcards: bool) -> TypeId {
         let prefix = match *self.types().get(prefix) {
             Type::Super(this, _) => this,
             _ => prefix,
@@ -30,9 +66,13 @@ impl Universe {
                     false => u.this_seen_from(prefix, owner, c, MAX_DEPTH)?,
                 };
                 let seen = u.base_type(prefix, c)?;
-                match u.types().get(seen) {
-                    Type::Applied(_, args) => args.get(i).copied(),
-                    _ => None,
+                let arg = match u.types().get(seen) {
+                    Type::Applied(_, args) => args.get(i).copied()?,
+                    _ => return None,
+                };
+                match wildcards {
+                    true => Some(u.wildcard_seen(x, arg, prefix).unwrap_or(arg)),
+                    false => Some(arg),
                 }
             }
         })
@@ -66,6 +106,15 @@ impl Universe {
         self.this_seen_from(outer, owner, this_cls, depth)
     }
 
+    /// Class type parameter `param`, of a `this` or no prefix, selected from value `prefix` when
+    /// the argument `prefix`'s type gives it is the wildcard `arg` (dotty's `argForParam`).
+    fn wildcard_seen(&mut self, param: TypeId, arg: TypeId, prefix: TypeId) -> Option<TypeId> {
+        let Type::Sym(pre, p) = *self.types().get(param) else { return None };
+        let this = pre.is_none_or(|pre| matches!(self.types().get(pre), Type::This(_)));
+        let wildcard = matches!(self.types().get(arg), Type::Bounds(..));
+        (this && wildcard).then(|| self.intern_type(Type::Sym(Some(prefix), p)))
+    }
+
     /// The prefix of class type `t`, through applications.
     fn normalized_prefix(&mut self, t: TypeId) -> Option<TypeId> {
         match self.types().get(t).clone() {
@@ -85,9 +134,43 @@ impl Universe {
                 if let Some(refined) = self.dependent_refinement(prefix, m) {
                     return refined;
                 }
-                self.as_seen_from(info, prefix, owner)
+                let seen = self.as_seen_from(info, prefix, owner);
+                self.with_params_seen_from_path(info, seen, prefix, owner)
             }
             _ => info,
+        }
+    }
+
+    /// Method type `seen`, `info` seen from `prefix`, with the types of its parameters
+    /// `seen_from_path`.
+    fn with_params_seen_from_path(
+        &mut self,
+        info: TypeId,
+        seen: TypeId,
+        prefix: TypeId,
+        owner: SymbolId,
+    ) -> TypeId {
+        if !matches!(self.types().get(info), Type::Method { .. }) || !self.has_wildcard_args(prefix) {
+            return seen;
+        }
+        let (Type::Method { params: own, .. }, Type::Method { binder, params, result, implicit, contextual }) =
+            (self.types().get(info).clone(), self.types().get(seen).clone())
+        else {
+            return seen;
+        };
+        let mut changed = false;
+        let params: Vec<(String, TypeId)> = own
+            .into_iter()
+            .zip(params)
+            .map(|((_, p), (name, q))| {
+                let r = self.seen_from_path(p, prefix, owner);
+                changed |= r != q;
+                (name, r)
+            })
+            .collect();
+        match changed {
+            true => self.intern_type(Type::Method { binder, params, result, implicit, contextual }),
+            false => seen,
         }
     }
 }
