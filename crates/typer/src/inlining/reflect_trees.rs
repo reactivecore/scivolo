@@ -159,6 +159,32 @@ impl Reflect<'_> {
         Ok(self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None))
     }
 
+    /// `Tree.changeOwner(new)` (dotty's `changeNonLocalOwners`): the definitions in `t` owned by
+    /// an owner of its outermost definitions, but for packages, owned by `new` instead.
+    pub fn change_owner(&mut self, t: TNodeId, new: SymbolId) {
+        let defines = |tree: &T| {
+            matches!(tree, T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } | T::Bind { .. })
+        };
+        let (mut owners, mut todo) = (Vec::new(), vec![t]);
+        while let Some(n) = todo.pop() {
+            match self.tpd.sym(n).filter(|_| defines(self.tpd.tree(n))) {
+                Some(s) => {
+                    owners.extend(self.u.symbol(s).owner.filter(|&o| self.u.symbol(o).kind != Kind::Package))
+                }
+                None => todo.extend(self.tpd.children(n)),
+            }
+        }
+        let mut todo = vec![t];
+        while let Some(n) = todo.pop() {
+            if let Some(s) = self.tpd.sym(n).filter(|_| defines(self.tpd.tree(n)))
+                && self.u.symbol(s).owner.is_some_and(|o| owners.contains(&o))
+            {
+                self.u.set_owner(s, new);
+            }
+            todo.extend(self.tpd.children(n));
+        }
+    }
+
     /// `Literal(constant)`.
     pub fn literal(&mut self, constant: Constant) -> Result<TNodeId, &'static str> {
         let span = self.span;

@@ -88,6 +88,7 @@ impl Gen<'_, '_> {
             explicit_owner.filter(|&e| e == owner || self.l.u.derives_from(e, owner)).unwrap_or(owner);
         let type_name = self.type_name(owner);
         let no_forwarders = !has(self.l.u, m, ENUM)
+            && !self.is_scala_static_field(m)
             && [PRIVATE, STATIC, PROTECTED, MACRO].iter().any(|&f| has(self.l.u, m, f));
         let owner_name = if self.l.u.is_module_class(owner) && no_forwarders {
             type_name

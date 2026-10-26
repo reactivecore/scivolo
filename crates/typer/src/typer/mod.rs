@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Typing untyped trees into `tpd` trees (dotty's `Typer`): the dispatch over tree classes.
 
+mod abstract_members;
 mod access;
 mod accessible;
 mod accessor_defs;
@@ -26,18 +27,23 @@ mod avoid_map;
 mod avoid_select;
 mod by_name_repeated;
 mod call_types;
+mod callee_types;
+mod captured_paths;
 mod case_companion;
 mod case_lambdas;
 mod clashing_synthetics;
 mod class_bound;
 mod classes;
+mod closure_params;
 mod closures;
 mod const_fold;
 pub(crate) mod const_ops;
 mod constants;
 mod constrain_pattern;
+mod constructor_params;
 mod constructor_proxies;
 mod constructors;
+mod context_applications;
 mod context_bounds;
 mod context_functions;
 mod control;
@@ -47,6 +53,7 @@ mod define_further;
 mod defs;
 mod dependent_function_types;
 mod dependent_functions;
+mod dependent_matches;
 pub(crate) mod dependent_params;
 mod dependent_results;
 mod derived;
@@ -62,6 +69,7 @@ mod enum_case_refs;
 mod enum_cases;
 mod enum_refs;
 mod equality;
+mod erased_function_types;
 mod errors;
 mod escaping;
 mod eta;
@@ -104,6 +112,7 @@ mod match_type_trees;
 mod matchable_cast;
 mod matches;
 mod maximize;
+mod member_hiding;
 mod member_hint;
 mod member_views;
 mod members;
@@ -113,10 +122,12 @@ mod mismatch_text;
 mod name_clashes;
 mod named_args;
 mod named_overloads;
+mod named_tuple_trees;
 mod named_tuple_types;
 mod named_tuples;
 mod named_type_args;
 mod names;
+mod new_type_args;
 mod no_inits;
 mod non_method_apply;
 mod not_a_member;
@@ -125,6 +136,7 @@ mod op_assign;
 mod overload_errors;
 mod overloaded_extractors;
 mod overloads;
+mod override_kinds;
 mod overrides;
 mod package_members;
 mod param_vars;
@@ -134,6 +146,7 @@ mod parents;
 mod paths;
 mod pattern_args;
 mod pattern_bounds;
+mod pattern_gadt;
 mod patterns;
 mod plain_trees;
 mod poly_alternatives;
@@ -157,6 +170,7 @@ mod sams;
 mod scope_bindings;
 pub(crate) mod seen_from;
 mod select;
+mod selectable_fields;
 mod selves;
 mod shown_prefix;
 pub(crate) mod simplify;
@@ -166,19 +180,23 @@ mod spliced_args;
 pub(crate) mod stability;
 mod stats;
 mod structural;
+mod structural_calls;
 mod summon_from;
 mod supers;
 mod this;
 mod this_calls;
+mod throws_types;
 mod trait_params;
 mod transparent;
 mod transparent_traits;
 mod tries;
+mod try_capabilities;
 mod try_handlers;
 mod tuple_xxl;
 pub(crate) mod type_apply;
 mod type_args;
 mod type_arity;
+mod type_checks;
 mod type_defs;
 mod type_lambdas;
 mod type_mismatch;
@@ -247,6 +265,8 @@ pub struct Typer<'a> {
     pub splices: FxHashMap<NodeId, TNodeId>,
     /// The owners of spliced trees, which their definitions leave when spliced (`TypedSplice.owner`).
     pub splice_owners: FxHashMap<NodeId, SymbolId>,
+    /// The spliced receivers of extension method calls (`TypedSplice.isExtensionReceiver`).
+    pub extension_receivers: rustc_hash::FxHashSet<NodeId>,
     /// The `new`s of parent calls (dotty's `noCheckNews`).
     pub parent_news: rustc_hash::FxHashSet<NodeId>,
     /// The imports of the unit, root imports first, by `Level::Import` index.
@@ -295,10 +315,14 @@ pub struct Typer<'a> {
     /// The definitions of the instances of each module class's `derives` clause, entered and
     /// not typed yet.
     pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving_finalize::Problem>)>>,
+    /// The types typed patterns bind whose bounds the selector gave.
+    pub known_pattern_types: FxHashSet<SymbolId>,
     /// The type lambdas of derived instances' types, by the instances that own their parameters.
     pub derived_lambdas: FxHashMap<NodeId, NodeId>,
     /// The pending dynamic calls, by their placeholder trees.
     pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
+    /// The selections of structural methods not rewritten to `applyDynamic` calls yet.
+    pub structural_selects: FxHashSet<TNodeId>,
     /// The left-hand side of the assignment being typed.
     pub dynamic_lhs: Option<NodeId>,
     /// The functions of polymorphic function values, whose results may refer to their
@@ -353,6 +377,7 @@ impl<'a> Typer<'a> {
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
+            extension_receivers: Default::default(),
             parent_news: Default::default(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
@@ -376,8 +401,10 @@ impl<'a> Typer<'a> {
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
             derived_instances: FxHashMap::default(),
+            known_pattern_types: FxHashSet::default(),
             derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
+            structural_selects: FxHashSet::default(),
             dynamic_lhs: None,
             poly_closures: FxHashMap::default(),
             hidden_params: FxHashSet::default(),
@@ -412,8 +439,10 @@ impl<'a> Typer<'a> {
             self.unsupported(id, what);
         }
         self.settle_type(tree, inner);
+        let tree = self.structural_call(tree, inner);
         let locked = std::mem::replace(&mut self.locked_vars, vars);
         let adapted = self.adapt(tree, pt, ctx);
+        let adapted = self.structural_call(adapted, inner);
         self.locked_vars = locked;
         if let Err(what) = self.reinterpolate((tree, adapted), pt, vars) {
             self.unsupported(id, what);

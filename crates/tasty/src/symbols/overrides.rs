@@ -12,8 +12,8 @@ const MAX_ALIASES: u32 = 64;
 
 impl Universe {
     /// `t` with references resolved to their symbols, prefixes of classes and type parameters
-    /// dropped, aliases (an abstract type's in its prefix) and applied type lambdas expanded,
-    /// annotations removed and `ImpureX` read as `X`.
+    /// dropped, aliases (an abstract type's in its prefix) and applied type lambdas expanded and
+    /// reduced, annotations removed and `ImpureX` read as `X`.
     pub fn normalize(&mut self, t: TypeId) -> TypeId {
         self.normalize_within(t, MAX_ALIASES)
     }
@@ -28,8 +28,20 @@ impl Universe {
                         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
                         u.subst(result, binder, &names, &args)
                     }
-                    _ => u.expand(tycon, &args)?,
+                    _ => match u.expand(tycon, &args) {
+                        Some(e) => e,
+                        None => {
+                            let Type::Sym(Some(prefix), s) = u.types().get(tycon).clone() else {
+                                return None;
+                            };
+                            let name = u.symbol(s).name.clone();
+                            let member = u.resolve(prefix, &name, true).filter(|&m| m != s)?;
+                            let tycon = u.intern_type(Type::Sym(Some(prefix), member));
+                            u.expand(tycon, &args)?
+                        }
+                    },
                 };
+                let expanded = u.normalized(expanded);
                 Some(u.normalize_within(expanded, depth))
             }
             Type::Sym(_, _) | Type::TypeRef(_, _) => {
@@ -52,6 +64,9 @@ impl Universe {
                                 };
                                 let name = u.symbol(s).name.clone();
                                 let member = u.resolve(prefix, &name, true).filter(|&m| m != s)?;
+                                if u.symbol(member).kind == Kind::Class {
+                                    return Some(u.intern_type(Type::Sym(None, member)));
+                                }
                                 u.alias(member)?
                             }
                         };

@@ -43,6 +43,7 @@ impl Typer<'_> {
             Tree::ValDef { tpt, rhs, .. } => {
                 let info = self.result_type(sym, tpt, rhs, ctx.with_owner(sym));
                 self.u.set_info(sym, info);
+                self.mark_erased_by_type(sym, tree, info);
             }
             Tree::DefDef { .. } => {
                 if self.u.symbol(sym).flags.has(tasty::tags::INLINE) {

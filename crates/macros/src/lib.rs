@@ -63,7 +63,7 @@ impl Macros for VmMacros<'_> {
             refused("a literal macro argument of another primitive type than its parameter")
         })?;
         let mut host = self.host(&mut lent, (call.owner, call.expansion), annotations);
-        host.typer.searched = call.searched.clone();
+        (host.typer.searched, host.typer.while_typing) = (call.searched.clone(), call.while_typing);
         let args: Vec<vm::MacroArg> = call
             .args
             .iter()

@@ -9,7 +9,9 @@ use crate::symbols::{has, is_static_module};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
-use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC, SYNTHETIC};
+use tasty::tags::{
+    ERASED, FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC, SYNTHETIC,
+};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -27,7 +29,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         let Tree::ValDef { name, tpt, rhs } = *l.tpd.tree(stat) else { continue };
         let Some(sym) = l.tpd.sym(stat) else { continue };
         let owner = l.u.symbol(sym).owner;
-        if !owner.is_some_and(|o| l.u.is_class(o)) {
+        if !owner.is_some_and(|o| l.u.is_class(o)) || has(l.u, sym, ERASED) {
             continue;
         }
         let span = l.tpd.span(stat);
@@ -51,16 +53,16 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs };
             continue;
         }
+        if has(l.u, sym, STATIC) {
+            l.fields.insert(sym, sym);
+            continue;
+        }
         if rhs.is_none() && !is_param_accessor(l, sym) {
             let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
             l.u.set_flags(sym, flags);
             l.u.set_deferred(sym, true);
             let paramss = l.tpd.clauses(&[]);
             l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: None };
-            continue;
-        }
-        if has(l.u, sym, STATIC) {
-            l.fields.insert(sym, sym);
             continue;
         }
         let private_local = has(l.u, sym, PRIVATE) && has(l.u, sym, LOCAL) && !in_trait && !in_value_class;

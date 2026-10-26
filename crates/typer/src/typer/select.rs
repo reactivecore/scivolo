@@ -7,7 +7,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -49,14 +49,10 @@ impl Typer<'_> {
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
             }
-            if !defined && self.defined_fail_bottom(qual_tpe).is_some() {
-                defined = true;
-                continue;
-            }
             if let Some(apply) = self.poly_function_select(id, qual, qual_tpe, name) {
                 return apply;
             }
-            if let Some(structural) = self.structural_select(id, (qual, qual_tpe), name, pt, ctx) {
+            if let Some(structural) = self.structural_select(id, (qual, qual_tpe), name, ctx) {
                 return structural;
             }
             if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_))
@@ -64,7 +60,7 @@ impl Typer<'_> {
             {
                 return proxy;
             }
-            if let Some(element) = self.named_tuple_select(id, qual, name, ctx) {
+            if let Some(element) = self.named_tuple_select(id, qual, name, pt, ctx) {
                 return element;
             }
             if !tupled && let Some(q) = self.small_generic_tuple(qual) {
@@ -86,8 +82,13 @@ impl Typer<'_> {
                 Ok(Some(Viewed::Extension(c))) => {
                     return self.implicit_extension_select(id, qual, c, name, pt, ctx);
                 }
+                Ok(None) if !defined && self.defined_fail_bottom(qual_tpe).is_some() => {
+                    defined = true;
+                    continue;
+                }
                 Ok(None) if !widened => {
                     let dynamic = self.try_dynamic(id, qual, name, pt, ctx);
+                    let dynamic = dynamic.or_else(|| self.selectable_field(id, (qual, qual_tpe), name, ctx));
                     return dynamic.unwrap_or_else(|| self.member_not_found(id, qual, name, ctx));
                 }
                 Ok(None) => return self.unsupported(id, "member not found"),
@@ -102,6 +103,10 @@ impl Typer<'_> {
         if syms.is_empty() {
             return self.unsupported(id, "member not found");
         }
+        let syms = match converted {
+            true => syms,
+            false => self.accessible_alternatives(syms, qual_tpe, ctx),
+        };
         let sym = match self.choose(&syms, Some(qual_tpe), pt) {
             Ok(sym) => self.jdk_inherited(sym),
             Err(what) => return self.unchosen(id, what, pt),
@@ -132,8 +137,8 @@ impl Typer<'_> {
         if projection && self.u.symbol(sym).kind == Kind::Type {
             self.complete(sym);
             let info = self.u.info(sym);
-            if matches!(self.u.types().get(info), Type::Alias(_)) {
-                return self.unsupported(id, "projection of a type alias");
+            if let Type::Alias(alias) = *self.u.types().get(info) {
+                return self.alias_projection(id, (qual, name), sym, alias);
             }
         }
         if text == "deferred" && self.u.full_name(sym).starts_with("scala.compiletime.") {
@@ -144,6 +149,36 @@ impl Typer<'_> {
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);
         select
+    }
+
+    /// Projection `id`, `qual#name`, of type alias `sym` of `alias`: the alias dealiased, its
+    /// class its symbol; refused if `alias` refers to `this` or to members of `sym`'s owner.
+    fn alias_projection(
+        &mut self,
+        id: NodeId,
+        (qual, name): (TNodeId, TName),
+        sym: SymbolId,
+        alias: TypeId,
+    ) -> TNodeId {
+        let (mut this, owner) = (false, self.u.symbol(sym).owner);
+        self.u.map_type(alias, &mut |u, part| {
+            this |= match *u.types().get(part) {
+                Type::This(_) => true,
+                Type::Sym(_, s) => u.symbol(s).owner == owner,
+                _ => false,
+            };
+            None
+        });
+        if this {
+            return self.unsupported(id, "projection of a type alias referring to its owner");
+        }
+        let tpe = self.u.dealias(alias);
+        let class = match *self.u.types().get(tpe) {
+            Type::Sym(_, s) => Some(s),
+            _ => None,
+        };
+        let span = self.ast.span(id);
+        self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), class)
     }
 
     fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {

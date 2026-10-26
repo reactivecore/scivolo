@@ -74,11 +74,19 @@ impl Reflect<'_> {
             return Err("a copy of a definition under another name");
         }
         let tree = match *self.tpd.tree(original) {
-            T::ValDef { name, .. } if params.is_empty() => T::ValDef { name, tpt, rhs },
-            T::DefDef { name, paramss, .. } => {
+            T::ValDef { name, tpt: t, rhs: r } if params.is_empty() => {
+                if (t, r) == (tpt, rhs) {
+                    return Ok(original);
+                }
+                T::ValDef { name, tpt, rhs }
+            }
+            T::DefDef { name, paramss, tpt: t, rhs: r } => {
                 let old = self.tpd.clause_items(paramss).iter().flat_map(|&l| self.tpd.items(l).to_vec());
                 if !old.eq(params.iter().copied()) {
                     return Err("DefDef.copy with other parameters");
+                }
+                if (t, r) == (tpt, rhs) {
+                    return Ok(original);
                 }
                 T::DefDef { name, paramss, tpt, rhs }
             }

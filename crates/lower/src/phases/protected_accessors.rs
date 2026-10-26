@@ -25,13 +25,14 @@ struct Accessor {
 
 /// Whether a reference to `sym` from class `class` needs an accessor unless `class` derives from
 /// the owner of `sym` (dotty's `needsAccessorIfNotInSubclass`).
-pub fn needs_accessor_if_not_in_subclass(l: &Lower, sym: SymbolId, class: SymbolId) -> bool {
+pub fn needs_accessor_if_not_in_subclass(l: &mut Lower, sym: SymbolId, class: SymbolId) -> bool {
     let s = l.u.symbol(sym);
-    matches!(s.kind, Kind::Def | Kind::Val)
-        && (s.flags.has(PROTECTED) || s.flags.has(PROTECTEDqualified))
+    let (kind, flags, owner) = (s.kind, s.flags, s.owner);
+    matches!(kind, Kind::Def | Kind::Val)
+        && (flags.has(PROTECTED) || flags.has(PROTECTEDqualified))
         && !l.u.is_constructor(sym)
         && !l.u.is_annotated(sym, "scala.annotation.publicInBinary")
-        && s.owner.is_some_and(|o| !l.u.is_trait(o))
+        && owner.is_some_and(|o| !l.u.is_trait(o))
         && !is_java_static(l.u, sym)
         && !within(l, class, package_of(l, sym))
 }

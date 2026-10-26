@@ -1,53 +1,35 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/Types.scala
-//! Members of a value whose type gives a class type parameter a wildcard argument: a parameter
-//! or result of that type parameter's type typed as the parameter selected on the value
-//! (dotty's `argForParam`).
+//! Members of a value that is no path and whose type gives a class type parameter a wildcard
+//! argument: a parameter of that type parameter's type typed as the wildcard's lower bound, a
+//! result as its upper bound (dotty's `argForParam` on the widened prefix, compared by bounds).
 
 use super::Typer;
-use tasty::{Kind, Type, TypeId, Universe};
+use tasty::{Type, TypeId, Universe};
 
 impl Typer<'_> {
-    /// Method type `seen`, member info `raw` seen from `prefix`, with each parameter and final
-    /// result whose type is a class type parameter that the type of `prefix`, a stable value path,
-    /// gives a wildcard argument typed as that parameter of `prefix`.
-    pub fn wildcard_params(&mut self, raw: TypeId, seen: TypeId, prefix: TypeId) -> TypeId {
-        let path = match *self.u.types().get(prefix) {
-            Type::Sym(_, v) => {
-                matches!(self.u.symbol(v).kind, Kind::Val | Kind::Param)
-                    && super::stability::is_stable_path(self.u, prefix)
-            }
-            _ => false,
-        };
-        let (Type::Method { params: raw_params, result: raw_result, .. }, true) =
-            (self.u.types().get(raw).clone(), path)
-        else {
+    /// Method type `seen`, a member's info seen from `prefix`, with each parameter that is a
+    /// wildcard's bounds replaced by the lower bound and the final result by the upper bound,
+    /// unless `prefix` is a stable path, whose wildcards `as_seen_from` selects on it.
+    pub fn wildcard_params(&mut self, seen: TypeId, prefix: TypeId) -> TypeId {
+        if super::stability::is_stable_path(self.u, prefix) {
             return seen;
-        };
+        }
         let Type::Method { binder, mut params, result, implicit, contextual } =
             self.u.types().get(seen).clone()
         else {
             return seen;
         };
-        for ((_, p), &(_, r)) in params.iter_mut().zip(&raw_params) {
-            *p = self.wildcard_param(r, prefix).unwrap_or(*p);
+        for (_, p) in &mut params {
+            if let Type::Bounds(lo, _) = *self.u.types().get(*p) {
+                *p = lo;
+            }
         }
-        let result = match self.wildcard_param(raw_result, prefix) {
-            Some(r) => r,
-            None => self.wildcard_params(raw_result, result, prefix),
+        let result = match *self.u.types().get(result) {
+            Type::Bounds(_, hi) => hi,
+            _ => self.wildcard_params(result, prefix),
         };
         self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
-    }
-
-    /// `prefix.T` if `raw` is class type parameter `T` and `prefix`'s type gives it a wildcard.
-    fn wildcard_param(&mut self, raw: TypeId, prefix: TypeId) -> Option<TypeId> {
-        let (class, i) = self.u.class_param(raw)?;
-        let widened = self.u.widen(prefix);
-        let base = self.u.base_type(widened, class)?;
-        let Type::Applied(_, args) = self.u.types().get(base).clone() else { return None };
-        matches!(self.u.types().get(*args.get(i)?), Type::Bounds(..)).then_some(())?;
-        let tparam = self.u.type_params(class)[i];
-        Some(self.u.intern_type(Type::Sym(Some(prefix), tparam)))
     }
 }
 

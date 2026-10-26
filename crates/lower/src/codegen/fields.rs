@@ -12,8 +12,9 @@ use crate::{Result, unsupported};
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Defn, DefnKind, GlobalId, Op, PosId, Val, ValId};
 use syntax::ast::Span;
+use syntax::ast::constant::Constant;
 use tasty::SymbolId;
-use tasty::tags::{MUTABLE, PRIVATE, STATIC};
+use tasty::tags::{ABSTRACT, FIELDaccessor, LAZY, MUTABLE, PRIVATE, STATIC};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -33,25 +34,52 @@ impl Gen<'_, '_> {
         };
         let defined: Vec<SymbolId> = stats.iter().filter_map(|&s| self.l.tpd.sym(s)).collect();
         fields.sort_by_key(|f| defined.iter().position(|d| d == f).unwrap_or(usize::MAX));
+        fields.retain(|&f| !self.is_scala_static_field(f));
         for f in fields {
-            let pos = self.sym_pos(f, c);
-            let pos = if pos == self.no_pos { class_pos } else { pos };
-            let mutable = has(self.l.u, f, MUTABLE);
-            let attrs = match () {
-                _ if self.l.lazy_fields.iter().any(|lazy| lazy.field == f) => vec![Attr::Volatile],
-                _ if mutable => Vec::new(),
-                _ => vec![Attr::Final],
-            };
-            let attrs = self.field_attrs(f, c, attrs);
-            let info = self.l.u.info(f);
-            let ty = self.gen_type(info);
-            let rhs = self.val(Val::Zero(ty));
-            let name = self.field_name(f);
-            self.defns.push(Defn { name, attrs, pos, kind: DefnKind::Var { ty, rhs } });
-            if has(self.l.u, f, STATIC) {
-                let getter = self.static_getter(f, c, ty, pos);
-                self.defns.push(getter);
-            }
+            self.gen_field(f, c, class_pos);
+        }
+    }
+
+    /// The fields of the `@static` values of the companion object of class `c`, as nscplugin
+    /// generates them with the class `MoveStatics` moved them to.
+    pub fn gen_companion_static_fields(&mut self, c: SymbolId, class_pos: PosId) {
+        if self.l.u.is_module_class(c) {
+            return;
+        }
+        let Some(module) = self.l.u.companion_module(c).and_then(|m| self.l.u.module_class(m)) else {
+            return;
+        };
+        let mut decls = self.l.u.decls(module).unwrap_or_default();
+        decls.retain(|&f| self.is_scala_static_field(f));
+        for f in decls {
+            self.gen_field(f, module, class_pos);
+        }
+    }
+
+    /// Whether `f` is a field for an `@static` value.
+    pub fn is_scala_static_field(&mut self, f: SymbolId) -> bool {
+        self.is_field(f) && has(self.l.u, f, STATIC) && self.l.u.is_annotated(f, "scala.annotation.static")
+    }
+
+    /// A `var` for field `f` of class `c`, and a static getter if static.
+    fn gen_field(&mut self, f: SymbolId, c: SymbolId, class_pos: PosId) {
+        let pos = self.sym_pos(f, c);
+        let pos = if pos == self.no_pos { class_pos } else { pos };
+        let mutable = has(self.l.u, f, MUTABLE);
+        let attrs = match () {
+            _ if self.l.lazy_fields.iter().any(|lazy| lazy.field == f) => vec![Attr::Volatile],
+            _ if mutable => Vec::new(),
+            _ => vec![Attr::Final],
+        };
+        let attrs = self.field_attrs(f, c, attrs);
+        let info = self.l.u.info(f);
+        let ty = self.gen_type(info);
+        let rhs = self.val(Val::Zero(ty));
+        let name = self.field_name(f);
+        self.defns.push(Defn { name, attrs, pos, kind: DefnKind::Var { ty, rhs } });
+        if has(self.l.u, f, STATIC) {
+            let getter = self.static_getter(f, c, ty, pos);
+            self.defns.push(getter);
         }
     }
 
@@ -74,6 +102,10 @@ impl Gen<'_, '_> {
         }
         let ty = self.gen_type(self.l.tpd.tpe(t));
         let obj = self.field_owner(f, qual, self.l.tpd.span(t))?;
+        let owner = self.l.u.symbol(f).owner.expect("a field's class");
+        if self.is_struct(owner) {
+            return self.gen_struct_field(owner, f, obj, self.l.tpd.span(t));
+        }
         let name = self.field_name(f);
         Ok(self.emit(Op::Fieldload { ty, obj, name }))
     }
@@ -88,6 +120,56 @@ impl Gen<'_, '_> {
         let obj = self.gen_expr(qualifier)?;
         let name = self.field_name(f);
         Ok(self.emit(Op::Field { obj, name }))
+    }
+
+    /// `classFieldRawPtr(target, "name")`: the address of mutable field `name` of `target`
+    /// (nscplugin's `genClassFieldRawPtr`).
+    pub fn gen_class_field_raw_ptr(&mut self, target: TNodeId, field: TNodeId, span: Span) -> Result<ValId> {
+        let Tree::Literal { value: Constant::String(units) } = self.l.tpd.tree(field) else {
+            return unsupported(span, "`classFieldRawPtr` of a field name that is no literal");
+        };
+        let name = String::from_utf16_lossy(units);
+        let tpe = self.l.u.widen(self.l.tpd.tpe(target));
+        let Some(class) = self.l.u.class_symbol(tpe) else {
+            return unsupported(span, "`classFieldRawPtr` of a value that is no class instance");
+        };
+        let mut bases = self.l.u.linearization(class);
+        if bases.first() != Some(&class) {
+            bases.insert(0, class);
+        }
+        let mut found = None;
+        for &base in &bases {
+            let decls = self.l.u.decls(base).unwrap_or_default();
+            let named: Vec<SymbolId> =
+                decls.into_iter().filter(|&d| self.l.u.symbol(d).name == name).collect();
+            found =
+                found.or_else(|| named.iter().copied().find(|&d| self.is_field(d) || self.is_library_var(d)));
+            let immutable_accessor = base != class
+                && named.iter().any(|&d| has(self.l.u, d, FIELDaccessor) && !has(self.l.u, d, MUTABLE));
+            if immutable_accessor {
+                return unsupported(span, format!("the address of immutable field {name}"));
+            }
+        }
+        let Some(f) = found else {
+            return unsupported(span, format!("`classFieldRawPtr` of {name}, no field of the unit"));
+        };
+        if !has(self.l.u, f, MUTABLE) {
+            return unsupported(span, format!("the address of immutable field {name}"));
+        }
+        let obj = self.gen_expr(target)?;
+        let name = self.field_name(f);
+        Ok(self.emit(Op::Field { obj, name }))
+    }
+
+    /// Whether `v` is a variable of a library class that is neither abstract nor a trait, a field.
+    fn is_library_var(&self, v: SymbolId) -> bool {
+        let s = self.l.u.symbol(v);
+        let concrete = s.owner.is_some_and(|c| !has(self.l.u, c, ABSTRACT) && !self.l.u.is_trait(c));
+        s.tree.is_some()
+            && s.kind == tasty::Kind::Val
+            && has(self.l.u, v, MUTABLE)
+            && !has(self.l.u, v, LAZY)
+            && concrete
     }
 
     /// The object holding field `f`: `qual` if a `this`, a static object's instance, else `qual`

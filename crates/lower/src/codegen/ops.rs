@@ -80,9 +80,18 @@ impl Gen<'_, '_> {
                 let letter = "zcbsijfd".chars().find(|&c| boxed_class(c) == Some(class));
                 self.erased(&tasty::Erased::Prim(letter.expect("the class of a boxed primitive")))
             }
-            Op::Extract { .. } | Op::Insert { .. } => {
-                unreachable!("not generated yet: {op:?}")
+            Op::Extract { aggr, ref indexes } => {
+                let mut ty = self.val_ty(aggr);
+                for &i in indexes {
+                    ty = match self.pool.ty(ty) {
+                        Type::StructValue(tys) => tys[i as usize],
+                        Type::ArrayValue(elem, _) => *elem,
+                        t => unreachable!("an aggregate of type {t:?}"),
+                    };
+                }
+                ty
             }
+            Op::Insert { aggr, .. } => self.val_ty(aggr),
         }
     }
 
@@ -105,6 +114,7 @@ impl Gen<'_, '_> {
             Val::Float(_) => Type::Float,
             Val::Double(_) => Type::Double,
             Val::Size(_) => Type::Size,
+            Val::Const(_) => Type::Ptr,
             Val::String(_) => return self.class_type("java.lang.String", true),
             Val::ClassOf(_) => return self.class_type("java.lang.Class", false),
             v => unreachable!("not generated yet: {v:?}"),

@@ -5,7 +5,7 @@
 //! `refinedTypeToClass`, `typedRefinedTypeTree`).
 
 use super::Typer;
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Level};
 use crate::tpd::TNodeId;
 use syntax::ast::flags::{self as f, GIVEN, IMPLICIT, MUTABLE};
 use syntax::ast::{NodeId, Tree};
@@ -71,19 +71,17 @@ impl Typer<'_> {
             None => (Kind::Val, flags),
         };
         let sym = self.syms.define(self.u, &text, kind, class, flags.to_term_flags());
-        let mctx = Ctx { owner: sym, ..ctx };
+        let mut mctx = Ctx { owner: sym, ..ctx };
         let mut clause_trees = Vec::new();
         let mut clause_params = Vec::new();
         for clause in clauses.map(|c| self.ast.clause_items(c).to_vec()).unwrap_or_default() {
-            let (mut trees, mut params) = (Vec::new(), Vec::new());
+            let (mut trees, mut params, mut kind) = (Vec::new(), Vec::new(), (false, false));
             for p in self.ast.items(clause).to_vec() {
                 let Tree::ValDef { name, tpt, mods, .. } = *self.ast.tree(p) else {
                     return Err("polymorphic structural refinement");
                 };
                 let pflags = self.ast.modifiers(mods).flags;
-                if pflags.is_one_of(GIVEN.or(IMPLICIT)) {
-                    return Err("structural refinement with a context parameter");
-                }
+                kind = (pflags.is_one_of(GIVEN.or(IMPLICIT)), pflags.is(GIVEN));
                 if matches!(self.ast.tree(tpt), Tree::ByNameTypeTree { .. }) {
                     return Err("structural refinement with a by-name parameter");
                 }
@@ -101,12 +99,14 @@ impl Typer<'_> {
                     pflags.or(f::TERM_PARAM).to_term_flags(),
                 );
                 self.u.set_info(psym, tpe);
+                let level = self.levels.push(Some(mctx.level), Level::Scope(vec![(ptext.clone(), psym)]));
+                mctx = Ctx { level, ..mctx };
                 let pspan = self.ast.span(p);
                 trees.push(self.build().val_def(psym, typed, None, pspan));
                 params.push((ptext, tpe));
             }
             clause_trees.push(trees);
-            clause_params.push(params);
+            clause_params.push((params, kind));
         }
         let result = self.typed_type(tpt, mctx);
         let mut info = self.tpd.tpe(result);
@@ -116,10 +116,9 @@ impl Typer<'_> {
         match clauses {
             Some(_) if clause_params.is_empty() => info = self.u.intern_type(Type::ByName(info)),
             _ => {
-                for params in clause_params.into_iter().rev() {
+                for (params, (implicit, contextual)) in clause_params.into_iter().rev() {
                     let binder = self.u.fresh_binder();
-                    let method =
-                        Type::Method { binder, params, result: info, implicit: false, contextual: false };
+                    let method = Type::Method { binder, params, result: info, implicit, contextual };
                     info = self.u.intern_type(method);
                 }
             }

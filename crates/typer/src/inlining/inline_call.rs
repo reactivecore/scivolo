@@ -73,13 +73,15 @@ impl Inlining<'_> {
         if let Some(inner) = self.inline_ref_in(expansion) {
             return Err((self.tpd.span(inner), "inline call in an inline expansion"));
         }
-        if let Some(r) = bindings.iter().chain([&expansion]).find_map(|&b| self.erased_value_in(b)) {
-            return Err((self.tpd.span(r), "erasedValue in an inline expansion"));
-        }
         let locals: Vec<SymbolId> = bindings.iter().filter_map(|&b| self.tpd.sym(b)).collect();
         let tpe = self.tpd.tpe(expansion);
-        let tpe =
-            self.avoid(tpe, &locals).ok_or((span, "inline expansion of a type referring to a binding"))?;
+        let transparent = self.tpd.sym(def).is_some_and(|m| self.u.symbol(m).flags.has(TRANSPARENT));
+        let declared = Some(self.tpd.tpe(call))
+            .filter(|&t| !transparent && !locals.iter().any(|&s| self.mentions(t, s)));
+        let tpe = self
+            .avoid(tpe, &locals)
+            .or(declared)
+            .ok_or((span, "inline expansion of a type referring to a binding"))?;
         let tpe = super::prefix_seen::class_params_seen(self.u, tpe);
         let expanded = self.tpd.tpe(expansion);
         let expansion = self.sealed(&locals, expansion, tpe)?;

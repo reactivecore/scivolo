@@ -50,7 +50,7 @@ impl Gen<'_, '_> {
     }
 
     /// `v` as extern type `expected`: unboxed if `v` is its box.
-    fn extern_arg(&mut self, expected: TypeId, v: ValId) -> ValId {
+    pub fn extern_arg(&mut self, expected: TypeId, v: ValId) -> ValId {
         if *self.pool.ty(expected) == Type::Unit {
             return self.val(Val::Unit);
         }
@@ -65,7 +65,7 @@ impl Gen<'_, '_> {
     }
 
     /// Extern result `v` as type `expected`: boxed if `expected` is the box of its type.
-    fn extern_result(&mut self, expected: TypeId, v: ValId) -> ValId {
+    pub fn extern_result(&mut self, expected: TypeId, v: ValId) -> ValId {
         let ty = self.val_ty(v);
         match self.pool.ty(expected).clone() {
             Type::Ref { name, .. } if self.boxes(name, ty) => {

@@ -81,8 +81,8 @@ impl Typer<'_> {
     ) -> Option<Option<Approx>> {
         match self.u.symbol(s).kind {
             Kind::TypeParam => {
-                let arg = self.resolve_class_params(t);
-                (arg != t).then(|| match *self.u.types().get(arg) {
+                let arg = super::seen_from::class_param_arg(self.u, t).map(|a| self.resolve_class_params(a));
+                arg.map(|arg| match *self.u.types().get(arg) {
                     Type::Bounds(..) => self.avoid_info(arg, v, a),
                     _ => self.avoid_at(arg, v, a),
                 })

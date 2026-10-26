@@ -51,10 +51,16 @@ impl Universe {
         self.decl(owner, &name).ok()?.into_iter().find(|&s| self.is_class(s) && !self.is_module_class(s))
     }
 
-    /// The companion object of class `c`.
+    /// The companion object of class `c`, also one renamed while its class keeps `c`'s name.
     pub fn companion_module(&mut self, c: SymbolId) -> Option<SymbolId> {
         let owner = self.symbol(c).owner?;
         let name = self.symbol(c).name.clone();
-        self.decl(owner, &name).ok()?.into_iter().find(|&s| self.is_module(s))
+        let named = self.decl(owner, &name).unwrap_or_default().into_iter().find(|&s| self.is_module(s));
+        if named.is_some() {
+            return named;
+        }
+        let class = self.module_class_in(owner, &name)?;
+        let decls = self.decls(owner).unwrap_or_default();
+        decls.into_iter().find(|&s| self.is_module(s) && self.module_class(s) == Some(class))
     }
 }

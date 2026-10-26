@@ -56,10 +56,11 @@ impl Typer<'_> {
     }
 
     /// What dotty rejects in class `cls` deriving from `java.lang.Enum`, or the subset leaves out:
-    /// a class case, an enum outside a static scope, an explicit call of its constructor.
+    /// a class case, an enum outside a static scope, an explicit call of its constructor;
+    /// nothing in javalib's sources, whose classes extend their `_Enum`.
     pub fn java_enum_problem(&mut self, cls: SymbolId, parents: &[TNodeId]) -> Option<&'static str> {
         use tasty::tags::{CASE, ENUM, TRAIT};
-        if !self.derives_from_java_enum(cls) {
+        if !self.derives_from_java_enum(cls) || self.u.javalib_sources() {
             return None;
         }
         let flags = self.u.symbol(cls).flags;

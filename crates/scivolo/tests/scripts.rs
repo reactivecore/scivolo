@@ -45,6 +45,14 @@ fn scivolo_with(dir: &Path, options: &[&str], file: &str, mode: &str) -> Run {
     Run { out, stdout, stderr }
 }
 
+/// A new scratch directory `name/<process id>` for this run.
+fn scratch(name: &str) -> PathBuf {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name).join(std::process::id().to_string());
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
 /// How often the fake scala-cli ran.
 fn cli_calls(dir: &Path) -> usize {
     std::fs::read_to_string(dir.join("log")).map_or(0, |log| log.lines().count())
@@ -57,10 +65,7 @@ fn the_frontend_mode_chooses_the_compiler() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("scripts");
-    let _ = std::fs::remove_dir_all(dir.join("cache/scripts"));
-    let _ = std::fs::remove_file(dir.join("log"));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("scripts");
     let fatal = format!("//> using options -Werror\n{WARN}");
     let unused = "def one(): Int = 1\n@main def unused(): Unit =\n  one()\n  println(1)\n";
     let files = [("good.scala", GOOD), ("bad.scala", BAD), ("good.sc", "println(1)\n"), ("warn.scala", WARN)];
@@ -140,6 +145,7 @@ fn the_frontend_mode_chooses_the_compiler() {
     let r = scivolo(&dir, "good.scala", "fast");
     assert!(!r.out.status.success());
     assert!(r.stderr.contains("SCIVOLO_FRONTEND=fast: expected strict or jvm"), "{}", r.stderr);
+    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]
@@ -149,12 +155,11 @@ fn shutdown_hooks_run_after_main() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hooks");
-    let _ = std::fs::remove_dir_all(dir.join("cache/scripts"));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("hooks");
     let hook = "@main def hook(): Unit =\n  Runtime.getRuntime.addShutdownHook(new Thread(() => println(\"hook\")))\n  println(\"main\")\n";
     std::fs::write(dir.join("hook.scala"), hook).unwrap();
     let r = scivolo(&dir, "hook.scala", "strict");
     assert!(r.out.status.success(), "{}", r.stderr);
     assert_eq!(r.stdout, "main\nhook\n");
+    std::fs::remove_dir_all(&dir).unwrap();
 }

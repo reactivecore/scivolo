@@ -1,0 +1,76 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
+//! The implicits an implicit scope takes from the objects and values on the prefix paths of its
+//! parts (dotty's `addPath`).
+
+use super::super::Typer;
+use super::candidates::Candidate;
+use super::scope::ImplicitScope;
+use tasty::{SymbolId, Type, TypeId};
+
+impl Typer<'_> {
+    /// Adds the implicit members of `p` to `out` if it is a static object other than a package
+    /// object, or the `this` of one (dotty's `addPath` of a module).
+    pub fn add_static_module(&mut self, p: TypeId, out: &mut ImplicitScope) {
+        let s = match *self.u.types().get(p) {
+            Type::This(c) => match self.u.class_symbol(c).filter(|&c| self.u.is_module_class(c)) {
+                Some(c) => self.u.source_module(c),
+                None => return,
+            },
+            _ => self.referenced(p),
+        };
+        if let Some(s) = s
+            && self.u.is_module(s)
+            && self.is_static_term(s)
+            && !self.is_excluded(s)
+            && let Some(class) = self.u.module_class(s)
+        {
+            let module_ref = crate::defn::type_ref(self.u, s);
+            self.add_members(class, module_ref, out);
+        }
+    }
+
+    /// Adds the implicit members of `class` selected from path `prefix`, and `prefix`, to `out`.
+    pub fn add_members(&mut self, class: SymbolId, prefix: TypeId, out: &mut ImplicitScope) {
+        for sym in self.implicit_members(class, false) {
+            let candidate = Candidate { sym, prefix: Some(prefix) };
+            if !out.implicits.contains(&candidate) {
+                out.implicits.push(candidate);
+            }
+        }
+        if let Type::Sym(p, sym) = *self.u.types().get(prefix)
+            && !out.containers.contains(&Candidate { sym, prefix: p })
+        {
+            out.containers.push(Candidate { sym, prefix: p });
+        }
+    }
+
+    /// Adds the implicit members of the stable values that are not static objects on path `p` to
+    /// `out` (dotty's `addPath`).
+    pub fn add_path(&mut self, p: TypeId, out: &mut ImplicitScope) -> Result<(), &'static str> {
+        let outer = match *self.u.types().get(p) {
+            Type::Sym(outer, _) => outer,
+            Type::TermRef(outer, _) => Some(outer),
+            _ => return Ok(()),
+        };
+        let s = self.referenced(p).ok_or("implicit scope through an unresolved path")?;
+        if !self.u.symbol(s).kind.is_term()
+            || self.is_excluded(s)
+            || self.is_static_term(s) && self.u.is_module(s)
+        {
+            return Ok(());
+        }
+        self.complete(s);
+        let info = self.u.info(s);
+        if matches!(self.u.types().get(info), Type::Sym(_, x) if self.u.symbol(*x).kind.is_term()) {
+            return self.add_path(info, out);
+        }
+        let widened = self.u.widen(p);
+        let class = self.u.class_symbol(widened).ok_or("implicit scope through a value of no class type")?;
+        self.add_members(class, p, out);
+        match outer {
+            Some(outer) => self.add_path(outer, out),
+            None => Ok(()),
+        }
+    }
+}

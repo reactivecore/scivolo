@@ -73,12 +73,14 @@ impl Typer<'_> {
         Ok(!self.extension_members(value, name)?.is_empty())
     }
 
-    /// The extension methods `name` of a value of type `value`; `Err` for a type that is not a
-    /// class's, or if members other than methods are named so too.
+    /// The extension methods `name` of a value of type `value`; `Err` if members other than
+    /// methods are named so too.
     pub fn extension_members(&mut self, value: TypeId, name: &str) -> Result<Vec<SymbolId>, &'static str> {
         let value = self.u.widen(value);
-        let k = self.u.class_symbol(value).ok_or("implicit value of a type other than a class")?;
-        let members = self.class_members(k, name);
+        let members = match self.u.class_symbol(value) {
+            Some(k) => self.class_members(k, name),
+            None => self.type_members(value, name),
+        };
         let extensions: Vec<SymbolId> =
             members.iter().copied().filter(|&e| self.u.symbol(e).flags.has(EXTENSION)).collect();
         if !extensions.is_empty() && members.iter().any(|&m| self.u.symbol(m).kind != Kind::Def) {
@@ -87,10 +89,13 @@ impl Typer<'_> {
         Ok(extensions)
     }
 
-    /// Whether dotty ranks view method `c` above each of `widened`, views that take the constant
-    /// argument only widened: its parameter's value class widens to theirs, and their owners do
-    /// not derive from its owner.
+    /// Whether dotty ranks view `c` above each of `widened`, views that take the constant
+    /// argument only widened: a value above methods; a method if its parameter's value class
+    /// widens to theirs, and their owners do not derive from its owner.
     pub fn beats_widened(&mut self, c: Candidate, widened: &[Candidate]) -> bool {
+        if self.view_kind(c) == ViewKind::Value {
+            return widened.iter().all(|&w| self.view_kind(w) == ViewKind::Method);
+        }
         let Some(p) = self.view_param_class(c) else { return widened.is_empty() };
         let owner = self.u.symbol(c.sym).owner;
         widened.iter().all(|&w| {
@@ -135,7 +140,7 @@ impl Typer<'_> {
 
     /// The type of the value candidate `c` gives after its type and implicit parameters, or the
     /// number of parameters of its first explicit clause.
-    fn candidate_value(&mut self, c: Candidate) -> Result<TypeId, usize> {
+    pub fn candidate_value(&mut self, c: Candidate) -> Result<TypeId, usize> {
         self.complete(c.sym);
         let tpe = self.ref_type(c.prefix, c.sym);
         let mut info = self.method_info(tpe).unwrap_or(tpe);

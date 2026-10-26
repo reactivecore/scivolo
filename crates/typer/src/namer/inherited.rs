@@ -47,29 +47,60 @@ impl Typer<'_> {
     }
 
     /// `t` with each type member of a base class of `cls` selected from `site`, `cls`'s `this`,
-    /// replaced by the member of that name `cls` sees.
+    /// or of a base class of an enclosing class selected from its `this`, replaced by the member
+    /// of that name that class sees.
     fn rebound(&mut self, t: TypeId, site: TypeId, cls: SymbolId) -> TypeId {
-        let bases = self.u.linearization(cls);
         self.u.map_type(t, &mut |u, x| {
             let &Type::Sym(p, s) = u.types().get(x) else { return None };
             let owner = u.symbol(s).owner?;
-            if p.is_some_and(|p| p != site) || u.symbol(s).kind != Kind::Type || !bases.contains(&owner) {
+            let (site, cls) = match p.map(|p| u.types().get(p).clone()) {
+                None => (site, cls),
+                Some(_) if p == Some(site) => (site, cls),
+                Some(Type::This(c)) => (p?, u.class_symbol(c)?),
+                Some(_) => return None,
+            };
+            let bases = u.linearization(cls);
+            if u.symbol(s).kind != Kind::Type || !bases.contains(&owner) {
                 return None;
             }
             let name = u.symbol(s).name.clone();
             let visible = |d: &SymbolId| {
                 let d = u.symbol(*d);
-                d.kind == Kind::Type && d.name == name && !d.flags.has(tasty::tags::PRIVATE)
+                matches!(d.kind, Kind::Type | Kind::Class)
+                    && d.name == name
+                    && !d.flags.has(tasty::tags::PRIVATE)
             };
             let m = bases.iter().find_map(|&b| u.symbol(b).decls.iter().copied().find(visible))?;
-            (m != s).then(|| u.intern_type(Type::Sym(Some(site), m)))
+            if m == s {
+                return None;
+            }
+            Some(match u.symbol(m).kind {
+                Kind::Class => crate::defn::type_ref(u, m),
+                _ => u.intern_type(Type::Sym(Some(site), m)),
+            })
         })
     }
 
-    /// The parameter types of each value clause of script method `sym`, or none for a value.
+    /// The parameter types of each value clause of script method `sym`, an empty clause `()`
+    /// among them, or none for a value.
     fn value_param_types(&mut self, sym: SymbolId) -> Vec<Vec<TypeId>> {
         let clauses = self.syms.param_clauses.get(&sym).cloned().unwrap_or_default();
-        clauses.iter().map(|c| c.iter().map(|&p| self.u.info(p)).collect()).collect()
+        let Some(&tree) = self.syms.def_trees.get(&sym) else {
+            return clauses.iter().map(|c| c.iter().map(|&p| self.u.info(p)).collect()).collect();
+        };
+        let mut values = clauses.into_iter();
+        let mut out = Vec::new();
+        for clause in self.def_clauses(tree) {
+            match clause.first() {
+                None => out.push(Vec::new()),
+                Some(&p) if matches!(self.ast.tree(p), Tree::TypeDef { .. }) => {}
+                Some(_) => {
+                    let params = values.next().unwrap_or_default();
+                    out.push(params.iter().map(|&p| self.u.info(p)).collect());
+                }
+            }
+        }
+        out
     }
 
     /// The result type of member `m` as seen from `site` if it has as many type parameters as

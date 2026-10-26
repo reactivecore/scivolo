@@ -12,6 +12,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     retained_bodies::transform(l, root)?;
     drop_for_map::transform(l, root)?;
     drop_inlined::transform(l, root)?;
+    native_interop::transform(l, root);
     context_results::transform(l, root)?;
     trait_init::find_inits(l, &class_defs(l.tpd, root));
     module_purity::record(l, root);
@@ -67,7 +68,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     explicit_outer::transform(l, &classes)?;
     drop_imports::transform(l, root);
-    let erased = erasure::erased_defs::drop(l, root);
+    let erased = erasure::erased_defs::drop(l, root, &inits)?;
     retain_outside(l.tpd, &mut classes, erased);
     let pending = local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes, pending)?;

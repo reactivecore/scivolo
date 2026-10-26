@@ -100,7 +100,10 @@ impl Typer<'_> {
                     {
                         Some(Hit { found, prec: Prec::NamedImport, scope })
                     } else if possible(&prev, Prec::WildImport) {
-                        let found = self.wild_import_ref(i, name.text, name.is_type);
+                        let found = self.wild_import_ref(i, name.text, name.is_type).and_then(|mut f| {
+                            f.syms.retain(|&s| self.is_accessible_from(s, f.prefix, ctx));
+                            (!f.syms.is_empty()).then_some(f)
+                        });
                         found.map(|found| Hit { found, prec: Prec::WildImport, scope })
                     } else {
                         None

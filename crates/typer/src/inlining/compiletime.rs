@@ -16,8 +16,13 @@ impl Inlining<'_> {
         let meth = self.tpd.sym(self.tpd.meth_part(call))?;
         let owner = self.u.symbol(meth).owner?;
         let package = self.u.symbol(owner).owner?;
+        let name = &self.u.symbol(meth).name;
         let ours = crate::defn::is_named_package_object(self.u, owner)
-            && self.u.full_name(package) == "scala.compiletime";
+            && match self.u.full_name(package).as_str() {
+                "scala.compiletime" => true,
+                "scala.compiletime.testing" => name == "typeChecks" || name == "typeCheckErrors",
+                _ => false,
+            };
         ours.then(|| self.u.symbol(meth).name.clone())
     }
 
@@ -46,6 +51,16 @@ impl Inlining<'_> {
                 self.tpd.node(T::Literal { value: C::Unit }, span, Some(tpe), None)
             }
             ("codeOf", Some(arg), _) => self.code_of(arg, span)?,
+            ("typeChecks", Some(arg), _) => {
+                let checks = self.type_checks(arg, owner, span)?;
+                self.literal(C::Boolean(checks), span)
+            }
+            ("typeCheckErrors", Some(arg), _) => {
+                if !self.type_checks(arg, owner, span)? {
+                    return Err((span, "typeCheckErrors of code with errors"));
+                }
+                self.no_errors(call, span)?
+            }
             ("constValue", _, Some(t)) => {
                 let tpe = self.tpd.tpe(t);
                 let value =

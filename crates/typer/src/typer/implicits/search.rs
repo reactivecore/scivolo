@@ -147,10 +147,10 @@ impl Typer<'_> {
         };
         let stripped = self.strip_implicit(info);
         let method = matches!(self.u.types().get(stripped), Type::Method { .. });
-        match self.implicit_value_type(info, c.sym, pt) {
-            Some(value) if self.conforms(value, pt) => {}
+        let value = match self.implicit_value_type(info, c.sym, pt) {
+            Some(value) if self.conforms(value, pt) => value,
             _ => return Err("implicit of another type"),
-        }
+        };
         if self.implicit_budget == 0 {
             return Err("implicit search too costly");
         }
@@ -158,6 +158,8 @@ impl Typer<'_> {
         let applied = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
         if applied != tree {
             self.interpolate(applied, Pt::Type(pt), from)?;
+        } else if self.has_open_constructor(value, from) {
+            return Err("implicit candidate with undetermined type variables (#123)");
         }
         let tree = applied;
         let tree = if method { self.eta_expanded_implicit(tree, pt, ctx)? } else { tree };

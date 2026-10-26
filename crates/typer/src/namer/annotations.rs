@@ -61,8 +61,10 @@ impl Typer<'_> {
             }
             if !self.syms.annotation_trees.iter().any(|&(s, a, _)| (s, a) == (sym, annot)) {
                 self.syms.annotation_trees.push((sym, annot, ctx));
-                let arg = self.string_arg(annot);
-                self.u.annotate_string(sym, class, arg);
+                if self.has_args(annot) {
+                    let arg = self.string_arg(annot);
+                    self.u.annotate_string(sym, class, arg);
+                }
             }
         }
     }
@@ -93,6 +95,18 @@ impl Typer<'_> {
                 self.unsupported(annot, "@targetName other than a string on a method or value member");
             }
         }
+    }
+
+    /// Whether annotation `annot` is applied to arguments.
+    fn has_args(&self, annot: NodeId) -> bool {
+        let mut t = annot;
+        while let Tree::Apply { fun, args } = *self.ast.tree(t) {
+            if !self.ast.items(args).is_empty() {
+                return true;
+            }
+            t = fun;
+        }
+        false
     }
 
     /// The string literal that is the only argument of annotation `annot`.

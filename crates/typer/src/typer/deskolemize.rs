@@ -23,7 +23,10 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
         Type::Sym(Some(p), s) if u.symbol(s).kind == Kind::Type && is_skolem(u, p) => {
             let Type::Skolem(_, info) = *u.types().get(p) else { return None };
             let info = deskolemized(u, info, 1)?;
-            let member = u.member_info(info, s);
+            let member = match u.refinement_info(info, s) {
+                Some(refined) => refined,
+                None => u.member_info(info, s),
+            };
             let bounds = match u.types().get(member).clone() {
                 Type::Bounds(lo, hi) => (lo, hi),
                 Type::Alias(a) => return deskolemized(u, a, v),

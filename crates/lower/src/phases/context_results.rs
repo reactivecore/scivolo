@@ -3,6 +3,7 @@
 //! Methods whose results are context closures take the closures' parameters as their own, and
 //! their calls the closures' arguments (dotty's `ContextFunctionResults`).
 
+use super::erased_context_results::is_erased_context_function;
 use super::function_classes::function_class_arity;
 use super::walk::subtrees;
 use crate::{Lower, Result, unsupported};
@@ -57,6 +58,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         let clauses = super::context_bridges::clauses(l, info).len();
         let depth = integrate(l, t, m);
         l.context_results.insert(m, (info, depth));
+        super::erased_context_results::rename_direct(l, m, info);
         flattened.push(Flattened { m, clauses, depth });
     }
     let mut calls = Vec::new();
@@ -66,6 +68,10 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         }
     }
     let mut handled: FxHashSet<TNodeId> = inline_rhss.into_iter().flat_map(|r| subtrees(l.tpd, r)).collect();
+    handled.extend(subtrees(l.tpd, root).into_iter().filter_map(|t| match *l.tpd.tree(t) {
+        Tree::Return { from, .. } => Some(from),
+        _ => None,
+    }));
     for (applies, r) in calls {
         handled.insert(r);
         for a in applies {
@@ -118,16 +124,19 @@ fn integrate(l: &mut Lower, def: TNodeId, m: SymbolId) -> usize {
         unreachable!("a method with a body")
     };
     let mut clauses = l.tpd.clause_items(paramss).to_vec();
-    let mut anons = Vec::new();
+    let (mut anons, mut context_params) = (Vec::new(), Vec::<Vec<SymbolId>>::new());
     while is_context_function(l, l.tpd.tpe(tpt)) {
         let Some(anon_def) = closure_def(l, rhs) else { break };
         let Tree::DefDef { paramss: ap, tpt: at, rhs: Some(ar), .. } = *l.tpd.tree(anon_def) else {
             unreachable!("a closure's method")
         };
         clauses.extend_from_slice(l.tpd.clause_items(ap));
+        let own = l.tpd.clause_items(ap).iter().flat_map(|&c| l.tpd.items(c).to_vec());
+        context_params.push(own.filter_map(|p| l.tpd.sym(p)).collect());
         anons.push(l.tpd.sym(anon_def).expect("a closure's method symbol"));
         (tpt, rhs) = (at, ar);
     }
+    super::context_returns::integrate_returns(l, rhs, m, &context_params);
     let params: Vec<TNodeId> = clauses.iter().flat_map(|&c| l.tpd.items(c).to_vec()).collect();
     for t in params.into_iter().chain(subtrees(l.tpd, rhs)) {
         let Some(s) = l.tpd.sym(t) else { continue };
@@ -221,30 +230,40 @@ fn method_ref(l: &Lower, mut t: TNodeId) -> TNodeId {
     t
 }
 
-/// Whether `t` selects the `apply` of a `ContextFunctionN`.
+/// Whether `t` selects the `apply` of a `ContextFunctionN` or of a context function type with
+/// erased parameters.
 fn is_context_apply(l: &mut Lower, t: TNodeId) -> bool {
-    let Some(s) = l.tpd.sym(t) else { return false };
+    let Some(s) = l.tpd.sym(t) else {
+        let Type::TermRef(prefix, name) = l.u.types().get(l.tpd.tpe(t)).clone() else { return false };
+        return name == "apply" && is_erased_context_function(l, prefix);
+    };
     let owner = l.u.symbol(s).owner;
     l.u.symbol(s).name == "apply"
         && owner.and_then(|c| function_class_arity(l, c)).is_some_and(|(_, context)| context)
 }
 
 /// Whether library method `s` is annotated `ContextResultCount`.
-fn is_annotated(l: &Lower, s: SymbolId) -> bool {
+fn is_annotated(l: &mut Lower, s: SymbolId) -> bool {
     l.u.symbol(s).tree.is_some() && l.u.is_annotated(s, "scala.annotation.internal.ContextResultCount")
 }
 
-/// Whether `t` is a `ContextFunctionN` type.
+/// Whether `t` is a `ContextFunctionN` type, or a context function type with erased parameters.
 pub fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
     let t = l.u.dealias(t);
-    let Type::Applied(tycon, _) = *l.u.types().get(t) else { return false };
+    let mut base = t;
+    while let Type::Refined(parent, ref name, _) = *l.u.types().get(base)
+        && name == "apply"
+    {
+        base = parent;
+    }
+    let Type::Applied(tycon, _) = *l.u.types().get(base) else { return is_erased_context_function(l, t) };
     let class = l.u.class_symbol(tycon);
     class.and_then(|c| function_class_arity(l, c)).is_some_and(|(_, context)| context)
 }
 
 /// The method definition `t` is a closure of, in blocks without statements (dotty's
 /// `closureDef`).
-fn closure_def(l: &Lower, t: TNodeId) -> Option<TNodeId> {
+pub fn closure_def(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::Block { stats, expr } = *l.tpd.tree(t) else { return None };
     match l.tpd.items(stats) {
         [] => closure_def(l, expr),

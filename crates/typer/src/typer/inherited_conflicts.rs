@@ -27,6 +27,9 @@ impl Typer<'_> {
                     .collect();
                 let Some((&winner, rest)) = concrete.split_first() else { continue };
                 let Some(winner_owner) = self.u.symbol(winner).owner else { continue };
+                if self.is_synthesized_case_member(cls, winner_owner, name) {
+                    continue;
+                }
                 for &m in rest {
                     let owner = self.u.symbol(m).owner.expect("a member");
                     if self.u.derives_from(winner_owner, owner) || !self.same_member(site, winner, m) {
@@ -40,6 +43,25 @@ impl Typer<'_> {
                 }
             }
         }
+    }
+
+    /// Whether case class `cls` gets a synthetic member `name` overriding the inherited ones,
+    /// the first of which `owner` declares (dotty's `SyntheticMembers.existingDef`).
+    fn is_synthesized_case_member(&self, cls: SymbolId, owner: SymbolId, name: &str) -> bool {
+        const SYNTHESIZED: [&str; 8] = [
+            "hashCode",
+            "equals",
+            "toString",
+            "canEqual",
+            "productArity",
+            "productPrefix",
+            "productElement",
+            "productElementName",
+        ];
+        let original = ["scala.Any", "java.lang.Object", "scala.Product", "scala.Equals"];
+        self.u.symbol(cls).flags.has(tasty::tags::CASE)
+            && SYNTHESIZED.contains(&name)
+            && original.contains(&self.u.full_name(owner).as_str())
     }
 
     /// Whether member `m` of class `a`, declared `override`, overrides the member of class `b`.

@@ -68,7 +68,7 @@ impl Gen<'_, '_> {
                 )?,
             },
             Tree::Ident { .. } => {
-                self.check_callee(sym, span)?;
+                self.check_call(sym, span)?;
                 let prefix = match *self.l.u.types().get(self.l.tpd.tpe(fun)) {
                     tasty::Type::Sym(Some(p), _) | tasty::Type::TermRef(p, _) => p,
                     _ => return unsupported(span, "a call of a local method"),
@@ -94,6 +94,9 @@ impl Gen<'_, '_> {
         let Some(class) = self.l.u.class_symbol(self.l.tpd.tpe(tpt)) else {
             return unsupported(self.l.tpd.span(tpt), "`new` of a type that is not a class");
         };
+        if self.is_struct(class) {
+            return unsupported(span, "`new` of a `@struct` class");
+        }
         let name = self.type_name(class);
         let alloc = self.emit(Op::Classalloc { name, zone: None });
         let args = self.gen_args(ctor, args, span)?;
@@ -135,6 +138,7 @@ impl Gen<'_, '_> {
         let owner = self.method_owner(sym);
         let owner_ty = self.class_ref(owner);
         self.check_conforms(receiver, owner_ty, span)?;
+        let statically = statically || matches!(self.pool.ty(owner_ty), Type::StructValue(_));
         if is_extern(self.l.u, sym) {
             return self.call_extern(sym, args, span);
         }

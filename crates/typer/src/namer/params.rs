@@ -28,14 +28,21 @@ impl Typer<'_> {
         })
     }
 
-    /// The type of parameter `p` in its method's type, `@InlineParam` if it is inline, inside a
-    /// by-name type (dotty's `adaptParamInfo`).
+    /// The type of parameter `p` in its method's type, `@InlineParam` if it is inline and
+    /// `@ErasedParam` if it is erased, inside a by-name type (dotty's `adaptParamInfo`).
     pub fn method_param_type(&mut self, p: SymbolId) -> tasty::TypeId {
-        let t = self.param_type(p);
-        if !self.syms.flags.get(&p).is_some_and(|fl| fl.is(f::INLINE)) {
-            return t;
+        let mut t = self.param_type(p);
+        let flags = self.syms.flags.get(&p).copied().unwrap_or_default();
+        for (flag, annot) in [(f::INLINE, "InlineParam"), (f::ERASED, "ErasedParam")] {
+            if flags.is(flag) {
+                t = self.annotated_param(t, annot);
+            }
         }
-        let Some(class) = self.resolve_full_name("scala.annotation.internal.InlineParam", true) else {
+        t
+    }
+
+    fn annotated_param(&mut self, t: tasty::TypeId, annot: &str) -> tasty::TypeId {
+        let Some(class) = self.resolve_full_name(&format!("scala.annotation.internal.{annot}"), true) else {
             return t;
         };
         let annot = crate::defn::type_ref(self.u, class);
@@ -115,9 +122,6 @@ impl Typer<'_> {
         if flags.is_all_of(f::INLINE.or(f::HAS_DEFAULT)) {
             self.unsupported(p, "default argument of an inline parameter");
         }
-        if flags.is(f::ERASED) {
-            self.unsupported(p, "erased parameter");
-        }
         let text = self.text(name.name).to_owned();
         let s = self.syms.define(self.u, &text, kind, method, flags);
         self.syms.param_trees.insert(s, p);
@@ -148,6 +152,8 @@ impl Typer<'_> {
         self.u.set_info(s, info);
         if self.u.is_type_symbol(s) {
             self.check_non_cyclic(s, info, p);
+        } else {
+            self.mark_erased_by_type(s, p, info);
         }
     }
 }

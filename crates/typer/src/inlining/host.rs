@@ -32,6 +32,13 @@ pub trait Host {
     fn error(&mut self, at: Span, msg: String);
     /// Whether an error has been reported.
     fn has_errors(&self) -> bool;
+    /// How many errors have been reported, and whether there are more than `mark`, which it
+    /// takes back (for `typeChecks`).
+    fn error_count(&self) -> usize;
+    fn errors_since(&mut self, mark: usize) -> bool;
+    /// Statements `code` parsed and typed as a block in `ctx`, `None` if that reports an error
+    /// (dotty's `Inlines.Intrinsics.compileForErrors` up to the typer).
+    fn typed_code(&mut self, lent: Lent<'_>, code: &str, ctx: Ctx) -> Option<TNodeId>;
     /// What macro call `call` expands to (dotty's `Splicer.splice`).
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError>;
     /// The typed annotations on `s`, a symbol of the unit, in source order.

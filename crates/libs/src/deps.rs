@@ -6,10 +6,14 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 /// The Maven coordinate of `dep`: `g::a::v` and `g::a:v` name the Scala Native library
-/// `g:a_native0.5_3:v`; `g:a:v` stays.
+/// `g:a_native0.5_3:v`; `g:a:v` stays. A comma stands only inside a version range; parameters
+/// such as `,exclude=…` are refused.
 pub fn coordinate(dep: &str) -> Result<String, String> {
     let parts: Vec<&str> = dep.split(':').collect();
-    let named = |ps: &[&str]| ps.iter().all(|p| !p.is_empty());
+    let range = |v: &str| v.starts_with(['[', '(']) && v.ends_with([']', ')']);
+    let named = |ps: &[&str]| {
+        ps.iter().all(|p| !p.is_empty() && !p.contains(['=', '%']) && (!p.contains(',') || range(p)))
+    };
     match parts[..] {
         [g, "", a, "", v] | [g, "", a, v] if named(&[g, a, v]) => Ok(format!("{g}:{a}_native0.5_3:{v}")),
         [g, a, v] if named(&[g, a, v]) => Ok(dep.to_owned()),
@@ -99,5 +103,8 @@ mod tests {
         assert_eq!(coordinate("com.lihaoyi::geny:1.1.0"), native);
         assert_eq!(coordinate("org.x:y:1"), Ok("org.x:y:1".into()));
         assert!(coordinate("geny").is_err() && coordinate("a::b").is_err() && coordinate("a::b:").is_err());
+        assert_eq!(coordinate("a:b:[1.0,2.0)"), Ok("a:b:[1.0,2.0)".into()));
+        assert!(coordinate("a::b:1,").is_err() && coordinate("a::b:1,intransitive").is_err());
+        assert!(coordinate("a::b:1,exclude=c%d").is_err() && coordinate("a:b,url=x:1").is_err());
     }
 }

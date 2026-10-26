@@ -33,7 +33,7 @@ impl Typer<'_> {
         });
         let constant =
             info.is_some_and(|t| matches!(self.u.types().get(t), Type::Constant(..) | Type::Str(_)));
-        if inline && (!constant || rhs.is_some_and(|r| !self.is_pure_expr(r))) {
+        if inline && (!constant || rhs.is_some_and(|r| !self.is_inline_value_rhs(r))) {
             return self.unsupported(id, "inline value of a type that is not constant or impure");
         }
         self.tpd.node(T::ValDef { name, tpt, rhs }, span, None, sym)
@@ -99,7 +99,9 @@ impl Typer<'_> {
             self.error_at(self.ast.span(id), "Traits cannot have secondary constructors");
         }
         let erasure_mark = self.erasure_diags.items.len();
+        let linked = self.link_constructor_params(sym, id);
         let mut rhs = rhs.map(|r| self.typed(r, Pt::Type(result), mctx));
+        self.unlink_constructor_params(linked);
         if let Some(r) = rhs
             && self.u.symbol(sym).name == "<init>"
             && !self.calls_preceding_constructor(r, sym)

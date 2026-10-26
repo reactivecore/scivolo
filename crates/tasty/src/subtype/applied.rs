@@ -86,6 +86,7 @@ impl Cmp<'_> {
                     };
                     return same && self.sub_args(&args1, args2, variances);
                 }
+                Type::Param(..) => return tycon1 == tycon2 && self.sub_args(&args1, args2, variances),
                 _ => return false,
             }
         }

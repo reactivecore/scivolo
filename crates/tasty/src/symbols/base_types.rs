@@ -45,6 +45,10 @@ impl Universe {
                 let sup = self.try_normalize(t).unwrap_or(bound);
                 return self.base_type_within(sup, base, depth);
             }
+            Type::TermRef(..) if self.resolve_ref(t).is_none() => {
+                let underlying = self.widen(t);
+                return (underlying != t).then(|| self.base_type_within(underlying, base, depth)).flatten();
+            }
             _ => (t, Vec::new()),
         };
         let (prefix, s) = match self.types().get(tycon).clone() {
@@ -66,8 +70,21 @@ impl Universe {
         }
         if self.symbol(s).kind != Kind::Class {
             let term = self.symbol(s).kind.is_term();
+            if !term && !args.is_empty() {
+                let dealiased = self.dealias(t);
+                if dealiased != t {
+                    return self.base_type_within(dealiased, base, depth);
+                }
+            }
             let dealiased = match (args.is_empty(), prefix) {
                 (true, Some(p)) if term => self.member_info(p, s),
+                (true, Some(p)) if self.is_value_path(p) => {
+                    let info = self.info(s);
+                    match self.symbol(s).owner {
+                        Some(o) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),
+                        _ => info,
+                    }
+                }
                 (true, _) => self.info(s),
                 (false, _) => self.expand_upper(tycon, &args)?,
             };

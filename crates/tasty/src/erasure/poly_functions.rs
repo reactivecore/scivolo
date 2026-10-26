@@ -51,9 +51,11 @@ impl Universe {
     pub fn erase_refined_function_apply(&mut self, info: TypeId) -> Erased {
         let mut t = info;
         let arity = loop {
-            match self.types().get(t) {
-                Type::Poly { result, .. } => t = *result,
-                Type::Method { params, .. } => break params.len(),
+            match self.types().get(t).clone() {
+                Type::Poly { result, .. } => t = result,
+                Type::Method { params, .. } => {
+                    break params.into_iter().filter(|&(_, p)| !self.is_erased_param(p)).count();
+                }
                 _ => break 0,
             }
         };

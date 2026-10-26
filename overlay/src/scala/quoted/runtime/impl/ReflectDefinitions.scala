@@ -57,10 +57,13 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
     }
   }
 
-  object New extends NewModule {
-    def apply(tpt: TypeTree): New = ReflectOps.term(ReflectOps.one("new", ReflectOps.id(tpt))).asInstanceOf[New]
-    def copy(original: Tree)(tpt: TypeTree): New = refused("New.copy")
-    def unapply(x: New): Some[TypeTree] = refused("New.unapply")
+  given ClosureMethods: ClosureMethods = methods("ClosureMethodsImpl")
+
+  abstract class ClosureMethodsImpl extends ClosureMethods {
+    extension (self: Closure) {
+      def meth: Term = ReflectOps.shape(self).child(0).asInstanceOf[Term]
+      def tpeOpt: Option[TypeRepr] = ReflectOps.opt(ReflectOps.shape(self).children(1)).map(ReflectOps.tpe(_).asInstanceOf[TypeRepr])
+    }
   }
 
   object Lambda extends LambdaModule {
@@ -79,25 +82,19 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
 
   object Closure extends ClosureModule {
     def apply(meth: Term, tpe: Option[TypeRepr]): Closure = refused("Closure.apply")
-    def copy(original: Tree)(meth: Tree, tpe: Option[TypeRepr]): Closure = refused("Closure.copy")
-    def unapply(x: Closure): (Term, Option[TypeRepr]) = {
-      val s = ReflectOps.shape(x)
-      (s.child(0).asInstanceOf[Term], ReflectOps.opt(s.children(1)).map(_ => refused("Closure.tpe")))
+    def copy(original: Tree)(meth: Tree, tpe: Option[TypeRepr]): Closure = {
+      val tpt = ReflectOps.opt(ReflectOps.shape(original).children(1))
+      val same = (tpe, tpt) match {
+        case (None, None)       => true
+        case (Some(a), Some(b)) => a =:= b.asInstanceOf[TypeTree].tpe
+        case _                  => false
+      }
+      if (!same) refused("Closure.copy with another type")
+      ReflectOps.copy(original, null, meth, tpt).asInstanceOf[Closure]
     }
+    def unapply(x: Closure): (Term, Option[TypeRepr]) = (x.meth, x.tpeOpt)
   }
 
-  object Assign extends AssignModule {
-    def apply(lhs: Term, rhs: Term): Assign =
-      ReflectOps.term(ReflectOps.one("assign", ReflectOps.id(lhs), ReflectOps.id(rhs))).asInstanceOf[Assign]
-    def copy(original: Tree)(lhs: Term, rhs: Term): Assign = refused("Assign.copy")
-    def unapply(x: Assign): (Term, Term) = refused("Assign.unapply")
-  }
-
-  object TypeIdent extends TypeIdentModule {
-    def apply(sym: Symbol): TypeTree = ReflectOps.term(ReflectOps.one("typeIdent", ReflectOps.id(sym))).asInstanceOf[TypeTree]
-    def copy(original: Tree)(name: String): TypeIdent = refused("TypeIdent.copy")
-    def unapply(x: TypeIdent): Some[String] = refused("TypeIdent.unapply")
-  }
 
   object TermParamClause extends TermParamClauseModule {
     def apply(params: List[ValDef]): TermParamClause = new ClauseImpl(false, params).asInstanceOf[TermParamClause]
@@ -118,8 +115,16 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
   given TypeParamClauseTypeTest: TypeTest[ParamClause, TypeParamClause] = clauses(true)
 
   abstract class ClassDefMethodsImpl extends ClassDefMethods {
-    extension (self: ClassDef) def body: List[Statement] =
-      ReflectOps.results("classBody", ReflectOps.id(self)).map(ReflectOps.term).asInstanceOf[List[Statement]]
+    extension (self: ClassDef) {
+      def constructor: DefDef = ReflectOps.term(ReflectOps.results("classParts", ReflectOps.id(self))(0)).asInstanceOf[DefDef]
+      def parents: List[Tree] = {
+        val r = ReflectOps.results("classParts", ReflectOps.id(self))
+        r.drop(3).take(r(2)).map(ReflectOps.term).asInstanceOf[List[Tree]]
+      }
+      def self: Option[ValDef] = ReflectOps.opt(ReflectOps.results("classParts", ReflectOps.id(self))(1)).asInstanceOf[Option[ValDef]]
+      def body: List[Statement] =
+        ReflectOps.results("classBody", ReflectOps.id(self)).map(ReflectOps.term).asInstanceOf[List[Statement]]
+    }
   }
 
   abstract class DefDefMethodsImpl extends DefDefMethods {
@@ -133,6 +138,14 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
         shapes.zip(starts).map((c, start) => new ClauseImpl(c(0) != 0, params.slice(start, start + c(1))))
           .asInstanceOf[List[ParamClause]]
       }
+      def leadingTypeParams: List[TypeDef] = self.paramss match {
+        case (c: ClauseImpl) :: _ if c.isType => c.params.asInstanceOf[List[TypeDef]]
+        case _                                => Nil
+      }
+      def trailingParamss: List[ParamClause] =
+        if (self.leadingTypeParams.isEmpty) self.paramss else self.paramss.tail
+      def termParamss: List[TermParamClause] =
+        self.paramss.filter(!_.asInstanceOf[ClauseImpl].isType).asInstanceOf[List[TermParamClause]]
       def returnTpt: TypeTree = ReflectOps.shape(self).child(0).asInstanceOf[TypeTree]
       def rhs: Option[Term] = ReflectOps.opt(ReflectOps.shape(self).children(1)).asInstanceOf[Option[Term]]
     }

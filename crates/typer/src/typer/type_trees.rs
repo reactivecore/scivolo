@@ -20,6 +20,10 @@ impl Typer<'_> {
                 self.typed(id, Pt::Any, ctx)
             }
             Tree::AppliedTypeTree { tpt: op, args } => {
+                let items = self.ast.items(args).to_vec();
+                if let Some(throws) = self.throws_type(id, op, &items, ctx) {
+                    return self.typed_type(throws, ctx);
+                }
                 let tpt = self.typed_type(op, ctx);
                 if self.is_invalid_future_infix_op(id, op, self.tpd.sym(tpt)) {
                     return self.unsupported(id, "alphanumeric infix type under -source future");
@@ -71,7 +75,8 @@ impl Typer<'_> {
                         self.check_simple_kinded(t, a);
                     }
                 }
-                let wildcard = arg_types.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)));
+                let wildcard = !ctx.mode.is(Mode::PATTERN_TYPE)
+                    && arg_types.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)));
                 let mut reduced = false;
                 if wildcard
                     && let Type::Sym(_, s) = *self.u.types().get(tycon)
@@ -86,9 +91,15 @@ impl Typer<'_> {
                 let arg_types = self.pattern_bound_args(tycon, &mut typed_args, &vars, arg_types, ctx);
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
                 let tpe = if reduced { self.u.dealias(tpe) } else { tpe };
+                let from = self.tpd.sym(tpt).is_some_and(|s| self.u.symbol(s).name == "From");
+                let tpe = if from { self.with_case_fields(tpe) } else { tpe };
                 if self.is_ground_match(tpe) {
                     return self.unsupported(id, "match type that may reduce");
                 }
+                let tpe = match ctx.mode.is(Mode::PATTERN_TYPE) {
+                    false => self.u.try_normalize(tpe).unwrap_or(tpe),
+                    true => tpe,
+                };
                 let args = self.tpd.list(&typed_args);
                 self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)
             }

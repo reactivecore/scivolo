@@ -235,7 +235,7 @@ lib-compile module filter="": fetch-scala-native
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     python3 scripts/lib-compile.py '{{ module }}' '{{ filter }}'
 
-# Compile Scala Native's library with its build's Scala 3 (sbt, JDK; 3.8.3) into tmp/lib/sn,
+# Compile Scala Native's library with Scala 3.9.0 (sbt, JDK; ADR 0046) into tmp/lib/sn,
 # lib-compile's oracle in place of the published jars, which Scala 3.1.3 compiled.
 lib-oracle: fetch-scala-native
     scripts/lib-oracle.sh

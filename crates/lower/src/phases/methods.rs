@@ -54,6 +54,9 @@ impl Lower<'_> {
         let mut param_defs = Vec::new();
         let mut args = Vec::new();
         for (pname, ptype) in params {
+            if self.u.is_erased_param(ptype) {
+                continue;
+            }
             let p = self.u.define(symbol(&pname, Kind::Param, sym, Default::default()));
             self.u.set_info(p, ptype);
             let tpt = self.type_tree(ptype, span);

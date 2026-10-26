@@ -94,15 +94,20 @@ impl Universe {
         let in_scala2_class = owner.is_some_and(|o| self.symbol(o).kind == Kind::Class && self.is_scala2(o));
         let scala2 = in_scala2_class && !self.symbol(def).flags.has(INLINE);
         let previous = self.set_scala2_erasure(scala2);
-        let erased = self.erase_method(def, semi);
+        let (info, val) = (self.info(def), self.symbol(def).kind == Kind::Val);
+        let erased = self.erase_method(info, val, semi);
         self.set_scala2_erasure(previous);
         self.remember_erased((def, semi), generation, &erased);
         erased
     }
 
-    fn erase_method(&mut self, def: SymbolId, semi: bool) -> (Vec<Erased>, Erased) {
+    /// `erased_method` of a method of type `info`.
+    pub fn erased_method_type(&mut self, info: TypeId) -> (Vec<Erased>, Erased) {
+        self.erase_method(info, false, false)
+    }
+
+    fn erase_method(&mut self, mut t: TypeId, val: bool, semi: bool) -> (Vec<Erased>, Erased) {
         let erase = |u: &mut Self, t| if semi { u.erase_value(t) } else { u.erase(t) };
-        let mut t = self.info(def);
         let mut params = Vec::new();
         let mut bounds = Vec::new();
         loop {
@@ -118,6 +123,7 @@ impl Universe {
                 _ => break,
             }
         }
+        params.retain(|&p| !self.is_erased_param(p));
         let params = params
             .into_iter()
             .map(|p| {
@@ -130,9 +136,7 @@ impl Universe {
             .collect();
         let t = self.upper_bound(t, &bounds);
         match erase(self, t) {
-            Erased::Unit if self.symbol(def).kind == Kind::Val => {
-                (params, Erased::Class("scala.runtime.BoxedUnit".into()))
-            }
+            Erased::Unit if val => (params, Erased::Class("scala.runtime.BoxedUnit".into())),
             e => (params, e),
         }
     }

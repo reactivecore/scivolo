@@ -25,6 +25,8 @@ enum Gives {
     Id,
     /// `blocking` of the `extern` attribute of an extern definition.
     Blocking,
+    /// Nothing; the code generator reads it and its string argument, if any.
+    Generated,
     Refused,
 }
 
@@ -43,13 +45,13 @@ const ANNOTATIONS: [(&str, Gives); 21] = [
     ("scala.scalanative.annotation.align", Gives::Refused),
     ("scala.scalanative.annotation.nonExtern", Gives::Refused),
     ("scala.scalanative.reflect.annotation.EnableReflectiveInstantiation", Gives::Refused),
-    ("scala.scalanative.runtime.struct", Gives::Refused),
+    ("scala.scalanative.runtime.struct", Gives::Generated),
     ("scala.scalanative.unsafe.exportAccessors", Gives::Refused),
     ("scala.scalanative.unsafe.exported", Gives::Refused),
     ("scala.scalanative.unsafe.name", Gives::Id),
     ("scala.scalanative.unsafe.package$.blocking", Gives::Blocking),
     ("scala.scalanative.unsafe.package$.extern", Gives::Any(|| Attr::Extern { blocking: false })),
-    ("scala.scalanative.unsafe.resolvedAtLinktime", Gives::Refused),
+    ("scala.scalanative.unsafe.resolvedAtLinktime", Gives::Generated),
 ];
 
 fn gives(l: &Lower, class: SymbolId) -> Option<Gives> {
@@ -59,20 +61,24 @@ fn gives(l: &Lower, class: SymbolId) -> Option<Gives> {
 
 /// Fails for a definition of unit `root` annotated with an annotation the code generator does
 /// not implement, or with `link` or `define` of no string literal.
-pub fn check_annotations(l: &Lower, root: TNodeId) -> Result<()> {
-    l.tpd.fold(Ok(()), root, &mut |r, t| {
-        r?;
-        let (Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. }) = l.tpd.tree(t) else {
-            return Ok(());
-        };
-        let Some(sym) = l.tpd.sym(t) else { return Ok(()) };
+pub fn check_annotations(l: &mut Lower, root: TNodeId) -> Result<()> {
+    let defs = l.tpd.fold(Vec::new(), root, &mut |mut out, t| {
+        if let Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } = l.tpd.tree(t)
+            && let Some(sym) = l.tpd.sym(t)
+        {
+            out.push((t, sym));
+        }
+        out
+    });
+    for (t, sym) in defs {
+        let is_extern = crate::symbols::is_extern(l.u, sym);
         for &class in l.u.annotations(sym) {
             let what = || format!("annotation @{}", l.u.full_name(class));
             let strings = l.u.annotation_strings(sym, class);
             let literal = !strings.is_empty() && strings.iter().all(Option::is_some);
             match gives(l, class) {
                 Some(Gives::Refused) => return unsupported(l.tpd.span(t), what()),
-                Some(Gives::Id | Gives::Blocking) if !crate::symbols::is_extern(l.u, sym) => {
+                Some(Gives::Id | Gives::Blocking) if !is_extern => {
                     return unsupported(
                         l.tpd.span(t),
                         format!("{} of a definition that is not extern", what()),
@@ -81,11 +87,14 @@ pub fn check_annotations(l: &Lower, root: TNodeId) -> Result<()> {
                 Some(Gives::Named(_) | Gives::Id) if !literal => {
                     return unsupported(l.tpd.span(t), format!("{} without a string literal", what()));
                 }
+                Some(Gives::Generated) if strings.iter().any(Option::is_none) => {
+                    return unsupported(l.tpd.span(t), format!("{} without a string literal", what()));
+                }
                 _ => {}
             }
         }
-        Ok(())
-    })
+    }
+    Ok(())
 }
 
 impl Gen<'_, '_> {
@@ -120,18 +129,18 @@ impl Gen<'_, '_> {
         canonical(attrs)
     }
 
-    /// `attrs` and those of the annotations of `sym`; a library symbol's from its TASTy, but for
-    /// `link` and `define`.
+    /// `attrs` and those of the annotations of `sym`, last written first as in dotty's
+    /// `annotations`; a library symbol's from its TASTy, but for `link` and `define`.
     fn annotated(&mut self, sym: SymbolId, mut attrs: Vec<Attr>, method: bool) -> Vec<Attr> {
         let found: Vec<(Gives, Option<String>)> = if self.l.u.symbol(sym).tree.is_some() {
             let annotated = ANNOTATIONS.iter().filter(|(n, _)| self.l.u.is_annotated(sym, n));
             annotated.filter(|(_, g)| !matches!(g, Gives::Named(_))).map(|&(_, g)| (g, None)).collect()
         } else {
             let mut found = Vec::new();
-            for &c in self.l.u.annotations(sym) {
+            for &c in self.l.u.annotations(sym).iter().rev() {
                 match gives(self.l, c) {
                     Some(g @ Gives::Named(_)) => {
-                        found.extend(self.l.u.annotation_strings(sym, c).iter().map(|s| (g, s.clone())))
+                        found.extend(self.l.u.annotation_strings(sym, c).iter().rev().map(|s| (g, s.clone())))
                     }
                     Some(g) => found.push((g, None)),
                     None => {}
@@ -155,7 +164,7 @@ impl Gen<'_, '_> {
 
 /// `attrs` as Scala Native's `Attrs.fromSeq(attrs).toSeq`: the last of each kind of inlining,
 /// specialization and optimization, each flag once, links and definitions last.
-fn canonical(attrs: Vec<Attr>) -> Vec<Attr> {
+pub fn canonical(attrs: Vec<Attr>) -> Vec<Attr> {
     let mut out: Vec<Attr> = Vec::new();
     for a in attrs {
         let r = rank(&a);

@@ -16,7 +16,8 @@ trait ReflectSupport { this: QuotesImpl =>
  */
 abstract class ReflectImpl
     extends reflectModule, ReflectTrees, ReflectTerms, ReflectTypes, ReflectTypeShapes, ReflectConstants, ReflectSymbols, ReflectFlags,
-      ReflectDefinitions, ReflectPositions {
+      ReflectDefinitions, ReflectPositions, ReflectControl, ReflectTypeTrees, ReflectStatements,
+      ReflectPatterns, ReflectTypeKinds, ReflectLambdaTypes, ReflectTypeBounds {
   self: reflect.type =>
 
   extension (expr: Expr[Any]) def asTerm: Term = ReflectOps.term(QuoteHost.exprId(expr)).asInstanceOf[Term]
@@ -65,6 +66,12 @@ abstract class ReflectImpl
     def info(msg: String): Unit = throw new Unsupported("report.info")
     def info(msg: String, expr: Expr[Any]): Unit = throw new Unsupported("report.info")
     def info(msg: String, pos: Position): Unit = throw new Unsupported("report.info")
+  }
+
+  /** `-Xmacro-settings` are refused. */
+  object CompilationInfo extends CompilationInfoModule {
+    def isWhileTyping: Boolean = ReflectOps.one("isWhileTyping") != 0
+    def XmacroSettings: List[String] = throw new Unsupported("CompilationInfo.XmacroSettings")
   }
 
   /** Searches the typer answers between runs of the expansion; a failure is one without a

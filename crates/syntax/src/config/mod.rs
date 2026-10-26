@@ -31,6 +31,7 @@ impl Features {
     pub const DYNAMICS: Features = Features(1 << 12);
     pub const NO_AUTO_TUPLING: Features = Features(1 << 13);
     pub const NAMED_TYPE_ARGUMENTS: Features = Features(1 << 14);
+    pub const SAFER_EXCEPTIONS: Features = Features(1 << 15);
 
     /// The feature a `-language:` option or `import scala.language.` path names.
     pub fn named(name: &str) -> Option<Features> {
@@ -52,6 +53,7 @@ impl Features {
             "dynamics" => Features::DYNAMICS,
             "noAutoTupling" => Features::NO_AUTO_TUPLING,
             "experimental.namedTypeArguments" => Features::NAMED_TYPE_ARGUMENTS,
+            "experimental.saferExceptions" => Features::SAFER_EXCEPTIONS,
             _ => return None,
         })
     }

@@ -56,6 +56,7 @@ impl Typer<'_> {
     pub fn ext_method_apply(&mut self, id: NodeId, fun: NodeId, qual: TNodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let span = self.ast.span(id);
         let receiver = self.spliced(qual);
+        self.extension_receivers.insert(receiver);
         let name_span = self.select_name_span(id, qual);
         self.ast.with_span(fun, name_span);
         let args = self.ast.list(&[receiver]);
@@ -78,6 +79,16 @@ impl Typer<'_> {
         let typed = self.inlined_transparent(typed, pt, ctx).unwrap_or(typed);
         self.tpd.get_mut(typed).span = span;
         typed
+    }
+
+    /// Whether `pt` applies a function to the receiver of an extension method call (dotty's
+    /// `isExtensionApplyProto`).
+    pub fn is_extension_apply(&self, pt: Pt) -> bool {
+        match pt {
+            Pt::PolyFun(p) => self.is_extension_apply(self.poly_protos[p].pt),
+            Pt::Fun(i) => matches!(self.protos[i].args[..], [a] if self.extension_receivers.contains(&a)),
+            _ => false,
+        }
     }
 
     /// `f` applied to the arguments of its leading `using` clauses, its result first constrained

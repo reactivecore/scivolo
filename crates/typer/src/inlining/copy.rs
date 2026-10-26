@@ -98,9 +98,6 @@ impl<'a> Inlining<'a> {
                 let tpe = tpe.map(|t| self.map_type(m, t));
                 return Ok(self.tpd.node(T::TypeTree { inferred: false }, span, tpe, None));
             }
-            T::ValDef { .. } if sym.is_some_and(|s| self.u.is_module(s) && m.syms.get(&s) != Some(&s)) => {
-                return Err((span, "inline body with a local object"));
-            }
             T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. } | T::TypeDef { .. } => {
                 if let Some(s) = sym {
                     self.fresh_symbol(m, s);

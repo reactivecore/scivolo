@@ -131,6 +131,21 @@ impl Reducer<'_, '_> {
         if let Some(&to) = self.i.tpd.sym(t).and_then(|s| m.syms.get(&s)) {
             self.i.tpd.get_mut(t).sym = Some(to);
         }
+        if let T::TypeApply { args, .. } = *self.i.tpd.tree(t) {
+            for a in self.i.tpd.items(args).to_vec() {
+                if let T::Ident { .. } = self.i.tpd.tree(a)
+                    && self
+                        .i
+                        .tpd
+                        .sym(a)
+                        .is_some_and(|s| m.refs.contains_key(&s) && self.i.u.is_type_symbol(s))
+                {
+                    let node = self.i.tpd.get_mut(a);
+                    node.tree = T::TypeTree { inferred: false };
+                    node.sym = None;
+                }
+            }
+        }
         for c in self.i.tpd.children(t) {
             self.subst(m, c);
         }

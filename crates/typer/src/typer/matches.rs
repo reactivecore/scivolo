@@ -44,15 +44,31 @@ impl Typer<'_> {
             pt => pt,
         };
         let case_ids = self.ast.items(cases).to_vec();
-        let before = self.before_harmonic();
-        let typed_cases: Vec<TNodeId> =
-            case_ids.iter().map(|&c| self.typed_case(c, sel_tpe, case_pt, ctx)).collect();
-        if typed_cases.is_empty() {
-            return self.unsupported(id, "match without cases");
-        }
-        let typed_cases = match self.harmonic(typed_cases, case_pt, Some(before), ctx) {
-            Ok(h) => h,
-            Err(what) => return self.unsupported(id, what),
+        let ctx = match kind {
+            MatchKind::Inline => ctx.with_mode(ctx.mode.with(Mode::INLINE_CASE)),
+            _ => ctx,
+        };
+        let dependent = self.dependent_match_cases(pt, sel, &case_ids);
+        let typed_cases: Vec<TNodeId> = match &dependent {
+            Some(case_types) => {
+                let pairs: Vec<(NodeId, TypeId)> = case_ids.iter().copied().zip(case_types.clone()).collect();
+                pairs
+                    .into_iter()
+                    .map(|(c, ct)| self.typed_case_in(c, sel_tpe, case_pt, Some(ct), ctx))
+                    .collect()
+            }
+            None => {
+                let before = self.before_harmonic();
+                let typed: Vec<TNodeId> =
+                    case_ids.iter().map(|&c| self.typed_case(c, sel_tpe, case_pt, ctx)).collect();
+                if typed.is_empty() {
+                    return self.unsupported(id, "match without cases");
+                }
+                match self.harmonic(typed, case_pt, Some(before), ctx) {
+                    Ok(h) => h,
+                    Err(what) => return self.unsupported(id, what),
+                }
+            }
         };
         let mut bodies: Vec<TypeId> = Vec::new();
         for &c in &typed_cases {
@@ -73,18 +89,40 @@ impl Typer<'_> {
         };
         let cases = self.tpd.list(&typed_cases);
         let span = self.ast.span(id);
-        self.tpd.node(T::Match { selector: Some(sel), cases, kind }, span, Some(tpe), None)
+        let m = self.tpd.node(T::Match { selector: Some(sel), cases, kind }, span, Some(tpe), None);
+        match (dependent, pt) {
+            (Some(_), Pt::Type(pt)) => self.type_cast(m, pt),
+            _ => m,
+        }
     }
 
     /// Case `id` of a match on a value of type `selector`, its body expected to be `pt`; a body
     /// whose type refers to the pattern's variables ascribed a type that does not.
     pub fn typed_case(&mut self, id: NodeId, selector: TypeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        self.typed_case_in(id, selector, pt, None, ctx)
+    }
+
+    /// `typed_case`, the body expected to be the body of match type case `case` if given.
+    fn typed_case_in(
+        &mut self,
+        id: NodeId,
+        selector: TypeId,
+        pt: Pt,
+        case: Option<TypeId>,
+        ctx: Ctx,
+    ) -> TNodeId {
         let Tree::CaseDef { pat, guard, body } = *self.ast.tree(id) else {
             return self.unsupported(id, "case");
         };
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
-        let cctx = Ctx { level, ..ctx };
+        let cctx = Ctx { level, mode: ctx.mode.without(Mode::INLINE_CASE), ..ctx };
         let pat = self.typed(pat, Pt::Type(selector), cctx.with_mode(ctx.mode.with(Mode::PATTERN)));
+        let body_pt = case.map(|c| self.dependent_case_body_pt(pat, c));
+        let pt = match body_pt {
+            Some(Some(b)) => Pt::Type(b),
+            Some(None) => return self.unsupported(id, "case pattern other than its match type's"),
+            None => pt,
+        };
         let boolean = self.boolean();
         let guard = guard.map(|g| self.typed(g, Pt::Type(boolean), cctx));
         let typed_body = self.typed(body, pt, cctx);
@@ -94,9 +132,18 @@ impl Typer<'_> {
         locals.extend(types.iter().map(|&(t, _)| t).filter(|t| !locals.contains(t)).collect::<Vec<_>>());
         let opaque: Vec<SymbolId> = match self.is_top(selector) {
             true => Vec::new(),
-            false => types.iter().filter(|&&(_, known)| !known).map(|&(t, _)| t).collect(),
+            false => types
+                .iter()
+                .filter(|&&(t, known)| !known && !self.known_pattern_types.contains(&t))
+                .map(|&(t, _)| t)
+                .collect(),
         };
-        let Some(body) = self.no_local_refs(typed_body, &locals, &opaque, pt) else {
+        let body = self.no_local_refs(typed_body, &locals, &opaque, pt);
+        let body = match (body, pt) {
+            (None, Pt::Type(p)) if case.is_some() => self.dependent_case_body(typed_body, p),
+            (body, _) => body,
+        };
+        let Some(body) = body else {
             return self.unsupported(id, "case type with pattern variables");
         };
         let span = self.ast.span(id);
@@ -117,30 +164,6 @@ impl Typer<'_> {
         let trees = self.tpd.list(&typed);
         let span = self.ast.span(id);
         self.tpd.node(T::Alternative { trees }, span, Some(tpe), None)
-    }
-
-    /// The types bound in pattern `t`, appended to `out`, each with whether it is bound on an
-    /// extractor's type arguments (`in_targs`), its bounds known.
-    fn pattern_types(&self, t: TNodeId, out: &mut Vec<(SymbolId, bool)>, in_targs: bool) {
-        if let T::Bind { .. } = self.tpd.tree(t)
-            && let Some(s) = self.tpd.sym(t)
-            && self.u.is_type_symbol(s)
-        {
-            out.push((s, in_targs));
-        }
-        let targs = matches!(self.tpd.tree(t), T::TypeApply { .. });
-        for c in self.tpd.children(t) {
-            self.pattern_types(c, out, targs);
-        }
-    }
-
-    /// Whether `t` is `Any`, `Matchable` or `AnyRef`, against which a pattern's type constrains
-    /// none of its bound types.
-    fn is_top(&mut self, t: TypeId) -> bool {
-        let t = self.u.dealias(t);
-        let b = self.u.builtins();
-        let tops = [b.any, b.matchable, b.object];
-        matches!(*self.u.types().get(t), Type::Sym(_, s) if tops.contains(&s))
     }
 
     /// Whether pattern `t` or a pattern inside it binds a variable.

@@ -1,0 +1,10 @@
+true
+not windows
+unix
+64-bit unix
+arch known
+arch not odd
+unix-like
+64 bits
+not 16 bits
+false

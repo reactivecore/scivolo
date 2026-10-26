@@ -31,6 +31,9 @@ impl Gen<'_, '_> {
         let sym = self.l.tpd.sym(td).expect("a class definition's symbol");
         self.class = Some(sym);
         let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
+        if self.is_struct(sym) {
+            return self.gen_struct(td, sym, pos);
+        }
         if crate::symbols::is_extern(self.l.u, sym) {
             return self.gen_extern_class(td, sym, pos);
         }
@@ -55,6 +58,7 @@ impl Gen<'_, '_> {
             unreachable!("a class definition")
         };
         self.gen_class_fields(sym, template, pos);
+        self.gen_companion_static_fields(sym, pos);
         self.lambdas = 0;
         self.gen_methods(td)?;
         let closures = std::mem::take(&mut self.closures);

@@ -46,6 +46,16 @@ impl Typer<'_> {
                     }
                 };
             }
+            let trait_ctor = self.u.class_symbol(tpe).is_some_and(|c| self.u.is_trait(c));
+            if !matches!(self.ast.tree(p), Tree::Apply { .. }) && trait_ctor && self.type_arity(tpe) > 0 {
+                let call = self.parent_new_call(typed, ctx);
+                self.typed_ahead(p, call, ctx);
+                let called = self.tpd.tpe(call);
+                tpe = self.fully_defined_as(called, true).unwrap_or_else(|what| {
+                    self.unsupported(p, what);
+                    called
+                });
+            }
             let tpe = self.u.dealias(tpe);
             self.check_simple_kinded(tpe, tpt);
             if let Some(c) = self.u.class_symbol(tpe) {

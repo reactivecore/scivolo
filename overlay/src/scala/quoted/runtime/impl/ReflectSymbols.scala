@@ -18,7 +18,10 @@ trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.
       ReflectOps.run("requiredClass", new Array[Int](0), path)
       symbol(QuoteHost.result(0))
     }
-    def requiredModule(path: String): Symbol = refused("Symbol.requiredModule")
+    def requiredModule(path: String): Symbol = {
+      ReflectOps.run("requiredModule", new Array[Int](0), path)
+      symbol(QuoteHost.result(0))
+    }
     def requiredMethod(path: String): Symbol = {
       ReflectOps.run("requiredMethod", new Array[Int](0), path)
       symbol(QuoteHost.result(0))

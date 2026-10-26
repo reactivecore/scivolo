@@ -22,6 +22,18 @@ impl Typer<'_> {
         self.expr_purity(tree) & PURE == PURE
     }
 
+    /// Whether `rhs` of an inline value of a constant type is pure once `FirstTransform` makes it a
+    /// literal: idempotent if it refers to a final or inline value (dotty's `constToLiteral`).
+    pub fn is_inline_value_rhs(&mut self, rhs: TNodeId) -> bool {
+        use tasty::tags::{FINAL, INLINE, MUTABLE};
+        let inline_val = matches!(self.tpd.tree(rhs), T::Ident { .. } | T::Select { .. })
+            && self.tpd.sym(rhs).is_some_and(|s| {
+                let s = self.u.symbol(s);
+                s.kind == Kind::Val && (s.flags.has(INLINE) || s.flags.has(FINAL)) && !s.flags.has(MUTABLE)
+            });
+        if inline_val { self.is_idempotent_expr(rhs) } else { self.is_pure_expr(rhs) }
+    }
+
     /// Whether evaluating `tree` twice has the effect of evaluating it once.
     pub fn is_idempotent_expr(&mut self, tree: TNodeId) -> bool {
         self.expr_purity(tree) & IDEMPOTENT == IDEMPOTENT

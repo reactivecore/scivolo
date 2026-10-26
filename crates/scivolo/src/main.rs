@@ -51,7 +51,7 @@ struct Cli {
 const STACK: usize = 1 << 30;
 
 fn main() -> ExitCode {
-    let Cli { mut cp, deps, main: chosen, scala_opt, command: mut rest, rerun_of } = Cli::parse();
+    let Cli { mut cp, mut deps, main: chosen, scala_opt, command: mut rest, rerun_of } = Cli::parse();
     let start = match rerun_of {
         Some(ms) => Start { at: UNIX_EPOCH + Duration::from_millis(ms), again: true },
         None => Start { at: SystemTime::now(), again: false },
@@ -64,6 +64,7 @@ fn main() -> ExitCode {
     if !scala_opt.is_empty() && !source {
         Cli::command().error(ErrorKind::ArgumentConflict, "--scala-opt needs FILE.scala").exit()
     }
+    deps.extend(target.as_deref().map(script::using_deps).unwrap_or_default());
     match libs::deps::fetch(&deps) {
         Ok(jars) => cp.extend(jars),
         Err(e) => {

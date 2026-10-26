@@ -97,24 +97,14 @@ const CASES: &[(&str, &str)] = &[
         "`uninitialized` other than as a variable field's value",
     ),
     (
-        "import scala.reflect.Selectable.reflectiveSelectable\nclass V(val n: Int) extends AnyVal\n\
-         object O { def f(p: { def v: V }) = p.v }",
-        "structural member of a value class type",
-    ),
-    (
-        "class S extends Selectable { def applyDynamic(n: String)(args: Any*): Any = 1 }\n\
-         object O { def f(p: S { def m(x: Int): Int }) = p.m(1) }",
-        "structural call on a Selectable other than reflect.Selectable",
-    ),
-    (
         "class Ex { def unapply(x: Int): Option[Int] = Some(x) }\n\
          object B { def unapplySeq(x: Int): Option[Seq[Int]] = None }\n\
          object O { given Conversion[B.type, Ex] = _ => Ex(); def f(x: Int) = x match { case B(v) => v; case _ => 0 } }",
         "unapply of an implicit view beside unapplySeq",
     ),
     (
-        "class S\nobject S { @scala.annotation.static val x: Int = 1 }\nobject O { def g = S.x }",
-        "@static values",
+        "class S\nobject S { @scala.annotation.static lazy val x: Int = 1 }\nobject O { def g = S.x }",
+        "@static lazy values",
     ),
     (
         "class S\nobject S { val v = 1; @scala.annotation.static def f = this.v }\nobject O { def g = S.f }",
@@ -149,25 +139,32 @@ const CASES: &[(&str, &str)] = &[
     ("import scala.scalanative.unsafe.*\n@extern object libc { val x: CInt = extern }", "extern fields"),
     ("import scala.scalanative.unsafe.*\nobject O { def f(x: CInt): CInt = extern }", "`extern` outside"),
     (
+        "import scala.scalanative.unsafe.*\nobject O { val n = \"p\"; @resolvedAtLinktime(n) def p: Int = resolved }",
+        "annotation @scala.scalanative.unsafe.resolvedAtLinktime without a string literal",
+    ),
+    (
         "import scala.scalanative.unsafe.*\n@extern object libc { def f(g: CFuncPtr): CInt = extern }",
         "extern methods of a `CFuncPtr`",
     ),
-    ("import scala.scalanative.unsafe.*\nobject O { def f: CString = c\"a\" }", "intrinsic CQuote.c"),
     (
-        "import scala.scalanative.runtime.Intrinsics\nobject O { def f(x: Int): Long = Intrinsics.intToULong(x) }",
-        "intrinsic Intrinsics$.intToULong",
+        "import scala.scalanative.unsafe.*\nobject O { def f: CString = c\"a\\0\" }",
+        "C string literal with an invalid escape",
     ),
     (
-        "import scala.scalanative.unsafe.*\nobject O { def f(g: CFuncPtr1[CInt, CInt]): CInt = g(1) }",
-        "intrinsic CFuncPtr1.apply",
+        "import scala.scalanative.runtime.Intrinsics\nclass C { val x = 1 }\nobject O { def f(c: C) = Intrinsics.classFieldRawPtr(c, \"x\") }",
+        "the address of immutable field x",
     ),
     (
-        "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }\nobject O { def g: CInt = libc.puts(c\"a\") }",
-        "intrinsic CQuote.c",
+        "import scala.scalanative.unsafe.*\nobject O { def f(n: Int): CFuncPtr1[CInt, CInt] = (x: CInt) => x + n }",
+        "a C function pointer to a lambda capturing values",
     ),
     (
-        "import scala.scalanative.meta.LinktimeInfo\nobject O { def f: Int = if LinktimeInfo.isLinux then 1 else 2 }",
-        "values resolved at link time",
+        "import scala.scalanative.unsafe.*\nobject O { def g(n: Int): CString = c\"a$n\" }",
+        "C string literal that is not one literal part",
+    ),
+    (
+        "import scala.scalanative.meta.LinktimeInfo\nobject O { def f(b: Boolean): Int = if LinktimeInfo.isLinux && b then 1 else 2 }",
+        "mixing link-time and run-time conditions",
     ),
     (
         "import scala.scalanative.unsafe.*\nobject O { @name(\"g\") def f = 1 }",
@@ -188,6 +185,16 @@ const CASES: &[(&str, &str)] = &[
         "adaptation",
     ),
     ("trait T { def finalize(): String }", "abstract member overriding a concrete one"),
+    (
+        "import language.experimental.erasedDefinitions\n\
+         object O { def f(erased b: Boolean) = 1; def g(x: Any) = f(x.isInstanceOf[String]) }",
+        "argument of an erased parameter that is not pure",
+    ),
+    (
+        "import language.experimental.erasedDefinitions\n\
+         object O { erased val e: Int = { println(); 1 } }",
+        "right-hand side of an erased value that is not pure",
+    ),
 ];
 
 #[test]

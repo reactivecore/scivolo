@@ -43,11 +43,8 @@ impl Typer<'_> {
                 }
             }
             Type::Super(this, p) if matches!(self.u.types().get(p), Type::And(..)) => {
-                let class = match *self.u.types().get(this) {
-                    Type::This(c) => self.u.class_symbol(c),
-                    _ => None,
-                };
-                class.map_or_else(Vec::new, |c| self.super_members(c, name))
+                let Type::This(c) = *self.u.types().get(this) else { return Vec::new() };
+                self.u.class_symbol(c).map_or_else(Vec::new, |c| self.super_members(c, name))
             }
             Type::Super(_, p) | Type::Skolem(_, p) => self.members_within(p, name, within),
             Type::Constant(..) | Type::Str(_) | Type::TermRef(..) => {
@@ -90,6 +87,10 @@ impl Typer<'_> {
             Type::Match { bound, .. } => {
                 let sup = self.u.try_normalize(t).unwrap_or(bound);
                 self.members_within(sup, name, within)
+            }
+            Type::Var(v) => {
+                let under = self.constraint.instance(v).unwrap_or(self.constraint.bounds(v).1);
+                self.members_within(under, name, within)
             }
             Type::And(a, b) => {
                 let (ma, mb) = (self.members_within(a, name, within), self.members_within(b, name, within));
@@ -174,7 +175,9 @@ impl Typer<'_> {
                 }
                 let mut overridden = None;
                 for (k, o) in out.clone().into_iter().enumerate() {
-                    if self.u.is_type_symbol(o) {
+                    let overload = self.u.symbol(o).owner == Some(base)
+                        && self.u.erased_method(o).0 != self.u.erased_method(m).0;
+                    if self.u.is_type_symbol(o) || overload {
                         continue;
                     }
                     for s in [o, m] {
@@ -182,13 +185,13 @@ impl Typer<'_> {
                             self.complete(s);
                         }
                     }
-                    if self.same_member(site, o, m) {
+                    if !self.signatures_differ(o, m) && self.same_member(site, o, m) {
                         overridden = Some(k);
                         break;
                     }
                 }
                 match overridden {
-                    Some(k) if self.is_concrete(m) && !self.is_concrete(out[k]) => out[k] = m,
+                    Some(k) if self.concrete_replaces(c, out[k], m) => out[k] = m,
                     Some(_) => {}
                     None => out.push(m),
                 }

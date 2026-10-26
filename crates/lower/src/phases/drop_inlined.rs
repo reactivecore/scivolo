@@ -6,6 +6,8 @@
 
 use crate::{Lower, Result};
 use syntax::ast::Span;
+use syntax::source::Offset;
+use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree, map_children};
 
 /// `t` with the `Inlined` trees in it dropped.
@@ -25,6 +27,10 @@ fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>, depth: u32) -> TNodeId {
     };
     if let Some(at) = call {
         reposition(l, t, at);
+        let def = matches!(l.tpd.tree(t), Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. });
+        if let Some(s) = l.tpd.sym(t).filter(|_| def) {
+            l.inlined_at.insert(s, at.start());
+        }
     }
     if let Tree::Inlined { bindings, expansion, .. } = *l.tpd.tree(t) {
         let stats: Vec<TNodeId> = l.tpd.items(bindings).to_vec();
@@ -70,6 +76,12 @@ pub fn unmark_calls(l: &mut Lower) {
 /// the expansion of, if any.
 pub fn span_before_erasure(l: &Lower, t: TNodeId) -> Span {
     l.inlined_spans.get(&t).copied().unwrap_or_else(|| l.tpd.span(t))
+}
+
+/// The key `LambdaLift` names definition `sym` starting at `at` by: the start of the inline call
+/// it was inlined at, if any, then `at`.
+pub fn naming_order(l: &Lower, sym: SymbolId, at: Offset) -> (Offset, Offset) {
+    (l.inlined_at.get(&sym).copied().unwrap_or(at), at)
 }
 
 /// Whether `t` stands for an `Inlined` tree phases before erasure see.

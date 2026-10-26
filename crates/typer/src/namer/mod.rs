@@ -11,6 +11,7 @@ mod checks;
 mod complete;
 mod defaults;
 mod double_definitions;
+mod erased;
 mod export_members;
 mod export_paths;
 pub(crate) mod exports;
