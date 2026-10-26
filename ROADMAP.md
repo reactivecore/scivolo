@@ -139,14 +139,11 @@ slower meanwhile:
 7. **Scala Native's library through the own frontend** (#168,
    [research 36](docs/research/36-compiling-the-native-stdlib.md), ADR 0042, 0043): `just
    lib-compile MODULE` lowers each file and compares its NIR with Scala Native's build of it
-   (`just lib-oracle`, Scala 3.9.0 since ADR 0046; the published jars are Scala 3.1.3's).
-   2026-10-26: javalib 373 of 601 files lowered (338 before), 945 of 1028 NIR files identical
-   (740 of 815); nativelib 52 of 103, 132 of 194; posixlib 52 of 67, all 155; clib 17 of 21,
-   47 of 48; windowslib 21 of 34, all 52; auxlib 6 of 15, 6 of 8. Done: G1, G2, G3, G5 (unit
-   and javalib classes as Scala classes, forwarders of nested objects, interface redeclarations
-   of `Any` members), G6a, G6b in part, G6c (wildcards selected on paths, capture conversion on
-   paths, linked constructor type parameters). Next: G4; G5's JDK-only names (`java.time`,
-   `Locale`) and auxlib's TASTy; G7's positions, lifted local methods, anonymous `$outer`.
+   (`just lib-oracle`, Scala 3.8.3; the published jars are Scala 3.1.3's). 2026-10-24: javalib
+   325 of 601 files lowered, 685 of 783 NIR files identical; nativelib 59 of 103, 179 of 295;
+   auxlib 7 of 15, 43 of 44; windowslib 5 of 34; clib and posixlib wait for `@extern` (G3).
+   Done: G1, G2, G5 (unit and javalib classes as Scala classes), G6a, G6b in part. Next: G3,
+   G4, G6c.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs

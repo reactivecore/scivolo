@@ -182,51 +182,18 @@ impl Typer<'_> {
                             self.complete(s);
                         }
                     }
-                    let value = |t: &Self, s: SymbolId| t.u.symbol(s).kind == tasty::Kind::Val;
-                    if value(self, o) && self.empty_param_list(m)
-                        || value(self, m) && self.empty_param_list(o)
-                    {
-                        continue;
-                    }
-                    if self.same_member(site, o, m) {
+                    if !self.signatures_differ(o, m) && self.same_member(site, o, m) {
                         overridden = Some(k);
                         break;
                     }
                 }
                 match overridden {
-                    Some(k)
-                        if self.is_concrete(m)
-                            && !self.is_concrete(out[k])
-                            && !self.declared_below(c, out[k], m) =>
-                    {
-                        out[k] = m
-                    }
+                    Some(k) if self.concrete_replaces(c, out[k], m) => out[k] = m,
                     Some(_) => {}
                     None => out.push(m),
                 }
             }
         }
         out
-    }
-
-    /// Whether `s` is a method with an empty parameter list, whose signature a value's does not
-    /// match.
-    fn empty_param_list(&mut self, s: SymbolId) -> bool {
-        let info = self.u.info(s);
-        self.u.symbol(s).kind == tasty::Kind::Def
-            && matches!(self.u.types().get(info), tasty::Type::Method { params, .. } if params.is_empty())
-    }
-
-    /// Whether `o`, a member of class `c` and not private, hides `m` of a base class of its class:
-    /// `c` declares `o`, or each parent of `c` that inherits `m` does so through `o`'s class (dotty's
-    /// `mapInherited` dropping what a class's own members match).
-    fn declared_below(&mut self, c: SymbolId, o: SymbolId, m: SymbolId) -> bool {
-        let (Some(a), Some(b)) = (self.u.symbol(o).owner, self.u.symbol(m).owner) else { return false };
-        if a == b || !self.u.derives_from(a, b) || self.u.symbol(o).flags.has(tasty::tags::PRIVATE) {
-            return false;
-        }
-        let parents: Vec<SymbolId> =
-            self.u.parents(c).into_iter().filter_map(|p| self.u.class_symbol(p)).collect();
-        a == c || parents.into_iter().all(|p| !self.u.derives_from(p, b) || self.u.derives_from(p, a))
     }
 }

@@ -106,6 +106,7 @@ mod match_type_trees;
 mod matchable_cast;
 mod matches;
 mod maximize;
+mod member_hiding;
 mod member_hint;
 mod member_views;
 mod members;
