@@ -21,6 +21,7 @@ import sys
 import time
 from pathlib import Path
 
+SCALA = "3.9.0"
 NATIVE = "0.5.12"
 ROOT = Path(__file__).resolve().parent.parent
 PROGRAMS = ROOT / "tests/programs"
@@ -33,7 +34,7 @@ BUILD_FILES = {"scripts/programs.py", "ci/Dockerfile"}
 
 def scala_cli(command, name, *extra):
     work = WORK / name
-    return ["scala-cli", "--power", command, "--quiet", "--server=false", "--native", "--native-version", NATIVE,
+    return ["scala-cli", "--power", command, "--quiet", "--server=false", "-S", SCALA, "--native", "--native-version", NATIVE,
             "--workspace", str(work), *extra, str(work / f"{name}.scala")]
 
 
