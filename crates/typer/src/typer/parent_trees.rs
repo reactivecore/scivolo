@@ -109,6 +109,13 @@ impl Typer<'_> {
         {
             return call;
         }
+        self.parent_new_call(parent, ctx)
+    }
+
+    /// The typed `new P()` of parent type tree `parent`, its type arguments inferred.
+    pub fn parent_new_call(&mut self, parent: TNodeId, ctx: Ctx) -> TNodeId {
+        let span = self.tpd.span(parent);
+        let synthetic = span.to_synthetic();
         let splice = self.ast.node(Tree::TypeTree);
         self.ast.with_span(splice, span);
         self.splices.insert(splice, parent);
