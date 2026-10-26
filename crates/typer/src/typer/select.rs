@@ -102,6 +102,10 @@ impl Typer<'_> {
         if syms.is_empty() {
             return self.unsupported(id, "member not found");
         }
+        let syms = match converted {
+            true => syms,
+            false => self.accessible_alternatives(syms, qual_tpe, ctx),
+        };
         let sym = match self.choose(&syms, Some(qual_tpe), pt) {
             Ok(sym) => self.jdk_inherited(sym),
             Err(what) => return self.unchosen(id, what, pt),

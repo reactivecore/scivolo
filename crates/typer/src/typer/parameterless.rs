@@ -7,7 +7,7 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The only alternative of `syms` without parameter lists, its type conforming to `pt`
-    /// unless that is a function type, of several the only value (more specific than a method),
+    /// unless that is a function type, of several the only value if more specific than each method,
     /// else the only one with an implicit clause only, else for a single abstract method type `pt` the only
     /// method taking its parameters (dotty's `resolveOverloaded` without arguments).
     pub fn parameterless_alternative(
@@ -20,9 +20,6 @@ impl Typer<'_> {
             && let Some((args, _)) = (0..=22).find_map(|n| self.function_parts(p, n))
         {
             return self.taking_params(syms, prefix, &args, Some(p));
-        }
-        if let Some(s) = self.only_without_implicits(syms) {
-            return Ok(s);
         }
         let (mut found, mut implicit) = (Vec::new(), Vec::new());
         for &s in syms {
@@ -59,28 +56,19 @@ impl Typer<'_> {
         let values: Vec<SymbolId> =
             found.iter().copied().filter(|&s| self.u.symbol(s).kind != Kind::Def).collect();
         match (&found[..], &values[..]) {
-            ([s], _) | (_, [s]) => Ok(*s),
+            ([s], _) => Ok(*s),
+            (_, [v]) if found.iter().all(|&m| m == *v || self.value_beats(*v, m)) => Ok(*v),
             _ => Err("overloaded reference"),
         }
     }
 
-    /// The only alternative of `syms`, all polymorphic values or taking implicit arguments only,
-    /// without an implicit clause (dotty's preference of an alternative without implicit
-    /// parameters, `Option.orNull`'s).
-    fn only_without_implicits(&mut self, syms: &[SymbolId]) -> Option<SymbolId> {
-        let mut plain = None;
-        for &s in syms {
-            self.complete(s);
-            let info = self.u.info(s);
-            let Type::Poly { result, .. } = *self.u.types().get(info) else { return None };
-            match self.u.types().get(result) {
-                Type::Method { implicit: true, .. } => {}
-                Type::Method { .. } | Type::Poly { .. } => return None,
-                _ if plain.replace(s).is_some() => return None,
-                _ => {}
-            }
-        }
-        plain
+    /// Whether value `v` is more specific than `m`: `m` a method with an empty parameter list
+    /// of `v`'s class or a base class of it.
+    fn value_beats(&mut self, v: SymbolId, m: SymbolId) -> bool {
+        let info = self.u.info(m);
+        let empty = matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty());
+        let (Some(a), Some(b)) = (self.u.symbol(v).owner, self.u.symbol(m).owner) else { return false };
+        self.u.symbol(m).kind == Kind::Def && empty && self.u.derives_from(a, b)
     }
 
     /// Whether an alternative of result type `result` is a value that may conform to `pt`.

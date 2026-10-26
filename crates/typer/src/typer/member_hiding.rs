@@ -11,9 +11,13 @@ impl Typer<'_> {
         self.is_concrete(m) && !self.is_concrete(o) && !self.declared_below(c, o, m)
     }
 
-    /// Whether one of `o` and `m` is a value and the other a method with an empty parameter list.
+    /// Whether one of `o` and `m` is a Java field or a private value and the other a method with
+    /// an empty parameter list.
     pub fn signatures_differ(&mut self, o: SymbolId, m: SymbolId) -> bool {
-        let value = |t: &Self, s: SymbolId| t.u.symbol(s).kind == tasty::Kind::Val;
+        let value = |t: &mut Self, s: SymbolId| {
+            t.u.symbol(s).kind == tasty::Kind::Val
+                && (t.u.symbol(s).flags.has(tasty::tags::PRIVATE) || t.is_java_member(s))
+        };
         value(self, o) && self.empty_param_list(m) || value(self, m) && self.empty_param_list(o)
     }
 
