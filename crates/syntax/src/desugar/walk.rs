@@ -97,9 +97,13 @@ impl Desugar<'_> {
             | Tree::ContextBoundTypeTree { .. }
             | Tree::TermLambdaTypeTree { .. } => self.in_mode(Mode::Type, |d| d.map_children(id)),
             Tree::CaseDef { pat, guard, body } => {
-                let pat_mode = if self.mode == Mode::Type { Mode::Type } else { Mode::Pattern };
+                let (pat_mode, body_mode) = match self.mode {
+                    Mode::Type => (Mode::Type, Mode::Type),
+                    _ => (Mode::Pattern, Mode::Expr),
+                };
                 let pat = self.in_mode(pat_mode, |d| d.transform(pat));
-                let (guard, body) = self.in_mode(Mode::Expr, |d| (d.transform_opt(guard), d.transform(body)));
+                let guard = self.in_mode(Mode::Expr, |d| d.transform_opt(guard));
+                let body = self.in_mode(body_mode, |d| d.transform(body));
                 self.ast.derived(id, Tree::CaseDef { pat, guard, body })
             }
             Tree::GenFrom { pat, expr, check_mode } => {

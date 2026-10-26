@@ -81,6 +81,7 @@ impl Typer<'_> {
             if let Type::Sym(_, s) = *u.types().get(part)
                 && s.0 >= first.0
                 && u.symbol(s).kind == Kind::Type
+                && u.symbol(s).tree.is_none()
                 && !captures.contains(&s)
             {
                 captures.push(s);

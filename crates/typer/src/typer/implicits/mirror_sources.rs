@@ -59,7 +59,7 @@ impl Typer<'_> {
                 }
             }
             Type::Applied(tycon, _) => {
-                if let Some(elems) = self.pair_elements(t, tycon) {
+                if let Some(elems) = self.pair_elements(t, tycon)? {
                     return Ok(Some(MirrorSource::Tuple(elems)));
                 }
                 if self.is_named_tuple(tycon) {
@@ -141,13 +141,17 @@ impl Typer<'_> {
         }
     }
 
-    /// The elements of `t`, an application of `*:` (`tycon`), if it is a generic tuple.
-    fn pair_elements(&mut self, t: TypeId, tycon: TypeId) -> Option<Vec<TypeId>> {
-        let pair = self.resolve_full_name("scala.*:", true)?;
-        if self.u.class_symbol(tycon) != Some(pair) {
-            return None;
+    /// The elements of `t` if it is an application of `*:` (`tycon`); refused for one that is no
+    /// generic tuple of at most 22 elements.
+    fn pair_elements(&mut self, t: TypeId, tycon: TypeId) -> Result<Option<Vec<TypeId>>, &'static str> {
+        let pair = self.resolve_full_name("scala.*:", true);
+        if pair.is_none() || self.u.class_symbol(tycon) != pair {
+            return Ok(None);
         }
-        self.tuple_elements(t).filter(|e| !e.is_empty())
+        match self.tuple_elements(t).filter(|e| !e.is_empty()) {
+            Some(elems) => Ok(Some(elems)),
+            None => Err("Mirror of a generic tuple outside the subset"),
+        }
     }
 
     fn is_named_tuple(&mut self, tycon: TypeId) -> bool {

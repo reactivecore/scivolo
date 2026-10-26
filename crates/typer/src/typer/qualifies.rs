@@ -8,22 +8,35 @@ use super::Typer;
 use super::find_ref::Name;
 use super::idents::Found;
 use crate::ctx::{Ctx, Level, LevelId, Mode};
-use tasty::{Kind, SymbolId};
+use syntax::ast::Tree;
+use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// `found` at level `l` without the members of the empty package if `ctx` is in another
-    /// package; the root package stands for both; without methods for an extractor's name.
-    pub fn qualifying(&self, mut found: Found, l: LevelId, ctx: Ctx) -> Option<Found> {
+    /// package; the root package stands for both; for an extractor's name, none of methods with parameters only.
+    pub fn qualifying(&mut self, mut found: Found, l: LevelId, ctx: Ctx) -> Option<Found> {
         let root = self.u.root();
         if matches!(*self.levels.get(l), Level::Members(o) if o == root)
             && self.enclosing_package(ctx.owner) != root
         {
             found.syms.retain(|&s| self.u.symbol(s).kind == Kind::Package);
         }
-        if ctx.mode.is(Mode::EXTRACTOR) {
-            found.syms.retain(|&s| self.u.symbol(s).kind != Kind::Def);
+        if ctx.mode.is(Mode::EXTRACTOR) && found.syms.iter().all(|&s| self.is_real_method(s)) {
+            return None;
         }
         (!found.syms.is_empty()).then_some(found)
+    }
+
+    /// Whether `s` is a method with parameters (dotty's `isRealMethod`).
+    fn is_real_method(&mut self, s: SymbolId) -> bool {
+        if self.u.symbol(s).kind != Kind::Def {
+            return false;
+        }
+        if let Some(&def) = self.syms.def_trees.get(&s) {
+            return matches!(*self.ast.tree(def), Tree::DefDef { paramss, .. } if !self.ast.clause_items(paramss).is_empty());
+        }
+        let info = self.u.info(s);
+        matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
     }
 
     fn enclosing_package(&self, owner: SymbolId) -> SymbolId {
