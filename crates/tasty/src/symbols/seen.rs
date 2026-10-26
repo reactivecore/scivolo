@@ -20,7 +20,23 @@ impl Universe {
     /// `prefix` is a value, as dotty's `argForParam` does: for aliases selected from a path and
     /// the parameters of methods, whose types the typer need not avoid.
     pub fn seen_from_path(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
-        self.seen_from(t, prefix, owner, true)
+        let wildcards = self.has_wildcard_args(prefix);
+        self.seen_from(t, prefix, owner, wildcards)
+    }
+
+    /// Whether `prefix` is a value whose type is a class applied to a wildcard.
+    fn has_wildcard_args(&mut self, prefix: TypeId) -> bool {
+        let value = match *self.types().get(prefix) {
+            Type::TermRef(..) => true,
+            Type::Sym(_, s) => matches!(self.symbol(s).kind, Kind::Val | Kind::Param),
+            _ => false,
+        };
+        if !value {
+            return false;
+        }
+        let widened = self.widen(prefix);
+        let Type::Applied(_, args) = self.types().get(widened) else { return false };
+        args.iter().any(|&a| matches!(self.types().get(a), Type::Bounds(..)))
     }
 
     fn seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId, wildcards: bool) -> TypeId {
@@ -86,13 +102,8 @@ impl Universe {
     fn wildcard_seen(&mut self, param: TypeId, arg: TypeId, prefix: TypeId) -> Option<TypeId> {
         let Type::Sym(pre, p) = *self.types().get(param) else { return None };
         let this = pre.is_none_or(|pre| matches!(self.types().get(pre), Type::This(_)));
-        let value = match *self.types().get(prefix) {
-            Type::TermRef(..) => true,
-            Type::Sym(_, s) => matches!(self.symbol(s).kind, Kind::Val | Kind::Param),
-            _ => false,
-        };
         let wildcard = matches!(self.types().get(arg), Type::Bounds(..));
-        (this && value && wildcard).then(|| self.intern_type(Type::Sym(Some(prefix), p)))
+        (this && wildcard).then(|| self.intern_type(Type::Sym(Some(prefix), p)))
     }
 
     /// The prefix of class type `t`, through applications.
@@ -130,6 +141,9 @@ impl Universe {
         prefix: TypeId,
         owner: SymbolId,
     ) -> TypeId {
+        if !matches!(self.types().get(info), Type::Method { .. }) || !self.has_wildcard_args(prefix) {
+            return seen;
+        }
         let (Type::Method { params: own, .. }, Type::Method { binder, params, result, implicit, contextual }) =
             (self.types().get(info).clone(), self.types().get(seen).clone())
         else {
