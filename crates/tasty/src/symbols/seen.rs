@@ -12,43 +12,9 @@ impl Universe {
     /// `t`, a type in class `owner`, as seen from `prefix`, from its `this` for a `super`: the
     /// `this` of `owner`, of its base classes and of its enclosing classes replaced by `prefix`
     /// or the prefix `prefix` gives them, the type parameters of `owner` by the arguments
-    /// `prefix` gives them.
+    /// `prefix` gives them, one a wildcard by the parameter selected on a value path `prefix`
+    /// (dotty's `argForParam`).
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
-        self.seen_from(t, prefix, owner, false)
-    }
-
-    /// `as_seen_from`, a type parameter whose argument is a wildcard selected from `prefix` if
-    /// `prefix` is a value, as dotty's `argForParam` does: for aliases selected from a path and
-    /// the parameters of methods, whose types the typer need not avoid.
-    pub fn seen_from_path(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
-        let wildcards = self.has_wildcard_args(prefix);
-        self.seen_from(t, prefix, owner, wildcards)
-    }
-
-    /// Whether `prefix` is a stable value whose type is a class applied to a wildcard.
-    fn has_wildcard_args(&mut self, prefix: TypeId) -> bool {
-        let value = match *self.types().get(prefix) {
-            Type::TermRef(..) => true,
-            Type::Sym(_, s) => match self.symbol(s).kind {
-                Kind::Val => !self.symbol(s).flags.has(MUTABLE),
-                Kind::Param if self.symbol(s).flags.has(INLINE) => false,
-                Kind::Param => {
-                    let info = self.info(s);
-                    !matches!(self.types().get(info), Type::ByName(_))
-                }
-                _ => false,
-            },
-            _ => false,
-        };
-        if !value {
-            return false;
-        }
-        let widened = self.widen(prefix);
-        let Type::Applied(_, args) = self.types().get(widened) else { return false };
-        args.iter().any(|&a| matches!(self.types().get(a), Type::Bounds(..)))
-    }
-
-    fn seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId, wildcards: bool) -> TypeId {
         let prefix = match *self.types().get(prefix) {
             Type::Super(this, _) => this,
             _ => prefix,
@@ -59,6 +25,7 @@ impl Universe {
                 let c = u.class_symbol(c)?;
                 u.this_seen_from(prefix, owner, c, MAX_DEPTH)
             }
+            Type::Sym(Some(p), _) | Type::TypeRef(p, _) if !matches!(u.types().get(p), Type::This(_)) => None,
             _ => {
                 let (c, i) = u.class_param(x)?;
                 let prefix = match u.derives_from(owner, c) {
@@ -66,16 +33,39 @@ impl Universe {
                     false => u.this_seen_from(prefix, owner, c, MAX_DEPTH)?,
                 };
                 let seen = u.base_type(prefix, c)?;
-                let arg = match u.types().get(seen) {
-                    Type::Applied(_, args) => args.get(i).copied()?,
-                    _ => return None,
-                };
-                match wildcards {
-                    true => Some(u.wildcard_seen(x, arg, prefix).unwrap_or(arg)),
-                    false => Some(arg),
+                let Type::Applied(_, args) = u.types().get(seen).clone() else { return None };
+                let arg = *args.get(i)?;
+                if !matches!(u.types().get(arg), Type::Bounds(..)) || !u.is_value_path(prefix) {
+                    return Some(arg);
                 }
+                let param = u.type_params(c)[i];
+                Some(u.intern_type(Type::Sym(Some(prefix), param)))
             }
         })
+    }
+
+    /// Whether `t` is a stable path to a value: a skolem, or a reference to an immutable value or
+    /// a parameter neither by-name nor inline, through `this`, a package, a type or such a path.
+    fn is_value_path(&mut self, t: TypeId) -> bool {
+        let (pre, s) = match *self.types().get(t) {
+            Type::Skolem(..) => return true,
+            Type::Sym(pre, s) => (pre, s),
+            _ => return false,
+        };
+        let stable = match self.symbol(s).kind {
+            Kind::Val => !self.symbol(s).flags.has(MUTABLE),
+            Kind::Param => {
+                let info = self.info(s);
+                !self.symbol(s).flags.has(INLINE) && !matches!(self.types().get(info), Type::ByName(_))
+            }
+            _ => false,
+        };
+        stable
+            && pre.is_none_or(|p| match *self.types().get(p) {
+                Type::This(_) | Type::NoPrefix | Type::Package(_) | Type::PackageName(_) => true,
+                Type::Sym(_, c) if !self.symbol(c).kind.is_term() => true,
+                _ => self.is_value_path(p),
+            })
     }
 
     /// What `this_cls.this` in class `cls` is as seen from `pre`: `pre` if it is an instance of
@@ -106,15 +96,6 @@ impl Universe {
         self.this_seen_from(outer, owner, this_cls, depth)
     }
 
-    /// Class type parameter `param`, of a `this` or no prefix, selected from value `prefix` when
-    /// the argument `prefix`'s type gives it is the wildcard `arg` (dotty's `argForParam`).
-    fn wildcard_seen(&mut self, param: TypeId, arg: TypeId, prefix: TypeId) -> Option<TypeId> {
-        let Type::Sym(pre, p) = *self.types().get(param) else { return None };
-        let this = pre.is_none_or(|pre| matches!(self.types().get(pre), Type::This(_)));
-        let wildcard = matches!(self.types().get(arg), Type::Bounds(..));
-        (this && wildcard).then(|| self.intern_type(Type::Sym(Some(prefix), p)))
-    }
-
     /// The prefix of class type `t`, through applications.
     fn normalized_prefix(&mut self, t: TypeId) -> Option<TypeId> {
         match self.types().get(t).clone() {
@@ -134,43 +115,9 @@ impl Universe {
                 if let Some(refined) = self.dependent_refinement(prefix, m) {
                     return refined;
                 }
-                let seen = self.as_seen_from(info, prefix, owner);
-                self.with_params_seen_from_path(info, seen, prefix, owner)
+                self.as_seen_from(info, prefix, owner)
             }
             _ => info,
-        }
-    }
-
-    /// Method type `seen`, `info` seen from `prefix`, with the types of its parameters
-    /// `seen_from_path`.
-    fn with_params_seen_from_path(
-        &mut self,
-        info: TypeId,
-        seen: TypeId,
-        prefix: TypeId,
-        owner: SymbolId,
-    ) -> TypeId {
-        if !matches!(self.types().get(info), Type::Method { .. }) || !self.has_wildcard_args(prefix) {
-            return seen;
-        }
-        let (Type::Method { params: own, .. }, Type::Method { binder, params, result, implicit, contextual }) =
-            (self.types().get(info).clone(), self.types().get(seen).clone())
-        else {
-            return seen;
-        };
-        let mut changed = false;
-        let params: Vec<(String, TypeId)> = own
-            .into_iter()
-            .zip(params)
-            .map(|((_, p), (name, q))| {
-                let r = self.seen_from_path(p, prefix, owner);
-                changed |= r != q;
-                (name, r)
-            })
-            .collect();
-        match changed {
-            true => self.intern_type(Type::Method { binder, params, result, implicit, contextual }),
-            false => seen,
         }
     }
 }

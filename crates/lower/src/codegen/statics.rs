@@ -15,10 +15,14 @@ use tasty::tags::{
 use tasty::{Kind, SymbolId};
 
 impl Gen<'_, '_> {
-    /// Whether `c` is static and its owner a package.
+    /// Whether `c` is static and its owner a package, any owner when javalib's sources are
+    /// compiled (nscplugin's `genStaticForwardersForNonTopLevelObjects`, javalib's build sets it).
     fn is_candidate_for_forwarders(&self, c: SymbolId) -> bool {
-        let owner = self.l.u.symbol(c).owner;
-        is_static(self.l.u, c) && owner.is_some_and(|o| self.l.u.symbol(o).kind == Kind::Package)
+        is_static(self.l.u, c) && (self.is_top_level(c) || self.l.u.javalib_sources())
+    }
+
+    fn is_top_level(&self, c: SymbolId) -> bool {
+        self.l.u.symbol(c).owner.is_some_and(|o| self.l.u.symbol(o).kind == Kind::Package)
     }
 
     /// The forwarders of the current class to the methods of its companion object.
@@ -34,7 +38,7 @@ impl Gen<'_, '_> {
 
     /// A class `C` of forwarders for a top-level object `C` without a companion class.
     pub fn gen_mirror_class(&mut self, c: SymbolId, pos: PosId) -> Result<()> {
-        if !self.l.u.is_module_class(c) || !self.is_candidate_for_forwarders(c) {
+        if !self.l.u.is_module_class(c) || !self.is_top_level(c) || !is_static(self.l.u, c) {
             return Ok(());
         }
         if self.l.u.companion_class(c).is_some() {

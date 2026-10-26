@@ -10,7 +10,7 @@ use super::view_kinds::ViewKind;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::tags::PRIVATE;
-use tasty::{Type, TypeId};
+use tasty::{Kind, Type, TypeId};
 
 /// What a conversion's result must offer.
 #[derive(Clone, Copy)]
@@ -119,9 +119,15 @@ impl Typer<'_> {
         Ok((scope, containers))
     }
 
-    /// Whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, no conversion's target.
+    /// Whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, no conversion's target;
+    /// not an abstract type bounded by one of them (dotty's `isRef`).
     fn is_top_like(&mut self, pt: TypeId) -> bool {
         let pt = self.zonk(pt);
+        let pt = self.u.dealias(pt);
+        if matches!(*self.u.types().get(pt), Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam))
+        {
+            return false;
+        }
         let b = self.u.builtins();
         let class = self.u.class_symbol(pt);
         class.is_some_and(|c| {

@@ -7,7 +7,8 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The only alternative of `syms` without parameter lists, its type conforming to `pt`
-    /// unless that is a function type, else the only one with an implicit clause only, else for a single abstract method type `pt` the only
+    /// unless that is a function type, of several the only value if more specific than each method,
+    /// else the only one with an implicit clause only, else for a single abstract method type `pt` the only
     /// method taking its parameters (dotty's `resolveOverloaded` without arguments).
     pub fn parameterless_alternative(
         &mut self,
@@ -52,10 +53,22 @@ impl Typer<'_> {
         {
             return self.taking_params(syms, prefix, &sam.params, None);
         }
-        match found[..] {
-            [s] => Ok(s),
+        let values: Vec<SymbolId> =
+            found.iter().copied().filter(|&s| self.u.symbol(s).kind != Kind::Def).collect();
+        match (&found[..], &values[..]) {
+            ([s], _) => Ok(*s),
+            (_, [v]) if found.iter().all(|&m| m == *v || self.value_beats(*v, m)) => Ok(*v),
             _ => Err("overloaded reference"),
         }
+    }
+
+    /// Whether value `v` is more specific than `m`: `m` a method with an empty parameter list
+    /// of `v`'s class or a base class of it.
+    fn value_beats(&mut self, v: SymbolId, m: SymbolId) -> bool {
+        let info = self.u.info(m);
+        let empty = matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty());
+        let (Some(a), Some(b)) = (self.u.symbol(v).owner, self.u.symbol(m).owner) else { return false };
+        self.u.symbol(m).kind == Kind::Def && empty && self.u.derives_from(a, b)
     }
 
     /// Whether an alternative of result type `result` is a value that may conform to `pt`.

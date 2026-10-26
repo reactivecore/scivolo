@@ -56,18 +56,20 @@ impl Typer<'_> {
         secondary
     }
 
-    /// `ctx` of a constructor body, its parameters seen outside the class.
+    /// `ctx` of a constructor body, the names of its scopes inside the class (its parameters)
+    /// seen outside the class.
     fn this_call_ctx(&mut self, ctx: Ctx) -> Ctx {
         if self.u.symbol(ctx.owner).name != "<init>" {
             return ctx;
         }
         let mut level = ctx.level;
+        let mut scopes = Vec::new();
         while let Some(outer) = self.levels.outer(level) {
+            if let Level::Scope(entries) = self.levels.get(level) {
+                scopes.push(entries.clone());
+            }
             if matches!(self.levels.get(outer), Level::Members(_)) {
-                let params = match self.levels.get(level) {
-                    Level::Scope(entries) => entries.clone(),
-                    _ => Vec::new(),
-                };
+                let params = scopes.into_iter().rev().flatten().collect();
                 let level = self.levels.push(self.levels.outer(outer), Level::Scope(params));
                 return Ctx { level, ..ctx };
             }

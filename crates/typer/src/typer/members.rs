@@ -182,13 +182,13 @@ impl Typer<'_> {
                             self.complete(s);
                         }
                     }
-                    if self.same_member(site, o, m) {
+                    if !self.signatures_differ(o, m) && self.same_member(site, o, m) {
                         overridden = Some(k);
                         break;
                     }
                 }
                 match overridden {
-                    Some(k) if self.is_concrete(m) && !self.is_concrete(out[k]) => out[k] = m,
+                    Some(k) if self.concrete_replaces(c, out[k], m) => out[k] = m,
                     Some(_) => {}
                     None => out.push(m),
                 }

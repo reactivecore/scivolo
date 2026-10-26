@@ -30,6 +30,22 @@ impl Typer<'_> {
         }
     }
 
+    /// The alternatives of `syms` accessible through `prefix` in `ctx`, all of them if none is
+    /// (dotty's `accessibleFrom` on a denotation).
+    pub fn accessible_alternatives(
+        &mut self,
+        syms: Vec<SymbolId>,
+        prefix: TypeId,
+        ctx: Ctx,
+    ) -> Vec<SymbolId> {
+        if syms.len() < 2 {
+            return syms;
+        }
+        let accessible: Vec<SymbolId> =
+            syms.iter().copied().filter(|&s| self.is_accessible_from(s, Some(prefix), ctx)).collect();
+        if accessible.is_empty() { syms } else { accessible }
+    }
+
     /// Whether `sym` is public or `ctx` is inside its access boundary or the boundary's companion.
     pub fn is_within_boundary(&mut self, sym: SymbolId, ctx: Ctx) -> bool {
         let Some(boundary) = self.access_boundary(sym) else { return true };

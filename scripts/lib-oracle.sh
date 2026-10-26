@@ -1,17 +1,28 @@
 #!/usr/bin/env bash
-# Compiles Scala Native's library modules with its build's Scala 3 version (sbt, JDK; 3.8.3 for
-# 0.5.12) and copies their NIR into tmp/lib/sn/<module>: the oracle of `just lib-compile` in
-# place of the published jars, which Scala Native compiles with Scala 3.1.3.
+# Compiles Scala Native's library modules with sbt (JDK) and the Scala 3 version the frontend
+# types (3.9.0, Scala Native's own build uses 3.8.3), and copies their NIR into tmp/lib/sn/<module>:
+# the oracle of `just lib-compile` in place of the published jars (Scala 3.1.3). The build runs in
+# a copy of ref/scala-native, tmp/lib/build, patched to use the published compiler plugin of that
+# Scala version (the plugin's 0.5.12 sources do not compile against it) and without -Werror.
 set -euo pipefail
+scala=3.9.0
 root=$(cd "$(dirname "$0")/.." && pwd)
 native="$root/ref/scala-native"
+build="$root/tmp/lib/build/scala-native"
 [ -d "$native" ] || { echo "ref/scala-native missing: run \`just fetch-scala-native\`" >&2; exit 1; }
+mkdir -p "$build"
+rsync -a --delete --exclude target --exclude .bsp "$native/" "$build/"
+perl -0pi -e 's/if \(isGeneratingForIDE\) project\s*else project\.dependsOn\(nscPlugin % "plugin"\)/project.settings(libraryDependencies += compilerPlugin("org.scala-native" % "nscplugin_'$scala'" % "0.5.12"))/' \
+  "$build/project/Build.scala"
+perl -pi -e 's/Seq\("-Werror", "-encoding:utf8"\)/Seq("-encoding:utf8")/' "$build/project/Settings.scala"
+grep -q "nscplugin_$scala" "$build/project/Build.scala" && ! grep -q '"-Werror", "-encoding:utf8"' "$build/project/Settings.scala" ||
+  { echo "patching the build in $build failed" >&2; exit 1; }
 modules=(nativelib clib posixlib windowslib javalib auxlib)
-tasks=()
+tasks=("++$scala!")
 for m in "${modules[@]}"; do tasks+=("${m}3/compile"); done
-(cd "$native" && sbt -batch "${tasks[@]}")
+(cd "$build" && sbt -batch "${tasks[@]}")
 for m in "${modules[@]}"; do
-  dirs=$(find "$native/$m/.3/target" -type d -name classes -path '*scala-3*')
+  dirs=$(find "$build/$m/.3/target" -type d -name classes -path "*scala-$scala*")
   [ "$(echo "$dirs" | grep -c .)" -eq 1 ] || { echo "expected one $m classes directory, found: $dirs" >&2; exit 1; }
   out="$root/tmp/lib/sn/$m"
   rm -rf "$out"

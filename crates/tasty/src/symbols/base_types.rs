@@ -71,7 +71,7 @@ impl Universe {
                 (true, Some(p)) => {
                     let info = self.info(s);
                     match self.symbol(s).owner {
-                        Some(o) if self.symbol(o).kind == Kind::Class => self.seen_from_path(info, p, o),
+                        Some(o) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),
                         _ => info,
                     }
                 }

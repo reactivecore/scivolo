@@ -50,5 +50,11 @@ pub fn hash_code_body(l: &mut Lower, class: SymbolId, value: SymbolId, cc: CaseC
     if matches!(l.u.erase(info), Erased::Prim(_)) {
         return l.call(value_ref, cc.hash_code, &[]);
     }
-    l.static_call(cc.objects_hash_code, &[value_ref])
+    match cc.objects_module {
+        Some(m) => {
+            let module = l.ident(m, Span::NONE);
+            l.call(module, cc.objects_hash_code, &[value_ref])
+        }
+        None => l.static_call(cc.objects_hash_code, &[value_ref]),
+    }
 }

@@ -52,7 +52,7 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
             if let Some(alias) = opaque.or_else(|| u.alias_of(s)) {
                 return Meaning::Alias(match (prefix, u.symbol(s).owner) {
                     (Some(p), Some(owner)) if u.symbol(owner).kind == Kind::Class => {
-                        u.seen_from_path(alias, p, owner)
+                        u.as_seen_from(alias, p, owner)
                     }
                     _ => alias,
                 });
