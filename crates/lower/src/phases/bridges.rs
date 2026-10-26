@@ -30,7 +30,12 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
             continue;
         }
         let (params, result) = l.u.erased_method(other);
-        if l.u.erased_method(member) == (params.clone(), result.clone()) {
+        let target = |l: &Lower, s: SymbolId| {
+            l.u.symbol(s).target.clone().unwrap_or_else(|| l.u.symbol(s).name.clone())
+        };
+        if target(l, member) == target(l, other)
+            && l.u.erased_method(member) == (params.clone(), result.clone())
+        {
             continue;
         }
         let key = (member, params, result);
@@ -160,7 +165,7 @@ fn bridge(l: &mut Lower, class: SymbolId, m: SymbolId, other: SymbolId, span: Sp
     let value_params = l.u.erased_method_value(m).0;
     let other_result = l.u.erased_method_value(other).1;
     let previous = l.erasure_owner.replace(m);
-    let made = l.method_like(class, m, flags, info, span, |l, args, _| {
+    let made = l.method_like(class, other, flags, info, span, |l, args, _| {
         let args: Vec<TNodeId> = args
             .iter()
             .zip(params.iter().zip(&other_params).zip(&value_params))
