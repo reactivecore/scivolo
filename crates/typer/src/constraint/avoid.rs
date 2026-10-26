@@ -13,7 +13,8 @@ impl Constraint {
     /// type, a class member of a local value selected on the value's type, a variable made after
     /// `born` whose bounds refer to one by a new variable above it made at `born` (dotty's
     /// `legalVar`); a type member of a local value by its alias, or by its bound where not
-    /// invariant. `None` if another such symbol remains.
+    /// invariant; an invariant argument by the wildcard of its avoided bounds where covariant.
+    /// `None` if another such symbol remains.
     pub fn avoided(&mut self, u: &mut Universe, t: TypeId, born: SymbolId, v: i32) -> Option<TypeId> {
         if !self.refers_to_local(u, t, born, 4) {
             return Some(t);
@@ -77,13 +78,17 @@ impl Constraint {
                 let mut out = Vec::with_capacity(args.len());
                 for (&a, &pv) in args.iter().zip(&variances) {
                     if pv == 0 && self.refers_to_local(u, a, born, 4) {
-                        let bounds = match *u.types().get(a) {
-                            Type::Bounds(lo, hi) => (lo, hi),
-                            _ => (a, a),
+                        let (bounds, wildcard) = match *u.types().get(a) {
+                            Type::Bounds(lo, hi) => ((lo, hi), true),
+                            _ => ((a, a), false),
                         };
-                        let lo = self.avoided(u, bounds.0, born, -1).filter(|_| v != 0)?;
+                        let lo = self.avoided(u, bounds.0, born, -1)?;
                         let hi = self.avoided(u, bounds.1, born, 1)?;
-                        out.push(u.intern_type(Type::Bounds(lo, hi)));
+                        match (wildcard, lo == hi) {
+                            (false, true) => out.push(lo),
+                            (false, false) if v <= 0 => return None,
+                            _ => out.push(u.intern_type(Type::Bounds(lo, hi))),
+                        }
                         continue;
                     }
                     out.push(self.avoided(u, a, born, v * i32::from(pv))?);
