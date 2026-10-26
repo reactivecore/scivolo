@@ -42,9 +42,12 @@ impl Typer<'_> {
         let (apply, _) = self.applied(fun, &[literal]);
         let call = self.typed(apply, Pt::Any, ctx);
         let tpe = self.tpd.tpe(call);
-        if self.is_error(call) || self.u.is_subtype(tpe, field) {
-            return Some(call);
-        }
-        Some(self.cast_to_captured(call, field).unwrap_or_else(|what| self.unsupported(id, what)))
+        let result = if self.is_error(call) || self.u.is_subtype(tpe, field) {
+            call
+        } else {
+            self.cast_to_captured(call, field).unwrap_or_else(|what| self.unsupported(id, what))
+        };
+        self.tpd.get_mut(result).span = span;
+        Some(result)
     }
 }
