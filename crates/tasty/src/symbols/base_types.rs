@@ -45,6 +45,10 @@ impl Universe {
                 let sup = self.try_normalize(t).unwrap_or(bound);
                 return self.base_type_within(sup, base, depth);
             }
+            Type::TermRef(..) if self.resolve_ref(t).is_none() => {
+                let underlying = self.widen(t);
+                return (underlying != t).then(|| self.base_type_within(underlying, base, depth)).flatten();
+            }
             _ => (t, Vec::new()),
         };
         let (prefix, s) = match self.types().get(tycon).clone() {

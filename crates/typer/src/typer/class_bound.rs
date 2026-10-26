@@ -9,8 +9,8 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 impl Typer<'_> {
     /// The intersection of local class `c`'s parents refined by each type member narrowing an
     /// inherited one, or by any member if a parent is a `Selectable`; `None` for a polymorphic
-    /// class, a term member that needs a refinement, or a refinement referring to `c` or to one
-    /// of the local symbols being expanded, `visiting`.
+    /// class, a term member narrowing an inherited one, or a refinement referring to `c` or to
+    /// one of the local symbols being expanded, `visiting`.
     pub fn local_class_bound(&mut self, c: SymbolId, visiting: &[SymbolId]) -> Option<TypeId> {
         if !self.u.type_params(c).is_empty() {
             return None;
@@ -29,16 +29,17 @@ impl Typer<'_> {
             if !self.needs_refinement(c, d, parent, selectable) {
                 continue;
             }
-            if !self.u.is_type_symbol(d) {
+            let is_type = self.u.is_type_symbol(d);
+            let name = self.u.symbol(d).name.clone();
+            if !is_type && !self.type_members(parent, &name).is_empty() {
                 return None;
             }
-            let info = self.type_info(d);
+            let info = if is_type { self.type_info(d) } else { self.term_info(d) };
             let avoided = Avoided { locals: &missing, opaque: &[], visiting };
             let info = self.avoid_at(info, 1, avoided)?.hi();
             if self.refers_to(info, &[c]) {
                 return None;
             }
-            let name = self.u.symbol(d).name.clone();
             bound = self.u.intern_type(Type::Refined(bound, name, info));
         }
         Some(bound)
@@ -64,7 +65,13 @@ impl Typer<'_> {
         if is_type {
             let own = self.type_info(d);
             let theirs = self.u.member_info(parent, inherited[0]);
-            return matches!(self.u.types().get(theirs), Type::Bounds(..)) && theirs != own;
+            let Type::Bounds(lo, hi) = *self.u.types().get(theirs) else { return false };
+            let (own_lo, own_hi) = match *self.u.types().get(own) {
+                Type::Alias(a) => (a, a),
+                Type::Bounds(l, h) => (l, h),
+                _ => return theirs != own,
+            };
+            return !(self.u.is_subtype(own_lo, lo) && self.u.is_subtype(hi, own_hi));
         }
         let info = self.u.info(d);
         let poly = matches!(self.u.types().get(info), Type::Poly { .. });
@@ -104,6 +111,17 @@ impl Typer<'_> {
     fn is_poly_function_apply(&mut self, c: SymbolId, d: SymbolId) -> bool {
         self.u.symbol(d).name == "apply"
             && self.resolve_full_name("scala.PolyFunction", true).is_some_and(|p| self.u.derives_from(c, p))
+    }
+
+    /// The info of term member `d` as a refinement gives it: a parameterless method's by-name.
+    fn term_info(&mut self, d: SymbolId) -> TypeId {
+        let info = self.u.info(d);
+        let method =
+            matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::ByName(_));
+        if self.u.symbol(d).kind == Kind::Def && !method {
+            return self.u.intern_type(Type::ByName(info));
+        }
+        info
     }
 
     /// The info of type member `d` as a refinement gives it: an alias or bounds.
