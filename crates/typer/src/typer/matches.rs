@@ -7,7 +7,7 @@ use crate::ctx::{Ctx, Level, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::tree::MatchKind;
 use syntax::ast::{Attrs, List, NodeId, Tree};
-use tasty::{NOTHING, SymbolId, Type, TypeId};
+use tasty::{Kind, NOTHING, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_match(
@@ -44,11 +44,18 @@ impl Typer<'_> {
             pt => pt,
         };
         let case_ids = self.ast.items(cases).to_vec();
+        let ctx = match kind {
+            MatchKind::Inline => ctx.with_mode(ctx.mode.with(Mode::INLINE_CASE)),
+            _ => ctx,
+        };
         let dependent = self.dependent_match_cases(pt, sel, &case_ids);
         let typed_cases: Vec<TNodeId> = match &dependent {
             Some(case_types) => {
                 let pairs: Vec<(NodeId, TypeId)> = case_ids.iter().copied().zip(case_types.clone()).collect();
-                pairs.into_iter().map(|(c, ct)| self.typed_case_in(c, sel_tpe, case_pt, Some(ct), ctx)).collect()
+                pairs
+                    .into_iter()
+                    .map(|(c, ct)| self.typed_case_in(c, sel_tpe, case_pt, Some(ct), ctx))
+                    .collect()
             }
             None => {
                 let before = self.before_harmonic();
@@ -96,12 +103,19 @@ impl Typer<'_> {
     }
 
     /// `typed_case`, the body expected to be the body of match type case `case` if given.
-    fn typed_case_in(&mut self, id: NodeId, selector: TypeId, pt: Pt, case: Option<TypeId>, ctx: Ctx) -> TNodeId {
+    fn typed_case_in(
+        &mut self,
+        id: NodeId,
+        selector: TypeId,
+        pt: Pt,
+        case: Option<TypeId>,
+        ctx: Ctx,
+    ) -> TNodeId {
         let Tree::CaseDef { pat, guard, body } = *self.ast.tree(id) else {
             return self.unsupported(id, "case");
         };
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
-        let cctx = Ctx { level, ..ctx };
+        let cctx = Ctx { level, mode: ctx.mode.without(Mode::INLINE_CASE), ..ctx };
         let pat = self.typed(pat, Pt::Type(selector), cctx.with_mode(ctx.mode.with(Mode::PATTERN)));
         let body_pt = case.map(|c| self.dependent_case_body_pt(pat, c));
         let pt = match body_pt {
@@ -163,13 +177,26 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether `t` is `Any`, `Matchable` or `AnyRef`, against which a pattern's type constrains
-    /// none of its bound types.
+    /// Whether `t` is `Any`, `Matchable` or `AnyRef`, or an abstract type bounded by one, against
+    /// which a pattern's type constrains none of its bound types.
     fn is_top(&mut self, t: TypeId) -> bool {
         let t = self.u.dealias(t);
         let b = self.u.builtins();
         let tops = [b.any, b.matchable, b.object];
-        matches!(*self.u.types().get(t), Type::Sym(_, s) if tops.contains(&s))
+        let Type::Sym(None, s) = *self.u.types().get(t) else {
+            return matches!(*self.u.types().get(t), Type::Sym(_, s) if tops.contains(&s));
+        };
+        if tops.contains(&s) {
+            return true;
+        }
+        if !matches!(self.u.symbol(s).kind, Kind::TypeParam | Kind::Type) {
+            return false;
+        }
+        let info = self.u.info(s);
+        match *self.u.types().get(info) {
+            Type::Bounds(_, hi) => self.is_top(hi),
+            _ => false,
+        }
     }
 
     /// Whether pattern `t` or a pattern inside it binds a variable.

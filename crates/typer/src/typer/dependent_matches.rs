@@ -73,6 +73,7 @@ impl Typer<'_> {
     /// refers to the pattern's variables.
     pub fn dependent_case_body(&mut self, body: TNodeId, pt: TypeId) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(body);
-        let tpe = self.fully_defined_as(tpe, true).ok()?;        self.u.is_subtype(tpe, pt).then(|| self.ascribed(body, pt))
+        let tpe = self.fully_defined_as(tpe, true).ok()?;
+        self.u.is_subtype(tpe, pt).then(|| self.ascribed(body, pt))
     }
 }

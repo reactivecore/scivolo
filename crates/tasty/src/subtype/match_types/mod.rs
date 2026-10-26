@@ -80,6 +80,19 @@ impl Cmp<'_> {
         None
     }
 
+    /// The instance of type variable `t`, or its bounds if they are the same type (dotty's
+    /// `tryReplace`); `t` itself otherwise.
+    fn fixed(&mut self, t: TypeId) -> TypeId {
+        let Type::Var(v) = *self.u.types().get(t) else { return t };
+        if let Some(i) = self.vars.instance(v) {
+            return i;
+        }
+        match self.vars.bounds(v) {
+            (lo, hi) if lo == hi => lo,
+            _ => t,
+        }
+    }
+
     /// The supertype of `tycon[args]` for `tycon` not a class: a lambda's body, an alias's or
     /// an abstract type's upper bound applied (dotty's `AppliedType.superType`).
     pub fn applied_super_type(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
@@ -104,6 +117,7 @@ impl Cmp<'_> {
         self.reductions += 1;
         let frozen = std::mem::replace(&mut self.frozen, true);
         let scrutinee = self.u.dealias(scrutinee);
+        let scrutinee = self.fixed(scrutinee);
         let scrutinee = self.normal(scrutinee);
         let reduced = self.match_cases(scrutinee, &cases);
         self.frozen = frozen;

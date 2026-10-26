@@ -71,7 +71,8 @@ impl Typer<'_> {
                         self.check_simple_kinded(t, a);
                     }
                 }
-                let wildcard = arg_types.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)));
+                let wildcard = !ctx.mode.is(Mode::PATTERN_TYPE)
+                    && arg_types.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)));
                 let mut reduced = false;
                 if wildcard
                     && let Type::Sym(_, s) = *self.u.types().get(tycon)

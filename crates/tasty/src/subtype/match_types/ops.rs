@@ -51,6 +51,7 @@ impl Cmp<'_> {
         let mut values = Vec::new();
         for a in args {
             let a = self.widen_term_refs(a);
+            let a = self.u.dealias(a);
             let a = self.normal(a);
             values.push(match *self.u.types().get(a) {
                 Type::Constant(INTconst, n) => C::Int(n as i32),

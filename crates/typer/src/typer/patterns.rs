@@ -37,6 +37,7 @@ impl Typer<'_> {
         if pattern && !self.is_testable_type(tpe) {
             match self.try_with_type_test(id, expr, tpt_id, tpe, pt, ctx) {
                 Ok(Some(tagged)) => return tagged,
+                Ok(None) if ctx.mode.is(Mode::INLINE_CASE) => {}
                 Ok(None) if self.is_erased_test_type(tpe) => {
                     self.warn_unchecked_type_test(pt, tpe, self.ast.span(id));
                 }
