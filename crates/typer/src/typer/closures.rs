@@ -53,35 +53,17 @@ impl Typer<'_> {
             let Tree::ValDef { name, tpt, mods, .. } = *self.ast.tree(p) else {
                 return self.unsupported(p, "function parameter");
             };
-            let tpt = if !self.is_untyped_param(p) {
-                self.typed_type(tpt, ctx)
-            } else if let Some((formals, _)) = &expected {
-                let formal = self.zonk(formals[i]);
-                let formal = self.without_erased_param(formal);
-                let lower = match *self.u.types().get(formal) {
-                    Type::Bounds(lo, _) => Some(lo),
-                    _ => None,
-                };
-                let nothing = Some(self.u.builtins().nothing);
-                if lower.is_some_and(|lo| self.u.class_symbol(lo) == nothing) {
-                    return self.unsupported(p, "parameter type inferred from the target of a wildcard");
+            let formal = expected.as_ref().map(|(formals, _)| formals[i]);
+            let tpt = match self.closure_param_tpt((p, tpt), formal, contextual, ctx) {
+                Ok(Some(tpt)) => tpt,
+                Ok(None) => {
+                    let Some(error) = self.missing_param_type((id, p), (&params, body), pt, ctx) else {
+                        return self.unsupported(p, "function parameter without a type");
+                    };
+                    missing = true;
+                    error
                 }
-                let formal = lower.unwrap_or(formal);
-                if contextual && !self.is_fully_defined(formal) {
-                    return self.unsupported(p, "context closure parameter of an open type");
-                }
-                let formal = match self.fully_defined(formal) {
-                    Ok(t) if !self.has_proto_wildcard(t) => t,
-                    Ok(_) => return self.unsupported(p, "parameter type left open by the expected type"),
-                    Err(what) => return self.unsupported(p, what),
-                };
-                self.type_tree(formal, self.ast.span(p).end_pos(), true)
-            } else {
-                let Some(error) = self.missing_param_type((id, p), (&params, body), pt, ctx) else {
-                    return self.unsupported(p, "function parameter without a type");
-                };
-                missing = true;
-                error
+                Err(refused) => return refused,
             };
             let tpe = self.tpd.tpe(tpt);
             let text = self.text(name.name).to_owned();
