@@ -86,6 +86,8 @@ impl Typer<'_> {
                 let arg_types = self.pattern_bound_args(tycon, &mut typed_args, &vars, arg_types, ctx);
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
                 let tpe = if reduced { self.u.dealias(tpe) } else { tpe };
+                let from = self.tpd.sym(tpt).is_some_and(|s| self.u.symbol(s).name == "From");
+                let tpe = if from { self.with_case_fields(tpe) } else { tpe };
                 if self.is_ground_match(tpe) {
                     return self.unsupported(id, "match type that may reduce");
                 }

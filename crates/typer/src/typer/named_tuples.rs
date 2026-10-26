@@ -44,15 +44,10 @@ impl Typer<'_> {
     /// Named tuple type `id` (dotty's `desugar.tuple` of a type).
     pub fn typed_named_tuple_type(&mut self, id: NodeId, elems: Vec<(String, NodeId)>, ctx: Ctx) -> TNodeId {
         let names: Vec<String> = elems.iter().map(|(n, _)| n.clone()).collect();
-        let values: Vec<TypeId> = elems
-            .iter()
-            .map(|&(_, e)| {
-                let typed = self.typed_type(e, ctx);
-                self.tpd.tpe(typed)
-            })
-            .collect();
+        let trees: Vec<TNodeId> = elems.iter().map(|&(_, e)| self.typed_type(e, ctx)).collect();
+        let values: Vec<TypeId> = trees.iter().map(|&t| self.tpd.tpe(t)).collect();
         match self.named_tuple_type(&names, &values) {
-            Some(t) => self.type_tree(t, self.ast.span(id), false),
+            Some(t) => self.named_tuple_tree(t, &names, &trees, self.ast.span(id)),
             None => self.unsupported(id, "named tuple classes missing from the library"),
         }
     }
@@ -84,6 +79,12 @@ impl Typer<'_> {
         };
         let values_pt = named_pt.as_ref().and_then(|(_, v)| self.values_type(v));
         let typed = self.typed(values, values_pt.map_or(Pt::Any, Pt::Type), ctx);
+        if args.len() <= MAX_TUPLE_ARITY
+            && !self.is_error(typed)
+            && let Some(built) = self.named_tuple_build(&names, typed, span, ctx)
+        {
+            return built;
+        }
         if let Some((t, _)) = named_pt {
             return self.type_cast(typed, t);
         }

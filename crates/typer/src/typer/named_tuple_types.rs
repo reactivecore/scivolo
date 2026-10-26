@@ -84,10 +84,17 @@ impl Typer<'_> {
         }
     }
 
+    /// `NamedTuple.NamedTuple`, selected from the object `NamedTuple`.
+    pub fn named_tuple_ref(&mut self) -> Option<TypeId> {
+        let nt = self.resolve_full_name(NAMED_TUPLE, true)?;
+        let module = self.u.symbol(nt).owner.and_then(|o| self.u.source_module(o))?;
+        let prefix = crate::defn::type_ref(self.u, module);
+        Some(self.u.intern_type(Type::Sym(Some(prefix), nt)))
+    }
+
     /// `NamedTuple[(names…), (values…)]` with the names as string constant types.
     pub fn named_tuple_type(&mut self, names: &[String], values: &[TypeId]) -> Option<TypeId> {
-        let nt = self.resolve_full_name(NAMED_TUPLE, true)?;
-        let nt = crate::defn::type_ref(self.u, nt);
+        let nt = self.named_tuple_ref()?;
         let names: Vec<TypeId> = names.iter().map(|n| self.u.intern_type(Type::Str(n.clone()))).collect();
         let names = self.values_type(&names)?;
         let values = self.values_type(values)?;
@@ -130,7 +137,10 @@ impl Typer<'_> {
             .collect();
         let names: Vec<String> = fields.iter().map(|&f| self.u.symbol(f).name.clone()).collect();
         let values: Vec<TypeId> = fields.iter().map(|&f| self.u.member_info(c, f)).collect();
-        self.named_tuple_type(&names, &values)
+        let names: Vec<TypeId> = names.into_iter().map(|n| self.u.intern_type(Type::Str(n))).collect();
+        let nt = self.named_tuple_ref()?;
+        let (names, values) = (self.nested_pairs(&names).ok()?, self.nested_pairs(&values).ok()?);
+        Some(self.u.intern_type(Type::Applied(nt, vec![names, values])))
     }
 
     /// The tuple type of `elems`: `TupleN[elems…]`, above 22 elements their `*:` chain.

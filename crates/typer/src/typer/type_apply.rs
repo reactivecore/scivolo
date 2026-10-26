@@ -153,7 +153,8 @@ impl Typer<'_> {
                 return Err("type argument outside its bounds");
             }
         }
-        Ok(self.instantiate_poly(result, binder, &names, args, method))
+        let instantiated = self.instantiate_poly(result, binder, &names, args, method);
+        Ok(if fresh { instantiated } else { self.with_case_fields(instantiated) })
     }
 
     /// `t` with the type parameters of binder `binder`, named `names`, and the type parameter
