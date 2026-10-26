@@ -59,14 +59,14 @@ trait ReflectStatements extends reflectModule { self: reflect.type =>
   abstract class ImportMethodsImpl extends ImportMethods {
     extension (self: Import) {
       def expr: Term = ReflectOps.shape(self).child(0).asInstanceOf[Term]
-      def selectors: List[Selector] = refused("Import.selectors")
+      def selectors: List[Selector] = throw new Unsupported("Import.selectors")
     }
   }
 
   abstract class ExportMethodsImpl extends ExportMethods {
     extension (self: Export) {
       def expr: Term = ReflectOps.shape(self).child(0).asInstanceOf[Term]
-      def selectors: List[Selector] = refused("Export.selectors")
+      def selectors: List[Selector] = throw new Unsupported("Export.selectors")
     }
   }
 
