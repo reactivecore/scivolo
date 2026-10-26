@@ -46,10 +46,11 @@ impl Typer<'_> {
         let wildcard = formals.iter().any(|&t| self.has_proto_wildcard(t));
         let span = self.ast.span(id);
         let at = span.start_pos();
-        let mut names =
-            self.dependent_context_function(ifpt).into_iter().flat_map(|(ps, _)| ps).map(|(n, _)| n);
+        let applied = self.dependent_context_function(ifpt).or_else(|| self.erased_context_names(ifpt));
+        let mut names = applied.into_iter().flat_map(|(ps, _)| ps).map(|(n, _)| n);
+        let erased = self.erased_context_function(ifpt).map(|(_, _, e)| e).unwrap_or_default();
         let mut params = Vec::new();
-        for formal in formals {
+        for (i, formal) in formals.into_iter().enumerate() {
             let tpt = self.ast.node(Tree::TypeTree);
             self.ast.with_span(tpt, at);
             if !wildcard {
@@ -66,7 +67,8 @@ impl Typer<'_> {
                 None => self.fresh.next(self.names, "contextual$"),
             };
             let name = TName { name, is_type: false };
-            let mods = self.ast.mods(Modifiers::with_flags(f::GIVEN));
+            let flags = if erased.get(i) == Some(&true) { f::GIVEN.or(f::ERASED) } else { f::GIVEN };
+            let mods = self.ast.mods(Modifiers::with_flags(flags));
             let param = self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods });
             if named.is_some() {
                 self.hidden_params.insert(param);
@@ -116,6 +118,9 @@ impl Typer<'_> {
         }
         let d = self.u.dealias(t);
         if let Some((params, _)) = self.context_function_parts(d) {
+            return Ok(Some((d, params)));
+        }
+        if let Some((params, _, _)) = self.erased_context_function(d) {
             return Ok(Some((d, params)));
         }
         match self.dependent_context_function(d) {
@@ -181,7 +186,9 @@ impl Typer<'_> {
         let wide = self.u.widen(tpe);
         if self.context_function_parts(wide).is_none() {
             let wide = self.u.dealias(wide);
-            self.dependent_context_function(wide)?;
+            if self.dependent_context_function(wide).is_none() {
+                self.erased_context_function(wide)?;
+            }
         }
         let meth = self.tpd.sym(self.tpd.meth_part(tree));
         if meth.is_some_and(|m| self.u.symbol(m).flags.has(tasty::tags::EXTENSION)) {

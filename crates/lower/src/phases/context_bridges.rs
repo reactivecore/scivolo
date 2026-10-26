@@ -56,6 +56,7 @@ pub fn bridge(
                 *name = fresh(l, name);
             }
         }
+        let context: Params = context.iter().filter(|&&(_, p)| !l.u.is_erased_param(p)).cloned().collect();
         captured.extend(context.iter().cloned());
         anons.push((anon, captured.clone(), context.len()));
     }
@@ -92,8 +93,9 @@ pub fn bridge(
         flags = flags.without(tag);
     }
     let (first, arity) = (anons[0].0, anons[0].2);
-    let (sym, def) =
-        l.method_like(class, m, flags, other_info, span, |l, args, _| closure(l, first, arity, args, span))?;
+    let (sym, def) = l.method_like(class, other, flags, other_info, span, |l, args, _| {
+        closure(l, first, arity, args, span)
+    })?;
     l.bridges.insert(sym);
     Ok([def].into_iter().chain(defs).collect())
 }

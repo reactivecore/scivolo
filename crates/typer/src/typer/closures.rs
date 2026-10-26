@@ -22,7 +22,9 @@ impl Typer<'_> {
         }
         let contextual = params.first().is_some_and(|&p| self.is_given_param(p));
         let dependent_pt = match pt {
-            Pt::Type(p) => self.dependent_function_parts(p, n, contextual),
+            Pt::Type(p) => self
+                .dependent_function_parts(p, n, contextual)
+                .or_else(|| self.erased_function_parts(p, n, contextual)),
             _ => None,
         };
         let (expected, sam) = match &dependent_pt {
@@ -46,18 +48,16 @@ impl Typer<'_> {
         let mut entries = Vec::new();
         let mut param_trees = Vec::new();
         let mut param_types = Vec::new();
-        let mut missing = false;
+        let (mut missing, mut any_erased) = (false, false);
         for (i, &p) in params.iter().enumerate() {
             let Tree::ValDef { name, tpt, mods, .. } = *self.ast.tree(p) else {
                 return self.unsupported(p, "function parameter");
             };
-            if self.ast.modifiers(mods).flags.is(f::ERASED) {
-                return self.unsupported(p, "erased function parameter");
-            }
             let tpt = if !self.is_untyped_param(p) {
                 self.typed_type(tpt, ctx)
             } else if let Some((formals, _)) = &expected {
                 let formal = self.zonk(formals[i]);
+                let formal = self.without_erased_param(formal);
                 let lower = match *self.u.types().get(formal) {
                     Type::Bounds(lo, _) => Some(lo),
                     _ => None,
@@ -84,11 +84,12 @@ impl Typer<'_> {
                 error
             };
             let tpe = self.tpd.tpe(tpt);
-            if self.derives_erased_class(tpe) {
-                return self.unsupported(p, "erased function parameter");
-            }
             let text = self.text(name.name).to_owned();
-            let flags = self.ast.modifiers(mods).flags.or(f::TERM_PARAM).to_term_flags();
+            let mut flags = self.ast.modifiers(mods).flags.or(f::TERM_PARAM).to_term_flags();
+            if self.derives_erased_class(tpe) {
+                flags = flags.or(f::ERASED);
+            }
+            any_erased |= flags.is(f::ERASED);
             let sym = self.syms.define(self.u, &text, Kind::Param, anonfun, flags);
             self.u.set_info(sym, tpe);
             self.syms.closure_syms.push(sym);
@@ -155,7 +156,11 @@ impl Typer<'_> {
             }
             _ => None,
         });
-        let method_params = names.into_iter().zip(param_types.iter().copied()).collect();
+        if any_erased && (sam.is_some() || poly.is_some()) {
+            return self.unsupported(id, "erased parameter of a closure of a single abstract method type");
+        }
+        let info_params: Vec<TypeId> = params_syms.iter().map(|&p| self.method_param_type(p)).collect();
+        let method_params = names.into_iter().zip(info_params).collect();
         let info = self.u.intern_type(Type::Method {
             binder,
             params: method_params,
@@ -171,7 +176,11 @@ impl Typer<'_> {
         };
         let mut fun_args = param_types;
         fun_args.push(result);
-        let fun_tpe = dependent_tpe.unwrap_or_else(|| self.u.intern_type(Type::Applied(class, fun_args)));
+        let erased_tpe =
+            any_erased.then(|| self.erased_function_of(&params_syms, result, contextual)).flatten();
+        let fun_tpe = erased_tpe
+            .or(dependent_tpe)
+            .unwrap_or_else(|| self.u.intern_type(Type::Applied(class, fun_args)));
         self.closure_tree(id, anonfun, &param_trees, (result, body), sam.unwrap_or(fun_tpe), sam.is_some())
     }
 

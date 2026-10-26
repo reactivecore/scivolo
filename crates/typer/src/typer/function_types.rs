@@ -135,18 +135,22 @@ impl Typer<'_> {
         mods: Option<(ModsId, Box<[bool]>)>,
         ctx: Ctx,
     ) -> TNodeId {
-        let contextual = match mods {
-            None => false,
-            Some((m, erased)) => {
-                let flags = self.ast.modifiers(m).flags;
-                if erased.contains(&true) || flags.is(f::IMPURE) || !flags.is(f::GIVEN) {
-                    return self.unsupported(id, "erased or impure function type");
-                }
-                true
-            }
-        };
         let arg_ids = self.ast.items(args).to_vec();
         let n = arg_ids.len();
+        let (contextual, erased) = match mods {
+            None => (false, vec![false; n]),
+            Some((m, erased)) => {
+                let flags = self.ast.modifiers(m).flags;
+                if flags.is(f::IMPURE) {
+                    return self.unsupported(id, "impure function type");
+                }
+                (flags.is(f::GIVEN), erased.to_vec())
+            }
+        };
+        if erased.contains(&true) {
+            let typed = self.typed_erased_function_type(id, (&arg_ids, body), (&erased, contextual), ctx);
+            return typed.unwrap_or_else(|| self.unsupported(id, "erased function type"));
+        }
         let class = if contextual { self.context_function_class(n) } else { self.function_class(n) };
         let Some(class) = class else {
             return self.unsupported(id, "function type of that many parameters");
@@ -163,7 +167,8 @@ impl Typer<'_> {
             let tpe = self.tpd.tpe(p);
             self.derives_erased_class(tpe)
         }) {
-            return self.unsupported(id, "erased or impure function type");
+            let typed = self.typed_erased_function_type(id, (&arg_ids, body), (&erased, contextual), ctx);
+            return typed.unwrap_or_else(|| self.unsupported(id, "erased function type"));
         }
         let span = self.ast.span(id);
         let first = arg_ids.first().copied().unwrap_or(body);

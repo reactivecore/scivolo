@@ -62,6 +62,7 @@ mod enum_case_refs;
 mod enum_cases;
 mod enum_refs;
 mod equality;
+mod erased_function_types;
 mod errors;
 mod escaping;
 mod eta;

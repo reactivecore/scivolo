@@ -41,6 +41,9 @@ impl Typer<'_> {
             if matches!(self.u.types().get(tpe), Type::Bounds(..)) {
                 return self.unsupported(p, "function type parameter of a wildcard type");
             }
+            if self.derives_erased_class(tpe) {
+                return self.unsupported(p, "dependent function type with a parameter of an erased class");
+            }
             if self.refers_to(tpe, &syms) {
                 return self.unsupported(p, "function type with inter-parameter dependencies");
             }

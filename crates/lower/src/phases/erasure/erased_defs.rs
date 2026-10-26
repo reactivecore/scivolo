@@ -69,6 +69,7 @@ fn drop_erased_args(
     inits: &FxHashSet<SymbolId>,
 ) -> Result<()> {
     let method = l.u.widen(l.tpd.tpe(fun));
+    let method = l.u.poly_function_apply_of(method).unwrap_or(method);
     let tasty::Type::Method { params, .. } = l.u.types().get(method).clone() else { return Ok(()) };
     let erased: Vec<bool> = params.iter().map(|&(_, p)| l.u.is_erased_param(p)).collect();
     if !erased.contains(&true) {
