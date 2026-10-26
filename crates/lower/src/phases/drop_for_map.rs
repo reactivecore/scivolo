@@ -160,6 +160,10 @@ fn converted(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
         Tree::Apply { fun, .. } if matches!(l.tpd.tree(fun), Tree::Apply { .. }) => converted(l, fun),
         Tree::Apply { fun, args } => {
             let &[r] = l.tpd.items(args) else { return None };
+            let fun = match *l.tpd.tree(fun) {
+                Tree::TypeApply { fun, .. } => fun,
+                _ => fun,
+            };
             let s = l.tpd.sym(fun)?;
             let conversion = l.u.symbol(s).name == "apply"
                 && match (l.u.symbol(s).owner, class_named(l, "scala.Conversion")) {

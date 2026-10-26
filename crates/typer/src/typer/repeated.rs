@@ -173,10 +173,10 @@ impl Typer<'_> {
     /// Arguments `elems` of element type `elem` passed to a repeated parameter, at `span` if
     /// there are none: `elems: <repeated>[elem]`.
     pub fn seq_literal(&mut self, elems: &[TNodeId], elem: TypeId, span: Span) -> TNodeId {
-        let span = match (elems.first(), elems.last()) {
-            (Some(&a), Some(&b)) => {
-                Span::new(self.tpd.span(a).start(), self.tpd.span(b).end(), self.tpd.span(a).start())
-            }
+        let start = elems.iter().map(|&a| self.tpd.span(a).start()).min();
+        let end = elems.iter().map(|&a| self.tpd.span(a).end()).max();
+        let span = match (start, end) {
+            (Some(start), Some(end)) => Span::new(start, end, start),
             _ => span,
         }
         .to_synthetic();

@@ -64,7 +64,19 @@ impl Typer<'_> {
         let stats = self.ast.list(&[class]);
         let block = self.ast.node(Tree::Block { stats, expr: Some(apply) });
         self.ast.with_span(block, span);
-        self.typed_block(block, stats, Some(apply), pt, ctx)
+        let open = |s: &mut Self, p: TypeId| {
+            let p = s.zonk(p);
+            let var = |s: &Self, t: TypeId| matches!(s.u.types().get(t), Type::Var(_));
+            match *s.u.types().get(p) {
+                Type::Or(a, b, _) => var(s, a) || var(s, b),
+                _ => var(s, p),
+            }
+        };
+        let block_pt = match pt {
+            Pt::Type(p) if open(self, p) => Pt::Any,
+            _ => pt,
+        };
+        self.typed_block(block, stats, Some(apply), block_pt, ctx)
     }
 
     /// Each parent of `template` that names a type constructor of the class of `pt`, applied

@@ -82,8 +82,8 @@ impl Typer<'_> {
         self.tpd.node(T::RefinedTypeTree { tpt: parent, refinements }, span, Some(tpe), None)
     }
 
-    /// Whether `rhs` contains `this` or an identifier naming one of `items` or a member of
-    /// `parent`.
+    /// Whether `rhs` contains `this` or an identifier naming one of `items` or a non-private
+    /// member of `parent`.
     fn refers_to_refinement(&mut self, rhs: NodeId, items: &[NodeId], parent: TypeId) -> bool {
         if self.ast.exists_subtree(rhs, &|ast, n| matches!(ast.tree(n), Tree::This { .. })) {
             return true;
@@ -95,7 +95,8 @@ impl Typer<'_> {
             let sibling = items.iter().any(
                 |&i| matches!(*self.ast.tree(i), Tree::TypeDef { name: d, .. } if self.text(d.name) == text),
             );
-            sibling || !self.type_members(parent, &text).is_empty()
+            let members = self.type_members(parent, &text);
+            sibling || members.into_iter().any(|m| !self.u.symbol(m).flags.has(tasty::tags::PRIVATE))
         })
     }
 

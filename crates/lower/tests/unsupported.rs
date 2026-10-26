@@ -97,16 +97,6 @@ const CASES: &[(&str, &str)] = &[
         "`uninitialized` other than as a variable field's value",
     ),
     (
-        "import scala.reflect.Selectable.reflectiveSelectable\nclass V(val n: Int) extends AnyVal\n\
-         object O { def f(p: { def v: V }) = p.v }",
-        "structural member of a value class type",
-    ),
-    (
-        "class S extends Selectable { def applyDynamic(n: String)(args: Any*): Any = 1 }\n\
-         object O { def f(p: S { def m(x: Int): Int }) = p.m(1) }",
-        "structural call on a Selectable other than reflect.Selectable",
-    ),
-    (
         "class Ex { def unapply(x: Int): Option[Int] = Some(x) }\n\
          object B { def unapplySeq(x: Int): Option[Seq[Int]] = None }\n\
          object O { given Conversion[B.type, Ex] = _ => Ex(); def f(x: Int) = x match { case B(v) => v; case _ => 0 } }",

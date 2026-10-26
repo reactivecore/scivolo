@@ -26,6 +26,7 @@ mod avoid_map;
 mod avoid_select;
 mod by_name_repeated;
 mod call_types;
+mod callee_types;
 mod captured_paths;
 mod case_companion;
 mod case_lambdas;
@@ -116,6 +117,7 @@ mod mismatch_text;
 mod name_clashes;
 mod named_args;
 mod named_overloads;
+mod named_tuple_trees;
 mod named_tuple_types;
 mod named_tuples;
 mod named_type_args;
@@ -160,6 +162,7 @@ mod sams;
 mod scope_bindings;
 pub(crate) mod seen_from;
 mod select;
+mod selectable_fields;
 mod selves;
 mod shown_prefix;
 pub(crate) mod simplify;
@@ -169,6 +172,7 @@ mod spliced_args;
 pub(crate) mod stability;
 mod stats;
 mod structural;
+mod structural_calls;
 mod summon_from;
 mod supers;
 mod this;
@@ -302,6 +306,8 @@ pub struct Typer<'a> {
     pub derived_lambdas: FxHashMap<NodeId, NodeId>,
     /// The pending dynamic calls, by their placeholder trees.
     pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
+    /// The selections of structural methods not rewritten to `applyDynamic` calls yet.
+    pub structural_selects: FxHashSet<TNodeId>,
     /// The left-hand side of the assignment being typed.
     pub dynamic_lhs: Option<NodeId>,
     /// The functions of polymorphic function values, whose results may refer to their
@@ -381,6 +387,7 @@ impl<'a> Typer<'a> {
             derived_instances: FxHashMap::default(),
             derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
+            structural_selects: FxHashSet::default(),
             dynamic_lhs: None,
             poly_closures: FxHashMap::default(),
             hidden_params: FxHashSet::default(),
@@ -415,8 +422,10 @@ impl<'a> Typer<'a> {
             self.unsupported(id, what);
         }
         self.settle_type(tree, inner);
+        let tree = self.structural_call(tree, inner);
         let locked = std::mem::replace(&mut self.locked_vars, vars);
         let adapted = self.adapt(tree, pt, ctx);
+        let adapted = self.structural_call(adapted, inner);
         self.locked_vars = locked;
         if let Err(what) = self.reinterpolate((tree, adapted), pt, vars) {
             self.unsupported(id, what);

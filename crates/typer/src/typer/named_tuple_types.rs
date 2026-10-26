@@ -84,13 +84,62 @@ impl Typer<'_> {
         }
     }
 
+    /// `NamedTuple.NamedTuple`, selected from the object `NamedTuple`.
+    pub fn named_tuple_ref(&mut self) -> Option<TypeId> {
+        let nt = self.resolve_full_name(NAMED_TUPLE, true)?;
+        let module = self.u.symbol(nt).owner.and_then(|o| self.u.source_module(o))?;
+        let prefix = crate::defn::type_ref(self.u, module);
+        Some(self.u.intern_type(Type::Sym(Some(prefix), nt)))
+    }
+
     /// `NamedTuple[(names…), (values…)]` with the names as string constant types.
     pub fn named_tuple_type(&mut self, names: &[String], values: &[TypeId]) -> Option<TypeId> {
-        let nt = self.resolve_full_name(NAMED_TUPLE, true)?;
-        let nt = crate::defn::type_ref(self.u, nt);
+        let nt = self.named_tuple_ref()?;
         let names: Vec<TypeId> = names.iter().map(|n| self.u.intern_type(Type::Str(n.clone()))).collect();
         let names = self.values_type(&names)?;
         let values = self.values_type(values)?;
+        Some(self.u.intern_type(Type::Applied(nt, vec![names, values])))
+    }
+
+    /// `t` with each `NamedTuple.From[C]` of a case class `C` reduced to the named tuple of its
+    /// fields (dotty's `From` reduction).
+    pub fn with_case_fields(&mut self, mut t: TypeId) -> TypeId {
+        let Some(from) = self.resolve_full_name("scala.NamedTuple$.From", true) else { return t };
+        let mut applied = Vec::new();
+        self.u.map_type(t, &mut |u, part| {
+            if let Type::Applied(tycon, ref args) = *u.types().get(part)
+                && let [arg] = args[..]
+            {
+                applied.push((part, tycon, arg));
+            }
+            None
+        });
+        for (part, tycon, arg) in applied {
+            if self.referenced(tycon) != Some(from) {
+                continue;
+            }
+            let Some(fields) = self.case_fields_tuple(arg) else { continue };
+            t = self.u.map_type(t, &mut |_, p| (p == part).then_some(fields));
+        }
+        t
+    }
+
+    /// The named tuple of the fields of case class type `c`.
+    fn case_fields_tuple(&mut self, c: TypeId) -> Option<TypeId> {
+        use tasty::tags::{CASE, CASEaccessor};
+        let class = self.u.class_symbol(c).filter(|&k| self.u.symbol(k).flags.has(CASE))?;
+        let decls = self.u.symbol(class).decls.clone();
+        let fields: Vec<_> = decls
+            .into_iter()
+            .filter(|&d| {
+                self.u.symbol(d).kind == tasty::Kind::Val && self.u.symbol(d).flags.has(CASEaccessor)
+            })
+            .collect();
+        let names: Vec<String> = fields.iter().map(|&f| self.u.symbol(f).name.clone()).collect();
+        let values: Vec<TypeId> = fields.iter().map(|&f| self.u.member_info(c, f)).collect();
+        let names: Vec<TypeId> = names.into_iter().map(|n| self.u.intern_type(Type::Str(n))).collect();
+        let nt = self.named_tuple_ref()?;
+        let (names, values) = (self.nested_pairs(&names).ok()?, self.nested_pairs(&values).ok()?);
         Some(self.u.intern_type(Type::Applied(nt, vec![names, values])))
     }
 
