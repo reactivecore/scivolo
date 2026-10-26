@@ -66,6 +66,12 @@ impl Universe {
         }
         if self.symbol(s).kind != Kind::Class {
             let term = self.symbol(s).kind.is_term();
+            if !term && !args.is_empty() {
+                let dealiased = self.dealias(t);
+                if dealiased != t {
+                    return self.base_type_within(dealiased, base, depth);
+                }
+            }
             let dealiased = match (args.is_empty(), prefix) {
                 (true, Some(p)) if term => self.member_info(p, s),
                 (true, _) => self.info(s),
