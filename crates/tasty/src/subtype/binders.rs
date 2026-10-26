@@ -27,12 +27,13 @@ impl Cmp<'_> {
         bounds_ok && self.recur(body_a, body_b)
     }
 
-    /// `t` with its references to the symbols of term parameters named as `params`, the clause of
-    /// binder `binder`, replaced by parameter references.
+    /// `t` with its references to the symbols of term parameters of clause `params` with binder
+    /// `binder`, the symbols of a method whose info has that clause, replaced by parameter
+    /// references.
     pub fn param_syms_as_refs(&mut self, t: TypeId, params: &[(String, TypeId)], binder: Binder) -> TypeId {
         self.u.map_type(t, &mut |u, x| {
             let Type::Sym(None, s) = *u.types().get(x) else { return None };
-            if u.symbol(s).kind != Kind::Param {
+            if u.symbol(s).kind != Kind::Param || !u.symbol(s).owner.is_some_and(|o| has_clause(u, o, binder)) {
                 return None;
             }
             let i = params.iter().position(|(n, _)| *n == u.symbol(s).name)?;
@@ -68,4 +69,17 @@ impl Cmp<'_> {
             _ => None,
         })
     }
+}
+
+/// Whether the known info of method `method` has a parameter clause with binder `binder`.
+fn has_clause(u: &Universe, method: crate::SymbolId, binder: Binder) -> bool {
+    let mut t = u.known_info(method);
+    while let Some(x) = t {
+        t = match *u.types().get(x) {
+            Type::Method { binder: b, .. } if b == binder => return true,
+            Type::Method { result, .. } | Type::Poly { result, .. } => Some(result),
+            _ => None,
+        };
+    }
+    false
 }
