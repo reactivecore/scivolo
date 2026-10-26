@@ -57,6 +57,9 @@ pub struct Host {
     pub made_params: std::collections::HashMap<SymbolId, Vec<Vec<TNodeId>>>,
     /// The `this` types of packages made as prefixes of their members, with the packages' paths.
     pub package_paths: std::collections::HashMap<TypeId, TypeId>,
+    /// The types made as package prefixes of members, whose shape dotty takes from how the type
+    /// was written (a `ThisType` or a `TermRef`).
+    pub package_prefixes: std::collections::HashSet<u32>,
 }
 
 impl Host {
@@ -86,6 +89,7 @@ impl Host {
             fresh: FreshNames::default(),
             made_params: Default::default(),
             package_paths: Default::default(),
+            package_prefixes: Default::default(),
         }
     }
 
