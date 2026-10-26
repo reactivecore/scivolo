@@ -19,6 +19,16 @@ impl Typer<'_> {
         if let [s] = syms {
             return Ok(*s);
         }
+        if self.is_extension_apply(pt) {
+            let extensions: Vec<SymbolId> = syms
+                .iter()
+                .copied()
+                .filter(|&s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION))
+                .collect();
+            if extensions.len() < syms.len() {
+                return self.choose(&extensions, prefix, pt);
+            }
+        }
         if let Pt::PolyFun(poly) = pt {
             return self.choose_poly(syms, prefix, poly);
         }
