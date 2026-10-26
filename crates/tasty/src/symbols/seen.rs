@@ -5,7 +5,7 @@
 
 use super::base_types::MAX_DEPTH;
 use super::{Kind, SymbolId, Universe};
-use crate::tags::MUTABLE;
+use crate::tags::{INLINE, MUTABLE};
 use crate::types::{Type, TypeId};
 
 impl Universe {
@@ -44,16 +44,28 @@ impl Universe {
         })
     }
 
-    /// Whether `t` is a stable path to a value: a reference to an immutable value or parameter,
-    /// or a skolem.
+    /// Whether `t` is a stable path to a value: a skolem, or a reference to an immutable value or
+    /// a parameter neither by-name nor inline, through `this`, a package, a type or such a path.
     fn is_value_path(&mut self, t: TypeId) -> bool {
-        match *self.types().get(t) {
-            Type::Skolem(..) => true,
-            Type::Sym(_, s) => {
-                matches!(self.symbol(s).kind, Kind::Val | Kind::Param) && !self.symbol(s).flags.has(MUTABLE)
+        let (pre, s) = match *self.types().get(t) {
+            Type::Skolem(..) => return true,
+            Type::Sym(pre, s) => (pre, s),
+            _ => return false,
+        };
+        let stable = match self.symbol(s).kind {
+            Kind::Val => !self.symbol(s).flags.has(MUTABLE),
+            Kind::Param => {
+                let info = self.info(s);
+                !self.symbol(s).flags.has(INLINE) && !matches!(self.types().get(info), Type::ByName(_))
             }
             _ => false,
-        }
+        };
+        stable
+            && pre.is_none_or(|p| match *self.types().get(p) {
+                Type::This(_) | Type::NoPrefix | Type::Package(_) | Type::PackageName(_) => true,
+                Type::Sym(_, c) if !self.symbol(c).kind.is_term() => true,
+                _ => self.is_value_path(p),
+            })
     }
 
     /// What `this_cls.this` in class `cls` is as seen from `pre`: `pre` if it is an instance of
