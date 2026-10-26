@@ -20,10 +20,38 @@ impl Cmp<'_> {
             (0..a.1.len() as u32).map(|i| self.u.intern_type(Type::Param(common, i))).collect();
         let bounds_ok = a.1.iter().zip(b.1).all(|(&(_, bound_a), &(_, bound_b))| {
             let (bound_a, bound_b) = (self.renamed(a, bound_a, &refs), self.renamed(b, bound_b, &refs));
+            let (bound_a, bound_b) = (self.lambda_bounds(bound_a), self.lambda_bounds(bound_b));
             self.recur(bound_b, bound_a)
         });
         let (body_a, body_b) = (self.renamed(a, a.2, &refs), self.renamed(b, b.2, &refs));
         bounds_ok && self.recur(body_a, body_b)
+    }
+
+    /// `t` with its references to the symbols of term parameters named as `params`, the clause of
+    /// binder `binder`, replaced by parameter references.
+    pub fn param_syms_as_refs(&mut self, t: TypeId, params: &[(String, TypeId)], binder: Binder) -> TypeId {
+        self.u.map_type(t, &mut |u, x| {
+            let Type::Sym(None, s) = *u.types().get(x) else { return None };
+            if u.symbol(s).kind != Kind::Param {
+                return None;
+            }
+            let i = params.iter().position(|(n, _)| *n == u.symbol(s).name)?;
+            Some(u.intern_type(Type::Param(binder, i as u32)))
+        })
+    }
+
+    /// Higher-kinded bounds `[X] =>> >: L <: H` as `>: [X] =>> L <: [X] =>> H`, `Nothing` as
+    /// the lower bound for a lower bound `Nothing`.
+    fn lambda_bounds(&mut self, t: TypeId) -> TypeId {
+        let Type::Lambda { binder, ref params, result } = *self.u.types().get(t) else { return t };
+        let Type::Bounds(lo, hi) = *self.u.types().get(result) else { return t };
+        let params = params.clone();
+        let hi = self.u.intern_type(Type::Lambda { binder, params: params.clone(), result: hi });
+        let lo = match lo == crate::NOTHING {
+            true => lo,
+            false => self.u.intern_type(Type::Lambda { binder, params, result: lo }),
+        };
+        self.u.intern_type(Type::Bounds(lo, hi))
     }
 
     /// `t` with the parameters of binding `binding` replaced by `refs`: its parameter

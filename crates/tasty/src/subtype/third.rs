@@ -41,19 +41,28 @@ impl Cmp<'_> {
             Type::Method { binder: b2, params: p2, result: r2, implicit: i2, .. } => {
                 match self.u.types().get(a).clone() {
                     Type::Method { binder: b1, params: p1, result: r1, implicit: i1, .. } => {
-                        if p1.len() != p2.len()
-                            || !i1 && i2
-                            || !p1
-                                .iter()
-                                .zip(&p2)
-                                .all(|(&(_, x), &(_, y))| self.recur_frozen(x, y) && self.recur_frozen(y, x))
-                        {
+                        if p1.len() != p2.len() || !i1 && i2 {
                             return false;
                         }
                         let names: Vec<String> = p2.iter().map(|(n, _)| n.clone()).collect();
                         let refs: Vec<TypeId> =
                             (0..p1.len() as u32).map(|i| self.u.intern_type(Type::Param(b1, i))).collect();
-                        let r2 = self.u.subst(r2, b2, &names, &refs);
+                        let own = |s: &mut Self, t: TypeId| s.param_syms_as_refs(t, &p1, b1);
+                        let (x, r1): (Vec<TypeId>, TypeId) =
+                            (p1.iter().map(|&(_, x)| own(self, x)).collect(), own(self, r1));
+                        let theirs = |s: &mut Self, t: TypeId| {
+                            let t = s.param_syms_as_refs(t, &p2, b2);
+                            s.u.subst(t, b2, &names, &refs)
+                        };
+                        let y: Vec<TypeId> = p2.iter().map(|&(_, y)| theirs(self, y)).collect();
+                        let r2 = theirs(self, r2);
+                        if !x
+                            .iter()
+                            .zip(&y)
+                            .all(|(&x, &y)| self.recur_frozen(x, y) && self.recur_frozen(y, x))
+                        {
+                            return false;
+                        }
                         self.recur(r1, r2)
                     }
                     _ => false,
