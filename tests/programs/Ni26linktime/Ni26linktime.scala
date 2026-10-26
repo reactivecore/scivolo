@@ -17,7 +17,7 @@ object Ni26linktime {
   def checks(): Unit = {
     if (!LinktimeInfo.isWindows) println("not windows")
     if (LinktimeInfo.isLinux || LinktimeInfo.isMac) println("unix")
-    if (LinktimeInfo.isMac && !LinktimeInfo.is32BitPlatform) println("64-bit mac")
+    if ((LinktimeInfo.isMac || LinktimeInfo.isLinux) && !LinktimeInfo.is32BitPlatform) println("64-bit unix")
     if (LinktimeInfo.target.arch == "nonexistent") println("odd") else println("arch known")
     if (LinktimeInfo.target.arch != "nonexistent") println("arch not odd")
     if (isUnixLike) println("unix-like")
