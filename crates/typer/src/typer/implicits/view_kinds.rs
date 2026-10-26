@@ -73,12 +73,14 @@ impl Typer<'_> {
         Ok(!self.extension_members(value, name)?.is_empty())
     }
 
-    /// The extension methods `name` of a value of type `value`; `Err` for a type that is not a
-    /// class's, or if members other than methods are named so too.
+    /// The extension methods `name` of a value of type `value`; `Err` if members other than
+    /// methods are named so too.
     pub fn extension_members(&mut self, value: TypeId, name: &str) -> Result<Vec<SymbolId>, &'static str> {
         let value = self.u.widen(value);
-        let k = self.u.class_symbol(value).ok_or("implicit value of a type other than a class")?;
-        let members = self.class_members(k, name);
+        let members = match self.u.class_symbol(value) {
+            Some(k) => self.class_members(k, name),
+            None => self.type_members(value, name),
+        };
         let extensions: Vec<SymbolId> =
             members.iter().copied().filter(|&e| self.u.symbol(e).flags.has(EXTENSION)).collect();
         if !extensions.is_empty() && members.iter().any(|&m| self.u.symbol(m).kind != Kind::Def) {

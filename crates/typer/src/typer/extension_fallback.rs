@@ -38,7 +38,7 @@ impl Typer<'_> {
     /// The type of the first parameter after the leading implicit clauses of method type `info`,
     /// the method's type parameters replaced by fresh type variables; `None` for a dependent or
     /// by-name receiver.
-    fn receiver_type(&mut self, method: tasty::SymbolId, info: TypeId) -> Option<TypeId> {
+    pub fn receiver_type(&mut self, method: tasty::SymbolId, info: TypeId) -> Option<TypeId> {
         let mut t = info;
         let tparams = self.u.type_params(method);
         let mut binders = Vec::new();
