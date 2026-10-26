@@ -205,11 +205,10 @@ impl Typer<'_> {
         found
     }
 
-    /// Whether `t` widened has a wildcard type argument, also inside another argument.
+    /// Whether `t` has a wildcard type argument, also inside another argument.
     fn has_wildcard(&mut self, t: TypeId) -> bool {
-        let widened = self.u.widen(t);
         let mut found = false;
-        self.u.map_type(widened, &mut |u, part| {
+        self.u.map_type(t, &mut |u, part| {
             found |= matches!(u.types().get(part), Type::Bounds(..));
             None
         });
@@ -253,7 +252,8 @@ impl Typer<'_> {
             }
         }
         let bound = self.maximize_type(arg_type, vars, unapp, ctx)?;
-        if !bound.is_empty() && self.has_wildcard(sel) {
+        let tpe = self.zonk(arg_type);
+        if !bound.is_empty() && self.has_wildcard(tpe) {
             return Err("pattern-bound type against a wildcard argument");
         }
         self.add_binders(unapp, &bound);
