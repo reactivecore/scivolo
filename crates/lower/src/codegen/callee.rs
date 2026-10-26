@@ -29,7 +29,8 @@ fn is_intrinsic(owner: &str, name: &str) -> bool {
         Some(n) => (n, "fromScalaFunction"),
         None => (n, "apply"),
     });
-    owner.starts_with("scala.scalanative.runtime.Intrinsics$")
+    let plain = ["multiplyHigh", "unsignedMultiplyHigh"].contains(&name);
+    (owner.starts_with(super::intrinsics::INTRINSICS) && !plain)
         || func.is_some_and(|(n, m)| n.parse::<u8>().is_ok() && m == name)
         || INTRINSICS.contains(&(owner, name))
 }

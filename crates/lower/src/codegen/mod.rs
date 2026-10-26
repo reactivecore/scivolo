@@ -25,6 +25,7 @@ mod externs;
 mod fields;
 mod finally;
 mod interface_bridges;
+mod intrinsics;
 mod labels;
 mod lazy_handles;
 mod literal;

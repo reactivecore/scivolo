@@ -154,8 +154,8 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("import scala.scalanative.unsafe.*\nobject O { def f: CString = c\"a\" }", "intrinsic CQuote.c"),
     (
-        "import scala.scalanative.runtime.Intrinsics\nobject O { def f(x: Int): Long = Intrinsics.intToULong(x) }",
-        "intrinsic Intrinsics$.intToULong",
+        "import scala.scalanative.runtime.Intrinsics\nclass C { val x = 1 }\nobject O { def f(c: C) = Intrinsics.classFieldRawPtr(c, \"x\") }",
+        "the address of immutable field x",
     ),
     (
         "import scala.scalanative.unsafe.*\nobject O { def f(g: CFuncPtr1[CInt, CInt]): CInt = g(1) }",

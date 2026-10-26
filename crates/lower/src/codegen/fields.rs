@@ -12,8 +12,9 @@ use crate::{Result, unsupported};
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Defn, DefnKind, GlobalId, Op, PosId, Val, ValId};
 use syntax::ast::Span;
+use syntax::ast::constant::Constant;
 use tasty::SymbolId;
-use tasty::tags::{MUTABLE, PRIVATE, STATIC};
+use tasty::tags::{FIELDaccessor, MUTABLE, PRIVATE, STATIC};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -86,6 +87,44 @@ impl Gen<'_, '_> {
             return unsupported(span, "the address of a value that is not a field");
         };
         let obj = self.gen_expr(qualifier)?;
+        let name = self.field_name(f);
+        Ok(self.emit(Op::Field { obj, name }))
+    }
+
+    /// `classFieldRawPtr(target, "name")`: the address of mutable field `name` of `target`
+    /// (nscplugin's `genClassFieldRawPtr`).
+    pub fn gen_class_field_raw_ptr(&mut self, target: TNodeId, field: TNodeId, span: Span) -> Result<ValId> {
+        let Tree::Literal { value: Constant::String(units) } = self.l.tpd.tree(field) else {
+            return unsupported(span, "`classFieldRawPtr` of a field name that is no literal");
+        };
+        let name = String::from_utf16_lossy(units);
+        let tpe = self.l.u.widen(self.l.tpd.tpe(target));
+        let Some(class) = self.l.u.class_symbol(tpe) else {
+            return unsupported(span, "`classFieldRawPtr` of a value that is no class instance");
+        };
+        let mut bases = self.l.u.linearization(class);
+        if bases.first() != Some(&class) {
+            bases.insert(0, class);
+        }
+        let mut found = None;
+        for &base in &bases {
+            let decls = self.l.u.decls(base).unwrap_or_default();
+            let named: Vec<SymbolId> =
+                decls.into_iter().filter(|&d| self.l.u.symbol(d).name == name).collect();
+            found = found.or_else(|| named.iter().copied().find(|&d| self.is_field(d)));
+            let immutable_accessor = base != class
+                && named.iter().any(|&d| has(self.l.u, d, FIELDaccessor) && !has(self.l.u, d, MUTABLE));
+            if immutable_accessor {
+                return unsupported(span, format!("the address of immutable field {name}"));
+            }
+        }
+        let Some(f) = found else {
+            return unsupported(span, format!("`classFieldRawPtr` of {name}, no field of the unit"));
+        };
+        if !has(self.l.u, f, MUTABLE) {
+            return unsupported(span, format!("the address of immutable field {name}"));
+        }
+        let obj = self.gen_expr(target)?;
         let name = self.field_name(f);
         Ok(self.emit(Op::Field { obj, name }))
     }

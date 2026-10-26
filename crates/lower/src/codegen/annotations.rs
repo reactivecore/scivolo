@@ -155,7 +155,7 @@ impl Gen<'_, '_> {
 
 /// `attrs` as Scala Native's `Attrs.fromSeq(attrs).toSeq`: the last of each kind of inlining,
 /// specialization and optimization, each flag once, links and definitions last.
-fn canonical(attrs: Vec<Attr>) -> Vec<Attr> {
+pub fn canonical(attrs: Vec<Attr>) -> Vec<Attr> {
     let mut out: Vec<Attr> = Vec::new();
     for a in attrs {
         let r = rank(&a);

@@ -4,6 +4,7 @@
 //! `genMethodBody`).
 
 use super::Gen;
+use super::annotations::canonical;
 use super::dead::remove_dead_blocks;
 use super::method::Method;
 use crate::symbols::{has, is_extern, is_java_static};
@@ -13,6 +14,9 @@ use syntax::ast::Span;
 use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, INLINE};
 use typer::tpd::{Clauses, TNodeId, Tree};
+
+/// The body of a method nscplugin generates inline at its calls.
+const INTRINSIC_MARKER: &str = "scala.scalanative.runtime.package$.intrinsic";
 
 impl Gen<'_, '_> {
     pub fn gen_method(&mut self, dd: TNodeId) -> Result<Defn> {
@@ -26,10 +30,14 @@ impl Gen<'_, '_> {
             || self.l.bridges.contains(&sym)
             || self.l.local_lazy_accessors.contains(&sym);
         let attrs = if inline { vec![Attr::AlwaysInline] } else { Vec::new() };
-        let attrs = self.method_attrs(self.l.forwarded.get(&sym).copied().unwrap_or(sym), attrs);
+        let mut attrs = self.method_attrs(self.l.forwarded.get(&sym).copied().unwrap_or(sym), attrs);
         let Some(rhs) = rhs else {
             return Ok(Defn { name, attrs, pos, kind: DefnKind::Declare { ty } });
         };
+        let callee = if let Tree::Apply { fun, .. } = *self.l.tpd.tree(rhs) { fun } else { rhs };
+        if self.l.tpd.sym(callee).is_some_and(|s| self.l.u.full_name(s) == INTRINSIC_MARKER) {
+            attrs = canonical(attrs.into_iter().chain([Attr::NoOpt, Attr::NoInline]).collect());
+        }
         let first_scope = if matches!(self.l.tpd.tree(rhs), Tree::Block { .. }) { -1 } else { 0 };
         self.m = Method::new(Some(sym), first_scope, pos);
         let rhs_pos = self.pos_or(self.l.tpd.span(rhs), pos);
