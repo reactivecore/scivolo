@@ -27,6 +27,7 @@ mod extern_calls;
 mod externs;
 mod fields;
 mod finally;
+pub(crate) mod funcptr;
 mod interface_bridges;
 pub(crate) mod intrinsics;
 mod labels;

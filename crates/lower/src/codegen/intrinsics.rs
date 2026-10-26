@@ -46,6 +46,9 @@ impl Gen<'_, '_> {
             let ty = self.gen_type(tpe);
             return Ok(Some(self.emit(if name == "sizeOf" { Op::SizeOf(ty) } else { Op::AlignmentOf(ty) })));
         }
+        if super::funcptr::is_func_ptr_apply(&owner, &name) {
+            return self.gen_func_ptr_apply(fun, args, span).map(Some);
+        }
         if owner == super::cquote::CQUOTE && name == "c" {
             let (Tree::Select { qualifier, .. }, []) = (self.l.tpd.tree(fun).clone(), args) else {
                 return unsupported(span, "a C string literal that is not a call");

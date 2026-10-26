@@ -170,3 +170,4 @@ Ni26stackalloc
 Ni26linktime
 Ni26cquote
 Ni26struct
+Ni26funcptr
