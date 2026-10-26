@@ -77,7 +77,9 @@ impl Typer<'_> {
                 }
             }
             let class = match *self.u.types().get(t) {
-                Type::Sym(_, s) if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => self.u.module_class(s),
+                Type::Sym(_, s) if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => {
+                    self.u.module_class(s).or_else(|| self.u.is_class(s).then_some(s))
+                }
                 _ => {
                     let w = self.u.widen(t);
                     self.u.class_symbol(w)
