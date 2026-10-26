@@ -57,8 +57,8 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         let info = l.u.info(m);
         let clauses = super::context_bridges::clauses(l, info).len();
         let depth = integrate(l, t, m);
-        super::erased_context_results::rename_direct(l, m, info);
         l.context_results.insert(m, (info, depth));
+        super::erased_context_results::rename_direct(l, m, info);
         flattened.push(Flattened { m, clauses, depth });
     }
     let mut calls = Vec::new();

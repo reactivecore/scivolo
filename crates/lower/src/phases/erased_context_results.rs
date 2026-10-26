@@ -5,6 +5,8 @@
 //! and the `$direct` name of a flattened method whose context parameters are all erased.
 
 use crate::Lower;
+use crate::symbols::has;
+use tasty::tags::PRIVATE;
 use tasty::{SymbolId, Type, TypeId};
 
 /// Whether `t` is `PolyFunction { def apply(using …): R }` (dotty's `ContextFunctionType` of a
@@ -17,7 +19,8 @@ pub fn is_erased_context_function(l: &mut Lower, t: TypeId) -> bool {
 
 /// Names flattened method `m` of type `info` before flattening `<name>$direct` if all
 /// parameters of the context functions of its result are erased and it is a trait's or
-/// overrides a member (dotty's `contextResultsAreErased`, `Erasure`'s `erasedName`).
+/// overrides a member (dotty's `contextResultsAreErased`, `Erasure`'s `erasedName`); `m` is in
+/// `l.context_results` already.
 pub fn rename_direct(l: &mut Lower, m: SymbolId, info: TypeId) {
     let mut t = info;
     while let Type::Poly { result, .. } | Type::Method { result, .. } = *l.u.types().get(t) {
@@ -28,9 +31,12 @@ pub fn rename_direct(l: &mut Lower, m: SymbolId, info: TypeId) {
     }
     let Some(owner) = l.u.symbol(m).owner else { return };
     let name = l.u.symbol(m).name.clone();
+    let site = l.u.this_type(owner);
     let overrides = l.u.linearization(owner).into_iter().skip(1).any(|b| {
         let decls = l.u.decl(b, &name).unwrap_or_default();
-        decls.into_iter().any(|d| l.u.symbol(d).kind.is_term())
+        decls.into_iter().any(|d| {
+            l.u.symbol(d).kind.is_term() && !has(l.u, d, PRIVATE) && super::bridges::matching(l, site, m, d)
+        })
     });
     if l.u.is_trait(owner) || overrides {
         let target = l.u.symbol(m).target.clone().unwrap_or(name);

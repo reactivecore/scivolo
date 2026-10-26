@@ -114,7 +114,7 @@ fn overriding_pairs(
 
 /// Whether `a` overrides `b` as members of `site`: neither takes parameters, or both are methods
 /// whose parameters match, of their types before `ContextFunctionResults`.
-fn matching(l: &mut Lower, site: tasty::TypeId, a: SymbolId, b: SymbolId) -> bool {
+pub fn matching(l: &mut Lower, site: tasty::TypeId, a: SymbolId, b: SymbolId) -> bool {
     let before: Vec<(SymbolId, TypeId, TypeId)> =
         [a, b].iter().filter_map(|&s| l.context_results.get(&s).map(|&(t, _)| (s, l.u.info(s), t))).collect();
     before.iter().for_each(|&(s, _, t)| l.u.set_info(s, t));
