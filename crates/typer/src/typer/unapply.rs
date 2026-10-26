@@ -130,11 +130,8 @@ impl Typer<'_> {
     ) -> Result<(TNodeId, bool), &'static str> {
         let unsupported = self.unsupported.clone();
         let ctx = ctx.with_mode(Mode::NONE);
-        let name_ctx = match self.ast.tree(qual) {
-            Tree::Ident { .. } => ctx.with_mode(Mode::EXTRACTOR),
-            _ => ctx,
-        };
-        let typed = self.typed(qual, Pt::Any, name_ctx);
+        let ident = matches!(self.ast.tree(qual), Tree::Ident { .. });
+        let typed = self.typed(qual, Pt::Any, if ident { ctx.with_mode(Mode::EXTRACTOR) } else { ctx });
         let tpe = self.tpd.tpe(typed);
         let tpe = self.widen_if_unstable(tpe);
         let member = self.members_found(tpe, "unapply", false).is_some();

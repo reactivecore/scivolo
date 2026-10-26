@@ -121,8 +121,7 @@ impl Typer<'_> {
         self.is_class_type(t, false)
     }
 
-    /// Whether a typed pattern can test for `t`: a class type, possibly applied, a singleton
-    /// type, or a union or intersection of them.
+    /// Whether a typed pattern can test for `t`: a class, singleton, or their union or intersection.
     pub fn is_testable_type(&mut self, t: TypeId) -> bool {
         let t = self.dealiased(t);
         match *self.u.types().get(t) {
