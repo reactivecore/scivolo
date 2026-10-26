@@ -46,6 +46,13 @@ impl Gen<'_, '_> {
             let ty = self.gen_type(tpe);
             return Ok(Some(self.emit(if name == "sizeOf" { Op::SizeOf(ty) } else { Op::AlignmentOf(ty) })));
         }
+        if owner == "java.util.ServiceLoader$" && ["load", "loadInstalled"].contains(&name.as_str()) {
+            if !args.first().is_some_and(|&a| matches!(self.l.tpd.tree(a), Tree::ClassLiteral { .. })) {
+                return unsupported(span, "`ServiceLoader.load` of a class that is not a literal");
+            }
+            self.m.uses_intrinsics = true;
+            return Ok(None);
+        }
         if super::callbacks::is_from_function(&owner, &name) {
             return self.gen_func_ptr_from_function(app, args, span).map(Some);
         }

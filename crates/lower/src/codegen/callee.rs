@@ -15,11 +15,9 @@ pub fn is_primitive(name: &str) -> bool {
 
 /// Scala Native's methods whose body is its `intrinsic` marker, generated inline by nscplugin
 /// (`NirPrimitives`): owner and method name, besides `Intrinsics` and the `CFuncPtr`s.
-const INTRINSICS: [(&str, &str); 4] = [
+const INTRINSICS: [(&str, &str); 2] = [
     ("scala.scalanative.unsafe.package$", "resolved"),
     ("scala.scalanative.runtime.SafeZoneAllocator$", "allocate"),
-    ("java.util.ServiceLoader$", "load"),
-    ("java.util.ServiceLoader$", "loadInstalled"),
 ];
 
 /// Whether method `name` of class `owner`, full names, is a Scala Native intrinsic.

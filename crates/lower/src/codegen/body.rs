@@ -47,9 +47,9 @@ impl Gen<'_, '_> {
         let rhs_pos = self.pos_or(self.l.tpd.span(rhs), pos);
         self.m.scopes.push(LexicalScope { id: 0, parent: 0, pos: rhs_pos });
         self.m.pos = rhs_pos;
-        let (body, uses_linktime) = self.gen_method_body(sym, paramss, rhs)?;
-        if uses_linktime {
-            attrs = canonical(attrs.into_iter().chain([Attr::LinktimeResolved]).collect());
+        let (body, uses) = self.gen_method_body(sym, paramss, rhs)?;
+        if !uses.is_empty() {
+            attrs = canonical(attrs.into_iter().chain(uses).collect());
         }
         Ok(Defn { name, attrs, pos, kind: DefnKind::Define { ty, body } })
     }
@@ -65,8 +65,14 @@ impl Gen<'_, '_> {
         Ok(())
     }
 
-    /// The body of method `sym`, and whether it branches on link-time conditions.
-    fn gen_method_body(&mut self, sym: SymbolId, paramss: Clauses, rhs: TNodeId) -> Result<(Body, bool)> {
+    /// The body of method `sym`, and the attributes of what it uses: link-time conditions, methods
+    /// the linker resolves.
+    fn gen_method_body(
+        &mut self,
+        sym: SymbolId,
+        paramss: Clauses,
+        rhs: TNodeId,
+    ) -> Result<(Body, Vec<Attr>)> {
         let clauses = self.l.tpd.clause_items(paramss).to_vec();
         let param_syms: Vec<SymbolId> = clauses
             .iter()
@@ -108,7 +114,8 @@ impl Gen<'_, '_> {
         let buf = remove_dead_blocks(m.buf);
         let body =
             Body { insts: buf.insts, positions: buf.positions, local_names: m.local_names, scopes: m.scopes };
-        Ok((body, m.uses_linktime))
+        let uses = [(m.uses_linktime, Attr::LinktimeResolved), (m.uses_intrinsics, Attr::UsesIntrinsic)];
+        Ok((body, uses.into_iter().filter(|(used, _)| *used).map(|(_, a)| a).collect()))
     }
 
     /// The local variables assigned in `rhs`, in the order of their first assignment (nscplugin's
