@@ -49,6 +49,11 @@ impl super::Universe {
         self.javalib_sources = true;
     }
 
+    /// Whether javalib's sources are compiled.
+    pub fn javalib_sources(&self) -> bool {
+        self.javalib_sources
+    }
+
     /// Whether class `c` may be a Java class, if its name says so: one from TASTy; when javalib's
     /// sources are compiled, only a JDK class javalib defines under another name.
     pub fn may_be_java(&self, c: crate::SymbolId) -> bool {

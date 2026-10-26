@@ -53,9 +53,10 @@ pub fn dependencies(
         };
         let enclosure = defs.get(&t).copied().or(enclosure);
         let skipped = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) || is_type_tree(l, t);
-        if !skipped {
-            todo.extend(steps(l, t, pending).into_iter().rev().map(|s| (s, enclosure)));
+        if skipped {
+            continue;
         }
+        todo.extend(steps(l, t, pending).into_iter().rev().map(|s| (s, enclosure)));
         let Some(i) = enclosure else { continue };
         match (l.tpd.tree(t), l.tpd.sym(t)) {
             (Tree::This { .. }, s) => functions[i].this |= s.is_none() || s != functions[i].into,

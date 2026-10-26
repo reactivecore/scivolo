@@ -67,7 +67,7 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
         (qualifier, None)
     };
     let module = l.u.companion_module(class).expect("the companion of an extension method's class");
-    let module_ref = l.ident(module, span);
+    let module_ref = l.ident(module, from_start(l.tpd.span(fun)));
     let mut call = l.select(module_ref, extension, span);
     let info = l.u.info(extension);
     let info = match l.u.types().get(info).clone() {

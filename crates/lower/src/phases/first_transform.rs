@@ -170,13 +170,13 @@ pub fn is_literal(l: &Lower, t: TNodeId) -> bool {
     matches!(l.tpd.tree(t), Tree::Literal { .. } | Tree::ClassLiteral { .. })
 }
 
-/// Whether evaluating `t` has no effect (dotty's `isPureExpr` for paths): `this`, an object,
-/// a parameter or a stable value, through stable selections.
+/// Whether evaluating `t` has no effect (dotty's `isPureExpr` for paths): `this`, a package, an
+/// object, a parameter or a stable value, through stable selections.
 pub fn is_pure(l: &Lower, t: TNodeId) -> bool {
     let stable = |s| {
         let sym = l.u.symbol(s);
         l.u.is_module(s)
-            || sym.kind == Kind::Param
+            || matches!(sym.kind, Kind::Param | Kind::Package)
             || (sym.kind == Kind::Val && !has(l.u, s, LAZY) && !has(l.u, s, MUTABLE))
     };
     match *l.tpd.tree(t) {

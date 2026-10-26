@@ -28,8 +28,10 @@ pub struct CaseClasses {
     pub long_hash: SymbolId,
     pub double_hash: SymbolId,
     pub float_hash: SymbolId,
-    /// `java.util.Objects.hashCode`, a Java static.
+    /// `java.util.Objects.hashCode`, a Java static, or a method of javalib's object `Objects`
+    /// when javalib's sources are compiled.
     pub objects_hash_code: SymbolId,
+    pub objects_module: Option<SymbolId>,
     /// `MurmurHash3.productHash(x, seed, ignorePrefix)`, its object.
     pub product_hash: SymbolId,
     pub murmur_hash3: SymbolId,
@@ -67,6 +69,10 @@ impl CaseClasses {
         let deriving = package(u, "scala.deriving")?;
         let mirror = member(u, deriving, "Mirror", Kind::Val)?;
         let mirror_class = module_class(u, mirror)?;
+        let java_util = package(u, "java.util")?;
+        let objects_module = member(u, java_util, "Objects", Kind::Val)
+            .ok()
+            .filter(|&m| module_class(u, m).is_ok_and(|c| !u.may_be_java(c)));
         let class_type = |u: &mut Universe, name: &str| -> Result<tasty::TypeId, String> {
             let class = member(u, scala, name, Kind::Class)?;
             Ok(type_ref(u, class))
@@ -99,12 +105,19 @@ impl CaseClasses {
             long_hash: statics_method(u, "longHash", &[long]),
             double_hash: statics_method(u, "doubleHash", &[double]),
             float_hash: statics_method(u, "floatHash", &[float]),
-            objects_hash_code: {
-                let objects = java_class(u, package(u, "java.util")?, "Objects");
-                let any = type_ref(u, any);
-                let info = method(u, &[any], int);
-                java_static(u, objects, "hashCode", Kind::Def, info)
+            objects_hash_code: match objects_module {
+                Some(m) => {
+                    let objects = module_class(u, m)?;
+                    with_params(u, objects, "hashCode", 1)?
+                }
+                None => {
+                    let objects = java_class(u, java_util, "Objects");
+                    let any = type_ref(u, any);
+                    let info = method(u, &[any], int);
+                    java_static(u, objects, "hashCode", Kind::Def, info)
+                }
             },
+            objects_module,
             product_hash: with_params(u, murmur_class, "productHash", 3)?,
             murmur_hash3,
             ioobe,
