@@ -10,12 +10,13 @@ mod phases;
 mod symbols;
 mod units;
 
-pub use compile::{Refusal, compile, compile_with};
+pub use compile::{Refusal, compile, compile_with, lower};
 use definitions::Definitions;
+pub use output::NirFile;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
-use syntax::source::{SourceFile, Sources};
+use syntax::source::Sources;
 use tasty::{SymbolId, Universe};
 use typer::tpd::{TNodeId, Tpd};
 pub use units::{compile_sources, position};
@@ -31,12 +32,6 @@ pub type Result<T> = std::result::Result<T, Unsupported>;
 
 fn unsupported<T>(at: Span, what: impl Into<String>) -> Result<T> {
     Err(Unsupported { at, what: what.into() })
-}
-
-/// A `.nir` file: the top-level name it defines and its bytes.
-pub struct NirFile {
-    pub name: String,
-    pub bytes: Vec<u8>,
 }
 
 /// What every phase works on: the unit's trees and names, and the symbols in `u`.
@@ -128,18 +123,9 @@ pub struct Lower<'a> {
     /// The local methods, lambdas among them, in the values `PatternMatcher` binds, which
     /// `Erasure` sees owned by the value.
     in_match_values: FxHashSet<SymbolId>,
-}
-
-/// The NIR files of typed unit `root`, one per top-level name.
-pub fn lower(
-    u: &mut Universe,
-    tpd: &mut Tpd,
-    root: TNodeId,
-    names: &mut Names,
-    fresh: &mut FreshNames,
-    source: &SourceFile,
-) -> Result<Vec<NirFile>> {
-    lower_sources(u, tpd, root, (names, fresh), Sources::one(source))
+    /// The types before erasure of the native intrinsics' calls, with the span of the type
+    /// application, by the method reference (nscplugin's `NonErasedType(s)` attachments).
+    non_erased: FxHashMap<TNodeId, (Vec<tasty::TypeId>, Span)>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
@@ -195,8 +181,9 @@ pub fn lower_sources(
         tested_values: Vec::new(),
         was_named_args: FxHashSet::default(),
         in_match_values: FxHashSet::default(),
+        non_erased: FxHashMap::default(),
     };
-    let files = codegen::annotations::check_annotations(&l, root)
+    let files = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
         .and_then(|()| codegen::unit(&mut l, root));
     l.u.elide_opaques(false);

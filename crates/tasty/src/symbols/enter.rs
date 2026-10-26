@@ -70,50 +70,58 @@ impl Universe {
         self.files.iter().filter(|f| f.is_decoded()).count()
     }
 
-    /// Whether an annotation of the class with full name `full` annotates `sym` defined outside
-    /// TASTy, or method `sym` in its TASTy by the class's simple name.
-    pub fn is_annotated(&self, sym: SymbolId, full: &str) -> bool {
-        let Some((file, id)) = self.symbol(sym).tree else {
+    /// Whether an annotation of the class with full name `full` annotates `sym`.
+    pub fn is_annotated(&mut self, sym: SymbolId, full: &str) -> bool {
+        if self.symbol(sym).tree.is_none() {
             return self.annotations(sym).iter().any(|&c| self.full_name(c) == full);
-        };
-        let name = full.rsplit('.').next().unwrap_or(full);
-        let (ast, names) = self.file(file);
-        let View::DefDef { parts, .. } = view(ast, id) else { return false };
-        annotations(ast, parts.mods).any(|(ty, _)| names_ref(ast, names, ty, name))
+        }
+        self.annotation_call(sym, full).is_some()
     }
 
-    /// Records one more annotation of class `class` on `sym`, a symbol defined outside TASTy, with
-    /// `arg` if a string literal is its only argument.
+    /// Records one more annotation with arguments of class `class` on `sym`, a symbol defined
+    /// outside TASTy, with `arg` if a string literal is its only argument.
     pub fn annotate_string(&mut self, sym: SymbolId, class: SymbolId, arg: Option<String>) {
         self.annotation_strings.entry((sym, class)).or_default().push(arg);
     }
 
     /// The string literal arguments recorded for the annotations of class `class` on `sym`, one
-    /// per annotation, in order.
+    /// per annotation with arguments, in order.
     pub fn annotation_strings(&self, sym: SymbolId, class: SymbolId) -> &[Option<String>] {
         self.annotation_strings.get(&(sym, class)).map_or(&[], Vec::as_slice)
     }
 
     /// The first `Int` argument of the annotation of the class with full name `full` on method
-    /// `sym` in its TASTy, by the class's simple name.
-    pub fn annotation_int(&self, sym: SymbolId, full: &str) -> Option<i32> {
-        let (file, id) = self.symbol(sym).tree?;
-        let name = full.rsplit('.').next().unwrap_or(full);
-        let (ast, names) = self.file(file);
-        let View::DefDef { parts, .. } = view(ast, id) else { return None };
-        let (_, call) = annotations(ast, parts.mods).find(|&(ty, _)| names_ref(ast, names, ty, name))?;
-        first_int(ast, call)
+    /// `sym` in its TASTy.
+    pub fn annotation_int(&mut self, sym: SymbolId, full: &str) -> Option<i32> {
+        let (file, call) = self.annotation_call(sym, full)?;
+        first_int(self.file(file).0, call)
     }
 
     /// The first string argument of the annotation of the class with full name `full` on method
-    /// `sym` in its TASTy, by the class's simple name.
-    pub fn annotation_string(&self, sym: SymbolId, full: &str) -> Option<String> {
+    /// `sym` in its TASTy.
+    pub fn annotation_string(&mut self, sym: SymbolId, full: &str) -> Option<String> {
+        let (file, call) = self.annotation_call(sym, full)?;
+        let (ast, names) = self.file(file);
+        first_string(ast, names, call)
+    }
+
+    /// The constructor call of the first annotation of the class with full name `full` on method
+    /// or class `sym` in its TASTy.
+    fn annotation_call(&mut self, sym: SymbolId, full: &str) -> Option<(FileId, NodeId)> {
         let (file, id) = self.symbol(sym).tree?;
         let name = full.rsplit('.').next().unwrap_or(full);
         let (ast, names) = self.file(file);
-        let View::DefDef { parts, .. } = view(ast, id) else { return None };
-        let (_, call) = annotations(ast, parts.mods).find(|&(ty, _)| names_ref(ast, names, ty, name))?;
-        first_string(ast, names, call)
+        let mods = match view(ast, id) {
+            View::DefDef { parts, .. } => parts.mods,
+            View::TypeDef { mods, is_class: true, .. } => mods,
+            _ => return None,
+        };
+        let named: Vec<_> =
+            annotations(ast, mods).filter(|&(ty, _)| names_ref(ast, names, ty, name)).collect();
+        named.into_iter().find_map(|(ty, call)| {
+            let t = self.type_at(file, ty);
+            self.class_symbol(t).is_some_and(|c| self.full_name(c) == full).then_some((file, call))
+        })
     }
 
     /// The owner and name of a definition named `name` in `owner`: its JDK package and name if

@@ -62,7 +62,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     Ok(())
 }
 
-fn is_static(l: &Lower, s: SymbolId) -> bool {
+fn is_static(l: &mut Lower, s: SymbolId) -> bool {
     l.u.is_annotated(s, STATIC_ANNOT)
 }
 

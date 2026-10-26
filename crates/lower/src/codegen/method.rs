@@ -25,6 +25,10 @@ pub struct Method {
     pub buf: Buf,
     /// The position of what is being generated.
     pub pos: PosId,
+    /// Whether the method branches on a link-time condition.
+    pub uses_linktime: bool,
+    /// Whether the method calls a method the linker resolves (`ServiceLoader.load`).
+    pub uses_intrinsics: bool,
 }
 
 impl Method {
@@ -44,6 +48,8 @@ impl Method {
             labels: FxHashMap::default(),
             buf: Buf::default(),
             pos,
+            uses_linktime: false,
+            uses_intrinsics: false,
         }
     }
 }

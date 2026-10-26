@@ -1,6 +1,6 @@
 // Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
 //   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirCodeGen.scala
-//! NIR generation from the lowered trees: a port of Scala Native's nscplugin, no native interop.
+//! NIR generation from the lowered trees: a port of Scala Native's nscplugin.
 
 pub(crate) mod annotations;
 mod apply;
@@ -9,12 +9,16 @@ mod array;
 mod body;
 mod branch;
 mod buf;
+mod c_types;
+mod callbacks;
 mod callee;
 mod cast;
 mod class;
 mod closure;
 mod closure_methods;
 mod concat;
+mod conversions;
+mod cquote;
 mod dead;
 mod dynmethod;
 mod equality;
@@ -24,9 +28,14 @@ mod extern_calls;
 mod externs;
 mod fields;
 mod finally;
+pub(crate) mod funcptr;
 mod interface_bridges;
+pub(crate) mod intrinsics;
 mod labels;
+mod layout;
 mod lazy_handles;
+mod linktime;
+mod linktime_defs;
 mod literal;
 mod method;
 mod modules;
@@ -36,8 +45,10 @@ mod ops;
 mod positions;
 mod primitives;
 mod statics;
+mod structs;
 mod synchronized;
 mod tries;
+mod unit_defs;
 
 use crate::{Lower, NirFile, Result};
 use method::Method;
@@ -46,7 +57,8 @@ use nir::{Attr, Defn, DefnKind, Global, GlobalId, Pool, Pos, PosId, StrId, Type,
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::SymbolId;
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::TNodeId;
+use unit_defs::{definition_spans, type_defs};
 
 pub struct Gen<'l, 'a> {
     pub l: &'l mut Lower<'a>,
@@ -66,6 +78,8 @@ pub struct Gen<'l, 'a> {
     closures: Vec<Defn>,
     /// The number of the class's closures so far.
     lambdas: u32,
+    /// The C struct type of each class by binary name, none for a class that is not `@struct`.
+    structs: FxHashMap<String, Option<TypeId>>,
 }
 
 /// The NIR files of unit `root`, one per top-level name, in the order first defined.
@@ -94,6 +108,7 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
         deferred,
         closures: Vec::new(),
         lambdas: 0,
+        structs: FxHashMap::default(),
     };
     g.gen_companion_handle_fields(&type_defs)?;
     for td in type_defs {
@@ -126,40 +141,6 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
         })
         .collect();
     Ok(files)
-}
-
-/// The class definitions of the unit's packages and of their templates, each before those in it.
-fn type_defs(l: &Lower, root: TNodeId) -> Vec<TNodeId> {
-    let mut out = Vec::new();
-    let mut todo = vec![root];
-    while let Some(t) = todo.pop() {
-        match *l.tpd.tree(t) {
-            Tree::PackageDef { stats, .. } => todo.extend(l.tpd.items(stats).iter().rev()),
-            Tree::TypeDef { rhs, .. } => {
-                let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
-                out.push(t);
-                todo.extend(l.tpd.items(body).iter().rev());
-            }
-            _ => {}
-        }
-    }
-    out
-}
-
-/// The spans of classes `type_defs` and of the methods in their templates but those mixed in or
-/// specialized.
-fn definition_spans(l: &Lower, type_defs: &[TNodeId]) -> FxHashMap<SymbolId, Span> {
-    let mut out = FxHashMap::default();
-    for &td in type_defs {
-        out.extend(l.tpd.sym(td).map(|s| (s, l.tpd.span(td))));
-        let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
-        let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
-        for &stat in l.tpd.items(body) {
-            let sym = l.tpd.sym(stat).filter(|s| !l.mixed_in.contains(s) && !l.specialized.contains(s));
-            out.extend(sym.map(|s| (s, l.tpd.span(stat))));
-        }
-    }
-    out
 }
 
 impl Gen<'_, '_> {

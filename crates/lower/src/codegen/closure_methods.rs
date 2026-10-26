@@ -105,7 +105,7 @@ impl Gen<'_, '_> {
     }
 
     /// The body `emit` generates, as a method of its own at the current position.
-    fn closure_body(&mut self, emit: impl FnOnce(&mut Self)) -> Body {
+    pub fn closure_body(&mut self, emit: impl FnOnce(&mut Self)) -> Body {
         let pos = self.m.pos;
         let outer = std::mem::replace(&mut self.m, Method::new(None, 0, pos));
         self.m.scopes.push(LexicalScope { id: 0, parent: 0, pos: self.no_pos });
@@ -114,7 +114,7 @@ impl Gen<'_, '_> {
         Body { insts: m.buf.insts, positions: m.buf.positions, local_names: m.local_names, scopes: m.scopes }
     }
 
-    fn param(&mut self, ty: TypeId) -> Param {
+    pub fn param(&mut self, ty: TypeId) -> Param {
         Param { id: self.fresh(), ty }
     }
 }

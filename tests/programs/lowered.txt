@@ -165,3 +165,12 @@ Lw24generic
 Lw24lazybyname
 Lw24ctxbridges
 Mm24typelevel
+Ni26intrinsics
+Ni26stackalloc
+Ni26linktime
+Ni26cquote
+Ni26struct
+Ni26funcptr
+Ni26callback
+Ni26services
+Ni26links

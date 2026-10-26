@@ -1,7 +1,12 @@
 //! What the frontend hands on: NIR files written under a directory, and panics as messages.
 
-use crate::NirFile;
 use std::path::Path;
+
+/// A `.nir` file: the top-level name it defines and its bytes.
+pub struct NirFile {
+    pub name: String,
+    pub bytes: Vec<u8>,
+}
 
 /// Writes `files` under `classes`, created if missing, and returns the main classes among them,
 /// sorted.

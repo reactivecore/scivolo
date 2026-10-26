@@ -124,7 +124,7 @@ impl Gen<'_, '_> {
         Ok(Some(Defn { name, attrs, pos, kind: DefnKind::Declare { ty } }))
     }
 
-    fn is_blocking(&self, sym: SymbolId) -> bool {
+    fn is_blocking(&mut self, sym: SymbolId) -> bool {
         self.l.u.is_annotated(sym, BLOCKING)
     }
 

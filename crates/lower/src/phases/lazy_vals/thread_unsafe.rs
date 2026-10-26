@@ -45,7 +45,7 @@ pub fn members(l: &mut Lower, lazy: &Lazy, stat: TNodeId, rhs: TNodeId) -> Resul
 
 /// Whether lazy value `accessor` is annotated `@threadUnsafe`, or the trait's it is taken from.
 pub fn is_thread_unsafe(l: &mut Lower, accessor: SymbolId) -> bool {
-    let annotated = |l: &Lower, s| l.u.is_annotated(s, "scala.annotation.threadUnsafe");
+    let annotated = |l: &mut Lower, s| l.u.is_annotated(s, "scala.annotation.threadUnsafe");
     if !l.mixed_in.contains(&accessor) {
         return annotated(l, accessor);
     }

@@ -30,6 +30,7 @@ impl Gen<'_, '_> {
             Erased::Unit => Type::Unit,
             Erased::Nothing => Type::Nothing,
             Erased::Null => Type::Null,
+            Erased::Class(name) if let Some(t) = self.struct_type(name) => return t,
             Erased::Class(name) => {
                 let name = self.pool.top(&mapped(name));
                 Type::Ref { name, exact: false, nullable: true }
@@ -41,8 +42,8 @@ impl Gen<'_, '_> {
     }
 
     /// Fails unless value `v` passes where type `to` is expected without boxing, unboxing or a
-    /// conversion; the `unit` constant passes as `BoxedUnit.UNIT`, a `Null$` as `null`, any value
-    /// after a block ends.
+    /// conversion; the `unit` constant passes as `BoxedUnit.UNIT`, a `Null$` as `null`, `null` as a
+    /// raw pointer, any value after a block ends.
     pub fn check_conforms(&mut self, v: ValId, to: TypeId, span: Span) -> Result<()> {
         if !self.m.buf.labeled() {
             return Ok(());
@@ -56,6 +57,7 @@ impl Gen<'_, '_> {
         let ok = f == t
             || *f == Type::Nothing
             || null_box
+            || (*t == Type::Ptr && *f == Type::Null)
             || (is_ref(t) && (is_ref(f) || *f == Type::Null || unit));
         if ok { Ok(()) } else { unsupported(span, "boxing, unboxing and primitive conversions") }
     }
@@ -74,8 +76,11 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// The reference type of class `c`.
+    /// The reference type of class `c`, the C struct of a `@struct` class.
     pub fn class_ref(&mut self, c: SymbolId) -> TypeId {
+        if let Some(t) = self.struct_type(&self.l.u.binary_name(c)) {
+            return t;
+        }
         let name = self.type_name(c);
         self.ty(Type::Ref { name, exact: false, nullable: true })
     }

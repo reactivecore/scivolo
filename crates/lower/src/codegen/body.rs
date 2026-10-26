@@ -4,7 +4,9 @@
 //! `genMethodBody`).
 
 use super::Gen;
+use super::annotations::canonical;
 use super::dead::remove_dead_blocks;
+use super::linktime::RESOLVED_AT_LINKTIME;
 use super::method::Method;
 use crate::symbols::{has, is_extern, is_java_static};
 use crate::{Result, unsupported};
@@ -14,28 +16,41 @@ use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, INLINE};
 use typer::tpd::{Clauses, TNodeId, Tree};
 
+/// The body of a method nscplugin generates inline at its calls.
+const INTRINSIC_MARKER: &str = "scala.scalanative.runtime.package$.intrinsic";
+
 impl Gen<'_, '_> {
     pub fn gen_method(&mut self, dd: TNodeId) -> Result<Defn> {
         let sym = self.l.tpd.sym(dd).expect("a method definition's symbol");
         let Tree::DefDef { paramss, rhs, .. } = *self.l.tpd.tree(dd) else { unreachable!("a method") };
         self.check_method(sym, self.l.tpd.span(dd))?;
         let pos = self.pos_or(self.l.tpd.span(dd), self.no_pos);
+        if self.l.u.is_annotated(sym, RESOLVED_AT_LINKTIME) {
+            return self.gen_linktime_resolved(dd, sym, pos);
+        }
         let name = self.method_name(sym);
         let ty = self.method_sig(sym, false);
         let inline = has(self.l.u, sym, FIELDaccessor)
             || self.l.bridges.contains(&sym)
             || self.l.local_lazy_accessors.contains(&sym);
         let attrs = if inline { vec![Attr::AlwaysInline] } else { Vec::new() };
-        let attrs = self.method_attrs(self.l.forwarded.get(&sym).copied().unwrap_or(sym), attrs);
+        let mut attrs = self.method_attrs(self.l.forwarded.get(&sym).copied().unwrap_or(sym), attrs);
         let Some(rhs) = rhs else {
             return Ok(Defn { name, attrs, pos, kind: DefnKind::Declare { ty } });
         };
+        let callee = if let Tree::Apply { fun, .. } = *self.l.tpd.tree(rhs) { fun } else { rhs };
+        if self.l.tpd.sym(callee).is_some_and(|s| self.l.u.full_name(s) == INTRINSIC_MARKER) {
+            attrs = canonical(attrs.into_iter().chain([Attr::NoOpt, Attr::NoInline]).collect());
+        }
         let first_scope = if matches!(self.l.tpd.tree(rhs), Tree::Block { .. }) { -1 } else { 0 };
         self.m = Method::new(Some(sym), first_scope, pos);
         let rhs_pos = self.pos_or(self.l.tpd.span(rhs), pos);
         self.m.scopes.push(LexicalScope { id: 0, parent: 0, pos: rhs_pos });
         self.m.pos = rhs_pos;
-        let body = self.gen_method_body(sym, paramss, rhs)?;
+        let (body, uses) = self.gen_method_body(sym, paramss, rhs)?;
+        if !uses.is_empty() {
+            attrs = canonical(attrs.into_iter().chain(uses).collect());
+        }
         Ok(Defn { name, attrs, pos, kind: DefnKind::Define { ty, body } })
     }
 
@@ -50,7 +65,14 @@ impl Gen<'_, '_> {
         Ok(())
     }
 
-    fn gen_method_body(&mut self, sym: SymbolId, paramss: Clauses, rhs: TNodeId) -> Result<Body> {
+    /// The body of method `sym`, and the attributes of what it uses: link-time conditions, methods
+    /// the linker resolves.
+    fn gen_method_body(
+        &mut self,
+        sym: SymbolId,
+        paramss: Clauses,
+        rhs: TNodeId,
+    ) -> Result<(Body, Vec<Attr>)> {
         let clauses = self.l.tpd.clause_items(paramss).to_vec();
         let param_syms: Vec<SymbolId> = clauses
             .iter()
@@ -90,7 +112,10 @@ impl Gen<'_, '_> {
         let pos = self.m.pos;
         let m = std::mem::replace(&mut self.m, Method::new(None, 0, pos));
         let buf = remove_dead_blocks(m.buf);
-        Ok(Body { insts: buf.insts, positions: buf.positions, local_names: m.local_names, scopes: m.scopes })
+        let body =
+            Body { insts: buf.insts, positions: buf.positions, local_names: m.local_names, scopes: m.scopes };
+        let uses = [(m.uses_linktime, Attr::LinktimeResolved), (m.uses_intrinsics, Attr::UsesIntrinsic)];
+        Ok((body, uses.into_iter().filter(|(used, _)| *used).map(|(_, a)| a).collect()))
     }
 
     /// The local variables assigned in `rhs`, in the order of their first assignment (nscplugin's

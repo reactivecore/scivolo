@@ -25,6 +25,9 @@ impl Gen<'_, '_> {
         if let Some(v) = self.gen_array_op(app, fun, args)? {
             return Ok(Some(v));
         }
+        if let Some(v) = self.gen_intrinsic(app, sym, fun, args)? {
+            return Ok(Some(v));
+        }
         let Some(owner) = self.l.u.symbol(sym).owner else { return Ok(None) };
         let name = self.l.u.symbol(sym).name.clone();
         let (any, object) = (self.l.defs.any, self.l.defs.object);

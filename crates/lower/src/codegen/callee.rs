@@ -15,12 +15,9 @@ pub fn is_primitive(name: &str) -> bool {
 
 /// Scala Native's methods whose body is its `intrinsic` marker, generated inline by nscplugin
 /// (`NirPrimitives`): owner and method name, besides `Intrinsics` and the `CFuncPtr`s.
-const INTRINSICS: [(&str, &str); 5] = [
-    ("scala.scalanative.unsafe.package$.CQuote", "c"),
+const INTRINSICS: [(&str, &str); 2] = [
     ("scala.scalanative.unsafe.package$", "resolved"),
     ("scala.scalanative.runtime.SafeZoneAllocator$", "allocate"),
-    ("java.util.ServiceLoader$", "load"),
-    ("java.util.ServiceLoader$", "loadInstalled"),
 ];
 
 /// Whether method `name` of class `owner`, full names, is a Scala Native intrinsic.
@@ -29,7 +26,8 @@ fn is_intrinsic(owner: &str, name: &str) -> bool {
         Some(n) => (n, "fromScalaFunction"),
         None => (n, "apply"),
     });
-    owner.starts_with("scala.scalanative.runtime.Intrinsics$")
+    let plain = ["multiplyHigh", "unsignedMultiplyHigh"].contains(&name);
+    (owner.starts_with(super::intrinsics::INTRINSICS) && !plain)
         || func.is_some_and(|(n, m)| n.parse::<u8>().is_ok() && m == name)
         || INTRINSICS.contains(&(owner, name))
 }
@@ -53,9 +51,6 @@ impl Gen<'_, '_> {
                 let class = owner.rsplit('.').next().unwrap_or(&owner);
                 return unsupported(span, format!("intrinsic {class}.{name}"));
             }
-        }
-        if self.l.u.is_annotated(sym, "scala.scalanative.unsafe.resolvedAtLinktime") {
-            return unsupported(span, "values resolved at link time");
         }
         if !self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.is_class(o)) {
             return unsupported(span, "calls of methods outside classes");
