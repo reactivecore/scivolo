@@ -50,12 +50,6 @@ impl Typer<'_> {
                 return self.unsupported(id, "new of a class not conforming to its self type");
             }
         }
-        let erased = self.resolve_full_name("scala.compiletime.Erased", true);
-        if let (Some(c), Some(erased)) = (self.u.class_symbol(tpe), erased)
-            && self.u.derives_from(c, erased)
-        {
-            return self.unsupported(id, "new of an erased class");
-        }
         if let Type::Sym(_, c) = *self.u.types().get(tpe)
             && !self.u.type_params(c).is_empty()
         {

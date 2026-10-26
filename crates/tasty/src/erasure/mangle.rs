@@ -118,6 +118,7 @@ impl Universe {
                 _ => break,
             }
         }
+        params.retain(|&p| !self.is_erased_param(p));
         let params = params
             .into_iter()
             .map(|p| {

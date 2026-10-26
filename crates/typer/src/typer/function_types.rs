@@ -159,12 +159,10 @@ impl Typer<'_> {
         if matches!(self.tpd.tree(typed[n]), T::ByNameTypeTree { .. }) {
             return self.unsupported(id, "by-name function parameter");
         }
-        let erased = self.resolve_full_name("scala.compiletime.Erased", true);
-        let derives_erased = |t: &mut Self, p: TNodeId| {
-            let tpe = t.tpd.tpe(p);
-            erased.zip(t.u.class_symbol(tpe)).is_some_and(|(e, c)| t.u.derives_from(c, e))
-        };
-        if typed[..n].iter().any(|&p| derives_erased(self, p)) {
+        if typed[..n].iter().any(|&p| {
+            let tpe = self.tpd.tpe(p);
+            self.derives_erased_class(tpe)
+        }) {
             return self.unsupported(id, "erased or impure function type");
         }
         let span = self.ast.span(id);

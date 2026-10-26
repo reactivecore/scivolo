@@ -67,7 +67,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     explicit_outer::transform(l, &classes)?;
     drop_imports::transform(l, root);
-    let erased = erasure::erased_defs::drop(l, root);
+    let erased = erasure::erased_defs::drop(l, root, &inits)?;
     retain_outside(l.tpd, &mut classes, erased);
     let pending = local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes, pending)?;

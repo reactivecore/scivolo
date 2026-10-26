@@ -8,6 +8,7 @@ mod bounds;
 mod bridges;
 mod compactify;
 mod constructors;
+mod erased_params;
 mod generic;
 mod mangle;
 mod poly_functions;

@@ -39,18 +39,24 @@ impl Decoder<'_> {
     }
 
     /// The type of parameter `p` in its method's type: annotated `@InlineParam` if it is an
-    /// inline parameter (dotty's `adaptParamInfo`).
+    /// inline parameter, `@ErasedParam` if it is an erased one (dotty's `adaptParamInfo`).
     fn param_type(&mut self, p: NodeId) -> TypeId {
-        let t = self.kid(p, 0);
-        if !self.ast.kids(p).iter().any(|&m| self.ast.tag(m) == INLINE) {
-            return t;
+        let mut t = self.kid(p, 0);
+        for (tag, annot) in [(INLINE, "InlineParam"), (ERASED, "ErasedParam")] {
+            if self.ast.kids(p).iter().any(|&m| self.ast.tag(m) == tag) {
+                t = self.annotated_param(t, annot);
+            }
         }
+        t
+    }
+
+    fn annotated_param(&mut self, t: TypeId, annot: &str) -> TypeId {
         let internal = match self.packages.get("scala.annotation.internal") {
             Some(&pkg) => Type::Package(pkg),
             None => Type::PackageName("scala.annotation.internal".into()),
         };
         let internal = self.intern(internal);
-        let annot = self.intern(Type::TypeRef(internal, "InlineParam".into()));
+        let annot = self.intern(Type::TypeRef(internal, annot.into()));
         match self.types.get(t).clone() {
             Type::ByName(r) => {
                 let r = self.intern(Type::Annotated(r, annot));

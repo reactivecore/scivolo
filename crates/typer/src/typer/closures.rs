@@ -51,6 +51,9 @@ impl Typer<'_> {
             let Tree::ValDef { name, tpt, mods, .. } = *self.ast.tree(p) else {
                 return self.unsupported(p, "function parameter");
             };
+            if self.ast.modifiers(mods).flags.is(f::ERASED) {
+                return self.unsupported(p, "erased function parameter");
+            }
             let tpt = if !self.is_untyped_param(p) {
                 self.typed_type(tpt, ctx)
             } else if let Some((formals, _)) = &expected {
@@ -81,6 +84,9 @@ impl Typer<'_> {
                 error
             };
             let tpe = self.tpd.tpe(tpt);
+            if self.derives_erased_class(tpe) {
+                return self.unsupported(p, "erased function parameter");
+            }
             let text = self.text(name.name).to_owned();
             let flags = self.ast.modifiers(mods).flags.or(f::TERM_PARAM).to_term_flags();
             let sym = self.syms.define(self.u, &text, Kind::Param, anonfun, flags);

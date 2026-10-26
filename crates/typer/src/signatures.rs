@@ -22,6 +22,9 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
             }
             Type::Method { params, result, .. } => {
                 for (_, p) in params {
+                    if u.is_erased_param(p) {
+                        continue;
+                    }
                     let p = match u.types().get(p) {
                         Type::Param(..) => bounded(u, p, &bounds),
                         _ => u.map_type(p, &mut |u, x| match *u.types().get(x) {

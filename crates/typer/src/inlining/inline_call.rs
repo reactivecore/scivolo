@@ -73,9 +73,6 @@ impl Inlining<'_> {
         if let Some(inner) = self.inline_ref_in(expansion) {
             return Err((self.tpd.span(inner), "inline call in an inline expansion"));
         }
-        if let Some(r) = bindings.iter().chain([&expansion]).find_map(|&b| self.erased_value_in(b)) {
-            return Err((self.tpd.span(r), "erasedValue in an inline expansion"));
-        }
         let locals: Vec<SymbolId> = bindings.iter().filter_map(|&b| self.tpd.sym(b)).collect();
         let tpe = self.tpd.tpe(expansion);
         let tpe =
