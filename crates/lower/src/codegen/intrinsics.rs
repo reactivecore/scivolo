@@ -46,6 +46,9 @@ impl Gen<'_, '_> {
             let ty = self.gen_type(tpe);
             return Ok(Some(self.emit(if name == "sizeOf" { Op::SizeOf(ty) } else { Op::AlignmentOf(ty) })));
         }
+        if super::callbacks::is_from_function(&owner, &name) {
+            return self.gen_func_ptr_from_function(app, args, span).map(Some);
+        }
         if super::funcptr::is_func_ptr_apply(&owner, &name) {
             return self.gen_func_ptr_apply(fun, args, span).map(Some);
         }

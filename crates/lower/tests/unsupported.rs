@@ -161,8 +161,8 @@ const CASES: &[(&str, &str)] = &[
         "the address of immutable field x",
     ),
     (
-        "import scala.scalanative.unsafe.*\nobject O { def f: CFuncPtr1[CInt, CInt] = (x: CInt) => x }",
-        "intrinsic CFuncPtr1$.fromScalaFunction",
+        "import scala.scalanative.unsafe.*\nobject O { def f(n: Int): CFuncPtr1[CInt, CInt] = (x: CInt) => x + n }",
+        "a C function pointer to a lambda capturing values",
     ),
     (
         "import scala.scalanative.unsafe.*\nobject O { def g(n: Int): CString = c\"a$n\" }",

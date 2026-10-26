@@ -10,6 +10,7 @@ mod body;
 mod branch;
 mod buf;
 mod c_types;
+mod callbacks;
 mod callee;
 mod cast;
 mod class;

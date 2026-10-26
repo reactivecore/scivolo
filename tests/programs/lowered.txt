@@ -171,3 +171,4 @@ Ni26linktime
 Ni26cquote
 Ni26struct
 Ni26funcptr
+Ni26callback
