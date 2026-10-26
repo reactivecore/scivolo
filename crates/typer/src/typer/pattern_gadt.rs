@@ -3,6 +3,7 @@
 //! The bounds the selector gives the types a typed pattern binds (dotty's
 //! `constrainPatternType` on pattern-bound symbols).
 
+use super::dependent_results::has_wildcard;
 use super::{Pt, Typer};
 use crate::tpd::TNodeId;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
@@ -15,7 +16,7 @@ impl Typer<'_> {
         let Pt::Type(sel) = pt else { return tpe };
         let mut bound = Vec::new();
         self.pattern_types(tpt, &mut bound, false);
-        if !pattern || bound.is_empty() || self.is_top(sel) {
+        if !pattern || bound.is_empty() || self.is_top(sel) || !self.refines_invariantly(tpe, sel) {
             return tpe;
         }
         let syms: Vec<SymbolId> = bound.into_iter().map(|(s, _)| s).collect();
@@ -63,6 +64,25 @@ impl Typer<'_> {
             self.known_pattern_types.insert(s);
         }
         tpe
+    }
+
+    /// Whether pattern type `pat` against `sel` constrains every type argument of their common
+    /// base class: `sel` without wildcard arguments, and `pat`'s class final or a case class, or
+    /// that base class's parameters invariant (dotty's `assumeInvariantRefinement`, the variant
+    /// arguments otherwise left unconstrained).
+    fn refines_invariantly(&mut self, pat: TypeId, sel: TypeId) -> bool {
+        let sel = self.dealiased(sel);
+        let widened = self.u.widen(sel);
+        if has_wildcard(self.u, widened) {
+            return false;
+        }
+        let (Some(p), Some(s)) = (self.u.class_symbol(pat), self.u.class_symbol(sel)) else { return false };
+        let flags = self.u.symbol(p).flags;
+        if flags.has(tasty::tags::FINAL) || flags.has(tasty::tags::CASE) {
+            return true;
+        }
+        let base = if self.u.derives_from(p, s) { s } else { p };
+        self.u.variances(base).iter().all(|&v| v == 0)
     }
 
     /// The bounds of type variable `v` zonked, both its instance if it has one.
