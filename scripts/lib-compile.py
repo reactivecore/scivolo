@@ -7,7 +7,7 @@ MODULE is one of MODULES or `all`. Each `.scala` file of the module's Scala 3 so
 in ref/scala-native (those whose paths contain FILTER) is lowered on its own, against the
 published jars, into tmp/lib/MODULE/out/FILE/; each NIR file written is compared, as `just
 nir-cmp` compares them, with the oracle's: the module compiled by Scala Native's build (Scala
-3.8.3) in tmp/lib/sn/MODULE (`just lib-oracle`) if there, else the published jar's (Scala
+3.9.0) in tmp/lib/sn/MODULE (`just lib-oracle`) if there, else the published jar's (Scala
 3.1.3), unpacked into tmp/lib/jars/MODULE.
 
 Writes under tmp/lib/MODULE: results.tsv (file, ok|refused|timeout|crashed, reason, NIR files

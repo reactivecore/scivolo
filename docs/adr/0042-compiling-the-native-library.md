@@ -27,8 +27,8 @@ program is linked. scivolo compiles a curated copy (`native/`) with clang in `cr
 - **Oracle.** Scala Native's own build of the same version (`just lib-oracle`, sbt), compared
   with `scivolo-nir-dump --debug --sorted`, as `just nir-cmp` compares test programs. The
   published jars are compiled with Scala 3.1.3 (`scala3PublishVersion`), whose lazy values and
-  pattern matches differ from 3.9's; the build uses 3.8.3, the newest its compiler plugin
-  supports, so a few differences of 3.8 and 3.9 remain.
+  pattern matches differ from 3.9's; the build compiles with 3.9.0 and the published compiler
+  plugin of that version (ADR 0046).
 
 ## Consequences
 - The library build needs `ref/scala-native` (`just fetch-scala-native`) and clang, nothing else;
