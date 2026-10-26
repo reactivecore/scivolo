@@ -118,6 +118,7 @@ mod named_tuple_types;
 mod named_tuples;
 mod named_type_args;
 mod names;
+mod new_type_args;
 mod no_inits;
 mod non_method_apply;
 mod not_a_member;

@@ -87,26 +87,6 @@ impl Typer<'_> {
         Ok(self.tpd.node(T::TypeApply { fun: f, args: trees }, span.to_synthetic(), Some(tpe), None))
     }
 
-    /// The type arguments of `C[Ts]` if `f` selects the constructor of `new C[Ts]`, with the
-    /// position after the `new` tree, or the class's own type parameters if `f` selects the
-    /// constructor of `this` (dotty's `argTypesLo` of a constructor's qualifier).
-    fn new_type_args(&mut self, f: TNodeId) -> Option<(Vec<TypeId>, syntax::ast::Span)> {
-        let T::Select { qualifier, .. } = *self.tpd.tree(f) else { return None };
-        let tpe = match self.tpd.tree(qualifier) {
-            T::New { .. } => self.tpd.tpe(qualifier),
-            T::This { .. } if self.tpd.sym(f).is_some_and(|s| self.u.is_constructor(s)) => {
-                let this = self.tpd.tpe(qualifier);
-                self.u.widen(this)
-            }
-            _ => return None,
-        };
-        let tpe = self.u.dealias(tpe);
-        match self.u.types().get(tpe).clone() {
-            Type::Applied(_, args) => Some((args, self.tpd.span(qualifier).end_pos())),
-            _ => None,
-        }
-    }
-
     /// The type of polymorphic `f` applied to `args`, which must be within the bounds of its
     /// type parameters, or constrained to be if they are type variables.
     pub fn instantiated(&mut self, f: TNodeId, args: &[TypeId]) -> Result<TypeId, &'static str> {

@@ -175,7 +175,6 @@ impl Typer<'_> {
                 let mut overridden = None;
                 for (k, o) in out.clone().into_iter().enumerate() {
                     let overload = self.u.symbol(o).owner == Some(base)
-                        && self.syms.is_script(o)
                         && self.u.erased_method(o).0 != self.u.erased_method(m).0;
                     if self.u.is_type_symbol(o) || overload {
                         continue;

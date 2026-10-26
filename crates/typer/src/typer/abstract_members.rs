@@ -8,7 +8,7 @@ use super::Typer;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, CASE, ENUM, MUTABLE, PRIVATE, TRAIT};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Erased, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Refuses class `cls` if it is concrete and an abstract term member of it or of a base class
@@ -33,7 +33,8 @@ impl Typer<'_> {
             let decls = self.u.symbol(base).decls.clone();
             for d in decls {
                 let (kind, name) = (self.u.symbol(d).kind, self.u.symbol(d).name.clone());
-                let mixin = !self.syms.is_script(d) && (name.contains("$$super$") || name.contains("$_setter_$"));
+                let mixin =
+                    !self.syms.is_script(d) && (name.contains("$$super$") || name.contains("$_setter_$"));
                 if !matches!(kind, Kind::Val | Kind::Def)
                     || name == "<init>"
                     || mixin
@@ -46,7 +47,7 @@ impl Typer<'_> {
                 self.complete(d);
                 let implemented = members.into_iter().any(|m| {
                     self.complete(m);
-                    self.is_concrete(m) && (self.same_member(site, m, d) || self.same_shape(m, d))
+                    self.is_concrete(m) && (self.same_member(site, m, d) || self.same_shape(site, m, d))
                 });
                 if !implemented {
                     return self.unsupported_at(span, "concrete class with an unimplemented member");
@@ -56,14 +57,14 @@ impl Typer<'_> {
     }
 
     /// Whether methods `a` and `b` take as many type and value parameters in each clause, with the
-    /// same erased parameter types, as `matches` does not compare interleaved clauses and
-    /// path-dependent parameter types.
-    fn same_shape(&mut self, a: SymbolId, b: SymbolId) -> bool {
+    /// same erased parameter types as members of `site`, as `matches` does not compare interleaved
+    /// clauses and path-dependent parameter types.
+    fn same_shape(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
         let def = |t: &Self, s| t.u.symbol(s).kind == Kind::Def;
         def(self, a)
             && def(self, b)
             && self.clause_shape(a) == self.clause_shape(b)
-            && self.u.erased_method(a).0 == self.u.erased_method(b).0
+            && self.erased_params(site, a) == self.erased_params(site, b)
     }
 
     fn clause_shape(&mut self, s: SymbolId) -> Vec<(bool, usize)> {
@@ -76,6 +77,32 @@ impl Typer<'_> {
                 _ => return out,
             };
         }
+    }
+
+    /// The erased parameter types of method `s` as a member of `site`, a parameter's singleton
+    /// type read as the parameter's type there.
+    fn erased_params(&mut self, site: TypeId, s: SymbolId) -> Vec<Erased> {
+        let info = self.u.member_info(site, s);
+        let mut params = Vec::new();
+        let mut t = info;
+        loop {
+            match self.u.types().get(t).clone() {
+                Type::Poly { result, .. } => t = result,
+                Type::Method { params: ps, result, .. } => {
+                    params.extend(ps);
+                    t = result;
+                }
+                _ => break,
+            }
+        }
+        let info = self.u.map_type(info, &mut |u, x| {
+            let &Type::Sym(None, p) = u.types().get(x) else { return None };
+            let param = u.symbol(p);
+            let own = param.kind == Kind::Param && param.owner == Some(s);
+            own.then(|| params.iter().find(|(n, _)| *n == param.name).map(|&(_, t)| t)).flatten()
+        });
+        let info = self.u.normalize(info);
+        self.u.erased_method_type(info).0
     }
 
     /// Whether `d`, a declaration of class `c`, is the setter of a variable of `c`; the variable
