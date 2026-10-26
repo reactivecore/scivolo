@@ -17,6 +17,9 @@ impl Cmp<'_> {
                 Some(Meaning::Class(c)) if c == self.u.builtins().nothing => self.is_value_type(b),
                 Some(Meaning::Class(c)) if c == self.u.builtins().null => self.nullable(b),
                 Some(Meaning::Term(_)) => self.below_singleton(a, b),
+                Some(Meaning::Class(c)) if self.u.is_module_class(c) => {
+                    self.is_singleton(b) && self.compare_atoms(a, b, true) == Some(true)
+                }
                 _ => false,
             },
             Type::Applied(tycon, args) => self.compare_applied1(a, b, tycon, &args),

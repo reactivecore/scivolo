@@ -16,12 +16,6 @@ impl Typer<'_> {
     /// companion class if `companion`, else for itself (dotty's `Deriver.enterDerived`).
     pub fn enter_derived(&mut self, cls: SymbolId, companion: bool, derived: &[NodeId], ctx: Ctx) {
         let deriving = if companion { self.u.companion_class(cls).unwrap_or(cls) } else { cls };
-        if self.u.is_module_class(deriving)
-            && let Some(&d) = derived.first()
-        {
-            self.unsupported(d, "derives clause of an object");
-            return;
-        }
         let mut defs = Vec::new();
         let mut names = Vec::new();
         for &d in derived {
