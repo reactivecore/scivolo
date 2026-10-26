@@ -2,7 +2,7 @@
 
 use libimage::Image;
 use libs::SCALA;
-use lower::directives::{directive_options, without_header};
+use lower::directives::{directives, without_header};
 use macros::Macros;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
@@ -61,8 +61,7 @@ pub fn compile(
     }
     let text = std::str::from_utf8(text).map_err(|_| "a file not in UTF-8")?;
     let mut options: Vec<&str> = given.iter().map(String::as_str).collect();
-    // Temporary until #118 (script dependencies): `//> using dep` makes a script take scala-cli.
-    options.extend(directive_options(text, SCALA)?);
+    options.extend(directives(text, SCALA)?.options);
     let cfg = Config::checked(&options).map_err(|o| format!("option `{o}`"))?;
     let image = image.ok_or("no library image")?;
     let name = source.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());

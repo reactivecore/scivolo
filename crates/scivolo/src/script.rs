@@ -5,7 +5,7 @@ use crate::frontend::{self, Mode, Refused};
 use crate::mains;
 use libimage::{Image, cache};
 use libs::{BUILD, NATIVE, SCALA, cache_dir};
-use lower::directives::without_header;
+use lower::directives::{directives, without_header};
 use macros::{Macros, VmMacros};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
@@ -19,6 +19,17 @@ const FALLBACK: &str = "fallback";
 /// Whether `arg` names a source file to compile rather than a main class.
 pub fn is_source(arg: &str) -> bool {
     arg.ends_with(".scala") || arg.ends_with(".sc")
+}
+
+/// The dependencies the `//> using` directives of `.scala` file `source` name; none if it is
+/// unreadable or a directive is refused.
+pub fn using_deps(source: &str) -> Vec<String> {
+    let text = match source.ends_with(".scala") {
+        true => std::fs::read_to_string(source).unwrap_or_default(),
+        false => String::new(),
+    };
+    directives(&text, SCALA)
+        .map_or_else(|_| Vec::new(), |d| d.deps.iter().map(|&(_, d)| d.to_owned()).collect())
 }
 
 /// The NIR directory of `source`, compiled with compiler options `options` against classpath
