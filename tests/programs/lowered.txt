@@ -169,3 +169,4 @@ Lw26objects
 Lw26lazyvc
 Lw26pathalias
 Lw26iftret
+Lw26byname

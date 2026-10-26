@@ -131,6 +131,10 @@ impl Inlining<'_> {
             } else {
                 self.arg_binding(ps, (a, arg_tpe), bindings, owner)?
             };
+            if self.u.symbol(to).kind == Kind::Def {
+                let result = self.u.info(to);
+                m.refs.insert(ps, result);
+            }
             m.syms.insert(ps, to);
         }
         let body = self.copy(&mut m, rhs, &mut |_, _, _| None)?;
@@ -147,15 +151,17 @@ impl Inlining<'_> {
         owner: SymbolId,
     ) -> Result<SymbolId, Unsupported> {
         let p_info = self.u.info(p);
-        if matches!(self.u.types().get(p_info), Type::ByName(_)) {
-            return Err((self.tpd.span(a), "beta reduction with a by-name parameter"));
-        }
+        let by_name = matches!(self.u.types().get(p_info), Type::ByName(_));
         let builtins = self.u.builtins();
         let widened = self.u.widen(arg_tpe);
         let bottom =
             self.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);
         let constant = matches!(self.u.types().get(arg_tpe), Type::Constant(..) | Type::Str(_));
         let tpe = if bottom {
+            let p_info = match *self.u.types().get(p_info) {
+                Type::ByName(r) => r,
+                _ => p_info,
+            };
             self.u.widen(p_info)
         } else if constant {
             arg_tpe
@@ -165,7 +171,7 @@ impl Inlining<'_> {
         let name = self.u.symbol(p).name.clone();
         let s = self.u.define(Symbol {
             name: name.clone(),
-            kind: Kind::Val,
+            kind: if by_name { Kind::Def } else { Kind::Val },
             owner: Some(owner),
             flags: Flags::default().with(SYNTHETIC),
             target: None,
@@ -176,7 +182,7 @@ impl Inlining<'_> {
         });
         self.u.set_info(s, tpe);
         let unit = self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == "scala.Unit");
-        if !((constant || unit) && at_least(self.purity(a), PURE)) {
+        if by_name || !((constant || unit) && at_least(self.purity(a), PURE)) {
             let span = self.tpd.span(a);
             let tpt = self.tpd.node(
                 T::TypeTree { inferred: false },
@@ -185,14 +191,20 @@ impl Inlining<'_> {
                 None,
             );
             let name = TName { name: self.names.intern(&name), is_type: false };
-            bindings.push(self.tpd.node(T::ValDef { name, tpt, rhs: Some(a) }, span, None, Some(s)));
+            let tree = match by_name {
+                true => T::DefDef { name, paramss: self.tpd.clauses(&[]), tpt, rhs: Some(a) },
+                false => T::ValDef { name, tpt, rhs: Some(a) },
+            };
+            bindings.push(self.tpd.node(tree, span, None, Some(s)));
         }
         Ok(s)
     }
 
     /// `t` with each pure subtree of a constant or unit type replaced by its literal.
     fn literals_for_pure_constants(&mut self, t: TNodeId) -> TNodeId {
-        let is_term = !matches!(self.tpd.tree(t), T::TypeTree { .. } | T::AppliedTypeTree { .. });
+        let type_ref = self.tpd.sym(t).is_some_and(|s| self.u.is_type_symbol(s));
+        let is_term =
+            !type_ref && !matches!(self.tpd.tree(t), T::TypeTree { .. } | T::AppliedTypeTree { .. });
         if is_term && let Some(tpe) = self.tpd.get(t).tpe {
             let value = self.constant_of_type(tpe).or_else(|| {
                 let unit = self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == "scala.Unit");
