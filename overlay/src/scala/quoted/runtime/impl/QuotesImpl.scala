@@ -18,7 +18,7 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
 
   extension [T](self: Expr[T]) {
     def show: String = ReflectOps.text("showTree", QuoteHost.exprId(self))
-    def matches(that: Expr[Any]): Boolean = throw new Unsupported("Expr.matches")
+    def matches(that: Expr[Any]): Boolean = QuoteHost.matchPattern(QuoteHost.exprId(self), QuoteHost.exprId(that)) >= 0
     def valueOrAbort(using fromExpr: FromExpr[T]): T =
       fromExpr.unapply(self)(using this).getOrElse(throw new Unsupported("Expr.valueOrAbort of no known value"))
   }

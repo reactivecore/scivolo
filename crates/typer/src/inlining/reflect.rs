@@ -58,6 +58,20 @@ impl Reflect<'_> {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => self.u.resolve_ref(t),
             Type::Applied(tycon, _) => self.type_symbol(tycon),
+            Type::Lambda { binder, ref params, result } => {
+                let types = self.u.types();
+                let eta = match types.get(result) {
+                    Type::Applied(tycon, args) if args.len() == params.len() => {
+                        let own = args
+                            .iter()
+                            .enumerate()
+                            .all(|(i, &a)| *types.get(a) == Type::Param(binder, i as u32));
+                        own.then_some(*tycon)
+                    }
+                    _ => None,
+                };
+                eta.and_then(|tycon| self.type_symbol(tycon))
+            }
             Type::Annotated(inner, _) => self.type_symbol(inner),
             Type::This(c) => self.u.class_symbol(c),
             _ => None,
@@ -110,6 +124,11 @@ impl Reflect<'_> {
             return self.u.intern_type(Type::Package(s));
         }
         type_ref(self.u, s)
+    }
+
+    /// `TypeRepr.select(s)`: the reference to member `s` of `prefix`.
+    pub fn select_type(&mut self, prefix: TypeId, s: SymbolId) -> TypeId {
+        crate::defn::ref_type(self.u, Some(prefix), s)
     }
 
     /// `TermRef(qual, name)`: the reference to the only term member `name` of `qual`.

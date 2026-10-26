@@ -24,6 +24,12 @@ impl Host {
                 numbers(found.map(|d| d.0 as i32).collect())
             }
             "requiredClass" => {
+                if self.is_package_alias(text) {
+                    let any = self.u.class_ref("scala.Any");
+                    return numbers(vec![
+                        self.u.class_symbol(any).ok_or("a library without scala.Any")?.0 as i32,
+                    ]);
+                }
                 let c = self.u.class_ref(text);
                 let c = self.u.class_symbol(c).or_else(|| self.static_module_class(text));
                 numbers(vec![c.ok_or("Symbol.requiredClass of a class the frontend lacks")?.0 as i32])
@@ -31,9 +37,18 @@ impl Host {
             "requiredMethod" => {
                 let (class, name) =
                     text.rsplit_once('.').ok_or("Symbol.requiredMethod of a name without a class")?;
-                let c = self.u.class_ref(class);
-                let c =
-                    self.u.class_symbol(c).ok_or("Symbol.requiredMethod in a class the frontend lacks")?;
+                let c = match self.package_object_value(class) {
+                    Some(v) => {
+                        let t = self.u.info(v);
+                        let t = self.u.widen(t);
+                        self.u.class_symbol(t)
+                    }
+                    None => {
+                        let c = self.u.class_ref(class);
+                        self.u.class_symbol(c)
+                    }
+                };
+                let c = c.ok_or("Symbol.requiredMethod in a class the frontend lacks")?;
                 let methods = self.u.member_where(c, name, |u, m| u.symbol(m).kind == Kind::Def);
                 let m = methods.first().copied();
                 numbers(vec![m.ok_or("Symbol.requiredMethod of a method the frontend lacks")?.0 as i32])
@@ -52,6 +67,30 @@ impl Host {
             }
             _ => Err(UNKNOWN),
         }
+    }
+
+    /// Whether `full` names a type alias of a package or its package object.
+    fn is_package_alias(&mut self, full: &str) -> bool {
+        let (pkg, name) = full.rsplit_once('.').unwrap_or(("", full));
+        let Some(p) = self.u.package(pkg) else { return false };
+        let objects = self.u.decl(p, "package").unwrap_or_default();
+        let object = objects.into_iter().find(|&d| self.u.is_module(d)).and_then(|m| self.u.module_class(m));
+        let decls =
+            [Some(p), object].into_iter().flatten().flat_map(|o| self.u.decl(o, name).unwrap_or_default());
+        let decls: Vec<SymbolId> = decls.collect();
+        decls.iter().any(|&d| self.u.symbol(d).kind == Kind::Type && !self.u.is_class(d))
+            && !decls.iter().any(|&d| self.u.is_class(d))
+    }
+
+    /// The value named `full` of the package object of its package, if there is one.
+    fn package_object_value(&mut self, full: &str) -> Option<SymbolId> {
+        let (pkg, name) = full.rsplit_once('.')?;
+        let p = self.u.package(pkg)?;
+        let objects = self.u.decl(p, "package").unwrap_or_default();
+        let object =
+            objects.into_iter().find(|&d| self.u.is_module(d)).and_then(|m| self.u.module_class(m))?;
+        let vals = self.u.decl(object, name).unwrap_or_default();
+        vals.into_iter().find(|&v| self.u.symbol(v).kind == Kind::Val)
     }
 
     /// The module class of the static object named `full`, if there is one.

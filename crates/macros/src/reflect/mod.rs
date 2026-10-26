@@ -20,6 +20,7 @@ mod tree_parts;
 mod trees;
 mod type_kinds;
 mod type_match;
+mod type_members;
 mod type_reprs;
 mod types;
 
@@ -41,8 +42,9 @@ type Run = fn(&mut Host, &str, &[i32], &str) -> Answer;
 impl Host {
     /// Runs `quotes.reflect` operation `op` on `args` and `text`.
     pub fn run_reflect(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let subjects: [Run; 17] = [
+        let subjects: [Run; 18] = [
             Host::run_report,
+            Host::run_type_member,
             Host::run_copy,
             Host::run_type_kind,
             Host::run_definition,

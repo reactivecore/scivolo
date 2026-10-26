@@ -124,7 +124,25 @@ final class SymbolImpl(val id: Int) {
     case _             => false
   }
   override def hashCode: Int = id
-  override def toString: String = throw new Unsupported("Symbol.toString")
+
+  /** dotty's `SymDenotation.toString`: its kind and name. */
+  override def toString: String =
+    if (id < 0) "val <none>"
+    else {
+      val bits = ReflectOps.flags(id).bits
+      val has = (bit: Int) => (bits & 1L << bit) != 0
+      val kind = ReflectOps.one("kind", id) match {
+        case 1 if has(19)      => "module class"
+        case 1 if has(20)      => "trait"
+        case 1                 => "class"
+        case 2 | 3             => "type"
+        case 0                 => "object"
+        case _ if has(19)      => "object"
+        case 6                 => "method"
+        case _                 => "val"
+      }
+      kind + " " + ReflectOps.text("name", id)
+    }
 }
 
 /** Offsets `start` until `end` of source file number `file`. */
