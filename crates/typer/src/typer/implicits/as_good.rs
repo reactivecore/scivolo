@@ -103,7 +103,8 @@ impl Typer<'_> {
                     Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
                     _ => None,
                 };
-                let class = class.filter(|&c| self.u.is_class(c))?;
+                let class = class?;
+                self.complete(class);
                 let params = self.u.type_params(class);
                 if params.len() != args.len() {
                     return None;

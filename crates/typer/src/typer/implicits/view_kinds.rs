@@ -140,7 +140,7 @@ impl Typer<'_> {
 
     /// The type of the value candidate `c` gives after its type and implicit parameters, or the
     /// number of parameters of its first explicit clause.
-    fn candidate_value(&mut self, c: Candidate) -> Result<TypeId, usize> {
+    pub fn candidate_value(&mut self, c: Candidate) -> Result<TypeId, usize> {
         self.complete(c.sym);
         let tpe = self.ref_type(c.prefix, c.sym);
         let mut info = self.method_info(tpe).unwrap_or(tpe);

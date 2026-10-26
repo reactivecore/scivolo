@@ -17,6 +17,7 @@ pub(super) mod conversions;
 mod defaults;
 mod dictionary;
 mod divergence;
+mod extension_containers;
 mod extension_views;
 mod function_goals;
 mod history;

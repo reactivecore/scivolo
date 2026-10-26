@@ -11,28 +11,6 @@ use syntax::ast::{NodeId, TName, Tree};
 use tasty::Type;
 
 impl Typer<'_> {
-    /// The one candidate of `group` with an extension method `name` that takes `tree`, if any;
-    /// `Err` if there are several, or if a conversion of the same group fits too.
-    pub fn extension_container(
-        &mut self,
-        group: &[Candidate],
-        tree: TNodeId,
-        name: &str,
-        converts: bool,
-        ctx: Ctx,
-    ) -> Result<Option<Candidate>, &'static str> {
-        let found = self.fitting(group, |t, c| t.try_extension(c, tree, name, ctx))?;
-        match found[..] {
-            [] => Ok(None),
-            _ if converts => Err("implicit conversion beside an extension method of an implicit value"),
-            [c] => Ok(Some(c)),
-            _ => self
-                .most_specific(&found, ctx)
-                .map(Some)
-                .ok_or("ambiguous extension methods of implicit values"),
-        }
-    }
-
     /// Selection `id` of `name` from `qual` as `c.name(qual)` for implicit value `c`.
     pub fn implicit_extension_select(
         &mut self,
@@ -64,7 +42,7 @@ impl Typer<'_> {
 
     /// The reference to candidate `c` if it is a value with one extension method `name` whose
     /// receiver `tree` fits (dotty's `hasExtMethod`).
-    fn try_extension(
+    pub fn try_extension(
         &mut self,
         c: Candidate,
         tree: TNodeId,
