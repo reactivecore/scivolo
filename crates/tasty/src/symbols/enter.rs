@@ -94,7 +94,7 @@ impl Universe {
     /// `sym` in its TASTy.
     pub fn annotation_int(&mut self, sym: SymbolId, full: &str) -> Option<i32> {
         let (file, call) = self.annotation_call(sym, full)?;
-        first_int(&self.file(file).0, call)
+        first_int(self.file(file).0, call)
     }
 
     /// The first string argument of the annotation of the class with full name `full` on method
