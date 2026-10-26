@@ -132,7 +132,11 @@ impl Typer<'_> {
         locals.extend(types.iter().map(|&(t, _)| t).filter(|t| !locals.contains(t)).collect::<Vec<_>>());
         let opaque: Vec<SymbolId> = match self.is_top(selector) {
             true => Vec::new(),
-            false => types.iter().filter(|&&(_, known)| !known).map(|&(t, _)| t).collect(),
+            false => types
+                .iter()
+                .filter(|&&(t, known)| !known && !self.known_pattern_types.contains(&t))
+                .map(|&(t, _)| t)
+                .collect(),
         };
         let body = self.no_local_refs(typed_body, &locals, &opaque, pt);
         let body = match (body, pt) {
