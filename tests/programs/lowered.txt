@@ -173,3 +173,4 @@ Ni26struct
 Ni26funcptr
 Ni26callback
 Ni26services
+Ni26links

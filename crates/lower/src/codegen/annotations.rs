@@ -122,18 +122,18 @@ impl Gen<'_, '_> {
         canonical(attrs)
     }
 
-    /// `attrs` and those of the annotations of `sym`; a library symbol's from its TASTy, but for
-    /// `link` and `define`.
+    /// `attrs` and those of the annotations of `sym`, last written first as in dotty's
+    /// `annotations`; a library symbol's from its TASTy, but for `link` and `define`.
     fn annotated(&mut self, sym: SymbolId, mut attrs: Vec<Attr>, method: bool) -> Vec<Attr> {
         let found: Vec<(Gives, Option<String>)> = if self.l.u.symbol(sym).tree.is_some() {
             let annotated = ANNOTATIONS.iter().filter(|(n, _)| self.l.u.is_annotated(sym, n));
             annotated.filter(|(_, g)| !matches!(g, Gives::Named(_))).map(|&(_, g)| (g, None)).collect()
         } else {
             let mut found = Vec::new();
-            for &c in self.l.u.annotations(sym) {
+            for &c in self.l.u.annotations(sym).iter().rev() {
                 match gives(self.l, c) {
                     Some(g @ Gives::Named(_)) => {
-                        found.extend(self.l.u.annotation_strings(sym, c).iter().map(|s| (g, s.clone())))
+                        found.extend(self.l.u.annotation_strings(sym, c).iter().rev().map(|s| (g, s.clone())))
                     }
                     Some(g) => found.push((g, None)),
                     None => {}
