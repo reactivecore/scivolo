@@ -47,6 +47,7 @@ mod define_further;
 mod defs;
 mod dependent_function_types;
 mod dependent_functions;
+mod dependent_matches;
 pub(crate) mod dependent_params;
 mod dependent_results;
 mod derived;

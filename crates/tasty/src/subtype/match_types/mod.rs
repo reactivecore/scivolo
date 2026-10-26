@@ -31,6 +31,12 @@ impl Universe {
         Cmp::new(self, &mut NoVars).try_normalize(t)
     }
 
+    /// The match type `t` stands for, unreduced (dotty's `underlyingNormalizable`).
+    pub fn underlying_match(&mut self, t: TypeId) -> Option<TypeId> {
+        let n = Cmp::new(self, &mut NoVars).underlying_normalizable(t)?;
+        matches!(self.types().get(n), Type::Match { .. }).then_some(n)
+    }
+
     /// Whether match type case `case` has a pattern that reduction handles.
     pub fn is_reducible_case(&mut self, case: TypeId) -> bool {
         !matches!(Cmp::new(self, &mut NoVars).analyze(case), spec::Spec::Unsupported)

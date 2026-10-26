@@ -95,7 +95,7 @@ impl Typer<'_> {
     }
 
     /// `expr: tpe`, the ascription moved into the result of a block (dotty's `ascribeType`).
-    fn ascribed(&mut self, expr: TNodeId, tpe: TypeId) -> TNodeId {
+    pub fn ascribed(&mut self, expr: TNodeId, tpe: TypeId) -> TNodeId {
         let span = self.tpd.span(expr);
         if let T::Block { stats, expr: last } = *self.tpd.tree(expr)
             && !matches!(self.tpd.tree(last), T::Closure { .. })
