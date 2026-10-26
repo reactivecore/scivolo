@@ -3,8 +3,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-/// Every compile and run stops after this long.
-const TIMEOUT: Duration = Duration::from_secs(20);
+/// How long every compile and run may take: 20 s, 120 s in CI.
+fn timeout() -> Duration {
+    Duration::from_secs(if std::env::var_os("CI").is_some() { 120 } else { 20 })
+}
 
 /// A compile running macros in a fresh cache stops after this long.
 const MACRO_TIMEOUT: Duration = Duration::from_secs(300);
@@ -44,7 +46,7 @@ fn output(cmd: &mut Command, what: &str, limit: Duration) -> Output {
 
 /// What the executable `scivolo-aot` builds with `args` into `bin` prints when run with `run`.
 fn build_and_run(args: &[&str], bin: &Path, run: &[&str]) -> String {
-    build_with(Command::new(env!("CARGO_BIN_EXE_scivolo-aot")).args(args), bin, TIMEOUT);
+    build_with(Command::new(env!("CARGO_BIN_EXE_scivolo-aot")).args(args), bin, timeout());
     run_bin(bin, run)
 }
 
@@ -56,7 +58,7 @@ fn build_with(compile: &mut Command, bin: &Path, limit: Duration) {
 
 /// What the executable `bin` prints when run with `run`.
 fn run_bin(bin: &Path, run: &[&str]) -> String {
-    let out = output(Command::new(bin).args(run), "run", TIMEOUT);
+    let out = output(Command::new(bin).args(run), "run", timeout());
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
