@@ -26,6 +26,9 @@ impl Typer<'_> {
             Err(e) => return self.unsupported(id, &e),
         };
         let expr = self.typed(expr, Pt::Type(throwable), ctx);
+        if let Err(what) = self.check_can_throw(expr, ctx) {
+            return self.unsupported(id, what);
+        }
         let throw = self.throw_method();
         let span = self.ast.span(id);
         let fun_tpe = self.u.intern_type(Type::Sym(None, throw));
@@ -76,6 +79,7 @@ impl Typer<'_> {
             Err(e) => return self.unsupported(id, &e),
         };
         let before = self.before_harmonic();
+        let expr = self.with_can_throw(expr, cases, ctx);
         let expr = self.typed(expr, pt, ctx);
         let mut all = vec![expr];
         all.extend(cases.iter().map(|&c| self.typed_case(c, throwable, pt, ctx)));

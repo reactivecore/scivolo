@@ -53,7 +53,7 @@ fn main() {
     let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
     let options: Vec<&str> = sources
         .iter()
-        .flat_map(|s| lower::directives::directives(&s.text, "3.9").map(|d| d.options))
+        .flat_map(|s| lower::directives::directives(&s.text, "3.9.0").map(|d| d.options))
         .flatten()
         .collect();
     let cfg = Config::from_options(&options);

@@ -79,13 +79,32 @@ fn drop_erased_args(
     for (i, a) in l.tpd.items(args).to_vec().into_iter().enumerate() {
         if !erased.get(i).copied().unwrap_or(false) {
             kept.push(a);
-        } else if !is_elideable(l, a, inits) {
+        } else if !is_pure_arg(l, a, inits) {
             return unsupported(l.tpd.span(a), "argument of an erased parameter that is not pure");
         }
     }
     let args = l.tpd.list(&kept);
     l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
     Ok(())
+}
+
+/// Whether argument `t` of an erased parameter is pure (dotty's `isPureExpr`): elideable, an
+/// application of `unsafeErasedValue` (`capsErasedValueMethods`), or a reference to an inline
+/// value or method without parameters of a pure qualifier, which inlining replaces.
+fn is_pure_arg(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
+    let inline = l.tpd.sym(t).is_some_and(|s| has(l.u, s, INLINE));
+    match *l.tpd.tree(t) {
+        Tree::Ident { .. } if inline => true,
+        Tree::Select { qualifier, .. } if inline => is_elideable(l, qualifier, inits),
+        Tree::TypeApply { fun, .. }
+            if l.tpd.sym(fun).is_some_and(|s| l.u.symbol(s).name == "unsafeErasedValue") =>
+        {
+            l.tpd.sym(fun).is_some_and(|s| is_erased_sym(l, s))
+        }
+        Tree::Typed { expr, .. } => is_pure_arg(l, expr, inits),
+        Tree::Block { stats, expr } if l.tpd.items(stats).is_empty() => is_pure_arg(l, expr, inits),
+        _ => is_elideable(l, t, inits),
+    }
 }
 
 /// Refuses references to erased values left in unit `root` (dotty's `checkNotErased`).
