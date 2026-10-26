@@ -90,7 +90,18 @@ impl Inlining<'_> {
             args.push(MacroArg::Quotes);
         }
         let expansion = self.outermost_span;
-        Ok(MacroCall { method, receiver, context, args, owner, span, expansion, searched: Vec::new() })
+        let while_typing = self.transparent_only;
+        Ok(MacroCall {
+            method,
+            receiver,
+            context,
+            args,
+            owner,
+            span,
+            expansion,
+            searched: Vec::new(),
+            while_typing,
+        })
     }
 
     /// The macro implementation reference `t` names and the static object it is called on: the

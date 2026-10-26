@@ -64,6 +64,7 @@ impl Macros for VmMacros<'_> {
         })?;
         let mut host = self.host(&mut lent, (call.owner, call.expansion), annotations);
         host.typer.searched = call.searched.clone();
+        host.typer.while_typing = call.while_typing;
         let args: Vec<vm::MacroArg> = call
             .args
             .iter()

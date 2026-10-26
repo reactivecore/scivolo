@@ -28,6 +28,8 @@ pub struct MacroCall {
     pub expansion: Span,
     /// The implicit searches of earlier runs of the expansion, with the arguments found.
     pub searched: Vec<(TypeId, Option<TNodeId>)>,
+    /// Whether it expands while the typer runs (dotty's `CompilationInfo.isWhileTyping`).
+    pub while_typing: bool,
 }
 
 /// The call of `transform` of macro annotation `annotation`, a typed `new`, on `definition` and
