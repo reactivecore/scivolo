@@ -45,6 +45,7 @@ impl Host {
             }
             "isSubtype" | "isSameType" => {
                 let (a, b) = (self.type_of(arg(0)? as u32)?, self.type_of(arg(1)? as u32)?);
+                let (a, b) = (self.as_paths(a), self.as_paths(b));
                 let holds = match op {
                     "isSubtype" => self.u.is_subtype_in(a, b, &mut NoVars),
                     _ => self.u.is_same_type_in(a, b, &mut NoVars),

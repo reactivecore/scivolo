@@ -34,6 +34,7 @@ mod quote_matcher;
 mod quoted;
 mod reduce;
 mod reflect;
+mod reflect_applies;
 mod reflect_beta;
 mod reflect_classes;
 mod reflect_defs;

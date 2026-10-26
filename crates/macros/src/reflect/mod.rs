@@ -4,6 +4,7 @@
 
 mod classes;
 mod constants;
+mod copies;
 mod declarations;
 mod definitions;
 mod implicits;
@@ -14,7 +15,10 @@ mod positions;
 mod reports;
 mod symbols;
 mod terms;
+mod tree_kinds;
+mod tree_parts;
 mod trees;
+mod type_kinds;
 mod type_match;
 mod type_reprs;
 mod types;
@@ -37,8 +41,10 @@ type Run = fn(&mut Host, &str, &[i32], &str) -> Answer;
 impl Host {
     /// Runs `quotes.reflect` operation `op` on `args` and `text`.
     pub fn run_reflect(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let subjects: [Run; 15] = [
+        let subjects: [Run; 17] = [
             Host::run_report,
+            Host::run_copy,
+            Host::run_type_kind,
             Host::run_definition,
             Host::run_made,
             Host::run_class,

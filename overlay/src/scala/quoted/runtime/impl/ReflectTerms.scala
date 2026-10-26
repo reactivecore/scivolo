@@ -57,7 +57,10 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
       def pos: Position = ReflectOps.position("pos", ReflectOps.id(self)).asInstanceOf[Position]
       def show(using printer: Printer[Tree]): String = printer.show(self)
       def symbol: Symbol = new SymbolImpl(ReflectOps.one("treeSymbol", ReflectOps.id(self))).asInstanceOf[Symbol]
+      def isExpr: Boolean = ReflectOps.isExpr(self)
     }
+    extension [ThisTree <: Tree](self: ThisTree) def changeOwner(newOwner: Symbol): ThisTree =
+      ReflectOps.term(ReflectOps.one("changeOwner", ReflectOps.id(self), ReflectOps.id(newOwner))).asInstanceOf[ThisTree]
   }
 
   abstract class IdentMethodsImpl extends IdentMethods {
@@ -151,6 +154,13 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
       def appliedToArgs(args: List[Term]): Apply =
         ReflectOps.term(ReflectOps.one("apply", (self :: args).map(ReflectOps.id)*)).asInstanceOf[Apply]
       def appliedToNone: Apply = self.appliedToArgs(Nil)
+      def appliedToArgss(argss: List[List[Term]]): Term = argss.foldLeft(self)(_.appliedToArgs(_))
+      def ensureApplied: Term = if (ReflectOps.widenedKind(self) == 8) self.appliedToNone else self
+      def appliedToTypeTrees(targs: List[TypeTree]): Term =
+        if (targs.isEmpty) self else self.appliedToTypes(targs.map(ReflectOps.tpe(_).asInstanceOf[TypeRepr]))
+      def seal: Expr[Any] =
+        if (ReflectOps.isExpr(self)) self.asInstanceOf[Expr[Any]] else throw new Unsupported("Term.seal of a partially applied term")
+      def sealOpt: Option[Expr[Any]] = if (ReflectOps.isExpr(self)) Some(self.asInstanceOf[Expr[Any]]) else None
       def appliedToType(targ: TypeRepr): Term = self.appliedToTypes(List(targ))
       def appliedToTypes(targs: List[TypeRepr]): Term = {
         val args = ReflectOps.id(self) :: targs.map(ReflectOps.id)

@@ -24,8 +24,19 @@ impl Host {
                 numbers(vec![self.add_tree(u) as i32])
             }
             "tpe" => {
-                let t = self.tree(arg(0)? as u32)?;
-                let tpe = self.tpd.get(t).tpe.ok_or("the type of a tree without one")?;
+                let mut t = self.tree(arg(0)? as u32)?;
+                while let (None, T::NamedArg { arg, .. }) = (self.tpd.get(t).tpe, self.tpd.tree(t)) {
+                    t = *arg;
+                }
+                let tpe = match (self.tpd.get(t).tpe, self.tpd.tree(t)) {
+                    (Some(tpe), _) => tpe,
+                    (None, &T::SeqLiteral { elemtpt, .. }) => {
+                        let seq = self.u.class_ref("scala.collection.immutable.Seq");
+                        let elem = self.tpd.tpe(elemtpt);
+                        self.u.intern_type(tasty::Type::Applied(seq, vec![elem]))
+                    }
+                    _ => return Err("the type of a tree without one"),
+                };
                 numbers(vec![self.add_type(tpe) as i32])
             }
             "isExprOf" => {
@@ -108,21 +119,6 @@ impl Host {
                 let (lhs, rhs) = (self.tree(arg(0)? as u32)?, self.tree(arg(1)? as u32)?);
                 let unit = self.u.class_ref("scala.Unit");
                 let t = self.tpd.node(T::Assign { lhs, rhs }, self.expansion, Some(unit), None);
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            "copySelect" => {
-                let (original, qual) = (self.tree(arg(0)? as u32)?, self.tree(arg(1)? as u32)?);
-                let T::Select { qualifier, name } = *self.tpd.tree(original) else {
-                    return Err("Select.copy of another tree");
-                };
-                if self.names.text(name.name) != text {
-                    return Err("Select.copy under another name");
-                }
-                if qual == qualifier {
-                    return numbers(vec![arg(0)?]);
-                }
-                let m = self.tpd.sym(original).ok_or("Select.copy of a selection without a symbol")?;
-                let t = self.reflect().select(qual, m)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
             "namedArg" => {

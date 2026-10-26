@@ -16,7 +16,8 @@ trait ReflectSupport { this: QuotesImpl =>
  */
 abstract class ReflectImpl
     extends reflectModule, ReflectTrees, ReflectTerms, ReflectTypes, ReflectTypeShapes, ReflectConstants, ReflectSymbols, ReflectFlags,
-      ReflectDefinitions, ReflectPositions {
+      ReflectDefinitions, ReflectPositions, ReflectControl, ReflectTypeTrees, ReflectStatements,
+      ReflectPatterns, ReflectTypeKinds, ReflectLambdaTypes, ReflectTypeBounds {
   self: reflect.type =>
 
   extension (expr: Expr[Any]) def asTerm: Term = ReflectOps.term(QuoteHost.exprId(expr)).asInstanceOf[Term]
