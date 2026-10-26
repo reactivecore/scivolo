@@ -28,13 +28,14 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "new of a type alias of a non-static owner");
         }
-        if let Type::Sym(_, s) = *self.u.types().get(tycon)
+        if let Type::Sym(_, s) = *self.u.types().get(tpe)
             && self.u.symbol(s).kind == Kind::Type
             && self.syms.flags.contains_key(&s)
             && let info = self.u.info(s)
             && matches!(self.u.types().get(info), Type::Lambda { .. })
+            && !self.parent_news.contains(&id)
         {
-            return self.unsupported(id, "new of a parameterized type alias");
+            return self.unsupported(id, "new of a parameterized type alias without type arguments");
         }
         if let Some(c) = self.u.class_symbol(tpe)
             && !self.parent_news.contains(&id)

@@ -93,7 +93,10 @@ impl Typer<'_> {
     fn new_type_args(&mut self, f: TNodeId) -> Option<(Vec<TypeId>, syntax::ast::Span)> {
         let T::Select { qualifier, .. } = *self.tpd.tree(f) else { return None };
         let tpe = match self.tpd.tree(qualifier) {
-            T::New { .. } => self.tpd.tpe(qualifier),
+            T::New { .. } => match *self.u.types().get(self.tpd.tpe(qualifier)) {
+                Type::Applied(..) => self.u.dealias(self.tpd.tpe(qualifier)),
+                _ => self.tpd.tpe(qualifier),
+            },
             T::This { .. } if self.tpd.sym(f).is_some_and(|s| self.u.is_constructor(s)) => {
                 let this = self.tpd.tpe(qualifier);
                 self.u.widen(this)
