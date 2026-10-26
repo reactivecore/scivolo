@@ -21,6 +21,7 @@ mod extension_containers;
 mod extension_views;
 mod function_goals;
 mod history;
+mod manifests;
 mod measures;
 mod mirror_sources;
 mod mirror_types;

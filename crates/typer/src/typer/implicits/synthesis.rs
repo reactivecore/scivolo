@@ -7,6 +7,7 @@
 
 use super::super::Typer;
 use super::super::constants::of_type;
+use super::manifests::ManifestKind;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -32,6 +33,10 @@ impl Typer<'_> {
             ("scala.CanEqual", &[l, r]) => self.synthesized_can_equal(l, r, at, ctx, depth),
             ("scala.reflect.ClassTag", &[arg]) => self.synthesized_class_tag(arg, at, ctx, depth),
             ("scala.ValueOf", &[arg]) => self.synthesized_value_of(class, arg, at),
+            ("scala.reflect.Manifest", &[arg]) => self.synthesized_manifest(arg, ManifestKind::Full, at, ctx),
+            ("scala.reflect.OptManifest", &[arg]) => {
+                self.synthesized_manifest(arg, ManifestKind::Opt, at, ctx)
+            }
             ("scala.reflect.TypeTest", &[from, to]) => self.synthesized_type_test(from, to, at, ctx),
             ("scala.util.TupledFunction", &[fun, tupled]) => {
                 self.synthesized_tupled_function(fun, tupled, at)
