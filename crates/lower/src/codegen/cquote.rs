@@ -56,7 +56,7 @@ fn process_escapes(s: &[u16]) -> Option<Vec<u8>> {
 }
 
 impl Gen<'_, '_> {
-    /// `CQuote(StringContext(s)).c()`, call `app` of `c` on `receiver`: a pointer to the bytes of
+    /// `CQuote(StringContext(s)).c()`, a call of `c` on `receiver`: a pointer to the bytes of
     /// `s`.
     pub fn gen_cquote(&mut self, receiver: TNodeId, span: Span) -> Result<ValId> {
         let refused = || unsupported(span, "a C string literal that is not one literal part");

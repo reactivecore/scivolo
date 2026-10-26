@@ -74,7 +74,11 @@ impl Gen<'_, '_> {
         let Some(boxed) = self.boxed_class(ty) else { return v };
         let vt = self.val_ty(v);
         match self.pool.ty(vt) {
-            t if super::numeric::int(t).is_some() || super::numeric::float(t).is_some() => v,
+            t if *t != Type::Bool
+                && (super::numeric::int(t).is_some() || super::numeric::float(t).is_some()) =>
+            {
+                v
+            }
             _ => self.emit(Op::Unbox { ty: boxed, obj: v }),
         }
     }

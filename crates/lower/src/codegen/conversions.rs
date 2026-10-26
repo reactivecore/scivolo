@@ -47,10 +47,9 @@ fn unsigned_conv(name: &str) -> Option<Conv> {
 /// The conversion of a cast from `from` to `to`, none if they are equal, an error if there is
 /// none (nscplugin's `castConv`).
 fn cast_conv(from: &Type, to: &Type) -> Option<std::result::Result<Conv, ()>> {
-    let is_ref = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. } | Type::Null | Type::Nothing);
-    let is_int = |t: &Type| {
-        matches!(t, Type::Bool | Type::Char | Type::Byte | Type::Short | Type::Int | Type::Long | Type::Size)
-    };
+    let is_ref = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. } | Type::Null | Type::Unit);
+    let is_int =
+        |t: &Type| matches!(t, Type::Char | Type::Byte | Type::Short | Type::Int | Type::Long | Type::Size);
     let width = |t: &Type| match t {
         Type::Int | Type::Float => Some(32),
         Type::Long | Type::Double => Some(64),

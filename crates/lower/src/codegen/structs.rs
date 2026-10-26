@@ -54,6 +54,8 @@ impl Gen<'_, '_> {
         let Tree::Template { body, .. } = *self.l.tpd.tree(rhs) else {
             return unsupported(self.l.tpd.span(td), "a type definition that is not a class");
         };
+        self.lambdas = 0;
+        let first = self.defns.len();
         for stat in self.l.tpd.items(body).to_vec() {
             match self.l.tpd.tree(stat) {
                 Tree::DefDef { .. } if self.l.tpd.sym(stat).is_some_and(|m| self.l.u.is_constructor(m)) => {}
@@ -65,6 +67,12 @@ impl Gen<'_, '_> {
                 _ => return unsupported(self.l.tpd.span(stat), "statements in a `@struct` class"),
             }
         }
+        if !self.closures.is_empty() {
+            return unsupported(self.l.tpd.span(td), "lambdas in a `@struct` class");
+        }
+        let existing: Vec<nir::GlobalId> = self.defns[first..].iter().map(|d| d.name).collect();
+        let forwarders = self.static_method_forwarders(&existing)?;
+        self.defns.extend(forwarders);
         Ok(())
     }
 
