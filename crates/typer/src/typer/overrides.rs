@@ -12,7 +12,11 @@ impl Typer<'_> {
     pub fn is_concrete(&self, s: SymbolId) -> bool {
         match self.syms.flags.get(&s) {
             Some(flags) => !flags.is(f::DEFERRED),
-            None => self.u.body(s).is_some() || self.u.symbol(s).owner == Some(self.u.builtins().any),
+            None => {
+                let builtins = self.u.builtins();
+                let builtin = |o| o == builtins.any || o == builtins.object;
+                self.u.body(s).is_some() || self.u.symbol(s).owner.is_some_and(builtin)
+            }
         }
     }
 
@@ -86,7 +90,10 @@ impl Typer<'_> {
                 if self.u.symbol(a).name != self.u.symbol(b).name {
                     continue;
                 }
-                if self.run_name(a) == self.run_name(b) && self.u.matches(site, a, b) {
+                if self.run_name(a) == self.run_name(b)
+                    && self.u.matches(site, a, b)
+                    && self.u.erased_method(a).0 == self.u.erased_method(b).0
+                {
                     return self.unsupported_at(span, "double definition");
                 }
                 if self.has_default_args(a) && self.has_default_args(b) {
@@ -128,11 +135,16 @@ impl Typer<'_> {
                     if self.run_name(d) != self.run_name(m) && self.same_member(site, d, m) {
                         return self.unsupported_at(span, "override with another @targetName");
                     }
+                    if self.same_member(site, d, m)
+                        && let Some(what) = self.override_kind_refusal(d, m)
+                    {
+                        return self.unsupported_at(span, what);
+                    }
                     if !self.is_concrete(m) || !self.same_member(site, d, m) {
                         continue;
                     }
                     if flags.is(f::DEFERRED) {
-                        if self.overrides_only_concretely(d, m) {
+                        if self.overrides_only_concretely(site, d, m) {
                             return self.unsupported_at(span, "abstract member overriding a concrete one");
                         }
                         continue;
@@ -144,36 +156,23 @@ impl Typer<'_> {
             }
         }
         self.check_inherited_conflicts(cls, site, &bases, span);
+        self.check_no_abstract_members(cls, site, span);
     }
 
     /// Whether abstract member `d` may not override concrete member `m` (dotty's `checkOverride`
-    /// for a deferred member): `d` is not a trait's and `m` not `Object`'s or `Any`'s, `m` is
-    /// final, of a final class or a value, one of them is an extension method, or `d`'s result
-    /// type does not conform to `m`'s as seen from `d`'s class.
-    fn overrides_only_concretely(&mut self, d: SymbolId, m: SymbolId) -> bool {
+    /// for a deferred member): `m` is final, of a final class or a value, one of them is an
+    /// extension method, or `d`'s result type does not conform to `m`'s.
+    fn overrides_only_concretely(&mut self, site: TypeId, d: SymbolId, m: SymbolId) -> bool {
         use tasty::tags::{EXTENSION, FINAL};
         let (sd, sm) = (self.u.symbol(d), self.u.symbol(m));
         let final_owner =
             sm.owner.is_some_and(|o| self.u.symbol(o).flags.has(FINAL) || self.u.is_module_class(o));
-        let object = sm
-            .owner
-            .is_some_and(|o| matches!(self.u.full_name(o).as_str(), "java.lang.Object" | "scala.Any"));
-        let in_trait = sd.owner.is_some_and(|o| self.u.is_trait(o));
-        let refused = !object && !in_trait
-            || sm.flags.has(FINAL)
+        let refused = sm.flags.has(FINAL)
             || final_owner
             || sm.kind != Kind::Def
             || sd.flags.has(EXTENSION) != sm.flags.has(EXTENSION);
-        let owner = sd.owner;
-        let rd = self.u.info(d);
-        let rm = match owner {
-            Some(o) => {
-                let class = crate::defn::type_ref(self.u, o);
-                let this = self.u.intern_type(tasty::Type::This(class));
-                self.u.member_info(this, m)
-            }
-            None => self.u.info(m),
-        };
+        let this = self.u.intern_type(Type::This(site));
+        let (rd, rm) = (self.u.member_info(this, d), self.u.member_info(this, m));
         let (rd, rm) = (self.u.result_type(rd), self.u.result_type(rm));
         refused || !self.conforms(rd, rm)
     }

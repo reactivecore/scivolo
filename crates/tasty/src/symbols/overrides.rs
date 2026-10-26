@@ -28,7 +28,18 @@ impl Universe {
                         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
                         u.subst(result, binder, &names, &args)
                     }
-                    _ => u.expand(tycon, &args)?,
+                    _ => match u.expand(tycon, &args) {
+                        Some(e) => e,
+                        None => {
+                            let Type::Sym(Some(prefix), s) = u.types().get(tycon).clone() else {
+                                return None;
+                            };
+                            let name = u.symbol(s).name.clone();
+                            let member = u.resolve(prefix, &name, true).filter(|&m| m != s)?;
+                            let tycon = u.intern_type(Type::Sym(Some(prefix), member));
+                            u.expand(tycon, &args)?
+                        }
+                    },
                 };
                 let expanded = u.normalized(expanded);
                 Some(u.normalize_within(expanded, depth))
@@ -53,6 +64,9 @@ impl Universe {
                                 };
                                 let name = u.symbol(s).name.clone();
                                 let member = u.resolve(prefix, &name, true).filter(|&m| m != s)?;
+                                if u.symbol(member).kind == Kind::Class {
+                                    return Some(u.intern_type(Type::Sym(None, member)));
+                                }
                                 u.alias(member)?
                             }
                         };

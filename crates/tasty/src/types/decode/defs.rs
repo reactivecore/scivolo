@@ -8,16 +8,28 @@ use crate::tags::*;
 use crate::types::{Binder, Type, TypeId};
 use crate::{NodeId, Parts, View, view};
 
+/// The bit that sets the binder of a constructor's added empty clause apart from its first one's.
+const EMPTY_CLAUSE_BINDER: u32 = 1 << 31;
+
 impl Decoder<'_> {
     /// The type of the method with definition parts `parts`: its parameter clauses around its
-    /// result type.
-    pub fn def_type(&mut self, parts: &Parts) -> TypeId {
+    /// result type, a constructor's first clause an empty one if it would be implicit (dotty's
+    /// `normalizeIfConstructor`).
+    pub fn def_type(&mut self, parts: &Parts, constructor: bool) -> TypeId {
         let ast = self.ast;
         let result = match parts.body.first() {
             Some(&tpt) => self.ty(tpt),
             None => self.intern(Type::Other(DEFDEF)),
         };
-        param_tree_clauses(ast, parts.params).into_iter().rev().fold(result, |result, clause| {
+        let clauses = param_tree_clauses(ast, parts.params);
+        let has = |clause: &[NodeId], tag: u8| {
+            clause.iter().any(|&p| ast.kids(p).iter().any(|&m| ast.tag(m) == tag))
+        };
+        let values = clauses.iter().position(|c| ast.tag(c[0]) != TYPEPARAM).unwrap_or(clauses.len());
+        let leading_implicit =
+            clauses.get(values).is_some_and(|c| ast.tag(c[0]) == PARAM && has(c, IMPLICIT));
+        let empty_before = (constructor && leading_implicit).then_some(values);
+        clauses.into_iter().enumerate().rev().fold(result, |result, (i, clause)| {
             let binder = Binder(self.file, ast.node(clause[0]).addr);
             let params = clause
                 .iter()
@@ -27,14 +39,19 @@ impl Decoder<'_> {
             let t = match ast.tag(clause[0]) {
                 TYPEPARAM => Type::Poly { binder, params, result },
                 _ => {
-                    let has =
-                        |tag: u8| clause.iter().any(|&p| ast.kids(p).iter().any(|&m| ast.tag(m) == tag));
-                    let contextual = has(GIVEN);
-                    let implicit = contextual || has(IMPLICIT);
+                    let contextual = has(&clause, GIVEN);
+                    let implicit = contextual || has(&clause, IMPLICIT);
                     Type::Method { binder, params, result, implicit, contextual }
                 }
             };
-            self.intern(t)
+            let t = self.intern(t);
+            if empty_before != Some(i) {
+                return t;
+            }
+            let binder = Binder(self.file, ast.node(clause[0]).addr | EMPTY_CLAUSE_BINDER);
+            let empty =
+                Type::Method { binder, params: Vec::new(), result: t, implicit: false, contextual: false };
+            self.intern(empty)
         })
     }
 
@@ -70,7 +87,10 @@ impl Decoder<'_> {
     /// (a value's type tree, a type's right-hand side or bounds).
     pub fn definition_type(&mut self, id: NodeId) -> TypeId {
         match view(self.ast, id) {
-            View::DefDef { parts, .. } => self.def_type(&parts),
+            View::DefDef { name, parts } => {
+                let constructor = self.names.get(name.0 as usize).is_some_and(|n| n == "<init>");
+                self.def_type(&parts, constructor)
+            }
             _ => self.kid(id, 0),
         }
     }

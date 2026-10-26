@@ -317,6 +317,42 @@ fn no_false_errors_behind_unsupported_constructs() {
             "generic number literal",
         ),
         (
+            "class A { val x = 1 }\nclass B extends A { override lazy val x = 2 }\n",
+            "lazy value overriding a non-lazy value",
+        ),
+        (
+            "trait A { lazy val x = 1 }\nclass B extends A { override val x = 2 }\n",
+            "non-lazy value overriding a lazy value",
+        ),
+        (
+            "class A(val x: Int)\nclass B extends A(1) { override def x = 2 }\n",
+            "unstable member overriding a stable value",
+        ),
+        (
+            "class A { final def x = 1 }\nclass B extends A { override def x = 2 }\n",
+            "override of a final member",
+        ),
+        (
+            "class A { var x = 1 }\nclass B extends A { override def x = 2 }\n",
+            "override of a mutable variable",
+        ),
+        (
+            "abstract class A { def f: Int }\nclass C extends A\n",
+            "concrete class with an unimplemented member",
+        ),
+        (
+            "class A { def f = 1 }\nabstract class B extends A { def f: Int }\nclass C extends B\n",
+            "concrete class with an unimplemented member",
+        ),
+        (
+            "trait A { def f(x: Int): Int }\nclass C extends A { def f(x: String) = 1 }\n",
+            "concrete class with an unimplemented member",
+        ),
+        (
+            "trait A { def a$$super$f: Int }\nclass C extends A\n",
+            "concrete class with an unimplemented member",
+        ),
+        (
             "class G:\n  val ensuring = 1\nobject M:\n  val h = G().ensuring(true)\n",
             "application of a non-method",
         ),
