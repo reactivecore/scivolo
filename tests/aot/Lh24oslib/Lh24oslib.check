@@ -1,0 +1,11 @@
+file.txt txt file
+tmp/file.txt
+a/b
+x/y/z
+/usr/lib
+/usr
+List(usr, lib, a, b)
+../b/c
+/a/b/c
+/x
+(true,false)

@@ -11,32 +11,14 @@ use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId};
 
-/// The annotation classes refused: Scala Native's code-generation annotations, and those whose
-/// meaning dotty's later phases implement and the lowering does not.
-const REFUSED: [&str; 23] = [
+/// The annotation classes refused: those whose meaning dotty's later phases implement and the
+/// lowering does not. A backend's own annotations are its code generator's to read or refuse.
+const REFUSED: [&str; 5] = [
     "scala.native",
     "scala.deprecatedName",
     "scala.annotation.compileTimeOnly",
     "scala.beans.BeanProperty",
     "scala.beans.BooleanBeanProperty",
-    "scala.scalanative.annotation.align",
-    "scala.scalanative.annotation.alwaysinline",
-    "scala.scalanative.annotation.nonExtern",
-    "scala.scalanative.annotation.nooptimize",
-    "scala.scalanative.annotation.nospecialize",
-    "scala.scalanative.annotation.safePublish",
-    "scala.scalanative.annotation.stub",
-    "scala.scalanative.reflect.annotation.EnableReflectiveInstantiation",
-    "scala.scalanative.runtime.struct",
-    "scala.scalanative.unsafe.define",
-    "scala.scalanative.unsafe.exportAccessors",
-    "scala.scalanative.unsafe.exported",
-    "scala.scalanative.unsafe.link",
-    "scala.scalanative.unsafe.linkCppRuntime",
-    "scala.scalanative.unsafe.name",
-    "scala.scalanative.unsafe.package$.blocking",
-    "scala.scalanative.unsafe.package$.extern",
-    "scala.scalanative.unsafe.resolvedAtLinktime",
 ];
 
 pub const STATIC: &str = "scala.annotation.static";
@@ -79,6 +61,8 @@ impl Typer<'_> {
             }
             if !self.syms.annotation_trees.iter().any(|&(s, a, _)| (s, a) == (sym, annot)) {
                 self.syms.annotation_trees.push((sym, annot, ctx));
+                let arg = self.string_arg(annot);
+                self.u.annotate_string(sym, class, arg);
             }
         }
     }

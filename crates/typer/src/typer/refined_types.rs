@@ -11,7 +11,7 @@ use tasty::{Type, TypeId};
 
 impl Typer<'_> {
     /// `tpt { type X = … }`: the parent, `Object` if none, refined by each member in turn; a
-    /// refinement that refines no type member of the parent refused.
+    /// refinement of a member class refused.
     pub fn typed_refined_type(
         &mut self,
         id: NodeId,
@@ -62,8 +62,14 @@ impl Typer<'_> {
                 return self.unsupported(r, "refinement referring to the refined type's members");
             }
             let text = self.text(name.name).to_owned();
-            if !self.refines_type_member(tpe, &text) && !self.is_mirror_type(tpe) {
-                return self.unsupported(r, "refinement that refines no type member");
+            if self.refines_class(tpe, &text) {
+                return self.unsupported(r, "refinement of a class member");
+            }
+            if self.type_members(tpe, &text).is_empty()
+                && self.has_variant_params(rhs)
+                && !self.is_mirror_type(tpe)
+            {
+                return self.unsupported(r, "new higher-kinded refinement with variances");
             }
             let (text, info, tree) = match self.type_refinement(class, r, ctx) {
                 Ok(refinement) => refinement,
@@ -119,9 +125,20 @@ impl Typer<'_> {
         self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c).starts_with("scala.deriving.Mirror"))
     }
 
-    /// Whether `t` has a type member named `name` that is not a class.
-    fn refines_type_member(&mut self, t: TypeId, name: &str) -> bool {
+    /// Whether type lambda tree `rhs` has a covariant or contravariant type parameter.
+    fn has_variant_params(&self, rhs: NodeId) -> bool {
+        use syntax::ast::flags::{CONTRAVARIANT, COVARIANT};
+        let Tree::LambdaTypeTree { tparams, .. } = *self.ast.tree(rhs) else { return false };
+        self.ast.items(tparams).iter().any(|&p| {
+            self.ast
+                .mods_of(p)
+                .is_some_and(|m| self.ast.modifiers(m).flags.is_one_of(COVARIANT.or(CONTRAVARIANT)))
+        })
+    }
+
+    /// Whether `t` has a member class named `name`.
+    fn refines_class(&mut self, t: TypeId, name: &str) -> bool {
         let members = self.type_members(t, name);
-        members.into_iter().any(|m| self.u.symbol(m).kind == tasty::Kind::Type)
+        members.into_iter().any(|m| self.u.symbol(m).kind == tasty::Kind::Class)
     }
 }

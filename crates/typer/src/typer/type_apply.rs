@@ -16,6 +16,9 @@ impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let poly = self.poly_protos.len();
         let arg_ids = self.ast.items(args).to_vec();
+        if let Some(named) = self.named_type_apply(id, fun, &arg_ids, pt, ctx) {
+            return named;
+        }
         self.poly_protos.push(PolyProto { args: arg_ids.clone(), ctx, pt, typed: None });
         let f = self.typed(fun, Pt::PolyFun(poly), ctx);
         let fun_name = self.tpd.sym(f).map(|s| self.u.full_name(s));
@@ -109,8 +112,8 @@ impl Typer<'_> {
         self.instantiated_with(f, args, false)
     }
 
-    /// `instantiated`, without the kind check if `args` are fresh type variables.
-    fn instantiated_with(
+    /// `instantiated`, without the kind check of those of `args` that are fresh type variables.
+    pub fn instantiated_with(
         &mut self,
         f: TNodeId,
         args: &[TypeId],
@@ -129,13 +132,14 @@ impl Typer<'_> {
         for (&(_, bounds), &arg) in params.iter().zip(args) {
             let bounds = self.instantiate_poly(bounds, binder, &names, args, method);
             let (lo, hi, arity) = self.bounds_of(bounds);
-            if !fresh && self.type_arity(arg) != arity {
-                return Err("type argument of another kind");
-            }
             let var = match *self.u.types().get(arg) {
                 Type::Var(v) if fresh => Some(v),
                 _ => None,
             };
+            let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
+            if var.is_none() && !any_kind && self.type_arity(arg) != arity {
+                return Err("type argument of another kind");
+            }
             let upper = match var {
                 Some(v) if self.u.dealias(hi) != hi && self.open_vars(hi).is_empty() => {
                     self.constraint.add_upper(self.u, v, hi)
@@ -147,30 +151,6 @@ impl Typer<'_> {
             }
         }
         Ok(self.instantiate_poly(result, binder, &names, args, method))
-    }
-
-    /// The lower and upper bound of type parameter info `bounds` and the arity of the parameter;
-    /// of a higher-kinded one, `[X] =>> >: L <: H`, `[X] =>> L` and `[X] =>> H`, the lower one
-    /// `None` for `Nothing`.
-    pub fn bounds_of(&mut self, bounds: TypeId) -> (Option<TypeId>, TypeId, usize) {
-        match self.u.types().get(bounds).clone() {
-            Type::Bounds(lo, hi) => (Some(lo), hi, self.type_arity(hi)),
-            Type::Lambda { binder, params, result } => {
-                let (lo, hi) = match *self.u.types().get(result) {
-                    Type::Bounds(lo, hi) => (lo, hi),
-                    _ => (result, result),
-                };
-                let bottom = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
-                let arity = params.len();
-                let mut lambda = |result| {
-                    let params = params.clone();
-                    self.u.intern_type(Type::Lambda { binder, params, result })
-                };
-                let lo = lambda(lo);
-                ((!bottom).then_some(lo), lambda(hi), arity)
-            }
-            _ => (Some(bounds), bounds, self.type_arity(bounds)),
-        }
     }
 
     /// `t` with the type parameters of binder `binder`, named `names`, and the type parameter

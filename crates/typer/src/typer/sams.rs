@@ -87,15 +87,6 @@ impl Typer<'_> {
         }
         let tparams = self.u.type_params(c);
         let info = self.u.info(method);
-        let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { return None };
-        let occurs = |t: &mut Self, ty: TypeId, p: SymbolId| {
-            let mut found = false;
-            t.u.map_type(ty, &mut |u, part| {
-                found |= matches!(*u.types().get(part), Type::Sym(_, s) if s == p);
-                None
-            });
-            found
-        };
         let mut new_args = Vec::new();
         for (i, &a) in args.iter().enumerate() {
             let Type::Bounds(lo, hi) = *self.u.types().get(a) else {
@@ -103,18 +94,41 @@ impl Typer<'_> {
                 continue;
             };
             let p = tparams.get(i).copied()?;
-            let is_p = |t: &Self, ty: TypeId| matches!(*t.u.types().get(ty), Type::Sym(_, s) if s == p);
-            let direct = params.iter().any(|&(_, pt)| is_p(self, pt));
-            let nested = params.iter().any(|&(_, pt)| !is_p(self, pt) && occurs(self, pt, p));
-            let in_result = occurs(self, result, p);
-            let result_nested = in_result && !is_p(self, result);
-            new_args.push(match (direct, nested || result_nested, in_result) {
-                (true, false, false) => lo,
-                (false, false, _) => hi,
-                _ => return None,
-            });
+            let mut seen = (false, false);
+            self.occurrences(info, p, 1, &mut seen).then_some(())?;
+            new_args.push(if seen == (false, true) { lo } else { hi });
         }
         Some(self.u.intern_type(Type::Applied(tycon, new_args)))
+    }
+
+    /// Records in `seen` whether type parameter `p` occurs in `t` at variance `v` covariantly and
+    /// whether contravariantly, an invariant occurrence as both; `false` for a form not followed.
+    fn occurrences(&mut self, t: TypeId, p: SymbolId, v: i8, seen: &mut (bool, bool)) -> bool {
+        match self.u.types().get(t).clone() {
+            Type::Sym(_, s) if s == p => {
+                seen.0 |= v >= 0;
+                seen.1 |= v <= 0;
+                true
+            }
+            Type::Applied(tycon, args) => {
+                let Some(class) = self.u.class_symbol(tycon) else { return !self.refers_to(t, &[p]) };
+                let variances = self.u.variances(class);
+                args.iter().enumerate().all(|(i, &a)| {
+                    let w = variances.get(i).copied().unwrap_or(0);
+                    self.occurrences(a, p, v * w, seen)
+                })
+            }
+            Type::Method { params, result, .. } => {
+                params.iter().all(|&(_, q)| self.occurrences(q, p, -v, seen))
+                    && self.occurrences(result, p, v, seen)
+            }
+            Type::Bounds(lo, hi) => self.occurrences(lo, p, -v, seen) && self.occurrences(hi, p, v, seen),
+            Type::ByName(r) => self.occurrences(r, p, v, seen),
+            Type::And(a, b) | Type::Or(a, b, _) => {
+                self.occurrences(a, p, v, seen) && self.occurrences(b, p, v, seen)
+            }
+            _ => !self.refers_to(t, &[p]),
+        }
     }
 
     /// The single abstract method of class `c`, a trait or abstract class neither final nor

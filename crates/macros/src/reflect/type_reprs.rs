@@ -1,8 +1,9 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The shapes of `TypeRepr`s for their type tests and extractors, and the type operations over
-//! them: a type's kind (1 `TypeRef`, 2 `TermRef`, 3 `AppliedType`, 4 `AnnotatedType`, 0 other),
-//! its parts and its name.
+//! them: a type's kind (1 `TypeRef`, 2 `TermRef`, 3 `AppliedType`, 4 `AnnotatedType`, 5
+//! `TypeBounds`, 6 `Refinement`, 7 `NoPrefix`, 8 `MethodType`, 9 `PolyType`, 0 other), its parts
+//! and its name.
 
 use super::{Answer, UNKNOWN, arg, numbers, symbol, text};
 use crate::host::Host;
@@ -26,9 +27,27 @@ impl Host {
                     Type::Sym(Some(prefix), _) => vec![prefix],
                     Type::Sym(None, s) => vec![self.qualifier(s)?],
                     Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => vec![prefix],
+                    Type::Bounds(lo, hi) => vec![lo, hi],
+                    Type::Alias(a) => vec![a, a],
+                    Type::Refined(parent, _, info) => vec![parent, info],
                     _ => return Err("the parts of a type of another kind"),
                 };
                 numbers(parts.into_iter().map(|p| self.add_type(p) as i32).collect())
+            }
+            "lambdaParts" => {
+                let (flags, params, result) = match self.u.types().get(tpe(self, 0)?).clone() {
+                    Type::Method { params, result, implicit, contextual, .. } => {
+                        ([implicit, contextual], params, result)
+                    }
+                    Type::Poly { params, result, .. } => ([false, false], params, result),
+                    _ => return Err("the parts of a type other than a method or polymorphic type"),
+                };
+                let mut parts: Vec<i32> =
+                    flags.iter().map(|&f| f as i32).chain([params.len() as i32]).collect();
+                parts.extend(params.iter().map(|&(_, t)| self.add_type(t) as i32));
+                parts.push(self.add_type(result) as i32);
+                let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
+                Ok((parts, Some(names.join("\0"))))
             }
             "showType" => {
                 let t = tpe(self, 0)?;
@@ -38,7 +57,7 @@ impl Host {
                 let t = tpe(self, 0)?;
                 match self.u.types().get(t).clone() {
                     Type::Sym(_, s) => text(self.u.symbol(s).name.clone()),
-                    Type::TypeRef(_, n) | Type::TermRef(_, n) => text(n),
+                    Type::TypeRef(_, n) | Type::TermRef(_, n) | Type::Refined(_, n, _) => text(n),
                     _ => Err("the name of an unnamed type"),
                 }
             }
@@ -55,6 +74,26 @@ impl Host {
                 let t = tpe(self, 0)?;
                 let d = self.u.dealias(t);
                 numbers(vec![self.add_type(d) as i32])
+            }
+            "methodType" => {
+                let types = args.iter().map(|&t| self.type_of(t as u32)).collect::<Result<Vec<_>, _>>()?;
+                let (&result, params) =
+                    types.split_last().ok_or("MethodType.apply without its result type")?;
+                let names: Vec<String> =
+                    name.split('\0').filter(|n| !n.is_empty()).map(str::to_owned).collect();
+                if names.len() != params.len() {
+                    return Err("MethodType.apply with another number of names than types");
+                }
+                let binder = self.u.fresh_binder();
+                let params = names.into_iter().zip(params.iter().copied()).collect();
+                let t = Type::Method { binder, params, result, implicit: false, contextual: false };
+                let t = self.u.intern_type(t);
+                numbers(vec![self.add_type(t) as i32])
+            }
+            "byName" => {
+                let t = tpe(self, 0)?;
+                let by_name = self.u.intern_type(Type::ByName(t));
+                numbers(vec![self.add_type(by_name) as i32])
             }
             "isSingleton" => {
                 let t = tpe(self, 0)?;
@@ -149,6 +188,11 @@ impl Host {
             Type::TermRef(..) => 2,
             Type::Applied(..) => 3,
             Type::Annotated(..) => 4,
+            Type::Bounds(..) | Type::Alias(_) => 5,
+            Type::Refined(..) => 6,
+            Type::NoPrefix => 7,
+            Type::Method { .. } => 8,
+            Type::Poly { .. } => 9,
             _ => 0,
         }
     }

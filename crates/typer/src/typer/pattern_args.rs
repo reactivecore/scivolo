@@ -105,8 +105,7 @@ impl Typer<'_> {
         };
         let args = self.ast.items(trees).to_vec();
         let placed = match self.adapt_pattern_args(&args, &names) {
-            Ok(placed) if placed.len() <= MAX_TUPLE_ARITY => placed,
-            Ok(_) => return self.unsupported(id, "named tuple pattern of more than 22 elements"),
+            Ok(placed) => placed,
             Err(what) => return self.unsupported(id, what),
         };
         let values: Vec<NodeId> = (placed.into_iter())
@@ -116,7 +115,14 @@ impl Typer<'_> {
             })
             .collect();
         let span = self.ast.span(id);
-        let app = self.tuple_apply(&values, span.start_pos(), span);
+        let app = if values.len() > MAX_TUPLE_ARITY {
+            let trees = self.ast.list(&values);
+            let tuple = self.ast.node(Tree::Tuple { trees });
+            self.ast.with_span(tuple, span);
+            tuple
+        } else {
+            self.tuple_apply(&values, span.start_pos(), span)
+        };
         self.typed(app, pt, ctx)
     }
 

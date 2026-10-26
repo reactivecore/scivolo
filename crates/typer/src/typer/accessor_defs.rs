@@ -10,7 +10,7 @@ use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Binder, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// `def name(ps): T = C.this.accessed(ps)` in class `host`, or `= C.this.accessed = x$0` for
@@ -29,6 +29,10 @@ impl Typer<'_> {
             && let Type::Sym(prefix, _) = *self.u.types().get(info)
         {
             info = self.u.intern_type(Type::Sym(prefix, accessed));
+        }
+        let mut poly = None;
+        if !setter && let Type::Poly { binder, params, result } = self.u.types().get(info).clone() {
+            (poly, info) = (Some((binder, params)), result);
         }
         let mut clauses: Vec<Vec<(String, TypeId)>> = Vec::new();
         loop {
@@ -60,12 +64,26 @@ impl Typer<'_> {
         let mut rhs = self.ast.node(Tree::TypeTree);
         self.splices.insert(rhs, target);
         let mut defs = Vec::new();
+        if let Some((_, tparams)) = &poly {
+            let mut params = Vec::new();
+            let mut args = Vec::new();
+            for (pname, bounds) in tparams {
+                let name = TName { name: self.name(pname), is_type: true };
+                let rhs = self.accessor_tpt(*bounds, &poly, span)?;
+                let mods = self.ast.mods(Modifiers::with_flags(f::TYPE_PARAM));
+                params.push(self.ast.node(Tree::TypeDef { name, rhs, mods }));
+                args.push(self.ast.node(Tree::Ident { name }));
+            }
+            let args = self.ast.list(&args);
+            rhs = self.ast.node(Tree::TypeApply { fun: rhs, args });
+            defs.push(self.ast.list(&params));
+        }
         for clause in &clauses {
             let mut params = Vec::new();
             let mut args = Vec::new();
             for (pname, ptype) in clause {
                 let name = TName { name: self.name(pname), is_type: false };
-                let tpt = self.splice_type(*ptype);
+                let tpt = self.accessor_tpt(*ptype, &poly, span)?;
                 let mods = self.ast.mods(Modifiers::with_flags(f::TERM_PARAM));
                 params.push(self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods }));
                 args.push(self.ast.node(Tree::Ident { name }));
@@ -79,7 +97,7 @@ impl Typer<'_> {
             };
             defs.push(self.ast.list(&params));
         }
-        let tpt = self.splice_type(result);
+        let tpt = self.accessor_tpt(result, &poly, span)?;
         let paramss = self.ast.clauses(&defs);
         let private = self.u.symbol(accessed).flags.has(tasty::tags::PRIVATE);
         let flags = f::SYNTHETIC.or(if private { f::FINAL } else { f::EMPTY });
@@ -88,6 +106,36 @@ impl Typer<'_> {
         let def = self.ast.node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs), mods });
         self.ast.with_span(def, at);
         Some(def)
+    }
+
+    /// The type tree of type `t` in an accessor of the type parameters `poly`: one of them by
+    /// name, else `t` spliced; `None`, reported at `span`, for another type referring to them.
+    fn accessor_tpt(
+        &mut self,
+        t: TypeId,
+        poly: &Option<(Binder, Vec<(String, TypeId)>)>,
+        span: Span,
+    ) -> Option<NodeId> {
+        let Some((binder, params)) = poly else { return Some(self.splice_type(t)) };
+        if let Type::Param(b, i) = *self.u.types().get(t)
+            && b == *binder
+        {
+            let name = TName { name: self.name(&params[i as usize].0), is_type: true };
+            return Some(self.ast.node(Tree::Ident { name }));
+        }
+        let mut refers = false;
+        self.u.map_type(t, &mut |u, part| {
+            refers |= matches!(*u.types().get(part), Type::Param(b, _) if b == *binder);
+            None
+        });
+        if refers {
+            self.unsupported_at(
+                span,
+                "inline accessor of a polymorphic method with a type built of its parameters",
+            );
+            return None;
+        }
+        Some(self.splice_type(t))
     }
 
     /// A reference to `accessed` from the `this` of `host`: an identifier for a member of a

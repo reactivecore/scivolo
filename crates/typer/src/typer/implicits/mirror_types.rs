@@ -97,7 +97,7 @@ impl Typer<'_> {
             Type::Bounds(lo, hi) => (lo, hi),
             _ => (info, info),
         };
-        match self.u.is_subtype(lo, expected) && self.u.is_subtype(expected, hi) {
+        match self.conforms(lo, expected) && self.conforms(expected, hi) {
             true => Ok(()),
             false => Err("Mirror whose element types or labels mismatch the expected ones"),
         }

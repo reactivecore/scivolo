@@ -104,6 +104,11 @@ impl Typer<'_> {
         }
         let span = self.tpd.span(parent);
         let synthetic = span.to_synthetic();
+        if self.is_java_enum_class(psym)
+            && let Some(call) = self.java_enum_constr_call(parent, psym, synthetic)
+        {
+            return call;
+        }
         let splice = self.ast.node(Tree::TypeTree);
         self.ast.with_span(splice, span);
         self.splices.insert(splice, parent);

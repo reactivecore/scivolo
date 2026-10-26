@@ -34,9 +34,14 @@ impl Typer<'_> {
         Ok(sealed::direct_children(self.u, s, &classes))
     }
 
-    /// Whether sealed class `s` has a sum mirror (dotty's `isGenericSum`), its children visible
-    /// from `ctx` unless its companion is the mirror.
-    pub fn is_generic_sum(&mut self, s: SymbolId, companion: bool, ctx: Ctx) -> Result<bool, &'static str> {
+    /// Whether sealed class `s` at prefix `pre` has a sum mirror (dotty's `isGenericSum`), its
+    /// children visible from `ctx` or through `pre` unless its companion is the mirror.
+    pub fn is_generic_sum(
+        &mut self,
+        s: SymbolId,
+        (companion, pre): (bool, Option<TypeId>),
+        ctx: Ctx,
+    ) -> Result<bool, &'static str> {
         let flags = self.u.symbol(s).flags;
         if !flags.has(SEALED) || !(flags.has(ABSTRACT) || self.u.is_trait(s)) {
             return Ok(false);
@@ -45,6 +50,7 @@ impl Typer<'_> {
         if children.is_empty() {
             return Ok(false);
         }
+        let scope = self.owner_scope(pre);
         for c in children {
             if self.u.symbol(c).name.starts_with("$anon") {
                 return Ok(false);
@@ -53,14 +59,14 @@ impl Typer<'_> {
             if !sealed::visible_to_parent(self.u, s, owner) {
                 return Ok(false);
             }
-            if !companion && !self.is_visible_to_scope(owner, ctx.owner) {
+            if !companion && !self.is_visible_to_scope(owner, ctx.owner, &scope) {
                 return Err("sum Mirror of a child visible through a prefix only");
             }
             if !self.u.is_class(c) {
                 continue;
             }
             let fits = self.is_generic_product(c, ctx)
-                || self.u.symbol(c).flags.has(SEALED) && self.is_generic_sum(c, companion, ctx)?;
+                || self.u.symbol(c).flags.has(SEALED) && self.is_generic_sum(c, (companion, pre), ctx)?;
             if !fits {
                 return Ok(false);
             }
@@ -68,11 +74,26 @@ impl Typer<'_> {
         Ok(true)
     }
 
-    /// The type of child `c` of the sum mirrored as `target` (dotty's `solve`): an object's or
-    /// value's singleton type, a class with its type parameters solved from `C[Xs] <: target`,
-    /// contravariant ones minimized, the others maximized.
-    pub fn child_type(&mut self, c: SymbolId, target: TypeId) -> Result<TypeId, &'static str> {
-        let raw = self.reachable_ref(c);
+    /// The type of child `c` of the sum mirrored as `target` (dotty's `solve`), at prefix
+    /// `prefix` if given: an object's or value's singleton type, a class with its type parameters
+    /// solved from `C[Xs] <: target`, contravariant ones minimized, the others maximized.
+    pub fn child_type(
+        &mut self,
+        c: SymbolId,
+        target: TypeId,
+        prefix: Option<TypeId>,
+    ) -> Result<TypeId, &'static str> {
+        let raw = match prefix {
+            Some(p) => {
+                let s = match self.u.is_module_class(c) {
+                    true => self.u.source_module(c).unwrap_or(c),
+                    false => c,
+                };
+                let p = (!matches!(self.u.types().get(p), Type::NoPrefix)).then_some(p);
+                self.u.intern_type(Type::Sym(p, s))
+            }
+            None => self.reachable_ref(c),
+        };
         let params = match self.u.is_class(c) {
             true => self.u.type_params(c),
             false => Vec::new(),
@@ -142,12 +163,5 @@ impl Typer<'_> {
             }
         }
         Ok(())
-    }
-
-    /// Whether `owner` encloses `site` or is an object visible so.
-    fn is_visible_to_scope(&mut self, owner: SymbolId, site: SymbolId) -> bool {
-        sealed::is_contained_in(self.u, site, owner)
-            || self.u.is_module_class(owner)
-                && self.u.symbol(owner).owner.is_some_and(|o| self.is_visible_to_scope(o, site))
     }
 }

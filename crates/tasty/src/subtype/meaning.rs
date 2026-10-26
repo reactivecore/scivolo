@@ -14,6 +14,23 @@ pub fn refined_meaning(u: &mut Universe, prefix: TypeId, name: &str) -> Option<M
     }
 }
 
+/// What class type parameter `p` stands for through value `prefix`: the argument its type's base
+/// type gives it (dotty's `argForParam`); `None` for a `this` prefix.
+fn class_param_arg(u: &mut Universe, p: SymbolId, prefix: TypeId) -> Option<Meaning> {
+    if matches!(u.types().get(prefix), Type::This(_)) {
+        return None;
+    }
+    let class = u.symbol(p).owner.filter(|&c| u.symbol(c).kind == Kind::Class)?;
+    let index = u.type_params(class).iter().position(|&q| q == p)?;
+    let widened = u.widen(prefix);
+    let base = u.base_type(widened, class)?;
+    let Type::Applied(_, args) = u.types().get(base).clone() else { return None };
+    Some(match *u.types().get(*args.get(index)?) {
+        Type::Bounds(lo, hi) => Meaning::Abstract(lo, hi),
+        _ => Meaning::Alias(args[index]),
+    })
+}
+
 /// What symbol `s` stands for when referred to through `prefix`.
 pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning {
     let seen = |u: &mut Universe, t: TypeId| match (prefix, u.symbol(s).owner) {
@@ -28,9 +45,15 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
             if let Some(refined) = prefix.filter(|_| member).and_then(|p| refined_meaning(u, p, &name)) {
                 return refined;
             }
+            if let Some(arg) = prefix.filter(|_| !member).and_then(|p| class_param_arg(u, s, p)) {
+                return arg;
+            }
             let opaque = u.visible_opaque_alias(s, prefix);
             if let Some(alias) = opaque.or_else(|| u.alias_of(s)) {
                 return Meaning::Alias(seen(u, alias));
+            }
+            if let Some(alias) = prefix.filter(|_| member).and_then(|p| u.overriding_alias(p, s)) {
+                return Meaning::Alias(alias);
             }
             if let Some((lo, hi)) = u.opaque_bounds(s) {
                 return Meaning::Abstract(seen(u, lo), seen(u, hi));

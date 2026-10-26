@@ -54,6 +54,36 @@ impl Typer<'_> {
         names.filter(|n| n.len() == values.len()).map(|n| (n, values))
     }
 
+    /// `named_tuple_parts` of `t`, of an abstract type its upper bound's, of an intersection
+    /// those of the sides that have them, of the same names, the values intersected, of a union
+    /// those both sides have alike (dotty's
+    /// `namedTupleElementTypes(derived = true)`).
+    pub fn derived_named_tuple_parts(&mut self, t: TypeId) -> Option<(Vec<String>, Vec<TypeId>)> {
+        if let Some(parts) = self.named_tuple_parts(t) {
+            return Some(parts);
+        }
+        let tpe = self.u.types().get(t).clone();
+        match tpe {
+            Type::Sym(_, s) if self.u.is_type_symbol(s) && self.u.class_symbol(t).is_none() => {
+                self.complete(s);
+                let hi = crate::sealed::upper_bound(self.u, s);
+                (hi != t).then(|| self.derived_named_tuple_parts(hi)).flatten()
+            }
+            Type::And(a, b) => match (self.derived_named_tuple_parts(a), self.derived_named_tuple_parts(b)) {
+                (Some((names, left)), Some((other, right))) => (names == other).then(|| {
+                    let values = left.iter().zip(&right).map(|(&l, &r)| self.u.intern_type(Type::And(l, r)));
+                    (names, values.collect())
+                }),
+                (left, right) => left.or(right),
+            },
+            Type::Or(a, b, _) => {
+                let left = self.derived_named_tuple_parts(a)?;
+                (self.derived_named_tuple_parts(b)? == left).then_some(left)
+            }
+            _ => None,
+        }
+    }
+
     /// `NamedTuple[(names…), (values…)]` with the names as string constant types.
     pub fn named_tuple_type(&mut self, names: &[String], values: &[TypeId]) -> Option<TypeId> {
         let nt = self.resolve_full_name(NAMED_TUPLE, true)?;

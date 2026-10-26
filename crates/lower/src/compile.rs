@@ -1,6 +1,7 @@
 //! A source file through the whole frontend: parser, desugaring, typer, lowering.
 
 use crate::NirFile;
+use syntax::ast::Span;
 use syntax::config::Config;
 use syntax::desugar::Desugar;
 use syntax::diag::Diagnostics;
@@ -58,20 +59,23 @@ pub fn compile_with(
     }
     let mut typed = match typer::type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), (root, cfg), macros) {
         Ok(typed) => typed,
-        Err(Fallback::Unsupported { what, .. }) => {
-            return Err(Refusal::new(format!("the typer does not support {what}")));
+        Err(Fallback::Unsupported { what, at }) => {
+            return Err(Refusal::new(format!("the typer does not support {what}{}", at_point(source, at))));
         }
         Err(Fallback::Errors(diags)) => return Err(Refusal { what: "type errors".into(), diags }),
     };
     let files =
         crate::lower(u, &mut typed.tpd, typed.root, p.s.names, &mut p.fresh, source).map_err(|e| {
-            let at = if e.at.exists() {
-                let line = source.offset_to_line(e.at.point());
-                format!(" at {}:{}", line + 1, source.column(e.at.point()) + 1)
-            } else {
-                String::new()
-            };
-            Refusal::new(format!("the lowering does not support {}{at}", e.what))
+            Refusal::new(format!("the lowering does not support {}{}", e.what, at_point(source, e.at)))
         })?;
     Ok((files, typed.diags))
+}
+
+/// ` at LINE:COLUMN` of span `at` in `source`, if it has a position there.
+fn at_point(source: &SourceFile, at: Span) -> String {
+    if !at.exists() || at.is_in_other_source() {
+        return String::new();
+    }
+    let point = at.without_inlined_call().point();
+    format!(" at {}:{}", source.offset_to_line(point) + 1, source.column(point) + 1)
 }

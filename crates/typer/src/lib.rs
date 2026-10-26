@@ -148,6 +148,9 @@ impl Units {
         {
             typer.unsupported_at(at, what);
         }
+        if typer.unsupported.is_none() && !typer.diags.has_errors() {
+            typer.check_forward_refs(typed);
+        }
         self.syms = std::mem::take(&mut typer.syms);
         self.syms.end_unit(typer.u);
         if self.errors_first && typer.diags.has_errors() {

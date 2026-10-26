@@ -14,14 +14,31 @@ const CASES: &[(&str, &str)] = &[
         "constValue of a type that is not constant",
     ),
     (
-        "object O { inline def f: String = { given x: Show[Int] = null; summonInline[Show[Int]].show(1) }; \
-         def g = f }",
+        "object O { inline def f: String = { def h(using x: Show[Int]) = summonInline[Show[Int]].show(1); \
+         h(using null) }; def g = f }",
         "implicit search in an inline body with local implicits",
     ),
     (
         "object O { inline def s[T]: Show[T] = summonInline[Show[T]]; \
-         transparent inline def t: Show[Int] = s[Int]; def g = t }",
-        "implicit search without the call's context",
+         transparent inline def t: Show[Int] = { given x: Show[Int] = null; s[Int] }; def g = t }",
+        "implicit search in an inline body with local implicits",
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; inline def f: Int = \
+         summonFrom { case s: Show[Int] => summonInline[Show[List[Int]]].hashCode }; def g = f }",
+        "implicit search in an inline body with local implicits",
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
+         inline def s: Int = summonFrom { case _: Show[List[Long]] => 1; case _ => 2 }; \
+         transparent inline def t: Int = { given x: Show[Long] = null; s }; def g = t }",
+        "implicit search in an inline body with local implicits",
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
+         inline def s[T]: Show[T] = summonInline[Show[T]]; \
+         transparent inline def t: Show[List[Int]] = { given x: Show[Int] = null; s[List[Int]] }; def g = t }",
+        "implicit search in an inline body with local implicits",
     ),
     (
         "object O { given a: Show[String] = new Show[String] { def show(t: String) = \"\" }; \
@@ -29,7 +46,11 @@ const CASES: &[(&str, &str)] = &[
          def g = f }",
         "ambiguous implicit arguments",
     ),
-    ("object O { inline def f(x: Int): String = codeOf(x); def g(y: Int) = f(y) }", "codeOf an argument"),
+    ("object O { def g = codeOf(Some(1)) }", "codeOf an argument"),
+    ("object O { def h(using i: Int) = i; given Int = 3; def g = codeOf(h) }", "codeOf an argument"),
+    ("object O { inline def f(x: Int): String = codeOf(x); def g(y: Int) = f(y + 1) }", "codeOf an argument"),
+    ("object O { def g(y: Int) = codeOf(`y`) }", "codeOf an argument"),
+    ("object O { import scala.Predef.{print as p}; def g = codeOf(p(1)) }", "codeOf an argument"),
     ("object O { def g = summonInline[Show[String]] }", "no implicit argument"),
 ];
 

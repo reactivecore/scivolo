@@ -12,6 +12,7 @@ RANKS = {
     "trees": SYNTAX,
     "desugar": SYNTAX,
     "programs": {"ok": PASSED, "differs": FAILED, "timeout": FAILED},
+    "lib": {"same": 3, "differs": 2, "refused": 1, "timeout": 0, "crashed": 0},
 }
 GROUPS = ["worsened", "improved", "other"]
 

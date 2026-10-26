@@ -12,7 +12,10 @@ impl Cmp<'_> {
         let t = self.normal(t);
         match self.u.types().get(t).clone() {
             Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {
-                let Some(s) = self.named(t).and_then(|n| n.sym) else { return false };
+                let Some(s) = self.named(t).and_then(|n| n.sym) else {
+                    let d = self.u.dealias(t);
+                    return d != t && self.is_concrete(d, depth);
+                };
                 match self.u.symbol(s).kind {
                     Kind::Class => true,
                     Kind::Type => match self.u.dealias(t) {

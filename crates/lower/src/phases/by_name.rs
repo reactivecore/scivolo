@@ -124,6 +124,7 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
     let span = l.tpd.span(arg);
     let result = l.u.widen(formal);
     let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
+    let owner = l.lazy_members.get(&owner).map_or(owner, |m| m.init);
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, flags));
     let binder = l.u.fresh_binder();
     let info = l.u.intern_type(Type::Method {

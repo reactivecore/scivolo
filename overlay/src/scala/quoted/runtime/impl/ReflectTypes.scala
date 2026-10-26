@@ -46,7 +46,9 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
       def isSingleton: Boolean = ReflectOps.one("isSingleton", ReflectOps.id(self)) != 0
       def baseClasses: List[Symbol] =
         ReflectOps.results("baseClasses", ReflectOps.id(self)).map(s => new SymbolImpl(s).asInstanceOf[Symbol])
-      def memberType(member: Symbol): TypeRepr = repr(ReflectOps.one("memberType", ReflectOps.id(self), ReflectOps.id(member)))
+      def substituteTypes(from: List[Symbol], to: List[TypeRepr]): TypeRepr =
+        if (from.isEmpty) self else throw new Unsupported("TypeRepr.substituteTypes of type parameters")
+      def memberType(member: Symbol): TypeRepr =repr(ReflectOps.one("memberType", ReflectOps.id(self), ReflectOps.id(member)))
       def appliedTo(targ: TypeRepr): TypeRepr = TypeShapes.appliedTo(self, List(targ)).asInstanceOf[TypeRepr]
       def appliedTo(targs: List[TypeRepr]): TypeRepr = TypeShapes.appliedTo(self, targs).asInstanceOf[TypeRepr]
       def derivesFrom(cls: Symbol): Boolean = baseClasses.contains(cls)

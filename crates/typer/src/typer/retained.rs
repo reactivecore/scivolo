@@ -69,11 +69,6 @@ impl Typer<'_> {
             .iter()
             .filter_map(|&p| self.tpd.sym(p))
             .any(|p| self.syms.flags.get(&p).is_some_and(|fl| fl.is_one_of(f::GIVEN_OR_IMPLICIT)));
-        let cls = self.u.symbol(f).owner.expect("a member");
-        if self.is_derived_value_class(cls) {
-            self.unsupported_at(self.tpd.span(def), "retained inline method in a value class");
-            return None;
-        }
         if implicit || flags.is(f::GIVEN_OR_IMPLICIT) {
             self.unsupported_at(self.tpd.span(def), "retained inline method with implicit parameters");
             return None;

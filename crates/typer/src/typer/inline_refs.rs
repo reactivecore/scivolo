@@ -9,7 +9,8 @@ use tasty::SymbolId;
 use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 
 /// The inline operations of `scala.compiletime` that inlining expands.
-const EXPANDED: [&str; 9] = [
+const EXPANDED: [&str; 10] = [
+    "asMatchable",
     "error",
     "codeOf",
     "requireConst",

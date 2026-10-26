@@ -7,6 +7,7 @@ use typer::tpd::TNodeId;
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
+    static_members::transform(l, root)?;
     refined_trees::transform(l, root);
     retained_bodies::transform(l, root)?;
     drop_for_map::transform(l, root)?;
@@ -24,6 +25,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         package_objects::transform(l, td);
         first_transform::transform(l, td, &inits);
     }
+    java_enums::transform(l, root, &classes)?;
     if expand_sams::transform(l, root)? {
         classes = class_defs(l.tpd, root);
     }
@@ -37,7 +39,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     uninitialized_defs::refuse_others(l, root)?;
     for &td in &classes {
-        getters::setter_calls(l, td)?;
+        setter_calls::transform(l, td)?;
     }
     for &td in &classes {
         interpolators::transform(l, td)?;
@@ -64,6 +66,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         explicit_self::transform(l, td)?;
     }
     explicit_outer::transform(l, &classes)?;
+    drop_imports::transform(l, root);
     let erased = erasure::erased_defs::drop(l, root);
     retain_outside(l.tpd, &mut classes, erased);
     let pending = local_classes::transform(l, root, &classes)?;

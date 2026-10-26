@@ -151,6 +151,9 @@ impl Typer<'_> {
         let Some(class) = class else {
             return self.unsupported(id, "function type of that many parameters");
         };
+        if arg_ids.first().is_some_and(|&a| matches!(self.ast.tree(a), syntax::ast::Tree::ValDef { .. })) {
+            return self.typed_dependent_function_type(id, (&arg_ids, body), (class, contextual), ctx);
+        }
         let mut typed: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
         typed.push(self.typed_type(body, ctx));
         if matches!(self.tpd.tree(typed[n]), T::ByNameTypeTree { .. }) {

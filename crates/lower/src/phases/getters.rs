@@ -2,8 +2,7 @@
 //   compiler/src/dotty/tools/dotc/transform/Getters.scala
 //! dotty's `Getters`: each value of a class becomes a parameterless getter method with the
 //! value's right-hand side, none for a class parameter's; a static or private local value stays a field,
-//! none for a class parameter only the constructor uses; an assignment to a variable becomes a
-//! call of its setter.
+//! none for a class parameter only the constructor uses (assignments: `setter_calls.rs`).
 
 use crate::definitions::symbol;
 use crate::symbols::{has, is_static_module};
@@ -124,36 +123,6 @@ fn param_setter(l: &mut Lower, class: SymbolId, var: SymbolId, name: &str, span:
     l.build().def_def(setter, &[&[param]], tpt, None, span)
 }
 
-/// Makes each assignment to a variable in class definition `td` a call of its setter.
-pub fn setter_calls(l: &mut Lower, td: TNodeId) -> Result<()> {
-    let mut todo = vec![td];
-    while let Some(t) = todo.pop() {
-        todo.extend(super::walk::children(l.tpd, t));
-        let Tree::Assign { lhs, rhs } = *l.tpd.tree(t) else { continue };
-        let Some(var) = l.tpd.sym(lhs).filter(|&s| has(l.u, s, FIELDaccessor) || is_library_var_param(l, s))
-        else {
-            continue;
-        };
-        let owner = l.u.symbol(var).owner.expect("a variable's class");
-        let setter_name = format!("{}_=", l.u.symbol(var).name);
-        let setter = l.u.decl(owner, &setter_name).unwrap_or_default().into_iter().find(|&s| is_setter(l, s));
-        let span = l.tpd.span(t);
-        let Some(setter) = setter else {
-            return unsupported(span, "an assignment to a value without a setter");
-        };
-        let fun = match *l.tpd.tree(lhs) {
-            Tree::Select { qualifier, .. } => l.select(qualifier, setter, l.tpd.span(lhs)),
-            _ => {
-                let s = l.tpd.span(rhs);
-                l.ident(setter, if s.exists() { s.with_point(s.start()) } else { l.tpd.span(lhs) })
-            }
-        };
-        let args = l.tpd.list(&[rhs]);
-        l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
-    }
-    Ok(())
-}
-
 /// Records the span of the right-hand side of each getter of class definition `td`, its point at
 /// its start.
 pub fn record_rhs(l: &mut Lower, td: TNodeId) {
@@ -173,13 +142,6 @@ pub fn record_rhs(l: &mut Lower, td: TNodeId) {
 /// Whether `s` is a value a class parameter defines (the typer marks it `PARAMsetter`).
 pub fn is_param_accessor(l: &Lower, s: SymbolId) -> bool {
     has(l.u, s, PARAMsetter)
-}
-
-/// Whether `s` is a `var` parameter of a class as a library class declares it, which a library
-/// inline body assigns.
-fn is_library_var_param(l: &Lower, s: SymbolId) -> bool {
-    let sym = l.u.symbol(s);
-    sym.kind == Kind::Param && sym.flags.has(MUTABLE) && sym.owner.is_some_and(|o| l.u.is_class(o))
 }
 
 /// Whether `s` is a `final` value, not a variable, of a constant type.

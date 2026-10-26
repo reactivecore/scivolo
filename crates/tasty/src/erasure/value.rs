@@ -18,10 +18,13 @@ impl Erased {
 }
 
 impl Universe {
-    /// The semi-erasure of `t`: `Value` for a value class other than `this`, else its erasure.
+    /// The semi-erasure of `t`: `Value` for a value class other than `this` or a by-name type,
+    /// else its erasure.
     pub fn erase_value(&mut self, t: TypeId) -> Erased {
-        if let Type::This(class) = *self.types().get(t) {
-            return self.erase_boxed(class);
+        match *self.types().get(t) {
+            Type::This(class) => return self.erase_boxed(class),
+            Type::ByName(_) => return self.erase(t),
+            _ => {}
         }
         let widened = self.widen(t);
         match self.value_class(widened) {

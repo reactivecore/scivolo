@@ -47,7 +47,7 @@ impl Universe {
         if ra != rb {
             return ra < rb;
         }
-        if let (Some(ca), Some(cb)) = (self.erased_class(a), self.erased_class(b)) {
+        if let (Some(ca), Some(cb)) = (self.side_class(a, &ea), self.side_class(b, &eb)) {
             if self.derives_from(ca, cb) {
                 return true;
             }
@@ -63,18 +63,22 @@ impl Universe {
             Erased::Array(_) => 0,
             Erased::Prim(_) | Erased::Unit | Erased::Value(..) => 1,
             Erased::Class(c) if c == OBJECT => 2,
-            Erased::Class(name) => {
-                let class = self.erased_class(t).or_else(|| {
-                    let r = self.class_ref(name);
-                    self.class_symbol(r)
-                });
-                match class {
-                    Some(s) if self.symbol(s).flags.has(TRAIT) => 3,
-                    _ => 2,
-                }
-            }
+            Erased::Class(_) => match self.side_class(t, e) {
+                Some(s) if self.symbol(s).flags.has(TRAIT) => 3,
+                _ => 2,
+            },
             Erased::Nothing | Erased::Null => 2,
         }
+    }
+
+    /// The class `t` erases to, else that of its erasure `e`.
+    fn side_class(&mut self, t: TypeId, e: &Erased) -> Option<SymbolId> {
+        let class = self.erased_class(t);
+        let Erased::Class(name) = e else { return class };
+        class.or_else(|| {
+            let r = self.class_ref(name);
+            self.class_symbol(r)
+        })
     }
 
     /// The erasure of `a | b`: the other side for `Nothing`; `Object` beside a value class; the

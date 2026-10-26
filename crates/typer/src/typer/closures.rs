@@ -21,9 +21,16 @@ impl Typer<'_> {
             return untupled;
         }
         let contextual = params.first().is_some_and(|&p| self.is_given_param(p));
-        let (expected, sam) = match self.expected_function_parts(id, pt, n, contextual) {
-            Ok(parts) => parts,
-            Err(refused) => return refused,
+        let dependent_pt = match pt {
+            Pt::Type(p) => self.dependent_function_parts(p, n, contextual),
+            _ => None,
+        };
+        let (expected, sam) = match &dependent_pt {
+            Some((parts, _)) => (Some(parts.clone()), None),
+            None => match self.expected_function_parts(id, pt, n, contextual) {
+                Ok(parts) => parts,
+                Err(refused) => return refused,
+            },
         };
         let class = if contextual { self.context_function_class(n) } else { self.function_class(n) };
         let Some(class) = class else {
@@ -79,7 +86,7 @@ impl Typer<'_> {
             let sym = self.syms.define(self.u, &text, Kind::Param, anonfun, flags);
             self.u.set_info(sym, tpe);
             self.syms.closure_syms.push(sym);
-            entries.push((text, sym));
+            entries.push((if self.hidden_params.contains(&p) { format!("`{text}`") } else { text }, sym));
             param_types.push(tpe);
             let span = self.ast.span(p);
             param_trees.push(self.build().val_def(sym, tpt, None, span));
@@ -87,7 +94,7 @@ impl Typer<'_> {
         if missing {
             return self.error_tree(self.ast.span(id));
         }
-        let names: Vec<String> = entries.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<String> = entries.iter().map(|&(_, s)| self.u.symbol(s).name.clone()).collect();
         let params_syms: Vec<tasty::SymbolId> = entries.iter().map(|&(_, s)| s).collect();
         let level = self.levels.push(Some(ctx.level), Level::Scope(entries));
         let bctx = Ctx { owner: anonfun, level, ..ctx };
@@ -98,7 +105,8 @@ impl Typer<'_> {
         });
         let refs: Vec<TypeId> = params_syms.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
         let poly = self.poly_closures.get(&id).cloned();
-        let expected_result = match (&sam, poly.as_ref().and_then(Option::as_ref)) {
+        let bound = poly.as_ref().and_then(Option::as_ref).or(dependent_pt.as_ref().map(|(_, b)| b));
+        let expected_result = match (&sam, bound) {
             (Some((_, (sam_binder, sam_names, method))), _) => expected_result
                 .map(|r| self.applied_result(r, (*sam_binder, sam_names), Some(*method), &refs)),
             (None, Some((binder, names))) => {
@@ -119,20 +127,21 @@ impl Typer<'_> {
                 })
             }
         };
-        let mut dependent = false;
-        let body_tpe = self.tpd.tpe(body);
-        for t in [result, body_tpe] {
-            let t = self.zonk(t);
-            let t = self.widen_singletons(t, false);
-            self.u.map_type(t, &mut |u, part| {
-                dependent |= matches!(*u.types().get(part), Type::Sym(_, s) if params_syms.contains(&s));
-                None
-            });
-        }
-        if dependent && sam.is_none() && poly.is_none() {
-            return self.unsupported(id, "dependent function type");
-        }
+        let checked = match expected_result {
+            Some(_) if self.var_bounds_refer_to(result, &params_syms) => {
+                return self.unsupported(id, "local type escaping through a type variable");
+            }
+            Some(_) => vec![result],
+            None => vec![result, self.tpd.tpe(body)],
+        };
         let binder = self.syms.fresh_binder();
+        let dependent_tpe = match sam.is_none() && poly.is_none() {
+            true => match self.closure_dependent_type((class, contextual), &params_syms, binder, &checked) {
+                Ok(t) => t,
+                Err(what) => return self.unsupported(id, what),
+            },
+            false => None,
+        };
         let info_result = self.u.map_type(result, &mut |u, part| match *u.types().get(part) {
             Type::Sym(None, s) => {
                 let i = params_syms.iter().position(|&p| p == s)?;
@@ -156,7 +165,7 @@ impl Typer<'_> {
         };
         let mut fun_args = param_types;
         fun_args.push(result);
-        let fun_tpe = self.u.intern_type(Type::Applied(class, fun_args));
+        let fun_tpe = dependent_tpe.unwrap_or_else(|| self.u.intern_type(Type::Applied(class, fun_args)));
         self.closure_tree(id, anonfun, &param_trees, (result, body), sam.unwrap_or(fun_tpe), sam.is_some())
     }
 

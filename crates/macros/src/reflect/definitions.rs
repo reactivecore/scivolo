@@ -10,7 +10,7 @@ use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
     /// Runs definition operation `op` on `args`.
-    pub fn run_definition(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
+    pub fn run_definition(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
         match op {
             "annotations" => {
                 let (s, cls) = (symbol(arg(args, 0)?)?, symbol(arg(args, 1)?).ok());
@@ -54,12 +54,43 @@ impl Host {
                 answer.extend(clauses.into_iter().flatten().map(|p| self.add_tree(p) as i32));
                 numbers(answer)
             }
+            "classParts" => {
+                let t = self.tree(arg(args, 0)? as u32)?;
+                let T::TypeDef { name, rhs } = *self.tpd.tree(t) else { return Err(NO_CLASS) };
+                let T::Template { constr, parents, self_, body } = *self.tpd.tree(rhs) else {
+                    return Err(NO_CLASS);
+                };
+                let (parents, body) = (self.tpd.items(parents).to_vec(), self.tpd.items(body).to_vec());
+                let mut answer =
+                    vec![self.add_tree(constr) as i32, self_.map_or(-1, |s| self.add_tree(s) as i32)];
+                answer.push(parents.len() as i32);
+                answer.extend(parents.into_iter().chain(body).map(|p| self.add_tree(p) as i32));
+                Ok((answer, Some(self.names.text(name.name).to_owned())))
+            }
+            "copyClass" => {
+                let (t, constr) = (self.tree(arg(args, 0)? as u32)?, self.tree(arg(args, 1)? as u32)?);
+                let self_ = match arg(args, 2)? {
+                    -1 => None,
+                    s => Some(self.tree(s as u32)?),
+                };
+                let n = arg(args, 3)? as usize;
+                let rest = args.get(4..).unwrap_or_default().iter().map(|&a| self.tree(a as u32));
+                let rest = rest.collect::<Result<Vec<_>, _>>()?;
+                let (parents, body) = rest.split_at_checked(n).ok_or("ClassDef.copy without its parents")?;
+                let copy = self.reflect().copy_class(t, (text, constr, self_), parents, body)?;
+                numbers(vec![self.add_tree(copy) as i32])
+            }
+            "definitions" => {
+                let defs = args.iter().map(|&d| self.tree(d as u32).map(|_| d as u32));
+                self.definitions = Some(defs.collect::<Result<_, _>>()?);
+                numbers(Vec::new())
+            }
             _ => Err(UNKNOWN),
         }
     }
 
     /// The definition of `s` among the typer's trees (dotty's `Symbol.tree`), if it has one.
-    fn definition(&self, s: SymbolId) -> Option<TNodeId> {
+    pub fn definition(&self, s: SymbolId) -> Option<TNodeId> {
         let defines = |d: TNodeId| {
             self.tpd.sym(d) == Some(s)
                 && matches!(self.tpd.tree(d), T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. })

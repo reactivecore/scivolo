@@ -32,6 +32,12 @@ impl Inlining<'_> {
         }
     }
 
+    /// The context of the call of `Inlined` tree `t` from the typer, if it recorded one, and `t`.
+    pub fn typer_inlined_ctx(&self, t: TNodeId) -> Option<(Ctx, TNodeId)> {
+        let T::Inlined { call: Some(call), .. } = *self.tpd.tree(t) else { return None };
+        Some((self.host.call_ctx(call)?, t))
+    }
+
     /// The call of `Inlined` tree `t`, made a reference to the top-level class of the method it
     /// calls unless it is one already, the `this` qualifiers in its bindings then typed.
     pub fn traced_call(&mut self, t: TNodeId) -> Option<TNodeId> {

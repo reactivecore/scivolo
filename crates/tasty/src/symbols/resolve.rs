@@ -42,14 +42,20 @@ impl Universe {
             Kind::Class => self.member_where(owner, name, wanted),
             _ => self.decl(owner, name).ok()?,
         };
-        found.into_iter().find(|&s| wanted(self, s))
+        match found.into_iter().find(|&s| wanted(self, s)) {
+            None if matches!(self.types.get(prefix), Type::This(_)) => {
+                let self_type = self.given_self_type(owner)?;
+                self.member_of_type(self_type, name).into_iter().find(|&s| wanted(self, s))
+            }
+            found => found,
+        }
     }
 
     /// The package or class whose members a prefix selects.
     fn prefix_owner(&mut self, prefix: TypeId) -> Option<SymbolId> {
         match self.types.get(prefix).clone() {
             Type::Package(p) => Some(p),
-            Type::This(c) | Type::Super(_, c) => self.prefix_owner(c),
+            Type::This(c) | Type::Super(_, c) | Type::Refined(c, ..) => self.prefix_owner(c),
             Type::Sym(_, s) => self.symbol_owner(s),
             Type::TermRef(..) => {
                 let term = self.resolve_ref(prefix)?;

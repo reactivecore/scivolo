@@ -5,7 +5,8 @@ use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
     /// Whether member `sym` of `Any` or `Object`, selected from `qual`, is one a JDK interface
-    /// the class of `qual` derives from declares.
+    /// the class of `qual` derives from declares; javalib's interfaces declare none when javalib
+    /// is compiled.
     pub fn jdk_redeclares(&mut self, sym: SymbolId, qual: TypeId) -> bool {
         const REDECLARED: [(&str, &str); 22] = [
             ("java.lang.CharSequence", "toString"),
@@ -38,10 +39,10 @@ impl Typer<'_> {
         let name = self.u.symbol(sym).name.clone();
         let widened = self.u.widen(qual);
         let Some(class) = self.u.class_symbol(widened) else { return false };
-        REDECLARED
-            .iter()
-            .filter(|(_, m)| *m == name)
-            .any(|(i, _)| self.resolve_full_name(i, true).is_some_and(|i| self.u.derives_from(class, i)))
+        REDECLARED.iter().filter(|(_, m)| *m == name).any(|(i, _)| {
+            let i = self.resolve_full_name(i, true).filter(|&i| self.u.may_be_java(i));
+            i.is_some_and(|i| self.u.derives_from(class, i))
+        })
     }
 
     /// The member of `Any` the JDK's `java.lang.Class` inherits where nativelib's `_Class`

@@ -8,12 +8,11 @@ use tasty::{SymbolId, Type, TypeId, TypeVars, VarId};
 
 const OUTSIDE: &str = "divergence check of a type outside the subset";
 
-/// dotty's `typeSize`, and its `coveringSet` with and without the symbols of prefixes.
+/// dotty's `typeSize` and `coveringSet`.
 #[derive(Clone, PartialEq)]
 pub struct Measure {
     pub size: u32,
     pub covering: Vec<SymbolId>,
-    pub bare: Vec<SymbolId>,
 }
 
 impl Typer<'_> {
@@ -21,14 +20,10 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let size = self.type_size(0, t, &mut Vec::new())?;
         let mut covering = Vec::new();
-        self.cover(&mut covering, t, true, &mut Vec::new())?;
-        let mut bare = Vec::new();
-        self.cover(&mut bare, t, false, &mut Vec::new())?;
-        for set in [&mut covering, &mut bare] {
-            set.sort_unstable_by_key(|s| s.0);
-            set.dedup();
-        }
-        Ok(Measure { size, covering, bare })
+        self.cover(&mut covering, t, &mut Vec::new())?;
+        covering.sort_unstable_by_key(|s| s.0);
+        covering.dedup();
+        Ok(Measure { size, covering })
     }
 
     /// The parts of `t` a size or covering set folds over: its prefix, arguments and operands.
@@ -38,12 +33,29 @@ impl Typer<'_> {
             Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::This(p) => vec![p],
             Type::Applied(c, args) => [vec![c], args].concat(),
             Type::Refined(p, _, i) | Type::Bounds(p, i) | Type::And(p, i) | Type::Or(p, i, _) => vec![p, i],
-            Type::ByName(r) | Type::Annotated(r, _) => vec![r],
-            Type::NoPrefix | Type::Package(_) | Type::PackageName(_) | Type::Str(_) | Type::Constant(..) => {
-                Vec::new()
+            Type::ByName(r) | Type::Annotated(r, _) | Type::Alias(r) => vec![r],
+            Type::Lambda { params, result, .. } => {
+                if !params.iter().all(|&(_, b)| self.unbounded(b)) {
+                    return Err(OUTSIDE);
+                }
+                params.into_iter().map(|(_, b)| b).chain([result]).collect()
             }
+            Type::Param(..)
+            | Type::Local(..)
+            | Type::NoPrefix
+            | Type::Package(_)
+            | Type::PackageName(_)
+            | Type::Str(_)
+            | Type::Constant(..) => Vec::new(),
             _ => return Err(OUTSIDE),
         })
+    }
+
+    /// Whether `b` is the bounds `>: Nothing <: Any`.
+    fn unbounded(&mut self, b: TypeId) -> bool {
+        let Type::Bounds(lo, hi) = *self.u.types().get(b) else { return false };
+        let builtins = self.u.builtins();
+        self.u.class_symbol(lo) == Some(builtins.nothing) && self.u.class_symbol(hi) == Some(builtins.any)
     }
 
     /// `t` dealiased if it is a reference to an alias, `None` if not.
@@ -54,7 +66,7 @@ impl Typer<'_> {
         let d = self.u.dealias(t);
         match self.u.types().get(d) {
             _ if d == t => Ok(None),
-            Type::Lambda { .. } | Type::Match { .. } => Err(OUTSIDE),
+            Type::Match { .. } => Err(OUTSIDE),
             _ => Ok(Some(d)),
         }
     }
@@ -78,7 +90,6 @@ impl Typer<'_> {
                 }
                 Ok(n)
             }
-            Type::Applied(c, _) if self.alias_of(c)?.is_some() => Err(OUTSIDE),
             other => {
                 let mut n = n + matches!(other, Type::Applied(..) | Type::Refined(..)) as u32;
                 for p in self.parts(t)? {
@@ -96,12 +107,12 @@ impl Typer<'_> {
         name.strip_prefix("scala.Tuple")?.parse().ok().filter(|&n| (2..=22).contains(&n))
     }
 
-    /// Adds the symbols `t` is built from to `cs`, those of prefixes if `prefixes`.
+    /// Adds the symbols `t` is built from to `cs`, those of the prefixes of references to symbols
+    /// that are not static included (dotty's `StopAt.Static`).
     fn cover(
         &mut self,
         cs: &mut Vec<SymbolId>,
         t: TypeId,
-        prefixes: bool,
         seen: &mut Vec<TypeId>,
     ) -> Result<(), &'static str> {
         if seen.contains(&t) {
@@ -109,26 +120,31 @@ impl Typer<'_> {
         }
         seen.push(t);
         if let Some(d) = self.alias_of(t)? {
-            return self.cover(cs, d, prefixes, seen);
+            return self.cover(cs, d, seen);
         }
         let b = self.u.builtins();
         let (fold, own): (Vec<TypeId>, Option<SymbolId>) = match self.u.types().get(t).clone() {
-            Type::Sym(_, s) if s == b.any || s == b.nothing => return Ok(()),
             Type::Var(v) => {
                 let (lo, hi) = self.constraint.bounds(v);
                 (vec![lo, hi], None)
             }
-            Type::Applied(c, args) => {
-                let own = self.type_symbol(c);
-                (if prefixes { [vec![c], args].concat() } else { args }, own)
-            }
+            Type::Applied(c, args) => ([vec![c], args].concat(), self.type_symbol(c)),
             Type::Refined(p, _, i) => (vec![p, i], self.type_symbol(p)),
-            Type::Sym(p, s) => {
+            Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {
+                let (p, s) = match *self.u.types().get(t) {
+                    Type::Sym(p, s) => (p, s),
+                    Type::TypeRef(p, _) | Type::TermRef(p, _) => {
+                        (Some(p), self.u.resolve_ref(t).ok_or(OUTSIDE)?)
+                    }
+                    _ => return Err(OUTSIDE),
+                };
+                if s == b.any || s == b.nothing {
+                    return Ok(());
+                }
                 let own =
                     (self.u.symbol(s).kind == tasty::Kind::Class || !self.u.is_type_symbol(s)).then_some(s);
-                (if prefixes { p.into_iter().collect() } else { Vec::new() }, own)
+                (p.filter(|_| !self.u.is_static_symbol(s)).into_iter().collect(), own)
             }
-            Type::This(_) | Type::TypeRef(..) | Type::TermRef(..) if !prefixes => (Vec::new(), None),
             Type::This(c) => (Vec::new(), self.type_symbol(c)),
             Type::Package(p) => (Vec::new(), Some(p)),
             _ => (self.parts(t)?, None),
@@ -140,7 +156,7 @@ impl Typer<'_> {
             cs.push(s);
         }
         for p in fold {
-            self.cover(cs, p, prefixes, seen)?;
+            self.cover(cs, p, seen)?;
         }
         Ok(())
     }

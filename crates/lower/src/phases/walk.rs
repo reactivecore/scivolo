@@ -112,9 +112,9 @@ pub fn without_type_args(tpd: &Tpd, t: TNodeId) -> TNodeId {
     }
 }
 
-/// The direct subtrees of `t`, in order.
+/// The direct subtrees of `t`, in order, but the call of an `Inlined` tree.
 pub fn children(tpd: &Tpd, t: TNodeId) -> tpd::Children {
-    tpd.children(t)
+    tpd.traversed(t)
 }
 
 /// `t` and the trees in it, outer trees first.

@@ -2,8 +2,8 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Members of types (dotty's `Type.member`): through `this` and paths, of a class type, through
 //! aliases and upper bounds, both sides of an intersection, the first base class common to all
-//! parts of a union that declares the name. Refinements carry no symbols, so a refinement's
-//! parent answers for it.
+//! parts of a union that declares the name, a match type's reduction or else its bound.
+//! Refinements carry no symbols, so a refinement's parent answers for it.
 
 use super::{Kind, SymbolId, Universe};
 use crate::tags::PRIVATE;
@@ -39,6 +39,10 @@ impl Universe {
             }
             Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Rec(_, p) => {
                 self.member_of_type_within(p, name, steps)
+            }
+            Type::Match { bound, .. } => {
+                let underlying = self.try_normalize(t).unwrap_or(bound);
+                self.member_of_type_within(underlying, name, steps)
             }
             _ => {
                 if let Some(c) = self.class_symbol(t) {

@@ -32,6 +32,7 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
         && in_class
         && !l.u.is_module(s)
         && !l.fields.contains_key(&s)
+        && !l.u.is_java_field(s)
         && !is_static_enum_value(l, s)
         && s != l.defs.boxed_unit_unit;
     let method = l.u.symbol(s).kind == Kind::Def || has(l.u, s, FIELDaccessor) || class_value;

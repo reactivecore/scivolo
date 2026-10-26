@@ -99,3 +99,17 @@ fn derivation_and_inherited_members() {
     let any_val = class(&mut u, "scala", "AnyVal");
     assert!(u.derives_from(rich_int, any_val));
 }
+
+#[test]
+fn members_of_this_through_the_self_type() {
+    let Some(mut u) = stdlib() else { return };
+    let serializable = class(&mut u, "scala.collection.generic", "DefaultSerializable");
+    let self_type = u.given_self_type(serializable).unwrap();
+    assert!(u.show(self_type).starts_with("scala.collection.Iterable["), "{}", u.show(self_type));
+    let class_ref = u.intern_type(tasty::Type::Sym(None, serializable));
+    let this = u.intern_type(tasty::Type::This(class_ref));
+    let found = u.resolve(this, "iterableFactory", false).unwrap();
+    assert_eq!(u.full_name(u.symbol(found).owner.unwrap()), "scala.collection.Iterable");
+    let option = class(&mut u, "scala", "Option");
+    assert_eq!(u.given_self_type(option), None);
+}

@@ -2,13 +2,12 @@
 //   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Named tuples `(a: A, b: B)` as `NamedTuple.NamedTuple[("a", "b"), (A, B)]`: types, literals
-//! cast from their values tuple, and element selection `x.a` as `._1` on the values tuple, above
-//! 22 elements as `x.apply(i)`.
+//! cast from their values tuple, and element selection `x.a` as `NamedTuple.apply(x)(i)`.
 
 use super::small_tuples::MAX_TUPLE_ARITY;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::TNodeId;
 use syntax::ast::constant::Constant;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
 use tasty::TypeId;
@@ -110,8 +109,8 @@ impl Typer<'_> {
         app
     }
 
-    /// `qual.name` as `qual.$asInstanceOf$[V]._i`, above 22 elements as `qual.apply(i)`, if `qual`
-    /// is a named tuple with element `name` (dotty's `tryNamedTupleSelection`).
+    /// `qual.name` as `NamedTuple.apply(qual)(i)` if `qual` is a named tuple with element `name`
+    /// (dotty's `tryNamedTupleSelection`).
     pub fn named_tuple_select(
         &mut self,
         id: NodeId,
@@ -124,38 +123,35 @@ impl Typer<'_> {
         }
         let tpe = self.tpd.tpe(qual);
         let widened = self.u.widen(tpe);
-        let (names, values) = self.named_tuple_parts(widened)?;
+        let (names, values) = self.derived_named_tuple_parts(widened)?;
         let i = names.iter().position(|n| n == self.text(name.name))?;
         if names.iter().any(|n| n == "apply") {
             return Some(
                 self.error(id, "Named tuples that define an `apply` field do not allow field selection."),
             );
         }
-        if values.len() > MAX_TUPLE_ARITY {
-            return Some(self.indexed_element(id, qual, i, ctx));
-        }
-        let values = self.values_type(&values)?;
-        let cast = self.type_cast(qual, values);
-        let field = format!("_{}", i + 1);
-        let sym =
-            self.type_members_in(values, &field, ctx).into_iter().find(|&s| !self.u.is_type_symbol(s))?;
-        let tpe = self.ref_type(Some(values), sym);
-        let name = TName { name: self.names.intern(&field), is_type: false };
-        Some(self.tpd.node(T::Select { qualifier: cast, name }, self.ast.span(id), Some(tpe), Some(sym)))
+        (i < values.len()).then(|| self.indexed_element(id, qual, i, ctx))
     }
 
-    /// Selection `id` of element `i` of named tuple `qual` as `qual.apply(i)`.
+    /// Selection `id` of element `i` of named tuple `qual` as `NamedTuple.apply(qual)(i)`.
     fn indexed_element(&mut self, id: NodeId, qual: TNodeId, i: usize, ctx: Ctx) -> TNodeId {
         let span = self.ast.span(id);
-        let qualifier = self.spliced(qual);
+        let module = TName { name: self.name("scala.NamedTuple"), is_type: false };
+        let qualifier = self.ast.node(Tree::TypedSplice { sym: module });
         let name = TName { name: self.name("apply"), is_type: false };
         let fun = self.ast.node(Tree::Select { qualifier, name });
+        let tuple = self.spliced(qual);
+        let args = self.ast.list(&[tuple]);
+        let extension = self.ast.node(Tree::Apply { fun, args });
         let index = self.ast.node(Tree::Literal { value: Constant::Int(i as i32) });
         let args = self.ast.list(&[index]);
-        let apply = self.ast.node(Tree::Apply { fun, args });
-        for node in [fun, index, apply] {
-            self.ast.with_span(node, span.to_synthetic());
-        }
+        let apply = self.ast.node(Tree::Apply { fun: extension, args });
+        let qual_span = self.tpd.span(qual);
+        self.ast.with_span(qualifier, qual_span.start_pos().to_synthetic());
+        self.ast.with_span(fun, qual_span);
+        self.ast.with_span(extension, qual_span.to_synthetic());
+        self.ast.with_span(index, qual_span.end_pos().to_synthetic());
+        self.ast.with_span(apply, span);
         let typed = self.typed(apply, Pt::Any, ctx);
         let tpe = self.tpd.tpe(typed);
         // Forces the result type defined; temporary, until #146.

@@ -131,6 +131,7 @@ impl Unpickler<'_> {
         if !member {
             self.u.unenter(s);
         }
+        self.annotate_quoted(s, &mods);
         for p in params {
             if matches!(self.tag(p), PARAM | TYPEPARAM) {
                 self.define_definition(p, s, true)?;
@@ -138,6 +139,10 @@ impl Unpickler<'_> {
         }
         let info = self.u.info(s);
         self.check(info)?;
+        let normalized = crate::typer::seen_from::normalized(self.u, info);
+        if normalized != info {
+            self.u.set_info(s, normalized);
+        }
         Ok(s)
     }
 }

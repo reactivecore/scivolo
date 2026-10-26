@@ -49,7 +49,8 @@ impl Typer<'_> {
         at: Span,
     ) -> Result<Option<TNodeId>, &'static str> {
         let t = self.fully_defined_as(t, true)?;
-        let dealiased = self.u.dealias(t);
+        let normalized = self.u.normalized(t);
+        let dealiased = self.u.dealias(normalized);
         let value = match self.u.types().get(dealiased).clone() {
             Type::Constant(tag, bits) => of_type(tag, bits).map(|c| self.build().literal(c, at)),
             Type::Str(s) => Some(self.build().literal(C::String(s.encode_utf16().collect()), at)),

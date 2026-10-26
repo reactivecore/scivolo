@@ -25,9 +25,6 @@ impl Typer<'_> {
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));
         }
-        if text == "*:" && self.is_large_generic_tuple(qual) {
-            return self.unsupported(id, "generic tuple of more than 22 elements");
-        }
         let (mut converted, mut widened, mut tupled, mut defined) = (false, false, false, false);
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
@@ -79,7 +76,9 @@ impl Typer<'_> {
                 widened = true;
                 continue;
             }
-            if self.extension_visible(&text, ctx) {
+            if self.extension_visible(&text, ctx)
+                && !(self.extensions_reject(qual, &text, ctx) && self.implicit_member_found(qual, &text, ctx))
+            {
                 return self.extension_select(id, qual, name, pt, ctx);
             }
             match self.viewed(qual, Goal::Member(&text), ctx) {

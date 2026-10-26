@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/transform/Getters.scala
 //   compiler/src/dotty/tools/dotc/transform/Mixin.scala
 //! The accessors dotty's `Getters` and `Mixin` give the values of a library trait beyond its
-//! TASTy: each concrete value a getter, a `val` a trait setter.
+//! TASTy: each concrete value a getter, a `var` a setter, a `val` a trait setter.
 
 use super::accessor_names::{accessor_name, trait_setter_name};
 use super::getters::is_const_final;
@@ -27,8 +27,13 @@ pub fn prepare(l: &mut Lower, trait_: SymbolId, span: Span) -> Result<()> {
         }
         let flags = l.u.symbol(value).flags.with(FIELDaccessor);
         l.u.set_flags(value, flags);
-        if !has(l.u, value, MUTABLE) && !has(l.u, value, LAZY) {
-            let info = l.u.info(value);
+        let info = l.u.info(value);
+        if has(l.u, value, MUTABLE) {
+            let setter = format!("{}_=", l.u.symbol(value).name);
+            if l.u.decl(trait_, &setter).is_ok_and(|d| d.is_empty()) {
+                define_setter(l, trait_, &setter, info);
+            }
+        } else if !has(l.u, value, LAZY) {
             let setter = trait_setter_name(l, trait_, &accessor_name(l, value));
             define_setter(l, trait_, &setter, info);
         }

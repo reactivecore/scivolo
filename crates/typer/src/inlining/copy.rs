@@ -31,17 +31,26 @@ pub type Hook<'h, 'a> = dyn FnMut(&mut Inlining<'a>, &TreeTypeMap, TNodeId) -> O
 impl<'a> Inlining<'a> {
     /// `t` with the references of `m` replaced and its local definitions renamed.
     pub fn map_type(&mut self, m: &TreeTypeMap, t: TypeId) -> TypeId {
-        let mapped = self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => match m.refs.get(&s) {
-                Some(&r) => Some(r),
-                None => m.syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
-            },
-            Type::This(c) => {
-                let c = u.class_symbol(c);
-                m.this.iter().find(|&&(cls, _)| c == Some(cls)).map(|&(_, to)| to)
+        let mapped = self.u.map_type(t, &mut |u, part| {
+            if !m.this.is_empty()
+                && matches!(u.types().get(part), Type::Sym(..))
+                && let Some(seen) = super::prefix_seen::class_param_seen(u, &m.this, part)
+            {
+                return Some(seen);
             }
-            _ => None,
+            match *u.types().get(part) {
+                Type::Sym(None, s) => match m.refs.get(&s) {
+                    Some(&r) => Some(r),
+                    None => m.syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
+                },
+                Type::This(c) => {
+                    let c = u.class_symbol(c);
+                    m.this.iter().find(|&&(cls, _)| c == Some(cls)).map(|&(_, to)| to)
+                }
+                _ => None,
+            }
         });
+        let mapped = if mapped == t { t } else { super::prefix_seen::reselected_members(self.u, mapped) };
         match m.classes {
             true => super::copy_classes::rename_members(self.u, &m.syms, mapped),
             false => mapped,
@@ -89,7 +98,7 @@ impl<'a> Inlining<'a> {
                 let tpe = tpe.map(|t| self.map_type(m, t));
                 return Ok(self.tpd.node(T::TypeTree { inferred: false }, span, tpe, None));
             }
-            T::ValDef { .. } if sym.is_some_and(|s| self.u.is_module(s)) => {
+            T::ValDef { .. } if sym.is_some_and(|s| self.u.is_module(s) && m.syms.get(&s) != Some(&s)) => {
                 return Err((span, "inline body with a local object"));
             }
             T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. } | T::TypeDef { .. } => {
@@ -111,6 +120,7 @@ impl<'a> Inlining<'a> {
         let is_class_def =
             matches!(tree, T::TypeDef { rhs, .. } if matches!(self.tpd.tree(rhs), T::Template { .. }));
         let copy = self.tpd.node(tree, span, tpe, sym);
+        self.host.copied_call(t, copy);
         let mut failed = None;
         map_children(self, copy, &mut |i, c| match i.copy(m, c, hook) {
             Ok(n) => n,

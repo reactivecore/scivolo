@@ -118,16 +118,16 @@ impl Unpickler<'_> {
             return Err("application with missing arguments in a library inline body");
         }
         let part = self.tpd.meth_part(fun);
+        let curried = matches!(self.u.types().get(result), Type::Method { .. });
         if self.tpd.sym(part).is_some_and(|s| self.u.symbol(s).name == "<init>") {
-            return match *self.tpd.tree(part) {
-                T::Select { qualifier, .. }
-                    if matches!(self.tpd.tree(qualifier), T::New { .. })
-                        && !matches!(self.u.types().get(result), Type::Method { .. }) =>
-                {
-                    Ok(self.tpd.tpe(qualifier))
+            match *self.tpd.tree(part) {
+                T::Select { qualifier, .. } if matches!(self.tpd.tree(qualifier), T::New { .. }) => {
+                    if !curried {
+                        return Ok(self.tpd.tpe(qualifier));
+                    }
                 }
-                _ => Err("constructor call in a library inline body"),
-            };
+                _ => return Err("constructor call in a library inline body"),
+            }
         }
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         let args: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();

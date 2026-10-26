@@ -12,12 +12,12 @@ trait ReflectTreeSupport { this: QuotesImpl =>
 
 trait ReflectTrees extends reflectModule { self: reflect.type =>
 
-  given TermTypeTest: TypeTest[Tree, Term] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 18)
-  given StatementTypeTest: TypeTest[Tree, Statement] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19)
+  given TermTypeTest: TypeTest[Tree, Term] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 18, 20)
+  given StatementTypeTest: TypeTest[Tree, Statement] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20)
   given ThisTypeTest: TypeTest[Tree, This] = test(18)
 
   object This extends ThisModule {
-    def apply(cls: Symbol): This = refused("This.apply")
+    def apply(cls: Symbol): This = ReflectOps.term(ReflectOps.one("this", ReflectOps.id(cls))).asInstanceOf[This]
     def copy(original: Tree)(qual: Option[String]): This = refused("This.copy")
     def unapply(x: This): Some[Option[String]] = Some(Option(ReflectOps.shape(x).name))
   }
@@ -60,7 +60,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
     }
     def overloaded(qualifier: Term, name: String, targs: List[TypeRepr], args: List[Term], returnType: TypeRepr): Term =
       refused("Select.overloaded")
-    def copy(original: Tree)(qualifier: Term, name: String): Select = refused("Select.copy")
+    def copy(original: Tree)(qualifier: Term, name: String): Select = { ReflectOps.run("copySelect", Array(ReflectOps.id(original), ReflectOps.id(qualifier)), name); ReflectOps.term(QuoteHost.result(0)).asInstanceOf[Select] }
     def unapply(x: Select): (Term, String) = {
       val s = ReflectOps.shape(x)
       (s.child(0).asInstanceOf[Term], s.name)
@@ -136,8 +136,10 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   }
 
   object ValDef extends ValDefModule {
-    def apply(symbol: Symbol, rhs: Option[Term]): ValDef = refused("ValDef.apply")
-    def copy(original: Tree)(name: String, tpt: TypeTree, rhs: Option[Term]): ValDef = refused("ValDef.copy")
+    def apply(symbol: Symbol, rhs: Option[Term]): ValDef =
+      ReflectOps.term(ReflectOps.one("valDef", ReflectOps.id(symbol), rhs.fold(-1)(ReflectOps.id))).asInstanceOf[ValDef]
+    def copy(original: Tree)(name: String, tpt: TypeTree, rhs: Option[Term]): ValDef =
+      ReflectOps.copyDef(original, name, Nil, tpt, rhs).asInstanceOf[ValDef]
     def unapply(vdef: ValDef): (String, TypeTree, Option[Term]) = {
       val s = ReflectOps.shape(vdef)
       (s.name, s.child(0).asInstanceOf[TypeTree], ReflectOps.opt(s.children(1)).asInstanceOf[Option[Term]])
@@ -160,7 +162,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   }
 
   object NamedArg extends NamedArgModule {
-    def apply(name: String, arg: Term): NamedArg = refused("NamedArg.apply")
+    def apply(name: String, arg: Term): NamedArg = { ReflectOps.run("namedArg", Array(ReflectOps.id(arg)), name); ReflectOps.term(QuoteHost.result(0)).asInstanceOf[NamedArg] }
     def copy(original: Tree)(name: String, arg: Term): NamedArg = refused("NamedArg.copy")
     def unapply(x: NamedArg): (String, Term) = {
       val s = ReflectOps.shape(x)

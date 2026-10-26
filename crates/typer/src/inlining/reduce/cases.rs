@@ -98,10 +98,9 @@ impl Reducer<'_, '_> {
         }
         if let Some(g) = guard {
             self.subst(&m, g);
-            let outer = self.i.local_implicits;
-            self.i.local_implicits |= self.implicit && !map.is_empty();
+            let mark = self.with_givens(&bindings);
             let g = self.i.retype(g, self.args, self.owner);
-            self.i.local_implicits = outer;
+            self.i.case_givens.truncate(mark);
             let g = g?;
             match self.i.constant_of(g) {
                 Some(C::Boolean(true)) => {}

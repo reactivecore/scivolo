@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::Kind;
+use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// Whether identifier `qual`'s type has a structural refinement `setter`.
@@ -17,21 +17,47 @@ impl Typer<'_> {
         self.u.term_refinement_named(pre, setter).is_some()
     }
 
-    /// `q.x_=` for typed assignment target `lhs`, `q.x` of tree `lhs_tree`, if `q` has a member
-    /// `x_=` (the setter case of dotty's `typedAssign`).
-    fn setter_select(&mut self, lhs: TNodeId, lhs_tree: NodeId) -> Option<NodeId> {
-        let T::Select { qualifier, name } = *self.tpd.tree(lhs) else { return None };
+    /// `q.x_=` for typed assignment target `lhs`, `q.x` of tree `lhs_tree` with its implicit
+    /// arguments, if `q` has a member `x_=`; `x_=` for a member `x` of an enclosing class, not a
+    /// Java field (the setter case of dotty's `typedAssign`).
+    /// For an identifier, also the class whose setter it must name.
+    fn setter_select(&mut self, lhs: TNodeId, lhs_tree: NodeId) -> Option<(NodeId, Option<SymbolId>)> {
         if self.is_error(lhs) {
             return None;
         }
-        let setter = format!("{}_=", self.text(name.name));
-        let pre = self.tpd.tpe(qualifier);
-        self.members_found(pre, &setter, false)?;
-        let name = TName { name: self.name(&setter), is_type: false };
-        let qualifier = self.spliced(qualifier);
-        let select = self.ast.node(Tree::Select { qualifier, name });
+        let mut core = lhs;
+        while let T::Apply { fun, .. } = *self.tpd.tree(core)
+            && matches!(self.ast.tree(lhs_tree), Tree::Select { .. })
+        {
+            core = fun;
+        }
+        let (select, owner) = match *self.tpd.tree(core) {
+            T::Select { qualifier, name } => {
+                let setter = format!("{}_=", self.text(name.name));
+                let pre = self.tpd.tpe(qualifier);
+                self.members_found(pre, &setter, false)?;
+                let name = TName { name: self.name(&setter), is_type: false };
+                let qualifier = self.spliced(qualifier);
+                (self.ast.node(Tree::Select { qualifier, name }), None)
+            }
+            T::Ident { name } => {
+                let sym = self.tpd.sym(core).filter(|&s| !self.is_java_member(s))?;
+                let owner = self.u.symbol(sym).owner?;
+                let setter = format!("{}_=", self.text(name.name));
+                let has_setter = self.u.is_class(owner) && !self.u.decl(owner, &setter).ok()?.is_empty();
+                has_setter.then_some(())?;
+                let name = TName { name: self.name(&setter), is_type: false };
+                (self.ast.node(Tree::Ident { name }), Some(owner))
+            }
+            _ => return None,
+        };
         self.ast.with_span(select, self.ast.span(lhs_tree));
-        Some(select)
+        Some((select, owner))
+    }
+
+    /// The owner of the method typed call `call` calls.
+    fn called_owner(&self, call: TNodeId) -> Option<SymbolId> {
+        self.u.symbol(self.tpd.sym(self.tpd.meth_part(call))?).owner
     }
 
     /// `x = v` for a variable `x`, or a dynamic `updateDynamic` call typed for `pt` (dotty's
@@ -76,17 +102,24 @@ impl Typer<'_> {
                 self.ast.with_span(call, self.ast.span(id));
                 return self.typed_apply(call, select, args, Pt::Any, ctx);
             }
-            if let Some(setter) = self.setter_select(lhs, lhs_tree) {
+            if let Some((setter, owner)) = self.setter_select(lhs, lhs_tree) {
                 let args = self.ast.list(&[rhs]);
                 let call = self.ast.node(Tree::Apply { fun: setter, args });
                 let span = Span::synthetic(self.ast.span(lhs_tree).start(), self.ast.span(rhs).end());
                 self.ast.with_span(call, span);
-                return self.typed_apply(call, setter, args, Pt::Any, ctx);
+                let typed = self.typed_apply(call, setter, args, Pt::Any, ctx);
+                if owner.is_some_and(|o| self.called_owner(typed) != Some(o)) {
+                    return self.unsupported(id, "setter of a member shadowed by another `_=`");
+                }
+                return typed;
             }
             return self.unsupported(id, "assignment to a non-variable");
         };
         self.complete(var);
-        let info = self.u.info(var);
+        let info = match self.tpd.get(lhs).tpe {
+            Some(t) if matches!(self.u.types().get(t), Type::Sym(Some(_), _)) => self.u.widen(t),
+            _ => self.u.info(var),
+        };
         let rhs = self.typed(rhs, Pt::Type(info), ctx);
         let unit = self.unit_type();
         let span = self.ast.span(id);

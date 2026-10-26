@@ -22,12 +22,10 @@ impl Typer<'_> {
     ) -> Result<Option<TNodeId>, &'static str> {
         let MirrorSource::Class(pre, cls) = source else { return Ok(None) };
         let companion = self.sum_companion(cls);
-        if !self.is_generic_sum(cls, companion.is_some(), ctx)? {
+        if !self.is_generic_sum(cls, (companion.is_some(), pre), ctx)? {
             return Ok(None);
         }
-        if pre.is_some_and(|p| !self.is_plain_prefix(p)) {
-            return Err("sum Mirror of a class selected from a path");
-        }
+        let path = pre.filter(|&p| !self.is_plain_prefix(p));
         let children = self.sealed_children(cls)?;
         let target = match self.u.types().get(formal.mirrored).clone() {
             Type::Lambda { result, .. } => result,
@@ -35,7 +33,14 @@ impl Typer<'_> {
         };
         let mut types = Vec::new();
         for &c in &children {
-            types.push(self.child_type(c, target)?);
+            let prefix = match path {
+                Some(p) => {
+                    let prefix = self.child_prefix(p, cls, c);
+                    Some(prefix.ok_or("sum Mirror of a class selected from a path")?)
+                }
+                None => None,
+            };
+            types.push(self.child_type(c, target, prefix)?);
         }
         let labels: Vec<String> = children.iter().map(|&c| self.u.symbol(c).name.clone()).collect();
         let nested = self.nested_pairs(&types)?;

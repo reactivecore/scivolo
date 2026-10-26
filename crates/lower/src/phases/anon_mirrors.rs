@@ -26,7 +26,11 @@ pub fn anon_mirror_support(
     span: Span,
 ) -> Result<(SymbolId, Vec<TNodeId>)> {
     let mono = l.u.decl(class, "MirroredMonoType").unwrap_or_default().first().copied();
-    let linked = mono.and_then(|m| l.u.alias_of(m)).and_then(|a| l.u.class_symbol(a));
+    let linked = mono.and_then(|m| l.u.alias_of(m)).and_then(|a| {
+        let a = l.u.dealias(a);
+        let a = l.u.normalized(a);
+        l.u.class_symbol(a)
+    });
     let (Some(mono), Some(linked)) = (mono, linked) else {
         return unsupported(span, "anonymous mirror of a type that is no class");
     };

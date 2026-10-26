@@ -186,8 +186,10 @@ impl Gen<'_, '_> {
                 Some(c) => self.this_of(c, span),
                 None => unsupported(span, "`this` of a type that is not a class"),
             },
-            tasty::Type::Sym(_, s) if self.l.u.is_module(s) => Ok(self.gen_module(s)),
-            _ => unsupported(span, "a prefix that is not an object or `this`"),
+            tasty::Type::Sym(_, s) if self.l.u.is_module(s) && crate::symbols::is_static(self.l.u, s) => {
+                Ok(self.gen_module(s))
+            }
+            _ => unsupported(span, "a prefix that is not a static object or `this`"),
         }
     }
 }
