@@ -7,6 +7,7 @@ mod anon_class;
 mod anon_mirrors;
 mod array_apply;
 mod array_literals;
+mod array_wraps;
 mod beta_reduce;
 mod bridges;
 mod build;
