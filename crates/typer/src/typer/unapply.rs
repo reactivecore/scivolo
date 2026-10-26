@@ -253,7 +253,8 @@ impl Typer<'_> {
         }
         let bound = self.maximize_type(arg_type, vars, unapp, ctx)?;
         let tpe = self.zonk(arg_type);
-        if !bound.is_empty() && self.has_wildcard(tpe) {
+        let widened = self.u.widen(sel);
+        if !bound.is_empty() && (self.has_wildcard(widened) || self.has_wildcard(tpe)) {
             return Err("pattern-bound type against a wildcard argument");
         }
         self.add_binders(unapp, &bound);
