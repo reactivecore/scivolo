@@ -230,7 +230,7 @@ fn is_context_apply(l: &mut Lower, t: TNodeId) -> bool {
 }
 
 /// Whether library method `s` is annotated `ContextResultCount`.
-fn is_annotated(l: &Lower, s: SymbolId) -> bool {
+fn is_annotated(l: &mut Lower, s: SymbolId) -> bool {
     l.u.symbol(s).tree.is_some() && l.u.is_annotated(s, "scala.annotation.internal.ContextResultCount")
 }
 

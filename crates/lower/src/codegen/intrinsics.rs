@@ -129,7 +129,7 @@ impl Gen<'_, '_> {
     }
 
     /// `volatile` if the pointer `ptrp` is a volatile value, else unordered.
-    fn memory_order(&self, ptrp: TNodeId, volatile: MemoryOrder) -> Option<MemoryOrder> {
+    fn memory_order(&mut self, ptrp: TNodeId, volatile: MemoryOrder) -> Option<MemoryOrder> {
         let is_volatile = self.l.tpd.sym(ptrp).is_some_and(|s| self.l.u.is_annotated(s, "scala.volatile"));
         Some(if is_volatile { volatile } else { MemoryOrder::Unordered })
     }
