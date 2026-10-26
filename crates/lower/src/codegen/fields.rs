@@ -33,25 +33,52 @@ impl Gen<'_, '_> {
         };
         let defined: Vec<SymbolId> = stats.iter().filter_map(|&s| self.l.tpd.sym(s)).collect();
         fields.sort_by_key(|f| defined.iter().position(|d| d == f).unwrap_or(usize::MAX));
+        fields.retain(|&f| !self.is_scala_static_field(f));
         for f in fields {
-            let pos = self.sym_pos(f, c);
-            let pos = if pos == self.no_pos { class_pos } else { pos };
-            let mutable = has(self.l.u, f, MUTABLE);
-            let attrs = match () {
-                _ if self.l.lazy_fields.iter().any(|lazy| lazy.field == f) => vec![Attr::Volatile],
-                _ if mutable => Vec::new(),
-                _ => vec![Attr::Final],
-            };
-            let attrs = self.field_attrs(f, c, attrs);
-            let info = self.l.u.info(f);
-            let ty = self.gen_type(info);
-            let rhs = self.val(Val::Zero(ty));
-            let name = self.field_name(f);
-            self.defns.push(Defn { name, attrs, pos, kind: DefnKind::Var { ty, rhs } });
-            if has(self.l.u, f, STATIC) {
-                let getter = self.static_getter(f, c, ty, pos);
-                self.defns.push(getter);
-            }
+            self.gen_field(f, c, class_pos);
+        }
+    }
+
+    /// The fields of the `@static` values of the companion object of class `c`, as nscplugin
+    /// generates them with the class `MoveStatics` moved them to.
+    pub fn gen_companion_static_fields(&mut self, c: SymbolId, class_pos: PosId) {
+        if self.l.u.is_module_class(c) {
+            return;
+        }
+        let Some(module) = self.l.u.companion_module(c).and_then(|m| self.l.u.module_class(m)) else {
+            return;
+        };
+        let mut decls = self.l.u.decls(module).unwrap_or_default();
+        decls.retain(|&f| self.is_scala_static_field(f));
+        for f in decls {
+            self.gen_field(f, module, class_pos);
+        }
+    }
+
+    /// Whether `f` is a field for an `@static` value.
+    pub fn is_scala_static_field(&self, f: SymbolId) -> bool {
+        self.is_field(f) && has(self.l.u, f, STATIC) && self.l.u.is_annotated(f, "scala.annotation.static")
+    }
+
+    /// A `var` for field `f` of class `c`, and a static getter if static.
+    fn gen_field(&mut self, f: SymbolId, c: SymbolId, class_pos: PosId) {
+        let pos = self.sym_pos(f, c);
+        let pos = if pos == self.no_pos { class_pos } else { pos };
+        let mutable = has(self.l.u, f, MUTABLE);
+        let attrs = match () {
+            _ if self.l.lazy_fields.iter().any(|lazy| lazy.field == f) => vec![Attr::Volatile],
+            _ if mutable => Vec::new(),
+            _ => vec![Attr::Final],
+        };
+        let attrs = self.field_attrs(f, c, attrs);
+        let info = self.l.u.info(f);
+        let ty = self.gen_type(info);
+        let rhs = self.val(Val::Zero(ty));
+        let name = self.field_name(f);
+        self.defns.push(Defn { name, attrs, pos, kind: DefnKind::Var { ty, rhs } });
+        if has(self.l.u, f, STATIC) {
+            let getter = self.static_getter(f, c, ty, pos);
+            self.defns.push(getter);
         }
     }
 

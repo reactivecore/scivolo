@@ -113,8 +113,8 @@ const CASES: &[(&str, &str)] = &[
         "unapply of an implicit view beside unapplySeq",
     ),
     (
-        "class S\nobject S { @scala.annotation.static val x: Int = 1 }\nobject O { def g = S.x }",
-        "@static values",
+        "class S\nobject S { @scala.annotation.static lazy val x: Int = 1 }\nobject O { def g = S.x }",
+        "@static lazy values",
     ),
     (
         "class S\nobject S { val v = 1; @scala.annotation.static def f = this.v }\nobject O { def g = S.f }",
