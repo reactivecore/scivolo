@@ -50,13 +50,11 @@ impl Typer<'_> {
             let before: Vec<TypeId> = found.iter().flatten().map(|&a| self.tpd.tpe(a)).collect();
             let formal = self.applied_result(*p, (binder, &names), meth, &before);
             match self.implicit_arg(formal, at, ctx, depth) {
+                Err("no implicit argument") if self.defaultable(tree, meth, i, formal) => found.push(None),
                 Err("no implicit argument")
                     if depth > 0 && meth.is_some_and(|m| self.may_default(tree, m, i)) =>
                 {
                     return Err("nested implicit argument left to its default");
-                }
-                Err("no implicit argument") if depth == 0 && self.defaultable(tree, meth, i, formal) => {
-                    found.push(None)
                 }
                 Err(what @ "no implicit argument") if depth == 0 => {
                     return self.missing_given(tree, (name, formal), at, ctx).map(Some).ok_or(what);
