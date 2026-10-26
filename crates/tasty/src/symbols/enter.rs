@@ -71,7 +71,7 @@ impl Universe {
     }
 
     /// Whether an annotation of the class with full name `full` annotates `sym` defined outside
-    /// TASTy, or method `sym` in its TASTy by the class's simple name.
+    /// TASTy, or definition `sym` in its TASTy by the class's simple name.
     pub fn is_annotated(&self, sym: SymbolId, full: &str) -> bool {
         let Some((file, id)) = self.symbol(sym).tree else {
             return self.annotations(sym).iter().any(|&c| self.full_name(c) == full);
