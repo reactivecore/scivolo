@@ -40,7 +40,6 @@ impl Host {
             }
             "baseType" => {
                 let t = self.type_of(arg(0)? as u32)?;
-                let t = self.as_paths(t);
                 let base = super::symbol(arg(1)?)?;
                 let b = self
                     .u
@@ -50,7 +49,6 @@ impl Host {
             }
             "selectType" => {
                 let t = self.type_of(arg(0)? as u32)?;
-                let t = self.as_paths(t);
                 let s = self.reflect().select_type(t, super::symbol(arg(1)?)?);
                 numbers(vec![self.add_type(s) as i32])
             }
@@ -61,7 +59,6 @@ impl Host {
             }
             "isSubtype" | "isSameType" => {
                 let (a, b) = (self.type_of(arg(0)? as u32)?, self.type_of(arg(1)? as u32)?);
-                let (a, b) = (self.as_paths(a), self.as_paths(b));
                 let holds = match op {
                     "isSubtype" => self.u.is_subtype_in(a, b, &mut NoVars),
                     _ => self.u.is_same_type_in(a, b, &mut NoVars),

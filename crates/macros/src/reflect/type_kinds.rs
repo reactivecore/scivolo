@@ -8,12 +8,12 @@
 
 use super::{Answer, UNKNOWN, arg, numbers};
 use crate::host::Host;
-use tasty::{Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Host {
     /// Runs type shape operation `op` on `args`.
     pub fn run_type_kind(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
-        let tpe = |h: &Host| h.type_of(arg(args, 0)? as u32);
+        let tpe = |h: &Host| h.type_shape_of(arg(args, 0)? as u32);
         match op {
             "typeKind" => numbers(vec![self.type_kind(tpe(self)?)]),
             "typeParts" => {
@@ -29,11 +29,10 @@ impl Host {
                         vec![self.package_this(prefix)]
                     }
                     Type::Sym(None, s) => vec![self.qualifier(s)?],
-                    Type::Package(p) => {
-                        let owner = self.u.symbol(p).owner.filter(|_| p != self.u.root());
-                        let this = owner.map(|o| Type::This(self.u.intern_type(Type::Sym(None, o))));
-                        vec![self.u.intern_type(this.unwrap_or(Type::NoPrefix))]
-                    }
+                    Type::Package(p) => match self.u.symbol(p).owner.filter(|_| p != self.u.root()) {
+                        Some(o) => vec![self.package_this_of(o)],
+                        None => vec![self.u.intern_type(Type::NoPrefix)],
+                    },
                     Type::Bounds(lo, hi) | Type::And(lo, hi) | Type::Or(lo, hi, _) => vec![lo, hi],
                     Type::Super(this, parent) | Type::MatchCase(this, parent) => vec![this, parent],
                     Type::Alias(a) => vec![a, a],
@@ -78,26 +77,19 @@ impl Host {
     /// `owner.thisType` of a package member).
     fn package_this(&mut self, t: TypeId) -> TypeId {
         match *self.u.types().get(t) {
-            Type::Package(p) => {
-                let class = self.u.intern_type(Type::Sym(None, p));
-                self.u.intern_type(Type::This(class))
-            }
+            Type::Package(p) => self.package_this_of(p),
             _ => t,
         }
     }
 
-    /// `t` with the `this` of each package `package_this` made the package's path again, as the
-    /// universe's operations take it.
-    pub fn as_paths(&mut self, t: TypeId) -> TypeId {
-        self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-            Type::This(c) => match *u.types().get(c) {
-                Type::Sym(None, p) if u.symbol(p).kind == tasty::Kind::Package => {
-                    Some(u.intern_type(Type::Package(p)))
-                }
-                _ => None,
-            },
-            _ => None,
-        })
+    /// The `this` of package `p`, which the operations other than type tests and extractors
+    /// take as the package's path.
+    pub fn package_this_of(&mut self, p: SymbolId) -> TypeId {
+        let class = self.u.intern_type(Type::Sym(None, p));
+        let this = self.u.intern_type(Type::This(class));
+        let path = self.u.intern_type(Type::Package(p));
+        self.package_paths.insert(this, path);
+        this
     }
 
     fn type_kind(&self, t: TypeId) -> i32 {

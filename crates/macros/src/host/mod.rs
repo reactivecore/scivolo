@@ -55,6 +55,8 @@ pub struct Host {
     pub fresh: FreshNames,
     /// The parameter definitions of the methods `DefDef.apply` defined, by clause.
     pub made_params: std::collections::HashMap<SymbolId, Vec<Vec<TNodeId>>>,
+    /// The `this` types of packages made as prefixes of their members, with the packages' paths.
+    pub package_paths: std::collections::HashMap<TypeId, TypeId>,
 }
 
 impl Host {
@@ -83,6 +85,7 @@ impl Host {
             annotating: false,
             fresh: FreshNames::default(),
             made_params: Default::default(),
+            package_paths: Default::default(),
         }
     }
 
@@ -138,7 +141,14 @@ impl Host {
         quotes.flatten().copied().collect()
     }
 
+    /// Type `id`, the `this` of a package made for a member's prefix as the package's path.
     pub fn type_of(&self, id: u32) -> Result<TypeId, &'static str> {
+        let t = self.type_shape_of(id)?;
+        Ok(self.package_paths.get(&t).copied().unwrap_or(t))
+    }
+
+    /// Type `id` as the type tests and extractors see it.
+    pub fn type_shape_of(&self, id: u32) -> Result<TypeId, &'static str> {
         self.types.get(id as usize).copied().ok_or("a Type the frontend did not make")
     }
 

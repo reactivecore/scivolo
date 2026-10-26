@@ -26,7 +26,6 @@ impl Host {
             }
             "appliedTo" => {
                 let tycon = tpe(self, 0)?;
-                let tycon = self.as_paths(tycon);
                 let targs = (1..args.len()).map(|i| tpe(self, i)).collect::<Result<Vec<_>, _>>()?;
                 let t = match targs.is_empty() {
                     true => tycon,
@@ -77,13 +76,11 @@ impl Host {
             }
             "memberType" => {
                 let (t, s) = (tpe(self, 0)?, symbol(arg(args, 1)?)?);
-                let t = self.as_paths(t);
                 let m = self.repeated_param(s)?.unwrap_or_else(|| self.u.term_type(Some(t), s));
                 numbers(vec![self.add_type(m) as i32])
             }
             "termRef" => {
                 let qual = tpe(self, 0)?;
-                let qual = self.as_paths(qual);
                 let t = self.reflect().term_ref(qual, name)?;
                 numbers(vec![self.add_type(t) as i32])
             }
@@ -112,7 +109,8 @@ impl Host {
         let package = |h: &Host, s| h.u.symbol(s).kind == Kind::Package;
         let t = match self.u.symbol(s).owner {
             _ if package(self, s) => Type::NoPrefix,
-            Some(o) if package(self, o) || self.u.is_class(o) && self.u.is_static_symbol(s) => {
+            Some(o) if package(self, o) => return Ok(self.package_this_of(o)),
+            Some(o) if self.u.is_class(o) && self.u.is_static_symbol(s) => {
                 Type::This(self.u.intern_type(Type::Sym(None, o)))
             }
             Some(o) if self.u.is_class(o) => {
