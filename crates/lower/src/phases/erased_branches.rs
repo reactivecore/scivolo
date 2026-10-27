@@ -73,6 +73,10 @@ pub fn typed_branches(
                 classes.push(e);
             }
         }
+        if let [class @ Erased::Array(_)] = classes.as_slice() {
+            l.tpd.get_mut(t).tpe = Some(type_of(l, class));
+            return Ok(out);
+        }
         let mut lub: Option<tasty::TypeId> = None;
         for class in &classes {
             if !matches!(class, Erased::Class(_)) {

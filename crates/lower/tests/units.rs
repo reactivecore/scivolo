@@ -36,3 +36,46 @@ fn sources_refer_to_each_other_and_errors_name_their_file() {
     let error = compile("import scala.language.`3.9-migration`\nobject A", "object B");
     assert!(error.expect_err("a language import").contains("language imports"));
 }
+
+#[test]
+fn array_branches_in_reference_contexts() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let source = SourceFile::new(
+        "arrays.scala",
+        "object Arrays { def f(c: Boolean, a: Array[Int], b: Array[Int]): AnyRef = if c then a else b; \
+         def g(a: Array[String]): AnyRef = try a catch { case _: Exception => a } }",
+    );
+    let mut u = Universe::open(&jars).unwrap();
+    lower::compile(&mut u, &source, &[]).expect("array branches lower");
+}
+
+#[test]
+fn default_alignment_is_emitted_on_fields() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let mut u = Universe::open(&jars).unwrap();
+    let source =
+        SourceFile::new("align.scala", "@scala.scalanative.annotation.align class A { var x: Long = 0L }");
+    let files = lower::compile(&mut u, &source, &[]).unwrap();
+    let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
+    let mut reader = nir::Reader::new(&files[0].bytes, &mut caches, &mut pool).unwrap();
+    let defns = reader.all().unwrap();
+    assert!(
+        defns.iter().any(|d| d.attrs.iter().any(|a| matches!(a, nir::Attr::Align { size: -1, group: None })))
+    );
+    let mut u = Universe::open(&jars).unwrap();
+    let source = SourceFile::new(
+        "align.scala",
+        "@scala.scalanative.annotation.align(64) class A { var x: Long = 0L }",
+    );
+    assert!(lower::compile(&mut u, &source, &[]).err().unwrap().what.contains("with arguments"));
+}

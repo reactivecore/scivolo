@@ -6,6 +6,7 @@ pub(crate) mod annotations;
 mod apply;
 mod args;
 mod array;
+mod attrs;
 mod body;
 mod branch;
 mod buf;

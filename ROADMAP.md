@@ -150,6 +150,9 @@ slower meanwhile:
    (977 of 1,063 NIR files identical); nativelib 77 of 103; posixlib 57; windowslib 32.
    Done: G1, G2, G3, G4 (intrinsics, `CFuncPtr`, `c"…"`, link-time conditions, `@struct`,
    ADR 0045), G5, G6a, G6b in part, G6c. Next: extern varargs, `@align`, SafeZone.
+   2026-10-27: same-array branches and default `@align` lower; against the 3.9.0 oracle nativelib
+   lowers 87 of 103, clib 17 of 21, posixlib 57 of 67, javalib 487 of 601, auxlib 6 of 15. `lib-compile` also
+   reports oracle NIR files absent from the generated set. Windows remains out of scope.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
