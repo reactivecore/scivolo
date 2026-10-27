@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap",
  "libc",
@@ -642,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-aot"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap",
  "cranelift-codegen",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-libimage"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "libc",
  "rustc-hash",
@@ -673,7 +673,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-libs"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "scivolo-libimage",
  "scivolo-tasty",
@@ -682,7 +682,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-lower"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap",
  "rustc-hash",
@@ -697,7 +697,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-macros"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "scivolo-libs",
  "scivolo-syntax",
@@ -708,14 +708,14 @@ dependencies = [
 
 [[package]]
 name = "scivolo-nir"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "rustc-hash",
 ]
 
 [[package]]
 name = "scivolo-nir-dump"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap",
  "rustc-hash",
@@ -725,7 +725,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-repl"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "libc",
  "scivolo-libimage",
@@ -740,11 +740,11 @@ dependencies = [
 
 [[package]]
 name = "scivolo-snrt"
-version = "0.1.2"
+version = "0.1.3"
 
 [[package]]
 name = "scivolo-syntax"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap",
  "hashbrown 0.17.1",
@@ -754,7 +754,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-tasty"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "md-5",
  "rustc-hash",
@@ -765,7 +765,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-typer"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap",
  "rustc-hash",
@@ -775,7 +775,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-vm"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "corosensei",
  "libc",
