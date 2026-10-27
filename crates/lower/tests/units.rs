@@ -79,3 +79,24 @@ fn default_alignment_is_emitted_on_fields() {
     );
     assert!(lower::compile(&mut u, &source, &[]).err().unwrap().what.contains("with arguments"));
 }
+
+#[test]
+fn reads_an_extern_field_from_the_library() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let source =
+        SourceFile::new("extern.scala", "object E { def read = scala.scalanative.posix.unistd.environ }");
+    let mut u = Universe::open(&jars).unwrap();
+    let files = lower::compile(&mut u, &source, &[]).unwrap();
+    let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
+    let mut reader =
+        nir::Reader::new(&files.iter().find(|f| f.name == "E$").unwrap().bytes, &mut caches, &mut pool)
+            .unwrap();
+    let defs = reader.all().unwrap();
+    let dump = defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect::<Vec<_>>().join("\n");
+    assert!(dump.contains("load[ptr]") && dump.contains("::extern environ"), "{dump}");
+}

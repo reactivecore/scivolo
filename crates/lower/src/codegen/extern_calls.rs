@@ -7,7 +7,7 @@ use super::Gen;
 use super::externs::unboxed;
 use crate::symbols::has;
 use crate::{Result, unsupported};
-use nir::{Op, Type, TypeId, Val, ValId};
+use nir::{MemoryOrder, Op, Type, TypeId, Val, ValId};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
 use tasty::{Kind, SymbolId};
@@ -17,7 +17,7 @@ impl Gen<'_, '_> {
     /// A call of extern method `sym` with `args`: unboxed arguments, the result boxed back.
     pub fn call_extern(&mut self, sym: SymbolId, args: &[TNodeId], span: Span) -> Result<ValId> {
         if has(self.l.u, sym, FIELDaccessor) || self.l.u.symbol(sym).kind != Kind::Def {
-            return unsupported(span, "extern fields");
+            return self.load_extern_field(sym, args, span);
         }
         let ty = self.extern_sig(sym, span)?;
         let Type::Function(params, _) = self.pool.ty(ty).clone() else { unreachable!("a method type") };
@@ -46,6 +46,26 @@ impl Gen<'_, '_> {
         let ptr_ty = self.ty(Type::Ptr);
         let ptr = self.val(Val::Global(name, ptr_ty));
         let result = self.emit(Op::Call { ty, ptr, args: values });
+        Ok(self.extern_result(orig_ret, result))
+    }
+
+    fn load_extern_field(&mut self, sym: SymbolId, args: &[TNodeId], span: Span) -> Result<ValId> {
+        if !args.is_empty() {
+            return unsupported(span, "extern field setters");
+        }
+        let ty = self.extern_sig(sym, span)?;
+        let Type::Function(params, ret) = self.pool.ty(ty).clone() else { unreachable!("a method type") };
+        if !params.is_empty() {
+            return unsupported(span, "extern field setters");
+        }
+        let orig = self.method_sig(sym, true);
+        let Type::Function(_, orig_ret) = self.pool.ty(orig).clone() else { unreachable!("a method type") };
+        let owner = self.l.u.symbol(sym).owner.expect("a field's owner");
+        let name = self.extern_name(owner, sym, span)?;
+        let ptr_ty = self.ty(Type::Ptr);
+        let ptr = self.val(Val::Global(name, ptr_ty));
+        let order = self.l.u.is_annotated(sym, "scala.volatile").then_some(MemoryOrder::Acquire);
+        let result = self.emit(Op::Load { ty: ret, ptr, order });
         Ok(self.extern_result(orig_ret, result))
     }
 
