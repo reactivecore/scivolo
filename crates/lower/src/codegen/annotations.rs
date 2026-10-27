@@ -21,6 +21,7 @@ enum Gives {
     Named(fn(StrId) -> Attr),
     /// An attribute of the fields of what it annotates, a field or a class.
     Field(fn() -> Attr),
+    /// The default `align` attribute of the fields of what it annotates, a field or a class.
     Align,
     /// The name of an extern definition, its string argument.
     Id,
