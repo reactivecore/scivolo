@@ -13,6 +13,9 @@ impl Gen<'_, '_> {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, result, .. } => {
                     for (_, param) in params {
+                        if self.l.u.is_erased_param(param) {
+                            continue;
+                        }
                         let is_repeated = match self.l.u.types().get(param).clone() {
                             Type::Applied(c, _) => self
                                 .l

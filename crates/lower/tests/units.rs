@@ -127,4 +127,10 @@ fn extern_vararg_declarations() {
         nir::DefnKind::Declare { ty } => pool.is_variadic(ty),
         _ => false,
     }));
+    let source = SourceFile::new(
+        "erased.scala",
+        "import language.experimental.erasedDefinitions\nimport scala.scalanative.unsafe.*\n@extern object C { def f(erased x: Int, xs: CVarArg*): CInt = extern }",
+    );
+    let mut u = Universe::open(&jars).unwrap();
+    lower::compile(&mut u, &source, &[]).expect("erased parameters do not count in the extern signature");
 }
