@@ -4,12 +4,11 @@
 
 use super::Gen;
 use crate::phases::adapt::from_start;
-use crate::symbols::{has, is_extern, is_java_static};
+use crate::symbols::{is_extern, is_java_static};
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
 use syntax::ast::Span;
-use tasty::tags::FIELDaccessor;
-use tasty::{Kind, SymbolId};
+use tasty::SymbolId;
 use typer::tpd::{List, TNodeId, Tree};
 
 /// The receiver of a call: a tree, or the prefix of an identifier's type at the identifier's
@@ -113,17 +112,12 @@ impl Gen<'_, '_> {
         args: &[TNodeId],
         span: Span,
     ) -> Result<ValId> {
-        if self.is_reflective(sym, "selectDynamic") {
-            return self.gen_reflective_select(sym, recv, args, span);
-        }
-        if self.is_reflective(sym, "applyDynamic") {
-            return self.gen_reflective_apply(sym, recv, args, span);
+        if let Some(v) = self.gen_reflective(sym, recv, args, span)? {
+            return Ok(v);
         }
         self.check_call(sym, span)?;
-        if is_extern(self.l.u, sym)
-            && (has(self.l.u, sym, FIELDaccessor) || self.l.u.symbol(sym).kind != Kind::Def)
-        {
-            return self.call_extern(sym, args, span);
+        if self.is_extern_field(sym) {
+            return self.load_extern_field(sym, args, span);
         }
         if is_java_static(self.l.u, sym) {
             let owner = match recv {

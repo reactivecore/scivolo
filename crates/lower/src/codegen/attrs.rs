@@ -3,7 +3,24 @@
 
 use nir::Attr;
 
-pub fn rank(a: &Attr) -> u8 {
+/// `attrs` as Scala Native's `Attrs.fromSeq(attrs).toSeq`: the last of each kind of inlining,
+/// specialization and optimization, each flag once, links and definitions last.
+pub fn canonical(attrs: Vec<Attr>) -> Vec<Attr> {
+    let mut out: Vec<Attr> = Vec::new();
+    for a in attrs {
+        let r = rank(&a);
+        let repeatable = matches!(a, Attr::Link(_) | Attr::Define(_));
+        match out.iter().position(|o| !repeatable && rank(o) == r) {
+            Some(i) => out[i] = a,
+            None => out.push(a),
+        }
+    }
+    out.retain(|a| !matches!(a, Attr::MayInline | Attr::MaySpecialize | Attr::UnOpt));
+    out.sort_by_key(rank);
+    out
+}
+
+fn rank(a: &Attr) -> u8 {
     match a {
         Attr::MayInline | Attr::InlineHint | Attr::NoInline | Attr::AlwaysInline => 0,
         Attr::MaySpecialize | Attr::NoSpecialize => 1,

@@ -48,7 +48,9 @@ fn array_branches_in_reference_contexts() {
     let source = SourceFile::new(
         "arrays.scala",
         "object Arrays { def f(c: Boolean, a: Array[Int], b: Array[Int]): AnyRef = if c then a else b; \
-         def g(a: Array[String]): AnyRef = try a catch { case _: Exception => a } }",
+         def g(a: Array[String]): AnyRef = try a catch { case _: Exception => a }; \
+         def h(c: Boolean, a: Array[Int], b: Array[String]): AnyRef = if c then a else b; \
+         def k(c: Boolean): Any = if c then Array(1) else \"s\" }",
     );
     let mut u = Universe::open(&jars).unwrap();
     lower::compile(&mut u, &source, &[]).expect("array branches lower");
@@ -90,7 +92,9 @@ fn reads_an_extern_field_from_the_library() {
     }
     let source = SourceFile::new(
         "extern.scala",
-        "object E { def recv: scala.scalanative.posix.unistd.type = { println(\"receiver\"); scala.scalanative.posix.unistd }; def read = recv.environ }",
+        "import scala.scalanative.posix.unistd.*\n\
+         object E { def recv: scala.scalanative.posix.unistd.type = { println(\"receiver\"); scala.scalanative.posix.unistd }; \
+         def read = recv.environ; def imported = environ; def write = { recv.environ = null } }",
     );
     let mut u = Universe::open(&jars).unwrap();
     let files = lower::compile(&mut u, &source, &[]).unwrap();
@@ -100,7 +104,9 @@ fn reads_an_extern_field_from_the_library() {
             .unwrap();
     let defs = reader.all().unwrap();
     let dump = defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect::<Vec<_>>().join("\n");
-    assert!(dump.contains("load[ptr]") && dump.contains("::extern environ"), "{dump}");
+    assert_eq!(dump.matches("load[ptr]").count(), 2, "{dump}");
+    assert_eq!(dump.matches("store[ptr]").count(), 1, "{dump}");
+    assert!(dump.contains("::extern environ"), "{dump}");
     assert_eq!(dump.matches("recv()").count(), 1, "{dump}");
 }
 

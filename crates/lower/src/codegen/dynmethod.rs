@@ -13,15 +13,33 @@ use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
+    /// A call of `selectDynamic` or `applyDynamic` of `scala.reflect.Selectable`; None for another
+    /// method `sym`.
+    pub fn gen_reflective(
+        &mut self,
+        sym: SymbolId,
+        recv: Receiver,
+        args: &[TNodeId],
+        span: Span,
+    ) -> Result<Option<ValId>> {
+        if self.is_reflective(sym, "selectDynamic") {
+            return self.gen_reflective_select(sym, recv, args, span).map(Some);
+        }
+        if self.is_reflective(sym, "applyDynamic") {
+            return self.gen_reflective_apply(sym, recv, args, span).map(Some);
+        }
+        Ok(None)
+    }
+
     /// Whether `sym` is method `name` of `scala.reflect.Selectable`.
-    pub fn is_reflective(&self, sym: SymbolId, name: &str) -> bool {
+    fn is_reflective(&self, sym: SymbolId, name: &str) -> bool {
         let s = self.l.u.symbol(sym);
         s.name == name && s.owner.is_some_and(|o| self.l.u.full_name(o) == "scala.reflect.Selectable")
     }
 
     /// `recv.selectDynamic("name")` of `sym`: the proxy of member `name` of `recv.selectedValue`,
     /// called with no arguments.
-    pub fn gen_reflective_select(
+    fn gen_reflective_select(
         &mut self,
         sym: SymbolId,
         recv: Receiver,
@@ -37,7 +55,7 @@ impl Gen<'_, '_> {
     /// `recv.applyDynamic("name", classOf[P1], …)(args)` of `sym`, its argument lists flattened:
     /// the proxy of member `name` with parameter types `P1, …` of `recv.selectedValue`, called
     /// with `args`.
-    pub fn gen_reflective_apply(
+    fn gen_reflective_apply(
         &mut self,
         sym: SymbolId,
         recv: Receiver,

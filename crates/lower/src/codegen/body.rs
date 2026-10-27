@@ -4,7 +4,7 @@
 //! `genMethodBody`).
 
 use super::Gen;
-use super::annotations::canonical;
+use super::attrs::canonical;
 use super::dead::remove_dead_blocks;
 use super::linktime::RESOLVED_AT_LINKTIME;
 use super::method::Method;
