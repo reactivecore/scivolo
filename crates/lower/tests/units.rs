@@ -88,8 +88,10 @@ fn reads_an_extern_field_from_the_library() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let source =
-        SourceFile::new("extern.scala", "object E { def read = scala.scalanative.posix.unistd.environ }");
+    let source = SourceFile::new(
+        "extern.scala",
+        "object E { def recv: scala.scalanative.posix.unistd.type = { println(\"receiver\"); scala.scalanative.posix.unistd }; def read = recv.environ }",
+    );
     let mut u = Universe::open(&jars).unwrap();
     let files = lower::compile(&mut u, &source, &[]).unwrap();
     let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
@@ -99,4 +101,30 @@ fn reads_an_extern_field_from_the_library() {
     let defs = reader.all().unwrap();
     let dump = defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect::<Vec<_>>().join("\n");
     assert!(dump.contains("load[ptr]") && dump.contains("::extern environ"), "{dump}");
+    assert_eq!(dump.matches("recv()").count(), 1, "{dump}");
+}
+
+#[test]
+fn extern_vararg_declarations() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let source = SourceFile::new(
+        "varargs.scala",
+        "import scala.scalanative.unsafe.*\n@extern object libc { def printf(f: CString, xs: CVarArg*): CInt = extern }",
+    );
+    let mut u = Universe::open(&jars).unwrap();
+    let files = lower::compile(&mut u, &source, &[]).unwrap();
+    let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
+    let mut reader =
+        nir::Reader::new(&files.iter().find(|f| f.name == "libc$").unwrap().bytes, &mut caches, &mut pool)
+            .unwrap();
+    let defs = reader.all().unwrap();
+    assert!(defs.iter().any(|d| match d.kind {
+        nir::DefnKind::Declare { ty } => pool.is_variadic(ty),
+        _ => false,
+    }));
 }

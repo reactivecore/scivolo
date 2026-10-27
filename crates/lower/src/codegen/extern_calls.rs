@@ -21,6 +21,9 @@ impl Gen<'_, '_> {
         }
         let ty = self.extern_sig(sym, span)?;
         let Type::Function(params, _) = self.pool.ty(ty).clone() else { unreachable!("a method type") };
+        if params.iter().any(|&p| matches!(self.pool.ty(p), Type::Vararg)) {
+            return unsupported(span, "extern calls with variable arguments");
+        }
         let orig = self.method_sig(sym, true);
         let Type::Function(orig_params, orig_ret) = self.pool.ty(orig).clone() else {
             unreachable!("a method type")

@@ -26,6 +26,7 @@ mod equality;
 mod erased;
 mod expr;
 mod extern_calls;
+mod extern_varargs;
 mod externs;
 mod fields;
 mod finally;
