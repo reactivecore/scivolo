@@ -7,7 +7,7 @@ use super::Reflect;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::type_apply::instantiate_poly;
 use tasty::tags::CLASSconst;
-use tasty::{Type, TypeId};
+use tasty::{Binding, Type, TypeId};
 
 impl Reflect<'_> {
     /// `Apply(fun, args)` (dotty's `tpd.Apply`), of the result of `fun`'s method type for the
@@ -15,13 +15,13 @@ impl Reflect<'_> {
     pub fn apply(&mut self, fun: TNodeId, args: &[TNodeId]) -> Result<TNodeId, &'static str> {
         let span = self.span;
         let info = self.u.widen(self.tpd.tpe(fun));
-        let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
+        let Some(Binding { binder, params, result, .. }) = self.u.method(info) else {
             return Err("Apply of a term that takes no arguments");
         };
         if params.len() != args.len() {
             return Err("Apply with another number of arguments than parameters");
         }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         let tpes: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         let meth = self.tpd.sym(self.tpd.meth_part(fun));
         let tpe =
@@ -50,13 +50,13 @@ impl Reflect<'_> {
     pub fn type_apply(&mut self, fun: TNodeId, tpts: &[TNodeId]) -> Result<TNodeId, &'static str> {
         let refused = "TypeApply of a term that takes no such type arguments";
         let info = self.u.widen(self.tpd.tpe(fun));
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+        let Some(Binding { binder, params, result, .. }) = self.u.poly(info) else {
             return Err(refused);
         };
         if params.len() != tpts.len() {
             return Err(refused);
         }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         let args: Vec<TypeId> = tpts.iter().map(|&t| self.tpd.tpe(t)).collect();
         let tpe = instantiate_poly(self.u, result, (binder, &names), &args, self.tpd.sym(fun));
         let span = self.span;

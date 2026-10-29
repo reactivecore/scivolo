@@ -5,7 +5,7 @@
 
 use super::Reflect;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Type, TypeId};
+use tasty::{Binding, Type, TypeId};
 
 impl Reflect<'_> {
     /// `{ def; closure(def) }` of method definition `def` with one clause of parameters (dotty's
@@ -15,13 +15,13 @@ impl Reflect<'_> {
         let meth = self.tpd.sym(def).filter(|_| matches!(self.tpd.tree(def), T::DefDef { .. }));
         let meth = meth.ok_or("Lambda.apply of another tree than a method definition")?;
         let info = self.u.info(meth);
-        let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() else {
+        let Some(Binding { params, result, implicit: false, .. }) = self.u.method(info) else {
             return Err("Lambda.apply of another type than a method type");
         };
         if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
             return Err("Lambda.apply of a curried method type");
         }
-        let mut types: Vec<TypeId> = params.into_iter().map(|(_, t)| t).collect();
+        let mut types: Vec<TypeId> = params.iter().map(|&(_, t)| t).collect();
         let class = self.u.class_ref(&format!("scala.Function{}", types.len()));
         types.push(result);
         let fun_tpe = self.u.intern_type(Type::Applied(class, types));

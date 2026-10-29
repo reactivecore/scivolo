@@ -10,7 +10,7 @@ use super::view_kinds::ViewKind;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::tags::PRIVATE;
-use tasty::{Type, TypeId};
+use tasty::{Binding, Type, TypeId};
 
 /// What a conversion's result must offer.
 #[derive(Clone, Copy)]
@@ -121,7 +121,7 @@ impl Typer<'_> {
         }
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-        let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() else {
+        let Some(Binding { params, result, implicit: false, .. }) = self.u.method(info) else {
             return Err("not a conversion");
         };
         let [(_, mut param)] = params[..] else { return Err("not a conversion") };
