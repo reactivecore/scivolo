@@ -29,7 +29,7 @@ pub fn flatten_reference(l: &mut Lower, t: TNodeId, m: SymbolId) -> Option<(usiz
             return None;
         }
         let function = l.u.dealias(result);
-        let Type::Applied(_, args) = l.u.types().get(function).clone() else { return None };
+        let args = l.u.applied(function)?.1.to_vec();
         let (&last, params) = args.split_last()?;
         let binder = l.u.fresh_binder();
         let params = params.iter().map(|&p| (String::new(), p)).collect();

@@ -109,10 +109,10 @@ fn formals(l: &mut Lower, mut fun: TNodeId) -> (Vec<tasty::TypeId>, bool) {
     };
     let mut t = l.u.widen(method);
     loop {
-        match l.u.types().get(t).clone() {
-            Type::Poly { result, .. } => t = result,
-            Type::Method { result, .. } if clause > 0 => (t, clause) = (result, clause - 1),
-            Type::Method { params, .. } => return (params.into_iter().map(|(_, p)| p).collect(), false),
+        match l.u.types().get(t) {
+            Type::Poly { result, .. } => t = *result,
+            Type::Method { result, .. } if clause > 0 => (t, clause) = (*result, clause - 1),
+            Type::Method { params, .. } => return (params.iter().map(|&(_, p)| p).collect(), false),
             _ => return (Vec::new(), false),
         }
     }

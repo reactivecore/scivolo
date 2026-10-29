@@ -84,10 +84,8 @@ fn forwarder(l: &mut Lower, cls: SymbolId, method: SymbolId, anon: SymbolId, spa
 /// The constructor of class `c` taking no arguments, or only repeated ones.
 fn no_arg_constructor(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
     l.u.decl(c, "<init>").unwrap_or_default().into_iter().find(|&ctor| {
-        let mut info = l.u.info(ctor);
-        if let Type::Poly { result, .. } = *l.u.types().get(info) {
-            info = result;
-        }
+        let info = l.u.info(ctor);
+        let info = l.u.strip_poly(info);
         let Type::Method { params, result, .. } = l.u.types().get(info).clone() else { return false };
         let no_args = match params[..] {
             [] => true,

@@ -158,8 +158,8 @@ fn int_param(u: &mut Universe, class: SymbolId, first: SymbolId) -> Result<Symbo
     let ctors = u.decl(class, "<init>").map_err(|e| e.to_string())?;
     let int = |u: &mut Universe, m: SymbolId| {
         let info = u.info(m);
-        let Type::Method { params, .. } = u.types().get(info).clone() else { return false };
-        params.len() == 1 && u.class_symbol(params[0].1).is_some_and(|c| u.full_name(c) == "scala.Int")
+        let Some(&[(_, p)]) = u.method(info).map(|m| m.params) else { return false };
+        u.class_symbol(p).is_some_and(|c| u.full_name(c) == "scala.Int")
     };
     Ok(ctors.into_iter().find(|&c| int(u, c)).unwrap_or(first))
 }

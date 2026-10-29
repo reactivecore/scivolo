@@ -114,10 +114,7 @@ pub fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
         _ => from_start(l.tpd.span(t)),
     };
     let widened = l.u.widen(l.tpd.tpe(t));
-    let tpe = match l.u.types().get(widened).clone() {
-        tasty::Type::Method { params, result, .. } if params.is_empty() => result,
-        _ => widened,
-    };
+    let tpe = l.u.method(widened).filter(|m| m.params.is_empty()).map_or(widened, |m| m.result);
     l.apply(t, &[], tpe, span)
 }
 

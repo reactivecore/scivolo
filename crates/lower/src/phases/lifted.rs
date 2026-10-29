@@ -80,10 +80,7 @@ fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, Ty
 /// The type of local method `m` past its type parameters.
 pub fn value_info(l: &mut Lower, m: SymbolId) -> TypeId {
     let info = l.u.info(m);
-    match *l.u.types().get(info) {
-        Type::Poly { result, .. } => result,
-        _ => info,
-    }
+    l.u.strip_poly(info)
 }
 
 /// Lifts named `methods` of `functions` of `class` of definition `td`, inner functions first,

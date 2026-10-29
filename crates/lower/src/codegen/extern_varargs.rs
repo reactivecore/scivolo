@@ -16,7 +16,7 @@ impl Gen<'_, '_> {
                         if self.l.u.is_erased_param(param) {
                             continue;
                         }
-                        let is_repeated = match self.l.u.types().get(param).clone() {
+                        let is_repeated = match *self.l.u.types().get(param) {
                             Type::Applied(c, _) => self
                                 .l
                                 .u

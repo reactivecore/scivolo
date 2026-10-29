@@ -21,8 +21,8 @@ impl Translator<'_, '_> {
         let selectors = self.product_selectors(tpe, true)?;
         let Some(&last) = selectors.last() else { return Ok(None) };
         let info = self.l.u.member_info(tpe, last);
-        let last = match self.l.u.types().get(info).clone() {
-            Type::Method { params, result, .. } if params.is_empty() => result,
+        let last = match *self.l.u.types().get(info) {
+            Type::Method { ref params, result, .. } if params.is_empty() => result,
             Type::ByName(result) => result,
             _ => info,
         };

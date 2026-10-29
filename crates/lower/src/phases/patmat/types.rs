@@ -10,7 +10,7 @@ use crate::phases::lazy_trees::dup;
 use crate::phases::outer_tests::{OuterTest, outer_test};
 use crate::phases::type_tests::singletons::{is_instance, singleton};
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -45,8 +45,7 @@ impl Translator<'_, '_> {
     pub fn named_tuple_values(&mut self, t: TypeId) -> Option<TypeId> {
         let widened = self.l.u.widen(t);
         let dealiased = self.l.u.dealias(widened);
-        let Type::Applied(tycon, args) = self.l.u.types().get(dealiased).clone() else { return None };
-        let [_, values] = args[..] else { return None };
+        let Some((tycon, &[_, values])) = self.l.u.applied(dealiased) else { return None };
         let nt = self.l.u.referenced(tycon)?;
         (self.l.u.full_name(nt) == "scala.NamedTuple$.NamedTuple").then_some(values)
     }

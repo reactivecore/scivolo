@@ -97,7 +97,7 @@ fn is_outer_sym(l: &Lower, class: SymbolId, s: SymbolId) -> bool {
 }
 
 fn is_outer_ref(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
-    match l.u.types().get(tpe).clone() {
+    match *l.u.types().get(tpe) {
         Type::This(c) => l.u.class_symbol(c).is_some_and(|c| is_outer_sym(l, class, c)),
         Type::Sym(_, s) if !l.u.symbol(s).kind.is_term() => false,
         Type::Sym(Some(pre), s) if !matches!(l.u.types().get(pre), Type::NoPrefix) => {
@@ -116,7 +116,7 @@ fn is_outer_ref(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
 }
 
 fn has_outer_prefix(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
-    match l.u.types().get(tpe).clone() {
+    match *l.u.types().get(tpe) {
         Type::Applied(tycon, _) => has_outer_prefix(l, class, tycon),
         Type::Sym(Some(pre), _) | Type::TypeRef(pre, _) => is_outer_ref(l, class, pre),
         _ => false,
@@ -124,7 +124,7 @@ fn has_outer_prefix(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
 }
 
 fn contains_outer_refs_at_top_level(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
-    match l.u.types().get(tpe).clone() {
+    match *l.u.types().get(tpe) {
         Type::And(a, b) | Type::Or(a, b, _) => {
             contains_outer_refs_at_top_level(l, class, a) || contains_outer_refs_at_top_level(l, class, b)
         }

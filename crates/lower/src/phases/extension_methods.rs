@@ -12,7 +12,7 @@ use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId};
 use typer::RETAINED_BODY;
 use typer::tpd::{TNodeId, Tree};
 
@@ -197,11 +197,8 @@ fn rewired_call(l: &mut Lower, module: SymbolId, m: SymbolId, qualifier: TNodeId
     let ext = extension(l, m).expect("the extension method of a value class method");
     let this = l.this(module, Span::NONE);
     let fun = l.select(this, ext, Span::NONE);
-    let mut info = l.u.info(ext);
-    if let Type::Poly { result, .. } = *l.u.types().get(info) {
-        info = result;
-    }
-    let tpe = l.u.result_type(info);
+    let info = l.u.info(ext);
+    let tpe = l.u.result_type(l.u.strip_poly(info));
     let span = l.tpd.span(qualifier);
     l.apply(fun, &[qualifier], tpe, span)
 }
@@ -225,10 +222,8 @@ fn forwarder(l: &mut Lower, class: SymbolId, ext: SymbolId, params: &[Vec<Symbol
     let module = l.u.companion_module(class).expect("a value class's companion");
     let module_ref = l.ident(module, Span::NONE);
     let mut call = l.select(module_ref, ext, Span::NONE);
-    let mut tpe = l.u.info(ext);
-    if let Type::Poly { result, .. } = *l.u.types().get(tpe) {
-        tpe = result;
-    }
+    let tpe = l.u.info(ext);
+    let mut tpe = l.u.strip_poly(tpe);
     let this = l.this(class, Span::NONE);
     tpe = l.u.result_type(tpe);
     call = l.apply(call, &[this], tpe, Span::NONE);
