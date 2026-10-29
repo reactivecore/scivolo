@@ -103,6 +103,7 @@ impl Inlining<'_> {
             Type::ByName(r) => self.constant_of_type(r),
             Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => {
                 let info = self.u.info(s);
+                let info = self.u.normalized(info);
                 let constant = matches!(self.u.types().get(info), Type::Constant(..) | Type::Str(_));
                 constant.then(|| self.constant_of_type(info))?
             }
