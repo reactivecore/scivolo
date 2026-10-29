@@ -1,6 +1,6 @@
 //! The Java classes of dotty's class path the universe may lack: those of the JDK's `java.lang`
 //! (17 to 25) and the Java-defined ones of the Scala library, nested ones aside; whether a class
-//! or member is a Java one.
+//! or member is a Java one; the JDK's functional interfaces.
 
 use super::Typer;
 use tasty::SymbolId;
@@ -23,6 +23,12 @@ impl Typer<'_> {
             name.rsplit_once('.').is_some_and(|(pkg, simple)| java_classes(pkg).any(|c| c == simple));
         name.starts_with("java.") || name.starts_with("javax.") || library_java
     }
+}
+
+/// Whether the JDK class named `full` is annotated `@FunctionalInterface`.
+pub fn is_functional_interface(full: &str) -> bool {
+    full.starts_with("java.util.function.")
+        || matches!(full, "java.lang.Runnable" | "java.util.Comparator" | "java.util.concurrent.Callable")
 }
 
 /// The names of the Java classes of package `package` the universe may lack.

@@ -37,6 +37,12 @@ object TupleExt:
   extension [X <: Tuple](x: X)
     def indexOf(y: Any): Int = 0
 
+object Sams {
+  def cmp(a: Int, b: Int): Int = a - b
+  def comp(c: java.util.Comparator[Int]): Int = c.compare(1, 2)
+  def compared: Int = comp(cmp)
+}
+
 object Test {
   import TupleExt.*
   def index(names: Array[Object], x: Object): Int = names.indexOf(x)
