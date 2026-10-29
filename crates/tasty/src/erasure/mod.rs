@@ -14,6 +14,7 @@ mod mangle;
 mod poly_functions;
 mod scala2;
 mod special;
+mod symbols;
 mod value;
 
 use crate::symbols::{defined_name, encode, module_class_name, module_name};
@@ -88,9 +89,10 @@ impl Universe {
     /// The erasure of type `t`.
     pub fn erase(&mut self, t: TypeId) -> Erased {
         match self.types().get(t).clone() {
+            Type::Sym(Some(p), s) => self.erase_member(p, s),
             Type::Sym(_, s) => self.erase_symbol(s),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
-                Some(s) => self.erase_symbol(s),
+                Some(s) => self.erase_member(p, s),
                 None => match self.refinement_named(p, &n) {
                     Some(info) => self.erase(info),
                     None => match self.unresolved_class(p, &n) {
@@ -129,43 +131,6 @@ impl Universe {
             Type::Or(a, b, _) => self.erase_or(a, b),
             Type::Constant(tag, _) => special::constant(tag),
             Type::Str(_) => Erased::Class("java.lang.String".into()),
-            _ => object(),
-        }
-    }
-
-    /// The erasure of a reference to `s`: a class, an abstract type's bound, an alias, an
-    /// object's class, a value's type.
-    fn erase_symbol(&mut self, s: SymbolId) -> Erased {
-        match self.symbol(s).kind {
-            Kind::Class => {
-                let full = self.full_name(s);
-                if let Some(e) = special(&full) {
-                    return e;
-                }
-                match self.underlying(s) {
-                    Some(value) => {
-                        let info = self.info(value);
-                        self.erase(info)
-                    }
-                    None => Erased::Class(self.binary_name(s)),
-                }
-            }
-            Kind::Val if self.symbol(s).flags.has(MODULE) => match self.module_class(s) {
-                Some(c) => Erased::Class(self.binary_name(c)),
-                None => object(),
-            },
-            Kind::Type | Kind::TypeParam | Kind::Val | Kind::Param => {
-                let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
-                self.erase(info)
-            }
-            Kind::Def => {
-                let info = self.info(s);
-                match *self.types().get(info) {
-                    Type::ByName(result) => self.erase(result),
-                    Type::Method { .. } | Type::Poly { .. } => object(),
-                    _ => self.erase(info),
-                }
-            }
             _ => object(),
         }
     }

@@ -52,14 +52,18 @@ impl Universe {
         None
     }
 
-    /// The alias or class by which the class of term `prefix`'s declared type, or of `prefix` a
-    /// `this`, overrides abstract type member `s`, seen from `prefix`.
+    /// The alias or class by which the class of term `prefix`'s type as seen from its own prefix,
+    /// or of `prefix` a `this`, overrides abstract type member `s`, seen from `prefix`.
     pub fn overriding_alias(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
         if self.symbol(s).kind != Kind::Type {
             return None;
         }
         let declared = match *self.types().get(prefix) {
-            Type::Sym(_, term) if self.symbol(term).kind.is_term() => self.info(term),
+            Type::Sym(p, term) if self.symbol(term).kind.is_term() => self.term_type(p, term),
+            Type::TermRef(p, _) => {
+                let term = self.resolve_ref(prefix)?;
+                self.term_type(Some(p), term)
+            }
             Type::This(c) => c,
             _ => return None,
         };

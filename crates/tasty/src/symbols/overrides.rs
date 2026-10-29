@@ -79,13 +79,17 @@ impl Universe {
         })
     }
 
-    /// The type type alias `s` stands for, unless a type lambda.
+    /// The type type alias `s` stands for, unless a type lambda; an info that is no alias or
+    /// bounds is the right-hand side of a TASTy alias.
     fn alias(&mut self, s: SymbolId) -> Option<TypeId> {
         let info = self.info(s);
-        match self.types().get(info) {
-            &Type::Alias(a) if !matches!(self.types().get(a), Type::Lambda { .. }) => Some(a),
-            _ => None,
-        }
+        let a = match self.types().get(info) {
+            &Type::Alias(a) => a,
+            Type::Bounds(..) | Type::Other(_) => return None,
+            _ if self.symbol(s).flags.has(crate::tags::OPAQUE) => return None,
+            _ => info,
+        };
+        (!matches!(self.types().get(a), Type::Lambda { .. })).then_some(a)
     }
 
     /// Whether methods `a` and `b`, as members of `site`, take the same numbers of type
