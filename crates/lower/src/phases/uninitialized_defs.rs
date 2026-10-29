@@ -59,7 +59,6 @@ pub fn drop_wildcard(l: &mut Lower, stat: TNodeId, class: SymbolId) {
     l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: init };
 }
 
-/// Whether `s` is `scala.compiletime.uninitialized`.
 /// Whether `rhs` is `compiletime.uninitialized`, also as the body of a closure of context
 /// function type `tpe`.
 fn uninitialized_rhs(l: &mut Lower, rhs: TNodeId, tpe: TypeId) -> bool {
@@ -73,6 +72,7 @@ fn uninitialized_rhs(l: &mut Lower, rhs: TNodeId, tpe: TypeId) -> bool {
     body.is_some_and(|b| is_context_function(l, tpe) && uninitialized_rhs(l, b, tpe))
 }
 
+/// Whether `s` is `scala.compiletime.uninitialized`.
 fn is_uninitialized(l: &Lower, s: SymbolId) -> bool {
     let sym = l.u.symbol(s);
     let package = sym.owner.and_then(|o| l.u.symbol(o).owner);

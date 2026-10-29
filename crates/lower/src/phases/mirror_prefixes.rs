@@ -1,4 +1,5 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeOps.scala
 //   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! The prefixes of the classes mirrors refer to, as seen from the mirrored type (dotty's
 //! `childPrefix`).
