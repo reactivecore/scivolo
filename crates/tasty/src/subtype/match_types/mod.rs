@@ -105,7 +105,7 @@ impl Cmp<'_> {
     /// The supertype of `tycon[args]` for `tycon` not a class: a lambda's body, an alias's or
     /// an abstract type's upper bound applied (dotty's `AppliedType.superType`).
     pub fn applied_super_type(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
-        match self.u.types().get(tycon).clone() {
+        match *self.u.types().get(tycon) {
             Type::Lambda { .. } => Some(self.apply(tycon, args)),
             Type::Var(v) => {
                 let t = self.vars.instance(v)?;

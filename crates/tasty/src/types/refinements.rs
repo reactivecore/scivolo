@@ -34,8 +34,8 @@ impl Universe {
                 Type::And(a, b) => {
                     let (a, b) = (self.refinement_named(a, name), self.refinement_named(b, name));
                     let (Some(a), Some(b)) = (a, b) else { return a.or(b) };
-                    return match (self.types().get(a).clone(), self.types().get(b).clone()) {
-                        (Type::Bounds(lx, hx), Type::Bounds(ly, hy)) => {
+                    return match (self.types().get(a), self.types().get(b)) {
+                        (&Type::Bounds(lx, hx), &Type::Bounds(ly, hy)) => {
                             let (lo, hi) = (self.lub(lx, ly), self.glb(hx, hy));
                             Some(self.intern_type(Type::Bounds(lo, hi)))
                         }
