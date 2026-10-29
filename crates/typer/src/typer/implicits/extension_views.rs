@@ -8,7 +8,7 @@ use super::candidates::Candidate;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, TName, Tree};
-use tasty::Type;
+use tasty::{Binding, Type};
 
 impl Typer<'_> {
     /// Selection `id` of `name` from `qual` as `c.name(qual)` for implicit value `c`.
@@ -133,7 +133,7 @@ impl Typer<'_> {
         let select = self.with_type_vars(select)?;
         let tpe = self.tpd.tpe(select);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let Type::Method { params, implicit: false, .. } = self.u.types().get(info).clone() else {
+        let Some(Binding { params, implicit: false, .. }) = self.u.method(info) else {
             return Err("extension method with a using clause before its receiver");
         };
         let [(_, mut receiver)] = params[..] else { return Err("extension method of an implicit value") };

@@ -7,7 +7,7 @@
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Binding, Kind, Type, TypeId};
 
 /// The largest arity of a `TupleN` class.
 const MAX_TUPLE_ARITY: usize = 22;
@@ -100,10 +100,10 @@ impl Inlining<'_> {
         let name = self.term_name(apply);
         let select = self.tpd.node(T::Select { qualifier, name }, at, Some(apply_ref), Some(apply));
         let info = self.u.info(apply);
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+        let Some(Binding { binder, params, result, .. }) = self.u.poly(info) else {
             return Err(missing);
         };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         let method =
             crate::typer::type_apply::instantiate_poly(self.u, result, (binder, &names), &types, Some(apply));
         let Type::Method { result: applied, .. } = *self.u.types().get(method) else { return Err(missing) };

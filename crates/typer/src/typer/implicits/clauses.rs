@@ -7,7 +7,7 @@ use super::super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{Type, TypeId};
+use tasty::{Binding, Type, TypeId};
 
 impl Typer<'_> {
     /// `tree` applied to the arguments of its leading implicit clauses, searched at `at` and
@@ -76,7 +76,7 @@ impl Typer<'_> {
     pub fn implicit_clause_applied(&mut self, tree: TNodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(tree);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let Type::Method { params, implicit: true, .. } = self.u.types().get(info).clone() else {
+        let Some(Binding { params, implicit: true, .. }) = self.u.method(info) else {
             return Ok(tree);
         };
         let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();

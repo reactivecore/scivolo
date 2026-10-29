@@ -11,7 +11,7 @@ use super::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::tags::EXTENSION;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ViewKind {
@@ -123,7 +123,7 @@ impl Typer<'_> {
     fn view_param_class(&mut self, c: Candidate) -> Option<String> {
         let tpe = self.ref_type(c.prefix, c.sym);
         let info = self.method_info(tpe)?;
-        let Type::Method { params, implicit: false, .. } = self.u.types().get(info).clone() else {
+        let Some(Binding { params, implicit: false, .. }) = self.u.method(info) else {
             return None;
         };
         let [(_, p)] = params[..] else { return None };

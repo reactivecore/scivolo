@@ -9,7 +9,7 @@ use crate::inlining::quote_match::{bind_variances, bound_types};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
 use tasty::tags::{CASE, ENUM, SYNTHETIC};
-use tasty::{Symbol, SymbolId, Type, TypeId};
+use tasty::{Binding, Symbol, SymbolId, Type, TypeId};
 
 impl Reducer<'_, '_> {
     /// Whether pattern `pat` matches the value `scrut` refers to; the bindings of its variables
@@ -128,7 +128,7 @@ impl Reducer<'_, '_> {
     ) -> Result<bool, Unsupported> {
         let fun_tpe = self.i.tpd.tpe(fun);
         let widened = self.i.u.widen(fun_tpe);
-        let Type::Method { params, .. } = self.i.u.types().get(widened).clone() else { return Ok(false) };
+        let Some(Binding { params, .. }) = self.i.u.method(widened) else { return Ok(false) };
         let [(_, param)] = params[..] else { return Ok(false) };
         let param = self.with_type_bindings(param);
         let unapp = self.i.method_part(fun).and_then(|f| self.i.tpd.sym(f));
