@@ -18,7 +18,7 @@ use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PARAMsetter, PRIVATE, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether `s` is a getter of a concrete value of a trait: a variable's or one with a trait setter.
 fn is_trait_getter(l: &mut Lower, s: SymbolId) -> bool {
@@ -37,8 +37,7 @@ fn is_trait_getter(l: &mut Lower, s: SymbolId) -> bool {
 /// each `val` (dotty's `traitDefs`).
 pub fn trait_defs(l: &mut Lower, td: TNodeId) -> Vec<TNodeId> {
     let trait_ = l.tpd.sym(td).expect("a trait definition's symbol");
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a trait definition") };
-    let Tree::Template { body, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
+    let Template { body, .. } = l.tpd.class_template(td).expect("a trait definition");
     let mut out = Vec::new();
     for stat in l.tpd.items(body).to_vec() {
         out.push(stat);

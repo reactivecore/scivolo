@@ -15,7 +15,7 @@ use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::tags::SYNTHETIC;
 use tasty::{Erased, Flags, Kind, SymbolId, Type};
-use typer::tpd::{TNodeId, Tree, Walk, traverse_up};
+use typer::tpd::{TNodeId, Template, Tree, Walk, traverse_up};
 
 /// Reduces the applications of lambdas and anonymous function classes in unit `root`, inner ones
 /// first.
@@ -128,8 +128,7 @@ fn is_pure_binding(l: &Lower, s: TNodeId) -> bool {
 
 /// The method of anonymous class definition `def` whose body is that method, created by `expr`.
 fn only_method(l: &Lower, def: TNodeId, expr: TNodeId) -> Option<TNodeId> {
-    let Tree::TypeDef { rhs, .. } = *l.tpd.tree(def) else { return None };
-    let Tree::Template { constr, body, .. } = *l.tpd.tree(rhs) else { return None };
+    let Template { constr, body, .. } = l.tpd.class_template(def)?;
     let Tree::Typed { expr: created, .. } = *l.tpd.tree(expr) else { return None };
     let Tree::Apply { fun, .. } = *l.tpd.tree(created) else { return None };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };

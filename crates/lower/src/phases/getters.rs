@@ -13,7 +13,7 @@ use tasty::tags::{
     ERASED, FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC, SYNTHETIC,
 };
 use tasty::{Flags, Kind, SymbolId, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// Makes the values of class definition `td` getters, an object's lazy ones in a class; drops the
 /// private parameter fields not in `retained`; makes the private local values not in `retained`
@@ -128,8 +128,7 @@ fn param_setter(l: &mut Lower, class: SymbolId, var: SymbolId, name: &str, span:
 /// Records the span of the right-hand side of each getter of class definition `td`, its point at
 /// its start.
 pub fn record_rhs(l: &mut Lower, td: TNodeId) {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { return };
-    let Tree::Template { body, .. } = *l.tpd.tree(template) else { return };
+    let Some(Template { body, .. }) = l.tpd.class_template(td) else { return };
     for &stat in l.tpd.items(body) {
         let (Tree::DefDef { rhs: Some(rhs), .. }, Some(s)) = (l.tpd.tree(stat), l.tpd.sym(stat)) else {
             continue;

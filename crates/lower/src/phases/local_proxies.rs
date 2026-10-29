@@ -10,7 +10,7 @@ use crate::definitions::symbol;
 use syntax::ast::Span;
 use tasty::tags::{LOCAL, PRIVATE};
 use tasty::{Flags, Kind, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// The fields and constructor parameters of each local class of `locals`, put in `pending` to
 /// name.
@@ -38,8 +38,7 @@ pub fn make_proxies(
 
 /// The symbol of the constructor of class definition `td`.
 pub fn constructor(l: &Lower, td: TNodeId) -> SymbolId {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
+    let Template { constr, .. } = l.tpd.class_template(td).expect("a class definition");
     l.tpd.sym(constr).expect("a constructor's symbol")
 }
 

@@ -11,7 +11,7 @@ mod walk;
 
 pub use build::{Build, constant_of, constant_type_of};
 pub use children::{Children, MapChild, map_children};
-pub use info::lub_of;
+pub use info::{Template, lub_of};
 pub use slots::Slot;
 pub use tree::{Clauses, Field, List, MatchKind, TNodeId, Tree};
 pub use walk::{Leave, Visit, Walk, traverse, traverse_up};

@@ -12,7 +12,7 @@ use super::walk::{children, is_class_def, is_type_tree, subtrees};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::SymbolId;
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// The values each lifted local class captures, in its constructor and in fields, and the local
 /// classes named in another one.
@@ -38,8 +38,7 @@ pub fn redirect(
     for td in nested {
         let inner = l.tpd.sym(td).expect("a class definition's symbol");
         let (in_ctor, in_fields) = own.get(&inner).map_or((&[][..], &[][..]), |(c, f)| (c, f));
-        let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-        let Tree::Template { parents, body, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
+        let Template { parents, body, .. } = l.tpd.class_template(td).expect("a class definition");
         let stats: Vec<TNodeId> = l.tpd.items(parents).iter().chain(l.tpd.items(body)).copied().collect();
         let stats: Vec<TNodeId> =
             stats.into_iter().filter(|&s| !matches!(l.tpd.tree(s), Tree::TypeDef { .. })).collect();

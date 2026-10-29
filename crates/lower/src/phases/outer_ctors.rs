@@ -11,13 +11,12 @@ use crate::Lower;
 use crate::definitions::symbol;
 use syntax::ast::Span;
 use tasty::{Flags, Kind, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// Gives the secondary constructors of class definition `td` of `class` the parameter `$outer`
 /// of the type of the primary constructor's, and their self-constructor calls its value.
 pub fn declare(l: &mut Lower, td: TNodeId, class: SymbolId) {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, body, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
+    let Template { constr, body, .. } = l.tpd.class_template(td).expect("a class definition");
     let primary = l.tpd.sym(constr);
     let tpe = l.u.info(l.outers[&class].1);
     for def in l.tpd.items(body).to_vec() {

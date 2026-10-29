@@ -11,11 +11,10 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use tasty::tags::MUTABLE;
 use tasty::{Erased, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { return };
-    let Tree::Template { body, .. } = *l.tpd.tree(template) else { return };
+    let Some(Template { body, .. }) = l.tpd.class_template(td) else { return };
     for stat in l.tpd.items(body).to_vec() {
         let Tree::ValDef { name, tpt, rhs: Some(rhs) } = *l.tpd.tree(stat) else { continue };
         let mutable = l.tpd.sym(stat).is_some_and(|s| has(l.u, s, MUTABLE));

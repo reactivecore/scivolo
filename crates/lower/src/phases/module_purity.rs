@@ -9,7 +9,7 @@ use crate::symbols::has;
 use rustc_hash::FxHashSet;
 use tasty::SymbolId;
 use tasty::tags::LAZY;
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// The objects among class definitions `classes` with initialization code: a value with an
 /// initializer, a statement or a parent constructor called with arguments (dotty's not
@@ -18,8 +18,7 @@ pub fn objects_with_inits(l: &mut Lower, classes: &[TNodeId]) -> FxHashSet<Symbo
     let mut out = FxHashSet::default();
     for &td in classes {
         let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_module_class(c)) else { continue };
-        let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
-        let Tree::Template { body, parents, .. } = *l.tpd.tree(rhs) else { continue };
+        let Some(Template { body, parents, .. }) = l.tpd.class_template(td) else { continue };
         let calls_with_args = |&p: &TNodeId| match *l.tpd.tree(p) {
             Tree::Apply { args, .. } => !l.tpd.items(args).is_empty(),
             Tree::Block { .. } => true,

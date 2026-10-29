@@ -8,7 +8,7 @@ use crate::{Lower, Result};
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use tasty::{SymbolId, Type};
-use typer::tpd::{TNodeId, Tree, Walk, traverse_up};
+use typer::tpd::{TNodeId, Template, Tree, Walk, traverse_up};
 
 /// Reduces the placeholders of inline extractors in unit `root`; the class definitions dropped.
 pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<Vec<TNodeId>> {
@@ -60,8 +60,7 @@ fn reduce(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<Option<TNodeId>>
 fn placeholder(l: &Lower, t: TNodeId, name: &str) -> Option<(TNodeId, TNodeId)> {
     let Tree::Block { stats, expr } = *l.tpd.tree(t) else { return None };
     let &[td] = l.tpd.items(stats) else { return None };
-    let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { return None };
-    let Tree::Template { constr, body, .. } = *l.tpd.tree(rhs) else { return None };
+    let Template { constr, body, .. } = l.tpd.class_template(td)?;
     let Tree::Apply { fun, .. } = *l.tpd.tree(expr) else { return None };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };
     let no_init = matches!(l.tpd.tree(constr), Tree::DefDef { rhs: None, .. });
