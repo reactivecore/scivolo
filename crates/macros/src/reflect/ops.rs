@@ -97,7 +97,7 @@ ops! {
     "typeName" => type_name(t: Ty) -> Fallible<String>;
     "appliedTo" => applied_to(tycon: Ty, targs: Rest<Ty>) -> TypeId;
     "dealias" => dealias(t: Ty) -> TypeId;
-    "methodType" => method_type(types: Rest<Ty>, names: Name) -> Fallible<TypeId>;
+    "methodType" => method_type(kind: Num, types: Rest<Ty>, names: Name) -> Fallible<TypeId>;
     "byName" => by_name(t: Ty) -> TypeId;
     "isSingleton" => is_singleton(t: Ty) -> bool;
     "baseClasses" => base_classes(t: Ty) -> Fallible<Vec<SymbolId>>;
@@ -158,6 +158,7 @@ ops! {
     "isSameType" => is_same_type(a: Ty, b: Ty) -> Fallible<bool>;
     "constantType" => constant_type(t: Ty) -> Fallible<Reflected>;
     "typeConstructorOf" => type_constructor_of(name: Name) -> Fallible<TypeId>;
+    "substituteTypes" => substitute_types(t: Ty, pairs: Rest<(Sym, Ty)>) -> TypeId;
     // constants
     "constant" => constant(t: Tree) -> Fallible<Reflected>;
     "literal" => literal(kind: Num, bits: Bits, text: Name) -> Fallible<TNodeId>;

@@ -145,6 +145,13 @@ impl<K: Decode> Decode for Rest<K> {
     }
 }
 
+impl<A: Decode, B: Decode> Decode for (A, B) {
+    type Out = (A::Out, B::Out);
+    fn decode(h: &Host, args: &mut Args<'_>) -> Fallible<Self::Out> {
+        Ok((A::decode(h, args)?, B::decode(h, args)?))
+    }
+}
+
 /// Symbol number `n`.
 fn symbol(n: i32) -> Fallible<SymbolId> {
     (n >= 0).then_some(SymbolId(n as u32)).ok_or("a quotes.reflect operation on Symbol.noSymbol")

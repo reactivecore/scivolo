@@ -117,19 +117,26 @@ impl Host {
             && (clauses.is_empty() || clauses.len() == 1 && !clauses[0].0 && clauses[0].1.is_empty())
     }
 
-    /// `Symbol.children` of a sealed class of the unit: its direct subclasses and objects in the
-    /// order of their definitions; an enum's cases; none for other symbols.
+    /// `Symbol.children` of a sealed class: its direct subclasses and objects in the order of
+    /// their definitions, of a library class as its TASTy names them; an enum's cases; none for
+    /// other symbols.
     pub fn children(&mut self, s: SymbolId) -> Fallible<Vec<SymbolId>> {
         let flags = self.u.symbol(s).flags;
         let enum_class = flags.has(ENUM) && !flags.has(CASE);
         if !self.u.is_class(s) || !enum_class && !flags.has(SEALED) {
             return Ok(Vec::new());
         }
-        if self.u.symbol(s).tree.is_some() {
-            return Err("Symbol.children of a library class");
-        }
         if enum_class {
             return Ok(typer::sealed::enum_cases(&mut self.u, s));
+        }
+        if let Some(types) = self.u.decoded_children(s) {
+            let symbol = |u: &mut tasty::Universe, t| match *u.types().get(t) {
+                Type::Sym(_, c) => Some(c),
+                Type::TypeRef(..) | Type::TermRef(..) => u.resolve_ref(t),
+                _ => None,
+            };
+            let children = types.into_iter().map(|t| symbol(&mut self.u, t));
+            return children.collect::<Option<_>>().ok_or("Symbol.children naming a type of another kind");
         }
         let classes: Vec<(u32, SymbolId)> = (0..self.tpd.len())
             .map(typer::tpd::TNodeId::new)

@@ -36,9 +36,9 @@ impl Host {
         self.u.dealias(t)
     }
 
-    /// The method type of parameter types and the result type `types`, the parameters named by
-    /// `names` separated by `\0`.
-    pub fn method_type(&mut self, types: Vec<TypeId>, names: String) -> Fallible<TypeId> {
+    /// The method type of `kind` (0 plain, 1 implicit, 2 contextual) of parameter types and the
+    /// result type `types`, the parameters named by `names` separated by `\0`.
+    pub fn method_type(&mut self, kind: i32, types: Vec<TypeId>, names: String) -> Fallible<TypeId> {
         let (&result, params) = types.split_last().ok_or("MethodType.apply without its result type")?;
         let names: Vec<String> = names.split('\0').filter(|n| !n.is_empty()).map(str::to_owned).collect();
         if names.len() != params.len() {
@@ -46,7 +46,7 @@ impl Host {
         }
         let binder = self.u.fresh_binder();
         let params = names.into_iter().zip(params.iter().copied()).collect();
-        let t = Type::Method { binder, params, result, implicit: false, contextual: false };
+        let t = Type::Method { binder, params, result, implicit: kind != 0, contextual: kind == 2 };
         Ok(self.u.intern_type(t))
     }
 
