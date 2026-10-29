@@ -88,7 +88,8 @@ fn compile(
     }
     let staging = dir.with_extension(std::process::id().to_string());
     let header_free = without_header(&String::from_utf8_lossy(&text));
-    let mut runner = VmMacros { vm, sources: vec![SourceFile::new(source.to_string_lossy(), header_free)] };
+    let sources = vec![SourceFile::new(source.to_string_lossy(), header_free)];
+    let mut runner = VmMacros { vm, sources, settings: Default::default() };
     let macros = Some(&mut runner as &mut dyn Macros);
     let built = build(file, (&source, &text, options), mode, (image, macros), &staging);
     if built.is_ok() && std::fs::rename(&staging, &dir).is_ok() {

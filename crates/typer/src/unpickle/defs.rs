@@ -22,6 +22,15 @@ impl Unpickler<'_> {
         }
     }
 
+    /// The definition of the value or method at `id`.
+    pub fn member_def(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
+        match view(self.ast(), id) {
+            View::DefDef { .. } => self.def_def(id, self.meth),
+            View::ValDef { .. } => self.local_def(id),
+            _ => Err("a definition of another kind than a value or method"),
+        }
+    }
+
     /// The definition at `id` of method `sym`, which owns the locals of its body.
     fn def_def(&mut self, id: NodeId, sym: SymbolId) -> Result<TNodeId, Refusal> {
         let View::DefDef { parts, .. } = view(self.ast(), id) else {

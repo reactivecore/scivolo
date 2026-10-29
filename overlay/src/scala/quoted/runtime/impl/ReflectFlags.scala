@@ -86,7 +86,7 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
     def MatchableClass: Symbol = Symbol.requiredClass("scala.Matchable")
     def AnyValClass: Symbol = Symbol.requiredClass("scala.AnyVal")
     def ObjectClass: Symbol = Symbol.requiredClass("java.lang.Object")
-    def AnyRefClass: Symbol = refused("defn.AnyRefClass")
+    def AnyRefClass: Symbol = new SymbolImpl(ReflectOps.one("anyRefAlias")).asInstanceOf[Symbol]
     def NullClass: Symbol = Symbol.requiredClass("scala.Null")
     def NothingClass: Symbol = Symbol.requiredClass("scala.Nothing")
     def UnitClass: Symbol = Symbol.requiredClass("scala.Unit")
@@ -116,7 +116,9 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
     def SomeModule: Symbol = Symbol.requiredModule("scala.Some")
     def ProductClass: Symbol = Symbol.requiredClass("scala.Product")
     def FunctionClass(arity: Int, isImplicit: Boolean = false, isErased: Boolean = false): Symbol =
-      if (isErased) refused("defn.FunctionClass of an erased function") else FunctionClass(arity, isImplicit)
+      if (arity < 0) throw new IllegalArgumentException(s"arity: $arity")
+      else if (isErased) throw new Exception("Erased function classes are not supported. Use a refined `scala.PolyFunction`")
+      else FunctionClass(arity, isImplicit)
     def FunctionClass(arity: Int): Symbol = Symbol.requiredClass(s"scala.Function$arity")
     def FunctionClass(arity: Int, isContextual: Boolean): Symbol =
       Symbol.requiredClass(if (isContextual) s"scala.ContextFunction$arity" else s"scala.Function$arity")

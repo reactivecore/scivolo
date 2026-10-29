@@ -107,7 +107,7 @@ fn build(unit: &Unit, image: &'static Image, classes: &Path) -> R<Vec<String>> {
     let mut vm = vm::Vm::new(classpath).map_err(|e| format!("the macro VM: {e}"))?;
     let compiled = catch_unwind(AssertUnwindSafe(|| {
         let sources = unit.files.iter().map(|f| SourceFile::new(f.name.clone(), f.text.clone())).collect();
-        let mut macros = VmMacros { vm: &mut vm, sources };
+        let mut macros = VmMacros { vm: &mut vm, sources, settings: Default::default() };
         lower::compile_sources(&mut tasty::Universe::open_image(image), &unit.files, cfg, Some(&mut macros))
     }));
     let (files, warnings) = compiled

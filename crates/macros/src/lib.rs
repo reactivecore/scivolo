@@ -7,11 +7,11 @@ mod reflect;
 mod show_code;
 mod tasty_string;
 
+pub use host::Settings;
 pub use typer::inlining::Macros;
 
 use host::Host;
-use syntax::ast::Span;
-use syntax::ast::constant::Constant;
+use syntax::ast::{Span, constant::Constant};
 use syntax::source::SourceFile;
 use tasty::{Erased, SymbolId};
 use typer::inlining::{AnnotationCall, Annotations, Expanded, Lent, MacroArg, MacroCall, MacroError};
@@ -24,6 +24,7 @@ pub type Tables<'l> = (&'l mut tasty::Universe, &'l mut typer::tpd::Tpd, &'l mut
 pub struct VmMacros<'v> {
     pub vm: &'v mut Vm,
     pub sources: Vec<SourceFile>,
+    pub settings: Settings,
 }
 
 impl Macros for VmMacros<'_> {
@@ -48,13 +49,13 @@ impl Macros for VmMacros<'_> {
             .and_then(|s| if call.context { quotes_last(&s) } else { Some(s) });
         let sig = sig.ok_or_else(|| refused("a macro implementation without a method signature"))?;
         let (mut params, _) = u.erased_method(call.method);
+        let quotes = Erased::Class("scala.quoted.Quotes".into());
         if call.context {
-            params.push(Erased::Class("scala.quoted.Quotes".into()));
+            params.push(quotes.clone());
         }
         if params.len() != call.args.len() {
             return Err(refused("a macro implementation with erased parameters"));
         }
-        let quotes = Erased::Class("scala.quoted.Quotes".into());
         if call.args.iter().zip(&params).any(|(a, p)| matches!(a, MacroArg::Quotes) && *p != quotes) {
             return Err(refused("a macro implementation taking the Quotes by name"));
         }
@@ -103,8 +104,8 @@ impl VmMacros<'_> {
         (owner, span): (SymbolId, Span),
         annotations: &Annotations,
     ) -> Box<Host> {
-        let sources = std::mem::take(&mut self.sources);
-        let mut host = Host::new((&mut *lent.0, &mut *lent.1, &mut *lent.2), owner, (span, sources));
+        let at = (span, std::mem::take(&mut self.sources), self.settings.clone());
+        let mut host = Host::new((&mut *lent.0, &mut *lent.1, &mut *lent.2), owner, at);
         host.typer.annotations = annotations.clone();
         host.fresh = std::mem::take(lent.3);
         Box::new(host)
@@ -140,9 +141,7 @@ impl VmMacros<'_> {
                 Err(MacroError::Aborted)
             }
             (Err(VmError::Uncaught(thrown)), None) => Err(failure(&thrown)),
-            (Err(e), None) => {
-                Err(MacroError::Unsupported(format!("a macro implementation the VM cannot run: {e}")))
-            }
+            (Err(e), None) => Err(refused(&format!("a macro implementation the VM cannot run: {e}"))),
         }
     }
 }
