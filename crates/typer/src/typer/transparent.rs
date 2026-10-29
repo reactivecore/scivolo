@@ -122,24 +122,16 @@ impl Typer<'_> {
         if bodies.contains_key(&meth) {
             return Ok(());
         }
-        let def = match self.inline_defs.get(&meth).copied() {
-            Some(InlineDef::Typed(def) | InlineDef::Defined(def)) => def,
-            Some(InlineDef::Pending(tree, ctx)) => {
-                self.inline_defs.insert(meth, InlineDef::Typing);
-                let def = self.typed_def_def(tree, ctx);
-                self.typed_ahead(tree, def, ctx);
-                def
-            }
-            Some(InlineDef::Typing) => return Err("transparent inline method called while typed"),
+        let def = match self.unit_inline_def(meth)? {
+            Some(def) => def,
             None if self.u.symbol(meth).tree.is_some() => {
-                crate::unpickle::inline_def(self.u, &mut self.tpd, self.names, meth)?
+                let def = crate::unpickle::inline_def(self.u, &mut self.tpd, self.names, meth)?;
+                self.define_tree(def, true)?;
+                self.inline_defs.insert(meth, InlineDef::Defined(def));
+                def
             }
             None => return Err("transparent inline method call"),
         };
-        if !matches!(self.inline_defs.get(&meth), Some(InlineDef::Defined(_))) {
-            self.define_tree(def, true)?;
-            self.inline_defs.insert(meth, InlineDef::Defined(def));
-        }
         bodies.insert(meth, def);
         let T::DefDef { rhs: Some(rhs), .. } = *self.tpd.tree(def) else {
             return Err("transparent inline method without a body");
@@ -148,6 +140,26 @@ impl Typer<'_> {
             self.collect_transparent_bodies(m, forced, bodies)?;
         }
         Ok(())
+    }
+
+    /// The typed and defined definition of inline method `meth` of the unit, typed now if it is
+    /// not yet; `None` if the unit does not define it.
+    pub fn unit_inline_def(&mut self, meth: SymbolId) -> Result<Option<TNodeId>, &'static str> {
+        let def = match self.inline_defs.get(&meth).copied() {
+            Some(InlineDef::Defined(def)) => return Ok(Some(def)),
+            Some(InlineDef::Typed(def)) => def,
+            Some(InlineDef::Pending(tree, ctx)) => {
+                self.inline_defs.insert(meth, InlineDef::Typing);
+                let def = self.typed_def_def(tree, ctx);
+                self.typed_ahead(tree, def, ctx);
+                def
+            }
+            Some(InlineDef::Typing) => return Err("transparent inline method called while typed"),
+            None => return Ok(None),
+        };
+        self.define_tree(def, true)?;
+        self.inline_defs.insert(meth, InlineDef::Defined(def));
+        Ok(Some(def))
     }
 
     /// The inline methods `t` refers to that expand: transparent ones, every one if `forced` or

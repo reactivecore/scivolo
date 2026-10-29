@@ -45,6 +45,10 @@ impl Host for NoHost {
         None
     }
 
+    fn inline_def(&mut self, _: Lent<'_>, _: SymbolId) -> Result<Option<TNodeId>, &'static str> {
+        Ok(None)
+    }
+
     fn expand_macro(&mut self, _: Lent<'_>, _: &MacroCall) -> Result<Expanded, MacroError> {
         Err(MacroError::Unsupported("a macro call in Term.betaReduce".into()))
     }

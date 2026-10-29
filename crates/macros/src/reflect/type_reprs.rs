@@ -16,6 +16,10 @@ impl Host {
                 let t = tpe(self, 0)?;
                 text(self.u.show_source(t)?)
             }
+            "showTypeStructure" => {
+                let t = tpe(self, 0)?;
+                text(self.type_structure(t)?)
+            }
             "typeName" => {
                 let t = tpe(self, 0)?;
                 match self.u.types().get(t).clone() {
