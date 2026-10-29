@@ -52,6 +52,12 @@ object Dirs {
   def made = (home / "temp").mk()
 }
 
+object Defaults {
+  object dir { def mk(parents: Boolean = false)(using x: Int = 2): Unit = () }
+  def at(s: String) = dir
+  def made = at("temp").mk()
+}
+
 object Test {
   import TupleExt.*
   def index(names: Array[Object], x: Object): Int = names.indexOf(x)

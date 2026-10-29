@@ -75,8 +75,15 @@ impl Typer<'_> {
     /// arguments searched in `ctx`, its type variables in them instantiated first.
     pub fn implicit_clause_applied(&mut self, tree: TNodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
         if let T::Block { stats, expr } = *self.tpd.tree(tree) {
-            let stats = self.tpd.items(stats).to_vec();
-            let applied = self.implicit_clause_applied(expr, ctx)?;
+            let mut stats = self.tpd.items(stats).to_vec();
+            let mut applied = self.implicit_clause_applied(expr, ctx)?;
+            if let T::Block { stats: inner, expr } = *self.tpd.tree(applied) {
+                stats.extend_from_slice(self.tpd.items(inner));
+                applied = expr;
+            }
+            if applied != expr {
+                self.tpd.get_mut(applied).span = self.tpd.span(applied).to_synthetic();
+            }
             return Ok(self.wrap_defs(stats, applied));
         }
         let tpe = self.tpd.tpe(tree);
