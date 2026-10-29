@@ -47,10 +47,10 @@ impl Typer<'_> {
         })
     }
 
-    /// The upper bound of `t` if `t` is an uninstantiated type variable bounded from above only,
-    /// or one applied to arguments bounded by a class taking as many, applied to them, of an
-    /// intersection with such a side, the sides so: what the search looks for in its place
-    /// (dotty's `wildApprox`).
+    /// What the search looks for in place of `t` (dotty's `wildApprox`): the upper bound of an
+    /// uninstantiated type variable bounded from above only; that bound applied to the arguments
+    /// of such a variable applied, if it is a class taking as many; an intersection with such
+    /// sides with each side so.
     pub fn var_upper_bound(&mut self, t: TypeId) -> Option<TypeId> {
         let t = self.zonk(t);
         let (var, args) = match self.u.types().get(t).clone() {
