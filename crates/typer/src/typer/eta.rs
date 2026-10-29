@@ -191,7 +191,11 @@ impl Typer<'_> {
             return Err(outside);
         }
         if !java
-            && !self.u.annotations(class).iter().any(|&a| self.u.full_name(a) == "java.lang.FunctionalInterface")
+            && !self
+                .u
+                .annotations(class)
+                .iter()
+                .any(|&a| self.u.full_name(a) == "java.lang.FunctionalInterface")
         {
             let name = self.tpd.sym(tree).map_or_else(String::new, |s| self.u.symbol(s).name.clone());
             let parent = self.u.show_user(sam.parent);

@@ -43,6 +43,15 @@ object Sams {
   def compared: Int = comp(cmp)
 }
 
+object Dirs {
+  object home { def /(s: String) = dir }
+  object dir {
+    def mk(parents: Boolean = false)(using x: Int): Unit = ()
+  }
+  given Int = 3
+  def made = (home / "temp").mk()
+}
+
 object Test {
   import TupleExt.*
   def index(names: Array[Object], x: Object): Int = names.indexOf(x)

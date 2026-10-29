@@ -8,7 +8,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::{NodeId, Tree};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 
 /// The arguments of a call aligned with the parameters, `None` where one gets none.
 pub type Aligned = Vec<Option<NodeId>>;
@@ -175,10 +175,6 @@ impl Typer<'_> {
                 |i: usize| aligned[i].and_then(|a| args.iter().position(|&b| b == a)).unwrap_or(args.len());
             arg_defs.sort_by_key(|&(i, _)| position(i));
             defs.extend(arg_defs.into_iter().map(|(_, d)| d));
-        }
-        let curried = self.result_of(f).is_some_and(|r| matches!(self.u.types().get(r), Type::Method { .. }));
-        if !defs.is_empty() && curried {
-            return Err("lifted call of a curried method");
         }
         Ok((f, typed, defs))
     }

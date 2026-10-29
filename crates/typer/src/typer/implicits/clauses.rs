@@ -74,6 +74,11 @@ impl Typer<'_> {
     /// `tree`, a method reference whose first clause is implicit, applied to that clause's
     /// arguments searched in `ctx`, its type variables in them instantiated first.
     pub fn implicit_clause_applied(&mut self, tree: TNodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
+        if let T::Block { stats, expr } = *self.tpd.tree(tree) {
+            let stats = self.tpd.items(stats).to_vec();
+            let applied = self.implicit_clause_applied(expr, ctx)?;
+            return Ok(self.wrap_defs(stats, applied));
+        }
         let tpe = self.tpd.tpe(tree);
         let info = self.method_info(tpe).unwrap_or(tpe);
         let Some(Binding { params, implicit: true, .. }) = self.u.method(info) else {
@@ -118,6 +123,24 @@ impl Typer<'_> {
             f = self.with_type_vars(f)?;
         }
         Ok(f)
+    }
+
+    /// Partial application `tree` of a call whose arguments were lifted into `defs`; `Err` unless
+    /// only `using` clauses follow, without open type variables.
+    pub fn lifted_partial(
+        &mut self,
+        tree: TNodeId,
+        defs: &[TNodeId],
+        pt: Pt,
+    ) -> Result<TNodeId, &'static str> {
+        let tpe = self.tpd.tpe(tree);
+        if defs.is_empty() || !matches!(self.u.types().get(tpe), Type::Method { .. }) {
+            return Ok(tree);
+        }
+        if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) || !self.takes_using(tree) || self.is_open(tpe) {
+            return Err("lifted call of a curried method");
+        }
+        Ok(tree)
     }
 
     /// Whether the first parameter clause of function `f` is a `using` clause.
