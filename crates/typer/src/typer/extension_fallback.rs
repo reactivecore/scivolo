@@ -46,15 +46,24 @@ impl Typer<'_> {
         let receiver = loop {
             match self.u.types().get(t).clone() {
                 Type::Poly { binder, params, result } => {
-                    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                    let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
                     let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
-                    t = self.u.subst(result, binder, &names, &vars);
-                    t = self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-                        Type::Sym(_, s) => {
-                            tparams.iter().position(|&p| p == s).and_then(|i| vars.get(i).copied())
+                    let inst = |t: &mut Self, x: TypeId| {
+                        let x = t.u.subst(x, binder, &names, &vars);
+                        t.u.map_type(x, &mut |u, part| match *u.types().get(part) {
+                            Type::Sym(_, s) => {
+                                tparams.iter().position(|&p| p == s).and_then(|i| vars.get(i).copied())
+                            }
+                            _ => None,
+                        })
+                    };
+                    for (&(_, bounds), &v) in params.iter().zip(&vars) {
+                        let bounds = inst(self, bounds);
+                        if let (Some(lo), hi, 0) = self.bounds_of(bounds) {
+                            let _ = self.conforms(lo, v) && self.conforms(v, hi);
                         }
-                        _ => None,
-                    });
+                    }
+                    t = inst(self, result);
                 }
                 Type::Method { binder, result, implicit: true, .. } => {
                     binders.push(binder);

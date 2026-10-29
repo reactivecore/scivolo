@@ -33,7 +33,13 @@ object Paths {
   def bounded[T <: String](t: Got { type Out <: T }, u: t.Out): Int = 1
 }
 
+object TupleExt:
+  extension [X <: Tuple](x: X)
+    def indexOf(y: Any): Int = 0
+
 object Test {
+  import TupleExt.*
+  def index(names: Array[Object], x: Object): Int = names.indexOf(x)
   def int(n: BigInt): Int = n.intValue()
   def decoded: Int = summon[Decoder[Int]]()
   def pair = 1.:*:("one")
