@@ -8,6 +8,7 @@ mod cases;
 mod defs;
 mod literals;
 mod structure;
+mod type_structure;
 mod types;
 
 use crate::host::Host;
