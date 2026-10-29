@@ -124,7 +124,15 @@ pub fn from_product(
             defs.push(l.positioned(def));
             refs.push(l.ident(binding, Span::NONE));
         }
-        let new = l.new_(case_class, Span::NONE);
+        let pre = mono.and_then(|m| class_prefix(l, m, case_class));
+        let new = match pre {
+            Some(pre) => {
+                let tpe = l.u.intern_type(Type::Sym(Some(pre), case_class));
+                let tpt = l.type_tree(tpe, Span::NONE);
+                l.tpd.node(Tree::New { tpt }, Span::NONE, Some(tpe), None)
+            }
+            None => l.new_(case_class, Span::NONE),
+        };
         let ctor = l.u.decl(case_class, "<init>").unwrap_or_default();
         let ctor = ctor.into_iter().next().expect("a case class constructor");
         let created = l.call(new, ctor, &refs);
@@ -191,5 +199,21 @@ impl Lower<'_> {
             Some(self.defs.as_instance_of),
         );
         self.positioned(cast)
+    }
+}
+
+/// The prefix of class `class` in type `param` if it is a member of a class.
+pub fn class_prefix(l: &mut Lower, param: TypeId, class: SymbolId) -> Option<TypeId> {
+    let owner = l.u.symbol(class).owner?;
+    if l.u.symbol(owner).kind != tasty::Kind::Class {
+        return None;
+    }
+    let mut t = l.u.dealias(param);
+    if let Type::Applied(tycon, _) = *l.u.types().get(t) {
+        t = tycon;
+    }
+    match *l.u.types().get(t) {
+        Type::Sym(Some(pre), s) if s == class => Some(pre),
+        _ => None,
     }
 }
