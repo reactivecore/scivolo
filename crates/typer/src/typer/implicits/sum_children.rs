@@ -61,11 +61,10 @@ impl Typer<'_> {
                 return Ok(false);
             }
             let owner = self.u.symbol(c).owner.ok_or("sealed child without owner")?;
-            if !sealed::visible_to_parent(self.u, s, owner) {
+            if !sealed::visible_to_parent(self.u, s, owner)
+                || !companion && !self.is_visible_to_scope(owner, ctx.owner, &scope)
+            {
                 return Ok(false);
-            }
-            if !companion && !self.is_visible_to_scope(owner, ctx.owner, &scope) {
-                return Err("sum Mirror of a child visible through a prefix only");
             }
             if !self.u.is_class(c) {
                 continue;
