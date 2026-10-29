@@ -1,9 +1,10 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/Getters.scala
-//! dotty's `Getters` on assignments: an assignment to a variable becomes a call of its setter.
+//! dotty's `Getters` on assignments: an assignment to a variable but an extern one becomes a call
+//! of its setter.
 
 use super::getters::is_setter;
-use crate::symbols::has;
+use crate::symbols::{has, is_extern};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{FIELDaccessor, MUTABLE, TRAIT};
 use tasty::{Kind, SymbolId};
@@ -18,8 +19,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         if let Some(trait_) = l.tpd.sym(lhs).and_then(|s| library_trait_var(l, s)) {
             super::library_traits::prepare(l, trait_, l.tpd.span(t))?;
         }
-        let Some(var) = l.tpd.sym(lhs).filter(|&s| has(l.u, s, FIELDaccessor) || is_library_var_param(l, s))
-        else {
+        let var = l.tpd.sym(lhs).filter(|&s| has(l.u, s, FIELDaccessor) || is_library_var_param(l, s));
+        let Some(var) = var.filter(|&s| !is_extern(l.u, s)) else {
             continue;
         };
         let owner = l.u.symbol(var).owner.expect("a variable's class");

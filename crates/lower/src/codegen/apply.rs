@@ -112,13 +112,13 @@ impl Gen<'_, '_> {
         args: &[TNodeId],
         span: Span,
     ) -> Result<ValId> {
-        if self.is_reflective(sym, "selectDynamic") {
-            return self.gen_reflective_select(sym, recv, args, span);
-        }
-        if self.is_reflective(sym, "applyDynamic") {
-            return self.gen_reflective_apply(sym, recv, args, span);
+        if let Some(v) = self.gen_reflective(sym, recv, args, span)? {
+            return Ok(v);
         }
         self.check_call(sym, span)?;
+        if self.is_extern_field(sym) {
+            return self.load_extern_field(sym, args, span);
+        }
         if is_java_static(self.l.u, sym) {
             let owner = match recv {
                 Receiver::Tree(t) => self.l.tpd.sym(t),

@@ -1,10 +1,10 @@
 // Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
 //   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenStat.scala
-//   nir/src/main/scala/scala/scalanative/nir/Attrs.scala
 //! The annotations Scala Native's code generator reads (`genClassAttrs`, `genMethodAttrs`,
 //! `genClassFields`): the attributes they give classes, methods and fields, and those refused.
 
 use super::Gen;
+use super::attrs::canonical;
 use crate::{Lower, Result, unsupported};
 use nir::{Attr, StrId};
 use tasty::SymbolId;
@@ -21,6 +21,9 @@ enum Gives {
     Named(fn(StrId) -> Attr),
     /// An attribute of the fields of what it annotates, a field or a class.
     Field(fn() -> Attr),
+    /// `align` with the default size and no group, on the annotated field or on each field of
+    /// the annotated class.
+    Align,
     /// The name of an extern definition, its string argument.
     Id,
     /// `blocking` of the `extern` attribute of an extern definition.
@@ -42,7 +45,7 @@ const ANNOTATIONS: [(&str, Gives); 21] = [
     ("scala.scalanative.unsafe.linkCppRuntime", Gives::Any(|| Attr::LinkCppRuntime)),
     ("scala.scalanative.unsafe.link", Gives::Named(Attr::Link)),
     ("scala.scalanative.unsafe.define", Gives::Named(Attr::Define)),
-    ("scala.scalanative.annotation.align", Gives::Refused),
+    ("scala.scalanative.annotation.align", Gives::Align),
     ("scala.scalanative.annotation.nonExtern", Gives::Refused),
     ("scala.scalanative.reflect.annotation.EnableReflectiveInstantiation", Gives::Refused),
     ("scala.scalanative.runtime.struct", Gives::Generated),
@@ -78,6 +81,9 @@ pub fn check_annotations(l: &mut Lower, root: TNodeId) -> Result<()> {
             let literal = !strings.is_empty() && strings.iter().all(Option::is_some);
             match gives(l, class) {
                 Some(Gives::Refused) => return unsupported(l.tpd.span(t), what()),
+                Some(Gives::Align) if !strings.is_empty() => {
+                    return unsupported(l.tpd.span(t), format!("{} with arguments", what()));
+                }
                 Some(Gives::Id | Gives::Blocking) if !is_extern => {
                     return unsupported(
                         l.tpd.span(t),
@@ -115,8 +121,13 @@ impl Gen<'_, '_> {
     pub fn field_attrs(&mut self, f: SymbolId, c: SymbolId, mut attrs: Vec<Attr>) -> Vec<Attr> {
         let field = [Some(f), self.l.fields.get(&f).copied()];
         let is_final = attrs.iter().any(|a| matches!(a, Attr::Final));
+        let mut aligned = false;
         for (sym, of_class) in field.into_iter().flatten().map(|s| (s, false)).chain([(c, true)]) {
             for &class in self.l.u.annotations(sym) {
+                if matches!(gives(self.l, class), Some(Gives::Align)) && !aligned {
+                    attrs.push(Attr::Align { size: -1, group: None });
+                    aligned = true;
+                }
                 if let Some(Gives::Field(a)) = gives(self.l, class) {
                     match a() {
                         Attr::SafePublish if !is_final => {}
@@ -159,43 +170,5 @@ impl Gen<'_, '_> {
             }
         }
         canonical(attrs)
-    }
-}
-
-/// `attrs` as Scala Native's `Attrs.fromSeq(attrs).toSeq`: the last of each kind of inlining,
-/// specialization and optimization, each flag once, links and definitions last.
-pub fn canonical(attrs: Vec<Attr>) -> Vec<Attr> {
-    let mut out: Vec<Attr> = Vec::new();
-    for a in attrs {
-        let r = rank(&a);
-        let repeatable = matches!(a, Attr::Link(_) | Attr::Define(_));
-        match out.iter().position(|o| !repeatable && rank(o) == r) {
-            Some(i) => out[i] = a,
-            None => out.push(a),
-        }
-    }
-    out.retain(|a| !matches!(a, Attr::MayInline | Attr::MaySpecialize | Attr::UnOpt));
-    out.sort_by_key(rank);
-    out
-}
-
-fn rank(a: &Attr) -> u8 {
-    match a {
-        Attr::MayInline | Attr::InlineHint | Attr::NoInline | Attr::AlwaysInline => 0,
-        Attr::MaySpecialize | Attr::NoSpecialize => 1,
-        Attr::UnOpt | Attr::NoOpt | Attr::DidOpt | Attr::BailOpt(_) => 2,
-        Attr::Align { .. } => 3,
-        Attr::Extern { .. } => 4,
-        Attr::Dyn => 5,
-        Attr::Stub => 6,
-        Attr::LinkCppRuntime => 7,
-        Attr::Abstract => 8,
-        Attr::Volatile => 9,
-        Attr::Final => 10,
-        Attr::SafePublish => 11,
-        Attr::LinktimeResolved => 12,
-        Attr::UsesIntrinsic => 13,
-        Attr::Link(_) => 14,
-        Attr::Define(_) => 15,
     }
 }

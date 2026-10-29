@@ -231,7 +231,7 @@ vm-profile name *args: release
 # Lower each Scala file of Scala Native library `module` (nativelib, clib, posixlib, windowslib,
 # javalib, auxlib or all; files whose paths contain `filter`) through the own frontend and compare
 # its NIR with the published jar's; results under tmp/lib/<module>.
-lib-compile module filter="": fetch-scala-native
+lib-compile module filter="": fetch-libs fetch-scala-native
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     python3 scripts/lib-compile.py '{{ module }}' '{{ filter }}'
 

@@ -75,7 +75,7 @@ impl Gen<'_, '_> {
             return unsupported(span, "a C function pointer to an adapted lambda");
         }
         let static_target = is_java_static(self.l.u, target);
-        let ty = self.extern_sig(target, span)?;
+        let ty = self.extern_call_sig(target, span)?;
         let Type::Function(params, ret) = self.pool.ty(ty).clone() else { unreachable!("a method type") };
         let orig_params = self.param_types(target);
         let saved = self.at_span(span);

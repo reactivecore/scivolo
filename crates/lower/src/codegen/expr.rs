@@ -60,7 +60,10 @@ impl Gen<'_, '_> {
                 _ => self.gen_expr(expr),
             },
             Tree::ValDef { rhs, .. } => self.gen_val_def(t, rhs),
-            Tree::Assign { lhs, rhs } => self.gen_assign(t, lhs, rhs),
+            Tree::Assign { lhs, rhs } => match self.l.tpd.sym(lhs) {
+                Some(f) if self.is_extern_field(f) => self.store_extern_field(f, rhs, span),
+                _ => self.gen_assign(t, lhs, rhs),
+            },
             ref tree => unsupported(span, format!("{} in an expression", class_name(tree))),
         }
     }
@@ -86,6 +89,8 @@ impl Gen<'_, '_> {
             self.gen_field_load(t, sym, None)?
         } else if is_static_enum_value(self.l, sym) {
             self.gen_apply_static(sym, None, &[], span)?
+        } else if self.is_extern_field(sym) {
+            self.load_extern_field(sym, &[], span)?
         } else {
             return unsupported(span, format!("a reference to {}", self.l.u.symbol(sym).name));
         };

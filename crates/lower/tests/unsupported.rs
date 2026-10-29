@@ -53,10 +53,6 @@ const CASES: &[(&str, &str)] = &[
          object O { def f(m: M) = m.asInstanceOf[N] }",
         "casts between value classes",
     ),
-    (
-        "object O { def f(c: Boolean): Any = if c then Array(1) else \"s\" }",
-        "branches of arrays and other erased classes",
-    ),
     ("class A(u: Unit) { def f = u }", "private local fields of type Unit"),
     (
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
@@ -129,14 +125,19 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { def f(x: (a: Int, b: String) & (b: String, a: Int)): Int = x.a }", "member not found"),
     (
-        "import scala.scalanative.unsafe.*\n@extern object libc { def printf(f: CString, xs: Any*): CInt = extern }",
-        "extern methods with variable arguments",
-    ),
-    (
         "import scala.scalanative.unsafe.*\n@extern object libc { def f(x: CInt): CInt = x }",
         "methods in extern objects without an extern body",
     ),
     ("import scala.scalanative.unsafe.*\n@extern object libc { val x: CInt = extern }", "extern fields"),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def printf(f: CString, xs: CVarArg*): CInt = extern }\n\
+         object O { def g = libc.printf(null) }",
+        "extern calls with variable arguments",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def f(xs: CVarArg*)(y: CInt): CInt = extern }",
+        "non-final variable arguments",
+    ),
     ("import scala.scalanative.unsafe.*\nobject O { def f(x: CInt): CInt = extern }", "`extern` outside"),
     (
         "import scala.scalanative.unsafe.*\nobject O { val n = \"p\"; @resolvedAtLinktime(n) def p: Int = resolved }",
