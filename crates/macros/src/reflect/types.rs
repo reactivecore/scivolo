@@ -54,12 +54,13 @@ impl Host {
         self.decided(holds, [a, b])
     }
 
-    /// `t` with each reference to a symbol of `pairs` replaced by its type.
+    /// `t` with each reference to a symbol of `pairs` but `this` replaced by its type.
     pub fn substitute_types(&mut self, t: TypeId, pairs: Vec<(SymbolId, TypeId)>) -> TypeId {
         self.u.map_type(t, &mut |u, part| {
             let s = match *u.types().get(part) {
                 Type::Sym(_, s) => s,
                 Type::TypeRef(..) | Type::TermRef(..) => u.resolve_ref(part)?,
+                Type::This(_) => return Some(part),
                 _ => return None,
             };
             pairs.iter().find(|&&(from, _)| from == s).map(|&(_, to)| to)
