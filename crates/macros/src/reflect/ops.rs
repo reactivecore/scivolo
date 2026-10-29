@@ -97,7 +97,7 @@ ops! {
     "typeName" => type_name(t: Ty) -> Fallible<String>;
     "appliedTo" => applied_to(tycon: Ty, targs: Rest<Ty>) -> TypeId;
     "dealias" => dealias(t: Ty) -> TypeId;
-    "methodType" => method_type(types: Rest<Ty>, names: Name) -> Fallible<TypeId>;
+    "methodType" => method_type(kind: Num, types: Rest<Ty>, names: Name) -> Fallible<TypeId>;
     "byName" => by_name(t: Ty) -> TypeId;
     "isSingleton" => is_singleton(t: Ty) -> bool;
     "baseClasses" => base_classes(t: Ty) -> Fallible<Vec<SymbolId>>;

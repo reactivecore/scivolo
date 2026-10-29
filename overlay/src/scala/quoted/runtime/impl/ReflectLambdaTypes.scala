@@ -26,15 +26,21 @@ trait ReflectLambdaTypes extends reflectModule { self: reflect.type =>
 
   /** A method type of parameter and result types that do not refer to it. */
   object MethodType extends MethodTypeModule {
-    def apply(paramNames: List[String])(paramInfosExp: MethodType => List[TypeRepr], resultTypeExp: MethodType => TypeRepr): MethodType = {
+    def apply(paramNames: List[String])(paramInfosExp: MethodType => List[TypeRepr], resultTypeExp: MethodType => TypeRepr): MethodType =
+      make(0, paramNames, paramInfosExp, resultTypeExp)
+    def apply(kind: MethodTypeKind)(paramNames: List[String])(paramInfosExp: MethodType => List[TypeRepr],
+        resultTypeExp: MethodType => TypeRepr): MethodType =
+      make(kind.ordinal, paramNames, paramInfosExp, resultTypeExp)
+    def unapply(x: MethodType): (List[String], List[TypeRepr], TypeRepr) = (x.paramNames, x.paramTypes, x.resType)
+
+    /** A method type of kind `kind`: 0 plain, 1 implicit, 2 contextual. */
+    private def make(kind: Int, paramNames: List[String], paramInfosExp: MethodType => List[TypeRepr],
+        resultTypeExp: MethodType => TypeRepr): MethodType = {
       val unknown = QuoteHost.tpe(Int.MaxValue).asInstanceOf[MethodType]
       val types = paramInfosExp(unknown) ::: List(resultTypeExp(unknown))
-      ReflectOps.run("methodType", types.map(ReflectOps.id).toArray, paramNames.mkString("\u0000"))
+      ReflectOps.run("methodType", (kind :: types.map(ReflectOps.id)).toArray, paramNames.mkString("\u0000"))
       QuoteHost.tpe(QuoteHost.result(0)).asInstanceOf[MethodType]
     }
-    def apply(kind: MethodTypeKind)(paramNames: List[String])(paramInfosExp: MethodType => List[TypeRepr],
-        resultTypeExp: MethodType => TypeRepr): MethodType = refused("MethodType.apply of a kind")
-    def unapply(x: MethodType): (List[String], List[TypeRepr], TypeRepr) = (x.paramNames, x.paramTypes, x.resType)
   }
 
   object PolyType extends PolyTypeModule {
