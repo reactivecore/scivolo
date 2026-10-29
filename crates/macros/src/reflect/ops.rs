@@ -158,6 +158,7 @@ ops! {
     "isSameType" => is_same_type(a: Ty, b: Ty) -> Fallible<bool>;
     "constantType" => constant_type(t: Ty) -> Fallible<Reflected>;
     "typeConstructorOf" => type_constructor_of(name: Name) -> Fallible<TypeId>;
+    "substituteTypes" => substitute_types(t: Ty, pairs: Rest<(Sym, Ty)>) -> TypeId;
     // constants
     "constant" => constant(t: Tree) -> Fallible<Reflected>;
     "literal" => literal(kind: Num, bits: Bits, text: Name) -> Fallible<TNodeId>;

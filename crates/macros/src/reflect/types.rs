@@ -54,6 +54,18 @@ impl Host {
         self.decided(holds, [a, b])
     }
 
+    /// `t` with each reference to a symbol of `pairs` replaced by its type.
+    pub fn substitute_types(&mut self, t: TypeId, pairs: Vec<(SymbolId, TypeId)>) -> TypeId {
+        self.u.map_type(t, &mut |u, part| {
+            let s = match *u.types().get(part) {
+                Type::Sym(_, s) => s,
+                Type::TypeRef(..) | Type::TermRef(..) => u.resolve_ref(part)?,
+                _ => return None,
+            };
+            pairs.iter().find(|&&(from, _)| from == s).map(|&(_, to)| to)
+        })
+    }
+
     /// The constant of constant type `t`, nothing for another type.
     pub fn constant_type(&mut self, t: TypeId) -> Fallible<Reflected> {
         if matches!(*self.u.types().get(t), Type::Constant(tag, _) if tag == CLASSconst) {

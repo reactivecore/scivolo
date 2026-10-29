@@ -47,7 +47,11 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
       def baseClasses: List[Symbol] =
         ReflectOps.results("baseClasses", ReflectOps.id(self)).map(s => new SymbolImpl(s).asInstanceOf[Symbol])
       def substituteTypes(from: List[Symbol], to: List[TypeRepr]): TypeRepr =
-        if (from.isEmpty) self else throw new Unsupported("TypeRepr.substituteTypes of type parameters")
+        if (from.length != to.length) throw new Unsupported("TypeRepr.substituteTypes of lists of other lengths")
+        else {
+          val pairs = from.zip(to).flatMap((s, t) => List(ReflectOps.id(s), ReflectOps.id(t)))
+          repr(ReflectOps.one("substituteTypes", ReflectOps.id(self) :: pairs*))
+        }
       def memberType(member: Symbol): TypeRepr =repr(ReflectOps.one("memberType", ReflectOps.id(self), ReflectOps.id(member)))
       def appliedTo(targ: TypeRepr): TypeRepr = TypeShapes.appliedTo(self, List(targ)).asInstanceOf[TypeRepr]
       def appliedTo(targs: List[TypeRepr]): TypeRepr = TypeShapes.appliedTo(self, targs).asInstanceOf[TypeRepr]
