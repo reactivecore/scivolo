@@ -70,10 +70,7 @@ impl Typer<'_> {
         }
         let widened = self.u.widen(p);
         let classes = self.bound_classes(widened, MAX_BOUND_STEPS);
-        if classes.is_empty() {
-            return Err("implicit scope through a value of no class type");
-        }
-        for class in classes {
+        for class in classes.ok_or("implicit scope through a value of no class type")? {
             self.add_members(class, p, out);
         }
         match outer {
@@ -82,30 +79,31 @@ impl Typer<'_> {
         }
     }
 
-    /// The classes of `t`, through the upper bounds of abstract types and intersections.
-    fn bound_classes(&mut self, t: TypeId, steps: u32) -> Vec<SymbolId> {
+    /// The classes of `t`, through the upper bounds of abstract types and intersections; `None`
+    /// if a part of `t` has none.
+    fn bound_classes(&mut self, t: TypeId, steps: u32) -> Option<Vec<SymbolId>> {
         if let Some(c) = self.u.class_symbol(t) {
-            return vec![c];
+            return Some(vec![c]);
         }
-        let Some(steps) = steps.checked_sub(1) else { return Vec::new() };
+        let steps = steps.checked_sub(1)?;
         match self.u.types().get(t).clone() {
             Type::TypeRef(p, name) => {
                 match self.u.refinement_named(p, &name).map(|i| self.u.types().get(i).clone()) {
                     Some(Type::Bounds(_, hi) | Type::Alias(hi)) => self.bound_classes(hi, steps),
-                    _ => Vec::new(),
+                    _ => None,
                 }
             }
             Type::Refined(parent, ..) => self.bound_classes(parent, steps),
             Type::And(a, b) => {
-                let mut classes = self.bound_classes(a, steps);
-                classes.extend(self.bound_classes(b, steps));
-                classes
+                let mut classes = self.bound_classes(a, steps)?;
+                classes.extend(self.bound_classes(b, steps)?);
+                Some(classes)
             }
             Type::Sym(prefix, s) if self.u.is_type_symbol(s) => {
                 let info = self.refined_info(prefix, s);
                 let hi = match *self.u.types().get(info) {
                     Type::Bounds(_, hi) | Type::Alias(hi) => hi,
-                    _ => return Vec::new(),
+                    _ => return None,
                 };
                 let info = match (prefix, self.u.symbol(s).owner) {
                     (Some(p), Some(o)) => self.u.as_seen_from(hi, p, o),
@@ -115,9 +113,9 @@ impl Typer<'_> {
             }
             Type::Sym(..) | Type::TermRef(..) | Type::Constant(..) | Type::Str(_) => {
                 let widened = self.u.widen(t);
-                if widened == t { Vec::new() } else { self.bound_classes(widened, steps) }
+                if widened == t { None } else { self.bound_classes(widened, steps) }
             }
-            _ => Vec::new(),
+            _ => None,
         }
     }
 }
