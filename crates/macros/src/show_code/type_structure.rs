@@ -19,7 +19,6 @@ impl Host {
     }
 
     fn visit_type(&mut self, t: TypeId, out: &mut String) -> Result<(), &'static str> {
-        let named = |out: &mut String, n: &str| out.push_str(&format!(", \"{n}\")"));
         match self.u.types().get(t).clone() {
             Type::Constant(tag, bits) => {
                 let c = match constant(tag, bits).ok_or(STRUCTURE)? {
@@ -48,30 +47,14 @@ impl Host {
                     return self.package_ref(s, out);
                 }
                 let prefix = match prefix {
-                    Some(p) if self.package_path(p).is_some() => return Err(PACKAGE_PREFIX),
                     Some(p) => p,
                     None => self.qualifier(s)?,
                 };
-                out.push_str(if term { "TermRef(" } else { "TypeRef(" });
-                self.visit_type(prefix, out)?;
-                named(out, &name);
+                self.reference(term, prefix, &name, out)?;
             }
-            Type::TypeRef(p, n) | Type::TermRef(p, n) => {
-                let term = matches!(self.u.types().get(t), Type::TermRef(..));
-                out.push_str(if term { "TermRef(" } else { "TypeRef(" });
-                match self.package_path(p) {
-                    Some(q) => self.this_structure(q, out)?,
-                    None => self.visit_type(p, out)?,
-                }
-                named(out, &n);
-            }
+            Type::TypeRef(p, n) => self.reference(false, p, &n, out)?,
+            Type::TermRef(p, n) => self.reference(true, p, &n, out)?,
             Type::Package(p) => self.package_ref(p, out)?,
-            Type::This(inner) => {
-                let (Type::Package(p) | Type::Sym(_, p)) = *self.u.types().get(inner) else {
-                    return Err(STRUCTURE);
-                };
-                self.this_structure(p, out)?;
-            }
             Type::NoPrefix => out.push_str("NoPrefix()"),
             Type::Applied(tycon, args) => self.node(out, "AppliedType", &[tycon], Some(&args))?,
             Type::Refined(parent, name, info) => {
@@ -103,40 +86,40 @@ impl Host {
     /// The `TermRef` of package `p` (dotty's `p.termRef`, whose prefix is the owner's `this`).
     fn package_ref(&mut self, p: SymbolId, out: &mut String) -> Result<(), &'static str> {
         let owner = self.u.symbol(p).owner.filter(|_| p != self.u.root()).ok_or(STRUCTURE)?;
-        let (owner, name) = (self.package_name(owner), self.u.symbol(p).name.clone());
+        let owner = match owner == self.u.root() {
+            true => "<root>",
+            false => &self.u.symbol(owner).name,
+        };
+        let name = &self.u.symbol(p).name;
         out.push_str(&format!("TermRef(ThisType(TypeRef(NoPrefix(), \"{owner}\")), \"{name}\")"));
         Ok(())
     }
 
-    /// The package path `t` refers to, if it is one.
-    fn package_path(&self, t: TypeId) -> Option<SymbolId> {
-        match self.u.types().get(t) {
-            &Type::Package(p) => Some(p),
-            &Type::Sym(_, p) if self.u.symbol(p).kind == Kind::Package => Some(p),
-            Type::TermRef(q, n) => {
-                let q = self.package_path(*q)?;
-                match q == self.u.root() {
-                    true => self.u.package(n),
-                    false => self.u.package(&format!("{}.{n}", self.u.full_name(q))),
-                }
-            }
-            _ => None,
+    /// `TermRef(prefix, "name")` if `term`, else `TypeRef(prefix, "name")`; refused through a
+    /// package.
+    fn reference(
+        &mut self,
+        term: bool,
+        prefix: TypeId,
+        name: &str,
+        out: &mut String,
+    ) -> Result<(), &'static str> {
+        if self.through_package(prefix) {
+            return Err(PACKAGE_PREFIX);
         }
-    }
-
-    /// The `ThisType` of package `p`.
-    fn this_structure(&self, p: SymbolId, out: &mut String) -> Result<(), &'static str> {
-        if self.u.symbol(p).kind != Kind::Package {
-            return Err(STRUCTURE);
-        }
-        out.push_str(&format!("ThisType(TypeRef(NoPrefix(), \"{}\"))", self.package_name(p)));
+        out.push_str(if term { "TermRef(" } else { "TypeRef(" });
+        self.visit_type(prefix, out)?;
+        out.push_str(&format!(", \"{name}\")"));
         Ok(())
     }
 
-    fn package_name(&self, p: SymbolId) -> String {
-        match p == self.u.root() {
-            true => "<root>".to_owned(),
-            false => self.u.symbol(p).name.clone(),
+    /// Whether `t` is a package or the `this` of one.
+    fn through_package(&self, t: TypeId) -> bool {
+        match *self.u.types().get(t) {
+            Type::Package(_) | Type::PackageName(_) => true,
+            Type::Sym(_, p) => self.u.symbol(p).kind == Kind::Package,
+            Type::This(inner) => self.through_package(inner),
+            _ => false,
         }
     }
 
