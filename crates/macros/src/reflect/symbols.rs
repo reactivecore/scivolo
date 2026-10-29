@@ -2,12 +2,14 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The symbols of `quotes.reflect`: owners, names, flags and kinds. Flags are the bits of the
 //! TASTy modifier tags, with bits 2 to 5 for `Method`, `Package`, `Param` and `AbsOverride`,
-//! bit 50 for `JavaDefined` and bit 51 for `Scala2x`.
+//! bit 50 for `JavaDefined`, bit 51 for `Scala2x` and bit 53 for `Deferred`.
 
 use super::Fallible;
 use crate::host::Host;
-use tasty::tags::{ABSTRACT, FINAL, LAZY, MACRO, OBJECT, OVERRIDE, PROTECTED, PROTECTEDqualified, SYNTHETIC};
-use tasty::{Flags, Kind, Symbol, SymbolId, TypeId, Universe};
+use tasty::tags::{
+    ABSTRACT, FINAL, LAZY, MACRO, OBJECT, OPAQUE, OVERRIDE, PROTECTED, PROTECTEDqualified, SYNTHETIC,
+};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
 
 const METHOD: u32 = 2;
 const PACKAGE: u32 = 3;
@@ -15,6 +17,7 @@ const PARAM: u32 = 4;
 const ABS_OVERRIDE: u32 = 5;
 const JAVA_DEFINED: u32 = 50;
 const SCALA2X: u32 = 51;
+const DEFERRED: u32 = 53;
 
 /// The symbols an expansion makes: the owner of its splice and the empty package.
 #[derive(Default)]
@@ -112,8 +115,9 @@ impl Host {
     }
 
     /// The flags of `s` as dotty's `TreeUnpickler` reads them (`readModifiers`, `normalizeFlags`),
-    /// but for `Deferred`, `ParamAccessor`, `NoInits` and `StableRealizable`.
-    pub fn flags(&self, s: SymbolId) -> u64 {
+    /// but for `ParamAccessor`, `NoInits` and `StableRealizable`.
+    pub fn flags(&mut self, s: SymbolId) -> u64 {
+        let deferred = if self.is_deferred(s) { 1 << DEFERRED } else { 0 };
         let sym = self.u.symbol(s);
         let has = |tag: u8| sym.flags.has(tag);
         let bit = |tag: u8| 1u64 << tag;
@@ -128,13 +132,32 @@ impl Host {
             bits |= bit(FINAL) | if sym.kind.is_term() { bit(LAZY) } else { 0 };
         }
         let in_class = sym.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Class);
-        bits | match sym.kind {
-            Kind::Class if self.u.is_scala2(s) => 1 << SCALA2X,
-            Kind::Def => 1 << METHOD,
-            Kind::Package => 1 << PACKAGE | 1 << JAVA_DEFINED | bit(OBJECT) | bit(FINAL),
-            Kind::Param if in_class => 0,
-            Kind::Param | Kind::TypeParam => 1 << PARAM,
-            _ => 0,
+        bits | deferred
+            | match sym.kind {
+                Kind::Class if self.u.is_scala2(s) => 1 << SCALA2X,
+                Kind::Def => 1 << METHOD,
+                Kind::Package => 1 << PACKAGE | 1 << JAVA_DEFINED | bit(OBJECT) | bit(FINAL),
+                Kind::Param if in_class => 0,
+                Kind::Param | Kind::TypeParam => 1 << PARAM,
+                _ => 0,
+            }
+    }
+
+    /// Whether `s` is a value, method or abstract type member of a class without a definition.
+    fn is_deferred(&mut self, s: SymbolId) -> bool {
+        let sym = self.u.symbol(s);
+        let (kind, tasty, opaque) = (sym.kind, sym.tree.is_some(), sym.flags.has(OPAQUE));
+        if !sym.owner.is_some_and(|o| self.u.is_class(o)) {
+            return false;
+        }
+        match kind {
+            Kind::Val | Kind::Def if tasty => self.u.body(s).is_none(),
+            Kind::Val | Kind::Def => self.u.is_deferred(s),
+            Kind::Type if !opaque && !self.u.is_class(s) => {
+                let info = self.u.info(s);
+                matches!(self.u.types().get(info), Type::Bounds(..))
+            }
+            _ => false,
         }
     }
 }

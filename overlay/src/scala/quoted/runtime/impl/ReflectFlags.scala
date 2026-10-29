@@ -6,7 +6,8 @@ package scala.quoted.runtime.impl
 trait ReflectFlagSupport { this: QuotesImpl =>
 
 /** A flag is the bit of its TASTy modifier tag; bits 2 to 5 are `Method`, `Package`, `Param` and
- *  `AbsOverride`, bit 50 `JavaDefined`, bit 51 `Scala2x`, and bit 52 flags no symbol has. Flags
+ *  `AbsOverride`, bit 50 `JavaDefined`, bit 51 `Scala2x`, bit 53 `Deferred`, and bit 52 flags no
+ *  symbol has. Flags
  *  the frontend does not know are `Unsupported`.
  */
 trait ReflectFlags extends reflectModule { self: reflect.type =>
@@ -19,7 +20,7 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
     def CaseAccessor: Flags = tag(27)
     def Contravariant: Flags = tag(29)
     def Covariant: Flags = tag(28)
-    def Deferred: Flags = refused("Flags.Deferred")
+    def Deferred: Flags = tag(53)
     def EmptyFlags: Flags = new FlagsImpl(0L).asInstanceOf[Flags]
     def Enum: Flags = tag(21)
     def Erased: Flags = tag(34)
