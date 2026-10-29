@@ -56,7 +56,7 @@ impl Typer<'_> {
             return self.summon_from_applied(id, &arg_ids, pt, ctx);
         }
         let using = self.protos[proto].using;
-        let f = match self.with_type_vars(f).and_then(|f| self.with_using_args(f, using, fun_ctx)) {
+        let f = match self.with_all_type_vars(f).and_then(|f| self.with_using_args(f, using, fun_ctx)) {
             Ok(g) if g != f => {
                 let g = self.inlined_transparent(g, Pt::Fun(proto), fun_ctx).unwrap_or(g);
                 self.with_apply(g, Pt::Fun(proto), fun_ctx)

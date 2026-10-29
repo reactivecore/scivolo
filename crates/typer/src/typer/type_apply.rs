@@ -87,6 +87,17 @@ impl Typer<'_> {
         Ok(self.tpd.node(T::TypeApply { fun: f, args: trees }, span.to_synthetic(), Some(tpe), None))
     }
 
+    /// `f` with each leading type parameter clause instantiated by [`Self::with_type_vars`].
+    pub fn with_all_type_vars(&mut self, mut f: TNodeId) -> Result<TNodeId, &'static str> {
+        loop {
+            let g = self.with_type_vars(f)?;
+            if g == f {
+                return Ok(f);
+            }
+            f = g;
+        }
+    }
+
     /// The type of polymorphic `f` applied to `args`, which must be within the bounds of its
     /// type parameters, or constrained to be if they are type variables.
     pub fn instantiated(&mut self, f: TNodeId, args: &[TypeId]) -> Result<TypeId, &'static str> {
