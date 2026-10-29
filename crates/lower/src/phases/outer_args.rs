@@ -129,8 +129,10 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
             if module.is_some() && is_static(l.u, s) {
                 return Ok(l.ident(s, span));
             }
-            if module.is_some_and(|m| within(l, class, m)) {
-                return unsupported(span, refused);
+            if let Some(m) = module.filter(|&m| within(l, class, m)) {
+                let this = type_ref(l.u, m);
+                let this = l.u.intern_type(Type::This(this));
+                return path(l, class, this, span);
             }
             let owner = l.u.symbol(s).owner;
             if let Some(&accessor) = l.local_objects.get(&s) {
