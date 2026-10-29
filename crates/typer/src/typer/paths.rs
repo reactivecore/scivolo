@@ -26,6 +26,11 @@ impl Typer<'_> {
     ) -> Option<TNodeId> {
         match self.u.types().get(prefix).clone() {
             Type::This(class) => Some(self.build().this(class, span)),
+            Type::TermRef(p, _) => {
+                let s = self.u.resolve_ref(prefix)?;
+                let resolved = self.u.intern_type(Type::Sym(Some(p), s));
+                self.path_tree_from(resolved, span, depth, ctx)
+            }
             Type::Sym(p, s) if !self.u.is_type_symbol(s) && self.is_stable_member(s) && depth > 0 => {
                 let static_class =
                     |t: &mut Self, c| t.u.class_symbol(c).is_some_and(|cls| t.is_static_owner(cls));
