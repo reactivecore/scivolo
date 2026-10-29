@@ -160,7 +160,7 @@ impl Inlining<'_> {
     }
 
     /// Whether `t` refers to an inline value local to a method.
-    fn is_local_inline_val(&self, t: TNodeId) -> bool {
+    pub fn is_local_inline_val(&self, t: TNodeId) -> bool {
         self.tpd.sym(t).is_some_and(|s| {
             let sym = self.u.symbol(s);
             let local = sym.owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
