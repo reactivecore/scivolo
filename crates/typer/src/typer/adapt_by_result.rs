@@ -49,9 +49,6 @@ impl Typer<'_> {
         let defined = self.is_fully_defined(p);
         let stripped = self.strip_implicit(result);
         let stripped = self.zonk(stripped);
-        if !defined && stripped != result && matches!(self.u.types().get(stripped), Type::Var(_)) {
-            return Err("implicit method result under a type with type variables");
-        }
         self.refinement_result(result, pt)?;
         if defined && self.u.class_symbol(p) == Some(self.defn.unit) {
             return Ok(());
@@ -59,7 +56,7 @@ impl Typer<'_> {
         let follow = !self.is_context_function_type(p);
         let value = match defined {
             true => self.proto_normalized((result, meth), p, follow, 8),
-            false => Some(result)
+            false => Some(stripped)
                 .filter(|&r| !matches!(self.u.types().get(r), Type::Method { .. } | Type::Poly { .. }))
                 .map(|r| if follow { self.context_result(r) } else { r }),
         };
