@@ -58,30 +58,42 @@ impl Typer<'_> {
         self.u.class_symbol(lo) == Some(builtins.nothing) && self.u.class_symbol(hi) == Some(builtins.any)
     }
 
-    /// `t` dealiased if it is a reference to an alias, `None` if not.
-    fn alias_of(&mut self, t: TypeId) -> Result<Option<TypeId>, &'static str> {
+    /// `t` dealiased if it is a reference to an alias other than a match type alias (dotty's
+    /// `isTypeAlias`), `None` if not.
+    fn alias_of(&mut self, t: TypeId) -> Option<TypeId> {
         if !matches!(self.u.types().get(t), Type::Sym(..) | Type::TypeRef(..)) {
-            return Ok(None);
+            return None;
         }
         let d = self.u.dealias(t);
-        match self.u.types().get(d) {
-            _ if d == t => Ok(None),
-            Type::Match { .. } => Err(OUTSIDE),
-            _ => Ok(Some(d)),
-        }
+        let body = match *self.u.types().get(d) {
+            Type::Lambda { result, .. } => result,
+            _ => d,
+        };
+        (d != t && !matches!(self.u.types().get(body), Type::Match { .. })).then_some(d)
+    }
+
+    /// The bounds of type variable `v`, match types in them reduced.
+    fn reduced_bounds(&mut self, v: VarId) -> [TypeId; 2] {
+        let (lo, hi) = self.constraint.bounds(v);
+        [lo, hi].map(|b| {
+            let b = self.zonk(b);
+            self.u.try_normalize(b).unwrap_or(b)
+        })
     }
 
     fn type_size(&mut self, n: u32, t: TypeId, seen: &mut Vec<VarId>) -> Result<u32, &'static str> {
-        if let Some(d) = self.alias_of(t)? {
+        if let Some(d) = self.alias_of(t) {
             return self.type_size(n, d, seen);
         }
         match self.u.types().get(t).clone() {
             Type::Var(v) if seen.contains(&v) => Ok(n),
             Type::Var(v) => {
                 seen.push(v);
-                let (lo, hi) = self.constraint.bounds(v);
-                let (lo, hi) = (self.zonk(lo), self.zonk(hi));
+                let [lo, hi] = self.reduced_bounds(v);
                 Ok(self.type_size(n, lo, seen)?.max(self.type_size(n, hi, seen)?))
+            }
+            Type::Applied(..) if let Some(reduced) = self.u.try_normalize(t).filter(|&r| r != t) => {
+                self.type_size(n, reduced, seen)
             }
             Type::Applied(c, args) if self.tuple_arity(c) == Some(args.len()) => {
                 let mut n = n + args.len() as u32;
@@ -119,15 +131,12 @@ impl Typer<'_> {
             return Ok(());
         }
         seen.push(t);
-        if let Some(d) = self.alias_of(t)? {
+        if let Some(d) = self.alias_of(t) {
             return self.cover(cs, d, seen);
         }
         let b = self.u.builtins();
         let (fold, own): (Vec<TypeId>, Option<SymbolId>) = match self.u.types().get(t).clone() {
-            Type::Var(v) => {
-                let (lo, hi) = self.constraint.bounds(v);
-                (vec![lo, hi], None)
-            }
+            Type::Var(v) => (self.reduced_bounds(v).to_vec(), None),
             Type::Applied(c, args) => ([vec![c], args].concat(), self.type_symbol(c)),
             Type::Refined(p, _, i) => (vec![p, i], self.type_symbol(p)),
             Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {

@@ -86,7 +86,8 @@ fn alias_class(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
     u.class_symbol(result)
 }
 
-/// The class of binary name `binary` that type `t` mentions, through aliases and opaque types.
+/// The class of binary name `binary` that type `t` mentions, or a base class of one, through
+/// aliases and opaque types.
 fn class_in(u: &mut Universe, t: TypeId, binary: &str, depth: u32) -> Option<SymbolId> {
     let depth = depth.checked_sub(1)?;
     let mut syms = Vec::new();
@@ -97,8 +98,11 @@ fn class_in(u: &mut Universe, t: TypeId, binary: &str, depth: u32) -> Option<Sym
         None
     });
     for s in syms {
-        if u.is_class(s) && u.binary_name(s) == binary {
-            return Some(s);
+        if u.is_class(s) {
+            let base = u.linearization(s).into_iter().find(|&b| u.binary_name(b) == binary);
+            if base.is_some() {
+                return base;
+            }
         }
         if u.is_type_symbol(s) && !u.is_class(s) {
             let info = u.opaque_alias(s).unwrap_or_else(|| u.info(s));

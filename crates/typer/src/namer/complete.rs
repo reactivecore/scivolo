@@ -26,7 +26,7 @@ impl Typer<'_> {
             _ => return,
         };
         self.syms.completions.insert(sym, Completion::Completing(tree));
-        self.set_provisional_info(sym, tree);
+        self.set_provisional_info(sym, tree, ctx);
         let open = std::mem::take(&mut self.history.open);
         let vars = self.constraint.count();
         let outer = self.u.set_comparison_owner(Some(ctx.owner));

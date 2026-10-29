@@ -123,9 +123,13 @@ impl Typer<'_> {
         t
     }
 
-    /// The named tuple of the fields of case class type `c`.
+    /// The named tuple of the fields of case class type `c`; `c` widened if a named tuple.
     fn case_fields_tuple(&mut self, c: TypeId) -> Option<TypeId> {
         use tasty::tags::{CASE, CASEaccessor};
+        let widened = self.u.widen(c);
+        if self.named_tuple_args(widened).is_some() {
+            return Some(widened);
+        }
         let class = self.u.class_symbol(c).filter(|&k| self.u.symbol(k).flags.has(CASE))?;
         let decls = self.u.symbol(class).decls.clone();
         let fields: Vec<_> = decls
@@ -157,8 +161,8 @@ impl Typer<'_> {
         let pair = self.resolve_full_name("scala.*:", true)?;
         let (mut elems, mut t) = (Vec::new(), t);
         for _ in 0..MAX_ELEMENTS {
-            let n = self.u.normalized(t);
-            let d = self.u.dealias(n);
+            t = self.u.normalized(t);
+            let d = self.u.dealias(t);
             let Type::Applied(c, args) = self.u.types().get(d).clone() else { break };
             let class = self.u.class_symbol(c);
             if class.is_some_and(|c| self.u.full_name(c) == format!("scala.Tuple{}", args.len())) {

@@ -48,24 +48,64 @@ impl Typer<'_> {
     }
 
     /// The upper bound of `t` if `t` is an uninstantiated type variable bounded from above only,
-    /// what the search looks for in its place (dotty's `wildApprox`).
+    /// or one applied to arguments bounded by a class taking as many, applied to them, of an
+    /// intersection with such a side, the sides so: what the search looks for in its place
+    /// (dotty's `wildApprox`).
     pub fn var_upper_bound(&mut self, t: TypeId) -> Option<TypeId> {
         let t = self.zonk(t);
-        let Type::Var(v) = *self.u.types().get(t) else { return None };
-        let (lo, hi) = self.constraint.bounds(v);
-        (lo == tasty::NOTHING && hi != tasty::ANY).then(|| self.zonk(hi))
+        let (var, args) = match self.u.types().get(t).clone() {
+            Type::Var(v) => (v, None),
+            Type::Applied(c, args) => match *self.u.types().get(c) {
+                Type::Var(v) => (v, Some(args)),
+                _ => return None,
+            },
+            Type::And(a, b) => {
+                let (x, y) = (self.var_upper_bound(a), self.var_upper_bound(b));
+                if x.is_none() && y.is_none() {
+                    return None;
+                }
+                return Some(self.u.intern_type(Type::And(x.unwrap_or(a), y.unwrap_or(b))));
+            }
+            _ => return None,
+        };
+        let (lo, hi) = self.constraint.bounds(var);
+        if lo != tasty::NOTHING || hi == tasty::ANY {
+            return None;
+        }
+        let hi = self.zonk(hi);
+        let Some(args) = args else { return Some(hi) };
+        let class = self.u.class_symbol(hi).filter(|_| matches!(self.u.types().get(hi), Type::Sym(..)))?;
+        (self.u.type_params(class).len() == args.len()).then(|| self.u.intern_type(Type::Applied(hi, args)))
     }
 
-    /// `t` with its type variables whose bounds are equal instantiated to them.
+    /// `t` with its type variables whose bounds are equal up to aliases instantiated to them,
+    /// and so those of the instances.
     pub fn determined(&mut self, t: TypeId) -> TypeId {
-        let t = self.zonk(t);
-        for v in self.open_vars(t) {
-            let (lo, hi) = self.constraint.bounds(v);
-            if lo == hi {
-                self.constraint.instantiate(v, lo);
+        let mut t = self.zonk(t);
+        for _ in 0..4 {
+            let mut changed = false;
+            for v in self.open_vars(t) {
+                let (lo, hi) = self.constraint.bounds(v);
+                if lo == hi || self.dealiased_parts(lo) == self.dealiased_parts(hi) {
+                    self.constraint.instantiate(v, lo);
+                    changed = true;
+                }
+            }
+            t = self.zonk(t);
+            if !changed {
+                break;
             }
         }
-        self.zonk(t)
+        t
+    }
+
+    /// `t` zonked with the aliases among its parts dealiased.
+    fn dealiased_parts(&mut self, t: TypeId) -> TypeId {
+        let t = self.zonk(t);
+        self.u.map_type(t, &mut |u, x| {
+            let d = u.dealias(x);
+            (d != x).then_some(d)
+        })
     }
 
     /// Whether `t` is `Any`, `AnyRef`, or an uninstantiated type variable bounded by them, which no

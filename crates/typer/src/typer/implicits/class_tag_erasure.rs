@@ -14,7 +14,7 @@ impl Typer<'_> {
     /// Whether every instance of `t` erases alike (dotty's `hasStableErasure`).
     pub fn has_stable_erasure(&mut self, t: TypeId) -> bool {
         let t = self.translucent(t);
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::And(a, b) | Type::Or(a, b, _) => self.has_stable_erasure(a) && self.has_stable_erasure(b),
             Type::Applied(inner, _) | Type::Refined(inner, ..) | Type::Annotated(inner, _) => {
                 self.has_stable_erasure(inner)

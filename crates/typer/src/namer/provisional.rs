@@ -3,18 +3,21 @@
 //! The provisional info of a match type alias while its right-hand side is typed, so that the
 //! alias may refer to itself (dotty's `typeDefSig` dummy info).
 
+use crate::ctx::Ctx;
 use crate::typer::Typer;
 use syntax::ast::{NodeId, Tree};
-use tasty::{ANY, NOTHING, SymbolId, Type};
+use tasty::{ANY, NOTHING, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Gives match type alias `sym` of definition `tree` the info of an abstract type over its
-    /// type parameters; nothing for another definition.
-    pub fn set_provisional_info(&mut self, sym: SymbolId, tree: NodeId) {
+    /// type parameters, bounded by its declared bound; nothing for another definition.
+    pub fn set_provisional_info(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) {
         let Some(tparams) = self.match_alias_params(tree) else { return };
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
+        let upper = self.provisional_bound(tree, &tparams, ctx.with_owner(sym));
+        let upper = self.u.intern_type(Type::Bounds(NOTHING, upper));
         let info = match tparams.is_empty() {
-            true => bounds,
+            true => upper,
             false => {
                 let params = tparams
                     .iter()
@@ -24,10 +27,37 @@ impl Typer<'_> {
                     })
                     .collect();
                 let binder = self.syms.fresh_binder();
-                self.u.intern_type(Type::Lambda { binder, params, result: bounds })
+                self.u.intern_type(Type::Lambda { binder, params, result: upper })
             }
         };
         self.u.set_info(sym, info);
+    }
+
+    /// The bound of match type alias `tree` if it names a type other than one of `tparams`, typed
+    /// ahead; else `Any`.
+    fn provisional_bound(&mut self, tree: NodeId, tparams: &[NodeId], ctx: Ctx) -> TypeId {
+        let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return ANY };
+        let body = match *self.ast.tree(rhs) {
+            Tree::LambdaTypeTree { body, .. } => body,
+            _ => rhs,
+        };
+        let Tree::MatchTypeTree { bound: Some(b), .. } = *self.ast.tree(body) else { return ANY };
+        let named = match *self.ast.tree(b) {
+            Tree::Ident { name } => !tparams.iter().any(|&p| {
+                matches!(*self.ast.tree(p), Tree::TypeDef { name: n, .. } if self.text(n.name) == self.text(name.name))
+            }),
+            Tree::Select { .. } => true,
+            _ => false,
+        };
+        if !named {
+            return ANY;
+        }
+        let diags = self.diags.items.len();
+        let typed = self.typed_type(b, ctx);
+        let tpe = self.tpd.tpe(typed);
+        let failed = self.diags.items.len() > diags || matches!(self.u.types().get(tpe), Type::Error);
+        self.diags.items.truncate(diags);
+        if failed { ANY } else { tpe }
     }
 
     /// Whether definition `tree` is a match type alias, which has a provisional info while it
