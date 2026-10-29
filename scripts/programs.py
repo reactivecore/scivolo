@@ -84,7 +84,14 @@ def definitions(path, *flags):
     """The decoded definitions of a NIR file, each as its sorted lines without value numbers."""
     out = subprocess.run([str(NIR_DUMP), "--dump", *flags, str(path)], capture_output=True, text=True, check=True).stdout
     blocks = "\n".join(out.splitlines()[3:]).split("\n\n")
-    return sorted(sorted(re.sub(r"%\d+", "%", l) for l in d.strip().splitlines()) for d in blocks if d.strip())
+    return sorted(sorted(unnumbered(l) for l in d.strip().splitlines()) for d in blocks if d.strip())
+
+
+def unnumbered(line):
+    """LINE without value numbers; a `names` line as its sorted local names."""
+    if line.lstrip().startswith("names ["):
+        return "names " + " ".join(sorted(re.findall(r'"(?:[^"\\]|\\.)*"', line)))
+    return re.sub(r"%\d+", "%", line)
 
 
 def update(name):
