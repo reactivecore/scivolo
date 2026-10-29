@@ -10,3 +10,6 @@ object TypeStructure:
     val c = typeStructure[C & D]
     val d = typeStructure[C { type X = 2L }]
     val e = typeStructure['c' | 1.5 | 2.5f]
+    type A = C
+    val g = typeStructure[A]
+  def g[T](): String = typeStructure[T]
