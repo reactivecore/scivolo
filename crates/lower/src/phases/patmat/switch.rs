@@ -123,6 +123,8 @@ impl Translator<'_, '_> {
     /// `t.toInt`, of a `Char`, `Byte` or `Short`.
     fn int_of(&mut self, t: TNodeId) -> TNodeId {
         let tpe = self.l.u.widen(self.l.tpd.tpe(t));
+        let tpe = self.l.u.dealias(tpe);
+        let tpe = self.l.u.widen(tpe);
         let class = self.l.u.class_symbol(tpe).expect("a primitive class");
         let decls = self.l.u.decl(class, "toInt").unwrap_or_default();
         let to_int = decls.into_iter().find(|&d| self.l.u.symbol(d).kind == Kind::Def).expect("`toInt`");
