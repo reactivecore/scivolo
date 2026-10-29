@@ -93,6 +93,18 @@ Issues and comments:
 
 - Texts stay short.
 - Numbers and bullets rather than paragraphs.
+- An issue has these sections, in this order; all but the summary are bullets, and an optional
+  section without content is left out:
+  1. **Summary**: two to four sentences of prose for a Rust and Scala developer who knows the
+     product but not compiler construction.
+  2. **Context**: where it belongs (roadmap item, parent issue, research, ADR).
+  3. **Problem**
+  4. **Example** (optional)
+  5. **Acceptance Criteria**: checkable, e.g. named tests or a `just` recipe's result.
+  6. **Solution Idea** (optional)
+  7. **Notes** (optional): anything else, e.g. what is out of scope.
+- An issue expected to take more than ~10 MRs is split into sub-issues; the parent lists them
+  as a checklist.
 
 Merge requests:
 
