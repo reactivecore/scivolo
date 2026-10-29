@@ -185,6 +185,7 @@ files name dir='.':
 
 # Compile the library overlay (overlay/src) with Scala Native into its committed NIR (overlay/nir).
 overlay:
+    cargo build -q --release -p scivolo-nir-dump
     python3 scripts/overlay.py build
 
 # Whether the committed overlay NIR differs from a rebuild.
