@@ -17,7 +17,7 @@ use crate::{Lower, Result, Unsupported, unsupported};
 use syntax::ast::Span;
 use tasty::tags::FINAL;
 use tasty::{Flags, Kind, SymbolId, Type, TypeId, Universe};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// The class whose instance class or trait `c` can use (dotty's `needsOuterIfReferenced`).
 pub fn outer_class(l: &Lower, c: SymbolId) -> Option<SymbolId> {
@@ -89,8 +89,7 @@ pub fn has_inner_parent(l: &mut Lower, class: SymbolId) -> bool {
 pub fn add_outer(l: &mut Lower, td: TNodeId, trait_: SymbolId) {
     let accessor = outer_accessor(l, trait_);
     l.u.set_deferred(accessor, true);
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a trait definition") };
-    let Tree::Template { body, parents, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
+    let Template { body, parents, .. } = l.tpd.class_template(td).expect("a trait definition");
     let stats: Vec<TNodeId> = l.tpd.items(body).iter().chain(l.tpd.items(parents)).copied().collect();
     let stats: Vec<TNodeId> =
         stats.into_iter().filter(|&s| !matches!(l.tpd.tree(s), Tree::TypeDef { .. })).collect();
