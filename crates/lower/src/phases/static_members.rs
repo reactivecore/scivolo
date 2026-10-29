@@ -67,7 +67,11 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         if (moved.contains(&s) || static_value) && matches!(l.tpd.tree(t), Tree::Select { .. }) {
             let span = l.tpd.span(t);
             l.tpd.get_mut(t).span = span.with_point(span.start());
-        } else if !moved.contains(&s) && is_static(l, s) && !l.u.symbol(s).flags.has(STATIC) {
+        } else if !moved.contains(&s)
+            && l.u.symbol(s).tree.is_none()
+            && is_static(l, s)
+            && !l.u.symbol(s).flags.has(STATIC)
+        {
             return unsupported(l.tpd.span(t), "@static members");
         }
     }

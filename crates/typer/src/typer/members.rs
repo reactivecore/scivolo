@@ -133,14 +133,35 @@ impl Typer<'_> {
         if name == "<init>" {
             return self.u.decl(c, name).unwrap_or_default();
         }
-        self.members_of_bases(c, &classes, name)
+        self.members_of_bases(c, &classes, name, true)
+    }
+
+    /// The members named `name` of type `t`'s class, or its intersected classes', that are not
+    /// private (dotty's `nonPrivateMember`).
+    pub fn non_private_members(&mut self, t: TypeId, name: &str) -> Vec<SymbolId> {
+        let mut widened = self.u.widen(t);
+        if matches!(self.u.types().get(widened), Type::Or(..)) {
+            widened = self.u.join(widened).unwrap_or(widened);
+        }
+        if let Type::And(a, b) = *self.u.types().get(widened) {
+            let mut out = self.non_private_members(a, name);
+            for m in self.non_private_members(b, name) {
+                if !out.contains(&m) {
+                    out.push(m);
+                }
+            }
+            return out;
+        }
+        let Some(c) = self.u.class_symbol(widened) else { return Vec::new() };
+        let classes = self.completed_linearization(c);
+        self.members_of_bases(c, &classes, name, false)
     }
 
     /// The members named `name` that `super` selects in class `c`: those of its base classes but
     /// `c`.
     fn super_members(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
         let classes = self.completed_linearization(c);
-        self.members_of_bases(c, &classes[1..], name)
+        self.members_of_bases(c, &classes[1..], name, true)
     }
 
     /// The linearization of class `c`, `c` and its base classes without TASTy completed.
@@ -155,16 +176,22 @@ impl Typer<'_> {
         classes
     }
 
-    /// The members named `name` of `classes`, base classes of `c` in linearization order, those
-    /// compared completed unless being completed.
-    fn members_of_bases(&mut self, c: SymbolId, classes: &[SymbolId], name: &str) -> Vec<SymbolId> {
+    /// The members named `name` of `classes`, base classes of `c` in linearization order, `c`'s
+    /// private ones if `own_private`, those compared completed unless being completed.
+    fn members_of_bases(
+        &mut self,
+        c: SymbolId,
+        classes: &[SymbolId],
+        name: &str,
+        own_private: bool,
+    ) -> Vec<SymbolId> {
         let site = crate::defn::type_ref(self.u, c);
         let mut out: Vec<SymbolId> = Vec::new();
         for &base in classes {
             let decls: Vec<SymbolId> = self.u.decl(base, name).unwrap_or_default();
             let decls: Vec<SymbolId> = decls
                 .into_iter()
-                .filter(|&m| base == c || !self.u.symbol(m).flags.has(tasty::tags::PRIVATE))
+                .filter(|&m| base == c && own_private || !self.u.symbol(m).flags.has(tasty::tags::PRIVATE))
                 .collect();
             for m in decls {
                 if self.u.is_type_symbol(m) {

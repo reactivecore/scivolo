@@ -46,6 +46,15 @@ impl Typer<'_> {
                 (qual, converted) = (q, true);
                 continue;
             }
+            if !syms.is_empty()
+                && !converted
+                && !name.is_type
+                && !self.has_selectable(&syms, qual_tpe, &text, ctx)
+                && let Ok(Some(Viewed::Converted(q))) = self.viewed(qual, Goal::Member(&text), ctx)
+            {
+                (qual, converted) = (q, true);
+                continue;
+            }
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
             }
@@ -105,7 +114,7 @@ impl Typer<'_> {
         }
         let syms = match converted {
             true => syms,
-            false => self.accessible_alternatives(syms, qual_tpe, ctx),
+            false => self.accessible_or_inherited(syms, qual_tpe, &text, ctx),
         };
         let sym = match self.choose(&syms, Some(qual_tpe), pt) {
             Ok(sym) => self.jdk_inherited(sym),

@@ -4,8 +4,9 @@
 Usage: scripts/lib-compile.py MODULE [FILTER]
 
 MODULE is one of MODULES or `all`. Each `.scala` file of the module's Scala 3 source directories
-in ref/scala-native (those whose paths contain FILTER) is lowered on its own, against the
-published jars, into tmp/lib/MODULE/out/FILE/; each NIR file written is compared, as `just
+in ref/scala-native (those whose paths contain FILTER) is lowered on its own, its macros run, against
+the jars of tmp/lib/sn/jars (`just lib-oracle`) if there, else the published ones, into
+tmp/lib/MODULE/out/FILE/; each NIR file written is compared, as `just
 nir-cmp` compares them, with the oracle's: the module compiled by Scala Native's build (Scala
 3.9.0) in tmp/lib/sn/MODULE (`just lib-oracle`) if there, else the published jar's (Scala
 3.1.3), unpacked into tmp/lib/jars/MODULE.
@@ -33,16 +34,20 @@ ROOT = Path(__file__).resolve().parent.parent
 SN = ROOT / "ref/scala-native"
 LIBS = Path(os.environ.get("SCIVOLO_LIBS", ROOT / "ref/libs"))
 WORK = ROOT / "tmp/lib"
+ORACLE_JARS = WORK / "sn/jars"
+ENV = os.environ | {"SCIVOLO_LIBS": str(ORACLE_JARS)} if ORACLE_JARS.is_dir() else None
 LOWER, NIR_DUMP = ROOT / "target/release/scivolo-lower", ROOT / "target/release/scivolo-nir-dump"
 MODULES = ["nativelib", "clib", "posixlib", "windowslib", "javalib", "auxlib"]
 SOURCE_DIRS = ["scala", "scala-3", "scala-2.13+"]
 WINDOWSLIB = LIBS / "windowslib_native0.5_3-0.5.12.jar"
+JDK_STUBS = ROOT / "libs/jdk-stubs.jar"
 # The options of a module's sources: the TASTy they see beyond the frontend's library
-# (windowslib's, which the library lacks, and the JDK annotations javalib's sources use), and
+# (windowslib's, which the library lacks, and the JDK classes javalib does not define), and
 # javalib's own classes as Scala classes.
 OPTIONS = {
+    "nativelib": ["--tasty", str(JDK_STUBS)],
     "windowslib": ["--tasty", str(WINDOWSLIB)],
-    "javalib": ["--javalib", "--tasty", str(WINDOWSLIB), "--tasty", str(ROOT / "libs/jdk-stubs.jar")],
+    "javalib": ["--javalib", "--tasty", str(WINDOWSLIB), "--tasty", str(JDK_STUBS)],
 }
 JOBS = os.cpu_count() or 4
 TIMEOUT = 60
@@ -96,9 +101,9 @@ def one(module, root, file):
     rel = str(file.relative_to(root))
     shown = f"{root.name}/{rel}"
     out = WORK / module / "out" / root.name / rel.removesuffix(".scala")
-    cmd = [str(LOWER), *OPTIONS.get(module, []), "--sourceroot", str(root), str(file), str(out)]
+    cmd = [str(LOWER), "--macros", *OPTIONS.get(module, []), "--sourceroot", str(root), str(file), str(out)]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=TIMEOUT)
+        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=TIMEOUT, env=ENV)
     except subprocess.TimeoutExpired:
         return [shown, "timeout", "", 0, 0, 0], []
     if r.returncode != 0:
