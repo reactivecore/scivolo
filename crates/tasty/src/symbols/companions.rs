@@ -18,7 +18,7 @@ pub fn module_name(class: &str) -> Option<&str> {
 
 impl Universe {
     /// The class of object `module`: the one declared beside it, else, or among several of its
-    /// name, the class of its type.
+    /// name, the class of its type, else none.
     pub fn module_class(&mut self, module: SymbolId) -> Option<SymbolId> {
         let owner = self.symbol(module).owner?;
         let name = module_class_name(&self.symbol(module).name);
@@ -30,7 +30,7 @@ impl Universe {
         let info = self.info(module);
         match *self.types().get(info) {
             Type::Sym(_, c) if self.is_class(c) => Some(c),
-            _ => beside.first().copied(),
+            _ => None,
         }
     }
 
@@ -40,7 +40,7 @@ impl Universe {
         self.decl(owner, &name).ok()?.into_iter().find(|&c| self.is_class(c))
     }
 
-    /// The object of module class `c`: among several of its name, the one typed `c`.
+    /// The object of module class `c`: among several of its name, the one typed `c`, else none.
     pub fn source_module(&mut self, c: SymbolId) -> Option<SymbolId> {
         let owner = self.symbol(c).owner?;
         let name = module_name(&self.symbol(c).name)?.to_owned();
@@ -52,7 +52,7 @@ impl Universe {
         };
         match found[..] {
             [s] => Some(s),
-            _ => found.iter().copied().find(|&s| typed_c(self, s)).or(found.first().copied()),
+            _ => found.into_iter().find(|&s| typed_c(self, s)),
         }
     }
 
