@@ -24,10 +24,8 @@ impl Typer<'_> {
             return self.applicable(alt, prefix, arg_types, views, ctx);
         }
         let tpe = self.u.intern_type(Type::Sym(prefix, alt));
-        let mut info = self.method_info(tpe)?;
-        if let Type::Poly { result, .. } = *self.u.types().get(info) {
-            info = result;
-        }
+        let info = self.method_info(tpe)?;
+        let info = self.u.strip_poly(info);
         let Type::Method { params, .. } = self.u.types().get(info).clone() else { return Some(false) };
         let repeated = params.last().is_some_and(|&(_, p)| self.repeated_param_elem(p).is_some());
         if repeated && args.len() > params.len() {

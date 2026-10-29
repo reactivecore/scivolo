@@ -90,7 +90,7 @@ impl Gen<'_, '_> {
             return Some(d);
         }
         name.strip_prefix("scala.scalanative.unsafe.Nat$Digit")?;
-        let tasty::Type::Applied(_, args) = self.l.u.types().get(t).clone() else { return None };
+        let args = self.l.u.applied(t)?.1.to_vec();
         args.into_iter().try_fold(0, |acc, a| Some(acc * 10 + self.nat(a)?))
     }
 }

@@ -149,7 +149,7 @@ pub fn method_binders(u: &mut Universe, s: SymbolId) -> Vec<Binder> {
     let mut info = u.info(s);
     let mut binders = Vec::new();
     loop {
-        match u.types().get(info).clone() {
+        match *u.types().get(info) {
             Type::Poly { result, .. } => info = result,
             Type::Method { binder, result, .. } => {
                 binders.push(binder);

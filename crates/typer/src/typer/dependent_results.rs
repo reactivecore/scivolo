@@ -148,7 +148,7 @@ impl Typer<'_> {
         }
         let mut inner_class = false;
         self.u.map_type(t, &mut |u, part| {
-            let (pre, s) = match u.types().get(part).clone() {
+            let (pre, s) = match *u.types().get(part) {
                 Type::Sym(Some(pre), s) => (pre, Some(s)),
                 Type::TypeRef(pre, _) => (pre, u.resolve_ref(part)),
                 _ => return None,

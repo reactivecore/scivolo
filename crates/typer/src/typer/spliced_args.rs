@@ -14,14 +14,10 @@ impl Typer<'_> {
     pub fn spliced_args(&mut self, fun: TNodeId, args: &[TNodeId]) -> Result<Vec<TNodeId>, &'static str> {
         let t = self.tpd.tpe(fun);
         let info = self.method_info(t).unwrap_or(t);
-        let params = match self.u.types().get(info).clone() {
-            Type::Method { params, .. } => params,
-            _ => Vec::new(),
-        };
+        let params = self.u.method(info).map_or(Vec::new(), |m| m.param_types());
         let mut out = Vec::new();
         for (i, &a) in args.iter().enumerate() {
-            let by_name =
-                params.get(i).is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
+            let by_name = params.get(i).is_some_and(|&p| matches!(self.u.types().get(p), Type::ByName(_)));
             out.push(match self.is_copyable(a) {
                 true => self.copied_path(a),
                 false if by_name => self

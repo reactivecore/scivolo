@@ -11,7 +11,7 @@ use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ENUM, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether class `c` derives from `java.lang.Enum`.
 pub fn derives_from_java_enum(l: &mut Lower, c: SymbolId) -> bool {
@@ -107,8 +107,7 @@ fn complete_value_class(l: &mut Lower, root: TNodeId, td: TNodeId, class: Symbol
 }
 
 fn template_parts(l: &Lower, td: TNodeId) -> (TNodeId, Vec<TNodeId>) {
-    let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, parents, .. } = *l.tpd.tree(rhs) else { unreachable!("a template") };
+    let Template { constr, parents, .. } = l.tpd.class_template(td).expect("a class definition");
     (constr, l.tpd.items(parents).to_vec())
 }
 

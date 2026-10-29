@@ -98,8 +98,8 @@ impl Typer<'_> {
     /// Whether type constructor `t` is a type lambda with a parameter bounded by more than `Any`.
     fn has_bounded_params(&mut self, t: TypeId) -> bool {
         let lambda = self.u.dealias(t);
-        let Type::Lambda { params, .. } = self.u.types().get(lambda).clone() else { return false };
-        params.iter().any(|&(_, b)| match *self.u.types().get(b) {
+        let Some(bounds) = self.u.lambda(lambda).map(|l| l.param_types()) else { return false };
+        bounds.into_iter().any(|b| match *self.u.types().get(b) {
             Type::Bounds(_, hi) => hi != tasty::ANY && self.u.class_symbol(hi) != Some(self.u.builtins().any),
             _ => false,
         })
@@ -140,8 +140,8 @@ impl Typer<'_> {
                 Type::Bounds(_, hi) => hi,
                 _ => info,
             };
-            let Type::Lambda { params, .. } = self.u.types().get(lambda).clone() else { return None };
-            return Some(self.bounds_of(params.get(i)?.1).2);
+            let bounds = self.u.lambda(lambda)?.params.get(i)?.1;
+            return Some(self.bounds_of(bounds).2);
         }
         if self.u.symbol(c).kind != Kind::Class {
             return None;

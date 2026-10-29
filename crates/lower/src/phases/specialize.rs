@@ -75,8 +75,8 @@ fn specialize(l: &mut Lower, app: TNodeId, fun: TNodeId, arity: usize) -> Result
         return Ok(());
     }
     let method = l.u.widen(l.tpd.tpe(fun));
-    let Type::Method { params, .. } = l.u.types().get(method).clone() else { return Ok(()) };
-    let params: Vec<Erased> = params.iter().map(|&(_, t)| l.u.erase_value(t)).collect();
+    let Some(params) = l.u.method(method).map(|m| m.param_types()) else { return Ok(()) };
+    let params: Vec<Erased> = params.into_iter().map(|t| l.u.erase_value(t)).collect();
     let result = l.u.widen(l.tpd.tpe(app));
     let result = l.u.erase_value(result);
     let primitives = params.iter().all(|p| matches!(p, Erased::Prim(_)));

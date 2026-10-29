@@ -72,10 +72,7 @@ pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
 fn declare_library(l: &mut Lower, class: SymbolId, ctor: SymbolId, outer: SymbolId) {
     let tpe = type_ref(l.u, outer);
     let info = l.u.info(ctor);
-    let first = match l.u.types().get(info) {
-        Type::Poly { result, .. } => *result,
-        _ => info,
-    };
+    let first = l.u.strip_poly(info);
     let declared = matches!(l.u.types().get(first), Type::Method { params, .. }
         if params.first().is_some_and(|(n, _)| n == "$outer"));
     if declared && l.outers.contains_key(&class) {
@@ -92,7 +89,7 @@ fn declare_library(l: &mut Lower, class: SymbolId, ctor: SymbolId, outer: Symbol
 
 /// The enclosing instance of a class of type `tpe` created in `class`: its prefix as a tree.
 fn instance(l: &mut Lower, class: SymbolId, tpe: TypeId, span: Span) -> Result<TNodeId> {
-    let prefix = match l.u.types().get(tpe).clone() {
+    let prefix = match *l.u.types().get(tpe) {
         Type::Applied(tycon, _) => return instance(l, class, tycon, span),
         Type::Sym(Some(p), _) | Type::TypeRef(p, _) => p,
         _ => return unsupported(span, "creating an inner class without a prefix"),
@@ -107,7 +104,7 @@ fn instance(l: &mut Lower, class: SymbolId, tpe: TypeId, span: Span) -> Result<T
 /// selected on such a path.
 fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId> {
     let refused = "creating an inner class through this prefix";
-    match l.u.types().get(p).clone() {
+    match *l.u.types().get(p) {
         Type::This(c) => {
             let Some(c) = l.u.class_symbol(c) else { return unsupported(span, refused) };
             let module = l.u.is_module_class(c).then(|| l.u.source_module(c)).flatten();
@@ -139,8 +136,8 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
             if owner.is_some_and(|o| is_term(l, o)) {
                 return Ok(l.ident(s, span));
             }
-            let this_class = match q.map(|q| l.u.types().get(q).clone()) {
-                Some(Type::This(c)) => l.u.class_symbol(c),
+            let this_class = match q.map(|q| l.u.types().get(q)) {
+                Some(&Type::This(c)) => l.u.class_symbol(c),
                 _ => None,
             };
             let on_this = q.is_none() || this_class == Some(class);

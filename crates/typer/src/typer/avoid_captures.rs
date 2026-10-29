@@ -27,7 +27,7 @@ impl Typer<'_> {
                     _ => self.u.intern_type(Type::Bounds(lo, hi)),
                 }
             }
-            Type::Applied(tycon, args) => match self.u.types().get(tycon).clone() {
+            Type::Applied(tycon, args) => match *self.u.types().get(tycon) {
                 Type::Sym(_, c) if self.u.symbol(c).kind == Kind::Class => {
                     let variances = self.u.variances(c);
                     let args = args

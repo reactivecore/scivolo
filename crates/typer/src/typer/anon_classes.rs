@@ -134,7 +134,7 @@ impl Typer<'_> {
         if super::deskolemize::has_skolem(self.u, pt) {
             return None;
         }
-        let tycon = match self.u.types().get(pt).clone() {
+        let tycon = match *self.u.types().get(pt) {
             Type::Applied(tycon, _) => tycon,
             _ => pt,
         };

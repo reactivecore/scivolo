@@ -2,8 +2,16 @@
 //   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
 //! Extractors over typed trees (dotty's `TreeInfo`).
 
-use super::{TNodeId, Tpd, Tree};
+use super::{List, TNodeId, Tpd, Tree};
 use tasty::{TypeId, Universe};
+
+/// The parts of a class definition's `Template`.
+pub struct Template {
+    pub constr: TNodeId,
+    pub parents: List,
+    pub self_: Option<TNodeId>,
+    pub body: List,
+}
 
 /// The lub of the types of `trees`, of a case its body's (the type of a match or `try`).
 pub fn lub_of(tpd: &Tpd, u: &mut Universe, trees: &[TNodeId]) -> TypeId {
@@ -19,6 +27,13 @@ pub fn lub_of(tpd: &Tpd, u: &mut Universe, trees: &[TNodeId]) -> TypeId {
 }
 
 impl Tpd {
+    /// The template of the class definition `td` (dotty's `ClassDef`/`Template` unapply).
+    pub fn class_template(&self, td: TNodeId) -> Option<Template> {
+        let Tree::TypeDef { rhs, .. } = *self.tree(td) else { return None };
+        let Tree::Template { constr, parents, self_, body } = *self.tree(rhs) else { return None };
+        Some(Template { constr, parents, self_, body })
+    }
+
     /// `f` of `f[T](a)(b)`: `t` without its applications and type applications (dotty's
     /// `methPart`, not looking into blocks).
     pub fn meth_part(&self, mut t: TNodeId) -> TNodeId {

@@ -81,10 +81,7 @@ impl Typer<'_> {
                 }
                 continue;
             };
-            let method = match *self.u.types().get(info) {
-                Type::Poly { result, .. } => result,
-                _ => info,
-            };
+            let method = self.u.strip_poly(info);
             let Type::Method { binder, .. } = *self.u.types().get(method) else { continue };
             let dependent = ps.iter().any(|&p| {
                 let mut found = false;

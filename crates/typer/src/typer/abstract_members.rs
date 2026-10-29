@@ -87,11 +87,11 @@ impl Typer<'_> {
         let mut params = Vec::new();
         let mut t = info;
         loop {
-            match self.u.types().get(t).clone() {
-                Type::Poly { result, .. } => t = result,
+            match self.u.types().get(t) {
+                Type::Poly { result, .. } => t = *result,
                 Type::Method { params: ps, result, .. } => {
-                    params.extend(ps);
-                    t = result;
+                    params.extend_from_slice(ps);
+                    t = *result;
                 }
                 _ => break,
             }

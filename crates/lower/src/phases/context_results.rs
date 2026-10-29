@@ -201,7 +201,7 @@ fn flat_call(l: &mut Lower, t: TNodeId, flattened: &[Flattened]) -> Option<(Vec<
         }
         if applies.len() == f.depth && references(l, r, f) {
             applies.reverse();
-            return Some((applies, method_ref(l, r)));
+            return Some((applies, l.tpd.meth_part(r)));
         }
     }
     None
@@ -220,14 +220,6 @@ fn references(l: &Lower, mut t: TNodeId, f: &Flattened) -> bool {
             _ => return false,
         }
     }
-}
-
-/// The method reference `t` applies.
-fn method_ref(l: &Lower, mut t: TNodeId) -> TNodeId {
-    while let Tree::Apply { fun, .. } | Tree::TypeApply { fun, .. } = *l.tpd.tree(t) {
-        t = fun;
-    }
-    t
 }
 
 /// Whether `t` selects the `apply` of a `ContextFunctionN` or of a context function type with

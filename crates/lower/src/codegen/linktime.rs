@@ -15,11 +15,8 @@ pub const RESOLVED_AT_LINKTIME: &str = "scala.scalanative.unsafe.resolvedAtLinkt
 
 impl Gen<'_, '_> {
     /// The symbol a reference or call `t` refers to.
-    pub fn referenced(&self, mut t: TNodeId) -> Option<SymbolId> {
-        while let Tree::Apply { fun, .. } | Tree::TypeApply { fun, .. } = *self.l.tpd.tree(t) {
-            t = fun;
-        }
-        self.l.tpd.sym(t)
+    pub fn referenced(&self, t: TNodeId) -> Option<SymbolId> {
+        self.l.tpd.sym(self.l.tpd.meth_part(t))
     }
 
     /// The name and whether calculated of the link-time property `t` refers to, if any

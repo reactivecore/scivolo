@@ -94,10 +94,8 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let t = self.u.dealias(t);
         let info = self.u.poly_function_apply(t)?;
-        let Type::Method { params, result, contextual: true, .. } = self.u.types().get(info).clone() else {
-            return None;
-        };
-        Some((params, result))
+        let m = self.u.method(info).filter(|m| m.contextual)?;
+        Some((m.params.to_vec(), m.result))
     }
 
     /// The parameter types and result of the `apply` of
@@ -107,15 +105,9 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let t = self.u.dealias(t);
         let info = self.u.poly_function_apply(t)?;
-        let Type::Method { binder, params, result, contextual: c, .. } = self.u.types().get(info).clone()
-        else {
-            return None;
-        };
-        if params.len() != n || c != contextual {
-            return None;
-        }
-        let (names, types) = params.into_iter().unzip();
-        Some(((types, result), (binder, names)))
+        let m = self.u.method(info).filter(|m| m.params.len() == n && m.contextual == contextual)?;
+        let (names, types) = m.params.iter().cloned().unzip();
+        Some(((types, m.result), (m.binder, names)))
     }
 
     /// Parameter type `t` without its `@ErasedParam` (dotty's `stripAnnots` of an inferred

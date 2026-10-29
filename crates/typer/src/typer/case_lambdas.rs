@@ -59,9 +59,9 @@ impl Typer<'_> {
         let Pt::Type(p) = pt else { return 1 };
         let t = self.zonk(p);
         let t = self.u.dealias(t);
-        if let Type::Applied(tycon, args) = self.u.types().get(t).clone()
+        if let Some((tycon, len)) = self.u.applied(t).map(|(c, args)| (c, args.len()))
             && let Some(class) = self.u.class_symbol(tycon)
-            && let Some(n) = args.len().checked_sub(1)
+            && let Some(n) = len.checked_sub(1)
             && self.u.full_name(class) == format!("scala.Function{n}")
         {
             return n;

@@ -41,12 +41,12 @@ impl Lower<'_> {
         let mut t = info;
         let mut has_clause = false;
         loop {
-            match self.u.types().get(t).clone() {
-                Type::Poly { result, .. } => t = result,
+            match self.u.types().get(t) {
+                Type::Poly { result, .. } => t = *result,
                 Type::Method { params: ps, result, .. } => {
-                    params.extend(ps);
+                    params.extend_from_slice(ps);
                     has_clause = true;
-                    t = result;
+                    t = *result;
                 }
                 _ => break,
             }

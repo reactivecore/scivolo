@@ -17,12 +17,11 @@ use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, LOCAL, PRIVATE};
 use tasty::{Flags, Kind, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// Gives class definition `td` of `class` its constructor parameter for the instance of `outer`.
 pub fn declare(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
+    let Template { constr, .. } = l.tpd.class_template(td).expect("a class definition");
     let tpe = type_ref(l.u, outer);
     let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
     let param = l.u.define(symbol("$outer", Kind::Param, ctor, Flags::default()));

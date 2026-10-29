@@ -83,7 +83,7 @@ impl Typer<'_> {
     /// Whether `prefix` is the `this` of class `owner` or the object whose class it is (dotty's
     /// `isAccessPrivilegedThisType`).
     fn is_privileged_prefix(&mut self, prefix: TypeId, owner: SymbolId) -> bool {
-        match self.u.types().get(prefix).clone() {
+        match *self.u.types().get(prefix) {
             Type::This(c) => self.u.class_symbol(c) == Some(owner),
             Type::Sym(_, s) => self.u.module_class(s) == Some(owner),
             _ => false,

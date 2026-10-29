@@ -4,7 +4,7 @@ use crate::Lower;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::SymbolId;
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// The class definitions of the unit's packages and of their templates, each before those in it.
 pub fn type_defs(l: &Lower, root: TNodeId) -> Vec<TNodeId> {
@@ -30,8 +30,7 @@ pub fn definition_spans(l: &Lower, type_defs: &[TNodeId]) -> FxHashMap<SymbolId,
     let mut out = FxHashMap::default();
     for &td in type_defs {
         out.extend(l.tpd.sym(td).map(|s| (s, l.tpd.span(td))));
-        let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
-        let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
+        let Some(Template { body, .. }) = l.tpd.class_template(td) else { continue };
         for &stat in l.tpd.items(body) {
             let sym = l.tpd.sym(stat).filter(|s| !l.mixed_in.contains(s) && !l.specialized.contains(s));
             out.extend(sym.map(|s| (s, l.tpd.span(stat))));

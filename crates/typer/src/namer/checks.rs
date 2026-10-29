@@ -104,7 +104,7 @@ impl Typer<'_> {
             return true;
         }
         let t = self.u.dealias(t);
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::Sym(_, s) if s == target => true,
             Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::TypeParam | Kind::Type) => {
                 self.complete(s);

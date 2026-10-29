@@ -18,7 +18,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::LAZY;
 use tasty::{Flags, Kind, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// Gives each method of local trait definitions `traits` that uses local values by `deps`
 /// leading parameters standing for them, put in `pending` to name, and makes its calls in unit
@@ -32,8 +32,7 @@ pub fn transform(
 ) -> Result<()> {
     let mut defs = Vec::new();
     for &td in traits {
-        let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a trait definition") };
-        let Tree::Template { body, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
+        let Template { body, .. } = l.tpd.class_template(td).expect("a trait definition");
         let trait_ = l.tpd.sym(td).expect("a trait's symbol");
         for stat in l.tpd.items(body).to_vec() {
             let sym = l.tpd.sym(stat);
@@ -70,10 +69,7 @@ pub fn transform(
 /// Gives the constructor of local trait definition `td` leading parameters `params` standing
 /// for `values` in its parents and initializing statements, recorded as for its methods.
 pub fn init_params(l: &mut Lower, td: TNodeId, values: &[SymbolId], params: &[SymbolId]) {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a trait definition") };
-    let Tree::Template { constr, parents, body, .. } = *l.tpd.tree(template) else {
-        unreachable!("a template")
-    };
+    let Template { constr, parents, body, .. } = l.tpd.class_template(td).expect("a trait definition");
     let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
     let info = l.u.info(ctor);
     add_params(l, constr, ctor, params);

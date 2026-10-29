@@ -195,7 +195,7 @@ impl Typer<'_> {
         }
         let callee = self.tpd.meth_part(f);
         let partial = matches!(self.u.types().get(result), Type::Method { .. });
-        let tpe = match self.u.types().get(self.tpd.tpe(callee)).clone() {
+        let tpe = match *self.u.types().get(self.tpd.tpe(callee)) {
             _ if erroneous => self.u.intern_type(Type::Error),
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>

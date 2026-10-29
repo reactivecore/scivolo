@@ -25,14 +25,14 @@ impl Typer<'_> {
     /// The constant of type `t`, also through a reference to a constant.
     pub fn constant_of_type(&mut self, mut t: TypeId) -> Option<C> {
         loop {
-            t = match self.u.types().get(t).clone() {
-                Type::ByName(r) => r,
-                Type::Sym(_, s) if !self.u.is_type_symbol(s) => match self.method_info(t) {
+            t = match self.u.types().get(t) {
+                Type::ByName(r) => *r,
+                Type::Sym(_, s) if !self.u.is_type_symbol(*s) => match self.method_info(t) {
                     Some(info) if info != t => info,
                     _ => return None,
                 },
                 Type::Str(s) => return Some(C::String(s.encode_utf16().collect())),
-                Type::Constant(tag, bits) => return of_type(tag, bits),
+                Type::Constant(tag, bits) => return of_type(*tag, *bits),
                 _ => return None,
             }
         }

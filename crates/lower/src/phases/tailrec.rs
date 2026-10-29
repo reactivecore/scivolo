@@ -13,13 +13,12 @@ use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
 use tasty::{Kind, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// Makes the tail recursive methods of class definition `td` loops.
 pub fn transform(l: &mut Lower, td: TNodeId) {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { return };
-    let Tree::Template { body, .. } = *l.tpd.tree(template) else { return };
+    let Some(Template { body, .. }) = l.tpd.class_template(td) else { return };
     for stat in l.tpd.items(body).to_vec() {
         let (Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }, Some(m)) =
             (l.tpd.tree(stat).clone(), l.tpd.sym(stat))

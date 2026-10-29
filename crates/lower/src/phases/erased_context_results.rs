@@ -53,8 +53,7 @@ fn all_erased(l: &mut Lower, t: TypeId) -> bool {
         return false;
     }
     let Some(info) = l.u.poly_function_apply(t) else { return true };
-    let Type::Method { params, result, contextual: true, .. } = l.u.types().get(info).clone() else {
-        return true;
-    };
-    params.into_iter().all(|(_, p)| l.u.is_erased_param(p)) && all_erased(l, result)
+    let Some(m) = l.u.method(info).filter(|m| m.contextual) else { return true };
+    let (params, result) = (m.param_types(), m.result);
+    params.into_iter().all(|p| l.u.is_erased_param(p)) && all_erased(l, result)
 }

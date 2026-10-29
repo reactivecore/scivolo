@@ -7,7 +7,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Type, TypeId};
+use tasty::{Binding, Type, TypeId};
 
 impl Typer<'_> {
     /// `qual.name` for structural method `name` of type `method`: a selection without a symbol
@@ -116,9 +116,8 @@ impl Typer<'_> {
         let members = self.type_members(qual_tpe, "applyDynamic");
         members.into_iter().any(|m| {
             let info = self.u.member_info(qual_tpe, m);
-            let Type::Method { params, .. } = self.u.types().get(info).clone() else { return false };
-            let elem = params.get(1).filter(|_| params.len() == 2).and_then(|&(_, p)| self.repeated_elem(p));
-            elem.is_some_and(|e| self.u.class_symbol(e) == class)
+            let Some(Binding { params: &[_, (_, p)], .. }) = self.u.method(info) else { return false };
+            self.repeated_elem(p).is_some_and(|e| self.u.class_symbol(e) == class)
         })
     }
 

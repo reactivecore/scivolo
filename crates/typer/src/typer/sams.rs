@@ -4,7 +4,7 @@
 
 use super::Typer;
 use tasty::tags::{ABSTRACT, FINAL, SEALED, TRAIT};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 /// A single abstract method type: the method's parameter and result types, the base type of its
 /// class that a function value implementing it gets (dotty's `samParent`), and the method with
@@ -61,15 +61,14 @@ impl Typer<'_> {
         let parent = if unrefined != dealiased && parent == unrefined { dealiased } else { parent };
         let info = self.u.member_info(parent, method);
         let info = self.u.with_refined_aliases(info, parent);
-        let Type::Method { binder, params, result, implicit: false, .. } = self.u.types().get(info).clone()
-        else {
+        let Some(Binding { binder, params, result, implicit: false, .. }) = self.u.method(info) else {
             return Ok(None);
         };
         if params.len() != n || matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
         {
             return Ok(None);
         }
-        let (names, params) = params.into_iter().unzip();
+        let (names, params) = params.iter().cloned().unzip();
         Ok(Some(Sam { params, result, parent, clause: (binder, names, method) }))
     }
 
@@ -163,10 +162,8 @@ impl Typer<'_> {
         let ctors = self.u.decl(c, "<init>").unwrap_or_default();
         let mut applicable = 0;
         for ctor in &ctors {
-            let mut info = self.u.info(*ctor);
-            if let Type::Poly { result, .. } = *self.u.types().get(info) {
-                info = result;
-            }
+            let info = self.u.info(*ctor);
+            let info = self.u.strip_poly(info);
             let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { continue };
             let no_args = match params[..] {
                 [] => true,

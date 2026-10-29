@@ -58,10 +58,9 @@ impl Typer<'_> {
     /// The final result type of method type `info` of `sym`, its type parameters replaced by
     /// fresh type variables (dotty's `normalizedCompatible`).
     fn instantiated_result(&mut self, sym: SymbolId, info: tasty::TypeId) -> tasty::TypeId {
-        let tasty::Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+        let Some((binder, result, names)) = self.u.poly(info).map(|p| (p.binder, p.result, p.names())) else {
             return self.final_result(info);
         };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         let vars: Vec<tasty::TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
         let result = self.u.subst(result, binder, &names, &vars);
         let tparams = self.u.type_params(sym);

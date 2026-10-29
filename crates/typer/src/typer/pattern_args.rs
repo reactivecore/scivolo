@@ -10,7 +10,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, TName, Tree};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, TypeId};
 
 /// The element names named patterns select, with the element types of a named tuple.
 type NamedElements = Result<(Vec<String>, Option<Vec<TypeId>>), &'static str>;
@@ -19,11 +19,9 @@ impl Typer<'_> {
     /// Types the applied type trees of typed patterns `args` against tuple type `sel` of their
     /// arity once more, the result unused.
     pub fn retype_tuple_arg_types(&mut self, sel: TypeId, args: &[NodeId], ctx: Ctx) {
-        let Type::Applied(tycon, targs) = self.u.types().get(sel).clone() else { return };
-        let tuple = format!("scala.Tuple{}", targs.len());
-        if targs.len() != args.len()
-            || self.u.class_symbol(tycon).is_none_or(|c| self.u.full_name(c) != tuple)
-        {
+        let Some((tycon, n)) = self.u.applied(sel).map(|(t, targs)| (t, targs.len())) else { return };
+        let tuple = format!("scala.Tuple{n}");
+        if n != args.len() || self.u.class_symbol(tycon).is_none_or(|c| self.u.full_name(c) != tuple) {
             return;
         }
         for &a in args {

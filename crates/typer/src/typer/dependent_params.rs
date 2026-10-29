@@ -87,8 +87,8 @@ fn substituted(
             if new_pre == pre || !matches!(u.types().get(new_pre), Type::Skolem(..) | Type::Refined(..)) {
                 return None;
             }
-            return match u.refinement_named(new_pre, &name).map(|i| u.types().get(i).clone()) {
-                Some(Type::Alias(alias)) => Some(alias),
+            return match u.refinement_named(new_pre, &name).map(|i| u.types().get(i)) {
+                Some(&Type::Alias(alias)) => Some(alias),
                 _ => Some(u.intern_type(Type::TypeRef(new_pre, name))),
             };
         }

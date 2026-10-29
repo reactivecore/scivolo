@@ -86,7 +86,7 @@ impl Typer<'_> {
         let targ = self.type_tree(arg, at, false);
         let method = self.instantiated(select, &[arg])?;
         let fun = self.build().type_apply(select, &[targ], method, at);
-        let Type::Method { result, .. } = self.u.types().get(method).clone() else {
+        let Type::Method { result, .. } = *self.u.types().get(method) else {
             return Err("ClassTag.apply");
         };
         let class = self.resolve_full_name("java.lang.Class", true).ok_or("java.lang.Class")?;

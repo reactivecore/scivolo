@@ -57,8 +57,8 @@ impl Typer<'_> {
         if !self.syms.repeated_params.contains_key(&p) {
             return info;
         }
-        match self.u.types().get(info).clone() {
-            Type::Applied(_, args) if args.len() == 1 => self.repeated_type(args[0]),
+        match *self.u.types().get(info) {
+            Type::Applied(_, ref args) if args.len() == 1 => self.repeated_type(args[0]),
             _ => info,
         }
     }
@@ -133,7 +133,7 @@ impl Typer<'_> {
         let from =
             if class.is_some_and(|c| self.u.derives_from(c, array_class)) { array_class } else { seq_class };
         let base = self.u.base_type(widened, from);
-        let Some(Type::Applied(_, args)) = base.map(|b| self.u.types().get(b).clone()) else {
+        let Some((_, args)) = base.and_then(|b| self.u.applied(b)) else {
             return self.unsupported(a, "sequence argument");
         };
         let arg = match *self.u.types().get(args[0]) {

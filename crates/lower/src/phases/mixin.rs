@@ -14,7 +14,7 @@ use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, INLINE, PRIVATE};
 use tasty::{Kind, SymbolId, Type, TypeId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether member `s` has a body: in its TASTy for the library's, else unless deferred.
 pub fn has_body(l: &mut Lower, s: SymbolId) -> bool {
@@ -28,8 +28,7 @@ pub fn has_body(l: &mut Lower, s: SymbolId) -> bool {
 pub fn methods_with_body(l: &Lower, classes: &[TNodeId], with_body: bool) -> FxHashSet<SymbolId> {
     let mut out = FxHashSet::default();
     for &td in classes {
-        let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
-        let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
+        let Some(Template { body, .. }) = l.tpd.class_template(td) else { continue };
         for &stat in l.tpd.items(body) {
             if let (Tree::DefDef { rhs, .. }, Some(s)) = (l.tpd.tree(stat), l.tpd.sym(stat))
                 && rhs.is_some() == with_body

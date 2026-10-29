@@ -128,11 +128,11 @@ impl Typer<'_> {
     fn bound_captures(&mut self, pat: TypeId, captures: &[SymbolId]) {
         let mut at = Vec::new();
         self.u.map_type(pat, &mut |u, part| {
-            if let Type::Applied(tycon, args) = u.types().get(part).clone()
+            if let Some((tycon, args)) = u.applied(part)
                 && let Type::Sym(_, c) = *u.types().get(tycon)
                 && matches!(u.symbol(c).kind, Kind::Class | Kind::Type)
             {
-                for (i, a) in args.into_iter().enumerate() {
+                for (i, &a) in args.iter().enumerate() {
                     if let Type::Sym(_, s) = *u.types().get(a)
                         && captures.contains(&s)
                     {
@@ -165,8 +165,7 @@ impl Typer<'_> {
             Type::Bounds(_, hi) => hi,
             _ => info,
         };
-        let Type::Lambda { params, .. } = self.u.types().get(lambda).clone() else { return None };
-        let bounds = params.get(i)?.1;
+        let bounds = self.u.lambda(lambda)?.params.get(i)?.1;
         let mut dependent = false;
         self.u.map_type(bounds, &mut |u, t| {
             dependent |= matches!(u.types().get(t), Type::Param(..));

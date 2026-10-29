@@ -104,11 +104,7 @@ pub fn check_needs_no_this(l: &Lower, t: TNodeId) -> Result<()> {
 }
 
 fn body(l: &Lower, td: TNodeId) -> Vec<TNodeId> {
-    let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { return Vec::new() };
-    match *l.tpd.tree(rhs) {
-        Tree::Template { body, .. } => l.tpd.items(body).to_vec(),
-        _ => Vec::new(),
-    }
+    l.tpd.class_template(td).map_or_else(Vec::new, |t| l.tpd.items(t.body).to_vec())
 }
 
 fn set_body(l: &mut Lower, td: TNodeId, stats: &[TNodeId]) {

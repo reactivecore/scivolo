@@ -86,7 +86,7 @@ impl Typer<'_> {
         param: Option<SymbolId>,
         params: &[SymbolId],
     ) -> TypeId {
-        let (Some(param), Type::Bounds(lo, hi)) = (param, self.u.types().get(bounds).clone()) else {
+        let (Some(param), &Type::Bounds(lo, hi)) = (param, self.u.types().get(bounds)) else {
             return bounds;
         };
         self.complete(param);

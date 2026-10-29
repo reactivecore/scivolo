@@ -12,15 +12,14 @@ use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{EXTENSION, FIELDaccessor, LAZY, SYNTHETIC};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// Records the unit's traits among `classes` whose bodies have values, statements or extension
 /// methods.
 pub fn find_inits(l: &mut Lower, classes: &[TNodeId]) {
     for &td in classes {
         let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_trait(c)) else { continue };
-        let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { continue };
-        let Tree::Template { body, .. } = *l.tpd.tree(template) else { continue };
+        let Some(Template { body, .. }) = l.tpd.class_template(td) else { continue };
         let inits = l.tpd.items(body).iter().any(|&s| match *l.tpd.tree(s) {
             Tree::DefDef { .. } => l.tpd.sym(s).is_some_and(|d| has(l.u, d, EXTENSION)),
             Tree::TypeDef { .. } | Tree::Import { .. } => false,

@@ -37,8 +37,8 @@ impl Typer<'_> {
             Type::Bounds(..) => Some(a),
             _ => return a,
         };
-        match bounds.map(|b| self.u.types().get(b).clone()) {
-            Some(Type::Bounds(lo, _)) => lo,
+        match bounds.map(|b| self.u.types().get(b)) {
+            Some(&Type::Bounds(lo, _)) => lo,
             _ => crate::defn::type_ref(self.u, self.u.builtins().nothing),
         }
     }

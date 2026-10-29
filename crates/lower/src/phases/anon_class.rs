@@ -72,10 +72,10 @@ pub fn override_sym(l: &mut Lower, cls: SymbolId, m: SymbolId, site: TypeId) -> 
             }
             _ => None,
         });
-        let Type::Poly { params, .. } = l.u.types().get(info).clone() else {
+        let Some(bounds) = l.u.poly(info).map(|p| p.param_types()) else {
             unreachable!("a polymorphic type")
         };
-        for (&t, (_, bounds)) in tparams.iter().zip(params) {
+        for (&t, bounds) in tparams.iter().zip(bounds) {
             l.u.set_info(t, bounds);
         }
     }
@@ -147,12 +147,11 @@ fn super_call(l: &mut Lower, parent: TypeId, ctor: SymbolId, span: Span) -> TNod
 fn empty_varargs(l: &mut Lower, parent: TypeId, ctor: SymbolId) -> Vec<TNodeId> {
     let mut info = l.u.info(ctor);
     if let Type::Poly { binder, params, result } = l.u.types().get(info).clone() {
-        let Type::Applied(_, targs) = l.u.types().get(parent).clone() else { return Vec::new() };
+        let Some(targs) = l.u.applied(parent).map(|(_, a)| a.to_vec()) else { return Vec::new() };
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         info = l.u.subst(result, binder, &names, &targs);
     }
-    let Type::Method { params, .. } = l.u.types().get(info).clone() else { return Vec::new() };
-    let [(_, p)] = params[..] else { return Vec::new() };
+    let Some(&[(_, p)]) = l.u.method(info).map(|m| m.params) else { return Vec::new() };
     let Some(elem) = repeated_elem(l, p) else { return Vec::new() };
     let repeated = l.u.class_ref("scala.<repeated>");
     let repeated = l.u.intern_type(Type::Applied(repeated, vec![elem]));

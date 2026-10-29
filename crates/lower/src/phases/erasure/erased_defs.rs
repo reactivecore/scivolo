@@ -80,8 +80,8 @@ fn drop_erased_args(
 ) -> Result<()> {
     let method = l.u.widen(l.tpd.tpe(fun));
     let method = l.u.poly_function_apply_of(method).unwrap_or(method);
-    let tasty::Type::Method { params, .. } = l.u.types().get(method).clone() else { return Ok(()) };
-    let erased: Vec<bool> = params.iter().map(|&(_, p)| l.u.is_erased_param(p)).collect();
+    let Some(params) = l.u.method(method).map(|m| m.param_types()) else { return Ok(()) };
+    let erased: Vec<bool> = params.into_iter().map(|p| l.u.is_erased_param(p)).collect();
     if !erased.contains(&true) {
         return Ok(());
     }

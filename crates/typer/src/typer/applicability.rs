@@ -161,8 +161,7 @@ impl Typer<'_> {
             return self.param_types(alt, prefix, false);
         }
         let info = self.poly_instance(info, alt, true);
-        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
-        let mut types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+        let mut types = self.u.method(info)?.param_types();
         let elem = types.last().and_then(|&p| self.repeated_elem(p));
         if let Some(e) = elem {
             *types.last_mut().expect("a parameter") = e;
@@ -187,8 +186,7 @@ impl Typer<'_> {
             }
             info = self.poly_instance(info, alt, false);
         }
-        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
-        let mut types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+        let mut types = self.u.method(info)?.param_types();
         let elem = types.last().and_then(|&p| self.repeated_elem(p));
         if let Some(e) = elem {
             *types.last_mut().expect("a parameter") = e;

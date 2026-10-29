@@ -8,7 +8,7 @@
 use super::Gen;
 use crate::Result;
 use tasty::{Erased, Kind, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 impl Gen<'_, '_> {
     /// The bridges method definition `dd` needs to the abstract members of the traits its class
@@ -80,8 +80,7 @@ impl Gen<'_, '_> {
 pub fn deferred_methods(tpd: &typer::tpd::Tpd, type_defs: &[TNodeId]) -> rustc_hash::FxHashSet<SymbolId> {
     let mut out = rustc_hash::FxHashSet::default();
     for &td in type_defs {
-        let Tree::TypeDef { rhs, .. } = *tpd.tree(td) else { continue };
-        let Tree::Template { body, .. } = *tpd.tree(rhs) else { continue };
+        let Some(Template { body, .. }) = tpd.class_template(td) else { continue };
         for &stat in tpd.items(body) {
             if let (Tree::DefDef { rhs: None, .. }, Some(s)) = (tpd.tree(stat), tpd.sym(stat)) {
                 out.insert(s);

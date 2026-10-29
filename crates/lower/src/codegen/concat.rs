@@ -28,9 +28,9 @@ impl Gen<'_, '_> {
             return false;
         }
         let info = self.l.u.info(sym);
-        let tasty::Type::Method { params, .. } = self.l.u.types().get(info).clone() else { return false };
+        let Some(params) = self.l.u.method(info).map(|m| m.param_types()) else { return false };
         let string = self.l.defs.string;
-        matches!(params[..], [(_, p)] if self.l.u.class_symbol(p) == Some(string))
+        matches!(params[..], [p] if self.l.u.class_symbol(p) == Some(string))
     }
 
     pub fn gen_string_concat(&mut self, app: TNodeId, span: Span) -> Result<ValId> {
