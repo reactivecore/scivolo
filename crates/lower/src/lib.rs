@@ -5,6 +5,7 @@ mod codegen;
 mod compile;
 mod definitions;
 pub mod directives;
+mod options;
 pub mod output;
 mod phases;
 mod symbols;
@@ -12,6 +13,7 @@ mod units;
 
 pub use compile::{Refusal, compile, compile_with, lower};
 use definitions::Definitions;
+pub use options::Options;
 pub use output::NirFile;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;

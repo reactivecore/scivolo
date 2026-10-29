@@ -4,45 +4,42 @@
 //! numbers of its children in the extractor's order, `-1` for none, and its name), symbols,
 //! printing, owners and conditionals.
 
+use super::decode::Expr;
 use super::tree_kinds::Kind;
-use super::{Answer, UNKNOWN, arg, numbers, symbol, text};
+use super::{Answer, Fallible};
 use crate::host::Host;
 use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
-    /// Runs tree operation `op` on `args`.
-    pub fn run_tree(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
-        let t = || Ok::<_, &'static str>(arg(args, 0)? as u32);
-        match op {
-            "treeKind" => numbers(vec![self.kind(self.tree(t()?)?) as i32]),
-            "tree" => self.shape(self.tree(t()?)?),
-            "showTree" => text(self.show_code(self.tree(t()?)?, false)?),
-            "showStructure" => text(self.show_code(self.tree(t()?)?, true)?),
-            "treeSymbol" => {
-                let t = self.tree(t()?)?;
-                numbers(vec![self.tree_symbol(t)?.map_or(-1, |s| s.0 as i32)])
-            }
-            "changeOwner" => {
-                let tree = self.tree(t()?)?;
-                self.reflect().change_owner(tree, symbol(arg(args, 1)?)?);
-                numbers(vec![arg(args, 0)?])
-            }
-            "if" => {
-                let trees = args.iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;
-                let &[cond, thenp, elsep] = &trees[..] else { return Err("If.apply without its parts") };
-                let tpe = typer::tpd::lub_of(&self.tpd, &mut self.u, &[thenp, elsep]);
-                let tree = T::If { cond, thenp, elsep, inline: false };
-                let t = self.tpd.node(tree, self.expansion, Some(tpe), None);
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            _ => Err(UNKNOWN),
-        }
+    pub fn tree_kind(&self, t: TNodeId) -> i32 {
+        self.kind(t) as i32
+    }
+
+    pub fn show_tree(&mut self, t: TNodeId) -> Fallible<String> {
+        self.show_code(t, false)
+    }
+
+    pub fn show_structure(&mut self, t: TNodeId) -> Fallible<String> {
+        self.show_code(t, true)
+    }
+
+    pub fn change_owner(&mut self, e: Expr, owner: SymbolId) -> Expr {
+        self.reflect().change_owner(e.tree, owner);
+        e
+    }
+
+    /// `If` of `trees`, its condition and its branches.
+    pub fn if_(&mut self, trees: Vec<TNodeId>) -> Fallible<TNodeId> {
+        let &[cond, thenp, elsep] = &trees[..] else { return Err("If.apply without its parts") };
+        let tpe = typer::tpd::lub_of(&self.tpd, &mut self.u, &[thenp, elsep]);
+        let tree = T::If { cond, thenp, elsep, inline: false };
+        Ok(self.tpd.node(tree, self.expansion, Some(tpe), None))
     }
 
     /// `Tree.symbol` (dotty's `Tree.denot`): a definition's or reference's own symbol, else the
     /// symbol its named or `this` type denotes; a proxy tree's forwardee's; none for others.
-    fn tree_symbol(&mut self, t: TNodeId) -> Result<Option<SymbolId>, &'static str> {
+    pub fn tree_symbol(&mut self, t: TNodeId) -> Fallible<Option<SymbolId>> {
         match *self.tpd.tree(t) {
             T::Apply { fun, .. } | T::TypeApply { fun, .. } | T::UnApply { fun, .. } => self.tree_symbol(fun),
             T::Typed { expr: inner, .. }
@@ -93,7 +90,7 @@ impl Host {
     }
 
     /// The kind of `t`, its children and its name.
-    fn shape(&mut self, t: TNodeId) -> Answer {
+    pub fn shape(&mut self, t: TNodeId) -> Answer {
         let kind = self.kind(t);
         let (mut children, name) = self.parts(t, kind)?;
         if let (Kind::TypeBoundsTree, T::TypeTree { .. }) = (kind, self.tpd.tree(t)) {

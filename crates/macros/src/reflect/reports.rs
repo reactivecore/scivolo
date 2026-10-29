@@ -2,28 +2,24 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The errors of `quotes.reflect.report`, recorded with their spans.
 
-use super::{Answer, UNKNOWN, arg, numbers};
+use super::Fallible;
 use crate::host::Host;
+use typer::tpd::TNodeId;
 
 impl Host {
-    /// Runs report operation `op` on `args` and message `text`.
-    pub fn run_report(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        match op {
-            "error" => {
-                let tree = arg(args, 0)?;
-                let span = match tree {
-                    t if t >= 0 => self.tpd.span(self.tree(t as u32)?).without_inlined_call(),
-                    _ => self.expansion,
-                };
-                self.reported.push((span, text.to_owned()));
-                numbers(Vec::new())
-            }
-            "errorAt" => {
-                let span = self.span_of((arg(args, 0)?, arg(args, 1)?, arg(args, 2)?))?;
-                self.reported.push((span, text.to_owned()));
-                numbers(Vec::new())
-            }
-            _ => Err(UNKNOWN),
-        }
+    /// Reports `message` at `at`, at the expansion for none.
+    pub fn error(&mut self, at: Option<TNodeId>, message: String) {
+        let span = match at {
+            Some(t) => self.tpd.span(t).without_inlined_call(),
+            None => self.expansion,
+        };
+        self.reported.push((span, message));
+    }
+
+    /// Reports `message` at offsets `start` until `end` of source file `file`.
+    pub fn error_at(&mut self, file: i32, start: i32, end: i32, message: String) -> Fallible<()> {
+        let span = self.span_of((file, start, end))?;
+        self.reported.push((span, message));
+        Ok(())
     }
 }

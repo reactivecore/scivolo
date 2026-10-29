@@ -4,25 +4,20 @@
 //! `X.copy(original)(...)` of `quotes.reflect` (dotty's `tpd.cpy`): the original if its parts
 //! are unchanged, else a tree of its kind typed for the new parts.
 
+use super::Fallible;
+use super::decode::Expr;
 use super::tree_kinds::Kind;
-use super::{Answer, UNKNOWN, arg, numbers};
 use crate::host::Host;
 use tasty::{NOTHING, TypeId};
 use typer::inlining::Reflect;
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
-    /// Runs `copy` on the original's expression and its new parts (`-1` for none), the name in
-    /// `text`.
-    pub fn run_copy(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        if op != "copy" {
-            return Err(UNKNOWN);
-        }
-        let original = self.tree(arg(args, 0)? as u32)?;
+    /// The expression number of a copy of expression `e` with parts `new` and name `text`.
+    pub fn copy(&mut self, e: Expr, new: Vec<Option<TNodeId>>, text: String) -> Fallible<i32> {
+        let original = e.tree;
         let kind = self.kind(original);
         let (old, old_name) = self.parts(original, kind)?;
-        let new = args[1..].iter().map(|&c| (c >= 0).then(|| self.tree(c as u32)).transpose());
-        let new = new.collect::<Result<Vec<_>, _>>()?;
         let named = !matches!(kind, Kind::If | Kind::Match | Kind::SummonFrom | Kind::Unapply);
         let renamed = named && old_name.as_deref().is_some_and(|n| n != text);
         if let T::TypeTree { .. } = self.tpd.tree(original) {
@@ -35,18 +30,18 @@ impl Host {
                 _ => new.is_empty(),
             };
             return match same {
-                true => numbers(vec![arg(args, 0)?]),
+                true => Ok(e.number),
                 false => Err("a copy of a type tree with other parts"),
             };
         }
         if new == old && !renamed {
-            return numbers(vec![arg(args, 0)?]);
+            return Ok(e.number);
         }
         if new.len() != old.len() {
             return Err("X.copy with another number of parts than the original's");
         }
-        let t = self.copied(original, kind, &new, renamed.then_some(text))?;
-        numbers(vec![self.add_tree(t) as i32])
+        let t = self.copied(original, kind, &new, renamed.then_some(&text))?;
+        Ok(self.add_tree(t) as i32)
     }
 
     /// A tree of kind `kind` like `original` with parts `new` and name `renamed` if given.

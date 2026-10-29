@@ -3,7 +3,7 @@
 use libimage::Image;
 use libs::SCALA;
 use lower::directives::{directives, without_header};
-use macros::Macros;
+use macros::{Macros, Settings, VmMacros};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use syntax::config::Config;
@@ -54,7 +54,7 @@ pub fn compile(
     image: Option<&'static Image>,
     classes: &Path,
     given: &[String],
-    macros: Option<&mut dyn Macros>,
+    mut macros: Option<&mut VmMacros<'_>>,
 ) -> Result<Vec<String>, Refused> {
     if source.extension().is_some_and(|e| e == "sc") {
         return Err(".sc scripts".into());
@@ -62,7 +62,12 @@ pub fn compile(
     let text = std::str::from_utf8(text).map_err(|_| "a file not in UTF-8")?;
     let mut options: Vec<&str> = given.iter().map(String::as_str).collect();
     options.extend(directives(text, SCALA)?.options);
+    if let Some(m) = macros.as_deref_mut() {
+        m.settings = Settings::from_options(&options);
+    }
+    options.retain(|o| !Settings::reads(o));
     let cfg = Config::checked(&options).map_err(|o| format!("option `{o}`"))?;
+    let macros = macros.map(|m| m as &mut dyn Macros);
     let image = image.ok_or("no library image")?;
     let name = source.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
     let source = SourceFile::new(name, without_header(text));

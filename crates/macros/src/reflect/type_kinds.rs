@@ -6,71 +6,58 @@
 //! 14 `ByNameType`, 15 `ParamRef`, 16 `SuperType`, 17 `MatchType`, 18 `RecursiveType`,
 //! 19 `RecursiveThis`, 20 `MatchCase`, 0 other) and its parts.
 
-use super::{Answer, UNKNOWN, arg, numbers};
+use super::{Answer, Fallible};
 use crate::host::Host;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Host {
-    /// Runs type shape operation `op` on `args`.
-    pub fn run_type_kind(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
-        let tpe = |h: &Host| h.type_shape_of(arg(args, 0)? as u32);
-        match op {
-            "typeKind" => numbers(vec![self.type_kind(tpe(self)?)]),
-            "typeParts" => {
-                let parts = match self.u.types().get(tpe(self)?).clone() {
-                    Type::Applied(tycon, args) => [tycon].into_iter().chain(args).collect(),
-                    Type::Annotated(inner, _)
-                    | Type::This(inner)
-                    | Type::ByName(inner)
-                    | Type::Rec(_, inner) => {
-                        vec![inner]
-                    }
-                    Type::Sym(Some(prefix), _) | Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => {
-                        vec![self.package_this(prefix)]
-                    }
-                    Type::Sym(None, s) => vec![self.qualifier(s)?],
-                    Type::Package(p) => match self.u.symbol(p).owner.filter(|_| p != self.u.root()) {
-                        Some(o) => vec![self.package_this_of(o)],
-                        None => vec![self.u.intern_type(Type::NoPrefix)],
-                    },
-                    Type::Bounds(lo, hi) | Type::And(lo, hi) | Type::Or(lo, hi, _) => vec![lo, hi],
-                    Type::Super(this, parent) | Type::MatchCase(this, parent) => vec![this, parent],
-                    Type::Alias(a) => vec![a, a],
-                    Type::Refined(parent, _, info) => vec![parent, info],
-                    Type::Match { bound, scrutinee, cases } => {
-                        [bound, scrutinee].into_iter().chain(cases).collect()
-                    }
-                    _ => return Err("the parts of a type of another kind"),
-                };
-                numbers(parts.into_iter().map(|p| self.add_type(p) as i32).collect())
+    pub fn type_parts(&mut self, t: TypeId) -> Fallible<Vec<TypeId>> {
+        Ok(match self.u.types().get(t).clone() {
+            Type::Applied(tycon, args) => [tycon].into_iter().chain(args).collect(),
+            Type::Annotated(inner, _) | Type::This(inner) | Type::ByName(inner) | Type::Rec(_, inner) => {
+                vec![inner]
             }
-            "paramNum" => match *self.u.types().get(tpe(self)?) {
-                Type::Param(_, i) => numbers(vec![i as i32]),
-                _ => Err("ParamRef.paramNum of another type"),
+            Type::Sym(Some(prefix), _) | Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => {
+                vec![self.package_this(prefix)]
+            }
+            Type::Sym(None, s) => vec![self.qualifier(s)?],
+            Type::Package(p) => match self.u.symbol(p).owner.filter(|_| p != self.u.root()) {
+                Some(o) => vec![self.package_this_of(o)],
+                None => vec![self.u.intern_type(Type::NoPrefix)],
             },
-            "lambdaParts" => {
-                let (flags, params, result) = match self.u.types().get(tpe(self)?).clone() {
-                    Type::Method { params, result, implicit, contextual, .. } => {
-                        ([implicit, contextual], params, result)
-                    }
-                    Type::Poly { params, result, .. } | Type::Lambda { params, result, .. } => {
-                        ([false, false], params, result)
-                    }
-                    _ => {
-                        return Err(
-                            "the parts of a type other than a method, polymorphic type or type lambda",
-                        );
-                    }
-                };
-                let mut parts: Vec<i32> =
-                    flags.iter().map(|&f| f as i32).chain([params.len() as i32]).collect();
-                parts.extend(params.iter().map(|&(_, t)| self.add_type(t) as i32));
-                parts.push(self.add_type(result) as i32);
-                let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
-                Ok((parts, Some(names.join("\0"))))
-            }
-            _ => Err(UNKNOWN),
+            Type::Bounds(lo, hi) | Type::And(lo, hi) | Type::Or(lo, hi, _) => vec![lo, hi],
+            Type::Super(this, parent) | Type::MatchCase(this, parent) => vec![this, parent],
+            Type::Alias(a) => vec![a, a],
+            Type::Refined(parent, _, info) => vec![parent, info],
+            Type::Match { bound, scrutinee, cases } => [bound, scrutinee].into_iter().chain(cases).collect(),
+            _ => return Err("the parts of a type of another kind"),
+        })
+    }
+
+    pub fn param_num(&self, t: TypeId) -> Fallible<i32> {
+        match *self.u.types().get(t) {
+            Type::Param(_, i) => Ok(i as i32),
+            _ => Err("ParamRef.paramNum of another type"),
         }
+    }
+
+    /// Whether lambda type `t` is implicit and contextual, its number of parameters, their types
+    /// and its result type; the parameters' names.
+    pub fn lambda_parts(&mut self, t: TypeId) -> Answer {
+        let (flags, params, result) = match self.u.types().get(t).clone() {
+            Type::Method { params, result, implicit, contextual, .. } => {
+                ([implicit, contextual], params, result)
+            }
+            Type::Poly { params, result, .. } | Type::Lambda { params, result, .. } => {
+                ([false, false], params, result)
+            }
+            _ => return Err("the parts of a type other than a method, polymorphic type or type lambda"),
+        };
+        let mut parts: Vec<i32> = flags.iter().map(|&f| f as i32).chain([params.len() as i32]).collect();
+        parts.extend(params.iter().map(|&(_, t)| self.add_type(t) as i32));
+        parts.push(self.add_type(result) as i32);
+        let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
+        Ok((parts, Some(names.join("\0"))))
     }
 
     /// Prefix `t` of a member, the `this` of the package if it is a package (dotty's
@@ -92,7 +79,7 @@ impl Host {
         this
     }
 
-    fn type_kind(&self, t: TypeId) -> i32 {
+    pub fn type_kind(&self, t: TypeId) -> i32 {
         match *self.u.types().get(t) {
             Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => 2,
             Type::Sym(..) | Type::TypeRef(..) => 1,

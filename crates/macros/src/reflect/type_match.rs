@@ -3,8 +3,9 @@
 //! Quote patterns (dotty's `ExprMatch` and `TypeMatch`, `'[T] =?= '[P] && T <:< P` for types):
 //! what the pattern's bindings and holes stand for, as the last match.
 
-use super::{Answer, UNKNOWN, arg, numbers};
+use super::Fallible;
 use crate::host::{Host, PATTERN};
+use tasty::TypeId;
 use typer::inlining::{bound_types, quote_match};
 use typer::unpickle::{PatternBody, QuotePattern};
 
@@ -14,13 +15,10 @@ impl Host {
         PATTERN | (self.patterns.len() as u32 - 1)
     }
 
-    /// Runs type pattern operation `op` on `args`.
-    pub fn run_type_match(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
-        if op != "matchType" {
-            return Err(UNKNOWN);
-        }
-        let scrutinee = self.type_of(arg(args, 0)? as u32)?;
-        let pattern = arg(args, 1)? as u32;
+    /// Matches `scrutinee` against type pattern or type number `pattern`: the number of types
+    /// bound, `-1` if it does not match.
+    pub fn match_type(&mut self, scrutinee: TypeId, pattern: i32) -> Fallible<i32> {
+        let pattern = pattern as u32;
         let (hole, binds) = match pattern & PATTERN != 0 {
             true => {
                 let p = self.patterns.get((pattern & !PATTERN) as usize);
@@ -34,11 +32,11 @@ impl Host {
         };
         let Some(types) = bound_types(&mut self.u, scrutinee, hole, &binds) else {
             self.decided(false, [scrutinee, hole])?;
-            return numbers(vec![-1]);
+            return Ok(-1);
         };
         let types: Vec<_> = types.into_iter().map(|t| Err(self.add_type(t))).collect();
         self.matched = types;
-        numbers(vec![self.matched.len() as i32])
+        Ok(self.matched.len() as i32)
     }
 
     /// Matches expression `scrutinee` against quote pattern `pattern`: the number of things

@@ -2,8 +2,10 @@
 //! the expressions and types the macro holds by number.
 
 mod natives;
+mod settings;
 
 use crate::Tables;
+pub use settings::Settings;
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::SourceFile;
@@ -23,13 +25,6 @@ struct Unpickled {
 enum Expr {
     Tree(TNodeId),
     Quote(Unpickled),
-}
-
-/// The compiler options macros see: `-Yretain-trees` and the values of `-Xmacro-settings`.
-#[derive(Clone, Default)]
-pub struct Settings {
-    pub retain_trees: bool,
-    pub macro_settings: Vec<String>,
 }
 
 /// The bit that marks the number of a quote pattern among those of expressions and types.

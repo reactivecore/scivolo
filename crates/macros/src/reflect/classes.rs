@@ -2,100 +2,91 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The classes macros make: `Symbol.newClass`, `ClassDef.apply`, `TypeIdent` and `New`.
 
-use super::{Answer, UNKNOWN, arg, numbers, symbol};
+use super::Fallible;
 use crate::host::Host;
-use tasty::Kind;
+use tasty::{Kind, SymbolId, TypeId};
+use typer::tpd::TNodeId;
 
 impl Host {
-    /// Runs class-making operation `op` on `args` and `name`.
-    pub fn run_class(&mut self, op: &str, args: &[i32], name: &str) -> Answer {
-        let rest = |from: usize| args.get(from..).unwrap_or_default();
-        match op {
-            "newClass" => {
-                let owner = match symbol(arg(args, 0)?)? {
-                    o if o == self.macro_owner() => self.owner,
-                    o => o,
-                };
-                let c = self.reflect().new_class(owner, name);
-                numbers(vec![c.0 as i32])
-            }
-            "newModule" => {
-                let owner = match symbol(arg(args, 0)?)? {
-                    o if o == self.macro_owner() => self.owner,
-                    o => o,
-                };
-                let (module, class) = self.reflect().new_module(owner, name);
-                numbers(vec![module.0 as i32, class.0 as i32])
-            }
-            "classParents" | "classParams" => {
-                let cls = symbol(arg(args, 0)?)?;
-                let types = rest(1).iter().map(|&p| self.type_of(p as u32)).collect::<Result<Vec<_>, _>>()?;
-                if op == "classParents" {
-                    self.reflect().class_parents(cls, types)?;
-                    return numbers(Vec::new());
-                }
-                let names = name.split('\0').filter(|n| !n.is_empty()).map(str::to_owned);
-                let params: Vec<_> = names.zip(types).collect();
-                if params.len() != rest(1).len() {
-                    return Err("Symbol.newClass with another number of parameter names than types");
-                }
-                let defs = self.reflect().class_params(cls, params)?;
-                let ctor = self.u.decl(cls, "<init>").ok().and_then(|c| c.first().copied());
-                self.made_params.insert(ctor.ok_or("a class without a constructor")?, vec![defs]);
-                numbers(Vec::new())
-            }
-            "enterDecls" => {
-                let decls = rest(1).iter().map(|&d| symbol(d)).collect::<Result<Vec<_>, _>>()?;
-                self.reflect().enter_decls(symbol(arg(args, 0)?)?, &decls)?;
-                numbers(Vec::new())
-            }
-            "classDef" => {
-                let (cls, n) = (symbol(arg(args, 0)?)?, arg(args, 1)? as usize);
-                let trees = rest(2).iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;
-                let (parents, body) =
-                    trees.split_at_checked(n).ok_or("ClassDef.apply without its parents")?;
-                let ctor = self.u.decl(cls, "<init>").ok().and_then(|c| c.first().copied());
-                let params = ctor.and_then(|c| self.made_params.get(&c)).and_then(|p| p.first().cloned());
-                let params = params.ok_or("ClassDef.apply of a class Symbol.newClass did not make")?;
-                let t = self.reflect().class_def(cls, (&params, parents), body)?;
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            "typeIdent" => {
-                let t = self.reflect().type_ident(symbol(arg(args, 0)?)?)?;
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            "this" => {
-                let cls = symbol(arg(args, 0)?)?;
-                if !self.u.is_class(cls) {
-                    return Err("This.apply of a symbol other than a class");
-                }
-                let (tpe, span) = (self.reflect().symbol_ref(cls), self.expansion);
-                let t = self.reflect().build()?.this(tpe, span);
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            "fieldMember" => {
-                let cls = symbol(arg(args, 0)?)?;
-                let fields = match self.u.is_class(cls) {
-                    true => self.u.member_where(cls, name, |u, m| u.symbol(m).kind == Kind::Val),
-                    false => Vec::new(),
-                };
-                numbers(vec![fields.first().map_or(-1, |f| f.0 as i32)])
-            }
-            "overridingSymbol" => {
-                let (m, cls) = (symbol(arg(args, 0)?)?, symbol(arg(args, 1)?)?);
-                let name = self.u.symbol(m).name.clone();
-                let sig = self.u.method_signature(m);
-                let decls = self.u.decl(cls, &name).unwrap_or_default();
-                let found =
-                    decls.into_iter().find(|&d| d != m && sig.is_some() && self.u.method_signature(d) == sig);
-                numbers(vec![found.map_or(-1, |f| f.0 as i32)])
-            }
-            "new" => {
-                let tpt = self.tree(arg(args, 0)? as u32)?;
-                let t = self.reflect().new_(tpt);
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            _ => Err(UNKNOWN),
+    /// `owner`, the splice's owner for the macro's.
+    pub fn made_owner(&mut self, owner: SymbolId) -> SymbolId {
+        if owner == self.macro_owner() { self.owner } else { owner }
+    }
+
+    pub fn new_class(&mut self, owner: SymbolId, name: String) -> SymbolId {
+        let owner = self.made_owner(owner);
+        self.reflect().new_class(owner, &name)
+    }
+
+    /// The module and the module class of a new object.
+    pub fn new_module(&mut self, owner: SymbolId, name: String) -> [SymbolId; 2] {
+        let owner = self.made_owner(owner);
+        let (module, class) = self.reflect().new_module(owner, &name);
+        [module, class]
+    }
+
+    pub fn class_parents(&mut self, cls: SymbolId, parents: Vec<TypeId>) -> Fallible<()> {
+        self.reflect().class_parents(cls, parents)
+    }
+
+    /// Enters the parameters of types `types` and names `names`, separated by `\0`, into `cls`.
+    pub fn class_params(&mut self, cls: SymbolId, types: Vec<TypeId>, names: String) -> Fallible<()> {
+        let count = types.len();
+        let names = names.split('\0').filter(|n| !n.is_empty()).map(str::to_owned);
+        let params: Vec<_> = names.zip(types).collect();
+        if params.len() != count {
+            return Err("Symbol.newClass with another number of parameter names than types");
         }
+        let defs = self.reflect().class_params(cls, params)?;
+        let ctor = self.u.decl(cls, "<init>").ok().and_then(|c| c.first().copied());
+        self.made_params.insert(ctor.ok_or("a class without a constructor")?, vec![defs]);
+        Ok(())
+    }
+
+    pub fn enter_decls(&mut self, cls: SymbolId, decls: Vec<SymbolId>) -> Fallible<()> {
+        self.reflect().enter_decls(cls, &decls)
+    }
+
+    /// The definition of class `cls` with the first `n` of `trees` as its parents, the others as
+    /// its body.
+    pub fn class_def(&mut self, cls: SymbolId, n: i32, trees: Vec<TNodeId>) -> Fallible<TNodeId> {
+        let (parents, body) =
+            trees.split_at_checked(n as usize).ok_or("ClassDef.apply without its parents")?;
+        let ctor = self.u.decl(cls, "<init>").ok().and_then(|c| c.first().copied());
+        let params = ctor.and_then(|c| self.made_params.get(&c)).and_then(|p| p.first().cloned());
+        let params = params.ok_or("ClassDef.apply of a class Symbol.newClass did not make")?;
+        self.reflect().class_def(cls, (&params, parents), body)
+    }
+
+    pub fn type_ident(&mut self, s: SymbolId) -> Fallible<TNodeId> {
+        self.reflect().type_ident(s)
+    }
+
+    pub fn this(&mut self, cls: SymbolId) -> Fallible<TNodeId> {
+        if !self.u.is_class(cls) {
+            return Err("This.apply of a symbol other than a class");
+        }
+        let (tpe, span) = (self.reflect().symbol_ref(cls), self.expansion);
+        Ok(self.reflect().build()?.this(tpe, span))
+    }
+
+    pub fn field_member(&mut self, cls: SymbolId, name: String) -> Option<SymbolId> {
+        let fields = match self.u.is_class(cls) {
+            true => self.u.member_where(cls, &name, |u, m| u.symbol(m).kind == Kind::Val),
+            false => Vec::new(),
+        };
+        fields.first().copied()
+    }
+
+    /// The declaration of `cls` that overrides method `m`.
+    pub fn overriding_symbol(&mut self, m: SymbolId, cls: SymbolId) -> Option<SymbolId> {
+        let name = self.u.symbol(m).name.clone();
+        let sig = self.u.method_signature(m);
+        let decls = self.u.decl(cls, &name).unwrap_or_default();
+        decls.into_iter().find(|&d| d != m && sig.is_some() && self.u.method_signature(d) == sig)
+    }
+
+    pub fn new_(&mut self, tpt: TNodeId) -> TNodeId {
+        self.reflect().new_(tpt)
     }
 }

@@ -2,29 +2,22 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The constants of `quotes.reflect`: a kind, the two words of the value and a text.
 
-use super::{Answer, UNKNOWN, arg, numbers};
+use super::Fallible;
 use crate::host::Host;
 use syntax::ast::constant::Constant;
+use typer::tpd::TNodeId;
 use vm::Reflected;
 
 impl Host {
-    /// Runs constant operation `op` on `args` and `text`.
-    pub fn run_constant(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let arg = |i: usize| arg(args, i);
-        match op {
-            "constant" => {
-                let t = self.tree(arg(0)? as u32)?;
-                let c =
-                    self.reflect().constant(t).ok_or("Literal.constant of a term other than a literal")?;
-                Ok(encoded(c))
-            }
-            "literal" => {
-                let c = decoded(arg(0)?, (arg(1)?, arg(2)?), text)?;
-                let t = self.reflect().literal(c)?;
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            _ => Err(UNKNOWN),
-        }
+    pub fn constant(&mut self, t: TNodeId) -> Fallible<Reflected> {
+        let c = self.reflect().constant(t).ok_or("Literal.constant of a term other than a literal")?;
+        Ok(encoded(c))
+    }
+
+    /// The literal of the constant of kind `kind`, value words `bits` and text `text`.
+    pub fn literal(&mut self, kind: i32, bits: u64, text: String) -> Fallible<TNodeId> {
+        let c = decoded(kind, bits, &text)?;
+        self.reflect().literal(c)
     }
 }
 
@@ -47,9 +40,8 @@ pub fn encoded(c: Constant) -> Reflected {
     ([vec![kind], words(bits)].concat(), None)
 }
 
-/// The constant of kind `kind` with value words `lo` and `hi` and text `text`.
-fn decoded(kind: i32, (lo, hi): (i32, i32), text: &str) -> Result<Constant, &'static str> {
-    let bits = (lo as u32 as u64) | ((hi as u32 as u64) << 32);
+/// The constant of kind `kind` with value `bits` and text `text`.
+fn decoded(kind: i32, bits: u64, text: &str) -> Fallible<Constant> {
     Ok(match kind {
         1 => Constant::Int(bits as i32),
         2 => Constant::Long(bits as i64),
