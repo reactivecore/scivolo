@@ -7,8 +7,7 @@ trait ReflectFlagSupport { this: QuotesImpl =>
 
 /** A flag is the bit of its TASTy modifier tag; bits 2 to 5 are `Method`, `Package`, `Param` and
  *  `AbsOverride`, bit 50 `JavaDefined`, bit 51 `Scala2x`, bit 53 `Deferred`, and bit 52 flags no
- *  symbol has. Flags
- *  the frontend does not know are `Unsupported`.
+ *  symbol has. Flags the frontend does not know are `Unsupported`.
  */
 trait ReflectFlags extends reflectModule { self: reflect.type =>
 
