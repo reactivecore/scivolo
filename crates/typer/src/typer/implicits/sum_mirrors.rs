@@ -25,7 +25,8 @@ impl Typer<'_> {
         if !self.is_generic_sum(cls, (companion.is_some(), pre), ctx)? {
             return Ok(None);
         }
-        let path = pre.filter(|&p| !self.is_plain_prefix(p));
+        let owner = self.u.symbol(cls).owner;
+        let path = pre.filter(|&p| !self.is_plain_prefix(p) || self.is_inheriting_module(p, owner));
         let children = self.sealed_children(cls)?;
         let target = match self.u.types().get(formal.mirrored).clone() {
             Type::Lambda { result, .. } => result,
@@ -77,6 +78,12 @@ impl Typer<'_> {
         }
         let sum = self.resolve_full_name("scala.deriving.Mirror$.Sum", true)?;
         self.u.derives_from(module_class, sum).then_some(module)
+    }
+
+    /// Whether `p` refers to an object whose class is not `owner`, which it inherits from.
+    fn is_inheriting_module(&mut self, p: TypeId, owner: Option<SymbolId>) -> bool {
+        let Type::Sym(_, s) = *self.u.types().get(p) else { return false };
+        self.u.module_class(s) != owner
     }
 
     /// Whether prefix `p` is a package or the `this` of a class, under which the children's
