@@ -149,7 +149,9 @@ impl Typer<'_> {
                             self.syms.is_script(c) && self.is_named_package_object(c) && self.u.is_class(c)
                         });
                         let mut objects: Vec<SymbolId> = script.collect();
-                        for c in self.u.package_objects(pkg).map_err(|_| "package object")? {
+                        for c in
+                            self.u.package_objects(pkg).map_err(|_| "package object that cannot be read")?
+                        {
                             if !objects.contains(&c) {
                                 objects.push(c);
                             }
