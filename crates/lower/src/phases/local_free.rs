@@ -82,10 +82,6 @@ pub fn within(l: &Lower, mut s: SymbolId, c: SymbolId) -> bool {
 /// The local values of the enclosing methods class definition `td` of `class` refers to; fails
 /// where it needs an instance of the enclosing class `outer`.
 pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) -> Result<Free> {
-    let span = l.tpd.span(td);
-    if let Some(what) = nested_definition(l, td) {
-        return unsupported(span, what);
-    }
     let mut created = Vec::new();
     for t in super::walk::subtrees(l.tpd, td) {
         if let Tree::New { tpt } = *l.tpd.tree(t) {
@@ -159,21 +155,6 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
         }
     }
     Ok(free)
-}
-
-/// What local class definition `td` defines that the lowering does not lift with it: lazy values
-/// of an object.
-fn nested_definition(l: &Lower, td: TNodeId) -> Option<&'static str> {
-    super::explicit_outer::terms(l, td, true).into_iter().find_map(|t| match *l.tpd.tree(t) {
-        Tree::ValDef { .. } | Tree::DefDef { .. }
-            if l.tpd.sym(t).is_some_and(|s| {
-                has(l.u, s, LAZY) && !l.u.is_module(s) && l.u.symbol(s).owner == l.tpd.sym(td)
-            }) && l.tpd.sym(td).is_some_and(|c| l.u.is_module_class(c)) =>
-        {
-            Some("lazy values in local objects")
-        }
-        _ => None,
-    })
 }
 
 /// Whether `s` is a method whose body runs outside the constructor: not a constructor, nor a
