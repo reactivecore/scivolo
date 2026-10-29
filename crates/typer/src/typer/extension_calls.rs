@@ -5,32 +5,36 @@
 //! `extMethodApply`): `qual.name` typed as `name(qual)` for an extension method `name` in scope.
 
 use super::{Pt, Typer};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::symbols::Completion;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::tags::EXTENSION;
 use tasty::{Kind, SymbolId};
 
+/// `ctx` looking up extension methods only.
+pub fn extension_ctx(ctx: Ctx) -> Ctx {
+    ctx.with_mode(ctx.mode.with(Mode::EXTENSION_METHOD))
+}
+
 impl Typer<'_> {
     /// Whether an extension method named `name` is visible in `ctx`.
     pub fn extension_visible(&mut self, name: &str, ctx: Ctx) -> bool {
-        let found = self.find_ref(name, false, ctx);
+        let found = self.find_ref(name, false, extension_ctx(ctx));
         let Ok(Some(found)) = found else { return found.is_err() };
-        found.syms.iter().any(|&s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION))
+        !found.syms.is_empty()
     }
 
     /// Selection `id` of `name` from typed qualifier `qual`, which has no such member, as a call
-    /// of the extension methods named `name` that `ctx` sees, if all it sees are such.
+    /// of the extension methods named `name` that `ctx` sees.
     pub fn extension_select(&mut self, id: NodeId, qual: TNodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
         let text = self.text(name.name).to_owned();
+        let ctx = extension_ctx(ctx);
         let found = match self.find_ref(&text, false, ctx) {
             Ok(Some(found)) => found.syms,
             _ => Vec::new(),
         };
-        let extension = |t: &Self, s: SymbolId| t.u.symbol(s).flags.has(tasty::tags::EXTENSION);
-        let method = |t: &Self, s: SymbolId| extension(t, s) || t.u.symbol(s).kind == Kind::Def;
-        if !found.iter().any(|&s| extension(self, s)) || !found.iter().all(|&s| method(self, s)) {
+        if found.is_empty() {
             return self.unsupported(id, "extension method among other definitions");
         }
         if found.iter().any(|&s| self.u.symbol(s).name != text) {
@@ -67,6 +71,7 @@ impl Typer<'_> {
         };
         self.ast.with_span(apply, Span::synthetic(inner.start(), inner.end()));
         let typed = self.typed_apply(apply, fun, args, pt, ctx);
+        let ctx = ctx.with_mode(ctx.mode.without(Mode::EXTENSION_METHOD));
         let typed = match pt {
             Pt::PolyFun(_) => Ok(typed),
             Pt::Fun(proto) if self.protos[proto].using => self.with_type_vars(typed),

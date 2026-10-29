@@ -14,7 +14,8 @@ impl Typer<'_> {
     /// its type conforms to none of their receiver types, their type parameters as variables, and
     /// no implicit view converts it to one.
     pub fn extensions_reject(&mut self, qual: TNodeId, name: &str, ctx: Ctx) -> bool {
-        let Ok(Some(found)) = self.find_ref(name, false, ctx) else { return false };
+        let lookup = super::extension_calls::extension_ctx(ctx);
+        let Ok(Some(found)) = self.find_ref(name, false, lookup) else { return false };
         let qual_tpe = self.zonk(self.tpd.tpe(qual));
         let qual_tpe = self.u.widen(qual_tpe);
         for s in found.syms {

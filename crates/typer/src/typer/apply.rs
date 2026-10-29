@@ -3,7 +3,7 @@
 //! Applications `f(args)` (dotty's `typedApply`).
 
 use super::{Pt, Typer};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Attrs, List, NodeId, Tree};
 use tasty::{Kind, Type, TypeId};
@@ -13,7 +13,8 @@ impl Typer<'_> {
         if let Some(assign) = self.op_assign(id, fun, args, fun_ctx) {
             return assign;
         }
-        let ctx = self.arg_ctx(fun, fun_ctx);
+        let plain_ctx = fun_ctx.with_mode(fun_ctx.mode.without(Mode::EXTENSION_METHOD));
+        let ctx = self.arg_ctx(fun, plain_ctx);
         let arg_ids = self.ast.items(args).to_vec();
         let proto = self.protos.len();
         let dual = self.infix_tuple_elems(id, &arg_ids);
@@ -22,6 +23,7 @@ impl Typer<'_> {
             super::overloads::FunProto { args: arg_ids, ctx, typed: None, pt, deep: false, dual, using };
         self.protos.push(fun_proto);
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
+        let fun_ctx = plain_ctx;
         let f = match self.with_apply(f, Pt::Fun(proto), fun_ctx) {
             Ok(f) if self.is_pending_dynamic(f) => return self.dynamic_apply(id, f, proto, pt, fun_ctx),
             Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),

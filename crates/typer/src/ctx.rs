@@ -32,6 +32,9 @@ impl Mode {
     pub const INLINE_CASE: Mode = Mode(256);
     /// The name of an extractor, which refers to no method (dotty's `UnapplySelectionProto`).
     pub const EXTRACTOR: Mode = Mode(512);
+    /// The name of an extension method applied to its receiver, which refers to extension methods
+    /// only (dotty's `findRef` with `ExtensionMethod` required).
+    pub const EXTENSION_METHOD: Mode = Mode(1024);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

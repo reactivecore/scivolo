@@ -13,7 +13,8 @@ use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// `found` at level `l` without the members of the empty package if `ctx` is in another
-    /// package; the root package stands for both; for an extractor's name, none of methods with parameters only.
+    /// package; the root package stands for both; for an extractor's name, none of methods with
+    /// parameters only; for an extension method's, its extension methods.
     pub fn qualifying(&mut self, mut found: Found, l: LevelId, ctx: Ctx) -> Option<Found> {
         let root = self.u.root();
         if matches!(*self.levels.get(l), Level::Members(o) if o == root)
@@ -23,6 +24,14 @@ impl Typer<'_> {
         }
         if ctx.mode.is(Mode::EXTRACTOR) && found.syms.iter().all(|&s| self.is_real_method(s)) {
             return None;
+        }
+        self.extensions_only(found, ctx)
+    }
+
+    /// `found` without its symbols other than extension methods if `ctx` looks for those.
+    pub fn extensions_only(&self, mut found: Found, ctx: Ctx) -> Option<Found> {
+        if ctx.mode.is(Mode::EXTENSION_METHOD) {
+            found.syms.retain(|&s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION));
         }
         (!found.syms.is_empty()).then_some(found)
     }
