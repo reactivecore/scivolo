@@ -128,7 +128,7 @@ const CASES: &[(&str, &str)] = &[
         "import scala.scalanative.unsafe.*\n@extern object libc { def f(x: CInt): CInt = x }",
         "methods in extern objects without an extern body",
     ),
-    ("import scala.scalanative.unsafe.*\n@extern object libc { val x: CInt = extern }", "extern fields"),
+    ("import scala.scalanative.unsafe.*\n@extern object libc { val x: CInt = extern }", "extern values"),
     (
         "import scala.scalanative.unsafe.*\n@extern object libc { def printf(f: CString, xs: CVarArg*): CInt = extern }\n\
          object O { def g = libc.printf(null) }",
