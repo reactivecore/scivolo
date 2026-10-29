@@ -35,6 +35,7 @@ SN = ROOT / "ref/scala-native"
 LIBS = Path(os.environ.get("SCIVOLO_LIBS", ROOT / "ref/libs"))
 WORK = ROOT / "tmp/lib"
 ORACLE_JARS = WORK / "sn/jars"
+ENV = os.environ | {"SCIVOLO_LIBS": str(ORACLE_JARS)} if ORACLE_JARS.is_dir() else None
 LOWER, NIR_DUMP = ROOT / "target/release/scivolo-lower", ROOT / "target/release/scivolo-nir-dump"
 MODULES = ["nativelib", "clib", "posixlib", "windowslib", "javalib", "auxlib"]
 SOURCE_DIRS = ["scala", "scala-3", "scala-2.13+"]
@@ -101,9 +102,8 @@ def one(module, root, file):
     shown = f"{root.name}/{rel}"
     out = WORK / module / "out" / root.name / rel.removesuffix(".scala")
     cmd = [str(LOWER), "--macros", *OPTIONS.get(module, []), "--sourceroot", str(root), str(file), str(out)]
-    env = os.environ | {"SCIVOLO_LIBS": str(ORACLE_JARS)} if ORACLE_JARS.is_dir() else None
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=TIMEOUT, env=env)
+        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=TIMEOUT, env=ENV)
     except subprocess.TimeoutExpired:
         return [shown, "timeout", "", 0, 0, 0], []
     if r.returncode != 0:
