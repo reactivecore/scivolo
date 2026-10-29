@@ -21,7 +21,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from dotty_sources import compile_groups, tests
+from dotty_sources import compile_groups, tests, using_options
 
 SCALA, NATIVE = "3.9.0", "0.5.12"
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,13 +43,13 @@ def lines(s):
     return s.rstrip("\n").splitlines()
 
 
-def earlier(name, groups, dir):
-    """The scala-cli output of all groups but the last, compiled unless done, or None."""
+def earlier(name, groups, dir, options):
+    """The scala-cli output of all groups but the last, compiled with `options` unless done, or None."""
     out = WORK / "earlier" / dir / name
     if not (out / ".done").exists():
         shutil.rmtree(out, ignore_errors=True)
         out.mkdir(parents=True)
-        code, log = compile_groups(f"{dir}-{name}", groups[:-1], out, TIMEOUT)
+        code, log = compile_groups(f"{dir}-{name}", groups[:-1], out, TIMEOUT, options)
         if code != 0:
             return None, first_line("\n".join(l for l in log.splitlines() if "error" in l) or log)
         (out / ".done").touch()
@@ -58,7 +58,8 @@ def earlier(name, groups, dir):
 
 def one(name, groups, check, reason, baseline, dir):
     """The outcome of test `name` through the frontend and the VM, and a detail; a group whose
-    macro definitions the typer refuses compiles them first, as dotty suspends their callers."""
+    macro definitions the typer refuses compiles them first, with the options of the group, as
+    dotty suspends their callers."""
     if reason:
         return "skipped", reason
     if dir == "run" and baseline != "passed":
@@ -67,14 +68,14 @@ def one(name, groups, check, reason, baseline, dir):
     quoted = [s for s in groups[-1] if "scala.quoted" in s.read_text(errors="replace")]
     if outcome[0] == "typer refused" and 0 < len(quoted) < len(groups[-1]):
         rest = [s for s in groups[-1] if s not in quoted]
-        return lowered(name, [*groups[:-1], quoted, rest], check, dir)
+        return lowered(name, [*groups[:-1], quoted, rest], check, dir, using_options(groups[-1]))
     return outcome
 
 
-def lowered(name, groups, check, dir):
+def lowered(name, groups, check, dir, options=()):
     cp = []
     if len(groups) > 1:
-        before, why = earlier(name, groups, dir)
+        before, why = earlier(name, groups, dir, options)
         if before is None:
             return "earlier groups failed", why
         cp = ["--cp", str(before)]

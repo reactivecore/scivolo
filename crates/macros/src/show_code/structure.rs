@@ -3,7 +3,7 @@
 //! Trees as `Printer.TreeStructure` shows them (dotty's `Extractors.visitTree`), without the
 //! types they hold.
 
-use super::{Code, REFUSED, Shown};
+use super::{Code, Shown};
 use syntax::ast::constant::Constant as C;
 use typer::tpd::{TNodeId, Tree as T};
 
@@ -193,25 +193,7 @@ impl Code<'_> {
     }
 
     fn structure_constant(&mut self, c: &C) -> Shown {
-        let text = match c {
-            C::Unit => "UnitConstant()".to_owned(),
-            C::Null => "NullConstant()".to_owned(),
-            C::Boolean(b) => format!("BooleanConstant({b})"),
-            C::Byte(n) => format!("ByteConstant({n})"),
-            C::Short(n) => format!("ShortConstant({n})"),
-            C::Int(n) => format!("IntConstant({n})"),
-            C::Long(n) => format!("LongConstant({n}L)"),
-            C::Float(x) => format!(
-                "FloatConstant({}f)",
-                super::literals::java_decimal(*x as f64, format!("{x:?}")).ok_or(REFUSED)?
-            ),
-            C::Double(x) => format!(
-                "DoubleConstant({}d)",
-                super::literals::java_decimal(*x, format!("{x:?}")).ok_or(REFUSED)?
-            ),
-            &C::Char(u) => format!("CharConstant('{}')", char::from_u32(u as u32).unwrap_or('\u{fffd}')),
-            C::String(units) => format!("StringConstant(\"{}\")", String::from_utf16_lossy(units)),
-        };
+        let text = super::literals::constant_structure(c)?;
         self.push(&text);
         Ok(())
     }

@@ -6,7 +6,7 @@ use crate::mains;
 use libimage::{Image, cache};
 use libs::{BUILD, NATIVE, SCALA, cache_dir};
 use lower::directives::{directives, without_header};
-use macros::{Macros, VmMacros};
+use macros::VmMacros;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -88,8 +88,9 @@ fn compile(
     }
     let staging = dir.with_extension(std::process::id().to_string());
     let header_free = without_header(&String::from_utf8_lossy(&text));
-    let mut runner = VmMacros { vm, sources: vec![SourceFile::new(source.to_string_lossy(), header_free)] };
-    let macros = Some(&mut runner as &mut dyn Macros);
+    let sources = vec![SourceFile::new(source.to_string_lossy(), header_free)];
+    let mut runner = VmMacros { vm, sources, settings: Default::default() };
+    let macros = Some(&mut runner);
     let built = build(file, (&source, &text, options), mode, (image, macros), &staging);
     if built.is_ok() && std::fs::rename(&staging, &dir).is_ok() {
         return cached(&dir).ok_or_else(|| format!("{}: unreadable", dir.display()));
@@ -112,7 +113,7 @@ fn build(
     file: &str,
     (source, text, options): (&Path, &[u8], &[String]),
     mode: Mode,
-    (image, macros): (Option<&'static Image>, Option<&mut dyn Macros>),
+    (image, macros): (Option<&'static Image>, Option<&mut VmMacros<'_>>),
     out: &Path,
 ) -> Result<(), String> {
     let classes = out.join("classes");

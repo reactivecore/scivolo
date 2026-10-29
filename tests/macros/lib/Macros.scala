@@ -154,6 +154,11 @@ object Terms:
     import quotes.reflect.*
     Expr(x.show + " / " + x.asTerm.show(using Printer.TreeStructure))
 
+  inline def typeStructure[T]: String = ${ typeStructureImpl[T] }
+  def typeStructureImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(TypeRepr.of[T].show(using Printer.TypeReprStructure))
+
   inline def open(inline x: Int): String = ${ openImpl('x) }
   def openImpl(x: Expr[Int])(using Quotes): Expr[String] = x match
     case '{ val y: Int = 1; $body(y): Int }         => Expr(body.show)

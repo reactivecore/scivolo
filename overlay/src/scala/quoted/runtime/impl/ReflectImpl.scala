@@ -22,7 +22,7 @@ abstract class ReflectImpl
 
   extension (expr: Expr[Any]) def asTerm: Term = ReflectOps.term(QuoteHost.exprId(expr)).asInstanceOf[Term]
 
-  /** `TreeCode`, `TreeStructure` and `TypeReprCode`; the other printers are `Unsupported`. */
+  /** `TreeCode`, `TreeStructure`, `TypeReprCode`, `TypeReprStructure`; the rest are `Unsupported`. */
   object Printer extends PrinterModule {
     def TreeCode: Printer[Tree] = printer("showTree")
     def TreeShortCode: Printer[Tree] = refusing("Printer.TreeShortCode")
@@ -31,7 +31,7 @@ abstract class ReflectImpl
     def TypeReprCode: Printer[TypeRepr] = printer("showType")
     def TypeReprShortCode: Printer[TypeRepr] = refusing("Printer.TypeReprShortCode")
     def TypeReprAnsiCode: Printer[TypeRepr] = refusing("Printer.TypeReprAnsiCode")
-    def TypeReprStructure: Printer[TypeRepr] = refusing("Printer.TypeReprStructure")
+    def TypeReprStructure: Printer[TypeRepr] = printer("showTypeStructure")
     def ConstantCode: Printer[Constant] = refusing("Printer.ConstantCode")
     def ConstantStructure: Printer[Constant] = refusing("Printer.ConstantStructure")
 
@@ -68,10 +68,12 @@ abstract class ReflectImpl
     def info(msg: String, pos: Position): Unit = throw new Unsupported("report.info")
   }
 
-  /** `-Xmacro-settings` are refused. */
   object CompilationInfo extends CompilationInfoModule {
     def isWhileTyping: Boolean = ReflectOps.one("isWhileTyping") != 0
-    def XmacroSettings: List[String] = throw new Unsupported("CompilationInfo.XmacroSettings")
+    def XmacroSettings: List[String] = {
+      val settings = ReflectOps.text("macroSettings", -1)
+      if (settings.isEmpty) Nil else settings.split('\n').toList
+    }
   }
 
   /** Searches the typer answers between runs of the expansion; a failure is one without a

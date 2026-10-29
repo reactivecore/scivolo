@@ -253,11 +253,15 @@ impl Inlining<'_> {
         if self.u.is_deferred(meth) {
             return Err((self.tpd.span(t), "call of a deferred inline method"));
         }
-        if self.u.symbol(meth).tree.is_none() {
-            return Err((self.tpd.span(t), "call of an inline method defined elsewhere"));
-        }
-        let def = crate::unpickle::inline_def(self.u, self.tpd, self.names, meth)
-            .map_err(|what| (self.tpd.span(t), what))?;
+        let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
+        let def = match self.host.inline_def(lent, meth).map_err(|what| (self.tpd.span(t), what))? {
+            Some(def) => def,
+            None if self.u.symbol(meth).tree.is_none() => {
+                return Err((self.tpd.span(t), "call of an inline method defined elsewhere"));
+            }
+            None => crate::unpickle::inline_def(self.u, self.tpd, self.names, meth)
+                .map_err(|what| (self.tpd.span(t), what))?,
+        };
         self.bodies.insert(meth, def);
         Ok(Some(def))
     }

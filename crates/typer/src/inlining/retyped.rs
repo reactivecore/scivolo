@@ -4,7 +4,7 @@
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::SymbolId;
+use tasty::{SymbolId, Type};
 
 impl Inlining<'_> {
     /// Node `t`, whose children are retyped, retyped itself.
@@ -48,7 +48,23 @@ impl Inlining<'_> {
                 self.tpd.get_mut(t).tpe = Some(crate::tpd::lub_of(self.tpd, self.u, &parts));
                 Ok(t)
             }
+            T::ValDef { rhs, .. } if self.is_local_inline_val(t) && !self.in_inline_method(owner) => {
+                let Some(s) = self.tpd.sym(t) else { return Ok(t) };
+                let info = self.u.info(s);
+                let info = self.u.normalized(info);
+                let constant = matches!(self.u.types().get(info), Type::Constant(..) | Type::Str(_));
+                if !constant || rhs.is_some_and(|r| !self.is_pure_expr(r)) {
+                    let span = self.tpd.span(t);
+                    return Err((span, "inline value of a type that is not constant or impure"));
+                }
+                Ok(t)
+            }
             _ => Ok(t),
         }
+    }
+
+    /// Whether `owner` is or is nested in an inline method (dotty's `inInlineMethod`).
+    fn in_inline_method(&self, owner: SymbolId) -> bool {
+        std::iter::successors(Some(owner), |&o| self.u.symbol(o).owner).any(|o| self.is_inline_method(o))
     }
 }

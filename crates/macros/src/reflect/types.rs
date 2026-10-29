@@ -2,90 +2,74 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The types of `quotes.reflect`.
 
+use super::Fallible;
 use super::constants::encoded;
-use super::{Answer, UNKNOWN, arg, numbers};
 use crate::host::Host;
 use tasty::tags::CLASSconst;
-use tasty::{NoVars, Type, TypeId};
+use tasty::{NoVars, SymbolId, Type, TypeId};
 use typer::tpd::constant_of;
+use vm::Reflected;
 
 impl Host {
-    /// Runs type operation `op` on `args`.
-    pub fn run_type(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let arg = |i: usize| arg(args, i);
-        match op {
-            "typeSymbol" => {
-                let t = self.type_of(arg(0)? as u32)?;
-                numbers(vec![self.reflect().type_symbol(t).map_or(-1, |s| s.0 as i32)])
-            }
-            "termSymbol" => {
-                let t = self.type_of(arg(0)? as u32)?;
-                numbers(vec![self.reflect().term_symbol(t)?.map_or(-1, |s| s.0 as i32)])
-            }
-            "typeArgs" => {
-                let t = self.type_of(arg(0)? as u32)?;
-                let args = self.reflect().type_args(t);
-                numbers(args.into_iter().map(|a| self.add_type(a) as i32).collect())
-            }
-            "widenTermRefByName" => {
-                let t = self.type_of(arg(0)? as u32)?;
-                let w = self.reflect().widen_term_ref_by_name(t);
-                numbers(vec![self.add_type(w) as i32])
-            }
-            "classSymbol" => {
-                let t = self.type_of(arg(0)? as u32)?;
-                let t = self.u.widen(t);
-                let c = self.u.class_symbol(t).filter(|&c| self.u.is_class(c));
-                numbers(vec![c.map_or(-1, |c| c.0 as i32)])
-            }
-            "baseType" => {
-                let t = self.type_of(arg(0)? as u32)?;
-                let base = super::symbol(arg(1)?)?;
-                let b = self
-                    .u
-                    .base_type(t, base)
-                    .ok_or("TypeRepr.baseType of a class the type does not derive from")?;
-                numbers(vec![self.add_type(b) as i32])
-            }
-            "selectType" => {
-                let t = self.type_of(arg(0)? as u32)?;
-                let s = self.reflect().select_type(t, super::symbol(arg(1)?)?);
-                numbers(vec![self.add_type(s) as i32])
-            }
-            "widen" => {
-                let t = self.type_of(arg(0)? as u32)?;
-                let w = self.u.widen(t);
-                numbers(vec![self.add_type(w) as i32])
-            }
-            "isSubtype" | "isSameType" => {
-                let (a, b) = (self.type_of(arg(0)? as u32)?, self.type_of(arg(1)? as u32)?);
-                let holds = match op {
-                    "isSubtype" => self.u.is_subtype_in(a, b, &mut NoVars),
-                    _ => self.u.is_same_type_in(a, b, &mut NoVars),
-                };
-                self.decided(holds, [a, b])
-            }
-            "constantType" => {
-                let t = self.type_of(arg(0)? as u32)?;
-                if matches!(*self.u.types().get(t), Type::Constant(tag, _) if tag == CLASSconst) {
-                    return Err("ConstantType of a class constant");
-                }
-                Ok(constant_of(&self.u, t).map_or((Vec::new(), None), encoded))
-            }
-            "typeConstructorOf" => {
-                let t = self
-                    .class_named(text)
-                    .ok_or("TypeRepr.typeConstructorOf of a class the frontend lacks")?;
-                numbers(vec![self.add_type(t) as i32])
-            }
-            _ => Err(UNKNOWN),
-        }
+    pub fn type_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
+        self.reflect().type_symbol(t)
     }
 
-    /// The answer `holds` of a type check of `types`; a `false` is refused if a type has a part
-    /// the universe may not decide: a type variable, a wildcard, an unresolved reference, a match
-    /// type, a lambda's type parameter or a type not represented.
-    pub fn decided(&mut self, holds: bool, types: [TypeId; 2]) -> Answer {
+    pub fn term_symbol(&mut self, t: TypeId) -> Fallible<Option<SymbolId>> {
+        self.reflect().term_symbol(t)
+    }
+
+    pub fn type_args(&mut self, t: TypeId) -> Vec<TypeId> {
+        self.reflect().type_args(t)
+    }
+
+    pub fn widen_term_ref_by_name(&mut self, t: TypeId) -> TypeId {
+        self.reflect().widen_term_ref_by_name(t)
+    }
+
+    pub fn class_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
+        let t = self.u.widen(t);
+        self.u.class_symbol(t).filter(|&c| self.u.is_class(c))
+    }
+
+    pub fn base_type(&mut self, t: TypeId, base: SymbolId) -> Fallible<TypeId> {
+        self.u.base_type(t, base).ok_or("TypeRepr.baseType of a class the type does not derive from")
+    }
+
+    pub fn select_type(&mut self, t: TypeId, s: SymbolId) -> TypeId {
+        self.reflect().select_type(t, s)
+    }
+
+    pub fn widen(&mut self, t: TypeId) -> TypeId {
+        self.u.widen(t)
+    }
+
+    pub fn is_subtype(&mut self, a: TypeId, b: TypeId) -> Fallible<bool> {
+        let holds = self.u.is_subtype_in(a, b, &mut NoVars);
+        self.decided(holds, [a, b])
+    }
+
+    pub fn is_same_type(&mut self, a: TypeId, b: TypeId) -> Fallible<bool> {
+        let holds = self.u.is_same_type_in(a, b, &mut NoVars);
+        self.decided(holds, [a, b])
+    }
+
+    /// The constant of constant type `t`, nothing for another type.
+    pub fn constant_type(&mut self, t: TypeId) -> Fallible<Reflected> {
+        if matches!(*self.u.types().get(t), Type::Constant(tag, _) if tag == CLASSconst) {
+            return Err("ConstantType of a class constant");
+        }
+        Ok(constant_of(&self.u, t).map_or((Vec::new(), None), encoded))
+    }
+
+    pub fn type_constructor_of(&mut self, name: String) -> Fallible<TypeId> {
+        self.class_named(&name).ok_or("TypeRepr.typeConstructorOf of a class the frontend lacks")
+    }
+
+    /// `holds` of a type check of `types`; a `false` is refused if a type has a part the universe
+    /// may not decide: a type variable, a wildcard, an unresolved reference, a match type, a
+    /// lambda's type parameter or a type not represented.
+    pub fn decided(&mut self, holds: bool, types: [TypeId; 2]) -> Fallible<bool> {
         let mut undecided = false;
         for t in types {
             self.u.map_type(t, &mut |u, part| {
@@ -100,7 +84,7 @@ impl Host {
         }
         match !holds && undecided {
             true => Err("a type check the frontend cannot decide"),
-            false => numbers(vec![holds as i32]),
+            false => Ok(holds),
         }
     }
 

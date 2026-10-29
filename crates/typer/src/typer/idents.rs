@@ -45,7 +45,7 @@ impl Typer<'_> {
         if ctx.mode.is(Mode::PATTERN) && !name.is_type && self.is_var_pattern(id, &text) {
             return self.pattern_var(id, name, pt, ctx);
         }
-        if text == "_root_" && !name.is_type {
+        if (text == "_root_" || text == "<empty>") && !name.is_type {
             let root = self.u.root();
             let tpe = self.u.intern_type(Type::Package(root));
             let span = self.ast.span(id);

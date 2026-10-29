@@ -2,104 +2,93 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The operations over `TypeRepr`s: names, printing, construction and member types.
 
-use super::{Answer, UNKNOWN, arg, numbers, symbol, text};
+use super::Fallible;
 use crate::host::Host;
 use tasty::{Kind, SymbolId, Type, TypeId};
-use typer::tpd::Tree as T;
+use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
-    /// Runs type operation `op` on `args`.
-    pub fn run_type_repr(&mut self, op: &str, args: &[i32], name: &str) -> Answer {
-        let tpe = |h: &Host, i: usize| h.type_of(arg(args, i)? as u32);
-        match op {
-            "showType" => {
-                let t = tpe(self, 0)?;
-                text(self.u.show_source(t)?)
-            }
-            "typeName" => {
-                let t = tpe(self, 0)?;
-                match self.u.types().get(t).clone() {
-                    Type::Sym(_, s) | Type::Package(s) => text(self.u.symbol(s).name.clone()),
-                    Type::TypeRef(_, n) | Type::TermRef(_, n) | Type::Refined(_, n, _) => text(n),
-                    _ => Err("the name of an unnamed type"),
-                }
-            }
-            "appliedTo" => {
-                let tycon = tpe(self, 0)?;
-                let targs = (1..args.len()).map(|i| tpe(self, i)).collect::<Result<Vec<_>, _>>()?;
-                let t = match targs.is_empty() {
-                    true => tycon,
-                    false => self.u.intern_type(Type::Applied(tycon, targs)),
-                };
-                numbers(vec![self.add_type(t) as i32])
-            }
-            "dealias" => {
-                let t = tpe(self, 0)?;
-                let d = self.u.dealias(t);
-                numbers(vec![self.add_type(d) as i32])
-            }
-            "methodType" => {
-                let types = args.iter().map(|&t| self.type_of(t as u32)).collect::<Result<Vec<_>, _>>()?;
-                let (&result, params) =
-                    types.split_last().ok_or("MethodType.apply without its result type")?;
-                let names: Vec<String> =
-                    name.split('\0').filter(|n| !n.is_empty()).map(str::to_owned).collect();
-                if names.len() != params.len() {
-                    return Err("MethodType.apply with another number of names than types");
-                }
-                let binder = self.u.fresh_binder();
-                let params = names.into_iter().zip(params.iter().copied()).collect();
-                let t = Type::Method { binder, params, result, implicit: false, contextual: false };
-                let t = self.u.intern_type(t);
-                numbers(vec![self.add_type(t) as i32])
-            }
-            "byName" => {
-                let t = tpe(self, 0)?;
-                let by_name = self.u.intern_type(Type::ByName(t));
-                numbers(vec![self.add_type(by_name) as i32])
-            }
-            "isSingleton" => {
-                let t = tpe(self, 0)?;
-                let singleton = match *self.u.types().get(t) {
-                    Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
-                    Type::TermRef(..) | Type::This(_) | Type::Super(..) | Type::Skolem(..) => true,
-                    Type::Constant(..) | Type::Str(_) => true,
-                    _ => false,
-                };
-                numbers(vec![singleton as i32])
-            }
-            "baseClasses" => {
-                let t = tpe(self, 0)?;
-                let w = self.u.widen(t);
-                let c = self.u.class_symbol(w).ok_or("baseClasses of a type without a class")?;
-                numbers(self.u.linearization(c).into_iter().map(|b| b.0 as i32).collect())
-            }
-            "memberType" => {
-                let (t, s) = (tpe(self, 0)?, symbol(arg(args, 1)?)?);
-                let m = self.repeated_param(s)?.unwrap_or_else(|| self.u.term_type(Some(t), s));
-                numbers(vec![self.add_type(m) as i32])
-            }
-            "termRef" => {
-                let qual = tpe(self, 0)?;
-                let t = self.reflect().term_ref(qual, name)?;
-                numbers(vec![self.add_type(t) as i32])
-            }
-            "annotation" => {
-                let t = tpe(self, 0)?;
-                let Type::Annotated(_, annot) = *self.u.types().get(t) else {
-                    return Err("AnnotatedType.annotation of another type");
-                };
-                let span = self.expansion;
-                let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(annot), None);
-                let new = self.tpd.node(T::New { tpt }, span, Some(annot), None);
-                numbers(vec![self.add_tree(new) as i32])
-            }
-            "symbolRef" => {
-                let t = self.reflect().symbol_ref(symbol(arg(args, 0)?)?);
-                numbers(vec![self.add_type(t) as i32])
-            }
-            _ => Err(UNKNOWN),
+    pub fn show_type(&mut self, t: TypeId) -> Fallible<String> {
+        self.u.show_source(t)
+    }
+
+    pub fn show_type_structure(&mut self, t: TypeId) -> Fallible<String> {
+        self.type_structure(t)
+    }
+
+    pub fn type_name(&mut self, t: TypeId) -> Fallible<String> {
+        match self.u.types().get(t).clone() {
+            Type::Sym(_, s) | Type::Package(s) => Ok(self.u.symbol(s).name.clone()),
+            Type::TypeRef(_, n) | Type::TermRef(_, n) | Type::Refined(_, n, _) => Ok(n),
+            _ => Err("the name of an unnamed type"),
         }
+    }
+
+    /// `tycon[targs]`, `tycon` for no `targs`.
+    pub fn applied_to(&mut self, tycon: TypeId, targs: Vec<TypeId>) -> TypeId {
+        match targs.is_empty() {
+            true => tycon,
+            false => self.u.intern_type(Type::Applied(tycon, targs)),
+        }
+    }
+
+    pub fn dealias(&mut self, t: TypeId) -> TypeId {
+        self.u.dealias(t)
+    }
+
+    /// The method type of parameter types and the result type `types`, the parameters named by
+    /// `names` separated by `\0`.
+    pub fn method_type(&mut self, types: Vec<TypeId>, names: String) -> Fallible<TypeId> {
+        let (&result, params) = types.split_last().ok_or("MethodType.apply without its result type")?;
+        let names: Vec<String> = names.split('\0').filter(|n| !n.is_empty()).map(str::to_owned).collect();
+        if names.len() != params.len() {
+            return Err("MethodType.apply with another number of names than types");
+        }
+        let binder = self.u.fresh_binder();
+        let params = names.into_iter().zip(params.iter().copied()).collect();
+        let t = Type::Method { binder, params, result, implicit: false, contextual: false };
+        Ok(self.u.intern_type(t))
+    }
+
+    pub fn by_name(&mut self, t: TypeId) -> TypeId {
+        self.u.intern_type(Type::ByName(t))
+    }
+
+    pub fn is_singleton(&mut self, t: TypeId) -> bool {
+        match *self.u.types().get(t) {
+            Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
+            Type::TermRef(..) | Type::This(_) | Type::Super(..) | Type::Skolem(..) => true,
+            Type::Constant(..) | Type::Str(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn base_classes(&mut self, t: TypeId) -> Fallible<Vec<SymbolId>> {
+        let w = self.u.widen(t);
+        let c = self.u.class_symbol(w).ok_or("baseClasses of a type without a class")?;
+        Ok(self.u.linearization(c))
+    }
+
+    pub fn member_type(&mut self, t: TypeId, s: SymbolId) -> Fallible<TypeId> {
+        Ok(self.repeated_param(s)?.unwrap_or_else(|| self.u.term_type(Some(t), s)))
+    }
+
+    pub fn term_ref(&mut self, qual: TypeId, name: String) -> Fallible<TypeId> {
+        self.reflect().term_ref(qual, &name)
+    }
+
+    /// The annotation of annotated type `t` as a `new` of its type.
+    pub fn annotation(&mut self, t: TypeId) -> Fallible<TNodeId> {
+        let Type::Annotated(_, annot) = *self.u.types().get(t) else {
+            return Err("AnnotatedType.annotation of another type");
+        };
+        let span = self.expansion;
+        let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(annot), None);
+        Ok(self.tpd.node(T::New { tpt }, span, Some(annot), None))
+    }
+
+    pub fn symbol_ref(&mut self, s: SymbolId) -> TypeId {
+        self.reflect().symbol_ref(s)
     }
 
     /// The qualifier of a reference to `s` without a prefix (dotty's `owner.thisType`): the `this`

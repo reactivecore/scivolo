@@ -47,7 +47,8 @@ impl Typer<'_> {
                 self.complete(d);
                 let implemented = members.into_iter().any(|m| {
                     self.complete(m);
-                    self.is_concrete(m) && (self.same_member(site, m, d) || self.same_shape(site, m, d))
+                    let concrete = self.is_concrete(m) || self.is_class_param(m);
+                    concrete && (self.same_member(site, m, d) || self.same_shape(site, m, d))
                 });
                 if !implemented {
                     return self.unsupported_at(span, "concrete class with an unimplemented member");
@@ -103,6 +104,12 @@ impl Typer<'_> {
         });
         let info = self.u.normalize(info);
         self.u.erased_method_type(info).0
+    }
+
+    /// Whether `m` is the parameter of a library class, a field.
+    fn is_class_param(&self, m: SymbolId) -> bool {
+        let s = self.u.symbol(m);
+        s.tree.is_some() && s.kind == Kind::Param && s.owner.is_some_and(|o| self.u.is_class(o))
     }
 
     /// Whether `d`, a declaration of class `c`, is the setter of a variable of `c`; the variable

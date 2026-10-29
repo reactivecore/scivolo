@@ -125,6 +125,14 @@ impl Host for Typer<'_> {
         typed.unwrap_or_else(|panic| resume_unwind(panic))
     }
 
+    fn inline_def(&mut self, lent: Lent<'_>, meth: SymbolId) -> Result<Option<TNodeId>, &'static str> {
+        let (u, tpd, names, fresh) = lent;
+        self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
+        let def = catch_unwind(AssertUnwindSafe(|| self.unit_inline_def(meth)));
+        self.swap_lent((u, tpd, names, fresh));
+        def.unwrap_or_else(|panic| resume_unwind(panic))
+    }
+
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError> {
         self.with_macros(lent, call.span, |m, lent, annotations| m.expand(lent, call, annotations))
     }

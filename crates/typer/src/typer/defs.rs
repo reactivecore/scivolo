@@ -33,7 +33,10 @@ impl Typer<'_> {
         });
         let constant =
             info.is_some_and(|t| matches!(self.u.types().get(t), Type::Constant(..) | Type::Str(_)));
-        if inline && (!constant || rhs.is_some_and(|r| !self.is_inline_value_rhs(r))) {
+        let in_inline_method = std::iter::successors(Some(ctx.owner), |&o| self.u.symbol(o).owner).any(|o| {
+            self.u.symbol(o).kind == tasty::Kind::Def && self.u.symbol(o).flags.has(tasty::tags::INLINE)
+        });
+        if inline && !in_inline_method && (!constant || rhs.is_some_and(|r| !self.is_inline_value_rhs(r))) {
             return self.unsupported(id, "inline value of a type that is not constant or impure");
         }
         self.tpd.node(T::ValDef { name, tpt, rhs }, span, None, sym)

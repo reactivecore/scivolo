@@ -5,7 +5,7 @@
 
 use super::Typer;
 use super::idents::Found;
-use crate::ctx::{Ctx, Level, LevelId};
+use crate::ctx::{Ctx, Level, LevelId, Mode};
 use tasty::Kind;
 
 /// The precedence of a binding (dotty's `BindingPrec`), lowest first.
@@ -54,11 +54,10 @@ impl Typer<'_> {
             match *self.levels.get(l) {
                 Level::Scope(_) | Level::Members(_) => {
                     let Some(found) = self.defined(l, name).and_then(|f| self.qualifying(f, l, ctx)) else {
-                        let as_type = Name { is_type: true, ..name };
                         let class = self
-                            .defined(l, as_type)
+                            .defined(l, Name { is_type: true, ..name })
                             .is_some_and(|f| f.syms.iter().any(|&s| self.u.symbol(s).kind == Kind::Class));
-                        if !name.is_type && class {
+                        if !name.is_type && class && !ctx.mode.is(Mode::EXTENSION_METHOD) {
                             if prev.is_some() {
                                 return Err("constructor proxy and an imported term");
                             }
@@ -96,13 +95,14 @@ impl Typer<'_> {
                         continue;
                     }
                     let hit = if possible(&prev, Prec::NamedImport)
-                        && let Some(found) = self.named_import_ref(i, name.text, name.is_type)
+                        && let Some(f) = self.named_import_ref(i, name.text, name.is_type)
+                        && let Some(found) = self.extensions_only(f, ctx)
                     {
                         Some(Hit { found, prec: Prec::NamedImport, scope })
                     } else if possible(&prev, Prec::WildImport) {
                         let found = self.wild_import_ref(i, name.text, name.is_type).and_then(|mut f| {
                             f.syms.retain(|&s| self.is_accessible_from(s, f.prefix, ctx));
-                            (!f.syms.is_empty()).then_some(f)
+                            self.extensions_only(f, ctx)
                         });
                         found.map(|found| Hit { found, prec: Prec::WildImport, scope })
                     } else {

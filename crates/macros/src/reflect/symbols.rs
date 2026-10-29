@@ -4,10 +4,10 @@
 //! TASTy modifier tags, with bits 2 to 5 for `Method`, `Package`, `Param` and `AbsOverride`,
 //! bit 50 for `JavaDefined` and bit 51 for `Scala2x`.
 
-use super::{Answer, UNKNOWN, arg, symbol, text};
+use super::Fallible;
 use crate::host::Host;
 use tasty::tags::{ABSTRACT, FINAL, LAZY, MACRO, OBJECT, OVERRIDE, PROTECTED, PROTECTEDqualified, SYNTHETIC};
-use tasty::{Flags, Kind, Symbol, SymbolId, Universe};
+use tasty::{Flags, Kind, Symbol, SymbolId, TypeId, Universe};
 
 const METHOD: u32 = 2;
 const PACKAGE: u32 = 3;
@@ -32,93 +32,88 @@ impl Host {
     }
 
     /// The empty package, the owner of the definitions at the root (dotty's `EmptyPackageClass`).
-    fn empty_package(&mut self) -> SymbolId {
+    pub fn empty_package(&mut self) -> SymbolId {
         let root = self.u.root();
         let made = &mut self.made.empty_package;
         *made.get_or_insert_with(|| local(&mut self.u, "<empty>", Kind::Package, root, Flags::default()))
     }
 
-    /// Runs symbol operation `op` on `args` and `name`.
-    pub fn run_symbol(&mut self, op: &str, args: &[i32], name: &str) -> Answer {
-        let arg = |i: usize| arg(args, i);
-        let one = |s: Option<SymbolId>| Ok((vec![s.map_or(-1, |s| s.0 as i32)], None));
-        match op {
-            "companionModule" => {
-                let Ok(s) = symbol(arg(0)?) else { return one(None) };
-                one(self.reflect().companion_module(s))
+    pub fn companion_module(&mut self, s: Option<SymbolId>) -> Option<SymbolId> {
+        self.reflect().companion_module(s?)
+    }
+
+    pub fn declared_method(&mut self, s: Option<SymbolId>, name: String) -> Vec<SymbolId> {
+        s.map(|s| self.reflect().declared_methods(s, &name)).unwrap_or_default()
+    }
+
+    /// The owner of the splice: the annotated definition's while annotating.
+    pub fn splice_owner(&mut self) -> SymbolId {
+        if self.annotating { self.owner } else { self.macro_owner() }
+    }
+
+    pub fn root(&self) -> SymbolId {
+        self.u.root()
+    }
+
+    pub fn any_ref_alias(&mut self) -> Fallible<SymbolId> {
+        let aliases = self.u.package("scala").and_then(|p| self.u.decl(p, "AnyRef").ok());
+        let alias = aliases.into_iter().flatten().find(|&a| self.u.symbol(a).kind == Kind::Type);
+        alias.ok_or("a library without scala.AnyRef")
+    }
+
+    pub fn predef_class_of(&mut self) -> Fallible<SymbolId> {
+        let predef = self.u.package("scala").and_then(|p| self.u.module_class_in(p, "Predef"));
+        let class_of = predef.and_then(|c| self.u.decl(c, "classOf").ok()?.first().copied());
+        class_of.ok_or("a library without scala.Predef.classOf")
+    }
+
+    /// The owner of `s`, the empty package for a definition at the root.
+    pub fn owner_of(&mut self, s: SymbolId) -> Option<SymbolId> {
+        match self.u.symbol(s).owner {
+            Some(o) if o == self.u.root() && self.u.symbol(s).kind != Kind::Package => {
+                Some(self.empty_package())
             }
-            "declaredMethod" => {
-                let Ok(s) = symbol(arg(0)?) else { return Ok((Vec::new(), None)) };
-                Ok((self.reflect().declared_methods(s, name).into_iter().map(|s| s.0 as i32).collect(), None))
-            }
-            "spliceOwner" if self.annotating => one(Some(self.owner)),
-            "spliceOwner" => one(Some(self.macro_owner())),
-            "root" => one(Some(self.u.root())),
-            "emptyPackage" => one(Some(self.empty_package())),
-            "predefClassOf" => {
-                let predef = self.u.package("scala").and_then(|p| self.u.module_class_in(p, "Predef"));
-                let class_of = predef.and_then(|c| self.u.decl(c, "classOf").ok()?.first().copied());
-                one(Some(class_of.ok_or("a library without scala.Predef.classOf")?))
-            }
-            "owner" => {
-                let s = symbol(arg(0)?)?;
-                match self.u.symbol(s).owner {
-                    Some(o) if o == self.u.root() && self.u.symbol(s).kind != Kind::Package => {
-                        one(Some(self.empty_package()))
-                    }
-                    owner => one(owner),
-                }
-            }
-            "name" => {
-                let s = symbol(arg(0)?)?;
-                let name = self.u.symbol(s).name.to_string();
-                match name.is_empty() {
-                    true if s == self.u.root() => text("<root>".into()),
-                    true => text("<empty>".into()),
-                    false => text(name),
-                }
-            }
-            "fullName" => text(self.u.full_name(symbol(arg(0)?)?)),
-            "info" => {
-                let info = self.u.info(symbol(arg(0)?)?);
-                Ok((vec![self.add_type(info) as i32], None))
-            }
-            "flags" => {
-                let bits = self.flags(symbol(arg(0)?)?);
-                Ok((vec![bits as u32 as i32, (bits >> 32) as u32 as i32], None))
-            }
-            "kind" => {
-                let kind = self.u.symbol(symbol(arg(0)?)?).kind;
-                let n = [
-                    Kind::Package,
-                    Kind::Class,
-                    Kind::Type,
-                    Kind::TypeParam,
-                    Kind::Param,
-                    Kind::Val,
-                    Kind::Def,
-                ]
-                .iter()
-                .position(|&k| k == kind);
-                Ok((vec![n.map_or(-1, |n| n as i32)], None))
-            }
-            "moduleClass" => {
-                let s = symbol(arg(0)?)?;
-                let class = match self.u.symbol(s).kind {
-                    Kind::Package => Some(s),
-                    _ if self.u.is_module_class(s) => Some(s),
-                    _ if self.u.is_module(s) => self.u.module_class(s),
-                    _ => None,
-                };
-                one(class)
-            }
-            _ => Err(UNKNOWN),
+            owner => owner,
+        }
+    }
+
+    pub fn name(&self, s: SymbolId) -> String {
+        let name = self.u.symbol(s).name.to_string();
+        match name.is_empty() {
+            true if s == self.u.root() => "<root>".into(),
+            true => "<empty>".into(),
+            false => name,
+        }
+    }
+
+    pub fn full_name(&self, s: SymbolId) -> String {
+        self.u.full_name(s)
+    }
+
+    pub fn info(&mut self, s: SymbolId) -> TypeId {
+        self.u.info(s)
+    }
+
+    /// The kind of `s` as the overlay numbers it, `-1` for another.
+    pub fn symbol_kind(&self, s: SymbolId) -> i32 {
+        let kind = self.u.symbol(s).kind;
+        let kinds =
+            [Kind::Package, Kind::Class, Kind::Type, Kind::TypeParam, Kind::Param, Kind::Val, Kind::Def];
+        kinds.iter().position(|&k| k == kind).map_or(-1, |n| n as i32)
+    }
+
+    pub fn module_class(&mut self, s: SymbolId) -> Option<SymbolId> {
+        match self.u.symbol(s).kind {
+            Kind::Package => Some(s),
+            _ if self.u.is_module_class(s) => Some(s),
+            _ if self.u.is_module(s) => self.u.module_class(s),
+            _ => None,
         }
     }
 
     /// The flags of `s` as dotty's `TreeUnpickler` reads them (`readModifiers`, `normalizeFlags`),
     /// but for `Deferred`, `ParamAccessor`, `NoInits` and `StableRealizable`.
-    fn flags(&self, s: SymbolId) -> u64 {
+    pub fn flags(&self, s: SymbolId) -> u64 {
         let sym = self.u.symbol(s);
         let has = |tag: u8| sym.flags.has(tag);
         let bit = |tag: u8| 1u64 << tag;

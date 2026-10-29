@@ -75,6 +75,8 @@ impl Gen<'_, '_> {
             let ty = self.ty(Type::Function(Vec::new(), unit));
             let attrs = vec![Attr::Extern { blocking: false }];
             self.defns.push(Defn { name, attrs, pos, kind: DefnKind::Declare { ty } });
+        } else {
+            self.check_extern_ctor(constr)?;
         }
         for &stat in self.l.tpd.items(body).to_vec().iter() {
             match self.l.tpd.tree(stat) {
@@ -83,7 +85,7 @@ impl Gen<'_, '_> {
                     self.defns.extend(defn);
                 }
                 Tree::TypeDef { .. } | Tree::Import { .. } => {}
-                Tree::ValDef { .. } => return unsupported(self.l.tpd.span(stat), "extern fields"),
+                Tree::ValDef { .. } => self.gen_extern_field(stat, sym, pos)?,
                 _ => return unsupported(self.l.tpd.span(stat), "statements in an extern object"),
             }
         }
@@ -100,6 +102,7 @@ impl Gen<'_, '_> {
         let target = match *self.l.tpd.tree(rhs) {
             _ if self.is_extern_body(rhs) => sym,
             _ if has(self.l.u, sym, SYNTHETIC) && !self.l.bridges.contains(&sym) => return Ok(None),
+            _ if has(self.l.u, sym, FIELDaccessor) && !self.l.bridges.contains(&sym) => return Ok(None),
             _ if self.l.forwarded.contains_key(&sym) => return Ok(None),
             Tree::Apply { fun, .. }
                 if let Some(t) = self.l.tpd.sym(fun)
@@ -129,7 +132,7 @@ impl Gen<'_, '_> {
     }
 
     /// Whether `t` is `extern` or `extern()`.
-    fn is_extern_body(&self, t: TNodeId) -> bool {
+    pub fn is_extern_body(&self, t: TNodeId) -> bool {
         let t = match *self.l.tpd.tree(t) {
             Tree::Apply { fun, args } if self.l.tpd.items(args).is_empty() => fun,
             _ => t,

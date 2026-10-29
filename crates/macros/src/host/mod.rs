@@ -2,8 +2,10 @@
 //! the expressions and types the macro holds by number.
 
 mod natives;
+mod settings;
 
 use crate::Tables;
+pub use settings::Settings;
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::SourceFile;
@@ -38,6 +40,7 @@ pub struct Host {
     pub expansion: Span,
     pub sources: Vec<SourceFile>,
     pub typer: crate::reflect::FromTyper,
+    pub settings: Settings,
     exprs: Vec<Expr>,
     types: Vec<TypeId>,
     pub patterns: Vec<QuotePattern>,
@@ -64,7 +67,7 @@ impl Host {
     pub fn new(
         (u, tpd, names): Tables<'_>,
         owner: SymbolId,
-        (expansion, sources): (Span, Vec<SourceFile>),
+        (expansion, sources, settings): (Span, Vec<SourceFile>, Settings),
     ) -> Host {
         Host {
             u: std::mem::replace(u, Universe::empty()),
@@ -74,6 +77,7 @@ impl Host {
             expansion,
             sources,
             typer: Default::default(),
+            settings,
             exprs: Vec::new(),
             types: Vec::new(),
             patterns: Vec::new(),

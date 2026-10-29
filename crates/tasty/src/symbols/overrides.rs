@@ -81,11 +81,8 @@ impl Universe {
 
     /// The type type alias `s` stands for, unless a type lambda.
     fn alias(&mut self, s: SymbolId) -> Option<TypeId> {
-        let info = self.info(s);
-        match self.types().get(info) {
-            &Type::Alias(a) if !matches!(self.types().get(a), Type::Lambda { .. }) => Some(a),
-            _ => None,
-        }
+        let a = self.alias_of(s)?;
+        (!matches!(self.types().get(a), Type::Lambda { .. })).then_some(a)
     }
 
     /// Whether methods `a` and `b`, as members of `site`, take the same numbers of type

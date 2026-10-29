@@ -59,6 +59,23 @@ pub fn inline_def(
     unpickler.inline_def(id)
 }
 
+/// The definition of value or method `sym` of the classpath, read from its TASTy (dotty's
+/// `Symbol.tree` under `-Yretain-trees`).
+pub fn member_def(
+    u: &mut Universe,
+    tpd: &mut Tpd,
+    names: &mut Names,
+    sym: SymbolId,
+) -> Result<TNodeId, Refusal> {
+    let Some((file, id)) = u.symbol(sym).tree else { return Err("a definition without TASTy") };
+    if u.body_info(file).is_err() {
+        return Err("a definition of an unreadable TASTy file");
+    }
+    define_repeated(u)?;
+    let mut unpickler = Unpickler { u, tpd, names, file, meth: sym, owner: sym, holes: None };
+    unpickler.member_def(id)
+}
+
 /// Defines the class `scala.<repeated>` of repeated parameter types, which pickled trees name.
 fn define_repeated(u: &mut Universe) -> Result<(), Refusal> {
     let scala = u.package("scala").ok_or("a library without package scala")?;

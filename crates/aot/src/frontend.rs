@@ -5,7 +5,7 @@ use crate::R;
 use libimage::{Image, cache};
 use libs::{BUILD, NATIVE, SCALA, cache_dir};
 use lower::directives::{directives, without_header};
-use macros::VmMacros;
+use macros::{Settings, VmMacros};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
@@ -101,13 +101,15 @@ fn cached(dir: &Path) -> Option<(PathBuf, Vec<String>)> {
 /// Writes the NIR files of `unit` under `classes` and returns their main classes, sorted; its
 /// macro calls run in a VM over `image`.
 fn build(unit: &Unit, image: &'static Image, classes: &Path) -> R<Vec<String>> {
-    let options: Vec<&str> = unit.options.iter().map(String::as_str).collect();
+    let mut options: Vec<&str> = unit.options.iter().map(String::as_str).collect();
+    let settings = Settings::from_options(&options);
+    options.retain(|o| !Settings::reads(o));
     let cfg = Config::checked(&options).map_err(|o| format!("option `{o}`"))?;
     let classpath = vm::Classpath::with_image(&[], image).map_err(|e| e.to_string())?;
     let mut vm = vm::Vm::new(classpath).map_err(|e| format!("the macro VM: {e}"))?;
     let compiled = catch_unwind(AssertUnwindSafe(|| {
         let sources = unit.files.iter().map(|f| SourceFile::new(f.name.clone(), f.text.clone())).collect();
-        let mut macros = VmMacros { vm: &mut vm, sources };
+        let mut macros = VmMacros { vm: &mut vm, sources, settings };
         lower::compile_sources(&mut tasty::Universe::open_image(image), &unit.files, cfg, Some(&mut macros))
     }));
     let (files, warnings) = compiled
