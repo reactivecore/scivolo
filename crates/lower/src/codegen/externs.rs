@@ -83,7 +83,7 @@ impl Gen<'_, '_> {
                     self.defns.extend(defn);
                 }
                 Tree::TypeDef { .. } | Tree::Import { .. } => {}
-                Tree::ValDef { .. } => return unsupported(self.l.tpd.span(stat), "extern fields"),
+                Tree::ValDef { .. } => self.gen_extern_field(stat, sym, pos)?,
                 _ => return unsupported(self.l.tpd.span(stat), "statements in an extern object"),
             }
         }
@@ -100,6 +100,7 @@ impl Gen<'_, '_> {
         let target = match *self.l.tpd.tree(rhs) {
             _ if self.is_extern_body(rhs) => sym,
             _ if has(self.l.u, sym, SYNTHETIC) && !self.l.bridges.contains(&sym) => return Ok(None),
+            _ if has(self.l.u, sym, FIELDaccessor) && !self.l.bridges.contains(&sym) => return Ok(None),
             _ if self.l.forwarded.contains_key(&sym) => return Ok(None),
             Tree::Apply { fun, .. }
                 if let Some(t) = self.l.tpd.sym(fun)
