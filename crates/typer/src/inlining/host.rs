@@ -97,11 +97,19 @@ impl Inlining<'_> {
         }
     }
 
-    /// Whether `t` is a reference without implicit arguments of its own whose name none of
-    /// `locals` has.
-    fn unshadowed_ref(&self, t: TNodeId, locals: &[SymbolId]) -> bool {
+    /// Whether `t` is a reference whose name none of `locals` has, applied to such references
+    /// as implicit arguments none of `locals` may be.
+    fn unshadowed_ref(&mut self, t: TNodeId, locals: &[SymbolId]) -> bool {
         match *self.tpd.tree(t) {
             T::TypeApply { fun, .. } => self.unshadowed_ref(fun, locals),
+            T::Apply { fun, args } => {
+                let args = self.tpd.items(args).to_vec();
+                self.unshadowed_ref(fun, locals)
+                    && args.into_iter().all(|a| {
+                        let tpe = self.tpd.tpe(a);
+                        !self.may_fit(locals, tpe) && self.unshadowed_ref(a, locals)
+                    })
+            }
             T::Ident { .. } | T::Select { .. } => self.tpd.sym(t).is_some_and(|s| {
                 let name = &self.u.symbol(s).name;
                 locals.iter().all(|&l| self.u.symbol(l).name != *name)
@@ -184,6 +192,22 @@ impl Inlining<'_> {
         for c in self.tpd.children(t) {
             self.implicit_defs(c, found);
         }
+    }
+
+    /// Adds the given and implicit terms `t` defines in whose scope `call` is to `found`: those
+    /// defined beside a tree containing it, or defining it; whether `t` contains `call`.
+    pub fn implicit_defs_at(&self, t: TNodeId, call: TNodeId, found: &mut Vec<SymbolId>) -> bool {
+        if t == call {
+            return true;
+        }
+        let children = self.tpd.children(t);
+        let Some(i) = children.iter().position(|&c| self.implicit_defs_at(c, call, found)) else {
+            return false;
+        };
+        let beside = children.iter().enumerate().filter(|&(j, &c)| j != i && self.is_implicit_def(c));
+        found.extend(beside.filter_map(|(_, &c)| self.tpd.sym(c)));
+        found.extend(self.tpd.sym(t).filter(|_| self.is_implicit_def(t)));
+        true
     }
 
     /// Whether one of the implicits `defs` of a typer's expansion around the call may be an
