@@ -158,8 +158,9 @@ impl Typer<'_> {
         if arg_ids.first().is_some_and(|&a| matches!(self.ast.tree(a), syntax::ast::Tree::ValDef { .. })) {
             return self.typed_dependent_function_type(id, (&arg_ids, body), (class, contextual), ctx);
         }
-        let mut typed: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
-        typed.push(self.typed_type(body, ctx));
+        let parts = arg_ids.iter().chain([&body]);
+        let (mut typed, vars): (Vec<TNodeId>, Vec<_>) =
+            parts.map(|&a| self.typed_pattern_type_arg(a, ctx)).unzip();
         if matches!(self.tpd.tree(typed[n]), T::ByNameTypeTree { .. }) {
             return self.unsupported(id, "by-name function parameter");
         }
@@ -174,6 +175,7 @@ impl Typer<'_> {
         let first = arg_ids.first().copied().unwrap_or(body);
         let tycon = self.type_tree(class, self.ast.span(first).start_pos(), false);
         let arg_types: Vec<TypeId> = typed.iter().map(|&t| self.tpd.tpe(t)).collect();
+        let arg_types = self.pattern_bound_args(class, &mut typed, &vars, arg_types, ctx);
         let tpe = self.u.intern_type(Type::Applied(class, arg_types));
         let args = self.tpd.list(&typed);
         self.tpd.node(T::AppliedTypeTree { tpt: tycon, args }, span, Some(tpe), None)

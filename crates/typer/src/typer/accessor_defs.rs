@@ -181,22 +181,14 @@ impl Typer<'_> {
     }
 
     /// The name of the accessor of `accessed`, a setter if `setter`, in class `host`: expanded by
-    /// the class's name if it may have subclasses (dotty's `accessorNameOf`); `None` in a local
-    /// class.
-    pub fn accessor_name(&self, accessed: SymbolId, host: SymbolId, setter: bool) -> Option<String> {
-        let mut o = self.u.symbol(host).owner;
-        while let Some(x) = o.filter(|&x| self.u.symbol(x).kind != Kind::Package) {
-            if self.u.symbol(x).kind != Kind::Class {
-                return None;
-            }
-            o = self.u.symbol(x).owner;
-        }
+    /// the class's name if it may have subclasses (dotty's `accessorNameOf`).
+    pub fn accessor_name(&self, accessed: SymbolId, host: SymbolId, setter: bool) -> String {
         let prefix = self.u.expanded_prefix(host);
         let base = format!("inline${}", self.u.symbol(accessed).name);
         let s = self.u.symbol(host);
         let extensible =
             !s.flags.has(tasty::tags::FINAL) && !self.u.is_module_class(host) && !s.name.starts_with("$anon");
         let name = if extensible { format!("{prefix}$${base}") } else { base };
-        Some(if setter { format!("{name}_=") } else { name })
+        if setter { format!("{name}_=") } else { name }
     }
 }

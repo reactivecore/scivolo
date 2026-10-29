@@ -16,10 +16,14 @@ impl Typer<'_> {
         let Pt::Type(sel) = pt else { return tpe };
         let mut bound = Vec::new();
         self.pattern_types(tpt, &mut bound, false);
-        if !pattern || bound.is_empty() || self.is_top(sel) || !self.refines_invariantly(tpe, sel) {
+        let syms: Vec<SymbolId> = bound.into_iter().map(|(s, _)| s).collect();
+        if pattern && !syms.is_empty() && self.only_against_wildcards(tpe, sel, &syms) {
+            self.known_pattern_types.extend(syms);
             return tpe;
         }
-        let syms: Vec<SymbolId> = bound.into_iter().map(|(s, _)| s).collect();
+        if !pattern || syms.is_empty() || self.is_top(sel) || !self.refines_invariantly(tpe, sel) {
+            return tpe;
+        }
         let mark = self.constraint.mark();
         let vars: Vec<TypeId> = syms.iter().map(|_| self.constraint.fresh(self.u)).collect();
         let subst = |u: &mut tasty::Universe, t: TypeId| {
@@ -83,6 +87,31 @@ impl Typer<'_> {
         }
         let base = if self.u.derives_from(p, s) { s } else { p };
         self.u.variances(base).iter().all(|&v| v == 0)
+    }
+
+    /// Whether pattern type `pat` and `sel` apply the same class, each of `syms` an argument of
+    /// `pat` only where `sel` has an unbounded wildcard, which constrains none of them.
+    fn only_against_wildcards(&mut self, pat: TypeId, sel: TypeId, syms: &[SymbolId]) -> bool {
+        let sel = self.dealiased(sel);
+        let sel = self.u.widen(sel);
+        let (Type::Applied(pc, pargs), Type::Applied(sc, sargs)) =
+            (self.u.types().get(pat).clone(), self.u.types().get(sel).clone())
+        else {
+            return false;
+        };
+        let same = self.u.class_symbol(pc).is_some_and(|c| self.u.class_symbol(sc) == Some(c));
+        let b = self.u.builtins();
+        let (any, nothing) = (b.any, b.nothing);
+        same && pargs.len() == sargs.len()
+            && pargs.iter().zip(&sargs).all(|(&p, &s)| match *self.u.types().get(p) {
+                Type::Sym(None, b) if syms.contains(&b) => match *self.u.types().get(s) {
+                    Type::Bounds(lo, hi) => {
+                        self.u.class_symbol(lo) == Some(nothing) && self.u.class_symbol(hi) == Some(any)
+                    }
+                    _ => false,
+                },
+                _ => !self.refers_to(p, syms),
+            })
     }
 
     /// The bounds of type variable `v` zonked, both its instance if it has one.

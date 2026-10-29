@@ -151,10 +151,7 @@ impl Typer<'_> {
             self.unsupported_at(span, "inline accessor of a member of a generic base class");
             return None;
         }
-        let Some(name) = self.accessor_name(accessed, host, setter) else {
-            self.unsupported_at(span, "inline accessor in a local class");
-            return None;
-        };
+        let name = self.accessor_name(accessed, host, setter);
         let def = self.accessor_def(&name, host, accessed, setter, span)?;
         let actx = Ctx { owner: host, ..ctx };
         self.index(&[def], actx);
