@@ -6,22 +6,24 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant as C;
-use tasty::SymbolId;
+use tasty::tags::INLINE;
+use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
     /// `typeChecks(code)`: whether the constant string `code` parses, types in the context of the
     /// outermost call and expands without errors.
     pub fn type_checks(&mut self, arg: TNodeId, owner: SymbolId, span: Span) -> Result<bool, Unsupported> {
         let mut r = super::Reflect { u: &mut *self.u, tpd: &mut *self.tpd, names: &mut *self.names, span };
-        let code = r.underlying_argument(arg);
-        let mut constant = self.code_constant(code);
-        if constant.is_none() {
+        let underlying = r.underlying(arg);
+        let mut code = self.stripped(underlying);
+        let meth = self.tpd.sym(self.tpd.meth_part(code)).map(|m| self.u.symbol(m));
+        if meth.is_some_and(|m| m.kind == Kind::Def && m.flags.has(INLINE)) {
             let outer = std::mem::replace(&mut self.force_inline, true);
-            let inlined = self.transform(self.stripped(code), owner);
+            let inlined = self.transform(code, owner);
             self.force_inline = outer;
-            constant = self.code_constant(inlined?);
+            code = inlined?;
         }
-        let Some(C::String(code)) = constant else {
+        let Some(C::String(code)) = self.code_constant(code) else {
             return Err((span, "typeChecks of code that is not a constant string"));
         };
         let code = String::from_utf16_lossy(&code);
