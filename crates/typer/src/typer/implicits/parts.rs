@@ -24,7 +24,7 @@ impl Typer<'_> {
         }
         seen.push(t);
         let t = self.u.dealias(t);
-        let prefix = match self.u.types().get(t).clone() {
+        let prefix = match *self.u.types().get(t) {
             Type::Sym(p, _) => p,
             Type::TypeRef(p, _) | Type::TermRef(p, _) => Some(p),
             Type::This(c) => return self.collect_parts(c, seen, parts),

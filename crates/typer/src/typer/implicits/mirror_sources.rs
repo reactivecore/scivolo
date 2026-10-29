@@ -32,8 +32,8 @@ impl Typer<'_> {
         let Some(depth) = depth.checked_sub(1) else { return Err("Mirror of a type too deep to reduce") };
         let next = match self.u.types().get(t).clone() {
             Type::TypeRef(p, n) if self.referenced(t).is_none() => {
-                match self.u.refinement_named(p, &n).map(|i| self.u.types().get(i).clone()) {
-                    Some(Type::Alias(a) | Type::Bounds(_, a)) => Some(a),
+                match self.u.refinement_named(p, &n).map(|i| self.u.types().get(i)) {
+                    Some(&Type::Alias(a) | &Type::Bounds(_, a)) => Some(a),
                     _ => return Err("Mirror of an unresolved type"),
                 }
             }
@@ -135,7 +135,7 @@ impl Typer<'_> {
             Some(p) => self.u.member_info(p, s),
             None => self.u.info(s),
         };
-        match self.u.types().get(info).clone() {
+        match *self.u.types().get(info) {
             Type::Bounds(_, hi) => Some(hi),
             _ => None,
         }

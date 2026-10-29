@@ -66,7 +66,7 @@ impl Typer<'_> {
             return Err("Mirror of a case class with @unroll parameters");
         }
         let labels: Vec<String> = accessors.iter().map(|&a| self.u.symbol(a).name.clone()).collect();
-        let site = match self.u.types().get(formal.mirrored).clone() {
+        let site = match *self.u.types().get(formal.mirrored) {
             Type::Lambda { result, .. } => result,
             _ => formal.mirrored,
         };

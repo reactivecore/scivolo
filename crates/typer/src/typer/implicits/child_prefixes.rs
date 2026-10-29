@@ -66,7 +66,7 @@ impl Typer<'_> {
         if limit == 0 {
             return Some(pre);
         }
-        match self.u.types().get(pre).clone() {
+        match *self.u.types().get(pre) {
             Type::Sym(Some(p), s) if self.u.symbol(s).kind.is_term() => self.sub_prefix_at(p, limit - 1),
             Type::Sym(None, s) if self.u.symbol(s).kind.is_term() && limit == 1 => {
                 Some(self.u.intern_type(Type::NoPrefix))
