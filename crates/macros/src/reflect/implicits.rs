@@ -3,7 +3,7 @@
 //! The implicit searches of `quotes.reflect`, which the typer answers between runs of the
 //! expansion (`Implicits.search`), and `CompilationInfo`.
 
-use super::{Answer, UNKNOWN, arg, numbers, text};
+use super::Fallible;
 use crate::host::Host;
 use tasty::TypeId;
 use typer::inlining::Annotations;
@@ -23,22 +23,20 @@ pub struct FromTyper {
 pub const SEARCH: &str = "an implicit search the typer answers";
 
 impl Host {
-    /// Runs implicit operation `op` on `args`: the argument found as `[1, tree]`, `[0]` for none;
-    /// or a `CompilationInfo` operation.
-    pub fn run_implicit(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
-        match op {
-            "isWhileTyping" => return numbers(vec![self.typer.while_typing as i32]),
-            "macroSettings" => return text(self.settings.macro_settings.join("\n")),
-            _ => {}
-        }
-        if op != "search" {
-            return Err(UNKNOWN);
-        }
-        let pt = self.type_of(arg(args, 0)? as u32)?;
+    pub fn is_while_typing(&self) -> bool {
+        self.typer.while_typing
+    }
+
+    pub fn macro_settings(&self) -> String {
+        self.settings.macro_settings.join("\n")
+    }
+
+    /// The implicit argument of type `pt` found as `[1, tree]`, `[0]` for none.
+    pub fn search(&mut self, pt: TypeId) -> Fallible<Vec<i32>> {
         let answered = self.typer.searched.iter().find(|&&(t, _)| t == pt).map(|&(_, found)| found);
         match answered {
-            Some(Some(t)) => numbers(vec![1, self.add_tree(t) as i32]),
-            Some(None) => numbers(vec![0]),
+            Some(Some(t)) => Ok(vec![1, self.add_tree(t) as i32]),
+            Some(None) => Ok(vec![0]),
             None => {
                 self.typer.wanted.get_or_insert(pt);
                 Err(SEARCH)
