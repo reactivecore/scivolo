@@ -57,6 +57,13 @@ impl Typer<'_> {
         }
         let using = self.protos[proto].using;
         let f = match self.with_type_vars(f).and_then(|f| self.with_using_args(f, using, fun_ctx)) {
+            Ok(g) if g != f => {
+                let g = self.inlined_transparent(g, Pt::Fun(proto), fun_ctx).unwrap_or(g);
+                self.with_apply(g, Pt::Fun(proto), fun_ctx)
+            }
+            other => other,
+        };
+        let f = match f {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
