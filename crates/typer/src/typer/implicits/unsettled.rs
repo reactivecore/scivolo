@@ -48,12 +48,34 @@ impl Typer<'_> {
     }
 
     /// The upper bound of `t` if `t` is an uninstantiated type variable bounded from above only,
-    /// what the search looks for in its place (dotty's `wildApprox`).
+    /// or one applied to arguments bounded by a class taking as many, applied to them, of an
+    /// intersection with such a side, the sides so: what the search looks for in its place
+    /// (dotty's `wildApprox`).
     pub fn var_upper_bound(&mut self, t: TypeId) -> Option<TypeId> {
         let t = self.zonk(t);
-        let Type::Var(v) = *self.u.types().get(t) else { return None };
-        let (lo, hi) = self.constraint.bounds(v);
-        (lo == tasty::NOTHING && hi != tasty::ANY).then(|| self.zonk(hi))
+        let (var, args) = match self.u.types().get(t).clone() {
+            Type::Var(v) => (v, None),
+            Type::Applied(c, args) => match *self.u.types().get(c) {
+                Type::Var(v) => (v, Some(args)),
+                _ => return None,
+            },
+            Type::And(a, b) => {
+                let (x, y) = (self.var_upper_bound(a), self.var_upper_bound(b));
+                if x.is_none() && y.is_none() {
+                    return None;
+                }
+                return Some(self.u.intern_type(Type::And(x.unwrap_or(a), y.unwrap_or(b))));
+            }
+            _ => return None,
+        };
+        let (lo, hi) = self.constraint.bounds(var);
+        if lo != tasty::NOTHING || hi == tasty::ANY {
+            return None;
+        }
+        let hi = self.zonk(hi);
+        let Some(args) = args else { return Some(hi) };
+        let class = self.u.class_symbol(hi).filter(|_| matches!(self.u.types().get(hi), Type::Sym(..)))?;
+        (self.u.type_params(class).len() == args.len()).then(|| self.u.intern_type(Type::Applied(hi, args)))
     }
 
     /// `t` with its type variables whose bounds are equal instantiated to them.
