@@ -103,7 +103,7 @@ impl Typer<'_> {
     /// `qual.name` for a type member only a refinement of `qual`'s path type `pre` has (one of
     /// a library's refined types: `MirroredElemTypes` of a `Mirror.Of[T]`); `None` otherwise.
     pub fn refined_select(&mut self, id: NodeId, qual: TNodeId, pre: TypeId, name: TName) -> Option<TNodeId> {
-        let stable = match self.u.types().get(pre).clone() {
+        let stable = match *self.u.types().get(pre) {
             Type::Sym(_, s) => !self.u.is_type_symbol(s),
             Type::This(_) | Type::TermRef(..) => true,
             _ => false,

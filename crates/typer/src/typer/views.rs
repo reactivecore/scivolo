@@ -9,7 +9,7 @@ use super::imports::ImportInfo;
 use crate::ctx::{Ctx, Level};
 use syntax::ast::flags as f;
 use tasty::tags::{GIVEN, IMPLICIT};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether a view from `arg` to `param` may be visible in `ctx`: `false` only when none is.
@@ -52,15 +52,13 @@ impl Typer<'_> {
         if !flags.has(IMPLICIT) || self.u.symbol(m).kind != Kind::Def {
             return false;
         }
-        let mut info = self.u.info(m);
-        if let Type::Poly { result, .. } = self.u.types().get(info) {
-            info = *result;
-        }
-        let Type::Method { params, mut result, implicit: false, .. } = self.u.types().get(info).clone()
+        let info = self.u.info(m);
+        let info = self.u.strip_poly(info);
+        let Some(Binding { params: &[(_, view_param)], mut result, implicit: false, .. }) =
+            self.u.method(info)
         else {
             return false;
         };
-        let [(_, view_param)] = params[..] else { return false };
         while let Type::Method { result: r, implicit: true, .. } = self.u.types().get(result) {
             result = *r;
         }

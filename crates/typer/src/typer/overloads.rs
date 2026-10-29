@@ -173,10 +173,7 @@ impl Typer<'_> {
     /// implicit (dotty's `resultIsMethod` with `stripInferrable`).
     fn result_is_method(&mut self, s: SymbolId) -> bool {
         let info = self.u.info(s);
-        let info = match *self.u.types().get(info) {
-            tasty::Type::Poly { result, .. } => result,
-            _ => info,
-        };
+        let info = self.u.strip_poly(info);
         let tasty::Type::Method { result, .. } = *self.u.types().get(info) else { return false };
         let result = self.strip_implicit(result);
         matches!(self.u.types().get(result), tasty::Type::Method { .. })

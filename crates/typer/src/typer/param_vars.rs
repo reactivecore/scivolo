@@ -117,8 +117,8 @@ impl Typer<'_> {
                 let mut rest: Vec<VarId> = to_test.into_iter().filter(|v| !in_args.contains(v)).collect();
                 let fun_tpe = self.tpd.tpe(fun);
                 let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-                if let Type::Method { params, .. } = self.u.types().get(info).clone() {
-                    let mentioned: Vec<VarId> = params.iter().flat_map(|&(_, p)| self.open_vars(p)).collect();
+                if let Some(params) = self.u.method(info).map(|m| m.param_types()) {
+                    let mentioned: Vec<VarId> = params.iter().flat_map(|&p| self.open_vars(p)).collect();
                     acc.extend(rest.iter().filter(|v| mentioned.contains(v)));
                     rest.retain(|v| !mentioned.contains(v));
                 }

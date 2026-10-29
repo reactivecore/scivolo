@@ -59,9 +59,7 @@ impl Typer<'_> {
         let prefix = crate::defn::type_ref(self.u, module);
         let fun_tpe = self.u.intern_type(Type::Sym(Some(prefix), conv));
         let info = self.method_info(fun_tpe)?;
-        let Type::Method { result, .. } = self.u.types().get(info).clone() else {
-            return None;
-        };
+        let result = self.u.method(info)?.result;
         if !self.conforms(result, pt) {
             return None;
         }

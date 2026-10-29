@@ -53,10 +53,7 @@ impl Typer<'_> {
     /// `using` clause.
     pub fn leading_implicit(&mut self, s: SymbolId) -> Option<bool> {
         let info = self.u.info(s);
-        let info = match *self.u.types().get(info) {
-            Type::Poly { result, .. } => result,
-            _ => info,
-        };
+        let info = self.u.strip_poly(info);
         match *self.u.types().get(info) {
             Type::Method { implicit: true, contextual, .. } => Some(contextual),
             _ => None,

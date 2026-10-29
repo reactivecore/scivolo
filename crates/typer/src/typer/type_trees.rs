@@ -66,8 +66,8 @@ impl Typer<'_> {
                         Ok(types) => types,
                         Err(what) => return self.unsupported(id, what),
                     };
-                let and_or = match (self.u.types().get(tycon).clone(), &arg_types[..]) {
-                    (Type::Sym(_, s), &[a, b]) => self.and_or_applied(s, a, b),
+                let and_or = match (self.u.types().get(tycon), &arg_types[..]) {
+                    (&Type::Sym(_, s), &[a, b]) => self.and_or_applied(s, a, b),
                     _ => None,
                 };
                 if and_or.is_some() {

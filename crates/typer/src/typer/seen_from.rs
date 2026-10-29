@@ -2,7 +2,7 @@
 //! prefix's base type, applied type lambdas reduced, capture annotations dropped.
 
 use super::Typer;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The type of the method `fun_tpe` refers to, as seen from its prefix; remembered unless the
@@ -27,7 +27,7 @@ impl Typer<'_> {
         if let Some(info) = self.poly_apply_info(fun_tpe) {
             return Some(info);
         }
-        let Type::Sym(prefix, s) = self.u.types().get(fun_tpe).clone() else { return None };
+        let Type::Sym(prefix, s) = *self.u.types().get(fun_tpe) else { return None };
         self.complete(s);
         let seen_from_prefix = prefix.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_)));
         let seen_from_prefix = seen_from_prefix.map(|p| self.aliased_object(p));
@@ -102,10 +102,8 @@ pub fn class_param_arg(u: &mut tasty::Universe, t: TypeId) -> Option<TypeId> {
     let class = u.symbol(p).owner.filter(|&c| u.symbol(c).kind == Kind::Class)?;
     let index = u.type_params(class).iter().position(|&q| q == p)?;
     let widened = u.widen(pre);
-    match u.base_type(widened, class).map(|b| u.types().get(b).clone()) {
-        Some(Type::Applied(_, args)) => args.get(index).copied(),
-        _ => None,
-    }
+    let (_, args) = u.base_type(widened, class).and_then(|b| u.applied(b))?;
+    args.get(index).copied()
 }
 
 /// `t` with applied type lambdas and applied aliases of type lambdas reduced, and capture-checking
@@ -122,7 +120,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
             return Some(inner);
         }
         let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
-        let alias = match u.types().get(tycon).clone() {
+        let alias = match *u.types().get(tycon) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => u.resolve_ref(tycon),
             _ => None,
@@ -164,7 +162,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
             }
             _ => tycon,
         };
-        let Type::Lambda { binder, params, result } = u.types().get(lambda).clone() else { return None };
+        let Binding { binder, params, result, .. } = u.lambda(lambda)?;
         if matches!(u.types().get(result), Type::Match { .. }) {
             return None;
         }
@@ -178,7 +176,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
         if lambda != tycon && !eta && !impure {
             return None;
         }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         Some(u.subst(result, binder, &names, &args))
     });
     if again { normalized(u, out) } else { out }

@@ -7,7 +7,7 @@ use super::Typer;
 use crate::ctx::Ctx;
 use syntax::ast::{Ast, List, NodeId, Span, Tree};
 use tasty::tags::{MUTABLE, OBJECT};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether the tree at `span`, typed in `ctx`, is where dotty types it with the same expected
@@ -156,10 +156,10 @@ impl Typer<'_> {
     fn is_monomorphic(&mut self, m: SymbolId, arity: usize) -> bool {
         self.complete(m);
         let info = self.u.info(m);
-        let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() else {
+        let Some(Binding { params, result, implicit: false, .. }) = self.u.method(info) else {
             return false;
         };
-        let params: Vec<TypeId> = params.into_iter().map(|(_, p)| p).collect();
+        let params: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
         let curried = matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. });
         params.len() == arity && !curried && params.into_iter().all(|p| self.repeated_elem(p).is_none())
     }

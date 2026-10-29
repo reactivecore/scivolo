@@ -72,12 +72,12 @@ impl Typer<'_> {
         let T::TypeApply { fun, args } = *self.tpd.tree(unapp) else { return Vec::new() };
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-        let Type::Poly { params, .. } = self.u.types().get(info).clone() else { return Vec::new() };
+        let Some(poly) = self.u.poly(info) else { return Vec::new() };
         let args = self.tpd.items(args).to_vec();
         args.iter()
-            .zip(params)
+            .zip(poly.params)
             .filter_map(|(&a, (name, _))| match *self.u.types().get(self.tpd.tpe(a)) {
-                Type::Var(v) => Some((v, name)),
+                Type::Var(v) => Some((v, name.clone())),
                 _ => None,
             })
             .collect()

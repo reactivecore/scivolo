@@ -8,7 +8,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Binding, Kind, Type, TypeId};
 
 /// The types of the patterns of a sequence extractor.
 pub struct SeqArgs {
@@ -85,7 +85,7 @@ impl Typer<'_> {
         for s in self.members_found(t, name, false).map(|f| f.syms).unwrap_or_default() {
             let tpe = self.ref_type(Some(t), s);
             let Some(info) = self.method_info(tpe) else { continue };
-            let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { continue };
+            let Some(Binding { params, result, .. }) = self.u.method(info) else { continue };
             if let [(_, index)] = params[..]
                 && self.is_int(index)
                 && !matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })

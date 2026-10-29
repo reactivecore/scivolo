@@ -70,9 +70,9 @@ impl Typer<'_> {
 
     /// How many type parameters a type member of info `info` takes.
     fn info_arity(&mut self, info: TypeId, depth: u32) -> usize {
-        match self.u.types().get(info).clone() {
+        match *self.u.types().get(info) {
             Type::Alias(a) | Type::Bounds(_, a) => self.type_arity_within(a, depth),
-            Type::Lambda { params, .. } => params.len(),
+            Type::Lambda { ref params, .. } => params.len(),
             _ => 0,
         }
     }

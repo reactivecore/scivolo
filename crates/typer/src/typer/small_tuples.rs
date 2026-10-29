@@ -37,8 +37,7 @@ impl Typer<'_> {
         let mut t = t;
         for _ in 0..pairs {
             let d = self.u.dealias(t);
-            if let Type::Applied(f, args) = self.u.types().get(d).clone()
-                && let [head, tail] = args[..]
+            if let Some((f, &[head, tail])) = self.u.applied(d)
                 && self.u.class_symbol(f) == Some(pair)
             {
                 elems.push(head);

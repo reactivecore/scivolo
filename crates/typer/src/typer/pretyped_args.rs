@@ -127,7 +127,7 @@ impl Typer<'_> {
         }
         let t = self.zonk(t);
         let t = self.u.dealias(t);
-        let Type::Applied(_, args) = self.u.types().get(t).clone() else { return None };
+        let (_, args) = self.u.applied(t)?;
         (args.len() == 2).then(|| args[0])
     }
 }
