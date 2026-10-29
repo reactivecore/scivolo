@@ -1,11 +1,11 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Methods with an empty parameter list called without one (dotty's `isAutoApplied` in
-//! `adaptNoArgsUnappliedMethod`).
+//! `adaptNoArgsUnappliedMethod`), and parameterless ones called with one.
 
 use super::Typer;
 use crate::tpd::TNodeId;
-use tasty::SymbolId;
+use tasty::{SymbolId, Type};
 
 impl Typer<'_> {
     /// Whether reference `tree` to a method with an empty parameter list may be called without
@@ -31,6 +31,22 @@ impl Typer<'_> {
             self.diags.warning_at(span.start(), span.end(), span.point(), msg);
         }
         true
+    }
+
+    /// Whether reference `tree` applied to `()` drops the empty arguments: it overrides a method
+    /// with an empty parameter list (the 0th strategy of dotty's `tryInsertApplyOrImplicit`).
+    pub fn drops_empty_args(&mut self, tree: TNodeId) -> bool {
+        let tpe = self.tpd.tpe(tree);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
+            return false;
+        }
+        let Some(s) = self.tpd.sym(tree) else { return false };
+        let Some(owner) = self.u.symbol(s).owner else { return false };
+        self.overridden_members(s, owner).into_iter().any(|m| {
+            let info = self.u.info(m);
+            matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty())
+        })
     }
 
     /// The members of the base classes of `owner` that member `s` overrides.

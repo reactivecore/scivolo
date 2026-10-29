@@ -24,6 +24,10 @@ impl Typer<'_> {
         self.protos.push(fun_proto);
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
         let fun_ctx = plain_ctx;
+        let once = !matches!(self.ast.tree(fun), Tree::Apply { .. });
+        if self.protos[proto].args.is_empty() && once && self.drops_empty_args(f) {
+            return f;
+        }
         let f = match self.with_apply(f, Pt::Fun(proto), fun_ctx) {
             Ok(f) if self.is_pending_dynamic(f) => return self.dynamic_apply(id, f, proto, pt, fun_ctx),
             Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),
