@@ -61,7 +61,7 @@ impl Universe {
         }
     }
 
-    /// The result of a `Poly` type, else `t` (dotty's `stripPoly`).
+    /// The result of a `Poly` type, else `t` (one layer of dotty's `stripPoly`).
     pub fn strip_poly(&self, t: TypeId) -> TypeId {
         match *self.types().get(t) {
             Type::Poly { result, .. } => result,

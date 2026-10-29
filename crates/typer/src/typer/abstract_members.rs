@@ -90,7 +90,7 @@ impl Typer<'_> {
             match self.u.types().get(t) {
                 Type::Poly { result, .. } => t = *result,
                 Type::Method { params: ps, result, .. } => {
-                    params.extend(ps.iter().cloned());
+                    params.extend_from_slice(ps);
                     t = *result;
                 }
                 _ => break,
