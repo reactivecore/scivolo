@@ -1,38 +1,47 @@
 //! The positions of `quotes.reflect`: a position is the number of its source file and its two
 //! offsets in that file.
 
-use super::{Answer, UNKNOWN, arg};
+use super::{Answer, Fallible};
 use crate::host::Host;
 use syntax::ast::Span;
 use syntax::source::{Offset, SourceFile, Sources};
+use typer::tpd::TNodeId;
 
 impl Host {
-    /// Runs position operation `op` on `args`.
-    pub fn run_position(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
-        let arg = |i: usize| arg(args, i);
-        let file = |n: i32| self.sources.get(n as usize).ok_or("a position in no source file");
-        let text = |s: String| Ok((Vec::new(), Some(s)));
-        match op {
-            "expansionPos" => self.located(self.expansion),
-            "pos" => self.located(self.tpd.span(self.tree(arg(0)? as u32)?)),
-            "position" => {
-                let f = file(arg(0)?)?;
-                let (start, end) = (arg(1)?, arg(2)?);
-                if start < 0 || end < start {
-                    return Err("a position with offsets out of order");
-                }
-                let byte = |units: i32| f.advance_utf16(0, units as usize);
-                let at = |units: i32| {
-                    let line = f.offset_to_line(byte(units));
-                    [line as i32, units - utf16(f, f.line_to_offset(line))]
-                };
-                let code = f.text.get(byte(start) as usize..byte(end) as usize).map(str::to_owned);
-                Ok(([at(start), at(end)].concat(), code))
-            }
-            "sourcePath" => text(file(arg(0)?)?.name.clone()),
-            "sourceContent" => text(file(arg(0)?)?.text.clone()),
-            _ => Err(UNKNOWN),
+    pub fn expansion_pos(&self) -> Answer {
+        self.located(self.expansion)
+    }
+
+    pub fn pos(&self, t: TNodeId) -> Answer {
+        self.located(self.tpd.span(t))
+    }
+
+    /// The lines and columns of offsets `start` and `end` of source file `file`, and the code
+    /// between them.
+    pub fn position(&self, file: i32, start: i32, end: i32) -> Answer {
+        let f = self.source(file)?;
+        if start < 0 || end < start {
+            return Err("a position with offsets out of order");
         }
+        let byte = |units: i32| f.advance_utf16(0, units as usize);
+        let at = |units: i32| {
+            let line = f.offset_to_line(byte(units));
+            [line as i32, units - utf16(f, f.line_to_offset(line))]
+        };
+        let code = f.text.get(byte(start) as usize..byte(end) as usize).map(str::to_owned);
+        Ok(([at(start), at(end)].concat(), code))
+    }
+
+    pub fn source_path(&self, file: i32) -> Fallible<String> {
+        Ok(self.source(file)?.name.clone())
+    }
+
+    pub fn source_content(&self, file: i32) -> Fallible<String> {
+        Ok(self.source(file)?.text.clone())
+    }
+
+    fn source(&self, file: i32) -> Fallible<&SourceFile> {
+        self.sources.get(file as usize).ok_or("a position in no source file")
     }
 
     /// `span` as the number of its source file and its offsets in that file, in UTF-16 units.

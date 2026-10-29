@@ -3,73 +3,51 @@
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //! The members, parameters, companions and children of symbols in `quotes.reflect`.
 
-use super::{Answer, UNKNOWN, arg, numbers, symbol};
+use super::{Answer, Fallible};
 use crate::host::Host;
 use tasty::tags::{CASE, CASEaccessor, ENUM, SEALED};
 use tasty::{Kind, SymbolId, Type};
 use typer::tpd::Tree as T;
 
-/// Symbols as numbers, `-1` for none.
-fn ids(syms: impl IntoIterator<Item = SymbolId>) -> Answer {
-    numbers(syms.into_iter().map(|s| s.0 as i32).collect())
-}
-
 impl Host {
-    /// Runs member operation `op` on `args` and `text`.
-    pub fn run_member(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let sym = || symbol(arg(args, 0)?);
-        match op {
-            "primaryConstructor" => {
-                let s = sym()?;
-                let ctor =
-                    self.u.is_class(s).then(|| self.u.decl(s, "<init>").ok()?.first().copied()).flatten();
-                numbers(vec![ctor.map_or(-1, |c| c.0 as i32)])
-            }
-            "paramSymss" => self.param_symss(sym()?),
-            "caseFields" => {
-                let s = sym()?;
-                let decls = if self.u.is_class(s) { self.u.symbol(s).decls.clone() } else { Vec::new() };
-                ids(decls.into_iter().filter(|&d| {
-                    let d = self.u.symbol(d);
-                    d.kind.is_term() && d.flags.has(CASEaccessor)
-                }))
-            }
-            "companionClass" => {
-                let s = sym()?;
-                let class = match self.u.symbol(s).kind {
-                    Kind::Package => None,
-                    _ if self.u.is_module(s) => {
-                        self.u.module_class(s).and_then(|c| self.u.companion_class(c))
-                    }
-                    _ if self.u.is_module_class(s) => self.u.companion_class(s),
-                    Kind::Class => self.u.companion_module(s).and_then(|m| self.u.module_class(m)),
-                    _ => None,
-                };
-                numbers(vec![class.map_or(-1, |c| c.0 as i32)])
-            }
-            "methodMembers" => {
-                let s = sym()?;
-                let methods = self.method_members(s, (!text.is_empty()).then_some(text))?;
-                ids(methods)
-            }
-            "children" => {
-                let s = sym()?;
-                ids(self.children(s)?)
-            }
-            "symbolPos" => {
-                let s = sym()?;
-                let span = self.def_name_span(s).ok_or("Symbol.pos of a symbol defined outside the unit")?;
-                self.located(span)
-            }
-            _ => Err(UNKNOWN),
+    pub fn primary_constructor(&mut self, s: SymbolId) -> Option<SymbolId> {
+        self.u.is_class(s).then(|| self.u.decl(s, "<init>").ok()?.first().copied()).flatten()
+    }
+
+    pub fn case_fields(&mut self, s: SymbolId) -> Vec<SymbolId> {
+        let decls = if self.u.is_class(s) { self.u.symbol(s).decls.clone() } else { Vec::new() };
+        let fields = decls.into_iter().filter(|&d| {
+            let d = self.u.symbol(d);
+            d.kind.is_term() && d.flags.has(CASEaccessor)
+        });
+        fields.collect()
+    }
+
+    pub fn companion_class(&mut self, s: SymbolId) -> Option<SymbolId> {
+        match self.u.symbol(s).kind {
+            Kind::Package => None,
+            _ if self.u.is_module(s) => self.u.module_class(s).and_then(|c| self.u.companion_class(c)),
+            _ if self.u.is_module_class(s) => self.u.companion_class(s),
+            Kind::Class => self.u.companion_module(s).and_then(|m| self.u.module_class(m)),
+            _ => None,
         }
+    }
+
+    /// `methodMember(name)` for a `name`, else `methodMembers`.
+    pub fn method_members(&mut self, s: SymbolId, name: String) -> Fallible<Vec<SymbolId>> {
+        self.methods_of(s, (!name.is_empty()).then_some(&name))
+    }
+
+    pub fn symbol_pos(&mut self, s: SymbolId) -> Answer {
+        let span = self.def_name_span(s).ok_or("Symbol.pos of a symbol defined outside the unit")?;
+        self.located(span)
     }
 
     /// `Symbol.paramSymss`: the number of clauses, their sizes and the parameters, a method's
     /// clauses of type and value parameters, none for other symbols.
-    fn param_symss(&mut self, s: SymbolId) -> Answer {
+    pub fn param_symss(&mut self, s: SymbolId) -> Fallible<Vec<i32>> {
         if self.u.symbol(s).kind != Kind::Def {
-            return numbers(vec![0]);
+            return Ok(vec![0]);
         }
         let mut sizes = Vec::new();
         let mut t = self.u.info(s);
@@ -85,12 +63,12 @@ impl Host {
             return Err("Symbol.paramSymss of a method whose parameters the frontend lacks");
         }
         let head = [sizes.len() as i32].into_iter().chain(sizes.iter().map(|&n| n as i32));
-        numbers(head.chain(params.iter().map(|p| p.0 as i32)).collect())
+        Ok(head.chain(params.iter().map(|p| p.0 as i32)).collect())
     }
 
-    /// `methodMember(name)` or `methodMembers`: the methods of class `s` and its base classes but
-    /// for constructors, a member overridden by one of an earlier class, method or value, left out.
-    fn method_members(&mut self, s: SymbolId, name: Option<&str>) -> Result<Vec<SymbolId>, &'static str> {
+    /// The methods of class `s` and its base classes named `name` if given but for constructors,
+    /// a member overridden by one of an earlier class, method or value, left out.
+    fn methods_of(&mut self, s: SymbolId, name: Option<&str>) -> Fallible<Vec<SymbolId>> {
         let class = match self.u.is_module(s) {
             true => self.u.module_class(s),
             false => self.u.is_class(s).then_some(s),
@@ -141,7 +119,7 @@ impl Host {
 
     /// `Symbol.children` of a sealed class of the unit: its direct subclasses and objects in the
     /// order of their definitions; an enum's cases; none for other symbols.
-    fn children(&mut self, s: SymbolId) -> Result<Vec<SymbolId>, &'static str> {
+    pub fn children(&mut self, s: SymbolId) -> Fallible<Vec<SymbolId>> {
         let flags = self.u.symbol(s).flags;
         let enum_class = flags.has(ENUM) && !flags.has(CASE);
         if !self.u.is_class(s) || !enum_class && !flags.has(SEALED) {

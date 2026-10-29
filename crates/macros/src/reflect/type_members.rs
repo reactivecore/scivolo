@@ -3,50 +3,41 @@
 //! The type and field members of classes in `quotes.reflect`, and the objects
 //! `Symbol.requiredModule` looks up.
 
-use super::{Answer, UNKNOWN, arg, numbers, symbol};
+use super::Fallible;
 use crate::host::Host;
 use tasty::tags::PRIVATE;
 use tasty::{Kind, SymbolId};
 
 impl Host {
-    /// Runs member operation `op` on `args` and `text`.
-    pub fn run_type_member(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let ids = |syms: Vec<SymbolId>| numbers(syms.into_iter().map(|s| s.0 as i32).collect());
-        match op {
-            "typeMembers" => {
-                let s = symbol(arg(args, 0)?)?;
-                ids(self.members(s, |k| k.is_type(), None)?)
-            }
-            "fieldMembers" => {
-                let s = symbol(arg(args, 0)?)?;
-                let name = (!text.is_empty()).then_some(text);
-                ids(self.members(s, |k| k.is_term() && k != Kind::Def, name)?)
-            }
-            "isAliasType" => {
-                let s = symbol(arg(args, 0)?)?;
-                let alias = self.u.symbol(s).kind.is_type() && !self.u.is_class(s) && {
-                    let info = self.u.info(s);
-                    matches!(self.u.types().get(info), tasty::Type::Alias(_))
-                };
-                numbers(vec![alias as i32])
-            }
-            "requiredModule" => {
-                let (pkg, name) = text.rsplit_once('.').unwrap_or(("", text));
-                let p = self.u.package(pkg).ok_or("Symbol.requiredModule in a package the frontend lacks")?;
-                let decls = self.u.decl(p, name).unwrap_or_default();
-                let module = decls.into_iter().find(|&d| self.u.is_module(d)).or_else(|| {
-                    let objects = self.u.decl(p, "package").unwrap_or_default();
-                    let class = objects
-                        .into_iter()
-                        .find(|&d| self.u.is_module(d))
-                        .and_then(|m| self.u.module_class(m))?;
-                    let vals = self.u.decl(class, name).unwrap_or_default();
-                    vals.into_iter().find(|&v| self.u.symbol(v).kind == Kind::Val)
-                });
-                numbers(vec![module.ok_or("Symbol.requiredModule of an object the frontend lacks")?.0 as i32])
-            }
-            _ => Err(UNKNOWN),
+    pub fn type_members(&mut self, s: SymbolId) -> Fallible<Vec<SymbolId>> {
+        self.members(s, |k| k.is_type(), None)
+    }
+
+    /// The fields of `s`, named `name` if it is not empty.
+    pub fn field_members(&mut self, s: SymbolId, name: String) -> Fallible<Vec<SymbolId>> {
+        let name = (!name.is_empty()).then_some(name.as_str());
+        self.members(s, |k| k.is_term() && k != Kind::Def, name)
+    }
+
+    pub fn is_alias_type(&mut self, s: SymbolId) -> bool {
+        self.u.symbol(s).kind.is_type() && !self.u.is_class(s) && {
+            let info = self.u.info(s);
+            matches!(self.u.types().get(info), tasty::Type::Alias(_))
         }
+    }
+
+    pub fn required_module(&mut self, full: String) -> Fallible<SymbolId> {
+        let (pkg, name) = full.rsplit_once('.').unwrap_or(("", &full));
+        let p = self.u.package(pkg).ok_or("Symbol.requiredModule in a package the frontend lacks")?;
+        let decls = self.u.decl(p, name).unwrap_or_default();
+        let module = decls.into_iter().find(|&d| self.u.is_module(d)).or_else(|| {
+            let objects = self.u.decl(p, "package").unwrap_or_default();
+            let class =
+                objects.into_iter().find(|&d| self.u.is_module(d)).and_then(|m| self.u.module_class(m))?;
+            let vals = self.u.decl(class, name).unwrap_or_default();
+            vals.into_iter().find(|&v| self.u.symbol(v).kind == Kind::Val)
+        });
+        module.ok_or("Symbol.requiredModule of an object the frontend lacks")
     }
 
     /// The members of class `s` of kinds `of`, named `name` if given, in the order of dotty's

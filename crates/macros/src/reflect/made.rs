@@ -3,99 +3,102 @@
 //! The definitions macros make: new value and method symbols, fresh names, `ValDef`s, `DefDef`s
 //! and copies of definitions.
 
-use super::{Answer, UNKNOWN, arg, numbers, symbol, text};
+use super::Fallible;
+use super::decode::Expr;
 use crate::host::Host;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
-    /// Runs definition-making operation `op` on `args` and `name`.
-    pub fn run_made(&mut self, op: &str, args: &[i32], name: &str) -> Answer {
-        let arg = |i: usize| arg(args, i);
-        let tree = |h: &Host, n: i32| match n {
-            -1 => Ok(None),
-            n => h.tree(n as u32).map(Some),
-        };
-        match op {
-            "freshName" => {
-                let fresh = self.fresh.next(&mut self.names, &format!("{name}$macro$"));
-                text(self.names.text(fresh).to_owned())
-            }
-            "newVal" | "newMethod" => {
-                let (owner, info) = (symbol(arg(0)?)?, self.type_of(arg(1)? as u32)?);
-                let owner = if owner == self.macro_owner() { self.owner } else { owner };
-                let flags = (arg(2)? as u32 as u64) | ((arg(3)? as u32 as u64) << 32);
-                let kind = if op == "newVal" { Kind::Val } else { Kind::Def };
-                let s = self.reflect().new_term((owner, name, kind), info, flags)?;
-                numbers(vec![s.0 as i32])
-            }
-            "valDef" => {
-                let (s, rhs) = (symbol(arg(0)?)?, tree(self, arg(1)?)?);
-                let t = self.reflect().val_def(s, rhs)?;
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            "defParams" => {
-                let params = self.method_params(symbol(arg(0)?)?)?;
-                let mut answer = vec![params.len() as i32];
-                answer.extend(params.iter().map(|c| c.len() as i32));
-                for p in params.into_iter().flatten() {
-                    let s = self.tpd.sym(p).ok_or("a parameter without a symbol")?;
-                    let r = self.reflect().ref_(s)?;
-                    answer.push(self.add_tree(r) as i32);
-                }
-                numbers(answer)
-            }
-            "defDef" => {
-                let (s, rhs) = (symbol(arg(0)?)?, tree(self, arg(1)?)?);
-                let params = self.method_params(s)?;
-                let t = self.reflect().def_def(s, &params, rhs)?;
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            "closure" => {
-                let def = self.tree(arg(0)? as u32)?;
-                let t = self.reflect().closure(def)?;
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            "etaExpand" => {
-                let (t, owner) = (self.tree(arg(0)? as u32)?, symbol(arg(1)?)?);
-                let owner = if owner == self.macro_owner() { self.owner } else { owner };
-                let info = self.tpd.get(t).tpe.ok_or("Term.etaExpand of a term without a type")?;
-                let info = self.u.widen(info);
-                if !matches!(self.u.types().get(info), tasty::Type::Method { .. }) {
-                    return numbers(vec![arg(0)?]);
-                }
-                let synthetic = 1 << tasty::tags::SYNTHETIC;
-                let meth = self.reflect().new_term((owner, "$anonfun", Kind::Def), info, synthetic)?;
-                let params = self.method_params(meth)?;
-                let mut refs = Vec::new();
-                for p in params.iter().flatten() {
-                    let s = self.tpd.sym(*p).ok_or("a parameter without a symbol")?;
-                    refs.push(self.reflect().ref_(s)?);
-                }
-                let body = self.reflect().apply(t, &refs)?;
-                let def = self.reflect().def_def(meth, &params, Some(body))?;
-                let closure = self.reflect().closure(def)?;
-                numbers(vec![self.add_tree(closure) as i32])
-            }
-            "lambdaOf" => {
-                let t = self.tree(arg(0)? as u32)?;
-                let parts = self.lambda_parts(t).unwrap_or_default();
-                numbers(parts.into_iter().map(|p| self.add_tree(p) as i32).collect())
-            }
-            "copyDef" => {
-                let (original, tpt, rhs) =
-                    (self.tree(arg(0)? as u32)?, self.tree(arg(1)? as u32)?, tree(self, arg(2)?)?);
-                let params = args[3..].iter().map(|&p| self.tree(p as u32)).collect::<Result<Vec<_>, _>>()?;
-                let t = self.reflect().copy_def(original, (name, &params), tpt, rhs)?;
-                numbers(vec![self.add_tree(t) as i32])
-            }
-            _ => Err(UNKNOWN),
+    pub fn fresh_name(&mut self, name: String) -> String {
+        let fresh = self.fresh.next(&mut self.names, &format!("{name}$macro$"));
+        self.names.text(fresh).to_owned()
+    }
+
+    pub fn new_val(&mut self, owner: SymbolId, info: TypeId, flags: u64, name: String) -> Fallible<SymbolId> {
+        let owner = self.made_owner(owner);
+        self.reflect().new_term((owner, &name, Kind::Val), info, flags)
+    }
+
+    pub fn new_method(
+        &mut self,
+        owner: SymbolId,
+        info: TypeId,
+        flags: u64,
+        name: String,
+    ) -> Fallible<SymbolId> {
+        let owner = self.made_owner(owner);
+        self.reflect().new_term((owner, &name, Kind::Def), info, flags)
+    }
+
+    pub fn val_def(&mut self, s: SymbolId, rhs: Option<TNodeId>) -> Fallible<TNodeId> {
+        self.reflect().val_def(s, rhs)
+    }
+
+    /// The number of clauses of method `s`, their sizes and references to the parameters.
+    pub fn def_params(&mut self, s: SymbolId) -> Fallible<Vec<i32>> {
+        let params = self.method_params(s)?;
+        let mut answer = vec![params.len() as i32];
+        answer.extend(params.iter().map(|c| c.len() as i32));
+        for p in params.into_iter().flatten() {
+            let s = self.tpd.sym(p).ok_or("a parameter without a symbol")?;
+            let r = self.reflect().ref_(s)?;
+            answer.push(self.add_tree(r) as i32);
         }
+        Ok(answer)
+    }
+
+    pub fn def_def(&mut self, s: SymbolId, rhs: Option<TNodeId>) -> Fallible<TNodeId> {
+        let params = self.method_params(s)?;
+        self.reflect().def_def(s, &params, rhs)
+    }
+
+    pub fn closure(&mut self, def: TNodeId) -> Fallible<TNodeId> {
+        self.reflect().closure(def)
+    }
+
+    /// The expression number of `e` eta-expanded into a closure owned by `owner`, `e`'s own if it
+    /// is no method.
+    pub fn eta_expand(&mut self, e: Expr, owner: SymbolId) -> Fallible<i32> {
+        let (t, owner) = (e.tree, self.made_owner(owner));
+        let info = self.tpd.get(t).tpe.ok_or("Term.etaExpand of a term without a type")?;
+        let info = self.u.widen(info);
+        if !matches!(self.u.types().get(info), tasty::Type::Method { .. }) {
+            return Ok(e.number);
+        }
+        let synthetic = 1 << tasty::tags::SYNTHETIC;
+        let meth = self.reflect().new_term((owner, "$anonfun", Kind::Def), info, synthetic)?;
+        let params = self.method_params(meth)?;
+        let mut refs = Vec::new();
+        for p in params.iter().flatten() {
+            let s = self.tpd.sym(*p).ok_or("a parameter without a symbol")?;
+            refs.push(self.reflect().ref_(s)?);
+        }
+        let body = self.reflect().apply(t, &refs)?;
+        let def = self.reflect().def_def(meth, &params, Some(body))?;
+        let closure = self.reflect().closure(def)?;
+        Ok(self.add_tree(closure) as i32)
+    }
+
+    pub fn lambda_of(&mut self, t: TNodeId) -> Vec<TNodeId> {
+        self.lambda_parts_of(t).unwrap_or_default()
+    }
+
+    /// A copy of definition `original` named `name` with parameters `params`.
+    pub fn copy_def(
+        &mut self,
+        original: TNodeId,
+        tpt: TNodeId,
+        rhs: Option<TNodeId>,
+        params: Vec<TNodeId>,
+        name: String,
+    ) -> Fallible<TNodeId> {
+        self.reflect().copy_def(original, (&name, &params), tpt, rhs)
     }
 
     /// The parameters and body of `t` if it is `{ def f(params) = body; closure(f) }` (dotty's
     /// `Lambda.unapply`), the body last.
-    fn lambda_parts(&self, t: TNodeId) -> Option<Vec<TNodeId>> {
+    fn lambda_parts_of(&self, t: TNodeId) -> Option<Vec<TNodeId>> {
         let T::Block { stats, expr } = *self.tpd.tree(t) else { return None };
         let (&[def], T::Closure { meth, .. }) = (self.tpd.items(stats), self.tpd.tree(expr)) else {
             return None;
