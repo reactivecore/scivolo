@@ -25,10 +25,18 @@ impl Typer<'_> {
     }
 }
 
-/// Whether the JDK class named `full` is annotated `@FunctionalInterface`.
+/// Whether the JDK class named `full` is one the JDK annotates `@FunctionalInterface`.
 pub fn is_functional_interface(full: &str) -> bool {
     full.starts_with("java.util.function.")
-        || matches!(full, "java.lang.Runnable" | "java.util.Comparator" | "java.util.concurrent.Callable")
+        || matches!(
+            full,
+            "java.lang.Runnable"
+                | "java.util.Comparator"
+                | "java.util.concurrent.Callable"
+                | "java.io.FileFilter"
+                | "java.io.FilenameFilter"
+                | "java.nio.file.PathMatcher"
+        )
 }
 
 /// The names of the Java classes of package `package` the universe may lack.
