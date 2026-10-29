@@ -19,7 +19,7 @@ impl Typer<'_> {
         let decls = self.u.symbol(sym).decls.clone();
         let tparams: Vec<SymbolId> =
             decls.into_iter().filter(|&d| self.u.symbol(d).kind == Kind::TypeParam).collect();
-        let own_params = self.value_param_types(sym);
+        let own_params = self.value_params(sym);
         let class = crate::defn::type_ref(self.u, cls);
         let site = self.u.intern_type(Type::This(class));
         let bases: Vec<SymbolId> = self.u.linearization(cls).into_iter().skip(1).collect();
@@ -37,6 +37,7 @@ impl Typer<'_> {
                 }
                 let Some(res) = self.matching_result(site, m, &tparams, &own_params) else { continue };
                 let res = self.rebound(res, site, cls);
+                self.complete_type_members(res);
                 result = Some(match result {
                     Some(r) => self.u.glb(r, res),
                     None => res,
@@ -81,13 +82,11 @@ impl Typer<'_> {
         })
     }
 
-    /// The parameter types of each value clause of script method `sym`, an empty clause `()`
-    /// among them, or none for a value.
-    fn value_param_types(&mut self, sym: SymbolId) -> Vec<Vec<TypeId>> {
+    /// The parameters of each value clause of script method `sym`, an empty clause `()` among
+    /// them, or none for a value.
+    fn value_params(&mut self, sym: SymbolId) -> Vec<Vec<SymbolId>> {
         let clauses = self.syms.param_clauses.get(&sym).cloned().unwrap_or_default();
-        let Some(&tree) = self.syms.def_trees.get(&sym) else {
-            return clauses.iter().map(|c| c.iter().map(|&p| self.u.info(p)).collect()).collect();
-        };
+        let Some(&tree) = self.syms.def_trees.get(&sym) else { return clauses };
         let mut values = clauses.into_iter();
         let mut out = Vec::new();
         for clause in self.def_clauses(tree) {
@@ -95,8 +94,7 @@ impl Typer<'_> {
                 None => out.push(Vec::new()),
                 Some(&p) if matches!(self.ast.tree(p), Tree::TypeDef { .. }) => {}
                 Some(_) => {
-                    let params = values.next().unwrap_or_default();
-                    out.push(params.iter().map(|&p| self.u.info(p)).collect());
+                    out.push(values.next().unwrap_or_default());
                 }
             }
         }
@@ -104,14 +102,14 @@ impl Typer<'_> {
     }
 
     /// The result type of member `m` as seen from `site` if it has as many type parameters as
-    /// `tparams`, instantiated to them, and its value parameters have the types `params`, clause
-    /// by clause, `Any` matching a Java method's `Object`.
+    /// `tparams`, instantiated to them, and its value parameters have the types of `params`, clause
+    /// by clause, `Any` matching a Java method's `Object`; its parameters replaced by `params`.
     fn matching_result(
         &mut self,
         site: TypeId,
         m: SymbolId,
         tparams: &[SymbolId],
-        params: &[Vec<TypeId>],
+        params: &[Vec<SymbolId>],
     ) -> Option<TypeId> {
         self.complete(m);
         let java = self.is_java_member(m);
@@ -128,12 +126,17 @@ impl Typer<'_> {
             t = self.u.subst(result, binder, &names, &args);
         }
         t = self.u.map_type(t, &mut |u, x| Some(u.beta_reduced(x)).filter(|&r| r != x));
+        let theirs: Vec<SymbolId> = self.value_params(m).concat();
+        let mut refs = Vec::new();
         for clause in params {
-            let Type::Method { params: ps, result, .. } = self.u.types().get(t).clone() else { return None };
+            let Type::Method { binder, params: ps, result, .. } = self.u.types().get(t).clone() else {
+                return None;
+            };
             if ps.len() != clause.len() {
                 return None;
             }
             for (&(_, p), &own) in ps.iter().zip(clause) {
+                let own = self.u.info(own);
                 let same = self.u.is_subtype(p, own) && self.u.is_subtype(own, p);
                 let object_any =
                     java && self.is_class(p, "java.lang.Object") && self.is_class(own, "scala.Any");
@@ -141,7 +144,16 @@ impl Typer<'_> {
                     return None;
                 }
             }
-            t = result;
+            let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
+            let start = refs.len();
+            refs.extend(clause.iter().map(|&p| self.ref_type(None, p)));
+            t = self.u.subst(result, binder, &names, &refs[start..]);
+        }
+        if theirs.len() == refs.len() {
+            t = self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
+                Type::Sym(None, s) => theirs.iter().position(|&p| p == s).map(|i| refs[i]),
+                _ => None,
+            });
         }
         match self.u.types().get(t) {
             Type::Method { .. } | Type::Poly { .. } => None,
