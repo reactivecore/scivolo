@@ -10,13 +10,23 @@ use tasty::{ANY, NOTHING, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Gives match type alias `sym` of definition `tree` the info of an abstract type over its
-    /// type parameters, bounded by its declared bound; nothing for another definition.
+    /// type parameters, then bounded by its declared bound; nothing for another definition.
     pub fn set_provisional_info(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) {
         let Some(tparams) = self.match_alias_params(tree) else { return };
-        let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
+        let info = self.abstract_info(&tparams, ANY);
+        self.u.set_info(sym, info);
         let upper = self.provisional_bound(tree, &tparams, ctx.with_owner(sym));
+        if upper != ANY {
+            let info = self.abstract_info(&tparams, upper);
+            self.u.set_info(sym, info);
+        }
+    }
+
+    /// The info of an abstract type over `tparams` bounded by `upper`.
+    fn abstract_info(&mut self, tparams: &[NodeId], upper: TypeId) -> TypeId {
+        let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
         let upper = self.u.intern_type(Type::Bounds(NOTHING, upper));
-        let info = match tparams.is_empty() {
+        match tparams.is_empty() {
             true => upper,
             false => {
                 let params = tparams
@@ -29,12 +39,11 @@ impl Typer<'_> {
                 let binder = self.syms.fresh_binder();
                 self.u.intern_type(Type::Lambda { binder, params, result: upper })
             }
-        };
-        self.u.set_info(sym, info);
+        }
     }
 
     /// The bound of match type alias `tree` if it names a type other than one of `tparams`, typed
-    /// ahead; else `Any`.
+    /// ahead without the diagnostics inside it; else `Any`.
     fn provisional_bound(&mut self, tree: NodeId, tparams: &[NodeId], ctx: Ctx) -> TypeId {
         let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return ANY };
         let body = match *self.ast.tree(rhs) {
@@ -56,7 +65,12 @@ impl Typer<'_> {
         let typed = self.typed_type(b, ctx);
         let tpe = self.tpd.tpe(typed);
         let failed = self.diags.items.len() > diags || matches!(self.u.types().get(tpe), Type::Error);
-        self.diags.items.truncate(diags);
+        let span = self.ast.span(b);
+        let mut i = 0;
+        self.diags.items.retain(|d| {
+            i += 1;
+            i <= diags || d.offset.is_none_or(|o| o < span.start() || o > span.end())
+        });
         if failed { ANY } else { tpe }
     }
 
