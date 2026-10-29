@@ -106,11 +106,7 @@ impl Gen<'_, '_> {
 
     /// Whether `t` is, or calls, a conversion between integers and sizes.
     fn is_size_conversion(&mut self, t: TNodeId) -> bool {
-        let mut t = t;
-        while let Tree::Apply { fun, .. } | Tree::TypeApply { fun, .. } = *self.l.tpd.tree(t) {
-            t = fun;
-        }
-        let Some(s) = self.l.tpd.sym(t) else { return false };
+        let Some(s) = self.l.tpd.sym(self.l.tpd.meth_part(t)) else { return false };
         let owner = self.l.u.symbol(s).owner.map(|o| self.l.u.full_name(o));
         let name = self.l.u.symbol(s).name.as_str();
         SIZE_CONVERSIONS.iter().any(|(o, names)| owner.as_deref() == Some(o) && names.contains(&name))
