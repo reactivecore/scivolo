@@ -133,6 +133,12 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
                 return unsupported(span, refused);
             }
             let owner = l.u.symbol(s).owner;
+            if let Some(&accessor) = l.local_objects.get(&s) {
+                let fun = l.ident(accessor, span);
+                let info = l.u.info(accessor);
+                let tpe = l.u.result_type(info);
+                return Ok(l.apply(fun, &[], tpe, span));
+            }
             if owner.is_some_and(|o| is_term(l, o)) {
                 return Ok(l.ident(s, span));
             }

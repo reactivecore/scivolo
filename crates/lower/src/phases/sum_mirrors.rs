@@ -100,14 +100,14 @@ fn child_prefix(l: &mut Lower, pre: TypeId, sealed: SymbolId, c: SymbolId) -> Op
     };
     let (parents, children) = (owners(l, sealed), owners(l, c));
     let common = parents.iter().zip(&children).take_while(|(a, b)| a == b).count();
-    let mut prefix = pre;
+    let mut prefix = Some(pre);
     for _ in common..parents.len() {
-        let Type::Sym(Some(q), _) = *l.u.types().get(prefix) else { return None };
+        let Type::Sym(q, _) = *l.u.types().get(prefix?) else { return None };
         prefix = q;
     }
     for &o in &children[common..] {
         let m = l.u.source_module(o).filter(|_| l.u.is_module_class(o))?;
-        prefix = l.u.intern_type(Type::Sym(Some(prefix), m));
+        prefix = Some(l.u.intern_type(Type::Sym(prefix, m)));
     }
-    Some(prefix)
+    prefix
 }

@@ -50,7 +50,11 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         } else if let (Tree::ValDef { .. }, Some(s)) = (l.tpd.tree(t), lazy)
             && l.u.symbol(s).owner.is_some_and(|o| super::local_free::is_term(l, o))
         {
-            expanded.insert(t, expand(l, t)?);
+            let e = expand(l, t)?;
+            if l.u.is_module(s) {
+                l.local_objects.insert(s, e.accessor);
+            }
+            expanded.insert(t, e);
         } else if let (Tree::DefDef { .. }, Some(s)) = (l.tpd.tree(t), lazy)
             && l.lazy_members.contains_key(&s)
         {
