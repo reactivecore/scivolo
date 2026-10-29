@@ -537,8 +537,19 @@ jdk-stubs:
 fetch-scala-native:
     scripts/fetch-scala-native.sh
 
-# Everything a pipeline job runs.
-ci: fetch-libs gates check
+# Everything a pipeline job runs; the cache it leaves holds only the entries it used.
+ci: cache-mark fetch-libs gates check cache-prune
+
+# Mark the time from which `cache-prune` counts cache entries as used.
+cache-mark:
+    mkdir -p tmp
+    touch tmp/cache-mark
+
+# Remove the library images, snapshots, compiled scripts and AOT units not used since `cache-mark`.
+cache-prune:
+    find tmp/cache -mindepth 1 -maxdepth 2 ! -newer tmp/cache-mark \( -path 'tmp/cache/libs-*' \
+        -o -path 'tmp/cache/snap-*' -o -path 'tmp/cache/scripts/*' -o -path 'tmp/cache/aot-units/*' \) \
+        -prune -exec rm -rf {} +
 
 # Scala Native's whole unit-test suite, as the pipeline's suite job runs it.
 ci-suite: fetch-libs fetch-scala-native (sn-build "all") (sn-report "1800")
