@@ -16,7 +16,7 @@ use std::ops::ControlFlow;
 use syntax::ast::constant::Constant;
 use syntax::names::to_utf16;
 use tasty::tags::{
-    CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INTconst, LAZY, LONGconst, MUTABLE, TRUEconst,
+    CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INLINE, INTconst, LAZY, LONGconst, MUTABLE, TRUEconst,
 };
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
@@ -81,7 +81,7 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
         }
     }
     let Some(s) = l.tpd.sym(t).filter(|_| is_pure(l, t)) else { return };
-    if !is_const_final(l, s) && through(l, t, inits) {
+    if !is_const_final(l, s) && !has(l.u, s, INLINE) && through(l, t, inits) {
         return;
     }
     let underlying = term_ref_underlying(l, l.tpd.tpe(t));
