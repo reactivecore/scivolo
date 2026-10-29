@@ -6,6 +6,7 @@
 //! any other failure of a candidate fails the search.
 
 use super::super::{Pt, Typer};
+use super::attempts::BestFirst;
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
@@ -92,9 +93,16 @@ impl Typer<'_> {
                 Some(group) => group,
                 None => self.implicit_scope(pt)?,
             };
+            let group = self.fitting(&group, |t, c| t.tried(c, (pt, by_name), at, ctx, (depth, true)))?;
+            let unpruned = coherent || self.has_unbounded_var(pt);
+            match self.best_first(&group, (pt, by_name), at, ctx, depth, unpruned)? {
+                BestFirst::Found(tree) => return Ok(tree),
+                BestFirst::Failed if group.len() == 1 => continue,
+                _ => {}
+            }
             let mut nested_failure = false;
             let found = self.fitting(&group, |t, c| {
-                let tried = t.tried(c, (pt, by_name), at, ctx, depth);
+                let tried = t.tried(c, (pt, by_name), at, ctx, (depth, false));
                 nested_failure |= tried == Err("no implicit argument");
                 tried
             })?;
@@ -108,7 +116,7 @@ impl Typer<'_> {
                 [c, ..] if coherent => *c,
                 _ => self.most_specific(&found, ctx).ok_or("ambiguous implicit arguments")?,
             };
-            return self.tried(winner, (pt, by_name), at, ctx, depth);
+            return self.tried(winner, (pt, by_name), at, ctx, (depth, false));
         }
         match self.synthesized(pt, at, ctx, depth)? {
             Some(tree) => Ok(tree),
@@ -128,14 +136,14 @@ impl Typer<'_> {
 
     /// Candidate `c`, an implicit that may fit, as an argument of type `pt`: referenced, applied
     /// to type variables and to its own implicit arguments, eta-expanded if it is a method and
-    /// `pt` a function type.
+    /// `pt` a function type. If `shallow`, the reference once its type fits.
     pub fn try_implicit(
         &mut self,
         c: Candidate,
         pt: TypeId,
         at: Span,
         ctx: Ctx,
-        depth: u32,
+        (depth, shallow): (u32, bool),
     ) -> Result<TNodeId, &'static str> {
         let from = self.constraint.count();
         let tree = self.candidate_ref(c, at, ctx)?;
@@ -151,6 +159,9 @@ impl Typer<'_> {
             Some(value) if self.conforms(value, pt) => value,
             _ => return Err("implicit of another type"),
         };
+        if shallow {
+            return Ok(tree);
+        }
         if self.implicit_budget == 0 {
             return Err("implicit search too costly");
         }

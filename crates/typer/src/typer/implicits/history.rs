@@ -82,14 +82,15 @@ impl Typer<'_> {
     }
 
     /// Candidate `c` tried for `pt` within the history, unless it diverges; a successful result
-    /// defines the by-name implicit of `pt` if there is one (dotty's `tryImplicit`).
+    /// defines the by-name implicit of `pt` if there is one (dotty's `tryImplicit`). If
+    /// `shallow`, only whether its type fits, without its implicit arguments.
     pub fn tried(
         &mut self,
         c: Candidate,
         (pt, by_name): (TypeId, bool),
         at: Span,
         ctx: Ctx,
-        depth: u32,
+        (depth, shallow): (u32, bool),
     ) -> Result<TNodeId, &'static str> {
         self.complete(c.sym);
         if !self.is_implicit(c.sym) {
@@ -107,9 +108,12 @@ impl Typer<'_> {
             return Err("diverging implicit");
         }
         self.history.open.push(Open { cand: c, pt, by_name, view: false, measure: None });
-        let tried = self.try_implicit(c, pt, at, ctx, depth);
+        let tried = self.try_implicit(c, pt, at, ctx, (depth, shallow));
         self.history.open.pop();
         let tree = tried?;
+        if shallow {
+            return Ok(tree);
+        }
         let Some(i) = self.lazy_of(pt) else { return Ok(tree) };
         self.history.lazies[i].rhs = Some(tree);
         Ok(self.lazy_ref(i, self.tpd.span(tree)))
