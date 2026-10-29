@@ -69,7 +69,7 @@ impl Typer<'_> {
 
     /// The package or class whose members an import of a path of type `qual` makes visible.
     pub fn import_site_class(&mut self, qual: TypeId) -> Option<SymbolId> {
-        match self.u.types().get(qual).clone() {
+        match *self.u.types().get(qual) {
             Type::Package(p) => Some(p),
             Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Package => Some(s),
             Type::Sym(_, s) if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => self.u.module_class(s),

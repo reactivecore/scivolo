@@ -176,7 +176,7 @@ impl Typer<'_> {
     /// `underlyingClassRef`).
     fn underlying_class_ref(&mut self, t: TypeId, depth: u32) -> Option<TypeId> {
         let depth = depth.checked_sub(1)?;
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class => Some(t),
             Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Type => {
                 self.complete(s);

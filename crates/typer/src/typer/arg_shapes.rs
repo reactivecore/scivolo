@@ -118,12 +118,12 @@ impl Typer<'_> {
             }
             let p = self.fully_defined(p)?;
             let t = self.u.dealias(p);
-            if let Type::Applied(tycon, elems) = self.u.types().get(t).clone()
-                && elems.len() == params.len()
+            if let Some((tycon, n)) = self.u.applied(t).map(|(c, elems)| (c, elems.len()))
+                && n == params.len()
                 && self
                     .u
                     .class_symbol(tycon)
-                    .is_some_and(|c| self.u.full_name(c) == format!("scala.Tuple{}", elems.len()))
+                    .is_some_and(|c| self.u.full_name(c) == format!("scala.Tuple{n}"))
             {
                 return Ok(true);
             }

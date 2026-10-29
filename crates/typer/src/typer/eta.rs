@@ -21,14 +21,14 @@ impl Typer<'_> {
     pub fn eta_arity(&mut self, tree: TNodeId, pt: Pt) -> Option<usize> {
         let tpe = self.tpd.tpe(tree);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
+        let params = self.u.method(info)?.param_types();
         if let Pt::Type(p) = pt
             && let Some(n) = self.function_arity(p)
         {
             return Some(if !self.is_fully_defined(p) && self.is_fully_defined(info) { 0 } else { n });
         }
         let n = params.len();
-        let varargs = params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some());
+        let varargs = params.last().is_some_and(|&p| self.repeated_elem(p).is_some());
         (n > 1 || n == 1 && !varargs || matches!(pt, Pt::AnyFunction)).then_some(n)
     }
 

@@ -126,9 +126,9 @@ impl Typer<'_> {
 
     /// The parameters of higher-kinded type `info`, a type lambda or bounds over one.
     fn hk_params(&mut self, info: TypeId) -> Option<Vec<(String, TypeId)>> {
-        match self.u.types().get(info).clone() {
-            Type::Lambda { params, .. } => Some(params),
-            Type::Bounds(_, hi) => self.hk_params(hi),
+        match self.u.types().get(info) {
+            Type::Lambda { params, .. } => Some(params.clone()),
+            &Type::Bounds(_, hi) => self.hk_params(hi),
             _ => None,
         }
     }

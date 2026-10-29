@@ -62,10 +62,10 @@ impl Typer<'_> {
             index.push(i);
         }
         let method = self.callee_method(fun, ctx)?;
-        let Type::Method { params: formals, .. } = self.u.types().get(method).clone() else { return None };
+        let formals = self.u.method(method)?.param_types();
         let mut types = Vec::new();
         for i in index {
-            let &(_, p) = formals.get(i)?;
+            let &p = formals.get(i)?;
             let local = |s: &mut Self, t: TypeId| {
                 let mut found = false;
                 s.u.map_type(t, &mut |u, part| {

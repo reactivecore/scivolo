@@ -27,7 +27,7 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
                 Some(refined) => refined,
                 None => u.member_info(info, s),
             };
-            let bounds = match u.types().get(member).clone() {
+            let bounds = match *u.types().get(member) {
                 Type::Bounds(lo, hi) => (lo, hi),
                 Type::Alias(a) => return deskolemized(u, a, v),
                 _ => return None,

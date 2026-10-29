@@ -86,13 +86,11 @@ impl Typer<'_> {
             };
             let t = self.tpd.tpe(getter);
             let info = self.method_info(t).unwrap_or(t);
-            let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
-                return Err("default getter");
-            };
-            if params.len() != args.len() {
+            let Some(m) = self.u.method(info) else { return Err("default getter") };
+            if m.params.len() != args.len() {
                 return Err("default getter of another clause shape");
             }
-            let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+            let (binder, result, names) = (m.binder, m.result, m.names());
             let arg_types: Vec<_> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
             let result = self.applied_result(result, (binder, &names), self.tpd.sym(getter), &arg_types);
             getter = self.build().apply(getter, &args, result, span.to_synthetic());

@@ -97,7 +97,7 @@ impl Typer<'_> {
 
     /// The class `t` names, through aliases but not abstract types (dotty's `typeSymbol`).
     fn type_class(&mut self, t: TypeId) -> Option<SymbolId> {
-        let s = match self.u.types().get(t).clone() {
+        let s = match *self.u.types().get(t) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.u.resolve_ref(t)?,
             Type::Applied(inner, _) | Type::Annotated(inner, _) => return self.type_class(inner),
@@ -146,7 +146,7 @@ impl Typer<'_> {
         let Some(f) = self.tpd.sym(core) else { return false };
         let mut info = self.u.info(f);
         loop {
-            match self.u.types().get(info).clone() {
+            match *self.u.types().get(info) {
                 Type::Method { result, .. } => match self.singleton_symbol(result) {
                     Some(s) => return self.check_single(s, recv, receiver, f),
                     None => info = result,

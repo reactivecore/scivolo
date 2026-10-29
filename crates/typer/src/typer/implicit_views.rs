@@ -9,7 +9,7 @@ use super::implicits::conversions::Goal;
 use super::java_members::java_members;
 use super::widening::{is_numeric, widens};
 use tasty::tags::{EXTENSION, GIVEN, IMPLICIT};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether member `m` of an object is an extension method named as `goal`'s member, or an
@@ -26,12 +26,10 @@ impl Typer<'_> {
         if !self.is_implicit(m) {
             return false;
         }
-        let mut info = self.u.info(m);
-        if let Type::Poly { result, .. } = self.u.types().get(info) {
-            info = *result;
-        }
-        if let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() {
-            let [(_, param)] = params[..] else { return false };
+        let info = self.u.info(m);
+        let info = self.u.strip_poly(info);
+        if let Some(Binding { params, result, implicit: false, .. }) = self.u.method(info) {
+            let [(_, param)] = *params else { return false };
             let result = self.strip_implicit(result);
             return self.may_accept(param, q, matches!(goal, Goal::Conform(_)))
                 && match goal {
@@ -139,9 +137,9 @@ impl Typer<'_> {
             Type::Applied(tycon, _) => *tycon,
             _ => t,
         };
-        let Type::TypeRef(prefix, name) = self.u.types().get(tycon).clone() else { return None };
-        match self.u.types().get(prefix).clone() {
-            Type::Package(p) => Some(format!("{}.{name}", self.u.full_name(p))),
+        let Type::TypeRef(prefix, name) = self.u.types().get(tycon) else { return None };
+        match self.u.types().get(*prefix) {
+            Type::Package(p) => Some(format!("{}.{name}", self.u.full_name(*p))),
             Type::PackageName(p) => Some(format!("{p}.{name}")),
             _ => None,
         }

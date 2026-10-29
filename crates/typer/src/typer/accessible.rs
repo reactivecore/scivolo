@@ -24,7 +24,7 @@ impl Typer<'_> {
         if !(flags.has(PROTECTED) || flags.has(PROTECTEDqualified)) {
             return false;
         }
-        match prefix.map(|p| self.u.types().get(p).clone()) {
+        match prefix.map(|p| self.u.types().get(p)) {
             None | Some(Type::This(_) | Type::Super(..)) => self.enclosing_sub_class(sym, ctx).is_some(),
             Some(_) => self.is_protected_access_ok(sym, prefix, ctx),
         }

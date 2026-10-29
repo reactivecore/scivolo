@@ -172,8 +172,7 @@ impl Typer<'_> {
         let before = self.constraint.attempt();
         let tpe = self.u.intern_type(Type::Sym(prefix, alt));
         let mut info = self.method_info(tpe).unwrap_or(tpe);
-        if let Type::Poly { binder, params, result } = self.u.types().get(info).clone() {
-            let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        if let Some((binder, result, names)) = self.u.poly(info).map(|p| (p.binder, p.result, p.names())) {
             let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
             info = self.instantiate_poly(result, binder, &names, &vars, Some(alt));
         }

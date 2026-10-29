@@ -57,7 +57,7 @@ impl Typer<'_> {
     fn is_generic(&mut self, t: TypeId, depth: u32) -> bool {
         let Some(depth) = depth.checked_sub(1) else { return false };
         let t = self.u.dealias(t);
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::Sym(_, s) if self.u.symbol(s).flags.has(OPAQUE) => {
                 let info = self.u.info(s);
                 let alias = match *self.u.types().get(info) {
@@ -78,7 +78,7 @@ impl Typer<'_> {
                         Type::Bounds(_, hi) | Type::Alias(hi) => hi,
                         _ => return true,
                     };
-                    match self.u.types().get(hi).clone() {
+                    match *self.u.types().get(hi) {
                         Type::Lambda { result, .. } => self.is_generic(result, depth),
                         _ => self.is_generic(hi, depth),
                     }

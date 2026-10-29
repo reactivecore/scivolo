@@ -143,12 +143,8 @@ impl Typer<'_> {
     fn applied_path_type(&mut self, fun: TNodeId, refs: &[TypeId]) -> TypeId {
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-        let (Type::Poly { binder, params, result } | Type::Method { binder, params, result, .. }) =
-            self.u.types().get(info).clone()
-        else {
-            return info;
-        };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let Some(m) = self.u.poly(info).or_else(|| self.u.method(info)) else { return info };
+        let (binder, result, names) = (m.binder, m.result, m.names());
         self.u.subst(result, binder, &names, refs)
     }
 }
