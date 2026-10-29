@@ -9,14 +9,16 @@ use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
 
 impl Universe {
-    /// The erasure of member `s` of `prefix`: of the alias by which the prefix's class overrides
-    /// abstract type `s`, else of `s`.
+    /// The erasure of member `s` of `prefix`: of the info a refinement of the prefix's type gives
+    /// abstract type `s`, of the alias by which the prefix's class overrides it, else of `s`.
     pub fn erase_member(&mut self, prefix: TypeId, s: SymbolId) -> Erased {
-        if self.symbol(s).kind == Kind::Type
-            && self.alias_of(s).is_none()
-            && let Some(a) = self.overriding_alias(prefix, s)
-        {
-            return self.erase(a);
+        if self.symbol(s).kind == Kind::Type && self.alias_of(s).is_none() {
+            if let Some(refined) = self.refinement_info(prefix, s) {
+                return self.erase(refined);
+            }
+            if let Some(a) = self.overriding_alias(prefix, s) {
+                return self.erase(a);
+            }
         }
         self.erase_symbol(s)
     }

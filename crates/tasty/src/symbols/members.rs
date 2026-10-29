@@ -20,7 +20,7 @@ impl Universe {
 
     fn member_of_type_within(&mut self, t: TypeId, name: &str, steps: u32) -> Vec<SymbolId> {
         let Some(steps) = steps.checked_sub(1) else { return Vec::new() };
-        match self.types().get(t).clone() {
+        match *self.types().get(t) {
             Type::And(a, b) => {
                 let mut found = self.member_of_type_within(a, name, steps);
                 for m in self.member_of_type_within(b, name, steps) {
@@ -67,7 +67,7 @@ impl Universe {
         if dealiased != t {
             return Some(dealiased);
         }
-        let s = match self.types().get(t).clone() {
+        let s = match *self.types().get(t) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.resolve_ref(t)?,
             Type::Bounds(_, hi) => return Some(hi),
@@ -77,7 +77,7 @@ impl Universe {
             return None;
         }
         let info = self.info(s);
-        match self.types().get(info).clone() {
+        match *self.types().get(info) {
             Type::Bounds(_, hi) => Some(hi),
             _ => None,
         }
@@ -86,7 +86,7 @@ impl Universe {
     /// Adds the class of each part of union `t` to `classes`; `false` if a part has none.
     fn union_classes(&mut self, t: TypeId, classes: &mut Vec<SymbolId>, steps: u32) -> bool {
         let Some(steps) = steps.checked_sub(1) else { return false };
-        match self.types().get(t).clone() {
+        match *self.types().get(t) {
             Type::Or(a, b, _) => {
                 self.union_classes(a, classes, steps) && self.union_classes(b, classes, steps)
             }

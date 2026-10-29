@@ -31,7 +31,7 @@ impl Universe {
                     _ => match u.expand(tycon, &args) {
                         Some(e) => e,
                         None => {
-                            let Type::Sym(Some(prefix), s) = u.types().get(tycon).clone() else {
+                            let Type::Sym(Some(prefix), s) = *u.types().get(tycon) else {
                                 return None;
                             };
                             let name = u.symbol(s).name.clone();
@@ -59,7 +59,7 @@ impl Universe {
                         let a = match u.alias(s) {
                             Some(a) => a,
                             None => {
-                                let Type::Sym(Some(prefix), _) = u.types().get(x).clone() else {
+                                let Type::Sym(Some(prefix), _) = *u.types().get(x) else {
                                     return None;
                                 };
                                 let name = u.symbol(s).name.clone();

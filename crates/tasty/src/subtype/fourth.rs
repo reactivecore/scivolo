@@ -52,7 +52,7 @@ impl Cmp<'_> {
             return self.recur(a, dealiased);
         }
         for (or, other, left) in [(x, y, true), (y, x, false)] {
-            if let Type::Or(p, q, _) = self.u.types().get(or).clone() {
+            if let Type::Or(p, q, _) = *self.u.types().get(or) {
                 let inter = |s: &mut Self, t| match left {
                     true => s.u.intern_type(Type::And(t, other)),
                     false => s.u.intern_type(Type::And(other, t)),
@@ -96,7 +96,7 @@ impl Cmp<'_> {
     /// Whether paths `a` and `b` denote the same value: the same term through related prefixes,
     /// `this` of the same class, or a top-level object and `this` of its class.
     fn same_path(&mut self, a: TypeId, b: TypeId) -> bool {
-        let this = |s: &mut Self, t| match s.u.types().get(t).clone() {
+        let this = |s: &mut Self, t| match *s.u.types().get(t) {
             Type::This(c) => s.path_symbol(c),
             _ => None,
         };

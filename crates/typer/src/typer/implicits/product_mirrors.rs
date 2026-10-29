@@ -66,7 +66,7 @@ impl Typer<'_> {
             return Err("Mirror of a case class with @unroll parameters");
         }
         let labels: Vec<String> = accessors.iter().map(|&a| self.u.symbol(a).name.clone()).collect();
-        let site = match self.u.types().get(formal.mirrored).clone() {
+        let site = match *self.u.types().get(formal.mirrored) {
             Type::Lambda { result, .. } => result,
             _ => formal.mirrored,
         };
@@ -126,7 +126,9 @@ impl Typer<'_> {
             false => "scala.deriving.Mirror$.Singleton",
         };
         let label = self.u.symbol(s).name.clone();
-        let core = MirrorCore { parent, mono: formal.mirrored, label: &label, elems: Some((empty, empty)) };
+        self.check_refinement(formal.pt, "MirroredElemTypes", empty)?;
+        self.check_refinement(formal.pt, "MirroredElemLabels", empty)?;
+        let core = MirrorCore { parent, mono: formal.mirrored, label: &label, elems: None };
         let cast = self.mirror_type(formal, core)?;
         let mut value = self.path_tree(path, at, 8).ok_or("Mirror of a singleton outside the subset")?;
         if scala2 {

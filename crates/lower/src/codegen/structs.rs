@@ -11,7 +11,7 @@ use crate::{Result, unsupported};
 use nir::{Defn, DefnKind, Op, PosId, Type, TypeId, ValId};
 use syntax::ast::Span;
 use tasty::SymbolId;
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 const STRUCT: &str = "scala.scalanative.runtime.struct";
 
@@ -50,8 +50,7 @@ impl Gen<'_, '_> {
             pos,
             kind: DefnKind::Class { parent: None, traits: Vec::new() },
         });
-        let Tree::TypeDef { rhs, .. } = *self.l.tpd.tree(td) else { unreachable!("a class definition") };
-        let Tree::Template { body, .. } = *self.l.tpd.tree(rhs) else {
+        let Some(Template { body, .. }) = self.l.tpd.class_template(td) else {
             return unsupported(self.l.tpd.span(td), "a type definition that is not a class");
         };
         self.lambdas = 0;

@@ -186,7 +186,7 @@ impl Printer<'_> {
 
     /// Type argument `t`: `?` and its bounds for a wildcard.
     pub fn arg_text(&mut self, t: TypeId, prec: u8) -> String {
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::Bounds(lo, hi) if lo != hi => format!("?{}", self.rhs(t)),
             Type::Bounds(lo, _) => self.text(lo, prec),
             _ => self.text(t, prec),

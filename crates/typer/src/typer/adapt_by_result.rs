@@ -36,8 +36,8 @@ impl Typer<'_> {
 
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`
     /// (dotty's `constrainResult`), only necessary constraints kept: normalized against a fully
-    /// defined `pt`, not at all against `Unit`, else a value result only; `Err` for an implicit
-    /// method whose result is a type variable under a `pt` with type variables.
+    /// defined `pt`, not at all against `Unit`, else a value result after the implicit clauses
+    /// that refers to none of their parameters.
     pub fn constrain_applied_result(
         &mut self,
         meth: Option<SymbolId>,
@@ -49,9 +49,6 @@ impl Typer<'_> {
         let defined = self.is_fully_defined(p);
         let stripped = self.strip_implicit(result);
         let stripped = self.zonk(stripped);
-        if !defined && stripped != result && matches!(self.u.types().get(stripped), Type::Var(_)) {
-            return Err("implicit method result under a type with type variables");
-        }
         self.refinement_result(result, pt)?;
         if defined && self.u.class_symbol(p) == Some(self.defn.unit) {
             return Ok(());
@@ -59,8 +56,9 @@ impl Typer<'_> {
         let follow = !self.is_context_function_type(p);
         let value = match defined {
             true => self.proto_normalized((result, meth), p, follow, 8),
-            false => Some(result)
+            false => Some(stripped)
                 .filter(|&r| !matches!(self.u.types().get(r), Type::Method { .. } | Type::Poly { .. }))
+                .filter(|&r| !self.refers_to_implicit_params(result, r, meth))
                 .map(|r| if follow { self.context_result(r) } else { r }),
         };
         if let Some(value) = value {
@@ -86,6 +84,17 @@ impl Typer<'_> {
             true => Err("implicit method result selecting a refinement member under type variables"),
             false => Ok(()),
         }
+    }
+
+    /// Whether `stripped` refers to a parameter of the leading implicit clauses of `t`.
+    fn refers_to_implicit_params(&mut self, mut t: TypeId, stripped: TypeId, meth: Option<SymbolId>) -> bool {
+        while let Type::Method { binder, result, implicit: true, .. } = *self.u.types().get(t) {
+            if self.mentions_params(stripped, binder, meth) {
+                return true;
+            }
+            t = result;
+        }
+        false
     }
 
     /// The type after the leading implicit parameter clauses of `t`, references to their

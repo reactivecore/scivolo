@@ -26,7 +26,7 @@ impl Universe {
 
     /// Whether method type `t` has an erased parameter in its first clause.
     pub fn has_erased_params(&mut self, t: TypeId) -> bool {
-        let Type::Method { params, .. } = self.types().get(t).clone() else { return false };
-        params.into_iter().any(|(_, p)| self.is_erased_param(p))
+        let params = self.method(t).map(|m| m.param_types()).unwrap_or_default();
+        params.into_iter().any(|p| self.is_erased_param(p))
     }
 }

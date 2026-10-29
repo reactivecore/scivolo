@@ -37,7 +37,9 @@ impl Inlining<'_> {
                 {
                     self.ctx = Some(ctx);
                     let mut implicits = Vec::new();
-                    self.implicit_defs(around, &mut implicits);
+                    if !self.implicit_defs_at(around, call, &mut implicits) {
+                        self.implicit_defs(around, &mut implicits);
+                    }
                     self.outer_implicits = implicits;
                 }
             }

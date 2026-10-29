@@ -19,7 +19,7 @@ impl Universe {
             Type::Super(this, _) => this,
             _ => prefix,
         };
-        self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
+        self.map_type(t, &mut |u, x| match *u.types().get(x) {
             Type::Sym(Some(_), s) if u.is_static_symbol(s) && !u.sees_opaques(s) => Some(x),
             Type::This(c) => {
                 let c = u.class_symbol(c)?;
@@ -33,8 +33,7 @@ impl Universe {
                     false => u.this_seen_from(prefix, owner, c, MAX_DEPTH)?,
                 };
                 let seen = u.base_type(prefix, c)?;
-                let Type::Applied(_, args) = u.types().get(seen).clone() else { return None };
-                let arg = *args.get(i)?;
+                let arg = *u.applied(seen)?.1.get(i)?;
                 if !matches!(u.types().get(arg), Type::Bounds(..)) || !u.is_value_path(prefix) {
                     return Some(arg);
                 }
@@ -98,7 +97,7 @@ impl Universe {
 
     /// The prefix of class type `t`, through applications.
     fn normalized_prefix(&mut self, t: TypeId) -> Option<TypeId> {
-        match self.types().get(t).clone() {
+        match *self.types().get(t) {
             Type::Sym(p, _) => p,
             Type::TypeRef(p, _) | Type::TermRef(p, _) => Some(p),
             Type::Applied(tycon, _) => self.normalized_prefix(tycon),

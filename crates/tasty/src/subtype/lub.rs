@@ -88,7 +88,7 @@ impl Cmp<'_> {
 
     /// `t` without its `|`-parts that are subtypes of `sup`; `None` if none remains.
     fn drop_if_sub(&mut self, t: TypeId, sup: TypeId) -> Option<TypeId> {
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::Or(x, y, soft) => match (self.drop_if_sub(x, sup), self.drop_if_sub(y, sup)) {
                 (Some(x2), Some(y2)) if (x2, y2) == (x, y) => Some(t),
                 (Some(x2), Some(y2)) => Some(self.u.intern_type(Type::Or(x2, y2, soft))),
@@ -101,10 +101,10 @@ impl Cmp<'_> {
 
     /// `a | b`, soft if `soft`, by-name results joined.
     pub fn or_type(&mut self, a: TypeId, b: TypeId, soft: bool) -> TypeId {
-        match (self.u.types().get(a).clone(), self.u.types().get(b).clone()) {
-            (Type::Annotated(x, _), _) => self.lub_as(x, b, soft),
-            (_, Type::Annotated(y, _)) => self.lub_as(a, y, soft),
-            (Type::ByName(x), Type::ByName(y)) => {
+        match (self.u.types().get(a), self.u.types().get(b)) {
+            (&Type::Annotated(x, _), _) => self.lub_as(x, b, soft),
+            (_, &Type::Annotated(y, _)) => self.lub_as(a, y, soft),
+            (&Type::ByName(x), &Type::ByName(y)) => {
                 let either = self.lub_as(x, y, soft);
                 self.u.intern_type(Type::ByName(either))
             }

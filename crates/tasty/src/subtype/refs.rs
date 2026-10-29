@@ -68,7 +68,7 @@ impl Cmp<'_> {
             _ => t,
         };
         let nothing = Some(self.u.builtins().nothing);
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::Error => true,
             Type::Sym(_, s) => Some(s) == nothing,
             Type::TypeRef(..) => self.u.resolve_ref(t) == nothing,
@@ -86,7 +86,7 @@ impl Cmp<'_> {
 
     /// Whether `t` is a path or a constant.
     pub fn is_stable(&mut self, t: TypeId) -> bool {
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::TermRef(..)
             | Type::This(_)
             | Type::Constant(..)
@@ -100,7 +100,7 @@ impl Cmp<'_> {
 
     /// The symbol a path or a `this` refers to.
     pub fn path_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::Package(p) => Some(p),
             Type::This(c) => self.path_symbol(c),
             _ => self.named(t)?.sym,
@@ -110,7 +110,7 @@ impl Cmp<'_> {
     /// Whether `t` is a path whose value does not depend on another: a package, a `this`, or a
     /// top-level object.
     fn is_static_path(&mut self, t: TypeId) -> bool {
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::Package(_) | Type::PackageName(_) | Type::This(_) => true,
             Type::TermRef(..) | Type::Sym(..) => self.named(t).and_then(|n| n.sym).is_some_and(|s| {
                 let owner = self.u.symbol(s).owner;

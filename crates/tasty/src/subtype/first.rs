@@ -13,7 +13,7 @@ impl Cmp<'_> {
         if matches!(self.u.types().get(a), Type::Error) {
             return true;
         }
-        match self.u.types().get(b).clone() {
+        match *self.u.types().get(b) {
             Type::Error => true,
             Type::Var(v) => match self.vars.instance(v) {
                 Some(t) => self.recur(a, t),
@@ -24,7 +24,7 @@ impl Cmp<'_> {
                 _ => true,
             },
             Type::Annotated(p, _) => self.recur(a, p),
-            Type::This(c2) => match self.u.types().get(a).clone() {
+            Type::This(c2) => match *self.u.types().get(a) {
                 Type::This(c1) => {
                     self.path_symbol(c1).is_some() && self.path_symbol(c1) == self.path_symbol(c2)
                 }
@@ -67,7 +67,7 @@ impl Cmp<'_> {
     }
 
     pub fn second_try(&mut self, a: TypeId, b: TypeId) -> bool {
-        match self.u.types().get(a).clone() {
+        match *self.u.types().get(a) {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => {
                 match self.named(a).map(|n| n.meaning) {
                     Some(Meaning::Alias(alias)) if self.recur(alias, b) => return true,

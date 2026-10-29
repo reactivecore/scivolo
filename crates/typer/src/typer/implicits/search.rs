@@ -14,7 +14,7 @@ use syntax::ast::Span;
 use tasty::{Type, TypeId};
 
 /// How deep implicit arguments of implicit arguments may nest.
-const MAX_DEPTH: u32 = 6;
+const MAX_DEPTH: u32 = 12;
 /// How many candidates one search may try, nested searches included.
 pub const MAX_TRIES: u32 = 400;
 /// The refusal of a search whose winner among several leaves type variables to instantiate.

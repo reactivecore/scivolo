@@ -134,6 +134,11 @@ impl Typer<'_> {
     fn param_arity(&mut self, tycon: TypeId, i: usize) -> Option<usize> {
         let Type::Sym(_, c) = *self.u.types().get(tycon) else { return None };
         if matches!(self.u.symbol(c).kind, Kind::Type | Kind::TypeParam) {
+            if let Some(&Completion::Completing(tree)) = self.syms.completions.get(&c) {
+                let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return None };
+                let Tree::LambdaTypeTree { tparams, .. } = *self.ast.tree(rhs) else { return None };
+                return self.lambda_tree_arity(*self.ast.items(tparams).get(i)?);
+            }
             self.complete(c);
             let info = self.u.info(c);
             let lambda = match *self.u.types().get(info) {
@@ -163,7 +168,12 @@ impl Typer<'_> {
         let is_type_def = |&p: &NodeId| matches!(self.ast.tree(p), Tree::TypeDef { .. });
         let mut clauses = self.ast.clause_items(paramss).iter().map(|&l| self.ast.items(l));
         let clause = clauses.find(|ps| ps.first().is_some_and(is_type_def))?;
-        let Tree::TypeDef { rhs, .. } = *self.ast.tree(*clause.get(i)?) else { return None };
+        self.lambda_tree_arity(*clause.get(i)?)
+    }
+
+    /// The number of type parameters of type parameter tree `p`; `None` if it has none.
+    fn lambda_tree_arity(&self, p: NodeId) -> Option<usize> {
+        let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { return None };
         let Tree::LambdaTypeTree { tparams, .. } = *self.ast.tree(rhs) else { return None };
         Some(self.ast.items(tparams).len())
     }

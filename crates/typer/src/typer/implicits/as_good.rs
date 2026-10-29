@@ -59,7 +59,7 @@ impl Typer<'_> {
                 let t1 = self.poly_instance(t1, a.sym, true);
                 self.as_good_in((a, t1), (b, t2), ctx)
             }
-            _ => match self.u.types().get(t2).clone() {
+            _ => match *self.u.types().get(t2) {
                 Type::Method { .. } => Some(true),
                 Type::Poly { result, .. } if matches!(self.u.types().get(result), Type::Method { .. }) => {
                     Some(true)

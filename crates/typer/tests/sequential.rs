@@ -250,6 +250,18 @@ fn match_types_reduce_in_conformance() {
         let expected = if what.is_empty() { Ok(()) } else { Err(format!("unsupported {what}")) };
         assert_eq!(type_unit(&mut u, &mut units, "t.scala", text), expected, "{text}");
     }
+    let text = "object T { type M[X] <: F = X match { case Int => String }; type F = Undefined }";
+    let typed = type_unit(&mut u, &mut units, "t.scala", text);
+    assert_eq!(typed, Err("type errors [\"Not found: type Undefined\"]".into()));
+}
+
+#[test]
+fn implicit_results_referring_to_their_parameters_leave_open_types() {
+    let Some(mut u) = universe() else { return };
+    let text = "trait Fo { type T }; object Fo { implicit val f: Fo { type T = Int } = new Fo { type T = Int } }
+        object D { def g(implicit x: Fo): x.T = ???; def h[A](o: Option[A]): Option[A] = o; val o = h(Some(g)) }";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "d.scala", text), Ok(()));
+    assert_eq!(member_type(&mut u, "D", "o"), "scala.Option[scala.Int]");
 }
 
 /// Whether typing `text` as a unit after `before` types it or leaves the unresolved `c` to the
@@ -482,7 +494,7 @@ fn constructs_diverging_from_dotty_are_refused() {
         (
             "trait Tag[T]; object Tag { implicit val ti: Tag[Int] = new Tag[Int] {}; implicit val tl: Tag[Long] = new Tag[Long] {} }
              object Cr8 { def mx[T](x: T)(implicit t: Tag[T]): T = x; val o: Option[Long] = Some(mx(3)) }",
-            "implicit method result under a type with type variables",
+            "adaptation",
         ),
         (
             "class O(x: Int) { def this(s: String) = this(this.hashCode) }",

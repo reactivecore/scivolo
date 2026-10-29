@@ -23,6 +23,9 @@ struct Cli {
     /// The sources are javalib's: javalib's classes are Scala classes, not the JDK's.
     #[arg(long)]
     javalib: bool,
+    /// Macro calls run in a VM over the library's NIR, also without `--cp`.
+    #[arg(long)]
+    macros: bool,
     /// Names each source in positions by its path relative to this directory, not by its file name.
     #[arg(long)]
     sourceroot: Option<PathBuf>,
@@ -34,7 +37,7 @@ struct Cli {
 }
 
 fn main() {
-    let Cli { cp, tasty, javalib, sourceroot, files, out_dir: out } = Cli::parse();
+    let Cli { cp, tasty, javalib, macros, sourceroot, files, out_dir: out } = Cli::parse();
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = typer::dump::library_jars(&libs);
@@ -44,7 +47,7 @@ fn main() {
     }
     let sources: Vec<SourceFile> =
         files.iter().map(|f| SourceFile::new(source_name(f, sourceroot.as_deref()), read(f))).collect();
-    let mut vm = (!cp.is_empty()).then(|| {
+    let mut vm = (macros || !cp.is_empty()).then(|| {
         let nir = libs::jars().unwrap_or_else(|e| fail(&e));
         let classpath = vm::Classpath::with_jars(&cp, &nir).unwrap_or_else(|e| fail(&format!("{cp:?}: {e}")));
         vm::Vm::new(classpath).unwrap_or_else(|e| fail(&format!("the macro VM: {e}")))

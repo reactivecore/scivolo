@@ -51,7 +51,7 @@ impl Universe {
             }
             _ => (t, Vec::new()),
         };
-        let (prefix, s) = match self.types().get(tycon).clone() {
+        let (prefix, s) = match *self.types().get(tycon) {
             Type::Sym(p, s) => (p, s),
             Type::TypeRef(p, _) => (Some(p), self.resolve_ref(tycon)?),
             _ => return None,
@@ -79,6 +79,9 @@ impl Universe {
             let dealiased = match (args.is_empty(), prefix) {
                 (true, Some(p)) if term => self.member_info(p, s),
                 (true, Some(p)) if self.is_value_path(p) => {
+                    if let Some(refined) = self.refinement_info(p, s) {
+                        return self.base_type_within(refined, base, depth);
+                    }
                     let info = self.info(s);
                     match self.symbol(s).owner {
                         Some(o) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),

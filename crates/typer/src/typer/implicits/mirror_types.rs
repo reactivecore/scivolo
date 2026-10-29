@@ -42,7 +42,7 @@ impl Typer<'_> {
         let mut t = self.u.dealias(pt);
         let mut mirrored = None;
         while let Type::Refined(parent, name, info) = self.u.types().get(t).clone() {
-            let info = match self.u.types().get(info).clone() {
+            let info = match *self.u.types().get(info) {
                 Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => return None,
                 Type::Alias(a) | Type::Bounds(a, _) => a,
                 _ => info,
@@ -95,7 +95,7 @@ impl Typer<'_> {
     /// Refuses a refinement of `name` in `pt` that does not admit `expected` (dotty reports it).
     pub fn check_refinement(&mut self, pt: TypeId, name: &str, expected: TypeId) -> Result<(), &'static str> {
         let Some(info) = self.u.refinement_named(pt, name) else { return Ok(()) };
-        let (lo, hi) = match self.u.types().get(info).clone() {
+        let (lo, hi) = match *self.u.types().get(info) {
             Type::Alias(a) => (a, a),
             Type::Bounds(lo, hi) => (lo, hi),
             _ => (info, info),

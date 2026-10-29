@@ -140,3 +140,29 @@ fn extern_vararg_declarations() {
     let mut u = Universe::open(&jars).unwrap();
     lower::compile(&mut u, &source, &[]).expect("erased parameters do not count in the extern signature");
 }
+
+#[test]
+fn library_static_members_and_annotated_switch_selectors() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    jars.push(root.join("libs/jdk-stubs.jar"));
+    let source = SourceFile::new(
+        "statics.scala",
+        "object S { def now = java.time.Instant.ofEpochMilli(1L); \
+         def f(c: Char): Int = (c: @scala.annotation.switch) match { case 'a' => 1; case 'b' => 2; case 'c' => 3; case _ => 4 } }",
+    );
+    let mut u = Universe::open(&jars).unwrap();
+    let files = lower::compile(&mut u, &source, &[]).unwrap();
+    let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
+    let mut reader =
+        nir::Reader::new(&files.iter().find(|f| f.name == "S$").unwrap().bytes, &mut caches, &mut pool)
+            .unwrap();
+    let defs = reader.all().unwrap();
+    let dump = defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect::<Vec<_>>().join("\n");
+    assert!(dump.contains("@java.time.Instant::static ofEpochMilli(long)"), "{dump}");
+    assert!(dump.contains("switch"), "{dump}");
+}

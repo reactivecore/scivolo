@@ -65,7 +65,7 @@ inlining (ADR 0006).
 
 Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,401 of 1,711 pass (2026-10-26); 92 stop at the typer, 13 at
+(`just dotty-lower-report`): 1,435 of 1,711 pass (2026-10-29); 66 stop at the typer, 5 at
 the lowering, 32 fail in the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -93,14 +93,14 @@ executables. A library macro runs from its NIR in the VM; its quotes are unpickl
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
 `Quotes` is refused by name. Macro annotations expand in the inlining (ADR 0039). Circe
 0.14.10's `derives Codec.AsObject`, sourcecode 0.4.4, fastparse 3.1.1, mainargs 0.7.8, upickle,
-pprint and os-lib work. dotty's `tests/run-macros`: 215 of 321 pass (2026-10-26,
+pprint and os-lib work. dotty's `tests/run-macros`: 229 of 321 pass (2026-10-29,
 `just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
 
 - **Native executables** (done, #113, [ADR 0028](docs/adr/0028-native-executables-via-cranelift.md)):
-  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 160 of 167
-  test programs from source (`just aot-src-all`).
+  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 218 of 226
+  test programs from source (2026-10-29) (`just aot-src-all`).
 - **Third-party libraries** (done): `--dep` loads `_native0.5_3` jars as NIR plus TASTy, fetched
   by Coursier.
 - **AOT for libraries.** Compile hot stdlib NIR ahead of time, callable from interpreted code.
@@ -154,6 +154,9 @@ slower meanwhile:
    lower; against the 3.9.0 oracle nativelib lowers 88 of 103, clib 18 of 21, posixlib 59 of 67,
    javalib 488 of 601, auxlib 6 of 15. `lib-compile` also
    reports oracle NIR files absent from the generated set. Windows remains out of scope.
+   2026-10-29 ([research 41](docs/research/41-native-stdlib-after-1029.md)): JDK stubs for javalib,
+   access rules; nativelib lowers 92 of 103, clib 19 of 21, posixlib 66
+   of 67, windowslib 34, javalib 531 of 601, auxlib 7 of 15.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs

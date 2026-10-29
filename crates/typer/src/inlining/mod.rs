@@ -18,6 +18,7 @@ mod expand;
 mod host;
 mod implicit_args;
 mod inline_call;
+mod local_implicits;
 mod macro_annotations;
 mod macro_args;
 mod macro_definitions;

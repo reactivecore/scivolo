@@ -82,8 +82,13 @@ fn reference(l: &mut Lower, prefix: Option<TypeId>, s: tasty::SymbolId) -> TNode
         }
         _ => None,
     };
-    match qualifier {
-        Some(q) => l.select(q, s, Span::NONE),
-        None => l.ident(s, Span::NONE),
+    match (qualifier, prefix) {
+        (Some(q), _) => l.select(q, s, Span::NONE),
+        (None, Some(p)) if l.u.is_module(s) && matches!(l.u.types().get(p), Type::This(_)) => {
+            let id = l.ident(s, Span::NONE);
+            l.tpd.get_mut(id).tpe = Some(l.u.intern_type(Type::Sym(Some(p), s)));
+            id
+        }
+        (None, _) => l.ident(s, Span::NONE),
     }
 }

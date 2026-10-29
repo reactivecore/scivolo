@@ -21,10 +21,11 @@ impl Typer<'_> {
         singleton.then(|| self.u.class_symbol(widened)).flatten().into_iter().collect()
     }
 
-    /// Whether `owner` encloses `site`, is inherited by a class of `scope`, or is an object visible
-    /// so (dotty's `isVisibleToScope`).
+    /// Whether `owner` encloses `site`, is inherited by a class of `scope`, or is a package or an
+    /// object visible so (dotty's `isVisibleToScope`).
     pub fn is_visible_to_scope(&mut self, owner: SymbolId, site: SymbolId, scope: &[SymbolId]) -> bool {
-        sealed::is_contained_in(self.u, site, owner)
+        self.u.symbol(owner).kind == Kind::Package
+            || sealed::is_contained_in(self.u, site, owner)
             || scope.iter().any(|&c| self.inherits(owner, c))
             || self.u.is_module_class(owner)
                 && self.u.symbol(owner).owner.is_some_and(|o| self.is_visible_to_scope(o, site, scope))
@@ -65,7 +66,7 @@ impl Typer<'_> {
         if limit == 0 {
             return Some(pre);
         }
-        match self.u.types().get(pre).clone() {
+        match *self.u.types().get(pre) {
             Type::Sym(Some(p), s) if self.u.symbol(s).kind.is_term() => self.sub_prefix_at(p, limit - 1),
             Type::Sym(None, s) if self.u.symbol(s).kind.is_term() && limit == 1 => {
                 Some(self.u.intern_type(Type::NoPrefix))

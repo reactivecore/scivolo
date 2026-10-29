@@ -84,7 +84,7 @@ impl Typer<'_> {
             self.u.map_type(info, &mut |u, part| {
                 dependent |= match *u.types().get(part) {
                     Type::Sym(_, s) => tparams.contains(&s),
-                    Type::This(_) => prefix.is_some(),
+                    Type::This(t) => prefix.is_some() && u.class_symbol(t) == Some(c),
                     _ => false,
                 };
                 None

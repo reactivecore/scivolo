@@ -30,7 +30,7 @@ impl Universe {
         for _ in 0..16 {
             let widened = self.widen(t);
             t = self.dealias(widened);
-            match self.types().get(t).clone() {
+            match *self.types().get(t) {
                 Type::Refined(..) => return self.poly_function_apply(t),
                 Type::And(a, b) => {
                     return self.poly_function_apply_of(a).or_else(|| self.poly_function_apply_of(b));

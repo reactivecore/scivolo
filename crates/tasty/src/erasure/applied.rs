@@ -95,8 +95,8 @@ impl Universe {
             return empty.then_some(0);
         }
         let d = self.dealias(t);
-        let Type::Applied(c, args) = self.types().get(d).clone() else { return None };
-        (self.class_name(c) == Some(format!("scala.Tuple{}", args.len()))).then_some(args.len())
+        let (c, n) = self.applied(d).map(|(c, args)| (c, args.len()))?;
+        (self.class_name(c) == Some(format!("scala.Tuple{n}"))).then_some(n)
     }
 
     /// `tycon[args]` with `tycon` an alias of a type lambda: its body as seen from the prefix of

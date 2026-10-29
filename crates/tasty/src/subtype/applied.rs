@@ -14,7 +14,7 @@ impl Cmp<'_> {
         if self.matching_apply(a, tycon, args, &variances) || self.compare_compiletime(b, a, true) {
             return true;
         }
-        match self.u.types().get(tycon).clone() {
+        match *self.u.types().get(tycon) {
             Type::Var(v) => match self.vars.instance(v) {
                 Some(t) => {
                     let applied = self.u.intern_type(Type::Applied(t, args.to_vec()));
@@ -68,7 +68,7 @@ impl Cmp<'_> {
         let widened = self.u.widen(a);
         let Type::Applied(mut tycon1, args1) = self.u.types().get(widened).clone() else { return false };
         loop {
-            match self.u.types().get(tycon1).clone() {
+            match *self.u.types().get(tycon1) {
                 Type::Var(v) => match self.vars.instance(v) {
                     Some(t) => tycon1 = t,
                     None => {
@@ -97,7 +97,7 @@ impl Cmp<'_> {
         if self.compare_compiletime(a, b, false) {
             return true;
         }
-        match self.u.types().get(tycon).clone() {
+        match *self.u.types().get(tycon) {
             Type::Var(v) => {
                 let upper = match self.vars.instance(v) {
                     Some(t) => self.u.intern_type(Type::Applied(t, args.to_vec())),
@@ -164,7 +164,7 @@ impl Cmp<'_> {
 
     /// The bounds of a `?` argument, annotated or not; a `Wildcard` compares as a type.
     fn written_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::Bounds(lo, hi) => Some((lo, hi)),
             Type::Annotated(b, _) => self.written_bounds(b),
             _ => None,
@@ -173,7 +173,7 @@ impl Cmp<'_> {
 
     /// The bounds of a wildcard argument, annotated or not.
     pub fn arg_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::Bounds(lo, hi) => Some((lo, hi)),
             Type::Wildcard(None) => Some((NOTHING, ANY)),
             Type::Wildcard(Some(b)) | Type::Annotated(b, _) => self.arg_bounds(b),

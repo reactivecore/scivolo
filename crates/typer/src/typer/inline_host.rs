@@ -30,9 +30,12 @@ impl Typer<'_> {
     }
 
     /// Records `ctx` as the context of `tree` if it is a call of an inline method with all its
-    /// arguments, outside an inline method.
+    /// arguments, outside an inline method; of a block's result only if it has no context yet.
     pub fn record_inline_call(&mut self, tree: TNodeId, ctx: Ctx) {
         if let T::Block { expr, .. } = *self.tpd.tree(tree) {
+            if self.inline_ctxs.contains_key(&expr) {
+                return;
+            }
             return self.record_inline_call(expr, ctx);
         }
         let Some(meth) = self.tpd.sym(self.tpd.meth_part(tree)) else { return };

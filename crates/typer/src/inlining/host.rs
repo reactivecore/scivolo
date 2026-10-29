@@ -3,10 +3,9 @@
 
 use super::{AnnotationCall, Expanded, Inlining, MacroCall, MacroError, Unsupported};
 use crate::ctx::Ctx;
-use crate::tpd::{MatchKind, TNodeId, Tpd, Tree as T};
+use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
-use tasty::tags::{GIVEN, IMPLICIT};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// The trees and tables an expansion works on, lent back to the typer for a search.
@@ -97,11 +96,20 @@ impl Inlining<'_> {
         }
     }
 
-    /// Whether `t` is a reference without implicit arguments of its own whose name none of
-    /// `locals` has.
-    fn unshadowed_ref(&self, t: TNodeId, locals: &[SymbolId]) -> bool {
+    /// Whether `t` is a reference whose name none of `locals` has, applied to such references
+    /// as implicit arguments none of `locals` may be.
+    fn unshadowed_ref(&mut self, t: TNodeId, locals: &[SymbolId]) -> bool {
         match *self.tpd.tree(t) {
             T::TypeApply { fun, .. } => self.unshadowed_ref(fun, locals),
+            T::Apply { fun, args } => {
+                let args = self.tpd.items(args).to_vec();
+                self.unshadowed_ref(fun, locals)
+                    && args.into_iter().all(|a| {
+                        let tpe = self.tpd.tpe(a);
+                        let tpe = self.u.widen(tpe);
+                        !self.may_fit(locals, tpe) && self.unshadowed_ref(a, locals)
+                    })
+            }
             T::Ident { .. } | T::Select { .. } => self.tpd.sym(t).is_some_and(|s| {
                 let name = &self.u.symbol(s).name;
                 locals.iter().all(|&l| self.u.symbol(l).name != *name)
@@ -113,77 +121,6 @@ impl Inlining<'_> {
     /// Reports error `msg` at `at`.
     pub fn error(&mut self, at: Span, msg: String) {
         self.host.error(at, msg);
-    }
-
-    /// Whether the body of inline method definition `def` defines a given or implicit term other
-    /// than by the pattern of a `summonFrom` case; a macro's body, which its expansion replaces,
-    /// does not.
-    pub fn defines_implicit(&self, def: TNodeId) -> bool {
-        let T::DefDef { rhs: Some(rhs), .. } = *self.tpd.tree(def) else { return false };
-        if self.tpd.sym(def).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::MACRO)) {
-            return false;
-        }
-        self.has_implicit_def(rhs)
-    }
-
-    /// Whether tree `t` defines a given or implicit term other than by a block statement, which
-    /// `block_implicits` tracks, outside the cases of inline matches, which count once their
-    /// match selects them.
-    pub fn has_implicit_def(&self, t: TNodeId) -> bool {
-        match *self.tpd.tree(t) {
-            T::Match { selector, kind: MatchKind::Inline, .. } => {
-                return selector.is_some_and(|s| self.has_implicit_def(s));
-            }
-            T::Block { stats, expr } => {
-                let stats = self.tpd.items(stats);
-                let inner = |s: TNodeId| self.tpd.children(s).into_iter().any(|c| self.has_implicit_def(c));
-                return stats
-                    .iter()
-                    .any(|&s| if self.is_implicit_def(s) { inner(s) } else { self.has_implicit_def(s) })
-                    || self.has_implicit_def(expr);
-            }
-            _ => {}
-        }
-        self.is_implicit_def(t) || self.tpd.children(t).into_iter().any(|c| self.has_implicit_def(c))
-    }
-
-    /// Adds the scope of the implicits the statements of `t` define to `block_implicits` if it is
-    /// a block that defines any; the number of scopes before.
-    pub fn enter_block_implicits(&mut self, t: TNodeId) -> usize {
-        let mark = self.block_implicits.len();
-        if let T::Block { stats, .. } = *self.tpd.tree(t) {
-            let stats = self.tpd.items(stats).to_vec();
-            let defined: Vec<SymbolId> = stats
-                .into_iter()
-                .filter(|&s| self.is_implicit_def(s))
-                .filter_map(|s| self.tpd.sym(s))
-                .collect();
-            if !defined.is_empty() {
-                self.block_implicits.push(defined);
-            }
-        }
-        mark
-    }
-
-    /// Whether `t` defines a given or implicit value or method.
-    pub fn is_implicit_def(&self, t: TNodeId) -> bool {
-        let def = matches!(self.tpd.tree(t), T::ValDef { .. } | T::DefDef { .. });
-        def && self.tpd.sym(t).is_some_and(|s| {
-            let flags = self.u.symbol(s).flags;
-            flags.has(GIVEN) || flags.has(IMPLICIT)
-        })
-    }
-
-    /// Adds the given and implicit terms `t` defines to `found`.
-    pub fn implicit_defs(&self, t: TNodeId, found: &mut Vec<SymbolId>) {
-        if self.is_implicit_def(t)
-            && let Some(s) = self.tpd.sym(t)
-        {
-            found.push(s);
-        }
-        for c in self.tpd.children(t) {
-            self.implicit_defs(c, found);
-        }
     }
 
     /// Whether one of the implicits `defs` of a typer's expansion around the call may be an

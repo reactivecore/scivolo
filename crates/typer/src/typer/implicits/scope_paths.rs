@@ -88,8 +88,8 @@ impl Typer<'_> {
         let steps = steps.checked_sub(1)?;
         match self.u.types().get(t).clone() {
             Type::TypeRef(p, name) => {
-                match self.u.refinement_named(p, &name).map(|i| self.u.types().get(i).clone()) {
-                    Some(Type::Bounds(_, hi) | Type::Alias(hi)) => self.bound_classes(hi, steps),
+                match self.u.refinement_named(p, &name).map(|i| self.u.types().get(i)) {
+                    Some(&Type::Bounds(_, hi) | &Type::Alias(hi)) => self.bound_classes(hi, steps),
                     _ => None,
                 }
             }

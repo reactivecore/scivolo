@@ -49,7 +49,7 @@ impl Printer<'_> {
             },
             Kind::Def | Kind::Val | Kind::Param => {
                 let info = self.u.info(s);
-                match self.u.types().get(info).clone() {
+                match *self.u.types().get(info) {
                     Type::Method { .. } | Type::Poly { .. } if kind == Kind::Def => self.lambda(info),
                     Type::ByName(r) => format!(": {}", self.text(r, GLOBAL)),
                     _ => format!(": {}", self.text(info, GLOBAL)),
@@ -70,7 +70,7 @@ impl Printer<'_> {
         self.binders.push((binder, params.iter().map(|(n, _)| n.clone()).collect()));
         let nested = matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. });
         let colon = if nested { "" } else { ": " };
-        let text = match self.u.types().get(t).clone() {
+        let text = match *self.u.types().get(t) {
             Type::Method { implicit, contextual, .. } => {
                 let key = match (contextual, implicit) {
                     (true, _) => "using ",
@@ -92,7 +92,7 @@ impl Printer<'_> {
     pub fn params(&mut self, params: &[(String, TypeId)]) -> String {
         let texts: Vec<String> = params
             .iter()
-            .map(|(n, t)| match self.u.types().get(*t).clone() {
+            .map(|(n, t)| match *self.u.types().get(*t) {
                 Type::ByName(r) => format!("{n}: => {}", self.text(r, GLOBAL)),
                 _ => format!("{n}: {}", self.text(*t, GLOBAL)),
             })
@@ -110,7 +110,7 @@ impl Printer<'_> {
     /// the parameters of a type lambda before it.
     pub fn rhs(&mut self, t: TypeId) -> String {
         let depth = self.binders.len();
-        let text = match self.u.types().get(t).clone() {
+        let text = match *self.u.types().get(t) {
             Type::Alias(a) => self.alias(a, &[]),
             Type::Bounds(lo, hi) if lo == hi => self.alias(lo, &[]),
             Type::Bounds(lo, hi) => {
@@ -184,7 +184,7 @@ impl Printer<'_> {
         let texts: Vec<String> = members
             .into_iter()
             .rev()
-            .map(|(name, info)| match self.u.types().get(info).clone() {
+            .map(|(name, info)| match *self.u.types().get(info) {
                 Type::Method { .. } | Type::Poly { .. } => format!("def {name}{}", self.lambda(info)),
                 Type::ByName(r) => format!("def {name}: {}", self.text(r, GLOBAL)),
                 Type::Alias(_) | Type::Bounds(..) => format!("type {name}{}", self.rhs(info)),

@@ -4,6 +4,7 @@
 //! Sum mirrors of the companions of sealed classes other than enums (dotty's `isGenericSum` and
 //! `ordinalBody`): `def ordinal(x$0: S): Int = x$0 match { case _: C1 => 0; ... }`.
 
+use super::mirror_prefixes::{child_prefix, class_prefix};
 use super::mirrors::is_generic_product;
 use super::walk::class_defs;
 use crate::definitions::type_ref;
@@ -64,10 +65,14 @@ pub fn ordinal(
     let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     let flags = Flags::default().with(SYNTHETIC);
+    let pre = class_prefix(l, param, sealed);
     let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let mut cases = Vec::new();
         for (i, &c) in children.iter().enumerate() {
-            let tpe = type_ref(l.u, c);
+            let tpe = match pre.and_then(|pre| child_prefix(l, pre, (sealed, c), class)) {
+                Some(pre) => l.u.intern_type(Type::Sym(Some(pre), c)),
+                None => type_ref(l.u, c),
+            };
             let name = l.term_name("_");
             let wildcard = l.tpd.node(Tree::Ident { name }, Span::NONE, Some(tpe), None);
             let tpt = l.type_tree(tpe, Span::NONE);

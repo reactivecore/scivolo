@@ -25,9 +25,10 @@ impl Typer<'_> {
         if !self.is_generic_sum(cls, (companion.is_some(), pre), ctx)? {
             return Ok(None);
         }
-        let path = pre.filter(|&p| !self.is_plain_prefix(p));
+        let owner = self.u.symbol(cls).owner;
+        let path = pre.filter(|&p| !self.is_plain_prefix(p) || self.is_inheriting_module(p, owner));
         let children = self.sealed_children(cls)?;
-        let target = match self.u.types().get(formal.mirrored).clone() {
+        let target = match *self.u.types().get(formal.mirrored) {
             Type::Lambda { result, .. } => result,
             _ => formal.mirrored,
         };
@@ -79,10 +80,23 @@ impl Typer<'_> {
         self.u.derives_from(module_class, sum).then_some(module)
     }
 
+    /// Whether `p` refers to an object whose class is not `owner`, or is the `this` of a
+    /// subclass of class `owner`, which it inherits from.
+    fn is_inheriting_module(&mut self, p: TypeId, owner: Option<SymbolId>) -> bool {
+        match *self.u.types().get(p) {
+            Type::Sym(_, s) => self.u.module_class(s) != owner,
+            Type::This(c) => match (self.u.class_symbol(c), owner) {
+                (Some(c), Some(o)) => c != o && self.u.is_class(o) && self.u.derives_from(c, o),
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
     /// Whether prefix `p` is a package or the `this` of a class, under which the children's
     /// types are their own references.
     fn is_plain_prefix(&mut self, p: TypeId) -> bool {
-        match self.u.types().get(p).clone() {
+        match *self.u.types().get(p) {
             Type::Package(_) | Type::PackageName(_) | Type::This(_) | Type::NoPrefix => true,
             Type::Sym(p, s) => self.u.is_module(s) && p.is_none_or(|p| self.is_plain_prefix(p)),
             _ => false,
