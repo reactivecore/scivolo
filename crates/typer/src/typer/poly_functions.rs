@@ -102,7 +102,7 @@ impl Typer<'_> {
 
     /// The info of `pre.apply` referred to by `fun_tpe` if `pre` is of a polymorphic function type.
     pub fn poly_apply_info(&mut self, fun_tpe: TypeId) -> Option<TypeId> {
-        let Type::TermRef(pre, name) = self.u.types().get(fun_tpe).clone() else { return None };
+        let Type::TermRef(pre, ref name) = *self.u.types().get(fun_tpe) else { return None };
         if name != "apply" {
             return None;
         }

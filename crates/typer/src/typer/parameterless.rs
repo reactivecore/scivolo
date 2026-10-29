@@ -27,13 +27,13 @@ impl Typer<'_> {
             let tpe = self.ref_type(prefix, s);
             let info = self.method_info(tpe).unwrap_or(tpe);
             let info = self.mapped_info(info, s);
-            let result = match self.u.types().get(info).clone() {
+            let result = match *self.u.types().get(info) {
                 Type::ByName(r) => r,
                 Type::Poly { result, .. } => match self.u.types().get(result) {
                     Type::Method { params, implicit: false, .. } if !params.is_empty() => continue,
                     _ => return Err("overloaded reference with a polymorphic alternative"),
                 },
-                Type::Method { params, result, implicit: false, .. } if params.is_empty() => result,
+                Type::Method { ref params, result, implicit: false, .. } if params.is_empty() => result,
                 Type::Method { result, implicit: true, .. } => {
                     implicit.push((s, result));
                     continue;

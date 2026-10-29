@@ -34,8 +34,7 @@ impl Typer<'_> {
         let nt = self.resolve_full_name(NAMED_TUPLE, true)?;
         let t = self.u.normalized(t);
         let t = self.u.dealias(t);
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
-        let [names, values] = args[..] else { return None };
+        let Some((tycon, &[names, values])) = self.u.applied(t) else { return None };
         (self.referenced(tycon) == Some(nt)).then_some((names, values))
     }
 

@@ -60,8 +60,8 @@ impl Typer<'_> {
             return true;
         }
         if self.u.is_type_symbol(sym) {
-            return match prefix.map(|p| self.u.types().get(p).clone()) {
-                Some(Type::Sym(_, s)) => {
+            return match prefix.map(|p| self.u.types().get(p)) {
+                Some(&Type::Sym(_, s)) => {
                     self.u.symbol(s).flags.has(tasty::tags::OBJECT) && self.is_static_term(s)
                 }
                 Some(Type::TermRef(..)) => false,
