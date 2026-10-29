@@ -3,6 +3,7 @@
 
 mod decode;
 mod map;
+mod parts;
 mod refinements;
 mod show;
 mod show_source;
@@ -13,6 +14,7 @@ use crate::{FileId, SymbolId};
 use rustc_hash::FxHashMap;
 
 pub use decode::{Decoder, param_tree_clauses};
+pub use parts::Binding;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TypeId(pub u32);

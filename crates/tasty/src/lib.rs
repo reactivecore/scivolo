@@ -24,7 +24,7 @@ pub use symbols::{
     PACKAGE_TABLE, SYMBOL_TABLE_VERSION, Symbol, SymbolId, Universe, decode, encode, is_package_object_name,
     module_class_name, module_name, package_table, package_table_version, symbol_table,
 };
-pub use types::{Binder, Type, TypeId, Types, VarId, param_tree_clauses};
+pub use types::{Binder, Binding, Type, TypeId, Types, VarId, param_tree_clauses};
 
 pub use cursor::{Cursor, Error, Result};
 pub use file::{Attribute, Header, Section, Tasty, attribute_name};
