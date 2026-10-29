@@ -10,6 +10,16 @@ conflict but is still a main goal.
 Rust style follows `/Users/nos/working/rc/rcui` (its `CLAUDE.md` is the
 reference); the rules below are the ones that carry over.
 
+## Differences from dotty
+
+Behave as dotty and Scala Native do. A difference is accepted only when:
+
+1. it is hard to avoid and does not matter, e.g. an order dotty takes from a hash table;
+2. ours is provably better and semantically equivalent, e.g. faster or shorter generated code;
+3. dotty has a bug, listed in `docs/conformance.md` (Upstream bugs to report).
+
+The MR names each such difference and which case it is.
+
 ## Build / test / lint
 
 Once a workspace exists, every command lives in a `Justfile`; `just gates`
