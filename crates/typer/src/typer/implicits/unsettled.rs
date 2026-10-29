@@ -78,16 +78,34 @@ impl Typer<'_> {
         (self.u.type_params(class).len() == args.len()).then(|| self.u.intern_type(Type::Applied(hi, args)))
     }
 
-    /// `t` with its type variables whose bounds are equal instantiated to them.
+    /// `t` with its type variables whose bounds are equal up to aliases instantiated to them,
+    /// and so those of the instances.
     pub fn determined(&mut self, t: TypeId) -> TypeId {
-        let t = self.zonk(t);
-        for v in self.open_vars(t) {
-            let (lo, hi) = self.constraint.bounds(v);
-            if lo == hi {
-                self.constraint.instantiate(v, lo);
+        let mut t = self.zonk(t);
+        for _ in 0..4 {
+            let mut changed = false;
+            for v in self.open_vars(t) {
+                let (lo, hi) = self.constraint.bounds(v);
+                if lo == hi || self.dealiased_parts(lo) == self.dealiased_parts(hi) {
+                    self.constraint.instantiate(v, lo);
+                    changed = true;
+                }
+            }
+            t = self.zonk(t);
+            if !changed {
+                break;
             }
         }
-        self.zonk(t)
+        t
+    }
+
+    /// `t` zonked with the aliases among its parts dealiased.
+    fn dealiased_parts(&mut self, t: TypeId) -> TypeId {
+        let t = self.zonk(t);
+        self.u.map_type(t, &mut |u, x| {
+            let d = u.dealias(x);
+            (d != x).then_some(d)
+        })
     }
 
     /// Whether `t` is `Any`, `AnyRef`, or an uninstantiated type variable bounded by them, which no
