@@ -18,7 +18,7 @@ impl Typer<'_> {
     /// implicits it refers to, if any.
     pub fn with_dictionary(&mut self, tree: TNodeId, at: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let lazies = std::mem::take(&mut self.history.lazies);
-        let pruned = self.pruned(tree, &lazies)?;
+        let pruned = self.pruned(tree, &lazies);
         if pruned.is_empty() {
             return Ok(tree);
         }
@@ -64,9 +64,9 @@ impl Typer<'_> {
     }
 
     /// The by-name implicits `tree` refers to, directly or through their definitions, those found
-    /// last first (dotty's `prune`); `Err` if one round finds several, whose order dotty takes
-    /// from a hash map.
-    fn pruned(&mut self, tree: TNodeId, lazies: &[Lazy]) -> Result<Vec<usize>, &'static str> {
+    /// last first, those of one round in the order they were linked (dotty's `prune`, which
+    /// takes that order from a hash map).
+    fn pruned(&mut self, tree: TNodeId, lazies: &[Lazy]) -> Vec<usize> {
         let mut trees = vec![tree];
         let mut pending: Vec<usize> = (0..lazies.len()).collect();
         let mut acc = Vec::new();
@@ -80,14 +80,11 @@ impl Typer<'_> {
             }
             let (found, rest): (Vec<usize>, Vec<usize>) =
                 pending.into_iter().partition(|&i| lazies[i].refs.iter().any(|r| reached.contains(r)));
-            match found[..] {
-                [] => return Ok(acc),
-                [i] => {
-                    trees.extend(lazies[i].rhs);
-                    acc.insert(0, i);
-                }
-                _ => return Err("several by-name implicits in one round of a dictionary"),
+            if found.is_empty() {
+                return acc;
             }
+            trees.extend(found.iter().filter_map(|&i| lazies[i].rhs));
+            acc.splice(0..0, found);
             pending = rest;
         }
     }
