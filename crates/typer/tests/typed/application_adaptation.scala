@@ -26,6 +26,13 @@ object Nums extends Numbers {
 trait Wrap { def wrap(n: Any): Option[n.type] }
 class Wrapper extends Wrap { def wrap(n: Any) = Some(n) }
 
+trait Got { type Out; def get: Out }
+
+object Paths {
+  def prepend[T <: Tuple](t: Got { type Out = T }): Int *: T = 1 *: t.get
+  def bounded[T <: String](t: Got { type Out <: T }, u: t.Out): Int = 1
+}
+
 object Test {
   def int(n: BigInt): Int = n.intValue()
   def decoded: Int = summon[Decoder[Int]]()
