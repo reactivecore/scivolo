@@ -117,7 +117,7 @@ impl Universe {
 
     /// The class type parameter reference `t` names: its class and index.
     pub fn class_param(&mut self, t: TypeId) -> Option<(SymbolId, usize)> {
-        let s = match self.types().get(t).clone() {
+        let s = match *self.types().get(t) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.resolve_ref(t)?,
             _ => return None,
@@ -136,7 +136,7 @@ impl Universe {
 
     fn class_symbol_within(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
         let depth = depth.checked_sub(1)?;
-        let s = match self.types().get(t).clone() {
+        let s = match *self.types().get(t) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.resolve_ref(t)?,
             Type::Applied(inner, _)

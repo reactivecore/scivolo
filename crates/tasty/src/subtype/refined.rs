@@ -48,12 +48,12 @@ impl Cmp<'_> {
     /// Whether member info `have` conforms to refinement info `want`: type bounds within
     /// bounds, a method type below a method type, a value's type below a value type.
     fn info_conforms(&mut self, have: TypeId, want: TypeId) -> bool {
-        let bounds = |s: &mut Self, t: TypeId| match s.u.types().get(t).clone() {
+        let bounds = |s: &mut Self, t: TypeId| match *s.u.types().get(t) {
             Type::Bounds(lo, hi) => (lo, hi),
             Type::Alias(x) => (x, x),
             _ => (t, t),
         };
-        match self.u.types().get(want).clone() {
+        match *self.u.types().get(want) {
             Type::Bounds(..) | Type::Alias(_) => {
                 let ((lo1, hi1), (lo2, hi2)) = (bounds(self, have), bounds(self, want));
                 self.recur(lo2, lo1) && self.recur(hi1, hi2)

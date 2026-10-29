@@ -74,7 +74,7 @@ impl Decoder<'_> {
         };
         let internal = self.intern(internal);
         let annot = self.intern(Type::TypeRef(internal, annot.into()));
-        match self.types.get(t).clone() {
+        match *self.types.get(t) {
             Type::ByName(r) => {
                 let r = self.intern(Type::Annotated(r, annot));
                 self.intern(Type::ByName(r))

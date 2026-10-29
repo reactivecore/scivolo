@@ -158,8 +158,8 @@ impl Universe {
 
     /// The element type of `Array[e]`.
     fn array_element(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Applied(tycon, args) = self.types().get(t).clone() else { return None };
-        (self.class_name(tycon).as_deref() == Some("scala.Array")).then(|| args.first().copied())?
+        let (tycon, arg) = self.applied(t).map(|(c, args)| (c, args.first().copied()))?;
+        (self.class_name(tycon).as_deref() == Some("scala.Array")).then_some(arg)?
     }
 }
 

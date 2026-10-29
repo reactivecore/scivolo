@@ -44,7 +44,7 @@ impl Universe {
             Type::Sym(..) | Type::TypeRef(..) => match self.referenced(t) {
                 Some(s) if matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                     let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
-                    match self.types().get(info).clone() {
+                    match *self.types().get(info) {
                         Type::Bounds(_, hi) => self.holder(hi) == Holder::None,
                         Type::Lambda { .. } => false,
                         _ => self.is_generic(info),
@@ -78,7 +78,7 @@ impl Universe {
 
     /// The kind of array that can hold every value of type `t`.
     fn holder(&mut self, t: TypeId) -> Holder {
-        match self.types().get(t).clone() {
+        match *self.types().get(t) {
             Type::Annotated(u, _) | Type::Refined(u, _, _) | Type::Rec(_, u) | Type::Bounds(_, u) => {
                 self.holder(u)
             }

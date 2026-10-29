@@ -74,7 +74,7 @@ impl Universe {
     fn pseudo(&mut self, t: TypeId) -> Pseudo {
         let widened = self.widen(t);
         let t = self.dealias(widened);
-        match self.types().get(t).clone() {
+        match *self.types().get(t) {
             Type::And(..) | Type::Refined(..) => Pseudo::Type(t),
             Type::Sym(..) | Type::TypeRef(..) => self.referenced(t).map_or(Pseudo::Type(t), Pseudo::Sym),
             Type::Applied(u, _)
@@ -109,7 +109,7 @@ impl Universe {
                 Pseudo::Sym(_) if self.is_class(a) => false,
                 _ => self.upper_bound_is_subclass(a, that),
             },
-            Pseudo::Type(t) => match self.types().get(t).clone() {
+            Pseudo::Type(t) => match *self.types().get(t) {
                 Type::Refined(parent, _, _) => {
                     let q = self.pseudo(parent);
                     self.is_non_bottom_subclass(q, that)

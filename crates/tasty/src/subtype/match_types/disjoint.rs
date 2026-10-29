@@ -27,17 +27,17 @@ impl Cmp<'_> {
         if x == NOTHING || y == NOTHING || self.is_nothing_class(x) || self.is_nothing_class(y) {
             return true;
         }
-        match (self.u.types().get(x).clone(), self.u.types().get(y).clone()) {
-            (_, Type::Or(p, q, _)) => {
+        match (self.u.types().get(x), self.u.types().get(y)) {
+            (_, &Type::Or(p, q, _)) => {
                 return self.disjoint_in(x, p, pending) && self.disjoint_in(x, q, pending);
             }
-            (_, Type::And(p, q)) => {
+            (_, &Type::And(p, q)) => {
                 return self.disjoint_in(x, p, pending) || self.disjoint_in(x, q, pending);
             }
-            (Type::Or(p, q, _), _) => {
+            (&Type::Or(p, q, _), _) => {
                 return self.disjoint_in(p, y, pending) && self.disjoint_in(q, y, pending);
             }
-            (Type::And(p, q), _) => {
+            (&Type::And(p, q), _) => {
                 return self.disjoint_in(p, y, pending) || self.disjoint_in(q, y, pending);
             }
             _ => {}

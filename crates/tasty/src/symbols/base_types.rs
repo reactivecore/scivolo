@@ -51,7 +51,7 @@ impl Universe {
             }
             _ => (t, Vec::new()),
         };
-        let (prefix, s) = match self.types().get(tycon).clone() {
+        let (prefix, s) = match *self.types().get(tycon) {
             Type::Sym(p, s) => (p, s),
             Type::TypeRef(p, _) => (Some(p), self.resolve_ref(tycon)?),
             _ => return None,

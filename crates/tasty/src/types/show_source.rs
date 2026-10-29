@@ -168,7 +168,7 @@ impl SourcePrinter<'_> {
         if self.is_elided(p) {
             return Ok(());
         }
-        match self.u.types().get(p).clone() {
+        match *self.u.types().get(p) {
             Type::NoPrefix => Err(REFUSED),
             Type::Sym(_, s) | Type::Package(s) if self.u.symbol(s).kind == Kind::Package => {
                 self.package(s);

@@ -74,12 +74,12 @@ impl Cmp<'_> {
                 }
                 _ => false,
             },
-            Type::ByName(r2) => match self.u.types().get(a).clone() {
+            Type::ByName(r2) => match *self.u.types().get(a) {
                 Type::ByName(r1) => self.recur(r1, r2),
-                Type::Method { params, result, .. } if params.is_empty() => self.recur(result, r2),
+                Type::Method { ref params, result, .. } if params.is_empty() => self.recur(result, r2),
                 _ => self.fourth_try(a, b),
             },
-            Type::Bounds(lo2, hi2) => match self.u.types().get(a).clone() {
+            Type::Bounds(lo2, hi2) => match *self.u.types().get(a) {
                 Type::Bounds(lo1, hi1) => {
                     (lo2 == NOTHING || self.recur(lo2, lo1)) && (hi2 == ANY || self.recur(hi1, hi2))
                 }
@@ -136,7 +136,7 @@ impl Cmp<'_> {
         }
         let soft = matches!(self.u.types().get(b), Type::Or(_, _, true));
         for (and, other, left) in [(x, y, true), (y, x, false)] {
-            if let Type::And(p, q) = self.u.types().get(and).clone() {
+            if let Type::And(p, q) = *self.u.types().get(and) {
                 let union = |s: &mut Self, t| match left {
                     true => s.u.intern_type(Type::Or(t, other, soft)),
                     false => s.u.intern_type(Type::Or(other, t, soft)),

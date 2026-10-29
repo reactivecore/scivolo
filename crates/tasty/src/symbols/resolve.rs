@@ -53,7 +53,7 @@ impl Universe {
 
     /// The package or class whose members a prefix selects.
     fn prefix_owner(&mut self, prefix: TypeId) -> Option<SymbolId> {
-        match self.types.get(prefix).clone() {
+        match *self.types.get(prefix) {
             Type::Package(p) => Some(p),
             Type::This(c) | Type::Super(_, c) | Type::Refined(c, ..) => self.prefix_owner(c),
             Type::Sym(_, s) => self.symbol_owner(s),

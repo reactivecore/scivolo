@@ -8,7 +8,7 @@ use crate::symbols::is_static_module;
 use crate::{Result, unsupported};
 use nir::{Attr, Defn, DefnKind};
 use tasty::tags::ABSTRACT;
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// The classes without a superclass (nscplugin's `NObjectClass` and `RuntimePrimitiveTypes`).
 const ROOT_CLASSES: [&str; 12] = [
@@ -89,8 +89,7 @@ impl Gen<'_, '_> {
     }
 
     fn gen_methods(&mut self, td: TNodeId) -> Result<()> {
-        let Tree::TypeDef { rhs, .. } = *self.l.tpd.tree(td) else { unreachable!("a class definition") };
-        let Tree::Template { constr, body, .. } = *self.l.tpd.tree(rhs) else {
+        let Some(Template { constr, body, .. }) = self.l.tpd.class_template(td) else {
             return unsupported(self.l.tpd.span(td), "a type definition that is not a class");
         };
         let stats: Vec<TNodeId> =

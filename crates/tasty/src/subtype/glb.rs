@@ -33,12 +33,12 @@ impl Cmp<'_> {
             None => return a,
             _ => {}
         }
-        match (self.u.types().get(a).clone(), self.u.types().get(b).clone()) {
-            (_, Type::Or(l, r, soft)) => {
+        match (self.u.types().get(a), self.u.types().get(b)) {
+            (_, &Type::Or(l, r, soft)) => {
                 let (al, ar) = (self.glb(a, l), self.glb(a, r));
                 self.lub_as(al, ar, soft)
             }
-            (Type::Or(l, r, soft), _) => {
+            (&Type::Or(l, r, soft), _) => {
                 let (lb, rb) = (self.glb(l, b), self.glb(r, b));
                 self.lub_as(lb, rb, soft)
             }
@@ -49,7 +49,7 @@ impl Cmp<'_> {
 
     /// `t` without its `&`-parts that are supertypes of `sub`; `None` if none remains.
     fn drop_if_super(&mut self, t: TypeId, sub: TypeId) -> Option<TypeId> {
-        match self.u.types().get(t).clone() {
+        match *self.u.types().get(t) {
             Type::And(x, y) => match (self.drop_if_super(x, sub), self.drop_if_super(y, sub)) {
                 (Some(x2), Some(y2)) if (x2, y2) == (x, y) => Some(t),
                 (Some(x2), Some(y2)) => Some(self.u.intern_type(Type::And(x2, y2))),
@@ -78,10 +78,10 @@ impl Cmp<'_> {
                 }
             }
         }
-        match (self.u.types().get(a).clone(), self.u.types().get(b).clone()) {
-            (Type::Annotated(x, _), _) => self.glb(x, b),
-            (_, Type::Annotated(y, _)) => self.glb(a, y),
-            (Type::ByName(x), Type::ByName(y)) => {
+        match (self.u.types().get(a), self.u.types().get(b)) {
+            (&Type::Annotated(x, _), _) => self.glb(x, b),
+            (_, &Type::Annotated(y, _)) => self.glb(a, y),
+            (&Type::ByName(x), &Type::ByName(y)) => {
                 let both = self.glb(x, y);
                 self.u.intern_type(Type::ByName(both))
             }

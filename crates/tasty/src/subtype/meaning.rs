@@ -24,7 +24,7 @@ fn class_param_arg(u: &mut Universe, p: SymbolId, prefix: TypeId) -> Option<Mean
     let index = u.type_params(class).iter().position(|&q| q == p)?;
     let widened = u.widen(prefix);
     let base = u.base_type(widened, class)?;
-    let Type::Applied(_, args) = u.types().get(base).clone() else { return None };
+    let (_, args) = u.applied(base)?;
     Some(match *u.types().get(*args.get(index)?) {
         Type::Bounds(lo, hi) => Meaning::Abstract(lo, hi),
         _ => Meaning::Alias(args[index]),
@@ -66,7 +66,7 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
             let info = u.info(s);
             match u.types().get(info).clone() {
                 Type::Bounds(lo, hi) => Meaning::Abstract(seen(u, lo), seen(u, hi)),
-                Type::Lambda { binder, params, result } => match u.types().get(result).clone() {
+                Type::Lambda { binder, params, result } => match *u.types().get(result) {
                     Type::Bounds(lo, hi) => {
                         let lambda = |u: &mut Universe, body| {
                             let body = seen(u, body);
