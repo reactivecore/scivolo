@@ -10,7 +10,7 @@ use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, STATIC, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 /// Makes the `@static` values among `stats` of object class `module` with template body `body`
 /// fields without initializers; the setters of the variables among them, with their bodies, and
@@ -63,8 +63,9 @@ pub fn transform(
 /// offset fields, which its `<clinit>` then starts with; refused for such a class with
 /// constructor parameters, parents but `Object` or synthetic objects.
 fn offsets_start(l: &mut Lower, td: TNodeId) -> Result<Option<Span>> {
-    let (Some(class), &Tree::TypeDef { rhs, .. }) = (l.tpd.sym(td), l.tpd.tree(td)) else { return Ok(None) };
-    let Tree::Template { constr, body, .. } = *l.tpd.tree(rhs) else { return Ok(None) };
+    let (Some(class), Some(Template { constr, body, .. })) = (l.tpd.sym(td), l.tpd.class_template(td)) else {
+        return Ok(None);
+    };
     let stats = l.tpd.items(body).to_vec();
     let lazy = |l: &Lower, s: SymbolId| has(l.u, s, LAZY) || l.u.is_module(s) && !l.u.is_module_class(s);
     let mut own: Vec<SymbolId> = stats.iter().filter_map(|&s| l.tpd.sym(s)).collect();
