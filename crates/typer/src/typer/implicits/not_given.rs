@@ -4,7 +4,7 @@
 //! `T` finds nothing.
 
 use super::super::Typer;
-use crate::ctx::{Ctx, Level};
+use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use tasty::{Kind, Type, TypeId};
@@ -50,9 +50,6 @@ impl Typer<'_> {
                 return Err("NotGiven of a type whose instances the search may miss");
             }
         }
-        if self.has_package_implicits(ctx) {
-            return Err("NotGiven beside top-level implicits");
-        }
         if self.implicit_exists(t, at, ctx, depth + 1)? {
             return Err("no implicit argument");
         }
@@ -65,24 +62,5 @@ impl Typer<'_> {
         let this = self.u.intern_type(Type::This(class));
         let tpe = self.u.intern_type(Type::Sym(Some(this), value));
         Ok(self.build().ident(value, tpe, at))
-    }
-
-    /// Whether a package enclosing `ctx` has top-level implicits, which the search does not see.
-    fn has_package_implicits(&mut self, ctx: Ctx) -> bool {
-        let mut level = Some(ctx.level);
-        while let Some(l) = level {
-            if let Level::Members(p) = *self.levels.get(l)
-                && self.u.symbol(p).kind == Kind::Package
-            {
-                let Ok(objects) = self.u.package_objects(p) else { return true };
-                for d in objects {
-                    if !self.implicit_members(d, false).is_empty() {
-                        return true;
-                    }
-                }
-            }
-            level = self.levels.outer(l);
-        }
-        false
     }
 }
