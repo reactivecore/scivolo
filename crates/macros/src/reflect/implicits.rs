@@ -1,9 +1,9 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The implicit searches of `quotes.reflect`, which the typer answers between runs of the
-//! expansion (`Implicits.search`).
+//! expansion (`Implicits.search`), and `CompilationInfo`.
 
-use super::{Answer, UNKNOWN, arg, numbers};
+use super::{Answer, UNKNOWN, arg, numbers, text};
 use crate::host::Host;
 use tasty::TypeId;
 use typer::inlining::Annotations;
@@ -23,10 +23,13 @@ pub struct FromTyper {
 pub const SEARCH: &str = "an implicit search the typer answers";
 
 impl Host {
-    /// Runs implicit operation `op` on `args`: the argument found as `[1, tree]`, `[0]` for none.
+    /// Runs implicit operation `op` on `args`: the argument found as `[1, tree]`, `[0]` for none;
+    /// or a `CompilationInfo` operation.
     pub fn run_implicit(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
-        if op == "isWhileTyping" {
-            return numbers(vec![self.typer.while_typing as i32]);
+        match op {
+            "isWhileTyping" => return numbers(vec![self.typer.while_typing as i32]),
+            "macroSettings" => return text(self.settings.macro_settings.join("\n")),
+            _ => {}
         }
         if op != "search" {
             return Err(UNKNOWN);

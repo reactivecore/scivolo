@@ -91,7 +91,8 @@ impl Typer<'_> {
         let lifts = self.u.opaque_lifts();
         if self.conforms(tpe, pt) {
             if self.u.opaque_lifts() != lifts && !self.conforms_unlifted(tpe, pt) {
-                self.unsupported_at(span, "conformance through an opaque alias");
+                let tpt = self.type_tree(pt, span.end_pos(), true);
+                return self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(pt), None);
             }
             return tree;
         }

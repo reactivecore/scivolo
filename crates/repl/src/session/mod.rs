@@ -172,7 +172,8 @@ impl Session {
         self.res = wrapped.next_res;
         let cfg = parsed.cfg;
         let source = SourceFile::new(parsed.source.name.clone(), parsed.source.text.clone());
-        let mut runner = macros::VmMacros { vm: &mut self.vm, sources: vec![source] };
+        let mut runner =
+            macros::VmMacros { vm: &mut self.vm, sources: vec![source], settings: Default::default() };
         let macros = Some(&mut runner as &mut dyn Macros);
         let typed =
             self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), (wrapped.root, cfg), macros);

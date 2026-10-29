@@ -68,10 +68,12 @@ abstract class ReflectImpl
     def info(msg: String, pos: Position): Unit = throw new Unsupported("report.info")
   }
 
-  /** `-Xmacro-settings` are refused. */
   object CompilationInfo extends CompilationInfoModule {
     def isWhileTyping: Boolean = ReflectOps.one("isWhileTyping") != 0
-    def XmacroSettings: List[String] = throw new Unsupported("CompilationInfo.XmacroSettings")
+    def XmacroSettings: List[String] = {
+      val settings = ReflectOps.text("macroSettings", -1)
+      if (settings.isEmpty) Nil else settings.split('\n').toList
+    }
   }
 
   /** Searches the typer answers between runs of the expansion; a failure is one without a

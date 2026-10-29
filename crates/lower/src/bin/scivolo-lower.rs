@@ -1,5 +1,5 @@
 use clap::Parser;
-use macros::{Macros, VmMacros};
+use macros::{Macros, Settings, VmMacros};
 use std::path::{Path, PathBuf};
 use syntax::config::Config;
 use syntax::source::SourceFile;
@@ -49,18 +49,24 @@ fn main() {
         let classpath = vm::Classpath::with_jars(&cp, &nir).unwrap_or_else(|e| fail(&format!("{cp:?}: {e}")));
         vm::Vm::new(classpath).unwrap_or_else(|e| fail(&format!("the macro VM: {e}")))
     });
-    let copies = || sources.iter().map(|s| SourceFile::new(s.name.clone(), s.text.clone())).collect();
-    let mut runner = vm.as_mut().map(|vm| VmMacros { vm, sources: copies() });
-    let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
     let mut options: Vec<&str> = Vec::new();
     for s in &sources {
         let directives = lower::directives::directives(&s.text, "3.9.0");
         options
             .extend(directives.unwrap_or_else(|d| fail(&format!("the typer does not support {d}"))).options);
     }
+    let macro_settings = options.iter().filter_map(|o| o.strip_prefix("-Xmacro-settings:"));
+    let settings = Settings {
+        retain_trees: options.contains(&"-Yretain-trees"),
+        macro_settings: macro_settings.flat_map(|s| s.split(',')).map(str::to_owned).collect(),
+    };
+    options.retain(|o| !o.starts_with("-Xmacro-settings:"));
+    let copies = || sources.iter().map(|s| SourceFile::new(s.name.clone(), s.text.clone())).collect();
+    let mut runner = vm.as_mut().map(|vm| VmMacros { vm, sources: copies(), settings });
+    let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
     let fatal =
         options.iter().any(|o| ["-Werror", "-Xfatal-warnings"].contains(o) || o.starts_with("-Wconf"));
-    options.retain(|o| !no_code_effect(o, !cp.is_empty()) || Config::checked(&[o]).is_ok());
+    options.retain(|o| !no_code_effect(o) || Config::checked(&[o]).is_ok());
     let cfg = Config::checked(&options)
         .unwrap_or_else(|o| fail(&format!("the typer does not support option `{o}`")));
     let lowered = match &sources[..] {
@@ -93,12 +99,19 @@ fn main() {
     }
 }
 
-/// Whether option `o` cannot change the code of a program dotty compiles, `macros` whether macro
-/// calls run.
-fn no_code_effect(o: &str, macros: bool) -> bool {
-    matches!(o, "-Werror" | "-Xfatal-warnings" | "-experimental" | "-deprecation" | "-feature" | "-unchecked")
-        || ["-W", "-opt", "-Ycheck"].iter().any(|p| o.starts_with(p))
-        || o == "-Yretain-trees" && !macros
+/// Whether option `o` cannot change the code of a program dotty compiles.
+fn no_code_effect(o: &str) -> bool {
+    matches!(
+        o,
+        "-Werror"
+            | "-Xfatal-warnings"
+            | "-experimental"
+            | "-deprecation"
+            | "-feature"
+            | "-unchecked"
+            | "-Yretain-trees"
+            | "-Xcheck-macros"
+    ) || ["-W", "-opt", "-Ycheck"].iter().any(|p| o.starts_with(p))
 }
 
 fn fail(message: &str) -> ! {

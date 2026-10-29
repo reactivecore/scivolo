@@ -25,6 +25,13 @@ enum Expr {
     Quote(Unpickled),
 }
 
+/// The compiler options macros see: `-Yretain-trees` and the values of `-Xmacro-settings`.
+#[derive(Clone, Default)]
+pub struct Settings {
+    pub retain_trees: bool,
+    pub macro_settings: Vec<String>,
+}
+
 /// The bit that marks the number of a quote pattern among those of expressions and types.
 pub const PATTERN: u32 = 1 << 30;
 
@@ -38,6 +45,7 @@ pub struct Host {
     pub expansion: Span,
     pub sources: Vec<SourceFile>,
     pub typer: crate::reflect::FromTyper,
+    pub settings: Settings,
     exprs: Vec<Expr>,
     types: Vec<TypeId>,
     pub patterns: Vec<QuotePattern>,
@@ -64,7 +72,7 @@ impl Host {
     pub fn new(
         (u, tpd, names): Tables<'_>,
         owner: SymbolId,
-        (expansion, sources): (Span, Vec<SourceFile>),
+        (expansion, sources, settings): (Span, Vec<SourceFile>, Settings),
     ) -> Host {
         Host {
             u: std::mem::replace(u, Universe::empty()),
@@ -74,6 +82,7 @@ impl Host {
             expansion,
             sources,
             typer: Default::default(),
+            settings,
             exprs: Vec::new(),
             types: Vec::new(),
             patterns: Vec::new(),

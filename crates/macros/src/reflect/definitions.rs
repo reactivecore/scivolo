@@ -29,7 +29,13 @@ impl Host {
                 numbers(trees.into_iter().map(|t| self.add_tree(t) as i32).collect())
             }
             "symbolTree" => {
-                let t = self.definition(symbol(arg(args, 0)?)?);
+                let s = symbol(arg(args, 0)?)?;
+                let t = match self.definition(s) {
+                    None if self.settings.retain_trees && self.u.symbol(s).tree.is_some() => {
+                        Some(typer::unpickle::member_def(&mut self.u, &mut self.tpd, &mut self.names, s)?)
+                    }
+                    t => t,
+                };
                 numbers(vec![t.map_or(-1, |t| self.add_tree(t) as i32)])
             }
             "classBody" => {
@@ -93,7 +99,10 @@ impl Host {
     pub fn definition(&self, s: SymbolId) -> Option<TNodeId> {
         let defines = |d: TNodeId| {
             self.tpd.sym(d) == Some(s)
-                && matches!(self.tpd.tree(d), T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. })
+                && matches!(
+                    self.tpd.tree(d),
+                    T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } | T::Bind { .. }
+                )
         };
         (0..self.tpd.len()).rev().map(TNodeId::new).find(|&d| defines(d))
     }

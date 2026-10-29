@@ -85,12 +85,19 @@ def scala_cli(command, name, sources, *extra):
             "--scala", SCALA, "--workspace", str(WORK / "ws" / name), *extra, *map(str, sources)]
 
 
-def compile_groups(name, groups, out, timeout=None):
-    """Compiles the groups in order into directory `out`, each seeing the output before it; the
-    exit code of the last compile (None on timeout) and the compilers' output."""
+def using_options(sources):
+    """The options of the `//> using options` directives of `sources`."""
+    texts = (s.read_text(errors="replace") for s in sources)
+    return [o for t in texts for m in re.finditer(r"^//> using options (.*)$", t, re.M) for o in m[1].split()]
+
+
+def compile_groups(name, groups, out, timeout=None, options=()):
+    """Compiles the groups in order into directory `out`, each seeing the output before it and
+    given `options`; the exit code of the last compile (None on timeout) and the compilers' output."""
     code, log = 0, ""
     for i, sources in enumerate(groups):
         extra = ["--extra-jars", str(out)] if i else []
+        extra += [a for o in options for a in ("-O", o)]
         code, stdout, stderr = run(scala_cli("compile", name, sources, *extra, "-d", str(out)), timeout)
         log += stdout + stderr
         if code != 0:

@@ -64,6 +64,7 @@ impl Inlining<'_> {
                     };
                     self.copy(&mut m, rhs, &mut |_, _, _| None)
                 }
+                None if self.is_local_inline_val(t) => Ok(self.const_to_literal(t)),
                 None => self.ident_as_select(t),
             },
             T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => Ok(t),
@@ -156,6 +157,15 @@ impl Inlining<'_> {
             }
             _ => Err((span, "inline body with a return or label")),
         }
+    }
+
+    /// Whether `t` refers to an inline value local to a method.
+    pub fn is_local_inline_val(&self, t: TNodeId) -> bool {
+        self.tpd.sym(t).is_some_and(|s| {
+            let sym = self.u.symbol(s);
+            let local = sym.owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
+            sym.kind == tasty::Kind::Val && sym.flags.has(tasty::tags::INLINE) && local
+        })
     }
 
     /// `t` retyped, with every inline call in it expanded if `force`.

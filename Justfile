@@ -453,10 +453,14 @@ typer-compare +files:
 
 # The Rust typer's typed trees of Scala files, or why they fall back.
 typer-dump +files:
+    #!/usr/bin/env bash
+    set -eu
     cargo build -q --release -p scivolo-typer
     mkdir -p tmp
-    printf '%s\n' {{ files }} > tmp/typer-dump.list
-    target/release/scivolo-typer-dump --list tmp/typer-dump.list
+    list=tmp/typer-dump-{{ uuid() }}.list
+    trap 'rm -f "$list"' EXIT
+    printf '%s\n' {{ files }} > "$list"
+    target/release/scivolo-typer-dump --list "$list"
 
 # Lower a Scala file through the Rust frontend into NIR files in tmp/lowered/<file name>.
 lower file:

@@ -55,6 +55,11 @@ impl Host {
             "spliceOwner" => one(Some(self.macro_owner())),
             "root" => one(Some(self.u.root())),
             "emptyPackage" => one(Some(self.empty_package())),
+            "anyRefAlias" => {
+                let aliases = self.u.package("scala").and_then(|p| self.u.decl(p, "AnyRef").ok());
+                let alias = aliases.into_iter().flatten().find(|&a| self.u.symbol(a).kind == Kind::Type);
+                one(Some(alias.ok_or("a library without scala.AnyRef")?))
+            }
             "predefClassOf" => {
                 let predef = self.u.package("scala").and_then(|p| self.u.module_class_in(p, "Predef"));
                 let class_of = predef.and_then(|c| self.u.decl(c, "classOf").ok()?.first().copied());
