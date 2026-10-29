@@ -32,10 +32,7 @@ impl Translator<'_, '_> {
     /// The type of `m` as seen from `prefix`, a parameterless method's result.
     fn member_type(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {
         let info = self.l.u.member_info(prefix, m);
-        match self.l.u.types().get(info).clone() {
-            Type::Method { params, result, .. } if params.is_empty() => result,
-            _ => info,
-        }
+        self.l.u.method(info).filter(|m| m.params.is_empty()).map_or(info, |m| m.result)
     }
 
     /// Whether `args` is one pattern that was a named argument and an extractor result of type

@@ -23,7 +23,7 @@ pub fn poly_function_member(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> 
     if l.tpd.sym(sel).is_some() || name.is_type {
         return None;
     }
-    let Type::TermRef(_, n) = l.u.types().get(l.tpd.tpe(sel)).clone() else { return None };
+    let Type::TermRef(_, n) = l.u.types().get(l.tpd.tpe(sel)) else { return None };
     if n != "apply" {
         return None;
     }

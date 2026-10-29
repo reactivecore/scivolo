@@ -3,7 +3,7 @@
 //! Extractors over typed trees (dotty's `TreeInfo`).
 
 use super::{List, TNodeId, Tpd, Tree};
-use tasty::{SymbolId, TypeId, Universe};
+use tasty::{TypeId, Universe};
 
 /// The parts of a class definition's `Template`.
 pub struct Template {
@@ -32,12 +32,6 @@ impl Tpd {
         let Tree::TypeDef { rhs, .. } = *self.tree(td) else { return None };
         let Tree::Template { constr, parents, self_, body } = *self.tree(rhs) else { return None };
         Some(Template { constr, parents, self_, body })
-    }
-
-    /// The symbol of the method `t` calls: `meth_part(t)` when it is an `Ident` or `Select`.
-    pub fn callee(&self, t: TNodeId) -> Option<SymbolId> {
-        let f = self.meth_part(t);
-        matches!(self.tree(f), Tree::Ident { .. } | Tree::Select { .. }).then(|| self.sym(f)).flatten()
     }
 
     /// `f` of `f[T](a)(b)`: `t` without its applications and type applications (dotty's

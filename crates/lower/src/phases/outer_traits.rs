@@ -143,8 +143,8 @@ fn prefix(l: &mut Lower, class: SymbolId, m: SymbolId, outer: SymbolId) -> TypeI
         Type::Applied(tycon, _) => tycon,
         _ => b,
     });
-    match base.map(|b| l.u.types().get(b).clone()) {
-        Some(Type::Sym(Some(pre), _) | Type::TypeRef(pre, _)) => pre,
+    match base.map(|b| l.u.types().get(b)) {
+        Some(&(Type::Sym(Some(pre), _) | Type::TypeRef(pre, _))) => pre,
         _ => {
             let outer = type_ref(l.u, outer);
             l.u.intern_type(Type::This(outer))
@@ -173,7 +173,7 @@ fn method_type(l: &mut Lower, result: TypeId) -> TypeId {
 /// Stable prefix `p` as a tree in `class`: `this` of a class, a static object or one seen from
 /// outside it through its value (dotty's `fixThis`), values selected on such paths.
 fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId> {
-    match l.u.types().get(p).clone() {
+    match *l.u.types().get(p) {
         Type::This(c) => {
             let c = l.u.class_symbol(c).expect("a class's this");
             let module = l.u.is_module_class(c).then(|| l.u.source_module(c)).flatten();
@@ -187,7 +187,7 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
         }
         Type::Sym(q, s) if l.u.symbol(s).kind.is_term() => {
             let static_module = l.u.is_module(s) && is_static(l.u, s);
-            let qualifier = match q.map(|q| l.u.types().get(q).clone()) {
+            let qualifier = match q.map(|q| l.u.types().get(q)) {
                 _ if static_module => return Ok(l.ident(s, span)),
                 None | Some(Type::Package(_)) => return Ok(l.ident(s, span)),
                 Some(_) => path(l, class, q.expect("a prefix"), span)?,

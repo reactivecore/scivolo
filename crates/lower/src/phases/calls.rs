@@ -58,8 +58,7 @@ impl Lower<'_> {
     /// The class of the only parameter of method `m`.
     fn single_param_class(&mut self, m: SymbolId) -> Option<SymbolId> {
         let info = self.u.info(m);
-        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
-        let &[(_, p)] = params.as_slice() else { return None };
+        let &[(_, p)] = self.u.method(info)?.params else { return None };
         self.class_of(p)
     }
 

@@ -70,10 +70,7 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let module_ref = l.ident(module, from_start(l.tpd.span(fun)));
     let mut call = l.select(module_ref, extension, span);
     let info = l.u.info(extension);
-    let info = match l.u.types().get(info).clone() {
-        Type::Poly { result, .. } => result,
-        _ => info,
-    };
+    let info = l.u.strip_poly(info);
     let mut tpe = l.u.result_type(info);
     call = l.apply(call, &[receiver], tpe, span);
     let call_span = if argss.is_empty() { span } else { l.tpd.span(t) };

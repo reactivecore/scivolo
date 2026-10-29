@@ -75,13 +75,14 @@ fn process(
 ) -> TNodeId {
     let string = l.u.class_ref("java.lang.String");
     let info = l.u.info(process_escapes);
-    let Type::Method { params, .. } = l.u.types().get(info).clone() else { unreachable!("a method") };
+    let Some(m) = l.u.method(info) else { unreachable!("a method") };
+    let name = m.params[0].0.clone();
     let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, flags));
-    let param = l.u.define(symbol(&params[0].0, Kind::Param, anon, Flags::default()));
+    let param = l.u.define(symbol(&name, Kind::Param, anon, Flags::default()));
     l.u.set_info(param, string);
     let binder = l.u.fresh_binder();
-    let params = vec![(params[0].0.clone(), string)];
+    let params = vec![(name, string)];
     let method = Type::Method { binder, params, result: string, implicit: false, contextual: false };
     let method = l.u.intern_type(method);
     l.u.set_info(anon, method);

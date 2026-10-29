@@ -7,7 +7,7 @@ use crate::phases::adapt::{adapt, ascribed, converted, erased_type};
 use crate::phases::casts::{class_named, type_of};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Erased, Type, TypeId};
+use tasty::{Erased, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
@@ -145,8 +145,8 @@ fn throw_class_cast(l: &mut Lower, expr: TNodeId) -> TNodeId {
     let ctors = l.u.decl(class, "<init>").unwrap_or_default();
     let ctor = ctors.into_iter().find(|&c| {
         let info = l.u.info(c);
-        matches!(l.u.types().get(info).clone(), Type::Method { params, .. }
-            if params.len() == 1 && l.u.class_symbol(params[0].1) == string)
+        let Some(&[(_, p)]) = l.u.method(info).map(|m| m.params) else { return false };
+        l.u.class_symbol(p) == string
     });
     let ctor = ctor.expect("`ClassCastException(String)`");
     let new = l.new_(class, Span::NONE);

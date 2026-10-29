@@ -39,7 +39,7 @@ pub fn call(l: &mut Lower, qual: TNodeId, m: SymbolId, args: &[TNodeId]) -> TNod
     let fun = l.select(qual, m, Span::NONE);
     let fun = l.positioned(fun);
     let info = l.u.info(m);
-    let result = match l.u.types().get(info).clone() {
+    let result = match *l.u.types().get(info) {
         _ if l.u.symbol(m).name == "<init>" => l.tpd.tpe(qual),
         Type::Method { result, .. } => result,
         _ => info,
