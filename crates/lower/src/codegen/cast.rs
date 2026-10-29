@@ -132,6 +132,7 @@ impl Gen<'_, '_> {
                 let ty = self.bottom_box(to).expect("`Null$`");
                 self.emit(Op::As { ty, obj: value })
             }
+            _ if erased_from == Erased::Nothing => self.val(nir::Val::Zero(to)),
             _ => return unsupported(span, "casts to or from primitive values"),
         };
         self.m.pos = saved;

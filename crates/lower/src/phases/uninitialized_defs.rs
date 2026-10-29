@@ -6,11 +6,12 @@
 //! `TransformWildcards` for such fields that become values of the constructor.
 
 use super::casts::cast;
+use super::context_results::{closure_def, is_context_function};
 use super::literals::is_wildcard;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use tasty::tags::MUTABLE;
-use tasty::{Erased, SymbolId};
+use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) {
@@ -18,10 +19,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
     for stat in l.tpd.items(body).to_vec() {
         let Tree::ValDef { name, tpt, rhs: Some(rhs) } = *l.tpd.tree(stat) else { continue };
         let mutable = l.tpd.sym(stat).is_some_and(|s| has(l.u, s, MUTABLE));
-        if !mutable || !l.tpd.sym(rhs).is_some_and(|s| is_uninitialized(l, s)) {
+        let tpe = l.tpd.tpe(tpt);
+        if !mutable || !uninitialized_rhs(l, rhs, tpe) {
             continue;
         }
-        let tpe = l.tpd.tpe(tpt);
         let wildcard = l.wildcard(tpe);
         l.tpd.get_mut(wildcard).span = l.tpd.span(rhs);
         l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: Some(wildcard) };
@@ -56,6 +57,19 @@ pub fn drop_wildcard(l: &mut Lower, stat: TNodeId, class: SymbolId) {
         }
     });
     l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: init };
+}
+
+/// Whether `rhs` is `compiletime.uninitialized`, also as the body of a closure of context
+/// function type `tpe`.
+fn uninitialized_rhs(l: &mut Lower, rhs: TNodeId, tpe: TypeId) -> bool {
+    if l.tpd.sym(rhs).is_some_and(|s| is_uninitialized(l, s)) {
+        return true;
+    }
+    let body = closure_def(l, rhs).and_then(|d| match *l.tpd.tree(d) {
+        Tree::DefDef { rhs, .. } => rhs,
+        _ => None,
+    });
+    body.is_some_and(|b| is_context_function(l, tpe) && uninitialized_rhs(l, b, tpe))
 }
 
 /// Whether `s` is `scala.compiletime.uninitialized`.

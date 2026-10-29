@@ -12,7 +12,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ENUM, INLINEPROXY};
-use tasty::{SymbolId, Type};
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{AnonMirror, TNodeId};
 
 /// The parent anonymous mirror class `class` of kind `kind` gets and its members; the names of
@@ -29,7 +29,8 @@ pub fn anon_mirror_support(
     let linked = mono.and_then(|m| l.u.alias_of(m)).and_then(|a| {
         let a = l.u.dealias(a);
         let a = l.u.normalized(a);
-        l.u.class_symbol(a)
+        let a = l.u.widen(a);
+        class_of(l, a)
     });
     let (Some(mono), Some(linked)) = (mono, linked) else {
         return unsupported(span, "anonymous mirror of a type that is no class");
@@ -56,4 +57,14 @@ pub fn anon_mirror_support(
             (cc.mirror_sum, vec![ordinal])
         }
     })
+}
+
+/// The class of type `t`; of an intersection, that of the part deriving from the other's.
+fn class_of(l: &mut Lower, t: TypeId) -> Option<SymbolId> {
+    let Type::And(a, b) = *l.u.types().get(t) else { return l.u.class_symbol(t) };
+    match (class_of(l, a), class_of(l, b)) {
+        (Some(a), Some(b)) if l.u.derives_from(b, a) => Some(b),
+        (Some(a), Some(b)) => l.u.derives_from(a, b).then_some(a),
+        (a, b) => a.or(b),
+    }
 }

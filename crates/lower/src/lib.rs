@@ -56,6 +56,8 @@ pub struct Lower<'a> {
     lazy_members: FxHashMap<SymbolId, phases::lazy_vals::LazyMembers>,
     /// The accessors of local lazy values, before and after `LambdaLift`.
     local_lazy_accessors: FxHashSet<SymbolId>,
+    /// The accessor of each local object, by its value.
+    local_objects: FxHashMap<SymbolId, SymbolId>,
     /// The fields of lifted local classes holding the values they capture, each with the
     /// constructor parameter setting it.
     proxies: Vec<(SymbolId, SymbolId)>,
@@ -154,6 +156,7 @@ pub fn lower_sources(
         extensions: FxHashMap::default(),
         lazy_fields: Vec::new(),
         lazy_members: FxHashMap::default(),
+        local_objects: FxHashMap::default(),
         local_lazy_accessors: FxHashSet::default(),
         endless_loops: FxHashSet::default(),
         proxies: Vec::new(),

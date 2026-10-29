@@ -9,6 +9,7 @@ use super::anon_mirrors::anon_mirror_support;
 use super::case_members::case_accessors;
 use super::enum_values::is_enum_value;
 use super::lift_names::fresh;
+use super::mirror_prefixes::new_seen_from;
 use super::sum_mirrors::is_generic_sum;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
@@ -124,7 +125,7 @@ pub fn from_product(
             defs.push(l.positioned(def));
             refs.push(l.ident(binding, Span::NONE));
         }
-        let new = l.new_(case_class, Span::NONE);
+        let new = new_seen_from(l, case_class, mono);
         let ctor = l.u.decl(case_class, "<init>").unwrap_or_default();
         let ctor = ctor.into_iter().next().expect("a case class constructor");
         let created = l.call(new, ctor, &refs);

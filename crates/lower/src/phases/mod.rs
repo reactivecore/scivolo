@@ -79,6 +79,7 @@ mod local_proxies;
 mod local_traits;
 mod memoize;
 mod methods;
+mod mirror_prefixes;
 mod mirrors;
 mod mixin;
 mod module_purity;
