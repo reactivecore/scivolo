@@ -87,7 +87,8 @@ impl Typer<'_> {
             }
             if let Some(m) = self.anchor_companion(s).filter(|&m| self.holds_implicits(m)) {
                 let path = prefix.filter(|&p| match *self.u.types().get(p) {
-                    Type::Sym(_, x) => self.u.symbol(x).kind.is_term() && !self.is_excluded(x),
+                    Type::Sym(_, x) => self.u.symbol(x).kind.is_term(),
+                    Type::This(_) => true,
                     _ => false,
                 });
                 let (Some(p), Some(class)) = (path, self.u.module_class(m)) else {
