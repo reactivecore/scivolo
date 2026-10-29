@@ -24,6 +24,10 @@ impl Typer<'_> {
         self.protos.push(fun_proto);
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
         let fun_ctx = plain_ctx;
+        let once = !matches!(self.ast.tree(fun), Tree::Apply { .. });
+        if self.protos[proto].args.is_empty() && once && self.drops_empty_args(f) {
+            return f;
+        }
         let f = match self.with_apply(f, Pt::Fun(proto), fun_ctx) {
             Ok(f) if self.is_pending_dynamic(f) => return self.dynamic_apply(id, f, proto, pt, fun_ctx),
             Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),
@@ -52,7 +56,14 @@ impl Typer<'_> {
             return self.summon_from_applied(id, &arg_ids, pt, ctx);
         }
         let using = self.protos[proto].using;
-        let f = match self.with_type_vars(f).and_then(|f| self.with_using_args(f, using, fun_ctx)) {
+        let f = match self.with_all_type_vars(f).and_then(|f| self.with_using_args(f, using, fun_ctx)) {
+            Ok(g) if g != f => {
+                let g = self.inlined_transparent(g, Pt::Fun(proto), fun_ctx).unwrap_or(g);
+                self.with_apply(g, Pt::Fun(proto), fun_ctx)
+            }
+            other => other,
+        };
+        let f = match f {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
@@ -215,7 +226,7 @@ impl Typer<'_> {
         let apply = self.tpd.node(T::Apply { fun: f, args }, self.ast.span(id), Some(tpe), None);
         self.fold_apply(apply);
         let widened = self.widen_enum_case(apply, infix_meth, pt);
-        match self.converted_new_generic_array(widened) {
+        match self.converted_new_generic_array(widened).and_then(|t| self.lifted_partial(t, &lifted, pt)) {
             Ok(tree) => self.wrap_defs(lifted, tree),
             Err(what) => self.unsupported(id, what),
         }

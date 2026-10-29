@@ -154,11 +154,17 @@ impl Universe {
     }
 
     /// The names of `s` and its owners up to its package, joined by `$`, an object's without its
-    /// `$` (dotty's `fullNameSeparated(ExpandPrefixName)`).
+    /// `$` and a `_$` for each term between it and its enclosing class (dotty's
+    /// `fullNameSeparated(ExpandPrefixName)`).
     pub fn expanded_prefix(&self, s: SymbolId) -> String {
         let sym = self.symbol(s);
-        let name = module_name(&sym.name).unwrap_or(&sym.name);
-        match sym.owner {
+        let mut name = module_name(&sym.name).unwrap_or(&sym.name).to_owned();
+        let mut owner = sym.owner;
+        while let Some(o) = owner.filter(|&o| self.symbol(o).kind.is_term()) {
+            name.insert_str(0, "_$");
+            owner = self.symbol(o).owner;
+        }
+        match owner {
             Some(o) if self.symbol(o).kind == Kind::Package => match self.full_name(o).as_str() {
                 "" | "<empty>" => name.to_owned(),
                 package => format!("{}${name}", package.replace('.', "$")),

@@ -17,11 +17,14 @@ pub fn module_name(class: &str) -> Option<&str> {
 }
 
 impl Universe {
-    /// The class of object `module`: the one declared beside it, else the class of its type.
+    /// The class of object `module`: the one declared beside it, else, or among several of its
+    /// name, the class of its type, else none.
     pub fn module_class(&mut self, module: SymbolId) -> Option<SymbolId> {
         let owner = self.symbol(module).owner?;
-        let name = self.symbol(module).name.clone();
-        if let Some(c) = self.module_class_in(owner, &name) {
+        let name = module_class_name(&self.symbol(module).name);
+        let beside: Vec<SymbolId> =
+            self.decl(owner, &name).unwrap_or_default().into_iter().filter(|&c| self.is_class(c)).collect();
+        if let [c] = beside[..] {
             return Some(c);
         }
         let info = self.info(module);
@@ -37,11 +40,20 @@ impl Universe {
         self.decl(owner, &name).ok()?.into_iter().find(|&c| self.is_class(c))
     }
 
-    /// The object of module class `c`.
+    /// The object of module class `c`: among several of its name, the one typed `c`, else none.
     pub fn source_module(&mut self, c: SymbolId) -> Option<SymbolId> {
         let owner = self.symbol(c).owner?;
         let name = module_name(&self.symbol(c).name)?.to_owned();
-        self.decl(owner, &name).ok()?.into_iter().find(|&s| self.is_module(s))
+        let found: Vec<SymbolId> =
+            self.decl(owner, &name).ok()?.into_iter().filter(|&s| self.is_module(s)).collect();
+        let typed_c = |u: &mut Self, s: SymbolId| {
+            let info = u.info(s);
+            matches!(*u.types().get(info), Type::Sym(_, x) if x == c)
+        };
+        match found[..] {
+            [s] => Some(s),
+            _ => found.into_iter().find(|&s| typed_c(self, s)),
+        }
     }
 
     /// The class whose companion object has module class `c`.

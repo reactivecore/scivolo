@@ -24,7 +24,8 @@ impl Reducer<'_, '_> {
         Ok(match self.i.tpd.tree(pat).clone() {
             T::Typed { expr, tpt } => {
                 let extractor = self.extractor_binds(expr);
-                if extractor.is_none() && self.binds_type(expr) {
+                let unapply = matches!(self.i.tpd.tree(expr), T::UnApply { .. });
+                if extractor.is_none() && !unapply && self.binds_type(expr) {
                     return Err((span, "type binding in an inline match pattern"));
                 }
                 let tpe = self.i.tpd.tpe(tpt);

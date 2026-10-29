@@ -173,7 +173,7 @@ impl Typer<'_> {
     }
 
     /// Completes the type members `t` selects.
-    fn complete_type_members(&mut self, t: TypeId) {
+    pub fn complete_type_members(&mut self, t: TypeId) {
         let mut members = Vec::new();
         self.u.map_type(t, &mut |u, part| {
             if let Type::Sym(Some(_), s) = *u.types().get(part)

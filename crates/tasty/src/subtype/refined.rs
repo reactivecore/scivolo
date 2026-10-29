@@ -19,8 +19,9 @@ impl Cmp<'_> {
         }
         let Some(class) = self.u.class_symbol(t) else { return false };
         let members = self.u.member(class, name);
+        let site = if self.is_stable(a) { a } else { t };
         members.into_iter().any(|m| {
-            let have = self.u.member_info(t, m);
+            let have = self.u.member_info(site, m);
             self.info_conforms(have, info) || self.abstract_member_matches(a, m, have, info)
         })
     }

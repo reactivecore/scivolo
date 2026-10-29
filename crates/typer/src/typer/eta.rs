@@ -180,16 +180,22 @@ impl Typer<'_> {
     }
 
     /// Whether `pt` is a single abstract method type of `n` parameters, a warning given for
-    /// method reference `tree` unless its class is `@FunctionalInterface`; `Err` for a class
-    /// defined outside the script or a Java one.
+    /// method reference `tree` unless its class is `@FunctionalInterface`; `Err` for a Java class
+    /// other than a JDK functional interface.
     fn sam_method_value(&mut self, tree: TNodeId, pt: TypeId, n: usize) -> Result<bool, &'static str> {
         let outside = "method value of a single abstract method type";
         let Some(sam) = self.sam_parts(pt, n, false).map_err(|_| outside)? else { return Ok(false) };
         let class = self.u.class_symbol(pt).ok_or(outside)?;
-        if self.u.symbol(class).tree.is_some() || self.is_java_class_name(class) {
+        let java = self.is_java_class_name(class);
+        if java && !super::java_classes::is_functional_interface(&self.u.full_name(class)) {
             return Err(outside);
         }
-        if !self.u.annotations(class).iter().any(|&a| self.u.full_name(a) == "java.lang.FunctionalInterface")
+        if !java
+            && !self
+                .u
+                .annotations(class)
+                .iter()
+                .any(|&a| self.u.full_name(a) == "java.lang.FunctionalInterface")
         {
             let name = self.tpd.sym(tree).map_or_else(String::new, |s| self.u.symbol(s).name.clone());
             let parent = self.u.show_user(sam.parent);
