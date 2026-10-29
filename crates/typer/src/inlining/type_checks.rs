@@ -12,21 +12,16 @@ impl Inlining<'_> {
     /// `typeChecks(code)`: whether the constant string `code` parses, types in the context of the
     /// outermost call and expands without errors.
     pub fn type_checks(&mut self, arg: TNodeId, owner: SymbolId, span: Span) -> Result<bool, Unsupported> {
-        let mut code = arg;
-        loop {
-            code = match *self.tpd.tree(code) {
-                T::Typed { expr, .. } => expr,
-                T::Block { stats, expr } if stats.is_empty() => expr,
-                T::Inlined { bindings, expansion, .. } if bindings.is_empty() => expansion,
-                _ => break,
-            };
+        let mut r = super::Reflect { u: &mut *self.u, tpd: &mut *self.tpd, names: &mut *self.names, span };
+        let code = r.underlying_argument(arg);
+        let mut constant = self.code_constant(code);
+        if constant.is_none() {
+            let outer = std::mem::replace(&mut self.force_inline, true);
+            let inlined = self.transform(self.stripped(code), owner);
+            self.force_inline = outer;
+            constant = self.code_constant(inlined?);
         }
-        let literal = match self.tpd.tree(code) {
-            T::Literal { value } => Some(value.clone()),
-            _ => None,
-        };
-        let tpe = self.tpd.tpe(arg);
-        let Some(C::String(code)) = literal.or_else(|| self.constant_of_type(tpe)) else {
+        let Some(C::String(code)) = constant else {
             return Err((span, "typeChecks of code that is not a constant string"));
         };
         let code = String::from_utf16_lossy(&code);
@@ -45,6 +40,28 @@ impl Inlining<'_> {
             None => false,
         };
         Ok(checks)
+    }
+
+    /// The constant `t` is without typed, empty blocks and inlined trees without bindings, or
+    /// its type's, folded (dotty's `ConstFold`).
+    fn code_constant(&mut self, t: TNodeId) -> Option<C> {
+        let code = self.stripped(t);
+        self.fold_constants(code);
+        match self.tpd.tree(code) {
+            T::Literal { value } => Some(value.clone()),
+            _ => self.constant_of_type(self.tpd.tpe(code)),
+        }
+    }
+
+    fn stripped(&self, mut t: TNodeId) -> TNodeId {
+        loop {
+            t = match *self.tpd.tree(t) {
+                T::Typed { expr, .. } => expr,
+                T::Block { stats, expr } if stats.is_empty() => expr,
+                T::Inlined { bindings, expansion, .. } if bindings.is_empty() => expansion,
+                _ => return t,
+            };
+        }
     }
 
     /// The empty list of errors `typeCheckErrors(code)` call `call` returns for code without

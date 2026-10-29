@@ -39,6 +39,8 @@ pub trait Host {
     /// Statements `code` parsed and typed as a block in `ctx`, `None` if that reports an error
     /// (dotty's `Inlines.Intrinsics.compileForErrors` up to the typer).
     fn typed_code(&mut self, lent: Lent<'_>, code: &str, ctx: Ctx) -> Option<TNodeId>;
+    /// The typed definition of inline method `meth` of the unit, `Ok(None)` if it has none.
+    fn inline_def(&mut self, lent: Lent<'_>, meth: SymbolId) -> Result<Option<TNodeId>, &'static str>;
     /// What macro call `call` expands to (dotty's `Splicer.splice`).
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError>;
     /// The typed annotations on `s`, a symbol of the unit, in source order.
