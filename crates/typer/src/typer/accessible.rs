@@ -42,7 +42,7 @@ impl Typer<'_> {
             return syms;
         }
         let accessible: Vec<SymbolId> =
-            syms.iter().copied().filter(|&s| self.is_accessible_from(s, Some(prefix), ctx)).collect();
+            syms.iter().copied().filter(|&s| self.is_selectable(s, prefix, ctx)).collect();
         if accessible.is_empty() { syms } else { accessible }
     }
 
@@ -55,8 +55,8 @@ impl Typer<'_> {
         self.linked_class(boundary).is_some_and(|linked| self.access_within(linked, ctx))
     }
 
-    /// The class, package or term up to which `sym` is accessible, `None` if it is public
-    /// (dotty's `accessBoundary(owner)`).
+    /// The class, package or term up to which `sym` is accessible, `None` if it is public or a
+    /// JDK class Scala Native defines under another name (dotty's `accessBoundary(owner)`).
     fn access_boundary(&mut self, sym: SymbolId) -> Option<SymbolId> {
         let (owner, flags) = (self.u.symbol(sym).owner?, self.u.symbol(sym).flags);
         if flags.has(PRIVATE) {
@@ -66,16 +66,24 @@ impl Typer<'_> {
             return Some(within);
         }
         if flags.has(PRIVATEqualified) || flags.has(PROTECTEDqualified) {
+            if self.u.is_class(sym) && tasty::defined_name(&self.u.full_name(sym)).is_some() {
+                return None;
+            }
             return Some(self.u.access_qualifier(sym).unwrap_or(owner));
         }
         flags.has(PROTECTED).then_some(owner)
     }
 
-    /// Whether `ctx`'s owner is `boundary` or inside it (dotty's `accessWithin`).
+    /// Whether `ctx`'s owner is `boundary` or inside it, or, compiling javalib, inside the class
+    /// javalib defines JDK class `boundary` as (dotty's `accessWithin`).
     fn access_within(&self, boundary: SymbolId, ctx: Ctx) -> bool {
+        let defined = match self.u.javalib_sources() && self.u.is_class(boundary) {
+            true => tasty::defined_name(&self.u.full_name(boundary)),
+            false => None,
+        };
         let mut o = Some(ctx.owner);
         while let Some(s) = o {
-            if s == boundary {
+            if s == boundary || defined.is_some_and(|d| self.u.is_class(s) && self.u.full_name(s) == d) {
                 return true;
             }
             o = self.u.symbol(s).owner;

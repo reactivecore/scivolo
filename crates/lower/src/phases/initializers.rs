@@ -17,8 +17,8 @@ use typer::tpd::{TNodeId, Tree};
 /// Makes the references to the parameter fields of class definition `td` in its field
 /// initializers, statements and superclass call refer to the constructor's parameters of their
 /// names, and those to the private local values it does not retain plain references; the
-/// parameter fields and private local values `retained` keeps.
-pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
+/// parameter fields and private local values `retained` or `foreign` keeps.
+pub fn transform(l: &mut Lower, td: TNodeId, foreign: &FxHashSet<SymbolId>) -> Result<FxHashSet<SymbolId>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, body, .. } = *l.tpd.tree(template) else {
@@ -30,7 +30,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
     let stats = l.tpd.items(body).to_vec();
     let values = droppable(l, &stats);
     let trait_args = super::trait_params::trait_args(l, parents);
-    let retained = retained(l, class, &stats, &trait_args, &values);
+    let mut retained = retained(l, class, &stats, &trait_args, &values);
+    retained.extend(foreign.iter().filter(|&&s| l.u.symbol(s).owner == Some(class)));
     let dropped: Vec<SymbolId> = values.iter().map(|&(v, _)| v).filter(|v| !retained.contains(v)).collect();
     let params = constructor_params(l, constr);
     for stat in stats {
@@ -157,6 +158,25 @@ fn retained(
         let seen = value.is_none_or(|&(_, defined)| defined < at);
         if !in_constructor || !seen || has(l.u, sym, MUTABLE) && value.is_none() {
             out.insert(sym);
+        }
+    }
+    out
+}
+
+/// The private values of classes that the class definitions `classes` refer to outside their
+/// owner, which `markUsedPrivateSymbols` retains.
+pub fn foreign_refs(l: &Lower, classes: &[TNodeId]) -> FxHashSet<SymbolId> {
+    let mut out = FxHashSet::default();
+    for &td in classes {
+        let class = l.tpd.sym(td);
+        for t in super::explicit_outer::terms(l, td, false) {
+            let (Tree::Ident { .. } | Tree::Select { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t)) else {
+                continue;
+            };
+            let owner = l.u.symbol(s).owner;
+            if owner != class && owner.is_some_and(|o| l.u.is_class(o)) && has(l.u, s, PRIVATE) {
+                out.insert(s);
+            }
         }
     }
     out

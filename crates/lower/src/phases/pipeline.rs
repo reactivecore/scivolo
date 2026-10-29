@@ -33,9 +33,10 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     protected_accessors::transform(l, root, &classes)?;
     let moved = extension_methods::transform(l, &classes)?;
     let deferred = mixin::methods_with_body(l, &classes, false);
+    let foreign = initializers::foreign_refs(l, &classes);
     for &td in &classes {
         uninitialized_defs::transform(l, td);
-        let retained = initializers::transform(l, td)?;
+        let retained = initializers::transform(l, td, &foreign)?;
         getters::transform(l, td, &retained)?;
     }
     uninitialized_defs::refuse_others(l, root)?;
