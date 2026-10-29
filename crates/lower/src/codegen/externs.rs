@@ -12,7 +12,7 @@ use nir::sig::Sig;
 use nir::{Attr, Defn, DefnKind, GlobalId, PosId, Type, TypeId};
 use tasty::tags::{FIELDaccessor, SYNTHETIC};
 use tasty::{Erased, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Template, Tree};
 
 const EXTERN_BODY: &str = "scala.scalanative.unsafe.package$.extern";
 const NAME: &str = "scala.scalanative.unsafe.name";
@@ -64,8 +64,7 @@ impl Gen<'_, '_> {
             return unsupported(span, "extern classes that are no object or trait");
         };
         self.defns.push(Defn { name, attrs, pos, kind });
-        let Tree::TypeDef { rhs, .. } = *self.l.tpd.tree(td) else { unreachable!("a class definition") };
-        let Tree::Template { constr, body, .. } = *self.l.tpd.tree(rhs) else {
+        let Some(Template { constr, body, .. }) = self.l.tpd.class_template(td) else {
             return unsupported(span, "a type definition that is not a class");
         };
         if self.l.u.is_trait(sym) {
