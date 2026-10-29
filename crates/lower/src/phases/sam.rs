@@ -44,8 +44,10 @@ pub fn abstract_methods(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
             }
             earlier.push((d, base));
             let any = l.u.builtins().any;
-            let object_decls = [object, any].into_iter().flat_map(|c| l.u.decl(c, &key.0).unwrap_or_default());
-            let in_object = object_decls.collect::<Vec<_>>().into_iter().any(|o| l.u.erased_method(o).0 == key.1);
+            let object_decls =
+                [object, any].into_iter().flat_map(|c| l.u.decl(c, &key.0).unwrap_or_default());
+            let in_object =
+                object_decls.collect::<Vec<_>>().into_iter().any(|o| l.u.erased_method(o).0 == key.1);
             seen.push(key);
             if abstract_ && base != object && !in_object {
                 out.push(d);

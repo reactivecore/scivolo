@@ -4,7 +4,8 @@
 //! Sum mirrors of the companions of sealed classes other than enums (dotty's `isGenericSum` and
 //! `ordinalBody`): `def ordinal(x$0: S): Int = x$0 match { case _: C1 => 0; ... }`.
 
-use super::mirrors::{class_prefix, is_generic_product};
+use super::mirror_prefixes::{child_prefix, class_prefix};
+use super::mirrors::is_generic_product;
 use super::walk::class_defs;
 use crate::definitions::type_ref;
 use crate::symbols::has;
@@ -68,7 +69,7 @@ pub fn ordinal(
     let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let mut cases = Vec::new();
         for (i, &c) in children.iter().enumerate() {
-            let tpe = match pre.and_then(|pre| child_prefix(l, pre, sealed, c)) {
+            let tpe = match pre.and_then(|pre| child_prefix(l, pre, (sealed, c), class)) {
                 Some(pre) => l.u.intern_type(Type::Sym(Some(pre), c)),
                 None => type_ref(l.u, c),
             };
@@ -88,26 +89,4 @@ pub fn ordinal(
     })?;
     l.tpd.get_mut(def).span = Span::NONE;
     Ok(l.with_span(def, focus))
-}
-
-/// The prefix of child `c` of sealed class `sealed` of prefix `pre`: `pre` up to the common
-/// owner, then the objects down to `c` (dotty's `childPrefix`); `None` where it is no such path.
-fn child_prefix(l: &mut Lower, pre: TypeId, sealed: SymbolId, c: SymbolId) -> Option<TypeId> {
-    let owners = |l: &Lower, s: SymbolId| -> Vec<SymbolId> {
-        let mut v: Vec<SymbolId> = std::iter::successors(l.u.symbol(s).owner, |&o| l.u.symbol(o).owner).collect();
-        v.reverse();
-        v
-    };
-    let (parents, children) = (owners(l, sealed), owners(l, c));
-    let common = parents.iter().zip(&children).take_while(|(a, b)| a == b).count();
-    let mut prefix = Some(pre);
-    for _ in common..parents.len() {
-        let Type::Sym(q, _) = *l.u.types().get(prefix?) else { return None };
-        prefix = q;
-    }
-    for &o in &children[common..] {
-        let m = l.u.source_module(o).filter(|_| l.u.is_module_class(o))?;
-        prefix = Some(l.u.intern_type(Type::Sym(prefix, m)));
-    }
-    prefix
 }

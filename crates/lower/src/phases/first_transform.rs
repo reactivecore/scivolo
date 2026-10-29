@@ -16,7 +16,8 @@ use std::ops::ControlFlow;
 use syntax::ast::constant::Constant;
 use syntax::names::to_utf16;
 use tasty::tags::{
-    CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INLINE, INTconst, LAZY, LONGconst, MUTABLE, TRUEconst,
+    CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INLINE, INTconst, LAZY, LONGconst, MUTABLE,
+    TRUEconst,
 };
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
