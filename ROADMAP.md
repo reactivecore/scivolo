@@ -163,7 +163,7 @@ slower meanwhile:
    of 67, windowslib 34, javalib 531 of 601, auxlib 7 of 15.
    2026-10-30: clib and posixlib complete and pass Scala Native's unit tests on our jars (`just
    lib-jar-report`); nativelib lowers 101 of 103, clib 21, posixlib 67, windowslib 34, javalib
-   547 of 601, auxlib 7 of 15.
+   556 of 601, auxlib 7 of 15.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
