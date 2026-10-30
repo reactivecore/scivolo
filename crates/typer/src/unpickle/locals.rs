@@ -1,5 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //   compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
 //! Blocks with their local definitions, closures of local methods and inlined trees with their
 //! bindings, typed as `TypeAssigner` types them: a type referring to the locals avoided.
@@ -8,7 +9,7 @@ use super::{Refusal, Unpickler};
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::dependent_params::mentions_params;
 use tasty::tags::*;
-use tasty::{NodeId, SymbolId, Type, TypeId, View, view};
+use tasty::{Binder, Kind, NodeId, SymbolId, Type, TypeId, View, view};
 
 impl Unpickler<'_> {
     /// `BLOCK`: its local values and methods defined first, so that they may refer to each other.
@@ -86,13 +87,63 @@ impl Unpickler<'_> {
         let Type::Method { binder, params, result, contextual, .. } = self.u.types().get(info).clone() else {
             return Err("closure of a method without parameters in a library inline body");
         };
-        if mentions_params(self.u, result, binder, Some(s)) {
-            return Err("dependent closure in a library inline body");
+        if params.iter().any(|&(_, p)| self.u.is_erased_param(p)) {
+            let poly_function = self.u.class_ref("scala.PolyFunction");
+            return Ok(self.u.intern_type(Type::Refined(poly_function, "apply".into(), info)));
         }
+        let types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+        let dependent = mentions_params(self.u, result, binder, Some(s));
+        let approx = match dependent {
+            true => self.result_approx(result, (binder, &types), s)?,
+            false => result,
+        };
         let kind = if contextual { "ContextFunction" } else { "Function" };
         let class = self.class_symbol(&format!("scala.{kind}{}", params.len()))?;
-        let args = params.into_iter().map(|(_, p)| p).chain([result]).collect();
-        Ok(crate::defn::applied(self.u, class, args))
+        let function = crate::defn::applied(self.u, class, types.into_iter().chain([approx]).collect());
+        Ok(match dependent {
+            true => self.u.intern_type(Type::Refined(function, "apply".into(), info)),
+            false => function,
+        })
+    }
+
+    /// Dependent result `result` of method `method` with the type members its parameters of
+    /// `types` select replaced by their aliases or upper bounds (dotty's
+    /// `nonDependentResultApprox`).
+    fn result_approx(
+        &mut self,
+        result: TypeId,
+        (binder, types): (Binder, &[TypeId]),
+        method: SymbolId,
+    ) -> Result<TypeId, Refusal> {
+        let approx = self.u.map_type(result, &mut |u, part| {
+            let (pre, member) = match u.types().get(part).clone() {
+                Type::Sym(Some(pre), member) => (pre, Ok(member)),
+                Type::TypeRef(pre, name) => (pre, Err(name)),
+                _ => return None,
+            };
+            let param = match *u.types().get(pre) {
+                Type::Param(b, i) if b == binder => types[i as usize],
+                Type::Sym(None, p)
+                    if u.symbol(p).kind == Kind::Param && u.symbol(p).owner == Some(method) =>
+                {
+                    u.info(p)
+                }
+                _ => return None,
+            };
+            let member = member.or_else(|name| {
+                let members = u.member_of_type(param, &name);
+                members.into_iter().find(|&m| u.is_type_symbol(m)).ok_or(())
+            });
+            let info = u.member_info(param, member.ok()?);
+            Some(match *u.types().get(info) {
+                Type::Bounds(_, hi) | Type::Alias(hi) => hi,
+                _ => info,
+            })
+        });
+        match mentions_params(self.u, approx, binder, Some(method)) {
+            true => Err("dependent closure in a library inline body"),
+            false => Ok(approx),
+        }
     }
 
     /// `tpe`, the type of an expression after definitions of `locals`, widened if it refers to
