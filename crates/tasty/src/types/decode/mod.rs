@@ -1,8 +1,9 @@
 //! Decoding the types of a file's type trees, types and paths.
 
 mod defs;
-mod jdk_renamed;
+mod lambdas;
 mod match_type;
+mod refs;
 
 pub use defs::param_tree_clauses;
 
@@ -127,28 +128,8 @@ impl<'a> Decoder<'a> {
             SUPERtype if k.len() > 1 => self.decode(k[1]),
             TYPEREF | SELECTtpt | TYPEREFin => Type::TypeRef(self.kid(id, 0), self.name(id)),
             TERMREF | SELECT | TERMREFin | SELECTin => Type::TermRef(self.kid(id, 0), self.name(id)),
-            TYPEREFdirect | TERMREFdirect | TYPEREFsymbol | TERMREFsymbol => {
-                let Some(def) = ast.at(n.a as u32) else { return Type::Other(n.tag) };
-                let renamed = k.first().is_some_and(|&p| self.is_jdk_renamed(p, def));
-                let prefix =
-                    (matches!(n.tag, TYPEREFsymbol | TERMREFsymbol) && !renamed).then(|| self.kid(id, 0));
-                if let Some((binder, i)) = self.capture(def) {
-                    return Type::Param(binder, i);
-                }
-                match self.by_tree.get(&(self.file, def)) {
-                    Some(&s) => Type::Sym(prefix, s),
-                    None => Type::Local(Binder(self.file, n.a as u32), self.name(def)),
-                }
-            }
-            TYPEREFpkg | TERMREFpkg => {
-                let name = self.name(id);
-                let name = name.strip_prefix("_root_").map_or(name.as_str(), |n| n.trim_start_matches('.'));
-                let key = if name == "<empty>" { "" } else { name };
-                match self.packages.get(key) {
-                    Some(&p) => Type::Package(p),
-                    None => Type::PackageName(name.to_owned()),
-                }
-            }
+            TYPEREFdirect | TERMREFdirect | TYPEREFsymbol | TERMREFsymbol => self.symbol_ref(id),
+            TYPEREFpkg | TERMREFpkg => self.package_ref(id),
             THIS | QUALTHIS => Type::This(self.kid(id, 0)),
             RECthis => Type::RecThis(Binder(self.file, n.a as u32)),
             RECtype => Type::Rec(self.binder(id), self.kid(id, 0)),
@@ -194,42 +175,11 @@ impl<'a> Decoder<'a> {
             },
             PARAMtype => Type::Param(Binder(self.file, n.a as u32), n.b as u32),
             POLYtype | METHODtype | TYPELAMBDAtype if !k.is_empty() => self.lambda_type(id),
-            LAMBDAtpt if !k.is_empty() => {
-                let (params, body) = k.split_at(k.len() - 1);
-                let params = params.iter().map(|&p| (self.name(p), self.kid(p, 0))).collect();
-                Type::Lambda { binder: self.binder(id), params, result: self.ty(body[0]) }
-            }
+            LAMBDAtpt if !k.is_empty() => self.lambda_tpt(id),
             STRINGconst => Type::Str(self.name(id)),
             CLASSconst if !k.is_empty() => Type::Constant(CLASSconst, i64::from(self.ty(k[0]).0)),
             tag if crate::constant(tag, n.a).is_some() => Type::Constant(tag, n.a),
             tag => Type::Other(tag),
-        }
-    }
-
-    /// A `POLYtype`, `METHODtype` or `TYPELAMBDAtype`: its result, then each parameter's type
-    /// and name, then for a method its modifiers.
-    fn lambda_type(&mut self, id: NodeId) -> Type {
-        let (tag, k) = (self.ast.tag(id), self.ast.kids(id));
-        let result = self.ty(k[0]);
-        let mut params = Vec::new();
-        let (mut implicit, mut contextual) = (false, false);
-        let mut rest = k[1..].iter().copied();
-        while let Some(c) = rest.next() {
-            match self.ast.tag(c) {
-                t @ (IMPLICIT | GIVEN) => (implicit, contextual) = (true, t == GIVEN),
-                t if is_modifier(t) => {}
-                _ => {
-                    let ty = self.ty(c);
-                    let name = rest.next().map_or_else(String::new, |n| self.name(n));
-                    params.push((name, ty));
-                }
-            }
-        }
-        let binder = self.binder(id);
-        match tag {
-            POLYtype => Type::Poly { binder, params, result },
-            METHODtype => Type::Method { binder, params, result, implicit, contextual },
-            _ => Type::Lambda { binder, params, result },
         }
     }
 }
