@@ -539,8 +539,8 @@ macro-fixture:
 javalib-tasty:
     scripts/javalib-tasty.sh
 
-# Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs (scala-cli), written
-# by the pickler: the stubs redefine JDK classes the later phases of dotty use themselves.
+# Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs as dotty's pickler writes
+# it (scala-cli).
 jdk-stubs:
     #!/usr/bin/env bash
     set -euo pipefail
