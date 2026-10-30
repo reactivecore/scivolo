@@ -14,6 +14,7 @@ pub fn enter(u: &mut Universe, object: SymbolId) {
         return;
     }
     let number = synthetic(u, math, "ScalaNumber", Kind::Class, &[ABSTRACT]);
+    u.java_stubs.insert(number);
     let parent = class_type(u, "java.lang", "Number");
     u.parents.insert(number, vec![parent]);
     let boolean = class_type(u, "scala", "Boolean");

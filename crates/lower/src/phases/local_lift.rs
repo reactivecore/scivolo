@@ -104,6 +104,15 @@ pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId) -> Optio
     l.u.enter(class);
     l.local_classes.insert(class, owner);
     let mut from = None;
+    let package_defs: Vec<TNodeId> = super::walk::subtrees(l.tpd, root)
+        .into_iter()
+        .filter(|&t| {
+            matches!(*l.tpd.tree(t), Tree::PackageDef { pid, .. }
+            if l.tpd.sym(t) == Some(package) || l.tpd.sym(pid) == Some(package))
+        })
+        .collect();
+    let enclosing = package_defs.iter().rfind(|&&t| super::walk::subtrees(l.tpd, t).contains(&td));
+    let target = enclosing.or(package_defs.first()).copied();
     for t in super::walk::subtrees(l.tpd, root) {
         match *l.tpd.tree(t) {
             Tree::Block { stats, expr } if l.tpd.items(stats).contains(&td) => {
@@ -114,9 +123,7 @@ pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId) -> Optio
                 let stats = l.tpd.list(&kept);
                 l.tpd.get_mut(t).tree = Tree::Block { stats, expr };
             }
-            Tree::PackageDef { pid, stats }
-                if l.tpd.sym(t) == Some(package) || l.tpd.sym(pid) == Some(package) =>
-            {
+            Tree::PackageDef { pid, stats } if Some(t) == target => {
                 let mut all = l.tpd.items(stats).to_vec();
                 all.push(td);
                 let stats = l.tpd.list(&all);
