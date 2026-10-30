@@ -248,7 +248,7 @@ lib-jar-report +modules: fetch-libs fetch-scala-native release
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     rm -rf tmp/libs-ours && mkdir -p tmp/libs-ours
     ln -s '{{ SCIVOLO_LIBS }}'/*.jar tmp/libs-ours/
-    for m in {{ modules }}; do python3 scripts/lib-jar.py $m && ln -sf ../lib/$m/${m}_native0.5_3-0.5.12.jar tmp/libs-ours/; done
+    for m in {{ modules }}; do python3 scripts/lib-jar.py $m || exit 1; ln -sf ../lib/$m/${m}_native0.5_3-0.5.12.jar tmp/libs-ours/; done
     SCIVOLO_LIBS='{{ justfile_directory() }}/tmp/libs-ours' SCIVOLO_CACHE='{{ justfile_directory() }}/tmp/cache-ours' \
         SCIVOLO_TIMEOUT=1800 scripts/sn-report.sh
 
