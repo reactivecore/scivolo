@@ -3,8 +3,14 @@
 import scala.annotation.static
 
 package java.lang {
+  final class Deprecated extends scala.annotation.StaticAnnotation
   final class FunctionalInterface extends scala.annotation.StaticAnnotation
   final class SuppressWarnings(value: Array[String]) extends scala.annotation.StaticAnnotation
+}
+
+package java.lang.invoke {
+  final class MethodHandles
+  abstract class VarHandle
 }
 
 package java.lang.reflect {

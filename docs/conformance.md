@@ -97,6 +97,14 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
    - Scala 3's JVM backend skips forwarders whose name the companion class already has (dotty
      `tests/run/i19394.scala`).
    - Fix: skip the forwarder instead of reporting an error. VM: not affected.
+6. **Static forwarders of inherited methods carry positions in the wrong file** (nscplugin,
+   `scala-3/scala/scalanative/nscplugin/NirGenStat.scala:826`).
+   - The forwarder's position is the member's span read against the current unit's source
+     (`NirPositions.fromSpan`), even when the member is defined in another file.
+   - auxlib's `scala.scalanative.runtime.BoxedUnit` forwarders to `equals`/`hashCode`/`toString`
+     of `scala/runtime/BoxedUnit.scala` point into `scala/scalanative/runtime/BoxedUnit.scala`,
+     past its end.
+   - Fix: convert `sym.sourcePos`. VM: positions in the member's own file.
 
 ## M4: dotty `tests/run`
 

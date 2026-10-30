@@ -104,8 +104,7 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
         info = tpe;
     }
     if l.u.erase(info) == Erased::Unit {
-        let boxed_unit = l.u.symbol(l.defs.boxed_unit_unit).owner.expect("BoxedUnit");
-        info = type_ref(l.u, boxed_unit);
+        info = l.u.info(l.defs.boxed_unit_unit);
     }
     let holder = holder(l, owner, &name, info, span)?;
     let new = l.new_(holder.class, Span::NONE);
