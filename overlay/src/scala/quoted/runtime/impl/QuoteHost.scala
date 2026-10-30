@@ -91,38 +91,45 @@ object QuoteHost {
 
   /** The arguments of the macro implementation. */
   def args(): Array[Object] = {
+    val quotes = new QuotesImpl
     var made = List.empty[Object]
     var i = 0
     while (i < argCount()) {
-      val (value, next) = this.value(i)
-      made = value :: made
+      val (value, next) = this.value(i, quotes)
+      made = value() :: made
       i = next
     }
     made.reverse.toArray
   }
 
-  /** The value of argument `i` and the index of the argument after it and those it holds. */
-  private def value(i: Int): (Object, Int) = {
+  /** The maker of the value of argument `i`, each `Expr`, `Type` and `Seq` fresh, and the index of
+   *  the argument after it and those it holds.
+   */
+  private def value(i: Int, quotes: Quotes): (() => Object, Int) = {
     val n = arg(i)
     if (n == Int.MinValue + 2) {
-      var (elems, next, left) = (List.empty[Object], i + 1, elementCount(i))
+      var (elems, next, left) = (List.empty[() => Object], i + 1, elementCount(i))
       while (left > 0) {
-        val (elem, after) = value(next)
+        val (elem, after) = value(next, quotes)
         elems = elem :: elems
         next = after
         left -= 1
       }
-      (elems.reverse, next)
+      val makers = elems.reverse
+      (() => makers.map(_()), next)
     } else if (n == Int.MinValue + 3) {
-      val (inner, next) = value(i + 1)
-      ((() => inner): Function0[Object], next)
+      val (inner, next) = value(i + 1, quotes)
+      val thunk: Function0[Object] = () => inner()
+      (() => thunk, next)
+    } else if (n == Int.MinValue) {
+      (() => quotes, i + 1)
+    } else if (n == Int.MinValue + 1) {
+      val made = literal(i)
+      (() => made, i + 1)
+    } else if (n >= 0) {
+      (() => expr(n), i + 1)
     } else {
-      val made =
-        if (n == Int.MinValue) new QuotesImpl
-        else if (n == Int.MinValue + 1) literal(i)
-        else if (n >= 0) expr(n)
-        else quotedType(-1 - n)
-      (made, i + 1)
+      (() => quotedType(-1 - n), i + 1)
     }
   }
 
