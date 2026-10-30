@@ -53,7 +53,7 @@ impl Inlining<'_> {
                 let info = self.u.info(s);
                 let info = self.u.normalized(info);
                 let constant = matches!(self.u.types().get(info), Type::Constant(..) | Type::Str(_));
-                if !constant || rhs.is_some_and(|r| !self.is_pure_expr(r)) {
+                if !constant || rhs.is_some_and(|r| !self.pure().is_pure_expr(r)) {
                     let span = self.tpd.span(t);
                     return Err((span, "inline value of a type that is not constant or impure"));
                 }

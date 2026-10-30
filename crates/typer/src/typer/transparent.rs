@@ -26,10 +26,13 @@ pub enum InlineDef {
 }
 
 impl Typer<'_> {
-    /// Whether `sym` is a transparent inline method, not a macro.
+    /// Whether `sym` is a transparent inline method, a macro only if macros run.
     pub fn is_transparent_inline(&self, sym: SymbolId) -> bool {
         let s = self.u.symbol(sym);
-        s.kind == Kind::Def && s.flags.has(INLINE) && s.flags.has(TRANSPARENT) && !s.flags.has(MACRO)
+        s.kind == Kind::Def
+            && s.flags.has(INLINE)
+            && s.flags.has(TRANSPARENT)
+            && (!s.flags.has(MACRO) || self.macros.is_some())
     }
 
     /// `tree` expanded if it is a call of a transparent inline method outside an inline method,

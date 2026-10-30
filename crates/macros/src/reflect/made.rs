@@ -4,7 +4,6 @@
 //! and copies of definitions.
 
 use super::Fallible;
-use super::decode::Expr;
 use crate::host::Host;
 use syntax::ast::TName;
 use tasty::tags::CASE;
@@ -78,29 +77,6 @@ impl Host {
         self.reflect().closure(def)
     }
 
-    /// The expression number of `e` eta-expanded into a closure owned by `owner`, `e`'s own if it
-    /// is no method.
-    pub fn eta_expand(&mut self, e: Expr, owner: SymbolId) -> Fallible<i32> {
-        let (t, owner) = (e.tree, self.made_owner(owner));
-        let info = self.tpd.get(t).tpe.ok_or("Term.etaExpand of a term without a type")?;
-        let info = self.u.widen(info);
-        if !matches!(self.u.types().get(info), tasty::Type::Method { .. }) {
-            return Ok(e.number);
-        }
-        let synthetic = 1 << tasty::tags::SYNTHETIC;
-        let meth = self.reflect().new_term((owner, "$anonfun", Kind::Def), info, synthetic)?;
-        let params = self.method_params(meth)?;
-        let mut refs = Vec::new();
-        for p in params.iter().flatten() {
-            let s = self.tpd.sym(*p).ok_or("a parameter without a symbol")?;
-            refs.push(self.reflect().ref_(s)?);
-        }
-        let body = self.reflect().apply(t, &refs)?;
-        let def = self.reflect().def_def(meth, &params, Some(body))?;
-        let closure = self.reflect().closure(def)?;
-        Ok(self.add_tree(closure) as i32)
-    }
-
     pub fn lambda_of(&mut self, t: TNodeId) -> Vec<TNodeId> {
         self.lambda_parts_of(t).unwrap_or_default()
     }
@@ -133,7 +109,7 @@ impl Host {
 
     /// The parameter definitions of method `s` by clause: those of its definition in the unit,
     /// else ones made once from its type.
-    fn method_params(&mut self, s: SymbolId) -> Result<Vec<Vec<TNodeId>>, &'static str> {
+    pub fn method_params(&mut self, s: SymbolId) -> Result<Vec<Vec<TNodeId>>, &'static str> {
         if let Some(params) = self.made_params.get(&s) {
             return Ok(params.clone());
         }

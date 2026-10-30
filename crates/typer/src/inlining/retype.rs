@@ -80,7 +80,7 @@ impl Inlining<'_> {
                 let cond = self.retype_forced(inline, cond, args, owner)?;
                 if let Some(C::Boolean(b)) = self.constant_of(cond) {
                     let selected = self.retype(if b { thenp } else { elsep }, args, owner)?;
-                    if self.is_idempotent_expr(cond) {
+                    if self.pure().is_idempotent_expr(cond) {
                         return Ok(selected);
                     }
                     let span = self.envelope(&[cond], selected);
@@ -155,7 +155,12 @@ impl Inlining<'_> {
                 failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)
             }
-            _ => Err((span, "inline body with a return or label")),
+            T::Return { expr, from } => {
+                let expr = self.retype(expr, args, owner)?;
+                self.tpd.get_mut(t).tree = T::Return { expr, from };
+                Ok(t)
+            }
+            _ => Err((span, "inline body with a label")),
         }
     }
 

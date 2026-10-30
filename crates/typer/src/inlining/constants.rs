@@ -25,7 +25,8 @@ impl Inlining<'_> {
             let s = self.u.symbol(s);
             s.kind != Kind::Def && (s.flags.has(INLINE) || s.flags.has(FINAL)) && !s.flags.has(MUTABLE)
         });
-        let counts_as_pure = if inline_val { self.is_idempotent_expr(t) } else { self.is_pure_expr(t) };
+        let counts_as_pure =
+            if inline_val { self.pure().is_idempotent_expr(t) } else { self.pure().is_pure_expr(t) };
         let span = self.tpd.span(t);
         let literal_tpe = constant_type_of(self.u, &value);
         if counts_as_pure {

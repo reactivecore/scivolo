@@ -16,11 +16,11 @@ pub enum MacroArg {
 }
 
 /// A call of macro implementation `method` on static object `receiver` with `args`, from a
-/// splice owned by `owner`; with `context`, its result applied to the `Quotes`.
+/// splice owned by `owner`; its result applied to the `Quotes` `context` times.
 pub struct MacroCall {
     pub method: SymbolId,
     pub receiver: SymbolId,
-    pub context: bool,
+    pub context: u32,
     pub args: Vec<MacroArg>,
     pub owner: SymbolId,
     pub span: Span,

@@ -71,7 +71,7 @@ impl Typer<'_> {
             return Some(true);
         }
         let mut objects = vec![self.resolve_full_name("scala.Predef$", true)?];
-        self.imported_objects(ctx, &mut objects)?;
+        self.imported_objects(ctx, &mut objects, true)?;
         for o in objects {
             for base in self.u.linearization(o) {
                 for d in self.u.decls(base).ok()? {

@@ -164,7 +164,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
             self.arg_span.insert(p, span);
             let skolem = self.i.arg_skolem(arg, skolem)?;
             let tpe = self.i.tpd.tpe(arg);
-            let bound = if self.i.is_singleton_path(tpe) && self.i.is_idempotent_path(arg) {
+            let bound = if self.i.is_singleton_path(tpe) && self.i.pure().is_idempotent_path(arg) {
                 tpe
             } else {
                 self.proxy(p, formal, arg, skolem)?

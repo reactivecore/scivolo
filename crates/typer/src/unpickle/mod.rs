@@ -77,8 +77,24 @@ pub fn member_def(
     unpickler.member_def(id)
 }
 
+/// The annotations of definition `sym` of the classpath, read from its TASTy.
+pub fn annotations(
+    u: &mut Universe,
+    tpd: &mut Tpd,
+    names: &mut Names,
+    sym: SymbolId,
+) -> Result<Vec<TNodeId>, Refusal> {
+    let Some((file, id)) = u.symbol(sym).tree else { return Err("a definition without TASTy") };
+    if u.body_info(file).is_err() {
+        return Err("a definition of an unreadable TASTy file");
+    }
+    define_repeated(u)?;
+    let mut unpickler = Unpickler { u, tpd, names, file, meth: sym, owner: sym, holes: None };
+    unpickler.annotations(id)
+}
+
 /// Defines the class `scala.<repeated>` of repeated parameter types, which pickled trees name.
-fn define_repeated(u: &mut Universe) -> Result<(), Refusal> {
+pub fn define_repeated(u: &mut Universe) -> Result<(), Refusal> {
     let scala = u.package("scala").ok_or("a library without package scala")?;
     let synthetic = tasty::Flags::default().with(tasty::tags::SYNTHETIC);
     crate::defn::special(u, scala, "<repeated>", tasty::Kind::Class, synthetic);
