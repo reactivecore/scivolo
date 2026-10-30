@@ -21,8 +21,8 @@ enum Gives {
     Named(fn(StrId) -> Attr),
     /// An attribute of the fields of what it annotates, a field or a class.
     Field(fn() -> Attr),
-    /// `align` with the default size and no group, on the annotated field or on each field of
-    /// the annotated class.
+    /// `align` with the default size and the group of its string argument, if any, on the
+    /// annotated field or on each field of the annotated class.
     Align,
     /// The name of an extern definition, its string argument.
     Id,
@@ -46,7 +46,7 @@ const ANNOTATIONS: [(&str, Gives); 21] = [
     ("scala.scalanative.unsafe.link", Gives::Named(Attr::Link)),
     ("scala.scalanative.unsafe.define", Gives::Named(Attr::Define)),
     ("scala.scalanative.annotation.align", Gives::Align),
-    ("scala.scalanative.annotation.nonExtern", Gives::Refused),
+    ("scala.scalanative.annotation.nonExtern", Gives::Generated),
     ("scala.scalanative.reflect.annotation.EnableReflectiveInstantiation", Gives::Refused),
     ("scala.scalanative.runtime.struct", Gives::Generated),
     ("scala.scalanative.unsafe.exportAccessors", Gives::Refused),
@@ -81,8 +81,11 @@ pub fn check_annotations(l: &mut Lower, root: TNodeId) -> Result<()> {
             let literal = !strings.is_empty() && strings.iter().all(Option::is_some);
             match gives(l, class) {
                 Some(Gives::Refused) => return unsupported(l.tpd.span(t), what()),
-                Some(Gives::Align) if !strings.is_empty() => {
-                    return unsupported(l.tpd.span(t), format!("{} with arguments", what()));
+                Some(Gives::Align) if strings.iter().any(Option::is_none) => {
+                    return unsupported(
+                        l.tpd.span(t),
+                        format!("{} with arguments other than a group", what()),
+                    );
                 }
                 Some(Gives::Id | Gives::Blocking) if !is_extern => {
                     return unsupported(
@@ -125,7 +128,10 @@ impl Gen<'_, '_> {
         for (sym, of_class) in field.into_iter().flatten().map(|s| (s, false)).chain([(c, true)]) {
             for &class in self.l.u.annotations(sym) {
                 if matches!(gives(self.l, class), Some(Gives::Align)) && !aligned {
-                    attrs.push(Attr::Align { size: -1, group: None });
+                    let group = self.l.u.annotation_strings(sym, class).first().cloned().flatten();
+                    let group =
+                        group.filter(|g| !g.is_empty()).map(|g| StrId(self.pool.strings.intern_str(&g)));
+                    attrs.push(Attr::Align { size: -1, group });
                     aligned = true;
                 }
                 if let Some(Gives::Field(a)) = gives(self.l, class) {

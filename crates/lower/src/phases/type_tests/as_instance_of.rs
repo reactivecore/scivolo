@@ -3,8 +3,9 @@
 //   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
 //! `x.asInstanceOf[T]` as dotty's `transformAsInstanceOf` erases it.
 
+use crate::definitions::type_ref;
 use crate::phases::adapt::{adapt, ascribed, converted, erased_type};
-use crate::phases::casts::{class_named, type_of};
+use crate::phases::casts::{class_named, conforms, type_of};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::{Erased, TypeId};
@@ -13,7 +14,7 @@ use typer::tpd::{TNodeId, Tree};
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
 /// `expr` then `()` for `Unit`, a conversion or a cast of the boxed value from a primitive,
 /// unboxing from a reference or `null` to a primitive, a `ClassCastException` for `Nothing`,
-/// else `t`; casts from or to value classes as `value_cast`.
+/// an ascription if `expr`'s erasure conforms to `target`'s, else `t`; casts from or to value classes as `value_cast`.
 pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TNodeId> {
     let target = l.tpd.tpe(tpt);
     let to = l.u.erase(target);
@@ -29,6 +30,8 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
         return unsupported(span, "casts to or from value classes");
     }
     let refused = || unsupported(span, "casts between primitive values or to references");
+    let erased_expr = this_class(l, expr).unwrap_or_else(|| found.clone());
+    let upcast = conforms(l, &erased_expr, &to);
     let ascription = matches!((&found, &to), (Erased::Prim(a), Erased::Prim(b)) if a == b)
         || (matches!(found, Erased::Null | Erased::Unit) && to == Erased::Unit);
     Ok(match (&found, &to) {
@@ -61,8 +64,16 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
         (_, Erased::Nothing) if matches!(from, Erased::Class(_) | Erased::Array(_) | Erased::Null) => {
             throw_class_cast(l, expr)
         }
+        _ if upcast => l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None),
         _ => t,
     })
+}
+
+/// The erasure of class `C` if `expr` is `C.this`, whatever its self type.
+fn this_class(l: &mut Lower, expr: TNodeId) -> Option<Erased> {
+    let (Tree::This { .. }, Some(c)) = (l.tpd.tree(expr), l.tpd.sym(expr)) else { return None };
+    let tpe = type_ref(l.u, c);
+    Some(l.u.erase(tpe))
 }
 
 /// Cast `t` of `expr` to `tpt` where either is a value class: an ascription if `expr`'s class

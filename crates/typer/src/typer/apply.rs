@@ -116,7 +116,7 @@ impl Typer<'_> {
             .collect();
         let in_order = aligned.is_none() && pretyped.is_none() && repeated.is_none();
         let clause = ((binder, &names[..]), meth);
-        let param_dependent = match self.param_dependent(&formals, clause, in_order, ctx) {
+        let param_dependent = match self.param_dependent(&formals, clause, in_order) {
             Ok(dependent) => dependent,
             Err(what) => return self.unsupported(id, what),
         };

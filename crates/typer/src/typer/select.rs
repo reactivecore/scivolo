@@ -7,7 +7,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -158,36 +158,6 @@ impl Typer<'_> {
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);
         select
-    }
-
-    /// Projection `id`, `qual#name`, of type alias `sym` of `alias`: the alias dealiased, its
-    /// class its symbol; refused if `alias` refers to `this` or to members of `sym`'s owner.
-    fn alias_projection(
-        &mut self,
-        id: NodeId,
-        (qual, name): (TNodeId, TName),
-        sym: SymbolId,
-        alias: TypeId,
-    ) -> TNodeId {
-        let (mut this, owner) = (false, self.u.symbol(sym).owner);
-        self.u.map_type(alias, &mut |u, part| {
-            this |= match *u.types().get(part) {
-                Type::This(_) => true,
-                Type::Sym(_, s) => u.symbol(s).owner == owner,
-                _ => false,
-            };
-            None
-        });
-        if this {
-            return self.unsupported(id, "projection of a type alias referring to its owner");
-        }
-        let tpe = self.u.dealias(alias);
-        let class = match *self.u.types().get(tpe) {
-            Type::Sym(_, s) => Some(s),
-            _ => None,
-        };
-        let span = self.ast.span(id);
-        self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), class)
     }
 
     fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {

@@ -9,6 +9,7 @@ mod accessor_defs;
 mod adapt;
 mod adapt_by_result;
 mod ahead;
+mod alias_projections;
 mod alternatives;
 mod and_members;
 mod and_or_types;

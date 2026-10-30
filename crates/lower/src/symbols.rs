@@ -1,6 +1,6 @@
 //! What the lowering asks of symbols (dotty's `SymDenotations` predicates).
 
-use tasty::tags::{EXTENSION, FINAL, IMPLICIT, PRIVATE, STATIC, SYNTHETIC};
+use tasty::tags::{EXTENSION, FINAL, IMPLICIT, PRIVATE, STATIC};
 use tasty::{Kind, SymbolId, Universe};
 
 pub fn has(u: &Universe, s: SymbolId, tag: u8) -> bool {
@@ -64,10 +64,16 @@ pub fn is_extern(u: &mut Universe, s: SymbolId) -> bool {
     if !annotated(u, s) && !in_extern {
         return false;
     }
-    !match u.symbol(s).tree {
-        Some(_) => u.is_annotated(s, "scala.scalanative.annotation.nonExtern"),
-        None => in_extern && (has(u, s, EXTENSION) || (has(u, s, IMPLICIT) && has(u, s, SYNTHETIC))),
-    }
+    let prep_non_extern =
+        u.symbol(s).tree.is_none() && in_extern && (has(u, s, EXTENSION) || is_implicit_class_ctor(u, s));
+    !(prep_non_extern || u.is_annotated(s, "scala.scalanative.annotation.nonExtern"))
+}
+
+/// Whether `m` is the implicit conversion of an implicit class beside it.
+fn is_implicit_class_ctor(u: &Universe, m: SymbolId) -> bool {
+    let Some(owner) = u.symbol(m).owner.filter(|_| has(u, m, IMPLICIT)) else { return false };
+    let name = &u.symbol(m).name;
+    u.symbol(owner).decls.iter().any(|&c| u.is_class(c) && has(u, c, IMPLICIT) && u.symbol(c).name == *name)
 }
 
 pub fn is_static_module(u: &Universe, s: SymbolId) -> bool {

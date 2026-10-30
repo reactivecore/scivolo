@@ -8,6 +8,7 @@ use crate::definitions::{Ref, ref_class, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};
+use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree, Walk, traverse};
@@ -90,10 +91,11 @@ fn rewrite(l: &mut Lower, td: TNodeId, refs: &FxHashMap<SymbolId, Ref>) {
         Tree::ValDef { name, rhs: Some(rhs), .. } if captured(l, t) => {
             let r = refs[&l.tpd.sym(t).expect("a variable")];
             let span = l.tpd.span(rhs);
-            let class = l.ident(r.class, span);
-            let create = l.select(class, r.create, span);
+            let class = l.ident(r.class, Span::NONE);
+            let create = l.select(class, r.create, Span::NONE);
             let tpe = type_ref(l.u, r.class);
-            let rhs = l.apply(create, &[rhs], tpe, span);
+            let rhs = l.apply(create, &[rhs], tpe, Span::NONE);
+            l.positioned(rhs);
             let tpt = l.type_tree(tpe, span);
             l.tpd.get_mut(t).tree = Tree::ValDef { name, tpt, rhs: Some(rhs) };
             Walk::Children

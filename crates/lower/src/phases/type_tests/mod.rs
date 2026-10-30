@@ -53,7 +53,7 @@ pub fn intercept(l: &mut Lower, t: TNodeId) -> Result<()> {
         type_test(l, expr, target, in_match, span)?
     };
     if new != t {
-        let typed = matches!(l.tpd.tree(new), Tree::Typed { .. });
+        let typed = matches!(l.tpd.tree(new), Tree::Typed { .. }) && !l.tpd.span(new).exists();
         l.copy_node(t, new);
         l.tpd.get_mut(t).span = if typed { super::adapt::from_start(span) } else { span };
     }
