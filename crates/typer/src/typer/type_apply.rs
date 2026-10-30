@@ -99,7 +99,8 @@ impl Typer<'_> {
     }
 
     /// The type of polymorphic `f` applied to `args`, which must be within the bounds of its
-    /// type parameters, or constrained to be if they are type variables.
+    /// type parameters, or constrained to be if they are type variables; the `Object` bound of a
+    /// Java class's type parameter admits any type (dotty's `FromJavaObject`).
     pub fn instantiated(&mut self, f: TNodeId, args: &[TypeId]) -> Result<TypeId, &'static str> {
         self.instantiated_with(f, args, false)
     }
@@ -121,6 +122,8 @@ impl Typer<'_> {
         }
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         let method = self.tpd.sym(self.tpd.meth_part(f));
+        let ctor = method.filter(|&m| self.u.is_constructor(m));
+        let of_java = ctor.and_then(|m| self.u.symbol(m).owner).is_some_and(|c| self.is_java_class_name(c));
         for (&(_, bounds), &arg) in params.iter().zip(args) {
             let bounds = self.instantiate_poly(bounds, binder, &names, args, method);
             let (lo, hi, arity) = self.bounds_of(bounds);
@@ -132,7 +135,9 @@ impl Typer<'_> {
             if var.is_none() && !any_kind && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
+            let java_object = of_java && self.u.class_symbol(hi) == Some(self.u.builtins().object);
             let upper = match var {
+                _ if java_object => true,
                 Some(v) if self.u.dealias(hi) != hi && self.open_vars(hi).is_empty() => {
                     self.constraint.add_upper(self.u, v, hi)
                 }
