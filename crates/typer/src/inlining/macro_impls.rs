@@ -153,17 +153,16 @@ impl Inlining<'_> {
     /// Whether each parameter of method `m`, through all its clauses, is erased (dotty's
     /// `paramErasureStatuses`).
     fn erased_params(&mut self, m: SymbolId) -> Vec<bool> {
-        let mut t = self.u.info(m);
-        if let Type::Poly { result, .. } = *self.u.types().get(t) {
-            t = result;
-        }
-        let mut erased = Vec::new();
-        while let Some(binding) = self.u.method(t) {
+        let (mut t, mut erased) = (self.u.info(m), Vec::new());
+        loop {
+            if let Type::Poly { result, .. } = *self.u.types().get(t) {
+                t = result;
+            }
+            let Some(binding) = self.u.method(t) else { return erased };
             let (params, result) = (binding.param_types(), binding.result);
             erased.extend(params.into_iter().map(|p| self.u.is_erased_param(p)));
             t = result;
         }
-        erased
     }
 
     fn is_static_object(&self, c: SymbolId) -> bool {
