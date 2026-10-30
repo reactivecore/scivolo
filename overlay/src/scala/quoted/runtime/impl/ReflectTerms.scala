@@ -48,11 +48,11 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
 
   abstract class TreeMethodsImpl extends TreeMethods {
     extension (self: Tree) {
-      def asExpr: Expr[Any] = self.asInstanceOf[Expr[Any]]
+      def asExpr: Expr[Any] = QuoteHost.expr(ReflectOps.id(self))
       def asExprOf[T](using t: Type[T]): Expr[T] = {
         if (ReflectOps.one("isExprOf", ReflectOps.id(self), QuoteHost.typeId(t)) == 0)
           throw new Unsupported("Tree.asExprOf of a term of another type")
-        self.asInstanceOf[Expr[T]]
+        self.asExpr.asInstanceOf[Expr[T]]
       }
       def pos: Position = ReflectOps.position("pos", ReflectOps.id(self)).asInstanceOf[Position]
       def show(using printer: Printer[Tree]): String = printer.show(self)
@@ -159,8 +159,8 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
       def appliedToTypeTrees(targs: List[TypeTree]): Term =
         if (targs.isEmpty) self else self.appliedToTypes(targs.map(ReflectOps.tpe(_).asInstanceOf[TypeRepr]))
       def seal: Expr[Any] =
-        if (ReflectOps.isExpr(self)) self.asInstanceOf[Expr[Any]] else throw new Unsupported("Term.seal of a partially applied term")
-      def sealOpt: Option[Expr[Any]] = if (ReflectOps.isExpr(self)) Some(self.asInstanceOf[Expr[Any]]) else None
+        if (ReflectOps.isExpr(self)) self.asExpr else throw new Unsupported("Term.seal of a partially applied term")
+      def sealOpt: Option[Expr[Any]] = if (ReflectOps.isExpr(self)) Some(self.asExpr) else None
       def appliedToType(targ: TypeRepr): Term = self.appliedToTypes(List(targ))
       def appliedToTypes(targs: List[TypeRepr]): Term = {
         val args = ReflectOps.id(self) :: targs.map(ReflectOps.id)

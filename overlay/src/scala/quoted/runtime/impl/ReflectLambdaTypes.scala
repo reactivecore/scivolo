@@ -19,12 +19,11 @@ trait ReflectLambdaTypes extends reflectModule { self: reflect.type =>
   given ParamRefTypeTest: TypeTest[TypeRepr, ParamRef] = test(15)
 
   given LambdaTypeMethods: LambdaTypeMethods = methods("LambdaTypeMethodsImpl")
-  given MethodTypeMethods: MethodTypeMethods = methods("MethodTypeMethodsImpl")
+  given MethodTypeMethods: MethodTypeMethods = new MethodTypeMethodsImpl
   given PolyTypeMethods: PolyTypeMethods = methods("PolyTypeMethodsImpl")
   given TypeLambdaMethods: TypeLambdaMethods = methods("TypeLambdaMethodsImpl")
   given ParamRefMethods: ParamRefMethods = methods("ParamRefMethodsImpl")
 
-  /** A method type of parameter and result types that do not refer to it. */
   object MethodType extends MethodTypeModule {
     def apply(paramNames: List[String])(paramInfosExp: MethodType => List[TypeRepr], resultTypeExp: MethodType => TypeRepr): MethodType =
       make(0, paramNames, paramInfosExp, resultTypeExp)
@@ -32,27 +31,28 @@ trait ReflectLambdaTypes extends reflectModule { self: reflect.type =>
         resultTypeExp: MethodType => TypeRepr): MethodType =
       make(kind.ordinal, paramNames, paramInfosExp, resultTypeExp)
     def unapply(x: MethodType): (List[String], List[TypeRepr], TypeRepr) = (x.paramNames, x.paramTypes, x.resType)
-
-    /** A method type of kind `kind`: 0 plain, 1 implicit, 2 contextual. */
-    private def make(kind: Int, paramNames: List[String], paramInfosExp: MethodType => List[TypeRepr],
-        resultTypeExp: MethodType => TypeRepr): MethodType = {
-      val unknown = QuoteHost.tpe(Int.MaxValue).asInstanceOf[MethodType]
-      val types = paramInfosExp(unknown) ::: List(resultTypeExp(unknown))
-      ReflectOps.run("methodType", (kind :: types.map(ReflectOps.id)).toArray, paramNames.mkString("\u0000"))
-      QuoteHost.tpe(QuoteHost.result(0)).asInstanceOf[MethodType]
-    }
   }
 
   object PolyType extends PolyTypeModule {
     def apply(paramNames: List[String])(paramBoundsExp: PolyType => List[TypeBounds], resultTypeExp: PolyType => TypeRepr): PolyType =
-      refused("PolyType.apply")
+      make(3, paramNames, paramBoundsExp, resultTypeExp)
     def unapply(x: PolyType): (List[String], List[TypeBounds], TypeRepr) = (x.paramNames, x.paramBounds, x.resType)
   }
 
   object TypeLambda extends TypeLambdaModule {
     def apply(paramNames: List[String], boundsFn: TypeLambda => List[TypeBounds], bodyFn: TypeLambda => TypeRepr): TypeLambda =
-      refused("TypeLambda.apply")
+      make(4, paramNames, boundsFn, bodyFn)
     def unapply(x: TypeLambda): (List[String], List[TypeBounds], TypeRepr) = (x.paramNames, x.paramBounds, x.resType)
+  }
+
+  /** A lambda type of kind `kind` (method types 0 plain, 1 implicit, 2 contextual; 3 polymorphic
+   *  types, 4 type lambdas) whose parameter and result types `paramsExp` and `resultExp` give.
+   */
+  private def make[L, P](kind: Int, paramNames: List[String], paramsExp: L => List[P], resultExp: L => TypeRepr): L = {
+    val binder = QuoteHost.tpe(ReflectOps.one("lambdaBinder", kind)).asInstanceOf[L]
+    val types = paramsExp(binder) ::: List(resultExp(binder))
+    ReflectOps.run("lambdaType", (ReflectOps.id(binder) :: types.map(ReflectOps.id)).toArray, paramNames.mkString("\u0000"))
+    QuoteHost.tpe(QuoteHost.result(0)).asInstanceOf[L]
   }
 
   object ParamRef extends ParamRefModule {
@@ -71,30 +71,35 @@ trait ReflectLambdaTypes extends reflectModule { self: reflect.type =>
     }
   }
 
-  abstract class MethodTypeMethodsImpl extends MethodTypeMethods {
+  /** Made with `new`, as `methodTypeKind` reads the enumeration of this `reflect`. */
+  final class MethodTypeMethodsImpl extends MethodTypeMethods {
     extension (self: MethodType) {
       def isImplicit: Boolean = TypeShapes.lambda(self)._1(0) != 0
       def isContextual: Boolean = TypeShapes.lambda(self)._1(1) != 0
-      def methodTypeKind: MethodTypeKind = throw new Unsupported("MethodType.methodTypeKind")
+      def methodTypeKind: MethodTypeKind =
+        if (self.isContextual) MethodTypeKind.Contextual
+        else if (self.isImplicit) MethodTypeKind.Implicit
+        else MethodTypeKind.Plain
       def isErased: Boolean = false
       def erasedParams: List[Boolean] = List.fill(TypeShapes.lambda(self)._1(2))(false)
       def hasErasedParams: Boolean = false
-      def param(idx: Int): TypeRepr = throw new Unsupported("MethodType.param")
+      def param(idx: Int): TypeRepr = LambdaTypes.paramRef(self, idx).asInstanceOf[TypeRepr]
     }
   }
 
   abstract class PolyTypeMethodsImpl extends PolyTypeMethods {
     extension (self: PolyType) {
-      def param(idx: Int): TypeRepr = throw new Unsupported("PolyType.param")
+      def param(idx: Int): TypeRepr = LambdaTypes.paramRef(self, idx).asInstanceOf[TypeRepr]
       def paramBounds: List[TypeBounds] = TypeShapes.lambda(self)._1.drop(3).init.map(QuoteHost.tpe).asInstanceOf[List[TypeBounds]]
     }
   }
 
   abstract class TypeLambdaMethodsImpl extends TypeLambdaMethods {
     extension (self: TypeLambda) {
-      def param(idx: Int): TypeRepr = throw new Unsupported("TypeLambda.param")
+      def param(idx: Int): TypeRepr = LambdaTypes.paramRef(self, idx).asInstanceOf[TypeRepr]
       def paramBounds: List[TypeBounds] = TypeShapes.lambda(self)._1.drop(3).init.map(QuoteHost.tpe).asInstanceOf[List[TypeBounds]]
-      def paramVariances: List[Flags] = throw new Unsupported("TypeLambda.paramVariances")
+      def paramVariances: List[Flags] = ReflectOps.results("paramVariances", ReflectOps.id(self))
+        .map(v => new FlagsImpl((v & 1L) << 28 | (v & 2L) << 28).asInstanceOf[Flags])
     }
   }
 
@@ -107,9 +112,12 @@ trait ReflectLambdaTypes extends reflectModule { self: reflect.type =>
 
   private def test[T](kinds: Int*): T = new TypeKindTest(kinds*).asInstanceOf[T]
 
-  private def refused(what: String): Nothing = throw new Unsupported(what)
-
   private def methods[T](name: String): T =
     QuoteHost.allocate("scala.quoted.runtime.impl.ReflectLambdaTypeSupport$ReflectLambdaTypes$" + name).asInstanceOf[T]
 }
+}
+
+object LambdaTypes {
+  /** The reference to parameter `idx` of lambda type `lambda`. */
+  def paramRef(lambda: Any, idx: Int): Any = QuoteHost.tpe(ReflectOps.one("paramRef", ReflectOps.id(lambda), idx))
 }

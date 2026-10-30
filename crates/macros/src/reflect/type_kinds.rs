@@ -34,6 +34,23 @@ impl Host {
         })
     }
 
+    /// The type of kind `kind` (as `type_kind` numbers them) and parts `parts`, a refinement's
+    /// member named `name`: the inverse of `type_parts`.
+    pub fn type_of_parts(&mut self, kind: i32, parts: Vec<TypeId>, name: String) -> Fallible<TypeId> {
+        let t = match (kind, &parts[..]) {
+            (5, &[lo, hi]) => Type::Bounds(lo, hi),
+            (6, &[parent, info]) => Type::Refined(parent, name, info),
+            (12, &[a, b]) => Type::And(a, b),
+            (13, &[a, b]) => Type::Or(a, b, false),
+            (17, &[bound, scrutinee, ref cases @ ..]) => {
+                Type::Match { bound, scrutinee, cases: cases.to_vec() }
+            }
+            (20, &[pattern, body]) => Type::MatchCase(pattern, body),
+            _ => return Err("a type of another kind or number of parts"),
+        };
+        Ok(self.u.intern_type(t))
+    }
+
     pub fn param_num(&self, t: TypeId) -> Fallible<i32> {
         match *self.u.types().get(t) {
             Type::Param(_, i) => Ok(i as i32),

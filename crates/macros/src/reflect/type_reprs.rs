@@ -9,7 +9,11 @@ use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
     pub fn show_type(&mut self, t: TypeId) -> Fallible<String> {
-        self.u.show_source(t)
+        self.u.show_source(t, true)
+    }
+
+    pub fn show_type_short(&mut self, t: TypeId) -> Fallible<String> {
+        self.u.show_source(t, false)
     }
 
     pub fn show_type_structure(&mut self, t: TypeId) -> Fallible<String> {
@@ -36,20 +40,6 @@ impl Host {
         self.u.dealias(t)
     }
 
-    /// The method type of `kind` (0 plain, 1 implicit, 2 contextual) of parameter types and the
-    /// result type `types`, the parameters named by `names` separated by `\0`.
-    pub fn method_type(&mut self, kind: i32, types: Vec<TypeId>, names: String) -> Fallible<TypeId> {
-        let (&result, params) = types.split_last().ok_or("MethodType.apply without its result type")?;
-        let names: Vec<String> = names.split('\0').filter(|n| !n.is_empty()).map(str::to_owned).collect();
-        if names.len() != params.len() {
-            return Err("MethodType.apply with another number of names than types");
-        }
-        let binder = self.u.fresh_binder();
-        let params = names.into_iter().zip(params.iter().copied()).collect();
-        let t = Type::Method { binder, params, result, implicit: kind != 0, contextual: kind == 2 };
-        Ok(self.u.intern_type(t))
-    }
-
     pub fn by_name(&mut self, t: TypeId) -> TypeId {
         self.u.intern_type(Type::ByName(t))
     }
@@ -69,8 +59,29 @@ impl Host {
         Ok(self.u.linearization(c))
     }
 
+    /// The type of member `s` seen from `t`; a parameterless method's as a by-name type, a type
+    /// alias's as its alias, a class's as a reference to it.
     pub fn member_type(&mut self, t: TypeId, s: SymbolId) -> Fallible<TypeId> {
-        Ok(self.repeated_param(s)?.unwrap_or_else(|| self.u.term_type(Some(t), s)))
+        if let Some(p) = self.repeated_param(s)? {
+            return Ok(p);
+        }
+        if self.u.is_class(s) {
+            let member = self.u.symbol(s).owner.is_some_and(|o| self.u.is_class(o));
+            return Ok(self.u.intern_type(Type::Sym(member.then_some(t), s)));
+        }
+        let m = self.u.term_type(Some(t), s);
+        let shape = self.u.types().get(m);
+        let method = matches!(shape, Type::Method { .. } | Type::Poly { .. });
+        let bounds = match shape {
+            Type::Bounds(..) | Type::Alias(_) => true,
+            Type::Lambda { result, .. } => matches!(self.u.types().get(*result), Type::Bounds(..)),
+            _ => false,
+        };
+        Ok(match self.u.symbol(s).kind {
+            Kind::Def if !method => self.u.intern_type(Type::ByName(m)),
+            Kind::Type if !bounds => self.u.intern_type(Type::Alias(m)),
+            _ => m,
+        })
     }
 
     pub fn term_ref(&mut self, qual: TypeId, name: String) -> Fallible<TypeId> {

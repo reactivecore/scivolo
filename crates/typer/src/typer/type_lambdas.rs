@@ -71,6 +71,12 @@ impl Typer<'_> {
             u.intern_type(Type::Lambda { binder, params: lambda_params.clone(), result })
         };
         let bounds = matches!(self.u.types().get(body_tpe), Type::Bounds(..));
+        let opaque = |s: SymbolId| self.syms.flags.get(&s).is_some_and(|fl| fl.is(f::OPAQUE));
+        let match_alias = matches!(self.u.types().get(body_tpe), Type::Match { .. });
+        let declares = type_def.is_some_and(|s| match_alias || opaque(s));
+        if bounds || declares || syms.iter().any(|&s| self.u.has_variance(s)) {
+            self.u.declare_variances(binder, &syms);
+        }
         if bounds && self.leaks_private_type(owner, body_tpe, &syms) {
             return self.unsupported(id, "private type in the bounds of a higher-kinded type");
         }
