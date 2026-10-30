@@ -37,7 +37,7 @@ impl Universe {
 }
 
 /// Whether statement `s` of a template body runs code when an instance is made: a concrete,
-/// non-lazy value but an object's, or an expression.
+/// value neither lazy nor an object's, or an expression.
 fn initializes(ast: &Ast, s: NodeId) -> bool {
     match ast.tag(s) {
         VALDEF => match view(ast, s) {
