@@ -8,7 +8,7 @@ use super::decode::Expr;
 use crate::host::Host;
 use syntax::ast::TName;
 use tasty::tags::CASE;
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
@@ -81,12 +81,30 @@ impl Host {
     /// The expression number of `e` eta-expanded into a closure owned by `owner`, `e`'s own if it
     /// is no method.
     pub fn eta_expand(&mut self, e: Expr, owner: SymbolId) -> Fallible<i32> {
-        let (t, owner) = (e.tree, self.made_owner(owner));
+        let owner = self.made_owner(owner);
+        match self.eta(e.tree, owner)? {
+            Some(closure) => Ok(self.add_tree(closure) as i32),
+            None => Ok(e.number),
+        }
+    }
+
+    /// The closure of method term `t` owned by `owner`, its result eta-expanded in turn; `None`
+    /// if `t` is no method.
+    fn eta(&mut self, t: TNodeId, owner: SymbolId) -> Fallible<Option<TNodeId>> {
         let info = self.tpd.get(t).tpe.ok_or("Term.etaExpand of a term without a type")?;
         let info = self.u.widen(info);
-        if !matches!(self.u.types().get(info), tasty::Type::Method { .. }) {
-            return Ok(e.number);
-        }
+        let Type::Method { params, result, implicit, contextual, .. } = self.u.types().get(info).clone()
+        else {
+            return Ok(None);
+        };
+        let info = match self.u.types().get(result) {
+            Type::Method { .. } => {
+                let result = self.function_type(result)?;
+                let binder = self.u.fresh_binder();
+                self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+            }
+            _ => info,
+        };
         let synthetic = 1 << tasty::tags::SYNTHETIC;
         let meth = self.reflect().new_term((owner, "$anonfun", Kind::Def), info, synthetic)?;
         let params = self.method_params(meth)?;
@@ -95,10 +113,30 @@ impl Host {
             let s = self.tpd.sym(*p).ok_or("a parameter without a symbol")?;
             refs.push(self.reflect().ref_(s)?);
         }
-        let body = self.reflect().apply(t, &refs)?;
+        let applied = self.reflect().apply(t, &refs)?;
+        let body = self.eta(applied, meth)?.unwrap_or(applied);
         let def = self.reflect().def_def(meth, &params, Some(body))?;
-        let closure = self.reflect().closure(def)?;
-        Ok(self.add_tree(closure) as i32)
+        Ok(Some(self.reflect().closure(def)?))
+    }
+
+    /// The function type of method type `m`, curried for its later clauses (dotty's
+    /// `toFunctionType`).
+    fn function_type(&mut self, m: TypeId) -> Fallible<TypeId> {
+        let Type::Method { binder, params, result, .. } = self.u.types().get(m).clone() else {
+            return Ok(m);
+        };
+        let mut dependent = false;
+        self.u.map_type(result, &mut |u, part| {
+            dependent |= matches!(*u.types().get(part), Type::Param(b, _) if b == binder);
+            None
+        });
+        if dependent || matches!(self.u.types().get(m), Type::Method { implicit: true, .. }) {
+            return Err("Term.etaExpand of a method with a dependent or implicit later clause");
+        }
+        let result = self.function_type(result)?;
+        let class = self.u.class_ref(&format!("scala.Function{}", params.len()));
+        let args = params.into_iter().map(|(_, p)| p).chain([result]).collect();
+        Ok(self.u.intern_type(Type::Applied(class, args)))
     }
 
     pub fn lambda_of(&mut self, t: TNodeId) -> Vec<TNodeId> {

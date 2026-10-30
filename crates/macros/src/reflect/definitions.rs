@@ -12,15 +12,20 @@ use typer::tpd::{TNodeId, Tree as T};
 impl Host {
     /// The annotations of `s`, those of class `cls` if given.
     pub fn annotations(&mut self, s: SymbolId, cls: Option<SymbolId>) -> Fallible<Vec<TNodeId>> {
-        if self.definition(s).is_none() {
-            let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
-            let universal = matches!(owner.as_deref(), Some("java.lang.Object" | "scala.Any"));
-            return match cls {
-                Some(_) if universal => Ok(Vec::new()),
-                _ => Err("the annotations of a symbol defined outside the unit"),
-            };
-        }
-        let mut trees = self.typer.annotations.get(&s).cloned().unwrap_or_default();
+        let mut trees = match self.definition(s) {
+            Some(_) => self.typer.annotations.get(&s).cloned().unwrap_or_default(),
+            None if self.u.symbol(s).tree.is_some() => {
+                typer::unpickle::annotations(&mut self.u, &mut self.tpd, &mut self.names, s)?
+            }
+            None => {
+                let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
+                let universal = matches!(owner.as_deref(), Some("java.lang.Object" | "scala.Any"));
+                return match cls {
+                    Some(_) if universal => Ok(Vec::new()),
+                    _ => Err("the annotations of a symbol defined outside the unit"),
+                };
+            }
+        };
         if let Some(cls) = cls {
             trees.retain(|&t| self.u.class_symbol(self.tpd.tpe(t)) == Some(cls));
         }

@@ -1,14 +1,15 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
-//! `Select.overloaded`: the alternative of a member applicable to the arguments and more
-//! specific than the other applicable ones (dotty's `applyOverloaded`, without implicit
-//! conversions or default arguments).
+//! `Select.overloaded` (dotty's `applyOverloaded`): the only member of the name, else the
+//! alternative applicable to the arguments and more specific than the other applicable ones,
+//! without implicit conversions.
 
 use super::Fallible;
 use crate::host::Host;
 use tasty::{SymbolId, Type, TypeId};
-use typer::tpd::TNodeId;
+use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
     /// `Select.overloaded(qual, name, targs, args)`, `rest` the `n` type arguments and the
@@ -23,21 +24,39 @@ impl Host {
         let (targs, terms) = rest.split_at((n as usize).min(rest.len()));
         let targs = targs.iter().map(|&t| self.type_of(t as u32)).collect::<Result<Vec<_>, _>>()?;
         let terms = terms.iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;
-        let arg_types: Vec<TypeId> = terms.iter().map(|&t| self.tpd.tpe(t)).collect();
         let tpe = self.tpd.tpe(qual);
         let mut members = self.u.member_of_type(tpe, &name);
         members.retain(|&m| self.u.symbol(m).kind.is_term());
+        let chosen = match members[..] {
+            [m] => m,
+            _ => self.most_specific(qual, &members, &targs, &terms)?,
+        };
+        self.applied_with_defaults(qual, chosen, &targs, &terms)
+    }
+
+    /// The alternative of `members` applicable to `terms` and more specific than the others.
+    fn most_specific(
+        &mut self,
+        qual: TNodeId,
+        members: &[SymbolId],
+        targs: &[TypeId],
+        terms: &[TNodeId],
+    ) -> Fallible<SymbolId> {
+        if terms.iter().any(|&t| matches!(self.tpd.tree(t), T::NamedArg { .. })) {
+            return Err("Select.overloaded of overloaded alternatives with named arguments");
+        }
+        let arg_types: Vec<TypeId> = terms.iter().map(|&t| self.tpd.tpe(t)).collect();
         let mut applicable = Vec::new();
-        for m in members {
-            let Ok(fun) = self.selected(qual, m, &targs) else { continue };
+        for &m in members {
+            let Ok(fun) = self.selected(qual, m, targs) else { continue };
             if let Some(params) = self.params(fun)
                 && params.len() == arg_types.len()
                 && arg_types.iter().zip(&params).all(|(&a, &p)| self.u.is_subtype(a, p))
             {
-                applicable.push((fun, params));
+                applicable.push((m, params));
             }
         }
-        let specific: Vec<TNodeId> = (0..applicable.len())
+        let specific: Vec<SymbolId> = (0..applicable.len())
             .filter(|&i| {
                 let mine = applicable[i].1.clone();
                 (0..applicable.len()).all(|j| {
@@ -46,14 +65,14 @@ impl Host {
             })
             .map(|i| applicable[i].0)
             .collect();
-        let [fun] = specific[..] else {
+        let [m] = specific[..] else {
             return Err("Select.overloaded without one most specific applicable alternative");
         };
-        self.reflect().apply(fun, &terms)
+        Ok(m)
     }
 
     /// `qual.m[targs]`.
-    fn selected(&mut self, qual: TNodeId, m: SymbolId, targs: &[TypeId]) -> Result<TNodeId, &'static str> {
+    pub fn selected(&mut self, qual: TNodeId, m: SymbolId, targs: &[TypeId]) -> Fallible<TNodeId> {
         let sel = self.reflect().select(qual, m)?;
         match targs.is_empty() {
             true => Ok(sel),

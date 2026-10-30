@@ -7,6 +7,7 @@ mod constants;
 mod copies;
 mod declarations;
 mod decode;
+mod default_args;
 mod definitions;
 mod encode;
 mod implicits;
