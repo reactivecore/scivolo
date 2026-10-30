@@ -41,7 +41,9 @@ impl Universe {
 fn initializes(ast: &Ast, s: NodeId) -> bool {
     match ast.tag(s) {
         VALDEF => match view(ast, s) {
-            View::ValDef { rhs, mods, .. } => rhs.is_some() && !mods.iter().any(|&m| matches!(ast.tag(m), LAZY | OBJECT)),
+            View::ValDef { rhs, mods, .. } => {
+                rhs.is_some() && !mods.iter().any(|&m| matches!(ast.tag(m), LAZY | OBJECT))
+            }
             _ => true,
         },
         DEFDEF | TYPEDEF | TYPEPARAM | PARAM | IMPORT | EXPORT | SPLITCLAUSE => false,

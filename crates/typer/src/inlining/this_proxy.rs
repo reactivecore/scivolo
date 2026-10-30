@@ -70,15 +70,6 @@ impl Expansion<'_, '_> {
         Ok(proxies)
     }
 
-    /// The prefix of identifier `fun` as a tree if a path other than a `this` (dotty's
-    /// `desugarIdentPrefix`).
-    fn ident_prefix(&mut self, fun: TNodeId) -> Option<TNodeId> {
-        let Type::Sym(Some(p), _) = *self.i.u.types().get(self.i.tpd.get(fun).tpe?) else { return None };
-        let path = matches!(self.i.u.types().get(p), Type::Sym(_, s) if self.i.u.symbol(*s).kind.is_term());
-        let point = Span::at(self.i.tpd.span(fun).start());
-        path.then(|| self.i.singleton(p, point)).flatten()
-    }
-
     /// The proxy of the `this` of class `cls` for call prefix `q` of type `qt`, bound first.
     fn bind_class_this(&mut self, cls: SymbolId, q: TNodeId, qt: TypeId) -> Result<SymbolId, Unsupported> {
         let stable = match *self.i.u.types().get(qt) {

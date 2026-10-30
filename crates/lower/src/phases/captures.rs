@@ -131,7 +131,9 @@ fn steps<'p>(l: &Lower, t: TNodeId, pending: &'p Pending) -> Vec<Step<'p>> {
 /// members (dotty's `captureImplicitThis`).
 fn implicit_this(l: &Lower, tpe: Option<TypeId>) -> Option<SymbolId> {
     match *l.u.types().get(tpe?) {
-        Type::Sym(prefix, s) if l.u.symbol(s).kind.is_term() && !is_static(l.u, s) => implicit_this(l, prefix),
+        Type::Sym(prefix, s) if l.u.symbol(s).kind.is_term() && !is_static(l.u, s) => {
+            implicit_this(l, prefix)
+        }
         Type::This(c) => match *l.u.types().get(c) {
             Type::Sym(_, c) if !is_static_owner(l.u, c) => Some(c),
             _ => None,

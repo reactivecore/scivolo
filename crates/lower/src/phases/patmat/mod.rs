@@ -24,7 +24,7 @@ use plan::{Plan, PlanId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::{INLINE, LAZY};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{MatchKind, TNodeId, Tree};
 
 /// Compiles the matches in unit `root` in the order of its trees, inner matches first; those
@@ -69,20 +69,6 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
     Ok(())
 }
 
-/// The type of a match of type `tpe`: `T` if a reference whose underlying type is `=> T`.
-fn match_type(l: &mut Lower, tpe: TypeId) -> TypeId {
-    let mut t = tpe;
-    while matches!(l.u.types().get(t), Type::Sym(..) | Type::TermRef(..))
-        && let Some(next) = l.u.widen_once(t)
-    {
-        t = next;
-    }
-    match *l.u.types().get(t) {
-        Type::ByName(result) => result,
-        _ => tpe,
-    }
-}
-
 /// Whether `t` defines an inline method, which erasure drops, with a sub match or a `summonFrom`
 /// in its body.
 fn is_inline_with_sub_match(l: &Lower, t: TNodeId) -> bool {
@@ -121,7 +107,7 @@ impl<'t, 'a> Translator<'t, 'a> {
             owner,
             result_label: owner,
         };
-        let tpe = match_type(t.l, t.l.tpd.tpe(m));
+        let tpe = crate::phases::by_name::by_name_result(t.l, t.l.tpd.tpe(m));
         t.l.tpd.get_mut(m).tpe = Some(tpe);
         t.result_label = t.label("matchResult", tpe);
         t
