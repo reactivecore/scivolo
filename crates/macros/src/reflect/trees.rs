@@ -17,11 +17,15 @@ impl Host {
     }
 
     pub fn show_tree(&mut self, t: TNodeId) -> Fallible<String> {
-        self.show_code(t, false)
+        self.show_code(t, false, false)
+    }
+
+    pub fn show_tree_ansi(&mut self, t: TNodeId) -> Fallible<String> {
+        self.show_code(t, false, true)
     }
 
     pub fn show_structure(&mut self, t: TNodeId) -> Fallible<String> {
-        self.show_code(t, true)
+        self.show_code(t, true, false)
     }
 
     pub fn change_owner(&mut self, e: Expr, owner: SymbolId) -> Expr {

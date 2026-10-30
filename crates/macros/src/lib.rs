@@ -121,6 +121,9 @@ impl VmMacros<'_> {
     ) -> Result<Expanded, MacroError> {
         let refused = |what: &str| MacroError::Unsupported(what.to_owned());
         let mut host: Box<Host> = (host as Box<dyn std::any::Any>).downcast().expect("the macro's host");
+        if let Err(why) = host.call_parents() {
+            host.refusal.get_or_insert_with(|| why.to_owned());
+        }
         host.restore((lent.0, lent.1, lent.2));
         *lent.3 = std::mem::take(&mut host.fresh);
         self.sources = std::mem::take(&mut host.sources);

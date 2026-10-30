@@ -37,7 +37,7 @@ impl Code<'_> {
                 s
             }
         };
-        self.push(&text);
+        self.literal(&text);
         Ok(())
     }
 }

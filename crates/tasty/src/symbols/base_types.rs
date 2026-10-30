@@ -78,13 +78,17 @@ impl Universe {
             }
             let dealiased = match (args.is_empty(), prefix) {
                 (true, Some(p)) if term => self.member_info(p, s),
-                (true, Some(p)) if self.is_value_path(p) => {
-                    if let Some(refined) = self.refinement_info(p, s).or_else(|| self.arg_for_param(p, s)) {
+                (true, Some(p)) => {
+                    let path = self.is_value_path(p);
+                    let refined = if path { self.refinement_info(p, s) } else { None };
+                    if let Some(refined) = refined.or_else(|| self.arg_for_param(p, s)) {
                         return self.base_type_within(refined, base, depth);
                     }
                     let info = self.info(s);
                     match self.symbol(s).owner {
-                        Some(o) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),
+                        Some(o) if path && self.symbol(o).kind == Kind::Class => {
+                            self.as_seen_from(info, p, o)
+                        }
                         _ => info,
                     }
                 }

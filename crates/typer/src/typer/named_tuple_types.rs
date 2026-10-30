@@ -63,9 +63,15 @@ impl Typer<'_> {
         }
         let tpe = self.u.types().get(t).clone();
         match tpe {
-            Type::Sym(_, s) if self.u.is_type_symbol(s) && self.u.class_symbol(t).is_none() => {
+            Type::Sym(pre, s) if self.u.is_type_symbol(s) && self.u.symbol(s).kind != tasty::Kind::Class => {
                 self.complete(s);
-                let hi = crate::sealed::upper_bound(self.u, s);
+                let hi = match pre.and_then(|p| self.u.arg_for_param(p, s)) {
+                    Some(arg) => match *self.u.types().get(arg) {
+                        Type::Bounds(_, hi) => hi,
+                        _ => arg,
+                    },
+                    None => crate::sealed::upper_bound(self.u, s),
+                };
                 (hi != t).then(|| self.derived_named_tuple_parts(hi)).flatten()
             }
             Type::And(a, b) => match (self.derived_named_tuple_parts(a), self.derived_named_tuple_parts(b)) {

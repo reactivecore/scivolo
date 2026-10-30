@@ -2,7 +2,7 @@
 //   compiler/src/scala/quoted/runtime/impl/printers/SourceCode.scala
 //! Refinements and match types as `SourceCode.printType` shows them, in indented blocks.
 
-use super::{Shown, SourcePrinter};
+use super::{Highlight, Shown, SourcePrinter};
 use crate::types::{Type, TypeId};
 
 impl SourcePrinter<'_> {
@@ -14,7 +14,8 @@ impl SourcePrinter<'_> {
     /// `scrutinee match {` and the cases on their own lines.
     pub fn match_type(&mut self, scrutinee: TypeId, cases: &[TypeId]) -> Shown {
         self.print(scrutinee)?;
-        self.out.push_str(" match  {");
+        self.paint(Highlight::Keyword, " match ");
+        self.out.push_str(" {");
         self.indent += 1;
         for &c in cases {
             self.line_break();
@@ -52,11 +53,13 @@ impl SourcePrinter<'_> {
             matches!(self.u.types().get(info), Type::ByName(_) | Type::Method { .. } | Type::Lambda { .. });
         let shown = match bounds {
             Some((lo, hi)) => {
-                self.out.push_str(&format!("type {name}"));
+                self.paint(Highlight::Keyword, "type ");
+                self.paint(Highlight::Type, &name);
                 self.bounds(lo, hi)
             }
             None => {
-                self.out.push_str(&format!("{} {name}", if def { "def" } else { "val" }));
+                self.paint(Highlight::Keyword, if def { "def " } else { "val " });
+                self.paint(if def { Highlight::Type } else { Highlight::Definition }, &name);
                 self.methodic(info)
             }
         };

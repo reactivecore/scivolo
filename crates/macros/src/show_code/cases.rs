@@ -24,13 +24,13 @@ impl Code<'_> {
 
     pub fn case_def(&mut self, c: TNodeId) -> Shown {
         let T::CaseDef { pat, guard, body } = self.tree_of(c) else { return Err(REFUSED) };
-        self.push("case ");
+        self.definition_name("case ");
         self.pattern(pat)?;
         if let Some(g) = guard {
             self.push(" if ");
             self.tree(g)?;
         }
-        self.push(" =>");
+        self.definition_name(" =>");
         self.indent += 1;
         match self.tree_of(body) {
             T::Block { stats, expr } => self.stats(&self.items(stats), expr)?,
@@ -55,7 +55,8 @@ impl Code<'_> {
                 match self.tree_of(body) {
                     _ if self.is_wildcard(body) => self.push(&name),
                     T::Typed { expr, tpt } if self.is_wildcard(expr) => {
-                        self.push(&format!("{name}: "));
+                        self.definition_name(&name);
+                        self.push(": ");
                         self.type_tree(tpt)?;
                     }
                     _ => {

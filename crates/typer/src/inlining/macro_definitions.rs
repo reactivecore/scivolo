@@ -53,7 +53,11 @@ impl Inlining<'_> {
     pub fn enter_made(&mut self, d: TNodeId, owner: SymbolId, span: Span) -> Result<(), Unsupported> {
         let s = self.tpd.sym(d).filter(|_| is_definition(self.tpd.tree(d)));
         let s = s.ok_or((span, "a macro annotation returning other than definitions"))?;
-        if self.u.symbol(s).owner != Some(owner) {
+        let made_owner = self.u.symbol(s).owner;
+        let top_level = self.u.is_package_object(owner)
+            && (self.u.is_class(s) || self.u.is_module(s))
+            && made_owner.is_some_and(|o| self.u.symbol(owner).owner == Some(o));
+        if made_owner != Some(owner) && !top_level {
             return Err((span, "a macro annotation adding a definition of another owner"));
         }
         if self.u.symbol(owner).kind == Kind::Class && !self.u.symbol(owner).decls.contains(&s) {

@@ -9,11 +9,15 @@ use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
     pub fn show_type(&mut self, t: TypeId) -> Fallible<String> {
-        self.u.show_source(t, true)
+        self.u.show_source(t, true, false)
+    }
+
+    pub fn show_type_ansi(&mut self, t: TypeId) -> Fallible<String> {
+        self.u.show_source(t, true, true)
     }
 
     pub fn show_type_short(&mut self, t: TypeId) -> Fallible<String> {
-        self.u.show_source(t, false)
+        self.u.show_source(t, false, false)
     }
 
     pub fn show_type_structure(&mut self, t: TypeId) -> Fallible<String> {
