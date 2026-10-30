@@ -32,6 +32,7 @@ fn jdk_classes_under_their_jdk_names() {
     let Some(mut u) = with_javalib() else { return };
     let string = class(&mut u, "java.lang", "String");
     assert_eq!(u.full_name(string), "java.lang.String");
+    assert_eq!(class(&mut u, "java.lang", "_String"), string);
     assert!(!u.member(string, "length").is_empty());
     let object = class(&mut u, "java.lang", "Object");
     assert_eq!(u.full_name(object), "java.lang.Object");

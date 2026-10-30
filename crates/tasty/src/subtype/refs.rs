@@ -122,6 +122,19 @@ impl Cmp<'_> {
         }
     }
 
+    /// Whether prefixes `p1` and `p2` of references to `s` relate, a missing `p1` also as the
+    /// `this` of the class owning `s`.
+    pub fn sub_prefix_of(&mut self, s: SymbolId, p1: Option<TypeId>, p2: Option<TypeId>) -> bool {
+        if self.sub_prefix(p1, p2) {
+            return true;
+        }
+        let owner = self.u.symbol(s).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class);
+        let (None, Some(owner)) = (p1, owner) else { return false };
+        let class = self.u.intern_type(Type::Sym(None, owner));
+        let this = self.u.intern_type(Type::This(class));
+        self.sub_prefix(Some(this), p2)
+    }
+
     /// Whether prefix `p1` of a reference relates to prefix `p2` of the same symbol's
     /// reference (dotty's `isSubPrefix`): static paths to the same symbol, a package and its
     /// package object, `this` of classes deriving from each other, or `p1 <: p2`; a missing
