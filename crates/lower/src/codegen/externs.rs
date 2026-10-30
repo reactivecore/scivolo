@@ -43,7 +43,8 @@ pub fn unboxed(name: &str) -> Option<Type> {
 }
 
 impl Gen<'_, '_> {
-    /// An extern object or trait: its declarations, without constructor, fields or forwarders.
+    /// An extern object or trait: its declarations and its methods that are not extern, without
+    /// constructor, fields or forwarders.
     pub fn gen_extern_class(&mut self, td: TNodeId, sym: SymbolId, pos: PosId) -> Result<()> {
         let span = self.l.tpd.span(td);
         let blocking = self.is_blocking(sym);

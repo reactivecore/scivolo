@@ -64,9 +64,9 @@ pub fn is_extern(u: &mut Universe, s: SymbolId) -> bool {
     if !annotated(u, s) && !in_extern {
         return false;
     }
-    let source =
+    let prep_non_extern =
         u.symbol(s).tree.is_none() && in_extern && (has(u, s, EXTENSION) || is_implicit_class_ctor(u, s));
-    !(source || u.is_annotated(s, "scala.scalanative.annotation.nonExtern"))
+    !(prep_non_extern || u.is_annotated(s, "scala.scalanative.annotation.nonExtern"))
 }
 
 /// Whether `m` is the implicit conversion of an implicit class beside it.

@@ -41,7 +41,8 @@ pub fn value_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<T
     Ok(out)
 }
 
-/// `value.hashCode()` for a primitive `value` of `class` but a raw pointer or size, else `java.util.Objects.hashCode(value)`.
+/// `value.hashCode()` for a primitive `value` of `class` other than a raw pointer or size, else
+/// `java.util.Objects.hashCode(value)`.
 pub fn hash_code_body(l: &mut Lower, class: SymbolId, value: SymbolId, cc: CaseClasses) -> TNodeId {
     let this = l.this(class, Span::NONE);
     let value_ref = l.select(this, value, Span::NONE);
