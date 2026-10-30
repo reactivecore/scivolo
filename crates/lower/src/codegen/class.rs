@@ -61,6 +61,7 @@ impl Gen<'_, '_> {
         self.gen_companion_static_fields(sym, pos);
         self.lambdas = 0;
         self.gen_methods(td)?;
+        self.gen_exports(td, sym)?;
         let closures = std::mem::take(&mut self.closures);
         self.defns.extend(closures);
         self.gen_mirror_class(sym, pos)
