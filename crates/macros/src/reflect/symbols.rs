@@ -1,4 +1,5 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The symbols of `quotes.reflect`: owners, names, flags and kinds. Flags are the bits of the
 //! TASTy modifier tags, with bits 2 to 5 for `Method`, `Package`, `Param` and `AbsOverride`,
@@ -89,8 +90,24 @@ impl Host {
         }
     }
 
+    /// The names of `s`'s enclosing classes and packages and `s`, joined by `.`, with a `_$` for
+    /// each term or type member between `s` and its enclosing class (dotty's `fullName`).
     pub fn full_name(&self, s: SymbolId) -> String {
-        self.u.full_name(s)
+        let sym = self.u.symbol(s);
+        let Some(mut encl) = sym.owner else { return sym.name.to_string() };
+        let mut filler = String::new();
+        while !matches!(self.u.symbol(encl).kind, Kind::Class | Kind::Package) {
+            let Some(o) = self.u.symbol(encl).owner else { break };
+            encl = o;
+            filler.push_str("_$");
+        }
+        match encl == self.u.root()
+            || self.u.symbol(encl).name.is_empty()
+            || self.u.symbol(encl).name == "<empty>"
+        {
+            true => format!("{filler}{}", sym.name),
+            false => format!("{}.{filler}{}", self.full_name(encl), sym.name),
+        }
     }
 
     pub fn info(&mut self, s: SymbolId) -> TypeId {
