@@ -134,8 +134,8 @@ const CASES: &[(&str, &str)] = &[
     ),
     (
         "import scala.scalanative.unsafe.*\n@extern object libc { def printf(f: CString, xs: CVarArg*): CInt = extern }\n\
-         object O { def g = libc.printf(null) }",
-        "extern calls with variable arguments",
+         object O { def g(xs: Seq[CVarArg]) = libc.printf(null, xs*) }",
+        "variable arguments of an extern method not passed directly",
     ),
     (
         "import scala.scalanative.unsafe.*\n@extern object libc { def f(xs: CVarArg*)(y: CInt): CInt = extern }",
