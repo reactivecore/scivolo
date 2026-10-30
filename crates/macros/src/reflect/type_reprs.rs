@@ -9,7 +9,11 @@ use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
     pub fn show_type(&mut self, t: TypeId) -> Fallible<String> {
-        self.u.show_source(t)
+        self.u.show_source(t, true)
+    }
+
+    pub fn show_type_short(&mut self, t: TypeId) -> Fallible<String> {
+        self.u.show_source(t, false)
     }
 
     pub fn show_type_structure(&mut self, t: TypeId) -> Fallible<String> {
@@ -69,8 +73,22 @@ impl Host {
         Ok(self.u.linearization(c))
     }
 
+    /// The type of member `s` seen from `t`; a parameterless method's as a by-name type, a
+    /// class's as a reference to it.
     pub fn member_type(&mut self, t: TypeId, s: SymbolId) -> Fallible<TypeId> {
-        Ok(self.repeated_param(s)?.unwrap_or_else(|| self.u.term_type(Some(t), s)))
+        if let Some(p) = self.repeated_param(s)? {
+            return Ok(p);
+        }
+        if self.u.is_class(s) {
+            let member = self.u.symbol(s).owner.is_some_and(|o| self.u.is_class(o));
+            return Ok(self.u.intern_type(Type::Sym(member.then_some(t), s)));
+        }
+        let m = self.u.term_type(Some(t), s);
+        let method = matches!(self.u.types().get(m), Type::Method { .. } | Type::Poly { .. });
+        Ok(match self.u.symbol(s).kind == Kind::Def && !method {
+            true => self.u.intern_type(Type::ByName(m)),
+            false => m,
+        })
     }
 
     pub fn term_ref(&mut self, qual: TypeId, name: String) -> Fallible<TypeId> {

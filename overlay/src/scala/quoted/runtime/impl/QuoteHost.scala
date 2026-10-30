@@ -137,10 +137,10 @@ final class Unsupported(what: String) extends RuntimeException(what) {
   QuoteHost.refuse(what)
 }
 
-final class ExprImpl(val id: Int, val expansion: Int) extends Expr[Any] {
-  override def toString: String = throw new Unsupported("Expr.toString, Tree.toString")
-}
+/** An `Expr` or `Term`; its `toString` is `Object`'s. */
+final class ExprImpl(val id: Int, val expansion: Int) extends Expr[Any]
 
+/** A `Type` or `TypeRepr`; its `toString` is the `TypeRepr`'s. */
 final class TypeImpl(val id: Int, val expansion: Int) extends Type[Nothing] {
-  override def toString: String = throw new Unsupported("Type.toString, TypeRepr.toString")
+  override def toString: String = ReflectOps.text("typeString", QuoteHost.typeId(this))
 }
