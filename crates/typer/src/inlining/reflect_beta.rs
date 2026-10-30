@@ -29,6 +29,8 @@ impl Host for NoHost {
 
     fn error(&mut self, _: Span, _: String) {}
 
+    fn warning(&mut self, _: Span, _: String) {}
+
     fn has_errors(&self) -> bool {
         false
     }

@@ -115,12 +115,15 @@ impl Inlining<'_> {
         span: Span,
     ) -> Result<Option<Expanded>, Unsupported> {
         match expanded {
-            Ok(expanded) => return Ok(Some(expanded)),
+            Ok(mut expanded) => {
+                self.report(std::mem::take(&mut expanded.warnings));
+                return Ok(Some(expanded));
+            }
             Err(MacroError::Unsupported(_) | MacroError::Search(_)) => {
                 return Err((span, "a macro annotation the frontend refuses"));
             }
             Err(MacroError::Failed(msg)) => self.error(span, msg),
-            Err(MacroError::Reported(errors)) => errors.into_iter().for_each(|(at, msg)| self.error(at, msg)),
+            Err(MacroError::Reported(reports)) => self.report(reports),
             Err(MacroError::Aborted) if !self.host.has_errors() => self.error(span, ABORTED.to_owned()),
             Err(MacroError::Aborted) => {}
         }

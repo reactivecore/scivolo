@@ -106,6 +106,10 @@ impl Host for Typer<'_> {
         self.error_at(at, msg);
     }
 
+    fn warning(&mut self, at: Span, msg: String) {
+        self.warning_at(at, msg);
+    }
+
     fn has_errors(&self) -> bool {
         self.diags.has_errors()
     }

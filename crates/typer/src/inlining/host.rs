@@ -1,10 +1,11 @@
 //! What an expansion asks of the typer it runs in: the context of a call, implicit arguments,
 //! errors (dotty's `Inliner` working in the context of the call).
 
-use super::{AnnotationCall, Expanded, Inlining, MacroCall, MacroError, Unsupported};
+use super::{AnnotationCall, Expanded, Inlining, MacroCall, MacroError, Reports, Unsupported};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::Span;
+use syntax::diag::Level;
 use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
@@ -29,6 +30,8 @@ pub trait Host {
     ) -> Result<Option<TNodeId>, &'static str>;
     /// Reports error `msg` at `at`.
     fn error(&mut self, at: Span, msg: String);
+    /// Reports warning `msg` at `at`.
+    fn warning(&mut self, at: Span, msg: String);
     /// Whether an error has been reported.
     fn has_errors(&self) -> bool;
     /// How many errors have been reported, and whether there are more than `mark`, which it
@@ -121,6 +124,16 @@ impl Inlining<'_> {
     /// Reports error `msg` at `at`.
     pub fn error(&mut self, at: Span, msg: String) {
         self.host.error(at, msg);
+    }
+
+    /// Reports the errors and warnings `reports` of a macro.
+    pub fn report(&mut self, reports: Reports) {
+        for (level, at, msg) in reports {
+            match level {
+                Level::Error => self.host.error(at, msg),
+                Level::Warning => self.host.warning(at, msg),
+            }
+        }
     }
 
     /// Whether one of the implicits `defs` of a typer's expansion around the call may be an

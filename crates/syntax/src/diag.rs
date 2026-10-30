@@ -117,6 +117,10 @@ impl Diagnostics {
         self.push(Level::Warning, start, end, Some(offset), message.into(), false);
     }
 
+    pub fn warning_unpositioned(&mut self, message: impl Into<Message>) {
+        self.push(Level::Warning, 0, 0, None, message.into(), false);
+    }
+
     fn push(
         &mut self,
         level: Level,

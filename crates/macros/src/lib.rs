@@ -13,6 +13,7 @@ pub use typer::inlining::Macros;
 
 use host::Host;
 use syntax::ast::Span;
+use syntax::diag::Level;
 use syntax::source::SourceFile;
 use tasty::{Erased, SymbolId};
 use typer::inlining::{AnnotationCall, Annotations, Expanded, Lent, MacroCall, MacroError};
@@ -121,13 +122,16 @@ impl VmMacros<'_> {
                 Err(host.typer.wanted.map_or(MacroError::Unsupported(why), MacroError::Search))
             }
             (_, Some(why)) => Err(MacroError::Unsupported(why)),
-            _ if !host.reported.is_empty() => Err(MacroError::Reported(std::mem::take(&mut host.reported))),
+            _ if host.reported.iter().any(|r| r.0 == Level::Error) => {
+                Err(MacroError::Reported(std::mem::take(&mut host.reported)))
+            }
             (Ok(mut results), None) => {
                 if results.is_empty() {
                     results =
                         host.definitions.take().ok_or_else(|| refused("a macro annotation's result"))?;
                 }
-                Ok(Expanded { exprs: host.quoted().map_err(refused)?, results })
+                let warnings = std::mem::take(&mut host.reported);
+                Ok(Expanded { exprs: host.quoted().map_err(refused)?, results, warnings })
             }
             (Err(VmError::Uncaught(thrown)), None) if thrown.classes.iter().any(|c| c == STOP) => {
                 Err(MacroError::Aborted)

@@ -34,6 +34,8 @@ ops! {
     // reports
     "error" => error(at: OptTree, message: Name) -> ();
     "errorAt" => error_at(file: Num, start: Num, end: Num, message: Name) -> Fallible<()>;
+    "warning" => warning(at: OptTree, message: Name) -> ();
+    "warningAt" => warning_at(file: Num, start: Num, end: Num, message: Name) -> Fallible<()>;
     // type members
     "typeMembers" => type_members(s: Sym) -> Fallible<Vec<SymbolId>>;
     "fieldMembers" => field_members(s: Sym, name: Name) -> Fallible<Vec<SymbolId>>;

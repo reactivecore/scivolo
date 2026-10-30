@@ -4,6 +4,7 @@ use super::Lent;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
+use syntax::diag::Level;
 use tasty::{SymbolId, TypeId};
 
 /// An argument of a macro implementation: a quoted expression, a type, the `Quotes`, a literal or
@@ -67,19 +68,23 @@ pub enum Quoted {
 }
 
 /// What a macro expansion made: its expressions and the numbers of those returned, one for a
-/// splice, the definitions for a macro annotation.
+/// splice, the definitions for a macro annotation; the warnings it reported.
 pub struct Expanded {
     pub exprs: Vec<Quoted>,
     pub results: Vec<u32>,
+    pub warnings: Reports,
 }
+
+/// The errors and warnings a macro reported (`quotes.reflect.report`), with their spans.
+pub type Reports = Vec<(Level, Span, String)>;
 
 pub enum MacroError {
     /// The macro needs what the frontend does not support.
     Unsupported(String),
     /// The macro failed, with the message dotty reports.
     Failed(String),
-    /// The macro reported errors (`report.error`, `errorAndAbort`): their spans and messages.
-    Reported(Vec<(Span, String)>),
+    /// The macro reported errors (`report.error`, `errorAndAbort`), and maybe warnings.
+    Reported(Reports),
     /// The macro threw `StopMacroExpansion` without reporting an error.
     Aborted,
     /// The macro searched an implicit argument of a type `searched` lacks; the expansion runs

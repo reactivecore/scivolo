@@ -42,6 +42,13 @@ impl Typer<'_> {
         }
     }
 
+    pub fn warning_at(&mut self, span: Span, msg: impl Into<Message>) {
+        match span.exists() && !span.is_in_other_source() {
+            true => self.diags.warning_at(span.start(), span.end(), span.point(), msg),
+            false => self.diags.warning_unpositioned(msg),
+        }
+    }
+
     pub fn error_tree(&mut self, span: Span) -> TNodeId {
         let name = TName { name: self.name("<error>"), is_type: false };
         let tpe = self.u.intern_type(Type::Error);

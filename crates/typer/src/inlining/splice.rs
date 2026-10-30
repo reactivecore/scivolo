@@ -35,7 +35,10 @@ impl Inlining<'_> {
             }
         };
         let expanded = match expanded {
-            Ok(expanded) => expanded,
+            Ok(mut expanded) => {
+                self.report(std::mem::take(&mut expanded.warnings));
+                expanded
+            }
             Err(MacroError::Search(_)) => {
                 return Err((span, "a macro searching implicit arguments repeatedly"));
             }
@@ -44,10 +47,8 @@ impl Inlining<'_> {
                 self.error(self.outermost_span, msg);
                 return Ok(Some(t));
             }
-            Err(MacroError::Reported(errors)) => {
-                for (at, msg) in errors {
-                    self.error(at, msg);
-                }
+            Err(MacroError::Reported(reports)) => {
+                self.report(reports);
                 return Ok(Some(t));
             }
             Err(MacroError::Aborted) => {

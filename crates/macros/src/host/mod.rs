@@ -10,7 +10,7 @@ use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::SourceFile;
 use tasty::{SymbolId, TypeId, Universe};
-use typer::inlining::Quoted;
+use typer::inlining::{Quoted, Reports};
 use typer::tpd::{TNodeId, Tpd};
 use typer::unpickle::QuotePattern;
 
@@ -49,8 +49,8 @@ pub struct Host {
     /// Why the expansion is refused, if it is.
     pub refusal: Option<String>,
     pub made: crate::reflect::Made,
-    /// The errors the macro reported, with their spans.
-    pub reported: Vec<(Span, String)>,
+    /// The errors and warnings the macro reported, with their spans.
+    pub reported: Reports,
     /// The expressions of the definitions a macro annotation returned.
     pub definitions: Option<Vec<u32>>,
     /// Whether a macro annotation runs, whose splice owner is `owner` itself.

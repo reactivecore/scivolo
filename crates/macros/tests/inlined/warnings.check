@@ -1,0 +1,2 @@
+[ (Inlined 118..127@124 :T:scala.Int (Apply 118..127@124 :T:scala.Int (Ident 118..124@118 sym="macrolib.Warnings$.warned#(scala.Int)" :t:macrolib.Warnings.t:warned t:warned) [ (Literal 125..126@125 :#Int:"1" #Int:"1")]) [] (Typed 129..129 :T:scala.Int (Inlined 129..129@129 :#Int:"1" _ [] (Literal 125..126@125 :#Int:"1" #Int:"1")) (Ident 129..129@129 sym="scala.Int" :T:scala.Int T:Int)))]
+== W 125 "warned"
