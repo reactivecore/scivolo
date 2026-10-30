@@ -57,14 +57,7 @@ impl Inlining<'_> {
                 return Ok(Some(t));
             }
         };
-        let args: Vec<TNodeId> = call
-            .args
-            .iter()
-            .filter_map(|a| match *a {
-                MacroArg::Expr(t) => Some(t),
-                _ => None,
-            })
-            .collect();
+        let args = MacroArg::exprs(&call.args);
         let [tree] = self.quoted_trees(&expanded, &args)?[..] else {
             return Err((span, "a splice returning other than one expression"));
         };
@@ -137,14 +130,20 @@ impl Inlining<'_> {
     }
 
     /// Argument `arg` of a macro implementation, given the splice's `Quotes` parameter `quotes`:
-    /// `quotes`, `'{ e }(quotes)` or `Type.of[T](quotes)` (the `SpliceInterpreter`'s cases).
+    /// `quotes`, `'{ e }(quotes)`, `Type.of[T](quotes)` or a sequence literal of such (the
+    /// `SpliceInterpreter`'s cases).
     pub fn macro_arg(&self, arg: TNodeId, quotes: SymbolId) -> Option<MacroArg> {
         let arg = self.unwrapped(arg);
         if self.tpd.sym(arg) == Some(quotes) && matches!(self.tpd.tree(arg), T::Ident { .. }) {
             return Some(MacroArg::Quotes);
         }
-        if let T::Literal { value } = self.tpd.tree(arg) {
-            return Some(MacroArg::Literal(value.clone()));
+        match self.tpd.tree(arg) {
+            T::Literal { value } => return Some(MacroArg::Literal(value.clone())),
+            &T::SeqLiteral { elems, .. } => {
+                let elems = self.tpd.items(elems).iter().map(|&e| self.macro_arg(e, quotes));
+                return elems.collect::<Option<_>>().map(MacroArg::Varargs);
+            }
+            _ => {}
         }
         let T::Apply { fun, args } = *self.tpd.tree(arg) else { return None };
         let [q] = self.tpd.items(args)[..] else { return None };
@@ -160,5 +159,23 @@ impl Inlining<'_> {
             }
             _ => None,
         }
+    }
+
+    /// Macro argument `arg` as the implementation gets it: a quoted expression reduced, as a
+    /// literal if it is constant and inlined from the outer scope; a type normalized.
+    pub fn prepared_arg(&mut self, arg: MacroArg) -> Result<MacroArg, Unsupported> {
+        Ok(match arg {
+            MacroArg::Expr(body) => {
+                let body = self.reduced_projections(body)?;
+                let body = self.constant_arg(body);
+                MacroArg::Expr(self.outer_inlined(body))
+            }
+            MacroArg::Type(t) => MacroArg::Type(crate::typer::simplify::normalize_all(self.u, t)),
+            MacroArg::Varargs(elems) => {
+                let elems = elems.into_iter().map(|e| self.prepared_arg(e));
+                MacroArg::Varargs(elems.collect::<Result<_, _>>()?)
+            }
+            arg => arg,
+        })
     }
 }

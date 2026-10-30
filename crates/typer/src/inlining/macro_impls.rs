@@ -76,15 +76,8 @@ impl Inlining<'_> {
                 }
                 _ => arg,
             };
-            args.push(match self.macro_arg(arg, quotes).ok_or(refused)? {
-                MacroArg::Expr(body) => {
-                    let body = self.reduced_projections(body)?;
-                    let body = self.constant_arg(body);
-                    MacroArg::Expr(self.outer_inlined(body))
-                }
-                MacroArg::Type(t) => MacroArg::Type(crate::typer::simplify::normalize_all(self.u, t)),
-                arg => arg,
-            });
+            let arg = self.macro_arg(arg, quotes).ok_or(refused)?;
+            args.push(self.prepared_arg(arg)?);
         }
         if context {
             args.push(MacroArg::Quotes);
@@ -129,7 +122,7 @@ impl Inlining<'_> {
     }
 
     /// The function `fun` applied to the splice's `Quotes` `quotes` in `args` calls `apply` on,
-    /// if it is a context function of them, not taken by name.
+    /// if it is a context function of them.
     pub fn context_function(&mut self, fun: TNodeId, args: List, quotes: SymbolId) -> Option<TNodeId> {
         let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return None };
         let args = self.tpd.items(args);
@@ -139,15 +132,7 @@ impl Inlining<'_> {
             |a: &TNodeId| self.tpd.sym(*a) == Some(quotes) && matches!(self.tpd.tree(*a), T::Ident { .. });
         let context =
             self.u.symbol(apply).name == "apply" && self.u.full_name(class) == "scala.ContextFunction1";
-        if !context || !matches!(args, [a] if is_quotes(a)) {
-            return None;
-        }
-        let f = self.u.widen(self.tpd.tpe(qualifier));
-        let f = self.u.dealias(f);
-        let types = self.u.types();
-        let by_name = matches!(types.get(f), Type::Applied(_, targs)
-            if targs.first().is_some_and(|&a| matches!(types.get(a), Type::ByName(_))));
-        (!by_name).then_some(qualifier)
+        (context && matches!(args, [a] if is_quotes(a))).then_some(qualifier)
     }
 
     fn is_static_object(&self, c: SymbolId) -> bool {

@@ -6,13 +6,27 @@ use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::{SymbolId, TypeId};
 
-/// An argument of a macro implementation: a quoted expression, a type, the `Quotes` or a literal.
+/// An argument of a macro implementation: a quoted expression, a type, the `Quotes`, a literal or
+/// the elements of a repeated parameter.
 #[derive(Clone, Debug)]
 pub enum MacroArg {
     Expr(TNodeId),
     Type(TypeId),
     Quotes,
     Literal(Constant),
+    Varargs(Vec<MacroArg>),
+}
+
+impl MacroArg {
+    /// The trees of the quoted expressions of `args`.
+    pub fn exprs(args: &[MacroArg]) -> Vec<TNodeId> {
+        let one = |a: &MacroArg| match a {
+            MacroArg::Expr(t) => vec![*t],
+            MacroArg::Varargs(elems) => MacroArg::exprs(elems),
+            _ => Vec::new(),
+        };
+        args.iter().flat_map(one).collect()
+    }
 }
 
 /// A call of macro implementation `method` on static object `receiver` with `args`, from a

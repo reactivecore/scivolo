@@ -51,9 +51,13 @@ object QuoteHost {
   def argCount(): Int = throw new UnsupportedOperationException("VM native")
 
   /** Argument `arg` of the macro implementation: an `Expr` number, `-1 - n` for `Type` number
-   *  `n`, `Int.MinValue` for the `Quotes`, `Int.MinValue + 1` for a literal.
+   *  `n`, `Int.MinValue` for the `Quotes`, `Int.MinValue + 1` for a literal, `Int.MinValue + 2`
+   *  for a `Seq` of the arguments after it, `Int.MinValue + 3` for a `Function0` of the one after it.
    */
   def arg(arg: Int): Int = throw new UnsupportedOperationException("VM native")
+
+  /** How many elements the `Seq` of argument `arg` has. */
+  def elementCount(arg: Int): Int = throw new UnsupportedOperationException("VM native")
 
   /** The descriptor letter of the type of literal argument `arg`: `T` a string, `N` null. */
   def literalTag(arg: Int): Int = throw new UnsupportedOperationException("VM native")
@@ -87,18 +91,39 @@ object QuoteHost {
 
   /** The arguments of the macro implementation. */
   def args(): Array[Object] = {
-    val args = new Array[Object](argCount())
+    var made = List.empty[Object]
     var i = 0
-    while (i < args.length) {
-      val n = arg(i)
-      args(i) =
+    while (i < argCount()) {
+      val (value, next) = this.value(i)
+      made = value :: made
+      i = next
+    }
+    made.reverse.toArray
+  }
+
+  /** The value of argument `i` and the index of the argument after it and those it holds. */
+  private def value(i: Int): (Object, Int) = {
+    val n = arg(i)
+    if (n == Int.MinValue + 2) {
+      var (elems, next, left) = (List.empty[Object], i + 1, elementCount(i))
+      while (left > 0) {
+        val (elem, after) = value(next)
+        elems = elem :: elems
+        next = after
+        left -= 1
+      }
+      (elems.reverse, next)
+    } else if (n == Int.MinValue + 3) {
+      val (inner, next) = value(i + 1)
+      ((() => inner): Function0[Object], next)
+    } else {
+      val made =
         if (n == Int.MinValue) new QuotesImpl
         else if (n == Int.MinValue + 1) literal(i)
         else if (n >= 0) expr(n)
         else quotedType(-1 - n)
-      i += 1
+      (made, i + 1)
     }
-    args
   }
 
   /** Runs `transform` of macro annotation `annotation` on expression `definition` and
