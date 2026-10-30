@@ -5,8 +5,8 @@
 use super::{Code, REFUSED, Shown};
 use tasty::SymbolId;
 use tasty::tags::{
-    CASEaccessor, ERASED, FINAL, GIVEN, IMPLICIT, INLINE, LAZY, LOCAL, MUTABLE, OBJECT, OVERRIDE, PARAMsetter,
-    PRIVATE, PROTECTED,
+    CASEaccessor, ERASED, FINAL, GIVEN, IMPLICIT, INLINE, LAZY, LOCAL, MUTABLE, OBJECT, OVERRIDE,
+    PARAMsetter, PRIVATE, PROTECTED,
 };
 use typer::tpd::{TNodeId, Tree as T};
 

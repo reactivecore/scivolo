@@ -21,21 +21,29 @@ impl Code<'_> {
         let (cls, name) = (self.h.tpd.sym(t).ok_or(REFUSED)?, self.name(name));
         let s = Some(cls);
         self.def_annotations(cls)?;
-        for (tag, word) in [(IMPLICIT, "implicit "), (SEALED, "sealed "), (FINAL, "final "), (CASE, "case ")] {
+        for (tag, word) in [(IMPLICIT, "implicit "), (SEALED, "sealed "), (FINAL, "final "), (CASE, "case ")]
+        {
             if self.has(s, tag) && !(tag == FINAL && self.has(s, OBJECT)) {
                 self.keyword(word);
             }
         }
         if name == "package$" {
             self.keyword("package object ");
-            let owner = self.h.u.symbol(cls).owner.map(|o| self.h.u.symbol(o).name.clone()).unwrap_or_default();
+            let owner =
+                self.h.u.symbol(cls).owner.map(|o| self.h.u.symbol(o).name.clone()).unwrap_or_default();
             self.highlight_type(owner.strip_suffix('$').unwrap_or(&owner));
         } else if self.has(s, OBJECT) {
             self.keyword("object ");
             self.highlight_type(name.strip_suffix('$').unwrap_or(&name));
         } else {
             let abstract_ = self.has(s, tasty::tags::ABSTRACT);
-            self.keyword(if self.has(s, TRAIT) { "trait " } else if abstract_ { "abstract class " } else { "class " });
+            self.keyword(if self.has(s, TRAIT) {
+                "trait "
+            } else if abstract_ {
+                "abstract class "
+            } else {
+                "class "
+            });
             self.highlight_type(&name);
         }
         let stats = self.items(template.body);
@@ -45,7 +53,8 @@ impl Code<'_> {
                 let params = self.items(clause);
                 match params.first().map(|&p| self.tree_of(p)) {
                     Some(T::TypeDef { .. }) => {
-                        let own: Vec<_> = stats.iter().copied().filter(|&d| self.is_type_param_def(d)).collect();
+                        let own: Vec<_> =
+                            stats.iter().copied().filter(|&d| self.is_type_param_def(d)).collect();
                         self.class_type_params(&own, &params)?;
                     }
                     _ => self.method_params(&params)?,
@@ -102,50 +111,6 @@ impl Code<'_> {
         Ok(())
     }
 
-    /// Whether parent `p` is a call of `java.lang.Object`'s constructor or `_root_.scala.Product`
-    /// or `_root_.scala.Serializable`.
-    fn is_elided_parent(&mut self, p: TNodeId) -> bool {
-        match self.tree_of(p) {
-            T::Apply { fun, .. } => {
-                let T::Select { qualifier, .. } = self.tree_of(self.r(fun)) else { return false };
-                let T::New { tpt } = self.tree_of(self.r(qualifier)) else { return false };
-                let tpe = self.h.tpd.tpe(self.r(tpt));
-                self.h.u.class_symbol(tpe).is_some_and(|c| self.h.u.full_name(c) == "java.lang.Object")
-            }
-            T::Select { qualifier, name } if matches!(&*self.name(name), "Product" | "Serializable") => {
-                matches!(self.tree_of(qualifier), T::Select { qualifier: root, name }
-                    if self.name(name) == "scala"
-                        && matches!(self.tree_of(root), T::Ident { name } if self.name(name) == "_root_"))
-            }
-            _ => false,
-        }
-    }
-
-    fn parent(&mut self, p: TNodeId, need_empty_parens: bool) -> Shown {
-        let p = self.r(p);
-        if self.is_type_tree(p) {
-            return self.type_tree(p);
-        }
-        match self.tree_of(p) {
-            T::TypeApply { fun, .. } => self.parent(fun, false),
-            T::Apply { fun, args } => {
-                let nested = matches!(self.tree_of(self.r(fun)), T::Apply { .. });
-                self.parent(fun, nested)?;
-                let args = self.items(args);
-                if !args.is_empty() || need_empty_parens {
-                    self.push("(");
-                    self.trees(&args, ", ")?;
-                    self.push(")");
-                }
-                Ok(())
-            }
-            T::Select { qualifier, .. } if matches!(self.tree_of(self.r(qualifier)), T::New { .. }) => {
-                self.ty(self.h.tpd.tpe(self.r(qualifier)))
-            }
-            _ => Err(REFUSED),
-        }
-    }
-
     /// dotty's `keepDefinition` for definitions; imports and terms are kept.
     fn keep_stat(&self, d: TNodeId) -> bool {
         if !matches!(self.tree_of(d), T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. }) {
@@ -156,7 +121,8 @@ impl Code<'_> {
         let owner = self.h.u.symbol(s).owner;
         let owner_has = |tag| owner.is_some_and(|o| self.h.u.symbol(o).flags.has(tag));
         let name = self.h.u.symbol(s).name.as_str();
-        let numbered = |n: &str| n.strip_prefix('_').is_some_and(|d| !d.starts_with('0') && d.parse::<u32>().is_ok());
+        let numbered =
+            |n: &str| n.strip_prefix('_').is_some_and(|d| !d.starts_with('0') && d.parse::<u32>().is_ok());
         let undecompilable = f.has(SYNTHETIC)
             && matches!(self.tree_of(d), T::DefDef { .. })
             && ((matches!(name, "apply" | "unapply" | "writeReplace") && owner_has(OBJECT))

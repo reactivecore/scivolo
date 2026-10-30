@@ -10,6 +10,7 @@ mod def_structure;
 mod defs;
 mod highlight;
 mod literals;
+mod parents;
 mod structure;
 mod type_string;
 mod type_structure;
