@@ -1,6 +1,7 @@
 //! Decoding the types of a file's type trees, types and paths.
 
 mod defs;
+mod jdk_renamed;
 mod match_type;
 
 pub use defs::param_tree_clauses;
@@ -127,8 +128,10 @@ impl<'a> Decoder<'a> {
             TYPEREF | SELECTtpt | TYPEREFin => Type::TypeRef(self.kid(id, 0), self.name(id)),
             TERMREF | SELECT | TERMREFin | SELECTin => Type::TermRef(self.kid(id, 0), self.name(id)),
             TYPEREFdirect | TERMREFdirect | TYPEREFsymbol | TERMREFsymbol => {
-                let prefix = matches!(n.tag, TYPEREFsymbol | TERMREFsymbol).then(|| self.kid(id, 0));
                 let Some(def) = ast.at(n.a as u32) else { return Type::Other(n.tag) };
+                let renamed = k.first().is_some_and(|&p| self.is_jdk_renamed(p, def));
+                let prefix =
+                    (matches!(n.tag, TYPEREFsymbol | TERMREFsymbol) && !renamed).then(|| self.kid(id, 0));
                 if let Some((binder, i)) = self.capture(def) {
                     return Type::Param(binder, i);
                 }

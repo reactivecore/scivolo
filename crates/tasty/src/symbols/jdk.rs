@@ -49,20 +49,29 @@ impl super::Universe {
         self.javalib_sources = true;
     }
 
+    /// Makes the classes of the jars from index `first` on Java classes when javalib's sources are
+    /// compiled: they stand for the JDK's.
+    pub fn set_jdk_jars(&mut self, first: usize) {
+        self.jdk_jars = first;
+    }
+
     /// Whether javalib's sources are compiled.
     pub fn javalib_sources(&self) -> bool {
         self.javalib_sources
     }
 
     /// Whether class `c` may be a Java class, if its name says so: one from TASTy; when javalib's
-    /// sources are compiled, only a JDK class javalib defines under another name.
+    /// sources are compiled, only a class of the JDK jars or a JDK class javalib defines under
+    /// another name.
     pub fn may_be_java(&self, c: crate::SymbolId) -> bool {
+        let Some((file, _)) = self.symbol(c).tree else { return false };
         if !self.javalib_sources {
-            return self.symbol(c).tree.is_some();
+            return true;
         }
+        let jar = self.library.jar_of(&self.files[file.0 as usize].path);
         let name = self.full_name(c);
         let name = name.strip_suffix('$').unwrap_or(&name);
-        self.symbol(c).tree.is_some() && RENAMED.iter().any(|&(_, jdk)| jdk == name)
+        jar.is_some_and(|j| j >= self.jdk_jars) || RENAMED.iter().any(|&(_, jdk)| jdk == name)
     }
 }
 

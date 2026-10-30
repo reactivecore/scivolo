@@ -45,11 +45,11 @@ WINDOWSLIB = LIBS / f"windowslib_native0.5_3-{VERSION}.jar"
 JDK_STUBS = ROOT / "libs/jdk-stubs.jar"
 # The options of a module's sources: the TASTy they see beyond the frontend's library
 # (windowslib's, which the library lacks, and the JDK classes javalib does not define), and
-# javalib's own classes as Scala classes.
+# javalib's own classes as Scala classes, the JDK stubs' as Java classes.
 OPTIONS = {
     "nativelib": ["--tasty", str(JDK_STUBS)],
     "windowslib": ["--tasty", str(WINDOWSLIB)],
-    "javalib": ["--javalib", "--tasty", str(WINDOWSLIB), "--tasty", str(JDK_STUBS)],
+    "javalib": ["--javalib", "--tasty", str(WINDOWSLIB), "--jdk-tasty", str(JDK_STUBS)],
 }
 # The groups of files of a module lowered as one unit, by path prefix in their source directory:
 # files that refer to each other's classes.

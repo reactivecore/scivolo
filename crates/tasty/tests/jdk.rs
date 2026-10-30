@@ -47,6 +47,15 @@ fn jdk_classes_under_their_jdk_names() {
 }
 
 #[test]
+fn renamed_classes_are_referenced_in_their_jdk_package() {
+    let Some(mut u) = with_javalib() else { return };
+    let class = class(&mut u, "java.lang", "Class");
+    let component = u.member(class, "getComponentType")[0];
+    let info = u.info(component);
+    assert_eq!(u.show(info), "(): Class[>: scala.Nothing <: scala.Any]");
+}
+
+#[test]
 fn extern_objects_are_marked() {
     let Some(mut u) = with_javalib() else { return };
     let net = u.package("java.net").unwrap();
