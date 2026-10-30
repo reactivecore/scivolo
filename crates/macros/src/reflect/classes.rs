@@ -53,7 +53,17 @@ impl Host {
         let ctor = self.u.decl(cls, "<init>").ok().and_then(|c| c.first().copied());
         let params = ctor.and_then(|c| self.made_params.get(&c)).cloned();
         let params = params.ok_or("ClassDef.apply of a class Symbol.newClass did not make")?;
-        self.reflect().class_def(cls, (&params, parents), body)
+        let class_def = self.reflect().class_def(cls, (&params, parents), body)?;
+        self.class_defs.push(class_def);
+        Ok(class_def)
+    }
+
+    /// Makes the parents of the class definitions the macro made constructor calls.
+    pub fn call_parents(&mut self) -> Fallible<()> {
+        for class_def in std::mem::take(&mut self.class_defs) {
+            self.reflect().call_parents(class_def)?;
+        }
+        Ok(())
     }
 
     pub fn type_ident(&mut self, s: SymbolId) -> Fallible<TNodeId> {

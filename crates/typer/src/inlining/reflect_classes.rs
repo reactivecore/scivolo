@@ -69,7 +69,7 @@ impl Reflect<'_> {
 
     /// `ClassDef(cls, parents, body)` of a class `Symbol.newClass` made with constructor
     /// parameter definitions `params` by clause: the type parameters and fields of the
-    /// parameters first in its body, its class parents called as constructors without arguments.
+    /// parameters first in its body, its parents as given.
     pub fn class_def(
         &mut self,
         cls: SymbolId,
@@ -84,12 +84,6 @@ impl Reflect<'_> {
         let tpt = self.type_tree(unit);
         let clauses: Vec<&[TNodeId]> = params.iter().map(Vec::as_slice).collect();
         let constr = self.build()?.def_def(ctor, &clauses, tpt, None, span);
-        let mut called = parents.to_vec();
-        if !self.u.is_trait(cls) {
-            for p in &mut called {
-                *p = self.parent_call(*p)?;
-            }
-        }
         let mut stats: Vec<TNodeId> =
             self.u.type_params(cls).into_iter().map(|p| self.type_param_def(p)).collect();
         let mut fields: Vec<SymbolId> = self.u.symbol(cls).decls.clone();
@@ -100,11 +94,28 @@ impl Reflect<'_> {
             stats.push(self.build()?.val_def(f, tpt, None, span));
         }
         stats.extend_from_slice(body);
-        let (parents, body) = (self.tpd.list(&called), self.tpd.list(&stats));
+        let (parents, body) = (self.tpd.list(parents), self.tpd.list(&stats));
         let template = self.tpd.node(T::Template { constr, parents, self_: None, body }, span, None, dummy);
         let name = TName { name: self.names.intern(&self.u.symbol(cls).name), is_type: true };
         let tpe = type_ref(self.u, cls);
         Ok(self.tpd.node(T::TypeDef { name, rhs: template }, span, Some(tpe), Some(cls)))
+    }
+
+    /// Makes the parents of class definition `class_def` constructor calls as `parent_call` does
+    /// (dotty's `ExplicitOuter`).
+    pub fn call_parents(&mut self, class_def: TNodeId) -> Result<(), &'static str> {
+        let T::TypeDef { rhs, .. } = *self.tpd.tree(class_def) else { return Ok(()) };
+        let T::Template { constr, parents, self_, body } = *self.tpd.tree(rhs) else { return Ok(()) };
+        if self.tpd.sym(class_def).is_none_or(|cls| self.u.is_trait(cls)) {
+            return Ok(());
+        }
+        let mut called = self.tpd.items(parents).to_vec();
+        for p in &mut called {
+            *p = self.parent_call(*p)?;
+        }
+        let parents = self.tpd.list(&called);
+        self.tpd.get_mut(rhs).tree = T::Template { constr, parents, self_, body };
+        Ok(())
     }
 
     /// Parent tree `p`: a constructor call or a trait's type tree as it is, a class's type tree

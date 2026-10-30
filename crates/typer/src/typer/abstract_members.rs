@@ -39,7 +39,8 @@ impl Typer<'_> {
         };
         let mut annotated = self.u.symbol(cls).decls.clone();
         annotated.push(cls);
-        let annotations: Vec<_> = annotated.into_iter().flat_map(|s| self.u.annotations(s).to_vec()).collect();
+        let annotations: Vec<_> =
+            annotated.into_iter().flat_map(|s| self.u.annotations(s).to_vec()).collect();
         annotations.into_iter().any(|a| self.u.derives_from(a, base))
     }
 
