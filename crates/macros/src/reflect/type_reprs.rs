@@ -73,8 +73,8 @@ impl Host {
         Ok(self.u.linearization(c))
     }
 
-    /// The type of member `s` seen from `t`; a parameterless method's as a by-name type, a
-    /// class's as a reference to it.
+    /// The type of member `s` seen from `t`; a parameterless method's as a by-name type, a type
+    /// alias's as its alias, a class's as a reference to it.
     pub fn member_type(&mut self, t: TypeId, s: SymbolId) -> Fallible<TypeId> {
         if let Some(p) = self.repeated_param(s)? {
             return Ok(p);
@@ -84,10 +84,17 @@ impl Host {
             return Ok(self.u.intern_type(Type::Sym(member.then_some(t), s)));
         }
         let m = self.u.term_type(Some(t), s);
-        let method = matches!(self.u.types().get(m), Type::Method { .. } | Type::Poly { .. });
-        Ok(match self.u.symbol(s).kind == Kind::Def && !method {
-            true => self.u.intern_type(Type::ByName(m)),
-            false => m,
+        let shape = self.u.types().get(m);
+        let method = matches!(shape, Type::Method { .. } | Type::Poly { .. });
+        let bounds = match shape {
+            Type::Bounds(..) | Type::Alias(_) => true,
+            Type::Lambda { result, .. } => matches!(self.u.types().get(*result), Type::Bounds(..)),
+            _ => false,
+        };
+        Ok(match self.u.symbol(s).kind {
+            Kind::Def if !method => self.u.intern_type(Type::ByName(m)),
+            Kind::Type if !bounds => self.u.intern_type(Type::Alias(m)),
+            _ => m,
         })
     }
 

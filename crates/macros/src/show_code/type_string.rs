@@ -1,7 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
-//! Types as `TypeRepr.toString` shows them (dotty's `Type.toString`), references as TASTy has them.
+//   compiler/src/dotty/tools/dotc/core/Symbols.scala
+//! Types as `TypeRepr.toString` shows them (dotty's `Type.toString`).
 
 use super::literals::constant_value;
 use crate::host::Host;
@@ -11,20 +12,21 @@ type Shown = Result<String, &'static str>;
 
 const REFUSED: &str = "TypeRepr.toString of a type the frontend does not print";
 
-/// The `this` of the empty package.
-const EMPTY_THIS: &str =
-    "ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <root>)),module class <empty>))";
-
-/// The reference to package `name` owned by package `owner`.
-fn package_ref(owner: &str, name: &str) -> String {
-    format!("TermRef(ThisType(TypeRef(NoPrefix,module class {owner})),object {name})")
+/// The reference to package `name` owned by package `owner`, as its `TermRef` (dotty's
+/// `termRef`) or as its class's `this`.
+fn package_ref(owner: &str, name: &str, this: bool) -> String {
+    let owner_this = format!("ThisType(TypeRef(NoPrefix,module class {owner}))");
+    match this {
+        true => format!("ThisType(TypeRef({owner_this},module class {name}))"),
+        false => format!("TermRef({owner_this},object {name})"),
+    }
 }
 
-/// The reference to the package of qualified name `name`.
-fn package_named(name: &str) -> String {
+/// The reference to the package of qualified name `name`, as `package_ref`.
+fn package_named(name: &str, this: bool) -> String {
     match name.rsplit_once('.') {
-        Some((owner, last)) => package_ref(owner.rsplit('.').next().unwrap_or(owner), last),
-        None => package_ref("<root>", name),
+        Some((owner, last)) => package_ref(owner.rsplit('.').next().unwrap_or(owner), last, this),
+        None => package_ref("<root>", name, this),
     }
 }
 
@@ -47,19 +49,17 @@ struct Text<'h> {
 
 impl Text<'_> {
     fn tpe(&mut self, t: TypeId) -> Shown {
-        let node = |s: &mut Self, what: &str, parts: &[TypeId]| -> Shown {
-            let parts: Vec<String> = parts.iter().map(|&p| s.tpe(p)).collect::<Result<_, _>>()?;
-            Ok(format!("{what}({})", parts.join(",")))
-        };
+        let node =
+            |s: &mut Self, what: &str, parts: &[TypeId]| Ok(format!("{what}({})", s.types(parts)?.join(",")));
         Ok(match self.h.u.types().get(t).clone() {
             Type::NoPrefix => "NoPrefix".to_owned(),
-            Type::Package(p) => self.package(p)?,
-            Type::PackageName(n) => package_named(&n),
+            Type::Package(p) => self.package(p, false)?,
+            Type::PackageName(n) => package_named(&n, false),
             Type::Sym(prefix, s) => self.sym_ref(prefix, s)?,
             Type::Local(_, name) => format!("TypeRef(NoPrefix,type {name})"),
             Type::TypeRef(p, n) => format!("TypeRef({},{n})", self.tpe(p)?),
             Type::TermRef(p, n) => match self.h.u.resolve_ref(t) {
-                Some(s) if self.h.u.symbol(s).kind == Kind::Package => self.package(s)?,
+                Some(s) if self.h.u.symbol(s).kind == Kind::Package => self.package(s, false)?,
                 _ => format!("TermRef({},{n})", self.tpe(p)?),
             },
             Type::This(c) => self.this(c)?,
@@ -134,52 +134,57 @@ impl Text<'_> {
         Ok(format!("{what}({}, {}, {})", list(&names), list(&infos?), result?))
     }
 
-    /// The `TermRef` of package `p`; the root's as the empty package's `this`.
-    fn package(&mut self, p: SymbolId) -> Shown {
+    /// Package `p` as `package_ref` shows it; the root as the empty package's `this`.
+    fn package(&mut self, p: SymbolId, this: bool) -> Shown {
         let root = self.h.u.root();
         if p == root {
-            return Ok(EMPTY_THIS.to_owned());
+            return Ok(package_ref("<root>", "<empty>", true));
         }
         let owner = self.h.u.symbol(p).owner.ok_or(REFUSED)?;
         let owner = if owner == root { "<root>" } else { &self.h.u.symbol(owner).name };
-        Ok(package_ref(owner, &self.h.u.symbol(p).name))
+        Ok(package_ref(owner, &self.h.u.symbol(p).name, this))
     }
 
-    /// The `this` of class or package `c`: a package's as its `TermRef`, as TASTy has it.
+    /// The `this` of class or package `c`.
     fn this(&mut self, c: TypeId) -> Shown {
         match self.h.u.types().get(c).clone() {
-            Type::Package(p) => self.package(p),
-            Type::Sym(_, p) if self.h.u.symbol(p).kind == Kind::Package => self.package(p),
-            Type::PackageName(n) => Ok(package_named(&n)),
+            Type::Package(p) => self.package(p, true),
+            Type::Sym(_, p) if self.h.u.symbol(p).kind == Kind::Package => self.package(p, true),
+            Type::PackageName(n) => Ok(package_named(&n, true)),
             _ => Ok(format!("ThisType({})", self.tpe(c)?)),
         }
     }
 
-    /// A reference to `s`: by name if its prefix is a path, else by symbol.
+    /// A reference to `s` (dotty's `designatorFor`): by name if its prefix is its owner's `this`,
+    /// else by symbol; without a prefix through its owner's `this` (dotty's `namedType`).
     fn sym_ref(&mut self, prefix: Option<TypeId>, s: SymbolId) -> Shown {
         let sym = self.h.u.symbol(s);
         let (kind, name, owner) = (sym.kind, sym.name.clone(), sym.owner);
         if kind == Kind::Package {
-            return self.package(s);
+            return self.package(s, false);
         }
         let what = if kind.is_term() { "TermRef" } else { "TypeRef" };
-        let prefix = match prefix {
-            Some(p) => p,
-            None => match owner {
-                Some(o) if self.h.u.symbol(o).kind == Kind::Package => self.h.u.intern_type(Type::Package(o)),
-                Some(o) if self.h.u.is_class(o) => {
-                    let cls = self.h.u.intern_type(Type::Sym(None, o));
-                    self.h.u.intern_type(Type::This(cls))
+        let symbol = format!("{} {name}", self.kind_string(s));
+        let Some(prefix) = prefix else {
+            let prefix = match owner {
+                Some(o) if self.h.u.symbol(o).kind == Kind::Package => {
+                    let name = if o == self.h.u.root() { "<empty>" } else { &self.h.u.symbol(o).name };
+                    format!("ThisType(TypeRef(NoPrefix,module class {name}))")
                 }
-                _ => self.h.u.intern_type(Type::NoPrefix),
-            },
+                Some(o) if self.h.u.is_class(o) => format!("ThisType({})", self.sym_ref(None, o)?),
+                _ => "NoPrefix".to_owned(),
+            };
+            return Ok(format!("{what}({prefix},{symbol})"));
         };
-        let p = self.h.u.types().get(prefix);
-        let by_name = matches!(p, Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) | Type::This(_))
-            || matches!(p, Type::Package(_) | Type::PackageName(_) | Type::Super(..));
-        let prefix = self.tpe(prefix)?;
-        let designator = if by_name { name } else { format!("{} {name}", self.kind_string(s)) };
-        Ok(format!("{what}({prefix},{designator})"))
+        let owner_this = match *self.h.u.types().get(prefix) {
+            Type::This(c) => match *self.h.u.types().get(c) {
+                Type::Package(p) => Some(p),
+                _ => self.h.u.class_symbol(c),
+            },
+            _ => None,
+        };
+        let designator = if owner_this.is_some() && owner_this == owner { name } else { symbol };
+        Ok(format!("{what}({},{designator})", self.tpe(prefix)?))
     }
 
     /// The kind of `s` as `SymDenotation.toString` names it.
