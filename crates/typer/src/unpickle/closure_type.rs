@@ -17,13 +17,13 @@ impl Unpickler<'_> {
     pub fn function_type(&mut self, meth: TNodeId) -> Result<TypeId, Refusal> {
         let s = self.tpd.sym(meth).ok_or("closure of an unknown method in a library inline body")?;
         let info = self.u.info(s);
-        let Type::Method { binder, params, result, contextual, .. } = self.u.types().get(info).clone() else {
-            return Err("closure of a method without parameters in a library inline body");
-        };
-        if self.u.has_erased_params(info) {
+        if self.u.poly(info).is_some() || self.u.has_erased_params(info) {
             let poly_function = self.u.class_ref("scala.PolyFunction");
             return Ok(self.u.intern_type(Type::Refined(poly_function, "apply".into(), info)));
         }
+        let Type::Method { binder, params, result, contextual, .. } = self.u.types().get(info).clone() else {
+            return Err("closure of a method without parameters in a library inline body");
+        };
         let types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
         let dependent = mentions_params(self.u, result, binder, Some(s));
         let approx = match dependent {

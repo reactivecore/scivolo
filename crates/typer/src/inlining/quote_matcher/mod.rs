@@ -6,6 +6,7 @@
 mod defs;
 mod open;
 mod open_calls;
+mod open_closure;
 mod shapes;
 
 use super::Reflect;
@@ -39,7 +40,7 @@ pub fn quote_match(
     let mut r = Reflect { u, tpd, names, span };
     let exprs = holes.into_iter().map(|h| match h {
         Hole::Closed(t) => Ok(t),
-        Hole::Open(t, params) => r.open_closure(owner, t, &params),
+        Hole::Open(t, params, tparams) => r.open_closure(owner, t, (&params, &tparams)),
     });
     Ok(Some((types, exprs.collect::<Result<_, _>>()?)))
 }
@@ -50,10 +51,10 @@ pub type Matches = (Vec<TypeId>, Vec<TNodeId>);
 type Matched = Result<bool, Refusal>;
 
 /// What a term hole matched: a closed tree, or an open one with the higher-order hole's
-/// captured identifiers.
+/// captured identifiers and type parameters.
 enum Hole {
     Closed(TNodeId),
-    Open(TNodeId, Vec<Captured>),
+    Open(TNodeId, Vec<Captured>, Vec<SymbolId>),
 }
 
 /// An identifier a higher-order hole captures: its name, the scrutinee's symbol it stands for
@@ -97,14 +98,10 @@ impl Matcher<'_> {
             return Ok(self.conforms(s, hole) && self.closed(s));
         }
         if let T::Apply { fun, args } = pt
-            && let T::TypeApply { fun, .. } = *self.tpd.tree(fun)
+            && let T::TypeApply { fun, args: targs } = *self.tpd.tree(fun)
+            && (self.is_patterns(fun, "higherOrderHole") || self.is_patterns(fun, "higherOrderHoleWithTypes"))
         {
-            if self.is_patterns(fun, "higherOrderHoleWithTypes") {
-                return Err("a quote pattern with a polymorphic higher-order hole");
-            }
-            if self.is_patterns(fun, "higherOrderHole") {
-                return self.open(s, args);
-            }
+            return self.open(s, targs, args);
         }
         if let T::Typed { expr, .. } = pt {
             return self.matches(s, expr);
@@ -279,16 +276,5 @@ impl Matcher<'_> {
             self.matched.push(Hole::Closed(s));
         }
         !free
-    }
-
-    /// Whether `s` refers to a scrutinee definition the environment pairs, but for `except`.
-    fn refers_to_env(&self, s: TNodeId, except: &[SymbolId]) -> bool {
-        let tpd = &*self.tpd;
-        let env = &self.env;
-        tpd.fold(false, s, &mut |found, t| {
-            found
-                || matches!(tpd.tree(t), T::Ident { .. })
-                    && tpd.sym(t).is_some_and(|x| !except.contains(&x) && env.iter().any(|&(e, _)| e == x))
-        })
     }
 }

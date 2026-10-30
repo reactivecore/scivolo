@@ -40,6 +40,10 @@ impl Unpickler<'_> {
                 let info = resolve_class_params(self.u, info);
                 (self.with_repeated_class(info), Some(s))
             }
+            Type::TermRef(pre, ref n) if n == "apply" => match self.u.poly_function_apply_of(pre) {
+                Some(info) => (info, meth),
+                None => (tpe, meth),
+            },
             _ => (tpe, meth),
         }
     }

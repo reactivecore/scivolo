@@ -46,6 +46,12 @@ impl Unpickler<'_> {
             let name = self.tname(id, true);
             return Ok(self.bare(T::Select { qualifier: qual, name }, Some(tpe), None));
         }
+        if !is_type && found.is_empty() && name == "apply" && self.u.poly_function_apply_of(prefix).is_some()
+        {
+            let tpe = self.u.intern_type(Type::TermRef(prefix, name));
+            let name = self.tname(id, false);
+            return Ok(self.bare(T::Select { qualifier: qual, name }, Some(tpe), None));
+        }
         let sym = self.at_signature(found, id, is_type)?;
         Ok(self.selection(id, qual, prefix, sym, is_type))
     }
