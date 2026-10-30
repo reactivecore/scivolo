@@ -57,9 +57,6 @@ pub fn split_parents(l: &mut Lower, parents: List) -> Result<(List, FxHashMap<Sy
         if matches!(l.tpd.tree(p), Tree::Block { .. }) {
             return unsupported(span, "a trait parent call with reordered arguments");
         }
-        if l.u.symbol(owner).tree.is_some() && !call_args.is_empty() {
-            return unsupported(span, "parameters of library traits");
-        }
         let tpe = l.tpd.tpe(p);
         out.push(l.type_tree(tpe, span));
         args.insert(owner, (span, call_args));
@@ -77,9 +74,6 @@ pub fn param_init(
     arg: Option<TNodeId>,
     span: Span,
 ) -> Result<TNodeId> {
-    if l.u.symbol(getter).tree.is_some() {
-        return unsupported(span, "parameters of library traits");
-    }
     let Some(arg) = arg else { return unsupported(span, "a parameterized trait without arguments") };
     if !implemented_by(l, class, getter) {
         return Ok(arg);
