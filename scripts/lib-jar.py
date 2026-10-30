@@ -17,7 +17,6 @@ import zipfile
 
 lib = importlib.import_module("lib-compile")
 
-VERSION = "0.5.12"
 MANIFEST = """Manifest-Version: 1.0
 Specification-Title: {m}
 Specification-Version: {v}
@@ -35,13 +34,12 @@ def lower(module, stage):
     """Lowers the module's source directories into `stage`; exits with the frontend's error."""
     for name in lib.SOURCE_DIRS:
         root = lib.SN / module / "src/main" / name
-        files = [str(f) for f in sorted(root.rglob("*.scala"))]
+        files = sorted(root.rglob("*.scala"))
         if not files:
             continue
         out = stage.parent / f"nir-{name}"
-        cmd = [str(lib.LOWER), "--macros", *lib.OPTIONS.get(module, []), "--sourceroot", str(root), *files,
-               str(out)]
-        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", env=lib.ENV)
+        r = subprocess.run(lib.lower_cmd(module, root, files, out), capture_output=True, text=True, errors="replace",
+                           env=lib.ENV)
         if r.returncode != 0:
             sys.exit(f"{module}/{name}: {r.stderr.strip()[:500]}")
         shutil.copytree(out, stage, dirs_exist_ok=True)
@@ -49,7 +47,7 @@ def lower(module, stage):
 
 def entries(module, stage, published):
     """The jar's entries in order: (name, bytes)."""
-    found = {"META-INF/MANIFEST.MF": MANIFEST.format(m=module, v=VERSION).replace("\n", "\r\n").encode()}
+    found = {"META-INF/MANIFEST.MF": MANIFEST.format(m=module, v=lib.VERSION).replace("\n", "\r\n").encode()}
     resources = lib.SN / module / "src/main/resources"
     for root in (stage, resources):
         if root.is_dir():
@@ -66,14 +64,14 @@ def write_jar(path, items):
 
 
 def main(module):
-    work = lib.WORK / module / "jar"
+    work, jar = lib.WORK / module / "jar", lib.WORK / module / lib.jar_name(module)
     shutil.rmtree(work, ignore_errors=True)
+    jar.unlink(missing_ok=True)
     stage = work / "nir"
     stage.mkdir(parents=True)
     lower(module, stage)
-    published = zipfile.ZipFile(lib.LIBS / f"{module}_native0.5_3-{VERSION}.jar")
+    published = zipfile.ZipFile(lib.LIBS / lib.jar_name(module))
     items = entries(module, stage, published)
-    jar = lib.WORK / module / f"{module}_native0.5_3-{VERSION}.jar"
     write_jar(jar, items)
     theirs, counts, ours = lib.oracle(module), {"same": 0, "differ": 0, "missing": 0}, set()
     diffs = lib.WORK / module / "jar-diffs"
