@@ -24,7 +24,7 @@ use typer::tpd::{TNodeId, Tree};
 /// Lifts the local classes among `classes` out of the blocks of unit `root`; their names and
 /// those of their proxies are left to `lambda_lift`.
 pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pending> {
-    let deps = dependencies(l, root);
+    let mut deps = dependencies(l, root);
     let (mut locals, mut traits) = (Vec::new(), Vec::new());
     for &td in classes {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
@@ -62,7 +62,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         pass_values(l, root, c.class, &c.free, fields, &mut pending.passed)?;
     }
     super::local_traits::transform(l, root, &traits, &deps, &mut pending)?;
-    let logic_owners = deps.logic_owners.clone();
+    let logic_owners = std::mem::take(&mut deps.logic_owners);
     pending.deps = Some(deps);
     let own = locals.iter().map(|c| (c.class, (c.free.values.clone(), c.free.in_methods.clone()))).collect();
     let mut nested = Nested { own, named_in: FxHashMap::default() };
