@@ -34,6 +34,7 @@ mod case_companion;
 mod case_lambdas;
 mod clashing_synthetics;
 mod class_bound;
+mod class_members;
 mod classes;
 mod closure_params;
 mod closures;
