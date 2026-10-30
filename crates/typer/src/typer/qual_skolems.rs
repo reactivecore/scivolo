@@ -13,7 +13,7 @@ impl Typer<'_> {
     /// `maybeSkolemizePrefix` and `asSeenFrom` of a `QualSkolemType`).
     pub fn qual_skolem(&mut self, p: TypeId, s: SymbolId) -> TypeId {
         let unstable = match *self.u.types().get(p) {
-            Type::Sym(_, c) => self.u.is_type_symbol(c) || !super::stability::is_stable_path(self.u, p),
+            Type::Sym(..) => !super::stability::is_stable_path(self.u, p),
             Type::TermRef(pre, ref name) => {
                 let name = name.clone();
                 let info = self.u.term_refinement_named(pre, &name);
