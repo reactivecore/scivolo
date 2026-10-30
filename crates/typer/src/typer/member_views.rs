@@ -141,7 +141,7 @@ impl Typer<'_> {
 
     /// Adds the classes of the objects the imports in `ctx` import from, or of the objects of the
     /// packages they import from, to `out`; if `named`, of a package imported from by names only
-    /// just its package objects that declare one of them; `None` if one imports from a path other
+    /// just its package objects that have a member of one of them; `None` if one imports from a path other
     /// than a package or an object.
     pub fn imported_objects(&mut self, ctx: Ctx, out: &mut Vec<SymbolId>, named: bool) -> Option<()> {
         let mut level = Some(ctx.level);
@@ -155,10 +155,7 @@ impl Typer<'_> {
                 if self.u.symbol(site).kind == Kind::Package {
                     for d in self.u.decls(site).ok()? {
                         let Some(c) = self.object_class(d) else { continue };
-                        if !named
-                            || self.is_named_package_object(c)
-                                && names.iter().any(|n| self.u.decl(c, n).is_ok_and(|ds| !ds.is_empty()))
-                        {
+                        if !named || self.is_named_package_object(c) && self.has_member_named(c, &names) {
                             out.push(c);
                         }
                     }
@@ -169,5 +166,11 @@ impl Typer<'_> {
             level = self.levels.outer(l);
         }
         Some(())
+    }
+
+    /// Whether class `c` or a base class of it declares a member named one of `names`.
+    fn has_member_named(&mut self, c: SymbolId, names: &[String]) -> bool {
+        let bases = self.u.linearization(c);
+        bases.into_iter().any(|b| names.iter().any(|n| self.u.decl(b, n).is_ok_and(|ds| !ds.is_empty())))
     }
 }
