@@ -106,8 +106,8 @@ const CASES: &[(&str, &str)] = &[
         "defining local methods",
     ),
     (
-        "trait S\nobject S { @scala.annotation.static def f = 1 }\nobject O { def g = S.f }",
-        "companion is a trait",
+        "class S(val x: Int) extends AnyVal\nobject S { @scala.annotation.static def f = 1 }\nobject O { def g = S.f }",
+        "companion is a value class",
     ),
     (
         "class D { class E; object E { @scala.annotation.static def f = 1 } }\nobject O { def g = D().E.f }",

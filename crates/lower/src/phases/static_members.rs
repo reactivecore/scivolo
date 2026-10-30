@@ -25,11 +25,11 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         }
         let companion = l.u.companion_class(module);
         let target = classes.iter().copied().find(|&c| l.tpd.sym(c).is_some() && l.tpd.sym(c) == companion);
-        let plain = companion.is_some_and(|c| !l.u.is_trait(c) && l.u.underlying(c).is_none());
+        let plain = companion.is_some_and(|c| l.u.underlying(c).is_none());
         let Some(target) = target.filter(|_| plain) else {
             return unsupported(
                 l.tpd.span(statics[0]),
-                "@static members of an object whose companion is a trait, a value class or in another unit",
+                "@static members of an object whose companion is a value class or in another unit",
             );
         };
         let class = companion.expect("a companion class");

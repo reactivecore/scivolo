@@ -21,9 +21,10 @@ into it through the object's instance. The lowering's phases run in another orde
 - Codegen names the static getter of such a field on the companion class, as for enum values.
 - Constant folding skips the left-hand sides of assignments, which the `<clinit>` of a `final
   val` has before `FirstTransform` runs.
-- Still refused: `@static` lazy values, values of objects whose companion is a trait, a value
-  class or in another unit.
+- Still refused: `@static` lazy values, values of objects whose companion is a value class or in
+  another unit. A trait companion takes them like a class (#184); the VM links a trait on the use
+  of a member, which runs its `<clinit>`.
 
 ## Consequences
 - statics and i5924c lower as Scala Native compiles them (`tests/programs/Lw26statics`,
-  `Lw26staticvals`); i5924b (a trait companion) stays refused.
+  `Lw26staticvals`), and so does i5924b (`Lw30statictrait`).
