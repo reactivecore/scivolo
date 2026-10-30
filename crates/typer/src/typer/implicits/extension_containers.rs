@@ -14,19 +14,17 @@ const AMBIGUOUS: &str = "ambiguous extension methods of implicit values";
 
 impl Typer<'_> {
     /// The one candidate of `group` with an extension method `name` that takes `tree`, if any,
-    /// else the most specific one; `Err` if none is, or if a conversion of the same group fits.
+    /// else the most specific one; `Err` if none is.
     pub fn extension_container(
         &mut self,
         group: &[Candidate],
         tree: TNodeId,
         name: &str,
-        converts: bool,
         ctx: Ctx,
     ) -> Result<Option<Candidate>, &'static str> {
         let found = self.fitting(group, |t, c| t.try_extension(c, tree, name, ctx))?;
         match found[..] {
             [] => Ok(None),
-            _ if converts => Err("implicit conversion beside an extension method of an implicit value"),
             [c] => Ok(Some(c)),
             _ => match self.most_specific(&found, ctx) {
                 Some(c) => Ok(Some(c)),

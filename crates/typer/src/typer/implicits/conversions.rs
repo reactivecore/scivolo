@@ -66,7 +66,7 @@ impl Typer<'_> {
                 Some(group) => (group, Vec::new()),
                 None => self.view_scope(from, goal)?,
             };
-            let found = self.fitting(&group, |t, c| t.try_conversion(c, (tree, false), goal, ctx))?;
+            let mut found = self.fitting(&group, |t, c| t.try_conversion(c, (tree, false), goal, ctx))?;
             let mut widened = Vec::new();
             if constant {
                 widened = self.fitting(&group, |t, c| t.try_conversion(c, (tree, true), goal, ctx))?;
@@ -75,9 +75,15 @@ impl Typer<'_> {
             if let Goal::Member(name) = goal {
                 let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();
                 group.extend(extra);
-                let converts = !found.is_empty() || !widened.is_empty();
-                if let Some(c) = self.extension_container(&group, tree, name, converts, ctx)? {
-                    return Ok(Some(Viewed::Extension(c)));
+                if let Some(c) = self.extension_container(&group, tree, name, ctx)? {
+                    found.retain(|&v| self.compare(v, c, ctx) != Some(-1));
+                    widened.retain(|&v| self.compare(v, c, ctx) != Some(-1));
+                    if found.is_empty() && widened.is_empty() {
+                        return Ok(Some(Viewed::Extension(c)));
+                    }
+                    if !found.iter().chain(&widened).any(|&v| self.compare(v, c, ctx) == Some(1)) {
+                        return Err("implicit conversion beside an extension method of an implicit value");
+                    }
                 }
             }
             let ambiguous = "ambiguous implicit conversions";

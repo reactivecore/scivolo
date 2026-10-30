@@ -1,7 +1,7 @@
 //! The declared types of symbols, decoded from their trees on first use, and the trees of their
 //! right-hand sides.
 
-use super::{FileId, Kind, SymbolId, Universe};
+use super::{ANY, FileId, Kind, SymbolId, Universe};
 use crate::tags::{OPAQUE, PRIVATEqualified, PROTECTEDqualified, TEMPLATE};
 use crate::types::{Decoder, Type, TypeId};
 use crate::{NodeId, View, view};
@@ -53,20 +53,30 @@ impl Universe {
         self.with_decoder(file, |d| d.opaque_bounds(id))
     }
 
-    /// The upper bound of `t`, an opaque type lambda applied to arguments, when its definition
-    /// states bounds.
-    pub fn applied_opaque_upper(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Applied(tycon, args) = self.types().get(t).clone() else { return None };
+    /// The upper bound of `t`, a reference to an opaque type from TASTy, applied to arguments or
+    /// not, while opaque types are not elided: the one its definition states, else `Any`.
+    pub fn opaque_upper(&mut self, t: TypeId) -> Option<TypeId> {
+        let (tycon, args) = match self.types().get(t).clone() {
+            Type::Applied(tycon, args) => (tycon, Some(args)),
+            _ => (t, None),
+        };
         let (prefix, s) = match *self.types().get(tycon) {
             Type::Sym(p, s) => (p, s),
-            _ => (None, self.referenced(tycon)?),
+            Type::TypeRef(..) => (None, self.referenced(tycon)?),
+            _ if args.is_some() => (None, self.referenced(tycon)?),
+            _ => return None,
         };
-        let (_, hi) = self.opaque_bounds(s)?;
+        let sym = self.symbol(s);
+        if self.opaques_elided || sym.kind != Kind::Type || !sym.flags.has(OPAQUE) || sym.tree.is_none() {
+            return None;
+        }
+        let Some((_, hi)) = self.opaque_bounds(s) else { return Some(ANY) };
         let hi = match (prefix, self.symbol(s).owner) {
             (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(hi, p, o),
             _ => hi,
         };
-        let Type::Lambda { binder, params, result } = self.types().get(hi).clone() else { return None };
+        let Some(args) = args else { return Some(hi) };
+        let Type::Lambda { binder, params, result } = self.types().get(hi).clone() else { return Some(ANY) };
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         Some(self.subst(result, binder, &names, &args))
     }

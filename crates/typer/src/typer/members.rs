@@ -27,6 +27,9 @@ impl Typer<'_> {
     fn members_within(&mut self, t: TypeId, name: &str, (depth, ctx): (u32, Option<Ctx>)) -> Vec<SymbolId> {
         let Some(depth) = depth.checked_sub(1) else { return Vec::new() };
         let within = (depth, ctx);
+        if let Some(hi) = self.u.opaque_upper(t) {
+            return self.members_within(hi, name, within);
+        }
         match self.u.types().get(t).clone() {
             Type::Package(p) => self.package_members(p, name),
             Type::This(c) => {
@@ -102,13 +105,7 @@ impl Typer<'_> {
                 }
                 _ => Vec::new(),
             },
-            _ => match self.u.class_symbol(t) {
-                Some(c) => self.class_members(c, name),
-                None => match self.u.applied_opaque_upper(t) {
-                    Some(hi) => self.members_within(hi, name, within),
-                    None => Vec::new(),
-                },
-            },
+            _ => self.u.class_symbol(t).map_or_else(Vec::new, |c| self.class_members(c, name)),
         }
     }
 
