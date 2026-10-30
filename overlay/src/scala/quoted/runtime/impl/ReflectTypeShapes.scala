@@ -56,7 +56,7 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
   }
 
   object TypeBounds extends TypeBoundsModule {
-    def apply(low: TypeRepr, hi: TypeRepr): TypeBounds = throw new Unsupported("TypeBounds.apply")
+    def apply(low: TypeRepr, hi: TypeRepr): TypeBounds = TypeKinds.of(5, List(low, hi)).asInstanceOf[TypeBounds]
     def unapply(x: TypeBounds): (TypeRepr, TypeRepr) = (x.low, x.hi)
     def empty: TypeBounds = throw new Unsupported("TypeBounds.empty")
     def upper(hi: TypeRepr): TypeBounds = throw new Unsupported("TypeBounds.upper")

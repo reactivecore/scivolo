@@ -55,6 +55,12 @@ impl Host {
         self.reflect().ref_(s)
     }
 
+    /// `Closure(meth, None)` of reference `meth` to a method.
+    pub fn closure_of(&mut self, meth: TNodeId) -> Fallible<TNodeId> {
+        let s = self.tpd.sym(meth).ok_or("Closure.apply of a term without a symbol")?;
+        self.reflect().closure_of(s)
+    }
+
     pub fn ident_ref(&mut self, tpe: TypeId) -> Fallible<TNodeId> {
         let tasty::Type::Sym(_, s) = *self.u.types().get(tpe) else {
             return Err("Ident.apply of a reference the frontend did not resolve");

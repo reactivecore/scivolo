@@ -36,12 +36,12 @@ trait ReflectTypeKinds extends reflectModule { self: reflect.type =>
   }
 
   object AndType extends AndTypeModule {
-    def apply(lhs: TypeRepr, rhs: TypeRepr): AndType = refused("AndType.apply")
+    def apply(lhs: TypeRepr, rhs: TypeRepr): AndType = TypeKinds.of(12, List(lhs, rhs)).asInstanceOf[AndType]
     def unapply(x: AndType): (TypeRepr, TypeRepr) = (x.left, x.right)
   }
 
   object OrType extends OrTypeModule {
-    def apply(lhs: TypeRepr, rhs: TypeRepr): OrType = refused("OrType.apply")
+    def apply(lhs: TypeRepr, rhs: TypeRepr): OrType = TypeKinds.of(13, List(lhs, rhs)).asInstanceOf[OrType]
     def unapply(x: OrType): (TypeRepr, TypeRepr) = (x.left, x.right)
   }
 
@@ -57,7 +57,8 @@ trait ReflectTypeKinds extends reflectModule { self: reflect.type =>
   }
 
   object MatchType extends MatchTypeModule {
-    def apply(bound: TypeRepr, scrutinee: TypeRepr, cases: List[TypeRepr]): MatchType = refused("MatchType.apply")
+    def apply(bound: TypeRepr, scrutinee: TypeRepr, cases: List[TypeRepr]): MatchType =
+      TypeKinds.of(17, bound :: scrutinee :: cases).asInstanceOf[MatchType]
     def unapply(x: MatchType): (TypeRepr, TypeRepr, List[TypeRepr]) = (x.bound, x.scrutinee, x.cases)
   }
 
@@ -71,7 +72,7 @@ trait ReflectTypeKinds extends reflectModule { self: reflect.type =>
   }
 
   object MatchCase extends MatchCaseModule {
-    def apply(pattern: TypeRepr, rhs: TypeRepr): MatchCase = refused("MatchCase.apply")
+    def apply(pattern: TypeRepr, rhs: TypeRepr): MatchCase = TypeKinds.of(20, List(pattern, rhs)).asInstanceOf[MatchCase]
     def unapply(x: MatchCase): (TypeRepr, TypeRepr) = (x.pattern, x.rhs)
   }
 
@@ -130,4 +131,14 @@ trait ReflectTypeKinds extends reflectModule { self: reflect.type =>
   private def methods[T](name: String): T =
     QuoteHost.allocate("scala.quoted.runtime.impl.ReflectTypeKindSupport$ReflectTypeKinds$" + name).asInstanceOf[T]
 }
+}
+
+object TypeKinds {
+  /** The type of kind `kind` (as `TypeShapes.kind` numbers them), parts `parts` and, for a
+   *  refinement, member `name`.
+   */
+  def of(kind: Int, parts: List[Any], name: String = ""): Any = {
+    ReflectOps.run("typeOfParts", (kind :: parts.map(ReflectOps.id)).toArray, name)
+    QuoteHost.tpe(QuoteHost.result(0))
+  }
 }

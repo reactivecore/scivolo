@@ -5,6 +5,7 @@
 use super::Fallible;
 use crate::host::Host;
 use syntax::ast::constant::Constant;
+use tasty::TypeId;
 use typer::tpd::TNodeId;
 use vm::Reflected;
 
@@ -18,6 +19,12 @@ impl Host {
     pub fn literal(&mut self, kind: i32, bits: u64, text: String) -> Fallible<TNodeId> {
         let c = decoded(kind, bits, &text)?;
         self.reflect().literal(c)
+    }
+
+    /// The constant type of the constant of kind `kind`, value words `bits` and text `text`.
+    pub fn constant_type_of(&mut self, kind: i32, bits: u64, text: String) -> Fallible<TypeId> {
+        let c = decoded(kind, bits, &text)?;
+        Ok(typer::tpd::constant_type_of(&mut self.u, &c))
     }
 }
 
