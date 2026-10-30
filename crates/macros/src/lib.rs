@@ -16,7 +16,7 @@ use syntax::ast::Span;
 use syntax::diag::Level;
 use syntax::source::SourceFile;
 use tasty::{Erased, SymbolId};
-use typer::inlining::{AnnotationCall, Annotations, Expanded, Lent, MacroCall, MacroError};
+use typer::inlining::{AnnotationCall, Annotations, Expanded, Lent, MacroCall, MacroError, Reports};
 use vm::{Thrown, Vm, VmError};
 
 /// The universe, trees and names the typer lends the expansion.
@@ -134,9 +134,11 @@ impl VmMacros<'_> {
                 Ok(Expanded { exprs: host.quoted().map_err(refused)?, results, warnings })
             }
             (Err(VmError::Uncaught(thrown)), None) if thrown.classes.iter().any(|c| c == STOP) => {
-                Err(MacroError::Aborted)
+                Err(MacroError::Aborted(std::mem::take(&mut host.reported)))
             }
-            (Err(VmError::Uncaught(thrown)), None) => Err(failure(&thrown)),
+            (Err(VmError::Uncaught(thrown)), None) => {
+                Err(failure(&thrown, std::mem::take(&mut host.reported)))
+            }
             (Err(e), None) => Err(refused(&format!("a macro implementation the VM cannot run: {e}"))),
         }
     }
@@ -144,9 +146,9 @@ impl VmMacros<'_> {
 
 const STOP: &str = "scala.quoted.runtime.StopMacroExpansion";
 
-/// The error dotty reports for exception `thrown`; a refusal for the VM's `InternalError` of what
+/// The error dotty reports for exception `thrown`, after the macro's `warnings`; a refusal for the VM's `InternalError` of what
 /// it does not support.
-fn failure(thrown: &Thrown) -> MacroError {
+fn failure(thrown: &Thrown, warnings: Reports) -> MacroError {
     let class = thrown.classes.first().map_or("", String::as_str);
     let message = thrown.header.split_once(": ").map_or("", |(_, m)| m);
     if let Some(what) = message.strip_prefix("scivolo: unsupported: ")
@@ -159,5 +161,5 @@ fn failure(thrown: &Thrown) -> MacroError {
         let at = f.file.as_ref().map_or_else(String::new, |file| format!("{file}:{}", f.line));
         msg.push_str(&format!("\n    {}.{}({at})", f.class, f.method));
     }
-    MacroError::Failed(msg)
+    MacroError::Failed(warnings, msg)
 }
