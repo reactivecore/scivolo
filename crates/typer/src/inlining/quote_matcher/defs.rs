@@ -5,6 +5,7 @@
 use super::{Matched, Matcher};
 use crate::tpd::{Clauses, TNodeId, Tree as T};
 use tasty::SymbolId;
+use tasty::tags::ERASED;
 
 impl Matcher<'_> {
     /// `def` `s` of parameters `ps` and result `st`, `sr` against `p` of `pp`, `pt`, `pr`: the
@@ -29,7 +30,9 @@ impl Matcher<'_> {
                 if [x, y].iter().any(|&t| matches!(self.tpd.tree(t), T::TypeDef { .. })) {
                     return Err("a quote pattern with a polymorphic method definition");
                 }
-                if !self.with_pairs(&pairs, |m| m.matches(x, y))? {
+                let erased =
+                    [x, y].map(|t| self.tpd.sym(t).is_some_and(|s| self.u.symbol(s).flags.has(ERASED)));
+                if erased[0] != erased[1] || !self.with_pairs(&pairs, |m| m.matches(x, y))? {
                     return Ok(false);
                 }
                 pairs.extend(self.tpd.sym(x).zip(self.tpd.sym(y)));

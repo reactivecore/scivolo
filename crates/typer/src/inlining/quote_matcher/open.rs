@@ -32,14 +32,8 @@ impl Matcher<'_> {
             let eta = match self.u.symbol(captured).kind {
                 Kind::Def => {
                     let info = self.u.info(captured);
-                    let types = self.u.types();
-                    let curried = match types.get(info) {
-                        Type::Poly { .. } => true,
-                        Type::Method { result, .. } => matches!(types.get(*result), Type::Method { .. }),
-                        _ => false,
-                    };
-                    if curried {
-                        return Err("a higher-order hole capturing a polymorphic or curried method");
+                    if self.u.poly(info).is_some() {
+                        return Err("a higher-order hole capturing a polymorphic method");
                     }
                     Some(self.tpd.get(a).tpe.ok_or(shape)?)
                 }
@@ -145,25 +139,6 @@ impl Reflect<'_> {
             Inlining::new((&mut *self.u, &mut *self.tpd), (&mut *self.names, &mut fresh), &mut host, false);
         let mut m = TreeTypeMap { syms, ..TreeTypeMap::default() };
         i.copy(&mut m, t, &mut |_, _, _| None).map_err(|(_, what)| what)
-    }
-
-    /// Rewrites the calls `f(args)` in `t` of the parameters `functions`, which stand for
-    /// methods, into `f.apply(args)`.
-    fn applies_through(&mut self, t: TNodeId, functions: &[SymbolId]) -> Result<(), &'static str> {
-        let mut todo = vec![t];
-        while let Some(n) = todo.pop() {
-            todo.extend(self.tpd.children(n));
-            let T::Apply { fun, args } = *self.tpd.tree(n) else { continue };
-            let Some(f) = self.tpd.sym(fun).filter(|f| functions.contains(f)) else { continue };
-            let tpe = self.u.info(f);
-            let apply =
-                self.u.member_of_type(tpe, "apply").into_iter().find(|&m| self.u.symbol(m).kind.is_term());
-            let apply = apply.ok_or("a captured method without a function type")?;
-            let span = self.tpd.span(fun);
-            let select = self.build()?.select(fun, apply, span);
-            self.tpd.get_mut(n).tree = T::Apply { fun: select, args };
-        }
-        Ok(())
     }
 
     /// Gives the outermost definitions in `t` owner `owner`.
