@@ -35,7 +35,7 @@ impl Typer<'_> {
     pub fn any_root_member(&mut self, ctx: Ctx, mut f: impl FnMut(&mut Self, SymbolId) -> bool) -> bool {
         let Some(mut containers) = self.script_classes() else { return true };
         if self.library_objects(&mut containers).is_none()
-            || self.imported_objects(ctx, &mut containers).is_none()
+            || self.imported_objects(ctx, &mut containers, false).is_none()
         {
             return true;
         }
@@ -140,17 +140,27 @@ impl Typer<'_> {
     }
 
     /// Adds the classes of the objects the imports in `ctx` import from, or of the objects of the
-    /// packages they import from, to `out`; `None` if one imports from a path other than a package
-    /// or an object.
-    pub fn imported_objects(&mut self, ctx: Ctx, out: &mut Vec<SymbolId>) -> Option<()> {
+    /// packages they import from, to `out`; if `named`, of a package imported from by names only
+    /// just its package objects that declare one of them; `None` if one imports from a path other
+    /// than a package or an object.
+    pub fn imported_objects(&mut self, ctx: Ctx, out: &mut Vec<SymbolId>, named: bool) -> Option<()> {
         let mut level = Some(ctx.level);
         while let Some(l) = level {
             if let Level::Import(i) = *self.levels.get(l) {
-                let qual = self.import_info(i)?.qual;
+                let info = self.import_info(i)?;
+                let (qual, names): (_, Vec<String>) =
+                    (info.qual, info.selectors.iter().map(|s| s.name.clone()).collect());
                 let site = self.import_site(qual)?;
+                let named = named && !names.iter().any(|n| n == "_" || n.is_empty());
                 if self.u.symbol(site).kind == Kind::Package {
                     for d in self.u.decls(site).ok()? {
-                        out.extend(self.object_class(d));
+                        let Some(c) = self.object_class(d) else { continue };
+                        if !named
+                            || self.is_named_package_object(c)
+                                && names.iter().any(|n| self.u.decl(c, n).is_ok_and(|ds| !ds.is_empty()))
+                        {
+                            out.push(c);
+                        }
                     }
                 } else {
                     out.push(self.object_class(site)?);
