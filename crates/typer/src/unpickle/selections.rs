@@ -46,10 +46,9 @@ impl Unpickler<'_> {
             let name = self.tname(id, true);
             return Ok(self.bare(T::Select { qualifier: qual, name }, Some(tpe), None));
         }
-        let widened = self.u.widen(prefix);
-        if !is_type && found.is_empty() && name == "apply" && self.u.poly_function_apply_of(widened).is_some()
+        if !is_type && found.is_empty() && name == "apply" && self.u.poly_function_apply_of(prefix).is_some()
         {
-            let tpe = self.u.intern_type(Type::TermRef(widened, name));
+            let tpe = self.u.intern_type(Type::TermRef(prefix, name));
             let name = self.tname(id, false);
             return Ok(self.bare(T::Select { qualifier: qual, name }, Some(tpe), None));
         }
