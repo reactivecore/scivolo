@@ -26,7 +26,7 @@ impl Typer<'_> {
                 kept.extend(dropped.pop());
             }
         }
-        if current == t || dropped.iter().all(|&d| self.u.is_subtype(current, d)) {
+        if current == t || dropped.iter().all(|&d| self.u.is_subtype(d, current)) {
             self.constraint.rollback(mark);
             return t;
         }
