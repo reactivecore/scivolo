@@ -6,8 +6,8 @@
 
 use super::{SymbolId, Universe};
 use crate::tags::{
-    APPLY, BLOCK, DEFDEF, EXPORT, IMPORT, LAZY, PARAM, SPLITCLAUSE, TEMPLATE, TRAIT, TYPEDEF, TYPEPARAM,
-    VALDEF,
+    APPLY, BLOCK, DEFDEF, EXPORT, IMPORT, LAZY, OBJECT, PARAM, SPLITCLAUSE, TEMPLATE, TRAIT, TYPEDEF,
+    TYPEPARAM, VALDEF,
 };
 use crate::{Ast, NodeId, View, view};
 
@@ -37,11 +37,13 @@ impl Universe {
 }
 
 /// Whether statement `s` of a template body runs code when an instance is made: a concrete,
-/// non-lazy value, or an expression.
+/// value neither lazy nor an object's, or an expression.
 fn initializes(ast: &Ast, s: NodeId) -> bool {
     match ast.tag(s) {
         VALDEF => match view(ast, s) {
-            View::ValDef { rhs, mods, .. } => rhs.is_some() && !mods.iter().any(|&m| ast.tag(m) == LAZY),
+            View::ValDef { rhs, mods, .. } => {
+                rhs.is_some() && !mods.iter().any(|&m| matches!(ast.tag(m), LAZY | OBJECT))
+            }
             _ => true,
         },
         DEFDEF | TYPEDEF | TYPEPARAM | PARAM | IMPORT | EXPORT | SPLITCLAUSE => false,

@@ -44,7 +44,7 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
     extension (self: TypeRepr) {
       def =:=(that: TypeRepr): Boolean = ReflectOps.one("isSameType", ReflectOps.id(self), ReflectOps.id(that)) != 0
       def <:<(that: TypeRepr): Boolean = ReflectOps.one("isSubtype", ReflectOps.id(self), ReflectOps.id(that)) != 0
-      def asType: Type[?] = self.asInstanceOf[Type[?]]
+      def asType: Type[?] = QuoteHost.quotedType(ReflectOps.id(self))
       def show(using printer: Printer[TypeRepr]): String = printer.show(self)
       def dealias: TypeRepr = repr(ReflectOps.one("dealias", ReflectOps.id(self)))
       def isSingleton: Boolean = ReflectOps.one("isSingleton", ReflectOps.id(self)) != 0

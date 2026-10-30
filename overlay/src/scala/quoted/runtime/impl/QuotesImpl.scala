@@ -49,7 +49,7 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
       if (termHole == null) throw new Unsupported("a quote with holes but no hole function")
       val args = (0 until QuoteHost.holeArgCount(quote, hole)).map { i =>
         val arg = QuoteHost.holeArg(quote, hole, i)
-        if (arg >= 0) QuoteHost.expr(arg) else QuoteHost.tpe(-1 - arg)
+        if (arg >= 0) QuoteHost.expr(arg) else QuoteHost.quotedType(-1 - arg)
       }
       val filled = termHole.nn(QuoteHost.holeIndex(quote, hole), args, this)
       QuoteHost.fillHole(quote, hole, QuoteHost.exprId(filled))
@@ -65,7 +65,7 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
   ): Type[T] = throw new Unsupported("a quoted type of Scala 3.0 or 3.1")
 
   def unpickleTypeV2[T <: AnyKind](pickled: String | List[String], types: Seq[Type[?]] | Null): Type[T] =
-    QuoteHost.tpe(QuoteHost.unpickleType(text(pickled), typeIds(types))).asInstanceOf[Type[T]]
+    QuoteHost.quotedType(QuoteHost.unpickleType(text(pickled), typeIds(types))).asInstanceOf[Type[T]]
 
   object ExprMatch extends ExprMatchModule {
     def unapply[TypeBindings, Tup <: Tuple](scrutinee: Expr[Any])(using pattern: Expr[Any]): Option[Tup] = {
@@ -76,7 +76,7 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
         var i = 0
         while (i < n) {
           val m = QuoteHost.matched(i)
-          things(i) = if (m >= 0) QuoteHost.expr(m) else QuoteHost.tpe(-1 - m)
+          things(i) = if (m >= 0) QuoteHost.expr(m) else QuoteHost.quotedType(-1 - m)
           i += 1
         }
         Some(Tuple.fromArray(things).asInstanceOf[Tup])
@@ -88,7 +88,7 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
     def unapply[TypeBindings, Tup <: Tuple](scrutinee: Type[?])(using pattern: Type[?]): Option[Tup] = {
       val n = ReflectOps.one("matchType", QuoteHost.typeId(scrutinee), QuoteHost.typeId(pattern))
       if (n < 0) None
-      else Some(Tuple.fromArray(Array.tabulate[Object](n)(i => QuoteHost.tpe(-1 - QuoteHost.matched(i)).asInstanceOf[Object])).asInstanceOf[Tup])
+      else Some(Tuple.fromArray(Array.tabulate[Object](n)(i => QuoteHost.quotedType(-1 - QuoteHost.matched(i)).asInstanceOf[Object])).asInstanceOf[Tup])
     }
   }
 

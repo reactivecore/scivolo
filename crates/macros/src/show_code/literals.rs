@@ -2,11 +2,13 @@
 //   compiler/src/scala/quoted/runtime/impl/printers/SourceCode.scala
 //   compiler/src/scala/quoted/runtime/impl/printers/Extractors.scala
 //   compiler/src/dotty/tools/dotc/util/Chars.scala
-//! Constants of `Printer.TreeCode` (dotty's `printConstant`, `Chars.escapedString`) and the
-//! structure printers.
+//   compiler/src/dotty/tools/dotc/core/Constants.scala
+//! Constants of `Printer.TreeCode` (dotty's `printConstant`, `Chars.escapedString`), the
+//! structure printers and `TypeRepr.toString`.
 
 use super::{Code, REFUSED, Shown};
 use syntax::ast::constant::Constant as C;
+use tasty::Const;
 
 impl Code<'_> {
     pub fn constant(&mut self, c: &C) -> Shown {
@@ -56,6 +58,23 @@ pub fn constant_structure(c: &C) -> Result<String, &'static str> {
         C::Double(x) => format!("DoubleConstant({}d)", java_decimal(*x, format!("{x:?}")).ok_or(REFUSED)?),
         &C::Char(u) => format!("CharConstant('{}')", char::from_u32(u as u32).unwrap_or('\u{fffd}')),
         C::String(units) => format!("StringConstant(\"{}\")", String::from_utf16_lossy(units)),
+    })
+}
+
+/// The value of the constant of `tag` and `bits` as dotty's `Constant.toString` shows it.
+pub fn constant_value(tag: u8, bits: i64) -> Option<String> {
+    Some(match tasty::constant(tag, bits)? {
+        Const::Unit => "()".to_owned(),
+        Const::Bool(b) => b.to_string(),
+        Const::Null => "null".to_owned(),
+        Const::Byte(n) => n.to_string(),
+        Const::Short(n) => n.to_string(),
+        Const::Char(c) => c.to_string(),
+        Const::Int(n) => n.to_string(),
+        Const::Long(n) => n.to_string(),
+        Const::Float(x) => java_decimal(x as f64, format!("{x:?}"))?,
+        Const::Double(x) => java_decimal(x, format!("{x:?}"))?,
+        Const::Str(_) => return None,
     })
 }
 
