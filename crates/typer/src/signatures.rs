@@ -148,18 +148,20 @@ fn bounded(u: &mut Universe, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> Typ
     })
 }
 
-/// The binders of the method types of method `s`'s type, outermost first.
-pub fn method_binders(u: &mut Universe, s: SymbolId) -> Vec<Binder> {
+/// The binders of the method types of method `s`'s type if `terms`, else of its poly types,
+/// outermost first.
+pub fn method_binders(u: &mut Universe, s: SymbolId, terms: bool) -> Vec<Binder> {
     let mut info = u.info(s);
     let mut binders = Vec::new();
     loop {
-        match *u.types().get(info) {
-            Type::Poly { result, .. } => info = result,
-            Type::Method { binder, result, .. } => {
-                binders.push(binder);
-                info = result;
-            }
+        let (binder, result, method) = match *u.types().get(info) {
+            Type::Poly { binder, result, .. } => (binder, result, false),
+            Type::Method { binder, result, .. } => (binder, result, true),
             _ => return binders,
+        };
+        if method == terms {
+            binders.push(binder);
         }
+        info = result;
     }
 }

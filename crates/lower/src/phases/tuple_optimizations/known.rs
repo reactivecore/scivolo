@@ -7,8 +7,8 @@
 use super::elements::MAX_TUPLE_ARITY;
 use crate::Lower;
 use crate::definitions::applied;
+use crate::phases::eval_once::{eval_once, is_stable_path};
 use crate::phases::tree_copy::{Copier, copy};
-use crate::phases::value_classes::{eval_once, is_stable_path};
 use syntax::ast::Span;
 use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};

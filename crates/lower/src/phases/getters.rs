@@ -85,7 +85,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
         l.u.set_flags(sym, flags);
         if let (Tree::TypeTree { inferred: true }, Some(rhs)) = (l.tpd.tree(tpt), rhs) {
-            let at = l.tpd.span(rhs).start_pos();
+            let at = l.tpd.span(rhs).without_inlined_call().start_pos();
             l.tpd.get_mut(tpt).span = at;
         }
         let paramss = l.tpd.clauses(&[]);
@@ -133,7 +133,7 @@ pub fn record_rhs(l: &mut Lower, td: TNodeId) {
         let (Tree::DefDef { rhs: Some(rhs), .. }, Some(s)) = (l.tpd.tree(stat), l.tpd.sym(stat)) else {
             continue;
         };
-        let r = l.tpd.span(*rhs);
+        let r = l.tpd.span(*rhs).without_inlined_call();
         if has(l.u, s, FIELDaccessor) && r.exists() {
             l.getter_rhs.insert(s, r.with_point(r.start()));
         }

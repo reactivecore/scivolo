@@ -4,7 +4,8 @@
 
 use super::{Matched, Matcher};
 use crate::tpd::{Clauses, TNodeId, Tree as T};
-use tasty::SymbolId;
+use tasty::tags::ERASED;
+use tasty::{SymbolId, Type, TypeId};
 
 impl Matcher<'_> {
     /// `def` `s` of parameters `ps` and result `st`, `sr` against `p` of `pp`, `pt`, `pr`: the
@@ -26,10 +27,17 @@ impl Matcher<'_> {
                 return Ok(false);
             }
             for (x, y) in a.into_iter().zip(b) {
-                if [x, y].iter().any(|&t| matches!(self.tpd.tree(t), T::TypeDef { .. })) {
-                    return Err("a quote pattern with a polymorphic method definition");
+                match [x, y].map(|t| matches!(self.tpd.tree(t), T::TypeDef { .. })) {
+                    [true, true] if self.unbounded(x) && self.unbounded(y) => {
+                        pairs.extend(self.tpd.sym(x).zip(self.tpd.sym(y)));
+                        continue;
+                    }
+                    [false, false] => {}
+                    _ => return Ok(false),
                 }
-                if !self.with_pairs(&pairs, |m| m.matches(x, y))? {
+                let erased =
+                    [x, y].map(|t| self.tpd.sym(t).is_some_and(|s| self.u.symbol(s).flags.has(ERASED)));
+                if erased[0] != erased[1] || !self.with_pairs(&pairs, |m| m.matches(x, y))? {
                     return Ok(false);
                 }
                 pairs.extend(self.tpd.sym(x).zip(self.tpd.sym(y)));
@@ -43,6 +51,24 @@ impl Matcher<'_> {
                     (a, b) => a.is_none() && b.is_none(),
                 })
         })
+    }
+
+    /// Whether type parameter `t` has bounds `>: Nothing <: Any` (dotty's `matchTypeDef`).
+    fn unbounded(&mut self, t: TNodeId) -> bool {
+        let Some(s) = self.tpd.sym(t) else { return false };
+        let info = self.u.info(s);
+        let Type::Bounds(lo, hi) = *self.u.types().get(info) else { return false };
+        let b = self.u.builtins();
+        self.is_class(lo, b.nothing) && self.is_class(hi, b.any)
+    }
+
+    /// Whether `t` dealiased is a reference to class `c`.
+    fn is_class(&mut self, t: TypeId, c: SymbolId) -> bool {
+        let t = self.u.dealias(t);
+        match *self.u.types().get(t) {
+            Type::Sym(_, s) => s == c,
+            _ => self.u.class_symbol(t) == Some(c),
+        }
     }
 
     fn with_pairs(

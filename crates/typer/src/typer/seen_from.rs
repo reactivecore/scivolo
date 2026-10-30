@@ -31,6 +31,7 @@ impl Typer<'_> {
         self.complete(s);
         let seen_from_prefix = prefix.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_)));
         let seen_from_prefix = seen_from_prefix.map(|p| self.aliased_object(p));
+        let seen_from_prefix = seen_from_prefix.map(|p| self.qual_skolem(p, s));
         let info = match seen_from_prefix {
             Some(p) => self.u.member_info(p, s),
             None => self.u.info(s),
@@ -96,14 +97,7 @@ pub fn resolve_class_params(u: &mut tasty::Universe, t: TypeId) -> TypeId {
 /// type parameter `p` if `t` is `pre.p`, `pre` other than `this`.
 pub fn class_param_arg(u: &mut tasty::Universe, t: TypeId) -> Option<TypeId> {
     let Type::Sym(Some(pre), p) = *u.types().get(t) else { return None };
-    if u.symbol(p).kind != Kind::TypeParam || matches!(u.types().get(pre), Type::This(_)) {
-        return None;
-    }
-    let class = u.symbol(p).owner.filter(|&c| u.symbol(c).kind == Kind::Class)?;
-    let index = u.type_params(class).iter().position(|&q| q == p)?;
-    let widened = u.widen(pre);
-    let (_, args) = u.base_type(widened, class).and_then(|b| u.applied(b))?;
-    args.get(index).copied()
+    u.arg_for_param(pre, p)
 }
 
 /// `t` with applied type lambdas and applied aliases of type lambdas reduced, and capture-checking

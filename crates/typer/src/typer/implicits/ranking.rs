@@ -28,7 +28,7 @@ impl Typer<'_> {
     }
 
     /// 1 if `a` ranks above `b`, -1 if below, 0 if neither; `None` if undecided.
-    fn compare(&mut self, a: Candidate, b: Candidate, ctx: Ctx) -> Option<i32> {
+    pub fn compare(&mut self, a: Candidate, b: Candidate, ctx: Ctx) -> Option<i32> {
         let (full_a, full_b) = (self.alt_type(a), self.alt_type(b));
         let (sa, sb) = (self.without_implicits(full_a)?, self.without_implicits(full_b)?);
         let result = self.compare_with_types((a, sa), (b, sb), ctx)?;

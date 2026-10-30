@@ -8,7 +8,11 @@ use syntax::ast::constant::Constant as C;
 use tasty::{Const, Kind, SymbolId, Type, TypeId, constant};
 
 const STRUCTURE: &str = "Printer.TypeReprStructure of a type the frontend does not print";
-const PACKAGE_PREFIX: &str = "Printer.TypeReprStructure of a reference through a package, whose `TermRef` or `ThisType` the frontend does not keep";
+
+/// The `ThisType` of the package class named `name`.
+fn package_this(name: &str) -> String {
+    format!("ThisType(TypeRef(NoPrefix(), \"{name}\"))")
+}
 
 impl Host {
     /// Type `t` as `Printer.TypeReprStructure` shows it.
@@ -52,9 +56,25 @@ impl Host {
                 };
                 self.reference(term, prefix, &name, out)?;
             }
-            Type::TypeRef(p, n) => self.reference(false, p, &n, out)?,
-            Type::TermRef(p, n) => self.reference(true, p, &n, out)?,
+            Type::TypeRef(p, n) | Type::TermRef(p, n) => {
+                let term = matches!(self.u.types().get(t), Type::TermRef(..));
+                let resolved = if term { self.u.resolve_ref(t) } else { None };
+                if let Some(package) = resolved.filter(|&s| self.u.symbol(s).kind == Kind::Package) {
+                    return self.package_ref(package, out);
+                }
+                match self.package_class(p) {
+                    Some(pkg) => {
+                        let what = if term { "TermRef" } else { "TypeRef" };
+                        out.push_str(&format!("{what}({}, \"{n}\")", package_this(&pkg)));
+                    }
+                    None => self.reference(term, p, &n, out)?,
+                }
+            }
             Type::Package(p) => self.package_ref(p, out)?,
+            Type::This(inner) => match self.package_class(inner) {
+                Some(pkg) => out.push_str(&package_this(&pkg)),
+                None => self.node(out, "ThisType", &[inner], None)?,
+            },
             Type::NoPrefix => out.push_str("NoPrefix()"),
             Type::Applied(tycon, args) => self.node(out, "AppliedType", &[tycon], Some(&args))?,
             Type::Refined(parent, name, info) => {
@@ -91,12 +111,26 @@ impl Host {
             false => &self.u.symbol(owner).name,
         };
         let name = &self.u.symbol(p).name;
-        out.push_str(&format!("TermRef(ThisType(TypeRef(NoPrefix(), \"{owner}\")), \"{name}\")"));
+        out.push_str(&format!("TermRef({}, \"{name}\")", package_this(owner)));
         Ok(())
     }
 
-    /// `TermRef(prefix, "name")` if `term`, else `TypeRef(prefix, "name")`; refused through a
-    /// package.
+    /// The name of the class of the package `t` refers to, `<empty>` for the root.
+    fn package_class(&mut self, t: TypeId) -> Option<String> {
+        let p = match self.u.types().get(t).clone() {
+            Type::Package(p) => p,
+            Type::Sym(_, p) if self.u.symbol(p).kind == Kind::Package => p,
+            Type::TermRef(..) => self.u.resolve_ref(t).filter(|&p| self.u.symbol(p).kind == Kind::Package)?,
+            Type::PackageName(n) => return Some(n.rsplit('.').next().unwrap_or(&n).to_owned()),
+            _ => return None,
+        };
+        Some(match p == self.u.root() {
+            true => "<empty>".to_owned(),
+            false => self.u.symbol(p).name.clone(),
+        })
+    }
+
+    /// `TermRef(prefix, "name")` if `term`, else `TypeRef(prefix, "name")`.
     fn reference(
         &mut self,
         term: bool,
@@ -104,23 +138,10 @@ impl Host {
         name: &str,
         out: &mut String,
     ) -> Result<(), &'static str> {
-        if self.through_package(prefix) {
-            return Err(PACKAGE_PREFIX);
-        }
         out.push_str(if term { "TermRef(" } else { "TypeRef(" });
         self.visit_type(prefix, out)?;
         out.push_str(&format!(", \"{name}\")"));
         Ok(())
-    }
-
-    /// Whether `t` is a package or the `this` of one.
-    fn through_package(&self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
-            Type::Package(_) | Type::PackageName(_) => true,
-            Type::Sym(_, p) => self.u.symbol(p).kind == Kind::Package,
-            Type::This(inner) => self.through_package(inner),
-            _ => false,
-        }
     }
 
     /// `what(` the types `types`, then the list `list`, `)`.

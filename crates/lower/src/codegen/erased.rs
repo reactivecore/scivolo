@@ -43,7 +43,7 @@ impl Gen<'_, '_> {
 
     /// Fails unless value `v` passes where type `to` is expected without boxing, unboxing or a
     /// conversion; the `unit` constant passes as `BoxedUnit.UNIT`, a `Null$` as `null`, `null` as a
-    /// raw pointer, any value after a block ends.
+    /// raw pointer, a raw pointer or size as a reference, any value after a block ends.
     pub fn check_conforms(&mut self, v: ValId, to: TypeId, span: Span) -> Result<()> {
         if !self.m.buf.labeled() {
             return Ok(());
@@ -58,7 +58,7 @@ impl Gen<'_, '_> {
             || *f == Type::Nothing
             || null_box
             || (*t == Type::Ptr && *f == Type::Null)
-            || (is_ref(t) && (is_ref(f) || *f == Type::Null || unit));
+            || (is_ref(t) && (is_ref(f) || matches!(*f, Type::Null | Type::Ptr | Type::Size) || unit));
         if ok { Ok(()) } else { unsupported(span, "boxing, unboxing and primitive conversions") }
     }
 
@@ -108,10 +108,13 @@ impl Gen<'_, '_> {
         self.ty(Type::Function(args, ret))
     }
 
-    /// The class method `m` is a member of in NIR: its owner, or the JDK class it stands for in
-    /// the JDK API.
+    /// The class method `m` is a member of in NIR: its owner, or outside its owner the JDK class
+    /// it stands for in the JDK API.
     pub fn method_owner(&mut self, m: SymbolId) -> SymbolId {
         let owner = self.l.u.symbol(m).owner.expect("a method's owner");
+        if self.class == Some(owner) {
+            return owner;
+        }
         let jdk = jdk_api_owner(self.l.u, m).and_then(|c| class_named(self.l, c));
         jdk.unwrap_or(owner)
     }

@@ -131,7 +131,6 @@ impl Typer<'_> {
         let package_object = self.u.symbol(c.sym).owner.filter(|&o| self.is_named_package_object(o));
         let through_object = |t: &mut Self, p: Option<Type>, o: SymbolId| match p {
             Some(Type::Package(_)) => true,
-            Some(Type::Sym(_, m)) => t.u.module_class(m) == Some(o),
             Some(Type::This(c)) => match *t.u.types().get(c) {
                 Type::Package(_) => true,
                 Type::Sym(_, s) => s == o || t.u.symbol(s).kind == tasty::Kind::Package,

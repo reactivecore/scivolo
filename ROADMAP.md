@@ -65,7 +65,7 @@ inlining (ADR 0006).
 
 Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,435 of 1,711 pass (2026-10-29); 66 stop at the typer, 5 at
+(`just dotty-lower-report`): 1,441 of 1,711 pass (2026-10-30); 65 stop at the typer, none at
 the lowering, 32 fail in the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -93,7 +93,7 @@ executables. A library macro runs from its NIR in the VM; its quotes are unpickl
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
 `Quotes` is refused by name. Macro annotations expand in the inlining (ADR 0039). Circe
 0.14.10's `derives Codec.AsObject`, sourcecode 0.4.4, fastparse 3.1.1, mainargs 0.7.8, upickle,
-pprint and os-lib work. dotty's `tests/run-macros`: 229 of 321 pass (2026-10-29,
+pprint and os-lib work. dotty's `tests/run-macros`: 238 of 321 pass (2026-10-30,
 `just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
@@ -113,7 +113,8 @@ Compatibility first, in order of the tests it unblocks; startup comes last and m
 slower meanwhile:
 1. **Typer groups**: [research 37](docs/research/37-refusals-after-1023.md)'s census;
    named-tuple leftovers (#146); match-type leftovers (#120); typed-tree printing gap 2 (#122).
-   Done 2026-10-26: `Selectable` and structural calls, higher-kinded aliases, named tuple
+   Done 2026-10-30: printing of library object prefixes and default getters (#156), `IArray`
+   indexing (#187), `os.proc` with stdin (#173). Done 2026-10-26: `Selectable` and structural calls, higher-kinded aliases, named tuple
    trees (#146); dependent matches, pattern-bound types, library sealed children (#120, #129);
    erased definitions and saferExceptions (ADR 0054); implicit scope through prefixes,
    ClassTag/Manifest synthesis, polymorphic givens as import bounds (#155, #164); wrong
@@ -121,9 +122,10 @@ slower meanwhile:
    types, refinements adding type members (#164); extension fallback to the implicit scope,
    i16065 (#166); named tuples, XXL tuples, named and higher-kinded type arguments (#139);
    mirrors through refined paths, match-type reduction through them, `codeOf` (#129, #120).
-2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `TypeReprStructure`,
-   higher-order holes with types, a package prefix as `TermRef`, measured on
-   `tests/run-macros`. Done 2026-10-26: reflect tree and type operations, TreeMap/ExprMap,
+2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the run-macros refusals,
+   measured on `tests/run-macros`. Done 2026-10-30: `TypeReprStructure` of packages,
+   `TreeStructure` of `Return` and `ClassDef`, curried, dependent and polymorphic higher-order
+   holes, local classes from macro annotations (#185). Done 2026-10-26: reflect tree and type operations, TreeMap/ExprMap,
    `typeChecks` (ADR 0053). Done 2026-10-24: macro
    annotations (ADR 0039), `Symbol.newClass`, `newModule`, `newMethod`, `newVal`,
    `ClassDef`/`DefDef`/`ValDef` construction, `Term.etaExpand`.
@@ -132,8 +134,10 @@ slower meanwhile:
    `tprint`, os-lib paths, as scripts and native executables; earlier fastparse (R2) and
    mainargs (R5, R6; ADR 0037).
 4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md),
-   [research 35](docs/research/35-local-classes-in-inline-bodies.md), #165): the 13 lowering
-   refusals left. Done 2026-10-26: local objects and `super` in inline bodies, members of
+   [research 35](docs/research/35-local-classes-in-inline-bodies.md), #165): done 2026-10-30
+   ([research 42](docs/research/42-lowering-leftovers-after-1029.md)): no lowering refusal left in
+   `tests/run`; local captures, polymorphic `super` calls, library trait parameters,
+   `@static` members of trait companions (#184). Done 2026-10-26: local objects and `super` in inline bodies, members of
    path-dependent aliases seen from the path, local lazy values of value classes, `@static`
    values (ADR 0047). Done 2026-10-24: implicit
    search in the call's context, `summonFrom` givens, polymorphic inline accessors, library
@@ -157,6 +161,9 @@ slower meanwhile:
    2026-10-29 ([research 41](docs/research/41-native-stdlib-after-1029.md)): JDK stubs for javalib,
    access rules; nativelib lowers 92 of 103, clib 19 of 21, posixlib 66
    of 67, windowslib 34, javalib 531 of 601, auxlib 7 of 15.
+   2026-10-30: clib and posixlib complete and pass Scala Native's unit tests on our jars (`just
+   lib-jar-report`); nativelib lowers 101 of 103, clib 21, posixlib 67, windowslib 34, javalib
+   556 of 601, auxlib 7 of 15.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs

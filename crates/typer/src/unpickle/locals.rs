@@ -6,7 +6,6 @@
 
 use super::{Refusal, Unpickler};
 use crate::tpd::{TNodeId, Tree as T};
-use crate::typer::dependent_params::mentions_params;
 use tasty::tags::*;
 use tasty::{NodeId, SymbolId, Type, TypeId, View, view};
 
@@ -77,22 +76,6 @@ impl Unpickler<'_> {
         };
         let env = self.tpd.list(&[]);
         Ok(self.bare(T::Closure { env, meth, tpt }, Some(tpe), None))
-    }
-
-    /// The function type of the closure of local method `meth` (dotty's `toFunctionType`).
-    fn function_type(&mut self, meth: TNodeId) -> Result<TypeId, Refusal> {
-        let s = self.tpd.sym(meth).ok_or("closure of an unknown method in a library inline body")?;
-        let info = self.u.info(s);
-        let Type::Method { binder, params, result, contextual, .. } = self.u.types().get(info).clone() else {
-            return Err("closure of a method without parameters in a library inline body");
-        };
-        if mentions_params(self.u, result, binder, Some(s)) {
-            return Err("dependent closure in a library inline body");
-        }
-        let kind = if contextual { "ContextFunction" } else { "Function" };
-        let class = self.class_symbol(&format!("scala.{kind}{}", params.len()))?;
-        let args = params.into_iter().map(|(_, p)| p).chain([result]).collect();
-        Ok(crate::defn::applied(self.u, class, args))
     }
 
     /// `tpe`, the type of an expression after definitions of `locals`, widened if it refers to

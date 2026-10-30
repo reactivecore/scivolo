@@ -203,6 +203,15 @@ fn conform(l: &mut Lower, t: TNodeId, holder: &Holder, info: TypeId) -> TNodeId 
     l.positioned(cast)
 }
 
+/// A call of the accessor of local object `s`, if it is one.
+pub fn object_call(l: &mut Lower, s: SymbolId, span: Span) -> Option<TNodeId> {
+    let accessor = *l.local_objects.get(&s)?;
+    let fun = l.ident(accessor, span);
+    let info = l.u.info(accessor);
+    let tpe = l.u.result_type(info);
+    Some(l.apply(fun, &[], tpe, span))
+}
+
 /// Makes the references to the local lazy value of `e` in `block` calls of its accessor, wrapped
 /// in its value class if any.
 fn call_accessor(l: &mut Lower, block: TNodeId, e: &Expanded) {

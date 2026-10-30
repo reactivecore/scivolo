@@ -1,11 +1,11 @@
 //! Methods the phases add to a class: forwarders and bridges, each calling another method with
-//! its own parameters, in one erased parameter list.
+//! its own parameters, in one erased parameter list, and their type parameters.
 
 use crate::definitions::symbol;
 use crate::{Lower, Result};
-use syntax::ast::Span;
+use syntax::ast::{Span, TName};
 use tasty::{Flags, Kind, SymbolId, Type};
-use typer::tpd::TNodeId;
+use typer::tpd::{TNodeId, Tree};
 
 impl Lower<'_> {
     /// A method of class `class` with the name and target name of `like`, flags `flags` and type
@@ -68,5 +68,14 @@ impl Lower<'_> {
         let paramss: &[&[TNodeId]] = if has_clause { &[&param_defs] } else { &[] };
         let tpt = self.type_tree(result, span);
         self.build().def_def(sym, paramss, tpt, Some(rhs), span)
+    }
+
+    /// The definition of type parameter `t`, at `at`.
+    pub fn type_param_def(&mut self, t: SymbolId, at: Span) -> TNodeId {
+        let name = self.u.symbol(t).name.clone();
+        let name = TName { name: self.names.intern(&name), is_type: true };
+        let info = self.u.info(t);
+        let tpt = self.type_tree(info, at);
+        self.tpd.node(Tree::TypeDef { name, rhs: tpt }, at, None, Some(t))
     }
 }

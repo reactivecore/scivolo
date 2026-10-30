@@ -117,7 +117,8 @@ pub fn define_members(l: &mut Lower, class: SymbolId, accessor: SymbolId, rhs: T
     l.u.set_info(field, object);
     l.lazy_members.insert(accessor, LazyMembers { init, field });
     for s in super::walk::subtrees(l.tpd, rhs) {
-        let defined = matches!(l.tpd.tree(s), Tree::ValDef { .. } | Tree::DefDef { .. });
+        let defined =
+            matches!(l.tpd.tree(s), Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. });
         if let Some(sym) = l.tpd.sym(s).filter(|&sym| defined && l.u.symbol(sym).owner == Some(accessor)) {
             l.u.set_owner(sym, init);
         }

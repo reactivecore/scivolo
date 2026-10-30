@@ -30,9 +30,17 @@ impl Matcher<'_> {
         sym.name == name && sym.owner.is_some_and(|o| self.u.full_name(o) == PATTERNS)
     }
 
-    /// Whether the type of `s` conforms to the type of pattern tree `p`.
+    /// Whether the type of `s`, its type parameters the environment pairs replaced, conforms to
+    /// the type of pattern tree `p` (dotty's `isSubTypeUnderEnv`).
     pub fn conforms(&mut self, s: TNodeId, p: TNodeId) -> bool {
         let (Some(a), Some(b)) = (self.type_of(s), self.tpd.get(p).tpe) else { return false };
+        let env = &self.env;
+        let a = self.u.map_type(a, &mut |u, part| match *u.types().get(part) {
+            Type::Sym(None, x) if u.symbol(x).kind.is_type() => {
+                env.iter().find(|&&(e, _)| e == x).map(|&(_, y)| u.intern_type(Type::Sym(None, y)))
+            }
+            _ => None,
+        });
         self.bindings.conforms(self.u, a, b)
     }
 

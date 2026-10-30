@@ -17,17 +17,10 @@ pub fn refined_meaning(u: &mut Universe, prefix: TypeId, name: &str) -> Option<M
 /// What class type parameter `p` stands for through value `prefix`: the argument its type's base
 /// type gives it (dotty's `argForParam`); `None` for a `this` prefix.
 fn class_param_arg(u: &mut Universe, p: SymbolId, prefix: TypeId) -> Option<Meaning> {
-    if matches!(u.types().get(prefix), Type::This(_)) {
-        return None;
-    }
-    let class = u.symbol(p).owner.filter(|&c| u.symbol(c).kind == Kind::Class)?;
-    let index = u.type_params(class).iter().position(|&q| q == p)?;
-    let widened = u.widen(prefix);
-    let base = u.base_type(widened, class)?;
-    let (_, args) = u.applied(base)?;
-    Some(match *u.types().get(*args.get(index)?) {
+    let arg = u.arg_for_param(prefix, p)?;
+    Some(match *u.types().get(arg) {
         Type::Bounds(lo, hi) => Meaning::Abstract(lo, hi),
-        _ => Meaning::Alias(args[index]),
+        _ => Meaning::Alias(arg),
     })
 }
 

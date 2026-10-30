@@ -188,3 +188,4 @@ Tc26matches
 Er26erased
 Ti26implicits
 companionprivates
+superpoly

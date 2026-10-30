@@ -7,7 +7,7 @@ use super::{Code, Shown};
 use syntax::ast::constant::Constant as C;
 use typer::tpd::{TNodeId, Tree as T};
 
-const STRUCTURE: &str = "Printer.TreeStructure of a tree the frontend does not print";
+pub const STRUCTURE: &str = "Printer.TreeStructure of a tree the frontend does not print";
 
 impl Code<'_> {
     pub fn structure(&mut self, t: TNodeId) -> Shown {
@@ -91,34 +91,12 @@ impl Code<'_> {
                 self.structure(expansion)?;
                 self.push(")");
             }
-            T::ValDef { name, tpt, rhs } => {
-                self.push(&format!("{}, ", named(self, "ValDef", name)));
-                self.structure(tpt)?;
+            T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } => self.def_structure(t)?,
+            T::Return { expr, from } => {
+                self.push("Return(");
+                self.structure(expr)?;
                 self.push(", ");
-                self.option(rhs)?;
-                self.push(")");
-            }
-            T::DefDef { name, paramss, tpt, rhs } => {
-                self.push(&format!("{}, ", named(self, "DefDef", name)));
-                let clauses = self.h.tpd.clause_items(paramss).to_vec();
-                self.push(if clauses.is_empty() { "Nil" } else { "List(" });
-                for (i, &c) in clauses.iter().enumerate() {
-                    let ty =
-                        self.items(c).first().is_some_and(|&p| matches!(self.tree_of(p), T::TypeDef { .. }));
-                    self.push(if i > 0 { ", " } else { "" });
-                    self.push(if ty { "TypeParamClause(" } else { "TermParamClause(" });
-                    self.list(c)?;
-                    self.push(")");
-                }
-                self.push(if clauses.is_empty() { ", " } else { "), " });
-                self.structure(tpt)?;
-                self.push(", ");
-                self.option(rhs)?;
-                self.push(")");
-            }
-            T::TypeDef { name, rhs } if !matches!(self.tree_of(rhs), T::Template { .. }) => {
-                self.push(&format!("{}, ", named(self, "TypeDef", name)));
-                self.structure(rhs)?;
+                self.symbol_structure(from);
                 self.push(")");
             }
             T::TypeTree { .. } if is_type => self.push("Inferred()"),
@@ -166,7 +144,7 @@ impl Code<'_> {
         Ok(())
     }
 
-    fn list(&mut self, l: typer::tpd::List) -> Shown {
+    pub fn list(&mut self, l: typer::tpd::List) -> Shown {
         let items = self.items(l);
         if items.is_empty() {
             self.push("Nil");
@@ -181,7 +159,7 @@ impl Code<'_> {
         Ok(())
     }
 
-    fn option(&mut self, t: Option<TNodeId>) -> Shown {
+    pub fn option(&mut self, t: Option<TNodeId>) -> Shown {
         let Some(t) = t else {
             self.push("None");
             return Ok(());

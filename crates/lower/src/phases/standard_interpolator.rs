@@ -4,7 +4,7 @@
 //! `sc.s(args)` becomes `StringContext.standardInterpolator(processEscapes, args, sc.parts)`,
 //! `raw` passing `x => x`, `sc` evaluated once (dotty's `transformS`).
 
-use super::value_classes::{eval_once, is_stable_path};
+use super::eval_once::{eval_once, is_stable_path};
 use crate::definitions::{applied, symbol};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;

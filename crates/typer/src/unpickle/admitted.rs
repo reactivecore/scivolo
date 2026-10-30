@@ -26,6 +26,8 @@ impl Unpickler<'_> {
                     match u.resolve(p, &n, is_type) {
                         Some(_) => None,
                         None if is_type && u.refinement_named(p, &n).is_some() => None,
+                        None if matches!(u.types().get(p), Type::Param(..)) => None,
+                        None if !is_type && n == "apply" && u.poly_function_apply_of(p).is_some() => None,
                         None => Some("unresolved reference in a library inline body"),
                     }
                 }

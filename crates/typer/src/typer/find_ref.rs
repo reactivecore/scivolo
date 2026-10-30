@@ -6,6 +6,7 @@
 use super::Typer;
 use super::idents::Found;
 use crate::ctx::{Ctx, Level, LevelId, Mode};
+use crate::defn::ref_type;
 use tasty::Kind;
 
 /// The precedence of a binding (dotty's `BindingPrec`), lowest first.
@@ -156,6 +157,12 @@ impl Typer<'_> {
     }
 
     fn same_ref(&mut self, a: &Found, b: &Found) -> bool {
+        if let ([s], [t]) = (&a.syms[..], &b.syms[..])
+            && s != t
+        {
+            let (p, q) = (ref_type(self.u, a.prefix, *s), ref_type(self.u, b.prefix, *t));
+            return self.u.is_subtype(p, q) && self.u.is_subtype(q, p);
+        }
         if a.syms != b.syms {
             return false;
         }

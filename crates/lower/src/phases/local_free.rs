@@ -140,20 +140,6 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
             _ => {}
         }
     }
-    let nested = |t: TNodeId| t != td && super::walk::is_class_def(l.tpd, t);
-    let outside_call = |t: TNodeId| {
-        let Some(s) = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::Ident { .. })) else {
-            return false;
-        };
-        let owner = l.u.symbol(s).owner;
-        l.u.symbol(s).kind == Kind::Def && owner.is_some_and(|o| is_term(l, o) && !within(l, o, class))
-    };
-    for c in super::explicit_outer::terms(l, td, true).into_iter().filter(|&t| nested(t)) {
-        let terms = super::explicit_outer::terms(l, c, true);
-        if let Some(&t) = terms.iter().find(|&&t| outside_call(t)) {
-            return unsupported(l.tpd.span(t), "classes in local classes calling local methods");
-        }
-    }
     Ok(free)
 }
 

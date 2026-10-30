@@ -99,14 +99,7 @@ pub fn def(
     (result, rhs): (TypeId, TNodeId),
     at: Span,
 ) -> TNodeId {
-    let mut tdefs = Vec::new();
-    for &t in tparams {
-        let name = l.u.symbol(t).name.clone();
-        let name = TName { name: l.names.intern(&name), is_type: true };
-        let info = l.u.info(t);
-        let tpt = l.type_tree(info, at);
-        tdefs.push(l.tpd.node(Tree::TypeDef { name, rhs: tpt }, at, None, Some(t)));
-    }
+    let tdefs: Vec<TNodeId> = tparams.iter().map(|&t| l.type_param_def(t, at)).collect();
     let vdefs: Vec<TNodeId> = params.iter().map(|&p| l.param_def(p, at)).collect();
     let tpt = l.type_tree(result, Span::NONE);
     let clauses: Vec<&[TNodeId]> = if tdefs.is_empty() { vec![&vdefs] } else { vec![&tdefs, &vdefs] };

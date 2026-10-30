@@ -21,7 +21,7 @@ impl Gen<'_, '_> {
             && (has(self.l.u, sym, FIELDaccessor) || self.l.u.symbol(sym).kind != Kind::Def)
     }
 
-    /// The C signature of extern method `sym` as called: without variable arguments.
+    /// The C signature of extern method `sym` without variable arguments.
     pub fn extern_call_sig(&mut self, sym: SymbolId, span: Span) -> Result<TypeId> {
         let ty = self.extern_sig(sym, span)?;
         let Type::Function(params, _) = self.pool.ty(ty) else { unreachable!("a method type") };
@@ -33,7 +33,7 @@ impl Gen<'_, '_> {
 
     /// A call of extern method `sym` with `args`: unboxed arguments, the result boxed back.
     pub fn call_extern(&mut self, sym: SymbolId, args: &[TNodeId], span: Span) -> Result<ValId> {
-        let ty = self.extern_call_sig(sym, span)?;
+        let ty = self.extern_sig(sym, span)?;
         let Type::Function(params, _) = self.pool.ty(ty).clone() else { unreachable!("a method type") };
         let orig = self.method_sig(sym, true);
         let Type::Function(orig_params, orig_ret) = self.pool.ty(orig).clone() else {
@@ -44,6 +44,10 @@ impl Gen<'_, '_> {
         }
         let mut values = Vec::new();
         for ((&a, &param), &orig_param) in args.iter().zip(&params).zip(&orig_params) {
+            if *self.pool.ty(param) == Type::Vararg {
+                values.extend(self.extern_varargs(a, span)?);
+                continue;
+            }
             let v = self.gen_expr(a)?;
             let primitive =
                 !matches!(*self.pool.ty(param), Type::Ptr | Type::Ref { .. } | Type::Array { .. });

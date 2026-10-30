@@ -39,7 +39,8 @@ ENV = os.environ | {"SCIVOLO_LIBS": str(ORACLE_JARS)} if ORACLE_JARS.is_dir() el
 LOWER, NIR_DUMP = ROOT / "target/release/scivolo-lower", ROOT / "target/release/scivolo-nir-dump"
 MODULES = ["nativelib", "clib", "posixlib", "windowslib", "javalib", "auxlib"]
 SOURCE_DIRS = ["scala", "scala-3", "scala-2.13+"]
-WINDOWSLIB = LIBS / "windowslib_native0.5_3-0.5.12.jar"
+VERSION = "0.5.12"
+WINDOWSLIB = LIBS / f"windowslib_native0.5_3-{VERSION}.jar"
 JDK_STUBS = ROOT / "libs/jdk-stubs.jar"
 # The options of a module's sources: the TASTy they see beyond the frontend's library
 # (windowslib's, which the library lacks, and the JDK classes javalib does not define), and
@@ -51,6 +52,15 @@ OPTIONS = {
 }
 JOBS = os.cpu_count() or 4
 TIMEOUT = 60
+
+
+def jar_name(module):
+    return f"{module}_native0.5_3-{VERSION}.jar"
+
+
+def lower_cmd(module, root, files, out):
+    """The `scivolo-lower` command lowering `files` of source directory `root` into `out`."""
+    return [str(LOWER), "--macros", *OPTIONS.get(module, []), "--sourceroot", str(root), *map(str, files), str(out)]
 
 
 def sources(module, filter_):
@@ -69,7 +79,7 @@ def oracle(module):
         return WORK / "sn" / module
     out = WORK / "jars" / module
     if not (out / ".done").exists():
-        with zipfile.ZipFile(LIBS / f"{module}_native0.5_3-0.5.12.jar") as jar:
+        with zipfile.ZipFile(LIBS / jar_name(module)) as jar:
             jar.extractall(out)
         (out / ".done").touch()
     return out
@@ -101,9 +111,8 @@ def one(module, root, file):
     rel = str(file.relative_to(root))
     shown = f"{root.name}/{rel}"
     out = WORK / module / "out" / root.name / rel.removesuffix(".scala")
-    cmd = [str(LOWER), "--macros", *OPTIONS.get(module, []), "--sourceroot", str(root), str(file), str(out)]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=TIMEOUT, env=ENV)
+        r = subprocess.run(lower_cmd(module, root, [file], out),capture_output=True, text=True, errors="replace", timeout=TIMEOUT, env=ENV)
     except subprocess.TimeoutExpired:
         return [shown, "timeout", "", 0, 0, 0], []
     if r.returncode != 0:

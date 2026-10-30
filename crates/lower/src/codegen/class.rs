@@ -34,7 +34,7 @@ impl Gen<'_, '_> {
         if self.is_struct(sym) {
             return self.gen_struct(td, sym, pos);
         }
-        if crate::symbols::is_extern(self.l.u, sym) {
+        if self.is_extern_type(sym) {
             return self.gen_extern_class(td, sym, pos);
         }
         let attrs =
@@ -61,6 +61,7 @@ impl Gen<'_, '_> {
         self.gen_companion_static_fields(sym, pos);
         self.lambdas = 0;
         self.gen_methods(td)?;
+        self.gen_exports(td, sym)?;
         let closures = std::mem::take(&mut self.closures);
         self.defns.extend(closures);
         self.gen_mirror_class(sym, pos)

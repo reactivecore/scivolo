@@ -126,8 +126,10 @@ impl Vm {
     pub fn link_owner(&mut self, g: GlobalId) -> Result<(), VmError> {
         let owner = self.world.owner(g);
         match owner != g
-            && matches!(self.world.defn(owner)?.kind, DefnKind::Class { .. } | DefnKind::Module { .. })
-        {
+            && matches!(
+                self.world.defn(owner)?.kind,
+                DefnKind::Class { .. } | DefnKind::Module { .. } | DefnKind::Trait { .. }
+            ) {
             true => self.link(owner).map(|_| ()),
             false => Ok(()),
         }
