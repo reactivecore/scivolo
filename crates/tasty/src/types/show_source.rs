@@ -62,7 +62,10 @@ impl SourcePrinter<'_> {
                     Some(p) => self.term_ref(p, &name)?,
                     None => {
                         self.owner_prefix(s)?;
-                        self.out.push_str(&name);
+                        match name == "package" {
+                            true if self.out.ends_with('.') => _ = self.out.pop(),
+                            _ => self.out.push_str(&name),
+                        }
                     }
                 }
             }
