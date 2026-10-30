@@ -68,10 +68,6 @@ const CASES: &[(&str, &str)] = &[
         "references to generic methods of local traits",
     ),
     (
-        "object O { def f(k: Int) = { def g = k; class C { class D { def m = g } }; val c = new C; new c.D().m } }",
-        "classes in local classes calling local methods",
-    ),
-    (
         "trait U { def f: Int ?=> Int }; trait T { def f: Int ?=> Int = 1 }; class X extends U with T",
         "overriding methods with context function results flattened otherwise",
     ),

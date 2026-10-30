@@ -8,7 +8,7 @@
 //! `Constructors`.
 
 use super::explicit_outer::in_term;
-use super::local_free::{is_method, is_term, original_owner};
+use super::local_free::{is_method, is_term, original_owner, within};
 use super::mixin::{forwarded, mixins};
 use super::walk::{children, subtrees};
 use crate::Lower;
@@ -21,6 +21,8 @@ use typer::tpd::{TNodeId, Tree};
 /// The free values of each owner, the owners in the order they first got one.
 pub struct Dependencies {
     pub free: Vec<(SymbolId, Vec<SymbolId>)>,
+    /// The innermost enclosing class each local class uses the values of (dotty's `logicOwner`).
+    pub logic_owners: FxHashMap<SymbolId, SymbolId>,
 }
 
 impl Dependencies {
@@ -43,6 +45,7 @@ struct Collect<'a, 'l> {
     created: FxHashMap<TNodeId, SymbolId>,
     free: Vec<(SymbolId, Vec<SymbolId>)>,
     called: Vec<(SymbolId, Vec<SymbolId>)>,
+    logic_owners: FxHashMap<SymbolId, SymbolId>,
     changed: bool,
 }
 
@@ -78,7 +81,8 @@ pub fn dependencies(l: &mut Lower, root: TNodeId) -> Dependencies {
     }
     let l: &Lower = l;
     let (free, called) = (Vec::new(), Vec::new());
-    let mut c = Collect { l, ctors, inits, created, free, called, changed: false };
+    let logic_owners = FxHashMap::default();
+    let mut c = Collect { l, ctors, inits, created, free, called, logic_owners, changed: false };
     c.visit(root, None);
     loop {
         c.changed = false;
@@ -92,7 +96,7 @@ pub fn dependencies(l: &mut Lower, root: TNodeId) -> Dependencies {
             }
         }
         if !c.changed {
-            return Dependencies { free: c.free };
+            return Dependencies { free: c.free, logic_owners: c.logic_owners };
         }
     }
 }
@@ -269,6 +273,12 @@ impl Collect<'_, '_> {
             false => self.enclosure(encl),
         };
         let intermediate = self.mark_free(v, outer);
+        let l = self.l;
+        let local_class = l.u.is_class(encl) && l.u.symbol(encl).owner.is_some_and(|o| is_term(l, o));
+        if let Some(i) = intermediate.filter(|&i| local_class && l.u.is_class(i)) {
+            let owner = self.logic_owners.entry(encl).or_insert(i);
+            *owner = if within(l, i, *owner) { i } else { *owner };
+        }
         if (!self.is_real_class(intermediate) || self.nested_in_constructor(encl)) && !self.l.u.is_trait(encl)
         {
             match self.free.iter_mut().find(|(o, _)| *o == encl) {
