@@ -58,6 +58,8 @@ pub struct Host {
     pub fresh: FreshNames,
     /// The parameter definitions of the methods `DefDef.apply` defined, by clause.
     pub made_params: std::collections::HashMap<SymbolId, Vec<Vec<TNodeId>>>,
+    /// The class definitions `ClassDef.apply` made, their parents as given.
+    pub class_defs: Vec<TNodeId>,
     /// The `this` types of packages made as prefixes of their members, with the packages' paths.
     pub package_paths: std::collections::HashMap<TypeId, TypeId>,
 }
@@ -89,6 +91,7 @@ impl Host {
             annotating: false,
             fresh: FreshNames::default(),
             made_params: Default::default(),
+            class_defs: Vec::new(),
             package_paths: Default::default(),
         }
     }

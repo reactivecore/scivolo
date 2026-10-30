@@ -71,7 +71,6 @@ trait ReflectLambdaTypes extends reflectModule { self: reflect.type =>
     }
   }
 
-  /** Made with `new`, as `methodTypeKind` reads the enumeration of this `reflect`. */
   final class MethodTypeMethodsImpl extends MethodTypeMethods {
     extension (self: MethodType) {
       def isImplicit: Boolean = TypeShapes.lambda(self)._1(0) != 0

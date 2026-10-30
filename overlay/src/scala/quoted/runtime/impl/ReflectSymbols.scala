@@ -32,36 +32,44 @@ trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.
     def newClass(owner: Symbol, name: String, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol],
         selfType: Option[TypeRepr], clsFlags: Flags, clsPrivateWithin: Symbol,
         conParams: List[(String, TypeRepr)]): Symbol = {
-      if (selfType.nonEmpty) refused("Symbol.newClass with a self type")
-      if (clsFlags.asInstanceOf[FlagsImpl].bits != 0) refused("Symbol.newClass with flags")
-      if (ReflectOps.id(clsPrivateWithin) >= 0) refused("Symbol.newClass with privateWithin")
-      ReflectOps.run("newClass", Array(ReflectOps.id(owner)), name)
-      completed(symbol(QuoteHost.result(0)), parents, decls, conParams)
-    }
-
-    /** Class `cls` with its parents, constructor parameters and declarations. */
-    private def completed(cls: Symbol, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol],
-        params: List[(String, TypeRepr)]): Symbol = {
-      ReflectOps.run("classParents", (cls :: parents(cls)).map(ReflectOps.id).toArray, null)
-      val types = params.map(p => ReflectOps.id(p._2))
-      ReflectOps.run("classParams", (ReflectOps.id(cls) :: types).toArray, params.map(_._1).mkString("\u0000"))
-      ReflectOps.run("enterDecls", (cls :: decls(cls)).map(ReflectOps.id).toArray, null)
-      cls
+      val (names, types) = conParams.unzip
+      newClass(owner, name, parents, decls, selfType, clsFlags, clsPrivateWithin, Nil, res => MethodType(names)(_ => types, _ => res),
+        Flags.EmptyFlags, noSymbol, List(names.map(_ => Flags.EmptyFlags)), List(names.map(_ => noSymbol)))
     }
     def newClass(owner: Symbol, name: String, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol],
         selfType: Option[TypeRepr], clsFlags: Flags, clsPrivateWithin: Symbol, clsAnnotations: List[Term],
         conMethodType: TypeRepr => MethodOrPoly, conFlags: Flags, conPrivateWithin: Symbol,
-        conParamFlags: List[List[Flags]], conParamPrivateWithins: List[List[Symbol]]): Symbol =
-      refused("Symbol.newClass")
+        conParamFlags: List[List[Flags]], conParamPrivateWithins: List[List[Symbol]]): Symbol = {
+      if (selfType.nonEmpty) refused("Symbol.newClass with a self type")
+      if (clsAnnotations.nonEmpty) refused("Symbol.newClass with annotations")
+      val within = clsPrivateWithin :: conPrivateWithin :: conParamPrivateWithins.flatten
+      if (within.exists(ReflectOps.id(_) >= 0)) refused("Symbol.newClass with privateWithin")
+      if ((conFlags :: conParamFlags.flatten).exists(bits(_) != 0)) refused("Symbol.newClass with constructor or parameter flags")
+      ReflectOps.run("newClass", Array(ReflectOps.id(owner), bits(clsFlags).toInt, (bits(clsFlags) >>> 32).toInt), name)
+      val cls = symbol(QuoteHost.result(0))
+      val sizes = ReflectOps.results("classConstructor", ReflectOps.id(cls), ReflectOps.id(conMethodType(cls.typeRef)))
+      if (sizes.length > conParamFlags.length || sizes.zip(conParamFlags).exists((n, flags) => n != flags.length))
+        throw new Exception("Shapes of conMethodType and conParamFlags differ.")
+      completed(cls, parents, decls)
+    }
+
+    /** Class `cls` with its parents and declarations. */
+    private def completed(cls: Symbol, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol]): Symbol = {
+      ReflectOps.run("classParents", (cls :: parents(cls)).map(ReflectOps.id).toArray, null)
+      ReflectOps.run("enterDecls", (cls :: decls(cls)).map(ReflectOps.id).toArray, null)
+      cls
+    }
     def newModule(owner: Symbol, name: String, modFlags: Flags, clsFlags: Flags, parents: Symbol => List[TypeRepr],
         decls: Symbol => List[Symbol], privateWithin: Symbol): Symbol = {
-      val flags = modFlags.asInstanceOf[FlagsImpl].bits | clsFlags.asInstanceOf[FlagsImpl].bits
-      if (flags != 0 || ReflectOps.id(privateWithin) >= 0) refused("Symbol.newModule with flags or privateWithin")
+      if ((bits(modFlags) | bits(clsFlags)) != 0 || ReflectOps.id(privateWithin) >= 0) refused("Symbol.newModule with flags or privateWithin")
       ReflectOps.run("newModule", Array(ReflectOps.id(owner)), name)
       val (module, cls) = (symbol(QuoteHost.result(0)), symbol(QuoteHost.result(1)))
-      completed(cls, parents, decls, Nil)
+      ReflectOps.run("classConstructor", Array(ReflectOps.id(cls), ReflectOps.id(MethodType(Nil)(_ => Nil, _ => cls.typeRef))), null)
+      completed(cls, parents, decls)
       module
     }
+
+    private def bits(flags: Flags): Long = flags.asInstanceOf[FlagsImpl].bits
     def newMethod(owner: Symbol, name: String, tpe: TypeRepr): Symbol =
       newMethod(owner, name, tpe, Flags.EmptyFlags, noSymbol)
     def newMethod(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol =
@@ -75,7 +83,10 @@ trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.
       ReflectOps.run(op, Array(ReflectOps.id(owner), ReflectOps.id(tpe), bits.toInt, (bits >>> 32).toInt), name)
       symbol(QuoteHost.result(0))
     }
-    def newBind(owner: Symbol, name: String, flags: Flags, tpe: TypeRepr): Symbol = refused("Symbol.newBind")
+    def newBind(owner: Symbol, name: String, flags: Flags, tpe: TypeRepr): Symbol = {
+      ReflectOps.run("newBind", Array(ReflectOps.id(owner), ReflectOps.id(tpe), bits(flags).toInt, (bits(flags) >>> 32).toInt), name)
+      symbol(QuoteHost.result(0))
+    }
     def newTypeAlias(owner: Symbol, name: String, flags: Flags, tpe: TypeRepr, privateWithin: Symbol): Symbol =
       refused("Symbol.newTypeAlias")
     def newBoundedType(owner: Symbol, name: String, flags: Flags, tpe: TypeBounds, privateWithin: Symbol): Symbol =
