@@ -9,29 +9,22 @@ use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use tasty::SymbolId;
-use tasty::tags::EXTENSION;
 
 const AMBIGUOUS: &str = "ambiguous extension methods of implicit values";
 
 impl Typer<'_> {
     /// The one candidate of `group` with an extension method `name` that takes `tree`, if any,
-    /// else the most specific one; `Err` if none is, or if one of `conversions` of the same group
-    /// fits, unless that one candidate declares its extension methods before them.
+    /// else the most specific one; `Err` if none is.
     pub fn extension_container(
         &mut self,
         group: &[Candidate],
         tree: TNodeId,
         name: &str,
-        conversions: &[Candidate],
         ctx: Ctx,
     ) -> Result<Option<Candidate>, &'static str> {
         let found = self.fitting(group, |t, c| t.try_extension(c, tree, name, ctx))?;
         match found[..] {
             [] => Ok(None),
-            [c] if self.precedes_conversions(c, name, conversions) => Ok(Some(c)),
-            _ if !conversions.is_empty() => {
-                Err("implicit conversion beside an extension method of an implicit value")
-            }
             [c] => Ok(Some(c)),
             _ => match self.most_specific(&found, ctx) {
                 Some(c) => Ok(Some(c)),
@@ -42,18 +35,6 @@ impl Typer<'_> {
                 }
             },
         }
-    }
-
-    /// Whether object `c` declares an extension method `name` before each of `conversions`.
-    fn precedes_conversions(&mut self, c: Candidate, name: &str, conversions: &[Candidate]) -> bool {
-        let Some(class) = self.u.module_class(c.sym) else { return false };
-        let decls = &self.u.symbol(class).decls;
-        let is_extension = |d: &SymbolId| {
-            let s = self.u.symbol(*d);
-            s.name == name && s.flags.has(EXTENSION)
-        };
-        let Some(first) = decls.iter().position(is_extension) else { return false };
-        conversions.iter().all(|v| decls.iter().position(|&d| d == v.sym).is_some_and(|i| i > first))
     }
 
     /// The container of `found` whose extension method `name` ranks above the others' (dotty's
