@@ -36,7 +36,7 @@ fn approximated(u: &mut Universe, t: TypeId, v: i8, (p, owner): (TypeId, SymbolI
     let m = |u: &mut Universe, t, v| approximated(u, t, v, (p, owner));
     match u.types().get(t).clone() {
         Type::This(_) => v <= 0 && is_owner_this(u, t, owner),
-        Type::Sym(pre, s) if u.is_static_symbol(s) => pre.is_some_and(|pre| m(u, pre, v.max(0))),
+        Type::Sym(_, s) if u.is_static_symbol(s) => false,
         Type::Sym(Some(pre), s) if v <= 0 && is_owner_this(u, pre, owner) => not_forwarded(u, p, s),
         Type::Sym(Some(pre), _) => m(u, pre, v.max(0)),
         Type::Applied(tycon, args) => {
