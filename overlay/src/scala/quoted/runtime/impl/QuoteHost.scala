@@ -51,9 +51,13 @@ object QuoteHost {
   def argCount(): Int = throw new UnsupportedOperationException("VM native")
 
   /** Argument `arg` of the macro implementation: an `Expr` number, `-1 - n` for `Type` number
-   *  `n`, `Int.MinValue` for the `Quotes`, `Int.MinValue + 1` for a literal.
+   *  `n`, `Int.MinValue` for the `Quotes`, `Int.MinValue + 1` for a literal, `Int.MinValue + 2`
+   *  for a `Seq` of the arguments after it, `Int.MinValue + 3` for a `Function0` of the one after it.
    */
   def arg(arg: Int): Int = throw new UnsupportedOperationException("VM native")
+
+  /** How many elements the `Seq` of argument `arg` has. */
+  def elementCount(arg: Int): Int = throw new UnsupportedOperationException("VM native")
 
   /** The descriptor letter of the type of literal argument `arg`: `T` a string, `N` null. */
   def literalTag(arg: Int): Int = throw new UnsupportedOperationException("VM native")
@@ -87,18 +91,46 @@ object QuoteHost {
 
   /** The arguments of the macro implementation. */
   def args(): Array[Object] = {
-    val args = new Array[Object](argCount())
+    val quotes = new QuotesImpl
+    var made = List.empty[Object]
     var i = 0
-    while (i < args.length) {
-      val n = arg(i)
-      args(i) =
-        if (n == Int.MinValue) new QuotesImpl
-        else if (n == Int.MinValue + 1) literal(i)
-        else if (n >= 0) expr(n)
-        else quotedType(-1 - n)
-      i += 1
+    while (i < argCount()) {
+      val (value, next) = this.value(i, quotes)
+      made = value() :: made
+      i = next
     }
-    args
+    made.reverse.toArray
+  }
+
+  /** The maker of the value of argument `i`, each `Expr`, `Type` and `Seq` fresh, and the index of
+   *  the argument after it and those it holds.
+   */
+  private def value(i: Int, quotes: Quotes): (() => Object, Int) = {
+    val n = arg(i)
+    if (n == Int.MinValue + 2) {
+      var (elems, next, left) = (List.empty[() => Object], i + 1, elementCount(i))
+      while (left > 0) {
+        val (elem, after) = value(next, quotes)
+        elems = elem :: elems
+        next = after
+        left -= 1
+      }
+      val makers = elems.reverse
+      (() => makers.map(_()), next)
+    } else if (n == Int.MinValue + 3) {
+      val (inner, next) = value(i + 1, quotes)
+      val thunk: Function0[Object] = () => inner()
+      (() => thunk, next)
+    } else if (n == Int.MinValue) {
+      (() => quotes, i + 1)
+    } else if (n == Int.MinValue + 1) {
+      val made = literal(i)
+      (() => made, i + 1)
+    } else if (n >= 0) {
+      (() => expr(n), i + 1)
+    } else {
+      (() => quotedType(-1 - n), i + 1)
+    }
   }
 
   /** Runs `transform` of macro annotation `annotation` on expression `definition` and

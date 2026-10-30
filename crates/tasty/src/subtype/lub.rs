@@ -5,7 +5,7 @@
 //! union, soft unless asked otherwise).
 
 use super::hk::Connective;
-use super::{Cmp, NoVars};
+use super::{Cmp, NoVars, TypeVars};
 use crate::tags::{INLINE, MUTABLE, STABLE};
 use crate::types::{Type, TypeId};
 use crate::{ANY, Kind, SymbolId, Universe};
@@ -15,6 +15,13 @@ impl Universe {
     /// soft union with the parts the other covers dropped.
     pub fn lub(&mut self, a: TypeId, b: TypeId) -> TypeId {
         Cmp::new(self, &mut NoVars).lub(a, b)
+    }
+
+    /// `lub` under the constraint `vars`, which it only consults.
+    pub fn lub_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> TypeId {
+        let mut c = Cmp::new(self, vars);
+        c.frozen = true;
+        c.lub(a, b)
     }
 
     /// `lub`, a union soft if `soft`.

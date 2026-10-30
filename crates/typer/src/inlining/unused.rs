@@ -134,14 +134,16 @@ impl Inlining<'_> {
                     let s = self.u.symbol(s);
                     s.kind == Kind::Param && s.flags.has(INLINE)
                 });
-                self.ref_purity(t) == PURE_PATH || inline_param
+                self.pure().ref_purity(t) == PURE_PATH || inline_param
             }
-            T::Select { qualifier, .. } => self.ref_purity(t) == PURE_PATH && self.is_elideable(qualifier),
+            T::Select { qualifier, .. } => {
+                self.pure().ref_purity(t) == PURE_PATH && self.is_elideable(qualifier)
+            }
             T::TypeApply { fun, .. } => self.is_elideable(fun),
             T::Apply { fun, args } => {
                 let callee = self.method_part(fun).and_then(|f| self.tpd.sym(f));
                 let args = self.tpd.items(args).to_vec();
-                if self.is_pure_apply(t, callee) {
+                if self.pure().is_pure_apply(t, callee) {
                     self.is_elideable(fun) && args.into_iter().all(|a| self.is_elideable(a))
                 } else {
                     self.is_case_class_apply(t, fun) && args.into_iter().all(|a| self.is_elideable(a))
@@ -172,7 +174,7 @@ impl Inlining<'_> {
         let real = self
             .u
             .class_symbol(tpe)
-            .is_some_and(|c| !self.u.symbol(c).flags.has(TRAIT) && self.is_no_inits_class(c));
+            .is_some_and(|c| !self.u.symbol(c).flags.has(TRAIT) && self.pure().is_no_inits_class(c));
         let through = match *self.tpd.tree(f) {
             T::Select { qualifier, .. } => self.tpd.sym(qualifier),
             _ => Some(meth),

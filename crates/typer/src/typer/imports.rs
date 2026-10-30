@@ -178,6 +178,9 @@ impl Typer<'_> {
 
     /// What import `i` names `name` explicitly, if anything (dotty's `namedImportRef`).
     pub fn named_import_ref(&mut self, i: usize, name: &str, is_type: bool) -> Option<Found> {
+        if !self.may_import_named(i, name) {
+            return None;
+        }
         let info = self.import_info(i)?;
         let member = info.selectors.iter().find(|s| s.rename == name && s.rename != "_")?.name.clone();
         self.selection(i, &member, is_type, false)

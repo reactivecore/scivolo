@@ -48,7 +48,7 @@ impl Inlining<'_> {
             return Ok(None);
         };
         let refused = (self.tpd.span(t), "a macro argument selecting a parameter of a new instance");
-        if self.u.symbol(cls).flags.has(TRAIT) || !self.is_no_inits_class(cls) {
+        if self.u.symbol(cls).flags.has(TRAIT) || !self.pure().is_no_inits_class(cls) {
             return Err(refused);
         }
         if !args.iter().all(|&a| self.is_elideable(a)) {

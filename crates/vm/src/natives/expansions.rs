@@ -1,6 +1,6 @@
 //! Runs of macro implementations and macro annotations, `host` serving their quotes.
 
-use super::quotes::{HOST, MacroArg, QuoteHost, macro_arg};
+use super::quotes::{HOST, MacroArg, QuoteHost, after};
 use crate::interp::Flow;
 use crate::layout::{ARRAY_HEADER, ARRAY_LENGTH};
 use crate::{Vm, VmError, heap};
@@ -64,6 +64,13 @@ impl Vm {
         args: &[MacroArg],
         call: impl FnOnce(&mut Vm, u64, &[u64]) -> Flow<u32> + 'static,
     ) -> (Box<dyn QuoteHost>, Result<u32, VmError>) {
+        let unboxed: Vec<Option<u64>> = std::iter::successors(Some(0), |&i| Some(after(args, i)))
+            .take_while(|&i| i < args.len())
+            .map(|i| match args[i] {
+                MacroArg::Unboxed(bits) => Some(bits),
+                _ => None,
+            })
+            .collect();
         self.quotes.running = Some((host, args.to_vec()));
         self.quotes.count += 1;
         let quote_host = self.world.top(HOST);
@@ -74,8 +81,8 @@ impl Vm {
             let host = vm.module(quote_host)? as u64;
             let arr = vm.call_global(made_args, &[host])? as usize;
             let len: i32 = heap::read(arr + ARRAY_LENGTH);
-            let at = |i: usize| match macro_arg(vm, i as u64) {
-                Some(&MacroArg::Unboxed(bits)) => bits,
+            let at = |i: usize| match unboxed.get(i) {
+                Some(&Some(bits)) => bits,
                 _ => heap::read::<u64>(arr + ARRAY_HEADER as usize + 8 * i),
             };
             let values: Vec<u64> = (0..len as usize).map(at).collect();

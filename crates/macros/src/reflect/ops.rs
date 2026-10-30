@@ -121,7 +121,7 @@ ops! {
     "paramSymss" => param_symss(s: Sym) -> Fallible<Vec<i32>>;
     "signature" => signature(s: Sym) -> Reflected;
     "caseFields" => case_fields(s: Sym) -> Vec<SymbolId>;
-    "companionClass" => companion_class(s: Sym) -> Option<SymbolId>;
+    "companionClass" => companion_class(s: OptSym) -> Option<SymbolId>;
     "methodMembers" => method_members(s: Sym, name: Name) -> Fallible<Vec<SymbolId>>;
     "children" => children(s: Sym) -> Fallible<Vec<SymbolId>>;
     "symbolPos" => symbol_pos(s: Sym) -> Answer;

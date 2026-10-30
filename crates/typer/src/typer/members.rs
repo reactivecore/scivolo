@@ -40,7 +40,8 @@ impl Typer<'_> {
                 match class.filter(|&k| self.u.given_self_type(k).is_some()) {
                     Some(k) => {
                         let self_type = self.u.self_type(k);
-                        self.members_within(self_type, name, within)
+                        let found = self.members_within(self_type, name, within);
+                        if found.is_empty() { self.own_type_param_over_self(k, name) } else { found }
                     }
                     None => self.members_within(c, name, within),
                 }

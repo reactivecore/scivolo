@@ -23,7 +23,8 @@ impl Host {
         fields.collect()
     }
 
-    pub fn companion_class(&mut self, s: SymbolId) -> Option<SymbolId> {
+    pub fn companion_class(&mut self, s: Option<SymbolId>) -> Option<SymbolId> {
+        let s = s?;
         match self.u.symbol(s).kind {
             Kind::Package => None,
             _ if self.u.is_module(s) => self.u.module_class(s).and_then(|c| self.u.companion_class(c)),

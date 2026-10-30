@@ -1,6 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/Definitions.scala
-//! The traits `ContextFunctionN[-T1, …, -TN, +R]`, N ≥ 1, and `FunctionN`, N > 22, that dotty's
+//! The traits `ContextFunctionN[-T1, …, -TN, +R]`, N ≥ 0, and `FunctionN`, N > 22, that dotty's
 //! `Definitions` gives the `scala` package, each with an abstract `def apply(x$0: T1, …): R`, a
 //! context function's a `using` clause.
 
@@ -17,7 +17,7 @@ pub const MAX_IMPLEMENTED_ARITY: usize = 22;
 /// Enters the context function traits up to `MAX_IMPLEMENTED_ARITY` into package `scala`,
 /// extending `object`.
 pub fn enter(u: &mut Universe, scala: SymbolId, object: TypeId) {
-    for n in 1..=MAX_IMPLEMENTED_ARITY {
+    for n in 0..=MAX_IMPLEMENTED_ARITY {
         enter_class(u, (scala, object), n, true);
     }
 }

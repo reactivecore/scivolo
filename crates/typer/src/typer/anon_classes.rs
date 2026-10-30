@@ -47,6 +47,16 @@ impl Typer<'_> {
             self.infer_parent_args(template, p, ctx);
         }
         let name = TName { name: self.name("$anon"), is_type: true };
+        if let Tree::Template { self_: Some(s), .. } = *self.ast.tree(template)
+            && let Tree::ValDef { tpt, .. } = *self.ast.tree(s)
+            && matches!(self.ast.tree(tpt), Tree::TypeTree)
+        {
+            let class_ref = self.ast.node(Tree::Ident { name });
+            self.ast.with_span(class_ref, start);
+            if let Tree::ValDef { tpt, .. } = &mut self.ast.get_mut(s).tree {
+                *tpt = class_ref;
+            }
+        }
         let mods = self.ast.mods(Modifiers::with_flags(f::FINAL.or(f::SYNTHETIC)));
         let class = self.ast.node(Tree::TypeDef { name, rhs: template, mods });
         let template_span = self.ast.span(template);
