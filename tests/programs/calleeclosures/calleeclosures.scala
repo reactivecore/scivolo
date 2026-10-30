@@ -12,6 +12,14 @@ class Provider extends Base {
   }
 }
 
+class Outer[T] { class Inner(val x: T, val n: Int) }
+
+object Imported {
+  val o = new Outer[String]
+  import o.*
+  def mk = (x, n) => new Inner(x, n)
+}
+
 trait Fn2[T, U, R] { def apply(t: T, u: U): R }
 
 trait Pred[T] { def test(t: T): Boolean }
@@ -56,6 +64,7 @@ object calleeclosures {
     println(exists("ab"))
     println(pick(true) + " " + pick(false))
     println(compare(Array(true), Array(false)) + " " + new Holder().all(List(1, "a")))
+    println(Imported.mk("s", 2).x.length)
   }
 }
 
