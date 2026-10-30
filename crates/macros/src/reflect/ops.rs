@@ -117,6 +117,7 @@ ops! {
     "memberType" => member_type(t: Ty, s: Sym) -> Fallible<TypeId>;
     "termRef" => term_ref(qual: Ty, name: Name) -> Fallible<TypeId>;
     "annotation" => annotation(t: Ty) -> Fallible<TNodeId>;
+    "annotatedType" => annotated_type(underlying: Ty, annot: Tree) -> TypeId;
     "symbolRef" => symbol_ref(s: Sym) -> TypeId;
     // members
     "primaryConstructor" => primary_constructor(s: Sym) -> Option<SymbolId>;

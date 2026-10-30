@@ -102,6 +102,12 @@ impl Host {
         Ok(self.tpd.node(T::New { tpt }, span, Some(annot), None))
     }
 
+    /// `underlying` annotated with the class type of annotation `annot`.
+    pub fn annotated_type(&mut self, underlying: TypeId, annot: TNodeId) -> TypeId {
+        let annot = self.tpd.tpe(annot);
+        self.u.intern_type(Type::Annotated(underlying, annot))
+    }
+
     pub fn symbol_ref(&mut self, s: SymbolId) -> TypeId {
         self.reflect().symbol_ref(s)
     }

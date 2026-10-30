@@ -50,7 +50,8 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
   }
 
   object AnnotatedType extends AnnotatedTypeModule {
-    def apply(underlying: TypeRepr, annot: Term): AnnotatedType = throw new Unsupported("AnnotatedType.apply")
+    def apply(underlying: TypeRepr, annot: Term): AnnotatedType =
+      QuoteHost.tpe(ReflectOps.one("annotatedType", ReflectOps.id(underlying), ReflectOps.id(annot))).asInstanceOf[AnnotatedType]
     def unapply(x: AnnotatedType): (TypeRepr, Term) =
       (TypeShapes.part(x, 0).asInstanceOf[TypeRepr], TypeShapes.annotation(x).asInstanceOf[Term])
   }
@@ -64,7 +65,8 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
   }
 
   object Refinement extends RefinementModule {
-    def apply(parent: TypeRepr, name: String, info: TypeRepr): Refinement = throw new Unsupported("Refinement.apply")
+    def apply(parent: TypeRepr, name: String, info: TypeRepr): Refinement =
+      TypeKinds.of(6, List(parent, info), name).asInstanceOf[Refinement]
     def unapply(x: Refinement): (TypeRepr, String, TypeRepr) = (x.parent, x.name, x.info)
   }
 
