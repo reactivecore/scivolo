@@ -4,7 +4,8 @@
 Usage: scripts/lib-compile.py MODULE [FILTER]
 
 MODULE is one of MODULES or `all`. Each `.scala` file of the module's Scala 3 source directories
-in ref/scala-native (those whose paths contain FILTER) is lowered on its own, its macros run, against
+in ref/scala-native (those whose paths contain FILTER) is lowered on its own, or with its group of
+UNITS as one unit, its macros run, against
 the jars of tmp/lib/sn/jars (`just lib-oracle`) if there, else the published ones, into
 tmp/lib/MODULE/out/FILE/; each NIR file written is compared, as `just
 nir-cmp` compares them, with the oracle's: the module compiled by Scala Native's build (Scala
@@ -50,6 +51,12 @@ OPTIONS = {
     "windowslib": ["--tasty", str(WINDOWSLIB)],
     "javalib": ["--javalib", "--tasty", str(WINDOWSLIB), "--tasty", str(JDK_STUBS)],
 }
+# The groups of files of a module lowered as one unit, by path prefix in their source directory:
+# files that refer to each other's classes.
+UNITS = {
+    "auxlib": [["scala/collection/concurrent/"],
+               ["scala/runtime/BoxedUnit.scala", "scala/scalanative/runtime/BoxedUnit.scala"]],
+}
 JOBS = os.cpu_count() or 4
 TIMEOUT = 60
 
@@ -61,15 +68,6 @@ def jar_name(module):
 def lower_cmd(module, root, files, out):
     """The `scivolo-lower` command lowering `files` of source directory `root` into `out`."""
     return [str(LOWER), "--macros", *OPTIONS.get(module, []), "--sourceroot", str(root), *map(str, files), str(out)]
-
-
-def sources(module, filter_):
-    """(source directory, file) of each Scala source of `module` whose path contains `filter_`."""
-    found = []
-    for name in SOURCE_DIRS:
-        root = SN / module / "src/main" / name
-        found += [(root, f) for f in sorted(root.rglob("*.scala")) if filter_ in str(f.relative_to(SN))]
-    return found
 
 
 def oracle(module):
@@ -106,27 +104,43 @@ def compare(ours, theirs, diff_file):
     return "differ", changed
 
 
-def one(module, root, file):
-    """The row of results.tsv and the rows of cmp.tsv of one source file."""
-    rel = str(file.relative_to(root))
-    shown = f"{root.name}/{rel}"
-    out = WORK / module / "out" / root.name / rel.removesuffix(".scala")
+def units(module, filter_):
+    """(source directory, files) of each unit of `module`'s Scala sources with a file whose path
+    contains `filter_`: each group of UNITS, each other file on its own."""
+    found = {}
+    for name in SOURCE_DIRS:
+        root = SN / module / "src/main" / name
+        for f in sorted(root.rglob("*.scala")):
+            rel = str(f.relative_to(root))
+            group = next((i for i, g in enumerate(UNITS.get(module, [])) if rel.startswith(tuple(g))), rel)
+            found.setdefault((root, group), []).append(f)
+    return [(root, fs) for (root, _), fs in found.items() if any(filter_ in str(f.relative_to(SN)) for f in fs)]
+
+
+def one(module, root, files):
+    """The rows of results.tsv and of cmp.tsv of each of source files `files`, lowered as one unit;
+    a NIR file counts for the file of its first position."""
+    shown = [f"{root.name}/{f.relative_to(root)}" for f in files]
+    out = WORK / module / "out" / root.name / str(files[0].relative_to(root)).removesuffix(".scala")
     try:
-        r = subprocess.run(lower_cmd(module, root, [file], out),capture_output=True, text=True, errors="replace", timeout=TIMEOUT, env=ENV)
+        r = subprocess.run(lower_cmd(module, root, files, out), capture_output=True, text=True, errors="replace",
+                           timeout=TIMEOUT * len(files), env=ENV)
     except subprocess.TimeoutExpired:
-        return [shown, "timeout", "", 0, 0, 0], []
+        return [([s, "timeout", "", 0, 0, 0], []) for s in shown]
     if r.returncode != 0:
         if m := re.search(r"panicked at (\S+):\n(.*)", r.stderr):
-            return [shown, "crashed", f"{m[2]} at {m[1]}".replace("\t", " ")[:200], 0, 0, 0], []
+            return [([s, "crashed", f"{m[2]} at {m[1]}".replace("\t", " ")[:200], 0, 0, 0], []) for s in shown]
         reason = next((l for l in r.stderr.splitlines() if l.strip()), "").replace("\t", " ")[:200]
-        return [shown, "refused", reason, 0, 0, 0], []
-    theirs, cmp, counts = oracle(module), [], collections.Counter()
+        return [([s, "refused", reason, 0, 0, 0], []) for s in shown]
+    theirs, by_file = oracle(module), {s: (collections.Counter(), []) for s in shown}
     for name in r.stdout.split():
         path = name.removesuffix(".nir").replace(".", "/") + ".nir"
+        positions = (l[2:].rsplit(":", 2)[0] for l in dump(out / path) if l.startswith("@ ")) if files[1:] else iter(())
+        counts, cmp = by_file.get(f"{root.name}/{next(positions, None)}", by_file[shown[0]])
         state, lines = compare(out / path, theirs / path, WORK / module / "diffs" / f"{path}.diff")
         counts[state] += 1
         cmp.append([path, state, lines])
-    return [shown, "ok", "", counts["same"], counts["differ"], counts["missing"]], cmp
+    return [([s, "ok", "", c["same"], c["differ"], c["missing"]], cmp) for s, (c, cmp) in by_file.items()]
 
 
 def read_tsv(path):
@@ -149,9 +163,8 @@ def compile_module(module, filter_):
     if not keep:
         shutil.rmtree(work / "diffs", ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)
-    todo = sources(module, filter_)
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
-        done = list(pool.map(lambda t: one(module, *t), todo))
+        done = [row for rows in pool.map(lambda t: one(module, *t), units(module, filter_)) for row in rows]
     rows = {r[0]: r for r in read_tsv(work / "results.tsv")} if keep else {}
     rows |= {r[0]: r for r, _ in done}
     write_tsv(work / "results.tsv", sorted(rows.values()))

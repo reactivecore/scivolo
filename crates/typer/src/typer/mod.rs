@@ -168,6 +168,7 @@ mod report;
 mod retained;
 mod right_assoc;
 mod sam_closures;
+mod sam_method_values;
 mod sams;
 mod scope_bindings;
 pub(crate) mod seen_from;

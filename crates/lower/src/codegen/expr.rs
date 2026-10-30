@@ -113,7 +113,9 @@ impl Gen<'_, '_> {
             return self.gen_nested_module(t, sym, qual);
         }
         let saved = self.at_span(span);
-        let v = if self.l.u.is_module(sym) && !accessor {
+        let v = if sym == self.l.defs.boxed_unit_unit {
+            self.val(Val::Unit)
+        } else if self.l.u.is_module(sym) && !accessor {
             self.gen_module(sym)
         } else if self.is_field(sym) {
             self.gen_field_load(t, sym, Some(qual))?
