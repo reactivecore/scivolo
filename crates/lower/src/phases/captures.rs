@@ -78,7 +78,8 @@ pub fn dependencies(
                     continue;
                 }
                 let owner = l.u.symbol(s).owner;
-                let implicit_this = implicit_this(l, l.tpd.get(t).tpe) == Some(class);
+                let member = owner.is_some_and(|o| l.u.is_class(o));
+                let implicit_this = member && implicit_this(l, l.tpd.get(t).tpe) == Some(class);
                 functions[i].this |= (owner == Some(class) || implicit_this) && !l.u.is_module_class(class);
                 let local = matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param)
                     && owner.is_some_and(|o| matches!(l.u.symbol(o).kind, Kind::Def | Kind::Val));
