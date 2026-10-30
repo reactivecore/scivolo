@@ -25,7 +25,11 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
   given ConstantTypeMethods: ConstantTypeMethods = methods("ConstantTypeMethodsImpl")
 
   object ConstantType extends ConstantTypeModule {
-    def apply(x: Constant): ConstantType = throw new Unsupported("ConstantType.apply")
+    def apply(x: Constant): ConstantType = {
+      val c = x.asInstanceOf[ConstantImpl]
+      ReflectOps.run("constantTypeOf", Array(c.kind, c.lo, c.hi), c.text)
+      QuoteHost.tpe(QuoteHost.result(0)).asInstanceOf[ConstantType]
+    }
     def unapply(x: ConstantType): Some[Constant] = Some(x.constant)
   }
 
@@ -67,7 +71,7 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
       def baseType(cls: Symbol): TypeRepr = repr(ReflectOps.one("baseType", ReflectOps.id(self), ReflectOps.id(cls)))
       def select(sym: Symbol): TypeRepr = repr(ReflectOps.one("selectType", ReflectOps.id(self), ReflectOps.id(sym)))
       def widenByName: TypeRepr = if (TypeShapes.kind(self) == 14) TypeShapes.part(self, 0).asInstanceOf[TypeRepr] else self
-      def dealiasKeepOpaques: TypeRepr = throw new Unsupported("TypeRepr.dealiasKeepOpaques")
+      def dealiasKeepOpaques: TypeRepr = repr(ReflectOps.one("dealiasKeepOpaques", ReflectOps.id(self)))
       def simplified: TypeRepr = throw new Unsupported("TypeRepr.simplified")
       def isTupleN: Boolean = applied(self, "scala.Tuple", 0)
       def isFunctionType: Boolean = applied(self, "scala.Function", 1) || applied(self, "scala.ContextFunction", 1)

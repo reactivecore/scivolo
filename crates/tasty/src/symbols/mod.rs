@@ -38,7 +38,7 @@ mod variance;
 
 use crate::library::Library;
 use crate::subtype::Unions;
-use crate::types::{TypeId, Types};
+use crate::types::{Binder, TypeId, Types};
 use crate::{Ast, NodeId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::io;
@@ -101,6 +101,8 @@ pub struct Universe {
     builtins: Builtins,
     /// How many binders `fresh_binder` has made.
     binders: u32,
+    /// The declared variances of the type lambdas made outside TASTy that declare them.
+    lambda_variances: FxHashMap<Binder, Vec<i8>>,
     unions: Unions,
     /// How many steps comparisons have taken computing atoms and `Nothing`-ness.
     pub subtype_steps: u64,

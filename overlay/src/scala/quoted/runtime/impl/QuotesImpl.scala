@@ -13,8 +13,8 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
     ReflectDefinitionSupport, ReflectDeclarationSupport, ReflectPositionSupport, ReflectControlSupport,
     ReflectTypeTreeSupport, ReflectStatementSupport, ReflectPatternSupport, ReflectTypeKindSupport,
     ReflectLambdaTypeSupport, ReflectTypeBoundSupport {
-  /** Its getter is a VM native allocating a `ReflectImpl`. */
-  val reflect: reflectModule = null
+  val reflect: reflectModule =
+    QuoteHost.allocate("scala.quoted.runtime.impl.ReflectSupport$ReflectImpl").asInstanceOf[reflectModule]
 
   extension [T](self: Expr[T]) {
     def show: String = ReflectOps.text("showTree", QuoteHost.exprId(self))

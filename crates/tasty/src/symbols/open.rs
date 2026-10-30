@@ -55,6 +55,7 @@ impl Universe {
             resolving: 0,
             builtins: Builtins::PENDING,
             binders: 0,
+            lambda_variances: FxHashMap::default(),
             unions: Default::default(),
             subtype_steps: 0,
             scala2_erasure: false,
