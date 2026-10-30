@@ -22,13 +22,13 @@ abstract class ReflectImpl
 
   extension (expr: Expr[Any]) def asTerm: Term = ReflectOps.term(QuoteHost.exprId(expr)).asInstanceOf[Term]
 
-  /** `TreeCode`, `TreeStructure`, `TypeReprCode`, `TypeReprShortCode`, `TypeReprStructure`; the rest are
+  /** `TreeCode`, `TreeAnsiCode`, `TreeStructure`, `TypeReprCode`, `TypeReprShortCode`, `TypeReprStructure`; the rest are
    *  `Unsupported`.
    */
   object Printer extends PrinterModule {
     def TreeCode: Printer[Tree] = printer("showTree")
     def TreeShortCode: Printer[Tree] = refusing("Printer.TreeShortCode")
-    def TreeAnsiCode: Printer[Tree] = refusing("Printer.TreeAnsiCode")
+    def TreeAnsiCode: Printer[Tree] = printer("showTreeAnsi")
     def TreeStructure: Printer[Tree] = printer("showStructure")
     def TypeReprCode: Printer[TypeRepr] = printer("showType")
     def TypeReprShortCode: Printer[TypeRepr] = printer("showTypeShort")

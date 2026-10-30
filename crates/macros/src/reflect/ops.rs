@@ -119,6 +119,7 @@ ops! {
     "treeKind" => tree_kind(t: Tree) -> i32;
     "tree" => shape(t: Tree) -> Answer;
     "showTree" => show_tree(t: Tree) -> Fallible<String>;
+    "showTreeAnsi" => show_tree_ansi(t: Tree) -> Fallible<String>;
     "showStructure" => show_structure(t: Tree) -> Fallible<String>;
     "treeSymbol" => tree_symbol(t: Tree) -> Fallible<Option<SymbolId>>;
     "changeOwner" => change_owner(t: Expr, owner: Sym) -> Expr;

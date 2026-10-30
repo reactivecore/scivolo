@@ -5,12 +5,13 @@
 use super::{Code, REFUSED, Shown};
 use tasty::SymbolId;
 use tasty::tags::{
-    ERASED, FINAL, GIVEN, IMPLICIT, INLINE, LAZY, LOCAL, MUTABLE, OBJECT, OVERRIDE, PRIVATE, PROTECTED,
+    CASEaccessor, ERASED, FINAL, GIVEN, IMPLICIT, INLINE, LAZY, LOCAL, MUTABLE, OBJECT, OVERRIDE, PARAMsetter,
+    PRIVATE, PROTECTED,
 };
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Code<'_> {
-    fn has(&self, s: Option<SymbolId>, tag: u8) -> bool {
+    pub fn has(&self, s: Option<SymbolId>, tag: u8) -> bool {
         s.is_some_and(|s| self.h.u.symbol(s).flags.has(tag))
     }
 
@@ -21,11 +22,12 @@ impl Code<'_> {
             T::ValDef { name, tpt, rhs } => {
                 self.modifiers(s, false);
                 if self.has(s, LAZY) {
-                    self.push("lazy ");
+                    self.keyword("lazy ");
                 }
-                self.push(if self.has(s, MUTABLE) { "var " } else { "val " });
+                self.keyword(if self.has(s, MUTABLE) { "var " } else { "val " });
                 let name = self.def_name(s, &self.name(name));
-                self.push(&format!("{name}: "));
+                self.definition_name(&name);
+                self.push(": ");
                 self.type_tree(tpt)?;
                 if let Some(rhs) = rhs {
                     self.push(" = ");
@@ -36,7 +38,8 @@ impl Code<'_> {
                 let constructor = self.name(name) == "<init>";
                 self.modifiers(s, true);
                 let name = if constructor { "this".to_owned() } else { self.def_name(s, &self.name(name)) };
-                self.push(&format!("def {name}"));
+                self.keyword("def ");
+                self.definition_name(&name);
                 for clause in self.h.tpd.clause_items(paramss).to_vec() {
                     let params = self.items(clause);
                     match params.first().map(|&p| self.tree_of(p)) {
@@ -68,29 +71,35 @@ impl Code<'_> {
     /// The modifiers of definition `s` before `val`, `var` or `def`.
     fn modifiers(&mut self, s: Option<SymbolId>, def: bool) {
         if self.has(s, IMPLICIT) {
-            self.push("implicit ");
+            self.keyword("implicit ");
         }
         if def && self.has(s, INLINE) {
-            self.push("inline ");
+            self.keyword("inline ");
         }
         if self.has(s, OVERRIDE) {
-            self.push("override ");
+            self.keyword("override ");
         }
         if self.has(s, FINAL) && !self.has(s, OBJECT) {
-            self.push("final ");
+            self.keyword("final ");
         }
+        self.protected_or_private(s);
+    }
+
+    /// The access modifier of `s` with a space, if it has one (dotty's `printProtectedOrPrivate`).
+    fn protected_or_private(&mut self, s: Option<SymbolId>) -> bool {
         let access = if self.has(s, PROTECTED) {
             "protected"
         } else if self.has(s, PRIVATE) {
             "private"
         } else {
-            return;
+            return false;
         };
-        self.push(access);
+        self.keyword(access);
         if self.has(s, LOCAL) {
             self.push("[this]");
         }
         self.push(" ");
+        true
     }
 
     fn type_params(&mut self, params: &[TNodeId]) -> Shown {
@@ -100,21 +109,23 @@ impl Code<'_> {
                 self.push(", ");
             }
             let T::TypeDef { name, rhs } = self.tree_of(p) else { return Err(REFUSED) };
-            let s = self.h.tpd.sym(p);
-            if self.has(s, tasty::tags::COVARIANT) {
-                self.push("+");
-            } else if self.has(s, tasty::tags::CONTRAVARIANT) {
-                self.push("-");
-            }
+            self.variance(self.h.tpd.sym(p));
             self.push(&self.name(name));
-            let T::TypeBoundsTree { lo, hi, alias: None } = self.tree_of(rhs) else { return Err(REFUSED) };
-            self.bounds_tree(lo, hi)?;
+            self.type_def_rhs(rhs)?;
         }
         self.push("]");
         Ok(())
     }
 
-    fn method_params(&mut self, params: &[TNodeId]) -> Shown {
+    pub fn variance(&mut self, s: Option<SymbolId>) {
+        if self.has(s, tasty::tags::COVARIANT) {
+            self.definition_name("+");
+        } else if self.has(s, tasty::tags::CONTRAVARIANT) {
+            self.definition_name("-");
+        }
+    }
+
+    pub fn method_params(&mut self, params: &[TNodeId]) -> Shown {
         let first = params.first().and_then(|&p| self.h.tpd.sym(p));
         self.push("(");
         if self.has(first, GIVEN) {
@@ -145,16 +156,33 @@ impl Code<'_> {
             }
             let T::ValDef { name, tpt, .. } = self.tree_of(p) else { return Err(REFUSED) };
             let s = self.h.tpd.sym(p);
-            let constructor =
-                s.and_then(|s| self.h.u.symbol(s).owner).is_some_and(|o| self.h.u.symbol(o).name == "<init>");
-            if constructor {
-                return Err(REFUSED);
-            }
+            let name = self.def_name(s, &self.name(name));
             if self.has(s, ERASED) {
                 self.push("erased ");
             }
-            let name = self.def_name(s, &self.name(name));
-            self.push(&format!("{name}: "));
+            let owner = s.and_then(|s| self.h.u.symbol(s).owner);
+            if let Some(ctor) = owner.filter(|&o| self.h.u.symbol(o).name == "<init>") {
+                let cls = self.h.u.symbol(ctor).owner.ok_or(REFUSED)?;
+                let decls = self.h.u.symbol(cls).decls.clone();
+                let accessor = decls.into_iter().find(|&d| {
+                    let d = self.h.u.symbol(d);
+                    d.kind.is_term() && d.flags.has(PARAMsetter) && d.name == name
+                });
+                if let Some(a) = accessor.filter(|&a| !self.has(Some(a), LOCAL)) {
+                    let mut prefixed = self.has(Some(a), OVERRIDE);
+                    if prefixed {
+                        self.push("override ");
+                    }
+                    prefixed |= self.protected_or_private(Some(a));
+                    if self.has(Some(a), MUTABLE) {
+                        self.definition_name("var ");
+                    } else if prefixed || !self.has(Some(a), CASEaccessor) {
+                        self.definition_name("val ");
+                    }
+                }
+            }
+            self.definition_name(&name);
+            self.push(": ");
             self.type_tree(tpt)?;
         }
         Ok(())
