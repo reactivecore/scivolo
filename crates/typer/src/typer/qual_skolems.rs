@@ -12,12 +12,11 @@ impl Typer<'_> {
     /// it would put `p` for a `this` where it occurs other than covariantly (dotty's
     /// `maybeSkolemizePrefix` and `asSeenFrom` of a `QualSkolemType`).
     pub fn qual_skolem(&mut self, p: TypeId, s: SymbolId) -> TypeId {
-        let unstable = matches!(self.u.types().get(p),
-            Type::Sym(_, c) if self.u.is_type_symbol(*c))
-            || matches!(
-                self.u.types().get(p),
-                Type::Applied(..) | Type::Refined(..) | Type::And(..) | Type::Or(..)
-            );
+        let unstable = match *self.u.types().get(p) {
+            Type::Sym(_, c) => self.u.is_type_symbol(c),
+            Type::Applied(..) | Type::Refined(..) | Type::And(..) | Type::Or(..) => true,
+            _ => false,
+        };
         let owner = self.u.symbol(s).owner;
         let Some(owner) = owner
             .filter(|&o| unstable && self.u.symbol(s).kind.is_term() && self.u.symbol(o).kind == Kind::Class)
