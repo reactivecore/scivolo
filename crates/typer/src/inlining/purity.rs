@@ -1,13 +1,14 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
-//! How pure typed trees are, as the inliner asks (dotty's `exprPurity`, `refPurity` and
-//! `isPureApply`).
+//! How pure typed trees are, as the inliner and the macro host ask (dotty's `exprPurity`,
+//! `refPurity` and `isPureApply`).
 
 use super::Inlining;
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::{TNodeId, Tpd, Tree as T};
+use rustc_hash::FxHashSet;
 use tasty::tags::{CASE, INLINE, LAZY, MUTABLE, STABLE, SYNTHETIC, TRAIT};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, Universe};
 
 pub const IMPURE: u8 = 0;
 pub const IDEMPOTENT: u8 = 1;
@@ -34,7 +35,20 @@ pub const PRIMITIVE_OWNERS: [&str; 9] = [
     "java.lang.String",
 ];
 
+/// The trees and symbols purity reads, `with_inits` the classes of the unit known to run code.
+pub struct Purity<'a> {
+    pub u: &'a mut Universe,
+    pub tpd: &'a Tpd,
+    pub with_inits: &'a FxHashSet<SymbolId>,
+}
+
 impl Inlining<'_> {
+    pub fn pure(&mut self) -> Purity<'_> {
+        Purity { u: self.u, tpd: self.tpd, with_inits: &self.with_inits }
+    }
+}
+
+impl Purity<'_> {
     pub fn purity(&mut self, t: TNodeId) -> u8 {
         match self.tpd.tree(t).clone() {
             T::This { .. } | T::Super { .. } | T::Literal { .. } | T::ClassLiteral { .. } => PURE_PATH,
@@ -60,7 +74,9 @@ impl Inlining<'_> {
             T::Apply { fun, args } => {
                 let args = self.tpd.items(args).to_vec();
                 let all = args.into_iter().fold(self.purity(fun), |p, a| p & self.purity(a));
-                let callee = self.method_part(fun).and_then(|f| self.tpd.sym(f));
+                let part = self.tpd.meth_part(fun);
+                let named = matches!(self.tpd.tree(part), T::Ident { .. } | T::Select { .. });
+                let callee = named.then(|| self.tpd.sym(part)).flatten();
                 if self.is_pure_apply(t, callee) {
                     all & PURE
                 } else if callee.is_some_and(|s| self.is_stable_member(s)) {
@@ -162,14 +178,21 @@ impl Inlining<'_> {
         at_least(self.purity(t), IDEMPOTENT)
     }
 
+    /// Whether `t` is a pure path, or pure of a constant type (dotty's `isPurePath`).
+    pub fn is_pure_path(&mut self, t: TNodeId) -> bool {
+        let p = self.purity(t);
+        if self.has_constant_type(t) { at_least(p, PURE) } else { p == PURE_PATH }
+    }
+
     /// Whether `t` is an idempotent path, or idempotent of a constant type (dotty's
     /// `isIdempotentPath`).
     pub fn is_idempotent_path(&mut self, t: TNodeId) -> bool {
-        let constant = self
-            .tpd
-            .get(t)
-            .tpe
-            .is_some_and(|x| matches!(self.u.types().get(x), Type::Constant(..) | Type::Str(_)));
-        at_least(self.purity(t), if constant { IDEMPOTENT } else { IDEMPOTENT_PATH })
+        let level = if self.has_constant_type(t) { IDEMPOTENT } else { IDEMPOTENT_PATH };
+        at_least(self.purity(t), level)
+    }
+
+    fn has_constant_type(&self, t: TNodeId) -> bool {
+        let tpe = self.tpd.get(t).tpe;
+        tpe.is_some_and(|x| matches!(self.u.types().get(x), Type::Constant(..) | Type::Str(_)))
     }
 }

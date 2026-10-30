@@ -41,7 +41,10 @@ impl Typer<'_> {
         }
         match self.ast.tree(tree).clone() {
             Tree::ValDef { tpt, rhs, .. } => {
-                let info = self.result_type(sym, tpt, rhs, ctx.with_owner(sym));
+                let info = match self.module_val_info(sym) {
+                    Some(info) => info,
+                    None => self.result_type(sym, tpt, rhs, ctx.with_owner(sym)),
+                };
                 self.u.set_info(sym, info);
                 self.mark_erased_by_type(sym, tree, info);
             }

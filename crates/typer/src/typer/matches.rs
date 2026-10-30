@@ -75,7 +75,7 @@ impl Typer<'_> {
             let T::CaseDef { body, .. } = *self.tpd.tree(c) else { return self.unsupported(id, "case") };
             bodies.push(self.tpd.tpe(body));
         }
-        let tpe = bodies.iter().fold(NOTHING, |acc, &b| self.u.lub(acc, b));
+        let tpe = bodies.iter().fold(NOTHING, |acc, &b| self.u.lub_in(acc, b, &mut self.constraint));
         let attrs = self.ast.attrs(selector);
         let pat_def = attrs.contains(Attrs::CHECK_PAT_DEF);
         let sel = if pat_def || attrs.contains(Attrs::CHECK_GEN_FROM) {

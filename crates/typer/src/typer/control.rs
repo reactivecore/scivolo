@@ -51,7 +51,7 @@ impl Typer<'_> {
             Err(what) => return self.unsupported(id, what),
         };
         let (a, b) = (self.tpd.tpe(thenp), self.tpd.tpe(elsep));
-        let tpe = self.u.lub(a, b);
+        let tpe = self.u.lub_in(a, b, &mut self.constraint);
         self.tpd.node(T::If { cond, thenp, elsep, inline }, span, Some(tpe), None)
     }
 

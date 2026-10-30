@@ -128,7 +128,7 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
       ReflectOps.id(sym) >= 0 && sym.isClassDef && (1 to 22).exists(n => sym.fullName == s"scala.Tuple$n")
     def ScalaPrimitiveValueClasses: List[Symbol] = UnitClass :: BooleanClass :: ScalaNumericValueClasses
     def ScalaNumericValueClasses: List[Symbol] =
-      List(ByteClass, ShortClass, CharClass, IntClass, LongClass, FloatClass, DoubleClass)
+      List(ByteClass, ShortClass, IntClass, LongClass, FloatClass, DoubleClass, CharClass)
   }
 
   private def tag(bits: Int*): Flags = new FlagsImpl(bits.foldLeft(0L)((f, b) => f | 1L << b)).asInstanceOf[Flags]

@@ -79,7 +79,7 @@ impl Reducer<'_, '_> {
         match *self.i.tpd.tree(t) {
             T::Select { qualifier, .. } => {
                 let Some(n) = self.new_instance(qualifier) else { return Ok(t) };
-                if self.i.u.symbol(n.cls).flags.has(TRAIT) || !self.i.is_no_inits_class(n.cls) {
+                if self.i.u.symbol(n.cls).flags.has(TRAIT) || !self.i.pure().is_no_inits_class(n.cls) {
                     return Ok(t);
                 }
                 let field = self.i.tpd.sym(t);

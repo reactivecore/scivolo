@@ -37,23 +37,23 @@ impl Macros for VmMacros<'_> {
     ) -> Result<Expanded, MacroError> {
         let refused = |what: &str| MacroError::Unsupported(what.to_owned());
         let u = &mut *lent.0;
-        if call.context
-            && u.annotation_int(call.method, "scala.annotation.internal.ContextResultCount") != Some(1)
-        {
+        let count = u.annotation_int(call.method, "scala.annotation.internal.ContextResultCount");
+        if call.context > 0 && count != i32::try_from(call.context).ok() {
             return Err(refused(
                 "a macro implementation returning a context function not erased to a parameter",
             ));
         }
         let module = u.binary_name(call.receiver);
-        let by_name = call.context && args::quotes_by_name(u, call.method);
-        let sig = u
-            .method_signature(call.method)
-            .and_then(|s| if call.context { args::quotes_last(&s, by_name) } else { Some(s) });
+        let by_name = call.context > 0 && args::quotes_by_name(u, call.method);
+        let sig = u.method_signature(call.method).and_then(|s| {
+            if call.context > 0 { args::quotes_last(&s, call.context, by_name) } else { Some(s) }
+        });
         let sig = sig.ok_or_else(|| refused("a macro implementation without a method signature"))?;
         let (mut params, _) = u.erased_method(call.method);
-        if call.context {
-            let quotes = if by_name { "scala.Function0" } else { "scala.quoted.Quotes" };
-            params.push(Erased::Class(quotes.into()));
+        let quotes = Erased::Class("scala.quoted.Quotes".into());
+        params.extend((1..call.context).map(|_| quotes.clone()));
+        if call.context > 0 {
+            params.push(if by_name { Erased::Class("scala.Function0".into()) } else { quotes });
         }
         if params.len() != call.args.len() {
             return Err(refused("a macro implementation with erased parameters"));

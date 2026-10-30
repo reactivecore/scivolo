@@ -87,11 +87,12 @@ pub fn quotes_by_name(u: &mut Universe, m: SymbolId) -> bool {
         if targs.first().is_some_and(|&a| matches!(types.get(a), Type::ByName(_))))
 }
 
-/// Signature `sig` of a macro implementation whose result is a context function of the `Quotes`
-/// as dotty's erasure gives it: the `Quotes`, a `Function0` of them if `by_name`, its last
-/// parameter (`ContextFunctionResults`).
-pub fn quotes_last(sig: &str, by_name: bool) -> Option<String> {
+/// Signature `sig` of a macro implementation whose result is `count` nested context functions of
+/// the `Quotes` as dotty's erasure gives it: the `Quotes` its last parameters, the last a
+/// `Function0` of them if `by_name` (`ContextFunctionResults`).
+pub fn quotes_last(sig: &str, count: u32, by_name: bool) -> Option<String> {
     let sig = sig.strip_suffix("L15scala.Function1EO")?;
-    let quotes = if by_name { "L15scala.Function0" } else { "L19scala.quoted.Quotes" };
-    Some(format!("{sig}{quotes}L17scala.quoted.ExprEO"))
+    let quotes = "L19scala.quoted.Quotes".repeat(count as usize - 1);
+    let last = if by_name { "L15scala.Function0" } else { "L19scala.quoted.Quotes" };
+    Some(format!("{sig}{quotes}{last}L17scala.quoted.ExprEO"))
 }

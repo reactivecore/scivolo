@@ -66,7 +66,7 @@ impl Expansion<'_, '_> {
             let this = self.i.u.intern_type(Type::This(class_type));
             let seen = self.i.u.as_seen_from(this, qt, cls);
             let stable = match *self.i.u.types().get(seen) {
-                Type::Sym(_, s) => self.i.is_stable_member(s) && self.i.is_singleton_path(seen),
+                Type::Sym(_, s) => self.i.pure().is_stable_member(s) && self.i.is_singleton_path(seen),
                 _ => false,
             };
             let proxy = self.this_proxy_symbol(c, seen);

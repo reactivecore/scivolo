@@ -4,7 +4,7 @@
 //! Classes whose construction runs no code (dotty's `NoInits` and `isNoInitsRealClass`), the
 //! unit's classes judged by their typed templates (dotty's `parentsKind` and `bodyKind`).
 
-use super::Inlining;
+use super::{Inlining, Purity};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::SymbolId;
 use tasty::tags::{EXTENSION, SYNTHETIC, TRAIT};
@@ -38,7 +38,9 @@ impl Inlining<'_> {
             _ => false,
         }
     }
+}
 
+impl Purity<'_> {
     /// Whether neither class `c` nor any of its base classes runs code when an instance is made;
     /// never for a `java.*` or `javax.*` class other than `Object`, not an interface.
     pub fn is_no_inits_class(&mut self, c: SymbolId) -> bool {
