@@ -114,7 +114,10 @@ pub fn outer_this(l: &mut Lower, t: TNodeId, class: SymbolId) -> Option<Vec<Symb
 /// (dotty's `desugarIdent`); of an object `class` is in, its `this`.
 pub fn outer_prefix(l: &mut Lower, t: TNodeId, class: SymbolId) -> Option<TNodeId> {
     let Tree::Ident { name } = *l.tpd.tree(t) else { return None };
-    let Type::Sym(Some(prefix), _) = *l.u.types().get(l.tpd.get(t).tpe?) else { return None };
+    let Type::Sym(Some(prefix), s) = *l.u.types().get(l.tpd.get(t).tpe?) else { return None };
+    if !l.u.symbol(s).kind.is_term() {
+        return None;
+    }
     let at = l.tpd.span(t).start_pos();
     let (qualifier, this) = prefix_path(l, prefix, class, at)?;
     let module = l.tpd.sym(t).and_then(|s| l.u.module_class(s).filter(|_| l.u.is_module(s)));

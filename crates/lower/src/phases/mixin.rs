@@ -12,7 +12,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
-use tasty::tags::{FIELDaccessor, INLINE, PRIVATE};
+use tasty::tags::{FIELDaccessor, INLINE, PRIVATE, STATIC};
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Template, Tree};
 
@@ -134,6 +134,7 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
         || l.u.is_constructor(meth)
         || has(l.u, meth, PRIVATE)
         || has(l.u, meth, FIELDaccessor)
+        || has(l.u, meth, STATIC)
     {
         return false;
     }

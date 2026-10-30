@@ -29,6 +29,9 @@ pub fn class_prefix(l: &mut Lower, param: TypeId, class: SymbolId) -> Option<Typ
     if let Type::Applied(tycon, _) = *l.u.types().get(t) {
         t = tycon;
     }
+    if let Type::This(tref) = *l.u.types().get(t) {
+        t = tref;
+    }
     match *l.u.types().get(t) {
         Type::Sym(Some(pre), s) if s == class => Some(pre),
         _ => None,
@@ -52,10 +55,16 @@ pub fn child_prefix(
     };
     let (parents, children) = (owners(l, sealed), owners(l, c));
     let common = parents.iter().zip(&children).take_while(|(a, b)| a == b).count();
-    let mut prefix = Some(pre);
+    let mut prefix = Some(pre).filter(|&p| *l.u.types().get(p) != Type::NoPrefix);
     for _ in common..parents.len() {
-        let Type::Sym(q, _) = *l.u.types().get(prefix?) else { return None };
-        prefix = q;
+        prefix = match *l.u.types().get(prefix?) {
+            Type::Sym(q, _) => q,
+            Type::This(tref) => match *l.u.types().get(tref) {
+                Type::Sym(q, _) => q,
+                _ => return None,
+            },
+            _ => return None,
+        };
     }
     for &o in &children[common..] {
         let m = l.u.source_module(o).filter(|_| l.u.is_module_class(o))?;

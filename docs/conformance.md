@@ -53,6 +53,10 @@ instead of the run.
   (ADR 0008).
 - **Object layout.** `IntrinsicsTest.sizeOfClassTest` expects the lock word multithreaded Scala
   Native adds to object headers; the VM keeps monitors outside objects (ADR 0003).
+- **Static initializers.** Scala Native runs every `<clinit>` (of `@static` values) before
+  `main`, the VM on first use of the class; side effects of the initial values, or a companion
+  object reading them during its construction, come in another order or see other values
+  (ADR 0047).
 
 ## Upstream bugs to report
 

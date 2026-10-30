@@ -20,6 +20,7 @@ mod case_equality;
 mod case_hash;
 mod case_members;
 pub(crate) mod casts;
+mod class_calls;
 mod closures;
 mod constructors;
 mod context_bridges;

@@ -187,6 +187,9 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
         }
         Type::Sym(q, s) if l.u.symbol(s).kind.is_term() => {
             let static_module = l.u.is_module(s) && is_static(l.u, s);
+            if let Some(call) = super::local_lazy::object_call(l, s, span) {
+                return Ok(call);
+            }
             let qualifier = match q.map(|q| l.u.types().get(q)) {
                 _ if static_module => return Ok(l.ident(s, span)),
                 None | Some(Type::Package(_)) => return Ok(l.ident(s, span)),

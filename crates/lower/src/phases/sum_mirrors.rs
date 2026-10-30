@@ -17,10 +17,18 @@ use tasty::{Flags, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The children of sealed class `sealed` in unit `root` in the order of their definitions:
-/// classes, and objects by their values; of an enum, its cases.
+/// classes, and objects by their values; of an enum, its cases; of the library, those its TASTy
+/// names.
 fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
     if has(l.u, sealed, ENUM) {
         return typer::sealed::enum_cases(l.u, sealed);
+    }
+    if let Some(types) = l.u.decoded_children(sealed) {
+        let referenced = |l: &mut Lower, t: TypeId| match *l.u.types().get(t) {
+            Type::Sym(_, s) => Some(s),
+            _ => l.u.resolve_ref(t),
+        };
+        return types.into_iter().filter_map(|t| referenced(l, t)).collect();
     }
     let classes: Vec<(u32, SymbolId)> = class_defs(l.tpd, root)
         .into_iter()
@@ -65,7 +73,9 @@ pub fn ordinal(
     let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     let flags = Flags::default().with(SYNTHETIC);
-    let pre = class_prefix(l, param, sealed);
+    let local = l.u.symbol(sealed).owner.is_some_and(|o| l.u.symbol(o).kind.is_term());
+    let no_prefix = local.then(|| l.u.intern_type(Type::NoPrefix));
+    let pre = class_prefix(l, param, sealed).or(no_prefix);
     let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let mut cases = Vec::new();
         for (i, &c) in children.iter().enumerate() {

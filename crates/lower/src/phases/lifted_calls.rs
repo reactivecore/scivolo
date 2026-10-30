@@ -5,11 +5,9 @@
 
 use super::adapt::from_start;
 use super::lambda_lift::Function;
-use super::lift_names::Caller;
 use super::lifted::Method;
 use super::local_free::is_method;
 use super::walk::children;
-use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use tasty::{SymbolId, Type};
 use typer::tpd::{List, TNodeId, Tree};
@@ -57,74 +55,16 @@ pub fn calls(
 }
 
 /// Pushes the children of `t` but the method a return returns from onto `todo`.
-fn push_terms_in(l: &Lower, t: TNodeId, todo: &mut Vec<TNodeId>) {
+pub fn push_terms_in(l: &Lower, t: TNodeId, todo: &mut Vec<TNodeId>) {
     match *l.tpd.tree(t) {
         Tree::Return { expr, .. } => todo.push(expr),
         _ => todo.extend(children(l.tpd, t)),
     }
 }
 
-/// Makes the calls of local methods in lifted local class `caller` call their lifted methods,
-/// each of `lifted`'s class with its functions and methods, passing a local trait method's
-/// parameters standing for the values, else the class's fields in its methods and its
-/// constructor's parameters elsewhere.
-pub fn calls_from_class(
-    l: &mut Lower,
-    caller: &Caller,
-    lifted: &[(SymbolId, &[Function], &[Method])],
-) -> Result<()> {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(caller.td) else {
-        unreachable!("a class definition")
-    };
-    for stat in children(l.tpd, template) {
-        let in_method = matches!(l.tpd.tree(stat), Tree::DefDef { .. }) && is_method(l, l.tpd.sym(stat));
-        let own = l.tpd.sym(stat).and_then(|m| l.trait_methods.get(&m)).map(|(_, pairs)| pairs.clone());
-        let mut todo = vec![stat];
-        while let Some(t) = todo.pop() {
-            if matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
-                continue;
-            }
-            let found = lifted.iter().find_map(|&(c, fs, ms)| {
-                call_of(l, t, fs).map(|(i, reference, args)| (c, &fs[i], &ms[i], reference, args))
-            });
-            let Some((class, f, method, reference, args)) = found else {
-                push_terms_in(l, t, &mut todo);
-                continue;
-            };
-            let span = l.tpd.span(reference);
-            let home = l.u.symbol(method.sym).owner.unwrap_or(class);
-            let receiver = match f.instance() && !is_static_module(l.u, home) {
-                true => super::outer_fields::outer_path(l, (caller.td, caller.class), home, in_method, span)?,
-                false => l.this(home, span),
-            };
-            let mut captured = Vec::new();
-            for &v in &f.captured {
-                let proxies = match &own {
-                    Some(pairs) => pairs,
-                    None if in_method => &caller.fields,
-                    None => &caller.params,
-                };
-                let Some(&(_, p)) = proxies.iter().find(|&&(w, _)| w == v) else {
-                    return unsupported(span, "local classes calling local methods through other methods");
-                };
-                captured.push(if in_method && own.is_none() {
-                    let at = span.end_pos();
-                    let this = l.this(caller.class, at);
-                    l.select(this, p, at)
-                } else {
-                    l.ident(p, span)
-                });
-            }
-            redirect(l, t, (receiver, f, method), reference, captured, args);
-            todo.extend(children(l.tpd, t));
-        }
-    }
-    Ok(())
-}
-
 /// The index among `functions` of the local method `t` calls or refers to without parameter
 /// lists, the reference past type arguments, and the arguments.
-fn call_of(l: &Lower, t: TNodeId, functions: &[Function]) -> Option<(usize, TNodeId, Vec<TNodeId>)> {
+pub fn call_of(l: &Lower, t: TNodeId, functions: &[Function]) -> Option<(usize, TNodeId, Vec<TNodeId>)> {
     let (fun, args) = match *l.tpd.tree(t) {
         Tree::Apply { fun, args } => (fun, l.tpd.items(args).to_vec()),
         _ => (t, Vec::new()),
@@ -139,7 +79,7 @@ fn call_of(l: &Lower, t: TNodeId, functions: &[Function]) -> Option<(usize, TNod
 
 /// Makes call or reference `t` of function `f` call `method` on `receiver`, with `captured` then
 /// `args`.
-fn redirect(
+pub fn redirect(
     l: &mut Lower,
     t: TNodeId,
     (receiver, f, method): (TNodeId, &Function, &Method),
