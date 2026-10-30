@@ -159,8 +159,6 @@ impl Typer<'_> {
     fn same_ref(&mut self, a: &Found, b: &Found) -> bool {
         if let ([s], [t]) = (&a.syms[..], &b.syms[..])
             && s != t
-            && self.u.is_type_symbol(*s)
-            && self.u.is_type_symbol(*t)
         {
             let (p, q) = (ref_type(self.u, a.prefix, *s), ref_type(self.u, b.prefix, *t));
             return self.u.is_subtype(p, q) && self.u.is_subtype(q, p);
