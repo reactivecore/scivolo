@@ -8,7 +8,7 @@ use super::{Typer, Widen};
 use crate::constraint::Constraint;
 use crate::symbols::SCRIPT_BINDERS;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
+use tasty::{ANY, Kind, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 
 /// Whether `t` is a type lambda the script made (bound by a `fresh_binder` of the typer or of
 /// the universe).
@@ -170,6 +170,8 @@ impl Typer<'_> {
             let defines = matches!(self.tpd.tree(id), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });
             if let Some(s) = self.tpd.sym(id).filter(|_| defines)
                 && !self.u.symbol(s).flags.has(tasty::tags::INLINEPROXY)
+                && !(self.syms.closure_syms.contains(&s)
+                    && matches!(self.u.symbol(s).kind, Kind::Param | Kind::Def))
             {
                 let info = self.u.info(s);
                 if super::deskolemize::has_skolem(self.u, info) {

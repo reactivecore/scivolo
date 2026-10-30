@@ -20,6 +20,16 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
                 _ => u.intern_type(Type::Bounds(NOTHING, hi)),
             }
         }
+        Type::Sym(Some(p), s) if u.symbol(s).kind == Kind::Class && is_skolem(u, p) => {
+            let Type::Skolem(_, info) = *u.types().get(p) else { return None };
+            let hi = deskolemized(u, info, 1)?;
+            let hi = u.intern_type(Type::Sym(Some(hi), s));
+            match v {
+                1 => hi,
+                -1 => NOTHING,
+                _ => u.intern_type(Type::Bounds(NOTHING, hi)),
+            }
+        }
         Type::Sym(Some(p), s) if u.symbol(s).kind == Kind::Type && is_skolem(u, p) => {
             let Type::Skolem(_, info) = *u.types().get(p) else { return None };
             let info = deskolemized(u, info, 1)?;
