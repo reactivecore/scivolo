@@ -7,10 +7,10 @@
 use super::copy::TreeTypeMap;
 use super::macros::{Expanded, Quoted};
 use super::{Inlining, Unsupported};
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::{TNodeId, Tpd, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
-use tasty::SymbolId;
+use tasty::{SymbolId, Universe};
 
 /// The expansion, the trees of the macro's arguments, the quotes by their roots and the filling
 /// expressions by their hole placeholders.
@@ -158,22 +158,7 @@ impl Inlining<'_> {
 
     /// Gives the outermost definitions in copy `t` owner `owner`.
     pub fn reown(&mut self, t: TNodeId, owner: SymbolId) {
-        let (mut todo, mut defs) = (vec![t], Vec::new());
-        while let Some(n) = todo.pop() {
-            if matches!(
-                self.tpd.tree(n),
-                T::DefDef { .. } | T::ValDef { .. } | T::TypeDef { .. } | T::Bind { .. }
-            ) {
-                defs.extend(self.tpd.sym(n));
-            }
-            todo.extend(self.tpd.children(n));
-        }
-        let defined: FxHashSet<SymbolId> = defs.iter().copied().collect();
-        for s in defs {
-            if self.u.symbol(s).owner.is_some_and(|o| !defined.contains(&o)) {
-                self.u.set_owner(s, owner);
-            }
-        }
+        reown(self.tpd, self.u, t, owner);
     }
 
     /// Gives the trees in `t` without a span `span`: the type trees of `TypeTree.of`.
@@ -183,6 +168,23 @@ impl Inlining<'_> {
                 self.tpd.get_mut(c).span = span;
             }
             self.position_unpositioned(c, span);
+        }
+    }
+}
+
+/// Gives the outermost definitions in `t` owner `owner`.
+pub fn reown(tpd: &Tpd, u: &mut Universe, t: TNodeId, owner: SymbolId) {
+    let (mut todo, mut defs) = (vec![t], Vec::new());
+    while let Some(n) = todo.pop() {
+        if matches!(tpd.tree(n), T::DefDef { .. } | T::ValDef { .. } | T::TypeDef { .. } | T::Bind { .. }) {
+            defs.extend(tpd.sym(n));
+        }
+        todo.extend(tpd.children(n));
+    }
+    let defined: FxHashSet<SymbolId> = defs.iter().copied().collect();
+    for s in defs {
+        if u.symbol(s).owner.is_some_and(|o| !defined.contains(&o)) {
+            u.set_owner(s, owner);
         }
     }
 }

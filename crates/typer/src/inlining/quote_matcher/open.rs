@@ -4,11 +4,12 @@
 //! scrutinee's definitions the hole's arguments capture (dotty's `MatchResult.OpenTree`).
 
 use super::super::copy::TreeTypeMap;
+use super::super::quoted::reown;
 use super::super::reflect_beta::NoHost;
 use super::super::{Inlining, Reflect};
 use super::{Captured, Hole, Matched, Matcher};
 use crate::tpd::{List, TNodeId, Tree as T};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use syntax::names::FreshNames;
 use tasty::tags::SYNTHETIC;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type};
@@ -121,7 +122,7 @@ impl Reflect<'_> {
         let info = self.u.intern_type(info);
         self.u.set_info(anonfun, info);
         let body = self.copied(t, syms)?;
-        self.reown(body, anonfun);
+        reown(self.tpd, self.u, body, anonfun);
         self.applies_through(body, &methods)?;
         let tpt = self.type_tree(result);
         let def = self.build()?.def_def(anonfun, &[&param_trees], tpt, Some(body), span);
@@ -164,22 +165,5 @@ impl Reflect<'_> {
             self.tpd.get_mut(n).tree = T::Apply { fun: select, args };
         }
         Ok(())
-    }
-
-    /// Gives the outermost definitions in `t` owner `owner`.
-    fn reown(&mut self, t: TNodeId, owner: SymbolId) {
-        let (mut todo, mut defs) = (vec![t], Vec::new());
-        while let Some(n) = todo.pop() {
-            if matches!(self.tpd.tree(n), T::DefDef { .. } | T::ValDef { .. } | T::Bind { .. }) {
-                defs.extend(self.tpd.sym(n));
-            }
-            todo.extend(self.tpd.children(n));
-        }
-        let defined: FxHashSet<SymbolId> = defs.iter().copied().collect();
-        for s in defs {
-            if self.u.symbol(s).owner.is_some_and(|o| !defined.contains(&o)) {
-                self.u.set_owner(s, owner);
-            }
-        }
     }
 }
