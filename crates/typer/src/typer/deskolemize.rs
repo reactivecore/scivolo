@@ -48,6 +48,24 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
                 _ => u.intern_type(Type::Bounds(bounds.0, bounds.1)),
             }
         }
+        Type::Sym(Some(p), s) if v == 1 => {
+            let p = deskolemized(u, p, 1)?;
+            match u.refinement_info(p, s).map(|i| u.types().get(i).clone()) {
+                Some(Type::Alias(a)) => a,
+                _ => u.intern_type(Type::Sym(Some(p), s)),
+            }
+        }
+        Type::TypeRef(p, name) if v == 1 => {
+            let p = deskolemized(u, p, 1)?;
+            match u.refinement_named(p, &name).map(|i| u.types().get(i).clone()) {
+                Some(Type::Alias(a)) => a,
+                _ => u.intern_type(Type::TypeRef(p, name)),
+            }
+        }
+        Type::TermRef(p, name) if v == 1 => {
+            let p = deskolemized(u, p, 1)?;
+            u.intern_type(Type::TermRef(p, name))
+        }
         _ if v == 0 => return None,
         Type::Applied(tycon, args) => {
             let class = u.class_symbol(tycon)?;
