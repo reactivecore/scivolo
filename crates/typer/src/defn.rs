@@ -140,10 +140,12 @@ pub fn owner_prefix(u: &mut Universe, owner: SymbolId) -> TypeId {
     }
 }
 
-/// The type of a reference to `s` from where its owner's members are visible; a local symbol,
-/// owned by a term, has no prefix.
+/// The type of a reference to `s` from where its owner's members are visible (dotty's
+/// `typeRef`/`termRef`); a local symbol, owned by a term, and a member of a package have no
+/// prefix.
 pub fn type_ref(u: &mut Universe, s: SymbolId) -> TypeId {
-    let prefix = u.symbol(s).owner.filter(|&o| !u.symbol(o).kind.is_term()).map(|o| owner_prefix(u, o));
+    let class_owner = |o: SymbolId| u.symbol(o).kind != Kind::Package && !u.symbol(o).kind.is_term();
+    let prefix = u.symbol(s).owner.filter(|&o| class_owner(o)).map(|o| owner_prefix(u, o));
     u.intern_type(Type::Sym(prefix, s))
 }
 
