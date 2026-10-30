@@ -73,8 +73,11 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
         (qualifier, None)
     };
     let module = l.u.companion_module(class).expect("the companion of an extension method's class");
-    let (module_span, span) =
-        if ev_def.is_some() { (Span::NONE, Span::NONE) } else { (from_start(l.tpd.span(fun)), span) };
+    let (module_span, span) = match ev_def {
+        Some(_) => (Span::NONE, Span::NONE),
+        None if targs_span.exists() => (targs_span.to_synthetic(), span),
+        None => (from_start(l.tpd.span(fun)), span),
+    };
     let module_ref = l.ident(module, module_span);
     let mut call = l.select(module_ref, extension, span);
     if ev_def.is_some() {

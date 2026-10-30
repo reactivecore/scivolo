@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/SelectStatic.scala
 //! dotty's `SelectStatic` for enum cases and objects nested in static objects: `qual.f` becomes
-//! `f` if `qual` is a path of static objects, else, for an enum case, `{ qual; f }`, without a
-//! span; the enclosing tree is copied as dotty's tree copiers do, which gives it one.
+//! `f` if `qual` is a path of static objects, else `{ qual; f }`, without a span; the enclosing
+//! tree is copied as dotty's tree copiers do, which gives it one.
 
 use super::walk::{children, subtrees};
 use crate::Lower;
@@ -18,8 +18,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
         for c in children(l.tpd, parent) {
             let Tree::Select { qualifier, .. } = *l.tpd.tree(c) else { continue };
             let Some(f) = l.tpd.sym(c) else { continue };
-            let nested_module = is_nested_static_module(l, f) && is_static_owner_ref(l, qualifier);
-            if !nested_module && !is_static_enum_value(l, f) {
+            if !is_nested_static_module(l, f) && !is_static_enum_value(l, f) {
                 continue;
             }
             let tpe = l.tpd.tpe(c);
