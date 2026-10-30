@@ -539,13 +539,16 @@ macro-fixture:
 javalib-tasty:
     scripts/javalib-tasty.sh
 
-# Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs (scala-cli).
+# Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs (scala-cli), written
+# by the pickler: the stubs redefine JDK classes the later phases of dotty use themselves.
 jdk-stubs:
     #!/usr/bin/env bash
     set -euo pipefail
     rm -rf tmp/jdk-stubs
+    mkdir -p tmp/jdk-stubs/out
     scala-cli --power compile --quiet --scala 3.9.0 --server=false --workspace tmp/jdk-stubs/ws \
-        -d tmp/jdk-stubs/out libs/jdk-stubs/JdkStubs.scala
+        -d tmp/jdk-stubs/classes libs/jdk-stubs/JdkStubs.scala \
+        -O -Yearly-tasty-output -O {{ justfile_directory() }}/tmp/jdk-stubs/out -O -Ystop-before:erasure
     find tmp/jdk-stubs/out -name '*.tasty' -exec touch -t 201001010000 {} +
     rm -f libs/jdk-stubs.jar
     (cd tmp/jdk-stubs/out && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-stubs.jar -@)
