@@ -58,6 +58,10 @@ impl Host {
             }
             Type::TypeRef(p, n) | Type::TermRef(p, n) => {
                 let term = matches!(self.u.types().get(t), Type::TermRef(..));
+                let resolved = if term { self.u.resolve_ref(t) } else { None };
+                if let Some(package) = resolved.filter(|&s| self.u.symbol(s).kind == Kind::Package) {
+                    return self.package_ref(package, out);
+                }
                 match self.package_class(p) {
                     Some(pkg) => {
                         let what = if term { "TermRef" } else { "TypeRef" };
