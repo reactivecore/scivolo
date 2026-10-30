@@ -24,11 +24,9 @@ fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
         return typer::sealed::enum_cases(l.u, sealed);
     }
     if let Some(types) = l.u.decoded_children(sealed) {
-        let referenced = |l: &mut Lower, t: TypeId| match l.u.types().get(t).clone() {
+        let referenced = |l: &mut Lower, t: TypeId| match *l.u.types().get(t) {
             Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, n) => l.u.resolve(p, &n, true),
-            Type::TermRef(p, n) => l.u.resolve(p, &n, false),
-            _ => None,
+            _ => l.u.resolve_ref(t),
         };
         return types.into_iter().filter_map(|t| referenced(l, t)).collect();
     }

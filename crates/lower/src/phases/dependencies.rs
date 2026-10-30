@@ -275,7 +275,7 @@ impl Collect<'_, '_> {
         let intermediate = self.mark_free(v, outer);
         let l = self.l;
         let local_class = l.u.is_class(encl) && l.u.symbol(encl).owner.is_some_and(|o| is_term(l, o));
-        if let Some(i) = intermediate.filter(|&i| local_class && l.u.is_class(i)) {
+        if let Some(i) = intermediate.filter(|_| local_class) {
             let owner = self.logic_owners.entry(encl).or_insert(i);
             *owner = if within(l, i, *owner) { i } else { *owner };
         }
