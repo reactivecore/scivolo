@@ -175,15 +175,14 @@ fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>)
         true => format!("{}$${unexpanded}", l.u.expanded_prefix(s.clazz)),
         false => unexpanded,
     };
-    let info = l.u.widen(l.tpd.tpe(s.sel));
-    let info = java_named(l, s.member, info);
     let declared = l.u.decl(s.clazz, &name).unwrap_or_default();
-    if let Some(acc) = declared.into_iter().find(|&a| l.u.info(a) == info) {
+    if let Some(acc) =
+        declared.into_iter().find(|a| l.super_accessors.get(a).is_some_and(|&(m, _)| m == s.member))
+    {
         return Ok(acc);
     }
-    if matches!(l.u.types().get(info), Type::Poly { .. }) {
-        return unsupported(span, "super calls of polymorphic methods");
-    }
+    let info = l.u.widen(l.tpd.tpe(s.sel));
+    let info = java_named(l, s.member, info);
     let acc = l.u.define(symbol(&name, Kind::Def, s.clazz, Flags::default().with(ARTIFACT)));
     l.u.set_info(acc, info);
     l.super_accessors.insert(acc, (s.member, !s.mix.is_empty()));
@@ -208,9 +207,11 @@ fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>)
 
 /// The definition without a body of method `acc` of type `info`.
 fn deferred_def(l: &mut Lower, acc: SymbolId, info: TypeId, span: Span) -> TNodeId {
-    let (params, result) = match l.u.types().get(info).clone() {
+    let (tparams, mono) = type_params(l, acc, info);
+    let tdefs: Vec<TNodeId> = tparams.iter().map(|&t| l.type_param_def(t, span)).collect();
+    let (params, result) = match l.u.types().get(mono).clone() {
         Type::Method { params, result, .. } => (Some(params), result),
-        _ => (None, info),
+        _ => (None, mono),
     };
     let mut defs = Vec::new();
     for (pname, ptype) in params.iter().flatten() {
@@ -219,6 +220,26 @@ fn deferred_def(l: &mut Lower, acc: SymbolId, info: TypeId, span: Span) -> TNode
         defs.push(l.param_def(p, span));
     }
     let tpt = l.type_tree(result, span);
-    let paramss: Vec<&[TNodeId]> = if params.is_some() { vec![&defs] } else { vec![] };
+    let mut paramss: Vec<&[TNodeId]> = if tdefs.is_empty() { vec![] } else { vec![&tdefs] };
+    if params.is_some() {
+        paramss.push(&defs);
+    }
     l.build().def_def(acc, &paramss, tpt, None, span)
+}
+
+/// New type parameters of method `acc` for those of its type `info`, and the result of `info`
+/// referring to them.
+fn type_params(l: &mut Lower, acc: SymbolId, info: TypeId) -> (Vec<SymbolId>, TypeId) {
+    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
+        return (Vec::new(), info);
+    };
+    let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+    let tparams: Vec<SymbolId> =
+        names.iter().map(|n| l.u.define(symbol(n, Kind::TypeParam, acc, Flags::default()))).collect();
+    let args: Vec<TypeId> = tparams.iter().map(|&t| l.u.intern_type(Type::Sym(None, t))).collect();
+    for (&t, (_, bounds)) in tparams.iter().zip(params) {
+        let bounds = l.u.subst(bounds, binder, &names, &args);
+        l.u.set_info(t, bounds);
+    }
+    (tparams, l.u.subst(result, binder, &names, &args))
 }
