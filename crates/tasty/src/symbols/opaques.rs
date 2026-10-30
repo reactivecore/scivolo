@@ -67,12 +67,12 @@ impl Universe {
         (self.class_symbol(c) == owner && inside).then_some(alias)
     }
 
-    /// Whether the owner of `s` declares opaque types defined outside TASTy, or is an object
-    /// whose owner does so, transitively (dotty's `seesOpaques`).
+    /// Whether the owner of `s` declares opaque types, or is an object whose owner does so,
+    /// transitively (dotty's `seesOpaques`).
     pub fn sees_opaques(&self, s: SymbolId) -> bool {
         let mut owner = self.symbol(s).owner;
         while let Some(o) = owner {
-            if self.has_opaques(o) {
+            if self.symbol(o).kind == Kind::Class && self.symbol(o).flags.has(OPAQUE) {
                 return true;
             }
             if !self.is_module_class(o) {

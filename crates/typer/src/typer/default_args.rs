@@ -68,7 +68,7 @@ impl Typer<'_> {
         let name = TName { name: self.name(&getter_name), is_type: false };
         let mut getter =
             self.tpd.node(T::Select { qualifier: receiver, name }, span, Some(tpe), Some(getter));
-        for (i, clause) in clauses.into_iter().enumerate().rev() {
+        for clause in clauses.into_iter().rev() {
             let args = match clause {
                 Clause::Values(args) => args,
                 Clause::Types(targs) => {
@@ -79,7 +79,6 @@ impl Typer<'_> {
                         .map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true))
                         .collect();
                     let tpe = self.instantiated(getter, &types)?;
-                    let tpe = if i == 0 && !args_typed { self.simplified(tpe) } else { tpe };
                     getter = self.build().type_apply(getter, &trees, tpe, span.to_synthetic());
                     continue;
                 }
@@ -94,6 +93,10 @@ impl Typer<'_> {
             let arg_types: Vec<_> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
             let result = self.applied_result(result, (binder, &names), self.tpd.sym(getter), &arg_types);
             getter = self.build().apply(getter, &args, result, span.to_synthetic());
+        }
+        if !args_typed {
+            let tpe = self.tpd.tpe(getter);
+            self.tpd.get_mut(getter).tpe = Some(self.simplified(tpe));
         }
         Ok(getter)
     }
