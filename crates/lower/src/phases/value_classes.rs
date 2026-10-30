@@ -9,13 +9,15 @@
 //! `C.m$extension(q)(args)`, a method of the companion object taking the value first.
 
 use super::adapt::from_start;
+use super::eval_once::{eval_once, is_stable_path};
 use super::walk::walk_class_up;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use std::ops::ControlFlow;
-use tasty::tags::{FINAL, INLINE, MACRO, MUTABLE, PRIVATE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use syntax::ast::Span;
+use tasty::tags::{FINAL, INLINE, MACRO, PRIVATE};
+use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewires the calls of value class methods in class definition `td`, children before their
@@ -42,13 +44,17 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     }
     let mut argss = Vec::new();
     let mut fun = t;
+    let mut targs_span = Span::NONE;
     loop {
         match *l.tpd.tree(fun) {
             Tree::Apply { fun: f, args } => {
                 argss.push(l.tpd.items(args).to_vec());
                 fun = f;
             }
-            Tree::TypeApply { fun: f, .. } => fun = f,
+            Tree::TypeApply { fun: f, args } => {
+                targs_span = l.tpd.items(args).iter().fold(targs_span, |s, &a| s.union(l.tpd.span(a)));
+                fun = f;
+            }
             _ => break,
         }
     }
@@ -62,33 +68,49 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let generic = !l.u.type_params(class).is_empty();
     let (receiver, ev_def) = if generic && !is_stable_path(l, qualifier) {
         let (ev, def) = eval_once(l, qualifier, owner);
-        (l.ident(ev, l.tpd.span(qualifier)), Some(def))
+        (l.ident(ev, Span::NONE), Some(def))
     } else {
         (qualifier, None)
     };
     let module = l.u.companion_module(class).expect("the companion of an extension method's class");
-    let module_ref = l.ident(module, from_start(l.tpd.span(fun)));
+    let (module_span, span) =
+        if ev_def.is_some() { (Span::NONE, Span::NONE) } else { (from_start(l.tpd.span(fun)), span) };
+    let module_ref = l.ident(module, module_span);
     let mut call = l.select(module_ref, extension, span);
+    if ev_def.is_some() {
+        l.with_span(call, targs_span.to_synthetic());
+    }
     let info = l.u.info(extension);
     let info = l.u.strip_poly(info);
     let mut tpe = l.u.result_type(info);
     call = l.apply(call, &[receiver], tpe, span);
-    let call_span = if argss.is_empty() { span } else { l.tpd.span(t) };
-    if argss.is_empty() && l.u.value_class(widened).is_some() {
+    l.positioned(call);
+    let call_span = if argss.first().is_some_and(|a| !a.is_empty()) { l.tpd.span(t) } else { span };
+    let applied = !argss.is_empty();
+    if !applied && l.u.value_class(widened).is_some() {
         l.tpd.get_mut(t).span = span;
     }
     for args in argss.into_iter().rev() {
         tpe = l.u.result_type(tpe);
-        call = l.apply(call, &args, tpe, call_span);
+        call = l.apply(call, &args, tpe, span);
+        l.positioned(call);
     }
-    l.tpd.get_mut(call).span = call_span;
+    if ev_def.is_none() {
+        l.tpd.get_mut(call).span = call_span;
+    }
     if generic {
         let tpe = l.u.widen(l.tpd.tpe(t));
         let tree = match ev_def {
-            Some(def) => Tree::Block { stats: l.tpd.list(&[def]), expr: call },
+            Some(def) => {
+                let block = l.block(&[def], call, Span::NONE);
+                l.positioned(block);
+                l.tpd.tree(block).clone()
+            }
             None if tpe != l.tpd.tpe(t) => Tree::Typed { expr: call, tpt: inferred(l, tpe, span) },
             None => l.tpd.tree(call).clone(),
         };
+        l.tpd.get_mut(t).span =
+            if ev_def.is_none() && tpe == l.tpd.tpe(t) { call_span } else { l.tpd.span(t) };
         let node = l.tpd.get_mut(t);
         (node.tree, node.tpe, node.sym) = (tree, Some(tpe), None);
         return Ok(());
@@ -96,50 +118,15 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let tpt = inferred(l, tpe, span);
     let node = l.tpd.get_mut(t);
     (node.tree, node.tpe, node.sym) = (Tree::Typed { expr: call, tpt }, Some(tpe), None);
+    if applied {
+        node.span = call_span;
+    }
     Ok(())
 }
 
 /// An inferred type tree of `tpe`.
 fn inferred(l: &mut Lower, tpe: tasty::TypeId, span: syntax::ast::Span) -> TNodeId {
     l.tpd.node(Tree::TypeTree { inferred: true }, span, Some(tpe), None)
-}
-
-/// Whether `t` is a literal, `this`, or a path of stable values and objects (dotty's
-/// `isIdempotentExpr` for these).
-pub fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
-    let stable = |l: &mut Lower, s: Option<SymbolId>| {
-        s.is_some_and(|s| {
-            l.u.is_module(s)
-                || matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param)
-                    && !has(l.u, s, MUTABLE)
-                    && !super::first_transform::is_by_name(l, s)
-        })
-    };
-    match *l.tpd.tree(t) {
-        Tree::Literal { .. } | Tree::ClassLiteral { .. } | Tree::This { .. } => true,
-        Tree::Ident { .. } => stable(l, l.tpd.sym(t)),
-        Tree::Select { qualifier, .. } => stable(l, l.tpd.sym(t)) && is_stable_path(l, qualifier),
-        _ => false,
-    }
-}
-
-/// `val ev$N = expr` in `owner` (dotty's `evalOnce`), with its symbol.
-pub fn eval_once(l: &mut Lower, expr: TNodeId, owner: SymbolId) -> (SymbolId, TNodeId) {
-    let tpe = l.u.widen(l.tpd.tpe(expr));
-    eval_once_as(l, expr, owner, tpe)
-}
-
-/// `eval_once` with a value of type `tpe`.
-pub fn eval_once_as(l: &mut Lower, expr: TNodeId, owner: SymbolId, tpe: TypeId) -> (SymbolId, TNodeId) {
-    let name = l.fresh.next(l.names, "ev$");
-    let name = l.names.text(name).to_owned();
-    let ev = l.u.define(symbol(&name, Kind::Val, owner, Flags::default().with(SYNTHETIC)));
-    l.u.set_info(ev, tpe);
-    let span = l.tpd.span(expr);
-    let tpt = l.type_tree(tpe, span);
-    let term = l.term_name(&name);
-    let def = l.tpd.node(Tree::ValDef { name: term, tpt, rhs: Some(expr) }, span, Some(tpe), Some(ev));
-    (ev, def)
 }
 
 /// Whether method `m` has an extension method (dotty's `isMethodWithExtension`).

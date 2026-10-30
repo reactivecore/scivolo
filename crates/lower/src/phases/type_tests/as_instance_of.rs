@@ -4,7 +4,7 @@
 //! `x.asInstanceOf[T]` as dotty's `transformAsInstanceOf` erases it.
 
 use crate::phases::adapt::{adapt, ascribed, converted, erased_type};
-use crate::phases::casts::{class_named, type_of};
+use crate::phases::casts::{class_named, conforms, type_of};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::{Erased, TypeId};
@@ -60,6 +60,9 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
         (_, Erased::Prim(_)) => return refused(),
         (_, Erased::Nothing) if matches!(from, Erased::Class(_) | Erased::Array(_) | Erased::Null) => {
             throw_class_cast(l, expr)
+        }
+        _ if !matches!(l.tpd.tree(expr), Tree::This { .. }) && conforms(l, &found, &to) => {
+            l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None)
         }
         _ => t,
     })

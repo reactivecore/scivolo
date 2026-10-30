@@ -5,8 +5,8 @@
 //! (dotty's `transformTypeTest`).
 
 use super::type_test;
+use crate::phases::eval_once::eval_once;
 use crate::phases::first_transform::is_pure;
-use crate::phases::value_classes::eval_once;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::TypeId;

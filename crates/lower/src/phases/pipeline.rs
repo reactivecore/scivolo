@@ -44,8 +44,8 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         setter_calls::transform(l, td)?;
     }
     for &td in &classes {
-        interpolators::transform(l, td)?;
         by_name::transform(l, td);
+        interpolators::transform(l, td)?;
         hoist_super_args::transform(l, root, td)?;
     }
     patmat::transform(l, root, unit_owner)?;

@@ -83,8 +83,17 @@ pub fn forwarder_spans(l: &mut Lower, moved: &[Moved]) {
         for t in subtrees(l.tpd, call) {
             l.tpd.get_mut(t).span = super::adapt::from_start(span);
         }
-        l.tpd.get_mut(call).span = span;
+        l.tpd.get_mut(call).span =
+            if ends_empty(l, forwarder) { super::adapt::from_start(span) } else { span };
     }
+}
+
+/// Whether the last value parameter clause of method definition `def` is empty.
+fn ends_empty(l: &Lower, def: TNodeId) -> bool {
+    let Tree::DefDef { paramss, .. } = *l.tpd.tree(def) else { return false };
+    let clauses = l.tpd.clause_items(paramss);
+    let is_value = |&&c: &&_| l.tpd.items(c).iter().all(|&p| matches!(l.tpd.tree(p), Tree::ValDef { .. }));
+    clauses.iter().rfind(is_value).is_some_and(|&c| l.tpd.items(c).is_empty())
 }
 
 /// Appends `defs` to the body of class definition `td`.

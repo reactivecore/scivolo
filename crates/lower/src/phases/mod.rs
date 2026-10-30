@@ -39,6 +39,7 @@ mod erased_branches;
 mod erased_context_results;
 mod erasure;
 mod eta_reduce;
+mod eval_once;
 mod expand_private;
 mod expand_sams;
 mod explicit_outer;
