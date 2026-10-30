@@ -156,6 +156,7 @@ mod poly_functions;
 mod poly_instances;
 mod pretyped_args;
 mod purity;
+mod qual_skolems;
 mod qualifier_views;
 mod qualifies;
 mod refined_types;

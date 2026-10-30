@@ -31,6 +31,7 @@ impl Typer<'_> {
         self.complete(s);
         let seen_from_prefix = prefix.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_)));
         let seen_from_prefix = seen_from_prefix.map(|p| self.aliased_object(p));
+        let seen_from_prefix = seen_from_prefix.map(|p| self.qual_skolem(p, s));
         let info = match seen_from_prefix {
             Some(p) => self.u.member_info(p, s),
             None => self.u.info(s),
