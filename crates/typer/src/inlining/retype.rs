@@ -80,7 +80,7 @@ impl Inlining<'_> {
                 let cond = self.retype_forced(inline, cond, args, owner)?;
                 if let Some(C::Boolean(b)) = self.constant_of(cond) {
                     let selected = self.retype(if b { thenp } else { elsep }, args, owner)?;
-                    if self.is_idempotent_expr(cond) {
+                    if self.pure().is_idempotent_expr(cond) {
                         return Ok(selected);
                     }
                     let span = self.envelope(&[cond], selected);

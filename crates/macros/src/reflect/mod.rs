@@ -10,6 +10,7 @@ mod decode;
 mod default_args;
 mod definitions;
 mod encode;
+mod eta;
 mod implicits;
 mod lambda_types;
 mod lambda_variances;

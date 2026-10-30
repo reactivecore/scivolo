@@ -85,7 +85,7 @@ impl Inlining<'_> {
         match *self.tpd.tree(s) {
             T::ValDef { rhs: Some(r), .. } => {
                 let mutable = self.tpd.sym(s).is_some_and(|v| self.u.symbol(v).flags.has(MUTABLE));
-                !mutable && self.is_pure_expr(r)
+                !mutable && self.pure().is_pure_expr(r)
             }
             T::DefDef { .. } => true,
             _ => false,
@@ -121,7 +121,7 @@ impl Inlining<'_> {
             let arg_tpe = self.tpd.tpe(inner);
             let direct = match *self.u.types().get(arg_tpe) {
                 Type::Sym(None, s) => {
-                    self.u.symbol(s).kind.is_term() && self.purity(a) == super::purity::PURE_PATH
+                    self.u.symbol(s).kind.is_term() && self.pure().purity(a) == super::purity::PURE_PATH
                 }
                 _ => false,
             };
@@ -182,7 +182,7 @@ impl Inlining<'_> {
         });
         self.u.set_info(s, tpe);
         let unit = self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == "scala.Unit");
-        if by_name || !((constant || unit) && at_least(self.purity(a), PURE)) {
+        if by_name || !((constant || unit) && at_least(self.pure().purity(a), PURE)) {
             let span = self.tpd.span(a);
             let tpt = self.tpd.node(
                 T::TypeTree { inferred: false },
@@ -212,7 +212,7 @@ impl Inlining<'_> {
             });
             if let Some(value) = value
                 && !matches!(self.tpd.tree(t), T::Literal { .. })
-                && self.is_pure_expr(t)
+                && self.pure().is_pure_expr(t)
             {
                 let tpe = crate::tpd::constant_type_of(self.u, &value);
                 return self.tpd.node(T::Literal { value }, self.tpd.span(t), Some(tpe), None);

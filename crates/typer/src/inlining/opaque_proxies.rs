@@ -147,7 +147,7 @@ impl Inlining<'_> {
             return Ok(inlined);
         }
         let unstable = match *self.u.types().get(target) {
-            Type::Sym(_, s) => self.u.symbol(s).kind.is_term() && !self.is_stable_member(s),
+            Type::Sym(_, s) => self.u.symbol(s).kind.is_term() && !self.pure().is_stable_member(s),
             _ => false,
         };
         let to = if unstable { self.u.widen(target) } else { target };

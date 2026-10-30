@@ -66,7 +66,7 @@ impl Inlining<'_> {
         match *self.u.types().get(t) {
             Type::This(_) => Some(t),
             Type::Sym(None, s) if self.u.symbol(s).kind.is_term() => {
-                if self.is_stable_member(s) {
+                if self.pure().is_stable_member(s) {
                     return Some(t);
                 }
                 let info = self.u.info(s);
