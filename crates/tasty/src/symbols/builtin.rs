@@ -1,8 +1,10 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/Definitions.scala
+//   compiler/src/dotty/tools/dotc/core/classfile/ClassfileParser.scala
 //! The classes dotty defines without TASTy (`Definitions`): `Any`, `AnyKind`, `Matchable`,
 //! `Nothing`, `Null`, `Singleton`, the alias `AnyRef`, and `java.lang.Object` where no library
-//! defines it; `Object` extends `Any` and `Matchable`, `java.io.Serializable` only `Any`.
+//! defines it; `Object` extends `Any` and `Matchable`, `java.io.Serializable` and
+//! `java.lang.Cloneable` only `Any`.
 
 use super::{Flags, Kind, Symbol, SymbolId, Universe};
 use crate::tags::{ABSTRACT, FINAL, PRIVATE, PRIVATEqualified, TRAIT};
