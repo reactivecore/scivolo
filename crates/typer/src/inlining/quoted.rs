@@ -160,7 +160,10 @@ impl Inlining<'_> {
     pub fn reown(&mut self, t: TNodeId, owner: SymbolId) {
         let (mut todo, mut defs) = (vec![t], Vec::new());
         while let Some(n) = todo.pop() {
-            if matches!(self.tpd.tree(n), T::DefDef { .. } | T::ValDef { .. } | T::Bind { .. }) {
+            if matches!(
+                self.tpd.tree(n),
+                T::DefDef { .. } | T::ValDef { .. } | T::TypeDef { .. } | T::Bind { .. }
+            ) {
                 defs.extend(self.tpd.sym(n));
             }
             todo.extend(self.tpd.children(n));
