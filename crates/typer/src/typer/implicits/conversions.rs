@@ -75,8 +75,8 @@ impl Typer<'_> {
             if let Goal::Member(name) = goal {
                 let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();
                 group.extend(extra);
-                let converts = !found.is_empty() || !widened.is_empty();
-                if let Some(c) = self.extension_container(&group, tree, name, converts, ctx)? {
+                let conversions: Vec<Candidate> = found.iter().chain(&widened).copied().collect();
+                if let Some(c) = self.extension_container(&group, tree, name, &conversions, ctx)? {
                     return Ok(Some(Viewed::Extension(c)));
                 }
             }
