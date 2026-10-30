@@ -36,9 +36,8 @@ impl Macros for VmMacros<'_> {
     ) -> Result<Expanded, MacroError> {
         let refused = |what: &str| MacroError::Unsupported(what.to_owned());
         let u = &mut *lent.0;
-        if call.context
-            && u.annotation_int(call.method, "scala.annotation.internal.ContextResultCount") != Some(1)
-        {
+        let count = u.annotation_int(call.method, "scala.annotation.internal.ContextResultCount");
+        if call.context > 0 && count != i32::try_from(call.context).ok() {
             return Err(refused(
                 "a macro implementation returning a context function not erased to a parameter",
             ));
@@ -46,13 +45,11 @@ impl Macros for VmMacros<'_> {
         let module = u.binary_name(call.receiver);
         let sig = u
             .method_signature(call.method)
-            .and_then(|s| if call.context { quotes_last(&s) } else { Some(s) });
+            .and_then(|s| if call.context > 0 { quotes_last(&s, call.context) } else { Some(s) });
         let sig = sig.ok_or_else(|| refused("a macro implementation without a method signature"))?;
         let (mut params, _) = u.erased_method(call.method);
         let quotes = Erased::Class("scala.quoted.Quotes".into());
-        if call.context {
-            params.push(quotes.clone());
-        }
+        params.extend((0..call.context).map(|_| quotes.clone()));
         if params.len() != call.args.len() {
             return Err(refused("a macro implementation with erased parameters"));
         }
@@ -174,11 +171,12 @@ fn literal(a: &MacroArg, param: &Erased) -> Option<Option<vm::MacroArg>> {
     }))
 }
 
-/// Signature `sig` of a macro implementation whose result is a context function of the `Quotes`
-/// as dotty's erasure gives it: the `Quotes` its last parameter (`ContextFunctionResults`).
-fn quotes_last(sig: &str) -> Option<String> {
+/// Signature `sig` of a macro implementation whose result is `count` nested context functions of
+/// the `Quotes`, erased as dotty does: the `Quotes` its last parameters (`ContextFunctionResults`).
+fn quotes_last(sig: &str, count: u32) -> Option<String> {
     let sig = sig.strip_suffix("L15scala.Function1EO")?;
-    Some(format!("{sig}L19scala.quoted.QuotesL17scala.quoted.ExprEO"))
+    let quotes = "L19scala.quoted.Quotes".repeat(count as usize);
+    Some(format!("{sig}{quotes}L17scala.quoted.ExprEO"))
 }
 
 const STOP: &str = "scala.quoted.runtime.StopMacroExpansion";
