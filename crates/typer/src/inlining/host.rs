@@ -9,6 +9,9 @@ use syntax::diag::Level;
 use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
+const ABORTED: &str = "Macro expansion was aborted by the macro without any errors reported. Macros should issue \
+                       errors to end-users when aborting a macro expansion with StopMacroExpansion.";
+
 /// The trees and tables an expansion works on, lent back to the typer for a search.
 pub type Lent<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names, &'l mut FreshNames);
 
@@ -133,6 +136,15 @@ impl Inlining<'_> {
                 Level::Error => self.host.error(at, msg),
                 Level::Warning => self.host.warning(at, msg),
             }
+        }
+    }
+
+    /// Reports the warnings `warnings` of a macro that threw `StopMacroExpansion`, and an error at
+    /// `at` if none has been reported.
+    pub fn aborted(&mut self, warnings: Reports, at: Span) {
+        self.report(warnings);
+        if !self.host.has_errors() {
+            self.error(at, ABORTED.to_owned());
         }
     }
 

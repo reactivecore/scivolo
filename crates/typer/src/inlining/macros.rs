@@ -81,12 +81,12 @@ pub type Reports = Vec<(Level, Span, String)>;
 pub enum MacroError {
     /// The macro needs what the frontend does not support.
     Unsupported(String),
-    /// The macro failed, with the message dotty reports.
-    Failed(String),
+    /// The macro failed, with the message dotty reports and the warnings before.
+    Failed(Reports, String),
     /// The macro reported errors (`report.error`, `errorAndAbort`), and maybe warnings.
     Reported(Reports),
-    /// The macro threw `StopMacroExpansion` without reporting an error.
-    Aborted,
+    /// The macro threw `StopMacroExpansion` without reporting an error, with its warnings.
+    Aborted(Reports),
     /// The macro searched an implicit argument of a type `searched` lacks; the expansion runs
     /// again once the typer has searched it.
     Search(TypeId),
