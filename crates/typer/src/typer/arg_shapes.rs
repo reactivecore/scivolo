@@ -32,6 +32,14 @@ impl Typer<'_> {
         }
     }
 
+    /// `arg` without enclosing blocks of no statements (dotty's `normArg` of `{ expr }`).
+    pub fn unblocked_all(&self, mut arg: NodeId) -> NodeId {
+        while let Some(e) = self.unblocked(arg) {
+            arg = e;
+        }
+        arg
+    }
+
     /// The alternatives of `alts`, members of `prefix`, that apply to the shapes of the arguments
     /// of `proto` if one is a function without parameter types, else `alts` (dotty's
     /// `narrowByShapes`).
@@ -51,10 +59,7 @@ impl Typer<'_> {
         }
         let mut shapes = Vec::new();
         for (i, &a) in args.iter().enumerate() {
-            let mut a = a;
-            while let Some(e) = self.unblocked(a) {
-                a = e;
-            }
+            let a = self.unblocked_all(a);
             let tupled = self.tupled_arg(a, i, alts, prefix)?;
             shapes.push(self.type_shape(a, tupled)?);
         }
