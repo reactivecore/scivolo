@@ -108,7 +108,8 @@ impl Typer<'_> {
             let Tree::Import { expr, selectors } = *self.ast.tree(tree) else { unreachable!() };
             let typed = self.typed(expr, Pt::Any, ctx.with_mode(crate::ctx::Mode::QUALIFIER));
             let package = self.tpd.sym(typed).is_some_and(|s| self.u.symbol(s).kind == tasty::Kind::Package);
-            if !package && !self.is_stable_path(typed) {
+            let tpe = self.tpd.tpe(typed);
+            if !package && !self.is_stable_path(typed) && !super::stability::is_stable_path(self.u, tpe) {
                 self.unsupported(expr, "import prefix that is not a pure expression");
             }
             let qual = self.tpd.tpe(typed);
