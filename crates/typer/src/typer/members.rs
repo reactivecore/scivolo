@@ -70,6 +70,7 @@ impl Typer<'_> {
                         }
                         _ => prefix
                             .and_then(|p| self.u.refinement_info(p, s))
+                            .or_else(|| super::seen_from::class_param_arg(self.u, t))
                             .or_else(|| self.u.opaque_underlying(s, prefix))
                             .unwrap_or_else(|| self.u.info(s)),
                     };

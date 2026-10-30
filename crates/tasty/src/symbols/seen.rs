@@ -105,6 +105,19 @@ impl Universe {
         }
     }
 
+    /// The argument, a wildcard's bounds among them, that the base type of `prefix`, other than
+    /// `this`, gives class type parameter `p` (dotty's `argForParam`).
+    pub fn arg_for_param(&mut self, prefix: TypeId, p: SymbolId) -> Option<TypeId> {
+        if self.symbol(p).kind != Kind::TypeParam || matches!(self.types().get(prefix), Type::This(_)) {
+            return None;
+        }
+        let class = self.symbol(p).owner.filter(|&c| self.symbol(c).kind == Kind::Class)?;
+        let index = self.type_params(class).iter().position(|&q| q == p)?;
+        let widened = self.widen(prefix);
+        let (_, args) = self.base_type(widened, class).and_then(|b| self.applied(b))?;
+        args.get(index).copied()
+    }
+
     /// The type of member `m` of `prefix`; the `apply` of a dependent function type the one its
     /// refinement gives.
     pub fn member_info(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {

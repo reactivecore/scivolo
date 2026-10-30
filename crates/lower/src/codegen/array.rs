@@ -64,8 +64,8 @@ impl Gen<'_, '_> {
         let name = self.l.u.symbol(sym).name.clone();
         let array = match *self.l.tpd.tree(fun) {
             Tree::Select { qualifier, .. } => match *self.l.tpd.tree(qualifier) {
-                Tree::New { tpt } if name == "<init>" => {
-                    let ty = self.gen_type(self.l.tpd.tpe(tpt));
+                Tree::New { .. } if name == "<init>" => {
+                    let ty = self.gen_type(self.l.tpd.tpe(app));
                     let (Type::Array { elem, .. }, [length]) = (self.pool.ty(ty).clone(), args) else {
                         return unsupported(span, "arrays of generic or several dimensions");
                     };

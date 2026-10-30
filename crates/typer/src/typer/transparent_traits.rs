@@ -9,7 +9,7 @@ use tasty::{Kind, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// `t` without transparent traits among its intersection parts, one at a time while the
-    /// result conforms to `bound`; `t` if each dropped trait contains the result (dotty's
+    /// result conforms to `bound`; `t` if each dropped trait conforms to the result (dotty's
     /// `dropTransparentTraits`).
     pub fn without_transparent_traits(&mut self, t: TypeId, bound: TypeId) -> TypeId {
         let mark = self.constraint.mark();
@@ -26,7 +26,7 @@ impl Typer<'_> {
                 kept.extend(dropped.pop());
             }
         }
-        if current == t || dropped.iter().all(|&d| self.u.is_subtype(current, d)) {
+        if current == t || dropped.iter().all(|&d| self.u.is_subtype(d, current)) {
             self.constraint.rollback(mark);
             return t;
         }

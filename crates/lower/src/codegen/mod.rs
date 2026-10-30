@@ -12,7 +12,7 @@ mod branch;
 mod buf;
 mod c_types;
 mod callbacks;
-mod callee;
+pub(crate) mod callee;
 mod cast;
 mod class;
 mod closure;

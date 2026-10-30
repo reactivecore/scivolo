@@ -190,7 +190,9 @@ impl Collect<'_, '_> {
             self.add_called(Some(class), m);
         }
         let member = |t: TNodeId| match *l.tpd.tree(t) {
-            Tree::DefDef { .. } => is_method(l, l.tpd.sym(t)),
+            Tree::DefDef { .. } => {
+                l.tpd.sym(t).is_some_and(|s| is_method(l, Some(s)) || l.u.is_constructor(s))
+            }
             Tree::TypeDef { .. } => true,
             Tree::ValDef { .. } => l.tpd.sym(t).is_some_and(|s| has(l.u, s, LAZY)),
             _ => false,
