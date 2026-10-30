@@ -82,9 +82,12 @@ impl Typer<'_> {
         let members: Vec<SymbolId> = self.u.symbol(cls).decls.clone();
         for m in members {
             let kind = self.u.symbol(m).kind;
-            let deferred = self.syms.flags.get(&m).is_some_and(|fl| fl.is(f::DEFERRED));
+            let flags = self.syms.flags.get(&m).copied().unwrap_or(f::EMPTY);
+            if flags.is(f::PRIVATE) || flags.is(f::DEFERRED) {
+                continue;
+            }
             let name = self.u.symbol(m).name.clone();
-            if (kind == Kind::Class || kind == Kind::Type && !deferred) && self.inherits_class(cls, &name) {
+            if matches!(kind, Kind::Class | Kind::Type) && self.inherits_class(cls, &name) {
                 return self.unsupported_at(self.ast.span(rhs), "type shadowing an inherited class");
             }
         }
@@ -131,12 +134,15 @@ impl Typer<'_> {
         decls.into_iter().any(|d| self.u.symbol(d).kind == Kind::Package)
     }
 
-    /// Whether a base class of class `c` other than `c` has a member class named `name`.
+    /// Whether a base class of class `c` other than `c` has a non-private member class named `name`.
     fn inherits_class(&mut self, c: SymbolId, name: &str) -> bool {
         let bases = self.u.linearization(c);
         bases.iter().skip(1).any(|&b| {
             let decls = &self.u.symbol(b).decls;
-            decls.iter().any(|&d| self.u.symbol(d).kind == Kind::Class && self.u.symbol(d).name == name)
+            decls.iter().any(|&d| {
+                let d = self.u.symbol(d);
+                d.kind == Kind::Class && d.name == name && !d.flags.has(tasty::tags::PRIVATE)
+            })
         })
     }
 }

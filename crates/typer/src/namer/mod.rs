@@ -19,6 +19,7 @@ mod forwarders;
 mod inheritance;
 mod inherited;
 mod inline_checks;
+mod module_vals;
 mod params;
 mod provisional;
 mod split_companions;
