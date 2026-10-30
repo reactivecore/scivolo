@@ -82,10 +82,10 @@ impl Typer<'_> {
         self.tpd.node(T::RefinedTypeTree { tpt: parent, refinements }, span, Some(tpe), None)
     }
 
-    /// Whether `rhs` contains `this` or an identifier naming one of `items` or a non-private
-    /// member of `parent`.
+    /// Whether `rhs` contains an unqualified `this` or an identifier naming one of `items` or a
+    /// non-private member of `parent`.
     fn refers_to_refinement(&mut self, rhs: NodeId, items: &[NodeId], parent: TypeId) -> bool {
-        if self.ast.exists_subtree(rhs, &|ast, n| matches!(ast.tree(n), Tree::This { .. })) {
+        if self.ast.exists_subtree(rhs, &|ast, n| matches!(ast.tree(n), Tree::This { qual: None })) {
             return true;
         }
         let idents = self.ast.subtrees(rhs, &|ast, n| matches!(ast.tree(n), Tree::Ident { .. }));

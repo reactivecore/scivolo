@@ -45,11 +45,27 @@ impl Universe {
                 }
                 _ => match self.dealias(t) {
                     d if d != t => t = d,
-                    _ => return None,
+                    _ => t = self.abstract_upper(t)?,
                 },
             }
         }
         None
+    }
+
+    /// The upper bound of abstract type or type parameter reference `t`, seen from its prefix.
+    fn abstract_upper(&mut self, t: TypeId) -> Option<TypeId> {
+        let Type::Sym(prefix, s) = *self.types().get(t) else { return None };
+        if !matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) {
+            return None;
+        }
+        let info = match prefix {
+            Some(p) => self.member_info(p, s),
+            None => self.info(s),
+        };
+        match *self.types().get(info) {
+            Type::Bounds(_, hi) => Some(hi),
+            _ => None,
+        }
     }
 
     /// The alias or class by which the class of term `prefix`'s type as seen from its own prefix,
