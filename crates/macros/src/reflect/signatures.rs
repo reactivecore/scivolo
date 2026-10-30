@@ -5,19 +5,20 @@
 //! the value parameters' types, and the erased name of the result type.
 
 use crate::host::Host;
-use tasty::{Erased, Kind, SymbolId, Type};
+use tasty::{Erased, Kind, SymbolId, Type, TypeId};
 use vm::Reflected;
 
 impl Host {
     /// A number of type parameters per type clause and -1 per value parameter; the value
     /// parameters' names and then the result's, separated by `\0` (dotty's `NotAMethod`, no
-    /// numbers and an empty text, for a symbol other than a method).
+    /// numbers and an empty text, for a symbol other than a method with parameters).
     pub fn signature(&mut self, s: SymbolId) -> Reflected {
-        if self.u.symbol(s).kind != Kind::Def {
+        let mut t = self.u.info(s);
+        let method = matches!(self.u.types().get(t), Type::Poly { .. } | Type::Method { .. });
+        if self.u.symbol(s).kind != Kind::Def || !method {
             return (Vec::new(), Some(String::new()));
         }
         let (mut numbers, mut names) = (Vec::new(), Vec::new());
-        let mut t = self.u.info(s);
         loop {
             match self.u.types().get(t).clone() {
                 Type::Poly { params, result, .. } => {
@@ -27,22 +28,52 @@ impl Host {
                 Type::Method { params, result, .. } => {
                     for (_, p) in params {
                         numbers.push(-1);
-                        let erased = self.u.erase(p);
-                        names.push(sig_name(&erased));
+                        names.push(self.sig_name(p));
                     }
                     t = result;
                 }
                 _ => break,
             }
         }
-        let result = self.u.erase(t);
-        names.push(sig_name(&result));
+        let result = match self.u.erase(t) {
+            Erased::Unit => "scala.Unit".to_owned(),
+            _ => self.sig_name(t),
+        };
+        names.push(result);
         (numbers, Some(names.join("\0")))
+    }
+
+    /// The name of the erasure of `t` in a signature (dotty's `sigName`): a class by its full
+    /// name.
+    fn sig_name(&mut self, t: TypeId) -> String {
+        let erased = self.u.erase(t);
+        self.erased_name(t, &erased)
+    }
+
+    fn erased_name(&mut self, t: TypeId, e: &Erased) -> String {
+        match e {
+            Erased::Class(name) | Erased::Value(name, _) => {
+                let widened = self.u.widen(t);
+                match self.u.class_symbol(widened) {
+                    Some(c) if self.u.binary_name(c) == *name => self.u.full_name(c),
+                    _ => name.clone(),
+                }
+            }
+            Erased::Array(elem) => {
+                let dealiased = self.u.dealias(t);
+                let name = match self.u.types().get(dealiased).clone() {
+                    Type::Applied(_, args) if args.len() == 1 => self.erased_name(args[0], elem),
+                    _ => plain_name(elem),
+                };
+                format!("{name}[]")
+            }
+            e => plain_name(e),
+        }
     }
 }
 
-/// The name of erased type `e` in a signature (dotty's `sigName`).
-fn sig_name(e: &Erased) -> String {
+/// The name of erased type `e` in a signature, a class by its binary name.
+fn plain_name(e: &Erased) -> String {
     match e {
         Erased::Prim(c) => {
             let names = [('z', "Boolean"), ('c', "Char"), ('b', "Byte"), ('s', "Short"), ('i', "Int")];
@@ -54,6 +85,6 @@ fn sig_name(e: &Erased) -> String {
         Erased::Nothing => "scala.Nothing".to_owned(),
         Erased::Null => "scala.Null".to_owned(),
         Erased::Class(name) | Erased::Value(name, _) => name.clone(),
-        Erased::Array(elem) => format!("{}[]", sig_name(elem)),
+        Erased::Array(elem) => format!("{}[]", plain_name(elem)),
     }
 }

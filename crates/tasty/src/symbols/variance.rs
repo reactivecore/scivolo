@@ -52,8 +52,8 @@ impl Universe {
     }
 
     /// The variances type lambda `binder` declares: those recorded, those of a `TYPELAMBDAtype`'s
-    /// modifiers, or those of a `LAMBDAtpt`'s parameters if it is over bounds or one has a
-    /// variance (dotty's `isDeclaredVarianceLambda`); `None` where they are structural.
+    /// modifiers, or those of the parameters of a `LAMBDAtpt` over bounds (dotty's
+    /// `isDeclaredVarianceLambda`); `None` where they are structural.
     pub fn declared_variances(&self, binder: Binder) -> Option<Vec<i8>> {
         if let Some(v) = self.lambda_variances.get(&binder) {
             return Some(v.clone());
@@ -69,15 +69,10 @@ impl Universe {
             TYPELAMBDAtype => {
                 kids.iter().map(|&k| ast.tag(k)).filter(|&t| is_variance(t)).map(tag_variance).collect()
             }
-            LAMBDAtpt => {
+            LAMBDAtpt if kids.last().is_some_and(|&b| ast.tag(ast.deref(b)) == TYPEBOUNDStpt) => {
                 let params = kids.iter().filter(|&&k| ast.tag(k) == TYPEPARAM);
                 let flags = |p: NodeId| ast.kids(p).iter().fold(Flags::default(), |f, &m| f.with(ast.tag(m)));
-                let v: Vec<i8> = params.map(|&p| variance(flags(p))).collect();
-                let bounds = kids.last().is_some_and(|&b| ast.tag(ast.deref(b)) == TYPEBOUNDStpt);
-                if !bounds && v.iter().all(|&v| v == 0) {
-                    return None;
-                }
-                v
+                params.map(|&p| variance(flags(p))).collect()
             }
             _ => return None,
         };
