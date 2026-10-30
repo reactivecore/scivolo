@@ -15,8 +15,6 @@ use tasty::tags::OBJECT;
 use tasty::{SymbolId, Type};
 
 const MACRO_ANNOTATION: &str = "scala.annotation.MacroAnnotation";
-const ABORTED: &str = "Macro expansion was aborted by the macro without any errors reported. Macros should issue \
-                       errors to end-users when aborting a macro expansion with StopMacroExpansion.";
 
 impl Inlining<'_> {
     /// Expands the macro annotations on the definitions among the statements of `t`, a template,
@@ -115,14 +113,19 @@ impl Inlining<'_> {
         span: Span,
     ) -> Result<Option<Expanded>, Unsupported> {
         match expanded {
-            Ok(expanded) => return Ok(Some(expanded)),
+            Ok(mut expanded) => {
+                self.report(std::mem::take(&mut expanded.warnings));
+                return Ok(Some(expanded));
+            }
             Err(MacroError::Unsupported(_) | MacroError::Search(_)) => {
                 return Err((span, "a macro annotation the frontend refuses"));
             }
-            Err(MacroError::Failed(msg)) => self.error(span, msg),
-            Err(MacroError::Reported(errors)) => errors.into_iter().for_each(|(at, msg)| self.error(at, msg)),
-            Err(MacroError::Aborted) if !self.host.has_errors() => self.error(span, ABORTED.to_owned()),
-            Err(MacroError::Aborted) => {}
+            Err(MacroError::Failed(warnings, msg)) => {
+                self.report(warnings);
+                self.error(span, msg);
+            }
+            Err(MacroError::Reported(reports)) => self.report(reports),
+            Err(MacroError::Aborted(warnings)) => self.aborted(warnings, span),
         }
         Ok(None)
     }

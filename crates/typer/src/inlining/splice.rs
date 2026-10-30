@@ -14,8 +14,6 @@ use tasty::{Kind, SymbolId};
 const RUNTIME_EXPR: &str = "scala.quoted.runtime.Expr$";
 /// The implicit searches of one expansion, each a run of the macro.
 const MAX_SEARCHES: usize = 64;
-const ABORTED: &str = "Macro expansion was aborted by the macro without any errors reported. Macros should issue \
-                       errors to end-users when aborting a macro expansion with StopMacroExpansion.";
 
 impl Inlining<'_> {
     /// The expansion of `t`, owned by `owner`, if it is a splice: the macro's result, retyped
@@ -35,25 +33,25 @@ impl Inlining<'_> {
             }
         };
         let expanded = match expanded {
-            Ok(expanded) => expanded,
+            Ok(mut expanded) => {
+                self.report(std::mem::take(&mut expanded.warnings));
+                expanded
+            }
             Err(MacroError::Search(_)) => {
                 return Err((span, "a macro searching implicit arguments repeatedly"));
             }
             Err(MacroError::Unsupported(_)) => return Err((span, "a macro expansion the frontend refuses")),
-            Err(MacroError::Failed(msg)) => {
+            Err(MacroError::Failed(warnings, msg)) => {
+                self.report(warnings);
                 self.error(self.outermost_span, msg);
                 return Ok(Some(t));
             }
-            Err(MacroError::Reported(errors)) => {
-                for (at, msg) in errors {
-                    self.error(at, msg);
-                }
+            Err(MacroError::Reported(reports)) => {
+                self.report(reports);
                 return Ok(Some(t));
             }
-            Err(MacroError::Aborted) => {
-                if !self.host.has_errors() {
-                    self.error(span, ABORTED.to_owned());
-                }
+            Err(MacroError::Aborted(warnings)) => {
+                self.aborted(warnings, span);
                 return Ok(Some(t));
             }
         };

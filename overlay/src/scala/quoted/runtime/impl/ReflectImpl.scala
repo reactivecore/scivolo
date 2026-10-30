@@ -46,7 +46,7 @@ abstract class ReflectImpl
     }
   }
 
-  /** Errors are recorded on the frontend, which reports them for the expansion; warnings and
+  /** Errors and warnings are recorded on the frontend, which reports them for the expansion;
    *  infos are `Unsupported`.
    */
   object report extends reportModule {
@@ -62,9 +62,12 @@ abstract class ReflectImpl
     def throwError(msg: String): Nothing = errorAndAbort(msg)
     def throwError(msg: String, expr: Expr[Any]): Nothing = errorAndAbort(msg, expr)
     def throwError(msg: String, pos: Position): Nothing = errorAndAbort(msg, pos)
-    def warning(msg: String): Unit = throw new Unsupported("report.warning")
-    def warning(msg: String, expr: Expr[Any]): Unit = throw new Unsupported("report.warning")
-    def warning(msg: String, pos: Position): Unit = throw new Unsupported("report.warning")
+    def warning(msg: String): Unit = ReflectOps.run("warning", Array(-1), msg)
+    def warning(msg: String, expr: Expr[Any]): Unit = ReflectOps.run("warning", Array(QuoteHost.exprId(expr)), msg)
+    def warning(msg: String, pos: Position): Unit = {
+      val p = pos.asInstanceOf[PositionImpl]
+      ReflectOps.run("warningAt", Array(p.file, p.start, p.end), msg)
+    }
     def info(msg: String): Unit = throw new Unsupported("report.info")
     def info(msg: String, expr: Expr[Any]): Unit = throw new Unsupported("report.info")
     def info(msg: String, pos: Position): Unit = throw new Unsupported("report.info")

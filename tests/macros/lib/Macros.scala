@@ -424,3 +424,11 @@ class labelled extends scala.annotation.MacroAnnotation:
       case _ =>
         report.error("labelled only on a class")
         List(definition)
+
+object Warnings:
+  inline def warned(inline x: Int): Int = ${ warnedImpl('x) }
+  def warnedImpl(x: Expr[Int])(using Quotes): Expr[Int] =
+    import quotes.reflect.*
+    report.warning("warned", x.asTerm.pos)
+    report.warning("warned here")
+    x
