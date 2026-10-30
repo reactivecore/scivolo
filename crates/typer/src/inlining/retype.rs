@@ -155,7 +155,12 @@ impl Inlining<'_> {
                 failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)
             }
-            _ => Err((span, "inline body with a return or label")),
+            T::Return { expr, from } => {
+                let expr = self.retype(expr, args, owner)?;
+                self.tpd.get_mut(t).tree = T::Return { expr, from };
+                Ok(t)
+            }
+            _ => Err((span, "inline body with a label")),
         }
     }
 

@@ -104,7 +104,7 @@ impl Typer<'_> {
         let wildcard = names.iter().any(|(n, _)| n == "_");
         let givens = names.iter().any(|(n, _)| n.is_empty());
         let mut out = Vec::new();
-        let members: Vec<_> = classes.into_iter().flat_map(|c| self.implicit_members(c, false)).collect();
+        let members: Vec<_> = classes.into_iter().flat_map(|c| self.implicit_members(c, true)).collect();
         for sym in members {
             let name = self.u.symbol(sym).name.clone();
             let given = self.u.symbol(sym).flags.has(GIVEN);
