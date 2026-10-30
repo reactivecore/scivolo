@@ -9,6 +9,7 @@ mod def_structure;
 mod defs;
 mod literals;
 mod structure;
+mod type_string;
 mod type_structure;
 mod types;
 
@@ -287,7 +288,7 @@ impl Code<'_> {
             _ => None,
         });
         self.spliced = spliced;
-        let shown = self.h.u.show_source(t)?;
+        let shown = self.h.u.show_source(t, true)?;
         self.push(&shown);
         Ok(())
     }

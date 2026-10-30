@@ -38,6 +38,45 @@ fn sources_refer_to_each_other_and_errors_name_their_file() {
 }
 
 #[test]
+fn library_java_classes_redefined_and_lifted_classes_in_units() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let dump = |sources: &[SourceFile], name: &str| {
+        let mut u = Universe::open(&jars).unwrap();
+        let files = match sources {
+            [one] => lower::compile(&mut u, one, &[]).map_err(|r| r.what),
+            many => lower::compile_sources(&mut u, many, Config::from_options(&[]), None)
+                .map(|(files, _)| files)
+                .map_err(|r| r.what),
+        };
+        let files = files.expect("lowered");
+        let file = files.iter().find(|f| f.name == name).unwrap_or_else(|| panic!("{name} missing"));
+        let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
+        let defs = nir::Reader::new(&file.bytes, &mut caches, &mut pool).unwrap().all().unwrap();
+        defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect::<Vec<_>>().join("\n")
+    };
+    let a = SourceFile::new("a.scala", "package p\nobject A { val x = new Object {} }");
+    let anon = dump(&[a, SourceFile::new("b.scala", "package p\nclass B")], "p.A$$anon$1");
+    assert_eq!(anon.matches("class @p.A$$anon$1").count(), 1, "{anon}");
+    let unit = SourceFile::new("j.scala", "object J { def f(): Object = scala.runtime.BoxedUnit.UNIT }");
+    assert!(dump(&[unit], "J$").contains("ret unit"));
+    let boxed_unit = SourceFile::new(
+        "u.scala",
+        "package scala.runtime\nclass BoxedUnit extends java.io.Serializable\nobject BoxedUnit { def UNIT = ??? }",
+    );
+    let native = SourceFile::new(
+        "n.scala",
+        "package scala.scalanative.runtime\nobject BoxedUnit extends scala.runtime.BoxedUnit",
+    );
+    let class = dump(&[boxed_unit, native], "scala.runtime.BoxedUnit");
+    assert!(class.contains("class @scala.runtime.BoxedUnit : @java.lang.Object\n"), "{class}");
+}
+
+#[test]
 fn array_branches_in_reference_contexts() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let jars = typer::dump::library_jars(&root.join("ref/libs"));

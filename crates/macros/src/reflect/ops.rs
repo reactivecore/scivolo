@@ -45,7 +45,13 @@ ops! {
     "typeKind" => type_kind(t: TyShape) -> i32;
     "typeParts" => type_parts(t: TyShape) -> Fallible<Vec<TypeId>>;
     "paramNum" => param_num(t: TyShape) -> Fallible<i32>;
+    "typeOfParts" => type_of_parts(kind: Num, parts: Rest<Ty>, name: Name) -> Fallible<TypeId>;
     "lambdaParts" => lambda_parts(t: TyShape) -> Answer;
+    "paramVariances" => param_variances(t: TyShape) -> Fallible<Vec<i32>>;
+    // lambda types
+    "lambdaBinder" => lambda_binder(kind: Num) -> TypeId;
+    "lambdaType" => lambda_type(binder: Ty, types: Rest<Ty>, names: Name) -> Fallible<TypeId>;
+    "paramRef" => param_ref(t: Ty, i: Num) -> Fallible<TypeId>;
     // definitions
     "annotations" => annotations(s: Sym, cls: OptSym) -> Fallible<Vec<TNodeId>>;
     "symbolTree" => symbol_tree(s: Sym) -> Fallible<Option<TNodeId>>;
@@ -74,11 +80,6 @@ ops! {
     "newModule" => new_module(owner: Sym, name: Name) -> [SymbolId; 2];
     "classParents" => class_parents(cls: Sym, parents: Rest<Ty>) -> Fallible<()>;
     "classConstructor" => class_constructor(cls: Sym, info: Ty) -> Fallible<Vec<i32>>;
-    // polymorphic types
-    "polyBinder" => poly_binder() -> TypeId;
-    "polyParam" => poly_param(t: Ty, idx: Num) -> Fallible<TypeId>;
-    "polyType" => poly_type(placeholder: Ty, types: Rest<Ty>, names: Name) -> Fallible<TypeId>;
-    "typeBounds" => type_bounds(low: Num, hi: Num) -> Fallible<TypeId>;
     "enterDecls" => enter_decls(cls: Sym, decls: Rest<Sym>) -> Fallible<()>;
     "classDef" => class_def(cls: Sym, n: Num, trees: Rest<Tree>) -> Fallible<TNodeId>;
     "typeIdent" => type_ident(s: Sym) -> Fallible<TNodeId>;
@@ -101,11 +102,12 @@ ops! {
     "matchType" => match_type(scrutinee: Ty, pattern: Num) -> Fallible<i32>;
     // type reprs
     "showType" => show_type(t: Ty) -> Fallible<String>;
+    "showTypeShort" => show_type_short(t: Ty) -> Fallible<String>;
     "showTypeStructure" => show_type_structure(t: Ty) -> Fallible<String>;
+    "typeString" => type_string(t: Ty) -> Fallible<String>;
     "typeName" => type_name(t: Ty) -> Fallible<String>;
     "appliedTo" => applied_to(tycon: Ty, targs: Rest<Ty>) -> TypeId;
     "dealias" => dealias(t: Ty) -> TypeId;
-    "methodType" => method_type(kind: Num, types: Rest<Ty>, names: Name) -> Fallible<TypeId>;
     "byName" => by_name(t: Ty) -> TypeId;
     "isSingleton" => is_singleton(t: Ty) -> bool;
     "baseClasses" => base_classes(t: Ty) -> Fallible<Vec<SymbolId>>;
@@ -116,6 +118,7 @@ ops! {
     // members
     "primaryConstructor" => primary_constructor(s: Sym) -> Option<SymbolId>;
     "paramSymss" => param_symss(s: Sym) -> Fallible<Vec<i32>>;
+    "signature" => signature(s: Sym) -> Reflected;
     "caseFields" => case_fields(s: Sym) -> Vec<SymbolId>;
     "companionClass" => companion_class(s: Sym) -> Option<SymbolId>;
     "methodMembers" => method_members(s: Sym, name: Name) -> Fallible<Vec<SymbolId>>;
@@ -137,6 +140,7 @@ ops! {
     "typeTree" => type_tree(t: Ty) -> TNodeId;
     "repeated" => repeated(trees: Rest<Tree>) -> Fallible<TNodeId>;
     "ref" => ref_(s: Sym) -> Fallible<TNodeId>;
+    "closureOf" => closure_of(meth: Tree) -> Fallible<TNodeId>;
     "identRef" => ident_ref(t: Ty) -> Fallible<TNodeId>;
     "selectUnique" => select_unique(qual: Tree, name: Name) -> Fallible<TNodeId>;
     "selectOverloaded" => select_overloaded(qual: Tree, n: Num, rest: Rest<Num>, name: Name)
@@ -162,6 +166,7 @@ ops! {
     "baseType" => base_type(t: Ty, base: Sym) -> Fallible<TypeId>;
     "selectType" => select_type(t: Ty, s: Sym) -> TypeId;
     "widen" => widen(t: Ty) -> TypeId;
+    "dealiasKeepOpaques" => dealias_keep_opaques(t: Ty) -> TypeId;
     "isSubtype" => is_subtype(a: Ty, b: Ty) -> Fallible<bool>;
     "isSameType" => is_same_type(a: Ty, b: Ty) -> Fallible<bool>;
     "constantType" => constant_type(t: Ty) -> Fallible<Reflected>;
@@ -170,6 +175,7 @@ ops! {
     // constants
     "constant" => constant(t: Tree) -> Fallible<Reflected>;
     "literal" => literal(kind: Num, bits: Bits, text: Name) -> Fallible<TNodeId>;
+    "constantTypeOf" => constant_type_of(kind: Num, bits: Bits, text: Name) -> Fallible<TypeId>;
     // symbols
     "companionModule" => companion_module(s: OptSym) -> Option<SymbolId>;
     "declaredMethod" => declared_method(s: OptSym, name: Name) -> Vec<SymbolId>;

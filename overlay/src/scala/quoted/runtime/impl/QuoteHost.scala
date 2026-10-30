@@ -95,7 +95,7 @@ object QuoteHost {
         if (n == Int.MinValue) new QuotesImpl
         else if (n == Int.MinValue + 1) literal(i)
         else if (n >= 0) expr(n)
-        else tpe(-1 - n)
+        else quotedType(-1 - n)
       i += 1
     }
     args
@@ -107,15 +107,21 @@ object QuoteHost {
   @scala.annotation.experimental
   def annotate(annotation: Object, definition: Int, companion: Int): Int = {
     val q = new QuotesImpl
-    val tree = expr(definition).asInstanceOf[q.reflect.Definition]
-    val other = if (companion < 0) None else Some(expr(companion).asInstanceOf[q.reflect.Definition])
+    val tree = this.tree(definition).asInstanceOf[q.reflect.Definition]
+    val other = if (companion < 0) None else Some(this.tree(companion).asInstanceOf[q.reflect.Definition])
     val made = annotation.asInstanceOf[scala.annotation.MacroAnnotation].transform(using q)(tree, other)
     ReflectOps.run("definitions", made.map(ReflectOps.id).toArray, null)
   }
 
-  def expr(id: Int): Expr[Any] = new ExprImpl(id, expansion())
+  def expr(id: Int): Expr[Any] = new ExprImpl(id, expansion(), false)
 
-  def tpe(id: Int): Type[?] = new TypeImpl(id, expansion())
+  /** Expression `id` as a `quotes.reflect` tree. */
+  def tree(id: Int): Expr[Any] = new ExprImpl(id, expansion(), true)
+
+  def quotedType(id: Int): Type[?] = new TypeImpl(id, expansion(), false)
+
+  /** Type `id` as a `TypeRepr`. */
+  def tpe(id: Int): Type[?] = new TypeImpl(id, expansion(), true)
 
   def exprId(e: Expr[?]): Int = e match {
     case e: ExprImpl if e.expansion == expansion() => e.id
@@ -137,10 +143,13 @@ final class Unsupported(what: String) extends RuntimeException(what) {
   QuoteHost.refuse(what)
 }
 
-final class ExprImpl(val id: Int, val expansion: Int) extends Expr[Any] {
-  override def toString: String = throw new Unsupported("Expr.toString, Tree.toString")
+/** An `Expr`, or a `Tree` if `tree`. */
+final class ExprImpl(val id: Int, val expansion: Int, val tree: Boolean) extends Expr[Any] {
+  override def toString: String = if (tree) throw new Unsupported("Tree.toString") else super.toString
 }
 
-final class TypeImpl(val id: Int, val expansion: Int) extends Type[Nothing] {
-  override def toString: String = throw new Unsupported("Type.toString, TypeRepr.toString")
+/** A `Type`, or a `TypeRepr` if `repr`. */
+final class TypeImpl(val id: Int, val expansion: Int, val repr: Boolean) extends Type[Nothing] {
+  override def toString: String =
+    if (repr) ReflectOps.text("typeString", QuoteHost.typeId(this)) else super.toString
 }

@@ -56,14 +56,11 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
   }
 
   object TypeBounds extends TypeBoundsModule {
-    def apply(low: TypeRepr, hi: TypeRepr): TypeBounds = bounds(ReflectOps.id(low), ReflectOps.id(hi))
+    def apply(low: TypeRepr, hi: TypeRepr): TypeBounds = TypeKinds.of(5, List(low, hi)).asInstanceOf[TypeBounds]
     def unapply(x: TypeBounds): (TypeRepr, TypeRepr) = (x.low, x.hi)
-    def empty: TypeBounds = bounds(-1, -1)
-    def upper(hi: TypeRepr): TypeBounds = bounds(-1, ReflectOps.id(hi))
-    def lower(lo: TypeRepr): TypeBounds = bounds(ReflectOps.id(lo), -1)
-
-    /** The bounds of the types numbered `low` and `hi`, `Nothing` and `Any` for `-1`. */
-    private def bounds(low: Int, hi: Int): TypeBounds = QuoteHost.tpe(ReflectOps.one("typeBounds", low, hi)).asInstanceOf[TypeBounds]
+    def empty: TypeBounds = apply(defn.NothingClass.typeRef, defn.AnyClass.typeRef)
+    def upper(hi: TypeRepr): TypeBounds = apply(defn.NothingClass.typeRef, hi)
+    def lower(lo: TypeRepr): TypeBounds = apply(lo, defn.AnyClass.typeRef)
   }
 
   object Refinement extends RefinementModule {

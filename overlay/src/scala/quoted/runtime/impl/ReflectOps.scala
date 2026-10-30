@@ -76,7 +76,7 @@ object ReflectOps {
 
   def symbol(x: Any): Any = new SymbolImpl(one("treeSymbol", id(x)))
 
-  def term(id: Int): Any = QuoteHost.expr(id)
+  def term(id: Int): Any = QuoteHost.tree(id)
 
   /** Expression `id`, if there is one. */
   def opt(id: Int): Option[Any] = if (id < 0) None else Some(term(id))
