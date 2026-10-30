@@ -10,7 +10,13 @@ use syntax::ast::{Attrs, NodeId, Tree};
 impl Typer<'_> {
     pub fn typed_unadapted(&mut self, id: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         match self.ast.tree(id).clone() {
-            Tree::Ident { name } => self.typed_ident(id, name, pt, ctx),
+            Tree::Ident { name } => {
+                let typed = self.typed_ident(id, name, pt, ctx);
+                if ctx.mode.is(Mode::PATTERN) && self.ast.attrs(id).contains(Attrs::BACKQUOTED) {
+                    self.tpd.mark_backquoted(typed);
+                }
+                typed
+            }
             Tree::Select { qualifier, .. } if self.ast.attrs(id).contains(Attrs::ETA_UNDERSCORE) => {
                 self.typed_as_function(id, qualifier, pt, ctx)
             }

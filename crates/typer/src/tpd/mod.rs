@@ -34,6 +34,7 @@ pub struct Tpd {
     lists: Vec<TNodeId>,
     clauses: Vec<List>,
     trailing_maps: FxHashSet<TNodeId>,
+    backquoted: FxHashSet<TNodeId>,
     anon_mirrors: FxHashMap<SymbolId, AnonMirror>,
 }
 
@@ -117,6 +118,15 @@ impl Tpd {
 
     pub fn is_trailing_map(&self, id: TNodeId) -> bool {
         self.trailing_maps.contains(&id)
+    }
+
+    /// Marks `id`, a pattern identifier written in back-quotes (dotty's `Backquoted`).
+    pub fn mark_backquoted(&mut self, id: TNodeId) {
+        self.backquoted.insert(id);
+    }
+
+    pub fn is_backquoted(&self, id: TNodeId) -> bool {
+        self.backquoted.contains(&id)
     }
 
     /// Marks anonymous class `class` as a mirror of kind `kind`.
