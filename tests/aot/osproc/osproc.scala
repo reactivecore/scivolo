@@ -7,3 +7,4 @@
   println(os.proc("sh", "-c", "exit 3").call(check = false).exitCode)
   val lines = os.proc("printf", "a\\nb\\nc\\n").call().out.lines()
   println(lines.size -> lines.last)
+  println(os.proc("cat").call(stdin = "hello").out.text())
