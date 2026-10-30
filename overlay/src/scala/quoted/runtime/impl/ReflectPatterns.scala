@@ -29,7 +29,8 @@ trait ReflectPatterns extends reflectModule { self: reflect.type =>
   }
 
   object Bind extends BindModule {
-    def apply(sym: Symbol, pattern: Tree): Bind = refused("Bind.apply")
+    def apply(sym: Symbol, pattern: Tree): Bind =
+      ReflectOps.term(ReflectOps.one("bind", ReflectOps.id(sym), ReflectOps.id(pattern))).asInstanceOf[Bind]
     def copy(original: Tree)(name: String, pattern: Tree): Bind = ReflectOps.copy(original, name, pattern).asInstanceOf[Bind]
     def unapply(pattern: Bind): (String, Tree) = (pattern.name, pattern.pattern)
   }

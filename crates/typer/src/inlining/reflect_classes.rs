@@ -8,15 +8,18 @@ use super::Reflect;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
-use tasty::tags::{LOCAL, OBJECT, PARAMsetter, PRIVATE};
+use tasty::tags::{ABSTRACT, FINAL, OBJECT, PARAMsetter, TRAIT};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
-    /// `Symbol.newClass(owner, name, ..)`: a class with a constructor, its parents set by
-    /// `class_parents`, its constructor parameters by `class_params` and its declarations
-    /// entered by `enter_decls`.
-    pub fn new_class(&mut self, owner: SymbolId, name: &str) -> SymbolId {
-        self.class_of(owner, name, Flags::default())
+    /// `Symbol.newClass(owner, name, ..)` with class flags `flags`: a class with a constructor,
+    /// its parents set by `class_parents`, the constructor's type by `class_constructor` and
+    /// its declarations entered by `enter_decls`.
+    pub fn new_class(&mut self, owner: SymbolId, name: &str, flags: u64) -> Result<SymbolId, &'static str> {
+        if flags & ![ABSTRACT, TRAIT, FINAL].iter().fold(0, |b, &t| b | 1u64 << t) != 0 {
+            return Err("Symbol.newClass with flags other than Abstract, Trait or Final");
+        }
+        Ok(self.class_of(owner, name, Flags(flags)))
     }
 
     /// `Symbol.newModule(owner, name, ..)`: an object and its module class, made as by
@@ -46,35 +49,7 @@ impl Reflect<'_> {
         Ok(())
     }
 
-    /// Gives the constructor of `class` parameters `params`, each with a private field, and
-    /// answers their definitions.
-    pub fn class_params(
-        &mut self,
-        class: SymbolId,
-        params: Vec<(String, TypeId)>,
-    ) -> Result<Vec<TNodeId>, &'static str> {
-        let span = self.span;
-        let ctor = self.constructor(class)?;
-        let (binder, result) = (self.u.fresh_binder(), type_ref(self.u, class));
-        let info =
-            Type::Method { binder, params: params.clone(), result, implicit: false, contextual: false };
-        let info = self.u.intern_type(info);
-        self.u.set_info(ctor, info);
-        let mut defs = Vec::new();
-        for (name, tpe) in params {
-            let field_flags = Flags::default().with(PRIVATE).with(LOCAL).with(PARAMsetter);
-            let field = self.define(&name, Kind::Val, class, field_flags);
-            self.u.set_info(field, tpe);
-            self.u.enter(field);
-            let p = self.define(&name, Kind::Param, ctor, Flags::default());
-            self.u.set_info(p, tpe);
-            let tpt = self.type_tree(tpe);
-            defs.push(self.build()?.val_def(p, tpt, None, span));
-        }
-        Ok(defs)
-    }
-
-    fn constructor(&mut self, class: SymbolId) -> Result<SymbolId, &'static str> {
+    pub fn constructor(&mut self, class: SymbolId) -> Result<SymbolId, &'static str> {
         let ctor = self.u.decl(class, "<init>").ok().and_then(|c| c.first().copied());
         ctor.ok_or("a class without a constructor")
     }
@@ -93,12 +68,12 @@ impl Reflect<'_> {
     }
 
     /// `ClassDef(cls, parents, body)` of a class `Symbol.newClass` made with constructor
-    /// parameter definitions `params`: the fields of the parameters first in its body, its class
-    /// parents called as constructors without arguments.
+    /// parameter definitions `params` by clause: the type parameters and fields of the
+    /// parameters first in its body, its parents as given.
     pub fn class_def(
         &mut self,
         cls: SymbolId,
-        (params, parents): (&[TNodeId], &[TNodeId]),
+        (params, parents): (&[Vec<TNodeId>], &[TNodeId]),
         body: &[TNodeId],
     ) -> Result<TNodeId, &'static str> {
         let span = self.span;
@@ -107,29 +82,44 @@ impl Reflect<'_> {
         let dummy = crate::defn::entered(self.u, cls, &dummy, Kind::Val);
         let unit = self.u.class_ref("scala.Unit");
         let tpt = self.type_tree(unit);
-        let constr = self.build()?.def_def(ctor, &[params], tpt, None, span);
-        let mut called = Vec::new();
-        for &p in parents {
-            called.push(self.parent_call(p)?);
-        }
+        let clauses: Vec<&[TNodeId]> = params.iter().map(Vec::as_slice).collect();
+        let constr = self.build()?.def_def(ctor, &clauses, tpt, None, span);
+        let mut stats: Vec<TNodeId> =
+            self.u.type_params(cls).into_iter().map(|p| self.type_param_def(p)).collect();
         let mut fields: Vec<SymbolId> = self.u.symbol(cls).decls.clone();
         fields.retain(|&f| self.u.symbol(f).flags.has(PARAMsetter));
-        let mut stats = Vec::new();
         for f in fields {
             let info = self.u.info(f);
             let tpt = self.type_tree(info);
             stats.push(self.build()?.val_def(f, tpt, None, span));
         }
         stats.extend_from_slice(body);
-        let (parents, body) = (self.tpd.list(&called), self.tpd.list(&stats));
+        let (parents, body) = (self.tpd.list(parents), self.tpd.list(&stats));
         let template = self.tpd.node(T::Template { constr, parents, self_: None, body }, span, None, dummy);
         let name = TName { name: self.names.intern(&self.u.symbol(cls).name), is_type: true };
         let tpe = type_ref(self.u, cls);
         Ok(self.tpd.node(T::TypeDef { name, rhs: template }, span, Some(tpe), Some(cls)))
     }
 
+    /// Makes the parents of class definition `class_def` constructor calls as `parent_call` does
+    /// (dotty's `ExplicitOuter`).
+    pub fn call_parents(&mut self, class_def: TNodeId) -> Result<(), &'static str> {
+        let T::TypeDef { rhs, .. } = *self.tpd.tree(class_def) else { return Ok(()) };
+        let T::Template { constr, parents, self_, body } = *self.tpd.tree(rhs) else { return Ok(()) };
+        if self.tpd.sym(class_def).is_none_or(|cls| self.u.is_trait(cls)) {
+            return Ok(());
+        }
+        let mut called = self.tpd.items(parents).to_vec();
+        for p in &mut called {
+            *p = self.parent_call(*p)?;
+        }
+        let parents = self.tpd.list(&called);
+        self.tpd.get_mut(rhs).tree = T::Template { constr, parents, self_, body };
+        Ok(())
+    }
+
     /// Parent tree `p`: a constructor call or a trait's type tree as it is, a class's type tree
-    /// as a call of its constructor without arguments.
+    /// as a call of its constructor without arguments, in a class other than a trait.
     fn parent_call(&mut self, p: TNodeId) -> Result<TNodeId, &'static str> {
         let span = self.span;
         let tpe = self.tpd.tpe(p);
@@ -171,7 +161,16 @@ impl Reflect<'_> {
         self.tpd.node(T::New { tpt }, self.span, Some(tpe), None)
     }
 
-    fn define(&mut self, name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> SymbolId {
+    /// The definition of type parameter `p`, of its bounds.
+    pub fn type_param_def(&mut self, p: SymbolId) -> TNodeId {
+        let name = TName { name: self.names.intern(&self.u.symbol(p).name), is_type: true };
+        let info = self.u.info(p);
+        let rhs = self.type_tree(info);
+        let tpe = type_ref(self.u, p);
+        self.tpd.node(T::TypeDef { name, rhs }, self.span, Some(tpe), Some(p))
+    }
+
+    pub fn define(&mut self, name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> SymbolId {
         let s = self.u.define(Symbol {
             name: name.to_owned(),
             kind,

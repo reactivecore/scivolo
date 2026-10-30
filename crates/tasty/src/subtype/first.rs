@@ -53,7 +53,7 @@ impl Cmp<'_> {
         match (n1.sym, n2.sym) {
             (Some(s1), Some(s2)) if s1 == s2 => {
                 self.owned_by_package(s1)
-                    || self.sub_prefix(n1.prefix, n2.prefix)
+                    || self.sub_prefix_of(s1, n1.prefix, n2.prefix)
                     || self.third_try_named(a, b, n2)
             }
             (None, None) if n1.same_unresolved(&n2) => true,

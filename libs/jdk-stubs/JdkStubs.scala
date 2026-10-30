@@ -3,8 +3,14 @@
 import scala.annotation.static
 
 package java.lang {
+  final class Deprecated extends scala.annotation.StaticAnnotation
   final class FunctionalInterface extends scala.annotation.StaticAnnotation
   final class SuppressWarnings(value: Array[String]) extends scala.annotation.StaticAnnotation
+}
+
+package java.lang.invoke {
+  final class MethodHandles
+  abstract class VarHandle
 }
 
 package java.lang.reflect {
@@ -132,7 +138,9 @@ package java.nio.file {
 }
 
 package java.util {
-  final class Locale(language: String)
+  final class Locale(language: String) {
+    def getLanguage(): String = language
+  }
 
   object Locale {
     @static val ROOT: Locale = new Locale("")

@@ -7,6 +7,7 @@ use super::Translator;
 use crate::phases::type_tests::singletons::has_value_class_this;
 use crate::{Result, unsupported};
 use syntax::ast::Span;
+use syntax::names::is_var_pattern_name;
 use tasty::SymbolId;
 use typer::tpd::{MatchKind, TNodeId, Tree};
 
@@ -187,7 +188,10 @@ impl Translator<'_, '_> {
                 self.initializer.insert(bound, value);
                 self.spans.insert(bound, super::coord(span));
                 let on_success = self.add(Plan::Let { sym: bound, body: on_success });
-                self.pattern_plan(scrutinee, body, on_success)
+                self.binding.push(bound);
+                let plan = self.pattern_plan(scrutinee, body, on_success);
+                self.binding.pop();
+                plan
             }
             Tree::Alternative { trees } => {
                 let alts = self.l.tpd.items(trees).to_vec();
@@ -212,10 +216,15 @@ impl Translator<'_, '_> {
     }
 
     /// Whether pattern `pat` matches anything without binding a value (dotty's
-    /// `WildcardPattern`).
+    /// `WildcardPattern`): of identifiers, `_` and the variables of the binds around it, with
+    /// variable names.
     fn is_wildcard(&self, pat: TNodeId) -> bool {
         match *self.l.tpd.tree(pat) {
-            Tree::Ident { name } => matches!(self.l.names.text(name.name), "_" | "_*"),
+            Tree::Ident { name } if matches!(self.l.names.text(name.name), "_" | "_*") => true,
+            Tree::Ident { name } => {
+                is_var_pattern_name(self.l.names.text(name.name))
+                    && self.l.tpd.sym(pat).is_some_and(|s| self.binding.contains(&s))
+            }
             Tree::Bind { name, body } => self.l.names.text(name.name) == "_" && self.is_wildcard(body),
             Tree::Alternative { trees } => self.l.tpd.items(trees).iter().all(|&p| self.is_wildcard(p)),
             _ => false,

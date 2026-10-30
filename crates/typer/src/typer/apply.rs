@@ -67,6 +67,7 @@ impl Typer<'_> {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
+        let (outer, f) = self.lifted_fun(f);
         let pretyped = self.protos[proto].typed.take();
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe).or(Some(fun_tpe));
@@ -131,6 +132,9 @@ impl Typer<'_> {
             self.typed_aligned_args((f, method), (&arg_ids, a, pretyped.as_deref()), (&params, &formals), ctx)
         });
         let (f, mut typed_args, lifted) = match aligned_args {
+            _ if !outer.is_empty() && aligned.is_some() => {
+                return self.unsupported(id, "named or default arguments after a lifted call");
+            }
             Some(Err(what)) => return self.unsupported(id, what),
             Some(Ok(parts)) => parts,
             None => (f, Vec::new(), Vec::new()),
@@ -227,7 +231,10 @@ impl Typer<'_> {
         self.fold_apply(apply);
         let widened = self.widen_enum_case(apply, infix_meth, pt);
         match self.converted_new_generic_array(widened).and_then(|t| self.lifted_partial(t, &lifted, pt)) {
-            Ok(tree) => self.wrap_defs(lifted, tree),
+            Ok(tree) => {
+                let tree = self.wrap_defs(lifted, tree);
+                self.wrap_defs(outer, tree)
+            }
             Err(what) => self.unsupported(id, what),
         }
     }

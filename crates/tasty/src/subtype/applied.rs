@@ -80,7 +80,7 @@ impl Cmp<'_> {
                 Type::TypeRef(..) | Type::Sym(..) => {
                     let (Some(n1), Some(n2)) = (self.named(tycon1), self.named(tycon2)) else { return false };
                     let same = match (n1.sym, n2.sym) {
-                        (Some(s1), Some(s2)) => s1 == s2 && self.sub_prefix(n1.prefix, n2.prefix),
+                        (Some(s1), Some(s2)) => s1 == s2 && self.sub_prefix_of(s1, n1.prefix, n2.prefix),
                         (None, None) => n1.same_unresolved(&n2),
                         _ => false,
                     };

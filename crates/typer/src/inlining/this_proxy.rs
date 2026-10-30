@@ -23,7 +23,7 @@ impl Expansion<'_, '_> {
         let cls = self.i.u.symbol(meth).owner.ok_or(self.err("inline method"))?;
         let prefix = match *self.i.tpd.tree(fun) {
             T::Select { qualifier, .. } => Some(qualifier),
-            _ => None,
+            _ => self.ident_prefix(fun),
         };
         let impure = prefix.is_some_and(|q| !self.i.is_idempotent_expr(q));
         if self.i.is_static_owner(cls) {

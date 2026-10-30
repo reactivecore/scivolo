@@ -67,8 +67,9 @@ pub fn decode(encoded: &str) -> String {
 impl Universe {
     /// The declarations of `owner` named `name`. In a package, the file defining `name` is
     /// loaded, names no file defines are looked up among the package objects' members, and the
-    /// names Scala Native gives JDK classes and `Object`'s methods stand for the JDK names; the
-    /// `scala` package synthesizes `FunctionN` and `ContextFunctionN` above the library's arities.
+    /// names Scala Native gives JDK classes and `Object`'s methods stand for the JDK names unless a
+    /// source defines them; the `scala` package synthesizes `FunctionN` and `ContextFunctionN`
+    /// above the library's arities.
     pub fn decl(&mut self, owner: SymbolId, name: &str) -> Result<Vec<SymbolId>, Error> {
         if self.symbol(owner).kind != Kind::Package {
             if name.starts_with("__")
@@ -80,6 +81,7 @@ impl Universe {
             return Ok(self.named(owner, name).to_vec());
         }
         if name.starts_with('_')
+            && self.named(owner, name).is_empty()
             && let Some((pkg, jdk)) = super::jdk::jdk_name(&self.full_name(owner), name)
             && let Some(p) = self.package(pkg)
         {

@@ -73,15 +73,15 @@ impl Typer<'_> {
             Type::Method { implicit, .. } => *implicit,
             _ => true,
         };
-        let function = match pt {
+        let (function, unannotated) = match pt {
             Pt::Type(p)
                 if self.function_parts(p, params.len()).is_some()
                     || self.dependent_function_parts(p, params.len(), false).is_some() =>
             {
-                true
+                (true, None)
             }
-            Pt::Type(p) => self.sam_method_value(tree, p, params.len())?,
-            _ => false,
+            Pt::Type(p) => self.sam_method_value(p, params.len())?,
+            _ => (false, None),
         };
         let inferred = last && params.len() == xarity && function;
         let mut defs = Vec::new();
@@ -128,6 +128,9 @@ impl Typer<'_> {
         let function = self.ast.node(Tree::Function { args: params, body, mods: None, wildcard: false });
         self.ast.with_span(function, whole);
         let mut closure = self.typed_function(function, params, body, pt, ctx);
+        if let Some(parent) = unannotated {
+            self.warn_not_functional_interface(tree, parent);
+        }
         if !defs.is_empty() {
             let locals: Vec<SymbolId> = defs.iter().filter_map(|&d| self.tpd.sym(d)).collect();
             closure = self
@@ -177,34 +180,5 @@ impl Typer<'_> {
         let (&[def], T::Closure { .. }) = (self.tpd.items(stats), self.tpd.tree(expr)) else { return false };
         let T::DefDef { rhs: Some(rhs), .. } = *self.tpd.tree(def) else { return false };
         self.tpd.span(def).to_synthetic() == self.tpd.span(rhs)
-    }
-
-    /// Whether `pt` is a single abstract method type of `n` parameters, a warning given for
-    /// method reference `tree` unless its class is `@FunctionalInterface`; `Err` for a Java class
-    /// other than a JDK functional interface.
-    fn sam_method_value(&mut self, tree: TNodeId, pt: TypeId, n: usize) -> Result<bool, &'static str> {
-        let outside = "method value of a single abstract method type";
-        let Some(sam) = self.sam_parts(pt, n, false).map_err(|_| outside)? else { return Ok(false) };
-        let class = self.u.class_symbol(pt).ok_or(outside)?;
-        let java = self.is_java_class_name(class);
-        if java && !super::java_classes::is_functional_interface(&self.u.full_name(class)) {
-            return Err(outside);
-        }
-        if !java
-            && !self
-                .u
-                .annotations(class)
-                .iter()
-                .any(|&a| self.u.full_name(a) == "java.lang.FunctionalInterface")
-        {
-            let name = self.tpd.sym(tree).map_or_else(String::new, |s| self.u.symbol(s).name.clone());
-            let parent = self.u.show_user(sam.parent);
-            let msg = format!(
-                "method {name} is eta-expanded even though {parent} does not have the @FunctionalInterface annotation."
-            );
-            let span = self.tpd.span(tree);
-            self.diags.warning_at(span.start(), span.end(), span.point(), msg);
-        }
-        Ok(true)
     }
 }

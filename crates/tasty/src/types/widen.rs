@@ -58,27 +58,28 @@ impl Universe {
     /// right-hand side is seen from the prefix of the reference.
     pub fn dealias(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..MAX_STEPS {
-            let next = match self.types().get(t).clone() {
-                Type::Annotated(u, _) => u,
-                Type::Applied(tycon, args) => match self.types().get(tycon).clone() {
-                    Type::Lambda { binder, params, result } => {
-                        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
-                        self.subst(result, binder, &names, &args)
-                    }
-                    _ => match self.referenced_alias(tycon) {
-                        Some(a) => self.intern_type(Type::Applied(a, args)),
-                        None => return t,
-                    },
-                },
-                Type::Sym(..) | Type::TypeRef(..) => match self.referenced_alias(t) {
-                    Some(a) => a,
-                    None => return t,
-                },
-                _ => return t,
-            };
-            t = next;
+            match self.dealias_step(t) {
+                next if next == t => return t,
+                next => t = next,
+            }
         }
         t
+    }
+
+    /// `t` with its alias followed or its applied type lambda reduced once; `t` if neither.
+    pub fn dealias_step(&mut self, t: TypeId) -> TypeId {
+        match self.types().get(t).clone() {
+            Type::Annotated(u, _) => u,
+            Type::Applied(tycon, args) => match self.types().get(tycon).clone() {
+                Type::Lambda { binder, params, result } => {
+                    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                    self.subst(result, binder, &names, &args)
+                }
+                _ => self.referenced_alias(tycon).map_or(t, |a| self.intern_type(Type::Applied(a, args))),
+            },
+            Type::Sym(..) | Type::TypeRef(..) => self.referenced_alias(t).unwrap_or(t),
+            _ => t,
+        }
     }
 
     /// The right-hand side of the alias `t` refers to, seen from the reference's prefix.

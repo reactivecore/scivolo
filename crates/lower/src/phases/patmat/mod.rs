@@ -89,6 +89,8 @@ pub struct Translator<'t, 'a> {
     generated: FxHashSet<SymbolId>,
     /// The variables known not to be null: those of type patterns.
     non_null: FxHashSet<SymbolId>,
+    /// The variables of the binds around the pattern in translation.
+    binding: Vec<SymbolId>,
     owner: SymbolId,
     result_label: SymbolId,
     defs: Patmat,
@@ -104,10 +106,12 @@ impl<'t, 'a> Translator<'t, 'a> {
             spans: FxHashMap::default(),
             generated: FxHashSet::default(),
             non_null: FxHashSet::default(),
+            binding: Vec::new(),
             owner,
             result_label: owner,
         };
-        let tpe = t.l.tpd.tpe(m);
+        let tpe = crate::phases::by_name::by_name_result(t.l, t.l.tpd.tpe(m));
+        t.l.tpd.get_mut(m).tpe = Some(tpe);
         t.result_label = t.label("matchResult", tpe);
         t
     }

@@ -6,9 +6,6 @@ use super::quotes::{HOST, QuoteHost, ints, with_host};
 use crate::Vm;
 use crate::interp::Flow;
 
-const QUOTES: &str = "scala.quoted.runtime.impl.QuotesImpl";
-const REFLECT: &str = "scala.quoted.runtime.impl.ReflectSupport$ReflectImpl";
-
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
     let f: NativeFn = match (owner, sig) {
         (HOST, "D12matchPatterniiiEO") => {
@@ -33,10 +30,6 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
         (HOST, "D8allocateL16java.lang.StringL16java.lang.ObjectEO") => |vm, args| {
             let name = vm.read_string(args[1] as usize)?;
             let cls = vm.link_top(&name)?;
-            Ok(vm.alloc_object(cls) as u64)
-        },
-        (QUOTES, "D7reflectL33scala.quoted.Quotes$reflectModuleEO") => |vm, _| {
-            let cls = vm.link_top(REFLECT)?;
             Ok(vm.alloc_object(cls) as u64)
         },
         _ => return None,
