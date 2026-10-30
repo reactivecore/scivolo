@@ -1,5 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/ElimByName.scala
+//   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
 //! dotty's `ElimByName`: `f(e)` for `f(x: => T)` becomes
 //! `f({ def $anonfun(): T = e; closure($anonfun) })`, the closure owned by the definition the
 //! call is in, unless `e` is itself a by-name parameter, passed on as is; any other reference to
@@ -63,6 +64,21 @@ pub fn is_by_name_param(l: &mut Lower, s: SymbolId) -> bool {
         l.u.symbol(s).kind == Kind::Param || l.u.symbol(s).kind == Kind::Val && is_param_accessor(l, s);
     let info = l.u.info(s);
     param && matches!(l.u.types().get(info), Type::ByName(_))
+}
+
+/// `T` if `tpe` is a reference whose underlying type is `=> T`, else `tpe` (`PatternMatcher`'s
+/// match type).
+pub fn by_name_result(l: &mut Lower, tpe: tasty::TypeId) -> tasty::TypeId {
+    let mut t = tpe;
+    while matches!(l.u.types().get(t), Type::Sym(..) | Type::TermRef(..))
+        && let Some(next) = l.u.widen_once(t)
+    {
+        t = next;
+    }
+    match *l.u.types().get(t) {
+        Type::ByName(result) => result,
+        _ => tpe,
+    }
 }
 
 /// Whether `t` refers to a by-name parameter.

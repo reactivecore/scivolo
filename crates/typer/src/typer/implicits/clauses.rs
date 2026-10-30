@@ -1,5 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Implicit parameter clauses applied to the arguments the search finds (dotty's
 //! `adaptNoArgsImplicitMethod`).
 
@@ -133,7 +134,7 @@ impl Typer<'_> {
     }
 
     /// Partial application `tree` of a call whose arguments were lifted into `defs`; `Err` unless
-    /// only `using` clauses follow, without open type variables.
+    /// applied further or only `using` clauses follow, without open type variables.
     pub fn lifted_partial(
         &mut self,
         tree: TNodeId,
@@ -144,10 +145,26 @@ impl Typer<'_> {
         if defs.is_empty() || !matches!(self.u.types().get(tpe), Type::Method { .. }) {
             return Ok(tree);
         }
-        if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) || !self.takes_using(tree) || self.is_open(tpe) {
+        if matches!(pt, Pt::Fun(_)) {
+            return Ok(tree);
+        }
+        if matches!(pt, Pt::PolyFun(_)) || !self.takes_using(tree) || self.is_open(tpe) {
             return Err("lifted call of a curried method");
         }
         Ok(tree)
+    }
+
+    /// The definitions and the method of `f`, a partial application after its lifted arguments
+    /// as `lifted_partial` leaves it, or none and `f`.
+    pub fn lifted_fun(&mut self, f: TNodeId) -> (Vec<TNodeId>, TNodeId) {
+        match *self.tpd.tree(f) {
+            T::Block { stats, expr }
+                if matches!(self.u.types().get(self.tpd.tpe(expr)), Type::Method { .. }) =>
+            {
+                (self.tpd.items(stats).to_vec(), expr)
+            }
+            _ => (Vec::new(), f),
+        }
     }
 
     /// Whether the first parameter clause of function `f` is a `using` clause.

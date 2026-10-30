@@ -31,7 +31,11 @@ pub fn enter(u: &mut Universe, object: SymbolId) {
         method(u, statics, "anyHash", &[("x$0", object)], int, &[]);
         method(u, statics, "releaseFence", &[], unit, &[]);
     }
-    java_class(u, runtime, "BoxedUnit", object);
+    if let Some((class, module)) = java_class(u, runtime, "BoxedUnit", object) {
+        let unit = synthetic(u, module, "UNIT", Kind::Val, &[STATIC, FINAL]);
+        let info = u.types.intern(Type::Sym(None, class));
+        u.infos.insert(unit, info);
+    }
     let string = class_type(u, "java.lang", "String");
     for prefix in ["", "Volatile"] {
         for primitive in REFS {
@@ -62,6 +66,7 @@ fn java_class(u: &mut Universe, pkg: SymbolId, name: &str, object: TypeId) -> Op
     let module = synthetic(u, pkg, name, Kind::Val, &[OBJECT, FINAL]);
     let info = u.types.intern(Type::Sym(None, module_class));
     u.infos.insert(module, info);
+    u.java_stubs.extend([class, module_class, module]);
     Some((class, module_class))
 }
 
@@ -81,13 +86,12 @@ impl Universe {
     }
 
     fn is_java_stub(&self, c: SymbolId) -> bool {
-        if self.symbol(c).tree.is_some() || self.symbol(c).kind != Kind::Class {
-            return false;
-        }
-        let name = self.full_name(c);
-        let Some(simple) = name.strip_prefix("scala.runtime.") else { return false };
-        let simple = simple.strip_suffix('$').unwrap_or(simple);
-        let primitive = simple.strip_prefix("Volatile").unwrap_or(simple).strip_suffix("Ref");
-        matches!(simple, "Statics" | "BoxedUnit") || primitive.is_some_and(|p| REFS.contains(&p))
+        self.symbol(c).kind == Kind::Class && self.is_library_java_stub(c)
+    }
+
+    /// Whether `s` is a Java class of the Scala library entered here, its object or the object's
+    /// class.
+    pub fn is_library_java_stub(&self, s: SymbolId) -> bool {
+        self.java_stubs.contains(&s)
     }
 }

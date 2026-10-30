@@ -80,6 +80,9 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
+    /// The Java classes of the Scala library entered without TASTy, their objects and objects'
+    /// classes.
+    java_stubs: FxHashSet<SymbolId>,
     /// The given self type of each class whose self type was asked for or set.
     self_types: FxHashMap<SymbolId, Option<TypeId>>,
     /// The annotation classes of the symbols defined outside TASTy.
