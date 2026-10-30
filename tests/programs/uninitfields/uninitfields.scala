@@ -39,6 +39,12 @@ trait Slots:
 
 class Holder extends Slots
 
+class Box[A](a: A):
+  def get: A = a
+  def cached: Box[A] = new Box[A](a):
+    private var hd: A = uninitialized
+    override def get: A = { hd = a; hd }
+
 object Registry:
   var name: String = uninitialized
   var count: Int = uninitialized
@@ -70,3 +76,4 @@ object Registry:
   println(h.none)
   Counted()
   println(Stepped().m)
+  println(Box("boxed").cached.get)
