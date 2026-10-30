@@ -1,48 +1,36 @@
-//> using scala 3.9.0
-// Enclosing instances referenced as bare `O.this`, and type patterns on a null scrutinee.
+import scala.scalanative.unsafe._
+import scala.scalanative.unsigned._
 
-class K2 {
-  val name = "k2"
-  class L1 {
-    def self = K2.this
-    def pick(b: Boolean) = if (b) K2.this else null
-    def arg = String.valueOf(K2.this)
-    def last = { println("last"); K2.this }
-    def qual = K2.this.name
+class Sink(protected var out: StringBuilder)
+
+class Printer(o: StringBuilder) extends Sink(o) {
+  private var closed = false
+  private def trap(body: => Unit): Unit =
+    try body
+    catch { case _: IllegalStateException => out.append("!") }
+  def flush(): Unit = synchronized {
+    if (closed) () else trap(out.append("flushed;"))
   }
-  override def toString = name
-}
-
-class K3 {
-  class L2 {
-    class L3 { def top = K3.this; def mid = L2.this }
-  }
-}
-
-object Scrutinees {
-  def plain(): String = (null: Any) match {
-    case c: String => c
-    case _ => "none"
+  def later(): () => Int = () => out.length
+  def shutdown(how: Int)(onSuccess: => Unit): Unit = how match {
+    case 0 => onSuccess
+    case _ => throw new IllegalStateException(s"mode $how")
   }
 }
 
-object Test {
-  def run(): Unit = {
-    val k = new K2
-    val l = new k.L1
-    println(l.self eq k)
-    println(l.pick(false))
-    println(l.pick(true))
-    println(l.arg)
-    println(l.last)
-    println(l.qual)
-    val k3 = new K3
-    val l2 = new k3.L2
-    val l3 = new l2.L3
-    println(l3.top eq k3)
-    println(l3.mid eq l2)
-    println(Scrutinees.plain())
+object outerthis {
+  def main(args: Array[String]): Unit = {
+    val sb = new StringBuilder
+    val p = new Printer(sb)
+    p.flush()
+    p.shutdown(0)(sb.append("down;"))
+    println(sb)
+    println(p.later()())
+    Zone.acquire { implicit z =>
+      val n = 3.toUSize
+      val buf: Ptr[Byte] = alloc[Byte](n)
+      buf(1) = 7.toByte
+      println(buf(0) + buf(1))
+    }
   }
 }
-
-@main def outerthis(): Unit = Test.run()

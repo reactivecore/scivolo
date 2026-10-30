@@ -6,11 +6,11 @@
 use super::lambda_lift::Function;
 use super::lift_names::Pending;
 use super::walk::{children, is_type_tree};
-use crate::symbols::has;
+use crate::symbols::{has, is_static, is_static_owner};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::MUTABLE;
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A step of the walk: a tree, or the definition of a lifted local class, with the values it uses.
@@ -78,7 +78,8 @@ pub fn dependencies(
                     continue;
                 }
                 let owner = l.u.symbol(s).owner;
-                functions[i].this |= owner == Some(class) && !l.u.is_module_class(class);
+                let implicit_this = implicit_this(l, l.tpd.get(t).tpe) == Some(class);
+                functions[i].this |= (owner == Some(class) || implicit_this) && !l.u.is_module_class(class);
                 let local = matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param)
                     && owner.is_some_and(|o| matches!(l.u.symbol(o).kind, Kind::Def | Kind::Val));
                 if local && mark_free(l, functions, &mut order, s, i) && has(l.u, s, MUTABLE) {
@@ -123,6 +124,19 @@ fn steps<'p>(l: &Lower, t: TNodeId, pending: &'p Pending) -> Vec<Step<'p>> {
         steps.insert(*index, Step::Class(values));
     }
     steps
+}
+
+/// The class whose `this` the prefix of reference type `tpe` starts with, through non-static
+/// members (dotty's `captureImplicitThis`).
+fn implicit_this(l: &Lower, tpe: Option<TypeId>) -> Option<SymbolId> {
+    match *l.u.types().get(tpe?) {
+        Type::Sym(prefix, s) if l.u.symbol(s).kind.is_term() && !is_static(l.u, s) => implicit_this(l, prefix),
+        Type::This(c) => match *l.u.types().get(c) {
+            Type::Sym(_, c) if !is_static_owner(l.u, c) => Some(c),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 /// Records that function `caller` calls `callee`.
