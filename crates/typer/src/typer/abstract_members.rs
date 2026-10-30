@@ -23,7 +23,7 @@ impl Typer<'_> {
         self.check_implemented(cls, site, span, false);
     }
 
-    /// Checks the classes with macro annotations, as dotty's `RefChecks` does after
+    /// Checks the classes with macro annotations on them or their declarations, as dotty's `RefChecks` does after
     /// `MacroAnnotations`.
     pub fn check_macro_annotated(&mut self) {
         for (cls, site, span) in std::mem::take(&mut self.macro_annotated) {
@@ -31,12 +31,15 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether `cls` or one of its declarations has a macro annotation.
     fn has_macro_annotation(&mut self, cls: SymbolId) -> bool {
         let base = self.u.class_ref("scala.annotation.MacroAnnotation");
         let Some(base) = self.u.class_symbol(base) else {
             return false;
         };
-        let annotations = self.u.annotations(cls).to_vec();
+        let mut annotated = self.u.symbol(cls).decls.clone();
+        annotated.push(cls);
+        let annotations: Vec<_> = annotated.into_iter().flat_map(|s| self.u.annotations(s).to_vec()).collect();
         annotations.into_iter().any(|a| self.u.derives_from(a, base))
     }
 
