@@ -1,5 +1,5 @@
 // The JDK classes and annotations Scala Native's library sources use and javalib does not define,
-// for `just lib-compile`: only the members those sources use, Java's static members `@static`.
+// and nativelib's Java class, for `just lib-compile`: only the members those sources use, Java's static members `@static`.
 import scala.annotation.static
 
 package java.lang {
@@ -141,4 +141,14 @@ package java.util {
 
 package java.net {
   final class URL(spec: String)
+}
+
+package scala.scalanative.runtime {
+  abstract class UnsupportedFeature
+
+  object UnsupportedFeature {
+    @static def threads(): Unit = ()
+    @static def virtualThreads(): Unit = ()
+    @static def continuations(): Unit = ()
+  }
 }

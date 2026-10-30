@@ -12,7 +12,7 @@ use tasty::{Erased, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
-/// `expr` then `()` for `Unit`, a conversion or a cast of the boxed value from a primitive,
+/// `expr` then `()` for `Unit`, a conversion or a cast of the boxed value from a primitive or `Unit`,
 /// unboxing from a reference or `null` to a primitive, a `ClassCastException` for `Nothing`,
 /// an ascription if `expr`'s erasure conforms to `target`'s, else `t`; casts from or to value classes as `value_cast`.
 pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TNodeId> {
@@ -58,6 +58,14 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
             Some(t) => t,
             None => return refused(),
         },
+        (Erased::Unit, Erased::Class(_) | Erased::Array(_)) => {
+            let boxed_unit = Erased::Class("scala.runtime.BoxedUnit".into());
+            let boxed = adapt(l, expr, &boxed_unit);
+            match conforms(l, &boxed_unit, &to) {
+                true => l.tpd.node(Tree::Typed { expr: boxed, tpt }, span, Some(target), None),
+                false => recast(l, t, expr, boxed),
+            }
+        }
         (Erased::Prim(_) | Erased::Unit, _) | (_, Erased::Unit) => return refused(),
         (_, Erased::Prim(_)) if matches!(from, Erased::Class(_) | Erased::Array(_)) => adapt(l, expr, &to),
         (_, Erased::Prim(_)) => return refused(),
@@ -125,12 +133,17 @@ fn boxed_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, c: char) -> Option<TNode
     let p = l.primitive(c)?;
     let (module, box_method) = (p.module, p.box_method);
     let boxed = converted(l, expr, module, box_method);
+    Some(recast(l, t, expr, boxed))
+}
+
+/// Cast `t` of `expr` made a cast of `boxed`, `expr` boxed.
+fn recast(l: &mut Lower, t: TNodeId, expr: TNodeId, boxed: TNodeId) -> TNodeId {
     let Tree::TypeApply { fun, .. } = *l.tpd.tree(t) else { unreachable!("a type application") };
     let Tree::Select { name, .. } = *l.tpd.tree(fun) else { unreachable!("a selection") };
     l.tpd.get_mut(fun).tree = Tree::Select { qualifier: boxed, name };
     l.tpd.get_mut(fun).span = l.tpd.span(expr);
     l.explicit_casts.insert(t);
-    Some(t)
+    t
 }
 
 /// `expr.toX` for primitive `expr` of type `tpe` and erased letter `from`, converted to primitive

@@ -14,7 +14,7 @@ use tasty::{Binder, SymbolId, Type, TypeId, Universe};
 /// The skolem standing for each argument, of types `args`, in type `actual` of an application:
 /// the one of the argument's widened type, checked by substituting them for parameters `params`
 /// of binder `binder` in the method's result type `result`, as `applied_result` does; `None` if
-/// that does not give `actual`.
+/// that does not give a type equivalent to `actual`.
 pub fn call_skolems(
     u: &mut Universe,
     (result, actual): (TypeId, TypeId),
@@ -49,7 +49,9 @@ pub fn call_skolems(
         };
         chosen.get(i).copied().flatten().or_else(|| args.get(i).copied())
     });
-    (substituted == actual).then_some(chosen)
+    let same =
+        substituted == actual || u.is_subtype(substituted, actual) && u.is_subtype(actual, substituted);
+    same.then_some(chosen)
 }
 
 impl Inlining<'_> {

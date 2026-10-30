@@ -24,6 +24,7 @@ mod dead;
 mod dynmethod;
 mod equality;
 mod erased;
+mod exports;
 mod expr;
 mod extern_calls;
 mod extern_fields;

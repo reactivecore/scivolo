@@ -83,6 +83,12 @@ impl Gen<'_, '_> {
 
     /// The elements of `wrapXArray(seq)` for a sequence literal `seq`.
     fn seq_elems(&self, t: TNodeId) -> Option<Vec<TNodeId>> {
+        let Tree::SeqLiteral { elems, .. } = *self.l.tpd.tree(self.seq_literal(t)?) else { return None };
+        Some(self.l.tpd.items(elems).to_vec())
+    }
+
+    /// Sequence literal `seq` of `wrapXArray(seq)` `t`.
+    pub fn seq_literal(&self, t: TNodeId) -> Option<TNodeId> {
         let Tree::Apply { fun, args } = *self.l.tpd.tree(self.l.tpd.strip_typed(t)) else { return None };
         let fun = match *self.l.tpd.tree(fun) {
             Tree::TypeApply { fun, .. } => fun,
@@ -93,10 +99,8 @@ impl Gen<'_, '_> {
             name.starts_with("wrap") && name.ends_with("Array") || name == "genericWrapArray"
         });
         let (true, &[seq]) = (wrap, self.l.tpd.items(args)) else { return None };
-        let Tree::SeqLiteral { elems, .. } = *self.l.tpd.tree(self.l.tpd.strip_typed(seq)) else {
-            return None;
-        };
-        Some(self.l.tpd.items(elems).to_vec())
+        let seq = self.l.tpd.strip_typed(seq);
+        matches!(self.l.tpd.tree(seq), Tree::SeqLiteral { .. }).then_some(seq)
     }
 
     fn reflective_call(

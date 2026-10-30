@@ -197,6 +197,7 @@ impl<'a> Decoder<'a> {
                 Type::Lambda { binder: self.binder(id), params, result: self.ty(body[0]) }
             }
             STRINGconst => Type::Str(self.name(id)),
+            CLASSconst if !k.is_empty() => Type::Constant(CLASSconst, i64::from(self.ty(k[0]).0)),
             tag if crate::constant(tag, n.a).is_some() => Type::Constant(tag, n.a),
             tag => Type::Other(tag),
         }

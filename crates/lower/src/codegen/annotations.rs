@@ -50,7 +50,7 @@ const ANNOTATIONS: [(&str, Gives); 21] = [
     ("scala.scalanative.reflect.annotation.EnableReflectiveInstantiation", Gives::Refused),
     ("scala.scalanative.runtime.struct", Gives::Generated),
     ("scala.scalanative.unsafe.exportAccessors", Gives::Refused),
-    ("scala.scalanative.unsafe.exported", Gives::Refused),
+    ("scala.scalanative.unsafe.exported", Gives::Generated),
     ("scala.scalanative.unsafe.name", Gives::Id),
     ("scala.scalanative.unsafe.package$.blocking", Gives::Blocking),
     ("scala.scalanative.unsafe.package$.extern", Gives::Any(|| Attr::Extern { blocking: false })),

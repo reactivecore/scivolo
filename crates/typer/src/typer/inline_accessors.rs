@@ -126,7 +126,8 @@ impl Typer<'_> {
     }
 
     /// The accessor of `accessed`, a setter if `setter`, for a reference at `span` in `ctx`, made
-    /// and entered unless it exists (dotty's `useAccessor`); `None` if it cannot be made.
+    /// and entered unless it exists (dotty's `useAccessor`); `None` if no class can host it or it
+    /// cannot be made.
     fn inline_accessor(
         &mut self,
         accessed: SymbolId,
@@ -134,10 +135,7 @@ impl Typer<'_> {
         span: Span,
         ctx: Ctx,
     ) -> Option<SymbolId> {
-        let Some(host) = self.accessor_host(accessed, ctx.owner) else {
-            self.unsupported_at(span, "non-public member in an inline method without an accessor class");
-            return None;
-        };
+        let host = self.accessor_host(accessed, ctx.owner)?;
         if let Some(&made) = self.accessors.made.get(&(host, accessed, setter)) {
             return Some(made);
         }

@@ -12,7 +12,7 @@ const OF_TYPE: [&str; 3] = ["sizeOf", "alignmentOf", "stackalloc"];
 
 /// Records the types the intrinsics' calls in `root` need after erasure, by method reference:
 /// the type arguments of `sizeOf`, `alignmentOf` and `stackalloc`, the argument and result types
-/// of `CFuncPtrN.apply`.
+/// of `CFuncPtrN.apply`; by sequence literal, the types of the variable arguments of extern calls.
 pub fn transform(l: &mut Lower, root: TNodeId) {
     let found = l.tpd.fold(Vec::new(), root, &mut |mut out, t| {
         if let Tree::TypeApply { fun, args } = *l.tpd.tree(t)
@@ -31,6 +31,16 @@ pub fn transform(l: &mut Lower, root: TNodeId) {
             let mut types: Vec<_> = l.tpd.items(args).iter().map(|&a| l.tpd.tpe(a)).collect();
             types.push(l.tpd.tpe(t));
             out.push((fun, (types, l.tpd.span(t).without_inlined_call())));
+        }
+        if let Tree::Apply { fun, args } = *l.tpd.tree(t)
+            && l.tpd.sym(fun).is_some_and(|m| crate::symbols::is_extern(l.u, m))
+            && let Some(&last) = l.tpd.items(args).last()
+            && let seq = l.tpd.strip_typed(last)
+            && let Tree::SeqLiteral { elems, .. } = *l.tpd.tree(seq)
+        {
+            let elems = l.tpd.items(elems).to_vec();
+            let types = elems.into_iter().map(|e| l.u.widen(l.tpd.tpe(e))).collect();
+            out.push((seq, (types, l.tpd.span(seq))));
         }
         out
     });

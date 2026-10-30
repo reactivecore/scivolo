@@ -108,10 +108,13 @@ impl Gen<'_, '_> {
         self.ty(Type::Function(args, ret))
     }
 
-    /// The class method `m` is a member of in NIR: its owner, or the JDK class it stands for in
-    /// the JDK API.
+    /// The class method `m` is a member of in NIR: its owner, or outside its owner the JDK class
+    /// it stands for in the JDK API.
     pub fn method_owner(&mut self, m: SymbolId) -> SymbolId {
         let owner = self.l.u.symbol(m).owner.expect("a method's owner");
+        if self.class == Some(owner) {
+            return owner;
+        }
         let jdk = jdk_api_owner(self.l.u, m).and_then(|c| class_named(self.l, c));
         jdk.unwrap_or(owner)
     }
