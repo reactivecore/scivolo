@@ -7,7 +7,6 @@
 
 use super::Typer;
 use super::dependent_params::{applied_result, mentions_clause_params, mentions_params};
-use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId};
 
@@ -58,14 +57,12 @@ impl Typer<'_> {
 
     /// Whether one of `formals` of the clause `clause` of method `method` refers to an earlier
     /// parameter of the clause; `Err` for a formal outside the subset: by-name inside, referring
-    /// to a parameter of another clause, to its own clause unless the arguments are `in_order`,
-    /// or to a private type of another class.
+    /// to a parameter of another clause, or to its own clause unless the arguments are `in_order`.
     pub fn param_dependent(
         &mut self,
         formals: &[TypeId],
         (clause, method): ((Binder, &[String]), Option<SymbolId>),
         in_order: bool,
-        ctx: Ctx,
     ) -> Result<bool, &'static str> {
         let mut dependent = false;
         for &p in formals {
@@ -73,9 +70,8 @@ impl Typer<'_> {
             dependent |= own;
             if own && !in_order
                 || !own && (self.is_special_param(p) || self.mentions_params(p, clause.0, method))
-                || self.mentions_foreign_private_type(p, ctx)
             {
-                return Err("dependent parameter or private type");
+                return Err("dependent parameter");
             }
         }
         Ok(dependent)

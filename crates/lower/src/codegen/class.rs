@@ -34,7 +34,7 @@ impl Gen<'_, '_> {
         if self.is_struct(sym) {
             return self.gen_struct(td, sym, pos);
         }
-        if crate::symbols::is_extern(self.l.u, sym) {
+        if self.is_extern_type(sym) {
             return self.gen_extern_class(td, sym, pos);
         }
         let attrs =

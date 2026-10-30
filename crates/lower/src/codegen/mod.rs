@@ -27,6 +27,7 @@ mod erased;
 mod expr;
 mod extern_calls;
 mod extern_fields;
+mod extern_members;
 mod extern_varargs;
 mod externs;
 mod fields;
