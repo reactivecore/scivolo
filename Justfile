@@ -242,6 +242,15 @@ lib-jar module: fetch-libs fetch-scala-native
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     python3 scripts/lib-jar.py '{{ module }}'
 
+# `sn-report 1800` with lib-jar's jar of `module` in place of the published one (tests built by
+# `sn-build all`), its library image in tmp/cache-ours; compare with a plain `sn-report 1800`.
+lib-jar-report module: (lib-jar module) release
+    rm -rf tmp/libs-ours && mkdir -p tmp/libs-ours
+    ln -s '{{ SCIVOLO_LIBS }}'/*.jar tmp/libs-ours/
+    ln -sf '../lib/{{ module }}/{{ module }}_native0.5_3-0.5.12.jar' tmp/libs-ours/
+    SCIVOLO_LIBS='{{ justfile_directory() }}/tmp/libs-ours' SCIVOLO_CACHE='{{ justfile_directory() }}/tmp/cache-ours' \
+        SCIVOLO_TIMEOUT=1800 scripts/sn-report.sh
+
 # Compile Scala Native's library with Scala 3.9.0 (sbt, JDK; ADR 0046) into tmp/lib/sn,
 # lib-compile's oracle in place of the published jars, which Scala 3.1.3 compiled.
 lib-oracle: fetch-libs fetch-scala-native
