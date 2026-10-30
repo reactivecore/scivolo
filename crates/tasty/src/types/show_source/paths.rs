@@ -2,7 +2,7 @@
 //   compiler/src/scala/quoted/runtime/impl/printers/SourceCode.scala
 //! The prefixes of references and `this` types as `SourceCode.printType` shows them.
 
-use super::{REFUSED, Shown, SourcePrinter};
+use super::{Highlight, REFUSED, Shown, SourcePrinter};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId};
 
@@ -16,7 +16,7 @@ impl SourcePrinter<'_> {
             }
             self.out.push('.');
         }
-        self.out.push_str(name);
+        self.paint(Highlight::Type, name);
         Ok(())
     }
 
@@ -59,7 +59,7 @@ impl SourcePrinter<'_> {
             Kind::Class if self.u.is_module_class(owner) => {
                 let module = self.u.source_module(owner).ok_or(REFUSED)?;
                 self.owner_prefix(module)?;
-                self.out.push_str(&self.u.symbol(module).name.clone());
+                self.paint(Highlight::Type, &self.u.symbol(module).name.clone());
                 self.out.push('.');
                 Ok(())
             }
@@ -67,11 +67,10 @@ impl SourcePrinter<'_> {
         }
     }
 
-    /// Package `s` as a prefix: its full name and `.`, nothing for the root.
+    /// Package `s` as a prefix, its class's `this`: its full name and `.`, nothing for the root.
     fn package(&mut self, s: SymbolId) {
         if s != self.u.root() {
-            let name = self.u.full_name(s);
-            self.out.push_str(&name);
+            self.package_name(s, false);
             self.out.push('.');
         }
     }
@@ -85,22 +84,23 @@ impl SourcePrinter<'_> {
         match self.u.symbol(class).kind {
             Kind::Package if class == self.u.root() => Err(REFUSED),
             Kind::Package if self.full => {
-                self.out.push_str(&self.u.full_name(class));
+                self.package_name(class, false);
                 Ok(())
             }
             _ if self.u.is_module_class(class) => {
                 let module = self.u.source_module(class).ok_or(REFUSED)?;
                 self.owner_prefix(module)?;
-                self.out.push_str(&self.u.symbol(module).name.clone());
+                self.paint(Highlight::Type, &self.u.symbol(module).name.clone());
                 Ok(())
             }
             Kind::Package => {
-                self.out.push_str(&self.u.symbol(class).name.clone());
+                self.paint(Highlight::Type, &self.u.symbol(class).name.clone());
                 Ok(())
             }
             _ => {
                 let name = self.u.symbol(class).name.clone();
-                self.out.push_str(&format!("{name}.this"));
+                self.out.push_str(&name);
+                self.paint(Highlight::Type, ".this");
                 Ok(())
             }
         }

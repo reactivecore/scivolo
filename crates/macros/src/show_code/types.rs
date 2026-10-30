@@ -100,20 +100,49 @@ impl Code<'_> {
         }
     }
 
-    /// The right-hand side of a type parameter's definition: a bounds tree, a type tree of
-    /// bounds, or another type.
+    /// The right-hand side of a type parameter's definition (dotty's `printTargDef` without
+    /// `isMember`): bounds, the parameters of a type lambda, or `= T`.
     pub fn type_def_rhs(&mut self, rhs: TNodeId) -> Shown {
         let rhs = self.r(rhs);
-        if let T::TypeBoundsTree { lo, hi, alias: None } = self.tree_of(rhs) {
-            return self.bounds_tree(Bound::Tree(lo), Bound::Tree(hi));
+        if self.bounds_rhs(rhs)? {
+            return Ok(());
         }
-        let tpe = self.h.tpd.tpe(rhs);
-        match *self.h.u.types().get(tpe) {
-            Type::Bounds(lo, hi) if matches!(self.tree_of(rhs), T::TypeTree { .. }) => {
-                self.bounds_tree(Bound::Inferred(lo), Bound::Inferred(hi))
+        let T::LambdaTypeTree { tparams, .. } = self.tree_of(rhs) else {
+            self.push(" = ");
+            return self.type_tree(rhs);
+        };
+        self.push("[");
+        for (i, p) in self.items(tparams).into_iter().enumerate() {
+            if i > 0 {
+                self.push(", ");
             }
-            _ => self.ty(tpe),
+            let T::TypeDef { name, rhs } = self.tree_of(p) else { return Err(REFUSED) };
+            self.push(&self.name(name));
+            if !self.bounds_rhs(rhs)? {
+                self.type_tree(rhs)?;
+            }
         }
+        self.push("]");
+        Ok(())
+    }
+
+    /// The bounds of `rhs` if it is a bounds tree or an inferred type tree of bounds; whether it is.
+    fn bounds_rhs(&mut self, rhs: TNodeId) -> Result<bool, &'static str> {
+        let rhs = self.r(rhs);
+        if let T::TypeBoundsTree { lo, hi, alias: None } = self.tree_of(rhs) {
+            self.bounds_tree(Bound::Tree(lo), Bound::Tree(hi))?;
+            return Ok(true);
+        }
+        let inferred = matches!(self.tree_of(rhs), T::TypeTree { .. });
+        let (lo, hi) = match *self.h.u.types().get(self.h.tpd.tpe(rhs)) {
+            Type::Bounds(lo, hi) => (lo, hi),
+            Type::Alias(a) => (a, a),
+            _ => return Ok(false),
+        };
+        if inferred {
+            self.bounds_tree(Bound::Inferred(lo), Bound::Inferred(hi))?;
+        }
+        Ok(inferred)
     }
 
     /// The bounds of a type parameter (dotty's `printBoundsTree`).

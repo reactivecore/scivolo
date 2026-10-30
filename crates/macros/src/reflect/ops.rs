@@ -93,6 +93,7 @@ ops! {
     "matchType" => match_type(scrutinee: Ty, pattern: Num) -> Fallible<i32>;
     // type reprs
     "showType" => show_type(t: Ty) -> Fallible<String>;
+    "showTypeAnsi" => show_type_ansi(t: Ty) -> Fallible<String>;
     "showTypeShort" => show_type_short(t: Ty) -> Fallible<String>;
     "showTypeStructure" => show_type_structure(t: Ty) -> Fallible<String>;
     "typeString" => type_string(t: Ty) -> Fallible<String>;

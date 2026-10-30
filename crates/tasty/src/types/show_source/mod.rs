@@ -4,8 +4,11 @@
 //! with full names): `scala.collection.immutable.List[scala.Int]`, `scala.Predef.String`; and
 //! as `Printer.TypeReprShortCode` shows them, without prefixes.
 
+mod highlight;
 mod paths;
 mod refinements;
+
+pub use highlight::Highlight;
 
 use super::{Binder, Type, TypeId};
 use crate::Universe;
@@ -17,9 +20,10 @@ type Shown = Result<(), &'static str>;
 const REFUSED: &str = "TypeRepr.show of a type the frontend does not print";
 
 impl Universe {
-    /// Type `t` as `Printer.TypeReprCode` shows it, `Printer.TypeReprShortCode` unless `full`.
-    pub fn show_source(&mut self, t: TypeId, full: bool) -> Result<String, &'static str> {
-        let mut p = SourcePrinter { u: self, binders: Vec::new(), out: String::new(), indent: 0, full };
+    /// Type `t` as `Printer.TypeReprCode` shows it, `Printer.TypeReprShortCode` unless `full`,
+    /// highlighted as `SyntaxHighlight.ANSI` does if `ansi`.
+    pub fn show_source(&mut self, t: TypeId, full: bool, ansi: bool) -> Result<String, &'static str> {
+        let mut p = SourcePrinter { u: self, binders: Vec::new(), out: String::new(), indent: 0, full, ansi };
         p.print(t)?;
         Ok(p.out)
     }
@@ -33,6 +37,7 @@ struct SourcePrinter<'u> {
     indent: usize,
     /// Whether references print with their prefixes.
     full: bool,
+    ansi: bool,
 }
 
 impl SourcePrinter<'_> {
@@ -47,15 +52,15 @@ impl SourcePrinter<'_> {
                     Some(Const::Unit) => "()".into(),
                     _ => return Err(REFUSED),
                 };
-                self.out.push_str(&text);
+                self.paint(Highlight::Literal, &text);
             }
             Type::Str(s) if s.chars().all(|c| c.is_ascii_graphic() && c != '"' && c != '\\' || c == ' ') => {
-                self.out.push_str(&format!("\"{s}\""));
+                self.paint(Highlight::Literal, &format!("\"{s}\""));
             }
             Type::NoPrefix => self.out.push_str("<NoPrefix() does not have a source representation>"),
             Type::TypeRef(p, n) => {
                 self.type_prefix(p)?;
-                self.out.push_str(n.strip_suffix('$').unwrap_or(&n));
+                self.paint(Highlight::Type, n.strip_suffix('$').unwrap_or(&n));
             }
             Type::Sym(p, s) if self.u.symbol(s).kind.is_type() => {
                 match p {
@@ -63,7 +68,7 @@ impl SourcePrinter<'_> {
                     None => self.owner_prefix(s)?,
                 }
                 let name = self.u.symbol(s).name.clone();
-                self.out.push_str(name.strip_suffix('$').unwrap_or(&name));
+                self.paint(Highlight::Type, name.strip_suffix('$').unwrap_or(&name));
             }
             Type::Sym(p, s) => {
                 let name = self.u.symbol(s).name.clone();
@@ -73,25 +78,25 @@ impl SourcePrinter<'_> {
                         self.owner_prefix(s)?;
                         match name == "package" {
                             true if self.full && self.out.ends_with('.') => _ = self.out.pop(),
-                            _ => self.out.push_str(&name),
+                            _ => self.paint(Highlight::Type, &name),
                         }
                     }
                 }
             }
             Type::TermRef(p, n) => self.term_ref(p, &n)?,
             Type::This(c) => self.this(c)?,
-            Type::Package(s) if s == self.u.root() => self.out.push_str("_root_"),
-            Type::Package(s) if self.full => self.out.push_str(&self.u.full_name(s)),
-            Type::Package(s) => self.out.push_str(&self.u.symbol(s).name.clone()),
+            Type::Package(s) if s == self.u.root() => self.paint(Highlight::Type, "_root_"),
+            Type::Package(s) if self.full => self.package_name(s, true),
+            Type::Package(s) => self.paint(Highlight::Type, &self.u.symbol(s).name.clone()),
             Type::Super(this, _) => {
                 self.print(this)?;
-                self.out.push_str(".super");
+                self.paint(Highlight::Type, ".super");
             }
             Type::Applied(tycon, args) => self.applied(tycon, &args)?,
-            Type::And(a, b) => self.infix(a, " & ", b)?,
-            Type::Or(a, b, _) => self.infix(a, " | ", b)?,
+            Type::And(a, b) => self.infix(a, Highlight::Type, " & ", b)?,
+            Type::Or(a, b, _) => self.infix(a, Highlight::Type, " | ", b)?,
             Type::ByName(r) => {
-                self.out.push_str(" => ");
+                self.paint(Highlight::Type, " => ");
                 self.print(r)?;
             }
             Type::Bounds(lo, hi) => {
@@ -105,7 +110,8 @@ impl SourcePrinter<'_> {
             Type::Lambda { binder, params, result } => self.bind(binder, &params, |p| {
                 p.out.push('[');
                 p.params(&params)?;
-                p.out.push_str("] =>> ");
+                p.out.push(']');
+                p.paint(Highlight::Type, " =>> ");
                 p.print(result)
             })?,
             Type::Method { binder, params, result, .. } => self.bind(binder, &params, |p| {
@@ -133,10 +139,10 @@ impl SourcePrinter<'_> {
             Type::Match { scrutinee, cases, .. } => self.match_type(scrutinee, &cases)?,
             Type::MatchCase(pat, body) => {
                 self.out.push_str("case ");
-                self.infix(pat, " => ", body)?;
+                self.infix(pat, Highlight::Plain, " => ", body)?;
             }
             Type::Rec(_, p) => self.print(p)?,
-            Type::RecThis(_) => self.out.push_str("this"),
+            Type::RecThis(_) => self.paint(Highlight::Type, "this"),
             _ => return Err(REFUSED),
         }
         Ok(())
@@ -172,15 +178,15 @@ impl SourcePrinter<'_> {
         Ok(())
     }
 
-    fn infix(&mut self, a: TypeId, op: &str, b: TypeId) -> Shown {
+    fn infix(&mut self, a: TypeId, h: Highlight, op: &str, b: TypeId) -> Shown {
         self.print(a)?;
-        self.out.push_str(op);
+        self.paint(h, op);
         self.print(b)
     }
 
     fn bounds(&mut self, lo: TypeId, hi: TypeId) -> Shown {
         self.out.push_str(" >: ");
-        self.infix(lo, " <: ", hi)
+        self.infix(lo, Highlight::Plain, " <: ", hi)
     }
 
     fn applied(&mut self, tycon: TypeId, args: &[TypeId]) -> Shown {

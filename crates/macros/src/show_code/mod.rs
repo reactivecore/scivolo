@@ -293,7 +293,7 @@ impl Code<'_> {
             _ => None,
         });
         self.spliced = spliced;
-        let shown = self.h.u.show_source(t, true)?;
+        let shown = self.h.u.show_source(t, true, self.ansi)?;
         self.push(&shown);
         Ok(())
     }

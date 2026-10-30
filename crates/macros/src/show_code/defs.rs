@@ -18,6 +18,9 @@ impl Code<'_> {
     /// `ValDef`, `DefDef` and the type definitions without a class.
     pub fn definition(&mut self, t: TNodeId) -> Shown {
         let s = self.h.tpd.sym(t);
+        if let Some(s) = s {
+            self.def_annotations(s)?;
+        }
         match self.tree_of(t) {
             T::ValDef { name, tpt, rhs } => {
                 self.modifiers(s, false);
