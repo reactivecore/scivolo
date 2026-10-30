@@ -169,7 +169,7 @@ impl Typer<'_> {
         let applied = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
         if applied != tree {
             self.interpolate(applied, Pt::Type(pt), from)?;
-        } else if self.has_open_constructor(value, from) {
+        } else if !method && self.has_open_constructor(value, from) {
             return Err("implicit candidate with undetermined type variables (#123)");
         }
         let tree = applied;

@@ -15,18 +15,22 @@ impl Typer<'_> {
     }
 
     /// What about the type variables of expected type `t` is outside the subset: a union with
-    /// one, or one applied as a type constructor.
+    /// one, or one without lower bound applied as a type constructor.
     pub fn unsettled(&mut self, t: TypeId) -> Option<&'static str> {
         if self.has_open_union(t) {
             return Some("implicit search for a union with type variables");
         }
-        let mut constructor = false;
+        let mut constructors = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            constructor |=
-                matches!(u.types().get(part), Type::Applied(c, _) if matches!(u.types().get(*c), Type::Var(_)));
+            if let Type::Applied(c, _) = *u.types().get(part)
+                && let Type::Var(v) = *u.types().get(c)
+            {
+                constructors.push(v);
+            }
             None
         });
-        constructor.then_some("implicit search for a type with a higher-kinded type variable")
+        let unbounded = constructors.into_iter().any(|v| self.constraint.bounds(v).0 == tasty::NOTHING);
+        unbounded.then_some("implicit search for a type with a higher-kinded type variable")
     }
 
     /// Whether `t` applies an uninstantiated type variable of id `from` or later whose bounds
