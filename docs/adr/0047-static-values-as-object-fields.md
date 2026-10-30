@@ -22,9 +22,11 @@ into it through the object's instance. The lowering's phases run in another orde
 - Constant folding skips the left-hand sides of assignments, which the `<clinit>` of a `final
   val` has before `FirstTransform` runs.
 - Still refused: `@static` lazy values, values of objects whose companion is a value class or in
-  another unit. A trait companion takes them like a class (#184); the VM links a trait on the use
-  of a member, which runs its `<clinit>`.
+  another unit. A trait companion takes them like a class (#184), its classes get no forwarders
+  to them; the VM links a trait on the use of a member, which runs its `<clinit>`.
 
 ## Consequences
 - statics and i5924c lower as Scala Native compiles them (`tests/programs/Lw26statics`,
   `Lw26staticvals`), and so does i5924b (`Lw30statictrait`).
+- The VM runs a `<clinit>` on first use of its class, Scala Native all of them at startup; a
+  program can observe the difference (`docs/conformance.md`).
