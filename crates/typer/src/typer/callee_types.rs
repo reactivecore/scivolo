@@ -101,6 +101,19 @@ impl Typer<'_> {
                     None => self.u.info(s),
                 })
             }
+            Tree::Select { qualifier, name } if self.text(name.name) == "<init>" => {
+                let Tree::New { tpt } = *self.ast.tree(qualifier) else { return None };
+                let Tree::Ident { name } = *self.ast.tree(tpt) else { return None };
+                let text = self.text(name.name).to_owned();
+                let [c] = self.find_ref(&text, true, ctx).ok()??.syms[..] else { return None };
+                self.complete(c);
+                if self.u.symbol(c).kind != Kind::Class || !self.u.type_params(c).is_empty() {
+                    return None;
+                }
+                let [init] = self.class_members(c, "<init>")[..] else { return None };
+                self.complete(init);
+                Some(self.u.info(init))
+            }
             Tree::Select { qualifier, name } if !name.is_type && self.is_path_tree(qualifier) => {
                 let text = self.text(name.name).to_owned();
                 let qual = self.typed(qualifier, Pt::Any, ctx);
@@ -114,7 +127,10 @@ impl Typer<'_> {
                     .filter(|&s| !self.u.is_type_symbol(s))
                     .collect();
                 match syms[..] {
-                    [s] => Some(self.u.member_info(tpe, s)),
+                    [s] => {
+                        self.complete(s);
+                        Some(self.u.member_info(tpe, s))
+                    }
                     [] => self.u.term_refinement_named(tpe, &text),
                     _ => None,
                 }
