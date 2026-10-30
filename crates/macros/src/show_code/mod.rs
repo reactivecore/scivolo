@@ -5,6 +5,7 @@
 
 mod blocks;
 mod cases;
+mod def_structure;
 mod defs;
 mod literals;
 mod structure;

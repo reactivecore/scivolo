@@ -89,8 +89,24 @@ impl Host {
         }
     }
 
+    /// The names of `s`'s enclosing classes and packages and `s`, joined by `.`, with a `_$` for
+    /// each term between `s` and its enclosing class (dotty's `fullName`).
     pub fn full_name(&self, s: SymbolId) -> String {
-        self.u.full_name(s)
+        let sym = self.u.symbol(s);
+        let Some(mut encl) = sym.owner else { return sym.name.to_string() };
+        let mut filler = String::new();
+        while self.u.symbol(encl).kind.is_term() {
+            let Some(o) = self.u.symbol(encl).owner else { break };
+            encl = o;
+            filler.push_str("_$");
+        }
+        match encl == self.u.root()
+            || self.u.symbol(encl).name.is_empty()
+            || self.u.symbol(encl).name == "<empty>"
+        {
+            true => format!("{filler}{}", sym.name),
+            false => format!("{}.{filler}{}", self.full_name(encl), sym.name),
+        }
     }
 
     pub fn info(&mut self, s: SymbolId) -> TypeId {
