@@ -93,11 +93,13 @@ pub fn enter(u: &mut Universe) -> Builtins {
     let object_ref = u.types.intern(Type::Sym(None, object));
     u.parents.insert(nothing, vec![ANY]);
     u.parents.insert(null, vec![object_ref]);
-    let serializable = u
-        .package("java.io")
-        .and_then(|p| u.decl(p, "Serializable").ok()?.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
-    if let Some(serializable) = serializable {
-        u.parents.insert(serializable, vec![ANY]);
+    for (pkg, name) in [("java.io", "Serializable"), ("java.lang", "Cloneable")] {
+        let universal = u
+            .package(pkg)
+            .and_then(|p| u.decl(p, name).ok()?.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
+        if let Some(universal) = universal {
+            u.parents.insert(universal, vec![ANY]);
+        }
     }
     let any_ref = synthetic(u, scala, "AnyRef", Kind::Type, &[]);
     u.infos.insert(any_ref, object_ref);
