@@ -69,14 +69,23 @@ impl Printer<'_> {
         shown
     }
 
-    /// Whether `s` is a value parameter of a method type being printed, which TASTy refers to by
-    /// its symbol and dotty by its parameter reference.
-    fn is_bound_param(&mut self, s: SymbolId) -> bool {
+    /// How dotty prints `s`, a parameter of a method or poly type being printed, which TASTy
+    /// refers to by its symbol and dotty by its parameter reference.
+    fn bound_param(&mut self, s: SymbolId) -> Option<String> {
         let sym = self.u.symbol(s);
-        let (Kind::Param, Some(owner)) = (sym.kind, sym.owner) else { return false };
-        let name = sym.name.clone();
-        let binders = crate::signatures::method_binders(self.u, owner);
-        self.binders.iter().any(|(b, names, terms)| *terms && binders.contains(b) && names.contains(&name))
+        let terms = match sym.kind {
+            Kind::Param => true,
+            Kind::TypeParam => false,
+            _ => return None,
+        };
+        let (owner, name) = (sym.owner?, sym.name.clone());
+        let binders = crate::signatures::method_binders(self.u, owner, terms);
+        let (_, names, _) = self
+            .binders
+            .iter()
+            .find(|(b, names, t)| *t == terms && binders.contains(b) && names.contains(&name))?;
+        let i = names.iter().position(|n| *n == name)?;
+        Some(if terms { name } else { format!("{name}#{i}") })
     }
 
     fn tpe(&mut self, t: TypeId, d: u32) -> String {
@@ -85,7 +94,11 @@ impl Printer<'_> {
         }
         let n = d + 1;
         match self.u.types().get(t).clone() {
-            Type::Sym(None, s) if self.is_bound_param(s) => self.u.symbol(s).name.clone(),
+            Type::Sym(p, s)
+                if let Some(shown) = self.bound_param(s).filter(|_| is_static_prefix(self.u, p)) =>
+            {
+                shown
+            }
             Type::Sym(p, s) => {
                 let k = if self.u.is_type_symbol(s) { "T:" } else { "t:" };
                 if is_static_prefix(self.u, p) {
