@@ -25,6 +25,9 @@ impl Host {
             let any = self.u.class_ref("scala.Any");
             return self.u.class_symbol(any).ok_or("a library without scala.Any");
         }
+        if name == "scala.<repeated>" {
+            typer::unpickle::define_repeated(&mut self.u)?;
+        }
         let c = self.u.class_ref(&name);
         let c = self.u.class_symbol(c).or_else(|| self.static_module_class(&name));
         c.ok_or("Symbol.requiredClass of a class the frontend lacks")

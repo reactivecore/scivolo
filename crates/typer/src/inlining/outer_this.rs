@@ -33,6 +33,15 @@ impl Expansion<'_, '_> {
         is_cls.then(|| self.i.this_tree(p, point)).flatten().ok_or(refused)
     }
 
+    /// The prefix of identifier `fun` as a tree if a path other than a `this` (dotty's
+    /// `desugarIdentPrefix`).
+    pub fn ident_prefix(&mut self, fun: TNodeId) -> Option<TNodeId> {
+        let Type::Sym(Some(p), _) = *self.i.u.types().get(self.i.tpd.get(fun).tpe?) else { return None };
+        let path = matches!(self.i.u.types().get(p), Type::Sym(_, s) if self.i.u.symbol(*s).kind.is_term());
+        let point = Span::at(self.i.tpd.span(fun).start());
+        path.then(|| self.i.singleton(p, point)).flatten()
+    }
+
     /// The classes `outers`, enclosing class `cls`, with the proxies of their `this` for call
     /// prefix `q` of type `qt`, innermost first, bound after `last`, the proxy of the `this` of
     /// `cls` if any: each to the stable path the prefix makes it if `pure` or after another proxy
@@ -57,7 +66,7 @@ impl Expansion<'_, '_> {
             let this = self.i.u.intern_type(Type::This(class_type));
             let seen = self.i.u.as_seen_from(this, qt, cls);
             let stable = match *self.i.u.types().get(seen) {
-                Type::Sym(_, s) => self.i.is_stable_member(s) && self.i.is_singleton_path(seen),
+                Type::Sym(_, s) => self.i.pure().is_stable_member(s) && self.i.is_singleton_path(seen),
                 _ => false,
             };
             let proxy = self.this_proxy_symbol(c, seen);

@@ -5,10 +5,14 @@
 
 mod blocks;
 mod cases;
+mod classes;
 mod def_structure;
 mod defs;
+mod highlight;
 mod literals;
+mod parents;
 mod structure;
+mod type_string;
 mod type_structure;
 mod types;
 
@@ -22,13 +26,15 @@ type Shown = Result<(), &'static str>;
 const REFUSED: &str = "Printer.TreeCode of a tree the frontend does not print";
 
 impl Host {
-    /// Tree `t` as `Printer.TreeCode` shows it, or `Printer.TreeStructure` if `structure`.
-    pub fn show_code(&mut self, t: TNodeId, structure: bool) -> Result<String, &'static str> {
+    /// Tree `t` as `Printer.TreeCode` shows it, `Printer.TreeAnsiCode` if `ansi`, or
+    /// `Printer.TreeStructure` if `structure`.
+    pub fn show_code(&mut self, t: TNodeId, structure: bool, ansi: bool) -> Result<String, &'static str> {
         let fills = self.hole_fills().into_iter().filter_map(|(h, f)| Some((h, f?))).collect();
         let spliced = self.spliced_types();
         let mut p = Code {
             h: self,
             out: String::new(),
+            ansi,
             indent: 0,
             names: HashMap::new(),
             index: HashMap::new(),
@@ -46,6 +52,7 @@ impl Host {
 struct Code<'h> {
     h: &'h mut Host,
     out: String,
+    ansi: bool,
     indent: usize,
     /// The names local symbols print as, unique within the tree.
     names: HashMap<SymbolId, String>,
@@ -106,7 +113,7 @@ impl Code<'_> {
             T::Ident { .. } => match self.h.tpd.sym(t).filter(|&s| self.is_local(s)) {
                 Some(s) => {
                     let name = self.spliced_name(s);
-                    self.push(&name);
+                    self.highlight_type(&name);
                 }
                 None => self.ty(self.h.tpd.tpe(t))?,
             },
@@ -184,33 +191,32 @@ impl Code<'_> {
             }
             T::Inlined { bindings, expansion, .. } => self.flat_block(&self.items(bindings), expansion)?,
             T::If { cond, thenp, elsep, .. } => {
-                self.push("if (");
-                self.tree(cond)?;
-                self.push(") ");
+                self.keyword("if ");
+                self.parens(cond)?;
                 self.tree(thenp)?;
-                self.push(" else ");
+                self.keyword(" else ");
                 self.tree(elsep)?;
             }
             T::Match { selector, cases, .. } => {
                 match selector {
                     Some(s) => {
                         self.qual_tree(s)?;
-                        self.push(" match");
+                        self.keyword(" match");
                     }
-                    None => self.push("summonFrom "),
+                    None => self.keyword("summonFrom "),
                 }
                 self.cases(&self.items(cases))?;
             }
             T::Try { expr, cases, finalizer } => {
-                self.push("try ");
+                self.keyword("try ");
                 self.tree(expr)?;
                 let cases = self.items(cases);
                 if !cases.is_empty() {
-                    self.push(" catch");
+                    self.keyword(" catch");
                     self.cases(&cases)?;
                 }
                 if let Some(f) = finalizer {
-                    self.push(" finally ");
+                    self.keyword(" finally ");
                     self.tree(f)?;
                 }
             }
@@ -219,13 +225,13 @@ impl Code<'_> {
                 self.tree(expr)?;
             }
             T::WhileDo { cond, body } => {
-                self.push("while (");
-                self.tree(cond)?;
-                self.push(") ");
+                self.keyword("while ");
+                self.parens(cond)?;
                 self.tree(body)?;
             }
             T::SeqLiteral { elems, .. } => self.trees(&self.items(elems), ", ")?,
             T::Closure { meth, .. } => self.tree(meth)?,
+            T::TypeDef { .. } if self.h.tpd.class_template(t).is_some() => self.class_def(t)?,
             T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } => self.definition(t)?,
             T::CaseDef { .. } => self.case_def(t)?,
             T::Bind { .. } | T::UnApply { .. } | T::Alternative { .. } => self.pattern(t)?,
@@ -287,7 +293,7 @@ impl Code<'_> {
             _ => None,
         });
         self.spliced = spliced;
-        let shown = self.h.u.show_source(t)?;
+        let shown = self.h.u.show_source(t, true, self.ansi)?;
         self.push(&shown);
         Ok(())
     }

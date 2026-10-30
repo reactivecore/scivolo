@@ -54,20 +54,28 @@ impl Typer<'_> {
             &sym.name
         };
         let getter_name = format!("{base}$default${}", n + 1);
-        let receiver = match *self.tpd.tree(mref) {
-            T::Select { qualifier, .. } if ctor => self.companion_ref(qualifier, method, ctx)?,
-            T::Select { qualifier, .. } => self.copied_path(qualifier),
-            T::Ident { .. } => self.ident_receiver(mref, span.start_pos(), ctx)?,
-            _ => return Err("default argument"),
+        let local = matches!(*self.tpd.tree(mref), T::Ident { .. })
+            && matches!(*self.u.types().get(self.tpd.tpe(mref)), Type::Sym(None, _));
+        let mut getter = if local {
+            let getter = self.levels.scope_mate(method, &getter_name, |_| true).ok_or("default getter")?;
+            self.complete(getter);
+            let tpe = self.ref_type(None, getter);
+            self.build().ident(getter, tpe, span)
+        } else {
+            let receiver = match *self.tpd.tree(mref) {
+                T::Select { qualifier, .. } if ctor => self.companion_ref(qualifier, method, ctx)?,
+                T::Select { qualifier, .. } => self.copied_path(qualifier),
+                T::Ident { .. } => self.ident_receiver(mref, span.start_pos(), ctx)?,
+                _ => return Err("default argument"),
+            };
+            let site = self.tpd.tpe(receiver);
+            let sym_name = getter_name.replace("$lessinit$greater", "<init>");
+            let [getter] = self.type_members(site, &sym_name)[..] else { return Err("default getter") };
+            self.check_reference(getter, Some(site), ctx)?;
+            let tpe = self.ref_type(Some(site), getter);
+            let name = TName { name: self.name(&getter_name), is_type: false };
+            self.tpd.node(T::Select { qualifier: receiver, name }, span, Some(tpe), Some(getter))
         };
-        let site = self.tpd.tpe(receiver);
-        let sym_name = getter_name.replace("$lessinit$greater", "<init>");
-        let [getter] = self.type_members(site, &sym_name)[..] else { return Err("default getter") };
-        self.check_reference(getter, Some(site), ctx)?;
-        let tpe = self.ref_type(Some(site), getter);
-        let name = TName { name: self.name(&getter_name), is_type: false };
-        let mut getter =
-            self.tpd.node(T::Select { qualifier: receiver, name }, span, Some(tpe), Some(getter));
         for clause in clauses.into_iter().rev() {
             let args = match clause {
                 Clause::Values(args) => args,

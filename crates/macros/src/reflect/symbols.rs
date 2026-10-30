@@ -12,7 +12,7 @@ use tasty::tags::{
 };
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
 
-const METHOD: u32 = 2;
+pub const METHOD: u32 = 2;
 const PACKAGE: u32 = 3;
 const PARAM: u32 = 4;
 const ABS_OVERRIDE: u32 = 5;
@@ -24,7 +24,7 @@ const DEFERRED: u32 = 53;
 #[derive(Default)]
 pub struct Made {
     macro_owner: Option<SymbolId>,
-    empty_package: Option<SymbolId>,
+    pub empty_package: Option<SymbolId>,
 }
 
 impl Host {
@@ -184,7 +184,7 @@ impl Host {
 }
 
 /// Symbol `name` of `kind` with `flags`, owned by `owner` but none of its declarations.
-fn local(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> SymbolId {
+pub fn local(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> SymbolId {
     let s = u.define(Symbol {
         name: name.to_owned(),
         kind,

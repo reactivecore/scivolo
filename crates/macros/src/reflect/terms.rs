@@ -55,10 +55,25 @@ impl Host {
         self.reflect().ref_(s)
     }
 
+    /// `Closure(meth, None)` of reference `meth` to a method.
+    pub fn closure_of(&mut self, meth: TNodeId) -> Fallible<TNodeId> {
+        let s = self.tpd.sym(meth).ok_or("Closure.apply of a term without a symbol")?;
+        self.reflect().closure_of(s)
+    }
+
     pub fn ident_ref(&mut self, tpe: TypeId) -> Fallible<TNodeId> {
-        let tasty::Type::Sym(_, s) = *self.u.types().get(tpe) else {
+        let tasty::Type::Sym(prefix, s) = *self.u.types().get(tpe) else {
             return Err("Ident.apply of a reference the frontend did not resolve");
         };
+        if let Some(p) = prefix
+            && let tasty::Type::Sym(_, ps) = *self.u.types().get(p)
+            && self.u.symbol(ps).kind.is_term()
+            && !(self.u.is_module(ps) && self.u.is_static_symbol(ps))
+            && self.u.symbol(ps).kind != tasty::Kind::Package
+        {
+            let qual = self.ident_ref(p)?;
+            return self.reflect().select(qual, s);
+        }
         let local = self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
         match local {
             true => self.reflect().local_ident(s),

@@ -2,6 +2,7 @@
 //! their quotes unpickled into the typer's trees (ADR 0029).
 
 mod annotations;
+mod args;
 mod host;
 mod reflect;
 mod show_code;
@@ -11,10 +12,10 @@ pub use host::Settings;
 pub use typer::inlining::Macros;
 
 use host::Host;
-use syntax::ast::{Span, constant::Constant};
+use syntax::ast::Span;
 use syntax::source::SourceFile;
 use tasty::{Erased, SymbolId};
-use typer::inlining::{AnnotationCall, Annotations, Expanded, Lent, MacroArg, MacroCall, MacroError};
+use typer::inlining::{AnnotationCall, Annotations, Expanded, Lent, MacroCall, MacroError};
 use vm::{Thrown, Vm, VmError};
 
 /// The universe, trees and names the typer lends the expansion.
@@ -36,46 +37,34 @@ impl Macros for VmMacros<'_> {
     ) -> Result<Expanded, MacroError> {
         let refused = |what: &str| MacroError::Unsupported(what.to_owned());
         let u = &mut *lent.0;
-        if call.context
-            && u.annotation_int(call.method, "scala.annotation.internal.ContextResultCount") != Some(1)
-        {
+        let count = u.annotation_int(call.method, "scala.annotation.internal.ContextResultCount");
+        if call.context > 0 && count != i32::try_from(call.context).ok() {
             return Err(refused(
                 "a macro implementation returning a context function not erased to a parameter",
             ));
         }
         let module = u.binary_name(call.receiver);
-        let sig = u
-            .method_signature(call.method)
-            .and_then(|s| if call.context { quotes_last(&s) } else { Some(s) });
+        let by_name = call.context > 0 && args::quotes_by_name(u, call.method);
+        let sig = u.method_signature(call.method).and_then(|s| {
+            if call.context > 0 { args::quotes_last(&s, call.context, by_name) } else { Some(s) }
+        });
         let sig = sig.ok_or_else(|| refused("a macro implementation without a method signature"))?;
         let (mut params, _) = u.erased_method(call.method);
         let quotes = Erased::Class("scala.quoted.Quotes".into());
-        if call.context {
-            params.push(quotes.clone());
+        params.extend((1..call.context).map(|_| quotes.clone()));
+        if call.context > 0 {
+            params.push(if by_name { Erased::Class("scala.Function0".into()) } else { quotes });
         }
         if params.len() != call.args.len() {
             return Err(refused("a macro implementation with erased parameters"));
         }
-        if call.args.iter().zip(&params).any(|(a, p)| matches!(a, MacroArg::Quotes) && *p != quotes) {
-            return Err(refused("a macro implementation taking the Quotes by name"));
+        let mut flat = Vec::new();
+        for (a, p) in call.args.iter().zip(&params) {
+            args::flatten(a, p, &mut flat).map_err(refused)?;
         }
-        let literals = call.args.iter().zip(&params).map(|(a, p)| literal(a, p));
-        let literals: Vec<_> = literals.collect::<Option<_>>().ok_or_else(|| {
-            refused("a literal macro argument of another primitive type than its parameter")
-        })?;
         let mut host = self.host(&mut lent, (call.owner, call.expansion), annotations);
         (host.typer.searched, host.typer.while_typing) = (call.searched.clone(), call.while_typing);
-        let args: Vec<vm::MacroArg> = call
-            .args
-            .iter()
-            .zip(literals)
-            .map(|(a, lit)| match *a {
-                MacroArg::Expr(t) => vm::MacroArg::Expr(host.add_tree(t)),
-                MacroArg::Type(t) => vm::MacroArg::Type(host.add_type(t)),
-                MacroArg::Quotes => vm::MacroArg::Quotes,
-                MacroArg::Literal(_) => lit.expect("a literal macro argument"),
-            })
-            .collect();
+        let args = args::numbered(flat, &mut host);
         let (host, result) = self.vm.expand_macro(host, (&module, &sig), &args);
         self.finish(lent, host, result.map(|r| vec![r]))
     }
@@ -121,6 +110,9 @@ impl VmMacros<'_> {
     ) -> Result<Expanded, MacroError> {
         let refused = |what: &str| MacroError::Unsupported(what.to_owned());
         let mut host: Box<Host> = (host as Box<dyn std::any::Any>).downcast().expect("the macro's host");
+        if let Err(why) = host.call_parents() {
+            host.refusal.get_or_insert_with(|| why.to_owned());
+        }
         host.restore((lent.0, lent.1, lent.2));
         *lent.3 = std::mem::take(&mut host.fresh);
         self.sources = std::mem::take(&mut host.sources);
@@ -144,38 +136,6 @@ impl VmMacros<'_> {
             (Err(e), None) => Err(refused(&format!("a macro implementation the VM cannot run: {e}"))),
         }
     }
-}
-
-/// Argument `a` as the VM passes it to a parameter erased to `param` if it is a literal: unboxed
-/// to a primitive of its type, else boxed by the descriptor letter of its type (dotty's
-/// `interpretLiteral`); `None` for a primitive of another type.
-fn literal(a: &MacroArg, param: &Erased) -> Option<Option<vm::MacroArg>> {
-    let MacroArg::Literal(c) = a else { return Some(None) };
-    let (tag, bits, text) = match c {
-        Constant::Unit => (b'V', 0, None),
-        &Constant::Boolean(b) => (b'Z', b as u64, None),
-        &Constant::Byte(n) => (b'B', n as u8 as u64, None),
-        &Constant::Short(n) => (b'S', n as u16 as u64, None),
-        &Constant::Char(n) => (b'C', n as u64, None),
-        &Constant::Int(n) => (b'I', n as u32 as u64, None),
-        &Constant::Long(n) => (b'J', n as u64, None),
-        &Constant::Float(x) => (b'F', x.to_bits() as u64, None),
-        &Constant::Double(x) => (b'D', x.to_bits(), None),
-        Constant::String(units) => (b'T', 0, Some(String::from_utf16_lossy(units))),
-        Constant::Null => (b'N', 0, None),
-    };
-    Some(Some(match *param {
-        Erased::Prim(p) if p as u8 == tag.to_ascii_lowercase() => vm::MacroArg::Unboxed(bits),
-        Erased::Prim(_) => return None,
-        _ => vm::MacroArg::Literal(tag, bits, text),
-    }))
-}
-
-/// Signature `sig` of a macro implementation whose result is a context function of the `Quotes`
-/// as dotty's erasure gives it: the `Quotes` its last parameter (`ContextFunctionResults`).
-fn quotes_last(sig: &str) -> Option<String> {
-    let sig = sig.strip_suffix("L15scala.Function1EO")?;
-    Some(format!("{sig}L19scala.quoted.QuotesL17scala.quoted.ExprEO"))
 }
 
 const STOP: &str = "scala.quoted.runtime.StopMacroExpansion";

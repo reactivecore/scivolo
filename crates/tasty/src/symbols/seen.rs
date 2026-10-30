@@ -12,8 +12,8 @@ impl Universe {
     /// `t`, a type in class `owner`, as seen from `prefix`, from its `this` for a `super`: the
     /// `this` of `owner`, of its base classes and of its enclosing classes replaced by `prefix`
     /// or the prefix `prefix` gives them, the type parameters of `owner` by the arguments
-    /// `prefix` gives them, one a wildcard by the parameter selected on a value path `prefix`
-    /// (dotty's `argForParam`).
+    /// `prefix` gives them, one a wildcard by the parameter selected on `prefix` (dotty's
+    /// `argForParam`).
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
         let prefix = match *self.types().get(prefix) {
             Type::Super(this, _) => this,
@@ -34,7 +34,7 @@ impl Universe {
                 };
                 let seen = u.base_type(prefix, c)?;
                 let arg = *u.applied(seen)?.1.get(i)?;
-                if !matches!(u.types().get(arg), Type::Bounds(..)) || !u.is_value_path(prefix) {
+                if !matches!(u.types().get(arg), Type::Bounds(..)) {
                     return Some(arg);
                 }
                 let param = u.type_params(c)[i];

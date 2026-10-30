@@ -52,6 +52,9 @@ fn copy_node(l: &mut Lower, m: &Copier, t: TNodeId) -> TNodeId {
     if l.inlined_blocks.contains(&t) {
         l.inlined_blocks.insert(copy);
     }
+    if l.tpd.is_backquoted(t) {
+        l.tpd.mark_backquoted(copy);
+    }
     tpd::map_children(l, copy, &mut |l, c| copy_node(l, m, c));
     copy
 }

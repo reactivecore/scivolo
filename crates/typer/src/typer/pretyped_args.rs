@@ -37,7 +37,10 @@ impl Typer<'_> {
                     self.common_formal(f, i, alts, prefix)?.map(|p| self.typed_unmapped(a, Pt::Type(p), ctx))
                 }
                 (None, None) if self.is_sequence_arg(a) => Some(self.sequence_arg(a, None, ctx)),
-                (None, inner) => Some(self.typed_unmapped(inner.unwrap_or(a), Pt::Any, ctx)),
+                (None, inner) => {
+                    let arg = inner.unwrap_or_else(|| self.unblocked_all(a));
+                    Some(self.typed_unmapped(arg, Pt::Any, ctx))
+                }
             });
         }
         self.protos[proto].typed = Some(typed.clone());

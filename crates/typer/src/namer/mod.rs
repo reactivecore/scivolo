@@ -19,6 +19,7 @@ mod forwarders;
 mod inheritance;
 mod inherited;
 mod inline_checks;
+mod module_vals;
 mod params;
 mod provisional;
 mod split_companions;
@@ -151,14 +152,15 @@ impl Typer<'_> {
         Some(sym)
     }
 
-    /// Removes the TASTy members of package `package` that a unit's member `name` replaces: those
-    /// of that name and of its companion's (dotty's `isDefinedInCurrentRun`), not the JDK classes
-    /// a name Scala Native gives them stands for.
+    /// Removes the TASTy members and the Scala library's Java classes of package `package` that a
+    /// unit's member `name` replaces: those of that name and of its companion's (dotty's
+    /// `isDefinedInCurrentRun`), not the JDK classes a name Scala Native gives them stands for.
     fn unenter_classpath_members(&mut self, package: SymbolId, name: &str) {
         let base = name.strip_suffix('$').unwrap_or(name);
         for n in [base.to_owned(), format!("{base}$")] {
             for d in self.u.decl(package, &n).unwrap_or_default() {
-                if self.u.symbol(d).tree.is_some() && self.u.symbol(d).name == n {
+                let classpath = self.u.symbol(d).tree.is_some() || self.u.is_library_java_stub(d);
+                if classpath && self.u.symbol(d).name == n {
                     self.u.unenter(d);
                 }
             }

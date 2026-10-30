@@ -81,7 +81,9 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
   given ClosureTypeTest: TypeTest[Tree, Closure] = kind(20)
 
   object Closure extends ClosureModule {
-    def apply(meth: Term, tpe: Option[TypeRepr]): Closure = refused("Closure.apply")
+    def apply(meth: Term, tpe: Option[TypeRepr]): Closure =
+      if (tpe.nonEmpty) refused("Closure.apply of a type")
+      else ReflectOps.term(ReflectOps.one("closureOf", ReflectOps.id(meth))).asInstanceOf[Closure]
     def copy(original: Tree)(meth: Tree, tpe: Option[TypeRepr]): Closure = {
       val tpt = ReflectOps.opt(ReflectOps.shape(original).children(1))
       val same = (tpe, tpt) match {

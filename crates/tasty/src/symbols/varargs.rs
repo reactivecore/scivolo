@@ -29,10 +29,13 @@ const VARARGS: [(&str, &str, usize); 19] = [
 
 impl Universe {
     /// Method type `t` of `def`, its last array parameter marked repeated if the JDK declares it
-    /// as varargs.
+    /// as varargs and the class may be the JDK's.
     pub fn with_java_varargs(&mut self, def: SymbolId, t: TypeId) -> TypeId {
         let s = self.symbol(def);
         let Some(owner) = s.owner.filter(|_| s.kind == Kind::Def) else { return t };
+        if !self.may_be_java(owner) {
+            return t;
+        }
         let (name, class) = (s.name.clone(), self.full_name(owner));
         let class = super::module_name(&class).unwrap_or(&class);
         let counts: Vec<usize> =

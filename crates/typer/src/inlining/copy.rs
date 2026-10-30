@@ -117,6 +117,9 @@ impl<'a> Inlining<'a> {
         let is_class_def =
             matches!(tree, T::TypeDef { rhs, .. } if matches!(self.tpd.tree(rhs), T::Template { .. }));
         let copy = self.tpd.node(tree, span, tpe, sym);
+        if self.tpd.is_backquoted(t) {
+            self.tpd.mark_backquoted(copy);
+        }
         self.host.copied_call(t, copy);
         let mut failed = None;
         map_children(self, copy, &mut |i, c| match i.copy(m, c, hook) {

@@ -168,6 +168,7 @@ mod report;
 mod retained;
 mod right_assoc;
 mod sam_closures;
+mod sam_method_values;
 mod sams;
 mod scope_bindings;
 pub(crate) mod seen_from;
@@ -332,6 +333,9 @@ pub struct Typer<'a> {
     pub poly_closures: FxHashMap<NodeId, Option<(tasty::Binder, Vec<String>)>>,
     /// The parameters of context closures named after an expected `apply`'s, not in scope.
     pub hidden_params: FxHashSet<NodeId>,
+    /// The classes with macro annotations, their `this` types and spans, checked for unimplemented
+    /// members once the annotations expanded.
+    pub macro_annotated: Vec<(SymbolId, tasty::TypeId, Span)>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
@@ -410,6 +414,7 @@ impl<'a> Typer<'a> {
             dynamic_lhs: None,
             poly_closures: FxHashMap::default(),
             hidden_params: FxHashSet::default(),
+            macro_annotated: Vec::new(),
             depth: 0,
             file_starts: Vec::new(),
             macros: None,

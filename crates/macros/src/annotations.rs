@@ -1,7 +1,7 @@
 //! The instance of a macro annotation the VM makes for its expansion (dotty's
 //! `MacroAnnotations.callMacro` interpreting `new annot(..)`).
 
-use crate::literal;
+use crate::args::literal;
 use tasty::Universe;
 use typer::inlining::{MacroArg, MacroError};
 use typer::tpd::{TNodeId, Tpd, Tree as T};

@@ -23,9 +23,9 @@ impl Expansion<'_, '_> {
         let cls = self.i.u.symbol(meth).owner.ok_or(self.err("inline method"))?;
         let prefix = match *self.i.tpd.tree(fun) {
             T::Select { qualifier, .. } => Some(qualifier),
-            _ => None,
+            _ => self.ident_prefix(fun),
         };
-        let impure = prefix.is_some_and(|q| !self.i.is_idempotent_expr(q));
+        let impure = prefix.is_some_and(|q| !self.i.pure().is_idempotent_expr(q));
         if self.i.is_static_owner(cls) {
             return if impure { Err(self.err("inline call of an impure prefix")) } else { Ok(Vec::new()) };
         }
@@ -64,7 +64,7 @@ impl Expansion<'_, '_> {
         if !elided && (uses || impure) {
             proxies.push((cls, self.bind_class_this(cls, q, qt)?));
         }
-        let pure = !proxies.is_empty() || self.i.is_pure_expr(q);
+        let pure = !proxies.is_empty() || self.i.pure().is_pure_expr(q);
         let last = proxies.first().map(|&(_, p)| p);
         proxies.extend(self.bind_outer_this((cls, q, qt), &outers, last, pure)?);
         Ok(proxies)
@@ -73,7 +73,7 @@ impl Expansion<'_, '_> {
     /// The proxy of the `this` of class `cls` for call prefix `q` of type `qt`, bound first.
     fn bind_class_this(&mut self, cls: SymbolId, q: TNodeId, qt: TypeId) -> Result<SymbolId, Unsupported> {
         let stable = match *self.i.u.types().get(qt) {
-            Type::Sym(_, s) => self.i.u.symbol(s).kind.is_term() && self.i.is_stable_member(s),
+            Type::Sym(_, s) => self.i.u.symbol(s).kind.is_term() && self.i.pure().is_stable_member(s),
             Type::This(_) => true,
             _ => false,
         };
@@ -86,7 +86,7 @@ impl Expansion<'_, '_> {
         let module = widened_cls.filter(|&c| self.i.u.is_module_class(c) && self.i.is_static_owner(c));
         let module = module.and_then(|c| self.i.u.source_module(c));
         let term_ref = matches!(self.i.u.types().get(qt), Type::Sym(..));
-        let pure_ref = if stable && term_ref && self.i.is_pure_expr(q) {
+        let pure_ref = if stable && term_ref && self.i.pure().is_pure_expr(q) {
             self.i.singleton(qt, point)
         } else if let Some(m) = module {
             let tpe = crate::defn::type_ref(self.i.u, m);

@@ -93,7 +93,7 @@ executables. A library macro runs from its NIR in the VM; its quotes are unpickl
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
 `Quotes` is refused by name. Macro annotations expand in the inlining (ADR 0039). Circe
 0.14.10's `derives Codec.AsObject`, sourcecode 0.4.4, fastparse 3.1.1, mainargs 0.7.8, upickle,
-pprint and os-lib work. dotty's `tests/run-macros`: 238 of 321 pass (2026-10-30,
+pprint and os-lib work. dotty's `tests/run-macros`: 273 of 321 pass (2026-10-30,
 `just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
@@ -123,7 +123,10 @@ slower meanwhile:
    i16065 (#166); named tuples, XXL tuples, named and higher-kinded type arguments (#139);
    mirrors through refined paths, match-type reduction through them, `codeOf` (#129, #120).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the run-macros refusals,
-   measured on `tests/run-macros`. Done 2026-10-30: `TypeReprStructure` of packages,
+   measured on `tests/run-macros`. Done 2026-10-30: reflect printers and `toString`, the type
+   and method-type API, `newClass` with `conMethodType`, `ClassDef` printing and
+   `TreeAnsiCode`, transparent macros, macro varargs and by-name arguments (273 of 321 pass);
+   `TypeReprStructure` of packages,
    `TreeStructure` of `Return` and `ClassDef`, curried, dependent and polymorphic higher-order
    holes, local classes from macro annotations (#185). Done 2026-10-26: reflect tree and type operations, TreeMap/ExprMap,
    `typeChecks` (ADR 0053). Done 2026-10-24: macro
@@ -164,6 +167,9 @@ slower meanwhile:
    2026-10-30: clib and posixlib complete and pass Scala Native's unit tests on our jars (`just
    lib-jar-report`); nativelib lowers 101 of 103, clib 21, posixlib 67, windowslib 34, javalib
    556 of 601, auxlib 7 of 15.
+   2026-10-30 afternoon: closures against callee and SAM types, outer `this`, JDK stubs as Java
+   classes; javalib lowers 591 of 601, auxlib 15 of 15, nativelib 102 of 103, clib 21, posixlib
+   67, windowslib 34.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs

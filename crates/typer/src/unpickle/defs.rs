@@ -31,6 +31,18 @@ impl Unpickler<'_> {
         }
     }
 
+    /// The annotation terms of the definition at `id`.
+    pub fn annotations(&mut self, id: NodeId) -> Result<Vec<TNodeId>, Refusal> {
+        let mods = match view(self.ast(), id) {
+            View::DefDef { parts: tasty::Parts { mods, .. }, .. }
+            | View::ValDef { mods, .. }
+            | View::TypeDef { mods, .. } => mods.to_vec(),
+            _ => return Err("the annotations of a definition of another kind"),
+        };
+        let annotations = mods.into_iter().filter(|&m| self.tag(m) == ANNOTATION);
+        annotations.collect::<Vec<_>>().into_iter().map(|m| self.term(self.kids(m)[1])).collect()
+    }
+
     /// The definition at `id` of method `sym`, which owns the locals of its body.
     fn def_def(&mut self, id: NodeId, sym: SymbolId) -> Result<TNodeId, Refusal> {
         let View::DefDef { parts, .. } = view(self.ast(), id) else {

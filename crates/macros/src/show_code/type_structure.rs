@@ -98,14 +98,36 @@ impl Host {
             Type::Method { params, result, .. } => self.lambda(out, "MethodType", &params, result)?,
             Type::Poly { params, result, .. } => self.lambda(out, "PolyType", &params, result)?,
             Type::Lambda { params, result, .. } => self.lambda(out, "TypeLambda", &params, result)?,
+            Type::Annotated(inner, annot) if self.is_synthetic_annotation(annot) => {
+                out.push_str("AnnotatedType(");
+                self.visit_type(inner, out)?;
+                out.push_str(", Apply(Select(New(Inferred()), \"<init>\"), Nil))");
+            }
             _ => return Err(STRUCTURE),
         }
         Ok(())
     }
 
-    /// The `TermRef` of package `p` (dotty's `p.termRef`, whose prefix is the owner's `this`).
+    /// Whether `annot` is the class of an annotation the compiler adds, of `scala.annotation.internal`,
+    /// whose constructor takes no arguments.
+    fn is_synthetic_annotation(&mut self, annot: TypeId) -> bool {
+        let Some(c) = self.u.class_symbol(annot) else { return false };
+        let internal =
+            self.u.symbol(c).owner.is_some_and(|o| self.u.full_name(o) == "scala.annotation.internal");
+        let Some(init) = self.primary_constructor(c).filter(|_| internal) else { return false };
+        let info = self.u.info(init);
+        matches!(self.u.types().get(info), Type::Method { params, result, .. }
+            if params.is_empty() && !matches!(self.u.types().get(*result), Type::Method { .. }))
+    }
+
+    /// The `TermRef` of package `p` (dotty's `p.termRef`, whose prefix is the owner's `this`); the
+    /// root's as the empty package's `this`.
     fn package_ref(&mut self, p: SymbolId, out: &mut String) -> Result<(), &'static str> {
-        let owner = self.u.symbol(p).owner.filter(|_| p != self.u.root()).ok_or(STRUCTURE)?;
+        if p == self.u.root() {
+            out.push_str(&package_this("<empty>"));
+            return Ok(());
+        }
+        let owner = self.u.symbol(p).owner.ok_or(STRUCTURE)?;
         let owner = match owner == self.u.root() {
             true => "<root>",
             false => &self.u.symbol(owner).name,

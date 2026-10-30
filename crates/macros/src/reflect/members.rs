@@ -23,7 +23,8 @@ impl Host {
         fields.collect()
     }
 
-    pub fn companion_class(&mut self, s: SymbolId) -> Option<SymbolId> {
+    pub fn companion_class(&mut self, s: Option<SymbolId>) -> Option<SymbolId> {
+        let s = s?;
         match self.u.symbol(s).kind {
             Kind::Package => None,
             _ if self.u.is_module(s) => self.u.module_class(s).and_then(|c| self.u.companion_class(c)),
@@ -44,7 +45,8 @@ impl Host {
     }
 
     /// `Symbol.paramSymss`: the number of clauses, their sizes and the parameters, a method's
-    /// clauses of type and value parameters, none for other symbols.
+    /// clauses of type and value parameters, none for other symbols; a secondary constructor
+    /// shares the type parameters of the primary one.
     pub fn param_symss(&mut self, s: SymbolId) -> Fallible<Vec<i32>> {
         if self.u.symbol(s).kind != Kind::Def {
             return Ok(vec![0]);
@@ -59,6 +61,15 @@ impl Host {
         }
         let mut params = self.u.symbol(s).decls.clone();
         params.retain(|&p| matches!(self.u.symbol(p).kind, Kind::Param | Kind::TypeParam));
+        let constructor = self.u.symbol(s).name == "<init>";
+        let primary =
+            self.u.symbol(s).owner.filter(|_| constructor).and_then(|c| self.primary_constructor(c));
+        let primary = primary.filter(|&p| p != s);
+        if let Some(primary) = primary.filter(|_| sizes.iter().sum::<usize>() > params.len()) {
+            let mut shared = self.u.symbol(primary).decls.clone();
+            shared.retain(|&p| self.u.symbol(p).kind == Kind::TypeParam);
+            params.splice(0..0, shared);
+        }
         if sizes.iter().sum::<usize>() != params.len() {
             return Err("Symbol.paramSymss of a method whose parameters the frontend lacks");
         }
@@ -67,11 +78,18 @@ impl Host {
     }
 
     /// The methods of class `s` and its base classes named `name` if given but for constructors,
-    /// a member overridden by one of an earlier class, method or value, left out.
+    /// a member overridden by one of an earlier class, method or value, left out; those of the
+    /// class of its type for a value.
     fn methods_of(&mut self, s: SymbolId, name: Option<&str>) -> Fallible<Vec<SymbolId>> {
-        let class = match self.u.is_module(s) {
-            true => self.u.module_class(s),
-            false => self.u.is_class(s).then_some(s),
+        let class = match self.u.symbol(s).kind {
+            _ if self.u.is_module(s) => self.u.module_class(s),
+            _ if self.u.is_class(s) => Some(s),
+            Kind::Val | Kind::Param => {
+                let info = self.u.info(s);
+                let info = self.u.widen(info);
+                self.u.class_symbol(info).filter(|&c| self.u.is_class(c))
+            }
+            _ => None,
         };
         let class = class.ok_or("Symbol.methodMembers of a symbol that is no class or object")?;
         let site = self.u.this_type(class);

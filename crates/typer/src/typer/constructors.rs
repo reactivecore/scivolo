@@ -24,7 +24,9 @@ impl Typer<'_> {
         };
         if let Type::Sym(_, s) = *self.u.types().get(tycon)
             && self.u.symbol(s).kind == Kind::Type
-            && !self.u.symbol(s).owner.is_some_and(|o| self.is_static_owner(o))
+            && let Some(owner) = self.u.symbol(s).owner
+            && self.u.symbol(owner).kind == Kind::Class
+            && !self.is_static_owner(owner)
         {
             return self.unsupported(id, "new of a type alias of a non-static owner");
         }
@@ -73,6 +75,7 @@ impl Typer<'_> {
             Type::Sym(Some(p), _) if !matches!(self.u.types().get(p), Type::Package(_)) => Some(p),
             _ => None,
         };
+        let binder = self.u.fresh_binder();
         let mut params = Vec::new();
         for &p in &tparams {
             self.complete(p);
@@ -80,6 +83,16 @@ impl Typer<'_> {
                 Some(prefix) => self.u.member_info(prefix, p),
                 None => self.u.info(p),
             };
+            let info = self.u.map_type(info, &mut |u, part| {
+                let Type::Sym(q, s) = *u.types().get(part) else { return None };
+                let i = tparams.iter().position(|&p| p == s)?;
+                let own = match q.map(|q| u.types().get(q)) {
+                    None => true,
+                    Some(&Type::This(t)) => u.class_symbol(t) == Some(c),
+                    Some(_) => false,
+                };
+                own.then(|| u.intern_type(Type::Param(binder, i as u32)))
+            });
             let mut dependent = false;
             self.u.map_type(info, &mut |u, part| {
                 dependent |= match *u.types().get(part) {
@@ -94,7 +107,6 @@ impl Typer<'_> {
             }
             params.push((self.u.symbol(p).name.clone(), info));
         }
-        let binder = self.u.fresh_binder();
         let args = (0..params.len()).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
         let result = self.u.intern_type(Type::Applied(class, args));
         Ok(self.u.intern_type(Type::Lambda { binder, params, result }))

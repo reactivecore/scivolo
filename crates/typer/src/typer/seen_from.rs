@@ -37,10 +37,6 @@ impl Typer<'_> {
             None => self.u.info(s),
         };
         let info = self.resolve_class_params(info);
-        let info = match seen_from_prefix {
-            Some(p) => self.wildcard_params(info, p),
-            None => info,
-        };
         let info = self.effective_constructor_info(s, info, prefix);
         Some(self.with_repeated_class(info))
     }
@@ -81,14 +77,11 @@ impl Typer<'_> {
 }
 
 /// `t` with each type parameter of a class `C` selected on a prefix other than `this` replaced by
-/// the argument the prefix's base type `C[..]` gives it, a wildcard's only if the prefix is no
-/// stable path, then normalized.
+/// the argument other than a wildcard the prefix's base type `C[..]` gives it, then normalized.
 pub fn resolve_class_params(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     let t = u.map_type(t, &mut |u, part| {
         let arg = class_param_arg(u, part)?;
-        let Type::Sym(Some(pre), _) = *u.types().get(part) else { return None };
-        let wildcard = matches!(u.types().get(arg), Type::Bounds(..));
-        (!wildcard || !super::stability::is_stable_path(u, pre)).then_some(arg)
+        (!matches!(u.types().get(arg), Type::Bounds(..))).then_some(arg)
     });
     normalized(u, t)
 }

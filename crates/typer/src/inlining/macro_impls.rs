@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/Splicer.scala
 //! The macro implementation a splice calls: a method of a static object, possibly inherited,
-//! and whether its result is a context function of the `Quotes` the splice applies.
+//! and how many context functions of the `Quotes` the splice applies to its result.
 
 use super::macros::{MacroArg, MacroCall};
 use super::{Inlining, Unsupported};
@@ -42,12 +42,12 @@ impl Inlining<'_> {
             }
             t = self.unwrapped(expr);
         }
-        let (mut clauses, mut context) = (Vec::new(), false);
+        let (mut clauses, mut context) = (Vec::new(), 0);
         loop {
             match *self.tpd.tree(t) {
-                T::Apply { fun, args } if clauses.is_empty() && !context => {
+                T::Apply { fun, args } if clauses.is_empty() => {
                     match self.context_function(fun, args, quotes) {
-                        Some(f) => (context, t) = (true, f),
+                        Some(f) => (context, t) = (context + 1, f),
                         None => {
                             clauses.push(self.tpd.items(args).to_vec());
                             t = fun;
@@ -63,8 +63,10 @@ impl Inlining<'_> {
             }
         }
         let (method, receiver) = self.macro_method(t).ok_or(refused)?;
+        let erased = self.erased_params(method);
         let mut args = Vec::new();
-        for arg in clauses.into_iter().rev().flatten() {
+        let clauses = clauses.into_iter().rev().flatten();
+        for (arg, _) in clauses.zip(erased.into_iter().chain(std::iter::repeat(false))).filter(|a| !a.1) {
             let refused = (self.tpd.span(arg), "a macro argument other than a quote, a type or the Quotes");
             let arg = match *self.tpd.tree(arg) {
                 T::NamedArg { arg, .. } => arg,
@@ -76,19 +78,10 @@ impl Inlining<'_> {
                 }
                 _ => arg,
             };
-            args.push(match self.macro_arg(arg, quotes).ok_or(refused)? {
-                MacroArg::Expr(body) => {
-                    let body = self.reduced_projections(body)?;
-                    let body = self.constant_arg(body);
-                    MacroArg::Expr(self.outer_inlined(body))
-                }
-                MacroArg::Type(t) => MacroArg::Type(crate::typer::simplify::normalize_all(self.u, t)),
-                arg => arg,
-            });
+            let arg = self.macro_arg(arg, quotes).ok_or(refused)?;
+            args.push(self.prepared_arg(arg)?);
         }
-        if context {
-            args.push(MacroArg::Quotes);
-        }
+        args.extend((0..context).map(|_| MacroArg::Quotes));
         let expansion = self.outermost_span;
         let while_typing = self.transparent_only;
         Ok(MacroCall {
@@ -129,7 +122,7 @@ impl Inlining<'_> {
     }
 
     /// The function `fun` applied to the splice's `Quotes` `quotes` in `args` calls `apply` on,
-    /// if it is a context function of them, not taken by name.
+    /// if it is a context function of them.
     pub fn context_function(&mut self, fun: TNodeId, args: List, quotes: SymbolId) -> Option<TNodeId> {
         let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return None };
         let args = self.tpd.items(args);
@@ -139,15 +132,22 @@ impl Inlining<'_> {
             |a: &TNodeId| self.tpd.sym(*a) == Some(quotes) && matches!(self.tpd.tree(*a), T::Ident { .. });
         let context =
             self.u.symbol(apply).name == "apply" && self.u.full_name(class) == "scala.ContextFunction1";
-        if !context || !matches!(args, [a] if is_quotes(a)) {
-            return None;
+        (context && matches!(args, [a] if is_quotes(a))).then_some(qualifier)
+    }
+
+    /// Whether each parameter of method `m`, through all its clauses, is erased (dotty's
+    /// `paramErasureStatuses`).
+    fn erased_params(&mut self, m: SymbolId) -> Vec<bool> {
+        let (mut t, mut erased) = (self.u.info(m), Vec::new());
+        loop {
+            if let Type::Poly { result, .. } = *self.u.types().get(t) {
+                t = result;
+            }
+            let Some(binding) = self.u.method(t) else { return erased };
+            let (params, result) = (binding.param_types(), binding.result);
+            erased.extend(params.into_iter().map(|p| self.u.is_erased_param(p)));
+            t = result;
         }
-        let f = self.u.widen(self.tpd.tpe(qualifier));
-        let f = self.u.dealias(f);
-        let types = self.u.types();
-        let by_name = matches!(types.get(f), Type::Applied(_, targs)
-            if targs.first().is_some_and(|&a| matches!(types.get(a), Type::ByName(_))));
-        (!by_name).then_some(qualifier)
     }
 
     fn is_static_object(&self, c: SymbolId) -> bool {

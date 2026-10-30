@@ -33,13 +33,13 @@ impl Reducer<'_, '_> {
         let tpe = self.i.tpd.tpe(scrutinee);
         let local =
             matches!(*self.i.u.types().get(tpe), Type::Sym(None, s) if self.i.u.symbol(s).kind.is_term());
-        let (scrut, binding) = if local && self.i.is_pure_expr(scrutinee) {
+        let (scrut, binding) = if local && self.i.pure().is_pure_expr(scrutinee) {
             (tpe, None)
         } else {
             let s = self.new_val("$scrutinee", scrut_type);
             if self.refers_to_erased(scrutinee) {
                 self.erase(s);
-                if !self.i.is_pure_expr(scrutinee) {
+                if !self.i.pure().is_pure_expr(scrutinee) {
                     self.unusable.insert(s);
                 }
             }

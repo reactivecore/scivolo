@@ -41,6 +41,8 @@ pub type Reflected = (Vec<i32>, Option<String>);
 
 /// An argument of a macro implementation; a literal boxed by the JVM descriptor letter of its
 /// type (`T` a string, `N` null), its value's bits and its text, or a primitive's bits unboxed.
+/// The arguments after `Varargs(n)` are the `n` elements of a `Seq`, the one after `ByName` the
+/// value of a `Function0`.
 #[derive(Clone)]
 pub enum MacroArg {
     Expr(u32),
@@ -48,6 +50,17 @@ pub enum MacroArg {
     Quotes,
     Literal(u8, u64, Option<String>),
     Unboxed(u64),
+    Varargs(u32),
+    ByName,
+}
+
+/// The index of the argument after argument `i` of `args` and the arguments it holds.
+pub fn after(args: &[MacroArg], i: usize) -> usize {
+    match args.get(i) {
+        Some(&MacroArg::Varargs(n)) => (0..n).fold(i + 1, |j, _| after(args, j)),
+        Some(MacroArg::ByName) => after(args, i + 1),
+        _ => i + 1,
+    }
 }
 
 /// The macro expansions of a VM: the one running, if one is, with its host and arguments, and
@@ -85,7 +98,13 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
                 Some(&MacroArg::Type(n)) => !n as u64,
                 Some(MacroArg::Quotes) | None => i32::MIN as u32 as u64,
                 Some(MacroArg::Literal(..) | MacroArg::Unboxed(_)) => (i32::MIN + 1) as u32 as u64,
+                Some(MacroArg::Varargs(_)) => (i32::MIN + 2) as u32 as u64,
+                Some(MacroArg::ByName) => (i32::MIN + 3) as u32 as u64,
             })
+        },
+        (HOST, "D12elementCountiiEO") => |vm, args| match macro_arg(vm, args[1]) {
+            Some(&MacroArg::Varargs(n)) => Ok(n as u64),
+            _ => Ok(0),
         },
         (HOST, "D10literalTagiiEO") => |vm, args| match macro_arg(vm, args[1]) {
             Some(&MacroArg::Literal(tag, ..)) => Ok(tag as u64),

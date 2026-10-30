@@ -107,7 +107,8 @@ impl<'t, 'a> Translator<'t, 'a> {
             owner,
             result_label: owner,
         };
-        let tpe = t.l.tpd.tpe(m);
+        let tpe = crate::phases::by_name::by_name_result(t.l, t.l.tpd.tpe(m));
+        t.l.tpd.get_mut(m).tpe = Some(tpe);
         t.result_label = t.label("matchResult", tpe);
         t
     }

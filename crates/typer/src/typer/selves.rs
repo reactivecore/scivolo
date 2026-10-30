@@ -140,6 +140,27 @@ impl Typer<'_> {
         Ok(())
     }
 
+    /// The type parameter `name` of class `cls` with a given self type whose members named `name`
+    /// are type parameters of other classes, which `cls.this` cannot access (dotty's `isHidden`
+    /// in `Denotation.meet`).
+    pub fn own_type_param_over_self(&mut self, cls: SymbolId, name: &str) -> Vec<SymbolId> {
+        let Some(given) = self.u.given_self_type(cls) else { return Vec::new() };
+        let own: Vec<SymbolId> = self.u.decl(cls, name).unwrap_or_default();
+        let own: Vec<SymbolId> =
+            own.into_iter().filter(|&p| self.u.symbol(p).kind == Kind::TypeParam).collect();
+        if own.is_empty() {
+            return own;
+        }
+        let others = self.type_members(given, name);
+        let hidden = |u: &tasty::Universe, s: SymbolId| {
+            let o = u.symbol(s).owner;
+            u.symbol(s).kind == Kind::TypeParam
+                && o != Some(cls)
+                && o.is_some_and(|o| u.symbol(o).kind == Kind::Class)
+        };
+        if others.iter().all(|&s| hidden(self.u, s)) { own } else { Vec::new() }
+    }
+
     /// The self symbol of class `cls` if `name` names it (dotty's `denotNamed` in `inClassContext`).
     pub fn self_named(&self, cls: SymbolId, name: &str) -> Option<SymbolId> {
         self.syms.selves.get(&cls).copied().filter(|&s| self.u.symbol(s).name == name)

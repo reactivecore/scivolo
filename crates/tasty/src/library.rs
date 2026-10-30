@@ -67,6 +67,14 @@ impl Library {
         Cow::Owned(package_table(&names))
     }
 
+    /// The index of the jar `path` is read from, `None` in an image.
+    pub fn jar_of(&self, path: &str) -> Option<usize> {
+        match self {
+            Library::Jars { files, .. } => files.get(path).copied(),
+            Library::Image(_) => None,
+        }
+    }
+
     /// The bytes of `path`, e.g. `scala/Option.tasty`, and the symbol table an image keeps of it.
     pub fn read(&mut self, path: &str) -> io::Result<Contents> {
         match self {

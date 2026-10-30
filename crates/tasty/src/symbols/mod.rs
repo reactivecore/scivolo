@@ -38,7 +38,7 @@ mod variance;
 
 use crate::library::Library;
 use crate::subtype::Unions;
-use crate::types::{TypeId, Types};
+use crate::types::{Binder, TypeId, Types};
 use crate::{Ast, NodeId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::io;
@@ -47,7 +47,7 @@ pub use bodies::BodyInfo;
 pub use builtin::{ANY, Builtins, NOTHING};
 pub use companions::{module_class_name, module_name};
 pub use function_classes::MAX_IMPLEMENTED_ARITY;
-pub use jdk::defined_name;
+pub use jdk::{defined_name, jdk_name};
 pub use lookup::{decode, encode};
 pub use packages::{PACKAGE_TABLE, package_table, package_table_version};
 pub use predicates::is_package_object_name;
@@ -80,6 +80,9 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
+    /// The Java classes of the Scala library entered without TASTy, their objects and objects'
+    /// classes.
+    java_stubs: FxHashSet<SymbolId>,
     /// The given self type of each class whose self type was asked for or set.
     self_types: FxHashMap<SymbolId, Option<TypeId>>,
     /// The annotation classes of the symbols defined outside TASTy.
@@ -96,11 +99,15 @@ pub struct Universe {
     opaque_lifts: u64,
     /// Whether the sources compiled are javalib's, whose TASTy classes are then Scala classes.
     javalib_sources: bool,
+    /// The index of the first jar whose classes stand for the JDK's when javalib's are compiled.
+    jdk_jars: usize,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,
     /// How many binders `fresh_binder` has made.
     binders: u32,
+    /// The declared variances of the type lambdas made outside TASTy that declare them.
+    lambda_variances: FxHashMap<Binder, Vec<i8>>,
     unions: Unions,
     /// How many steps comparisons have taken computing atoms and `Nothing`-ness.
     pub subtype_steps: u64,

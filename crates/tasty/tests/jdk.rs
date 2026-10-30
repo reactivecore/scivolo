@@ -32,6 +32,7 @@ fn jdk_classes_under_their_jdk_names() {
     let Some(mut u) = with_javalib() else { return };
     let string = class(&mut u, "java.lang", "String");
     assert_eq!(u.full_name(string), "java.lang.String");
+    assert_eq!(class(&mut u, "java.lang", "_String"), string);
     assert!(!u.member(string, "length").is_empty());
     let object = class(&mut u, "java.lang", "Object");
     assert_eq!(u.full_name(object), "java.lang.Object");
@@ -43,6 +44,15 @@ fn jdk_classes_under_their_jdk_names() {
     let array_list = class(&mut u, "java.util", "ArrayList");
     let list = class(&mut u, "java.util", "List");
     assert!(u.derives_from(array_list, list));
+}
+
+#[test]
+fn renamed_classes_are_referenced_in_their_jdk_package() {
+    let Some(mut u) = with_javalib() else { return };
+    let class = class(&mut u, "java.lang", "Class");
+    let component = u.member(class, "getComponentType")[0];
+    let info = u.info(component);
+    assert_eq!(u.show(info), "(): Class[>: scala.Nothing <: scala.Any]");
 }
 
 #[test]

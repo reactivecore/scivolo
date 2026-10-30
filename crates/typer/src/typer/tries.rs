@@ -93,7 +93,7 @@ impl Typer<'_> {
             let T::CaseDef { body, .. } = *self.tpd.tree(c) else { return self.unsupported(id, "case") };
             types.push(self.by_name_result(self.tpd.tpe(body)));
         }
-        let tpe = types.iter().fold(NOTHING, |acc, &t| self.u.lub(acc, t));
+        let tpe = types.iter().fold(NOTHING, |acc, &t| self.u.lub_in(acc, t, &mut self.constraint));
         let unit = crate::defn::type_ref(self.u, self.defn.unit);
         let finalizer = finalizer.map(|f| self.typed(f, Pt::Type(unit), ctx));
         let cases = self.tpd.list(typed_cases);
