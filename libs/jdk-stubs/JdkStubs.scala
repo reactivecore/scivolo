@@ -138,7 +138,9 @@ package java.nio.file {
 }
 
 package java.util {
-  final class Locale(language: String)
+  final class Locale(language: String) {
+    def getLanguage(): String = language
+  }
 
   object Locale {
     @static val ROOT: Locale = new Locale("")
