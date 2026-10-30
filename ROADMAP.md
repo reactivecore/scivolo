@@ -168,8 +168,8 @@ slower meanwhile:
    lib-jar-report`); nativelib lowers 101 of 103, clib 21, posixlib 67, windowslib 34, javalib
    556 of 601, auxlib 7 of 15.
    2026-10-30 afternoon: closures against callee and SAM types, outer `this`, JDK stubs as Java
-   classes; javalib lowers 591 of 601, auxlib 15 of 15, nativelib 102 of 103, clib 21, posixlib
-   67, windowslib 34.
+   classes, nio buffers; javalib lowers 594 of 601, auxlib 15 of 15, nativelib 102 of 103, clib
+   21, posixlib 67, windowslib 34.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
