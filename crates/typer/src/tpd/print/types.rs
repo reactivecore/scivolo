@@ -95,7 +95,8 @@ impl Printer<'_> {
         let n = d + 1;
         match self.u.types().get(t).clone() {
             Type::Sym(p, s)
-                if let Some(shown) = self.bound_param(s).filter(|_| is_static_prefix(self.u, p)) =>
+                if is_static_prefix(self.u, p)
+                    && let Some(shown) = self.bound_param(s) =>
             {
                 shown
             }

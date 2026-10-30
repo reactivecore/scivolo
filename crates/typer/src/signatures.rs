@@ -154,14 +154,14 @@ pub fn method_binders(u: &mut Universe, s: SymbolId, terms: bool) -> Vec<Binder>
     let mut info = u.info(s);
     let mut binders = Vec::new();
     loop {
-        match *u.types().get(info) {
-            Type::Poly { binder, result, .. } | Type::Method { binder, result, .. } => {
-                if terms == matches!(u.types().get(info), Type::Method { .. }) {
-                    binders.push(binder);
-                }
-                info = result;
-            }
+        let (binder, result, method) = match *u.types().get(info) {
+            Type::Poly { binder, result, .. } => (binder, result, false),
+            Type::Method { binder, result, .. } => (binder, result, true),
             _ => return binders,
+        };
+        if method == terms {
+            binders.push(binder);
         }
+        info = result;
     }
 }
