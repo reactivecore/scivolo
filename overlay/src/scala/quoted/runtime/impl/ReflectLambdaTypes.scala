@@ -44,8 +44,12 @@ trait ReflectLambdaTypes extends reflectModule { self: reflect.type =>
   }
 
   object PolyType extends PolyTypeModule {
-    def apply(paramNames: List[String])(paramBoundsExp: PolyType => List[TypeBounds], resultTypeExp: PolyType => TypeRepr): PolyType =
-      refused("PolyType.apply")
+    def apply(paramNames: List[String])(paramBoundsExp: PolyType => List[TypeBounds], resultTypeExp: PolyType => TypeRepr): PolyType = {
+      val placeholder = QuoteHost.tpe(ReflectOps.one("polyBinder")).asInstanceOf[PolyType]
+      val types = (paramBoundsExp(placeholder) ::: List(resultTypeExp(placeholder))).map(ReflectOps.id)
+      ReflectOps.run("polyType", (ReflectOps.id(placeholder) :: types).toArray, paramNames.mkString("\u0000"))
+      QuoteHost.tpe(QuoteHost.result(0)).asInstanceOf[PolyType]
+    }
     def unapply(x: PolyType): (List[String], List[TypeBounds], TypeRepr) = (x.paramNames, x.paramBounds, x.resType)
   }
 
@@ -85,7 +89,7 @@ trait ReflectLambdaTypes extends reflectModule { self: reflect.type =>
 
   abstract class PolyTypeMethodsImpl extends PolyTypeMethods {
     extension (self: PolyType) {
-      def param(idx: Int): TypeRepr = throw new Unsupported("PolyType.param")
+      def param(idx: Int): TypeRepr = QuoteHost.tpe(ReflectOps.one("polyParam", ReflectOps.id(self), idx)).asInstanceOf[TypeRepr]
       def paramBounds: List[TypeBounds] = TypeShapes.lambda(self)._1.drop(3).init.map(QuoteHost.tpe).asInstanceOf[List[TypeBounds]]
     }
   }

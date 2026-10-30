@@ -5,7 +5,9 @@
 
 use super::Reflect;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::tags::{FINAL, GIVEN, IMPLICIT, LAZY, LOCAL, MUTABLE, OVERRIDE, PRIVATE, PROTECTED, SYNTHETIC};
+use tasty::tags::{
+    FINAL, GIVEN, IMPLICIT, LAZY, LOCAL, MUTABLE, OVERRIDE, PRIVATE, PROTECTED, STATIC, SYNTHETIC,
+};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 /// The bit of `Flags.Method` among the flags of `quotes.reflect`.
@@ -13,7 +15,8 @@ const METHOD: u32 = 2;
 
 impl Reflect<'_> {
     /// `Symbol.newVal` and `Symbol.newMethod(owner, name, tpe, flags, _)` by `kind`, not entered
-    /// into its owner's declarations; a method of by-name type `=> T` has result type `T`.
+    /// into its owner's declarations; a method of by-name type `=> T` has result type `T`, a
+    /// static one is a member of a top-level class.
     pub fn new_term(
         &mut self,
         (owner, name, kind): (SymbolId, &str, Kind),
@@ -26,10 +29,17 @@ impl Reflect<'_> {
                 allowed.extend([LAZY, MUTABLE]);
                 (flags, info)
             }
-            _ => match *self.u.types().get(info) {
-                Type::ByName(result) => (flags & !(1 << METHOD), result),
-                _ => (flags & !(1 << METHOD), info),
-            },
+            _ => {
+                let in_package =
+                    self.u.symbol(owner).owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Package);
+                if self.u.is_class(owner) && in_package {
+                    allowed.push(STATIC);
+                }
+                match *self.u.types().get(info) {
+                    Type::ByName(result) => (flags & !(1 << METHOD), result),
+                    _ => (flags & !(1 << METHOD), info),
+                }
+            }
         };
         if flags & !allowed.iter().fold(0, |b, &t| b | 1u64 << t) != 0 {
             return Err("Symbol.newVal or Symbol.newMethod with flags other than modifiers of definitions");

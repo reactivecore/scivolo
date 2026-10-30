@@ -17,6 +17,30 @@ impl Typer<'_> {
         if self.u.symbol(cls).flags.has(ABSTRACT) || self.u.symbol(cls).flags.has(TRAIT) {
             return;
         }
+        if self.macros.is_some() && self.has_macro_annotation(cls) {
+            return self.macro_annotated.push((cls, site, span));
+        }
+        self.check_implemented(cls, site, span, false);
+    }
+
+    /// Checks the classes with macro annotations, as dotty's `RefChecks` does after
+    /// `MacroAnnotations`.
+    pub fn check_macro_annotated(&mut self) {
+        for (cls, site, span) in std::mem::take(&mut self.macro_annotated) {
+            self.check_implemented(cls, site, span, true);
+        }
+    }
+
+    fn has_macro_annotation(&mut self, cls: SymbolId) -> bool {
+        let base = self.u.class_ref("scala.annotation.MacroAnnotation");
+        let Some(base) = self.u.class_symbol(base) else {
+            return false;
+        };
+        let annotations = self.u.annotations(cls).to_vec();
+        annotations.into_iter().any(|a| self.u.derives_from(a, base))
+    }
+
+    fn check_implemented(&mut self, cls: SymbolId, site: TypeId, span: Span, expanded: bool) {
         let bases = self.u.linearization(cls);
         let case = bases.iter().any(|&b| self.u.symbol(b).flags.has(CASE));
         let enum_ = bases.iter().any(|&b| self.u.symbol(b).flags.has(ENUM));
@@ -39,6 +63,7 @@ impl Typer<'_> {
                     || name == "<init>"
                     || mixin
                     || self.is_concrete(d)
+                    || expanded && self.is_made(d)
                     || self.is_var_setter(base, d)
                 {
                     continue;
@@ -47,7 +72,8 @@ impl Typer<'_> {
                 self.complete(d);
                 let implemented = members.into_iter().any(|m| {
                     self.complete(m);
-                    let concrete = self.is_concrete(m) || self.is_class_param(m);
+                    let concrete =
+                        self.is_concrete(m) || self.is_class_param(m) || expanded && self.is_made(m);
                     concrete && (self.same_member(site, m, d) || self.same_shape(site, m, d))
                 });
                 if !implemented {
@@ -110,6 +136,12 @@ impl Typer<'_> {
     fn is_class_param(&self, m: SymbolId) -> bool {
         let s = self.u.symbol(m);
         s.tree.is_some() && s.kind == Kind::Param && s.owner.is_some_and(|o| self.u.is_class(o))
+    }
+
+    /// Whether `m` is a member a macro made in a class of the unit, which is concrete.
+    fn is_made(&self, m: SymbolId) -> bool {
+        let owner = self.u.symbol(m).owner;
+        !self.syms.flags.contains_key(&m) && owner.is_some_and(|o| self.syms.flags.contains_key(&o))
     }
 
     /// Whether `d`, a declaration of class `c`, is the setter of a variable of `c`; the variable

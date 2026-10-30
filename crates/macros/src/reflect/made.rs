@@ -6,6 +6,8 @@
 use super::Fallible;
 use super::decode::Expr;
 use crate::host::Host;
+use syntax::ast::TName;
+use tasty::tags::CASE;
 use tasty::{Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
 
@@ -29,6 +31,25 @@ impl Host {
     ) -> Fallible<SymbolId> {
         let owner = self.made_owner(owner);
         self.reflect().new_term((owner, &name, Kind::Def), info, flags)
+    }
+
+    /// `Symbol.newBind(owner, name, flags, tpe)`: a pattern variable, `Case` added to `flags`.
+    pub fn new_bind(&mut self, owner: SymbolId, info: TypeId, flags: u64, name: String) -> SymbolId {
+        let owner = self.made_owner(owner);
+        let flags = tasty::Flags(flags & !(1 << super::symbols::METHOD)).with(CASE);
+        let s = super::symbols::local(&mut self.u, &name, Kind::Val, owner, flags);
+        self.u.set_info(s, info);
+        s
+    }
+
+    /// `Bind(s, pattern)`, of the reference to `s`.
+    pub fn bind(&mut self, s: SymbolId, pattern: TNodeId) -> Fallible<TNodeId> {
+        if !self.u.symbol(s).flags.has(CASE) || self.u.symbol(s).kind != Kind::Val {
+            return Err("Bind.apply of a symbol other than a pattern variable");
+        }
+        let name = TName { name: self.names.intern(&self.u.symbol(s).name.clone()), is_type: false };
+        let tpe = self.u.intern_type(tasty::Type::Sym(None, s));
+        Ok(self.tpd.node(T::Bind { name, body: pattern }, self.expansion, Some(tpe), Some(s)))
     }
 
     pub fn val_def(&mut self, s: SymbolId, rhs: Option<TNodeId>) -> Fallible<TNodeId> {

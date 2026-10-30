@@ -14,6 +14,7 @@ mod made;
 mod members;
 mod ops;
 mod overloads;
+mod poly_types;
 mod positions;
 mod reports;
 mod symbols;

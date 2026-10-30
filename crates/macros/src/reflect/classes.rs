@@ -5,17 +5,21 @@
 use super::Fallible;
 use crate::host::Host;
 use tasty::{Kind, SymbolId, TypeId};
-use typer::tpd::TNodeId;
+use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
-    /// `owner`, the splice's owner for the macro's.
+    /// `owner`, the splice's owner for the macro's and the root for the empty package.
     pub fn made_owner(&mut self, owner: SymbolId) -> SymbolId {
-        if owner == self.macro_owner() { self.owner } else { owner }
+        match owner {
+            _ if owner == self.macro_owner() => self.owner,
+            _ if self.made.empty_package == Some(owner) => self.u.root(),
+            _ => owner,
+        }
     }
 
-    pub fn new_class(&mut self, owner: SymbolId, name: String) -> SymbolId {
+    pub fn new_class(&mut self, owner: SymbolId, flags: u64, name: String) -> Fallible<SymbolId> {
         let owner = self.made_owner(owner);
-        self.reflect().new_class(owner, &name)
+        self.reflect().new_class(owner, &name, flags)
     }
 
     /// The module and the module class of a new object.
@@ -29,18 +33,12 @@ impl Host {
         self.reflect().class_parents(cls, parents)
     }
 
-    /// Enters the parameters of types `types` and names `names`, separated by `\0`, into `cls`.
-    pub fn class_params(&mut self, cls: SymbolId, types: Vec<TypeId>, names: String) -> Fallible<()> {
-        let count = types.len();
-        let names = names.split('\0').filter(|n| !n.is_empty()).map(str::to_owned);
-        let params: Vec<_> = names.zip(types).collect();
-        if params.len() != count {
-            return Err("Symbol.newClass with another number of parameter names than types");
-        }
-        let defs = self.reflect().class_params(cls, params)?;
-        let ctor = self.u.decl(cls, "<init>").ok().and_then(|c| c.first().copied());
-        self.made_params.insert(ctor.ok_or("a class without a constructor")?, vec![defs]);
-        Ok(())
+    /// Gives `cls` a constructor of type `info`, and answers the sizes of its clauses.
+    pub fn class_constructor(&mut self, cls: SymbolId, info: TypeId) -> Fallible<Vec<i32>> {
+        let (ctor, clauses) = self.reflect().class_constructor(cls, info)?;
+        let sizes = clauses.iter().map(|c| c.len() as i32).collect();
+        self.made_params.insert(ctor, clauses);
+        Ok(sizes)
     }
 
     pub fn enter_decls(&mut self, cls: SymbolId, decls: Vec<SymbolId>) -> Fallible<()> {
@@ -53,13 +51,22 @@ impl Host {
         let (parents, body) =
             trees.split_at_checked(n as usize).ok_or("ClassDef.apply without its parents")?;
         let ctor = self.u.decl(cls, "<init>").ok().and_then(|c| c.first().copied());
-        let params = ctor.and_then(|c| self.made_params.get(&c)).and_then(|p| p.first().cloned());
+        let params = ctor.and_then(|c| self.made_params.get(&c)).cloned();
         let params = params.ok_or("ClassDef.apply of a class Symbol.newClass did not make")?;
         self.reflect().class_def(cls, (&params, parents), body)
     }
 
     pub fn type_ident(&mut self, s: SymbolId) -> Fallible<TNodeId> {
         self.reflect().type_ident(s)
+    }
+
+    /// `Applied(tpt, args)`.
+    pub fn applied(&mut self, tpt: TNodeId, args: Vec<TNodeId>) -> TNodeId {
+        let targs = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+        let tycon = self.tpd.tpe(tpt);
+        let tpe = self.applied_to(tycon, targs);
+        let args = self.tpd.list(&args);
+        self.tpd.node(T::AppliedTypeTree { tpt, args }, self.expansion, Some(tpe), None)
     }
 
     pub fn this(&mut self, cls: SymbolId) -> Fallible<TNodeId> {

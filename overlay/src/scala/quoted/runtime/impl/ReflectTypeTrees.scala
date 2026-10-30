@@ -56,7 +56,8 @@ trait ReflectTypeTrees extends reflectModule { self: reflect.type =>
   }
 
   object Applied extends AppliedModule {
-    def apply(tpt: TypeTree, args: List[Tree]): Applied = refused("Applied.apply")
+    def apply(tpt: TypeTree, args: List[Tree]): Applied =
+      ReflectOps.term(ReflectOps.one("applied", (tpt :: args).map(ReflectOps.id)*)).asInstanceOf[Applied]
     def copy(original: Tree)(tpt: TypeTree, args: List[Tree]): Applied = copied(original, null, tpt, args)
     def unapply(x: Applied): (TypeTree, List[Tree]) = (x.tpt, x.args)
   }

@@ -212,10 +212,22 @@ impl Translator<'_, '_> {
     }
 
     /// Whether pattern `pat` matches anything without binding a value (dotty's
-    /// `WildcardPattern`).
+    /// `WildcardPattern`): a reference to a pattern variable is one only a macro makes, never
+    /// backquoted.
     fn is_wildcard(&self, pat: TNodeId) -> bool {
+        let variable = |s: SymbolId| {
+            use tasty::tags::{CASE, ENUM, OBJECT};
+            let local = self.l.u.symbol(s).owner.is_some_and(|o| self.l.u.symbol(o).kind.is_term());
+            let s = self.l.u.symbol(s);
+            local
+                && s.kind == tasty::Kind::Val
+                && s.flags.has(CASE)
+                && !s.flags.has(OBJECT)
+                && !s.flags.has(ENUM)
+        };
         match *self.l.tpd.tree(pat) {
-            Tree::Ident { name } => matches!(self.l.names.text(name.name), "_" | "_*"),
+            Tree::Ident { name } if matches!(self.l.names.text(name.name), "_" | "_*") => true,
+            Tree::Ident { .. } => self.l.tpd.sym(pat).is_some_and(variable),
             Tree::Bind { name, body } => self.l.names.text(name.name) == "_" && self.is_wildcard(body),
             Tree::Alternative { trees } => self.l.tpd.items(trees).iter().all(|&p| self.is_wildcard(p)),
             _ => false,

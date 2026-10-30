@@ -59,6 +59,8 @@ ops! {
     "freshName" => fresh_name(name: Name) -> String;
     "newVal" => new_val(owner: Sym, info: Ty, flags: Bits, name: Name) -> Fallible<SymbolId>;
     "newMethod" => new_method(owner: Sym, info: Ty, flags: Bits, name: Name) -> Fallible<SymbolId>;
+    "newBind" => new_bind(owner: Sym, info: Ty, flags: Bits, name: Name) -> SymbolId;
+    "bind" => bind(s: Sym, pattern: Tree) -> Fallible<TNodeId>;
     "valDef" => val_def(s: Sym, rhs: OptTree) -> Fallible<TNodeId>;
     "defParams" => def_params(s: Sym) -> Fallible<Vec<i32>>;
     "defDef" => def_def(s: Sym, rhs: OptTree) -> Fallible<TNodeId>;
@@ -68,13 +70,19 @@ ops! {
     "copyDef" => copy_def(original: Tree, tpt: Tree, rhs: OptTree, params: Rest<Tree>, name: Name)
         -> Fallible<TNodeId>;
     // classes
-    "newClass" => new_class(owner: Sym, name: Name) -> SymbolId;
+    "newClass" => new_class(owner: Sym, flags: Bits, name: Name) -> Fallible<SymbolId>;
     "newModule" => new_module(owner: Sym, name: Name) -> [SymbolId; 2];
     "classParents" => class_parents(cls: Sym, parents: Rest<Ty>) -> Fallible<()>;
-    "classParams" => class_params(cls: Sym, types: Rest<Ty>, names: Name) -> Fallible<()>;
+    "classConstructor" => class_constructor(cls: Sym, info: Ty) -> Fallible<Vec<i32>>;
+    // polymorphic types
+    "polyBinder" => poly_binder() -> TypeId;
+    "polyParam" => poly_param(t: Ty, idx: Num) -> Fallible<TypeId>;
+    "polyType" => poly_type(placeholder: Ty, types: Rest<Ty>, names: Name) -> Fallible<TypeId>;
+    "typeBounds" => type_bounds(low: Num, hi: Num) -> Fallible<TypeId>;
     "enterDecls" => enter_decls(cls: Sym, decls: Rest<Sym>) -> Fallible<()>;
     "classDef" => class_def(cls: Sym, n: Num, trees: Rest<Tree>) -> Fallible<TNodeId>;
     "typeIdent" => type_ident(s: Sym) -> Fallible<TNodeId>;
+    "applied" => applied(tpt: Tree, args: Rest<Tree>) -> TNodeId;
     "this" => this(cls: Sym) -> Fallible<TNodeId>;
     "fieldMember" => field_member(cls: Sym, name: Name) -> Option<SymbolId>;
     "overridingSymbol" => overriding_symbol(m: Sym, cls: Sym) -> Option<SymbolId>;
