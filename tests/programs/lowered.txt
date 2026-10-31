@@ -193,3 +193,4 @@ lastrefusals
 privategetters
 paramforwarding
 erasedshapes
+closuretypes
