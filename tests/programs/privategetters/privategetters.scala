@@ -15,6 +15,9 @@ object Getter:
 class Boxed(val b: java.lang.Boolean, val l: Long, val d: Double, val f: Float):
   def isFalse: Boolean = b == false
   def hashes: List[Int] = List(l.##, d.##, f.##)
+  type L = Long
+  def aliased(x: L): Int = x.##
+  def heads(a: List[java.lang.Double], z: => java.lang.Double): Boolean = a.head == z
 
 @main def privategetters(): Unit =
   val (a, b) = (Getter(" x "), Getter("x"))
@@ -24,3 +27,4 @@ class Boxed(val b: java.lang.Boolean, val l: Long, val d: Double, val f: Float):
   println(Boxed(false, 1L, 2.0, 3.0f).isFalse)
   println(Boxed(true, 1L, 2.0, 3.0f).isFalse)
   println(Boxed(null, 5000000000L, 1.5, 2.5f).hashes)
+  println(s"${Boxed(true, 1L, 2.0, 3.0f).aliased(7L)} ${Boxed(true, 1L, 2.0, 3.0f).heads(List(0.0), -0.0)}")

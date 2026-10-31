@@ -112,12 +112,20 @@ impl<'l, 'a> Gen<'l, 'a> {
         self.gen_apply_static(eq.any_hash, Some(eq.statics), &[arg], span)
     }
 
-    /// The letter of `Long`, `Double` or `Float` and the argument of `t` if `t` boxes one.
+    /// The letter of `Long`, `Double` or `Float` and the argument of `t` if `t` boxes a value
+    /// whose type is that class, not an alias of it (dotty's `typeSymbol`).
     fn boxed_primitive(&mut self, t: TNodeId) -> Option<(char, TNodeId)> {
         let Tree::Apply { fun, args } = *self.l.tpd.tree(t) else { return None };
         let &[arg] = self.l.tpd.items(args) else { return None };
         let fun = self.l.tpd.sym(fun)?;
-        "jdf".chars().find(|&c| self.l.primitive(c).is_some_and(|p| p.box_method == fun)).map(|c| (c, arg))
+        let letter = "jdf".chars().find(|&c| self.l.primitive(c).is_some_and(|p| p.box_method == fun))?;
+        let mut tpe = self.l.tpd.tpe(arg);
+        while let Some(next) = self.l.u.widen_once(tpe) {
+            tpe = next;
+        }
+        let class = self.l.u.class_symbol(tpe).filter(|_| self.l.u.dealias(tpe) == tpe)?;
+        let name = ["scala.Long", "scala.Double", "scala.Float"]["jdf".find(letter)?];
+        (self.l.u.full_name(class) == name).then_some((letter, arg))
     }
 
     fn negate(&mut self, v: ValId) -> ValId {
@@ -137,19 +145,29 @@ impl<'l, 'a> Gen<'l, 'a> {
     /// Whether either side may be a boxed number, character or boolean at run time, unless both
     /// are of the same final class.
     fn must_use_any_comparator(&mut self, left: TNodeId, right: TNodeId, eq: Equality) -> bool {
-        let same_type = self.tree_type(left) == self.tree_type(right);
-        let same_finals = same_type && self.type_class(left).is_some_and(|c| has(self.l.u, c, FINAL));
+        let tpe = self.tree_type(left);
+        let same_type = tpe == self.tree_type(right);
+        let final_class = self.type_class(left).filter(|&c| has(self.l.u, c, FINAL));
+        let same_finals =
+            same_type && final_class.is_some_and(|c| tpe.1 == Erased::Class(self.l.u.binary_name(c)));
         !same_finals && self.is_maybe_boxed(left, eq) && self.is_maybe_boxed(right, eq)
     }
 
     /// Whether `t` erases to `Object`, `Serializable` or `Comparable`, or to a subclass of
     /// `Number`, `Character` or `Boolean`.
     fn is_maybe_boxed(&mut self, t: TNodeId, eq: Equality) -> bool {
-        let erased = self.gen_type(self.l.tpd.tpe(t));
-        if erased == self.class_ref(self.l.defs.object) {
+        let Erased::Class(name) = crate::phases::adapt::erased_type(self.l, t) else { return false };
+        if name == "java.lang.Object" {
             return true;
         }
-        let Some(c) = self.type_class(t) else { return false };
+        let c = match self.type_class(t) {
+            Some(c) if self.l.u.binary_name(c) == name => c,
+            _ => {
+                let erased = self.l.u.class_ref(&name);
+                let Some(c) = self.l.u.class_symbol(erased) else { return false };
+                c
+            }
+        };
         let bases = [eq.number, eq.character, eq.boolean];
         [eq.serializable, eq.comparable].contains(&c)
             || bases.into_iter().any(|b| self.l.u.derives_from(c, b))
@@ -157,7 +175,7 @@ impl<'l, 'a> Gen<'l, 'a> {
 
     /// `t`'s type after dotty's erasure: its singleton type if it refers to `this`, a local value,
     /// an object or a field, else its erased type.
-    fn tree_type(&mut self, t: TNodeId) -> (Option<tasty::TypeId>, nir::TypeId) {
+    fn tree_type(&mut self, t: TNodeId) -> (Option<tasty::TypeId>, Erased) {
         let tpe = self.l.tpd.tpe(t);
         let singleton = match *self.l.u.types().get(tpe) {
             tasty::Type::This(_) => true,
@@ -167,7 +185,7 @@ impl<'l, 'a> Gen<'l, 'a> {
             }
             _ => false,
         };
-        (singleton.then_some(tpe), self.gen_type(tpe))
+        (singleton.then_some(tpe), crate::phases::adapt::erased_type(self.l, t))
     }
 
     fn type_class(&mut self, t: TNodeId) -> Option<SymbolId> {
