@@ -1,3 +1,4 @@
+import scala.scalanative.runtime.{Intrinsics, fromRawUSize}
 import scala.scalanative.unsafe._
 
 object Groups {
@@ -33,6 +34,17 @@ class Holder(n: Int) extends Base(Groups.Values.Unsupported, n, true) {
     var v: AnyRef = null
     { k = o.toString; k } != null && { v = o; v } != null && (k ne v)
   }
+
+  def guarded(g: () => Unit): Unit =
+    try g()
+    finally {
+      this.synchronized {
+        a = b
+        if (({ b = a; b }) != null) {
+          println("set")
+        }
+      }
+    }
 }
 
 object positionsscopes {
@@ -42,6 +54,11 @@ object positionsscopes {
 
   def half(p: Int): Int = (p / 2).max(1) + (p).max(2)
 
+  def width(wide: Boolean): Int = fromRawUSize(
+    if (wide) Intrinsics.sizeOf[CLong]
+    else Intrinsics.sizeOf[CInt]
+  ).toInt
+
   def main(args: Array[String]): Unit = {
     val h = new Holder("x", 3)
     h.set()
@@ -49,6 +66,8 @@ object positionsscopes {
     println(h.both("o"))
     println(half(args.length + 7))
     println(3.toByte.size.toInt)
+    println(width(false))
+    h.guarded(() => ())
     println(h)
   }
 }
