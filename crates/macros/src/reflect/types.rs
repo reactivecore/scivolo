@@ -88,6 +88,11 @@ impl Host {
         })
     }
 
+    /// Whether `t` is `PolyFunction { def apply(params): r }` with an erased parameter.
+    pub fn is_erased_function_type(&mut self, t: TypeId) -> bool {
+        self.u.poly_function_apply(t).is_some_and(|info| self.u.has_erased_params(info))
+    }
+
     /// The constant of constant type `t`, nothing for another type.
     pub fn constant_type(&mut self, t: TypeId) -> Fallible<Reflected> {
         if matches!(*self.u.types().get(t), Type::Constant(tag, _) if tag == CLASSconst) {
