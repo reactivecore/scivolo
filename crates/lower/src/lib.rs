@@ -48,6 +48,9 @@ pub struct Lower<'a> {
     fields: FxHashMap<SymbolId, SymbolId>,
     /// The bridges `Bridges` made and the `$adapted` methods of lambdas.
     bridges: FxHashSet<SymbolId>,
+    /// The bridges of each library class javalib's build compiles with the unit, each with the
+    /// member it calls.
+    library_bridges: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// The extension methods entered for the methods of value classes.
     extensions: FxHashMap<SymbolId, SymbolId>,
     /// The fields `LazyVals` made for lazy values, in order.
@@ -160,6 +163,7 @@ pub fn lower_sources(
         defs,
         fields: FxHashMap::default(),
         bridges: FxHashSet::default(),
+        library_bridges: FxHashMap::default(),
         extensions: FxHashMap::default(),
         lazy_fields: Vec::new(),
         lazy_members: FxHashMap::default(),

@@ -195,3 +195,4 @@ paramforwarding
 erasedshapes
 closuretypes
 lazyouternames
+passingaccessors

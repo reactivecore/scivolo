@@ -5,7 +5,7 @@
 //! `matches`), on types in a normal form.
 
 use super::{Kind, SymbolId, Universe};
-use crate::types::{Type, TypeId};
+use crate::types::{Binder, Type, TypeId};
 
 /// How many aliases `normalize` expands along one path.
 const MAX_ALIASES: u32 = 64;
@@ -113,15 +113,20 @@ impl Universe {
         let pairs = ca.into_iter().zip(cb).flat_map(|((_, x), (_, y))| x.into_iter().zip(y));
         pairs.collect::<Vec<_>>().into_iter().all(|(x, y)| {
             let (x, y) = (self.normalize(x), self.normalize(y));
-            let y = self.map_type(y, &mut |u, t| match *u.types().get(t) {
-                Type::Sym(_, s) => tb.iter().position(|&p| p == s).map(|i| renamed[i]),
-                Type::Param(b, i) => match binders {
-                    Some((ba, bb)) if b == bb => Some(u.intern_type(Type::Param(ba, i))),
-                    _ => None,
-                },
-                _ => None,
-            });
-            x == y
+            let rename =
+                |u: &mut Universe, t: TypeId, own: &[SymbolId], binders: Option<(Binder, Binder)>| {
+                    u.map_type(t, &mut |u, t| match *u.types().get(t) {
+                        Type::Sym(_, s) => own.iter().position(|&p| p == s).map(|i| renamed[i]),
+                        Type::Param(b, i) if binders.is_some_and(|(_, own)| own == b) => {
+                            let to = binders.map(|(to, _)| u.intern_type(Type::Param(to, i)));
+                            renamed.get(i as usize).copied().or(to)
+                        }
+                        _ => None,
+                    })
+                };
+            let x = rename(self, x, &ta, binders.map(|(ba, _)| (ba, ba)));
+            let y = rename(self, y, &tb, binders);
+            x == y || self.is_same_type_in(x, y, &mut crate::subtype::NoVars)
         })
     }
 

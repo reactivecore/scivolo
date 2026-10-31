@@ -112,6 +112,10 @@ impl Gen<'_, '_> {
         if self.l.u.is_module(sym) && !accessor && self.l.u.symbol(owner).kind != tasty::Kind::Package {
             return self.gen_nested_module(t, sym, qual);
         }
+        let span = match self.l.u.is_module(sym) && accessor && span.exists() {
+            true => syntax::ast::Span::new(span.start(), span.end(), span.start()),
+            false => span,
+        };
         let saved = self.at_span(span);
         let v = if sym == self.l.defs.boxed_unit_unit {
             self.val(Val::Unit)
