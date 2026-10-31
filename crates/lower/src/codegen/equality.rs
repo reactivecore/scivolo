@@ -14,8 +14,8 @@ use nir::{Bin, Comp, Op, Type, Val, ValId};
 use std::cell::Cell;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::SymbolId;
 use tasty::tags::FINAL;
+use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 impl<'l, 'a> Gen<'l, 'a> {
@@ -93,10 +93,31 @@ impl<'l, 'a> Gen<'l, 'a> {
         self.gen_if_with(bool, parts)
     }
 
-    /// `##` of `arg`: `Statics.anyHash(arg)`.
+    /// `##` of `arg`: `0` for `null`, `Statics.longHash`, `doubleHash` or `floatHash` of a boxed
+    /// `Long`, `Double` or `Float`, else `Statics.anyHash(arg)`.
     pub fn gen_hash_code(&mut self, arg: TNodeId, span: Span) -> Result<ValId> {
+        if crate::phases::adapt::erased_type(self.l, arg) == Erased::Null {
+            return Ok(self.val(Val::Int(0)));
+        }
         let eq = self.l.equality()?;
+        if let Some((letter, unboxed)) = self.boxed_primitive(arg) {
+            let cc = self.l.case_classes()?;
+            let hash = match letter {
+                'j' => cc.long_hash,
+                'd' => cc.double_hash,
+                _ => cc.float_hash,
+            };
+            return self.gen_apply_static(hash, Some(eq.statics), &[unboxed], span);
+        }
         self.gen_apply_static(eq.any_hash, Some(eq.statics), &[arg], span)
+    }
+
+    /// The letter of `Long`, `Double` or `Float` and the argument of `t` if `t` boxes one.
+    fn boxed_primitive(&mut self, t: TNodeId) -> Option<(char, TNodeId)> {
+        let Tree::Apply { fun, args } = *self.l.tpd.tree(t) else { return None };
+        let &[arg] = self.l.tpd.items(args) else { return None };
+        let fun = self.l.tpd.sym(fun)?;
+        "jdf".chars().find(|&c| self.l.primitive(c).is_some_and(|p| p.box_method == fun)).map(|c| (c, arg))
     }
 
     fn negate(&mut self, v: ValId) -> ValId {
@@ -116,7 +137,7 @@ impl<'l, 'a> Gen<'l, 'a> {
     /// Whether either side may be a boxed number, character or boolean at run time, unless both
     /// are of the same final class.
     fn must_use_any_comparator(&mut self, left: TNodeId, right: TNodeId, eq: Equality) -> bool {
-        let same_type = self.l.tpd.tpe(left) == self.l.tpd.tpe(right);
+        let same_type = self.tree_type(left) == self.tree_type(right);
         let same_finals = same_type && self.type_class(left).is_some_and(|c| has(self.l.u, c, FINAL));
         !same_finals && self.is_maybe_boxed(left, eq) && self.is_maybe_boxed(right, eq)
     }
@@ -132,6 +153,21 @@ impl<'l, 'a> Gen<'l, 'a> {
         let bases = [eq.number, eq.character, eq.boolean];
         [eq.serializable, eq.comparable].contains(&c)
             || bases.into_iter().any(|b| self.l.u.derives_from(c, b))
+    }
+
+    /// `t`'s type after dotty's erasure: its singleton type if it refers to `this`, a local value,
+    /// an object or a field, else its erased type.
+    fn tree_type(&mut self, t: TNodeId) -> (Option<tasty::TypeId>, nir::TypeId) {
+        let tpe = self.l.tpd.tpe(t);
+        let singleton = match *self.l.u.types().get(tpe) {
+            tasty::Type::This(_) => true,
+            tasty::Type::Sym(_, s) if !self.l.u.is_type_symbol(s) => {
+                let in_class = self.l.u.symbol(s).owner.is_some_and(|o| self.l.u.is_class(o));
+                !in_class || self.is_field(s) || self.l.u.is_module(s)
+            }
+            _ => false,
+        };
+        (singleton.then_some(tpe), self.gen_type(tpe))
     }
 
     fn type_class(&mut self, t: TNodeId) -> Option<SymbolId> {
