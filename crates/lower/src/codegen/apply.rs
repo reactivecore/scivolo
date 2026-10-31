@@ -61,7 +61,7 @@ impl Gen<'_, '_> {
                 }
                 _ => self.gen_apply_method(
                     sym,
-                    self.l.u.is_constructor(sym),
+                    self.l.u.is_constructor(sym) || self.is_new_array_method(sym),
                     Receiver::Tree(qualifier),
                     &args,
                     span,
