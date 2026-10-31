@@ -108,9 +108,14 @@ pub fn check_annotations(l: &mut Lower, root: TNodeId) -> Result<()> {
 
 impl Gen<'_, '_> {
     /// The attributes the annotations of method `m` give, after `attrs`, in NIR's order; an
-    /// extension method has those of its value class's method.
+    /// extension method has those of its value class's method, a lifted method those of the local
+    /// method it was made from.
     pub fn method_attrs(&mut self, m: SymbolId, attrs: Vec<Attr>) -> Vec<Attr> {
         let m = self.l.extensions.iter().find(|&(_, &e)| e == m).map_or(m, |(&method, _)| method);
+        let m = match self.l.lifted_from.contains_key(&m) {
+            true => self.l.lifted_to.iter().find(|&(_, &e)| e == m).map_or(m, |(&local, _)| local),
+            false => m,
+        };
         self.annotated(m, attrs, true)
     }
 
