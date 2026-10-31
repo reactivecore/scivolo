@@ -1,14 +1,14 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/BetaReduce.scala
 //! Applications of closures reduced to the closures' bodies, the arguments bound to the
-//! parameters (dotty's `BetaReduce`, without polymorphic functions and anonymous classes).
+//! parameters, the type arguments to aliases (dotty's `BetaReduce`, without anonymous classes).
 
 use super::copy::TreeTypeMap;
 use super::purity::{PURE, at_least};
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::TName;
 use syntax::ast::constant::Constant as C;
+use syntax::ast::{Span, TName};
 use tasty::tags::{MUTABLE, SYNTHETIC};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
@@ -16,13 +16,23 @@ impl Inlining<'_> {
     /// `t`, owned by `owner`, beta-reduced if it applies a closure's `apply` to arguments.
     pub fn beta_reduce(&mut self, t: TNodeId, owner: SymbolId) -> Result<TNodeId, Unsupported> {
         let T::Apply { fun, args } = *self.tpd.tree(t) else { return Ok(t) };
+        let (fun, targs) = match *self.tpd.tree(fun) {
+            T::TypeApply { fun, args } => (fun, Some(args)),
+            _ => (fun, None),
+        };
         let T::Select { qualifier, name } = *self.tpd.tree(fun) else { return Ok(t) };
-        if self.names.text(name.name) != "apply" || !self.is_function_type(qualifier) {
+        let class = self.function_class(qualifier).unwrap_or_default();
+        let fits = match targs {
+            None => class.strip_prefix("scala.Function").is_some_and(|n| n.parse::<u32>().is_ok()),
+            Some(_) => class == "scala.PolyFunction",
+        };
+        if self.names.text(name.name) != "apply" || !fits {
             return Ok(t);
         }
-        let args = self.tpd.items(args).to_vec();
+        let argss: Vec<Vec<TNodeId>> =
+            targs.into_iter().chain([args]).map(|l| self.tpd.items(l).to_vec()).collect();
         let mut bindings = Vec::new();
-        let Some(reduced) = self.reduce(qualifier, &args, &mut bindings, owner)? else { return Ok(t) };
+        let Some(reduced) = self.reduce(qualifier, &argss, &mut bindings, owner)? else { return Ok(t) };
         let span = self.tpd.span(t);
         if bindings.is_empty() {
             self.tpd.get_mut(reduced).span = span;
@@ -33,20 +43,29 @@ impl Inlining<'_> {
         Ok(self.tpd.node(T::Block { stats, expr: reduced }, span, tpe, None))
     }
 
-    fn is_function_type(&mut self, t: TNodeId) -> bool {
-        let Some(tpe) = self.tpd.get(t).tpe else { return false };
-        let widened = self.u.widen(tpe);
-        let Some(c) = self.u.class_symbol(widened) else { return false };
-        let full = self.u.full_name(c);
-        full.strip_prefix("scala.Function").is_some_and(|n| n.parse::<u32>().is_ok())
+    /// The full name of the class of `t`'s type without its `apply` refinement; the type of an
+    /// argument inlined from the outer scope that of its expansion.
+    fn function_class(&mut self, mut t: TNodeId) -> Option<String> {
+        while let T::Inlined { call: None, bindings, expansion } = *self.tpd.tree(t)
+            && bindings.is_empty()
+        {
+            t = expansion;
+        }
+        let mut widened = self.u.widen(self.tpd.get(t).tpe?);
+        while let Type::Refined(parent, ref name, _) = *self.u.types().get(widened)
+            && name == "apply"
+        {
+            widened = parent;
+        }
+        self.u.class_symbol(widened).map(|c| self.u.full_name(c))
     }
 
-    /// The body of closure `f` applied to `args`, through pure blocks, inlined trees and type
-    /// ascriptions; its argument bindings added to `bindings`.
+    /// The body of closure `f` applied to argument lists `argss`, through pure blocks, inlined
+    /// trees and type ascriptions; its argument bindings added to `bindings`.
     fn reduce(
         &mut self,
         f: TNodeId,
-        args: &[TNodeId],
+        args: &[Vec<TNodeId>],
         bindings: &mut Vec<TNodeId>,
         owner: SymbolId,
     ) -> Result<Option<TNodeId>, Unsupported> {
@@ -93,23 +112,32 @@ impl Inlining<'_> {
     }
 
     /// The body of method `def` with its parameters bound to `args` (dotty's
-    /// `reduceApplication`); `None` if the arguments do not fit the one parameter clause.
+    /// `reduceApplication`); `None` if the argument lists do not fit the parameter clauses.
     fn reduce_application(
         &mut self,
         def: TNodeId,
-        args: &[TNodeId],
+        argss: &[Vec<TNodeId>],
         bindings: &mut Vec<TNodeId>,
         owner: SymbolId,
     ) -> Result<Option<TNodeId>, Unsupported> {
         let T::DefDef { paramss, rhs: Some(rhs), .. } = *self.tpd.tree(def) else { return Ok(None) };
         let clauses = self.tpd.clause_items(paramss).to_vec();
-        let [clause] = clauses[..] else { return Ok(None) };
-        let params = self.tpd.items(clause).to_vec();
-        if params.len() != args.len() {
+        let paramss: Vec<Vec<TNodeId>> = clauses.iter().map(|&c| self.tpd.items(c).to_vec()).collect();
+        if paramss.len() != argss.len() || paramss.iter().zip(argss).any(|(p, a)| p.len() != a.len()) {
             return Ok(None);
         }
         let mut m =
             TreeTypeMap { old_owner: self.tpd.sym(def), new_owner: Some(owner), ..TreeTypeMap::default() };
+        let (targs, args, params) = match (argss, &paramss[..]) {
+            ([targs, args], [_, params]) => (targs.as_slice(), args, params),
+            ([args], [params]) => (&[][..], args, params),
+            _ => return Ok(None),
+        };
+        for (&p, &a) in paramss[0].iter().zip(targs) {
+            let Some(ps) = self.tpd.sym(p).filter(|&s| self.u.is_type_symbol(s)) else { return Ok(None) };
+            let to = self.type_arg_binding(ps, a, bindings, owner);
+            m.syms.insert(ps, to);
+        }
         for (&p, &a) in params.iter().zip(args) {
             let Some(ps) = self.tpd.sym(p) else { return Ok(None) };
             let mut inner = a;
@@ -139,6 +167,43 @@ impl Inlining<'_> {
         }
         let body = self.copy(&mut m, rhs, &mut |_, _, _| None)?;
         Ok(Some(self.literals_for_pure_constants(body)))
+    }
+
+    /// The type that type argument `a` of closure type parameter `p` binds: a local type `a`
+    /// refers to, else a new alias of `a` whose definition is added to `bindings`.
+    fn type_arg_binding(
+        &mut self,
+        p: SymbolId,
+        a: TNodeId,
+        bindings: &mut Vec<TNodeId>,
+        owner: SymbolId,
+    ) -> SymbolId {
+        let tpe = self.tpd.tpe(a);
+        let dealiased = self.u.dealias(tpe);
+        if let Type::Sym(None, s) = *self.u.types().get(dealiased)
+            && self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind.is_term())
+        {
+            return s;
+        }
+        let name = self.u.symbol(p).name.clone();
+        let s = self.u.define(Symbol {
+            name: name.clone(),
+            kind: Kind::Type,
+            owner: Some(owner),
+            flags: Flags::default(),
+            target: None,
+            is_extern: false,
+            derived: false,
+            decls: Vec::new(),
+            tree: None,
+        });
+        let alias = self.u.intern_type(Type::Alias(tpe));
+        self.u.set_info(s, alias);
+        let span = self.tpd.span(a);
+        let rhs = self.tpd.node(T::TypeTree { inferred: false }, Span::at(span.start()), Some(alias), None);
+        let name = TName { name: self.names.intern(&name), is_type: true };
+        bindings.push(self.tpd.node(T::TypeDef { name, rhs }, span, None, Some(s)));
+        s
     }
 
     /// The symbol of a new binding of argument `a` of type `arg_tpe` of closure parameter `p`,
@@ -184,12 +249,7 @@ impl Inlining<'_> {
         let unit = self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == "scala.Unit");
         if by_name || !((constant || unit) && at_least(self.pure().purity(a), PURE)) {
             let span = self.tpd.span(a);
-            let tpt = self.tpd.node(
-                T::TypeTree { inferred: false },
-                syntax::ast::Span::at(span.start()),
-                Some(tpe),
-                None,
-            );
+            let tpt = self.tpd.node(T::TypeTree { inferred: false }, Span::at(span.start()), Some(tpe), None);
             let name = TName { name: self.names.intern(&name), is_type: false };
             let tree = match by_name {
                 true => T::DefDef { name, paramss: self.tpd.clauses(&[]), tpt, rhs: Some(a) },

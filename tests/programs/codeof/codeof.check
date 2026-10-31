@@ -1,0 +1,14 @@
+{
+  type X = Int
+  {
+    println(1)
+    1
+  }
+}
+1
+1
+codeof.pick[Int](codeof.one, 2)
+codeof.one + 2
+3
+ctx
+aa

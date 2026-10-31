@@ -3,6 +3,7 @@
 //! a kind, two words and a text.
 
 mod classes;
+mod compound_members;
 mod constants;
 mod copies;
 mod declarations;
@@ -11,6 +12,7 @@ mod default_args;
 mod definitions;
 mod encode;
 mod eta;
+mod from_symbol;
 mod implicits;
 mod lambda_types;
 mod lambda_variances;
@@ -21,6 +23,7 @@ mod overloads;
 mod positions;
 mod reports;
 mod signatures;
+mod symbol_flags;
 mod symbols;
 mod terms;
 mod tree_kinds;
