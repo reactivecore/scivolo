@@ -58,7 +58,14 @@ impl Typer<'_> {
                     return Err("nested implicit argument left to its default");
                 }
                 Err(what @ "no implicit argument") if depth == 0 => {
-                    return self.missing_given(tree, (name, formal), at, ctx).map(Some).ok_or(what);
+                    if let Some(error) = self.missing_given(tree, (name, formal), at, ctx) {
+                        return Ok(Some(error));
+                    }
+                    if self.history.open.is_empty() && self.unsupplied_in_checked_code(formal) {
+                        self.error_at(at, super::super::errors::missing_given(&format!("{formal:?}"), name));
+                        return Ok(Some(self.error_tree(self.tpd.span(tree))));
+                    }
+                    return Err(what);
                 }
                 arg => found.push(Some(arg?)),
             }

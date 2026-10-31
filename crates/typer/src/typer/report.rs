@@ -22,6 +22,10 @@ impl Typer<'_> {
     pub fn unsupported_at(&mut self, span: Span, what: &str) {
         self.probe_unsupported();
         self.reports += 1;
+        if let Some((_, first)) = &mut self.checked_code {
+            let at = if span.exists() { 0 } else { self.diags.items.len() };
+            *first = Some(first.map_or(at, |f| f.min(at)));
+        }
         if self.unsupported.is_none() {
             self.unsupported = Some((span, what.to_owned()));
         }

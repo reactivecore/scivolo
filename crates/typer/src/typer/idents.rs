@@ -59,7 +59,10 @@ impl Typer<'_> {
             Ok(None) => {
                 return match self.not_found(id, name, ctx) {
                     Some(error) => error,
-                    None => self.unsupported(id, &format!("unresolved name {text}")),
+                    None => match self.unbound_in_checked_code(id, name, ctx) {
+                        Some(error) => error,
+                        None => self.unsupported(id, &format!("unresolved name {text}")),
+                    },
                 };
             }
             Err("constructor proxy") if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) => {
