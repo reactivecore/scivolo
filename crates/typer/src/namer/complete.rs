@@ -28,7 +28,7 @@ impl Typer<'_> {
         self.syms.completions.insert(sym, Completion::Completing(tree));
         self.set_provisional_info(sym, tree, ctx);
         let open = std::mem::take(&mut self.history.open);
-        let vars = self.constraint.count();
+        let start = self.constraint.attempt();
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
         self.add_annotations(sym, tree, ctx);
         let flags = self.u.symbol(sym).flags;
@@ -68,7 +68,7 @@ impl Typer<'_> {
         }
         self.u.set_comparison_owner(outer);
         self.syms.completions.insert(sym, Completion::Done);
-        self.constraint.keep_from(vars);
+        self.constraint.keep(start);
         self.history.open = open;
     }
 

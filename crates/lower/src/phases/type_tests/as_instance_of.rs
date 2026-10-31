@@ -6,9 +6,10 @@
 use crate::definitions::type_ref;
 use crate::phases::adapt::{adapt, ascribed, converted, erased_type};
 use crate::phases::casts::{class_named, conforms, conforms_to_class_file, type_of};
+use crate::phases::mixin::is_jdk;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Erased, TypeId};
+use tasty::{Erased, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
@@ -31,7 +32,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     }
     let refused = || unsupported(span, "casts between primitive values or to references");
     let erased_expr = this_class(l, expr).unwrap_or_else(|| found.clone());
-    let upcast = conforms_to_class_file(l, &erased_expr, &to);
+    let upcast = conforms_to_class_file(l, &erased_expr, &to) && !to_raw_generic(l, &erased_expr, &to);
     if !upcast && conforms(l, &erased_expr, &to) {
         l.explicit_casts.insert(t);
     }
@@ -78,6 +79,48 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
         _ if upcast => l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None),
         _ => t,
     })
+}
+
+/// Whether erased class `from` is no subtype of `to`, another class with type parameters not
+/// from the JDK, as dotty compares the raw reference to `from` with `to` applied: unless `from`
+/// has as many type parameters, passed to `to` in order, each bounding `to`'s parameter's bounds
+/// (dotty's `EtaExpansion`).
+fn to_raw_generic(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
+    let (Erased::Class(f), Erased::Class(t)) = (from, to) else { return false };
+    let (Some(f), Some(t)) = (class_named(l, f), class_named(l, t)) else { return false };
+    let (fs, ts) = (l.u.type_params(f), l.u.type_params(t));
+    if f == t || ts.is_empty() || is_jdk(l, t) {
+        return false;
+    }
+    if fs.len() != ts.len() {
+        return true;
+    }
+    let args: Vec<TypeId> = fs.iter().map(|&p| type_ref(l.u, p)).collect();
+    let class = type_ref(l.u, f);
+    let applied = l.u.intern_type(Type::Applied(class, args.clone()));
+    let Some(base) = l.u.base_type(applied, t) else { return true };
+    let Type::Applied(_, found) = l.u.types().get(base).clone() else { return true };
+    let found = found.into_iter().map(|a| match *l.u.types().get(a) {
+        Type::Annotated(a, _) => a,
+        _ => a,
+    });
+    !found.eq(args) || !fs.iter().zip(&ts).all(|(&a, &b)| weaker_bounds(l, (base, t, b), a))
+}
+
+/// Whether the bounds of type parameter `p` of class `class`, as seen from `prefix`, lie within
+/// those of type parameter `q`.
+fn weaker_bounds(l: &mut Lower, (prefix, class, p): (TypeId, SymbolId, SymbolId), q: SymbolId) -> bool {
+    let bounds = |l: &mut Lower, s| {
+        let info = l.u.info(s);
+        match *l.u.types().get(info) {
+            Type::Bounds(lo, hi) => (lo, hi),
+            _ => (info, info),
+        }
+    };
+    let (p_lo, p_hi) = bounds(l, p);
+    let (p_lo, p_hi) = (l.u.as_seen_from(p_lo, prefix, class), l.u.as_seen_from(p_hi, prefix, class));
+    let (q_lo, q_hi) = bounds(l, q);
+    l.u.is_subtype(p_hi, q_hi) && l.u.is_subtype(q_lo, p_lo)
 }
 
 /// The erasure of class `C` if `expr` is `C.this`, whatever its self type.

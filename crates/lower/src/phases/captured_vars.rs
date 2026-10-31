@@ -77,6 +77,9 @@ fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<Symbo
             out.insert(s);
         }
         match (l.tpd.tree(t), l.tpd.sym(t)) {
+            (Tree::ValDef { .. } | Tree::DefDef { .. }, Some(v)) if l.lazy_members.contains_key(&v) => {
+                Walk::Within(l.lazy_members[&v].init)
+            }
             (Tree::ValDef { .. }, Some(v)) if has(l.u, v, LAZY) => Walk::Children,
             (Tree::ValDef { .. }, _) => Walk::Within(function),
             _ => Walk::Children,

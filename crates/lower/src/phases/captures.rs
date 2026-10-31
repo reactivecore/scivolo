@@ -83,7 +83,11 @@ pub fn dependencies(
                 functions[i].this |= (owner == Some(class) || implicit_this) && !l.u.is_module_class(class);
                 let local = matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param)
                     && owner.is_some_and(|o| matches!(l.u.symbol(o).kind, Kind::Def | Kind::Val));
-                if local && mark_free(l, functions, &mut order, s, i) && has(l.u, s, MUTABLE) {
+                if local
+                    && mark_free(l, functions, &mut order, s, i)
+                    && has(l.u, s, MUTABLE)
+                    && !l.tail_locals.contains(&s)
+                {
                     return unsupported(l.tpd.span(t), "local methods capturing variables");
                 }
             }
