@@ -439,6 +439,26 @@ object Warnings:
     report.warning("warned here")
     x
 
+class Holder { type X; val xs: List[Any] = Nil }
+
+@scala.annotation.experimental
+object Slices:
+  inline def refinedXs: List[Int] = ${ refinedXsImpl }
+  def refinedXsImpl(using Quotes): Expr[List[Int]] =
+    import quotes.reflect.*
+    val alias = Symbol.newTypeAlias(Symbol.spliceOwner, "X", Flags.EmptyFlags, TypeRepr.of[Int], Symbol.noSymbol)
+    val xs = Symbol.newVal(Symbol.spliceOwner, "xs", TypeRepr.of[List[Int]], Flags.EmptyFlags, Symbol.noSymbol)
+    val refined = Refined(TypeTree.of[Holder], List(TypeDef(alias), ValDef(xs, None)), TypeRepr.of[Holder].typeSymbol)
+    '{ new Holder { type X = Int; override val xs: List[Int] = List(1) } }.asTerm match
+      case Inlined(_, _, Block(List(cls: ClassDef), Typed(made, _))) =>
+        Select.unique(Block(List(cls), Typed(made, refined)), "xs").asExprOf[List[Int]]
+
+  inline def typeArgPos[T]: String = ${ typeArgPosImpl(using Type.of[T]) }
+  def typeArgPosImpl[T](using Type[T])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val pos = TypeTree.of[T].pos
+    Expr(s"${pos.start}..${pos.end} ${TypeTree.of[T].show}")
+
 trait Shown[T]:
   def shown: String
 

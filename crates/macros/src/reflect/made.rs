@@ -32,6 +32,21 @@ impl Host {
         self.reflect().new_term((owner, &name, Kind::Def), info, flags)
     }
 
+    pub fn new_type_alias(
+        &mut self,
+        owner: SymbolId,
+        alias: TypeId,
+        flags: u64,
+        name: String,
+    ) -> Fallible<SymbolId> {
+        let owner = self.made_owner(owner);
+        self.reflect().new_type_alias((owner, &name), alias, flags)
+    }
+
+    pub fn type_def(&mut self, s: SymbolId) -> Fallible<TNodeId> {
+        self.reflect().type_def(s)
+    }
+
     /// `Symbol.newBind(owner, name, flags, tpe)`: a pattern variable, `Case` added to `flags`.
     pub fn new_bind(&mut self, owner: SymbolId, info: TypeId, flags: u64, name: String) -> SymbolId {
         let owner = self.made_owner(owner);

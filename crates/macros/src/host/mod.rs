@@ -65,6 +65,8 @@ pub struct Host {
     /// The types of quotes and their parts, whose package prefixes are the packages' `TermRef`s
     /// (dotty's unpickled types).
     pub quoted_types: std::collections::HashSet<TypeId>,
+    /// The spans of the type trees of the type arguments, by number.
+    pub type_arg_spans: std::collections::HashMap<u32, Span>,
 }
 
 impl Host {
@@ -97,6 +99,7 @@ impl Host {
             class_defs: Vec::new(),
             package_paths: Default::default(),
             quoted_types: Default::default(),
+            type_arg_spans: Default::default(),
         }
     }
 
