@@ -77,6 +77,14 @@ object Macros:
   inline def tupled(a: Any, b: Any): Tuple = ${ tupledImpl('a, 'b) }
   def tupledImpl(a: Expr[Any], b: Expr[Any])(using Quotes): Expr[Tuple] = Expr.ofTupleFromSeq(Seq(a, b))
 
+  inline def nested(a: Any): Any = ${ nestedImpl('a) }
+  def nestedImpl(a: Expr[Any])(using Quotes): Expr[Any] =
+    import quotes.reflect.*
+    a.asTerm.tpe.widen.asType match
+      case '[t] =>
+        '{ List.empty[t] }.asTerm.tpe.asType match
+          case '[u] => '{ Option.empty[u] }
+
 object Source:
   inline def line: Int = ${ lineImpl }
   def lineImpl(using Quotes): Expr[Int] = Expr(quotes.reflect.Position.ofMacroExpansion.startLine + 1)

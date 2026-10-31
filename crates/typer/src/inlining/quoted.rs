@@ -10,11 +10,17 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
-use tasty::{SymbolId, Universe};
+use tasty::{SymbolId, TypeId, Universe};
 
-/// The expansion, the trees of the macro's arguments, the quotes by their roots and the filling
-/// expressions by their hole placeholders.
-type Context<'c> = (&'c Expanded, &'c [TNodeId], &'c FxHashMap<TNodeId, u32>, &'c FxHashMap<TNodeId, u32>);
+/// The expansion, the trees of the macro's arguments, the quotes by their roots, the filling
+/// expressions by their hole placeholders and the types of all quotes' spliced type symbols.
+type Context<'c> = (
+    &'c Expanded,
+    &'c [TNodeId],
+    &'c FxHashMap<TNodeId, u32>,
+    &'c FxHashMap<TNodeId, u32>,
+    &'c FxHashMap<SymbolId, TypeId>,
+);
 
 impl Inlining<'_> {
     /// The trees of the expressions the macro returned; `args` are the trees of its `Expr`
@@ -39,7 +45,8 @@ impl Inlining<'_> {
             })
             .copied()
             .collect();
-        let cx = (expanded, args, &roots, &fills);
+        let spliced = super::spliced_types::spliced_types(self.u, expanded);
+        let cx = (expanded, args, &roots, &fills, &spliced);
         let mut trees = Vec::new();
         for &e in &expanded.results {
             let tree = self.quoted_tree(cx, &mut built, e, 0)?;
@@ -66,7 +73,9 @@ impl Inlining<'_> {
         t: TNodeId,
         own: Option<u32>,
     ) -> Result<TNodeId, Unsupported> {
-        let mut inner = TreeTypeMap { refs: m.refs.clone(), syms: m.syms.clone(), ..TreeTypeMap::default() };
+        let mut refs = cx.4.clone();
+        refs.extend(m.refs.clone());
+        let mut inner = TreeTypeMap { refs, syms: m.syms.clone(), ..TreeTypeMap::default() };
         let mut failed = None;
         let copy = self.copy(&mut inner, t, &mut |i, m, node| {
             let (e, own) = match cx.2.get(&node).copied().filter(|&e| Some(e) != own) {
@@ -95,13 +104,13 @@ impl Inlining<'_> {
         id: u32,
         depth: usize,
     ) -> Result<TNodeId, Unsupported> {
-        let (expanded, args, _, _) = cx;
+        let (expanded, args, _, _, all_spliced) = cx;
         let unknown = (self.call_span, "a macro expression the frontend did not give it");
         match expanded.exprs.get(id as usize).ok_or(unknown)? {
             _ if depth > expanded.exprs.len() => Err(unknown),
             &Quoted::Tree(t) => Ok(t),
             Quoted::Quote { .. } if built[id as usize].is_some() => Ok(built[id as usize].expect("built")),
-            Quoted::Quote { root, spliced, holes } => {
+            Quoted::Quote { root, holes, .. } => {
                 let mut fills = FxHashMap::default();
                 let mut from_call = Vec::new();
                 for &(h, e) in holes {
@@ -113,7 +122,7 @@ impl Inlining<'_> {
                 }
                 let mut owners = FxHashMap::default();
                 self.hole_owners(*root, None, &fills, &mut owners);
-                let mut m = TreeTypeMap { refs: spliced.iter().copied().collect(), ..TreeTypeMap::default() };
+                let mut m = TreeTypeMap { refs: all_spliced.clone(), ..TreeTypeMap::default() };
                 let mut failed = None;
                 let tree = self.copy(&mut m, *root, &mut |i, m, hole| {
                     let filled = *fills.get(&hole)?;

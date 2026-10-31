@@ -62,7 +62,9 @@ impl Typer<'_> {
                         return Ok(Some(error));
                     }
                     if self.history.open.is_empty() && self.unsupplied_in_checked_code(formal) {
-                        self.error_at(at, super::super::errors::missing_given(&format!("{formal:?}"), name));
+                        let shown = self.plain_text(formal).unwrap_or_default();
+                        let place = format!("parameter {name}");
+                        self.error_at(at, super::super::errors::missing_given(&shown, &place));
                         return Ok(Some(self.error_tree(self.tpd.span(tree))));
                     }
                     return Err(what);
