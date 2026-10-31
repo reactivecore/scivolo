@@ -3,6 +3,8 @@
 //! dotty's `CollectNullableFields`: the `private[this]` fields of reference types that only one
 //! lazy value of their class reads, which `LazyVals` sets to `null` once the value is computed.
 
+use super::getters::is_param_accessor;
+use super::param_forwarding::param_name;
 use crate::Lower;
 use crate::symbols::has;
 use rustc_hash::FxHashMap;
@@ -16,6 +18,7 @@ pub fn collect(l: &mut Lower, root: TNodeId, owner: SymbolId) -> FxHashMap<Symbo
     let mut uses: Vec<(SymbolId, Option<SymbolId>)> = Vec::new();
     traverse(l, root, owner, &mut |l, t, owner| {
         if let (Tree::Ident { .. } | Tree::Select { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t))
+            && let s = param_field(l, s, owner).unwrap_or(s)
             && is_nullable_private_field(l, s)
         {
             match uses.iter_mut().find(|(f, _)| *f == s) {
@@ -39,8 +42,22 @@ pub fn collect(l: &mut Lower, root: TNodeId, owner: SymbolId) -> FxHashMap<Symbo
     out
 }
 
+/// The parameter field of the class parameter `s` refers to when used outside the constructor,
+/// within `owner`, as before `Initializers` made it refer to the constructor's parameter.
+fn param_field(l: &mut Lower, s: SymbolId, owner: SymbolId) -> Option<SymbolId> {
+    let constr =
+        l.u.symbol(s).owner.filter(|&c| l.u.is_constructor(c) && l.u.symbol(s).kind == Kind::Param)?;
+    if std::iter::successors(Some(owner), |&o| l.u.symbol(o).owner).any(|o| o == constr) {
+        return None;
+    }
+    let class = l.u.symbol(constr).owner?;
+    let name = l.u.symbol(s).name.clone();
+    let decls = l.u.decls(class).ok()?;
+    decls.into_iter().find(|&f| is_param_accessor(l, f) && param_name(l, f) == name)
+}
+
 /// Whether `s` is a `private[this]` field of a class but a trait, not lazy, of a type whose
-/// erasure admits `null`, but a field `LambdaLift` made.
+/// erasure admits `null`.
 fn is_nullable_private_field(l: &mut Lower, s: SymbolId) -> bool {
     let sym = l.u.symbol(s);
     let in_class = sym.owner.is_some_and(|o| l.u.is_class(o) && !l.u.is_trait(o));
@@ -48,9 +65,6 @@ fn is_nullable_private_field(l: &mut Lower, s: SymbolId) -> bool {
         return false;
     }
     if !has(l.u, s, PRIVATE) || !has(l.u, s, LOCAL) {
-        return false;
-    }
-    if l.proxies.iter().any(|&(f, _)| f == s) || l.captured_fields.values().any(|&f| f == s) {
         return false;
     }
     let info = l.u.info(s);
