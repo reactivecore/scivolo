@@ -64,16 +64,29 @@ fn post_order(functions: &[Function]) -> Vec<usize> {
     out
 }
 
-/// The value parameters with their types and the result type of function `f`.
+/// The value parameters with their types and the result type of function `f`, its references to
+/// the parameters by their symbols.
 fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, TypeId)> {
     let mut result = value_info(l, f.sym);
     if let Type::ByName(r) = *l.u.types().get(result) {
         result = r;
     }
+    let syms = params(l, f.def);
+    let mut binders = Vec::new();
     while let Type::Method { result: r, .. } | Type::Poly { result: r, .. } = *l.u.types().get(result) {
+        if let Type::Method { binder, ref params, .. } = *l.u.types().get(result) {
+            binders.push((binder, params.len()));
+        }
         result = r;
     }
-    let params = params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();
+    let mut at = 0;
+    for (binder, n) in binders {
+        let refs: Vec<TypeId> =
+            syms.iter().skip(at).take(n).map(|&p| l.u.intern_type(Type::Sym(None, p))).collect();
+        result = l.u.subst(result, binder, &[], &refs);
+        at += n;
+    }
+    let params = syms.into_iter().map(|p| (p, l.u.info(p))).collect();
     Ok((params, result))
 }
 
