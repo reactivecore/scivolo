@@ -11,10 +11,14 @@ use crate::host::Host;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Host {
-    /// Records type `t` of a quote and its parts as quoted.
-    pub fn mark_quoted(&mut self, t: TypeId) {
+    /// Records type `t` of a quote and its parts as quoted, but for the types `spliced` into it
+    /// and their parts.
+    pub fn mark_quoted(&mut self, t: TypeId, spliced: &[TypeId]) {
         let mut parts = Vec::new();
         self.u.map_type(t, &mut |_, part| {
+            if spliced.contains(&part) {
+                return Some(part);
+            }
             parts.push(part);
             None
         });
