@@ -1,8 +1,10 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/SelectStatic.scala
-//! dotty's `SelectStatic` for enum cases and objects nested in static objects: `qual.f` becomes
-//! `f` if `qual` is a path of static objects, else `{ qual; f }`, without a span; the enclosing
-//! tree is copied as dotty's tree copiers do, which gives it one.
+//   compiler/src/dotty/tools/dotc/transform/Mixin.scala
+//! dotty's `SelectStatic` for enum cases and objects nested in static objects but of a Java
+//! class: `qual.f` becomes `f` if `qual` is a path of static objects, else `{ qual; f }`, without
+//! a span; the enclosing tree is copied as dotty's tree copiers do, which gives it one. Also the
+//! span `Mixin` gives a superclass constructor call.
 
 use super::walk::{children, subtrees};
 use crate::Lower;
@@ -46,8 +48,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
     }
 }
 
-/// Gives the constructor of superclass call `call` the call's span, as `Mixin`'s `superRef` does
-/// before.
+/// Gives the constructor of superclass call `call` the call's span (dotty's `Mixin.superRef`).
 fn super_ref_span(l: &mut Lower, call: TNodeId) {
     let Tree::Apply { fun, .. } = *l.tpd.tree(call) else { return };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return };

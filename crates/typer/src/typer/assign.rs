@@ -69,8 +69,8 @@ impl Typer<'_> {
         self.u.symbol(self.tpd.sym(self.tpd.meth_part(call))?).owner
     }
 
-    /// `x = v` for a variable `x`, with javalib's sources also a `var` parameter of a library
-    /// class, or a dynamic `updateDynamic` call typed for `pt` (dotty's
+    /// `x = v` for a variable `x`, a `var` parameter of a library class but of one standing for a
+    /// Java class among them, or a dynamic `updateDynamic` call typed for `pt` (dotty's
     /// `typedAssign`); `q.x = v` with a setter `x_=`, structural or a member, becomes `q.x_=(v)`.
     pub fn typed_assign(&mut self, id: NodeId, (lhs, rhs): (NodeId, NodeId), pt: Pt, ctx: Ctx) -> TNodeId {
         if let Tree::Apply { fun, args } = *self.ast.tree(lhs) {
@@ -93,11 +93,10 @@ impl Typer<'_> {
         if self.is_pending_dynamic(lhs) {
             return self.typed_dynamic_assign(lhs, rhs, pt, ctx);
         }
-        let javalib = self.u.javalib_sources();
         let var = self.tpd.sym(lhs).filter(|&s| {
-            let s = self.u.symbol(s);
-            let kind = s.kind == Kind::Val || javalib && s.kind == Kind::Param;
-            kind && s.flags.has(tasty::tags::MUTABLE)
+            let kind = self.u.symbol(s).kind;
+            let kind = kind == Kind::Val || kind == Kind::Param && !self.is_java_member(s);
+            kind && self.u.symbol(s).flags.has(tasty::tags::MUTABLE)
         });
         let Some(var) = var else {
             if let Tree::Select { qualifier, name } = *self.ast.tree(lhs_tree)

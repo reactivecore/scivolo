@@ -54,14 +54,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 fn any_ne_span(l: &mut Lower, fun: TNodeId) {
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return };
     let at = l.tpd.span(qualifier);
-    if l.tpd.sym(fun).is_some_and(|s| is_any_ne(l, s)) && at.exists() {
+    if l.tpd.sym(fun) == Some(l.defs.any_ne) && at.exists() {
         l.tpd.get_mut(fun).span = at.to_synthetic();
     }
-}
-
-/// Whether `s` is `Any.!=`, which `InterceptedMethods` makes `!(_ == _)`.
-pub fn is_any_ne(l: &Lower, s: SymbolId) -> bool {
-    l.u.symbol(s).owner == Some(l.defs.any) && l.u.symbol(s).name == "!="
 }
 
 /// Whether `s` is a `var` parameter or member of a class as a library class declares it, which
