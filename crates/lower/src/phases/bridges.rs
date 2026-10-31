@@ -29,15 +29,10 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
         if is_deferred(l, deferred, member) {
             continue;
         }
-        let (params, result) = l.u.erased_method(other);
-        let target = |l: &Lower, s: SymbolId| {
-            l.u.symbol(s).target.clone().unwrap_or_else(|| l.u.symbol(s).name.clone())
-        };
-        if target(l, member) == target(l, other)
-            && l.u.erased_method(member) == (params.clone(), result.clone())
-        {
+        if !differ(l, member, other) {
             continue;
         }
+        let (params, result) = l.u.erased_method(other);
         let key = (member, params, result);
         if made.contains(&key) {
             continue;
@@ -62,12 +57,19 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
     Ok(())
 }
 
+/// Whether `member` overriding `other` needs a bridge: their run-time names or erasures differ.
+pub fn differ(l: &mut Lower, member: SymbolId, other: SymbolId) -> bool {
+    let target =
+        |l: &Lower, s: SymbolId| l.u.symbol(s).target.clone().unwrap_or_else(|| l.u.symbol(s).name.clone());
+    target(l, member) != target(l, other) || l.u.erased_method(member) != l.u.erased_method(other)
+}
+
 /// The pairs of a member of `class` and a member it overrides, in the order dotty's
 /// `OverridingPairs.Cursor` yields them for `Bridges`: candidates by name, concrete ones before
 /// deferred ones, each from `class` to its last base class but javalib's own in declaration
 /// order; a member once
 /// overridden overrides nothing; pairs the superclass has too are left out.
-fn overriding_pairs(
+pub fn overriding_pairs(
     l: &mut Lower,
     class: SymbolId,
     deferred: &FxHashSet<SymbolId>,
@@ -145,7 +147,7 @@ fn is_member(l: &Lower, s: SymbolId) -> bool {
 }
 
 /// Whether method `m` has no body: one of the unit's in `deferred`, or the library's.
-fn is_deferred(l: &Lower, deferred: &FxHashSet<SymbolId>, m: SymbolId) -> bool {
+pub fn is_deferred(l: &Lower, deferred: &FxHashSet<SymbolId>, m: SymbolId) -> bool {
     deferred.contains(&m) || l.u.is_deferred(m) || l.u.symbol(m).tree.is_some() && l.u.body(m).is_none()
 }
 

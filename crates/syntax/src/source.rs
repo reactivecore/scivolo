@@ -105,7 +105,7 @@ impl SourceFile {
     pub fn column(&self, offset: Offset) -> usize {
         let start = self.line_to_offset(self.offset_to_line(offset)) as usize;
         let end = (offset as usize).min(self.text.len());
-        self.text.get(start..end).map_or(0, |s| s.chars().count())
+        self.text.get(start..end).map_or(0, |s| s.chars().count()) + (offset as usize).saturating_sub(end)
     }
 }
 
