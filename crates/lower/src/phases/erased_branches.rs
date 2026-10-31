@@ -48,16 +48,17 @@ pub fn typed_switch(l: &mut Lower, selector: TNodeId, cases: List) -> Result<Tre
     Ok(Tree::Match { selector: Some(typed(l, selector, None)?), cases, kind: MatchKind::Plain })
 }
 
-/// The branches of conditional or `try` `t`, typed against `pt` if a reference is expected,
-/// `t` then of the erased lub of their classes; else against the erasure of `t`'s type.
+/// The branches of conditional or `try` `t`, typed against `pt` if a reference is expected, else
+/// against the erasure of `t`'s type; `t` then of the erased lub of their classes if they were
+/// typed against a reference.
 pub fn typed_branches(
     l: &mut Lower,
     t: TNodeId,
     branches: &[TNodeId],
     pt: Option<&Erased>,
 ) -> Result<Vec<TNodeId>> {
-    let reference = pt.filter(|p| matches!(p, Erased::Class(_) | Erased::Array(_)));
-    let expected = match reference {
+    let reference = |p: &Erased| matches!(p, Erased::Class(_) | Erased::Array(_));
+    let expected = match pt.filter(|p| reference(p)) {
         Some(p) => p.clone(),
         None => l.u.erase_value(l.tpd.tpe(t)),
     };
@@ -65,7 +66,7 @@ pub fn typed_branches(
     for &b in branches {
         out.push(typed(l, b, Some(&expected))?);
     }
-    if reference.is_some() {
+    if reference(&expected) {
         let mut classes: Vec<Erased> = Vec::new();
         for &b in &out {
             let e = erased_type(l, b);

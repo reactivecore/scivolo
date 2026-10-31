@@ -6,6 +6,7 @@
 
 use super::adapt::from_start;
 use super::function_classes::{erased_derives, erased_function_class};
+use super::mixin::is_jdk;
 use crate::Lower;
 use crate::definitions::type_ref;
 use crate::symbols::has;
@@ -57,6 +58,18 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
         Erased::Nothing => l.u.class_ref("scala.Nothing"),
         _ => l.u.class_ref("java.lang.Object"),
     }
+}
+
+/// `conforms` as dotty sees the JDK's classes, from their class files: a JDK class derives from
+/// no class javalib gives it as a parent.
+pub fn conforms_to_class_file(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
+    let class = |l: &mut Lower, e: &Erased| match e {
+        Erased::Class(name) => class_named(l, name),
+        _ => None,
+    };
+    let (f, t) = (class(l, from), class(l, to));
+    let javalib_only = f.zip(t).is_some_and(|(f, t)| is_jdk(l, f) && !is_jdk(l, t) && t != l.defs.object);
+    !javalib_only && conforms(l, from, to)
 }
 
 /// Whether a value of erased type `from` is a value of erased reference type `to`.
@@ -145,6 +158,18 @@ fn member_named(l: &mut Lower, owner: SymbolId, rest: &str) -> Option<SymbolId> 
         }
     }
     None
+}
+
+/// Whether `t` is `new Array[T](n)`, which dotty's `newArray` gives the erased type `Object`.
+pub fn is_new_array(l: &Lower, t: TNodeId) -> bool {
+    let Tree::Apply { mut fun, .. } = *l.tpd.tree(t) else { return false };
+    if let Tree::TypeApply { fun: inner, .. } = *l.tpd.tree(fun) {
+        fun = inner;
+    }
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
+    let ctor = l.tpd.sym(fun).filter(|&c| l.u.is_constructor(c));
+    let array = ctor.and_then(|c| l.u.symbol(c).owner).is_some_and(|o| l.u.full_name(o) == "scala.Array");
+    array && matches!(l.tpd.tree(qualifier), Tree::New { .. })
 }
 
 /// Whether `t` is a cast `x.asInstanceOf[T]`.
