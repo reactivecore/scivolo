@@ -90,7 +90,7 @@ pub fn plan(
 pub fn rewrite(l: &mut Lower, f: &Function, method: &Method, plan: &Plan) {
     let closure = f.closure.expect("a lambda's closure");
     let span = l.tpd.span(closure);
-    let env: Vec<TNodeId> = f.captured.iter().map(|&s| l.ident(s, span)).collect();
+    let env: Vec<TNodeId> = f.captured.iter().map(|&s| l.ident(s, from_start(span))).collect();
     let target = plan.adapted.as_ref().unwrap_or(method).sym;
     let meth = l.ident(target, span);
     let Tree::Closure { tpt, .. } = *l.tpd.tree(closure) else { unreachable!("a closure") };

@@ -16,6 +16,7 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
 use accessor::accessor_body;
+use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
@@ -36,9 +37,15 @@ pub struct Lazy {
     pub accessor: SymbolId,
     pub field: SymbolId,
     pub init: SymbolId,
+    /// The fields set to `null` once the value is computed (dotty's `nullOut`).
+    pub nulled: Vec<SymbolId>,
 }
 
-pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
+pub fn transform(
+    l: &mut Lower,
+    td: TNodeId,
+    nullables: &mut FxHashMap<SymbolId, Vec<SymbolId>>,
+) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
@@ -62,13 +69,13 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             continue;
         }
         if thread_unsafe::is_thread_unsafe(l, accessor) {
-            let lazy = define(l, class, accessor);
+            let lazy = define(l, class, accessor, nullables);
             stats.extend(thread_unsafe::members(l, &lazy, stat, rhs)?);
             continue;
         }
         let defs = l.lazy_vals()?;
         let info = l.u.info(accessor);
-        let lazy = define(l, class, accessor);
+        let lazy = define(l, class, accessor, nullables);
         let object = object(l);
         let field_tpt = l.type_tree(object, Span::NONE);
         let field_span = if l.mixed_in.contains(&accessor) { Span::NONE } else { span };
@@ -174,12 +181,37 @@ fn eager_module(l: &mut Lower, accessor: SymbolId, stat: TNodeId, rhs: TNodeId) 
     [def, stat]
 }
 
-/// The lazy value `accessor` of `class` with its field entered.
-fn define(l: &mut Lower, class: SymbolId, accessor: SymbolId) -> Lazy {
+/// The lazy value `accessor` of `class` with its field entered, the fields of `nullables` it
+/// nulls made mutable.
+fn define(
+    l: &mut Lower,
+    class: SymbolId,
+    accessor: SymbolId,
+    nullables: &mut FxHashMap<SymbolId, Vec<SymbolId>>,
+) -> Lazy {
     let LazyMembers { init, field } = l.lazy_members[&accessor];
     l.u.enter(field);
     l.fields.insert(field, field);
-    Lazy { class, accessor, field, init }
+    let nulled = nullables.remove(&accessor).unwrap_or_default();
+    for &f in &nulled {
+        let flags = l.u.symbol(f).flags.with(MUTABLE);
+        l.u.set_flags(f, flags);
+    }
+    Lazy { class, accessor, field, init, nulled }
+}
+
+/// `this.f = null` for each field `f` lazy value `lazy` nulls.
+pub fn null_out(l: &mut Lower, lazy: &Lazy) -> Vec<TNodeId> {
+    let unit = l.u.class_ref("scala.Unit");
+    let mut out = Vec::new();
+    for &f in &lazy.nulled {
+        let this = l.this(lazy.class, Span::NONE);
+        let lhs = l.select(this, f, Span::NONE);
+        let rhs = l.null_literal(Span::NONE);
+        let t = l.tpd.node(Tree::Assign { lhs, rhs }, Span::NONE, Some(unit), None);
+        out.push(l.positioned(t));
+    }
+    out
 }
 
 /// `base` followed by the number of names made from it in the unit.

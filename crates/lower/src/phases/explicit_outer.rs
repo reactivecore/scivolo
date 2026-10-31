@@ -41,7 +41,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
             || inner_parent
             || match l.u.is_module_class(class) {
                 true => l.u.is_trait(outer),
-                false => !has(l.u, class, PRIVATE) && !in_term(l, outer),
+                false => !is_local_to_unit(l, class),
             };
         if always || uses || l.outer_accessors.contains_key(&class) {
             if !l.u.is_trait(class) {
@@ -81,6 +81,15 @@ pub fn in_term(l: &Lower, class: SymbolId) -> bool {
         owner = l.u.symbol(o).owner;
     }
     false
+}
+
+/// Whether `class` is private, in a term, or in a class that is, but a package (dotty's
+/// `isLocalToCompilationUnit` without a qualifier of `private`).
+fn is_local_to_unit(l: &Lower, class: SymbolId) -> bool {
+    let Some(owner) = l.u.symbol(class).owner else { return false };
+    has(l.u, class, PRIVATE)
+        || l.u.symbol(owner).kind.is_term()
+        || l.u.symbol(owner).kind != Kind::Package && is_local_to_unit(l, owner)
 }
 
 /// `t` and the trees in it but those in type trees, and in class definitions within `t` unless

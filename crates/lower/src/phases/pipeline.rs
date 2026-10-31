@@ -72,6 +72,8 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     drop_imports::transform(l, root);
     let erased = erasure::erased_defs::drop(l, root, &inits)?;
     retain_outside(l.tpd, &mut classes, erased);
+    let mut nullables = nullable_fields::collect(l, root, unit_owner);
+    tailrec::name_vars(l, root, unit_owner);
     let pending = local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes, pending)?;
     for &td in &classes {
@@ -99,7 +101,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         mixin::transform(l, td)?;
     }
     for &td in &classes {
-        lazy_vals::transform(l, td)?;
+        lazy_vals::transform(l, td, &mut nullables)?;
     }
     for &td in &classes {
         memoize::transform(l, td)?;

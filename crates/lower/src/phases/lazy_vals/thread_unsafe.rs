@@ -85,19 +85,22 @@ pub fn accessor_body(
 ) -> TNodeId {
     let target = field_ref(l, lazy);
     let store = assign(l, target, rhs);
-    let (cond, set, shared) = match flag {
+    let (cond, mut stats, shared) = match flag {
         Some(flag) => {
             let flag_ref = select_field(l, lazy.class, flag);
             let truth = l.boolean_literal(true);
             let set = assign(l, flag_ref, truth);
             let not = call(l, flag_ref, not, &[]);
-            (not, block(l, &[store], set), set)
+            (not, vec![store, set], set)
         }
         None => {
             let null = l.null_literal(Span::NONE);
-            (eq(l, target, null), store, store)
+            (eq(l, target, null), vec![store], store)
         }
     };
+    stats.extend(super::null_out(l, lazy));
+    let last = stats.pop().expect("a store");
+    let set = if stats.is_empty() { last } else { block(l, &stats, last) };
     let unit_tpe = unit(l);
     let otherwise = l.unit_literal(Span::NONE);
     let init = if_(l, cond, set, otherwise, unit_tpe);

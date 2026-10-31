@@ -90,6 +90,7 @@ mod narrowed;
 mod native_interop;
 mod nested_reads;
 mod non_local_returns;
+mod nullable_fields;
 mod outer_args;
 mod outer_ctors;
 mod outer_fields;
