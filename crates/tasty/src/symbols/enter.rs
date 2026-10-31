@@ -105,8 +105,25 @@ impl Universe {
         first_string(ast, names, call)
     }
 
+    /// Records the annotations on `from`, in its TASTy or recorded, on `to` with their string
+    /// arguments, but those of the class with full name `except`.
+    pub fn copy_annotations(&mut self, from: SymbolId, to: SymbolId, except: &str) {
+        let classes = match self.symbol(from).tree {
+            Some(_) => self.tasty_annotations(from),
+            None => self.annotations(from).to_vec(),
+        };
+        for class in classes {
+            if self.full_name(class) != except {
+                self.annotate(to, class);
+                for arg in self.annotation_strings(from, class).to_vec() {
+                    self.annotate_string(to, class, arg);
+                }
+            }
+        }
+    }
+
     /// The classes of the annotations on `sym` in its TASTy, in order.
-    pub fn tasty_annotations(&mut self, sym: SymbolId) -> Vec<SymbolId> {
+    fn tasty_annotations(&mut self, sym: SymbolId) -> Vec<SymbolId> {
         let Some((file, id)) = self.symbol(sym).tree else { return Vec::new() };
         let (ast, _) = self.file(file);
         let mods = match view(ast, id) {
