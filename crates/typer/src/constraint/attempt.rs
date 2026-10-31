@@ -32,8 +32,8 @@ impl Constraint {
         self.settle_from(a.vars, Fate::Discarded);
     }
 
-    /// Keeps the variables made since `a` from being discarded and their changes since from being
-    /// undone.
+    /// Keeps the variables made since `a` from being discarded, and their changes since `a` from
+    /// being undone; changes to older variables stay undoable.
     pub fn keep(&mut self, a: Attempt) {
         self.settle_from(a.vars, Fate::Kept);
         let older: Vec<_> = self.log.drain(a.mark.0..).filter(|&(i, _)| i < a.vars).collect();
