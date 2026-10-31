@@ -75,16 +75,16 @@ fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, Ty
     let mut binders = Vec::new();
     while let Type::Method { result: r, .. } | Type::Poly { result: r, .. } = *l.u.types().get(result) {
         if let Type::Method { binder, ref params, .. } = *l.u.types().get(result) {
-            binders.push((binder, params.len()));
+            binders.push((binder, params.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>()));
         }
         result = r;
     }
     let mut at = 0;
-    for (binder, n) in binders {
+    for (binder, names) in binders {
         let refs: Vec<TypeId> =
-            syms.iter().skip(at).take(n).map(|&p| l.u.intern_type(Type::Sym(None, p))).collect();
-        result = l.u.subst(result, binder, &[], &refs);
-        at += n;
+            syms.iter().skip(at).take(names.len()).map(|&p| l.u.intern_type(Type::Sym(None, p))).collect();
+        result = l.u.subst(result, binder, &names, &refs);
+        at += names.len();
     }
     let params = syms.into_iter().map(|p| (p, l.u.info(p))).collect();
     Ok((params, result))

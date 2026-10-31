@@ -79,6 +79,7 @@ impl Inlining<'_> {
         let node = self.tpd.get(t);
         let (tree, tpe, sym) = (node.tree.clone(), node.tpe, node.sym);
         let copy = self.tpd.node(tree, at, tpe, sym);
+        self.host.copied_call(t, copy);
         crate::tpd::map_children(self, copy, &mut |i, c| i.lifted_at(c, Some(at)));
         copy
     }
