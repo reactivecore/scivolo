@@ -64,7 +64,7 @@ impl Host {
 
     /// The definition of `s` made from its symbol, without right-hand sides (dotty's
     /// `definitionFromSym` of a symbol without a tree); none for a package.
-    pub fn from_symbol(&mut self, s: SymbolId) -> Fallible<Option<TNodeId>> {
+    pub fn definition_from_symbol(&mut self, s: SymbolId) -> Fallible<Option<TNodeId>> {
         let sym = self.u.symbol(s);
         let (kind, flags) = (sym.kind, sym.flags);
         Ok(Some(match kind {
@@ -106,11 +106,12 @@ impl Host {
     fn class_from_symbol(&mut self, cls: SymbolId) -> Fallible<TNodeId> {
         let mut decls = self.u.symbol(cls).decls.clone();
         let ctor = decls.iter().copied().find(|&d| self.u.is_constructor(d));
-        let constr = self.from_symbol(ctor.ok_or("Symbol.tree of a class without a constructor")?)?;
+        let constr =
+            self.definition_from_symbol(ctor.ok_or("Symbol.tree of a class without a constructor")?)?;
         decls.retain(|&d| Some(d) != ctor && !self.u.symbol(d).name.starts_with("<local "));
         let mut body = Vec::new();
         for d in decls {
-            body.extend(self.from_symbol(d)?);
+            body.extend(self.definition_from_symbol(d)?);
         }
         let parents: Vec<TNodeId> =
             self.u.parents(cls).into_iter().map(|p| self.reflect().type_tree(p)).collect();

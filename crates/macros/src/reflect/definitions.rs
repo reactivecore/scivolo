@@ -36,13 +36,13 @@ impl Host {
     /// defined in a macro argument.
     pub fn symbol_tree(&mut self, s: SymbolId) -> Fallible<Option<TNodeId>> {
         if self.in_args(s) {
-            return self.from_symbol(s);
+            return self.definition_from_symbol(s);
         }
         match self.definition(s) {
             None if self.settings.retain_trees && self.u.symbol(s).tree.is_some() => {
                 Ok(Some(typer::unpickle::member_def(&mut self.u, &mut self.tpd, &mut self.names, s)?))
             }
-            None => self.from_symbol(s),
+            None => self.definition_from_symbol(s),
             t => Ok(t),
         }
     }
