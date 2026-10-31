@@ -170,6 +170,9 @@ slower meanwhile:
    2026-10-30 afternoon: closures against callee and SAM types, outer `this`, JDK stubs as Java
    classes, nio buffers; javalib lowers 594 of 601, auxlib 15 of 15, nativelib 102 of 103, clib
    21, posixlib 67, windowslib 34.
+   2026-10-31: `lib-compile` reports NIR files whose var slots of a method with more than four
+   are in dotty's symbol-id order as `var-order` (Scala Native takes them from a hash set):
+   javalib 3,303 same, 82 var-order, 111 differ; nativelib 682 same, 9 var-order, 24 differ.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
