@@ -1,12 +1,14 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/SelectStatic.scala
-//! dotty's `SelectStatic` for enum cases and objects nested in static objects: `qual.f` becomes
-//! `f` if `qual` is a path of static objects, else `{ qual; f }`, without a span; the enclosing
-//! tree is copied as dotty's tree copiers do, which gives it one.
+//   compiler/src/dotty/tools/dotc/transform/Mixin.scala
+//! dotty's `SelectStatic` for enum cases and objects nested in static objects but of a Java
+//! class: `qual.f` becomes `f` if `qual` is a path of static objects, else `{ qual; f }`, without
+//! a span; the enclosing tree is copied as dotty's tree copiers do, which gives it one. Also the
+//! span `Mixin` gives a superclass constructor call.
 
 use super::walk::{children, subtrees};
 use crate::Lower;
-use crate::symbols::{has, is_static};
+use crate::symbols::{has, is_jdk_object, is_static};
 use syntax::ast::Span;
 use tasty::tags::{ENUM, STATIC};
 use tasty::{Kind, SymbolId};
@@ -14,11 +16,18 @@ use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) {
     for parent in subtrees(l.tpd, td) {
+        if let Tree::Template { parents, .. } = *l.tpd.tree(parent) {
+            for p in l.tpd.items(parents).to_vec() {
+                super_ref_span(l, p);
+            }
+        }
         let mut changed = false;
         for c in children(l.tpd, parent) {
             let Tree::Select { qualifier, .. } = *l.tpd.tree(c) else { continue };
             let Some(f) = l.tpd.sym(c) else { continue };
-            if !is_nested_static_module(l, f) && !is_static_enum_value(l, f) {
+            if !is_nested_static_module(l, f) && !is_static_enum_value(l, f)
+                || is_java_module_ref(l, qualifier)
+            {
                 continue;
             }
             let tpe = l.tpd.tpe(c);
@@ -39,9 +48,25 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
     }
 }
 
+/// Gives the constructor of superclass call `call` the call's span (dotty's `Mixin.superRef`).
+fn super_ref_span(l: &mut Lower, call: TNodeId) {
+    let Tree::Apply { fun, .. } = *l.tpd.tree(call) else { return };
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return };
+    let span = l.tpd.span(call);
+    if matches!(l.tpd.tree(qualifier), Tree::New { .. }) && span.exists() {
+        l.tpd.get_mut(fun).span = span;
+    }
+}
+
 /// Whether `f` is the static field of an enum case.
 pub fn is_static_enum_value(l: &Lower, f: SymbolId) -> bool {
     l.u.symbol(f).kind == Kind::Val && has(l.u, f, STATIC) && has(l.u, f, ENUM)
+}
+
+/// Whether `t` refers to the object of a Java class (dotty's `JavaModule`).
+fn is_java_module_ref(l: &mut Lower, t: TNodeId) -> bool {
+    let module = l.tpd.sym(t).and_then(|s| l.u.module_class(s));
+    module.is_some_and(|c| is_jdk_object(l.u, c))
 }
 
 /// Whether `s` is an object nested in a static object.

@@ -6,6 +6,7 @@
 //! class moves to its extension method `m$extension` in the companion object, `this` becoming
 //! the parameter `$this`; the method forwards to it.
 
+use super::drop_inlined::span_before_erasure;
 use super::retained_bodies::add_bodies;
 use super::value_classes::{extension, has_extension};
 use super::walk::subtrees;
@@ -48,7 +49,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<Vec<Moved>> {
             let def = move_body(l, class, stat, ext);
             let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(def) else { unreachable!("a method") };
             let matched = matches!(l.tpd.tree(rhs), Tree::Match { .. });
-            moved.push((stat, def, (!matched).then(|| l.tpd.span(rhs))));
+            moved.push((stat, def, (!matched).then(|| span_before_erasure(l, rhs))));
             defs.push(def);
         }
         for (retainer, method) in add_bodies(l, template)? {

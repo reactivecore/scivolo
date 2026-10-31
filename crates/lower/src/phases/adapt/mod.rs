@@ -105,10 +105,12 @@ pub fn from_start(span: Span) -> Span {
 }
 
 /// `t()`, of `t`'s result type, spanning `t` with its start as point, unless `t` refers to a Java
-/// static, which stands for a JDK field; `x.##` spanning `x` (dotty's `poundPoundValue`).
+/// static, which stands for a JDK field, or is an intrinsic of a type, at its type application;
+/// `x.##` spanning `x` (dotty's `poundPoundValue`).
 pub fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
     let span = match (l.tpd.sym(t), l.tpd.tree(t)) {
         (Some(s), _) if is_java_static(l.u, s) => l.tpd.span(t),
+        _ if l.non_erased.contains_key(&t) => l.non_erased[&t].1,
         (Some(s), &Tree::Select { qualifier, .. })
             if l.u.symbol(s).name == "##" && l.u.symbol(s).owner == Some(l.defs.any) =>
         {
