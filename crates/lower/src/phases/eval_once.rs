@@ -30,7 +30,7 @@ pub fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
         Tree::Ident { .. } => stable(l, l.tpd.sym(t)),
         Tree::Select { qualifier, .. } => stable(l, l.tpd.sym(t)) && is_stable_path(l, qualifier),
         Tree::Apply { fun, args } if l.tpd.items(args).is_empty() => {
-            matches!(l.tpd.tree(fun), Tree::Select { .. }) && is_stable_path(l, fun)
+            matches!(l.tpd.tree(fun), Tree::Select { .. } | Tree::Ident { .. }) && is_stable_path(l, fun)
         }
         _ => false,
     }
