@@ -7,6 +7,7 @@
 use super::Gen;
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
+use tasty::SymbolId;
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -100,6 +101,13 @@ impl Gen<'_, '_> {
         };
         self.m.pos = saved;
         Ok(Some(v))
+    }
+
+    /// Whether `m` is `scala.runtime.Arrays.newArray`, called statically (nscplugin's
+    /// `newArrayMethod`).
+    pub fn is_new_array_method(&self, m: SymbolId) -> bool {
+        let owner = self.l.u.symbol(m).owner.map(|o| self.l.u.full_name(o));
+        self.l.u.symbol(m).name == "newArray" && owner.as_deref() == Some("scala.runtime.Arrays$")
     }
 
     /// Whether `v` is a zero value: `false`, `null`, a numeric zero (NIR's `isZero`).

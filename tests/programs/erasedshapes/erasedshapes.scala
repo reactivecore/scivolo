@@ -8,6 +8,7 @@ implicit class ToIt[A](private val self: java.lang.Iterable[A]) extends AnyVal:
 
 class ItOps[A](val self: java.lang.Iterable[A]) extends AnyVal:
   def first: A = self.iterator().next()
+  def again: ItOps[A] = new ItOps[A](self)
 
 object Shapes:
   def firstOf(l: java.util.ArrayList[String]): String =
@@ -36,6 +37,10 @@ object Shapes:
 
   def ofDim(n: Int): Int = Array.ofDim[Any](n).length
 
+  def ofDims(n: Int): Int = Array.ofDim[String | Null](n).length
+
+  def again(l: java.util.ArrayList[String]): String = new ItOps(l).again.first + l.ops.again.first
+
   def init(parts: Array[String]): String = parts.init.mkString("/")
 
 @main def erasedshapes(): Unit =
@@ -49,3 +54,5 @@ object Shapes:
   println(Shapes.ofDim(4))
   println(Shapes.init(Array("x", "y", "z")))
   println(Shapes.firstOf(list))
+  println(Shapes.ofDims(2))
+  println(Shapes.again(list))
