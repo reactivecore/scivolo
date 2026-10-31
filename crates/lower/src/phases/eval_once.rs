@@ -29,6 +29,25 @@ pub fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
     }
 }
 
+/// Whether `t` is a stable path, or `new C(args)` of a class without initialization code and
+/// stable `args`, possibly ascribed (dotty's `isIdempotentExpr` for these).
+pub fn is_idempotent(l: &mut Lower, t: TNodeId) -> bool {
+    match *l.tpd.tree(t) {
+        Tree::Typed { expr, .. } => is_idempotent(l, expr),
+        Tree::Apply { mut fun, args } => {
+            if let Tree::TypeApply { fun: f, .. } = *l.tpd.tree(fun) {
+                fun = f;
+            }
+            let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
+            let Tree::New { tpt } = *l.tpd.tree(qualifier) else { return false };
+            let class = l.u.class_symbol(l.tpd.tpe(tpt));
+            let args = l.tpd.items(args).to_vec();
+            class.is_some_and(|c| l.u.no_inits(c)) && args.into_iter().all(|a| is_idempotent(l, a))
+        }
+        _ => is_stable_path(l, t),
+    }
+}
+
 /// `val ev$N = expr` in `owner` (dotty's `evalOnce`), with its symbol.
 pub fn eval_once(l: &mut Lower, expr: TNodeId, owner: SymbolId) -> (SymbolId, TNodeId) {
     let tpe = l.u.widen(l.tpd.tpe(expr));

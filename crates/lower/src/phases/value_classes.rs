@@ -9,7 +9,7 @@
 //! `C.m$extension(q)(args)`, a method of the companion object taking the value first.
 
 use super::adapt::from_start;
-use super::eval_once::{eval_once, is_stable_path};
+use super::eval_once::{eval_once, is_idempotent};
 use super::walk::walk_class_up;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
@@ -66,7 +66,7 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     };
     let class = l.u.symbol(m).owner.expect("a method's class");
     let generic = !l.u.type_params(class).is_empty();
-    let (receiver, ev_def) = if generic && !is_stable_path(l, qualifier) {
+    let (receiver, ev_def) = if generic && !is_idempotent(l, qualifier) {
         let (ev, def) = eval_once(l, qualifier, owner);
         (l.ident(ev, Span::NONE), Some(def))
     } else {
@@ -113,10 +113,7 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
                     false => Tree::Typed { expr: block, tpt: cast_type(l, tpe, span) },
                 }
             }
-            None if tpe != l.tpd.tpe(t) => {
-                let tpt = if applied { inferred(l, tpe, span) } else { cast_type(l, tpe, span) };
-                Tree::Typed { expr: call, tpt }
-            }
+            None if tpe != l.tpd.tpe(t) => Tree::Typed { expr: call, tpt: inferred(l, tpe, span) },
             None => l.tpd.tree(call).clone(),
         };
         l.tpd.get_mut(t).span =
