@@ -62,6 +62,9 @@ pub struct Host {
     pub class_defs: Vec<TNodeId>,
     /// The `this` types of packages made as prefixes of their members, with the packages' paths.
     pub package_paths: std::collections::HashMap<TypeId, TypeId>,
+    /// The types of quotes and their parts, whose package prefixes are the packages' `TermRef`s
+    /// (dotty's unpickled types).
+    pub quoted_types: std::collections::HashSet<TypeId>,
 }
 
 impl Host {
@@ -93,6 +96,7 @@ impl Host {
             made_params: Default::default(),
             class_defs: Vec::new(),
             package_paths: Default::default(),
+            quoted_types: Default::default(),
         }
     }
 

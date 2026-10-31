@@ -159,8 +159,18 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
   }
 
   abstract class TermParamClauseMethodsImpl extends TermParamClauseMethods {
-    extension (self: TermParamClause) def params: List[ValDef] =
-      self.asInstanceOf[ClauseImpl].params.asInstanceOf[List[ValDef]]
+    extension (self: TermParamClause) {
+      def params: List[ValDef] = self.asInstanceOf[ClauseImpl].params.asInstanceOf[List[ValDef]]
+      def isImplicit: Boolean = self.params.headOption.exists(has(_, 13))
+      def isGiven: Boolean = self.params.headOption.exists(has(_, 37))
+      def isErased: Boolean = false
+      def erasedArgs: List[Boolean] = self.params.map(has(_, 34))
+      def hasErasedArgs: Boolean = self.params.exists(has(_, 34))
+    }
+
+    /** Whether the symbol of parameter `p` has the flag of TASTy tag `tag`. */
+    private def has(p: ValDef, tag: Int): Boolean =
+      (ReflectOps.flags(ReflectOps.one("treeSymbol", ReflectOps.id(p))).bits & 1L << tag) != 0
   }
 
   private def clauses[T](isType: Boolean): TypeTest[ParamClause, T] = new TypeTest[ParamClause, T] {

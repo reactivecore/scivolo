@@ -177,6 +177,7 @@ ops! {
     "constantType" => constant_type(t: Ty) -> Fallible<Reflected>;
     "typeConstructorOf" => type_constructor_of(name: Name) -> Fallible<TypeId>;
     "substituteTypes" => substitute_types(t: Ty, pairs: Rest<(Sym, Ty)>) -> TypeId;
+    "isErasedFunctionType" => is_erased_function_type(t: Ty) -> bool;
     // constants
     "constant" => constant(t: Tree) -> Fallible<Reflected>;
     "literal" => literal(kind: Num, bits: Bits, text: Name) -> Fallible<TNodeId>;
@@ -186,6 +187,7 @@ ops! {
     "declaredMethod" => declared_method(s: OptSym, name: Name) -> Vec<SymbolId>;
     "spliceOwner" => splice_owner() -> SymbolId;
     "root" => root() -> SymbolId;
+    "rootPackage" => root_package() -> SymbolId;
     "emptyPackage" => empty_package() -> SymbolId;
     "anyRefAlias" => any_ref_alias() -> Fallible<SymbolId>;
     "predefClassOf" => predef_class_of() -> Fallible<SymbolId>;

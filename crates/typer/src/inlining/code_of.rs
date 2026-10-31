@@ -4,46 +4,78 @@
 //   compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala
 //   compiler/src/dotty/tools/dotc/util/Chars.scala
 //! `codeOf`: the argument tree as dotty's `RefinedPrinter` shows it, for literals, unquoted
-//! references by their symbols' names without a shown prefix, applications and infix
-//! operations of those.
+//! references, selections, applications and infix operations of those, blocks, inlined trees
+//! and type aliases.
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant as C;
 use syntax::scan::is_operator_part;
-use tasty::{Type, TypeId};
+use tasty::Type;
 
 const REFUSED: &str = "codeOf an argument the frontend does not print";
 
 impl Inlining<'_> {
     /// The text of argument `arg` as a string literal at `span` (dotty's `Intrinsics.codeOf`).
     pub fn code_of(&mut self, arg: TNodeId, span: Span) -> Result<TNodeId, Unsupported> {
-        let inner = match *self.tpd.tree(arg) {
-            T::Inlined { call: None, bindings, expansion } if bindings.is_empty() => expansion,
-            _ => arg,
-        };
-        let text = self.code(inner, false).ok_or((span, REFUSED))?;
+        let text = self.code(arg, false).ok_or((span, REFUSED))?;
         Ok(self.literal(C::String(text.encode_utf16().collect()), span))
     }
 
-    /// Tree `t` shown; `local` if it is an operand or a receiver, which prints only atoms.
+    /// Tree `t` shown; `local` if it is an operand or a receiver, which prints no infix operation,
+    /// block or definition.
     fn code(&mut self, t: TNodeId, local: bool) -> Option<String> {
         match self.tpd.tree(t).clone() {
             T::Literal { value } => constant_text(&value),
             T::Ident { name } => {
                 let tpe = self.tpd.tpe(t);
-                let prefix = match *self.u.types().get(tpe) {
-                    Type::Sym(p, s) if self.u.symbol(s).name == self.names.text(name.name) => p,
+                let (prefix, s) = match *self.u.types().get(tpe) {
+                    Type::Sym(p, s) if self.u.symbol(s).name == self.names.text(name.name) => (p, s),
                     _ => return None,
                 };
                 let text = self.names.text(name.name).to_owned();
                 let span = self.tpd.span(t);
                 let unquoted = span.end().checked_sub(span.start()).is_some_and(|n| n as usize == text.len());
-                (unquoted && !text.contains('$') && prefix.is_none_or(|p| self.is_omitted_prefix(p)))
-                    .then_some(text)
+                if !unquoted || text.contains('$') {
+                    return None;
+                }
+                Some(format!("{}{text}", self.prefix_code(prefix, s)?))
             }
-            T::Apply { .. } if local => None,
+            T::Inlined { bindings, expansion, .. } if bindings.is_empty() => self.code(expansion, local),
+            T::Block { .. } | T::Inlined { .. } if local => None,
+            T::Block { stats, expr } => {
+                let trees: Vec<TNodeId> = self.tpd.items(stats).iter().copied().chain([expr]).collect();
+                self.block_code(&trees)
+            }
+            T::Inlined { bindings, expansion, .. } => {
+                let trees: Vec<TNodeId> =
+                    self.tpd.items(bindings).iter().copied().chain([expansion]).collect();
+                self.block_code(&trees)
+            }
+            T::TypeDef { name, rhs } if !local && matches!(self.tpd.tree(rhs), T::TypeTree { .. }) => {
+                let Type::Alias(alias) = *self.u.types().get(self.tpd.tpe(rhs)) else { return None };
+                let s = self.tpd.sym(t)?;
+                if self.u.symbol(s).flags.0 != 0 {
+                    return None;
+                }
+                let alias = self.type_code(alias)?;
+                Some(format!("type {} = {alias}", self.names.text(name.name)))
+            }
+            T::Select { qualifier, name } if !name.is_type => {
+                let text = self.names.text(name.name).to_owned();
+                if text.contains('$') || text.starts_with('<') {
+                    return None;
+                }
+                Some(format!("{}.{text}", self.code(qualifier, true)?))
+            }
+            T::TypeApply { fun, args } => {
+                let fun = self.code(fun, true)?;
+                let args = self.tpd.items(args).to_vec();
+                let args: Option<Vec<String>> =
+                    args.iter().map(|&a| self.type_code(self.tpd.tpe(a))).collect();
+                Some(format!("{fun}[{}]", args?.join(", ")))
+            }
             T::Apply { fun, args } => {
                 let widened = self.tpd.get(fun).tpe.map(|f| self.u.widen(f));
                 let implicit = widened.is_some_and(|f| {
@@ -57,7 +89,7 @@ impl Inlining<'_> {
                     let op = self.names.text(name.name).to_owned();
                     if op.chars().all(is_operator_part) {
                         let (l, r) = (self.code(qualifier, true)?, self.code(*arg, true)?);
-                        return Some(format!("{l} {op} {r}"));
+                        return (!local).then(|| format!("{l} {op} {r}"));
                     }
                 }
                 let fun = self.code(fun, true)?;
@@ -68,19 +100,17 @@ impl Inlining<'_> {
         }
     }
 
-    /// Whether `RefinedPrinter.toTextPrefixOf` leaves out prefix `p`: `scala`, `java.lang`,
-    /// `Predef` and the empty package.
-    fn is_omitted_prefix(&mut self, p: TypeId) -> bool {
-        let s = match *self.u.types().get(p) {
-            Type::Package(s) | Type::Sym(_, s) => s,
-            Type::This(c) => match self.u.class_symbol(c) {
-                Some(c) => c,
-                None => return false,
-            },
-            _ => return false,
-        };
-        let full = self.u.full_name(s);
-        matches!(full.as_str(), "scala" | "java.lang" | "scala.Predef" | "scala.Predef$" | "" | "<empty>")
+    /// Statements and expression `trees` in braces, one per line, indented (dotty's `blockText`).
+    fn block_code(&mut self, trees: &[TNodeId]) -> Option<String> {
+        let mut text = String::from("{");
+        for &t in trees {
+            for line in self.code(t, false)?.lines() {
+                text.push_str("\n  ");
+                text.push_str(line);
+            }
+        }
+        text.push_str("\n}");
+        Some(text)
     }
 }
 

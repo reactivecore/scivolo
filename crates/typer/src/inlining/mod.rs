@@ -8,6 +8,7 @@
 mod beta;
 mod blocks;
 mod code_of;
+mod code_of_refs;
 mod compiletime;
 mod const_fold;
 mod constants;
@@ -42,6 +43,7 @@ mod reflect_classes;
 mod reflect_constructors;
 mod reflect_defs;
 mod reflect_lambdas;
+mod reflect_methods;
 mod reflect_trees;
 mod reflect_vals;
 mod reselect;
