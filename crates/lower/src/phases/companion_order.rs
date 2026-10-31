@@ -3,10 +3,11 @@
 //! The statement order of dotty's `FirstTransform.reorderAndComplete`: the class of an object
 //! moves after its companion class when that class follows it.
 
+use super::local_free::within;
 use super::walk::{is_class_def, subtrees};
 use crate::Lower;
-use tasty::module_name;
 use syntax::source::Offset;
+use tasty::{SymbolId, module_name};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Reorders the statements of every package, template and block of unit `root`.
@@ -52,7 +53,7 @@ fn reorder(l: &mut Lower, stats: List) -> Option<List> {
             moved[i] = true;
             let (m, c) = (l.tpd.span(m), l.tpd.span(c));
             if m.exists() && c.exists() && m.end() <= c.end() {
-                l.moved_classes.push((m, c.end()));
+                l.moved_classes.push((mc, m, c.end()));
             }
         }
     }
@@ -69,11 +70,13 @@ fn reorder(l: &mut Lower, stats: List) -> Option<List> {
     Some(l.tpd.list(&out))
 }
 
-/// Offset `at` of the unit's source moved with the classes `reorder` moved, so that offsets
-/// compare in the order of the reordered trees.
-pub fn tree_offset(l: &Lower, mut at: Offset) -> Offset {
-    for &(m, end) in l.moved_classes.iter().rev() {
-        if (m.start()..m.end()).contains(&at) {
+/// Offset `at` of the unit's source, of what `sym` defines if any, moved with the classes
+/// `reorder` moved, so that offsets compare in the order of the reordered trees; at the start of
+/// a moved class, where its object's value stays, only what is defined in the class moves.
+pub fn tree_offset(l: &Lower, mut at: Offset, sym: Option<SymbolId>) -> Offset {
+    for &(class, m, end) in l.moved_classes.iter().rev() {
+        let start = m.start() + u32::from(!sym.is_some_and(|s| within(l, s, class)));
+        if (start..m.end()).contains(&at) {
             at += end - m.end();
         } else if (m.end()..end).contains(&at) {
             at -= m.end() - m.start();

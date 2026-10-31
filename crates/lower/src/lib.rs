@@ -142,9 +142,9 @@ pub struct Lower<'a> {
     tail_vars: FxHashMap<SymbolId, SymbolId>,
     /// The variables `TailRec` made in local methods, which `LambdaLift` passes by value.
     tail_locals: FxHashSet<SymbolId>,
-    /// The spans of the object classes `FirstTransform` moved after their companion classes, each
-    /// with the end of that class.
-    moved_classes: Vec<(Span, syntax::source::Offset)>,
+    /// The object classes `FirstTransform` moved after their companion classes, with their spans
+    /// and the end of that class.
+    moved_classes: Vec<(SymbolId, Span, syntax::source::Offset)>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into

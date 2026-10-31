@@ -7,9 +7,9 @@ use super::companion_order::tree_offset;
 use super::walk::subtrees;
 use crate::Lower;
 use crate::definitions::symbol;
+use crate::symbols::has;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::Reverse;
-use crate::symbols::has;
 use tasty::tags::{MUTABLE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -99,7 +99,8 @@ pub fn renumber(l: &mut Lower, root: TNodeId) {
         .map(|(v, span, erasure)| {
             let span = at.get(&v).copied().unwrap_or(span);
             if span.exists() {
-                key = (erasure, tree_offset(l, span.end()), Reverse(tree_offset(l, span.start())));
+                let at = |o| tree_offset(l, o, Some(v));
+                key = (erasure, at(span.end()), Reverse(at(span.start())));
             }
             (key, v)
         })
