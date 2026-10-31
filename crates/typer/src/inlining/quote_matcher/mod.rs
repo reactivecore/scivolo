@@ -10,7 +10,7 @@ mod open_closure;
 mod shapes;
 
 use super::Reflect;
-use super::quote_match::Bindings;
+use super::quote_match::{Bindings, type_holes};
 use crate::tpd::{List, TNodeId, Tpd, Tree as T};
 use crate::unpickle::{PatternBody, QuotePattern, Refusal};
 use shapes::same_constant;
@@ -30,7 +30,11 @@ pub fn quote_match(
     let PatternBody::Term(tree) = pattern.body else {
         return Err("a type pattern matched against an expression");
     };
-    let Some(bindings) = Bindings::new(u, &pattern.bindings, &pattern.spliced) else { return Ok(None) };
+    let (tree, binds) = match pattern.bindings.is_empty() {
+        true => type_holes(u, tpd, tree),
+        false => (tree, pattern.bindings.clone()),
+    };
+    let Some(bindings) = Bindings::new(u, &binds, &pattern.spliced) else { return Ok(None) };
     let mut m = Matcher { u, tpd, names, fills, bindings, env: Vec::new(), matched: Vec::new() };
     if !m.matches(scrutinee, tree)? {
         return Ok(None);
