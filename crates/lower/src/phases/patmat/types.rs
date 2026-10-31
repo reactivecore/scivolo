@@ -9,8 +9,10 @@ use crate::phases::explicit_outer::outer_accessor;
 use crate::phases::lazy_trees::dup;
 use crate::phases::outer_tests::{OuterTest, outer_test};
 use crate::phases::type_tests::singletons::{is_instance, singleton};
+use crate::symbols::has;
 use syntax::ast::Span;
-use tasty::{SymbolId, TypeId};
+use tasty::tags::{INLINE, MUTABLE, STABLE};
+use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -24,6 +26,27 @@ impl Translator<'_, '_> {
         let bind = self.l.tpd.node(Tree::Bind { name, body: expr }, span, tpe, sym);
         let typed_tpe = self.l.tpd.tpe(tpt);
         self.node(Tree::Typed { expr: bind, tpt }, typed_tpe, None)
+    }
+
+    /// Type `t` of a binder, widened if it refers to a variable, a method that is not stable or a
+    /// by-name or inline parameter (dotty's `sanitize` through `widenIfUnstable`).
+    pub fn sanitized(&mut self, t: TypeId) -> TypeId {
+        let Type::Sym(_, s) = *self.l.u.types().get(t) else { return t };
+        let (kind, info) = (self.l.u.symbol(s).kind, self.l.u.info(s));
+        let unstable = match kind {
+            Kind::Val => has(self.l.u, s, MUTABLE),
+            Kind::Def => !has(self.l.u, s, STABLE),
+            Kind::Param => has(self.l.u, s, INLINE) || matches!(self.l.u.types().get(info), Type::ByName(_)),
+            _ => false,
+        };
+        if !unstable {
+            return t;
+        }
+        let widened = self.l.u.widen(t);
+        match *self.l.u.types().get(widened) {
+            Type::ByName(r) => r,
+            _ => widened,
+        }
     }
 
     /// `value.asInstanceOf[target]`.

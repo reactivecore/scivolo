@@ -16,8 +16,8 @@ use std::ops::ControlFlow;
 use syntax::ast::constant::Constant;
 use syntax::names::to_utf16;
 use tasty::tags::{
-    CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INLINE, INTconst, LAZY, LONGconst, MUTABLE,
-    TRUEconst,
+    BYTEconst, CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INLINE, INTconst, LAZY, LONGconst,
+    MUTABLE, SHORTconst, TRUEconst,
 };
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
@@ -210,6 +210,8 @@ fn constant(t: &Type) -> Option<Constant> {
     Some(match *t {
         Type::Constant(TRUEconst, _) => Constant::Boolean(true),
         Type::Constant(FALSEconst, _) => Constant::Boolean(false),
+        Type::Constant(BYTEconst, b) => Constant::Byte(b as i8),
+        Type::Constant(SHORTconst, b) => Constant::Short(b as i16),
         Type::Constant(CHARconst, b) => Constant::Char(b as u16),
         Type::Constant(INTconst, b) => Constant::Int(b as i32),
         Type::Constant(LONGconst, b) => Constant::Long(b),

@@ -111,6 +111,15 @@ impl Gen<'_, '_> {
 
     fn native_id(&self, m: SymbolId) -> String {
         let s = self.l.u.symbol(m);
-        encode(s.target.as_deref().unwrap_or(&s.name)).replace('"', "$u0022")
+        let name = encode(s.target.as_deref().unwrap_or(&s.name));
+        let stripped = name.starts_with("__scala_") || name.starts_with("__") && self.is_object_member(m);
+        let name = if stripped { &name[2..] } else { &name[..] };
+        name.replace('"', "$u0022")
+    }
+
+    /// Whether `m` is a member of `scala.scalanative.runtime._Object`, `java.lang.Object`'s source.
+    pub fn is_object_member(&self, m: SymbolId) -> bool {
+        let owner = self.l.u.symbol(m).owner;
+        owner.is_some_and(|o| self.l.u.binary_name(o) == "scala.scalanative.runtime._Object")
     }
 }

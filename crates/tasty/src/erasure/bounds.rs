@@ -71,14 +71,18 @@ impl Universe {
         }
     }
 
-    /// The class `t` erases to, else that of its erasure `e`.
+    /// The class `t` erases to if its erasure is `e`, else the class named by `e`.
     fn side_class(&mut self, t: TypeId, e: &Erased) -> Option<SymbolId> {
         let class = self.erased_class(t);
         let Erased::Class(name) = e else { return class };
-        class.or_else(|| {
-            let r = self.class_ref(name);
-            self.class_symbol(r)
-        })
+        if let Some(c) = class {
+            let tpe = self.intern_type(Type::Sym(None, c));
+            if self.erase(tpe) == *e {
+                return Some(c);
+            }
+        }
+        let r = self.class_ref(name);
+        self.class_symbol(r).or(class)
     }
 
     /// The erasure of `a | b`: the other side for `Nothing`; `Object` beside a value class; the
