@@ -148,6 +148,7 @@ impl<'t, 'a> Translator<'t, 'a> {
     ) -> Result<PlanId> {
         let rhs = self.drop_named_tuple(rhs);
         let tpe = tpe.unwrap_or_else(|| self.l.tpd.tpe(rhs));
+        let tpe = self.sanitized(tpe);
         let name = self.l.fresh.next(self.l.names, "x");
         let name = self.l.names.text(name).to_owned();
         let var = self.l.u.define(symbol(&name, Kind::Val, self.owner, Flags::default()));

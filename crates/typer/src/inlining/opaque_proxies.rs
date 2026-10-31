@@ -88,7 +88,7 @@ impl Expansion<'_, '_> {
         }
     }
 
-    fn local(&mut self, name: String, flags: Flags, info: TypeId) -> SymbolId {
+    pub fn local(&mut self, name: String, flags: Flags, info: TypeId) -> SymbolId {
         let s = self.i.u.define(Symbol {
             name,
             kind: Kind::Val,
@@ -175,7 +175,7 @@ impl Inlining<'_> {
 
     /// `module_ref` refined by the aliases of the opaque types of its class `module`, the last
     /// declared innermost (dotty's `OpaqueProxy.apply`).
-    fn opaques_exposed(&mut self, module_ref: TypeId, module: SymbolId) -> TypeId {
+    pub fn opaques_exposed(&mut self, module_ref: TypeId, module: SymbolId) -> TypeId {
         let decls = self.u.symbol(module).decls.clone();
         let mut refined = module_ref;
         for d in decls.into_iter().rev() {
@@ -183,8 +183,8 @@ impl Inlining<'_> {
             if s.kind != Kind::Type || !s.flags.has(OPAQUE) {
                 continue;
             }
-            let Some(alias) = self.u.opaque_alias(d) else { continue };
             let name = s.name.clone();
+            let Some(alias) = self.u.opaque_rhs(d) else { continue };
             let seen = self.u.as_seen_from(alias, module_ref, module);
             let info = self.u.intern_type(Type::Alias(seen));
             refined = self.u.intern_type(Type::Refined(refined, name, info));

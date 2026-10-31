@@ -7,8 +7,9 @@
 //! and calls pass them.
 
 use super::captures::dependencies;
-use super::lift_names::{Named, Pending, name_all, name_each};
+use super::lift_names::{Named, Pending, name_all};
 use super::lifted::{Method, lift, methods};
+use super::proxy_names::name_late;
 use super::walk::children;
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
@@ -53,7 +54,7 @@ struct Lifting {
 
 /// Lifts the lambdas and local methods of class definitions `classes` into methods of their
 /// classes, naming them with the proxies and local classes of `pending`; the proxies are named
-/// first, those of `$adapted` methods last.
+/// first, those found by dotty's `computeFreeVars` and of `$adapted` methods last.
 pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Result<()> {
     let mut liftings = Vec::new();
     for &td in classes {
@@ -81,7 +82,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
             super::outer_traits::append(l, td, &[def]);
         }
     }
-    name_each(l, &deferred);
+    name_late(l, &mut pending, &deferred);
     Ok(())
 }
 

@@ -17,11 +17,14 @@ use typer::tpd::{TNodeId, Tree, Walk};
 /// Specializes the tuple creations and element selections in class definition `td`; `inits`
 /// are the unit's objects with initialization code.
 pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) -> Result<()> {
-    let mut result = Ok(());
+    let (mut result, mut specialized) = (Ok(()), FxHashSet::default());
     walk_class_up(l, td, &mut |_, _, _| Walk::Children, &mut |l, t, _| {
+        let s = &mut specialized;
         let done = match *l.tpd.tree(t) {
-            Tree::Apply { fun, .. } => creation(l, t, fun, inits),
+            Tree::Apply { fun, .. } => creation(l, t, fun, inits, s),
             Tree::Select { qualifier, .. } => selection(l, t, qualifier),
+            Tree::Block { expr, .. } => retype(l, t, &[expr], s),
+            Tree::If { thenp, elsep, .. } => retype(l, t, &[thenp, elsep], s),
             _ => Ok(()),
         };
         match done {
@@ -61,7 +64,13 @@ fn tags(l: &mut Lower, elems: &[TypeId]) -> Option<String> {
 /// Makes `t`, `fun(args)`, create the specialized tuple class if `fun` is the `apply` or
 /// constructor of `Tuple1` or `Tuple2` applied to specialized element types and `t` is
 /// elideable.
-fn creation(l: &mut Lower, t: TNodeId, fun: TNodeId, inits: &FxHashSet<SymbolId>) -> Result<()> {
+fn creation(
+    l: &mut Lower,
+    t: TNodeId,
+    fun: TNodeId,
+    inits: &FxHashSet<SymbolId>,
+    specialized: &mut FxHashSet<TNodeId>,
+) -> Result<()> {
     let Tree::TypeApply { fun: name_tree, args: targs } = *l.tpd.tree(fun) else { return Ok(()) };
     if !matches!(l.tpd.tree(name_tree), Tree::Ident { .. } | Tree::Select { .. }) {
         return Ok(());
@@ -80,7 +89,26 @@ fn creation(l: &mut Lower, t: TNodeId, fun: TNodeId, inits: &FxHashSet<SymbolId>
     let new = l.new_(class, Span::NONE);
     let select = l.select(new, ctor, Span::NONE);
     let Tree::Apply { args, .. } = *l.tpd.tree(t) else { unreachable!("an application") };
-    l.tpd.get_mut(t).tree = Tree::Apply { fun: select, args };
+    let tpe = l.tpd.tpe(new);
+    let node = l.tpd.get_mut(t);
+    (node.tree, node.tpe) = (Tree::Apply { fun: select, args }, Some(tpe));
+    specialized.insert(t);
+    Ok(())
+}
+
+/// Gives `t`, a block or `if` all of whose `results` create one specialized tuple class, that
+/// class's type.
+fn retype(
+    l: &mut Lower,
+    t: TNodeId,
+    results: &[TNodeId],
+    specialized: &mut FxHashSet<TNodeId>,
+) -> Result<()> {
+    let tpes: Vec<TypeId> = results.iter().map(|&r| l.tpd.tpe(r)).collect();
+    if results.iter().all(|r| specialized.contains(r)) && tpes.windows(2).all(|w| w[0] == w[1]) {
+        l.tpd.get_mut(t).tpe = Some(tpes[0]);
+        specialized.insert(t);
+    }
     Ok(())
 }
 

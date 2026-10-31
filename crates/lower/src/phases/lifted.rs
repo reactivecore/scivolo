@@ -8,6 +8,7 @@ use super::closures::{Plan, plan, rewrite};
 use super::lambda_lift::Function;
 use super::lift_names::prefix;
 use super::narrowed::home;
+use super::proxy_names::Adapted;
 use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result};
@@ -105,9 +106,8 @@ pub fn lift(
     (td, class): (TNodeId, SymbolId),
     functions: &[Function],
     methods: &[Method],
-) -> Result<(Vec<TNodeId>, Vec<SymbolId>)> {
+) -> Result<(Vec<TNodeId>, Vec<Adapted>)> {
     let mut plans: Vec<Option<Plan>> = Vec::new();
-    let mut deferred = Vec::new();
     for (f, method) in functions.iter().zip(methods) {
         let (mut params, result) = signature(l, f)?;
         if let Some(all) = method.all_args {
@@ -115,7 +115,7 @@ pub fn lift(
         }
         let in_value = l.in_match_values.contains(&f.sym) && !f.ctor;
         let prefix = if in_value { String::new() } else { prefix(l, class, functions, methods, f) };
-        let closure = f.closure.map(|_| plan(l, class, f, &prefix, &params, result, &mut deferred));
+        let closure = f.closure.map(|_| plan(l, class, f, &prefix, &params, result));
         plans.push(closure.transpose()?);
     }
     super::lifted_calls::calls(l, (td, class), functions, methods)?;
@@ -125,7 +125,7 @@ pub fn lift(
             None => leave_block(l, f),
         }
     }
-    let mut out = Vec::new();
+    let (mut out, mut deferred) = (Vec::new(), Vec::new());
     for i in post_order(functions) {
         let f = &functions[i];
         let Tree::DefDef { tpt, rhs: Some(rhs), .. } = *l.tpd.tree(f.def) else { unreachable!("a function") };
@@ -135,6 +135,7 @@ pub fn lift(
         retarget_returns(l, rhs, f.sym, methods[i].sym);
         out.push(def(l, f.def, &methods[i], tpt, rhs)?);
         if let Some(adapted) = plans[i].as_ref().and_then(|p| p.adapted.as_ref()) {
+            deferred.push((f.sym, adapted.proxies.clone()));
             let closure = f.closure.unwrap_or(f.def);
             out.push(super::adapted::adapted_def(l, closure, &methods[i], adapted, tpt));
         }

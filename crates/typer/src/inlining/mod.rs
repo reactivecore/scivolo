@@ -51,6 +51,7 @@ mod retype;
 mod retyped;
 mod skolems;
 mod splice;
+mod static_opaques;
 mod this_proxy;
 mod transparent;
 mod tuple_intrinsics;

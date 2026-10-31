@@ -196,4 +196,7 @@ erasedshapes
 closuretypes
 lazyouternames
 passingaccessors
+blockconditions
+inlineproxies
 nameorder
+positionsscopes

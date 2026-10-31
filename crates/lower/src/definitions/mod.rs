@@ -47,9 +47,10 @@ pub struct Definitions {
     pub type_test: SymbolId,
     /// `Any.$asInstanceOf$`, the cast the compiler inserts.
     pub type_cast: SymbolId,
-    /// `Any.==`, `Object.ne`, `Object.eq`, `Object.synchronized`, and `Object.clone` that
-    /// erasure calls instead of `Array.clone`.
+    /// `Any.==`, `Any.!=`, `Object.ne`, `Object.eq`, `Object.synchronized`, and `Object.clone`
+    /// that erasure calls instead of `Array.clone`.
     pub any_eq: SymbolId,
+    pub any_ne: SymbolId,
     pub ne: SymbolId,
     pub eq: SymbolId,
     pub synchronized: SymbolId,
@@ -93,6 +94,7 @@ impl Definitions {
             type_test: member(u, b.any, "$isInstanceOf$", Kind::Def)?,
             type_cast: member(u, b.any, "$asInstanceOf$", Kind::Def)?,
             any_eq: member(u, b.any, "==", Kind::Def)?,
+            any_ne: member(u, b.any, "!=", Kind::Def)?,
             ne: member(u, b.object, "ne", Kind::Def)?,
             eq: member(u, b.object, "eq", Kind::Def)?,
             synchronized: member(u, b.object, "synchronized", Kind::Def)?,

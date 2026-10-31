@@ -9,10 +9,10 @@ use super::dependencies::Dependencies;
 use super::drop_inlined::naming_order;
 use super::lambda_lift::Function;
 use super::lifted::Method;
+use super::proxy_names::name_proxies;
 use crate::symbols::has;
-use crate::{Lower, Result, unsupported};
-use rustc_hash::{FxHashMap, FxHashSet};
-use syntax::ast::Span;
+use crate::{Lower, Result};
+use rustc_hash::FxHashSet;
 use syntax::source::Offset;
 use tasty::tags::LAZY;
 use tasty::{Kind, SymbolId};
@@ -44,8 +44,8 @@ pub struct Caller {
 
 /// The proxies and local classes `local_classes` leaves for `lambda_lift` to name, and where the
 /// classes were: the values each used at its definition, by block and statement index, the
-/// values passed to its constructor calls, the classes calling local methods, and the unit's
-/// dependencies.
+/// values passed to its constructor calls, the classes calling local methods, the unit's
+/// dependencies, and the proxies to name last, each with its rank.
 #[derive(Default)]
 pub struct Pending {
     pub proxies: Vec<Proxy>,
@@ -54,6 +54,7 @@ pub struct Pending {
     pub definitions: Vec<(TNodeId, usize, Vec<SymbolId>)>,
     pub passed: FxHashSet<TNodeId>,
     pub callers: Vec<Caller>,
+    pub late: Vec<((usize, usize), SymbolId)>,
     next_class: usize,
 }
 
@@ -145,36 +146,6 @@ fn in_field(l: &Lower, o: SymbolId, class: SymbolId) -> bool {
     let value = l.u.symbol(o).kind == Kind::Val && !has(l.u, o, LAZY);
     owner == Some(class)
         || value && owner.is_some_and(|c| l.u.is_constructor(c) && l.u.symbol(c).owner == Some(class))
-}
-
-/// Names `proxies` in the order of the dependencies of `pending`: by owner, then by value (dotty's
-/// `generateProxies`).
-fn name_proxies(l: &mut Lower, proxies: &[Proxy], pending: &Pending) -> Result<()> {
-    let mut ranked = Vec::new();
-    let trait_params = l.trait_methods.values().flat_map(|(_, pairs)| pairs);
-    let class_params = pending.proxies.iter().map(|p| (p.sym, p.value));
-    let originals: FxHashMap<SymbolId, SymbolId> =
-        trait_params.map(|&(v, p)| (p, v)).chain(class_params).collect();
-    for p in proxies {
-        let value = originals.get(&p.value).copied().unwrap_or(p.value);
-        let Some(rank) = pending.deps.as_ref().and_then(|d| d.rank(p.owner, value)) else {
-            return unsupported(Span::NONE, "lifting a value the dependencies of the unit do not record");
-        };
-        ranked.push((rank, p.sym));
-    }
-    ranked.sort_by_key(|&(rank, _)| rank);
-    let syms: Vec<SymbolId> = ranked.into_iter().map(|(_, s)| s).collect();
-    name_each(l, &syms);
-    Ok(())
-}
-
-/// Names proxies `proxies`, each `x$N` for the value `x` it stands for.
-pub fn name_each(l: &mut Lower, proxies: &[SymbolId]) {
-    for &p in proxies {
-        let base = l.u.symbol(p).name.clone();
-        let name = fresh(l, &base);
-        l.u.rename(p, &name);
-    }
 }
 
 /// `base$N`, `N` counting the names made from `base` in the unit (dotty's `freshened`).
