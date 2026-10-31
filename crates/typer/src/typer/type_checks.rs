@@ -12,7 +12,7 @@ use syntax::desugar::Desugar;
 use syntax::diag::Level;
 use syntax::parse::Parser;
 use syntax::source::SourceFile;
-use tasty::tags::{GIVEN, IMPLICIT, SYNTHETIC};
+use tasty::tags::{EXTENSION, GIVEN, IMPLICIT, SYNTHETIC};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -87,12 +87,18 @@ impl Typer<'_> {
         (!named).then(|| self.error(id, super::errors::not_found(&text, name.is_type, "")))
     }
 
-    /// Whether no implicit can have type `formal`, searched in the code of `typeChecks`: a fully
-    /// defined class type of the unit, not a function, in a unit that derives no instance, each of
-    /// whose implicits is of a class not deriving from it or of another monomorphic type.
-    pub fn unsupplied_in_checked_code(&mut self, formal: TypeId) -> bool {
+    /// Whether no implicit can have type `formal`, searched in the code of `typeChecks` in `ctx`
+    /// for method `meth`, neither an extension nor an implicit: a fully defined class type of the
+    /// unit, not a function, in a unit that derives no instance, where each implicit of the unit
+    /// but its parameters, of `ctx` and of the implicit scope of `formal` is of a class not
+    /// deriving from it or of another monomorphic type.
+    pub fn unsupplied_in_checked_code(&mut self, formal: TypeId, meth: Option<SymbolId>, ctx: Ctx) -> bool {
         let Some((root, _)) = self.checked_code else { return false };
-        if matches!(self.u.types().get(formal), Type::ByName(_)) || !self.is_fully_defined(formal) {
+        let Some(flags) = meth.map(|m| self.u.symbol(m).flags) else { return false };
+        if [GIVEN, IMPLICIT, EXTENSION].into_iter().any(|f| flags.has(f))
+            || matches!(self.u.types().get(formal), Type::ByName(_))
+            || !self.is_fully_defined(formal)
+        {
             return false;
         }
         let Some(c) = self.direct_class(formal) else { return false };
@@ -108,12 +114,20 @@ impl Typer<'_> {
         {
             return false;
         }
-        let implicits: Vec<SymbolId> = (self.syms.flags.keys().copied())
+        let mut implicits: Vec<SymbolId> = (self.syms.flags.keys().copied())
             .filter(|&s| {
                 let sym = self.u.symbol(s);
-                sym.kind.is_term() && (sym.flags.has(IMPLICIT) || sym.flags.has(GIVEN))
+                sym.kind.is_term()
+                    && sym.kind != Kind::Param
+                    && (sym.flags.has(IMPLICIT) || sym.flags.has(GIVEN))
             })
             .collect();
+        let (Ok(visible), Ok(scope)) =
+            (self.contextual_implicits(ctx, &mut |_, _| true), self.implicit_scope(formal))
+        else {
+            return false;
+        };
+        implicits.extend(visible.into_iter().flatten().chain(scope).map(|c| c.sym));
         implicits.into_iter().all(|s| self.cannot_supply(s, c, formal))
     }
 
@@ -132,6 +146,7 @@ impl Typer<'_> {
             };
         }
         let t = self.u.widen(t);
+        let t = self.u.dealias(t);
         let Some(class) = self.direct_class(t) else { return false };
         !self.u.derives_from(class, c) || !poly && self.is_fully_defined(t) && !self.u.is_subtype(t, formal)
     }

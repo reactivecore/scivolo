@@ -61,7 +61,7 @@ impl Typer<'_> {
                     if let Some(error) = self.missing_given(tree, (name, formal), at, ctx) {
                         return Ok(Some(error));
                     }
-                    if self.history.open.is_empty() && self.unsupplied_in_checked_code(formal) {
+                    if self.history.open.is_empty() && self.unsupplied_in_checked_code(formal, meth, ctx) {
                         let shown = self.plain_text(formal).unwrap_or_default();
                         let place = format!("parameter {name}");
                         self.error_at(at, super::super::errors::missing_given(&shown, &place));
