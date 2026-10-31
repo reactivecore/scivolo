@@ -438,3 +438,26 @@ object Warnings:
     report.warning("warned", x.asTerm.pos)
     report.warning("warned here")
     x
+
+trait Shown[T]:
+  def shown: String
+
+object Shown:
+  implicit def auto[T]: Shown[T] = new Shown[T] { def shown = "auto" }
+
+object Searches:
+  inline def foundIgnoringAuto[T]: Boolean = ${ foundIgnoringAutoImpl[T] }
+  def foundIgnoringAutoImpl[T: Type](using Quotes): Expr[Boolean] =
+    import quotes.reflect.*
+    val auto = Symbol.classSymbol("macrolib.Shown").companionModule.methodMember("auto")
+    Expr(Expr.summonIgnoring[T](auto*).isDefined)
+
+  def pick(a: Int)(f: Int => Int): Int = f(a)
+  def pick(a: Int)(f: PartialFunction[Int, Int]): Option[Int] = f.lift(a)
+
+  inline def picked(inline f: PartialFunction[Int, Int]): Option[Int] = ${ pickedImpl('f) }
+  def pickedImpl(f: Expr[PartialFunction[Int, Int]])(using Quotes): Expr[Option[Int]] =
+    import quotes.reflect.*
+    val to = TypeRepr.of[PartialFunction[Int, Int] => Option[Int]]
+    val sel = Select.overloaded('{ Searches }.asTerm, "pick", Nil, List(Literal(IntConstant(1))), to)
+    Apply(sel, List(f.asTerm)).asExprOf[Option[Int]]

@@ -5,8 +5,8 @@
 
 use super::Fallible;
 use crate::host::Host;
-use tasty::TypeId;
-use typer::inlining::Annotations;
+use tasty::{SymbolId, TypeId};
+use typer::inlining::{Annotations, Search};
 use typer::tpd::TNodeId;
 
 /// What the typer gives an expansion: the unit's annotations, the implicit searches answered
@@ -14,9 +14,9 @@ use typer::tpd::TNodeId;
 #[derive(Default)]
 pub struct FromTyper {
     pub annotations: Annotations,
-    pub searched: Vec<(TypeId, Option<TNodeId>)>,
+    pub searched: Vec<(Search, Option<TNodeId>)>,
     pub while_typing: bool,
-    pub wanted: Option<TypeId>,
+    pub wanted: Option<Search>,
 }
 
 /// The refusal that stops a run asking for a search.
@@ -33,12 +33,18 @@ impl Host {
 
     /// The implicit argument of type `pt` found as `[1, tree]`, `[0]` for none.
     pub fn search(&mut self, pt: TypeId) -> Fallible<Vec<i32>> {
-        let answered = self.typer.searched.iter().find(|&&(t, _)| t == pt).map(|&(_, found)| found);
+        self.search_ignoring(pt, Vec::new())
+    }
+
+    /// `search` with the candidates `ignored` left out (`Implicits.searchIgnoring`).
+    pub fn search_ignoring(&mut self, pt: TypeId, ignored: Vec<SymbolId>) -> Fallible<Vec<i32>> {
+        let search = Search { pt, ignored };
+        let answered = self.typer.searched.iter().find(|(s, _)| *s == search).map(|&(_, found)| found);
         match answered {
             Some(Some(t)) => Ok(vec![1, self.add_tree(t) as i32]),
             Some(None) => Ok(vec![0]),
             None => {
-                self.typer.wanted.get_or_insert(pt);
+                self.typer.wanted.get_or_insert(search);
                 Err(SEARCH)
             }
         }

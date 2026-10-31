@@ -22,12 +22,13 @@ pub trait Host {
     fn within(&mut self, ctx: Ctx, locals: Vec<(String, SymbolId)>) -> Ctx;
     /// Gives `copy` the context of call `original`, if it has one.
     fn copied_call(&mut self, original: TNodeId, copy: TNodeId);
-    /// An implicit argument of type `pt` at `at` in `ctx`, its type variables instantiated
-    /// (dotty's `inferImplicitArg`); `Ok(None)` if no candidate fits.
+    /// For `search` `(pt, ignored)`, an implicit argument of type `pt` at `at` in `ctx`, its type
+    /// variables instantiated, candidates `ignored` left out (dotty's `inferImplicitArg`);
+    /// `Ok(None)` if no candidate fits.
     fn summon(
         &mut self,
         lent: Lent<'_>,
-        pt: TypeId,
+        search: (TypeId, &[SymbolId]),
         at: Span,
         ctx: Ctx,
     ) -> Result<Option<TNodeId>, &'static str>;
@@ -58,6 +59,16 @@ impl Inlining<'_> {
     /// An implicit argument of type `pt` at `at` in the context of the outermost call; `Ok(None)`
     /// if there is none. Refused where implicits the expansion defines may take part.
     pub fn summon(&mut self, pt: TypeId, at: Span) -> Result<Option<TNodeId>, Unsupported> {
+        self.summon_ignoring(pt, at, &[])
+    }
+
+    /// `summon` with the candidates `ignored` left out.
+    pub fn summon_ignoring(
+        &mut self,
+        pt: TypeId,
+        at: Span,
+        ignored: &[SymbolId],
+    ) -> Result<Option<TNodeId>, Unsupported> {
         let Some(ctx) = self.ctx else { return Err((at, "implicit search without the call's context")) };
         let outer = std::mem::take(&mut self.outer_implicits);
         let fits_outer = self.may_fit(&outer, pt);
@@ -67,6 +78,9 @@ impl Inlining<'_> {
         }
         let fitting: Vec<SymbolId> = (self.case_givens.clone().into_iter())
             .filter(|&g| {
+                if ignored.contains(&g) {
+                    return false;
+                }
                 let info = self.u.info(g);
                 self.u.is_subtype(info, pt)
             })
@@ -93,7 +107,7 @@ impl Inlining<'_> {
             ctx = self.host.within(ctx, locals);
         }
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
-        let found = self.host.summon(lent, pt, at, ctx).map_err(|what| (at, what))?;
+        let found = self.host.summon(lent, (pt, ignored), at, ctx).map_err(|what| (at, what))?;
         let locals = [&self.outer_implicits[..], &self.case_givens[..]].concat();
         match found {
             _ if locals.is_empty() => Ok(found),

@@ -42,9 +42,17 @@ pub struct MacroCall {
     /// The span of the outermost inline call expanded (dotty's `Position.ofMacroExpansion`).
     pub expansion: Span,
     /// The implicit searches of earlier runs of the expansion, with the arguments found.
-    pub searched: Vec<(TypeId, Option<TNodeId>)>,
+    pub searched: Vec<(Search, Option<TNodeId>)>,
     /// Whether it expands while the typer runs (dotty's `CompilationInfo.isWhileTyping`).
     pub while_typing: bool,
+}
+
+/// An implicit search of a macro: of an argument of type `pt`, the candidates `ignored` left out
+/// (`Implicits.searchIgnoring`).
+#[derive(Clone, PartialEq, Debug)]
+pub struct Search {
+    pub pt: TypeId,
+    pub ignored: Vec<SymbolId>,
 }
 
 /// The call of `transform` of macro annotation `annotation`, a typed `new`, on `definition` and
@@ -87,9 +95,9 @@ pub enum MacroError {
     Reported(Reports),
     /// The macro threw `StopMacroExpansion` without reporting an error, with its warnings.
     Aborted(Reports),
-    /// The macro searched an implicit argument of a type `searched` lacks; the expansion runs
-    /// again once the typer has searched it.
-    Search(TypeId),
+    /// The macro made a search `searched` lacks; the expansion runs again once the typer has
+    /// made it.
+    Search(Search),
 }
 
 /// The typed annotations of the unit's definitions, by symbol.

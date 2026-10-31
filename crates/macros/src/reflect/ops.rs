@@ -100,6 +100,7 @@ ops! {
     "isWhileTyping" => is_while_typing() -> bool;
     "macroSettings" => macro_settings() -> String;
     "search" => search(pt: Ty) -> Fallible<Vec<i32>>;
+    "searchIgnoring" => search_ignoring(pt: Ty, ignored: Rest<Sym>) -> Fallible<Vec<i32>>;
     // type patterns
     "matchType" => match_type(scrutinee: Ty, pattern: Num) -> Fallible<i32>;
     // type reprs
@@ -150,6 +151,8 @@ ops! {
     "selectUnique" => select_unique(qual: Tree, name: Name) -> Fallible<TNodeId>;
     "selectOverloaded" => select_overloaded(qual: Tree, n: Num, rest: Rest<Num>, name: Name)
         -> Fallible<TNodeId>;
+    "selectOverloadedReturning" =>
+        select_overloaded_returning(qual: Tree, n: Num, to: Ty, rest: Rest<Num>, name: Name) -> Fallible<TNodeId>;
     "select" => select(qual: Tree, s: Sym) -> Fallible<TNodeId>;
     "appliedToTypes" => applied_to_types(fun: Tree, targs: Rest<Ty>) -> Fallible<TNodeId>;
     "match" => match_(selector: Tree, cases: Rest<Tree>) -> TNodeId;

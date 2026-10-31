@@ -23,7 +23,13 @@ impl Host for NoHost {
 
     fn copied_call(&mut self, _: TNodeId, _: TNodeId) {}
 
-    fn summon(&mut self, _: Lent<'_>, _: TypeId, _: Span, _: Ctx) -> Result<Option<TNodeId>, &'static str> {
+    fn summon(
+        &mut self,
+        _: Lent<'_>,
+        _: (TypeId, &[SymbolId]),
+        _: Span,
+        _: Ctx,
+    ) -> Result<Option<TNodeId>, &'static str> {
         Err("an implicit search in Term.betaReduce")
     }
 

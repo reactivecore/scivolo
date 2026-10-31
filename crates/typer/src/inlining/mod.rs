@@ -62,7 +62,7 @@ mod unused;
 pub use erased::is_erased_value;
 pub use host::{Host, Lent};
 pub use macros::{
-    AnnotationCall, Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted, Reports,
+    AnnotationCall, Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted, Reports, Search,
 };
 pub use purity::Purity;
 pub use quote_match::bound_types;
