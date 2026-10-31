@@ -44,6 +44,15 @@ impl Typer<'_> {
                 let sym = self.tpd.sym(core).filter(|&s| !self.is_java_member(s))?;
                 let owner = self.u.symbol(sym).owner?;
                 let setter = format!("{}_=", self.text(name.name));
+                if let Type::Sym(Some(pre), _) = *self.u.types().get(self.tpd.tpe(core))
+                    && !matches!(self.u.types().get(pre), Type::This(_))
+                {
+                    let [s] = self.members_found(pre, &setter, false)?.syms[..] else { return None };
+                    let tpe = self.ref_type(Some(pre), s);
+                    let name = TName { name: self.name(&setter), is_type: false };
+                    let ident = self.tpd.node(T::Ident { name }, self.ast.span(lhs_tree), Some(tpe), Some(s));
+                    return Some((self.spliced(ident), None));
+                }
                 let has_setter = self.u.is_class(owner) && !self.u.decl(owner, &setter).ok()?.is_empty();
                 has_setter.then_some(())?;
                 let name = TName { name: self.name(&setter), is_type: false };

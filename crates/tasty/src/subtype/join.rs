@@ -90,6 +90,9 @@ impl Universe {
         if self.is_singleton_type(t) {
             return self.widen(t);
         }
+        if let Some(hi) = self.opaque_upper(t) {
+            return hi;
+        }
         let Type::Sym(prefix, s) = *self.types().get(t) else { return t };
         if !matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) {
             return t;

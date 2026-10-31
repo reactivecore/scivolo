@@ -26,6 +26,13 @@ impl Typer<'_> {
         found || classes.into_iter().any(|c| self.escapes(c, locals))
     }
 
+    /// Whether an uninstantiated type variable in `t` has a bound that refers to one of `locals`
+    /// going out of scope, also once the bounds of the variables in `t` avoid them.
+    pub fn var_bounds_escape(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
+        self.var_bounds_refer_to(t, locals)
+            && (!self.constraint.avoid_in_bounds(self.u, t) || self.var_bounds_refer_to(t, locals))
+    }
+
     /// Whether an uninstantiated type variable in `t` has a bound that refers to one of `locals`,
     /// directly or through the bounds of the variables in it.
     pub fn var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {

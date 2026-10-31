@@ -135,7 +135,13 @@ impl Matcher<'_> {
                 let (a, b) = (self.this_class(s), self.this_class(p));
                 Ok(a.is_some() && a == b)
             }
-            (T::Super { .. }, T::Super { .. }) => Err("a quote pattern matched against a super reference"),
+            (T::Super { qual: q1, mix: m1 }, T::Super { qual: q2, mix: m2 }) => {
+                let mix = |t: TNodeId| match *self.tpd.tree(t) {
+                    T::Ident { name } => Some(name.name),
+                    _ => None,
+                };
+                Ok(mix(m1) == mix(m2) && self.matches(q1, q2)?)
+            }
             (T::SeqLiteral { elems: a, .. }, T::SeqLiteral { elems: b, .. }) => self.lists(a, b),
             (T::ValDef { tpt: t1, rhs: r1, .. }, T::ValDef { tpt: t2, rhs: r2, .. }) => {
                 if !self.same_val_flags(s, p) || !self.matches(t1, t2)? {
