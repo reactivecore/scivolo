@@ -74,11 +74,13 @@ impl Gen<'_, '_> {
         };
         let jdk: Vec<SymbolId> = bases.iter().copied().filter(|&b| is_jdk(self.l, b)).collect();
         let mut members = Vec::new();
+        let mut bridged = Vec::new();
         for b in bases {
             let behind_jdk = !is_jdk(self.l, b) && jdk.iter().any(|&j| self.l.u.derives_from(j, b));
             if plain.contains(&b) || self.l.u.symbol(b).name == "Matchable" {
                 continue;
             }
+            bridged.extend(crate::phases::same_run::bridges(self.l, b));
             let decls = self.l.u.decls(b).unwrap_or_default();
             members
                 .extend(decls.into_iter().filter(|&m| !behind_jdk || jdk_api_owner(self.l.u, m).is_some()));
@@ -90,16 +92,20 @@ impl Gen<'_, '_> {
             let library = self.l.u.symbol(m).tree.is_some();
             let owner = self.l.u.symbol(m).owner.map(|o| self.l.u.full_name(o)).unwrap_or_default();
             let jdk = owner.starts_with("java.") || owner.starts_with("javax.");
-            let value = self.l.u.symbol(m).kind == Kind::Val;
+            let param = self.l.u.symbol(m).kind == Kind::Param;
+            let value = self.l.u.symbol(m).kind == Kind::Val || param;
             let method = self.l.u.symbol(m).kind == Kind::Def || has(self.l.u, m, FIELDaccessor);
-            let deferred = if library { self.l.u.body(m).is_none() } else { self.l.u.is_deferred(m) };
+            let deferred = match library {
+                true => !param && self.l.u.body(m).is_none(),
+                false => self.l.u.is_deferred(m),
+            };
             if !(method || library && value)
                 || self.l.u.is_constructor(m)
                 || is_extern(self.l.u, m)
                 || deferred
                 || excluded.iter().any(|&f| has(self.l.u, m, f))
                 || self.l.lifted_from.contains_key(&m)
-                || jdk && has(self.l.u, m, PRIVATEqualified)
+                || jdk && !self.l.u.javalib_sources() && has(self.l.u, m, PRIVATEqualified)
             {
                 continue;
             }
@@ -115,12 +121,13 @@ impl Gen<'_, '_> {
             if existing.contains(&name) {
                 return unsupported(Span::NONE, "a static method beside the forwarder of the same name");
             }
-            let pos = match self.l.coords.get(&m) {
+            let at = bridged.iter().find(|b| b.0 == m).map_or(m, |b| b.1);
+            let pos = match self.l.coords.get(&at) {
                 Some(&span) if span.exists() => self.pos_or(span, self.no_pos),
                 Some(_) => self.sym_pos(module_class, module_class),
-                None => match self.library_pos(m, module_class) {
+                None => match self.library_pos(at, module_class) {
                     Some(pos) => pos,
-                    None => self.sym_pos(m, module_class),
+                    None => self.sym_pos(at, module_class),
                 },
             };
             out.push(self.forwarder(m, module_class, name, pos));

@@ -111,6 +111,7 @@ mod retained_bodies;
 mod returns;
 pub(crate) mod sam;
 mod sam_classes;
+pub(crate) mod same_run;
 pub(crate) mod select_static;
 mod sensical;
 mod setter_calls;
