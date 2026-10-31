@@ -7,9 +7,7 @@
 
 use super::Fallible;
 use crate::host::Host;
-use tasty::tags::{
-    ABSTRACT, FINAL, LAZY, MACRO, OBJECT, OPAQUE, OVERRIDE, PROTECTED, PROTECTEDqualified, SYNTHETIC,
-};
+use tasty::tags::{ABSTRACT, FINAL, LAZY, OBJECT, OPAQUE, OVERRIDE, PROTECTED, PROTECTEDqualified};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
 
 pub const METHOD: u32 = 2;
@@ -20,21 +18,16 @@ const JAVA_DEFINED: u32 = 50;
 const SCALA2X: u32 = 51;
 const DEFERRED: u32 = 53;
 
-/// The symbols an expansion makes: the owner of its splice and the empty package.
+/// The symbols an expansion makes: the owner of its splice and the empty package; the
+/// arguments of the macro.
 #[derive(Default)]
 pub struct Made {
-    macro_owner: Option<SymbolId>,
+    pub macro_owner: Option<SymbolId>,
     pub empty_package: Option<SymbolId>,
+    pub args: super::from_symbol::Args,
 }
 
 impl Host {
-    /// The value `macro` that owns the splice (dotty's `Splicer.splice`).
-    pub fn macro_owner(&mut self) -> SymbolId {
-        let flags = Flags::default().with(MACRO).with(SYNTHETIC);
-        let owner = self.owner;
-        *self.made.macro_owner.get_or_insert_with(|| local(&mut self.u, "macro", Kind::Val, owner, flags))
-    }
-
     /// The empty package, the owner of the definitions at the root (dotty's `EmptyPackageClass`).
     pub fn empty_package(&mut self) -> SymbolId {
         let root = self.u.root();
@@ -71,13 +64,14 @@ impl Host {
         class_of.ok_or("a library without scala.Predef.classOf")
     }
 
-    /// The owner of `s`, the empty package for a definition at the root.
+    /// The owner of `s`, the empty package for a definition at the root, the macro owner for one
+    /// in a macro argument.
     pub fn owner_of(&mut self, s: SymbolId) -> Option<SymbolId> {
         match self.u.symbol(s).owner {
             Some(o) if o == self.u.root() && self.u.symbol(s).kind != Kind::Package => {
                 Some(self.empty_package())
             }
-            owner => owner,
+            owner => owner.map(|o| self.spliced_owner(s, o)),
         }
     }
 

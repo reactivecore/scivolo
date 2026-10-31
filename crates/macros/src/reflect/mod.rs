@@ -11,6 +11,7 @@ mod default_args;
 mod definitions;
 mod encode;
 mod eta;
+mod from_symbol;
 mod implicits;
 mod lambda_types;
 mod lambda_variances;

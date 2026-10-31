@@ -32,7 +32,8 @@ impl Reflect<'_> {
                     let (names, bounds): (Vec<String>, Vec<TypeId>) = params.into_iter().unzip();
                     let syms: Vec<SymbolId> =
                         names.iter().map(|n| self.new_param(s, n, Kind::TypeParam)).collect();
-                    let refs: Vec<TypeId> = syms.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
+                    let refs: Vec<TypeId> =
+                        syms.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
                     let mut clause = Vec::new();
                     for (&p, b) in syms.iter().zip(bounds) {
                         let info = self.u.subst(b, binder, &names, &refs);
