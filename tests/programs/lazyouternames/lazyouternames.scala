@@ -5,6 +5,11 @@ class Channel(path: String, mode: String) {
   def name: String = path
 }
 
+class Logged(path: String) {
+  lazy val size: Int = path.length
+  val show: () => String = () => path
+}
+
 class Offsets(path: String) {
   lazy val offsets: Array[Int] =
     if (path.isEmpty()) Array(-1)
@@ -42,6 +47,8 @@ object Show {
   final class Same[T] extends Show[T] { def show(t: T): String = t.toString }
   def listed[T]: Show[List[T]] = new Listed[Int].asInstanceOf[Show[List[T]]]
   def same[T]: Show[T] = new Same[Int].asInstanceOf[Show[T]]
+  final class Bounded[T <: AnyRef] extends Show[T] { def show(t: T): String = t.toString }
+  def bounded[T]: Show[T] = new Bounded[String].asInstanceOf[Show[T]]
 }
 
 class Glob {
@@ -68,13 +75,15 @@ object lazyouternames {
   def main(args: Array[String]): Unit = {
     val c = new Channel("p", "rw")
     println(c.channel + c.channel + c.name)
+    val g = new Logged("log")
+    println(g.size + g.show())
     println(new Offsets("/a/b").offsets.length)
     println(new Stream().size)
     val w = new Worker
     w.bump()
     println(w.bump())
     println(Show.any[Int].show(4))
-    println(Show.listed[Int].show(List(1, 2)) + Show.same[Int].show(3))
+    println(Show.listed[Int].show(List(1, 2)) + Show.same[Int].show(3) + Show.bounded[String].show("b"))
     println(new Glob().build(List(1, 2), 0))
     println(new Glob().counted(5))
     println(java.util.ServiceLoader.load(classOf[Runnable]).iterator().hasNext())
