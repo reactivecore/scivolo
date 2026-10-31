@@ -20,8 +20,9 @@ use tasty::{Erased, Kind};
 use typer::tpd::{TNodeId, Tree};
 
 /// Types the methods of class definition `td` against their erased result types, and the
-/// statements and field initializers of its body.
+/// statements and field initializers of its body, after `ArrayConstructors`.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
+    super::array_constructors::transform(l, td);
     let result = members::transform_class(l, td);
     l.erasure_owner = None;
     result

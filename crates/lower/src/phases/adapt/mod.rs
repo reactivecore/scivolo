@@ -11,7 +11,7 @@ mod value;
 
 pub use polymorphic::{array_op, is_synchronized, qualify_synchronized, synchronized_type};
 
-use super::casts::{cast, conforms, is_cast};
+use super::casts::{cast, conforms, is_cast, is_new_array};
 use super::select_static::is_static_enum_value;
 use crate::Lower;
 use crate::symbols::{has, is_java_static};
@@ -86,10 +86,13 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
     }
 }
 
-/// The erasure of ascribed type `tpt`: `BoxedUnit` for an intersection or union erasing to `Unit`
-/// (dotty's `typedTyped`).
+/// The erasure of ascribed type `tpt`: `BoxedUnit` for an intersection or union erasing to `Unit`,
+/// a value class boxed if `tpt` is a boxed ascription's (dotty's `typedTyped`).
 pub fn ascription_type(l: &mut Lower, tpt: TNodeId) -> Erased {
     let tpe = l.tpd.tpe(tpt);
+    if l.boxed_ascriptions.contains(&tpt) {
+        return l.u.erase_boxed(tpe);
+    }
     match l.u.erase_value(tpe) {
         Erased::Unit if l.u.class_symbol(tpe).is_none() => Erased::Class("scala.runtime.BoxedUnit".into()),
         e => e,
@@ -160,6 +163,11 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
             cast(l, t, to)
         }
         (Erased::Null, Erased::Array(_)) => cast(l, t, pt),
+        (Erased::Array(_), Erased::Array(_)) if from != pt && is_new_array(l, t) => {
+            let c = cast(l, t, pt);
+            l.explicit_casts.insert(c);
+            c
+        }
         _ => t,
     }
 }
