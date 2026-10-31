@@ -17,6 +17,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     trait_init::find_inits(l, &class_defs(l.tpd, root));
     module_purity::record(l, root);
     beta_reduce::transform(l, root, unit_owner)?;
+    companion_order::transform(l, root);
     let mut classes = class_defs(l.tpd, root);
     let inits = module_purity::objects_with_inits(l, &classes);
     super_accessors::transform(l, &classes)?;
@@ -73,6 +74,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let erased = erasure::erased_defs::drop(l, root, &inits)?;
     retain_outside(l.tpd, &mut classes, erased);
     tailrec::name_vars(l, root, unit_owner);
+    eval_once::renumber(l, root);
     let pending = local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes, pending)?;
     for &td in &classes {
@@ -87,7 +89,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;
     }
-    type_tests::renumber_tested_values(l);
+    eval_once::renumber(l, root);
     drop_inlined::unmark_calls(l);
     array_apply::transform(l, &classes)?;
     for &td in &classes {

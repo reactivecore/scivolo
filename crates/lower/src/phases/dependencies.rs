@@ -109,26 +109,6 @@ pub fn is_local(l: &Lower, s: SymbolId) -> bool {
     is_term(l, owner) || (trait_member || l.u.is_constructor(s)) && is_local(l, owner)
 }
 
-/// Statements `stats` with the definition of each object's class after that of its companion
-/// class if that follows it (as dotty's `Namer` enters them).
-fn companions_last(l: &Lower, stats: &[TNodeId]) -> Vec<TNodeId> {
-    let mut out = stats.to_vec();
-    for &s in stats {
-        let Some(m) = l.tpd.sym(s).filter(|&m| l.u.is_module_class(m)) else { continue };
-        let Some(name) = tasty::module_name(&l.u.symbol(m).name) else { continue };
-        let from = out.iter().position(|&t| t == s).expect("a statement");
-        let companion = out[from + 1..].iter().position(|&t| {
-            let c = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::TypeDef { .. }));
-            c.is_some_and(|c| !l.u.is_module_class(c) && l.u.symbol(c).name == name)
-        });
-        if let Some(k) = companion {
-            out.remove(from);
-            out.insert(from + k + 1, s);
-        }
-    }
-    out
-}
-
 impl Collect<'_, '_> {
     fn visit(&mut self, t: TNodeId, encl: Option<SymbolId>) {
         let l = self.l;
@@ -142,7 +122,7 @@ impl Collect<'_, '_> {
             }
             _ if super::walk::is_type_tree(l, t) => return,
             Tree::Block { stats, expr } => {
-                for s in companions_last(l, l.tpd.items(stats)) {
+                for s in l.tpd.items(stats).to_vec() {
                     self.visit(s, encl);
                 }
                 self.visit(expr, encl);

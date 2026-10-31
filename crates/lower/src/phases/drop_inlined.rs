@@ -79,9 +79,10 @@ pub fn span_before_erasure(l: &Lower, t: TNodeId) -> Span {
 }
 
 /// The key `LambdaLift` names definition `sym` starting at `at` by: the start of the inline call
-/// it was inlined at, if any, then `at`.
+/// it was inlined at, if any, then `at`, in the order of the trees.
 pub fn naming_order(l: &Lower, sym: SymbolId, at: Offset) -> (Offset, Offset) {
-    (l.inlined_at.get(&sym).copied().unwrap_or(at), at)
+    let tree_offset = |at| super::companion_order::tree_offset(l, at);
+    (tree_offset(l.inlined_at.get(&sym).copied().unwrap_or(at)), tree_offset(at))
 }
 
 /// Whether `t` stands for an `Inlined` tree phases before erasure see.
