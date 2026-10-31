@@ -40,9 +40,13 @@ impl Lower<'_> {
         let mut params = Vec::new();
         let mut t = info;
         let mut has_clause = false;
+        let mut bounds = Vec::new();
         loop {
             match self.u.types().get(t) {
-                Type::Poly { result, .. } => t = *result,
+                Type::Poly { binder, params, result } => {
+                    bounds.push((*binder, params.iter().map(|&(_, b)| b).collect()));
+                    t = *result;
+                }
                 Type::Method { params: ps, result, .. } => {
                     params.extend_from_slice(ps);
                     has_clause = true;
@@ -58,8 +62,9 @@ impl Lower<'_> {
                 continue;
             }
             let p = self.u.define(symbol(&pname, Kind::Param, sym, Default::default()));
-            self.u.set_info(p, ptype);
-            let tpt = self.type_tree(ptype, span);
+            let bounded = self.u.upper_bound(ptype, &bounds);
+            self.u.set_info(p, bounded);
+            let tpt = self.type_tree(bounded, span);
             param_defs.push(self.build().val_def(p, tpt, None, span));
             args.push(self.ident(p, span));
         }

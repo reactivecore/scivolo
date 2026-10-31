@@ -4,13 +4,15 @@
 //! `val x = XRef.create(e)`, a read `x.elem` and a write `x.elem = e`, so closures share the
 //! variable.
 
+use super::adapt::ascribed;
+use super::walk::subtrees;
 use crate::definitions::{Ref, ref_class, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
-use tasty::{Kind, SymbolId};
+use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree, Walk, traverse};
 
 /// Makes the variables in class definition `td` that closures capture shared references.
@@ -83,40 +85,71 @@ fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<Symbo
 }
 
 /// Rewrites the definitions, reads and writes of the variables of `refs` in class definition
-/// `td`.
+/// `td`; the values stored and read through a reference of objects typed as the variable.
 fn rewrite(l: &mut Lower, td: TNodeId, refs: &FxHashMap<SymbolId, Ref>) {
     let captured = |l: &Lower, t| l.tpd.sym(t).is_some_and(|s| refs.contains_key(&s));
     let class = l.tpd.sym(td).expect("a class definition's symbol");
+    let written: FxHashSet<TNodeId> = subtrees(l.tpd, td)
+        .into_iter()
+        .filter_map(|t| match *l.tpd.tree(t) {
+            Tree::Assign { lhs, .. } if captured(l, lhs) => Some(lhs),
+            _ => None,
+        })
+        .collect();
     traverse(l, td, class, &mut |l, t, _| match *l.tpd.tree(t) {
         Tree::ValDef { name, rhs: Some(rhs), .. } if captured(l, t) => {
-            let r = refs[&l.tpd.sym(t).expect("a variable")];
+            let v = l.tpd.sym(t).expect("a variable");
+            let r = refs[&v];
             let span = l.tpd.span(rhs);
             let class = l.ident(r.class, Span::NONE);
             let create = l.select(class, r.create, Span::NONE);
             let tpe = type_ref(l.u, r.class);
-            let rhs = l.apply(create, &[rhs], tpe, Span::NONE);
+            let value = as_variable(l, rhs, v, r);
+            let rhs = l.apply(create, &[value], tpe, Span::NONE);
             l.positioned(rhs);
             let tpt = l.type_tree(tpe, span);
             l.tpd.get_mut(t).tree = Tree::ValDef { name, tpt, rhs: Some(rhs) };
             Walk::Children
         }
+        Tree::Assign { lhs, rhs } if written.contains(&lhs) => {
+            let v = l.tpd.sym(lhs).expect("a variable");
+            let rhs = as_variable(l, rhs, v, refs[&v]);
+            l.tpd.get_mut(t).tree = Tree::Assign { lhs, rhs };
+            Walk::Children
+        }
         Tree::Ident { .. } if captured(l, t) => {
-            to_elem(l, t, refs);
+            to_elem(l, t, refs, !written.contains(&t));
             Walk::Skip
         }
         _ => Walk::Children,
     });
 }
 
-/// Makes reference `t` to variable `x` the selection `x.elem`.
-fn to_elem(l: &mut Lower, t: TNodeId, refs: &FxHashMap<SymbolId, Ref>) {
+/// Makes reference `t` to variable `x` the selection `x.elem`, `x.elem: T` if `read` for `x` of
+/// type `T` held by a reference of objects (dotty's `ensureConforms`).
+fn to_elem(l: &mut Lower, t: TNodeId, refs: &FxHashMap<SymbolId, Ref>, read: bool) {
     let v = l.tpd.sym(t).expect("a variable");
     let r = refs[&v];
     let info = l.u.info(r.elem);
     let span = l.tpd.span(t);
     let var = l.ident(v, span);
     let elem_name = l.term_name("elem");
-    let node = l.tpd.get_mut(t);
-    (node.tree, node.sym, node.tpe) =
-        (Tree::Select { qualifier: var, name: elem_name }, Some(r.elem), Some(info));
+    let sel = l.tpd.node(Tree::Select { qualifier: var, name: elem_name }, span, Some(info), Some(r.elem));
+    let elem = if read { as_variable(l, sel, v, r) } else { sel };
+    l.copy_node(t, elem);
+}
+
+/// `e: T` for variable `v` of type `T` if its reference `r` holds objects and `T` erases to
+/// another class or an array; else `e`.
+fn as_variable(l: &mut Lower, e: TNodeId, v: SymbolId, r: Ref) -> TNodeId {
+    let tpe = l.u.info(v);
+    let elem = l.u.info(r.elem);
+    let object = |x: &Erased| matches!(x, Erased::Class(c) if c == "java.lang.Object");
+    let objects = object(&l.u.erase(elem));
+    let erased = l.u.erase(tpe);
+    if !objects || object(&erased) || l.u.value_class(tpe).is_some() {
+        return e;
+    }
+    let span = l.tpd.span(e);
+    ascribed(l, e, tpe, span)
 }

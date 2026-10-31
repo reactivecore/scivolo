@@ -143,7 +143,7 @@ impl Universe {
 
     /// `t` with its type parameters replaced by their upper bounds, given the bounds of the
     /// parameters of each polymorphic type; within `t`, only those bounded by a class.
-    fn upper_bound(&mut self, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
+    pub fn upper_bound(&mut self, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
         let bound =
             |b: Binder, i: u32| bounds.iter().find(|(binder, _)| *binder == b)?.1.get(i as usize).copied();
         let mut t = self.map_type(t, &mut |u, x| match *u.types().get(x) {

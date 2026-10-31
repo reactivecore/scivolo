@@ -5,7 +5,7 @@
 
 use crate::definitions::type_ref;
 use crate::phases::adapt::{adapt, ascribed, converted, erased_type};
-use crate::phases::casts::{class_named, conforms, type_of};
+use crate::phases::casts::{class_named, conforms, conforms_to_class_file, type_of};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::{Erased, TypeId};
@@ -31,7 +31,10 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     }
     let refused = || unsupported(span, "casts between primitive values or to references");
     let erased_expr = this_class(l, expr).unwrap_or_else(|| found.clone());
-    let upcast = conforms(l, &erased_expr, &to);
+    let upcast = conforms_to_class_file(l, &erased_expr, &to);
+    if !upcast && conforms(l, &erased_expr, &to) {
+        l.explicit_casts.insert(t);
+    }
     let ascription = matches!((&found, &to), (Erased::Prim(a), Erased::Prim(b)) if a == b)
         || (matches!(found, Erased::Null | Erased::Unit) && to == Erased::Unit);
     Ok(match (&found, &to) {
