@@ -264,6 +264,17 @@ fn implicit_results_referring_to_their_parameters_leave_open_types() {
     assert_eq!(member_type(&mut u, "D", "o"), "scala.Option[scala.Int]");
 }
 
+#[test]
+fn members_narrowed_by_anonymous_classes_and_setters_of_imported_getters() {
+    let Some(mut u) = universe() else { return };
+    let text = "trait P; class U extends P { def uid = 7 }; trait A { def o: P; def p(): P; val q: P }
+        object D { val a = new A { def o: U = new U; def p(): U = new U; val q: U = new U }; val n = a.o.uid + a.p().uid + a.q.uid }
+        object Sx { def x = 1; def x_=(v: Int) = () }
+        object Sy { import Sx.x; def f() = { def x_=(v: Int) = (); x = 2 } }";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "d.scala", text), Ok(()));
+    assert_eq!(member_type(&mut u, "D", "n"), "scala.Int");
+}
+
 /// Whether typing `text` as a unit after `before` types it or leaves the unresolved `c` to the
 /// fallback.
 fn finds_toplevel(before: &[&str], text: &str) -> bool {
@@ -505,10 +516,6 @@ fn constructs_diverging_from_dotty_are_refused() {
         (
             "class Fi(i: java.io.InputStream) extends java.io.FilterInputStream(i) { def d(): Unit = in = null }",
             "assignment to a non-variable",
-        ),
-        (
-            "object Sx { def x = 1; def x_=(v: Int) = () }\nobject Sy { import Sx.x; def f() = { def x_=(v: Int) = (); x = 2 } }",
-            "setter of a member shadowed by another `_=`",
         ),
     ];
     for (text, what) in cases {

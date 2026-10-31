@@ -32,6 +32,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     protected_accessors::transform(l, root, &classes)?;
     let moved = extension_methods::transform(l, &classes)?;
+    param_forwarding::transform(l, root, &classes);
     let deferred = mixin::methods_with_body(l, &classes, false);
     let foreign = initializers::foreign_refs(l, &classes);
     for &td in &classes {

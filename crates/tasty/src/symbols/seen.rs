@@ -118,8 +118,8 @@ impl Universe {
         args.get(index).copied()
     }
 
-    /// The type of member `m` of `prefix`; the `apply` of a dependent function type the one its
-    /// refinement gives.
+    /// The type of member `m` of `prefix`; the `apply` of a dependent function type, or a term
+    /// member a refinement narrows, the one its refinement gives.
     pub fn member_info(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {
         let info = self.info(m);
         match self.symbol(m).owner {
@@ -127,7 +127,13 @@ impl Universe {
                 if let Some(refined) = self.dependent_refinement(prefix, m) {
                     return refined;
                 }
-                self.as_seen_from(info, prefix, owner)
+                let seen = self.as_seen_from(info, prefix, owner);
+                if self.symbol(m).kind.is_term()
+                    && let Some(refined) = self.narrowing_refinement(prefix, m, seen)
+                {
+                    return refined;
+                }
+                seen
             }
             _ => info,
         }

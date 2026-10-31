@@ -8,6 +8,7 @@
 pub(crate) mod attempt;
 mod avoid;
 mod lambda_params;
+mod levels;
 mod unify;
 
 use attempt::Fate;

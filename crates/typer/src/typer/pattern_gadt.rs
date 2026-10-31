@@ -17,7 +17,10 @@ impl Typer<'_> {
         let mut bound = Vec::new();
         self.pattern_types(tpt, &mut bound, false);
         let syms: Vec<SymbolId> = bound.into_iter().map(|(s, _)| s).collect();
-        if pattern && !syms.is_empty() && self.only_against_wildcards(tpe, sel, &syms) {
+        if pattern
+            && !syms.is_empty()
+            && (self.only_against_wildcards(tpe, sel, &syms) || self.has_unapplied_bases(sel))
+        {
             self.known_pattern_types.extend(syms);
             return tpe;
         }
@@ -112,6 +115,15 @@ impl Typer<'_> {
                 },
                 _ => !self.refers_to(p, syms),
             })
+    }
+
+    /// Whether `sel` is a class type whose base classes have no type parameters, against which a
+    /// pattern's type constrains none of its bound types.
+    fn has_unapplied_bases(&mut self, sel: TypeId) -> bool {
+        let sel = self.dealiased(sel);
+        let sel = self.u.widen(sel);
+        let Type::Sym(_, c) = *self.u.types().get(sel) else { return false };
+        self.u.is_class(c) && self.u.linearization(c).into_iter().all(|b| self.u.type_params(b).is_empty())
     }
 
     /// The bounds of type variable `v` zonked, both its instance if it has one.

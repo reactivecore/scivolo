@@ -10,7 +10,7 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
+use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PRIVATE};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 
 /// Gives the concrete values of library trait `trait_` their getters and setters, once.
@@ -22,7 +22,13 @@ pub fn prepare(l: &mut Lower, trait_: SymbolId, span: Span) -> Result<()> {
         if l.u.is_module(value) {
             return unsupported(span, "objects in library traits");
         }
-        if l.u.body(value).is_none() || is_const_final(l, value) {
+        if l.u.body(value).is_none() {
+            continue;
+        }
+        if is_const_final(l, value) {
+            if has(l.u, value, PRIVATE) {
+                super::accessor_names::ensure_not_private(l, value);
+            }
             continue;
         }
         let flags = l.u.symbol(value).flags.with(FIELDaccessor);
