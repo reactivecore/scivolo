@@ -17,9 +17,9 @@ pub struct Accessors {
     /// Each accessor made, by its class, the member it accesses and whether it is a setter.
     made: FxHashMap<(SymbolId, SymbolId, bool), SymbolId>,
     /// The definitions of the accessors still to type, by class, with the context to type them in.
-    pending: FxHashMap<SymbolId, Vec<(NodeId, Ctx)>>,
+    pub pending: FxHashMap<SymbolId, Vec<(NodeId, Ctx)>>,
     /// The classes whose bodies are typed.
-    closed: FxHashSet<SymbolId>,
+    pub closed: FxHashSet<SymbolId>,
 }
 
 impl Typer<'_> {
@@ -28,7 +28,10 @@ impl Typer<'_> {
     pub fn with_inline_members(&mut self, cls: SymbolId, body: Vec<TNodeId>, ctx: Ctx) -> Vec<TNodeId> {
         let mut body = self.with_retainers(body, ctx);
         for (def, def_ctx) in self.accessors.pending.remove(&cls).unwrap_or_default() {
-            body.push(self.typed_stat(def, def_ctx));
+            let def = self.typed_stat(def, def_ctx);
+            self.with_type_trees(def);
+            self.with_setter_receiver(def);
+            body.push(def);
         }
         self.accessors.closed.insert(cls);
         body
@@ -41,6 +44,13 @@ impl Typer<'_> {
             && let Some(var) = self.tpd.sym(lhs)
             && self.needs_inline_accessor_from(var, meth)
         {
+            if self.pass_receiver(lhs, var, meth, ctx) {
+                for c in self.tpd.children(t) {
+                    self.make_inlineable(c, meth, ctx);
+                }
+                self.pass_setter(t, var, meth, ctx);
+                return;
+            }
             for c in self.tpd.children(lhs) {
                 self.make_inlineable(c, meth, ctx);
             }
@@ -53,6 +63,15 @@ impl Typer<'_> {
                 let args = self.tpd.list(&[rhs]);
                 let node = self.tpd.get_mut(t);
                 (node.tree, node.tpe) = (T::Apply { fun, args }, Some(unit));
+            }
+            return;
+        }
+        if let Some(sym) = self.tpd.sym(t)
+            && self.needs_inline_accessor_from(sym, meth)
+            && self.pass_receiver(t, sym, meth, ctx)
+        {
+            for c in self.tpd.children(t) {
+                self.make_inlineable(c, meth, ctx);
             }
             return;
         }
@@ -87,6 +106,25 @@ impl Typer<'_> {
             && self.needs_inline_accessor_from(sym, meth)
         {
             self.rewire(t, sym, ctx);
+        }
+    }
+
+    /// Makes the parameter and result type trees of typed accessor definition `def` type trees
+    /// of their types (dotty's `tpd.DefDef`).
+    fn with_type_trees(&mut self, def: TNodeId) {
+        let T::DefDef { paramss, tpt, .. } = *self.tpd.tree(def) else { return };
+        let mut tpts = vec![tpt];
+        for &clause in self.tpd.clause_items(paramss) {
+            for &p in self.tpd.items(clause) {
+                match *self.tpd.tree(p) {
+                    T::ValDef { tpt, .. } => tpts.push(tpt),
+                    T::TypeDef { rhs, .. } => tpts.push(rhs),
+                    _ => {}
+                }
+            }
+        }
+        for t in tpts {
+            self.tpd.get_mut(t).tree = T::TypeTree { inferred: false };
         }
     }
 

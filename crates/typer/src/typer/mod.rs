@@ -145,6 +145,8 @@ mod param_vars;
 mod parameterless;
 mod parent_trees;
 mod parents;
+mod passing_accessors;
+mod passing_defs;
 mod paths;
 mod pattern_args;
 mod pattern_bounds;
