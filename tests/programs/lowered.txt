@@ -193,4 +193,5 @@ lastrefusals
 privategetters
 paramforwarding
 erasedshapes
+closuretypes
 lazyouternames
