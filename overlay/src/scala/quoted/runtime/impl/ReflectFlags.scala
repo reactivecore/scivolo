@@ -77,8 +77,8 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
   }
 
   object defn extends defnModule {
-    def RootPackage: Symbol = new SymbolImpl(ReflectOps.one("root")).asInstanceOf[Symbol]
-    def RootClass: Symbol = RootPackage
+    def RootPackage: Symbol = new SymbolImpl(ReflectOps.one("rootPackage")).asInstanceOf[Symbol]
+    def RootClass: Symbol = new SymbolImpl(ReflectOps.one("root")).asInstanceOf[Symbol]
     def EmptyPackageClass: Symbol = new SymbolImpl(ReflectOps.one("emptyPackage")).asInstanceOf[Symbol]
     def ScalaPackage: Symbol = Symbol.requiredPackage("scala")
     def ScalaPackageClass: Symbol = Symbol.requiredPackage("scala")
