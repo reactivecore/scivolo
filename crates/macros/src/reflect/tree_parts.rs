@@ -70,7 +70,7 @@ impl Host {
             (_, T::LambdaTypeTree { tparams, body }) => (with(vec![Some(body)], tparams), None),
             (_, T::RefinedTypeTree { tpt, refinements }) => (with(vec![Some(tpt)], refinements), None),
             (_, T::TypeBoundsTree { lo, hi, .. }) => (vec![Some(lo), Some(hi)], None),
-            (_, T::Import { expr, .. }) => (vec![Some(expr)], None),
+            (_, T::Import { expr, selectors, .. }) => (with(vec![Some(expr)], selectors), None),
             (_, T::PackageDef { pid, stats }) => (with(vec![Some(pid)], stats), None),
             _ => (Vec::new(), None),
         })

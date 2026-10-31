@@ -9,7 +9,9 @@ mod classes;
 mod def_structure;
 mod defs;
 mod highlight;
+mod imports;
 mod literals;
+mod local_names;
 mod parents;
 mod structure;
 mod type_string;
@@ -18,7 +20,7 @@ mod types;
 
 use crate::host::Host;
 use std::collections::HashMap;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
 
 type Shown = Result<(), &'static str>;
@@ -234,6 +236,7 @@ impl Code<'_> {
             T::TypeDef { .. } if self.h.tpd.class_template(t).is_some() => self.class_def(t)?,
             T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } => self.definition(t)?,
             T::CaseDef { .. } => self.case_def(t)?,
+            T::Import { .. } => self.import(t)?,
             T::Bind { .. } | T::UnApply { .. } | T::Alternative { .. } => self.pattern(t)?,
             _ => return Err(REFUSED),
         }
@@ -251,38 +254,6 @@ impl Code<'_> {
             }
             _ => self.tree(t),
         }
-    }
-
-    /// Whether `s` is owned by a term (dotty's `splicedName` applies).
-    fn is_local(&self, s: SymbolId) -> bool {
-        self.h
-            .u
-            .symbol(s)
-            .owner
-            .is_some_and(|o| !matches!(self.h.u.symbol(o).kind, Kind::Class | Kind::Package))
-    }
-
-    /// The name local `s` prints as: its own, subscripted from its second symbol on.
-    fn spliced_name(&mut self, s: SymbolId) -> String {
-        if let Some(n) = self.names.get(&s) {
-            return n.clone();
-        }
-        let base = self.h.u.symbol(s).name.clone();
-        let index = self.index.entry(base.clone()).or_insert(1);
-        let name = match *index {
-            1 => base.clone(),
-            i => {
-                let digits: String = i
-                    .to_string()
-                    .chars()
-                    .map(|d| char::from_u32(d as u32 - '0' as u32 + 0x2080).unwrap_or(d))
-                    .collect();
-                format!("`{base}{digits}`")
-            }
-        };
-        *index += 1;
-        self.names.insert(s, name.clone());
-        name
     }
 
     /// Type `t` as `printType` shows it, the spliced types substituted.

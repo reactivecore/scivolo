@@ -75,7 +75,8 @@ impl Inlining<'_> {
             | T::TypeBoundsTree { .. }
             | T::LambdaTypeTree { .. }
             | T::RefinedTypeTree { .. }
-            | T::Annotated { .. } => Ok(t),
+            | T::Annotated { .. }
+            | T::Import { export: true, .. } => Ok(t),
             T::If { cond, thenp, elsep, inline } => {
                 let cond = self.retype_forced(inline, cond, args, owner)?;
                 if let Some(C::Boolean(b)) = self.constant_of(cond) {
