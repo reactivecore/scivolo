@@ -196,4 +196,5 @@ erasedshapes
 closuretypes
 lazyouternames
 passingaccessors
+nameorder
 positionsscopes

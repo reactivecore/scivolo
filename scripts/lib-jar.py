@@ -73,7 +73,7 @@ def main(module):
     published = zipfile.ZipFile(lib.LIBS / lib.jar_name(module))
     items = entries(module, stage, published)
     write_jar(jar, items)
-    theirs, counts, ours = lib.oracle(module), {"same": 0, "differ": 0, "missing": 0}, set()
+    theirs, counts, ours = lib.oracle(module), {"same": 0, "differ": 0, "var-order": 0, "missing": 0}, set()
     diffs = lib.WORK / module / "jar-diffs"
     shutil.rmtree(diffs, ignore_errors=True)
     for p in sorted(stage.rglob("*.nir")):
@@ -85,7 +85,7 @@ def main(module):
     upstream = [n for n in published.namelist() if not n.endswith((".nir", ".tasty", ".class", "/"))]
     same = sum(1 for n in upstream if other.get(n) == published.read(n))
     print(f"{jar.relative_to(lib.ROOT)}: nir {counts['same']} same, {counts['differ']} differ, "
-          f"{counts['missing']} missing from the oracle, {only} only in the oracle "
+          f"{counts['var-order']} var-order, {counts['missing']} missing from the oracle, {only} only in the oracle "
           f"({theirs.relative_to(lib.ROOT)}); other entries {same} of {len(upstream)} as published")
 
 
