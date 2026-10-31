@@ -59,6 +59,12 @@ impl Code<'_> {
                     self.tree(rhs)?;
                 }
             }
+            T::TypeDef { name, rhs } if !matches!(self.tree_of(self.r(rhs)), T::LambdaTypeTree { .. }) => {
+                self.keyword("type ");
+                self.variance(s);
+                self.push(&self.name(name));
+                self.type_def_rhs(rhs)?;
+            }
             _ => return Err(REFUSED),
         }
         Ok(())

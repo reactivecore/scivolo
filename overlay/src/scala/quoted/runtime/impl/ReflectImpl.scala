@@ -85,12 +85,13 @@ abstract class ReflectImpl
    *  matching candidate.
    */
   object Implicits extends ImplicitsModule {
-    def search(tpe: TypeRepr): ImplicitSearchResult = ReflectOps.results("search", ReflectOps.id(tpe)) match {
+    def search(tpe: TypeRepr): ImplicitSearchResult = found(ReflectOps.results("search", ReflectOps.id(tpe)))
+    def searchIgnoring(tpe: TypeRepr)(ignored: Symbol*): ImplicitSearchResult =
+      found(ReflectOps.results("searchIgnoring", (ReflectOps.id(tpe) +: ignored.map(ReflectOps.id))*))
+    private def found(results: List[Int]): ImplicitSearchResult = results match {
       case List(1, tree) => new SearchImpl(tree).asInstanceOf[ImplicitSearchResult]
       case _             => new SearchImpl(-1).asInstanceOf[ImplicitSearchResult]
     }
-    def searchIgnoring(tpe: TypeRepr)(ignored: Symbol*): ImplicitSearchResult =
-      throw new Unsupported("Implicits.searchIgnoring")
   }
 
   given ImplicitSearchSuccessTypeTest: TypeTest[ImplicitSearchResult, ImplicitSearchSuccess] = searched(true)

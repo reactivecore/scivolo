@@ -71,7 +71,8 @@ pub fn transform(l: &mut Lower, td: TNodeId, foreign: &FxHashSet<SymbolId>) -> R
 /// Makes reference `t` to parameter field `field` refer to the constructor parameter of its name
 /// among `params`.
 fn to_param(l: &mut Lower, params: &[SymbolId], t: TNodeId, field: SymbolId) {
-    let Some(param) = params.iter().copied().find(|&p| l.u.symbol(p).name == l.u.symbol(field).name) else {
+    let name = super::param_forwarding::param_name(l, field);
+    let Some(param) = params.iter().copied().find(|&p| l.u.symbol(p).name == name) else {
         return;
     };
     let ident = l.ident(param, l.tpd.span(t));

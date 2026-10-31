@@ -12,4 +12,5 @@ object TypeStructure:
     val e = typeStructure['c' | 1.5 | 2.5f]
     type A = C
     val g = typeStructure[A]
+    val h = quotedStructures
   def g[T](): String = typeStructure[T]

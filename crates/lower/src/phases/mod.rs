@@ -97,6 +97,7 @@ mod outer_selects;
 mod outer_tests;
 mod outer_traits;
 mod package_objects;
+mod param_forwarding;
 mod patmat;
 mod pipeline;
 mod poly_functions;

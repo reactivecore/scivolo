@@ -100,6 +100,7 @@ ops! {
     "isWhileTyping" => is_while_typing() -> bool;
     "macroSettings" => macro_settings() -> String;
     "search" => search(pt: Ty) -> Fallible<Vec<i32>>;
+    "searchIgnoring" => search_ignoring(pt: Ty, ignored: Rest<Sym>) -> Fallible<Vec<i32>>;
     // type patterns
     "matchType" => match_type(scrutinee: Ty, pattern: Num) -> Fallible<i32>;
     // type reprs
@@ -150,6 +151,8 @@ ops! {
     "selectUnique" => select_unique(qual: Tree, name: Name) -> Fallible<TNodeId>;
     "selectOverloaded" => select_overloaded(qual: Tree, n: Num, rest: Rest<Num>, name: Name)
         -> Fallible<TNodeId>;
+    "selectOverloadedReturning" =>
+        select_overloaded_returning(qual: Tree, n: Num, to: Ty, rest: Rest<Num>, name: Name) -> Fallible<TNodeId>;
     "select" => select(qual: Tree, s: Sym) -> Fallible<TNodeId>;
     "appliedToTypes" => applied_to_types(fun: Tree, targs: Rest<Ty>) -> Fallible<TNodeId>;
     "match" => match_(selector: Tree, cases: Rest<Tree>) -> TNodeId;
@@ -177,6 +180,7 @@ ops! {
     "constantType" => constant_type(t: Ty) -> Fallible<Reflected>;
     "typeConstructorOf" => type_constructor_of(name: Name) -> Fallible<TypeId>;
     "substituteTypes" => substitute_types(t: Ty, pairs: Rest<(Sym, Ty)>) -> TypeId;
+    "isErasedFunctionType" => is_erased_function_type(t: Ty) -> bool;
     // constants
     "constant" => constant(t: Tree) -> Fallible<Reflected>;
     "literal" => literal(kind: Num, bits: Bits, text: Name) -> Fallible<TNodeId>;
@@ -186,6 +190,7 @@ ops! {
     "declaredMethod" => declared_method(s: OptSym, name: Name) -> Vec<SymbolId>;
     "spliceOwner" => splice_owner() -> SymbolId;
     "root" => root() -> SymbolId;
+    "rootPackage" => root_package() -> SymbolId;
     "emptyPackage" => empty_package() -> SymbolId;
     "anyRefAlias" => any_ref_alias() -> Fallible<SymbolId>;
     "predefClassOf" => predef_class_of() -> Fallible<SymbolId>;

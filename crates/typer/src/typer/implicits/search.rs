@@ -61,6 +61,7 @@ impl Typer<'_> {
     }
 
     fn arg_search(&mut self, pt: TypeId, at: Span, ctx: Ctx, depth: u32) -> Result<TNodeId, &'static str> {
+        let ignored = if depth == 0 { std::mem::take(&mut self.ignored_implicits) } else { Vec::new() };
         let (pt, by_name) = match *self.u.types().get(pt) {
             Type::ByName(r) => (r, true),
             _ => (pt, false),
@@ -89,10 +90,11 @@ impl Typer<'_> {
         let levels = contextual.len();
         let mut contextual = contextual.into_iter();
         for _ in 0..=levels {
-            let group = match contextual.next() {
+            let mut group = match contextual.next() {
                 Some(group) => group,
                 None => self.implicit_scope(pt)?,
             };
+            group.retain(|c| !ignored.contains(&c.sym));
             let group = self.fitting(&group, |t, c| t.tried(c, (pt, by_name), at, ctx, (depth, true)))?;
             let unpruned = coherent || self.has_unbounded_var(pt);
             match self.best_first(&group, (pt, by_name), at, ctx, depth, unpruned)? {

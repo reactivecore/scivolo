@@ -8,6 +8,7 @@
 mod beta;
 mod blocks;
 mod code_of;
+mod code_of_refs;
 mod compiletime;
 mod const_fold;
 mod constants;
@@ -42,6 +43,7 @@ mod reflect_classes;
 mod reflect_constructors;
 mod reflect_defs;
 mod reflect_lambdas;
+mod reflect_methods;
 mod reflect_trees;
 mod reflect_vals;
 mod reselect;
@@ -60,7 +62,7 @@ mod unused;
 pub use erased::is_erased_value;
 pub use host::{Host, Lent};
 pub use macros::{
-    AnnotationCall, Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted, Reports,
+    AnnotationCall, Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted, Reports, Search,
 };
 pub use purity::Purity;
 pub use quote_match::bound_types;

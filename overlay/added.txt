@@ -2,3 +2,4 @@
 java.lang.Runtime D11totalMemoryjEO
 java.lang.Runtime D9maxMemoryjEO
 java.lang.Runtime D10freeMemoryjEO
+java.lang.Class D16getCanonicalNameL16java.lang.StringEO

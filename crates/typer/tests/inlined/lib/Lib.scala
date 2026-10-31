@@ -47,3 +47,13 @@ object Lib:
     new Foo(n).twice + 1
   inline def anon(s: String): Runnable = new Runnable:
     def run() = println("hi " + s)
+
+object Overloads:
+  def andThen[A, B](a: A)(f: A => B): B = f(a)
+  def andThen[A, B](a: A)(f: PartialFunction[A, B]): Option[B] = f.lift(a)
+
+trait Greeter:
+  def greet(s: String): String
+
+object Greeters:
+  def hello: Greeter = s => "hello " + s

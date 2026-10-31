@@ -286,6 +286,8 @@ pub struct Typer<'a> {
     pub locked_vars: usize,
     /// How many more candidates the implicit search in progress may try.
     pub implicit_budget: u32,
+    /// The candidates the next outermost search of an implicit argument leaves out.
+    pub ignored_implicits: Vec<SymbolId>,
     /// The implicit searches in progress and their by-name implicits.
     pub history: implicits::History,
     /// The argument lists of the applications being typed.
@@ -392,6 +394,7 @@ impl<'a> Typer<'a> {
             constraint: Default::default(),
             locked_vars: 0,
             implicit_budget: 0,
+            ignored_implicits: Vec::new(),
             history: Default::default(),
             protos: Vec::new(),
             poly_protos: Vec::new(),

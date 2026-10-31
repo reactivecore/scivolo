@@ -336,8 +336,8 @@ fn no_false_errors_behind_unsupported_constructs() {
             "type pattern needing a type test or type binding",
         ),
         (
-            "import scala.language.experimental.genericNumberLiterals\nobject M:\n  val x: BigInt = 13232202002020202020202\n",
-            "generic number literal",
+            "import scala.language.experimental.genericNumberLiterals\nobject M:\n  def f(x: BigInt) = x match { case 13232202002020202020202 => 1 }\n",
+            "generic number literal in a pattern",
         ),
         (
             "class A { val x = 1 }\nclass B extends A { override lazy val x = 2 }\n",

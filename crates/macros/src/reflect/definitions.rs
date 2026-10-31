@@ -32,13 +32,19 @@ impl Host {
         Ok(trees)
     }
 
+    /// `Symbol.tree`: the definition of `s`, one made from its symbol if it has none or is
+    /// defined in a macro argument.
     pub fn symbol_tree(&mut self, s: SymbolId) -> Fallible<Option<TNodeId>> {
-        Ok(match self.definition(s) {
+        if self.in_args(s) {
+            return self.definition_from_symbol(s);
+        }
+        match self.definition(s) {
             None if self.settings.retain_trees && self.u.symbol(s).tree.is_some() => {
-                Some(typer::unpickle::member_def(&mut self.u, &mut self.tpd, &mut self.names, s)?)
+                Ok(Some(typer::unpickle::member_def(&mut self.u, &mut self.tpd, &mut self.names, s)?))
             }
-            t => t,
-        })
+            None => self.definition_from_symbol(s),
+            t => Ok(t),
+        }
     }
 
     pub fn class_body(&mut self, t: TNodeId) -> Fallible<Vec<TNodeId>> {

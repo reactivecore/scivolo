@@ -25,7 +25,10 @@ impl vm::QuoteHost for Host {
         let (bytes, types) = self.decoded(pickled, types)?;
         let lent = (&mut self.u, &mut self.tpd, &mut self.names);
         Ok(match quoted_type(lent, bytes, self.owner, &types)? {
-            Ok(t) => self.add_type(t),
+            Ok(t) => {
+                self.mark_quoted(t, &types);
+                self.add_type(t)
+            }
             Err(p) => self.add_pattern(p),
         })
     }

@@ -25,9 +25,9 @@ impl Inlining<'_> {
         let expanded = loop {
             let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
             match self.host.expand_macro(lent, &call) {
-                Err(MacroError::Search(pt)) if call.searched.len() < MAX_SEARCHES => {
-                    let found = self.summon(pt, self.outermost_span)?;
-                    call.searched.push((pt, found));
+                Err(MacroError::Search(search)) if call.searched.len() < MAX_SEARCHES => {
+                    let found = self.summon_ignoring(search.pt, self.outermost_span, &search.ignored)?;
+                    call.searched.push((search, found));
                 }
                 expanded => break expanded,
             }
