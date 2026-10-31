@@ -1,30 +1,23 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
-//! The symbols of `quotes.reflect`: owners, names, flags and kinds. Flags are the bits of the
-//! TASTy modifier tags, with bits 2 to 5 for `Method`, `Package`, `Param` and `AbsOverride`,
-//! bit 50 for `JavaDefined`, bit 51 for `Scala2x` and bit 53 for `Deferred`.
+//! The symbols of `quotes.reflect`: owners, names and kinds.
 
 use super::Fallible;
 use crate::host::Host;
-use tasty::tags::{
-    ABSTRACT, FINAL, LAZY, MACRO, OBJECT, OPAQUE, OVERRIDE, PROTECTED, PROTECTEDqualified, SYNTHETIC,
-};
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
+use tasty::tags::{MACRO, SYNTHETIC};
+use tasty::{Flags, Kind, Symbol, SymbolId, TypeId, Universe};
 
+/// The flag bit of `Method`.
 pub const METHOD: u32 = 2;
-const PACKAGE: u32 = 3;
-const PARAM: u32 = 4;
-const ABS_OVERRIDE: u32 = 5;
-const JAVA_DEFINED: u32 = 50;
-const SCALA2X: u32 = 51;
-const DEFERRED: u32 = 53;
 
-/// The symbols an expansion makes: the owner of its splice and the empty package.
+/// The symbols an expansion makes: the owner of its splice, the empty package and the root
+/// package's value.
 #[derive(Default)]
 pub struct Made {
     macro_owner: Option<SymbolId>,
     pub empty_package: Option<SymbolId>,
+    root_package: Option<SymbolId>,
 }
 
 impl Host {
@@ -40,6 +33,13 @@ impl Host {
         let root = self.u.root();
         let made = &mut self.made.empty_package;
         *made.get_or_insert_with(|| local(&mut self.u, "<empty>", Kind::Package, root, Flags::default()))
+    }
+
+    /// The value `_root_` whose module class is the root (dotty's `RootPackage`).
+    pub fn root_package(&mut self) -> SymbolId {
+        let root = self.u.root();
+        let made = &mut self.made.root_package;
+        *made.get_or_insert_with(|| local(&mut self.u, "_root_", Kind::Package, root, Flags::default()))
     }
 
     pub fn companion_module(&mut self, s: Option<SymbolId>) -> Option<SymbolId> {
@@ -124,61 +124,11 @@ impl Host {
 
     pub fn module_class(&mut self, s: SymbolId) -> Option<SymbolId> {
         match self.u.symbol(s).kind {
+            _ if Some(s) == self.made.root_package => Some(self.u.root()),
             Kind::Package => Some(s),
             _ if self.u.is_module_class(s) => Some(s),
             _ if self.u.is_module(s) => self.u.module_class(s),
             _ => None,
-        }
-    }
-
-    /// The flags of `s` as dotty's `TreeUnpickler` reads them (`readModifiers`, `normalizeFlags`),
-    /// but for `ParamAccessor`, `NoInits` and `StableRealizable`.
-    pub fn flags(&mut self, s: SymbolId) -> u64 {
-        let deferred = if self.is_deferred(s) { 1 << DEFERRED } else { 0 };
-        let sym = self.u.symbol(s);
-        let has = |tag: u8| sym.flags.has(tag);
-        let bit = |tag: u8| 1u64 << tag;
-        let mut bits = sym.flags.0 & !0b11;
-        if has(PROTECTEDqualified) {
-            bits |= bit(PROTECTED);
-        }
-        if sym.kind.is_term() && has(ABSTRACT) && has(OVERRIDE) {
-            bits = bits & !bit(ABSTRACT) | 1 << ABS_OVERRIDE;
-        }
-        if has(OBJECT) {
-            bits |= bit(FINAL) | if sym.kind.is_term() { bit(LAZY) } else { 0 };
-        }
-        let in_class = sym.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Class);
-        bits | deferred
-            | match sym.kind {
-                Kind::Class if self.u.is_scala2(s) => 1 << SCALA2X,
-                Kind::Def => 1 << METHOD,
-                Kind::Package => 1 << PACKAGE | 1 << JAVA_DEFINED | bit(OBJECT) | bit(FINAL),
-                Kind::Param if in_class => 0,
-                Kind::Param | Kind::TypeParam => 1 << PARAM,
-                _ => 0,
-            }
-    }
-
-    /// Whether `s` is a value or method member of a class without a definition, but for a
-    /// constructor, an abstract type member or an opaque type alias.
-    fn is_deferred(&mut self, s: SymbolId) -> bool {
-        let sym = self.u.symbol(s);
-        let (kind, tasty, opaque) = (sym.kind, sym.tree.is_some(), sym.flags.has(OPAQUE));
-        if !sym.owner.is_some_and(|o| self.u.is_class(o)) || self.u.is_constructor(s) {
-            return false;
-        }
-        match kind {
-            Kind::Val | Kind::Def if tasty => self.u.body(s).is_none(),
-            Kind::Val | Kind::Def => self.u.is_deferred(s),
-            Kind::Type => {
-                let mut info = self.u.info(s);
-                if let Type::Lambda { result, .. } = self.u.types().get(info) {
-                    info = *result;
-                }
-                opaque || matches!(self.u.types().get(info), Type::Bounds(..))
-            }
-            _ => false,
         }
     }
 }

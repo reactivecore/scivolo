@@ -21,6 +21,7 @@ mod overloads;
 mod positions;
 mod reports;
 mod signatures;
+mod symbol_flags;
 mod symbols;
 mod terms;
 mod tree_kinds;
