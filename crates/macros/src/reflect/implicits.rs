@@ -7,7 +7,7 @@ use super::Fallible;
 use super::decode::symbol;
 use crate::host::Host;
 use tasty::tags::{GIVEN, IMPLICIT};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 use typer::inlining::{Annotations, Search};
 use typer::tpd::{TNodeId, Tree as T};
 
@@ -33,49 +33,56 @@ impl Host {
         self.settings.macro_settings.join("\n")
     }
 
-    /// The implicit argument of type `pt` found as `[1, tree]`, `[0]` for none, the first `n` of
-    /// `rest` the symbols of candidates left out (`Implicits.searchIgnoring`), the others the
-    /// context of the `Quotes` searching: the quotes whose holes it fills, the symbols `-1 - s`
-    /// whose `asQuotes` it is; refused where that context may define candidates.
-    pub fn search(&mut self, pt: TypeId, n: i32, rest: Vec<i32>) -> Fallible<Vec<i32>> {
-        let (ignored, context) = rest.split_at((n.max(0) as usize).min(rest.len()));
-        let ignored = ignored.iter().map(|&s| symbol(s)).collect::<Fallible<Vec<_>>>()?;
-        for &c in context {
-            let local = match c {
-                q if q >= 0 => self.defines_givens(self.tree(q as u32)?),
-                s => self.has_local_givens(symbol(-1 - s)?),
-            };
-            if local {
-                return Err("an implicit search inside a quote or owner that may define candidates");
-            }
+    /// The implicit argument of type `pt` found as `[1, tree]`, `[0]` for none, candidates
+    /// `ignored` left out (`Implicits.searchIgnoring`), searched by the `asQuotes` of symbol
+    /// `owner` or its holes' (`-1` for none); refused where an owner or an enclosing quote may
+    /// define candidates.
+    pub fn search(&mut self, pt: TypeId, owner: i32, ignored: Vec<SymbolId>) -> Fallible<Vec<i32>> {
+        let owned = owner >= 0 && self.has_local_givens(symbol(owner)?);
+        if owned || self.open_quotes().into_iter().any(|q| self.defines_givens(q)) {
+            return Err("an implicit search inside a quote or owner that may define candidates");
         }
         self.answered(Search { pt, ignored })
     }
 
-    /// Whether quote `t` defines a given or an implicit, a parameter or class member too.
-    fn defines_givens(&self, t: TNodeId) -> bool {
-        self.tpd.fold(false, t, &mut |found, d| {
-            found
-                || matches!(self.tpd.tree(d), T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. })
-                    && self.tpd.sym(d).is_some_and(|s| self.is_given(s))
-        })
+    /// Whether quote `t` holds an import or defines a given or an implicit: a parameter, a
+    /// pattern variable or a class with one as a member, inherited too.
+    fn defines_givens(&mut self, t: TNodeId) -> bool {
+        let mut imports = false;
+        let defs = self.tpd.fold(Vec::new(), t, &mut |mut defs, d| {
+            match self.tpd.tree(d) {
+                T::Import { .. } => imports = true,
+                T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } | T::Bind { .. } => {
+                    defs.extend(self.tpd.sym(d))
+                }
+                _ => {}
+            }
+            defs
+        });
+        imports || defs.into_iter().any(|s| self.is_given(s) || self.class_givens(s))
     }
 
-    /// Whether `s` or an owner of it up to the splice owner may bring a given into scope: a
-    /// given or a method with implicit parameters; any owner outside the splice owner.
+    /// Whether `s` or an owner of it up to the splice owner is a given or a class with a given
+    /// member, or `s` is outside the splice owner.
     fn has_local_givens(&mut self, mut s: SymbolId) -> bool {
         while s != self.owner {
-            let info = self.u.info(s);
-            let implicit = matches!(
-                *self.u.types().get(info),
-                Type::Method { implicit: true, .. } | Type::Method { contextual: true, .. }
-            ) || self.u.symbol(s).decls.iter().any(|&p| self.is_given(p));
-            let Some(owner) = self.u.symbol(s).owner.filter(|_| !implicit && !self.is_given(s)) else {
+            let Some(owner) = self.u.symbol(s).owner.filter(|_| !self.is_given(s) && !self.class_givens(s))
+            else {
                 return true;
             };
             s = owner;
         }
         false
+    }
+
+    /// Whether `s` is a class with a given or an implicit member, inherited too.
+    fn class_givens(&mut self, s: SymbolId) -> bool {
+        self.u.is_class(s)
+            && self
+                .u
+                .linearization(s)
+                .into_iter()
+                .any(|b| self.u.symbol(b).decls.iter().any(|&m| self.is_given(m)))
     }
 
     fn is_given(&self, s: SymbolId) -> bool {

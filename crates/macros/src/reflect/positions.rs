@@ -25,9 +25,10 @@ impl Host {
         Ok(self.tpd.node(T::TypeTree { inferred: false }, span, Some(t), None))
     }
 
-    /// `TypeRepr.asType`: type `t` under a number of its own, without the span of a type tree.
-    pub fn as_type(&mut self, t: TypeId) -> TypeId {
-        t
+    /// `TypeRepr.asType` of type number `n`: its type under a number of its own, without the span
+    /// of a type tree.
+    pub fn as_type(&mut self, n: i32) -> Fallible<TypeId> {
+        self.type_shape_of(n as u32)
     }
 
     /// The lines and columns of offsets `start` and `end` of source file `file`, and the code

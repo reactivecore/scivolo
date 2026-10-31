@@ -51,7 +51,7 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
         val arg = QuoteHost.holeArg(quote, hole, i)
         if (arg >= 0) QuoteHost.expr(arg) else QuoteHost.quotedType(-1 - arg)
       }
-      val filled = termHole.nn(QuoteHost.holeIndex(quote, hole), args, within(quote))
+      val filled = termHole.nn(QuoteHost.holeIndex(quote, hole), args, new QuotesImpl().within(reflect.asInstanceOf[ReflectImpl].searchOwner))
       QuoteHost.fillHole(quote, hole, QuoteHost.exprId(filled))
       hole += 1
     }
@@ -92,12 +92,10 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
     }
   }
 
-  /** `Quotes` like these inside `entry`, a quote or a symbol `-1 - s` as `searchContext` holds them. */
-  def within(entry: Int): QuotesImpl = {
-    val outer = reflect.asInstanceOf[ReflectImpl].searchContext
-    val q = new QuotesImpl
-    q.reflect.asInstanceOf[q.ReflectImpl].searchContext = entry :: (if (outer == null) Nil else outer)
-    q
+  /** These `Quotes` with `searchOwner` `owner`. */
+  def within(owner: Int): QuotesImpl = {
+    reflect.asInstanceOf[ReflectImpl].searchOwner = owner
+    this
   }
 
   private def text(pickled: String | List[String]): String = pickled match {

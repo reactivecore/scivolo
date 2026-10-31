@@ -101,7 +101,7 @@ ops! {
     // implicits
     "isWhileTyping" => is_while_typing() -> bool;
     "macroSettings" => macro_settings() -> String;
-    "search" => search(pt: Ty, n: Num, rest: Rest<Num>) -> Fallible<Vec<i32>>;
+    "search" => search(pt: Ty, owner: Num, ignored: Rest<Sym>) -> Fallible<Vec<i32>>;
     // type patterns
     "matchType" => match_type(scrutinee: Ty, pattern: Num) -> Fallible<i32>;
     // type reprs
@@ -146,7 +146,7 @@ ops! {
     "isExprOf" => is_expr_of(t: Tree, of: Ty) -> Fallible<bool>;
     "typeTree" => type_tree(t: Ty) -> TNodeId;
     "typeTreeOf" => type_tree_of(n: Num) -> Fallible<TNodeId>;
-    "asType" => as_type(t: Ty) -> TypeId;
+    "asType" => as_type(n: Num) -> Fallible<TypeId>;
     "repeated" => repeated(trees: Rest<Tree>) -> Fallible<TNodeId>;
     "ref" => ref_(s: Sym) -> Fallible<TNodeId>;
     "closureOf" => closure_of(meth: Tree) -> Fallible<TNodeId>;

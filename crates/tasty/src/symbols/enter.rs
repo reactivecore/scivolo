@@ -123,7 +123,7 @@ impl Universe {
     }
 
     /// The classes of the annotations on `sym` in its TASTy, in order.
-    fn tasty_annotations(&mut self, sym: SymbolId) -> Vec<SymbolId> {
+    pub fn tasty_annotations(&mut self, sym: SymbolId) -> Vec<SymbolId> {
         let Some((file, id)) = self.symbol(sym).tree else { return Vec::new() };
         let (ast, _) = self.file(file);
         let mods = match view(ast, id) {

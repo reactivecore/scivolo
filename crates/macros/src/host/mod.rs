@@ -180,4 +180,13 @@ impl Host {
         };
         self.exprs.iter().map(quoted).collect()
     }
+
+    /// The roots of the quotes with a hole not filled yet, those whose holes the macro runs in.
+    pub fn open_quotes(&self) -> Vec<TNodeId> {
+        let open = |e: &Expr| match e {
+            Expr::Quote(q) if q.holes.iter().any(|h| h.3.is_none()) => Some(q.root),
+            _ => None,
+        };
+        self.exprs.iter().filter_map(open).collect()
+    }
 }
