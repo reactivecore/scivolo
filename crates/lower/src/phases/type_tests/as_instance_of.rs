@@ -11,7 +11,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{CONTRAVARIANT, COVARIANT};
-use tasty::{Erased, TypeId};
+use tasty::{Erased, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
@@ -85,7 +85,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
 
 /// Whether erased class `from` is no subtype of `to`, another class with type parameters not
 /// from the JDK, as dotty compares their references before erasure: unless `from` has as many
-/// type parameters, each of `to`'s invariant or of the same variance.
+/// type parameters, passed to `to` in order, each of `to`'s invariant or of the same variance.
 fn to_raw_generic(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
     let (Erased::Class(f), Erased::Class(t)) = (from, to) else { return false };
     let (Some(f), Some(t)) = (class_named(l, f), class_named(l, t)) else { return false };
@@ -95,7 +95,14 @@ fn to_raw_generic(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
     }
     let variance = |l: &Lower, p| [COVARIANT, CONTRAVARIANT].map(|v| has(l.u, p, v));
     let conform = |(&a, &b)| variance(l, b) == [false; 2] || variance(l, a) == variance(l, b);
-    fs.len() != ts.len() || !fs.iter().zip(&ts).all(conform)
+    if fs.len() != ts.len() || !fs.iter().zip(&ts).all(conform) {
+        return true;
+    }
+    let args: Vec<TypeId> = fs.iter().map(|&p| type_ref(l.u, p)).collect();
+    let class = type_ref(l.u, f);
+    let applied = l.u.intern_type(Type::Applied(class, args.clone()));
+    let base = l.u.base_type(applied, t).map(|b| l.u.types().get(b).clone());
+    !matches!(base, Some(Type::Applied(_, found)) if found == args)
 }
 
 /// The erasure of class `C` if `expr` is `C.this`, whatever its self type.

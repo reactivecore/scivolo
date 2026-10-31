@@ -174,7 +174,11 @@ pub fn forwarder(l: &mut Lower, class: SymbolId, member: SymbolId, rhs: Option<T
         l.u.set_target(sym, &target);
     }
     l.mixed_in.insert(sym);
-    for class in l.u.annotations(member).to_vec() {
+    let annotations = match l.u.symbol(member).tree {
+        Some(_) => l.u.tasty_annotations(member),
+        None => l.u.annotations(member).to_vec(),
+    };
+    for class in annotations {
         if l.u.full_name(class) != "scala.annotation.tailrec" {
             l.u.annotate(sym, class);
             for arg in l.u.annotation_strings(member, class).to_vec() {

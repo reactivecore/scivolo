@@ -40,7 +40,7 @@ pub fn collect(l: &mut Lower, root: TNodeId, owner: SymbolId) -> FxHashMap<Symbo
 }
 
 /// Whether `s` is a `private[this]` field of a class but a trait, not lazy, of a type whose
-/// erasure admits `null`.
+/// erasure admits `null`, but a field `LambdaLift` made.
 fn is_nullable_private_field(l: &mut Lower, s: SymbolId) -> bool {
     let sym = l.u.symbol(s);
     let in_class = sym.owner.is_some_and(|o| l.u.is_class(o) && !l.u.is_trait(o));
@@ -48,6 +48,9 @@ fn is_nullable_private_field(l: &mut Lower, s: SymbolId) -> bool {
         return false;
     }
     if !has(l.u, s, PRIVATE) || !has(l.u, s, LOCAL) {
+        return false;
+    }
+    if l.proxies.iter().any(|&(f, _)| f == s) || l.captured_fields.values().any(|&f| f == s) {
         return false;
     }
     let info = l.u.info(s);

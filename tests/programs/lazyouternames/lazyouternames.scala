@@ -38,6 +38,10 @@ trait Show[T] { def show(t: T): String }
 object Show {
   private object AnyShow extends Show[Any] { def show(t: Any): String = s"<$t>" }
   def any[T]: Show[T] = AnyShow.asInstanceOf[Show[T]]
+  final class Listed[T] extends Show[List[T]] { def show(t: List[T]): String = t.mkString }
+  final class Same[T] extends Show[T] { def show(t: T): String = t.toString }
+  def listed[T]: Show[List[T]] = new Listed[Int].asInstanceOf[Show[List[T]]]
+  def same[T]: Show[T] = new Same[Int].asInstanceOf[Show[T]]
 }
 
 class Glob {
@@ -60,7 +64,7 @@ class Glob {
   }
 }
 
-object Main {
+object lazyouternames {
   def main(args: Array[String]): Unit = {
     val c = new Channel("p", "rw")
     println(c.channel + c.channel + c.name)
@@ -70,6 +74,7 @@ object Main {
     w.bump()
     println(w.bump())
     println(Show.any[Int].show(4))
+    println(Show.listed[Int].show(List(1, 2)) + Show.same[Int].show(3))
     println(new Glob().build(List(1, 2), 0))
     println(new Glob().counted(5))
     println(java.util.ServiceLoader.load(classOf[Runnable]).iterator().hasNext())
