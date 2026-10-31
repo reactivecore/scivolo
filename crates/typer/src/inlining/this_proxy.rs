@@ -12,8 +12,8 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Expansion<'_, '_> {
     /// The classes and proxies of the `this`es the call needs, innermost first, their bindings
-    /// put first: none if the method is local, a static object's or the call is inside its class, nor
-    /// for its class if the body does not refer to its `this` and the prefix is idempotent.
+    /// put first: none if local, a static object's without opaque types or called inside its
+    /// class, nor for its class if the body does not refer to its `this` and the prefix is idempotent.
     pub fn bind_this(
         &mut self,
         fun: TNodeId,
@@ -27,7 +27,7 @@ impl Expansion<'_, '_> {
         };
         let impure = prefix.is_some_and(|q| !self.i.pure().is_idempotent_expr(q));
         if self.i.is_static_owner(cls) {
-            return if impure { Err(self.err("inline call of an impure prefix")) } else { Ok(Vec::new()) };
+            return self.bind_static_opaque_this((cls, meth), body, (prefix, impure));
         }
         if self.i.u.symbol(cls).kind.is_term() {
             return Ok(Vec::new());

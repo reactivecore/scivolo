@@ -88,7 +88,7 @@ impl Expansion<'_, '_> {
         }
     }
 
-    fn local(&mut self, name: String, flags: Flags, info: TypeId) -> SymbolId {
+    pub fn local(&mut self, name: String, flags: Flags, info: TypeId) -> SymbolId {
         let s = self.i.u.define(Symbol {
             name,
             kind: Kind::Val,

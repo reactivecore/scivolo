@@ -75,21 +75,23 @@ impl Universe {
     fn side_class(&mut self, t: TypeId, e: &Erased) -> Option<SymbolId> {
         let class = self.erased_class(t);
         let Erased::Class(name) = e else { return class };
-        if let Some(c) = class {
-            let tpe = self.intern_type(Type::Sym(None, c));
-            if self.erase(tpe) == *e {
-                return Some(c);
-            }
+        let own = class.map(|c| self.intern_type(Type::Sym(None, c)));
+        if let Some(t) = own.filter(|&t| self.erase(t) == *e) {
+            return self.class_symbol(t);
         }
         let r = self.class_ref(name);
         self.class_symbol(r).or(class)
     }
 
     /// The erasure of `a | b`: the other side for `Nothing`; `Object` beside a value class; the
-    /// other side for `Null` beside a reference; one side if both erase alike; an array of the
-    /// joined elements; the closest common base class of the erased sides; else `Object`.
+    /// other side for `Null` beside a reference, `BoxedUnit` beside `Unit`; one side if both erase
+    /// alike; an array of the joined elements; the closest common base class of the erased sides;
+    /// else `Object`.
     pub fn erase_or(&mut self, a: TypeId, b: TypeId) -> Erased {
         let (ea, eb) = (self.erase(a), self.erase(b));
+        if matches!((&ea, &eb), (Erased::Unit, Erased::Null) | (Erased::Null, Erased::Unit)) {
+            return Erased::Class("scala.runtime.BoxedUnit".into());
+        }
         let nothing = ea == Erased::Nothing || eb == Erased::Nothing;
         if !nothing && (self.is_value_class(a) || self.is_value_class(b)) {
             return object();

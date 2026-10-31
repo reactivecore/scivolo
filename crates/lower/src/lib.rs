@@ -119,6 +119,8 @@ pub struct Lower<'a> {
     super_accessors: FxHashMap<SymbolId, (SymbolId, bool)>,
     /// The span of the outermost `Inlined` tree without bindings each tree was the expansion of.
     inlined_spans: FxHashMap<TNodeId, Span>,
+    /// The spans in another source of the trees `drop_inlined` gave the span of an inline call.
+    own_spans: FxHashMap<TNodeId, Span>,
     /// The blocks `drop_inlined` made of `Inlined` trees with bindings.
     inlined_blocks: FxHashSet<TNodeId>,
     /// The start of the outermost inline call each definition of an expansion was inlined at.
@@ -194,6 +196,7 @@ pub fn lower_sources(
         lifted_to: FxHashMap::default(),
         super_accessors: FxHashMap::default(),
         inlined_spans: FxHashMap::default(),
+        own_spans: FxHashMap::default(),
         inlined_at: FxHashMap::default(),
         inlined_blocks: FxHashSet::default(),
         impure_modules: FxHashSet::default(),

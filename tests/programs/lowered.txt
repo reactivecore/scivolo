@@ -197,3 +197,4 @@ closuretypes
 lazyouternames
 passingaccessors
 blockconditions
+inlineproxies
