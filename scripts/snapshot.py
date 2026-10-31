@@ -55,14 +55,17 @@ def programs():
 
 def lib():
     """Each Scala Native library source through the own frontend (`just lib-compile all`): `same`
-    when all its NIR is as in the jar, else `differs`, `refused` or `timeout`."""
+    when all its NIR is as in the jar, `var-order` when it is but for the var-slot order of methods
+    with more than four, else `differs`, `refused` or `timeout`."""
     run = report(["scripts/lib-compile.py", "all"], "tmp/lib/auxlib/results.tsv", "ref/scala-native")
     run()
     out = []
     for path in sorted((ROOT / "tmp/lib").glob("*/results.tsv")):
-        for file, state, reason, same, differ, missing in (l.split("\t") for l in path.read_text().splitlines()):
+        for file, state, reason, same, differ, missing, var_order in (l.split("\t") for l in
+                                                                      path.read_text().splitlines()):
             if state == "ok":
-                state, reason = ("same" if differ == missing == "0" else "differs"), f"{same} same, {differ} differ"
+                state = "differs" if differ != "0" or missing != "0" else "var-order" if var_order != "0" else "same"
+                reason = f"{same} same, {differ} differ, {var_order} var-order"
             out.append(f"{path.parent.name}/{file}\t{state}\t{reason}\n")
     return "".join(out)
 
