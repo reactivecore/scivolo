@@ -153,6 +153,6 @@ impl<A: Decode, B: Decode> Decode for (A, B) {
 }
 
 /// Symbol number `n`.
-fn symbol(n: i32) -> Fallible<SymbolId> {
+pub fn symbol(n: i32) -> Fallible<SymbolId> {
     (n >= 0).then_some(SymbolId(n as u32)).ok_or("a quotes.reflect operation on Symbol.noSymbol")
 }

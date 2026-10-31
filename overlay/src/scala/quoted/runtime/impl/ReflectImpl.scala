@@ -20,6 +20,11 @@ abstract class ReflectImpl
       ReflectPatterns, ReflectTypeKinds, ReflectLambdaTypes, ReflectTypeBounds {
   self: reflect.type =>
 
+  /** `1 + s` if these `Quotes` are symbol `s`'s `asQuotes` or fill holes of quotes of it, `0`
+   *  otherwise.
+   */
+  var searchOwner: Int = 0
+
   extension (expr: Expr[Any]) def asTerm: Term = ReflectOps.term(QuoteHost.exprId(expr)).asInstanceOf[Term]
 
   /** `TreeCode`, `TreeAnsiCode`, `TreeStructure`, `TypeReprCode`, `TypeReprShortCode`, `TypeReprAnsiCode`,
@@ -85,9 +90,9 @@ abstract class ReflectImpl
    *  matching candidate.
    */
   object Implicits extends ImplicitsModule {
-    def search(tpe: TypeRepr): ImplicitSearchResult = found(ReflectOps.results("search", ReflectOps.id(tpe)))
+    def search(tpe: TypeRepr): ImplicitSearchResult = searchIgnoring(tpe)()
     def searchIgnoring(tpe: TypeRepr)(ignored: Symbol*): ImplicitSearchResult =
-      found(ReflectOps.results("searchIgnoring", (ReflectOps.id(tpe) +: ignored.map(ReflectOps.id))*))
+      found(ReflectOps.results("search", (ReflectOps.id(tpe) +: (searchOwner - 1) +: ignored.map(ReflectOps.id))*))
     private def found(results: List[Int]): ImplicitSearchResult = results match {
       case List(1, tree) => new SearchImpl(tree).asInstanceOf[ImplicitSearchResult]
       case _             => new SearchImpl(-1).asInstanceOf[ImplicitSearchResult]

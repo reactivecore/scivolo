@@ -153,7 +153,7 @@ impl Inlining<'_> {
             T::TypeApply { fun, args } => {
                 let of = self.tpd.sym(fun).is_some_and(|s| self.u.full_name(s) == "scala.quoted.Type$.of");
                 let [tpt] = self.tpd.items(args)[..] else { return None };
-                of.then(|| MacroArg::Type(self.tpd.tpe(tpt)))
+                of.then(|| MacroArg::Type(self.tpd.tpe(tpt), self.tpd.span(tpt)))
             }
             _ => None,
         }
@@ -168,7 +168,7 @@ impl Inlining<'_> {
                 let body = self.constant_arg(body);
                 MacroArg::Expr(self.outer_inlined(body))
             }
-            MacroArg::Type(t) => MacroArg::Type(crate::typer::simplify::normalize_all(self.u, t)),
+            MacroArg::Type(t, span) => MacroArg::Type(crate::typer::simplify::normalize_all(self.u, t), span),
             MacroArg::Varargs(elems) => {
                 let elems = elems.into_iter().map(|e| self.prepared_arg(e));
                 MacroArg::Varargs(elems.collect::<Result<_, _>>()?)

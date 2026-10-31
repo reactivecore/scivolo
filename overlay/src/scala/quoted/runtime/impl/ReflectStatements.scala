@@ -22,7 +22,7 @@ trait ReflectStatements extends reflectModule { self: reflect.type =>
   given PackageClauseMethods: PackageClauseMethods = methods("PackageClauseMethodsImpl")
 
   object TypeDef extends TypeDefModule {
-    def apply(symbol: Symbol): TypeDef = refused("TypeDef.apply")
+    def apply(symbol: Symbol): TypeDef = ReflectOps.term(ReflectOps.one("typeDef", ReflectOps.id(symbol))).asInstanceOf[TypeDef]
     def copy(original: Tree)(name: String, rhs: Tree): TypeDef = ReflectOps.copy(original, name, rhs).asInstanceOf[TypeDef]
     def unapply(tdef: TypeDef): (String, Tree) = (tdef.name, tdef.rhs)
   }

@@ -12,7 +12,8 @@ use tasty::{SymbolId, TypeId};
 #[derive(Clone, Debug)]
 pub enum MacroArg {
     Expr(TNodeId),
-    Type(TypeId),
+    /// A type and the span of its type tree.
+    Type(TypeId, Span),
     Quotes,
     Literal(Constant),
     Varargs(Vec<MacroArg>),

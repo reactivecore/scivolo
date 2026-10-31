@@ -50,7 +50,8 @@ trait ReflectTypeTrees extends reflectModule { self: reflect.type =>
   }
 
   object Refined extends RefinedModule {
-    def apply(tpt: TypeTree, refinements: List[Definition], refineCls: Symbol): Refined = refused("Refined.apply")
+    def apply(tpt: TypeTree, refinements: List[Definition], refineCls: Symbol): Refined =
+      ReflectOps.term(ReflectOps.one("refined", (ReflectOps.id(tpt) :: ReflectOps.id(refineCls) :: refinements.map(ReflectOps.id))*)).asInstanceOf[Refined]
     def copy(original: Tree)(tpt: TypeTree, refinements: List[Definition]): Refined = copied(original, null, tpt, refinements)
     def unapply(x: Refined): (TypeTree, List[Definition]) = (x.tpt, x.refinements)
   }

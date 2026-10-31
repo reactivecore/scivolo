@@ -67,6 +67,8 @@ ops! {
     "freshName" => fresh_name(name: Name) -> String;
     "newVal" => new_val(owner: Sym, info: Ty, flags: Bits, name: Name) -> Fallible<SymbolId>;
     "newMethod" => new_method(owner: Sym, info: Ty, flags: Bits, name: Name) -> Fallible<SymbolId>;
+    "newTypeAlias" => new_type_alias(owner: Sym, alias: Ty, flags: Bits, name: Name) -> Fallible<SymbolId>;
+    "typeDef" => type_def(s: Sym) -> Fallible<TNodeId>;
     "newBind" => new_bind(owner: Sym, info: Ty, flags: Bits, name: Name) -> SymbolId;
     "bind" => bind(s: Sym, pattern: Tree) -> Fallible<TNodeId>;
     "valDef" => val_def(s: Sym, rhs: OptTree) -> Fallible<TNodeId>;
@@ -99,8 +101,7 @@ ops! {
     // implicits
     "isWhileTyping" => is_while_typing() -> bool;
     "macroSettings" => macro_settings() -> String;
-    "search" => search(pt: Ty) -> Fallible<Vec<i32>>;
-    "searchIgnoring" => search_ignoring(pt: Ty, ignored: Rest<Sym>) -> Fallible<Vec<i32>>;
+    "search" => search(pt: Ty, owner: Num, ignored: Rest<Sym>) -> Fallible<Vec<i32>>;
     // type patterns
     "matchType" => match_type(scrutinee: Ty, pattern: Num) -> Fallible<i32>;
     // type reprs
@@ -144,6 +145,8 @@ ops! {
     "tpe" => tpe(t: Tree) -> Fallible<TypeId>;
     "isExprOf" => is_expr_of(t: Tree, of: Ty) -> Fallible<bool>;
     "typeTree" => type_tree(t: Ty) -> TNodeId;
+    "typeTreeOf" => type_tree_of(n: Num) -> Fallible<TNodeId>;
+    "asType" => as_type(n: Num) -> Fallible<TypeId>;
     "repeated" => repeated(trees: Rest<Tree>) -> Fallible<TNodeId>;
     "ref" => ref_(s: Sym) -> Fallible<TNodeId>;
     "closureOf" => closure_of(meth: Tree) -> Fallible<TNodeId>;
@@ -174,6 +177,7 @@ ops! {
     "baseType" => base_type(t: Ty, base: Sym) -> Fallible<TypeId>;
     "selectType" => select_type(t: Ty, s: Sym) -> TypeId;
     "widen" => widen(t: Ty) -> TypeId;
+    "refined" => refined(tpt: Tree, cls: Sym, defs: Rest<Tree>) -> Fallible<TNodeId>;
     "dealiasKeepOpaques" => dealias_keep_opaques(t: Ty) -> TypeId;
     "isSubtype" => is_subtype(a: Ty, b: Ty) -> Fallible<bool>;
     "isSameType" => is_same_type(a: Ty, b: Ty) -> Fallible<bool>;

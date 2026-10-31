@@ -138,7 +138,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
 
   object TypeTree extends TypeTreeModule {
     def of[T <: AnyKind](using t: Type[T]): TypeTree =
-      ReflectOps.term(ReflectOps.one("typeTree", QuoteHost.typeId(t))).asInstanceOf[TypeTree]
+      ReflectOps.term(ReflectOps.one("typeTreeOf", QuoteHost.typeId(t))).asInstanceOf[TypeTree]
     def ref(typeSymbol: Symbol): TypeTree = refused("TypeTree.ref")
   }
 

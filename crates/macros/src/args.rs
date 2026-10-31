@@ -22,7 +22,7 @@ pub fn flatten<'a>(a: &'a MacroArg, param: &Erased, out: &mut Vec<Flat<'a>>) -> 
         return flatten(a, &object, out);
     }
     match a {
-        MacroArg::Expr(_) | MacroArg::Type(_) => out.push(Flat::Quoted(a)),
+        MacroArg::Expr(_) | MacroArg::Type(..) => out.push(Flat::Quoted(a)),
         MacroArg::Quotes => out.push(Flat::Ready(vm::MacroArg::Quotes)),
         MacroArg::Literal(_) => out.push(Flat::Ready(
             literal(a, param)
@@ -42,7 +42,11 @@ pub fn numbered(flat: Vec<Flat<'_>>, host: &mut Host) -> Vec<vm::MacroArg> {
     let one = |f| match f {
         Flat::Ready(a) => a,
         Flat::Quoted(&MacroArg::Expr(t)) => vm::MacroArg::Expr(host.add_arg(t)),
-        Flat::Quoted(&MacroArg::Type(t)) => vm::MacroArg::Type(host.add_type(t)),
+        Flat::Quoted(&MacroArg::Type(t, span)) => {
+            let n = host.add_type(t);
+            host.type_arg_spans.insert(n, span);
+            vm::MacroArg::Type(n)
+        }
         Flat::Quoted(_) => unreachable!("a quoted expression or type"),
     };
     flat.into_iter().map(one).collect()
