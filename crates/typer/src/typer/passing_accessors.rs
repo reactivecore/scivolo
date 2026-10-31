@@ -36,8 +36,19 @@ impl Typer<'_> {
             return false;
         };
         let span = self.tpd.span(t);
-        let receiver = self.u.widen(self.tpd.tpe(qualifier));
-        let receiver = self.without_local_types(receiver, meth);
+        let widened = self.u.widen(self.tpd.tpe(qualifier));
+        let receiver = self.without_local_types(widened, meth);
+        if receiver != widened {
+            self.complete(sym);
+            let seen = self.u.member_info(widened, sym);
+            if self.mentions_local_type(seen, meth) {
+                self.unsupported_at(
+                    span,
+                    "inline accessor of a member whose type has the inline method's types",
+                );
+                return false;
+            }
+        }
         let name = self.u.symbol(sym).name.clone();
         let unique = self.fresh.next(self.names, &format!("{name}$i"));
         let suffix = self.names.text(unique)[name.len()..].to_owned();
@@ -82,19 +93,17 @@ impl Typer<'_> {
     fn without_local_types(&mut self, t: TypeId, meth: SymbolId) -> TypeId {
         self.u.map_type(t, &mut |u, part| {
             let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
-            let args = args.into_iter().map(|a| {
-                let mut local = false;
-                u.map_type(a, &mut |u, p| {
-                    if let Type::Sym(_, s) = *u.types().get(p) {
-                        local |= crate::sealed::is_contained_in(u, s, meth);
-                    }
-                    None
-                });
-                if local { u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY)) } else { a }
+            let args = args.into_iter().map(|a| match mentions_local(u, a, meth) {
+                true => u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY)),
+                false => a,
             });
             let args = args.collect();
             Some(u.intern_type(Type::Applied(tycon, args)))
         })
+    }
+
+    fn mentions_local_type(&mut self, t: TypeId, meth: SymbolId) -> bool {
+        mentions_local(self.u, t, meth)
     }
 
     /// `def name(x$0: R)(ps): T = x$0.accessed(ps)` for receivers of type `receiver`, or
@@ -109,7 +118,7 @@ impl Typer<'_> {
         span: Span,
     ) -> Option<(NodeId, NodeId)> {
         self.complete(accessed);
-        let mut info = self.u.info(accessed);
+        let mut info = self.u.member_info(receiver, accessed);
         let mut clauses: Vec<Vec<(String, TypeId)>> = Vec::new();
         loop {
             match self.u.types().get(info).clone() {
@@ -177,4 +186,16 @@ impl Typer<'_> {
         let mods = self.ast.mods(Modifiers::with_flags(f::TERM_PARAM));
         self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods })
     }
+}
+
+/// Whether type `t` refers to a type defined in method `meth`.
+fn mentions_local(u: &mut tasty::Universe, t: TypeId, meth: SymbolId) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, p| {
+        if let Type::Sym(_, s) = *u.types().get(p) {
+            found |= crate::sealed::is_contained_in(u, s, meth);
+        }
+        None
+    });
+    found
 }
