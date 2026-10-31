@@ -53,7 +53,7 @@ impl Host {
 
     /// The function type of method type `m`, curried for its later clauses (dotty's
     /// `toFunctionType`).
-    fn function_type(&mut self, m: TypeId) -> Fallible<TypeId> {
+    pub fn function_type(&mut self, m: TypeId) -> Fallible<TypeId> {
         let Type::Method { binder, params, result, contextual, .. } = self.u.types().get(m).clone() else {
             return Ok(m);
         };

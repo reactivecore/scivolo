@@ -79,12 +79,14 @@ impl Host {
                 && params.len() == arg_types.len()
                 && arg_types.iter().zip(&params).all(|(&a, &p)| self.u.is_subtype(a, p))
             {
-                let fits = to.is_none_or(|to| self.result_conforms(fun, to));
-                applicable.push((m, params, fits));
+                let fits = match to {
+                    Some(to) => self.result_conforms(fun, to)?,
+                    None => true,
+                };
+                if fits {
+                    applicable.push((m, params));
+                }
             }
-        }
-        if applicable.iter().any(|&(_, _, fits)| fits) {
-            applicable.retain(|&(_, _, fits)| fits);
         }
         let specific: Vec<SymbolId> = (0..applicable.len())
             .filter(|&i| {
@@ -132,35 +134,13 @@ impl Host {
         Some(params.iter().map(|&(_, p)| by_value(p)).collect())
     }
 
-    /// Whether the result of the first clause of the method type of `fun` conforms to `to`
-    /// (dotty's `resultConforms`).
-    fn result_conforms(&mut self, fun: TNodeId, to: TypeId) -> bool {
+    /// Whether the result of the first clause of the method type of `fun`, a method as its
+    /// function type, conforms to `to` (dotty's `resultConforms` with `normalize`).
+    fn result_conforms(&mut self, fun: TNodeId, to: TypeId) -> Fallible<bool> {
         let tpe = self.tpd.tpe(fun);
         let info = self.u.widen(tpe);
-        let Type::Method { result, .. } = *self.u.types().get(info) else { return false };
-        self.conforms_as_function(result, to)
-    }
-
-    /// Whether `t`, a method type as the function type it eta-expands to, conforms to `to`.
-    fn conforms_as_function(&mut self, t: TypeId, to: TypeId) -> bool {
-        let Type::Method { params, result, implicit: false, .. } = self.u.types().get(t).clone() else {
-            return self.u.is_subtype(t, to);
-        };
-        let Type::Applied(tycon, args) = self.u.types().get(to).clone() else { return to == tasty::ANY };
-        let function = self.u.class_symbol(tycon).map(|c| self.u.full_name(c));
-        if function != Some(format!("scala.Function{}", params.len())) {
-            return false;
-        }
-        let (last, inputs) = args.split_last().expect("a function type's result");
-        let bound = |u: &mut tasty::Universe, a: TypeId, upper: bool| match *u.types().get(a) {
-            Type::Bounds(lo, hi) => Some(if upper { hi } else { lo }),
-            Type::Wildcard(_) => None,
-            _ => Some(a),
-        };
-        params
-            .iter()
-            .zip(inputs)
-            .all(|(&(_, p), &a)| bound(&mut self.u, a, false).is_none_or(|a| self.u.is_subtype(a, p)))
-            && bound(&mut self.u, *last, true).is_none_or(|r| self.conforms_as_function(result, r))
+        let Type::Method { result, .. } = *self.u.types().get(info) else { return Ok(false) };
+        let normalized = self.function_type(result)?;
+        Ok(self.u.is_subtype(normalized, to))
     }
 }
