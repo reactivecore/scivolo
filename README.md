@@ -53,8 +53,8 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
 - **VM:** 11,336 of Scala Native's 11,360 unit tests pass (NIR compiled by Scala Native).
 - **Own frontend:** 1,441 of dotty's 1,711 `tests/run` pass through parser, typer, lowering
   and VM.
-- **Macros:** 273 of dotty's 321 `tests/run-macros` pass.
-- **Scala Native's library through the own frontend:** javalib 594 of 601 files, auxlib 15 of
+- **Macros:** 296 of dotty's 321 `tests/run-macros` pass.
+- **Scala Native's library through the own frontend:** javalib 601 of 601 files, auxlib 15 of
   15, nativelib 102 of 103, clib, posixlib and windowslib complete.
 - **Native executables:** 218 of 226 test programs, built from source.
 - **Startup:** hello 7.5 ms from the heap snapshot; `moderate.scala` 48 ms edit-then-run
