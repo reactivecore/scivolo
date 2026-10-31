@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Scala Native's NIR compared with ours, as `scivolo-nir-dump --debug --sorted` dumps them. The
-var slots of a method with more than four mutable locals are in the order of dotty's symbol ids
-in Scala Native's (nscplugin's `CollectMethodInfo.mutableVars`, a `HashSet` from five elements
-on); they are matched with ours by name and type.
+var slots of a method with more than four mutable locals are in the hash order of dotty's symbol
+ids in Scala Native's (nscplugin's `CollectMethodInfo.mutableVars`, a `HashSet` from five
+elements on); they are matched with ours by name and type.
 
 Usage: scripts/nir_compare.py THEIRS OURS: prints dump THEIRS with the var slots of such methods
 renumbered and ordered as in dump OURS.
 """
 import collections
 import difflib
+import itertools
 import re
 import subprocess
 import sys
@@ -16,6 +17,7 @@ from pathlib import Path
 
 NIR_DUMP = Path(__file__).resolve().parent.parent / "target/release/scivolo-nir-dump"
 SET_SIZE = 4
+CANDIDATES = 120
 VAR = re.compile(r"^  (?:\d+: )?%(\d+) <([^>]*)> = var\[(.*)\]$")
 ID = re.compile(r"%(\d+)\b")
 NAME = re.compile(r"\((\d+), (\"(?:[^\"\\]|\\.)*\")\)")
@@ -38,8 +40,8 @@ def slots(lines, i):
 
 def renumber(lines, i, ids):
     """The method at line `i` with var ids renamed by `ids` and its var slots in id order."""
-    end = next((j for j in range(i, len(lines)) if lines[j] == ""), len(lines))
-    block = lines[i:end]
+    block = method(lines, i)
+    end = i + len(block)
     sub = lambda m: f"%{ids.get(int(m[1]), int(m[1]))}"
     for k, l in enumerate(block):
         if l.startswith("names ["):
@@ -59,8 +61,9 @@ def renumber(lines, i, ids):
 
 def align(theirs, ours):
     """`theirs` with the var slots of each method with more than SET_SIZE of them, whose slots
-    in `ours` have the same ids, names and types, renumbered as in `ours`; and whether that
-    changed it."""
+    in `ours` have the same ids, names and types, renumbered as in `ours` (between slots of the
+    same name and type, as makes the method as in `ours` if any such mapping does); and whether
+    that changed it."""
     mine, changed = methods(ours), False
     for header, i in methods(theirs).items():
         a = slots(theirs, i)
@@ -70,12 +73,27 @@ def align(theirs, ours):
         if (sorted(s[1:] for s in a) != sorted(s[1:] for s in b) or [s[1:] for s in a] == [s[1:] for s in b]
                 or sorted(s[0] for s in a) != sorted(s[0] for s in b)):
             continue
-        free = collections.defaultdict(collections.deque)
-        for n, *key in b:
-            free[tuple(key)].append(n)
-        theirs = renumber(theirs, i, {n: free[tuple(key)].popleft() for n, *key in a})
+        mapped = (renumber(theirs, i, ids) for ids in itertools.islice(mappings(a, b), CANDIDATES))
+        first, target = next(mapped), method(ours, mine[header])
+        theirs = next((m for m in itertools.chain([first], mapped) if method(m, i) == target), first)
         changed = True
     return theirs, changed
+
+
+def mappings(a, b):
+    """Each mapping of the ids of slots `a` to those of slots `b` of the same name and type."""
+    groups = collections.defaultdict(lambda: ([], []))
+    for side, found in enumerate((a, b)):
+        for n, *key in found:
+            groups[tuple(key)][side].append(n)
+    keys = list(groups)
+    for perms in itertools.product(*(itertools.permutations(groups[k][1]) for k in keys)):
+        yield {t: o for k, p in zip(keys, perms) for t, o in zip(groups[k][0], p)}
+
+
+def method(lines, i):
+    """The lines of the method at line `i`."""
+    return lines[i:next((j for j in range(i, len(lines)) if lines[j] == ""), len(lines))]
 
 
 def dump(path):
@@ -87,10 +105,10 @@ def dump(path):
 
 
 def compare(ours, theirs, diff_file):
-    """`same`, `differ N` or `var-order N` (changed lines once the var slots are aligned, the diff
-    written to `diff_file`) or `missing`."""
+    """(`same`, `var-order` (same once the var slots are aligned), `differ` or `missing`; the lines
+    changed once they are aligned, the diff written to `diff_file`; whether they were aligned)."""
     if not theirs.exists():
-        return "missing", 0
+        return "missing", 0, False
     mine = dump(ours)
     aligned, reordered = align(dump(theirs), mine)
     diff = list(difflib.unified_diff(aligned, mine, "oracle", "ours", lineterm="", n=0))
@@ -98,7 +116,7 @@ def compare(ours, theirs, diff_file):
     if changed:
         diff_file.parent.mkdir(parents=True, exist_ok=True)
         diff_file.write_text("\n".join(diff) + "\n")
-    return "var-order" if reordered else "differ" if changed else "same", changed
+    return "differ" if changed else "var-order" if reordered else "same", changed, reordered
 
 
 if __name__ == "__main__":

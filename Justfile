@@ -176,7 +176,7 @@ nir-cmp file class:
     if diff <(echo "$aligned") <(echo "$ours"); then
         [ "$aligned" = "$theirs" ] && echo "same: {{ class }}" || echo "var-order: {{ class }}"
     elif [ "$aligned" != "$theirs" ]; then
-        echo "var-order: {{ class }}"
+        echo "differ: {{ class }} (also var-order)"
     fi
 
 # Search the files under `paths` (default: the repository but target/ and .git/) for extended
