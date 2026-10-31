@@ -158,7 +158,7 @@ impl Typer<'_> {
     }
 
     /// `t` with the type parameters of binder `binder`, named `names`, and the type parameter
-    /// symbols of `method` replaced by `args`.
+    /// symbols of `method`, or of the original of a copy `method`, replaced by `args`.
     pub fn instantiate_poly(
         &mut self,
         t: TypeId,
@@ -167,6 +167,7 @@ impl Typer<'_> {
         args: &[TypeId],
         method: Option<SymbolId>,
     ) -> TypeId {
+        let method = method.map(|m| self.mapped_alts.get(&m).map_or(m, |&(o, _)| o));
         instantiate_poly(self.u, t, (binder, names), args, method)
     }
 }
