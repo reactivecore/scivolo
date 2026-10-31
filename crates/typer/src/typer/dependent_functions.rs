@@ -84,7 +84,8 @@ impl Typer<'_> {
     }
 
     /// The dependent function type of a closure of parameters `params` whose result type is the
-    /// first of `checked`, if one of `checked` refers to them; `Err` if it cannot be approximated.
+    /// first of `checked`, if it or one of the others widened refers to them; `Err` if it cannot be
+    /// approximated.
     pub fn closure_dependent_type(
         &mut self,
         function: (TypeId, bool),
@@ -93,9 +94,9 @@ impl Typer<'_> {
         checked: &[TypeId],
     ) -> Result<Option<TypeId>, &'static str> {
         let mut dependent = false;
-        for &t in checked {
+        for (i, &t) in checked.iter().enumerate() {
             let t = self.zonk(t);
-            let t = self.widen_singletons(t, false);
+            let t = if i == 0 { t } else { self.widen_singletons(t, false) };
             self.u.map_type(t, &mut |u, part| {
                 dependent |= matches!(*u.types().get(part), Type::Sym(_, s) if params.contains(&s));
                 None

@@ -5,6 +5,7 @@
 
 use super::{Inlining, MAX_INLINES, Unsupported, expand};
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::Span;
 use tasty::tags::{INLINE, TRANSPARENT};
 use tasty::{Kind, SymbolId};
 
@@ -18,8 +19,69 @@ impl Inlining<'_> {
         owner: SymbolId,
     ) -> Result<TNodeId, Unsupported> {
         let span = self.tpd.span(call);
-        self.expand_call(call, def, owner)
-            .map_err(|(at, what)| (if at.is_in_other_source() { span } else { at }, what))
+        let mut lifted = Vec::new();
+        self.lift_bindings(call, &mut lifted, None);
+        let expanded = self
+            .expand_call(call, def, owner)
+            .map_err(|(at, what)| (if at.is_in_other_source() { span } else { at }, what))?;
+        if lifted.is_empty() {
+            return Ok(expanded);
+        }
+        let (stats, tpe) = (self.tpd.list(&lifted), self.tpd.get(expanded).tpe);
+        Ok(self.tpd.node(T::Block { stats, expr: expanded }, span, tpe, None))
+    }
+
+    /// Moves the statements of the blocks and the bindings of the inlined trees in the function
+    /// part of `t` to `lifted`, each placed at `at` if given (dotty's `liftBindings`).
+    fn lift_bindings(&mut self, t: TNodeId, lifted: &mut Vec<TNodeId>, at: Option<Span>) -> TNodeId {
+        match self.tpd.tree(t).clone() {
+            T::Block { stats, expr } => {
+                for s in self.tpd.items(stats).to_vec() {
+                    lifted.push(self.lifted_at(s, at));
+                }
+                self.lift_bindings(expr, lifted, at)
+            }
+            T::Inlined { call, bindings, expansion } => {
+                for b in self.tpd.items(bindings).to_vec() {
+                    lifted.push(self.lifted_at(b, at));
+                }
+                let inner = call.map(|c| self.tpd.span(c)).filter(|s| s.exists());
+                let expansion = self.lift_bindings(expansion, lifted, inner);
+                let bindings = self.tpd.list(&[]);
+                self.tpd.get_mut(t).tree = T::Inlined { call, bindings, expansion };
+                t
+            }
+            T::Apply { fun, .. } | T::TypeApply { fun, .. } => {
+                let lifted_fun = self.lift_bindings(fun, lifted, at);
+                if let T::Apply { fun, .. } | T::TypeApply { fun, .. } = &mut self.tpd.get_mut(t).tree {
+                    *fun = lifted_fun;
+                }
+                t
+            }
+            T::Select { qualifier, name } => {
+                let qualifier = self.lift_bindings(qualifier, lifted, at);
+                self.tpd.get_mut(t).tree = T::Select { qualifier, name };
+                t
+            }
+            _ => t,
+        }
+    }
+
+    /// `t` and its subtrees placed at `at`, without the arguments inlined from outside (dotty's
+    /// `liftFromInlined`).
+    fn lifted_at(&mut self, t: TNodeId, at: Option<Span>) -> TNodeId {
+        let Some(at) = at else { return t };
+        if let T::Inlined { call: None, bindings, expansion } = *self.tpd.tree(t)
+            && bindings.is_empty()
+        {
+            return expansion;
+        }
+        let node = self.tpd.get(t);
+        let (tree, tpe, sym) = (node.tree.clone(), node.tpe, node.sym);
+        let copy = self.tpd.node(tree, at, tpe, sym);
+        self.host.copied_call(t, copy);
+        crate::tpd::map_children(self, copy, &mut |i, c| i.lifted_at(c, Some(at)));
+        copy
     }
 
     fn expand_call(&mut self, call: TNodeId, def: TNodeId, owner: SymbolId) -> Result<TNodeId, Unsupported> {
