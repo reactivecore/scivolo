@@ -1,7 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/Getters.scala
+//   compiler/src/dotty/tools/dotc/transform/InterceptedMethods.scala
 //! dotty's `Getters` on assignments: an assignment to a variable but an extern one becomes a call
-//! of its setter.
+//! of its setter; and the span `InterceptedMethods` gives `!=`.
 
 use super::getters::is_setter;
 use crate::symbols::{has, is_extern};
@@ -15,6 +16,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let mut todo = vec![td];
     while let Some(t) = todo.pop() {
         todo.extend(super::walk::children(l.tpd, t));
+        if let Tree::Apply { fun, .. } = *l.tpd.tree(t) {
+            any_ne_span(l, fun);
+        }
         let Tree::Assign { lhs, rhs } = *l.tpd.tree(t) else { continue };
         if let Some(trait_) = l.tpd.sym(lhs).and_then(|s| library_trait_var(l, s)) {
             super::library_traits::prepare(l, trait_, l.tpd.span(t))?;
@@ -31,7 +35,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             return unsupported(span, "an assignment to a value without a setter");
         };
         let fun = match *l.tpd.tree(lhs) {
-            Tree::Select { qualifier, .. } => l.select(qualifier, setter, l.tpd.span(lhs)),
+            Tree::Select { qualifier, .. } => {
+                let at = l.tpd.span(qualifier);
+                l.select(qualifier, setter, if at.exists() { at.to_synthetic() } else { l.tpd.span(lhs) })
+            }
             _ => {
                 let s = l.tpd.span(rhs);
                 l.ident(setter, if s.exists() { s.with_point(s.start()) } else { l.tpd.span(lhs) })
@@ -41,6 +48,20 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
     }
     Ok(())
+}
+
+/// Gives `qual.!=` of `Any` the span of `qual`, as `InterceptedMethods`' `qual.==(..).!` has.
+fn any_ne_span(l: &mut Lower, fun: TNodeId) {
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return };
+    let at = l.tpd.span(qualifier);
+    if l.tpd.sym(fun).is_some_and(|s| is_any_ne(l, s)) && at.exists() {
+        l.tpd.get_mut(fun).span = at.to_synthetic();
+    }
+}
+
+/// Whether `s` is `Any.!=`, which `InterceptedMethods` makes `!(_ == _)`.
+pub fn is_any_ne(l: &Lower, s: SymbolId) -> bool {
+    l.u.symbol(s).owner == Some(l.defs.any) && l.u.symbol(s).name == "!="
 }
 
 /// Whether `s` is a `var` parameter or member of a class as a library class declares it, which
