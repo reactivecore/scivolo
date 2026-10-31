@@ -24,6 +24,8 @@ pub struct TailCalls {
     pub vars: Vec<(SymbolId, SymbolId)>,
     /// The labeled blocks in tail position around the tree walked.
     tail_labels: Vec<SymbolId>,
+    /// Whether the walk only makes the variables, rewriting no call.
+    pub dry: bool,
 }
 
 impl TailCalls {
@@ -36,6 +38,7 @@ impl TailCalls {
             this_var: None,
             vars: Vec::new(),
             tail_labels: Vec::new(),
+            dry: false,
         }
     }
 
@@ -139,6 +142,9 @@ impl TailCalls {
         if let Some(q) = prefix.filter(|&q| !self.is_this(l, q)) {
             self.walk(l, q, false);
             pairs.insert(0, (self.this_var(l), q));
+        }
+        if self.dry {
+            return;
         }
         let span = l.tpd.span(t);
         let stats = match &pairs[..] {

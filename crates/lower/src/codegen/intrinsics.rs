@@ -6,6 +6,7 @@
 //! `genRawPtrOp`).
 
 use super::Gen;
+use crate::symbols::is_static_owner;
 use crate::{Result, unsupported};
 use nir::{Comp, Conv, MemoryOrder, Op, Type, TypeId, ValId};
 use tasty::SymbolId;
@@ -51,7 +52,15 @@ impl Gen<'_, '_> {
                 return unsupported(span, "`ServiceLoader.load` of a class that is not a literal");
             }
             self.m.uses_intrinsics = true;
-            return Ok(None);
+            let method = match *self.l.tpd.tree(fun) {
+                Tree::TypeApply { fun, .. } => fun,
+                _ => fun,
+            };
+            let Tree::Select { qualifier, .. } = *self.l.tpd.tree(method) else { return Ok(None) };
+            let class = self.l.u.symbol(sym).owner.expect("a method's class");
+            let statically = is_static_owner(self.l.u, class);
+            let recv = super::apply::Receiver::Tree(qualifier);
+            return self.gen_apply_method(sym, statically, recv, args, span).map(Some);
         }
         if super::callbacks::is_from_function(&owner, &name) {
             return self.gen_func_ptr_from_function(app, args, span).map(Some);

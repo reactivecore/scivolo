@@ -6,8 +6,11 @@
 use crate::definitions::type_ref;
 use crate::phases::adapt::{adapt, ascribed, converted, erased_type};
 use crate::phases::casts::{class_named, conforms, conforms_to_class_file, type_of};
+use crate::phases::mixin::is_jdk;
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
+use tasty::tags::{CONTRAVARIANT, COVARIANT};
 use tasty::{Erased, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -31,7 +34,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     }
     let refused = || unsupported(span, "casts between primitive values or to references");
     let erased_expr = this_class(l, expr).unwrap_or_else(|| found.clone());
-    let upcast = conforms_to_class_file(l, &erased_expr, &to);
+    let upcast = conforms_to_class_file(l, &erased_expr, &to) && !to_raw_generic(l, &erased_expr, &to);
     if !upcast && conforms(l, &erased_expr, &to) {
         l.explicit_casts.insert(t);
     }
@@ -78,6 +81,21 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
         _ if upcast => l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None),
         _ => t,
     })
+}
+
+/// Whether erased class `from` is no subtype of `to`, another class with type parameters not
+/// from the JDK, as dotty compares their references before erasure: unless `from` has as many
+/// type parameters, each of `to`'s invariant or of the same variance.
+fn to_raw_generic(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
+    let (Erased::Class(f), Erased::Class(t)) = (from, to) else { return false };
+    let (Some(f), Some(t)) = (class_named(l, f), class_named(l, t)) else { return false };
+    let (fs, ts) = (l.u.type_params(f), l.u.type_params(t));
+    if f == t || ts.is_empty() || is_jdk(l, t) {
+        return false;
+    }
+    let variance = |l: &Lower, p| [COVARIANT, CONTRAVARIANT].map(|v| has(l.u, p, v));
+    let conform = |(&a, &b)| variance(l, b) == [false; 2] || variance(l, a) == variance(l, b);
+    fs.len() != ts.len() || !fs.iter().zip(&ts).all(conform)
 }
 
 /// The erasure of class `C` if `expr` is `C.this`, whatever its self type.

@@ -174,6 +174,14 @@ pub fn forwarder(l: &mut Lower, class: SymbolId, member: SymbolId, rhs: Option<T
         l.u.set_target(sym, &target);
     }
     l.mixed_in.insert(sym);
+    for class in l.u.annotations(member).to_vec() {
+        if l.u.full_name(class) != "scala.annotation.tailrec" {
+            l.u.annotate(sym, class);
+            for arg in l.u.annotation_strings(member, class).to_vec() {
+                l.u.annotate_string(sym, class, arg);
+            }
+        }
+    }
     let info = l.u.info(member);
     l.u.set_info(sym, info);
     let params = match l.u.types().get(info).clone() {

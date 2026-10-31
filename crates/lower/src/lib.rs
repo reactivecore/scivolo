@@ -134,6 +134,11 @@ pub struct Lower<'a> {
     /// The types before erasure of the native intrinsics' calls, with the span of the type
     /// application, by the method reference (nscplugin's `NonErasedType(s)` attachments).
     non_erased: FxHashMap<TNodeId, (Vec<tasty::TypeId>, Span)>,
+    /// The variables `TailRec` named for members before `LambdaLift`, by parameter, and by
+    /// method for the receiver.
+    tail_vars: FxHashMap<SymbolId, SymbolId>,
+    /// The variables `TailRec` made in local methods, which `LambdaLift` passes by value.
+    tail_locals: FxHashSet<SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
@@ -193,6 +198,8 @@ pub fn lower_sources(
         was_named_args: FxHashSet::default(),
         in_match_values: FxHashSet::default(),
         non_erased: FxHashMap::default(),
+        tail_vars: FxHashMap::default(),
+        tail_locals: FxHashSet::default(),
     };
     let files = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
