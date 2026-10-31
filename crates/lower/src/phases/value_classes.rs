@@ -108,7 +108,10 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
             Some(def) => {
                 let block = l.block(&[def], call, Span::NONE);
                 l.positioned(block);
-                l.tpd.tree(block).clone()
+                match applied {
+                    true => l.tpd.tree(block).clone(),
+                    false => Tree::Typed { expr: block, tpt: inferred(l, tpe, span) },
+                }
             }
             None if tpe != l.tpd.tpe(t) => Tree::Typed { expr: call, tpt: inferred(l, tpe, span) },
             None => l.tpd.tree(call).clone(),

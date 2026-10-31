@@ -11,7 +11,7 @@ mod value;
 
 pub use polymorphic::{array_op, is_synchronized, qualify_synchronized, synchronized_type};
 
-use super::casts::{cast, conforms, is_cast};
+use super::casts::{cast, conforms, is_cast, is_new_array};
 use super::select_static::is_static_enum_value;
 use crate::Lower;
 use crate::symbols::{has, is_java_static};
@@ -160,6 +160,11 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
             cast(l, t, to)
         }
         (Erased::Null, Erased::Array(_)) => cast(l, t, pt),
+        (Erased::Array(_), Erased::Array(_)) if from != pt && is_new_array(l, t) => {
+            let c = cast(l, t, pt);
+            l.explicit_casts.insert(c);
+            c
+        }
         _ => t,
     }
 }
