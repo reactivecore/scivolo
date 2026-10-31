@@ -58,8 +58,8 @@ pub fn adapted_types(
 }
 
 /// The `$adapted` method calling `method` with its parameters, then `()` boxed if `adapted`
-/// returns an object for a `Unit` result; at the start of the lambda's `closure`, of result type
-/// tree `tpt`.
+/// returns an object for a `Unit` result; at the start of the lambda's `closure`, defined where
+/// the closure was in another source if it was, of result type tree `tpt`.
 pub fn adapted_def(
     l: &mut Lower,
     closure: TNodeId,
@@ -89,5 +89,6 @@ pub fn adapted_def(
         rhs = l.block(&[rhs], unit, span);
     }
     let tpt = if result != method_result { l.type_tree(result, span) } else { tpt };
-    l.method_def(adapted.sym, &defs, tpt, rhs, span)
+    let def_span = from_start(super::drop_inlined::own_span(l, closure));
+    l.method_def(adapted.sym, &defs, tpt, rhs, def_span)
 }

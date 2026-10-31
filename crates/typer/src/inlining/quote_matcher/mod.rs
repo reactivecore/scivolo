@@ -10,7 +10,7 @@ mod open_closure;
 mod shapes;
 
 use super::Reflect;
-use super::quote_match::Bindings;
+use super::quote_match::{Bindings, type_holes};
 use crate::tpd::{List, TNodeId, Tpd, Tree as T};
 use crate::unpickle::{PatternBody, QuotePattern, Refusal};
 use shapes::same_constant;
@@ -30,7 +30,11 @@ pub fn quote_match(
     let PatternBody::Term(tree) = pattern.body else {
         return Err("a type pattern matched against an expression");
     };
-    let Some(bindings) = Bindings::new(u, &pattern.bindings, &pattern.spliced) else { return Ok(None) };
+    let (tree, binds) = match pattern.bindings.is_empty() {
+        true => type_holes(u, tpd, tree),
+        false => (tree, pattern.bindings.clone()),
+    };
+    let Some(bindings) = Bindings::new(u, &binds, &pattern.spliced) else { return Ok(None) };
     let mut m = Matcher { u, tpd, names, fills, bindings, env: Vec::new(), matched: Vec::new() };
     if !m.matches(scrutinee, tree)? {
         return Ok(None);
@@ -135,7 +139,13 @@ impl Matcher<'_> {
                 let (a, b) = (self.this_class(s), self.this_class(p));
                 Ok(a.is_some() && a == b)
             }
-            (T::Super { .. }, T::Super { .. }) => Err("a quote pattern matched against a super reference"),
+            (T::Super { qual: q1, mix: m1 }, T::Super { qual: q2, mix: m2 }) => {
+                let mix = |t: TNodeId| match *self.tpd.tree(t) {
+                    T::Ident { name } => Some(name.name),
+                    _ => None,
+                };
+                Ok(mix(m1) == mix(m2) && self.matches(q1, q2)?)
+            }
             (T::SeqLiteral { elems: a, .. }, T::SeqLiteral { elems: b, .. }) => self.lists(a, b),
             (T::ValDef { tpt: t1, rhs: r1, .. }, T::ValDef { tpt: t2, rhs: r2, .. }) => {
                 if !self.same_val_flags(s, p) || !self.matches(t1, t2)? {

@@ -74,12 +74,13 @@ impl Gen<'_, '_> {
         };
         let jdk: Vec<SymbolId> = bases.iter().copied().filter(|&b| is_jdk(self.l, b)).collect();
         let mut members = Vec::new();
+        let mut bridged = Vec::new();
         for b in bases {
-            let library_trait = self.l.u.is_trait(b) && self.l.u.symbol(b).tree.is_some();
             let behind_jdk = !is_jdk(self.l, b) && jdk.iter().any(|&j| self.l.u.derives_from(j, b));
-            if plain.contains(&b) || self.l.u.symbol(b).name == "Matchable" || library_trait {
+            if plain.contains(&b) || self.l.u.symbol(b).name == "Matchable" {
                 continue;
             }
+            bridged.extend(crate::phases::same_run::bridges(self.l, b));
             let decls = self.l.u.decls(b).unwrap_or_default();
             members
                 .extend(decls.into_iter().filter(|&m| !behind_jdk || jdk_api_owner(self.l.u, m).is_some()));
@@ -91,20 +92,24 @@ impl Gen<'_, '_> {
             let library = self.l.u.symbol(m).tree.is_some();
             let owner = self.l.u.symbol(m).owner.map(|o| self.l.u.full_name(o)).unwrap_or_default();
             let jdk = owner.starts_with("java.") || owner.starts_with("javax.");
-            let value = self.l.u.symbol(m).kind == Kind::Val;
+            let param = self.l.u.symbol(m).kind == Kind::Param;
+            let value = self.l.u.symbol(m).kind == Kind::Val || param;
             let method = self.l.u.symbol(m).kind == Kind::Def || has(self.l.u, m, FIELDaccessor);
-            let deferred = if library { self.l.u.body(m).is_none() } else { self.l.u.is_deferred(m) };
+            let deferred = match library {
+                true => !param && self.l.u.body(m).is_none(),
+                false => self.l.u.is_deferred(m),
+            };
             if !(method || library && value)
                 || self.l.u.is_constructor(m)
                 || is_extern(self.l.u, m)
                 || deferred
                 || excluded.iter().any(|&f| has(self.l.u, m, f))
                 || self.l.lifted_from.contains_key(&m)
-                || jdk && has(self.l.u, m, PRIVATEqualified)
+                || jdk && !self.l.u.javalib_sources() && has(self.l.u, m, PRIVATEqualified)
             {
                 continue;
             }
-            if !method && jdk {
+            if self.l.u.is_java_field(m) {
                 return unsupported(Span::NONE, "forwarders to fields of JDK classes");
             }
             let signature = (self.l.u.symbol(m).name.clone(), self.l.u.erased_method(m));
@@ -116,14 +121,34 @@ impl Gen<'_, '_> {
             if existing.contains(&name) {
                 return unsupported(Span::NONE, "a static method beside the forwarder of the same name");
             }
-            let pos = match self.l.coords.get(&m) {
+            let at = bridged.iter().find(|b| b.0 == m).map_or(m, |b| b.1);
+            let pos = match self.l.coords.get(&at) {
                 Some(&span) if span.exists() => self.pos_or(span, self.no_pos),
                 Some(_) => self.sym_pos(module_class, module_class),
-                None => self.sym_pos(m, module_class),
+                None => match self.library_pos(at, module_class) {
+                    Some(pos) => pos,
+                    None => self.sym_pos(at, module_class),
+                },
             };
             out.push(self.forwarder(m, module_class, name, pos));
         }
         Ok(out)
+    }
+
+    /// The position nscplugin gives the forwarder of member `m` of another of javalib's sources
+    /// when javalib's are compiled: the point of its definition as an offset in the unit's
+    /// source of `module_class`.
+    fn library_pos(&mut self, m: SymbolId, module_class: SymbolId) -> Option<PosId> {
+        if !self.l.u.javalib_sources() {
+            return None;
+        }
+        let (file, id) = self.l.u.symbol(m).tree?;
+        let addr = self.l.u.file(file).0.node(id).addr;
+        let span = self.l.u.body_info(file).ok()?.span(addr)?;
+        let at = self.spans.get(&module_class)?.point();
+        let (base, src) = self.l.sources.files()[self.l.sources.index(at)];
+        let offset = base + src.advance_utf16(0, span.point.unwrap_or(span.start) as usize);
+        self.pos_of(Span::at(offset))
     }
 
     /// `static def m(params) = C.m(params)` for method `m` of object class `module_class`.

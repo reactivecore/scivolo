@@ -27,6 +27,10 @@ pub struct Expansion<'i, 'a> {
     pub arg_span: FxHashMap<SymbolId, Span>,
     /// The definitions of the proxies, in order.
     pub bindings: Vec<TNodeId>,
+    /// The paths to objects with opaque types read from TASTy and their `$proxyN`, bound first.
+    pub opaque_refs: Vec<(TypeId, SymbolId)>,
+    /// The value arguments cast to their types with those proxies in place.
+    pub opaque_args: Vec<(TNodeId, TypeId)>,
 }
 
 impl<'i, 'a> Expansion<'i, 'a> {
@@ -38,6 +42,8 @@ impl<'i, 'a> Expansion<'i, 'a> {
             binding: FxHashMap::default(),
             arg_span: FxHashMap::default(),
             bindings: Vec::new(),
+            opaque_refs: Vec::new(),
+            opaque_args: Vec::new(),
         }
     }
 
@@ -66,6 +72,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
             self.binding.insert(s, self.i.tpd.tpe(a));
             self.arg_span.insert(s, self.i.tpd.span(a));
         }
+        self.bind_arg_opaques(meth);
         for (params, &apply) in vclauses.iter().zip(&applies) {
             self.bind_clause(params, apply)?;
         }
@@ -162,6 +169,18 @@ impl<'i, 'a> Expansion<'i, 'a> {
             syms.iter().zip(&args).zip(formals).zip(skolems).zip(spans)
         {
             self.arg_span.insert(p, span);
+            let cast = self.opaque_args.iter().find(|&&(a, _)| a == arg).map(|&(_, t)| t);
+            let arg = match cast.filter(|_| !self.i.u.symbol(p).flags.has(INLINE)) {
+                Some(t) => {
+                    let cast = self.i.cast(arg, t)?;
+                    if let T::TypeApply { args, .. } = *self.i.tpd.tree(cast) {
+                        let tpt = self.i.tpd.items(args)[0];
+                        self.i.tpd.get_mut(tpt).span = span.end_pos();
+                    }
+                    cast
+                }
+                None => arg,
+            };
             let skolem = self.i.arg_skolem(arg, skolem)?;
             let tpe = self.i.tpd.tpe(arg);
             let bound = if self.i.is_singleton_path(tpe) && self.i.pure().is_idempotent_path(arg) {

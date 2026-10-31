@@ -31,9 +31,17 @@ impl Code<'_> {
         Ok(())
     }
 
-    /// The annotations of definition `s`, each followed by a space (dotty's `printDefAnnotations`).
+    /// The annotations of definition `s`, each followed by a space (dotty's `printDefAnnotations`);
+    /// refused for those of a definition in TASTy.
     pub fn def_annotations(&mut self, s: SymbolId) -> Shown {
         let annots = self.h.typer.annotations.get(&s).cloned().unwrap_or_default();
+        let shown = |u: &tasty::Universe, c: SymbolId| {
+            u.full_name(c) != "scala.forceInline"
+                && u.symbol(c).owner.is_none_or(|p| u.full_name(p) != "scala.annotation.internal")
+        };
+        if annots.is_empty() && self.h.u.tasty_annotations(s).into_iter().any(|c| shown(&self.h.u, c)) {
+            return Err(REFUSED);
+        }
         for (i, &a) in annots.iter().enumerate() {
             if i > 0 {
                 self.push(" ");

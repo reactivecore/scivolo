@@ -103,7 +103,7 @@ impl<'a> Inlining<'a> {
                     self.fresh_symbol(m, s);
                 }
             }
-            T::Import { .. } => return Err((span, "inline body with an import")),
+            T::Import { export: false, .. } => return Err((span, "inline body with an import")),
             _ => {}
         }
         let tpe = tpe.map(|t| self.map_type(m, t));

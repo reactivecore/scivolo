@@ -77,6 +77,14 @@ object Macros:
   inline def tupled(a: Any, b: Any): Tuple = ${ tupledImpl('a, 'b) }
   def tupledImpl(a: Expr[Any], b: Expr[Any])(using Quotes): Expr[Tuple] = Expr.ofTupleFromSeq(Seq(a, b))
 
+  inline def nested(a: Any): Any = ${ nestedImpl('a) }
+  def nestedImpl(a: Expr[Any])(using Quotes): Expr[Any] =
+    import quotes.reflect.*
+    a.asTerm.tpe.widen.asType match
+      case '[t] =>
+        '{ List.empty[t] }.asTerm.tpe.asType match
+          case '[u] => '{ Option.empty[u] }
+
 object Source:
   inline def line: Int = ${ lineImpl }
   def lineImpl(using Quotes): Expr[Int] = Expr(quotes.reflect.Position.ofMacroExpansion.startLine + 1)
@@ -158,6 +166,26 @@ object Terms:
   def typeStructureImpl[T: Type](using Quotes): Expr[String] =
     import quotes.reflect.*
     Expr(TypeRepr.of[T].show(using Printer.TypeReprStructure))
+
+  inline def termTypeStructure[T](inline x: T): String = ${ termTypeStructureImpl('x) }
+  def termTypeStructureImpl[T](x: Expr[T])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(x.asTerm.tpe.show(using Printer.TypeReprStructure))
+
+  inline def exprMatch[A, B](inline a: A, inline b: B): String = ${ exprMatchImpl('a, 'b) }
+  def exprMatchImpl[A, B](a: Expr[A], b: Expr[B])(using Quotes): Expr[String] =
+    val matching = quotes.asInstanceOf[scala.quoted.runtime.QuoteMatching]
+    val res = matching.ExprMatch.unapply[Tuple, Tuple](a)(using b).map(_.toList.map {
+      case e: Expr[?] => s"Expr(${e.show})"
+      case t: Type[?] => s"Type(${Type.show(using t)})"
+    })
+    Expr(res.toString)
+
+  inline def quotedStructures: String = ${ quotedStructuresImpl }
+  def quotedStructuresImpl(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val types = List(TypeRepr.of[Any], TypeRepr.of[Object], TypeRepr.of[Option[Nothing]])
+    Expr((defn.RootPackage.name :: types.map(_.show(using Printer.TypeReprStructure))).mkString("; "))
 
   inline def open(inline x: Int): String = ${ openImpl('x) }
   def openImpl(x: Expr[Int])(using Quotes): Expr[String] = x match
@@ -432,3 +460,46 @@ object Warnings:
     report.warning("warned", x.asTerm.pos)
     report.warning("warned here")
     x
+
+class Holder { type X; val xs: List[Any] = Nil }
+
+@scala.annotation.experimental
+object Slices:
+  inline def refinedXs: List[Int] = ${ refinedXsImpl }
+  def refinedXsImpl(using Quotes): Expr[List[Int]] =
+    import quotes.reflect.*
+    val alias = Symbol.newTypeAlias(Symbol.spliceOwner, "X", Flags.EmptyFlags, TypeRepr.of[Int], Symbol.noSymbol)
+    val xs = Symbol.newVal(Symbol.spliceOwner, "xs", TypeRepr.of[List[Int]], Flags.EmptyFlags, Symbol.noSymbol)
+    val refined = Refined(TypeTree.of[Holder], List(TypeDef(alias), ValDef(xs, None)), TypeRepr.of[Holder].typeSymbol)
+    '{ new Holder { type X = Int; override val xs: List[Int] = List(1) } }.asTerm match
+      case Inlined(_, _, Block(List(cls: ClassDef), Typed(made, _))) =>
+        Select.unique(Block(List(cls), Typed(made, refined)), "xs").asExprOf[List[Int]]
+
+  inline def typeArgPos[T]: String = ${ typeArgPosImpl(using Type.of[T]) }
+  def typeArgPosImpl[T](using Type[T])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val pos = TypeTree.of[T].pos
+    Expr(s"${pos.start}..${pos.end} ${TypeTree.of[T].show}")
+
+trait Shown[T]:
+  def shown: String
+
+object Shown:
+  implicit def auto[T]: Shown[T] = new Shown[T] { def shown = "auto" }
+
+object Searches:
+  inline def foundIgnoringAuto[T]: Boolean = ${ foundIgnoringAutoImpl[T] }
+  def foundIgnoringAutoImpl[T: Type](using Quotes): Expr[Boolean] =
+    import quotes.reflect.*
+    val auto = Symbol.classSymbol("macrolib.Shown").companionModule.methodMember("auto")
+    Expr(Expr.summonIgnoring[T](auto*).isDefined)
+
+  def pick(a: Int)(f: Int => Int): Int = f(a)
+  def pick(a: Int)(f: PartialFunction[Int, Int]): Option[Int] = f.lift(a)
+
+  inline def picked(inline f: PartialFunction[Int, Int]): Option[Int] = ${ pickedImpl('f) }
+  def pickedImpl(f: Expr[PartialFunction[Int, Int]])(using Quotes): Expr[Option[Int]] =
+    import quotes.reflect.*
+    val to = TypeRepr.of[PartialFunction[Int, Int] => Option[Int]]
+    val sel = Select.overloaded('{ Searches }.asTerm, "pick", Nil, List(Literal(IntConstant(1))), to)
+    Apply(sel, List(f.asTerm)).asExprOf[Option[Int]]

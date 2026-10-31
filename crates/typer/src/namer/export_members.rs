@@ -85,10 +85,12 @@ impl Typer<'_> {
             Type::Applied(tycon, _) => tycon,
             _ => widened,
         };
-        match *self.u.types().get(tycon) {
-            Type::Sym(_, c) if self.u.symbol(c).kind == Kind::Class => Some(c),
-            _ => None,
-        }
+        let c = match *self.u.types().get(tycon) {
+            Type::Sym(_, c) => c,
+            Type::TypeRef(..) => self.u.resolve_ref(tycon)?,
+            _ => return None,
+        };
+        (self.u.symbol(c).kind == Kind::Class).then_some(c)
     }
 
     /// The names of the members of class `c`, its own first, then those of its base classes.

@@ -1,6 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
-//! The type and field members of classes in `quotes.reflect`, and the objects
+//! The type and field members of classes and types in `quotes.reflect`, and the objects
 //! `Symbol.requiredModule` looks up.
 
 use super::Fallible;
@@ -9,8 +9,16 @@ use tasty::tags::PRIVATE;
 use tasty::{Kind, SymbolId};
 
 impl Host {
+    /// `Symbol.typeMembers`: those of class `s`, else those of the type `s` stands for.
     pub fn type_members(&mut self, s: SymbolId) -> Fallible<Vec<SymbolId>> {
-        self.members(s, |k| k.is_type(), None)
+        if self.u.is_class(s) || !self.u.symbol(s).kind.is_type() {
+            return self.members(s, |k| k.is_type(), None);
+        }
+        let info = self.u.info(s);
+        let found = self.members_of_type(info);
+        let mut order = Vec::new();
+        self.type_sorted_parents(info, &mut order);
+        Ok(self.sorted_members(found, &order))
     }
 
     /// The fields of `s`, named `name` if it is not empty.
@@ -56,6 +64,15 @@ impl Host {
                 false => Ok(Vec::new()),
             };
         }
+        let found = self.class_members(s, of, name);
+        let mut order = Vec::new();
+        self.sorted_parents(s, &mut order);
+        Ok(self.sorted_members(found, &order))
+    }
+
+    /// The members of class `s` of kinds `of`, named `name` if given: a member is left out when
+    /// one of a class earlier in the linearization has its name or it is private to another class.
+    pub fn class_members(&mut self, s: SymbolId, of: fn(Kind) -> bool, name: Option<&str>) -> Vec<SymbolId> {
         let mut found: Vec<SymbolId> = Vec::new();
         for base in self.u.linearization(s) {
             let own: Vec<SymbolId> = (self.u.symbol(base).decls.clone().into_iter())
@@ -68,20 +85,25 @@ impl Host {
                 .collect();
             found.extend(own);
         }
-        let mut order = Vec::new();
-        self.sorted_parents(s, &mut order);
+        found
+    }
+
+    /// `found` in the order of dotty's `Symbol.typeMembers`: by owner in the order of `order`,
+    /// the type parameters of each first in their order, then the others by name.
+    fn sorted_members(&mut self, mut found: Vec<SymbolId>, order: &[SymbolId]) -> Vec<SymbolId> {
         found.sort_by_key(|&d| {
             let sym = self.u.symbol(d);
             let placement = sym.owner.and_then(|o| order.iter().position(|&c| c == o)).unwrap_or(usize::MAX);
             let param = sym.kind == Kind::TypeParam;
-            (placement, !param, if param { String::new() } else { sym.name.clone() })
+            let index = sym.owner.and_then(|o| self.u.type_params(o).iter().position(|&p| p == d));
+            (placement, !param, index, if param { String::new() } else { sym.name.clone() })
         });
-        Ok(found)
+        found
     }
 
     /// Class `c` and its parents' classes, each followed by theirs, each once (dotty's
     /// `sortedParents`).
-    fn sorted_parents(&mut self, c: SymbolId, order: &mut Vec<SymbolId>) {
+    pub fn sorted_parents(&mut self, c: SymbolId, order: &mut Vec<SymbolId>) {
         if order.contains(&c) {
             return;
         }

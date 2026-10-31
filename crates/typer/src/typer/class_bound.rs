@@ -7,10 +7,10 @@ use super::avoid_map::Avoided;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// The intersection of local class `c`'s parents refined by each type member narrowing an
+    /// The intersection of local class `c`'s parents refined by each member narrowing an
     /// inherited one, or by any member if a parent is a `Selectable`; `None` for a polymorphic
-    /// class, a term member narrowing an inherited one, or a refinement referring to `c` or to
-    /// one of the local symbols being expanded, `visiting`.
+    /// class, or a refinement referring to `c` or to one of the local symbols being expanded,
+    /// `visiting`.
     pub fn local_class_bound(&mut self, c: SymbolId, visiting: &[SymbolId]) -> Option<TypeId> {
         if !self.u.type_params(c).is_empty() {
             return None;
@@ -31,9 +31,6 @@ impl Typer<'_> {
             }
             let is_type = self.u.is_type_symbol(d);
             let name = self.u.symbol(d).name.clone();
-            if !is_type && !self.type_members(parent, &name).is_empty() {
-                return None;
-            }
             let info = if is_type { self.type_info(d) } else { self.term_info(d) };
             let avoided = Avoided { locals: &missing, opaque: &[], visiting };
             let info = self.avoid_at(info, 1, avoided)?.hi();

@@ -5,7 +5,8 @@ use super::{Answer, Fallible};
 use crate::host::Host;
 use syntax::ast::Span;
 use syntax::source::{Offset, SourceFile, Sources};
-use typer::tpd::TNodeId;
+use tasty::TypeId;
+use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
     pub fn expansion_pos(&self) -> Answer {
@@ -14,6 +15,20 @@ impl Host {
 
     pub fn pos(&self, t: TNodeId) -> Answer {
         self.located(self.tpd.span(t))
+    }
+
+    /// `TypeTree.of[T]` of `Type` number `n`: a type tree of its type, at the span of its type
+    /// tree if the macro got it as an argument.
+    pub fn type_tree_of(&mut self, n: i32) -> Fallible<TNodeId> {
+        let t = self.type_of(n as u32)?;
+        let span = self.type_arg_spans.get(&(n as u32)).copied().unwrap_or(Span::NONE);
+        Ok(self.tpd.node(T::TypeTree { inferred: false }, span, Some(t), None))
+    }
+
+    /// `TypeRepr.asType` of type number `n`: its type under a number of its own, without the span
+    /// of a type tree.
+    pub fn as_type(&mut self, n: i32) -> Fallible<TypeId> {
+        self.type_shape_of(n as u32)
     }
 
     /// The lines and columns of offsets `start` and `end` of source file `file`, and the code

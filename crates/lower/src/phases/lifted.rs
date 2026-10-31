@@ -8,6 +8,7 @@ use super::closures::{Plan, plan, rewrite};
 use super::lambda_lift::Function;
 use super::lift_names::prefix;
 use super::narrowed::home;
+use super::proxy_names::Adapted;
 use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result};
@@ -64,16 +65,29 @@ fn post_order(functions: &[Function]) -> Vec<usize> {
     out
 }
 
-/// The value parameters with their types and the result type of function `f`.
+/// The value parameters with their types and the result type of function `f`, its references to
+/// the parameters by their symbols.
 fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, TypeId)> {
     let mut result = value_info(l, f.sym);
     if let Type::ByName(r) = *l.u.types().get(result) {
         result = r;
     }
+    let syms = params(l, f.def);
+    let mut binders = Vec::new();
     while let Type::Method { result: r, .. } | Type::Poly { result: r, .. } = *l.u.types().get(result) {
+        if let Type::Method { binder, ref params, .. } = *l.u.types().get(result) {
+            binders.push((binder, params.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>()));
+        }
         result = r;
     }
-    let params = params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();
+    let mut at = 0;
+    for (binder, names) in binders {
+        let refs: Vec<TypeId> =
+            syms.iter().skip(at).take(names.len()).map(|&p| l.u.intern_type(Type::Sym(None, p))).collect();
+        result = l.u.subst(result, binder, &names, &refs);
+        at += names.len();
+    }
+    let params = syms.into_iter().map(|p| (p, l.u.info(p))).collect();
     Ok((params, result))
 }
 
@@ -92,9 +106,8 @@ pub fn lift(
     (td, class): (TNodeId, SymbolId),
     functions: &[Function],
     methods: &[Method],
-) -> Result<(Vec<TNodeId>, Vec<SymbolId>)> {
+) -> Result<(Vec<TNodeId>, Vec<Adapted>)> {
     let mut plans: Vec<Option<Plan>> = Vec::new();
-    let mut deferred = Vec::new();
     for (f, method) in functions.iter().zip(methods) {
         let (mut params, result) = signature(l, f)?;
         if let Some(all) = method.all_args {
@@ -102,7 +115,7 @@ pub fn lift(
         }
         let in_value = l.in_match_values.contains(&f.sym) && !f.ctor;
         let prefix = if in_value { String::new() } else { prefix(l, class, functions, methods, f) };
-        let closure = f.closure.map(|_| plan(l, class, f, &prefix, &params, result, &mut deferred));
+        let closure = f.closure.map(|_| plan(l, class, f, &prefix, &params, result));
         plans.push(closure.transpose()?);
     }
     super::lifted_calls::calls(l, (td, class), functions, methods)?;
@@ -112,7 +125,7 @@ pub fn lift(
             None => leave_block(l, f),
         }
     }
-    let mut out = Vec::new();
+    let (mut out, mut deferred) = (Vec::new(), Vec::new());
     for i in post_order(functions) {
         let f = &functions[i];
         let Tree::DefDef { tpt, rhs: Some(rhs), .. } = *l.tpd.tree(f.def) else { unreachable!("a function") };
@@ -122,6 +135,7 @@ pub fn lift(
         retarget_returns(l, rhs, f.sym, methods[i].sym);
         out.push(def(l, f.def, &methods[i], tpt, rhs)?);
         if let Some(adapted) = plans[i].as_ref().and_then(|p| p.adapted.as_ref()) {
+            deferred.push((f.sym, adapted.proxies.clone()));
             let closure = f.closure.unwrap_or(f.def);
             out.push(super::adapted::adapted_def(l, closure, &methods[i], adapted, tpt));
         }

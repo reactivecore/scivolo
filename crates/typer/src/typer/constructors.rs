@@ -113,8 +113,8 @@ impl Typer<'_> {
     }
 
     /// `info` of `s` if `s` is a constructor selected from `prefix`, its `Unit` result replaced by
-    /// its class, as `prefix` refers to it, applied to its type parameters (dotty's
-    /// `effectiveResultType`).
+    /// its class, as `prefix` refers to it unless through a package path, applied to its type
+    /// parameters (dotty's `effectiveResultType`).
     pub fn effective_constructor_info(
         &mut self,
         s: SymbolId,
@@ -129,8 +129,13 @@ impl Typer<'_> {
             Type::Applied(tc, _) => tc,
             _ => p,
         });
+        let package = |u: &tasty::Universe, p: Option<TypeId>| {
+            p.is_some_and(|p| matches!(u.types().get(p), Type::Package(_) | Type::PackageName(_)))
+        };
         let class = match tycon {
-            Some(tc) if matches!(*self.u.types().get(tc), Type::Sym(_, c) if c == owner) => tc,
+            Some(tc) if matches!(*self.u.types().get(tc), Type::Sym(p, c) if c == owner && !package(self.u, p)) => {
+                tc
+            }
             _ => crate::defn::type_ref(self.u, owner),
         };
         match self.u.types().get(info).clone() {

@@ -143,6 +143,24 @@ impl Universe {
         dependent.then_some(info)
     }
 
+    /// The info a refinement of `prefix`'s widened type gives term member `m` of type `info`, if
+    /// it narrows `info` with the same parameters (dotty's `infoMeet` of the refined member).
+    pub fn narrowing_refinement(&mut self, prefix: TypeId, m: SymbolId, info: TypeId) -> Option<TypeId> {
+        let name = self.symbol(m).name.clone();
+        let refined = self.term_refinement_named(prefix, &name).filter(|&r| r != info)?;
+        let (narrows, refined) = match (self.types().get(refined).clone(), self.types().get(info).clone()) {
+            (Type::Method { params: p, result: r, .. }, Type::Method { params: q, result: s, .. }) => {
+                (p.iter().map(|(_, t)| t).eq(q.iter().map(|(_, t)| t)) && self.is_subtype(r, s), refined)
+            }
+            (Type::ByName(r), Type::ByName(s)) => (self.is_subtype(r, s), refined),
+            (Type::Method { .. } | Type::Poly { .. }, _) => return None,
+            (_, Type::Method { .. } | Type::Poly { .. } | Type::ByName(_)) => return None,
+            (Type::ByName(r), _) => (self.is_subtype(r, info), r),
+            _ => (self.is_subtype(refined, info), refined),
+        };
+        narrows.then_some(refined)
+    }
+
     /// The info a refinement of `prefix`'s widened type gives term member `name`.
     pub fn term_refinement_named(&mut self, prefix: TypeId, name: &str) -> Option<TypeId> {
         let mut t = self.widen(prefix);

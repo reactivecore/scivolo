@@ -75,9 +75,9 @@ impl Inlining<'_> {
         }
     }
 
-    /// `tree` without the imports among its statements, if a block or a template.
+    /// `tree` without the imports among its statements, if a block or a template; exports kept.
     pub fn without_imports(&mut self, tree: T) -> T {
-        let is_import = |i: &Self, s| matches!(i.tpd.tree(s), T::Import { .. });
+        let is_import = |i: &Self, s| matches!(i.tpd.tree(s), T::Import { export: false, .. });
         match tree {
             T::Block { stats, expr } if self.tpd.items(stats).iter().any(|&s| is_import(self, s)) => {
                 let kept: Vec<_> =

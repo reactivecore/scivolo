@@ -75,7 +75,10 @@ impl Typer<'_> {
         let block = self.ast.node(Tree::Block { stats, expr: Some(apply) });
         self.ast.with_span(block, span);
         let open = |s: &mut Self, p: TypeId| {
-            let p = s.zonk(p);
+            let mut p = s.zonk(p);
+            while let Type::Annotated(a, _) = *s.u.types().get(p) {
+                p = a;
+            }
             let var = |s: &Self, t: TypeId| matches!(s.u.types().get(t), Type::Var(_));
             match *s.u.types().get(p) {
                 Type::Or(a, b, _) => var(s, a) || var(s, b),

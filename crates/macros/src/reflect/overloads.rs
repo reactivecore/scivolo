@@ -8,6 +8,7 @@
 
 use super::Fallible;
 use crate::host::Host;
+use syntax::ast::Span;
 use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
 
@@ -21,6 +22,30 @@ impl Host {
         rest: Vec<i32>,
         name: String,
     ) -> Fallible<TNodeId> {
+        self.select_overloaded_to(qual, n, None, rest, name)
+    }
+
+    /// `Select.overloaded(qual, name, targs, args, returnType)`, `rest` as for
+    /// `select_overloaded`.
+    pub fn select_overloaded_returning(
+        &mut self,
+        qual: TNodeId,
+        n: i32,
+        to: TypeId,
+        rest: Vec<i32>,
+        name: String,
+    ) -> Fallible<TNodeId> {
+        self.select_overloaded_to(qual, n, Some(to), rest, name)
+    }
+
+    fn select_overloaded_to(
+        &mut self,
+        qual: TNodeId,
+        n: i32,
+        to: Option<TypeId>,
+        rest: Vec<i32>,
+        name: String,
+    ) -> Fallible<TNodeId> {
         let (targs, terms) = rest.split_at((n as usize).min(rest.len()));
         let targs = targs.iter().map(|&t| self.type_of(t as u32)).collect::<Result<Vec<_>, _>>()?;
         let terms = terms.iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;
@@ -29,18 +54,19 @@ impl Host {
         members.retain(|&m| self.u.symbol(m).kind.is_term());
         let chosen = match members[..] {
             [m] => m,
-            _ => self.most_specific(qual, &members, &targs, &terms)?,
+            _ => self.most_specific(qual, &members, (&targs, &terms), to)?,
         };
         self.applied_with_defaults(qual, chosen, &targs, &terms)
     }
 
-    /// The alternative of `members` applicable to `terms` and more specific than the others.
+    /// The alternative of `members` applicable to `terms`, its result conforming to `to`, and
+    /// more specific than the others.
     fn most_specific(
         &mut self,
         qual: TNodeId,
         members: &[SymbolId],
-        targs: &[TypeId],
-        terms: &[TNodeId],
+        (targs, terms): (&[TypeId], &[TNodeId]),
+        to: Option<TypeId>,
     ) -> Fallible<SymbolId> {
         if terms.iter().any(|&t| matches!(self.tpd.tree(t), T::NamedArg { .. })) {
             return Err("Select.overloaded of overloaded alternatives with named arguments");
@@ -53,7 +79,13 @@ impl Host {
                 && params.len() == arg_types.len()
                 && arg_types.iter().zip(&params).all(|(&a, &p)| self.u.is_subtype(a, p))
             {
-                applicable.push((m, params));
+                let fits = match to {
+                    Some(to) => self.result_conforms(fun, to)?,
+                    None => true,
+                };
+                if fits {
+                    applicable.push((m, params));
+                }
             }
         }
         let specific: Vec<SymbolId> = (0..applicable.len())
@@ -71,13 +103,18 @@ impl Host {
         Ok(m)
     }
 
-    /// `qual.m[targs]`.
+    /// `qual.m[targs]`, at the start of the expansion.
     pub fn selected(&mut self, qual: TNodeId, m: SymbolId, targs: &[TypeId]) -> Fallible<TNodeId> {
         let sel = self.reflect().select(qual, m)?;
-        match targs.is_empty() {
-            true => Ok(sel),
-            false => self.reflect().applied_to_types(sel, targs),
+        let fun = match targs.is_empty() {
+            true => sel,
+            false => self.reflect().applied_to_types(sel, targs)?,
+        };
+        let at = Span::at(self.expansion.start());
+        for t in [sel, fun] {
+            self.tpd.get_mut(t).span = at;
         }
+        Ok(fun)
     }
 
     /// The parameter types of the method type of `fun`, by-name ones as their results, if it has
@@ -95,5 +132,15 @@ impl Host {
             _ => p,
         };
         Some(params.iter().map(|&(_, p)| by_value(p)).collect())
+    }
+
+    /// Whether the result of the first clause of the method type of `fun`, a method as its
+    /// function type, conforms to `to` (dotty's `resultConforms` with `normalize`).
+    fn result_conforms(&mut self, fun: TNodeId, to: TypeId) -> Fallible<bool> {
+        let tpe = self.tpd.tpe(fun);
+        let info = self.u.widen(tpe);
+        let Type::Method { result, .. } = *self.u.types().get(info) else { return Ok(false) };
+        let normalized = self.function_type(result)?;
+        Ok(self.u.is_subtype(normalized, to))
     }
 }

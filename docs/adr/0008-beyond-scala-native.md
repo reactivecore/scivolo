@@ -1,7 +1,7 @@
 # ADR 0008 — JDK behaviour where Scala Native falls short
 
 Status: accepted · Date: 2026-09-28 · Amended 2026-09-29: implemented in the overlay (ADR 0009);
-lambda bridges and `getInterfaces` added
+lambda bridges and `getInterfaces` added · Amended 2026-10-31: `Class.getCanonicalName`
 
 ## Context
 Scala Native's javalib stubs or leaves out some JDK methods its native runtime cannot provide
@@ -16,6 +16,10 @@ collector's figures. Scripts written against the JDK expect its behaviour.
     with `Thread.getStackTrace` itself; other threads keep javalib's empty array.
   - `Runtime.totalMemory` and `maxMemory` report the collector's heap size and limit;
     `freeMemory` reports 0, as the collector does not report live bytes.
+  - `Class.getCanonicalName`, which javalib leaves out, is read off the binary name: each `$`
+    before a member's name becomes `.`, a module class keeps its final `$`; `null` when a
+    segment is empty or starts with a digit (a local or anonymous class), as the JDK gives
+    for these. Names with `$` of their own (`$plus`) differ from the JDK's.
 - Where Scala Native's compiler or linker produces something the JVM would not, and the VM can
   correct it at run time:
   - a virtual call of a method a class lacks calls a bridge the VM synthesizes as NIR, as the
@@ -33,5 +37,6 @@ collector's figures. Scripts written against the JDK expect its behaviour.
 - Four more of dotty's `tests/run` pass (`i3006`, `i3006b`, `i2738`, `t8199`) and two that
   used `Runtime.totalMemory` (`t2849`, `t7336`); `ThreadTest.currentThreadGetStackTrace` fails.
   With bridges and `getInterfaces`, `i24573` and `redundantParents` pass: every dotty test that
-  fails in the VM fails in Scala Native too.
+  fails in the VM fails in Scala Native too. With `getCanonicalName`, run-macros
+  `inline-case-objects` passes, whose macro calls it as dotty runs it on the JVM.
 - Each further case is judged the same way: a cheap override with visible benefit.

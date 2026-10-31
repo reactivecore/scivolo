@@ -24,7 +24,7 @@ impl Code<'_> {
         match self.tree_of(t) {
             T::ValDef { name, tpt, rhs } => {
                 self.modifiers(s, false);
-                if self.has(s, LAZY) {
+                if self.has(s, LAZY) || self.has(s, OBJECT) {
                     self.keyword("lazy ");
                 }
                 self.keyword(if self.has(s, MUTABLE) { "var " } else { "val " });
@@ -58,6 +58,12 @@ impl Code<'_> {
                     self.push(" = ");
                     self.tree(rhs)?;
                 }
+            }
+            T::TypeDef { name, rhs } if !matches!(self.tree_of(self.r(rhs)), T::LambdaTypeTree { .. }) => {
+                self.keyword("type ");
+                self.variance(s);
+                self.push(&self.name(name));
+                self.type_def_rhs(rhs)?;
             }
             _ => return Err(REFUSED),
         }

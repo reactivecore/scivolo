@@ -126,7 +126,7 @@ impl Typer<'_> {
     fn is_privileged_prefix(&mut self, prefix: TypeId, owner: SymbolId) -> bool {
         match *self.u.types().get(prefix) {
             Type::This(c) => self.u.class_symbol(c) == Some(owner),
-            Type::Sym(_, s) => self.u.module_class(s) == Some(owner),
+            Type::Sym(_, s) => self.u.is_module(s) && self.u.module_class(s) == Some(owner),
             _ => false,
         }
     }

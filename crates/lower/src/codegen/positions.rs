@@ -12,12 +12,20 @@ impl Gen<'_, '_> {
         self.pos_or(span, self.no_pos)
     }
 
-    /// The position of `span`'s point, or `None` if it has none.
+    /// The position of `span`'s point, or `None` if it has none; for a span in another source,
+    /// of its offsets in the file of the class generated.
     pub fn pos_of(&mut self, span: Span) -> Option<PosId> {
         if !span.exists() {
             return None;
         }
-        let (src, point) = self.l.sources.locate(span.point());
+        let (src, point) = match span.is_in_other_source() {
+            true => {
+                let class = self.class.and_then(|c| self.spans.get(&c)).map_or(0, |s| s.start());
+                let src = self.l.sources.locate(class).0;
+                (src, src.advance_utf16(0, span.in_own_source().point() as usize))
+            }
+            false => self.l.sources.locate(span.point()),
+        };
         let line = src.offset_to_line(point) as u32;
         let column = src.column(point) as u32;
         let file = self.str(&src.name);

@@ -5,8 +5,9 @@
 
 use super::Reflect;
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::TName;
 use tasty::tags::{
-    FINAL, GIVEN, IMPLICIT, LAZY, LOCAL, MUTABLE, OVERRIDE, PRIVATE, PROTECTED, STATIC, SYNTHETIC,
+    FINAL, GIVEN, IMPLICIT, INFIX, LAZY, LOCAL, MUTABLE, OVERRIDE, PRIVATE, PROTECTED, STATIC, SYNTHETIC,
 };
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
@@ -44,6 +45,29 @@ impl Reflect<'_> {
         if flags & !allowed.iter().fold(0, |b, &t| b | 1u64 << t) != 0 {
             return Err("Symbol.newVal or Symbol.newMethod with flags other than modifiers of definitions");
         }
+        Ok(self.defined((owner, name, kind), flags, info))
+    }
+
+    /// `Symbol.newTypeAlias(owner, name, flags, tpe, _)`, not entered into its owner's
+    /// declarations.
+    pub fn new_type_alias(
+        &mut self,
+        (owner, name): (SymbolId, &str),
+        alias: TypeId,
+        flags: u64,
+    ) -> Result<SymbolId, &'static str> {
+        let allowed = [PRIVATE, PROTECTED, OVERRIDE, FINAL, INFIX, LOCAL];
+        if flags & !allowed.iter().fold(0, |b, &t| b | 1u64 << t) != 0 {
+            return Err("Symbol.newTypeAlias with flags other than modifiers of type aliases");
+        }
+        if matches!(self.u.types().get(alias), Type::Bounds(..) | Type::Alias(_)) {
+            return Err("Symbol.newTypeAlias of type bounds");
+        }
+        let info = self.u.intern_type(Type::Alias(alias));
+        Ok(self.defined((owner, name, Kind::Type), flags, info))
+    }
+
+    fn defined(&mut self, (owner, name, kind): (SymbolId, &str, Kind), flags: u64, info: TypeId) -> SymbolId {
         let s = self.u.define(Symbol {
             name: name.to_owned(),
             kind,
@@ -57,7 +81,18 @@ impl Reflect<'_> {
         });
         self.u.set_owner(s, owner);
         self.u.set_info(s, info);
-        Ok(s)
+        s
+    }
+
+    /// `TypeDef(s)` of type alias `s`, its right-hand side a type tree of the alias.
+    pub fn type_def(&mut self, s: SymbolId) -> Result<TNodeId, &'static str> {
+        let info = self.u.info(s);
+        let (Kind::Type, &Type::Alias(alias)) = (self.u.symbol(s).kind, self.u.types().get(info)) else {
+            return Err("TypeDef.apply of a symbol other than a type alias");
+        };
+        let rhs = self.type_tree(alias);
+        let name = TName { name: self.names.intern(&self.u.symbol(s).name.clone()), is_type: true };
+        Ok(self.tpd.node(T::TypeDef { name, rhs }, self.span, None, Some(s)))
     }
 
     /// `ValDef(s, rhs)`.
@@ -139,65 +174,5 @@ impl Reflect<'_> {
         let rhs = self.tpd.node(template, span, None, sym);
         let (span, tpe, sym) = (self.tpd.span(original), self.tpd.get(original).tpe, self.tpd.sym(original));
         Ok(self.tpd.node(T::TypeDef { name: n, rhs }, span, tpe, sym))
-    }
-
-    /// New parameter definitions of method `s` by clause, from its type (the parameter symbols
-    /// of dotty's `DefDef(sym, rhsFn)`).
-    pub fn method_params(&mut self, s: SymbolId) -> Result<Vec<Vec<TNodeId>>, &'static str> {
-        let (span, mut t) = (self.span, self.u.info(s));
-        let mut clauses = Vec::new();
-        loop {
-            match self.u.types().get(t).clone() {
-                Type::Method { params, result, .. } => {
-                    let mut clause = Vec::new();
-                    for (name, info) in params {
-                        let p = self.new_param(s, &name, info);
-                        let tpt = self.type_tree(info);
-                        clause.push(self.build()?.val_def(p, tpt, None, span));
-                    }
-                    clauses.push(clause);
-                    t = result;
-                }
-                Type::Poly { .. } => return Err("DefDef.apply of a polymorphic method"),
-                _ => return Ok(clauses),
-            }
-        }
-    }
-
-    fn new_param(&mut self, owner: SymbolId, name: &str, info: TypeId) -> SymbolId {
-        let p = self.u.define(Symbol {
-            name: name.to_owned(),
-            kind: Kind::Param,
-            owner: None,
-            flags: Flags::default(),
-            target: None,
-            is_extern: false,
-            derived: false,
-            decls: Vec::new(),
-            tree: None,
-        });
-        self.u.set_owner(p, owner);
-        self.u.set_info(p, info);
-        p
-    }
-
-    /// `DefDef(s, rhsFn)` of method `s` with parameter definitions `params` and the right-hand
-    /// side `rhsFn` made.
-    pub fn def_def(
-        &mut self,
-        s: SymbolId,
-        params: &[Vec<TNodeId>],
-        rhs: Option<TNodeId>,
-    ) -> Result<TNodeId, &'static str> {
-        if self.u.symbol(s).kind != Kind::Def {
-            return Err("DefDef.apply of a symbol other than a method");
-        }
-        let mut result = self.u.info(s);
-        while let Type::Method { result: r, .. } = *self.u.types().get(result) {
-            result = r;
-        }
-        let (span, tpt) = (self.span, self.type_tree(result));
-        let clauses: Vec<&[TNodeId]> = params.iter().map(Vec::as_slice).collect();
-        Ok(self.build()?.def_def(s, &clauses, tpt, rhs, span))
     }
 }

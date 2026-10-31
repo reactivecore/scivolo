@@ -48,6 +48,9 @@ pub struct Lower<'a> {
     fields: FxHashMap<SymbolId, SymbolId>,
     /// The bridges `Bridges` made and the `$adapted` methods of lambdas.
     bridges: FxHashSet<SymbolId>,
+    /// The bridges of each library class javalib's build compiles with the unit, each with the
+    /// member it calls.
+    library_bridges: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// The extension methods entered for the methods of value classes.
     extensions: FxHashMap<SymbolId, SymbolId>,
     /// The fields `LazyVals` made for lazy values, in order.
@@ -81,6 +84,8 @@ pub struct Lower<'a> {
     explicit_casts: FxHashSet<TNodeId>,
     /// The casts of `null` codegen keeps: unboxed nulls of value classes.
     null_casts: FxHashSet<TNodeId>,
+    /// The type trees of ascriptions erased with value classes boxed (dotty's `Typed` of a cast).
+    boxed_ascriptions: FxHashSet<TNodeId>,
     /// The local classes lifted out of blocks, each with its owner before.
     local_classes: FxHashMap<SymbolId, SymbolId>,
     /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
@@ -114,6 +119,8 @@ pub struct Lower<'a> {
     super_accessors: FxHashMap<SymbolId, (SymbolId, bool)>,
     /// The span of the outermost `Inlined` tree without bindings each tree was the expansion of.
     inlined_spans: FxHashMap<TNodeId, Span>,
+    /// The spans in another source of the trees `drop_inlined` gave the span of an inline call.
+    own_spans: FxHashMap<TNodeId, Span>,
     /// The blocks `drop_inlined` made of `Inlined` trees with bindings.
     inlined_blocks: FxHashSet<TNodeId>,
     /// The start of the outermost inline call each definition of an expansion was inlined at.
@@ -122,8 +129,8 @@ pub struct Lower<'a> {
     impure_modules: FxHashSet<SymbolId>,
     /// The method or constructor whose trees `Erasure` types, owning the values it defines.
     erasure_owner: Option<SymbolId>,
-    /// The values type tests of unions and intersections evaluate once, with their spans.
-    tested_values: Vec<(SymbolId, Span)>,
+    /// The values `ev$N` not yet renumbered, with their spans, whether `Erasure` made them.
+    evaluated_once: Vec<(SymbolId, Span, bool)>,
     /// The trees `FirstTransform` made of named arguments (dotty's `WasNamedArg`).
     was_named_args: FxHashSet<TNodeId>,
     /// The local methods, lambdas among them, in the values `PatternMatcher` binds, which
@@ -132,6 +139,14 @@ pub struct Lower<'a> {
     /// The types before erasure of the native intrinsics' calls, with the span of the type
     /// application, by the method reference (nscplugin's `NonErasedType(s)` attachments).
     non_erased: FxHashMap<TNodeId, (Vec<tasty::TypeId>, Span)>,
+    /// The variables `TailRec` named for members before `LambdaLift`, by parameter, and by
+    /// method for the receiver.
+    tail_vars: FxHashMap<SymbolId, SymbolId>,
+    /// The variables `TailRec` made in local methods, which `LambdaLift` passes by value.
+    tail_locals: FxHashSet<SymbolId>,
+    /// The object classes `FirstTransform` moved after their companion classes, with their spans
+    /// and the end of that class.
+    moved_classes: Vec<(SymbolId, Span, syntax::source::Offset)>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
@@ -153,6 +168,7 @@ pub fn lower_sources(
         defs,
         fields: FxHashMap::default(),
         bridges: FxHashSet::default(),
+        library_bridges: FxHashMap::default(),
         extensions: FxHashMap::default(),
         lazy_fields: Vec::new(),
         lazy_members: FxHashMap::default(),
@@ -169,6 +185,7 @@ pub fn lower_sources(
         local_classes: FxHashMap::default(),
         explicit_casts: FxHashSet::default(),
         null_casts: FxHashSet::default(),
+        boxed_ascriptions: FxHashSet::default(),
         mixed_in: FxHashSet::default(),
         specialized: FxHashSet::default(),
         mixed_in_lazy_names: FxHashMap::default(),
@@ -182,14 +199,18 @@ pub fn lower_sources(
         lifted_to: FxHashMap::default(),
         super_accessors: FxHashMap::default(),
         inlined_spans: FxHashMap::default(),
+        own_spans: FxHashMap::default(),
         inlined_at: FxHashMap::default(),
         inlined_blocks: FxHashSet::default(),
         impure_modules: FxHashSet::default(),
         erasure_owner: None,
-        tested_values: Vec::new(),
+        evaluated_once: Vec::new(),
         was_named_args: FxHashSet::default(),
         in_match_values: FxHashSet::default(),
         non_erased: FxHashMap::default(),
+        tail_vars: FxHashMap::default(),
+        tail_locals: FxHashSet::default(),
+        moved_classes: Vec::new(),
     };
     let files = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))

@@ -44,7 +44,7 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
     extension (self: TypeRepr) {
       def =:=(that: TypeRepr): Boolean = ReflectOps.one("isSameType", ReflectOps.id(self), ReflectOps.id(that)) != 0
       def <:<(that: TypeRepr): Boolean = ReflectOps.one("isSubtype", ReflectOps.id(self), ReflectOps.id(that)) != 0
-      def asType: Type[?] = QuoteHost.quotedType(ReflectOps.id(self))
+      def asType: Type[?] = QuoteHost.quotedType(ReflectOps.one("asType", ReflectOps.id(self)))
       def show(using printer: Printer[TypeRepr]): String = printer.show(self)
       def dealias: TypeRepr = repr(ReflectOps.one("dealias", ReflectOps.id(self)))
       def isSingleton: Boolean = ReflectOps.one("isSingleton", ReflectOps.id(self)) != 0
@@ -74,24 +74,27 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
       def dealiasKeepOpaques: TypeRepr = repr(ReflectOps.one("dealiasKeepOpaques", ReflectOps.id(self)))
       def simplified: TypeRepr = throw new Unsupported("TypeRepr.simplified")
       def isTupleN: Boolean = applied(self, "scala.Tuple", 0)
-      def isFunctionType: Boolean = applied(self, "scala.Function", 1) || applied(self, "scala.ContextFunction", 1)
+      def isFunctionType: Boolean = {
+        val d = self.dealias
+        function(if (refinedFunction(d)) TypeShapes.part(d, 0).asInstanceOf[TypeRepr] else d)
+      }
       def isContextFunctionType: Boolean = applied(self, "scala.ContextFunction", 1)
-      def isErasedFunctionType: Boolean = false
-      def isDependentFunctionType: Boolean = TypeShapes.kind(self.dealias) == 6 &&
-        TypeShapes.name(self.dealias) == "apply" && {
-          val parent = TypeShapes.part(self.dealias, 0).asInstanceOf[TypeRepr]
-          applied(parent, "scala.Function", 1) || applied(parent, "scala.ContextFunction", 1)
-        }
+      def isErasedFunctionType: Boolean = ReflectOps.one("isErasedFunctionType", ReflectOps.id(self)) != 0
+      def isDependentFunctionType: Boolean = refinedFunction(self.dealias)
     }
 
-    /** Whether `t` dealiased is class `prefix` + n applied to n + `extra` arguments, of arity n
-     *  at most 22.
-     */
+    private def function(t: TypeRepr): Boolean = applied(t, "scala.Function", 1) || applied(t, "scala.ContextFunction", 1)
+
+    /** Whether `d` refines method `apply` of a function type (dotty's `dropDependentRefinement`). */
+    private def refinedFunction(d: TypeRepr): Boolean =
+      TypeShapes.kind(d) == 6 && TypeShapes.name(d) == "apply" && function(TypeShapes.part(d, 0).asInstanceOf[TypeRepr])
+
+    /** Whether `t` dealiased is class `prefix` + n applied to n + `extra` arguments. */
     private def applied(t: TypeRepr, prefix: String, extra: Int): Boolean = {
       val d = t.dealias
       val n = d.typeArgs.length - extra
       val sym = ReflectOps.id(d.typeSymbol)
-      n >= 0 && n <= 22 && sym >= 0 && ReflectOps.text("fullName", sym) == prefix + n
+      n >= 0 && sym >= 0 && ReflectOps.text("fullName", sym) == prefix + n
     }
   }
 

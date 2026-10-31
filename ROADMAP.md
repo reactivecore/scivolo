@@ -93,7 +93,7 @@ executables. A library macro runs from its NIR in the VM; its quotes are unpickl
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
 `Quotes` is refused by name. Macro annotations expand in the inlining (ADR 0039). Circe
 0.14.10's `derives Codec.AsObject`, sourcecode 0.4.4, fastparse 3.1.1, mainargs 0.7.8, upickle,
-pprint and os-lib work. dotty's `tests/run-macros`: 273 of 321 pass (2026-10-30,
+pprint and os-lib work. dotty's `tests/run-macros`: 296 of 321 pass (2026-10-31,
 `just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
@@ -123,7 +123,10 @@ slower meanwhile:
    i16065 (#166); named tuples, XXL tuples, named and higher-kinded type arguments (#139);
    mirrors through refined paths, match-type reduction through them, `codeOf` (#129, #120).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the run-macros refusals,
-   measured on `tests/run-macros`. Done 2026-10-30: reflect printers and `toString`, the type
+   measured on `tests/run-macros`. Done 2026-10-31: package prefixes of quoted types,
+   `Symbol.tree`, beta reduction of polymorphic functions, generic number literals,
+   `searchIgnoring`, type holes of runtime quote patterns, `newTypeAlias`, `Refined.apply`,
+   exports, nested spliced types (296 of 321 pass). Done 2026-10-30: reflect printers and `toString`, the type
    and method-type API, `newClass` with `conMethodType`, `ClassDef` printing and
    `TreeAnsiCode`, transparent macros, macro varargs and by-name arguments (273 of 321 pass);
    `TypeReprStructure` of packages,
@@ -170,6 +173,10 @@ slower meanwhile:
    2026-10-30 afternoon: closures against callee and SAM types, outer `this`, JDK stubs as Java
    classes, nio buffers; javalib lowers 594 of 601, auxlib 15 of 15, nativelib 102 of 103, clib
    21, posixlib 67, windowslib 34.
+   2026-10-31: `lib-compile` reports NIR files that differ only in the order of the var slots of
+   methods with more than four (Scala Native takes them from a hash set) as `var-order`.
+   After the 10-31 stack javalib lowers 601 of 601: 3,375 NIR files same, 80 var-order, 41
+   differ (2 of them also in var order); nativelib 692 same, 6 var-order, 17 differ (3).
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs

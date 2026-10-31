@@ -27,7 +27,7 @@ pub struct Plan {
 }
 
 /// The plan for the closure of lambda `f` with parameters `params` and result `result`, its
-/// lifted name prefix `prefix`; the `$adapted` method's proxies to name last go to `deferred`.
+/// lifted name prefix `prefix`.
 pub fn plan(
     l: &mut Lower,
     class: SymbolId,
@@ -35,7 +35,6 @@ pub fn plan(
     prefix: &str,
     params: &[(SymbolId, TypeId)],
     result: TypeId,
-    deferred: &mut Vec<SymbolId>,
 ) -> Result<Plan> {
     let closure = f.closure.expect("a lambda's closure");
     let span = l.tpd.span(f.block);
@@ -77,7 +76,9 @@ pub fn plan(
         let name = fresh(l, &format!("{prefix}$anonfun$adapted"));
         let adapted = define(l, home(l, class, f), &name, &f.captured, &types, result, f.instance());
         l.bridges.insert(adapted.sym);
-        deferred.extend(adapted.proxies.iter().copied());
+        if let Some(owner) = l.u.symbol(f.sym).owner {
+            l.lifted_from.insert(adapted.sym, owner);
+        }
         adapted
     });
     Ok(Plan { interface: specialized_interface.or(erased_context), adapted })
@@ -87,7 +88,7 @@ pub fn plan(
 pub fn rewrite(l: &mut Lower, f: &Function, method: &Method, plan: &Plan) {
     let closure = f.closure.expect("a lambda's closure");
     let span = l.tpd.span(closure);
-    let env: Vec<TNodeId> = f.captured.iter().map(|&s| l.ident(s, span)).collect();
+    let env: Vec<TNodeId> = f.captured.iter().map(|&s| l.ident(s, from_start(span))).collect();
     let target = plan.adapted.as_ref().unwrap_or(method).sym;
     let meth = l.ident(target, span);
     let Tree::Closure { tpt, .. } = *l.tpd.tree(closure) else { unreachable!("a closure") };

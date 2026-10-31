@@ -10,7 +10,7 @@
 use super::adapt::adapt;
 use super::casts::cast;
 use super::lazy_trees::{assign, block, call, eq, field_ref, if_, local, object, return_, unit, val_def};
-use super::lazy_vals::Lazy;
+use super::lazy_vals::{Lazy, null_out};
 use crate::Lower;
 use crate::definitions::{LazyVals, type_ref};
 use syntax::ast::Span;
@@ -38,7 +38,7 @@ pub fn init_method(l: &mut Lower, lazy: &Lazy, rhs: TNodeId, info: TypeId, defs:
     let result = local(l, lazy.init, "result", object, true);
     let nullable = local(l, lazy.init, "resultNullable", object, true);
     let release = release(l, lazy, &s, result);
-    let evaluate = evaluate(l, &s, rhs, info, (result, nullable), release);
+    let evaluate = evaluate(l, (lazy, &s), rhs, info, (result, nullable), release);
     let null = l.null_literal(Span::NONE);
     let start = apply_cas(l, &s, null, s.evaluating);
     let null = l.null_literal(Span::NONE);
@@ -93,10 +93,10 @@ fn release(l: &mut Lower, lazy: &Lazy, s: &Shared, result: SymbolId) -> TNodeId 
 }
 
 /// `try { resultNullable = rhs; result = if resultNullable eq null then NullValue else
-/// resultNullable } finally release`.
+/// resultNullable; this.f = null for the fields lazy nulls } finally release`.
 fn evaluate(
     l: &mut Lower,
-    s: &Shared,
+    (lazy, s): (&Lazy, &Shared),
     rhs: TNodeId,
     info: TypeId,
     (result, nullable): (SymbolId, SymbolId),
@@ -118,8 +118,10 @@ fn evaluate(
     let read = l.ident(nullable, Span::NONE);
     let set_value = assign(l, result, read);
     let store = if_(l, is_null, set_null, set_value, unit);
+    let mut stats = vec![compute, store];
+    stats.extend(null_out(l, lazy));
     let done = l.unit_literal(Span::NONE);
-    let tried = block(l, &[compute, store], done);
+    let tried = block(l, &stats, done);
     let cases = l.tpd.list(&[]);
     let attempt = Tree::Try { expr: tried, cases, finalizer: Some(release) };
     let attempt = l.tpd.node(attempt, Span::NONE, Some(unit), None);

@@ -5,9 +5,9 @@
 use super::Fallible;
 use super::constants::encoded;
 use crate::host::Host;
-use tasty::tags::{CLASSconst, OPAQUE};
-use tasty::{NoVars, SymbolId, Type, TypeId};
-use typer::tpd::constant_of;
+use tasty::tags::{CLASSconst, GIVEN, IMPLICIT, MUTABLE, OPAQUE};
+use tasty::{Kind, NoVars, SymbolId, Type, TypeId};
+use typer::tpd::{TNodeId, Tree as T, constant_of};
 use vm::Reflected;
 
 /// How many aliases `dealias_keep_opaques` follows at most.
@@ -88,6 +88,11 @@ impl Host {
         })
     }
 
+    /// Whether `t` is `PolyFunction { def apply(params): r }` with an erased parameter.
+    pub fn is_erased_function_type(&mut self, t: TypeId) -> bool {
+        self.u.poly_function_apply(t).is_some_and(|info| self.u.has_erased_params(info))
+    }
+
     /// The constant of constant type `t`, nothing for another type.
     pub fn constant_type(&mut self, t: TypeId) -> Fallible<Reflected> {
         if matches!(*self.u.types().get(t), Type::Constant(tag, _) if tag == CLASSconst) {
@@ -120,6 +125,56 @@ impl Host {
             true => Err("a type check the frontend cannot decide"),
             false => Ok(holds),
         }
+    }
+
+    /// `Refined(tpt, refinements, cls)`: `tpt`'s type refined by each type alias and value in
+    /// turn (dotty's `assignType` of a `RefinedTypeTree`); refused for a refinement referring to
+    /// `cls`'s `this`, one of a member class, or a value not narrowing the member it refines.
+    pub fn refined(&mut self, tpt: TNodeId, cls: SymbolId, defs: Vec<TNodeId>) -> Fallible<TNodeId> {
+        let refused = "Refined.apply of a refinement other than a type alias or a narrowing value";
+        let parent = self.tpd.tpe(tpt);
+        let parent_class = self.u.class_symbol(parent).filter(|&c| self.u.is_class(c));
+        let (Some(parent_class), true) = (parent_class, self.u.is_class(cls)) else {
+            return Err("Refined.apply of a type other than a class reference");
+        };
+        let mut tpe = parent;
+        for &d in &defs {
+            let s = self.tpd.sym(d).ok_or(refused)?;
+            let (name, info) = (self.u.symbol(s).name.clone(), self.u.info(s));
+            let existing = self.u.member(parent_class, &name);
+            let flags = self.u.symbol(s).flags;
+            let narrows = match (self.tpd.tree(d), self.u.symbol(s).kind) {
+                (T::TypeDef { .. }, Kind::Type) => {
+                    let lambda = match *self.u.types().get(info) {
+                        Type::Alias(a) => matches!(self.u.types().get(a), Type::Lambda { .. }),
+                        _ => true,
+                    };
+                    !lambda && existing.iter().all(|&m| self.u.symbol(m).kind != Kind::Class)
+                }
+                (T::ValDef { .. }, Kind::Val)
+                    if ![MUTABLE, GIVEN, IMPLICIT].iter().any(|&f| flags.has(f)) =>
+                {
+                    existing.into_iter().all(|m| {
+                        let member = self.u.member_info(parent, m);
+                        self.u.symbol(m).kind == Kind::Val && self.u.is_subtype(info, member)
+                    })
+                }
+                _ => false,
+            };
+            let mut this = false;
+            self.u.map_type(info, &mut |u, part| {
+                if let Type::This(c) = *u.types().get(part) {
+                    this |= u.class_symbol(c) == Some(cls);
+                }
+                None
+            });
+            if !narrows || this {
+                return Err(refused);
+            }
+            tpe = self.u.intern_type(Type::Refined(tpe, name, info));
+        }
+        let refinements = self.tpd.list(&defs);
+        Ok(self.tpd.node(T::RefinedTypeTree { tpt, refinements }, self.expansion, Some(tpe), None))
     }
 
     /// The type of the class of Java name `name`, a primitive type for a primitive's name; `None`

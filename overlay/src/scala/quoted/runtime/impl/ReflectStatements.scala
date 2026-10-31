@@ -22,12 +22,11 @@ trait ReflectStatements extends reflectModule { self: reflect.type =>
   given PackageClauseMethods: PackageClauseMethods = methods("PackageClauseMethodsImpl")
 
   object TypeDef extends TypeDefModule {
-    def apply(symbol: Symbol): TypeDef = refused("TypeDef.apply")
+    def apply(symbol: Symbol): TypeDef = ReflectOps.term(ReflectOps.one("typeDef", ReflectOps.id(symbol))).asInstanceOf[TypeDef]
     def copy(original: Tree)(name: String, rhs: Tree): TypeDef = ReflectOps.copy(original, name, rhs).asInstanceOf[TypeDef]
     def unapply(tdef: TypeDef): (String, Tree) = (tdef.name, tdef.rhs)
   }
 
-  /** Imports and exports keep their selectors, which are refused. */
   object Import extends ImportModule {
     def apply(expr: Term, selectors: List[Selector]): Import = refused("Import.apply")
     def copy(original: Tree)(expr: Term, selectors: List[Selector]): Import = refused("Import.copy")
@@ -59,14 +58,14 @@ trait ReflectStatements extends reflectModule { self: reflect.type =>
   abstract class ImportMethodsImpl extends ImportMethods {
     extension (self: Import) {
       def expr: Term = ReflectOps.shape(self).child(0).asInstanceOf[Term]
-      def selectors: List[Selector] = throw new Unsupported("Import.selectors")
+      def selectors: List[Selector] = ReflectOps.shape(self).from(1).asInstanceOf[List[Selector]]
     }
   }
 
   abstract class ExportMethodsImpl extends ExportMethods {
     extension (self: Export) {
       def expr: Term = ReflectOps.shape(self).child(0).asInstanceOf[Term]
-      def selectors: List[Selector] = throw new Unsupported("Export.selectors")
+      def selectors: List[Selector] = ReflectOps.shape(self).from(1).asInstanceOf[List[Selector]]
     }
   }
 

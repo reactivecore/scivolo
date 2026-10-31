@@ -62,7 +62,7 @@ impl Host {
                 if let Some(package) = resolved.filter(|&s| self.u.symbol(s).kind == Kind::Package) {
                     return self.package_ref(package, out);
                 }
-                match self.package_class(p) {
+                match self.package_class(p).filter(|_| !self.quoted_types.contains(&t)) {
                     Some(pkg) => {
                         let what = if term { "TermRef" } else { "TypeRef" };
                         out.push_str(&format!("{what}({}, \"{n}\")", package_this(&pkg)));

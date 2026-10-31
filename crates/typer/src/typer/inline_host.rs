@@ -87,17 +87,19 @@ impl Host for Typer<'_> {
     fn summon(
         &mut self,
         lent: Lent<'_>,
-        pt: TypeId,
+        (pt, ignored): (TypeId, &[SymbolId]),
         at: Span,
         ctx: Ctx,
     ) -> Result<Option<TNodeId>, &'static str> {
         let (u, tpd, names, fresh) = lent;
         self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
+        let outer = std::mem::replace(&mut self.ignored_implicits, ignored.to_vec());
         let found = catch_unwind(AssertUnwindSafe(|| match self.implicit_arg(pt, at, ctx, 0) {
             Ok(t) => self.define_tree(t, true).map(|()| Some(t)),
             Err(what) if is_misfit(what) => Ok(None),
             Err(what) => Err(what),
         }));
+        self.ignored_implicits = outer;
         self.swap_lent((u, tpd, names, fresh));
         found.unwrap_or_else(|panic| resume_unwind(panic))
     }

@@ -44,6 +44,15 @@ impl Typer<'_> {
                 let sym = self.tpd.sym(core).filter(|&s| !self.is_java_member(s))?;
                 let owner = self.u.symbol(sym).owner?;
                 let setter = format!("{}_=", self.text(name.name));
+                if let Type::Sym(Some(pre), _) = *self.u.types().get(self.tpd.tpe(core))
+                    && !matches!(self.u.types().get(pre), Type::This(_))
+                {
+                    let [s] = self.members_found(pre, &setter, false)?.syms[..] else { return None };
+                    let tpe = self.ref_type(Some(pre), s);
+                    let name = TName { name: self.name(&setter), is_type: false };
+                    let ident = self.tpd.node(T::Ident { name }, self.ast.span(lhs_tree), Some(tpe), Some(s));
+                    return Some((self.spliced(ident), None));
+                }
                 let has_setter = self.u.is_class(owner) && !self.u.decl(owner, &setter).ok()?.is_empty();
                 has_setter.then_some(())?;
                 let name = TName { name: self.name(&setter), is_type: false };
@@ -60,7 +69,8 @@ impl Typer<'_> {
         self.u.symbol(self.tpd.sym(self.tpd.meth_part(call))?).owner
     }
 
-    /// `x = v` for a variable `x`, or a dynamic `updateDynamic` call typed for `pt` (dotty's
+    /// `x = v` for a variable `x`, a `var` parameter of a library class but of one standing for a
+    /// Java class among them, or a dynamic `updateDynamic` call typed for `pt` (dotty's
     /// `typedAssign`); `q.x = v` with a setter `x_=`, structural or a member, becomes `q.x_=(v)`.
     pub fn typed_assign(&mut self, id: NodeId, (lhs, rhs): (NodeId, NodeId), pt: Pt, ctx: Ctx) -> TNodeId {
         if let Tree::Apply { fun, args } = *self.ast.tree(lhs) {
@@ -84,8 +94,9 @@ impl Typer<'_> {
             return self.typed_dynamic_assign(lhs, rhs, pt, ctx);
         }
         let var = self.tpd.sym(lhs).filter(|&s| {
-            let s = self.u.symbol(s);
-            s.kind == Kind::Val && s.flags.has(tasty::tags::MUTABLE)
+            let kind = self.u.symbol(s).kind;
+            let kind = kind == Kind::Val || kind == Kind::Param && !self.is_java_member(s);
+            kind && self.u.symbol(s).flags.has(tasty::tags::MUTABLE)
         });
         let Some(var) = var else {
             if let Tree::Select { qualifier, name } = *self.ast.tree(lhs_tree)

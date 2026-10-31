@@ -3,14 +3,15 @@
 //! Bounds without the local symbols defined after a variable (dotty's `LevelAvoidMap`).
 
 use super::Constraint;
+use super::levels::is_local_since;
 use super::unify::meet;
 use tasty::tags::PRIVATE;
 use tasty::{ANY, Kind, SymbolId, Type, TypeId, TypeVars, Universe};
 
 impl Constraint {
     /// `t` at variance `v` without the local symbols defined from `born` on: where covariant, a
-    /// local class without members of its own replaced by its parents, a local value by its
-    /// type, a class member of a local value selected on the value's type, a variable made after
+    /// local class without members of its own replaced by its parents, a local value or method by
+    /// its type, a class member of a local value selected on the value's type, a variable made after
     /// `born` whose bounds refer to one by a new variable above it made at `born` (dotty's
     /// `legalVar`); a type member of a local value by its alias, or by its bound where not
     /// invariant; an invariant argument by the wildcard of its avoided bounds where covariant.
@@ -26,6 +27,7 @@ impl Constraint {
                     let above = self.fresh_at(u, born);
                     self.add_upper(u, x, above).then_some(above)
                 }
+                None if v == 0 => self.unified_at(u, x, born),
                 None => None,
             },
             Type::Applied(tycon, _) if u.class_symbol(tycon).is_none() => {
@@ -61,12 +63,21 @@ impl Constraint {
                 _ if v > 0 => self.widened(u, t, born, v),
                 _ => None,
             },
+            Type::Sym(None, s) if u.symbol(s).kind == Kind::Type => {
+                let info = u.info(s);
+                match *u.types().get(info) {
+                    Type::Alias(a) => self.avoided(u, a, born, v),
+                    Type::Bounds(_, hi) if v > 0 => self.avoided(u, hi, born, v),
+                    Type::Bounds(lo, _) if v < 0 => self.avoided(u, lo, born, v),
+                    _ => None,
+                }
+            }
             Type::Sym(_, s) if v > 0 => match u.symbol(s).kind {
                 Kind::Class if owned_by_term(u, s) && !declares_members(u, s) => {
                     let parents = u.parents(s).into_iter().fold(ANY, |acc, p| meet(u, acc, p));
                     self.avoided(u, parents, born, v)
                 }
-                Kind::Val | Kind::Param => self.widened(u, t, born, v),
+                Kind::Val | Kind::Param | Kind::Def => self.widened(u, t, born, v),
                 _ => None,
             },
             Type::Applied(tycon, args) => {
@@ -77,6 +88,10 @@ impl Constraint {
                 }
                 let mut out = Vec::with_capacity(args.len());
                 for (&a, &pv) in args.iter().zip(&variances) {
+                    if pv == 0 && self.is_open_var(u, a) {
+                        out.push(self.avoided(u, a, born, 0)?);
+                        continue;
+                    }
                     if pv == 0 && self.refers_to_local(u, a, born, 4) {
                         let (bounds, wildcard) = match *u.types().get(a) {
                             Type::Bounds(lo, hi) => ((lo, hi), true),
@@ -123,50 +138,13 @@ impl Constraint {
     /// Value reference `t` widened and dealiased, then `avoided`.
     fn widened(&mut self, u: &mut Universe, t: TypeId, born: SymbolId, v: i32) -> Option<TypeId> {
         let widened = u.widen(t);
+        let widened = match *u.types().get(widened) {
+            Type::ByName(r) => r,
+            _ => widened,
+        };
         let widened = u.dealias(widened);
         if widened == t { None } else { self.avoided(u, widened, born, v) }
     }
-
-    /// Whether `t` refers to a local symbol defined from `born` on, or has an uninstantiated
-    /// variable made after `born` whose bounds do, `depth` variables deep.
-    pub fn refers_to_local(&self, u: &mut Universe, t: TypeId, born: SymbolId, depth: u32) -> bool {
-        let mut syms = Vec::new();
-        let mut vars = Vec::new();
-        u.map_type(t, &mut |u, part| {
-            match *u.types().get(part) {
-                Type::Sym(_, s) => syms.push(s),
-                Type::Var(x) => vars.push(x),
-                _ => {}
-            }
-            None
-        });
-        syms.into_iter().any(|s| is_local_since(u, s, born))
-            || vars.into_iter().any(|x| {
-                let e = self.vars[x.0 as usize];
-                let bounds = |c: &Self, u: &mut Universe, b| c.refers_to_local(u, b, born, depth - 1);
-                match e.instance {
-                    Some(i) => depth == 0 || bounds(self, u, i),
-                    None if e.born.0 <= born.0 => false,
-                    None => depth == 0 || bounds(self, u, e.lo) || bounds(self, u, e.hi),
-                }
-            })
-    }
-}
-
-/// Whether `s`, other than a type parameter, is defined from `born` on, or its owner is, in a
-/// method or value.
-fn is_local_since(u: &Universe, s: SymbolId, born: SymbolId) -> bool {
-    if u.symbol(s).kind == Kind::TypeParam {
-        return false;
-    }
-    let mut s = s;
-    while let Some(o) = u.symbol(s).owner {
-        if s.0 >= born.0 && matches!(u.symbol(o).kind, Kind::Def | Kind::Val) {
-            return true;
-        }
-        s = o;
-    }
-    false
 }
 
 /// The bounds of class type parameter `p` selected on `pre`: those of the wildcard argument

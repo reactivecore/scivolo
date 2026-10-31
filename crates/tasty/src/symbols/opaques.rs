@@ -51,6 +51,25 @@ impl Universe {
         self.opaque_aliases.get(&s).copied()
     }
 
+    /// The right-hand side of opaque type `s`, defined outside TASTy or read from it.
+    pub fn opaque_rhs(&mut self, s: SymbolId) -> Option<TypeId> {
+        if let Some(alias) = self.opaque_alias(s) {
+            return Some(alias);
+        }
+        self.symbol(s).tree?;
+        let info = self.info(s);
+        match self.types().get(info).clone() {
+            Type::Alias(a) => Some(a),
+            Type::Lambda { binder, params, result } => match *self.types().get(result) {
+                Type::Alias(a) => Some(self.intern_type(Type::Lambda { binder, params, result: a })),
+                Type::Bounds(..) => None,
+                _ => Some(info),
+            },
+            Type::Bounds(..) | Type::Other(_) => None,
+            _ => Some(info),
+        }
+    }
+
     /// The right-hand side of opaque type `s`, defined outside TASTy, if a reference through
     /// `prefix` sees it: through the `this` of its owner, through any prefix once elided.
     pub fn visible_opaque_alias(&mut self, s: SymbolId, prefix: Option<TypeId>) -> Option<TypeId> {

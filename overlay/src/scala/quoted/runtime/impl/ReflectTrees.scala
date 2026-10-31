@@ -59,8 +59,17 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
       ReflectOps.run("selectOverloaded", ids, name)
       ReflectOps.term(QuoteHost.result(0)).asInstanceOf[Term]
     }
-    def overloaded(qualifier: Term, name: String, targs: List[TypeRepr], args: List[Term], returnType: TypeRepr): Term =
-      refused("Select.overloaded")
+    def overloaded(qualifier: Term, name: String, targs: List[TypeRepr], args: List[Term], returnType: TypeRepr): Term = {
+      val ids = new Array[Int](3 + targs.length + args.length)
+      ids(0) = ReflectOps.id(qualifier)
+      ids(1) = targs.length
+      ids(2) = ReflectOps.id(returnType)
+      var i = 3
+      val it = (targs ++ args).iterator
+      while (it.hasNext) { ids(i) = ReflectOps.id(it.next()); i += 1 }
+      ReflectOps.run("selectOverloadedReturning", ids, name)
+      ReflectOps.term(QuoteHost.result(0)).asInstanceOf[Term]
+    }
     def copy(original: Tree)(qualifier: Term, name: String): Select =
       ReflectOps.copy(original, name, qualifier).asInstanceOf[Select]
     def unapply(x: Select): (Term, String) = {
@@ -129,7 +138,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
 
   object TypeTree extends TypeTreeModule {
     def of[T <: AnyKind](using t: Type[T]): TypeTree =
-      ReflectOps.term(ReflectOps.one("typeTree", QuoteHost.typeId(t))).asInstanceOf[TypeTree]
+      ReflectOps.term(ReflectOps.one("typeTreeOf", QuoteHost.typeId(t))).asInstanceOf[TypeTree]
     def ref(typeSymbol: Symbol): TypeTree = refused("TypeTree.ref")
   }
 

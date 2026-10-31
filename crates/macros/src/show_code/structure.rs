@@ -92,6 +92,7 @@ impl Code<'_> {
                 self.push(")");
             }
             T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } => self.def_structure(t)?,
+            T::Import { .. } => self.import_structure(t)?,
             T::Return { expr, from } => {
                 self.push("Return(");
                 self.structure(expr)?;

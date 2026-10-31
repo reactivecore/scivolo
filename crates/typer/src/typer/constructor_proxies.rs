@@ -32,7 +32,11 @@ impl Typer<'_> {
             _ => Some((prefix, s)),
         });
         let Some((prefix, class)) = found.filter(|&(_, c)| self.needs_constructor_proxies(c)) else {
-            return self.unsupported(id, "constructor proxy");
+            return match found {
+                None => self.unbound_in_checked_code(id, name, ctx),
+                Some(_) => None,
+            }
+            .unwrap_or_else(|| self.unsupported(id, "constructor proxy"));
         };
         if let Err(what) = self.check_reference(class, prefix, ctx) {
             return self.unsupported(id, what);
