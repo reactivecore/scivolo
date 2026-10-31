@@ -20,7 +20,7 @@ use typer::tpd::{TNodeId, Tree};
 
 impl<'l, 'a> Gen<'l, 'a> {
     /// `left op right` on references for `op` one of `eq`, `ne`, `==` and `!=`, the last as
-    /// `!(left == right)` (dotty's `InterceptedMethods`).
+    /// `!(left == right)` with `==` at the start of `left` (dotty's `InterceptedMethods`).
     pub fn gen_class_equality(
         &mut self,
         left: TNodeId,
@@ -29,7 +29,11 @@ impl<'l, 'a> Gen<'l, 'a> {
         span: Span,
     ) -> Result<ValId> {
         if op == "!=" {
-            let v = self.gen_class_equality(left, right, "==", span)?;
+            let start = self.l.tpd.span(left);
+            let inner = if start.exists() { Span::at(start.start()) } else { span };
+            let saved = self.at_span(inner);
+            let v = self.gen_class_equality(left, right, "==", inner)?;
+            self.m.pos = saved;
             return Ok(self.negate(v));
         }
         if op != "==" || self.is_null(left) || self.is_null(right) {
