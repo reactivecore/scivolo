@@ -75,9 +75,8 @@ impl Gen<'_, '_> {
         let jdk: Vec<SymbolId> = bases.iter().copied().filter(|&b| is_jdk(self.l, b)).collect();
         let mut members = Vec::new();
         for b in bases {
-            let library_trait = self.l.u.is_trait(b) && self.l.u.symbol(b).tree.is_some();
             let behind_jdk = !is_jdk(self.l, b) && jdk.iter().any(|&j| self.l.u.derives_from(j, b));
-            if plain.contains(&b) || self.l.u.symbol(b).name == "Matchable" || library_trait {
+            if plain.contains(&b) || self.l.u.symbol(b).name == "Matchable" {
                 continue;
             }
             let decls = self.l.u.decls(b).unwrap_or_default();
@@ -104,7 +103,7 @@ impl Gen<'_, '_> {
             {
                 continue;
             }
-            if !method && jdk {
+            if self.l.u.is_java_field(m) {
                 return unsupported(Span::NONE, "forwarders to fields of JDK classes");
             }
             let signature = (self.l.u.symbol(m).name.clone(), self.l.u.erased_method(m));
@@ -119,11 +118,30 @@ impl Gen<'_, '_> {
             let pos = match self.l.coords.get(&m) {
                 Some(&span) if span.exists() => self.pos_or(span, self.no_pos),
                 Some(_) => self.sym_pos(module_class, module_class),
-                None => self.sym_pos(m, module_class),
+                None => match self.library_pos(m, module_class) {
+                    Some(pos) => pos,
+                    None => self.sym_pos(m, module_class),
+                },
             };
             out.push(self.forwarder(m, module_class, name, pos));
         }
         Ok(out)
+    }
+
+    /// The position nscplugin gives the forwarder of member `m` of another of javalib's sources
+    /// when javalib's are compiled: the point of its definition as an offset in the unit's
+    /// source of `module_class`.
+    fn library_pos(&mut self, m: SymbolId, module_class: SymbolId) -> Option<PosId> {
+        if !self.l.u.javalib_sources() {
+            return None;
+        }
+        let (file, id) = self.l.u.symbol(m).tree?;
+        let addr = self.l.u.file(file).0.node(id).addr;
+        let span = self.l.u.body_info(file).ok()?.span(addr)?;
+        let at = self.spans.get(&module_class)?.point();
+        let (base, src) = self.l.sources.files()[self.l.sources.index(at)];
+        let offset = base + src.advance_utf16(0, span.point.unwrap_or(span.start) as usize);
+        self.pos_of(Span::at(offset))
     }
 
     /// `static def m(params) = C.m(params)` for method `m` of object class `module_class`.

@@ -77,6 +77,9 @@ pub fn plan(
         let name = fresh(l, &format!("{prefix}$anonfun$adapted"));
         let adapted = define(l, home(l, class, f), &name, &f.captured, &types, result, f.instance());
         l.bridges.insert(adapted.sym);
+        if let Some(owner) = l.u.symbol(f.sym).owner {
+            l.lifted_from.insert(adapted.sym, owner);
+        }
         deferred.extend(adapted.proxies.iter().copied());
         adapted
     });
