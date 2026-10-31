@@ -32,9 +32,12 @@ impl Constraint {
         self.settle_from(a.vars, Fate::Discarded);
     }
 
-    /// Keeps the variables of id `from` or later from being discarded.
-    pub fn keep_from(&mut self, from: usize) {
-        self.settle_from(from, Fate::Kept);
+    /// Keeps the variables made since `a` from being discarded, and their changes since `a` from
+    /// being undone; changes to older variables stay undoable.
+    pub fn keep(&mut self, a: Attempt) {
+        self.settle_from(a.vars, Fate::Kept);
+        let older: Vec<_> = self.log.drain(a.mark.0..).filter(|&(i, _)| i < a.vars).collect();
+        self.log.extend(older);
     }
 
     fn settle_from(&mut self, from: usize, fate: Fate) {
@@ -73,16 +76,23 @@ mod tests {
     }
 
     #[test]
-    fn kept_variables_survive_an_abandoned_attempt() {
+    fn kept_variables_and_their_instances_survive_an_abandoned_attempt() {
         let (mut c, mut u) = (Constraint::default(), Universe::empty());
+        let outer = var(&mut c, &mut u);
         let a = c.attempt();
+        let completion = c.attempt();
         let nested = c.attempt();
         let dropped = var(&mut c, &mut u);
         c.abandon(nested);
         let kept = var(&mut c, &mut u);
-        c.keep_from(dropped.0 as usize);
+        let instantiated = var(&mut c, &mut u);
+        c.instantiate(instantiated, tasty::ANY);
+        c.instantiate(outer, tasty::ANY);
+        c.keep(completion);
         c.abandon(a);
         assert!(!c.is_pending(dropped));
         assert!(c.is_pending(kept));
+        assert_eq!(c.instance(instantiated), Some(tasty::ANY));
+        assert!(c.is_pending(outer));
     }
 }

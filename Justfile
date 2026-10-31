@@ -154,6 +154,7 @@ nir-dump path *args:
 # Diff the NIR of class `class` (`?` standing for `$`) of Scala file `file` as Scala Native and
 # the lowering compile it, definitions sorted, with positions; Scala Native's from the test
 # program of that name, else compiled with Scala 3.9.0 into tmp/sn/3.9.0/ when older than `file`.
+# The var slots of methods with more than four are matched by name (`var-order`, nir_compare.py).
 nir-cmp file class:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -169,8 +170,13 @@ nir-cmp file class:
     fi
     target/release/scivolo-lower '{{ file }}' "tmp/lowered/$base" > /dev/null
     dump() { target/release/scivolo-nir-dump --debug --sorted "$1" | grep -v '^// \|^# '; }
-    if diff <(dump $sn/{{ class }}.nir) <(dump tmp/lowered/$base/{{ class }}.nir); then
-        echo "same: {{ class }}"
+    theirs=$(dump $sn/{{ class }}.nir)
+    ours=$(dump tmp/lowered/$base/{{ class }}.nir)
+    aligned=$(python3 scripts/nir_compare.py <(echo "$theirs") <(echo "$ours"))
+    if diff <(echo "$aligned") <(echo "$ours"); then
+        [ "$aligned" = "$theirs" ] && echo "same: {{ class }}" || echo "var-order: {{ class }}"
+    elif [ "$aligned" != "$theirs" ]; then
+        echo "differ: {{ class }} (also var-order)"
     fi
 
 # Search the files under `paths` (default: the repository but target/ and .git/) for extended

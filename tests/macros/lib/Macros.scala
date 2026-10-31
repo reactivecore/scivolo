@@ -167,6 +167,20 @@ object Terms:
     import quotes.reflect.*
     Expr(TypeRepr.of[T].show(using Printer.TypeReprStructure))
 
+  inline def termTypeStructure[T](inline x: T): String = ${ termTypeStructureImpl('x) }
+  def termTypeStructureImpl[T](x: Expr[T])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(x.asTerm.tpe.show(using Printer.TypeReprStructure))
+
+  inline def exprMatch[A, B](inline a: A, inline b: B): String = ${ exprMatchImpl('a, 'b) }
+  def exprMatchImpl[A, B](a: Expr[A], b: Expr[B])(using Quotes): Expr[String] =
+    val matching = quotes.asInstanceOf[scala.quoted.runtime.QuoteMatching]
+    val res = matching.ExprMatch.unapply[Tuple, Tuple](a)(using b).map(_.toList.map {
+      case e: Expr[?] => s"Expr(${e.show})"
+      case t: Type[?] => s"Type(${Type.show(using t)})"
+    })
+    Expr(res.toString)
+
   inline def quotedStructures: String = ${ quotedStructuresImpl }
   def quotedStructuresImpl(using Quotes): Expr[String] =
     import quotes.reflect.*

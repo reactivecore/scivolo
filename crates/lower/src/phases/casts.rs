@@ -192,7 +192,7 @@ pub fn receiver_type(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Option<
         let e = l.u.erase(array);
         return matches!(e, Erased::Array(_)).then_some(e);
     }
-    let jdk = name.starts_with("java.") || name.starts_with("javax.");
+    let jdk = l.u.may_be_java(owner) && (name.starts_with("java.") || name.starts_with("javax."));
     let hidden =
         [PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified].iter().any(|&f| has(l.u, owner, f));
     let tpe = if jdk && hidden { l.u.widen(l.tpd.tpe(qualifier)) } else { type_ref(l.u, owner) };

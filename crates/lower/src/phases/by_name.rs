@@ -171,12 +171,16 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
         }
     }
     let tpt = l.type_tree(result, span.start_pos());
-    let def = l.method_def(anon, &[], tpt, arg, from_start(span));
+    let def_span = super::drop_inlined::own_span(l, arg);
+    let def = l.method_def(anon, &[], tpt, arg, from_start(def_span));
     let function = l.u.class_ref("scala.Function0");
     let function = l.u.intern_type(Type::Applied(function, vec![result]));
     let meth = l.ident(anon, span);
     let env = l.tpd.list(&[]);
     let target = Some(l.type_tree(function, Span::NONE));
     let closure = l.tpd.node(Tree::Closure { env, meth, tpt: target }, span.end_pos(), Some(function), None);
+    if def_span.is_in_other_source() {
+        l.own_spans.insert(closure, def_span.end_pos());
+    }
     l.block(&[def], closure, span)
 }

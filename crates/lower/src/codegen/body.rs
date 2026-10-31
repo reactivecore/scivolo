@@ -107,7 +107,8 @@ impl Gen<'_, '_> {
             self.m.env.insert(var, slot);
             self.m.mutable.insert(var);
         }
-        let value = self.gen_expr(rhs)?;
+        let object_init = self.l.u.is_constructor(sym) && self.is_object_member(sym);
+        let value = if object_init { self.val(Val::Unit) } else { self.gen_expr(rhs)? };
         self.gen_return(sym, value, self.l.tpd.span(rhs))?;
         let pos = self.m.pos;
         let m = std::mem::replace(&mut self.m, Method::new(None, 0, pos));

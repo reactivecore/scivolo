@@ -1,7 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/LetOverApply.scala
 //! dotty's `LetOverApply`: `{ stats; expr }.f(args)` becomes `{ stats; expr.f(args) }` unless
-//! `expr` is a closure, and `{ stats; expr }(args)` becomes `{ stats; expr(args) }`.
+//! `expr` is a closure, and `{ stats; expr }(args)` becomes `{ stats; expr(args) }`; not for
+//! `Any.!=`, which dotty's `InterceptedMethods` makes a selection of `!` first.
 
 use super::drop_inlined::is_inlined;
 use super::walk::walk_class_up;
@@ -21,7 +22,12 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
 fn lift(l: &mut Lower, t: TNodeId) {
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return };
     let (block, fun) = match *l.tpd.tree(fun) {
-        _ if is_inlined(l, fun) || l.applied_references.contains(&t) => return,
+        _ if is_inlined(l, fun)
+            || l.applied_references.contains(&t)
+            || l.tpd.sym(fun) == Some(l.defs.any_ne) =>
+        {
+            return;
+        }
         Tree::Select { qualifier, name } => {
             let Tree::Block { expr, .. } = *l.tpd.tree(qualifier) else { return };
             if matches!(l.tpd.tree(expr), Tree::Closure { .. }) || is_inlined(l, qualifier) {
