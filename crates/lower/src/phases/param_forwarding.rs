@@ -10,8 +10,8 @@ use crate::Lower;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use rustc_hash::FxHashSet;
-use tasty::tags::{LOCAL, MUTABLE, PARAMalias, PARAMsetter, PRIVATE, PRIVATEqualified, STABLE};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::tags::{FIELDaccessor, MUTABLE, PARAMalias, PARAMsetter, PRIVATE, PRIVATEqualified, STABLE};
+use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// A parameter accessor `sym` defined by `stat` of class definition `td`, and the accessor of a
@@ -42,6 +42,17 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) {
     }
 }
 
+/// Whether `s` is a forwarder `x$accessor` of a class parameter.
+pub fn is_forwarder(l: &Lower, s: SymbolId) -> bool {
+    l.u.symbol(s).kind == Kind::Def && has(l.u, s, PARAMsetter) && !has(l.u, s, FIELDaccessor)
+}
+
+/// The name of the class parameter of parameter accessor `s`.
+pub fn param_name<'a>(l: &'a Lower, s: SymbolId) -> &'a str {
+    let name = &l.u.symbol(s).name;
+    if is_forwarder(l, s) { name.strip_suffix("$accessor").unwrap_or(name) } else { name }
+}
+
 /// The definitions and symbols of the private immutable parameter accessors of class definition
 /// `td` its superclass call passes to the superclass's parameter of the same name (dotty's
 /// `SuperParamAlias`).
@@ -66,6 +77,10 @@ fn super_param_aliases(l: &mut Lower, td: TNodeId) -> Vec<(TNodeId, SymbolId)> {
     for &stat in l.tpd.items(body) {
         let (Tree::ValDef { .. }, Some(sym)) = (l.tpd.tree(stat), l.tpd.sym(stat)) else { continue };
         if !has(l.u, sym, PRIVATE) || !has(l.u, sym, PARAMsetter) || has(l.u, sym, MUTABLE) {
+            continue;
+        }
+        let info = l.u.info(sym);
+        if matches!(l.u.types().get(info), Type::ByName(_)) {
             continue;
         }
         let Some(i) = args.iter().position(|&a| l.tpd.sym(a) == Some(sym)) else { continue };
@@ -141,10 +156,7 @@ fn forward(l: &mut Lower, root: TNodeId, f: &Forward) {
     let class = l.u.symbol(f.sym).owner.expect("a parameter accessor's class");
     let span = l.tpd.span(f.stat);
     let name = format!("{}$accessor", l.u.symbol(f.sym).name);
-    let mut flags = Flags::default().with(PRIVATE).with(STABLE);
-    if has(l.u, f.sym, LOCAL) {
-        flags = flags.with(LOCAL);
-    }
+    let flags = l.u.symbol(f.sym).flags.with(STABLE);
     let acc = l.u.define(symbol(&name, Kind::Def, class, flags));
     let info = l.u.info(f.sym);
     l.u.set_info(acc, info);

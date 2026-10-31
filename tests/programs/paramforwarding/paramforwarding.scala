@@ -8,6 +8,9 @@ class Hidden(private val x: Int) { def hidden: Int = x }
 class OverHidden(x: Int) extends Hidden(x) { def get: Int = x }
 class Generic[T](val t: T)
 class Concrete(t: String) extends Generic[String](t) { def len: Int = t.length }
+class ByName(x: => Int) extends Base(x, 0) { def twice: Int = x + x }
+class InCtor(x: Int) extends Base(x, 4) { val doubled: Int = x * 2 }
+object Forwarded extends Ordered[Int] { def compare(that: Int): Int = 1 - that }
 class Nested(x: Int) extends Base(x, 3) {
   class Inner { def outerX: Int = x + 1 }
   def inner: Inner = new Inner
@@ -29,4 +32,8 @@ object Lifted {
   println(new Concrete("seven").len)
   println(new Nested(8).inner.outerX)
   println(new Lifted.Ops(List(1, 2, 3, 4)).count(_ % 2 == 0))
+  var calls = 0
+  println(new ByName({ calls += 1; calls }).twice)
+  println(new InCtor(5).doubled)
+  println(Forwarded < 2)
 }
