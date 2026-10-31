@@ -23,6 +23,7 @@ mod case_members;
 pub(crate) mod casts;
 mod class_calls;
 mod closures;
+mod companion_order;
 mod constructors;
 mod context_bridges;
 mod context_library;

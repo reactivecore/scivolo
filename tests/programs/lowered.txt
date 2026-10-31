@@ -198,3 +198,4 @@ lazyouternames
 passingaccessors
 blockconditions
 inlineproxies
+nameorder

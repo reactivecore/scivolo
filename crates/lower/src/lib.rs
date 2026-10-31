@@ -129,8 +129,8 @@ pub struct Lower<'a> {
     impure_modules: FxHashSet<SymbolId>,
     /// The method or constructor whose trees `Erasure` types, owning the values it defines.
     erasure_owner: Option<SymbolId>,
-    /// The values type tests of unions and intersections evaluate once, with their spans.
-    tested_values: Vec<(SymbolId, Span)>,
+    /// The values `ev$N` not yet renumbered, with their spans, whether `Erasure` made them.
+    evaluated_once: Vec<(SymbolId, Span, bool)>,
     /// The trees `FirstTransform` made of named arguments (dotty's `WasNamedArg`).
     was_named_args: FxHashSet<TNodeId>,
     /// The local methods, lambdas among them, in the values `PatternMatcher` binds, which
@@ -144,6 +144,9 @@ pub struct Lower<'a> {
     tail_vars: FxHashMap<SymbolId, SymbolId>,
     /// The variables `TailRec` made in local methods, which `LambdaLift` passes by value.
     tail_locals: FxHashSet<SymbolId>,
+    /// The object classes `FirstTransform` moved after their companion classes, with their spans
+    /// and the end of that class.
+    moved_classes: Vec<(SymbolId, Span, syntax::source::Offset)>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
@@ -201,12 +204,13 @@ pub fn lower_sources(
         inlined_blocks: FxHashSet::default(),
         impure_modules: FxHashSet::default(),
         erasure_owner: None,
-        tested_values: Vec::new(),
+        evaluated_once: Vec::new(),
         was_named_args: FxHashSet::default(),
         in_match_values: FxHashSet::default(),
         non_erased: FxHashMap::default(),
         tail_vars: FxHashMap::default(),
         tail_locals: FxHashSet::default(),
+        moved_classes: Vec::new(),
     };
     let files = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))

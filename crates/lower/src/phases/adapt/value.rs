@@ -7,8 +7,9 @@ use super::{adapt, applied_to_none, from_start};
 use crate::Lower;
 use crate::definitions::type_ref;
 use crate::phases::casts::{cast, class_named, conforms, type_of};
-use crate::phases::eval_once::eval_once_as;
+use crate::phases::eval_once::{eval_once_as, is_idempotent};
 use crate::phases::literals::is_wildcard;
+use crate::phases::tree_copy::{Copier, copy};
 use crate::phases::vc_elide::elided;
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId};
@@ -73,7 +74,8 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
         return cast_generic(l, value, class, underlying, span);
     }
     let local = matches!(l.tpd.tree(t), Tree::Ident { .. })
-        && l.tpd.sym(t).is_some_and(|s| !l.u.symbol(s).owner.is_some_and(|o| l.u.is_class(o)));
+        && l.tpd.sym(t).is_some_and(|s| !l.u.symbol(s).owner.is_some_and(|o| l.u.is_class(o)))
+        || is_idempotent(l, t);
     let (value, def) = if local {
         (t, None)
     } else {
@@ -90,7 +92,13 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
     let cond = l.positioned(cond);
     let null = l.null_literal(Span::NONE);
     let thenp = null_as(l, null, underlying);
-    let again = l.copy_ident(value);
+    let again = if matches!(l.tpd.tree(value), Tree::Ident { .. }) {
+        l.copy_ident(value)
+    } else {
+        let owner = l.erasure_owner.expect("the method an unboxed value is evaluated in");
+        let mut copier = Copier { syms: Default::default(), from: owner, to: owner };
+        copy(l, &mut copier, value).unwrap_or(value)
+    };
     if def.is_none() {
         l.tpd.get_mut(again).span = l.tpd.span(value);
     }
