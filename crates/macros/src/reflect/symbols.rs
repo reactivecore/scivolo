@@ -156,7 +156,7 @@ impl Host {
 
     /// Whether `s` is a value or method member of a class without a definition, but for a
     /// constructor, an abstract type member or an opaque type alias.
-    fn is_deferred(&mut self, s: SymbolId) -> bool {
+    pub fn is_deferred(&mut self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         let (kind, tasty, opaque) = (sym.kind, sym.tree.is_some(), sym.flags.has(OPAQUE));
         if !sym.owner.is_some_and(|o| self.u.is_class(o)) || self.u.is_constructor(s) {

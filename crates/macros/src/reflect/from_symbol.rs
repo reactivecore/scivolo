@@ -70,6 +70,12 @@ impl Host {
         Ok(Some(match kind {
             Kind::Package => return Ok(None),
             Kind::Class => self.class_from_symbol(s)?,
+            Kind::Type if flags.has(CASE) => {
+                let (body, span) = (self.wildcard(), self.expansion);
+                let name = TName { name: self.names.intern(&self.u.symbol(s).name), is_type: true };
+                let tpe = self.reflect().symbol_ref(s);
+                self.tpd.node(T::Bind { name, body }, span, Some(tpe), Some(s))
+            }
             Kind::Type | Kind::TypeParam => self.type_def_from_symbol(s),
             Kind::Def => self.def_def(s, None)?,
             Kind::Val if flags.has(CASE) && !flags.has(OBJECT) && !flags.has(ENUM) => {
@@ -106,8 +112,10 @@ impl Host {
     fn class_from_symbol(&mut self, cls: SymbolId) -> Fallible<TNodeId> {
         let mut decls = self.u.symbol(cls).decls.clone();
         let ctor = decls.iter().copied().find(|&d| self.u.is_constructor(d));
-        let constr =
-            self.definition_from_symbol(ctor.ok_or("Symbol.tree of a class without a constructor")?)?;
+        let constr = ctor.unwrap_or_else(|| {
+            super::symbols::local(&mut self.u, "<init>", Kind::Def, cls, Flags::default())
+        });
+        let constr = self.definition_from_symbol(constr)?;
         decls.retain(|&d| Some(d) != ctor && !self.u.symbol(d).name.starts_with("<local "));
         let mut body = Vec::new();
         for d in decls {
