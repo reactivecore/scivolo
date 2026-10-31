@@ -17,6 +17,14 @@ object Holder {
     cell.value = t
     old
   }
+  class Cont[-R, T](init: Option[T]) {
+    private[Holder] var inner: Int = 0
+    private[Holder] var last: Option[T] = init
+  }
+  inline def bump[R, T](c: Cont[R, T], i: Int): Option[T] = {
+    c.inner = c.inner + i
+    c.last
+  }
   def make(): Box = new Box
 }
 
@@ -28,4 +36,6 @@ object Holder {
   val c = new Holder.Cell("a")
   println(Holder.swap(c, "b"))
   println(Holder.swap(c, "c"))
+  val k = new Holder.Cont[String, Int](Some(4))
+  println(Holder.bump(k, 2))
 }

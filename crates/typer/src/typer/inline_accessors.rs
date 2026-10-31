@@ -10,18 +10,16 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::{NodeId, Span};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type};
 
 #[derive(Default)]
 pub struct Accessors {
     /// Each accessor made, by its class, the member it accesses and whether it is a setter.
     made: FxHashMap<(SymbolId, SymbolId, bool), SymbolId>,
     /// The definitions of the accessors still to type, by class, with the context to type them in.
-    pending: FxHashMap<SymbolId, Vec<(NodeId, Ctx)>>,
+    pub pending: FxHashMap<SymbolId, Vec<(NodeId, Ctx)>>,
     /// The classes whose bodies are typed.
-    closed: FxHashSet<SymbolId>,
-    /// The receiver parameters of passing setters by class, renamed to `x$0` once typed.
-    receivers: FxHashMap<SymbolId, Vec<NodeId>>,
+    pub closed: FxHashSet<SymbolId>,
 }
 
 impl Typer<'_> {
@@ -30,12 +28,10 @@ impl Typer<'_> {
     pub fn with_inline_members(&mut self, cls: SymbolId, body: Vec<TNodeId>, ctx: Ctx) -> Vec<TNodeId> {
         let mut body = self.with_retainers(body, ctx);
         for (def, def_ctx) in self.accessors.pending.remove(&cls).unwrap_or_default() {
-            body.push(self.typed_stat(def, def_ctx));
-        }
-        for p in self.accessors.receivers.remove(&cls).unwrap_or_default() {
-            if let Some(&s) = self.syms.by_tree.get(&p) {
-                self.u.rename(s, "x$0");
-            }
+            let def = self.typed_stat(def, def_ctx);
+            self.with_type_trees(def);
+            self.with_setter_receiver(def);
+            body.push(def);
         }
         self.accessors.closed.insert(cls);
         body
@@ -48,13 +44,17 @@ impl Typer<'_> {
             && let Some(var) = self.tpd.sym(lhs)
             && self.needs_inline_accessor_from(var, meth)
         {
+            if self.pass_receiver(lhs, var, meth, ctx) {
+                for c in self.tpd.children(t) {
+                    self.make_inlineable(c, meth, ctx);
+                }
+                self.pass_setter(t, var, meth, ctx);
+                return;
+            }
             for c in self.tpd.children(lhs) {
                 self.make_inlineable(c, meth, ctx);
             }
             self.make_inlineable(rhs, meth, ctx);
-            if self.pass_receiver(lhs, var, meth, Some(t), ctx) {
-                return;
-            }
             if self.rewire(lhs, var, ctx).is_some() {
                 let span = self.tpd.span(lhs);
                 let Some(setter) = self.inline_accessor(var, true, span, ctx) else { return };
@@ -63,6 +63,15 @@ impl Typer<'_> {
                 let args = self.tpd.list(&[rhs]);
                 let node = self.tpd.get_mut(t);
                 (node.tree, node.tpe) = (T::Apply { fun, args }, Some(unit));
+            }
+            return;
+        }
+        if let Some(sym) = self.tpd.sym(t)
+            && self.needs_inline_accessor_from(sym, meth)
+            && self.pass_receiver(t, sym, meth, ctx)
+        {
+            for c in self.tpd.children(t) {
+                self.make_inlineable(c, meth, ctx);
             }
             return;
         }
@@ -95,38 +104,28 @@ impl Typer<'_> {
         if matches!(self.tpd.tree(t), T::Ident { .. } | T::Select { .. })
             && let Some(sym) = self.tpd.sym(t)
             && self.needs_inline_accessor_from(sym, meth)
-            && !self.pass_receiver(t, sym, meth, None, ctx)
         {
             self.rewire(t, sym, ctx);
         }
     }
 
-    /// The passing accessor `name` of `accessed` for receivers of type `receiver`, a setter if
-    /// `setter`, entered in class `host` for a reference at `span` in `ctx`.
-    #[allow(clippy::too_many_arguments)]
-    pub fn passing_accessor(
-        &mut self,
-        host: SymbolId,
-        name: &str,
-        accessed: SymbolId,
-        receiver: TypeId,
-        setter: bool,
-        span: Span,
-        ctx: Ctx,
-    ) -> Option<SymbolId> {
-        if self.accessors.closed.contains(&host) {
-            self.unsupported_at(span, "inline accessor in a class whose body is typed already");
-            return None;
+    /// Makes the parameter and result type trees of typed accessor definition `def` type trees
+    /// of their types (dotty's `tpd.DefDef`).
+    fn with_type_trees(&mut self, def: TNodeId) {
+        let T::DefDef { paramss, tpt, .. } = *self.tpd.tree(def) else { return };
+        let mut tpts = vec![tpt];
+        for &clause in self.tpd.clause_items(paramss) {
+            for &p in self.tpd.items(clause) {
+                match *self.tpd.tree(p) {
+                    T::ValDef { tpt, .. } => tpts.push(tpt),
+                    T::TypeDef { rhs, .. } => tpts.push(rhs),
+                    _ => {}
+                }
+            }
         }
-        let (def, receiver_param) = self.passing_def(name, accessed, receiver, setter, span)?;
-        let actx = Ctx { owner: host, ..ctx };
-        self.index(&[def], actx);
-        let sym = self.syms.by_tree[&def];
-        self.accessors.pending.entry(host).or_default().push((def, actx));
-        if setter {
-            self.accessors.receivers.entry(host).or_default().push(receiver_param);
+        for t in tpts {
+            self.tpd.get_mut(t).tree = T::TypeTree { inferred: false };
         }
-        Some(sym)
     }
 
     /// Whether `t` refers to an inline accessor.
