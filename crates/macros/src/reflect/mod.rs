@@ -3,6 +3,7 @@
 //! a kind, two words and a text.
 
 mod classes;
+mod compound_members;
 mod constants;
 mod copies;
 mod declarations;
