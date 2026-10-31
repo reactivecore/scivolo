@@ -45,7 +45,7 @@ pub struct Caller {
 /// The proxies and local classes `local_classes` leaves for `lambda_lift` to name, and where the
 /// classes were: the values each used at its definition, by block and statement index, the
 /// values passed to its constructor calls, the classes calling local methods, the unit's
-/// dependencies, and the proxies to name last, each with its rank and its owner's caller index.
+/// dependencies, and the proxies to name last, each with its rank.
 #[derive(Default)]
 pub struct Pending {
     pub proxies: Vec<Proxy>,
@@ -54,7 +54,7 @@ pub struct Pending {
     pub definitions: Vec<(TNodeId, usize, Vec<SymbolId>)>,
     pub passed: FxHashSet<TNodeId>,
     pub callers: Vec<Caller>,
-    pub late: Vec<((usize, usize), usize, SymbolId)>,
+    pub late: Vec<((usize, usize), SymbolId)>,
     next_class: usize,
 }
 
