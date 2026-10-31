@@ -8,7 +8,7 @@
 use super::Unsupported;
 use super::expand::Expansion;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::Span;
+use syntax::ast::{Span, TName};
 use tasty::tags::{OPAQUE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 
@@ -83,7 +83,10 @@ impl Expansion<'_, '_> {
         let opaque_ref = self.i.u.intern_type(Type::Sym(None, opaque));
         let proxy = self.this_proxy_symbol(cls, opaque_ref);
         let point = Span::at(self.i.tpd.span(self.call).point());
-        let rhs = self.i.singleton(opaque_ref, point).ok_or(refused)?;
+        let source = self.i.u.source_module(cls).ok_or(refused)?;
+        let name = self.i.u.symbol(source).name.clone();
+        let ident = TName { name: self.i.names.intern(&name), is_type: false };
+        let rhs = self.i.tpd.node(T::Ident { name: ident }, point, Some(opaque_ref), Some(opaque));
         self.bind_proxy(proxy, rhs, point, self.opaque_refs.len());
         Ok(vec![(cls, proxy)])
     }
@@ -94,23 +97,25 @@ impl Expansion<'_, '_> {
         if let Some(&(_, p)) = self.opaque_refs.iter().find(|&&(x, _)| x == r) {
             return Some(p);
         }
-        let widened = self.i.u.widen(r);
+        let mut widened = self.i.u.widen(r);
+        while let Type::Refined(parent, ..) = *self.i.u.types().get(widened) {
+            widened = self.i.u.widen(parent);
+        }
         let class = self.i.u.class_symbol(widened)?;
         let bases = self.i.u.linearization(class);
-        let opaque = bases
+        let cls = bases
             .into_iter()
-            .any(|c| self.contains_tasty_opaques(c) && within.is_none_or(|m| encloses(self, c, m)));
-        if !opaque {
-            return None;
-        }
+            .find(|&c| self.contains_tasty_opaques(c) && within.is_none_or(|m| encloses(self, c, m)))?;
         let point = Span::at(span.start());
+        let refined = self.i.opaques_exposed(r, cls);
         let rhs = self.i.singleton(r, point)?;
+        let rhs = self.i.cast(rhs, refined).ok()?;
         let name = self.i.fresh.next(self.i.names, "$proxy");
         let text = self.i.names.text(name).to_owned();
-        let proxy = self.local(text, Flags::default().with(SYNTHETIC), widened);
+        let proxy = self.local(text, Flags::default().with(SYNTHETIC), refined);
         let at = self.opaque_refs.len();
         self.bind_proxy(proxy, rhs, point, at);
-        self.i.tpd.get_mut(self.bindings[at]).span = span;
+        self.i.tpd.get_mut(self.bindings[at]).span = self.i.tpd.span(self.call);
         self.opaque_refs.push((r, proxy));
         Some(proxy)
     }

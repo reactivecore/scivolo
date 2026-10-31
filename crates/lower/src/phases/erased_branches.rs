@@ -49,8 +49,9 @@ pub fn typed_switch(l: &mut Lower, selector: TNodeId, cases: List) -> Result<Tre
 }
 
 /// The branches of conditional or `try` `t`, typed against `pt` if a reference is expected or `t`
-/// is of type `Nothing`, else against the erasure of `t`'s type;`t` then of the erased lub of their classes if they were
-/// typed against a reference.
+/// is of type `Nothing`, else against the erasure of `t`'s type; `t` then of the erased lub of
+/// their classes if they were typed against a reference, of `pt` if it was of type `Nothing` and
+/// a branch is not.
 pub fn typed_branches(
     l: &mut Lower,
     t: TNodeId,

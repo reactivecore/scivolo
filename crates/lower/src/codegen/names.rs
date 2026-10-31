@@ -112,8 +112,9 @@ impl Gen<'_, '_> {
     fn native_id(&self, m: SymbolId) -> String {
         let s = self.l.u.symbol(m);
         let name = encode(s.target.as_deref().unwrap_or(&s.name));
-        let stripped = name.starts_with("__scala_") || name.starts_with("__") && self.is_object_member(m);
-        let name = if stripped { &name[2..] } else { &name[..] };
+        let plain = s.target.is_none() && !s.is_extern;
+        let stripped = plain && (name.starts_with("__scala_") || self.is_object_member(m));
+        let name = if stripped { name.get(2..).unwrap_or_default() } else { &name[..] };
         name.replace('"', "$u0022")
     }
 

@@ -28,24 +28,32 @@ impl Translator<'_, '_> {
         self.node(Tree::Typed { expr: bind, tpt }, typed_tpe, None)
     }
 
-    /// Type `t` of a binder, widened if it refers to a variable, a method that is not stable or a
-    /// by-name or inline parameter (dotty's `sanitize` through `widenIfUnstable`).
-    pub fn sanitized(&mut self, t: TypeId) -> TypeId {
-        let Type::Sym(_, s) = *self.l.u.types().get(t) else { return t };
-        let (kind, info) = (self.l.u.symbol(s).kind, self.l.u.info(s));
-        let unstable = match kind {
-            Kind::Val => has(self.l.u, s, MUTABLE),
-            Kind::Def => !has(self.l.u, s, STABLE),
-            Kind::Param => has(self.l.u, s, INLINE) || matches!(self.l.u.types().get(info), Type::ByName(_)),
-            _ => false,
-        };
-        if !unstable {
-            return t;
-        }
-        let widened = self.l.u.widen(t);
-        match *self.l.u.types().get(widened) {
-            Type::ByName(r) => r,
-            _ => widened,
+    /// Type `t` of a binder, by-name types dropped and widened once while it refers to a variable,
+    /// a method that is not stable or a by-name or inline parameter (dotty's `sanitize` through
+    /// `widenIfUnstable`).
+    pub fn sanitized(&mut self, mut t: TypeId) -> TypeId {
+        loop {
+            let s = match *self.l.u.types().get(t) {
+                Type::ByName(r) => {
+                    t = r;
+                    continue;
+                }
+                Type::Sym(_, s) => s,
+                _ => return t,
+            };
+            let (kind, info) = (self.l.u.symbol(s).kind, self.l.u.info(s));
+            let unstable = match kind {
+                Kind::Val => has(self.l.u, s, MUTABLE),
+                Kind::Def => !has(self.l.u, s, STABLE),
+                Kind::Param => {
+                    has(self.l.u, s, INLINE) || matches!(self.l.u.types().get(info), Type::ByName(_))
+                }
+                _ => false,
+            };
+            match self.l.u.widen_once(t).filter(|_| unstable) {
+                Some(u) => t = u,
+                None => return t,
+            }
         }
     }
 

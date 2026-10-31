@@ -171,7 +171,14 @@ impl<'i, 'a> Expansion<'i, 'a> {
             self.arg_span.insert(p, span);
             let cast = self.opaque_args.iter().find(|&&(a, _)| a == arg).map(|&(_, t)| t);
             let arg = match cast.filter(|_| !self.i.u.symbol(p).flags.has(INLINE)) {
-                Some(t) => self.i.cast(arg, t)?,
+                Some(t) => {
+                    let cast = self.i.cast(arg, t)?;
+                    if let T::TypeApply { args, .. } = *self.i.tpd.tree(cast) {
+                        let tpt = self.i.tpd.items(args)[0];
+                        self.i.tpd.get_mut(tpt).span = span.end_pos();
+                    }
+                    cast
+                }
                 None => arg,
             };
             let skolem = self.i.arg_skolem(arg, skolem)?;
