@@ -9,7 +9,8 @@ use crate::{Lower, Result, unsupported};
 use tasty::Erased;
 use typer::tpd::{List, MatchKind, TNodeId, Tree};
 
-/// `try expr catch cases finally finalizer` of `t`, its branches typed as `typed_branches`.
+/// `try expr catch cases finally finalizer` of `t`, its branches typed as `typed_branches`, its
+/// finalizer against `Unit`.
 pub fn typed_try(
     l: &mut Lower,
     t: TNodeId,
@@ -31,7 +32,7 @@ pub fn typed_try(
         }
     }
     let finalizer = match finalizer {
-        Some(f) => Some(typed(l, f, None)?),
+        Some(f) => Some(typed(l, f, Some(&Erased::Unit))?),
         None => None,
     };
     Ok(Tree::Try { expr: typed_bodies[0], cases: l.tpd.list(&cases), finalizer })

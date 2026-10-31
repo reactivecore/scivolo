@@ -1,11 +1,12 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/inlines/InlineReducer.scala
 //   compiler/src/scala/quoted/runtime/impl/QuoteMatcher.scala
-//! Type bindings of patterns: the types a scrutinee's type gives the type variables of a pattern
-//! type it conforms to (dotty's GADT approximation of quote pattern and inline match type
-//! binds).
+//! Type bindings of patterns: the `@patternType` definitions of a quote pattern, and the types a
+//! scrutinee's type gives the type variables of a pattern type it conforms to (dotty's GADT
+//! approximation of quote pattern and inline match type binds).
 
 use crate::constraint::Constraint;
+use crate::tpd::{TNodeId, Tpd, Tree as T};
 use rustc_hash::FxHashMap;
 use tasty::{ANY, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
@@ -81,6 +82,38 @@ pub fn bound_types(
     b.conforms(u, scrutinee, pattern).then(|| b.approximated())
 }
 
+/// Pattern `t` without the `@patternType` type definitions that start its block, and their
+/// symbols, each with whether it is `@fromAbove` (dotty's `instrumentTypeHoles`).
+pub fn type_holes(u: &Universe, tpd: &mut Tpd, t: TNodeId) -> (TNodeId, Vec<(SymbolId, bool)>) {
+    let annotated = |s: SymbolId, name: &str| {
+        u.annotations(s).iter().any(|&c| {
+            let owner = u.symbol(c).owner.map(|o| u.full_name(o));
+            u.symbol(c).name == name && owner.as_deref() == Some("scala.quoted.runtime.Patterns$")
+        })
+    };
+    match *tpd.tree(t) {
+        T::Inlined { bindings, expansion, .. } if bindings.is_empty() => type_holes(u, tpd, expansion),
+        T::Block { stats, expr } => {
+            let stats = tpd.items(stats).to_vec();
+            let holes: Vec<SymbolId> = stats
+                .iter()
+                .map_while(|&s| match tpd.tree(s) {
+                    T::TypeDef { .. } => tpd.sym(s).filter(|&sym| annotated(sym, "patternType")),
+                    _ => None,
+                })
+                .collect();
+            if holes.is_empty() {
+                return (t, Vec::new());
+            }
+            let (span, tpe) = (tpd.span(t), tpd.get(t).tpe);
+            let rest = tpd.list(&stats[holes.len()..]);
+            let block = tpd.node(T::Block { stats: rest, expr }, span, tpe, None);
+            (block, holes.into_iter().map(|s| (s, annotated(s, "fromAbove"))).collect())
+        }
+        _ => (t, Vec::new()),
+    }
+}
+
 /// A pattern's type bindings as type variables of one constraint (dotty's GADT bounds of
 /// `instrumentTypeHoles`), its spliced type symbols as the types they stand for.
 pub struct Bindings {
@@ -109,7 +142,7 @@ impl Bindings {
         }
         for &(s, id, _) in &b.vars.clone() {
             let info = u.info(s);
-            if let Type::Bounds(lo, hi) = *u.types().get(info) {
+            if let Type::Bounds(lo, hi) | Type::Alias(lo @ hi) = *u.types().get(info) {
                 let (lo, hi) = (b.bound(u, lo), b.bound(u, hi));
                 let ok = (lo == NOTHING || c.add_lower(u, id, lo)) && (hi == ANY || c.add_upper(u, id, hi));
                 if !ok {

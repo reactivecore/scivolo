@@ -199,3 +199,4 @@ passingaccessors
 blockconditions
 inlineproxies
 nameorder
+positionsscopes

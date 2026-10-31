@@ -35,6 +35,15 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     result
 }
 
+/// `span` with the start of `receiver` as its point, else its own start.
+fn at_receiver(l: &Lower, span: Span, receiver: TNodeId) -> Span {
+    let q = super::drop_inlined::span_before_erasure(l, receiver);
+    match span.exists() && q.exists() && q.start() >= span.start() && q.start() <= span.end() {
+        true => span.with_point(q.start()),
+        false => from_start(span),
+    }
+}
+
 /// Makes `t`, a call or selection of a value class method in `owner`, call its extension method.
 fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let Some(tpe) = l.tpd.get(t).tpe else { return Ok(()) };
@@ -60,7 +69,7 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     }
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return Ok(()) };
     let Some(m) = l.tpd.sym(fun).filter(|&m| has_extension(l, m)) else { return Ok(()) };
-    let span = from_start(l.tpd.span(t));
+    let span = at_receiver(l, l.tpd.span(t), qualifier);
     let Some(extension) = extension(l, m) else {
         return unsupported(span, "methods of value classes without companions");
     };
@@ -77,7 +86,7 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let (module_span, span) = match ev_def {
         Some(_) => (Span::NONE, Span::NONE),
         None if targs_span.exists() => (targs_span.to_synthetic(), span),
-        None => (from_start(l.tpd.span(fun)), span),
+        None => (at_receiver(l, l.tpd.span(fun), qualifier), span),
     };
     let module_ref = l.this(module, module_span);
     let mut call = l.select(module_ref, extension, span);
