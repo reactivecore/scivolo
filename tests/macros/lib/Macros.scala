@@ -159,6 +159,12 @@ object Terms:
     import quotes.reflect.*
     Expr(TypeRepr.of[T].show(using Printer.TypeReprStructure))
 
+  inline def quotedStructures: String = ${ quotedStructuresImpl }
+  def quotedStructuresImpl(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val types = List(TypeRepr.of[Any], TypeRepr.of[Object], TypeRepr.of[Option[Nothing]])
+    Expr((defn.RootPackage.name :: types.map(_.show(using Printer.TypeReprStructure))).mkString("; "))
+
   inline def open(inline x: Int): String = ${ openImpl('x) }
   def openImpl(x: Expr[Int])(using Quotes): Expr[String] = x match
     case '{ val y: Int = 1; $body(y): Int }         => Expr(body.show)

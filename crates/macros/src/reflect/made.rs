@@ -62,7 +62,13 @@ impl Host {
         answer.extend(params.iter().map(|c| c.len() as i32));
         for p in params.into_iter().flatten() {
             let s = self.tpd.sym(p).ok_or("a parameter without a symbol")?;
-            let r = self.reflect().ref_(s)?;
+            let r = match self.u.symbol(s).kind {
+                Kind::TypeParam => {
+                    let tpe = self.u.intern_type(tasty::Type::Sym(None, s));
+                    self.reflect().type_tree(tpe)
+                }
+                _ => self.reflect().ref_(s)?,
+            };
             answer.push(self.add_tree(r) as i32);
         }
         Ok(answer)
@@ -119,9 +125,6 @@ impl Host {
             }
             _ => self.reflect().method_params(s)?,
         };
-        if params.iter().flatten().any(|&p| matches!(self.tpd.tree(p), T::TypeDef { .. })) {
-            return Err("DefDef.apply of a polymorphic method");
-        }
         self.made_params.insert(s, params.clone());
         Ok(params)
     }

@@ -36,7 +36,10 @@ impl Host {
     pub fn applied_to(&mut self, tycon: TypeId, targs: Vec<TypeId>) -> TypeId {
         match targs.is_empty() {
             true => tycon,
-            false => self.u.intern_type(Type::Applied(tycon, targs)),
+            false => {
+                let t = self.u.intern_type(Type::Applied(tycon, targs));
+                self.u.beta_reduced(t)
+            }
         }
     }
 
