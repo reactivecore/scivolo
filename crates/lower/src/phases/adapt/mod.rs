@@ -86,10 +86,13 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
     }
 }
 
-/// The erasure of ascribed type `tpt`: `BoxedUnit` for an intersection or union erasing to `Unit`
-/// (dotty's `typedTyped`).
+/// The erasure of ascribed type `tpt`: `BoxedUnit` for an intersection or union erasing to `Unit`,
+/// a value class boxed if `tpt` is a boxed ascription's (dotty's `typedTyped`).
 pub fn ascription_type(l: &mut Lower, tpt: TNodeId) -> Erased {
     let tpe = l.tpd.tpe(tpt);
+    if l.boxed_ascriptions.contains(&tpt) {
+        return l.u.erase_boxed(tpe);
+    }
     match l.u.erase_value(tpe) {
         Erased::Unit if l.u.class_symbol(tpe).is_none() => Erased::Class("scala.runtime.BoxedUnit".into()),
         e => e,

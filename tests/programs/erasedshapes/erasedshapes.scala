@@ -3,7 +3,17 @@ trait Wrapped[E]:
   def inner: java.util.Collection[E]
   def toArray[T <: AnyRef](a: Array[T]): Array[T] = inner.toArray[T](a)
 
+implicit class ToIt[A](private val self: java.lang.Iterable[A]) extends AnyVal:
+  def ops: ItOps[A] = new ItOps[A](self)
+
+class ItOps[A](val self: java.lang.Iterable[A]) extends AnyVal:
+  def first: A = self.iterator().next()
+
 object Shapes:
+  def firstOf(l: java.util.ArrayList[String]): String =
+    val o = l.ops
+    o.first
+
   def hex(i: Int): String =
     @inline def padded(x: Int): String = Integer.toHexString(x)
     padded(i) + padded(i + 1)
@@ -38,3 +48,4 @@ object Shapes:
   println(Shapes.captured(new Array[Byte](3)))
   println(Shapes.ofDim(4))
   println(Shapes.init(Array("x", "y", "z")))
+  println(Shapes.firstOf(list))

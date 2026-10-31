@@ -91,7 +91,7 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     l.positioned(call);
     let call_span = if argss.first().is_some_and(|a| !a.is_empty()) { l.tpd.span(t) } else { span };
     let applied = !argss.is_empty();
-    if !applied && l.u.value_class(widened).is_some() {
+    if !applied && ev_def.is_none() && l.u.value_class(widened).is_some() {
         l.tpd.get_mut(t).span = span;
     }
     for args in argss.into_iter().rev() {
@@ -110,10 +110,13 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
                 l.positioned(block);
                 match applied {
                     true => l.tpd.tree(block).clone(),
-                    false => Tree::Typed { expr: block, tpt: inferred(l, tpe, span) },
+                    false => Tree::Typed { expr: block, tpt: cast_type(l, tpe, span) },
                 }
             }
-            None if tpe != l.tpd.tpe(t) => Tree::Typed { expr: call, tpt: inferred(l, tpe, span) },
+            None if tpe != l.tpd.tpe(t) => {
+                let tpt = if applied { inferred(l, tpe, span) } else { cast_type(l, tpe, span) };
+                Tree::Typed { expr: call, tpt }
+            }
             None => l.tpd.tree(call).clone(),
         };
         l.tpd.get_mut(t).span =
@@ -134,6 +137,14 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
 /// An inferred type tree of `tpe`.
 fn inferred(l: &mut Lower, tpe: tasty::TypeId, span: syntax::ast::Span) -> TNodeId {
     l.tpd.node(Tree::TypeTree { inferred: true }, span, Some(tpe), None)
+}
+
+/// An inferred type tree of `tpe` erased with value classes boxed, as dotty erases the cast of
+/// `ensureConforms`.
+fn cast_type(l: &mut Lower, tpe: tasty::TypeId, span: syntax::ast::Span) -> TNodeId {
+    let tpt = inferred(l, tpe, span);
+    l.boxed_ascriptions.insert(tpt);
+    tpt
 }
 
 /// Whether method `m` has an extension method (dotty's `isMethodWithExtension`).
