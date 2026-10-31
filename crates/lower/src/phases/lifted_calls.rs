@@ -9,6 +9,7 @@ use super::lifted::Method;
 use super::local_free::is_method;
 use super::walk::children;
 use crate::{Lower, Result, unsupported};
+use syntax::ast::Span;
 use tasty::{SymbolId, Type};
 use typer::tpd::{List, TNodeId, Tree};
 
@@ -30,7 +31,7 @@ pub fn calls(
             if let Some((i, reference, args)) = call_of(l, t, functions) {
                 let span = l.tpd.span(reference);
                 let captured: Vec<TNodeId> =
-                    functions[i].captured.iter().map(|&s| l.ident(s, span)).collect();
+                    functions[i].captured.iter().map(|&s| l.ident(s, Span::NONE)).collect();
                 let home = l.u.symbol(methods[i].sym).owner.unwrap_or(class);
                 let receiver = match functions[i].into {
                     Some(c) if around == Some(c) || c == class => l.this(c, span),

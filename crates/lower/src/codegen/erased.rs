@@ -101,7 +101,12 @@ impl Gen<'_, '_> {
         let mut args = Vec::new();
         if !statically && !is_java_static(self.l.u, m) {
             let owner = self.method_owner(m);
-            args.push(self.class_ref(owner));
+            let receiver = match self.l.u.full_name(owner).as_str() {
+                "scala.scalanative.runtime.RawPtr" => self.ty(Type::Ptr),
+                "scala.scalanative.runtime.RawSize" => self.ty(Type::Size),
+                _ => self.class_ref(owner),
+            };
+            args.push(receiver);
         }
         args.extend(self.param_types(m));
         let ret = if self.l.u.is_constructor(m) { self.ty(Type::Unit) } else { self.result_type(m) };

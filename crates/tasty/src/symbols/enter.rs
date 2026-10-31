@@ -105,6 +105,20 @@ impl Universe {
         first_string(ast, names, call)
     }
 
+    /// The classes of the annotations on `sym` in its TASTy, in order.
+    pub fn tasty_annotations(&mut self, sym: SymbolId) -> Vec<SymbolId> {
+        let Some((file, id)) = self.symbol(sym).tree else { return Vec::new() };
+        let (ast, _) = self.file(file);
+        let mods = match view(ast, id) {
+            View::DefDef { parts, .. } => parts.mods,
+            View::ValDef { mods, .. } | View::Param { mods, .. } | View::TypeDef { mods, .. } => mods,
+            _ => return Vec::new(),
+        };
+        let types: Vec<NodeId> = annotations(ast, mods).map(|(ty, _)| ty).collect();
+        let types: Vec<_> = types.into_iter().map(|ty| self.type_at(file, ty)).collect();
+        types.into_iter().filter_map(|t| self.class_symbol(t)).collect()
+    }
+
     /// The constructor call of the first annotation of the class with full name `full` on method
     /// or class `sym` in its TASTy.
     fn annotation_call(&mut self, sym: SymbolId, full: &str) -> Option<(FileId, NodeId)> {
