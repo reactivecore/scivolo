@@ -23,6 +23,12 @@ pub struct Dependencies {
     pub free: Vec<(SymbolId, Vec<SymbolId>)>,
     /// The innermost enclosing class each local class uses the values of (dotty's `logicOwner`).
     pub logic_owners: FxHashMap<SymbolId, SymbolId>,
+    /// The number of owners `CollectDependencies` found, before `computeFreeVars`.
+    pub traversed: usize,
+    /// The callers in the order found.
+    pub callers: Vec<SymbolId>,
+    /// The number of callers found up to the end of each local method's definition.
+    pub ends: FxHashMap<SymbolId, usize>,
 }
 
 impl Dependencies {
@@ -46,6 +52,7 @@ struct Collect<'a, 'l> {
     free: Vec<(SymbolId, Vec<SymbolId>)>,
     called: Vec<(SymbolId, Vec<SymbolId>)>,
     logic_owners: FxHashMap<SymbolId, SymbolId>,
+    ends: FxHashMap<SymbolId, usize>,
     changed: bool,
 }
 
@@ -82,8 +89,10 @@ pub fn dependencies(l: &mut Lower, root: TNodeId) -> Dependencies {
     let l: &Lower = l;
     let (free, called) = (Vec::new(), Vec::new());
     let logic_owners = FxHashMap::default();
-    let mut c = Collect { l, ctors, inits, created, free, called, logic_owners, changed: false };
+    let ends = FxHashMap::default();
+    let mut c = Collect { l, ctors, inits, created, free, called, logic_owners, ends, changed: false };
     c.visit(root, None);
+    let traversed = c.free.len();
     loop {
         c.changed = false;
         for i in 0..c.called.len() {
@@ -96,7 +105,9 @@ pub fn dependencies(l: &mut Lower, root: TNodeId) -> Dependencies {
             }
         }
         if !c.changed {
-            return Dependencies { free: c.free, logic_owners: c.logic_owners };
+            let callers = c.called.iter().map(|(c, _)| *c).collect();
+            let (free, logic_owners, ends) = (c.free, c.logic_owners, c.ends);
+            return Dependencies { free, logic_owners, traversed, callers, ends };
         }
     }
 }
@@ -132,6 +143,9 @@ impl Collect<'_, '_> {
                 let encl = sym.filter(|&s| is_method(l, Some(s)) || l.u.is_constructor(s)).or(encl);
                 for c in children(l.tpd, t) {
                     self.visit(c, encl);
+                }
+                if let Some(s) = sym.filter(|&s| is_method(l, Some(s))) {
+                    self.ends.insert(s, self.called.len());
                 }
                 return;
             }

@@ -27,7 +27,7 @@ pub struct Plan {
 }
 
 /// The plan for the closure of lambda `f` with parameters `params` and result `result`, its
-/// lifted name prefix `prefix`; the `$adapted` method's proxies to name last go to `deferred`.
+/// lifted name prefix `prefix`.
 pub fn plan(
     l: &mut Lower,
     class: SymbolId,
@@ -35,7 +35,6 @@ pub fn plan(
     prefix: &str,
     params: &[(SymbolId, TypeId)],
     result: TypeId,
-    deferred: &mut Vec<SymbolId>,
 ) -> Result<Plan> {
     let closure = f.closure.expect("a lambda's closure");
     let span = l.tpd.span(f.block);
@@ -80,7 +79,6 @@ pub fn plan(
         if let Some(owner) = l.u.symbol(f.sym).owner {
             l.lifted_from.insert(adapted.sym, owner);
         }
-        deferred.extend(adapted.proxies.iter().copied());
         adapted
     });
     Ok(Plan { interface: specialized_interface.or(erased_context), adapted })
