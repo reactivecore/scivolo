@@ -117,6 +117,27 @@ package java.lang {
     override def toString(): String = null
   }
 
+  final class StackTraceElement(declaringClass: String, methodName: String, fileName: String, lineNumber: Int)
+      extends java.io.Serializable {
+    def getClassName(): String = null
+    def getMethodName(): String = null
+    override def toString(): String = null
+  }
+
+  class Throwable(message: String, cause: Throwable) extends java.io.Serializable {
+    def this() = this(null, null)
+    def this(message: String) = this(message, null)
+    def this(cause: Throwable) = this(null, cause)
+    def getMessage(): String = null
+    def getCause(): Throwable = null
+    def initCause(cause: Throwable): Throwable = this
+    def fillInStackTrace(): Throwable = this
+    def getStackTrace(): Array[StackTraceElement] = null
+    def setStackTrace(stackTrace: Array[StackTraceElement]): Unit = ()
+    def printStackTrace(): Unit = ()
+    override def toString(): String = null
+  }
+
   class Thread(task: Runnable) extends Runnable {
     def this() = this(null)
     def run(): Unit = ()
