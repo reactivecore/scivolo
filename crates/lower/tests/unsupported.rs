@@ -9,11 +9,15 @@ use tasty::Universe;
 const CASES: &[(&str, &str)] = &[
     (
         "import scala.quoted.*\nobject Q { def f(x: Expr[Int])(using Quotes): Expr[Int] = '{ $x + 1 } }",
-        "quotes outside splices need PickleQuotes, #199",
+        "quotes outside the splices of inline methods",
     ),
     (
         "import scala.quoted.*\nobject Q { def f[T: Type](using Quotes): Type[List[T]] = Type.of[List[T]] }",
-        "quotes outside splices need PickleQuotes, #199",
+        "quotes outside the splices of inline methods",
+    ),
+    (
+        "object Q { def f(x: scala.quoted.Expr[Int]): Int = scala.quoted.runtime.Expr.splice(x) }",
+        "reference to scala.quoted.runtime.Expr outside a quote or splice",
     ),
     (
         "import scala.quoted.*\nobject Q { def f(x: Expr[Any])(using Quotes): Int = x match { case '{ $i: Int } => 1; case _ => 0 } }",

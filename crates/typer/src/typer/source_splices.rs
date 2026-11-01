@@ -6,12 +6,37 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName, Tree, flags as f};
-use tasty::Type;
+use tasty::{SymbolId, Type};
+
+const RUNTIME_EXPR: &str = "scala.quoted.runtime.Expr$";
+
+/// The refusal of a source reference to a member of `scala.quoted.runtime.Expr`.
+pub const STAGING_REFERENCE: &str = "reference to scala.quoted.runtime.Expr outside a quote or splice";
+
+const MALFORMED_MACRO: &str = "Malformed macro.
+
+Expected the splice ${...} to be at the top of the RHS:
+  inline def foo(inline x: X, ..., y: Y): Int = ${ impl('x, ... 'y) }
+
+ * The contents of the splice must call a static method
+ * All arguments must be quoted
+            ";
+
+const CONTEXT_FUNCTION_MACRO: &str =
+    "Macros using a return type of the form `foo(): X ?=> Y` are not yet supported.
+
+Place the implicit as an argument (`foo()(using X): Y`) to overcome this limitation.
+";
 
 impl Typer<'_> {
     /// `${ expr }`: at level 0 a top-level splice of an inline method, which becomes a macro.
     pub fn typed_splice(&mut self, id: NodeId, expr: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        let inline = self.enclosing_inline(ctx.owner);
+        if ctx.staging < 0 || ctx.staging == 0 && inline.is_none() {
+            return self.unsupported(id, "Splice");
+        }
         if let Tree::Quote { body } = *self.ast.tree(expr)
             && !self.ast.is_type(body)
         {
@@ -19,11 +44,9 @@ impl Typer<'_> {
             self.warning_at(self.ast.span(id), msg);
             return self.typed(body, pt, ctx);
         }
-        if ctx.staging < 0 {
-            return self.unsupported(id, "Splice");
-        }
-        if ctx.staging == 0 {
-            let Some(meth) = self.enclosing_inline(ctx.owner) else { return self.unsupported(id, "Splice") };
+        if ctx.staging == 0
+            && let Some(meth) = inline
+        {
             let flags = self.syms.flags[&meth];
             self.syms.set_flags(self.u, meth, flags.or(f::MACRO));
         }
@@ -67,6 +90,43 @@ impl Typer<'_> {
         self.tpd.get_mut(applied).span = span;
         if let &[quotes] = self.tpd.items(quotes) {
             self.tpd.get_mut(quotes).span = Span::synthetic(span.start(), span.start());
+        }
+    }
+
+    /// Whether `sym` is a member of object `scala.quoted.runtime.Expr`.
+    pub fn is_staging_method(&self, sym: SymbolId) -> bool {
+        self.u.symbol(sym).owner.is_some_and(|o| self.u.full_name(o) == RUNTIME_EXPR)
+    }
+
+    /// Reports macro `def`'s body `rhs` unless it is a splice (dotty's `checkInlineMethod`).
+    pub fn check_macro_body(&mut self, def: NodeId, rhs: TNodeId) {
+        let mut t = rhs;
+        loop {
+            match *self.tpd.tree(t) {
+                T::Typed { expr, .. } => t = expr,
+                T::Block { stats, expr } => match (self.tpd.items(stats), self.tpd.tree(expr)) {
+                    (&[], _) => t = expr,
+                    (&[stat], T::Literal { value: Constant::Unit }) => t = stat,
+                    (&[_], T::Closure { .. }) => {
+                        let tpe = self.tpd.tpe(t);
+                        if self.is_context_function_type(tpe) {
+                            self.error_at(self.tpd.span(t), CONTEXT_FUNCTION_MACRO);
+                            return;
+                        }
+                        break;
+                    }
+                    _ => break,
+                },
+                _ => break,
+            }
+        }
+        let splice = self.tpd.meth_part(t);
+        if !self
+            .tpd
+            .sym(splice)
+            .is_some_and(|s| self.is_staging_method(s) && self.u.symbol(s).name == "splice")
+        {
+            self.error_at(self.ast.span(def), MALFORMED_MACRO);
         }
     }
 

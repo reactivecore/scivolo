@@ -1,4 +1,4 @@
-//! Refuses the quotes outside the splices of inline methods, which only PickleQuotes compiles.
+//! Refuses the quotes outside the splices of inline methods.
 
 use super::walk::children;
 use crate::symbols::has;
@@ -21,7 +21,7 @@ pub fn refuse(l: &Lower, root: TNodeId) -> Result<()> {
             Tree::Ident { .. } | Tree::Select { .. }
                 if sym.is_some_and(|s| QUOTED.contains(&l.u.full_name(s).as_str())) =>
             {
-                return unsupported(l.tpd.span(t), "quotes outside splices need PickleQuotes, #199");
+                return unsupported(l.tpd.span(t), "quotes outside the splices of inline methods");
             }
             _ => todo.extend(children(l.tpd, t)),
         }

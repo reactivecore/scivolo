@@ -120,6 +120,9 @@ impl Typer<'_> {
             if self.u.annotations(sym).iter().any(|&c| self.u.full_name(c) == "scala.annotation.tailrec") {
                 return self.unsupported(id, "tailrec inline method");
             }
+            if let Some(r) = rhs.filter(|_| flags.has(tasty::tags::MACRO)) {
+                self.check_macro_body(id, r);
+            }
             if !flags.has(tasty::tags::TRANSPARENT) {
                 rhs = rhs.map(|r| self.inline_body(r, tpt));
             }
