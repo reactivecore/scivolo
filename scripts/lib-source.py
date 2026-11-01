@@ -12,11 +12,12 @@ tmp/srclib/LIBRARY/LIBRARY.jar is the published jar with our NIR in place of its
 tests/aot/LIBRARY, its `//> using dep` lines blanked, is built against it and its output compared
 with its `.check`.
 
-Writes under tmp/srclib/LIBRARY: results.tsv (file, ok|refused|timeout, reason, NIR files
+Writes under tmp/srclib/LIBRARY: results.tsv (file, ok|refused|timeout|crashed, reason, NIR files
 written), cmp.tsv (oracle, NIR file, same|var-order|differ|missing, differing lines, 1 if var
 slots were aligned), diffs/ORACLE/, test.out, and prints the summary lines.
 """
 import collections
+import importlib
 import os
 import shutil
 import subprocess
@@ -24,9 +25,9 @@ import sys
 import zipfile
 from pathlib import Path
 
-from nir_compare import compare
+lib = importlib.import_module("lib-compile")
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = lib.ROOT
 AOT = ROOT / "target/release/scivolo-aot"
 LIBRARIES = {"sourcecode": "com.lihaoyi:sourcecode_native0.5_3:0.4.4"}
 SCALA, NATIVE = "3.9.0", "0.5.12"
@@ -45,23 +46,13 @@ def fetch(coordinate):
 def scala_cli(src, work):
     """The NIR directory of `src` compiled by scala-cli, or None with its error printed."""
     out = work / "scala-cli"
-    r = subprocess.run(["scala-cli", "--power", "compile", "--quiet", "--native", "--native-version", NATIVE,
-                        "--scala", SCALA, "--workspace", str(work / "scala-cli-work"), "-d", str(out), str(src)],
+    r = subprocess.run(["scala-cli", "--power", "compile", "--quiet", "--server=false", "--native", "--native-version",
+                        NATIVE, "--scala", SCALA, "--workspace", str(work / "scala-cli-work"), "-d", str(out), str(src)],
                        capture_output=True, text=True, errors="replace")
     if r.returncode != 0:
         print(f"  scala-cli failed: {r.stderr.strip()[-300:]}")
         return None
     return out
-
-
-def aot(args, env=None):
-    """`scivolo-aot args`: None if it succeeded, else the first line of its error."""
-    try:
-        r = subprocess.run([str(AOT), *args], capture_output=True, text=True, errors="replace", timeout=TIMEOUT,
-                           env=env)
-    except subprocess.TimeoutExpired:
-        return "timeout"
-    return None if r.returncode == 0 else next((l for l in r.stderr.splitlines() if l.strip()), "failed")[:300]
 
 
 def compile_files(work, jar, src):
@@ -70,11 +61,10 @@ def compile_files(work, jar, src):
     for f in sorted(src.rglob("*.scala")):
         rel = str(f.relative_to(src))
         out = work / "out" / rel.removesuffix(".scala")
-        if error := aot(["--cp", str(jar), "-d", str(out), str(f)]):
-            results.append([rel, "timeout" if error == "timeout" else "refused", error.replace("\t", " "), 0])
-            continue
-        results.append([rel, "ok", "", sum(1 for _ in out.rglob("*.nir"))])
-        outs.append(out)
+        state, reason, _ = lib.run([str(AOT), "--cp", str(jar), "-d", str(out), str(f)], TIMEOUT)
+        results.append([rel, state, reason, sum(1 for _ in out.rglob("*.nir")) if state == "ok" else 0])
+        if state == "ok":
+            outs.append(out)
     return results, outs
 
 
@@ -84,7 +74,7 @@ def compare_with(name, oracle, outs, work):
     for out in outs:
         for p in sorted(out.rglob("*.nir")):
             path = str(p.relative_to(out))
-            state, lines, reordered = compare(p, oracle / path, work / "diffs" / name / f"{path}.diff")
+            state, lines, reordered = lib.compare(p, oracle / path, work / "diffs" / name / f"{path}.diff")
             counts[state] += 1
             rows.append([name, path, state, lines, int(reordered)])
     return rows, (f"  vs {name}: nir {counts['same']} same, {counts['differ']} differ, "
@@ -109,15 +99,17 @@ def run_test(name, work, jar):
         lines = f.read_text().splitlines(keepends=True)
         (copy / f.name).write_text("".join("\n" if l.startswith("//> using dep") else l for l in lines))
     exe, env = work / name, os.environ | {"SCIVOLO_CACHE": str(work / "cache")}
-    if error := aot(["--cp", str(jar), "-o", str(exe), str(copy)], env=env):
-        return f"compile: {error}"
-    out = subprocess.run([str(exe)], capture_output=True, text=True, errors="replace", timeout=TIMEOUT).stdout
-    (work / "test.out").write_text(out)
-    return "passed" if out == (test / f"{name}.check").read_text() else "output differs (test.out)"
-
-
-def write_tsv(path, rows):
-    path.write_text("".join("\t".join(map(str, r)) + "\n" for r in rows))
+    state, reason, _ = lib.run([str(AOT), "--cp", str(jar), "-o", str(exe), str(copy)], TIMEOUT, env)
+    if state != "ok":
+        return f"compile {state}: {reason}"
+    try:
+        r = subprocess.run([str(exe)], capture_output=True, text=True, errors="replace", timeout=TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    (work / "test.out").write_text(r.stdout + r.stderr)
+    if r.returncode != 0:
+        return f"exit code {r.returncode} (test.out)"
+    return "passed" if r.stdout == (test / f"{name}.check").read_text() else "output differs (test.out)"
 
 
 def main(name):
@@ -129,9 +121,10 @@ def main(name):
         with zipfile.ZipFile(jar) as z:
             z.extractall(into)
     results, outs = compile_files(work, published, src)
-    write_tsv(work / "results.tsv", results)
+    lib.write_tsv(work / "results.tsv", results)
     states = collections.Counter(r[1] for r in results)
-    print(f"{name}: {states['ok']} ok, {states['refused']} refused, {states['timeout']} timeout; "
+    print(f"{name}: {states['ok']} ok, {states['refused']} refused, {states['timeout']} timeout, "
+          f"{states['crashed']} crashed; "
           f"{sum(r[3] for r in results)} NIR files")
     for r in results:
         if r[1] != "ok":
@@ -143,7 +136,7 @@ def main(name):
             rows, line = compare_with(oracle, nir, outs, work)
             cmp += rows
             print(f"{line} (of {sum(1 for _ in nir.rglob('*.nir'))} in {nir.relative_to(ROOT)})")
-    write_tsv(work / "cmp.tsv", cmp)
+    lib.write_tsv(work / "cmp.tsv", cmp)
     jar = work / f"{name}.jar"
     write_jar(jar, published, outs)
     print(f"  tests/aot/{name} on {jar.relative_to(ROOT)}: {run_test(name, work, jar)}")
