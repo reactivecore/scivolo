@@ -53,7 +53,7 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(expr);
         let tpe = if self.is_stable_type(tpe) { tpe } else { self.u.widen(tpe) };
         let sym = self.syms.define(self.u, &text, Kind::Val, ctx.owner, f::SYNTHETIC);
-        self.defined_unique(name, sym);
+        self.defined_unique(name, sym, self.tpd.span(expr));
         self.u.set_info(sym, tpe);
         self.syms.closure_syms.push(sym);
         self.change_owners(expr, ctx.owner, sym);

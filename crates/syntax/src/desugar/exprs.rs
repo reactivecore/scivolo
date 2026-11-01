@@ -15,6 +15,7 @@ impl Desugar<'_> {
     /// The desugared form of a `for`, interpolated string, symbol literal or unary operation
     /// (dotty's `desugar(tree)`), at the span of `id`.
     pub fn desugar_expr(&mut self, id: NodeId) -> NodeId {
+        let from = self.fresh.uniques.made();
         let t = match self.ast.tree(id).clone() {
             Tree::SymbolLit { value } => {
                 let symbol = self.sym_ref("scala.Symbol", false);
@@ -34,22 +35,19 @@ impl Desugar<'_> {
             Tree::ForDo { enums, body } => {
                 let foreach = self.term("foreach");
                 let enums = self.ast.items(enums).to_vec();
-                let from = self.fresh.uniques_made();
                 let t = self.make_for(foreach, foreach, &enums, body);
-                self.fresh.group_since(from);
                 if matches!(self.ast.tree(t), Tree::Empty) { id } else { t }
             }
             Tree::ForYield { enums, expr } => {
                 let (map, flat_map) = (self.term("map"), self.term("flatMap"));
                 let enums = self.ast.items(enums).to_vec();
-                let from = self.fresh.uniques_made();
                 let t = self.make_for(map, flat_map, &enums, expr);
-                self.fresh.group_since(from);
                 if matches!(self.ast.tree(t), Tree::Empty) { id } else { t }
             }
             _ => unreachable!("a tree desugar(tree) expands"),
         };
         let span = self.ast.span(id);
+        self.fresh.uniques.group_on_typing(from, span);
         self.ast.respan(t, span)
     }
 

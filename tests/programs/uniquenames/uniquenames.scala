@@ -26,6 +26,12 @@ class Digits(n: Int) {
       (l, x) = pair(t)
     } yield (l, x, false)
   }
+
+  def lifted(s: String): Option[(Int, Int)] =
+    for {
+      t <- { digits(0) += 1; Option(s) }
+      (l, x) = pair(t)
+    } yield (l, x)
 }
 
 object uniquenames {
@@ -35,6 +41,7 @@ object uniquenames {
     println(d.parts("axbx"))
     println(d.mixed("ab"))
     println(d.aliased("xyx"))
+    println(d.lifted("y"))
     println(d.digits.toList)
   }
 }

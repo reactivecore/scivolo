@@ -445,6 +445,7 @@ impl<'a> Typer<'a> {
             return self.unsupported(id, "nesting too deep");
         }
         self.depth += 1;
+        self.type_uniques(id);
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
         let vars = self.constraint.count();
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER.with(crate::ctx::Mode::ASSIGNMENT_LHS);

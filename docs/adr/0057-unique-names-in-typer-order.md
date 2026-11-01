@@ -12,17 +12,19 @@ before every lift of the file: BigInteger, regex.Parser and others named them ou
 dotty's order.
 
 ## Decision
-- The desugaring keeps numbering `$N$` names as it goes; `FreshNames` records which names
-  `unique` made and groups the names of one pattern definition, and those of one `for`.
-- The typer records each symbol defined with such a name: entered by the namer, bound by a
-  pattern, lifted. Defining one counts its group as met, in the group's order.
+- The desugaring keeps numbering `$N$` names as it goes. `FreshNames` records the names of
+  each pattern definition under the start offsets of the definitions it becomes, and those of
+  each `for` under the start of the `for`.
+- The typer meets a pattern definition's names when the namer enters a statement starting
+  there, a `for`'s when it types a tree starting there, and a lifted or otherwise defined
+  `$N$` name when it defines its symbol. It records each symbol defined with such a name.
 - Once the units are typed, before inlining, the recorded symbols and the trees that define
-  or refer to them are renamed `$1$`, `$2$`, … in the order their names were met.
+  or refer to them are renamed `$1$`, `$2$`, … per source file, in the order their names
+  were met.
 
 ## Consequences
-- A pattern definition counts as met when the namer enters its first definition: at its
-  block's or template's entry, as in dotty. One without a `val $N$` of its own (one variable
-  or none) and a `for` count when the typer types their first binder, after the scrutinee
-  or the first generator: a lift there takes the lower number, dotty's the higher.
+- The source files of one unit each number from `$1$`, as dotty's compilation units do.
 - Inlined copies of a script's inline definitions take the renamed names; the counter goes
   on from the desugaring's count, so later `$N$` names do not clash with renamed ones.
+- Macros see the desugaring's numbers while they expand; `$N$` names a macro makes are not
+  renamed.

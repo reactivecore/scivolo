@@ -121,14 +121,12 @@ impl Names {
     }
 }
 
-/// The counters of a compilation unit's fresh names, one per prefix (dotty's `FreshNameCreator`);
-/// the `$N$` names made, each with the names made with it by one desugaring.
+/// The counters of a compilation unit's fresh names, one per prefix (dotty's `FreshNameCreator`),
+/// and the `$N$` names made.
 #[derive(Default)]
 pub struct FreshNames {
     counts: rustc_hash::FxHashMap<String, u32>,
-    uniques: Vec<Name>,
-    unique_set: rustc_hash::FxHashSet<Name>,
-    groups: rustc_hash::FxHashMap<Name, Vec<Name>>,
+    pub uniques: crate::desugar::uniques::Uniques,
 }
 
 impl FreshNames {
@@ -143,45 +141,16 @@ impl FreshNames {
         let n = self.count("$");
         let name = names.intern(&format!("${n}$"));
         self.uniques.push(name);
-        self.unique_set.insert(name);
         name
     }
 
-    /// How many `$N$` names were made.
-    pub fn uniques_made(&self) -> usize {
-        self.uniques.len()
-    }
-
-    /// Makes the `$N$` names made since `uniques_made` was `from` one group.
-    pub fn group_since(&mut self, from: usize) {
-        let group = self.uniques[from..].to_vec();
-        if group.len() > 1 {
-            self.groups.extend(group.iter().map(|&n| (n, group.clone())));
-        }
-    }
-
-    /// Whether `name` was made by `unique`.
-    pub fn is_unique(&self, name: Name) -> bool {
-        self.unique_set.contains(&name)
-    }
-
-    /// The `$N$` names made with `name`, in order: `name` alone unless grouped.
-    pub fn group(&self, name: Name) -> Vec<Name> {
-        self.groups.get(&name).cloned().unwrap_or_else(|| vec![name])
-    }
-
-    /// Raises each counter to at least that of `other`; takes its `$N$` names and groups.
+    /// Raises each counter to at least that of `other`; takes its `$N$` names.
     pub fn include(&mut self, other: &FreshNames) {
         for (prefix, &n) in &other.counts {
             let mine = self.counts.entry(prefix.clone()).or_insert(0);
             *mine = (*mine).max(n);
         }
-        for &n in &other.uniques {
-            if self.unique_set.insert(n) {
-                self.uniques.push(n);
-            }
-        }
-        self.groups.extend(other.groups.iter().map(|(&n, g)| (n, g.clone())));
+        self.uniques.include(&other.uniques);
     }
 
     fn count(&mut self, prefix: &str) -> u32 {

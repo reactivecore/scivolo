@@ -102,7 +102,7 @@ impl Typer<'_> {
         let flags = if implicit || given { CASE.or(GIVEN) } else { CASE };
         let flags = flags.to_term_flags();
         let sym = self.syms.define(self.u, &text, Kind::Val, ctx.owner, flags);
-        self.defined_unique(name.name, sym);
+        self.defined_unique(name.name, sym, self.ast.span(id));
         self.u.set_info(sym, info);
         self.levels.enter(ctx.level, &text, sym);
         let tpe = self.u.intern_type(Type::Sym(None, sym));
