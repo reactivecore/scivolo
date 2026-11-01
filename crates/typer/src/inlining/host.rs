@@ -1,6 +1,7 @@
 //! What an expansion asks of the typer it runs in: the context of a call, implicit arguments,
 //! errors (dotty's `Inliner` working in the context of the call).
 
+use super::local_implicits::Scope;
 use super::{AnnotationCall, Expanded, Inlining, MacroCall, MacroError, Reports, Unsupported};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
@@ -19,11 +20,23 @@ pub type Lent<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names, &'l mut Fresh
 /// reported; `None` if the parser or the typer reported one.
 pub type CheckedErrors = Option<Vec<(Span, String)>>;
 
+/// An import selector: the name it imports (empty for `given`), the name it is visible as (`_`
+/// for none), and the bound of a `given T`.
+pub type ImportSelector = (String, String, Option<TNodeId>);
+
 pub trait Host {
     /// The context of inline call `call`, outside an inline method, as the typer recorded it.
     fn call_ctx(&self, call: TNodeId) -> Option<Ctx>;
     /// `ctx` inside a scope of `locals` by name.
     fn within(&mut self, ctx: Ctx, locals: Vec<(String, SymbolId)>) -> Ctx;
+    /// `ctx` inside an import of typed path `expr` of type `qual`, of selectors `(name, rename,
+    /// bound)`.
+    fn within_import(
+        &mut self,
+        ctx: Ctx,
+        qual_expr: (TypeId, TNodeId),
+        selectors: Vec<ImportSelector>,
+    ) -> Ctx;
     /// Gives `copy` the context of call `original`, if it has one.
     fn copied_call(&mut self, original: TNodeId, copy: TNodeId);
     /// For `search` `(pt, ignored)`, an implicit argument of type `pt` at `at` in `ctx`, its type
@@ -92,7 +105,7 @@ impl Inlining<'_> {
                 self.u.is_subtype(info, pt)
             })
             .collect();
-        let mut blocks = self.block_implicits.concat();
+        let mut blocks = self.block_defs();
         blocks.retain(|b| !self.case_givens.contains(b));
         match fitting[..] {
             [] => {}
@@ -112,10 +125,9 @@ impl Inlining<'_> {
         if let Some(owner) = defined.first().and_then(|&d| self.u.symbol(d).owner) {
             ctx = ctx.with_owner(owner);
         }
-        let defined = (!defined.is_empty()).then(|| defined.to_vec());
-        for scope in self.block_implicits.clone().into_iter().chain(defined) {
-            let locals = scope.into_iter().map(|s| (self.u.symbol(s).name.clone(), s)).collect();
-            ctx = self.host.within(ctx, locals);
+        let defined = (!defined.is_empty()).then(|| Scope::Implicits(defined.to_vec()));
+        for scope in self.scopes.clone().into_iter().chain(defined) {
+            ctx = self.within_scope(ctx, scope);
         }
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
         let found = self.host.summon(lent, (pt, ignored), at, ctx).map_err(|what| (at, what))?;

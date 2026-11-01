@@ -103,6 +103,9 @@ ops! {
     "isWhileTyping" => is_while_typing() -> bool;
     "macroSettings" => macro_settings() -> String;
     "search" => search(pt: Ty, owner: Num, rest: Rest<Num>) -> Fallible<Vec<i32>>;
+    // imports
+    "importSelector" => import_selector(bound: OptTree, names: Name) -> TNodeId;
+    "import" => import(expr: Tree, selectors: Rest<Tree>) -> TNodeId;
     // type patterns
     "matchType" => match_type(scrutinee: Ty, pattern: Num) -> Fallible<i32>;
     // type reprs

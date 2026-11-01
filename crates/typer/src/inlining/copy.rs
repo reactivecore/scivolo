@@ -97,12 +97,11 @@ impl<'a> Inlining<'a> {
                     self.fresh_symbol(m, s);
                 }
             }
-            T::Import { export: false, .. } => return Err((span, "inline body with an import")),
             _ => {}
         }
         let tpe = tpe.map(|t| self.map_type(m, t));
         let sym = sym.map(|s| m.syms.get(&s).copied().unwrap_or(s));
-        let (tree, call) = match self.without_imports(tree) {
+        let (tree, call) = match tree {
             T::Inlined { call, bindings, expansion } => {
                 (T::Inlined { call: None, bindings, expansion }, call)
             }

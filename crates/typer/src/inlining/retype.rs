@@ -32,6 +32,9 @@ impl Inlining<'_> {
         owner: SymbolId,
         adapt: bool,
     ) -> Result<TNodeId, Unsupported> {
+        if matches!(self.tpd.tree(t), T::Import { export: false, .. }) {
+            return self.enter_import(t, args, owner);
+        }
         let t = self.retype_node(t, args, owner)?;
         if let Some(expanded) = self.expand_splice(t, owner)? {
             return Ok(expanded);
@@ -152,7 +155,7 @@ impl Inlining<'_> {
                         c
                     }),
                 });
-                self.block_implicits.truncate(mark);
+                self.scopes.truncate(mark);
                 self.enclosing_class = outer_class;
                 failed.map_or(Ok(()), Err)?;
                 if let Some(before) = selected {

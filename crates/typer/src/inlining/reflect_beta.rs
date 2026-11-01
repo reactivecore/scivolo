@@ -2,7 +2,10 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! `Term.betaReduce` of `quotes.reflect`: the inlining's beta reduction, run without a typer.
 
-use super::{AnnotationCall, CheckedErrors, Expanded, Host, Inlining, Lent, MacroCall, MacroError, Reflect};
+use super::{
+    AnnotationCall, CheckedErrors, Expanded, Host, ImportSelector, Inlining, Lent, MacroCall, MacroError,
+    Reflect,
+};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -18,6 +21,10 @@ impl Host for NoHost {
     }
 
     fn within(&mut self, ctx: Ctx, _: Vec<(String, SymbolId)>) -> Ctx {
+        ctx
+    }
+
+    fn within_import(&mut self, ctx: Ctx, _: (TypeId, TNodeId), _: Vec<ImportSelector>) -> Ctx {
         ctx
     }
 

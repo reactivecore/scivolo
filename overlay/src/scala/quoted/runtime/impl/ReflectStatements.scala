@@ -28,9 +28,72 @@ trait ReflectStatements extends reflectModule { self: reflect.type =>
   }
 
   object Import extends ImportModule {
-    def apply(expr: Term, selectors: List[Selector]): Import = refused("Import.apply")
+    def apply(expr: Term, selectors: List[Selector]): Import = {
+      if (selectors.isEmpty) throw new IllegalArgumentException("Empty selectors")
+      ReflectOps.term(ReflectOps.one("import", (expr :: selectors).map(ReflectOps.id)*)).asInstanceOf[Import]
+    }
     def copy(original: Tree)(expr: Term, selectors: List[Selector]): Import = refused("Import.copy")
     def unapply(tree: Import): (Term, List[Selector]) = (tree.expr, tree.selectors)
+  }
+
+  given SimpleSelectorTypeTest: TypeTest[Selector, SimpleSelector] = selectorTest(s => s.renamed == null && !s.isGiven)
+  given RenameSelectorTypeTest: TypeTest[Selector, RenameSelector] = selectorTest(_.renamed != null)
+  given OmitSelectorTypeTest: TypeTest[Selector, OmitSelector] = selectorTest(_.renamed == "_")
+  given GivenSelectorTypeTest: TypeTest[Selector, GivenSelector] = selectorTest(_.isGiven)
+
+  given SimpleSelectorMethods: SimpleSelectorMethods = methods("SimpleSelectorMethodsImpl")
+  given RenameSelectorMethods: RenameSelectorMethods = methods("RenameSelectorMethodsImpl")
+  given OmitSelectorMethods: OmitSelectorMethods = methods("OmitSelectorMethodsImpl")
+  given GivenSelectorMethods: GivenSelectorMethods = methods("GivenSelectorMethodsImpl")
+
+  object Selector extends SelectorModule
+
+  object SimpleSelector extends SimpleSelectorModule {
+    def apply(name: String): SimpleSelector = selector(None, name).asInstanceOf[SimpleSelector]
+    def unapply(x: SimpleSelector): Some[String] = Some(x.name)
+  }
+
+  object RenameSelector extends RenameSelectorModule {
+    def apply(fromName: String, toName: String): RenameSelector =
+      selector(None, fromName + "\n" + toName).asInstanceOf[RenameSelector]
+    def unapply(x: RenameSelector): (String, String) = (x.fromName, x.toName)
+  }
+
+  object OmitSelector extends OmitSelectorModule {
+    def apply(name: String): OmitSelector = selector(None, name + "\n_").asInstanceOf[OmitSelector]
+    def unapply(x: OmitSelector): Some[String] = Some(SelectorParts(x).imported)
+  }
+
+  object GivenSelector extends GivenSelectorModule {
+    def apply(bound: Option[TypeTree]): GivenSelector = selector(bound, "").asInstanceOf[GivenSelector]
+    def unapply(x: GivenSelector): Some[Option[TypeTree]] = Some(x.bound)
+  }
+
+  abstract class SimpleSelectorMethodsImpl extends SimpleSelectorMethods {
+    extension (self: SimpleSelector) {
+      def name: String = SelectorParts(self).imported
+      def namePos: Position = SelectorParts(self).importedPos.asInstanceOf[Position]
+    }
+  }
+
+  abstract class RenameSelectorMethodsImpl extends RenameSelectorMethods {
+    extension (self: RenameSelector) {
+      def fromName: String = SelectorParts(self).imported
+      def fromPos: Position = SelectorParts(self).importedPos.asInstanceOf[Position]
+      def toName: String = SelectorParts(self).renamed
+      def toPos: Position = SelectorParts(self).renamedPos.asInstanceOf[Position]
+    }
+  }
+
+  abstract class OmitSelectorMethodsImpl extends OmitSelectorMethods {
+    extension (self: OmitSelector) {
+      def name: String = "Ident(" + SelectorParts(self).imported + ")"
+      def namePos: Position = SelectorParts(self).importedPos.asInstanceOf[Position]
+    }
+  }
+
+  abstract class GivenSelectorMethodsImpl extends GivenSelectorMethods {
+    extension (self: GivenSelector) def bound: Option[TypeTree] = SelectorParts(self).bound.asInstanceOf[Option[TypeTree]]
   }
 
   object Export extends ExportModule {
@@ -78,9 +141,40 @@ trait ReflectStatements extends reflectModule { self: reflect.type =>
 
   private def test[T](kinds: Int*): T = new KindTest(kinds*).asInstanceOf[T]
 
+  private def selectorTest[T](fits: SelectorParts => Boolean): T = new SelectorTest(fits).asInstanceOf[T]
+
+  /** The selector of `imported` (empty for `given`), renamed to what follows a newline. */
+  private def selector(bound: Option[TypeTree], names: String): Any = {
+    ReflectOps.run("importSelector", Array(bound.fold(-1)(ReflectOps.id)), names)
+    ReflectOps.term(QuoteHost.result(0))
+  }
+
   private def refused(what: String): Nothing = throw new Unsupported(what)
 
   private def methods[T](name: String): T =
     QuoteHost.allocate("scala.quoted.runtime.impl.ReflectStatementSupport$ReflectStatements$" + name).asInstanceOf[T]
 }
+}
+
+/** Import selector `x`: the name it imports, the name it renames that to (`null` for none), and
+ *  their positions.
+ */
+final class SelectorParts(x: Any) {
+  private val ids = ReflectOps.shape(x).children
+
+  val imported: String = ReflectOps.shape(ReflectOps.term(ids(0))).name
+  val renamed: String = if (ids(1) < 0) null else ReflectOps.shape(ReflectOps.term(ids(1))).name
+
+  def isGiven: Boolean = imported.isEmpty
+
+  def bound: Option[Any] = ReflectOps.opt(ids(2))
+
+  def importedPos: PositionImpl = ReflectOps.position("pos", ids(0))
+
+  def renamedPos: PositionImpl = ReflectOps.position("pos", ids(1))
+}
+
+/** The type test of import selectors whose parts `fits` accepts. */
+final class SelectorTest(fits: SelectorParts => Boolean) extends TypeTest[Any, Any] {
+  def unapply(x: Any): Option[x.type & Any] = if (fits(new SelectorParts(x))) Some(x) else None
 }

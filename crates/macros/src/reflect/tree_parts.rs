@@ -72,6 +72,9 @@ impl Host {
             (_, T::TypeBoundsTree { lo, hi, .. }) => (vec![Some(lo), Some(hi)], None),
             (_, T::Import { expr, selectors, .. }) => (with(vec![Some(expr)], selectors), None),
             (_, T::PackageDef { pid, stats }) => (with(vec![Some(pid)], stats), None),
+            (_, T::ImportSelector { imported, renamed, bound }) => {
+                (vec![Some(imported), renamed, bound], None)
+            }
             _ => (Vec::new(), None),
         })
     }

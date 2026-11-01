@@ -5,7 +5,8 @@ use super::Typer;
 use super::implicits::is_misfit;
 use crate::ctx::{Ctx, Level, Mode};
 use crate::inlining::{
-    AnnotationCall, Annotations, CheckedErrors, Expanded, Host, Inlining, Lent, MacroCall, MacroError, Macros,
+    AnnotationCall, Annotations, CheckedErrors, Expanded, Host, ImportSelector, Inlining, Lent, MacroCall,
+    MacroError, Macros,
 };
 use crate::tpd::{TNodeId, Tree as T};
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
@@ -76,6 +77,10 @@ impl Host for Typer<'_> {
 
     fn within(&mut self, ctx: Ctx, locals: Vec<(String, SymbolId)>) -> Ctx {
         Ctx { level: self.levels.push(Some(ctx.level), Level::Scope(locals)), ..ctx }
+    }
+
+    fn within_import(&mut self, ctx: Ctx, path: (TypeId, TNodeId), selectors: Vec<ImportSelector>) -> Ctx {
+        self.typed_import_ctx(ctx, path, selectors)
     }
 
     fn copied_call(&mut self, original: TNodeId, copy: TNodeId) {

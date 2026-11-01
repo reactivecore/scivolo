@@ -2,14 +2,15 @@
 //   compiler/src/dotty/tools/dotc/typer/ImportInfo.scala
 //   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! An import's selectors and what its `given` selectors import (dotty's `ImportInfo.givenBound`,
-//! `importBound`).
+//! `importBound`); the imports of inline expansions.
 
 use super::Typer;
-use super::imports::{ImportEntry, Selector};
-use crate::ctx::Ctx;
+use super::imports::{ImportEntry, ImportInfo, Selector};
+use crate::ctx::{Ctx, Level};
+use crate::inlining::ImportSelector;
 use crate::tpd::TNodeId;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::SymbolId;
+use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
     /// The selectors `selectors`, their bounds typed in `ctx`.
@@ -23,6 +24,20 @@ impl Typer<'_> {
             out.push(Selector { name, rename, bound });
         }
         out
+    }
+
+    /// `ctx` inside an import of typed path `expr` of type `qual` and of `selectors`.
+    pub fn typed_import_ctx(
+        &mut self,
+        ctx: Ctx,
+        (qual, expr): (TypeId, TNodeId),
+        selectors: Vec<ImportSelector>,
+    ) -> Ctx {
+        let selectors = selectors.into_iter().map(|(name, rename, bound)| Selector { name, rename, bound });
+        let info =
+            ImportInfo { qual, selectors: selectors.collect(), expr: Some(expr), owner: Some(ctx.owner) };
+        self.imports.push(ImportEntry::Done(info));
+        Ctx { level: self.levels.push(Some(ctx.level), Level::Import(self.imports.len() - 1)), ..ctx }
     }
 
     /// The imported name and the name it is visible as of selector `s`.
