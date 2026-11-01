@@ -73,12 +73,16 @@ impl Gen<'_, '_> {
                     tasty::Type::Sym(Some(p), _) | tasty::Type::TermRef(p, _) => p,
                     _ => return unsupported(span, "a call of a local method"),
                 };
-                let own_this = match *self.l.u.types().get(prefix) {
-                    tasty::Type::This(c) => self.l.u.class_symbol(c) == self.class,
+                let module_this = match *self.l.u.types().get(prefix) {
+                    tasty::Type::This(c) => {
+                        self.l.u.class_symbol(c).is_some_and(|c| self.l.u.is_module_class(c))
+                    }
                     _ => false,
                 };
                 let at = match args.first() {
-                    Some(&first) if own_this && self.m.this.is_none() => from_start(self.l.tpd.span(first)),
+                    Some(&first) if module_this && self.m.this.is_none() => {
+                        from_start(self.l.tpd.span(first))
+                    }
                     _ => self.l.tpd.span(fun),
                 };
                 self.gen_apply_method(sym, false, Receiver::Prefix(prefix, at), &args, span)?
