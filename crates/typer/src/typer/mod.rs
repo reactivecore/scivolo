@@ -163,6 +163,9 @@ mod purity;
 mod qual_skolems;
 mod qualifier_views;
 mod qualifies;
+mod quote_pattern_checks;
+mod quote_patterns;
+mod quote_type_bindings;
 mod refined_types;
 mod refinement_members;
 mod refutable_warnings;
@@ -182,6 +185,7 @@ mod shown_prefix;
 pub(crate) mod simplify;
 mod small_tuples;
 mod source_splices;
+mod splice_patterns;
 mod spliced_args;
 pub(crate) mod stability;
 mod stats;
@@ -350,6 +354,8 @@ pub struct Typer<'a> {
     /// The classes with macro annotations, their `this` types and spans, checked for unimplemented
     /// members once the annotations expanded.
     pub macro_annotated: Vec<(SymbolId, tasty::TypeId, Span)>,
+    /// The quote pattern being typed.
+    pub quote_pattern: Option<quote_patterns::QuotePatternScope>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
@@ -433,6 +439,7 @@ impl<'a> Typer<'a> {
             poly_closures: FxHashMap::default(),
             hidden_params: FxHashSet::default(),
             macro_annotated: Vec::new(),
+            quote_pattern: None,
             depth: 0,
             file_starts: Vec::new(),
             macros: None,

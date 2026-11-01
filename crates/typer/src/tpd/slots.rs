@@ -88,6 +88,8 @@ impl Tree {
             Tree::Template { constr, parents, self_, body } => s(&[N(constr), L(parents), O(self_), L(body)]),
             Tree::ImportSelector { imported, renamed, bound } => s(&[N(imported), O(renamed), O(bound)]),
             Tree::Inlined { call, bindings, expansion } => s(&[O(call), L(bindings), N(expansion)]),
+            Tree::QuotePattern { bindings, body, quotes } => s(&[L(bindings), N(body), N(quotes)]),
+            Tree::SplicePattern { body, typeargs, args } => s(&[N(body), L(typeargs), L(args)]),
         }
     }
 
@@ -165,6 +167,8 @@ mod tests {
             Tree::ImportSelector { imported: a, renamed: Some(b), bound: Some(c) },
             Tree::PackageDef { pid: a, stats: l },
             Tree::Inlined { call: Some(a), bindings: l, expansion: b },
+            Tree::QuotePattern { bindings: l, body: a, quotes: b },
+            Tree::SplicePattern { body: a, typeargs: l, args: m },
         ];
         for tree in trees {
             assert_eq!(*tree.slots(), by_fields(tree.clone())[..], "{tree:?}");

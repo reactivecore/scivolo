@@ -141,7 +141,7 @@ One ADR (next free number): quotes are pickled by an own TASTy writer, byte-iden
 4. **Staging and Splicing** (~700, 6 MRs): `CrossStageSafety` + `HealType` with tags
    (`encodeTypeArgs`, `types = SeqLiteral(tags)`), `Splicing`'s captured terms/types (hole args,
    `x$1` parameters), captured applications/assignments, nested quotes in splices, type quotes,
-   `taggedType`. Acceptance: `tests/macros/lib/Macros.scala` compiled with `--sourceroot .`
+   `taggedType`, quote patterns (`QuotePatterns.encode`, ADR 0065). Acceptance: `tests/macros/lib/Macros.scala` compiled with `--sourceroot .`
    equals `macros.jar`'s NIR up to `quote-pos` (33 quotes); sourcecode `Macros.scala` whole.
 5. **Positions** (~250 + span fixes, 4 MRs): `PositionPickler` port; typer spans fixed where
    the pickled bytes differ. Acceptance: steps 3–4's comparisons `same`, `quote-pos` gone;
