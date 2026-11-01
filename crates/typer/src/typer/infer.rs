@@ -145,7 +145,7 @@ impl Typer<'_> {
                 let variance = variances.get(&v.0).copied().unwrap_or(0);
                 let from_below = match lo != NOTHING {
                     true => variance >= 0,
-                    false => bottom_ok && (variance > 0 || variance == 0 && self.is_any(hi)),
+                    false => bottom_ok && (variance > 0 || variance == 0 && self.is_exactly_any(hi)),
                 };
                 self.instantiate_var(v, from_below)?;
             }
