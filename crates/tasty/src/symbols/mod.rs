@@ -94,6 +94,8 @@ pub struct Universe {
     access_qualifiers: FxHashMap<SymbolId, SymbolId>,
     /// The right-hand sides of the opaque types defined outside TASTy.
     opaque_aliases: FxHashMap<SymbolId, TypeId>,
+    /// The constructor proxy object made for each class outside its owner's declarations.
+    constructor_proxies: FxHashMap<SymbolId, SymbolId>,
     /// Whether those aliases are seen through every prefix (after dotty's `ElimOpaque`).
     opaques_elided: bool,
     /// The symbol whose definition comparisons are made in (dotty's `ctx.owner`), if known.
@@ -102,8 +104,8 @@ pub struct Universe {
     opaque_lifts: u64,
     /// Whether the sources compiled are javalib's, whose TASTy classes are then Scala classes.
     javalib_sources: bool,
-    /// The index of the first jar whose classes stand for the JDK's when javalib's are compiled.
-    jdk_jars: usize,
+    /// The indices of the jars whose classes stand for the JDK's.
+    jdk_jars: std::ops::Range<usize>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,

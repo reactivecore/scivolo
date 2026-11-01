@@ -65,15 +65,16 @@ impl Inlining<'_> {
     /// An implicit argument of type `pt` at `at` in the context of the outermost call; `Ok(None)`
     /// if there is none. Refused where implicits the expansion defines may take part.
     pub fn summon(&mut self, pt: TypeId, at: Span) -> Result<Option<TNodeId>, Unsupported> {
-        self.summon_ignoring(pt, at, &[])
+        self.summon_ignoring(pt, at, (&[], &[]))
     }
 
-    /// `summon` with the candidates `ignored` left out.
+    /// `summon` with the candidates `ignored` left out, in a scope of the givens and implicits
+    /// `defined` inside the expansion.
     pub fn summon_ignoring(
         &mut self,
         pt: TypeId,
         at: Span,
-        ignored: &[SymbolId],
+        (ignored, defined): (&[SymbolId], &[SymbolId]),
     ) -> Result<Option<TNodeId>, Unsupported> {
         let Some(ctx) = self.ctx else { return Err((at, "implicit search without the call's context")) };
         let outer = std::mem::take(&mut self.outer_implicits);
@@ -108,7 +109,11 @@ impl Inlining<'_> {
             _ => return Err((at, "implicit search fitting several givens of summonFrom cases")),
         }
         let mut ctx = ctx;
-        for scope in self.block_implicits.clone() {
+        if let Some(owner) = defined.first().and_then(|&d| self.u.symbol(d).owner) {
+            ctx = ctx.with_owner(owner);
+        }
+        let defined = (!defined.is_empty()).then(|| defined.to_vec());
+        for scope in self.block_implicits.clone().into_iter().chain(defined) {
             let locals = scope.into_iter().map(|s| (self.u.symbol(s).name.clone(), s)).collect();
             ctx = self.host.within(ctx, locals);
         }

@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/Getters.scala
 //   compiler/src/dotty/tools/dotc/transform/InterceptedMethods.scala
-//! dotty's `Getters` on assignments: an assignment to a variable but an extern one becomes a call
-//! of its setter; and the span `InterceptedMethods` gives `!=`.
+//! dotty's `Getters` on assignments: an assignment to a variable but an extern one or a Java
+//! field becomes a call of its setter; and the span `InterceptedMethods` gives `!=`.
 
 use super::getters::is_setter;
 use crate::symbols::{has, is_extern};
@@ -24,7 +24,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             super::library_traits::prepare(l, trait_, l.tpd.span(t))?;
         }
         let var = l.tpd.sym(lhs).filter(|&s| has(l.u, s, FIELDaccessor) || is_library_var_param(l, s));
-        let Some(var) = var.filter(|&s| !is_extern(l.u, s)) else {
+        let Some(var) = var.filter(|&s| !is_extern(l.u, s) && !l.u.is_java_field(s)) else {
             continue;
         };
         let owner = l.u.symbol(var).owner.expect("a variable's class");

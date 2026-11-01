@@ -5,12 +5,12 @@ use super::Typer;
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
-    /// Whether compile-time operation `tycon[args]` normalizes or, referring to an abstract type
-    /// or a wildcard, stays as dotty keeps it.
+    /// Whether compile-time operation `tycon[args]` normalizes or, referring to an abstract type,
+    /// a value's singleton type or a wildcard, stays as dotty keeps it.
     pub fn folds(&mut self, tycon: TypeId, args: &[TypeId]) -> bool {
         let op = self.u.intern_type(Type::Applied(tycon, args.to_vec()));
         self.u.try_normalize(op).is_some()
-            || self.refers_to_abstract(op)
+            || self.refers_to_abstract(op, true)
             || args.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)))
     }
 
@@ -21,16 +21,18 @@ impl Typer<'_> {
         if !matches!(self.u.types().get(dealiased), Type::Match { .. }) || self.u.try_normalize(t).is_some() {
             return false;
         }
-        !self.refers_to_abstract(t)
+        !self.refers_to_abstract(t, false)
     }
 
-    /// Whether `t` refers to a type parameter, a parameter or an abstract type.
-    fn refers_to_abstract(&mut self, t: TypeId) -> bool {
+    /// Whether `t` refers to a type parameter, a parameter or an abstract type, or a value if
+    /// `values`.
+    fn refers_to_abstract(&mut self, t: TypeId, values: bool) -> bool {
         let mut abstract_part = false;
         self.u.map_type(t, &mut |u, part| {
             if let Type::Sym(_, s) = *u.types().get(part) {
                 abstract_part |= match u.symbol(s).kind {
                     Kind::TypeParam | Kind::Param => true,
+                    Kind::Val => values,
                     Kind::Type => {
                         let info = u.info(s);
                         matches!(u.types().get(info), Type::Bounds(..))

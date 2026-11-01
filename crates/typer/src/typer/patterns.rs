@@ -6,8 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags::{CASE, GIVEN};
-use syntax::ast::modifiers::Modifiers;
-use syntax::ast::{NodeId, Span, TName, Tree};
+use syntax::ast::{NodeId, Span, TName, Tree, modifiers::Modifiers};
 use syntax::names::is_var_pattern_name;
 use tasty::{Kind, Type, TypeId};
 
@@ -103,6 +102,7 @@ impl Typer<'_> {
         let flags = if implicit || given { CASE.or(GIVEN) } else { CASE };
         let flags = flags.to_term_flags();
         let sym = self.syms.define(self.u, &text, Kind::Val, ctx.owner, flags);
+        self.defined_unique(name.name, sym, self.ast.span(id));
         self.u.set_info(sym, info);
         self.levels.enter(ctx.level, &text, sym);
         let tpe = self.u.intern_type(Type::Sym(None, sym));

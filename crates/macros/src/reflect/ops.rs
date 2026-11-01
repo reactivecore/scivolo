@@ -102,7 +102,7 @@ ops! {
     // implicits
     "isWhileTyping" => is_while_typing() -> bool;
     "macroSettings" => macro_settings() -> String;
-    "search" => search(pt: Ty, owner: Num, ignored: Rest<Sym>) -> Fallible<Vec<i32>>;
+    "search" => search(pt: Ty, owner: Num, rest: Rest<Num>) -> Fallible<Vec<i32>>;
     // type patterns
     "matchType" => match_type(scrutinee: Ty, pattern: Num) -> Fallible<i32>;
     // type reprs

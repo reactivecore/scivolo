@@ -152,7 +152,7 @@ trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.
       def tree: Tree = ReflectOps.opt(ReflectOps.one("symbolTree", ReflectOps.id(self))).getOrElse {
         throw new Unsupported("Symbol.tree of a symbol without a definition in the unit")
       }.asInstanceOf[Tree]
-      def asQuotes: scala.quoted.Quotes = new QuotesImpl().within(1 + ReflectOps.id(self))
+      def asQuotes: scala.quoted.Quotes = new QuotesImpl().within(1 + ReflectOps.id(self), null, true)
       def info: TypeRepr = QuoteHost.tpe(ReflectOps.one("info", ReflectOps.id(self))).asInstanceOf[TypeRepr]
       def isNoSymbol: Boolean = ReflectOps.id(self) < 0
       def exists: Boolean = ReflectOps.id(self) >= 0

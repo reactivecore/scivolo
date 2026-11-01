@@ -89,10 +89,17 @@ impl Unpickler<'_> {
 
     /// The template at `id` of a local class whose local dummy is `dummy`.
     fn template(&mut self, id: NodeId, dummy: SymbolId) -> Result<TNodeId, Refusal> {
-        let (mut constr, mut parents, mut body) = (None, Vec::new(), Vec::new());
+        let (mut constr, mut parents, mut body, mut self_) = (None, Vec::new(), Vec::new(), None);
+        let module = self.u.symbol(dummy).owner.is_some_and(|c| self.u.is_module_class(c));
         for k in self.kids(id) {
             match self.tag(k) {
                 TYPEPARAM | PARAM => body.push(self.param(k)?),
+                SELFDEF if module => {
+                    let name = self.tname(k, false);
+                    let tpt =
+                        self.tpt(self.kids(k).first().copied().ok_or("self definition without a type")?)?;
+                    self_ = Some(self.bare(T::ValDef { name, tpt, rhs: None }, None, None));
+                }
                 SELFDEF => return Err("self type of a class in a library inline body"),
                 DEFDEF if constr.is_none() => constr = Some(self.local_def(k)?),
                 VALDEF | DEFDEF => body.push(self.local_def(k)?),
@@ -107,7 +114,7 @@ impl Unpickler<'_> {
         }
         let constr = constr.ok_or("class without a constructor in a library inline body")?;
         let (parents, body) = (self.tpd.list(&parents), self.tpd.list(&body));
-        let t = self.bare(T::Template { constr, parents, self_: None, body }, None, Some(dummy));
+        let t = self.bare(T::Template { constr, parents, self_, body }, None, Some(dummy));
         Ok(self.positioned(id, t))
     }
 

@@ -37,7 +37,7 @@ impl Units {
             return Vec::new();
         };
         typer.probe = Some(Probe::new(request.target));
-        let ctx = crate::root_context(&mut typer);
+        let ctx = crate::ctx::Ctx::root(&mut typer);
         typer.typed(root, Pt::Any, ctx);
         if let Err(what) = typer.zonk_trees() {
             typer.unsupported_at(Span::NONE, what);

@@ -17,7 +17,7 @@ pub mod tpd;
 mod typer;
 pub mod unpickle;
 
-use crate::ctx::root_context;
+use crate::ctx::Ctx;
 use crate::inlining::Macros;
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::diag::Diagnostics;
@@ -92,7 +92,7 @@ impl Units {
         let mut typer = Typer::new(u, (ast, root), (names, fresh), cfg, &mut self.syms)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         typer.macros = macros.map(|m| m as &mut dyn Macros);
-        let ctx = root_context(&mut typer);
+        let ctx = Ctx::root(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);
         self.finish(typer, typed, &[typed])
     }
@@ -123,7 +123,7 @@ impl Units {
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         typer.file_starts = units.iter().skip(1).map(|&(start, _)| start).collect();
         typer.macros = macros.map(|m| m as &mut dyn Macros);
-        let ctx = root_context(&mut typer);
+        let ctx = Ctx::root(&mut typer);
         typer.index(&roots, ctx);
         typer.check_split_companions();
         let typed: Vec<TNodeId> = roots.iter().map(|&r| typer.typed(r, typer::Pt::Any, ctx)).collect();
@@ -147,6 +147,7 @@ impl Units {
         if let Err(what) = typer.zonk_trees() {
             typer.unsupported_at(Span::NONE, what);
         }
+        typer.renumber_uniques();
         if !self.typer_only
             && typer.unsupported.is_none()
             && !typer.diags.has_errors()

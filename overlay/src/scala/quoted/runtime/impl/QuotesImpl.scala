@@ -51,7 +51,10 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
         val arg = QuoteHost.holeArg(quote, hole, i)
         if (arg >= 0) QuoteHost.expr(arg) else QuoteHost.quotedType(-1 - arg)
       }
-      val filled = termHole.nn(QuoteHost.holeIndex(quote, hole), args, new QuotesImpl().within(reflect.asInstanceOf[ReflectImpl].searchOwner))
+      val outer = reflect.asInstanceOf[ReflectImpl]
+      val holes = (if (outer.searchHoles == null) Array.empty[Int] else outer.searchHoles) ++ Array(quote, hole)
+      val inner = new QuotesImpl().within(outer.searchOwner, holes, outer.searchHolesUnknown)
+      val filled = termHole.nn(QuoteHost.holeIndex(quote, hole), args, inner)
       QuoteHost.fillHole(quote, hole, QuoteHost.exprId(filled))
       hole += 1
     }
@@ -92,9 +95,14 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
     }
   }
 
-  /** These `Quotes` with `searchOwner` `owner`. */
-  def within(owner: Int): QuotesImpl = {
-    reflect.asInstanceOf[ReflectImpl].searchOwner = owner
+  /** These `Quotes` with `searchOwner` `owner`, `searchHoles` `holes` and `searchHolesUnknown`
+   *  `unknown`.
+   */
+  def within(owner: Int, holes: Array[Int], unknown: Boolean): QuotesImpl = {
+    val r = reflect.asInstanceOf[ReflectImpl]
+    r.searchOwner = owner
+    r.searchHoles = holes
+    r.searchHolesUnknown = unknown
     this
   }
 

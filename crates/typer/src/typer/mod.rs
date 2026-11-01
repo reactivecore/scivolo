@@ -43,7 +43,7 @@ pub(crate) mod const_ops;
 mod constants;
 mod constrain_pattern;
 mod constructor_params;
-mod constructor_proxies;
+pub(crate) mod constructor_proxies;
 mod constructors;
 mod context_applications;
 mod context_bounds;
@@ -216,6 +216,7 @@ mod unapply_results;
 mod unapply_seq;
 mod unapply_targs;
 mod unchecked_tests;
+pub(crate) mod unique_names;
 mod unknown_params;
 mod untupled;
 mod variances;
@@ -451,6 +452,7 @@ impl<'a> Typer<'a> {
             return self.unsupported(id, "nesting too deep");
         }
         self.depth += 1;
+        self.type_uniques(id);
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
         let vars = self.constraint.count();
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER.with(crate::ctx::Mode::ASSIGNMENT_LHS);

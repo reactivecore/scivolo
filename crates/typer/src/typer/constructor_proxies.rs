@@ -9,15 +9,42 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::tags::{ABSTRACT, CASE, INVISIBLE, OBJECT, SYNTHETIC, TRAIT};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, Universe};
+
+/// Whether class `c` gets constructor proxies (dotty's `needsConstructorProxies`).
+pub fn needs_constructor_proxies(u: &Universe, c: SymbolId) -> bool {
+    let s = u.symbol(c);
+    s.kind == Kind::Class
+        && ![ABSTRACT, TRAIT, CASE, SYNTHETIC, OBJECT, INVISIBLE].iter().any(|&f| s.flags.has(f))
+        && !s.name.starts_with("$anon")
+}
+
+/// The constructor proxy object of class `c`, outside its owner's declarations, if it gets one
+/// (dotty's `constructorCompanion`).
+pub fn proxy_module(u: &mut Universe, c: SymbolId) -> Option<SymbolId> {
+    if !needs_constructor_proxies(u, c) {
+        return None;
+    }
+    Some(u.constructor_proxy(c, |u| {
+        let (name, owner) = (u.symbol(c).name.clone(), u.symbol(c).owner);
+        let mut define = |name: String, kind| {
+            let flags = Flags::default().with(OBJECT).with(SYNTHETIC);
+            let (target, decls, tree, is_extern, derived) = (None, Vec::new(), None, false, false);
+            let s = u.define(Symbol { name, kind, owner, flags, target, is_extern, derived, decls, tree });
+            u.unenter(s);
+            s
+        };
+        let class = define(tasty::module_class_name(&name), Kind::Class);
+        let module = define(name, Kind::Val);
+        let info = u.intern_type(Type::Sym(None, class));
+        u.set_info(module, info);
+        module
+    }))
+}
 
 impl Typer<'_> {
-    /// Whether class `c` gets constructor proxies (dotty's `needsConstructorProxies`).
     pub fn needs_constructor_proxies(&self, c: SymbolId) -> bool {
-        let s = self.u.symbol(c);
-        s.kind == Kind::Class
-            && ![ABSTRACT, TRAIT, CASE, SYNTHETIC, OBJECT, INVISIBLE].iter().any(|&f| s.flags.has(f))
-            && !s.name.starts_with("$anon")
+        needs_constructor_proxies(self.u, c)
     }
 
     /// `new C` for the constructor proxy `C` that identifier `id` named `name` refers to.

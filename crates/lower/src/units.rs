@@ -43,6 +43,7 @@ pub fn compile_sources(
         if file_cfg != cfg {
             return Err(refused(format!("{}: language imports in a unit of several files", source.name)));
         }
+        p.fresh.uniques.shift(base);
         fresh.include(&p.fresh);
         ast = p.ast;
         ast.shift_spans(mark, base);

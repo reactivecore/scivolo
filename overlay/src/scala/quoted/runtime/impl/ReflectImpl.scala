@@ -25,6 +25,12 @@ abstract class ReflectImpl
    */
   var searchOwner: Int = 0
 
+  /** The quotes and holes these `Quotes` fill, in pairs, outermost first; `null` for none. */
+  var searchHoles: Array[Int] = null
+
+  /** Whether these `Quotes` may fill holes not in `searchHoles`. */
+  var searchHolesUnknown: Boolean = false
+
   extension (expr: Expr[Any]) def asTerm: Term = ReflectOps.term(QuoteHost.exprId(expr)).asInstanceOf[Term]
 
   /** `TreeCode`, `TreeAnsiCode`, `TreeStructure`, `TypeReprCode`, `TypeReprShortCode`, `TypeReprAnsiCode`,
@@ -91,8 +97,12 @@ abstract class ReflectImpl
    */
   object Implicits extends ImplicitsModule {
     def search(tpe: TypeRepr): ImplicitSearchResult = searchIgnoring(tpe)()
-    def searchIgnoring(tpe: TypeRepr)(ignored: Symbol*): ImplicitSearchResult =
-      found(ReflectOps.results("search", (ReflectOps.id(tpe) +: (searchOwner - 1) +: ignored.map(ReflectOps.id))*))
+    def searchIgnoring(tpe: TypeRepr)(ignored: Symbol*): ImplicitSearchResult = {
+      val holes = if (searchHoles == null) Seq.empty[Int] else searchHoles.toSeq
+      val n = if (searchHolesUnknown) -1 else holes.length / 2
+      val scope = if (searchHolesUnknown) Seq.empty[Int] else holes
+      found(ReflectOps.results("search", ((ReflectOps.id(tpe) +: (searchOwner - 1) +: n +: scope) ++ ignored.map(ReflectOps.id))*))
+    }
     private def found(results: List[Int]): ImplicitSearchResult = results match {
       case List(1, tree) => new SearchImpl(tree).asInstanceOf[ImplicitSearchResult]
       case _             => new SearchImpl(-1).asInstanceOf[ImplicitSearchResult]
