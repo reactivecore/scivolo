@@ -288,9 +288,9 @@ script-profile file *args: release
 dotty-fetch:
     test -d ref/scala3 || (git clone -q --depth 1 --branch 3.9.0 --filter=blob:none --sparse https://github.com/scala/scala3 ref/scala3 && git -C ref/scala3 sparse-checkout set tests/run)
 
-# Add dotty's compiler sources (typer, transforms) to ref/scala3.
+# Add dotty's compiler sources (typer, transforms) and TASTy format sources to ref/scala3.
 dotty-sources: dotty-fetch
-    git -C ref/scala3 sparse-checkout add compiler/src
+    git -C ref/scala3 sparse-checkout add compiler/src tasty/src
 
 # Add dotty's tests/run-macros to ref/scala3, for `just dotty-lower-report "" run-macros`.
 dotty-macros: dotty-fetch
