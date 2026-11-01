@@ -48,6 +48,13 @@ impl Inlining<'_> {
         defs.copied().collect()
     }
 
+    /// `ctx` inside the imports among `scopes`.
+    pub fn within_imports(&mut self, ctx: Ctx) -> Ctx {
+        let imports: Vec<Scope> =
+            self.scopes.iter().filter(|s| matches!(s, Scope::Import(_))).cloned().collect();
+        imports.into_iter().fold(ctx, |ctx, scope| self.within_scope(ctx, scope))
+    }
+
     /// `ctx` inside `scope`.
     pub fn within_scope(&mut self, ctx: Ctx, scope: Scope) -> Ctx {
         let imp = match scope {

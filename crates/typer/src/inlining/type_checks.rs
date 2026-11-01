@@ -12,7 +12,8 @@ use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
     /// The constant string `code` of `typeChecks(code)` and the errors of parsing, typing it in
-    /// the context of the outermost call and expanding it.
+    /// the context of the outermost call inside the imports of the code being expanded, and
+    /// expanding it.
     pub fn checked_errors(
         &mut self,
         arg: TNodeId,
@@ -34,6 +35,7 @@ impl Inlining<'_> {
         };
         let code = String::from_utf16_lossy(&code);
         let ctx = self.ctx.ok_or((span, "typeChecks without the call's context"))?;
+        let ctx = self.within_imports(ctx);
         let mark = self.host.error_count();
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
         let errors = match self.host.typed_code(lent, &code, ctx) {
