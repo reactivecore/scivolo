@@ -110,6 +110,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
    - `checkAndAdaptExperimentalImports` writes `-language:experimental.$sel` where `sel` already
      is `experimental.X`: `@experimental("Added by -language:experimental.experimental.erasedDefinitions")`.
    - Fix: `-language:$sel`. Frontend: the same text as dotty.
+8. **Stale `.check` files in `tests/run-macros`** (dotty 3.9.0, `tasty-extractors-1`,
+   `tasty-extractors-2`, `tasty-extractors-types`, `type-print`).
+   - The checks print package prefixes as `ThisType(TypeRef(NoPrefix(), "immutable"))`; 3.9.0
+     on Scala Native and on the JVM prints the pickled `TermRef` paths. `tasty-extractors-2` also
+     expects `n.toString` in `productElement`, `type-print` other highlight colours.
+   - Fix: re-record the checks. VM: compared with `tests/dotty-checks/run-macros`, recorded from
+     dotty 3.9.0 on Scala Native.
 
 ## M4: dotty `tests/run`
 

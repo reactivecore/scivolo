@@ -201,3 +201,4 @@ inlineproxies
 nameorder
 positionsscopes
 hkoverrides
+nestedmirrors
