@@ -44,8 +44,17 @@ impl Typer<'_> {
                     }
                     arg_ids.truncate(arity);
                 }
-                let (mut typed_args, vars): (Vec<TNodeId>, Vec<_>) =
-                    arg_ids.iter().map(|&a| self.typed_pattern_type_arg(a, ctx)).unzip();
+                let (mut typed_args, vars): (Vec<TNodeId>, Vec<_>) = arg_ids
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &a)| match self.quoted_type_var(a, ctx) {
+                        Some(name) => {
+                            let bounds = self.quoted_type_arg_bounds(tycon, i);
+                            (self.typed_quoted_type_var(a, name, Pt::Type(bounds)), None)
+                        }
+                        None => self.typed_pattern_type_arg(a, ctx),
+                    })
+                    .unzip();
                 let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
                 if !ctx.mode.is(Mode::CONST_VALUE_ARG)
                     && self

@@ -16,6 +16,10 @@ const CASES: &[(&str, &str)] = &[
         "quotes outside splices need PickleQuotes, #199",
     ),
     (
+        "import scala.quoted.*\nobject Q { def f(x: Expr[Any])(using Quotes): Int = x match { case '{ $i: Int } => 1; case _ => 0 } }",
+        "quote patterns need QuotePatterns.encode, #199",
+    ),
+    (
         "object O { val v: Any = 1; def f(): Boolean = O.v.isInstanceOf[String | Int] }",
         "type tests of unions or intersections of paths other than names",
     ),
