@@ -17,7 +17,7 @@ pub mod tpd;
 mod typer;
 pub mod unpickle;
 
-use crate::ctx::{Ctx, Level, Mode};
+use crate::ctx::root_context;
 use crate::inlining::Macros;
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::diag::Diagnostics;
@@ -141,11 +141,7 @@ impl Units {
     fn finish(&mut self, mut typer: Typer, typed: TNodeId, files: &[TNodeId]) -> Result<Typed, Fallback> {
         typer.typed_annotations();
         if !self.typer_only {
-            for &f in files {
-                if let Some(name) = self.source_names.get(typer.file_of(typer.tpd.span(f))) {
-                    typer.top_level_annotations(f, name);
-                }
-            }
+            typer.top_level_annotations(files, &self.source_names);
         }
         typer.check_dynamic_calls();
         if let Err(what) = typer.zonk_trees() {
@@ -198,18 +194,4 @@ impl Units {
         self.syms.flags.retain(|&s, _| !under(s));
         objects.iter().for_each(|&o| u.unenter(o));
     }
-}
-
-/// The context of a unit: the members of the root package, then the wildcard imports of
-/// `java.lang`, `scala` and `Predef` (dotty's `rootImports`), outermost first.
-fn root_context(t: &mut Typer) -> Ctx {
-    let root = t.u.root();
-    let java_lang = t.u.intern_type(tasty::Type::Package(t.defn.java_lang));
-    let scala = t.u.intern_type(tasty::Type::Package(t.defn.scala));
-    let predef = defn::type_ref(t.u, t.defn.predef);
-    let level = t.levels.push(None, Level::Members(root));
-    let level = t.root_import(Some(level), java_lang);
-    let level = t.root_import(Some(level), scala);
-    let level = t.root_import(Some(level), predef);
-    Ctx { owner: root, level, mode: Mode::NONE }
 }

@@ -138,3 +138,17 @@ impl Ctx {
         Ctx { mode, ..self }
     }
 }
+
+/// The context of a unit: the members of the root package, then the wildcard imports of
+/// `java.lang`, `scala` and `Predef` (dotty's `rootImports`), outermost first.
+pub fn root_context(t: &mut crate::Typer) -> Ctx {
+    let root = t.u.root();
+    let java_lang = t.u.intern_type(tasty::Type::Package(t.defn.java_lang));
+    let scala = t.u.intern_type(tasty::Type::Package(t.defn.scala));
+    let predef = crate::defn::type_ref(t.u, t.defn.predef);
+    let level = t.levels.push(None, Level::Members(root));
+    let level = t.root_import(Some(level), java_lang);
+    let level = t.root_import(Some(level), scala);
+    let level = t.root_import(Some(level), predef);
+    Ctx { owner: root, level, mode: Mode::NONE }
+}

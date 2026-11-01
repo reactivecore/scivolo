@@ -261,6 +261,8 @@ pub struct Typer<'a> {
     pub erasure_diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
+    /// The setting that makes the top-level definitions experimental (`Config::experimental`).
+    pub experimental: Option<&'static str>,
     /// The `-W` lints the options enable.
     pub lints: Lints,
     /// Whether the source version is `future`.
@@ -389,6 +391,7 @@ impl<'a> Typer<'a> {
             diags: Diagnostics::default(),
             erasure_diags: Diagnostics::default(),
             features: cfg.features,
+            experimental: cfg.experimental,
             lints: cfg.warnings.lints,
             source_future: v.requires_new_syntax(),
             ahead: FxHashMap::default(),

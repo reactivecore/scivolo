@@ -6,6 +6,7 @@
 mod blocks;
 mod cases;
 mod classes;
+mod control;
 mod def_structure;
 mod defs;
 mod highlight;
@@ -14,6 +15,7 @@ mod literals;
 mod local_names;
 mod modifiers;
 mod parents;
+mod references;
 mod structure;
 mod type_string;
 mod type_structure;
@@ -112,37 +114,12 @@ impl Code<'_> {
             return self.type_tree(t);
         }
         match self.tree_of(t) {
-            T::Ident { name } if self.name(name) == "_" => self.push("_"),
-            T::Ident { .. } => match self.h.tpd.sym(t).filter(|&s| self.is_local(s)) {
-                Some(s) => {
-                    let name = self.spliced_name(s);
-                    self.highlight_type(&name);
-                }
-                None => self.ty(self.h.tpd.tpe(t))?,
-            },
-            T::Select { qualifier, name } => {
-                self.qual_tree(qualifier)?;
-                let name = self.name(name);
-                if name != "<init>" && name != "package" {
-                    self.push(".");
-                    self.push(&name);
-                }
-            }
+            T::Ident { .. } | T::Select { .. } | T::This { .. } | T::Super { .. } => self.reference(t)?,
             T::Literal { value } => self.constant(&value)?,
             T::ClassLiteral { tpe } => {
                 self.push("classOf[");
                 self.ty(tpe)?;
                 self.push("]");
-            }
-            T::This { qual } => {
-                if let T::Ident { name } = self.tree_of(qual) {
-                    let name = self.name(name);
-                    if !name.is_empty() {
-                        self.push(name.strip_suffix('$').unwrap_or(&name));
-                        self.push(".");
-                    }
-                }
-                self.push("this");
             }
             T::New { .. } => {
                 self.push("new ");
@@ -163,20 +140,6 @@ impl Code<'_> {
                     self.push("]");
                 }
             }
-            T::Super { qual, mix } => {
-                if let T::This { qual } = self.tree_of(qual)
-                    && let T::Ident { name } = self.tree_of(qual)
-                    && !self.name(name).is_empty()
-                {
-                    self.push(&format!("{}.", self.name(name)));
-                }
-                self.push("super");
-                if let T::Ident { name } = self.tree_of(mix)
-                    && !self.name(name).is_empty()
-                {
-                    self.push(&format!("[{}]", self.name(name)));
-                }
-            }
             T::Typed { expr, tpt } => self.typed(expr, tpt)?,
             T::Assign { lhs, rhs } => {
                 self.tree(lhs)?;
@@ -193,44 +156,8 @@ impl Code<'_> {
                 self.flat_block(&stats, expr)?;
             }
             T::Inlined { bindings, expansion, .. } => self.flat_block(&self.items(bindings), expansion)?,
-            T::If { cond, thenp, elsep, .. } => {
-                self.keyword("if ");
-                self.parens(cond)?;
-                self.tree(thenp)?;
-                self.keyword(" else ");
-                self.tree(elsep)?;
-            }
-            T::Match { selector, cases, .. } => {
-                match selector {
-                    Some(s) => {
-                        self.qual_tree(s)?;
-                        self.keyword(" match");
-                    }
-                    None => self.keyword("summonFrom "),
-                }
-                self.cases(&self.items(cases))?;
-            }
-            T::Try { expr, cases, finalizer } => {
-                self.keyword("try ");
-                self.tree(expr)?;
-                let cases = self.items(cases);
-                if !cases.is_empty() {
-                    self.keyword(" catch");
-                    self.cases(&cases)?;
-                }
-                if let Some(f) = finalizer {
-                    self.keyword(" finally ");
-                    self.tree(f)?;
-                }
-            }
-            T::Return { expr, .. } => {
-                self.push("return ");
-                self.tree(expr)?;
-            }
-            T::WhileDo { cond, body } => {
-                self.keyword("while ");
-                self.parens(cond)?;
-                self.tree(body)?;
+            T::If { .. } | T::Match { .. } | T::Try { .. } | T::Return { .. } | T::WhileDo { .. } => {
+                self.control(t)?
             }
             T::SeqLiteral { elems, .. } => self.trees(&self.items(elems), ", ")?,
             T::Closure { meth, .. } => self.tree(meth)?,
@@ -242,19 +169,6 @@ impl Code<'_> {
             _ => return Err(REFUSED),
         }
         Ok(())
-    }
-
-    /// A qualifier, in parentheses if it is a control expression.
-    fn qual_tree(&mut self, t: TNodeId) -> Shown {
-        match self.tree_of(t) {
-            T::If { .. } | T::Match { .. } | T::WhileDo { .. } | T::Try { .. } | T::Return { .. } => {
-                self.push("(");
-                self.tree(t)?;
-                self.push(")");
-                Ok(())
-            }
-            _ => self.tree(t),
-        }
     }
 
     /// Type `t` as `printType` shows it, the spliced types substituted.

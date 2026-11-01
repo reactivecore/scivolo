@@ -2,8 +2,8 @@
 //   compiler/src/dotty/tools/dotc/transform/PostTyper.scala
 //   compiler/src/dotty/tools/dotc/typer/Checking.scala
 //! The annotations dotty's `PostTyper` gives the top-level definitions of a source file:
-//! `@SourceFile` to classes, `@experimental` under a top-level experimental language import
-//! (`checkAndAdaptExperimentalImports`).
+//! `@SourceFile` to classes, `@experimental` under a top-level experimental language import or
+//! setting (`checkAndAdaptExperimentalImports`).
 
 use super::Typer;
 use crate::defn::type_ref;
@@ -28,12 +28,25 @@ struct TopLevel {
 }
 
 impl Typer<'_> {
+    /// Annotates the top-level definitions of typed source files `files`, named by their index
+    /// in `paths`.
+    pub fn top_level_annotations(&mut self, files: &[TNodeId], paths: &[String]) {
+        for &f in files {
+            if let Some(path) = paths.get(self.file_of(self.tpd.span(f))) {
+                self.file_annotations(f, path);
+            }
+        }
+    }
+
     /// Annotates the top-level definitions of typed source file `root`, named `path`.
-    pub fn top_level_annotations(&mut self, root: TNodeId, path: &str) {
+    fn file_annotations(&mut self, root: TNodeId, path: &str) {
         let mut top = TopLevel::default();
         self.top_level(root, &mut top);
-        if let Some(import) = top.imports.first() {
-            let why = format!("Added by top level {import}");
+        let why = match top.imports.first() {
+            Some(import) => Some(format!("Added by top level {import}")),
+            None => self.experimental.map(|setting| format!("Added by {setting}")),
+        };
+        if let Some(why) = why {
             for &s in &top.defs {
                 if !self.is_experimental(s) {
                     self.prepend_annotation(s, EXPERIMENTAL, &why);
@@ -81,16 +94,17 @@ impl Typer<'_> {
         if self.u.full_name(site).replace('$', "") != "scala.language.experimental" {
             return None;
         }
-        let mut names = Vec::new();
+        let (mut names, mut viral) = (Vec::new(), false);
         for s in self.tpd.items(selectors).to_vec() {
             let T::ImportSelector { imported, renamed, .. } = *self.tpd.tree(s) else { return None };
             let name = self.ident_text(imported)?;
+            viral |= !NOT_VIRAL.contains(&name.as_str());
             names.push(match renamed.and_then(|r| self.ident_text(r)) {
                 Some(r) => format!("{name} as {r}"),
                 None => name,
             });
         }
-        if names.iter().all(|n| NOT_VIRAL.contains(&n.as_str())) {
+        if !viral {
             return None;
         }
         let path = self.import_path(expr)?;
@@ -115,7 +129,13 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether `s` or its owner, a class, is annotated `@experimental` (dotty's `isExperimental`).
     fn is_experimental(&mut self, s: SymbolId) -> bool {
+        let owner = self.u.symbol(s).owner.filter(|&o| self.u.is_class(o));
+        self.is_annotated_experimental(s) || owner.is_some_and(|o| self.is_annotated_experimental(o))
+    }
+
+    fn is_annotated_experimental(&mut self, s: SymbolId) -> bool {
         let annots = self.syms.annotations.get(&s).cloned().unwrap_or_default();
         annots.iter().any(|&a| {
             let tpe = self.tpd.tpe(a);

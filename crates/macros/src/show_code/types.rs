@@ -29,8 +29,9 @@ impl Code<'_> {
         let t = self.r(t);
         let tpe = self.h.tpd.get(t).tpe;
         match self.tree_of(t) {
-            T::TypeTree { .. } => {
+            T::TypeTree { inferred } => {
                 let tpe = tpe.ok_or(REFUSED)?;
+                let tpe = if inferred { tpe } else { self.without_param_annotations(tpe) };
                 match *self.h.u.types().get(tpe) {
                     Type::Bounds(lo, hi) => {
                         self.push("_ >: ");

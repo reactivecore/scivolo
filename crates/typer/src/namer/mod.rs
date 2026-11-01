@@ -140,7 +140,7 @@ impl Typer<'_> {
             self.syms.private_within.extend(package.map(|p| (sym, p)));
         }
         self.syms.private_within.extend(within.flatten().map(|c| (sym, c)));
-        self.u.set_access_qualifier(sym, within.flatten());
+        self.u.set_access_qualifier(sym, self.syms.private_within.get(&sym).copied());
         let completion_ctx = match self.levels.outer(ctx.level) {
             Some(outer) if text == "<init>" => Ctx { level: outer, ..ctx },
             _ => ctx,

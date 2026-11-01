@@ -96,7 +96,7 @@ impl Inlining<'_> {
             let (message, line) = (quoted(message), quoted(line));
             values.push(format!("{testing}.Error({message}, {line}, {column}, {testing}.ErrorKind.Typer)"));
         }
-        let list = format!("_root_.scala.List[{testing}.Error]({})", values.join(", "));
+        let list = format!("_root_.scala.collection.immutable.List[{testing}.Error]({})", values.join(", "));
         let ctx = self.ctx.ok_or((span, "typeCheckErrors without the call's context"))?;
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
         let typed =

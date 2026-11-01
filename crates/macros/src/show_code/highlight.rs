@@ -74,6 +74,26 @@ impl Code<'_> {
         self.ty(annot)
     }
 
+    /// Parameter type `tpe` of a method's type without its `@InlineParam` and `@ErasedParam`, as
+    /// the parameter's type tree has it.
+    pub fn without_param_annotations(&mut self, tpe: TypeId) -> TypeId {
+        match *self.h.u.types().get(tpe) {
+            Type::ByName(r) => {
+                let r = self.without_param_annotations(r);
+                return self.h.u.intern_type(Type::ByName(r));
+            }
+            Type::Annotated(inner, annot) => {
+                let class = self.h.u.class_symbol(annot).map(|c| self.h.u.full_name(c));
+                let internal = class.as_deref().and_then(|c| c.strip_prefix("scala.annotation.internal."));
+                if matches!(internal, Some("InlineParam" | "ErasedParam")) {
+                    return self.without_param_annotations(inner);
+                }
+            }
+            _ => {}
+        }
+        tpe
+    }
+
     /// An annotation `new A(args)` as `@A(args)`.
     fn annotation(&mut self, a: TNodeId) -> Shown {
         let a = self.r(a);
