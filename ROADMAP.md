@@ -93,7 +93,7 @@ executables. A library macro runs from its NIR in the VM; its quotes are unpickl
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
 `Quotes` is refused by name. Macro annotations expand in the inlining (ADR 0039). Circe
 0.14.10's `derives Codec.AsObject`, sourcecode 0.4.4, fastparse 3.1.1, mainargs 0.7.8, upickle,
-pprint and os-lib work. dotty's `tests/run-macros`: 304 of 321 pass (2026-11-01,
+pprint and os-lib work. dotty's `tests/run-macros`: 305 of 321 pass (2026-11-01,
 `just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
@@ -127,9 +127,10 @@ slower meanwhile:
    types, quote-local givens, access qualifiers and top-level annotations in reflect show,
    `typeCheckErrors`, name-based type prefixes as stored, higher-kinded aliases overriding
    type members, staging levels for quotes and splices, quote patterns as `QuotePattern` trees
-   (#197) (304 of 321 pass). Next: macro libraries compiled from source, their quotes pickled
-   to TASTy as dotty does (#196, [research 43](docs/research/43-pickle-quotes.md)); done: the
-   TASTy writer (#198). Done 2026-10-31: package prefixes of quoted types,
+   (#197), import selectors in `quotes.reflect`, imports kept in inline bodies (305 of 321
+   pass). Next: macro libraries compiled from source, their quotes pickled to TASTy as dotty
+   does (#196, [research 43](docs/research/43-pickle-quotes.md)); done: the TASTy writer
+   (#198), the tree pickler for quotes without definitions (#199, first part). Done 2026-10-31: package prefixes of quoted types,
    `Symbol.tree`, beta reduction of polymorphic functions, generic number literals,
    `searchIgnoring`, type holes of runtime quote patterns, `newTypeAlias`, `Refined.apply`,
    exports, nested spliced types (296 of 321 pass). Done 2026-10-30: reflect printers and `toString`, the type
