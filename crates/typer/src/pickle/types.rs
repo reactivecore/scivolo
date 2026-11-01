@@ -74,10 +74,17 @@ impl TreePickler<'_> {
                 self.name(&qualified(&n));
                 Ok(())
             }
-            Type::This(class) => {
-                self.byte(THIS);
-                self.ty(class, false)
-            }
+            Type::This(class) => match *self.u.types().get(class) {
+                Type::Package(p) => {
+                    self.package_this(p);
+                    Ok(())
+                }
+                Type::PackageName(_) => Err("the this of a package the universe does not have"),
+                _ => {
+                    self.byte(THIS);
+                    self.ty(class, false)
+                }
+            },
             Type::Super(this, sup) => self.with_length(SUPERtype, &mut |p| p.types(&[this, sup], false)),
             Type::RecThis(binder) => {
                 let at = *self.binders.get(&binder).ok_or("a recursive type's this outside it")?;
@@ -85,7 +92,7 @@ impl TreePickler<'_> {
                 self.buf.write_ref(at);
                 Ok(())
             }
-            Type::Skolem(_, info) => self.ty(info, rich),
+            Type::Skolem(_, info) => self.ty(info, false),
             Type::Refined(parent, name, info) => self.with_length(REFINEDtype, &mut |p| {
                 p.name(&Name::utf8(&name));
                 p.ty(parent, false)?;
@@ -95,6 +102,11 @@ impl TreePickler<'_> {
                 self.binders.insert(binder, at);
                 self.byte(RECtype);
                 self.ty(parent, false)
+            }
+            Type::Alias(hi) | Type::Bounds(_, hi)
+                if matches!(self.u.types().get(hi), Type::Lambda { .. }) =>
+            {
+                Err("bounds of a type lambda, whose variances are not known")
             }
             Type::Alias(alias) => self.with_length(TYPEBOUNDS, &mut |p| p.ty(alias, rich)),
             Type::Bounds(lo, hi) => self.with_length(TYPEBOUNDS, &mut |p| p.types(&[lo, hi], rich)),

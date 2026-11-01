@@ -36,16 +36,23 @@ impl TreePickler<'_> {
             _ => return Err("a reference to a local definition"),
         };
         let owner = owner.ok_or("a reference to a symbol without owner")?;
-        if self.u.symbol(s).flags.has(PRIVATE) {
+        let shadowed = match prefix {
+            Prefix::Type(p) if self.u.symbol(s).kind == Kind::Class => {
+                let name = self.u.symbol(s).name.clone();
+                self.u.resolve(p, &name, true) != Some(s)
+            }
+            _ => false,
+        };
+        if self.u.symbol(s).flags.has(PRIVATE) || shadowed {
             let owner_ref = type_ref(self.u, owner);
             return self.with_length(if is_type { TYPEREFin } else { TERMREFin }, &mut |p| {
-                p.signed_name(s, !is_type);
+                p.signed_name(s, !is_type)?;
                 p.prefix(prefix)?;
                 p.ty(owner_ref, false)
             });
         }
         self.byte(if is_type { TYPEREF } else { TERMREF });
-        self.signed_name(s, !is_type);
+        self.signed_name(s, !is_type)?;
         self.prefix(prefix)
     }
 
@@ -63,6 +70,9 @@ impl TreePickler<'_> {
     pub fn named_ref(&mut self, prefix: TypeId, name: &str, is_type: bool) -> Result<(), Refusal> {
         if let Some(s) = self.u.resolve(prefix, name, is_type) {
             return self.sym_ref(Some(prefix), s);
+        }
+        if !is_type {
+            return Err("an unresolved term reference, its signature not known");
         }
         self.byte(if is_type { TYPEREF } else { TERMREF });
         self.name(&Name::utf8(name));

@@ -120,7 +120,7 @@ impl TreePickler<'_> {
         let Some(s) = method.filter(|_| !self.holes.contains_key(&qual)) else {
             self.byte(if name.is_type { SELECTtpt } else { SELECT });
             match method {
-                Some(s) => self.signed_name(s, true),
+                Some(s) => self.signed_name(s, true)?,
                 None => self.name(&self.tree_name(name, sym)),
             }
             return self.tree(qual);
@@ -128,7 +128,7 @@ impl TreePickler<'_> {
         let owner = self.u.symbol(s).owner.ok_or("a method without owner")?;
         let owner = type_ref(self.u, owner);
         self.with_length(SELECTin, &mut |p| {
-            p.signed_name(s, true);
+            p.signed_name(s, true)?;
             p.tree(qual)?;
             p.ty(owner, false)
         })
