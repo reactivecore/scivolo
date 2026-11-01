@@ -174,7 +174,8 @@ impl Typer<'_> {
         (!dependent && matches!(self.u.types().get(bounds), Type::Bounds(..))).then_some(bounds)
     }
 
-    /// The names of the type variables pattern `pat` binds: its lower-case type identifiers.
+    /// The names of the type variables pattern `pat` binds: its lower-case type identifiers; a
+    /// repeated one is reported.
     fn type_variables(&mut self, pat: NodeId) -> Vec<String> {
         let idents =
             self.ast.subtrees(pat, &|a, n| matches!(a.tree(n), Tree::Ident { name } if name.is_type));
@@ -182,7 +183,12 @@ impl Typer<'_> {
         for i in idents {
             let Tree::Ident { name } = *self.ast.tree(i) else { continue };
             let text = self.text(name.name).to_owned();
-            if text.starts_with(|c: char| c.is_lowercase()) && !names.contains(&text) {
+            if !text.starts_with(|c: char| c.is_lowercase()) {
+                continue;
+            }
+            if names.contains(&text) {
+                self.error_at(self.ast.span(i), super::errors::duplicate_bind(&text));
+            } else {
                 names.push(text);
             }
         }
