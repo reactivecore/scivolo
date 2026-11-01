@@ -117,6 +117,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
      expects `n.toString` in `productElement`, `type-print` other highlight colours.
    - Fix: re-record the checks. VM: compared with `tests/dotty-checks/run-macros`, recorded from
      dotty 3.9.0 on Scala Native.
+9. **Anonymous mirrors in inline bodies lack `fromProduct`** (dotty 3.9.0,
+   `compiler/src/dotty/tools/dotc/typer/Synthesizer.scala:277`, `anonymousMirror`).
+   - `inline def mk(p: Product): Some[Int] = summon[Mirror.ProductOf[Some[Int]]].fromProduct(p)`:
+     each inlined copy of the anonymous mirror class calls a `fromProduct` it does not define.
+   - Scala Native: "Unknown method `…$anon$1.fromProduct(scala.Product): scala.Some`" at link
+     time; JVM: `NoSuchMethodError`.
+   - Fix: give the inlined anonymous mirror classes their mirror members. Frontend: defines them.
 
 ## M4: dotty `tests/run`
 

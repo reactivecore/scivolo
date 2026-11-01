@@ -205,3 +205,4 @@ nestedmirrors
 liftouterthis
 inlineimports
 mirrorproxies
+usermirrors

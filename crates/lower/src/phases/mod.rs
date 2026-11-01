@@ -53,6 +53,7 @@ mod fold_condition;
 mod format_checker;
 mod format_interpolator;
 mod format_spec;
+mod from_product;
 pub(crate) mod function_classes;
 mod function_xxl_forwarders;
 mod get_class;

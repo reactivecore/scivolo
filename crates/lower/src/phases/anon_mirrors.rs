@@ -5,8 +5,8 @@
 //! `fromProduct`, or `Mirror.Sum` with `ordinal`, of the class its `MirroredMonoType` names.
 
 use super::case_members::case_accessors;
+use super::from_product::from_product;
 use super::lift_names::fresh;
-use super::mirrors::from_product;
 use super::sum_mirrors::enum_ordinal;
 use crate::definitions::type_ref;
 use crate::symbols::has;
@@ -49,15 +49,14 @@ pub fn anon_mirror_support(
                     fresh(l, &name);
                 }
             }
-            (cc.mirror_product, vec![from_product(l, class, linked, Some(mono), focus)?])
+            (cc.mirror_product, from_product(l, class, linked, Some(mono), focus)?.into_iter().collect())
         }
         AnonMirror::Sum if has(l.u, linked, ENUM) => {
-            (cc.mirror_sum, vec![enum_ordinal(l, class, linked, focus)?])
+            (cc.mirror_sum, enum_ordinal(l, class, linked, focus)?.into_iter().collect())
         }
         AnonMirror::Sum => {
-            let param = mono;
-            let ordinal = super::sum_mirrors::ordinal(l, root, (class, linked), param, focus)?;
-            (cc.mirror_sum, vec![ordinal])
+            let ordinal = super::sum_mirrors::ordinal(l, root, (class, linked), mono, focus)?;
+            (cc.mirror_sum, ordinal.into_iter().collect())
         }
     })
 }
