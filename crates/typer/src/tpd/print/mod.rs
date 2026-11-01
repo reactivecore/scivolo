@@ -1,5 +1,6 @@
 //! Typed trees as S-expressions, in the format of `scripts/typer-oracle`.
 
+mod staged;
 pub mod symbols;
 pub mod types;
 
@@ -114,6 +115,9 @@ impl Printer<'_> {
             && name.is_type
         {
             self.out.push_str("(EmptyTypeIdent$ - T:)");
+            return;
+        }
+        if self.staged(id) {
             return;
         }
         write!(self.out, "({} {}", class_name(&tree), self.span(node.span)).unwrap();

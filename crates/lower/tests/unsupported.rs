@@ -8,6 +8,14 @@ use tasty::Universe;
 /// Each source and what the refusal names.
 const CASES: &[(&str, &str)] = &[
     (
+        "import scala.quoted.*\nobject Q { def f(x: Expr[Int])(using Quotes): Expr[Int] = '{ $x + 1 } }",
+        "quotes outside splices need PickleQuotes, #199",
+    ),
+    (
+        "import scala.quoted.*\nobject Q { def f[T: Type](using Quotes): Type[List[T]] = Type.of[List[T]] }",
+        "quotes outside splices need PickleQuotes, #199",
+    ),
+    (
         "object O { val v: Any = 1; def f(): Boolean = O.v.isInstanceOf[String | Int] }",
         "type tests of unions or intersections of paths other than names",
     ),

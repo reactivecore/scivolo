@@ -106,6 +106,7 @@ mod poly_functions;
 mod protected_accessors;
 mod proxy_names;
 mod pure_stats;
+mod quotes;
 mod references_outer;
 mod refined_trees;
 mod repeated;
