@@ -7,6 +7,7 @@
 use super::lambda_lift::Function;
 use super::local_free::{enclosing_class, is_term, original_owner, top_level, within};
 use super::walk::subtrees;
+use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::SymbolId;
@@ -40,6 +41,20 @@ pub fn narrow(l: &Lower, class: SymbolId, functions: &mut [Function]) {
     }
 }
 
+/// Narrows function `f` of `class` reading `C.this` of class `c`: into `c` if a static object
+/// enclosing `class` and narrower than where `f` goes, else into `class` (dotty's `narrowTo`).
+pub fn narrow_to(l: &Lower, class: SymbolId, f: &mut Function, c: Option<SymbolId>) {
+    if c.is_some() && c == f.into {
+        return;
+    }
+    let enclosing = c.filter(|&c| c != class && is_static_module(l.u, c) && within(l, class, c));
+    match enclosing {
+        Some(c) if !f.this && f.into.is_none_or(|i| within(l, c, i)) => f.into = Some(c),
+        Some(_) => {}
+        None => f.this = true,
+    }
+}
+
 /// `class` and the local traits it is in before lifting, innermost first.
 fn enclosing_traits(l: &Lower, class: SymbolId) -> Vec<SymbolId> {
     let mut out = vec![class];
@@ -54,8 +69,8 @@ fn enclosing_traits(l: &Lower, class: SymbolId) -> Vec<SymbolId> {
 }
 
 /// Keeps in `class` the functions narrowed into an enclosing class only through calls that need
-/// `this`; fails where a function narrowed itself needs `this`, or a lambda is narrowed but not
-/// where it is created.
+/// `this`; fails where a function narrowed itself needs `this`, or a lambda is narrowed into a
+/// local class but not where it is created.
 pub fn check(l: &Lower, class: SymbolId, functions: &mut [Function]) -> Result<()> {
     let outside = |f: &Function| f.into.is_some_and(|c| c != class);
     for f in functions.iter_mut().filter(|f| f.this && outside(f)) {
@@ -64,7 +79,8 @@ pub fn check(l: &Lower, class: SymbolId, functions: &mut [Function]) -> Result<(
         }
         f.into = None;
     }
-    for f in functions.iter().filter(|f| f.closure.is_some() && outside(f)) {
+    let local = |f: &Function| f.into.is_some_and(|c| !is_static_module(l.u, c));
+    for f in functions.iter().filter(|f| f.closure.is_some() && outside(f) && local(f)) {
         if f.parent.is_none_or(|p| functions[p].into != f.into) {
             return unsupported(l.tpd.span(f.def), "lambdas reading values of enclosing local classes");
         }

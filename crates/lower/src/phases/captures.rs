@@ -59,7 +59,7 @@ pub fn dependencies(
         todo.extend(steps(l, t, pending).into_iter().rev().map(|s| (s, enclosure)));
         let Some(i) = enclosure else { continue };
         match (l.tpd.tree(t), l.tpd.sym(t)) {
-            (Tree::This { .. }, s) => functions[i].this |= s.is_none() || s != functions[i].into,
+            (Tree::This { .. }, s) => super::narrowed::narrow_to(l, class, &mut functions[i], s),
             (&Tree::New { tpt }, _) if matches!(l.u.types().get(l.tpd.tpe(tpt)), Type::Sym(_, c) if l.local_classes.contains_key(c)) => {
                 functions[i].this |= in_class
             }
