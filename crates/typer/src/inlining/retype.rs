@@ -155,14 +155,8 @@ impl Inlining<'_> {
                 self.block_implicits.truncate(mark);
                 self.enclosing_class = outer_class;
                 failed.map_or(Ok(()), Err)?;
-                let fun = match *self.tpd.tree(t) {
-                    T::Apply { fun, .. } | T::TypeApply { fun, .. } => Some(fun),
-                    _ => None,
-                };
-                if let (Some(before), Some(fun)) = (selected, fun)
-                    && self.tpd.sym(self.tpd.meth_part(fun)) != before
-                {
-                    self.reapply(t);
+                if let Some(before) = selected {
+                    self.reapply(t, before);
                 }
                 self.retyped(t, owner)
             }

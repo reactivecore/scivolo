@@ -200,3 +200,4 @@ blockconditions
 inlineproxies
 nameorder
 positionsscopes
+hkoverrides

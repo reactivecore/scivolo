@@ -56,15 +56,18 @@ impl Inlining<'_> {
         Ok(None)
     }
 
-    /// Gives application `t` of `fun`, whose method part selects another member than before, the
-    /// type of applying `fun`'s retyped method type (dotty's `typedApply` and `typedTypeApply`).
-    pub fn reapply(&mut self, t: TNodeId) {
+    /// Gives application `t` of `fun`, if its method part selects another member than `before`,
+    /// the type of applying `fun`'s retyped method type (dotty's `typedApply` and `typedTypeApply`).
+    pub fn reapply(&mut self, t: TNodeId, before: Option<SymbolId>) {
         let (fun, args) = match self.tpd.tree(t) {
             T::Apply { fun, args } | T::TypeApply { fun, args } => (*fun, *args),
             _ => return,
         };
         let applied = matches!(self.tpd.tree(t), T::Apply { .. });
         let meth = self.tpd.sym(self.tpd.meth_part(fun));
+        if meth == before {
+            return;
+        }
         let info = self.tpd.tpe(fun);
         let info = self.u.widen(info);
         let args: Vec<TypeId> = self.tpd.items(args).iter().map(|&a| self.tpd.tpe(a)).collect();
