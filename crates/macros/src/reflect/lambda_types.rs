@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! `MethodType.apply`, `PolyType.apply` and `TypeLambda.apply`, whose parameter and result types
-//! may refer to the parameters, and `param` of a lambda type.
+//! may refer to the parameters, `param` of a lambda type and `erasedParams` of a method type.
 
 use super::Fallible;
 use crate::host::Host;
@@ -51,5 +51,14 @@ impl Host {
             _ => return Err("param of a type other than a lambda type"),
         };
         Ok(self.u.intern_type(Type::Param(binder, i as u32)))
+    }
+
+    /// Whether each parameter of method type `t` is erased (dotty's `paramErasureStatuses`).
+    pub fn erased_params(&mut self, t: TypeId) -> Vec<i32> {
+        let params = match self.u.types().get(t) {
+            Type::Method { params, .. } => params.iter().map(|&(_, p)| p).collect(),
+            _ => Vec::new(),
+        };
+        params.into_iter().map(|p| self.u.is_erased_param(p) as i32).collect()
     }
 }

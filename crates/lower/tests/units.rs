@@ -74,6 +74,10 @@ fn library_java_classes_redefined_and_lifted_classes_in_units() {
     );
     let class = dump(&[boxed_unit, native], "scala.runtime.BoxedUnit");
     assert!(class.contains("class @scala.runtime.BoxedUnit : @java.lang.Object\n"), "{class}");
+    let a = "class A { var r = Array(1)\n def f = r(0) += 1\n def g = for { t <- Option(1); (x, y) = (t, t) } yield x + y }";
+    let b = "object B { def h(p: (Int, Int, Int)) = { val (a, b, c) = p; a + b + c } }";
+    let b = dump(&[SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)], "B$");
+    assert!(b.contains("\"$2$\"") && !b.contains("\"$3$\""), "{b}");
 }
 
 #[test]

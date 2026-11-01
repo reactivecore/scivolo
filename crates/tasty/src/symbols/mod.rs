@@ -89,6 +89,9 @@ pub struct Universe {
     annotations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The string literal that is the only argument of each such annotation, by symbol and class.
     annotation_strings: FxHashMap<(SymbolId, SymbolId), Vec<Option<String>>>,
+    /// The class or package `q` of `private[q]` or `protected[q]` of the symbols defined outside
+    /// TASTy.
+    access_qualifiers: FxHashMap<SymbolId, SymbolId>,
     /// The right-hand sides of the opaque types defined outside TASTy.
     opaque_aliases: FxHashMap<SymbolId, TypeId>,
     /// The constructor proxy object made for each class outside its owner's declarations.
@@ -101,8 +104,8 @@ pub struct Universe {
     opaque_lifts: u64,
     /// Whether the sources compiled are javalib's, whose TASTy classes are then Scala classes.
     javalib_sources: bool,
-    /// The index of the first jar whose classes stand for the JDK's when javalib's are compiled.
-    jdk_jars: usize,
+    /// The indices of the jars whose classes stand for the JDK's.
+    jdk_jars: std::ops::Range<usize>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,

@@ -5,8 +5,7 @@
 use super::{Code, REFUSED, Shown};
 use tasty::SymbolId;
 use tasty::tags::{
-    CASEaccessor, ERASED, FINAL, GIVEN, IMPLICIT, INLINE, LAZY, LOCAL, MUTABLE, OBJECT, OVERRIDE,
-    PARAMsetter, PRIVATE, PROTECTED,
+    CASEaccessor, ERASED, GIVEN, IMPLICIT, LAZY, LOCAL, MUTABLE, OBJECT, OVERRIDE, PARAMsetter,
 };
 use typer::tpd::{TNodeId, Tree as T};
 
@@ -77,40 +76,6 @@ impl Code<'_> {
         }
     }
 
-    /// The modifiers of definition `s` before `val`, `var` or `def`.
-    fn modifiers(&mut self, s: Option<SymbolId>, def: bool) {
-        if self.has(s, IMPLICIT) {
-            self.keyword("implicit ");
-        }
-        if def && self.has(s, INLINE) {
-            self.keyword("inline ");
-        }
-        if self.has(s, OVERRIDE) {
-            self.keyword("override ");
-        }
-        if self.has(s, FINAL) && !self.has(s, OBJECT) {
-            self.keyword("final ");
-        }
-        self.protected_or_private(s);
-    }
-
-    /// The access modifier of `s` with a space, if it has one (dotty's `printProtectedOrPrivate`).
-    fn protected_or_private(&mut self, s: Option<SymbolId>) -> bool {
-        let access = if self.has(s, PROTECTED) {
-            "protected"
-        } else if self.has(s, PRIVATE) {
-            "private"
-        } else {
-            return false;
-        };
-        self.keyword(access);
-        if self.has(s, LOCAL) {
-            self.push("[this]");
-        }
-        self.push(" ");
-        true
-    }
-
     fn type_params(&mut self, params: &[TNodeId]) -> Shown {
         self.push("[");
         for (i, &p) in params.iter().enumerate() {
@@ -124,14 +89,6 @@ impl Code<'_> {
         }
         self.push("]");
         Ok(())
-    }
-
-    pub fn variance(&mut self, s: Option<SymbolId>) {
-        if self.has(s, tasty::tags::COVARIANT) {
-            self.definition_name("+");
-        } else if self.has(s, tasty::tags::CONTRAVARIANT) {
-            self.definition_name("-");
-        }
     }
 
     pub fn method_params(&mut self, params: &[TNodeId]) -> Shown {

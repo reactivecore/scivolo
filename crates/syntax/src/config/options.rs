@@ -6,6 +6,22 @@ use super::{Config, Features, KindProjector, SourceVersion};
 const WARNING_ONLY_FEATURES: [&str; 4] =
     ["implicitConversions", "reflectiveCalls", "higherKinds", "existentials"];
 
+/// The `-language:` features that make every top-level definition experimental, in the order
+/// of `scala.language.experimental` (dotty's `experimentalAutoEnableFeatures`), as dotty's
+/// `checkAndAdaptExperimentalImports` names them.
+const VIRAL_FEATURES: [(Features, &str); 10] = [
+    (Features::NAMED_TYPE_ARGUMENTS, "-language:experimental.experimental.namedTypeArguments"),
+    (Features::GENERIC_NUMBER_LITERALS, "-language:experimental.experimental.genericNumberLiterals"),
+    (Features::ERASED_DEFINITIONS, "-language:experimental.experimental.erasedDefinitions"),
+    (Features::SAFER_EXCEPTIONS, "-language:experimental.experimental.saferExceptions"),
+    (Features::PURE_FUNCTIONS, "-language:experimental.experimental.pureFunctions"),
+    (Features::INTO, "-language:experimental.experimental.into"),
+    (Features::MODULARITY, "-language:experimental.experimental.modularity"),
+    (Features::MULTI_SPREADS, "-language:experimental.experimental.multiSpreads"),
+    (Features::SUB_CASES, "-language:experimental.experimental.subCases"),
+    (Features::RELAXED_LAMBDA_SYNTAX, "-language:experimental.experimental.relaxedLambdaSyntax"),
+];
+
 impl Config {
     /// The settings given by scalac options such as `-source:future`, `-no-indent`,
     /// `-Xkind-projector`, `-Werror` and `-language:experimental.erasedDefinitions`; other
@@ -24,7 +40,7 @@ impl Config {
     }
 
     fn read(options: &[&str], mut unknown: impl FnMut(&str)) -> Config {
-        let mut cfg = Config::default();
+        let (mut cfg, mut experimental) = (Config::default(), false);
         let mut args = options.iter().copied().peekable();
         while let Some(arg) = args.next() {
             let (key, colon_value) = match arg.split_once(':') {
@@ -53,6 +69,7 @@ impl Config {
                 "-new-syntax" => cfg.new_syntax = true,
                 "-preview" => cfg.preview = true,
                 "-indent" => cfg.indent = true,
+                "-experimental" => experimental = true,
                 "-language" => {
                     for name in value().split(',') {
                         match Features::named(name) {
@@ -79,6 +96,8 @@ impl Config {
                 }
             }
         }
+        let viral = VIRAL_FEATURES.iter().find(|(f, _)| cfg.features.contains(*f));
+        cfg.experimental = viral.map(|&(_, why)| why).or(experimental.then_some("-experimental"));
         cfg
     }
 }
@@ -104,6 +123,15 @@ mod tests {
         let good = ["-nowarn", "-language:implicitConversions,postfixOps", "-Xkind-projector:disable"];
         assert!(Config::checked(&good).is_ok());
         assert!(Config::checked(&["-Wnonunit-statement", "-source", "3.9"]).is_ok());
+    }
+
+    #[test]
+    fn experimental_settings() {
+        let why = |options: &[&str]| Config::checked(options).unwrap().experimental;
+        assert_eq!(why(&["-experimental"]), Some("-experimental"));
+        let viral = ["-language:experimental.modularity,experimental.erasedDefinitions", "-experimental"];
+        assert_eq!(why(&viral), Some("-language:experimental.experimental.erasedDefinitions"));
+        assert_eq!(why(&["-language:experimental.captureChecking"]), None);
     }
 
     #[test]

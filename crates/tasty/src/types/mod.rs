@@ -15,7 +15,7 @@ use rustc_hash::FxHashMap;
 
 pub use decode::{Decoder, param_tree_clauses};
 pub use parts::Binding;
-pub use show_source::Highlight;
+pub use show_source::{Highlight, escape};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TypeId(pub u32);

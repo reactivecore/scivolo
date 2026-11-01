@@ -20,7 +20,8 @@ struct Cli {
     /// A jar or directory whose TASTy the sources see, without its NIR.
     #[arg(long)]
     tasty: Vec<PathBuf>,
-    /// Like `--tasty`; with `--javalib`, its classes are Java classes standing for the JDK's.
+    /// Like `--tasty`, its classes standing for the JDK's: with `--javalib`, as Java classes;
+    /// without, ahead of the library's, in place of javalib's classes of the same names.
     #[arg(long)]
     jdk_tasty: Vec<PathBuf>,
     /// The sources are javalib's: javalib's classes are Scala classes, not the JDK's.
@@ -44,10 +45,14 @@ fn main() {
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = [&typer::dump::library_jars(&libs)[..], &cp, &tasty].concat();
-    let mut u = Universe::open(&[&jars[..], &jdk_tasty].concat()).expect("opening the library");
+    let (all, jdk) = match javalib {
+        true => ([&jars[..], &jdk_tasty].concat(), jars.len()..jars.len() + jdk_tasty.len()),
+        false => ([&jdk_tasty[..], &jars].concat(), 0..jdk_tasty.len()),
+    };
+    let mut u = Universe::open(&all).expect("opening the library");
+    u.set_jdk_jars(jdk);
     if javalib {
         u.set_javalib_sources();
-        u.set_jdk_jars(jars.len());
     }
     let sources: Vec<SourceFile> =
         files.iter().map(|f| SourceFile::new(source_name(f, sourceroot.as_deref()), read(f))).collect();
