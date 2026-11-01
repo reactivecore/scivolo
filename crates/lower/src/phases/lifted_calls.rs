@@ -90,6 +90,7 @@ pub fn redirect(
 ) {
     let fun = l.select(receiver, method.sym, l.tpd.span(reference));
     make_call(l, t, f.sym, reference, fun, captured.into_iter().chain(args).collect());
+    l.recopy(t);
 }
 
 /// Makes call or reference `t` of method `m` through `reference` apply `fun` to `args`.

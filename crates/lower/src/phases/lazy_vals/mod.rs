@@ -171,7 +171,10 @@ fn eager_module(l: &mut Lower, accessor: SymbolId, stat: TNodeId, rhs: TNodeId) 
     l.u.set_flags(field, Flags::default().with(SYNTHETIC));
     l.u.enter(field);
     l.fields.insert(field, field);
-    let at = l.tpd.span(stat).start_pos();
+    let at = match l.tpd.span(rhs) {
+        r if r.exists() => r.end_pos(),
+        _ => l.tpd.span(stat).start_pos(),
+    };
     let tpt = l.type_tree(tpe, Span::NONE);
     let def = l.build().val_def(field, tpt, Some(rhs), Span::NONE);
     let read = l.field_ref(field, at);

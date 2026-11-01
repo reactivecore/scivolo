@@ -7,10 +7,10 @@
 use super::lazy_trees::{block, local, return_, val_def};
 use super::local_free::{enclosing_class, is_term};
 use super::tail_calls::TailCalls;
-use super::walk::subtrees;
+use super::walk::{children, subtrees};
 use crate::Lower;
 use crate::symbols::{has, is_effectively_final, is_static};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
 use tasty::{Kind, SymbolId};
@@ -168,6 +168,8 @@ fn substitute(l: &mut Lower, t: TNodeId, calls: &TailCalls) {
         })
         .collect();
     let bases = l.u.linearization(calls.class);
+    let parents: FxHashMap<TNodeId, TNodeId> =
+        trees.iter().flat_map(|&p| children(l.tpd, p).into_iter().map(move |c| (c, p))).collect();
     for s in trees {
         let sym = l.tpd.sym(s);
         let span = l.tpd.span(s);
@@ -179,6 +181,7 @@ fn substitute(l: &mut Lower, t: TNodeId, calls: &TailCalls) {
                 l.select(this, m, span)
             }
             (Tree::This { .. }, _, Some(v), _) if sym == Some(calls.class) && !under_super.contains(&s) => {
+                let span = parents.get(&s).and_then(|&p| l.after_siblings(p, s)).unwrap_or(span);
                 l.ident(v, span)
             }
             _ => continue,
