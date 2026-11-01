@@ -86,6 +86,8 @@ pub struct Lower<'a> {
     null_casts: FxHashSet<TNodeId>,
     /// The type trees of ascriptions erased with value classes boxed (dotty's `Typed` of a cast).
     boxed_ascriptions: FxHashSet<TNodeId>,
+    /// The static references `SelectStatic` made of selections (dotty's new `ref`s and blocks).
+    static_selects: FxHashSet<TNodeId>,
     /// The local classes lifted out of blocks, each with its owner before.
     local_classes: FxHashMap<SymbolId, SymbolId>,
     /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
@@ -186,6 +188,7 @@ pub fn lower_sources(
         explicit_casts: FxHashSet::default(),
         null_casts: FxHashSet::default(),
         boxed_ascriptions: FxHashSet::default(),
+        static_selects: FxHashSet::default(),
         mixed_in: FxHashSet::default(),
         specialized: FxHashSet::default(),
         mixed_in_lazy_names: FxHashMap::default(),

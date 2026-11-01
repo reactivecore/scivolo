@@ -31,15 +31,18 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
                 continue;
             }
             let tpe = l.tpd.tpe(c);
-            let r = l.ident(f, moved_init_span(l, parent, c).unwrap_or(Span::NONE));
+            let owner_ref = is_static_owner_ref(l, qualifier);
+            let at = if owner_ref { moved_init_span(l, parent, c) } else { None };
+            let r = l.ident(f, at.unwrap_or(Span::NONE));
             l.tpd.get_mut(r).tpe = Some(tpe);
-            let new = if is_static_owner_ref(l, qualifier) {
+            let new = if owner_ref {
                 r
             } else {
                 let block = l.block(&[qualifier], r, Span::NONE);
                 l.positioned(block)
             };
             l.copy_node(c, new);
+            l.static_selects.insert(c);
             changed = true;
         }
         if changed {
