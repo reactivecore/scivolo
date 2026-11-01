@@ -27,6 +27,48 @@ trait Shown:
 trait Hidden:
   private def show: String = "hidden"
 
+trait JX:
+  override def toString = "jx"
+trait JY
+class JXY extends JX with JY
+trait JA:
+  def f: JX
+trait JB:
+  def f: JY
+class JAB extends JA with JB:
+  def f: JXY = new JXY
+
+trait Tc[T]:
+  def name: String
+given Tc[JX] with
+  def name = "TcX"
+given Tc[JY] with
+  def name = "TcY"
+given Tc[JX & JY] with
+  def name = "TcXY"
+def tc[T](t: T)(using c: Tc[T]): String = c.name
+
+trait JT:
+  type T <: JX
+  def f: T
+class JTB extends JT with JB:
+  type T = JXY
+  def f: JXY = new JXY
+def pathJoint(x: JT & JB): x.T & JY = x.f
+
+trait JBox:
+  type U
+  def u: U
+trait JD:
+  def g(b: JBox): b.U
+trait JE:
+  def g(c: JBox): JY
+def depJoint(x: JD & JE, b: JBox { type U = JX }): JX & JY = x.g(b)
+
+trait SelfJoint:
+  self: JA & JB =>
+  def use: String = "" + f
+
 def right(x: Other & HasT): Int =
   val t: x.T = x.mk
   t
@@ -41,3 +83,7 @@ def shown(x: Hidden & Shown): String = x.show
   println(right(new Other with HasT {}))
   println(named(new Right with Left {}))
   println(shown(new Hidden with Shown {}))
+  val ab: JA & JB = new JAB
+  println(tc(ab.f))
+  println((new JAB with SelfJoint).use)
+  println(pathJoint(new JTB))
