@@ -127,10 +127,11 @@ pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolI
 
 /// Whether `meth` is a method `class` inherits as it is: the first non-private concrete method
 /// or value of its name and erased signature, or matching it, in the linearization of `class`,
-/// bridges aside.
+/// bridges and inline accessors aside.
 fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
+        || m.name.rsplit("$$").next().is_some_and(|n| n.starts_with("inline$"))
         || l.u.is_constructor(meth)
         || has(l.u, meth, PRIVATE)
         || has(l.u, meth, FIELDaccessor)

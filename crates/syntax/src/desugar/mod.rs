@@ -33,6 +33,7 @@ pub mod package_def;
 mod pat_def;
 mod pat_split;
 mod stats;
+pub mod uniques;
 mod uses;
 mod val_def;
 mod variables;
