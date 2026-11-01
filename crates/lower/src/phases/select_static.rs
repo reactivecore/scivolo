@@ -10,7 +10,7 @@ use super::walk::{children, subtrees};
 use crate::Lower;
 use crate::symbols::{has, is_jdk_object, is_static};
 use syntax::ast::Span;
-use tasty::tags::{ENUM, STATIC};
+use tasty::tags::{ENUM, FIELDaccessor, LAZY, STATIC};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -31,7 +31,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
                 continue;
             }
             let tpe = l.tpd.tpe(c);
-            let r = l.ident(f, Span::NONE);
+            let r = l.ident(f, moved_init_span(l, parent, c).unwrap_or(Span::NONE));
             l.tpd.get_mut(r).tpe = Some(tpe);
             let new = if is_static_owner_ref(l, qualifier) {
                 r
@@ -46,6 +46,27 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
             l.recopy(parent);
         }
     }
+}
+
+/// The span of a reference in place of `c`, the right side of field or getter `parent` of a
+/// class, as dotty's `Constructors` leaves it moved into the constructor before `SelectStatic`:
+/// the start of `c`, of `parent` in a trait.
+fn moved_init_span(l: &Lower, parent: TNodeId, c: TNodeId) -> Option<Span> {
+    let (Tree::ValDef { rhs: Some(rhs), .. } | Tree::DefDef { rhs: Some(rhs), .. }) = *l.tpd.tree(parent)
+    else {
+        return None;
+    };
+    let s = l.tpd.sym(parent)?;
+    let owner = l.u.symbol(s).owner?;
+    let field = match l.tpd.tree(parent) {
+        Tree::ValDef { .. } => true,
+        _ => has(l.u, s, FIELDaccessor),
+    };
+    if rhs != c || !field || has(l.u, s, LAZY) || l.u.symbol(owner).kind != Kind::Class {
+        return None;
+    }
+    let span = if l.u.is_trait(owner) { l.tpd.span(parent) } else { l.tpd.span(c) };
+    span.exists().then(|| span.start_pos())
 }
 
 /// Gives the constructor of superclass call `call` the call's span (dotty's `Mixin.superRef`).
