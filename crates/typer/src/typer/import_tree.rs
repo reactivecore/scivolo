@@ -9,6 +9,7 @@ use super::imports::{ImportEntry, ImportInfo};
 use crate::ctx::Level;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, TName, Tree};
+use tasty::{Type, TypeId};
 
 impl Typer<'_> {
     /// The typed import `id`, its path typed when its level was first searched or now.
@@ -36,6 +37,35 @@ impl Typer<'_> {
         let selectors = self.tpd.list(&typed);
         let span = self.ast.span(id);
         self.tpd.node(T::Import { expr, selectors, export: false }, span, None, None)
+    }
+
+    /// The type of import path `path`, an object in a package seen through the selections of
+    /// the path's packages (dotty's `TermRef` of each `Select`).
+    pub fn import_qual(&mut self, path: TNodeId) -> TypeId {
+        let tpe = self.tpd.tpe(path);
+        let (Type::Sym(Some(p), s), &T::Select { qualifier, .. }) =
+            (self.u.types().get(tpe).clone(), self.tpd.tree(path))
+        else {
+            return tpe;
+        };
+        if !matches!(self.u.types().get(p), Type::Package(_)) {
+            return tpe;
+        }
+        let prefix = self.package_path(qualifier);
+        self.u.intern_type(Type::Sym(Some(prefix), s))
+    }
+
+    /// The type of `path`, its packages selected from packages as `TermRef`s of their prefixes.
+    fn package_path(&mut self, path: TNodeId) -> TypeId {
+        let tpe = self.tpd.tpe(path);
+        let Type::Package(p) = *self.u.types().get(tpe) else { return tpe };
+        let T::Select { qualifier, .. } = *self.tpd.tree(path) else { return tpe };
+        if !matches!(self.u.types().get(self.tpd.tpe(qualifier)), Type::Package(_)) {
+            return tpe;
+        }
+        let prefix = self.package_path(qualifier);
+        let name = self.u.symbol(p).name.clone();
+        self.u.intern_type(Type::TermRef(prefix, name))
     }
 
     /// Checks that the named selectors of import `i` name members of its path, that no name is

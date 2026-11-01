@@ -87,6 +87,9 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
                         || is_stable_path(u, p)
                 })
         }
+        Type::TermRef(p, _) => {
+            u.resolve_ref(t).is_some_and(|s| is_stable_member(u, s)) && is_stable_path(u, p)
+        }
         _ => false,
     }
 }
