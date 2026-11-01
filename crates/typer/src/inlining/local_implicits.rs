@@ -1,9 +1,9 @@
 //! The given and implicit terms the code being expanded defines, in whose scope a search runs.
 
 use super::Inlining;
-use crate::tpd::{MatchKind, TNodeId, Tree as T};
-use tasty::SymbolId;
+use crate::tpd::{MatchKind, TNodeId, Tpd, Tree as T};
 use tasty::tags::{GIVEN, IMPLICIT, MACRO};
+use tasty::{SymbolId, Universe};
 
 impl Inlining<'_> {
     /// Whether the body of inline method definition `def` defines a given or implicit term other
@@ -56,13 +56,8 @@ impl Inlining<'_> {
         mark
     }
 
-    /// Whether `t` defines a given or implicit value or method.
     pub fn is_implicit_def(&self, t: TNodeId) -> bool {
-        let def = matches!(self.tpd.tree(t), T::ValDef { .. } | T::DefDef { .. });
-        def && self.tpd.sym(t).is_some_and(|s| {
-            let flags = self.u.symbol(s).flags;
-            flags.has(GIVEN) || flags.has(IMPLICIT)
-        })
+        is_implicit_def(self.tpd, self.u, t)
     }
 
     /// Adds the given and implicit terms `t` defines to `found`.
@@ -77,19 +72,37 @@ impl Inlining<'_> {
         }
     }
 
-    /// Adds the given and implicit terms `t` defines in whose scope `call` is to `found`: those
-    /// defined beside a tree containing it, or defining it; whether `t` contains `call`.
     pub fn implicit_defs_at(&self, t: TNodeId, call: TNodeId, found: &mut Vec<SymbolId>) -> bool {
-        if t == call {
-            return true;
-        }
-        let children = self.tpd.children(t);
-        let Some(i) = children.iter().position(|&c| self.implicit_defs_at(c, call, found)) else {
-            return false;
-        };
-        let beside = children.iter().enumerate().filter(|&(j, &c)| j != i && self.is_implicit_def(c));
-        found.extend(beside.filter_map(|(_, &c)| self.tpd.sym(c)));
-        found.extend(self.tpd.sym(t).filter(|_| self.is_implicit_def(t)));
-        true
+        implicit_defs_at(self.tpd, self.u, (t, call), found)
     }
+}
+
+/// Whether `t` defines a given or implicit value or method.
+pub fn is_implicit_def(tpd: &Tpd, u: &Universe, t: TNodeId) -> bool {
+    let def = matches!(tpd.tree(t), T::ValDef { .. } | T::DefDef { .. });
+    def && tpd.sym(t).is_some_and(|s| {
+        let flags = u.symbol(s).flags;
+        flags.has(GIVEN) || flags.has(IMPLICIT)
+    })
+}
+
+/// Adds the given and implicit terms `t` defines in whose scope `call` is to `found`: those
+/// defined beside a tree containing it, or defining it; whether `t` contains `call`.
+pub fn implicit_defs_at(
+    tpd: &Tpd,
+    u: &Universe,
+    (t, call): (TNodeId, TNodeId),
+    found: &mut Vec<SymbolId>,
+) -> bool {
+    if t == call {
+        return true;
+    }
+    let children = tpd.children(t);
+    let Some(i) = children.iter().position(|&c| implicit_defs_at(tpd, u, (c, call), found)) else {
+        return false;
+    };
+    let beside = children.iter().enumerate().filter(|&(j, &c)| j != i && is_implicit_def(tpd, u, c));
+    found.extend(beside.filter_map(|(_, &c)| tpd.sym(c)));
+    found.extend(tpd.sym(t).filter(|_| is_implicit_def(tpd, u, t)));
+    true
 }

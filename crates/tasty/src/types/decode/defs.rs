@@ -13,8 +13,8 @@ const EMPTY_CLAUSE_BINDER: u32 = 1 << 31;
 
 impl Decoder<'_> {
     /// The type of the method with definition parts `parts`: its parameter clauses around its
-    /// result type, a constructor's first clause an empty one if it would be implicit (dotty's
-    /// `normalizeIfConstructor`).
+    /// result type, a constructor's first clause an empty one if it would be implicit, its last
+    /// one an empty one if all are using clauses (dotty's `normalizeIfConstructor`).
     pub fn def_type(&mut self, parts: &Parts, constructor: bool) -> TypeId {
         let ast = self.ast;
         let result = match parts.body.first() {
@@ -29,6 +29,16 @@ impl Decoder<'_> {
         let leading_implicit =
             clauses.get(values).is_some_and(|c| ast.tag(c[0]) == PARAM && has(c, IMPLICIT));
         let empty_before = (constructor && leading_implicit).then_some(values);
+        let all_given = clauses[values..].iter().all(|c| ast.tag(c[0]) == PARAM && has(c, GIVEN));
+        let result = match clauses.last().filter(|_| constructor && all_given) {
+            Some(last) => {
+                let binder = Binder(self.file, ast.node(last[0]).addr | EMPTY_CLAUSE_BINDER);
+                let empty =
+                    Type::Method { binder, params: Vec::new(), result, implicit: false, contextual: false };
+                self.intern(empty)
+            }
+            None => result,
+        };
         clauses.into_iter().enumerate().rev().fold(result, |result, (i, clause)| {
             let binder = Binder(self.file, ast.node(clause[0]).addr);
             let params = clause

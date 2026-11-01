@@ -131,7 +131,9 @@ impl Inlining<'_> {
                         failed.get_or_insert(e);
                         filled
                     });
-                    if args.contains(&filled) || from_call.contains(&filled) {
+                    if args.contains(&filled)
+                        || from_call.contains(&filled) && !expanded.found.contains(&filled)
+                    {
                         let span = i.tpd.span(hole);
                         i.tpd.get_mut(copy).span = span;
                         i.position_unpositioned(copy, span);

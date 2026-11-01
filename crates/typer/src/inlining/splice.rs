@@ -8,6 +8,7 @@ use super::macros::{MacroArg, MacroError};
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, map_children};
 use rustc_hash::FxHashMap;
+use syntax::ast::Span;
 use tasty::tags::INLINEPROXY;
 use tasty::{Kind, SymbolId};
 
@@ -26,7 +27,11 @@ impl Inlining<'_> {
             let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
             match self.host.expand_macro(lent, &call) {
                 Err(MacroError::Search(search)) if call.searched.len() < MAX_SEARCHES => {
-                    let found = self.summon_ignoring(search.pt, self.outermost_span, &search.ignored)?;
+                    let searched = (&search.ignored[..], &search.locals[..]);
+                    let found = self.summon_ignoring(search.pt, self.outermost_span, searched)?;
+                    if let Some(f) = found {
+                        self.tpd.get_mut(f).span = Span::at(self.outermost_span.start());
+                    }
                     call.searched.push((search, found));
                 }
                 expanded => break expanded,

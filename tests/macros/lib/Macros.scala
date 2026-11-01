@@ -494,6 +494,37 @@ object Searches:
     val auto = Symbol.classSymbol("macrolib.Shown").companionModule.methodMember("auto")
     Expr(Expr.summonIgnoring[T](auto*).isDefined)
 
+  def summonInt(using Quotes): Expr[Int] = Expr.summon[Int].getOrElse('{ 0 })
+
+  inline def inBlock: Int = ${ inBlockImpl }
+  def inBlockImpl(using Quotes): Expr[Int] = '{
+    def foo =
+      given Int = 42
+      ${ summonInt }
+    foo
+  }
+
+  inline def inObject: Int = ${ inObjectImpl }
+  def inObjectImpl(using Quotes): Expr[Int] = '{
+    object Foo:
+      given Int = 43
+      val x = ${ summonInt }
+    Foo.x
+  }
+
+  inline def usingClass: Int = ${ usingClassImpl }
+  def usingClassImpl(using Quotes): Expr[Int] = '{
+    class Foo(using Int):
+      val x = ${ summonInt }
+    new Foo(using 44).x
+  }
+
+  inline def companionName[T]: String = ${ companionNameImpl[T] }
+  def companionNameImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val companion = TypeRepr.of[T].typeSymbol.companionModule.companionClass
+    Expr(if companion.isNoSymbol then "" else companion.fullName)
+
   def pick(a: Int)(f: Int => Int): Int = f(a)
   def pick(a: Int)(f: PartialFunction[Int, Int]): Option[Int] = f.lift(a)
 
