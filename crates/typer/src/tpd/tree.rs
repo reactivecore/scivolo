@@ -265,6 +265,18 @@ pub enum Tree {
         bindings: List,
         expansion: TNodeId,
     },
+    /// The pattern `'{ body }` or `'[ body ]` with type bindings `bindings`, of Quotes `quotes`.
+    QuotePattern {
+        bindings: List,
+        body: TNodeId,
+        quotes: TNodeId,
+    },
+    /// The pattern `$body`, or `$body(args)` with type arguments `typeargs`, in a quote pattern.
+    SplicePattern {
+        body: TNodeId,
+        typeargs: List,
+        args: List,
+    },
 }
 
 /// A field of a tree, as `Tree::fields` hands it out: the subtrees as slots that can be
@@ -412,6 +424,16 @@ impl Tree {
                 f(O(call));
                 f(L(bindings));
                 f(N(expansion));
+            }
+            Tree::QuotePattern { bindings, body, quotes } => {
+                f(L(bindings));
+                f(N(body));
+                f(N(quotes));
+            }
+            Tree::SplicePattern { body, typeargs, args } => {
+                f(N(body));
+                f(L(typeargs));
+                f(L(args));
             }
         }
     }

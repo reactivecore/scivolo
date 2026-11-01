@@ -12,7 +12,7 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 impl Typer<'_> {
     /// The members of `site`, an intersection, from those of its sides `ma` and `mb` as selected
     /// in `ctx`: of each pair of matching term members the one dotty keeps, the others
-    /// overloaded; none for two different type members or a pair dotty joins
+    /// overloaded; none for two different type members or a matching pair dotty overloads
     /// (`needs_joint_member`).
     pub fn and_members(
         &mut self,
@@ -34,7 +34,10 @@ impl Typer<'_> {
             for &s in out.iter().chain([&m]) {
                 self.complete(s);
             }
-            match out.iter().position(|&o| self.same_member(site, o, m)) {
+            match out
+                .iter()
+                .position(|&o| self.same_member(site, o, m) && self.same_erased_params(site, o, m))
+            {
                 Some(k) => match self.merged(site, (out[k], m), ctx) {
                     Some(s) => out[k] = s,
                     None => return Vec::new(),
@@ -47,7 +50,8 @@ impl Typer<'_> {
 
     /// Of matching members `a` and `b` of `site`, the one whose denotation dotty keeps: the one
     /// accessible in `ctx` if the other is not, else by `symScore` the one whose type conforms to
-    /// the other's; `None` where dotty joins both with the intersection of their types.
+    /// the other's, else the one recorded as the joint member of both; `None` where dotty
+    /// overloads both or joins members not both public.
     fn merged(&mut self, site: TypeId, (a, b): (SymbolId, SymbolId), ctx: Option<Ctx>) -> Option<SymbolId> {
         if let Some(ctx) = ctx {
             let (hidden_a, hidden_b) = (!self.is_accessible(a, ctx), !self.is_accessible(b, ctx));
@@ -56,21 +60,52 @@ impl Typer<'_> {
             }
         }
         let score = self.sym_score(site, a, b);
-        let (ia, ib) = (self.u.member_info(site, a), self.u.member_info(site, b));
+        let (ia, ib) = (self.u.side_member_info(site, a), self.u.side_member_info(site, b));
         let (ra, rb) = (self.u.result_type(ia), self.u.result_type(ib));
         if score <= 0 && self.u.is_subtype(rb, ra) {
             return Some(b);
         }
-        (score >= 0 && self.u.is_subtype(ra, rb)).then_some(a)
+        if score >= 0 && self.u.is_subtype(ra, rb) {
+            return Some(a);
+        }
+        if self.visibility(a) < 2 || self.visibility(b) < 2 {
+            return None;
+        }
+        self.u.info_meet(ia, ib)?;
+        let s = if score >= 0 { a } else { b };
+        self.u.set_joint_member(site, s, (a, b));
+        Some(s)
     }
 
-    /// Whether both sides of intersection `t` have members `name`, which `and_members` cannot
-    /// merge into one.
+    /// Whether members `a` and `b` of `site` erase to the same parameter types, as their
+    /// signatures match.
+    fn same_erased_params(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
+        let (ia, ib) = (self.u.own_member_info(site, a), self.u.own_member_info(site, b));
+        self.u.erased_method_type(ia).0 == self.u.erased_method_type(ib).0
+    }
+
+    /// Whether both sides of intersection `t`, or of one nested in it, have members `name`, which
+    /// `and_members` cannot merge into one; `t` a `this` stands for its given self type.
     pub fn needs_joint_member(&mut self, t: TypeId, name: &str) -> bool {
-        let t = self.u.widen(t);
-        let t = self.u.dealias(t);
+        let t = match *self.u.types().get(t) {
+            Type::This(c) => {
+                let Some(k) = self.u.class_symbol(c) else { return false };
+                self.ensure_self(k);
+                if self.u.given_self_type(k).is_none() {
+                    return false;
+                }
+                self.u.self_type(k)
+            }
+            _ => {
+                let w = self.u.widen(t);
+                self.u.dealias(w)
+            }
+        };
         let Type::And(a, b) = *self.u.types().get(t) else { return false };
-        !self.type_members(a, name).is_empty() && !self.type_members(b, name).is_empty()
+        let (ma, mb) = (self.type_members(a, name), self.type_members(b, name));
+        !ma.is_empty() && !mb.is_empty()
+            || ma.is_empty() && self.needs_joint_member(a, name)
+            || mb.is_empty() && self.needs_joint_member(b, name)
     }
 
     /// Positive to pick `a`, negative to pick `b` (dotty's `symScore`): the concrete one, the one

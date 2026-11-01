@@ -258,6 +258,13 @@ lib-jar-report +modules: fetch-libs fetch-scala-native release
     SCIVOLO_LIBS='{{ justfile_directory() }}/tmp/libs-ours' SCIVOLO_CACHE='{{ justfile_directory() }}/tmp/cache-ours' \
         SCIVOLO_TIMEOUT=1800 scripts/sn-report.sh
 
+# Compile Maven library `name` (sourcecode) from its `-sources.jar` file by file with `scivolo-aot
+# -d`, compare its NIR with the published jar's and run tests/aot/<name> on a jar with our NIR;
+# results under tmp/srclib/<name>.
+lib-source name: fetch-libs
+    cargo build -q --release -p scivolo-aot -p scivolo-nir-dump
+    python3 scripts/lib-source.py '{{ name }}'
+
 # Compile Scala Native's library with Scala 3.9.0 (sbt, JDK; ADR 0046) into tmp/lib/sn,
 # lib-compile's oracle in place of the published jars, which Scala 3.1.3 compiled.
 lib-oracle: fetch-libs fetch-scala-native
@@ -281,9 +288,9 @@ script-profile file *args: release
 dotty-fetch:
     test -d ref/scala3 || (git clone -q --depth 1 --branch 3.9.0 --filter=blob:none --sparse https://github.com/scala/scala3 ref/scala3 && git -C ref/scala3 sparse-checkout set tests/run)
 
-# Add dotty's compiler sources (typer, transforms) to ref/scala3.
+# Add dotty's compiler sources (typer, transforms) and TASTy format sources to ref/scala3.
 dotty-sources: dotty-fetch
-    git -C ref/scala3 sparse-checkout add compiler/src
+    git -C ref/scala3 sparse-checkout add compiler/src tasty/src
 
 # Add dotty's tests/run-macros to ref/scala3, for `just dotty-lower-report "" run-macros`.
 dotty-macros: dotty-fetch
@@ -553,7 +560,7 @@ jdk-stubs:
     rm -rf tmp/jdk-stubs
     mkdir -p tmp/jdk-stubs/out
     scala-cli --power compile --quiet --scala 3.9.0 --server=false --workspace tmp/jdk-stubs/ws \
-        -d tmp/jdk-stubs/classes libs/jdk-stubs/JdkStubs.scala \
+        -d tmp/jdk-stubs/classes libs/jdk-stubs \
         -O -Yearly-tasty-output -O {{ justfile_directory() }}/tmp/jdk-stubs/out -O -Ystop-before:erasure
     find tmp/jdk-stubs/out -name '*.tasty' -exec touch -t 201001010000 {} +
     rm -f libs/jdk-stubs.jar

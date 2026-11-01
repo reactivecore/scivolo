@@ -11,30 +11,13 @@ use crate::host::Host;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Host {
-    /// Records type `t` of a quote and its parts as quoted, but for the types `spliced` into it
-    /// and their parts.
-    pub fn mark_quoted(&mut self, t: TypeId, spliced: &[TypeId]) {
-        let mut parts = Vec::new();
-        self.u.map_type(t, &mut |_, part| {
-            if spliced.contains(&part) {
-                return Some(part);
-            }
-            parts.push(part);
-            None
-        });
-        self.quoted_types.extend(parts);
-    }
-
     pub fn type_parts(&mut self, t: TypeId) -> Fallible<Vec<TypeId>> {
-        let quoted = self.quoted_types.contains(&t);
         Ok(match self.u.types().get(t).clone() {
             Type::Applied(tycon, args) => [tycon].into_iter().chain(args).collect(),
             Type::Annotated(inner, _) | Type::This(inner) | Type::ByName(inner) | Type::Rec(_, inner) => {
                 vec![inner]
             }
-            Type::Sym(Some(prefix), _) => vec![prefix],
-            Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) if quoted => vec![prefix],
-            Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => vec![self.package_this(prefix)],
+            Type::Sym(Some(prefix), _) | Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => vec![prefix],
             Type::Sym(None, s) => vec![self.qualifier(s)?],
             Type::Package(p) => match self.u.symbol(p).owner.filter(|_| p != self.u.root()) {
                 Some(o) => vec![self.package_this_of(o)],
@@ -90,15 +73,6 @@ impl Host {
         parts.push(self.add_type(result) as i32);
         let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
         Ok((parts, Some(names.join("\0"))))
-    }
-
-    /// Prefix `t` of a member referred to by name, the `this` of the package if it is a package
-    /// (dotty's `owner.thisType` of a package member).
-    fn package_this(&mut self, t: TypeId) -> TypeId {
-        match *self.u.types().get(t) {
-            Type::Package(p) => self.package_this_of(p),
-            _ => t,
-        }
     }
 
     /// The `this` of package `p`, which the operations other than type tests and extractors

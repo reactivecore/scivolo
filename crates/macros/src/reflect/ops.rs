@@ -54,6 +54,7 @@ ops! {
     "lambdaBinder" => lambda_binder(kind: Num) -> TypeId;
     "lambdaType" => lambda_type(binder: Ty, types: Rest<Ty>, names: Name) -> Fallible<TypeId>;
     "paramRef" => param_ref(t: Ty, i: Num) -> Fallible<TypeId>;
+    "erasedParams" => erased_params(t: Ty) -> Vec<i32>;
     // definitions
     "annotations" => annotations(s: Sym, cls: OptSym) -> Fallible<Vec<TNodeId>>;
     "symbolTree" => symbol_tree(s: Sym) -> Fallible<Option<TNodeId>>;
@@ -101,7 +102,10 @@ ops! {
     // implicits
     "isWhileTyping" => is_while_typing() -> bool;
     "macroSettings" => macro_settings() -> String;
-    "search" => search(pt: Ty, owner: Num, ignored: Rest<Sym>) -> Fallible<Vec<i32>>;
+    "search" => search(pt: Ty, owner: Num, rest: Rest<Num>) -> Fallible<Vec<i32>>;
+    // imports
+    "importSelector" => import_selector(bound: OptTree, names: Name) -> TNodeId;
+    "import" => import(expr: Tree, selectors: Rest<Tree>) -> TNodeId;
     // type patterns
     "matchType" => match_type(scrutinee: Ty, pattern: Num) -> Fallible<i32>;
     // type reprs
@@ -181,6 +185,7 @@ ops! {
     "dealiasKeepOpaques" => dealias_keep_opaques(t: Ty) -> TypeId;
     "isSubtype" => is_subtype(a: Ty, b: Ty) -> Fallible<bool>;
     "isSameType" => is_same_type(a: Ty, b: Ty) -> Fallible<bool>;
+    "typeIdentity" => type_identity(t: Ty) -> i32;
     "constantType" => constant_type(t: Ty) -> Fallible<Reflected>;
     "typeConstructorOf" => type_constructor_of(name: Name) -> Fallible<TypeId>;
     "substituteTypes" => substitute_types(t: Ty, pairs: Rest<(Sym, Ty)>) -> TypeId;

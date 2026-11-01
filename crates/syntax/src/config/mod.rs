@@ -101,6 +101,9 @@ pub struct Config {
     /// `-preview`.
     pub preview: bool,
     pub features: Features,
+    /// The setting that makes every top-level definition experimental, as dotty names it:
+    /// `-language:experimental.f` for a feature `f` that does that, else `-experimental`.
+    pub experimental: Option<&'static str>,
     pub kind_projector: KindProjector,
     pub warnings: Warnings,
 }
@@ -115,6 +118,7 @@ impl Default for Config {
             new_syntax: false,
             preview: false,
             features: Features::default(),
+            experimental: None,
             kind_projector: KindProjector::Disabled,
             warnings: Warnings::default(),
         }

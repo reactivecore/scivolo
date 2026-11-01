@@ -1,14 +1,13 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/scala/quoted/runtime/impl/printers/SourceCode.scala
 //   compiler/src/scala/quoted/runtime/impl/printers/Extractors.scala
-//   compiler/src/dotty/tools/dotc/util/Chars.scala
 //   compiler/src/dotty/tools/dotc/core/Constants.scala
-//! Constants of `Printer.TreeCode` (dotty's `printConstant`, `Chars.escapedString`), the
-//! structure printers and `TypeRepr.toString`.
+//! Constants of `Printer.TreeCode` (dotty's `printConstant`), the structure printers and
+//! `TypeRepr.toString`.
 
 use super::{Code, REFUSED, Shown};
 use syntax::ast::constant::Constant as C;
-use tasty::Const;
+use tasty::{Const, escape};
 
 impl Code<'_> {
     pub fn constant(&mut self, c: &C) -> Shown {
@@ -88,21 +87,4 @@ pub fn java_decimal(x: f64, shortest: String) -> Option<String> {
         return Some(if x > 0.0 { "Infinity" } else { "-Infinity" }.into());
     }
     (x == 0.0 || (1e-3..1e7).contains(&x.abs())).then_some(shortest)
-}
-
-/// Appends `c`, escaped as dotty's `Chars.escapedChar` does.
-fn escape(s: &mut String, c: char) {
-    let replace = match c {
-        '\u{8}' => "\\b",
-        '\t' => "\\t",
-        '\n' => "\\n",
-        '\u{c}' => "\\f",
-        '\r' => "\\r",
-        '"' => "\\\"",
-        '\'' => "\\'",
-        '\\' => "\\\\",
-        c if c.is_control() => return s.push_str(&format!("\\u{:04x}", c as u32)),
-        c => return s.push(c),
-    };
-    s.push_str(replace);
 }

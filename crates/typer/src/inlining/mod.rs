@@ -62,7 +62,8 @@ mod unapply_fun;
 mod unused;
 
 pub use erased::is_erased_value;
-pub use host::{Host, Lent};
+pub use host::{CheckedErrors, Host, ImportSelector, Lent};
+pub use local_implicits::{implicit_defs_at, is_implicit_def};
 pub use macros::{
     AnnotationCall, Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted, Reports, Search,
 };
@@ -120,9 +121,9 @@ pub struct Inlining<'a> {
     /// Whether the code being expanded is in the scope of an implicit it defines other than by a
     /// block statement or a `summonFrom` case.
     pub local_implicits: bool,
-    /// The implicit values and methods block statements of the code being expanded define, in
-    /// whose scope it is, by block, outermost first.
-    pub block_implicits: Vec<Vec<SymbolId>>,
+    /// The scopes of the implicits block statements of the code being expanded define and of its
+    /// import statements, in which it is, outermost first.
+    pub scopes: Vec<local_implicits::Scope>,
     /// The bindings of the `summonFrom` cases whose bodies are being expanded, innermost last.
     pub case_givens: Vec<SymbolId>,
     /// Whether the code being retyped is a macro's result, whose references to methods with a
@@ -162,7 +163,7 @@ impl<'a> Inlining<'a> {
             typer_ctx: None,
             outer_implicits: Vec::new(),
             local_implicits: false,
-            block_implicits: Vec::new(),
+            scopes: Vec::new(),
             case_givens: Vec::new(),
             in_macro_result: false,
         }

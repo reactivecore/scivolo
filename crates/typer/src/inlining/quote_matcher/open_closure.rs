@@ -24,6 +24,7 @@ impl Reflect<'_> {
         owner: SymbolId,
         t: TNodeId,
         (params, tparams): (&[Captured], &[SymbolId]),
+        fills: &[(TNodeId, Option<TNodeId>)],
     ) -> Result<TNodeId, &'static str> {
         let span = self.tpd.span(t);
         let symbol = |name: &str, kind, owner| Symbol {
@@ -86,7 +87,7 @@ impl Reflect<'_> {
             false => self.poly_function(&type_params, info),
         };
         self.u.set_info(anonfun, info);
-        let body = self.copied(t, syms)?;
+        let body = self.copied(t, syms, fills)?;
         reown(self.tpd, self.u, body, anonfun);
         self.applies_through(body, &methods)?;
         let tpt = self.type_tree(result);
@@ -129,13 +130,43 @@ impl Reflect<'_> {
     }
 
     /// A copy of `t` with the references to the symbols of `syms` replaced by references to
-    /// those they map to.
-    fn copied(&mut self, t: TNodeId, syms: FxHashMap<SymbolId, SymbolId>) -> Result<TNodeId, &'static str> {
+    /// those they map to, its hole placeholders of `fills` by copies of their fills.
+    fn copied(
+        &mut self,
+        t: TNodeId,
+        syms: FxHashMap<SymbolId, SymbolId>,
+        fills: &[(TNodeId, Option<TNodeId>)],
+    ) -> Result<TNodeId, &'static str> {
         let mut fresh = FreshNames::default();
         let mut host = NoHost;
         let mut i =
             Inlining::new((&mut *self.u, &mut *self.tpd), (&mut *self.names, &mut fresh), &mut host, false);
         let mut m = TreeTypeMap { syms, ..TreeTypeMap::default() };
-        i.copy(&mut m, t, &mut |_, _, _| None).map_err(|(_, what)| what)
+        let mut failed = None;
+        let copy = i.copy(&mut m, t, &mut |i, m, t| hole_copy(fills, &mut failed, i, m, t));
+        let copy = copy.map_err(|(_, what)| what)?;
+        failed.map_or(Ok(copy), Err)
+    }
+}
+
+/// The copy of `t` if a hole placeholder of `fills`: of its fill through `m`, else `t` itself;
+/// why copying the fill failed in `failed`.
+fn hole_copy(
+    fills: &[(TNodeId, Option<TNodeId>)],
+    failed: &mut Option<&'static str>,
+    i: &mut Inlining<'_>,
+    m: &TreeTypeMap,
+    t: TNodeId,
+) -> Option<TNodeId> {
+    let &(_, fill) = fills.iter().find(|&&(h, _)| h == t)?;
+    let Some(fill) = fill else { return Some(t) };
+    let mut m = m.clone();
+    let copy = i.copy(&mut m, fill, &mut |i, m, t| hole_copy(fills, failed, i, m, t));
+    match copy {
+        Ok(copy) => Some(copy),
+        Err((_, what)) => {
+            *failed = failed.or(Some(what));
+            Some(t)
+        }
     }
 }

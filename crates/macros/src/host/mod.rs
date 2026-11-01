@@ -1,6 +1,7 @@
 //! The frontend's side of a running macro: the typer's trees and tables, lent for the run, and
 //! the expressions and types the macro holds by number.
 
+mod holes;
 mod natives;
 mod settings;
 
@@ -62,9 +63,6 @@ pub struct Host {
     pub class_defs: Vec<TNodeId>,
     /// The `this` types of packages made as prefixes of their members, with the packages' paths.
     pub package_paths: std::collections::HashMap<TypeId, TypeId>,
-    /// The types of quotes and their parts, whose package prefixes are the packages' `TermRef`s
-    /// (dotty's unpickled types).
-    pub quoted_types: std::collections::HashSet<TypeId>,
     /// The spans of the type trees of the type arguments, by number.
     pub type_arg_spans: std::collections::HashMap<u32, Span>,
 }
@@ -98,7 +96,6 @@ impl Host {
             made_params: Default::default(),
             class_defs: Vec::new(),
             package_paths: Default::default(),
-            quoted_types: Default::default(),
             type_arg_spans: Default::default(),
         }
     }
@@ -179,14 +176,5 @@ impl Host {
             }
         };
         self.exprs.iter().map(quoted).collect()
-    }
-
-    /// The roots of the quotes with a hole not filled yet, those whose holes the macro runs in.
-    pub fn open_quotes(&self) -> Vec<TNodeId> {
-        let open = |e: &Expr| match e {
-            Expr::Quote(q) if q.holes.iter().any(|h| h.3.is_none()) => Some(q.root),
-            _ => None,
-        };
-        self.exprs.iter().filter_map(open).collect()
     }
 }

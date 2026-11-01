@@ -43,7 +43,7 @@ pub(crate) mod const_ops;
 mod constants;
 mod constrain_pattern;
 mod constructor_params;
-mod constructor_proxies;
+pub(crate) mod constructor_proxies;
 mod constructors;
 mod context_applications;
 mod context_bounds;
@@ -163,6 +163,9 @@ mod purity;
 mod qual_skolems;
 mod qualifier_views;
 mod qualifies;
+mod quote_pattern_checks;
+mod quote_patterns;
+mod quote_type_bindings;
 mod refined_types;
 mod refinement_members;
 mod refutable_warnings;
@@ -182,6 +185,7 @@ mod shown_prefix;
 pub(crate) mod simplify;
 mod small_tuples;
 mod source_splices;
+mod splice_patterns;
 mod spliced_args;
 pub(crate) mod stability;
 mod stats;
@@ -192,6 +196,7 @@ mod supers;
 mod this;
 mod this_calls;
 mod throws_types;
+mod top_level_annotations;
 mod trait_params;
 mod transparent;
 mod transparent_traits;
@@ -215,6 +220,7 @@ mod unapply_results;
 mod unapply_seq;
 mod unapply_targs;
 mod unchecked_tests;
+pub(crate) mod unique_names;
 mod unknown_params;
 mod untupled;
 mod variances;
@@ -260,6 +266,8 @@ pub struct Typer<'a> {
     pub erasure_diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
+    /// The setting that makes the top-level definitions experimental (`Config::experimental`).
+    pub experimental: Option<&'static str>,
     /// The `-W` lints the options enable.
     pub lints: Lints,
     /// Whether the source version is `future`.
@@ -308,6 +316,8 @@ pub struct Typer<'a> {
     /// The code of `typeChecks` being typed, and the number of diagnostics at its first construct
     /// outside the subset.
     pub checked_code: Option<(NodeId, Option<usize>)>,
+    /// The errors inline expansions reported, with their spans.
+    pub expansion_errors: Vec<(Span, String)>,
     /// How many constructs outside the subset were reported.
     reports: u32,
     /// `method_info`'s results in universe generation `.0`.
@@ -344,6 +354,8 @@ pub struct Typer<'a> {
     /// The classes with macro annotations, their `this` types and spans, checked for unimplemented
     /// members once the annotations expanded.
     pub macro_annotated: Vec<(SymbolId, tasty::TypeId, Span)>,
+    /// The quote pattern being typed.
+    pub quote_pattern: Option<quote_patterns::QuotePatternScope>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
@@ -386,6 +398,7 @@ impl<'a> Typer<'a> {
             diags: Diagnostics::default(),
             erasure_diags: Diagnostics::default(),
             features: cfg.features,
+            experimental: cfg.experimental,
             lints: cfg.warnings.lints,
             source_future: v.requires_new_syntax(),
             ahead: FxHashMap::default(),
@@ -408,6 +421,7 @@ impl<'a> Typer<'a> {
             ambiguous: Vec::new(),
             unsupported: None,
             checked_code: None,
+            expansion_errors: Vec::new(),
             reports: 0,
             method_infos: Default::default(),
             probe: None,
@@ -425,6 +439,7 @@ impl<'a> Typer<'a> {
             poly_closures: FxHashMap::default(),
             hidden_params: FxHashSet::default(),
             macro_annotated: Vec::new(),
+            quote_pattern: None,
             depth: 0,
             file_starts: Vec::new(),
             macros: None,
@@ -444,6 +459,7 @@ impl<'a> Typer<'a> {
             return self.unsupported(id, "nesting too deep");
         }
         self.depth += 1;
+        self.type_uniques(id);
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
         let vars = self.constraint.count();
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER.with(crate::ctx::Mode::ASSIGNMENT_LHS);

@@ -55,6 +55,14 @@ impl Typer<'_> {
             match *self.levels.get(l) {
                 Level::Scope(_) | Level::Members(_) => {
                     let Some(found) = self.defined(l, name).and_then(|f| self.qualifying(f, l, ctx)) else {
+                        if let Level::Members(owner) = *self.levels.get(l)
+                            && !name.is_type
+                        {
+                            let prefix = crate::defn::owner_prefix(self.u, owner);
+                            if self.needs_joint_member(prefix, name.text) {
+                                return Err("intersection member of an intersected type");
+                            }
+                        }
                         let class = self
                             .defined(l, Name { is_type: true, ..name })
                             .is_some_and(|f| f.syms.iter().any(|&s| self.u.symbol(s).kind == Kind::Class));

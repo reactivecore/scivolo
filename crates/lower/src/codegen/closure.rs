@@ -47,8 +47,9 @@ impl Gen<'_, '_> {
         let anon = self.pool.top(&anon);
         let env = self.l.tpd.items(env).to_vec();
         let mut captures: Vec<TypeId> = env.iter().map(|&e| self.value_type(self.l.tpd.tpe(e))).collect();
+        let home = self.l.u.symbol(fun).owner.filter(|_| instance).unwrap_or(class);
         if instance {
-            captures.insert(0, self.class_ref(class));
+            captures.insert(0, self.class_ref(home));
         }
         let fields: Vec<GlobalId> = (0..captures.len())
             .map(|i| self.pool.member(anon, &Sig::Field(format!("capture{i}"), Scope::Public)))
@@ -80,13 +81,13 @@ impl Gen<'_, '_> {
         let alloc = self.emit(Op::Classalloc { name: anon, zone: None });
         let mut args = vec![alloc];
         if instance {
-            let this = match self.l.u.is_package_object(class) {
+            let this = match self.l.u.is_package_object(class) || home != class {
                 true => {
                     let scope = self.m.scopes.iter().find(|s| s.id == self.m.scope).map(|s| s.pos);
                     let outer = self.at(scope.unwrap_or(self.m.pos));
-                    let module = self.gen_module(class);
+                    let module = self.this_of(home, span);
                     self.m.pos = outer;
-                    module
+                    module?
                 }
                 false => self.m.this.expect("`this` of a method"),
             };

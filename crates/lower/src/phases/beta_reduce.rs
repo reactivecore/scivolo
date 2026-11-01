@@ -47,14 +47,15 @@ fn reduce(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let args = l.tpd.items(args).to_vec();
     let mut bindings = Vec::new();
     let Some(reduced) = recur(l, qualifier, &args, owner, &mut bindings)? else { return Ok(()) };
-    let span = if expanded_without_bindings(l, qualifier) && bindings.is_empty() {
-        l.tpd.span(reduced)
-    } else {
-        l.tpd.span(t)
-    };
+    let inlined = expanded_without_bindings(l, qualifier) && bindings.is_empty();
+    let span = if inlined { l.tpd.span(reduced) } else { l.tpd.span(t) };
     let tpe = l.tpd.tpe(t);
     let reduced = l.ensure_conforms(reduced, tpe);
     let result = if bindings.is_empty() { reduced } else { l.block(&bindings, reduced, Span::NONE) };
+    if inlined {
+        let call = l.tpd.span(t);
+        l.inlined_spans.insert(t, call);
+    }
     l.copy_node(t, result);
     l.tpd.get_mut(t).span = span;
     Ok(())

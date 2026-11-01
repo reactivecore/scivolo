@@ -6,15 +6,15 @@
 //! `Mirror.Singleton`.
 
 use super::anon_mirrors::anon_mirror_support;
-use super::case_members::case_accessors;
+use super::case_members::existing_def;
 use super::enum_values::is_enum_value;
-use super::lift_names::fresh;
-use super::mirror_prefixes::new_seen_from;
-use super::sum_mirrors::is_generic_sum;
+use super::from_product::from_product;
+use super::sum_mirrors::{enum_ordinal, is_generic_sum};
+use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result};
-use syntax::ast::Span;
+use syntax::ast::{Span, TName};
 use tasty::tags::{CASE, ENUM, SEALED, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -26,6 +26,12 @@ pub fn mirror_support(
     class: SymbolId,
     span: Span,
 ) -> Result<Option<(SymbolId, Vec<TNodeId>)>> {
+    if !l.before_inlining
+        && let Ok(cc) = l.case_classes()
+        && [cc.mirror_product, cc.mirror_singleton, cc.mirror_sum].iter().any(|&m| l.u.derives_from(class, m))
+    {
+        return Ok(None);
+    }
     if let Some(kind) = l.tpd.anon_mirror(class) {
         return anon_mirror_support(l, root, class, kind, span).map(Some);
     }
@@ -38,26 +44,35 @@ pub fn mirror_support(
     if has(l.u, class, CASE) {
         return Ok(Some((l.case_classes()?.mirror_singleton, Vec::new())));
     }
-    let Some(linked) = l.u.companion_class(class) else { return Ok(None) };
-    if has(l.u, linked, SEALED) && has(l.u, linked, ENUM) {
-        mono_type(l, class, linked);
-        let focus = Span::new(span.point(), span.point(), span.point());
-        let ordinal = ordinal(l, class, linked, focus)?;
-        return Ok(Some((l.case_classes()?.mirror_sum, vec![ordinal])));
-    }
+    let Some(linked) = linked_class(l, root, class) else { return Ok(None) };
     let focus = Span::new(span.point(), span.point(), span.point());
-    if is_generic_product(l, linked) {
-        mono_type(l, class, linked);
-        let from_product = from_product(l, class, linked, None, focus)?;
-        return Ok(Some((l.case_classes()?.mirror_product, vec![from_product])));
-    }
-    if !has(l.u, linked, SEALED) || !is_generic_sum(l, root, linked) {
+    let is_enum = has(l.u, linked, SEALED) && has(l.u, linked, ENUM);
+    let product = !is_enum && is_generic_product(l, linked);
+    if !is_enum && !product && !(has(l.u, linked, SEALED) && is_generic_sum(l, root, linked)) {
         return Ok(None);
     }
-    mono_type(l, class, linked);
-    let param = type_ref(l.u, linked);
-    let ordinal = super::sum_mirrors::ordinal(l, root, (class, linked), param, focus)?;
-    Ok(Some((l.case_classes()?.mirror_sum, vec![ordinal])))
+    let mono = mono_type(l, class, linked, focus);
+    let cc = l.case_classes()?;
+    let (parent, method) = if is_enum {
+        (cc.mirror_sum, enum_ordinal(l, class, linked, focus)?)
+    } else if product {
+        (cc.mirror_product, from_product(l, class, linked, None, focus)?)
+    } else {
+        let param = type_ref(l.u, linked);
+        (cc.mirror_sum, super::sum_mirrors::ordinal(l, root, (class, linked), param, focus)?)
+    };
+    Ok(Some((parent, mono.into_iter().chain(method).collect())))
+}
+
+/// Whether `class` has a concrete method `like`'s name of type `info` (dotty's `existingDef` in
+/// `addMethod`).
+pub fn has_mirror_method(l: &mut Lower, class: SymbolId, like: SymbolId, info: TypeId) -> bool {
+    let name = l.u.symbol(like).name.clone();
+    let sym = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(SYNTHETIC)));
+    l.u.set_info(sym, info);
+    let existing = existing_def(l, class, sym).is_some();
+    l.u.unenter(sym);
+    existing
 }
 
 /// Whether `c` is a case class dotty gives a product mirror (`isGenericProduct`).
@@ -66,131 +81,35 @@ pub fn is_generic_product(l: &mut Lower, c: SymbolId) -> bool {
     typer::sealed::is_product_shape(l.u, c, value_class)
 }
 
-/// `type MirroredMonoType = C` in object class `class` for its companion class `linked`.
-fn mono_type(l: &mut Lower, class: SymbolId, linked: SymbolId) {
+/// `type MirroredMonoType = C` in object class `class` for its companion class `linked`, at
+/// `focus`, unless `class` has such an alias.
+fn mono_type(l: &mut Lower, class: SymbolId, linked: SymbolId, focus: Span) -> Option<TNodeId> {
+    if l.u.member(class, "MirroredMonoType").into_iter().any(|m| l.u.alias_of(m).is_some()) {
+        return None;
+    }
     let alias = symbol("MirroredMonoType", Kind::Type, class, Flags::default().with(SYNTHETIC));
     let alias = l.u.define(alias);
     let linked = type_ref(l.u, linked);
     let info = l.u.intern_type(Type::Alias(linked));
     l.u.set_info(alias, info);
+    let rhs = l.type_tree(info, focus);
+    let name = TName { name: l.names.intern("MirroredMonoType"), is_type: true };
+    Some(l.tpd.node(Tree::TypeDef { name, rhs }, focus, None, Some(alias)))
 }
 
-/// `def fromProduct(x$0: Product): C = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C(a$1, ...) }`
-/// (dotty's `fromProductBody`), of an anonymous mirror cast to its `MirroredMonoType` `mono`, a
-/// generic `C` applied to its type parameters' upper bounds.
-pub fn from_product(
-    l: &mut Lower,
-    class: SymbolId,
-    case_class: SymbolId,
-    mono: Option<TypeId>,
-    focus: Span,
-) -> Result<TNodeId> {
-    let cc = l.case_classes()?;
-    let product = type_ref(l.u, cc.product);
-    let result = type_ref(l.u, case_class);
-    let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: vec![("x$0".into(), product)],
-        result,
-        implicit: false,
-        contextual: false,
-    });
-    let like = l.u.decl(cc.mirror_product, "fromProduct").unwrap_or_default();
-    let like = like.into_iter().next().expect("`Mirror.Product.fromProduct`");
-    let flags = Flags::default().with(SYNTHETIC);
-    let mut locals = Vec::new();
-    let (method, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
-        let mut defs = Vec::new();
-        let mut refs = Vec::new();
-        for (i, accessor) in case_accessors(l, case_class).into_iter().enumerate() {
-            let name = l.u.symbol(accessor).name.clone();
-            let name = fresh(l, &name);
-            let binding = l.u.define(symbol(&name, Kind::Val, class, Flags::default().with(SYNTHETIC)));
-            let tpe = l.u.info(accessor);
-            l.u.set_info(binding, tpe);
-            locals.push(binding);
-            let product_ref = l.copy_ident(args[0]);
-            let index = l.int_literal(i as i32);
-            let element = l.call(product_ref, cc.product_element, &[index]);
-            let rhs = l.ensure_conforms(element, tpe);
-            let tpt = l.type_tree(tpe, Span::NONE);
-            let term = l.term_name(&name);
-            let def = l.tpd.node(
-                Tree::ValDef { name: term, tpt, rhs: Some(rhs) },
-                Span::NONE,
-                Some(tpe),
-                Some(binding),
-            );
-            defs.push(l.positioned(def));
-            refs.push(l.ident(binding, Span::NONE));
-        }
-        let new = new_seen_from(l, case_class, mono);
-        let ctor = l.u.decl(case_class, "<init>").unwrap_or_default();
-        let ctor = ctor.into_iter().next().expect("a case class constructor");
-        let created = l.call(new, ctor, &refs);
-        let params = l.u.type_params(case_class);
-        let tpe = match mono.filter(|_| !params.is_empty()) {
-            Some(_) => {
-                let his = params.iter().map(|&p| typer::sealed::upper_bound(l.u, p)).collect();
-                crate::definitions::applied(l.u, case_class, his)
-            }
-            None => result,
-        };
-        l.tpd.get_mut(created).tpe = Some(tpe);
-        let block = l.block(&defs, created, Span::NONE);
-        let block = l.positioned(block);
-        match mono {
-            Some(m) => l.ensure_conforms(block, m),
-            None => block,
-        }
-    })?;
-    for local in locals {
-        l.u.set_owner(local, method);
+/// The companion class of object class `class` of unit `root`; of a local one, the class of its
+/// name among the statements that define it (dotty's `companionNamed`).
+fn linked_class(l: &mut Lower, root: TNodeId, class: SymbolId) -> Option<SymbolId> {
+    let owner = l.u.symbol(class).owner?;
+    if !l.u.symbol(owner).kind.is_term() {
+        return l.u.companion_class(class);
     }
-    l.tpd.get_mut(def).span = Span::NONE;
-    Ok(l.with_span(def, focus))
-}
-
-/// `def ordinal(x$0: E): Int = x$0.ordinal` for enum `enum_class` (dotty's `ordinalBody`).
-pub fn ordinal(l: &mut Lower, class: SymbolId, enum_class: SymbolId, focus: Span) -> Result<TNodeId> {
-    let cc = l.case_classes()?;
-    let param = type_ref(l.u, enum_class);
-    let int = l.u.class_ref("scala.Int");
-    let binder = l.u.fresh_binder();
-    let params = vec![("x$0".into(), param)];
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
-    let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
-    let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
-    let flags = Flags::default().with(SYNTHETIC);
-    let java = l.u.linearization(enum_class).into_iter().find(|&b| l.u.full_name(b) == "java.lang.Enum");
-    let java_ordinal = java.and_then(|j| l.u.decl(j, "ordinal").ok()?.into_iter().next());
-    let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
-        let x = l.copy_ident(args[0]);
-        l.call(x, java_ordinal.unwrap_or(cc.enum_ordinal), &[])
+    let name = tasty::module_name(&l.u.symbol(class).name)?.to_owned();
+    let defined_in = |l: &Lower, stats| l.tpd.items(stats).iter().any(|&s| l.tpd.sym(s) == Some(class));
+    let stats = subtrees(l.tpd, root).into_iter().find_map(|t| match *l.tpd.tree(t) {
+        Tree::Block { stats, .. } if defined_in(l, stats) => Some(l.tpd.items(stats).to_vec()),
+        _ => None,
     })?;
-    l.tpd.get_mut(def).span = Span::NONE;
-    Ok(l.with_span(def, focus))
-}
-
-impl Lower<'_> {
-    /// `t`, cast to `tpe` unless its type conforms (dotty's `ensureConforms`).
-    pub fn ensure_conforms(&mut self, t: TNodeId, tpe: tasty::TypeId) -> TNodeId {
-        let from = self.tpd.tpe(t);
-        if self.u.is_subtype(from, tpe) {
-            return t;
-        }
-        let fun = self.select(t, self.defs.as_instance_of, Span::NONE);
-        let fun = self.positioned(fun);
-        let tpt = self.type_tree(tpe, Span::NONE);
-        let args = self.tpd.list(&[tpt]);
-        let cast = self.tpd.node(
-            Tree::TypeApply { fun, args },
-            Span::NONE,
-            Some(tpe),
-            Some(self.defs.as_instance_of),
-        );
-        self.positioned(cast)
-    }
+    let linked = |s: SymbolId| l.u.symbol(s).name == name && l.u.is_class(s) && !l.u.is_module_class(s);
+    stats.into_iter().filter_map(|s| l.tpd.sym(s)).find(|&s| linked(s))
 }

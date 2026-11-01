@@ -117,7 +117,7 @@ impl Kind {
 
 impl Host {
     /// Whether the type of `t` is a bounds or an alias type.
-    fn has_bounds(&self, t: TNodeId) -> bool {
+    pub fn has_bounds(&self, t: TNodeId) -> bool {
         let tpe = self.tpd.get(t).tpe;
         tpe.is_some_and(|tpe| matches!(self.u.types().get(tpe), Type::Bounds(..) | Type::Alias(_)))
     }

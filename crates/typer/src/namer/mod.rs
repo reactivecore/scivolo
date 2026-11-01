@@ -54,6 +54,7 @@ impl Typer<'_> {
                 }
                 _ => {}
             }
+            self.enter_uniques(stat);
             if let Some(sym) = self.create_symbol(stat, ctx)
                 && let Some(scope) = self.levels.def_scope(ctx.level)
                 && matches!(self.levels.get(scope), Level::Scope(_))
@@ -124,6 +125,7 @@ impl Typer<'_> {
             self.unenter_classpath_members(ctx.owner, &text);
         }
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
+        self.defined_unique(name.name, sym, self.ast.span(tree));
         if flags.is(f::OPAQUE)
             && kind == Kind::Type
             && let Some(&owner_flags) = self.syms.flags.get(&ctx.owner)
@@ -140,6 +142,7 @@ impl Typer<'_> {
             self.syms.private_within.extend(package.map(|p| (sym, p)));
         }
         self.syms.private_within.extend(within.flatten().map(|c| (sym, c)));
+        self.u.set_access_qualifier(sym, self.syms.private_within.get(&sym).copied());
         let completion_ctx = match self.levels.outer(ctx.level) {
             Some(outer) if text == "<init>" => Ctx { level: outer, ..ctx },
             _ => ctx,

@@ -5,8 +5,9 @@
 //! `fromProduct`, or `Mirror.Sum` with `ordinal`, of the class its `MirroredMonoType` names.
 
 use super::case_members::case_accessors;
+use super::from_product::from_product;
 use super::lift_names::fresh;
-use super::mirrors::{from_product, ordinal};
+use super::sum_mirrors::enum_ordinal;
 use crate::definitions::type_ref;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
@@ -15,9 +16,9 @@ use tasty::tags::{ENUM, INLINEPROXY};
 use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{AnonMirror, TNodeId};
 
-/// The parent anonymous mirror class `class` of kind `kind` gets and its members; the names of
-/// an inline argument's `fromProduct` taken a second time, as dotty's PostTyper synthesizes it in
-/// the inline call too.
+/// The parent anonymous mirror class `class` of kind `kind` gets and its members; before the
+/// inline calls expand, the names of a transparent inline call's argument's `fromProduct` taken
+/// a second time, as dotty's PostTyper synthesizes it in the call too.
 pub fn anon_mirror_support(
     l: &mut Lower,
     root: TNodeId,
@@ -42,19 +43,20 @@ pub fn anon_mirror_support(
     let mono = l.u.intern_type(Type::Sym(Some(this), mono));
     Ok(match kind {
         AnonMirror::Product => {
-            if l.u.symbol(class).owner.is_some_and(|o| has(l.u, o, INLINEPROXY)) {
+            if l.before_inlining && l.u.symbol(class).owner.is_some_and(|o| has(l.u, o, INLINEPROXY)) {
                 for accessor in case_accessors(l, linked) {
                     let name = l.u.symbol(accessor).name.clone();
                     fresh(l, &name);
                 }
             }
-            (cc.mirror_product, vec![from_product(l, class, linked, Some(mono), focus)?])
+            (cc.mirror_product, from_product(l, class, linked, Some(mono), focus)?.into_iter().collect())
         }
-        AnonMirror::Sum if has(l.u, linked, ENUM) => (cc.mirror_sum, vec![ordinal(l, class, linked, focus)?]),
+        AnonMirror::Sum if has(l.u, linked, ENUM) => {
+            (cc.mirror_sum, enum_ordinal(l, class, linked, focus)?.into_iter().collect())
+        }
         AnonMirror::Sum => {
-            let param = mono;
-            let ordinal = super::sum_mirrors::ordinal(l, root, (class, linked), param, focus)?;
-            (cc.mirror_sum, vec![ordinal])
+            let ordinal = super::sum_mirrors::ordinal(l, root, (class, linked), mono, focus)?;
+            (cc.mirror_sum, ordinal.into_iter().collect())
         }
     })
 }

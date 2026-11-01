@@ -15,6 +15,7 @@ pub mod tags;
 mod tree;
 mod types;
 mod view;
+pub mod write;
 
 pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
 pub use positions::TastySpan;
@@ -25,7 +26,7 @@ pub use symbols::{
     is_package_object_name, module_class_name, module_name, package_table, package_table_version,
     symbol_table,
 };
-pub use types::{Binder, Binding, Highlight, Type, TypeId, Types, VarId, param_tree_clauses};
+pub use types::{Binder, Binding, Highlight, Type, TypeId, Types, VarId, escape, param_tree_clauses};
 
 pub use cursor::{Cursor, Error, Result};
 pub use file::{Attribute, Header, Section, Tasty, attribute_name};

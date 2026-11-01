@@ -6,6 +6,7 @@
 
 use super::Reflect;
 use crate::tpd::TNodeId;
+use tasty::tags::{GIVEN, IMPLICIT};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
@@ -17,11 +18,17 @@ impl Reflect<'_> {
         let mut clauses = Vec::new();
         loop {
             match self.u.types().get(t).clone() {
-                Type::Method { params, result, .. } => {
+                Type::Method { params, result, implicit, contextual, .. } => {
                     let mut clause = Vec::new();
                     for (name, info) in params {
                         let p = self.new_param(s, &name, Kind::Param);
                         self.u.set_info(p, info);
+                        let flags = self.u.symbol(p).flags;
+                        match (contextual, implicit) {
+                            (true, _) => self.u.set_flags(p, flags.with(GIVEN)),
+                            (_, true) => self.u.set_flags(p, flags.with(IMPLICIT)),
+                            _ => {}
+                        }
                         let tpt = self.type_tree(info);
                         clause.push(self.build()?.val_def(p, tpt, None, span));
                     }

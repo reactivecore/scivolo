@@ -52,6 +52,11 @@ pub fn missing_given(tpe: &str, place: &str) -> Message {
     message(172, "Type", false, format!("No given instance of type {tpe} was found for {place}"))
 }
 
+/// `DuplicateBind` for pattern variable `name`.
+pub fn duplicate_bind(name: &str) -> Message {
+    message(5, "Naming", true, format!("duplicate pattern variable: {name}"))
+}
+
 /// `NoMatchingOverload` for the alternatives of `method`, shown with location, of types `types`,
 /// none of which matches `args`.
 pub fn no_matching_overload(method: &str, types: &[String], args: &str) -> Message {

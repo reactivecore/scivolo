@@ -73,6 +73,10 @@ impl Universe {
 
     /// The class `t` erases to if its erasure is `e`, else the class named by `e`.
     fn side_class(&mut self, t: TypeId, e: &Erased) -> Option<SymbolId> {
+        let t = match *self.types().get(t) {
+            Type::This(c) => c,
+            _ => t,
+        };
         let class = self.erased_class(t);
         let Erased::Class(name) = e else { return class };
         let own = class.map(|c| self.intern_type(Type::Sym(None, c)));
@@ -179,13 +183,7 @@ fn lub(a: Erased, b: Erased) -> Erased {
         (Erased::Null, x) | (x, Erased::Null) if is_reference(&x) => x,
         (x, y) if x == y => x,
         (Erased::Array(x), Erased::Array(y)) => match (*x, *y) {
-            (x @ Erased::Prim(_), y) | (y, x @ Erased::Prim(_)) => {
-                if x == y {
-                    Erased::Array(Box::new(x))
-                } else {
-                    object()
-                }
-            }
+            (Erased::Prim(_), _) | (_, Erased::Prim(_)) => object(),
             (x, y) => Erased::Array(Box::new(lub(x, y))),
         },
         _ => object(),

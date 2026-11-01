@@ -2,7 +2,10 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! `Term.betaReduce` of `quotes.reflect`: the inlining's beta reduction, run without a typer.
 
-use super::{AnnotationCall, Expanded, Host, Inlining, Lent, MacroCall, MacroError, Reflect};
+use super::{
+    AnnotationCall, CheckedErrors, Expanded, Host, ImportSelector, Inlining, Lent, MacroCall, MacroError,
+    Reflect,
+};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -18,6 +21,10 @@ impl Host for NoHost {
     }
 
     fn within(&mut self, ctx: Ctx, _: Vec<(String, SymbolId)>) -> Ctx {
+        ctx
+    }
+
+    fn within_import(&mut self, ctx: Ctx, _: (TypeId, TNodeId), _: Vec<ImportSelector>) -> Ctx {
         ctx
     }
 
@@ -41,16 +48,16 @@ impl Host for NoHost {
         false
     }
 
-    fn error_count(&self) -> usize {
-        0
+    fn error_count(&self) -> (usize, usize) {
+        (0, 0)
     }
 
-    fn errors_since(&mut self, _: usize) -> bool {
-        false
+    fn errors_since(&mut self, _: (usize, usize)) -> CheckedErrors {
+        Some(Vec::new())
     }
 
-    fn typed_code(&mut self, _: Lent<'_>, _: &str, _: Ctx) -> Option<TNodeId> {
-        None
+    fn typed_code(&mut self, _: Lent<'_>, _: &str, _: Ctx) -> Result<TNodeId, CheckedErrors> {
+        Err(None)
     }
 
     fn inline_def(&mut self, _: Lent<'_>, _: SymbolId) -> Result<Option<TNodeId>, &'static str> {
@@ -64,6 +71,8 @@ impl Host for NoHost {
     fn annotations(&self, _: SymbolId) -> Vec<TNodeId> {
         Vec::new()
     }
+
+    fn copied_symbol(&mut self, _: SymbolId, _: SymbolId) {}
 
     fn expand_annotation(&mut self, _: Lent<'_>, _: &AnnotationCall) -> Result<Expanded, MacroError> {
         Err(MacroError::Unsupported("a macro annotation in Term.betaReduce".into()))

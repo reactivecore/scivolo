@@ -84,6 +84,9 @@ impl Universe {
     /// The class or package `q` of `sym`'s `private[q]` or `protected[q]` (dotty's
     /// `privateWithin`).
     pub fn access_qualifier(&mut self, sym: SymbolId) -> Option<SymbolId> {
+        if let Some(&q) = self.access_qualifiers.get(&sym) {
+            return Some(q);
+        }
         let (file, id) = self.symbol(sym).tree?;
         let (ast, _) = self.file(file);
         let mods = match view(ast, id) {
@@ -98,6 +101,11 @@ impl Universe {
             Type::Package(p) => Some(p),
             _ => self.class_symbol(t),
         }
+    }
+
+    /// Gives `sym`, defined outside TASTy, the access qualifier `q`, if any.
+    pub fn set_access_qualifier(&mut self, sym: SymbolId, q: Option<SymbolId>) {
+        self.access_qualifiers.extend(q.map(|q| (sym, q)));
     }
 
     /// The type of the type, type tree or path at `id` of loaded file `file`.

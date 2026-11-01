@@ -74,26 +74,6 @@ impl Inlining<'_> {
             false => (inner, self.enclosing_class),
         }
     }
-
-    /// `tree` without the imports among its statements, if a block or a template; exports kept.
-    pub fn without_imports(&mut self, tree: T) -> T {
-        let is_import = |i: &Self, s| matches!(i.tpd.tree(s), T::Import { export: false, .. });
-        match tree {
-            T::Block { stats, expr } if self.tpd.items(stats).iter().any(|&s| is_import(self, s)) => {
-                let kept: Vec<_> =
-                    self.tpd.items(stats).iter().copied().filter(|&s| !is_import(self, s)).collect();
-                T::Block { stats: self.tpd.list(&kept), expr }
-            }
-            T::Template { constr, parents, self_, body }
-                if self.tpd.items(body).iter().any(|&s| is_import(self, s)) =>
-            {
-                let kept: Vec<_> =
-                    self.tpd.items(body).iter().copied().filter(|&s| !is_import(self, s)).collect();
-                T::Template { constr, parents, self_, body: self.tpd.list(&kept) }
-            }
-            tree => tree,
-        }
-    }
 }
 
 /// `t` with the members of copied classes selected through a prefix renamed to their copies.

@@ -1,0 +1,9 @@
+inst 1
+wild 2
+cov 3
+inst 4/none
+no given
+(true,true)
+inst 6
+inst 7/other 7
+local 13

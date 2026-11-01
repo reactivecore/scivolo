@@ -7,6 +7,7 @@ use typer::tpd::TNodeId;
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
+    quotes::refuse(l, root)?;
     static_members::transform(l, root)?;
     refined_trees::transform(l, root);
     retained_bodies::transform(l, root)?;
@@ -21,8 +22,8 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let mut classes = class_defs(l.tpd, root);
     let inits = module_purity::objects_with_inits(l, &classes);
     super_accessors::transform(l, &classes)?;
+    synthetic::add_all(l, root)?;
     for &td in &classes {
-        synthetic::add_synthetic_members(l, root, td)?;
         enumerations::transform(l, td)?;
         package_objects::transform(l, td);
         first_transform::transform(l, td, &inits);

@@ -7,9 +7,11 @@ mod constraint;
 mod ctx;
 mod defn;
 pub mod dump;
+mod finish;
 pub mod inlining;
 mod main_proxies;
 mod namer;
+pub mod pickle;
 pub mod sealed;
 mod signatures;
 mod symbols;
@@ -17,7 +19,7 @@ pub mod tpd;
 mod typer;
 pub mod unpickle;
 
-use crate::ctx::{Ctx, Level, Mode};
+use crate::ctx::Ctx;
 use crate::inlining::Macros;
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::diag::Diagnostics;
@@ -26,6 +28,7 @@ use tasty::Universe;
 use tpd::{TNodeId, Tpd};
 
 pub use completion::Request;
+pub use finish::SyntheticMembers;
 pub use typer::{RETAINED_BODY, Typer, fold_binop, fold_unop};
 
 /// Why a unit takes the JVM frontend instead.
@@ -63,6 +66,10 @@ pub struct Units {
     errors_first: bool,
     /// Whether typing stops before the inline calls expand (dotty's `-Ystop-after:typer`).
     typer_only: bool,
+    /// The paths of the next unit's source files, relative to the source root.
+    pub source_names: Vec<String>,
+    /// What adds the synthetic members of a unit's classes before its inline calls expand.
+    pub synthetic_members: Option<SyntheticMembers>,
 }
 
 impl Units {
@@ -90,9 +97,9 @@ impl Units {
         let mut typer = Typer::new(u, (ast, root), (names, fresh), cfg, &mut self.syms)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         typer.macros = macros.map(|m| m as &mut dyn Macros);
-        let ctx = root_context(&mut typer);
+        let ctx = Ctx::root(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);
-        self.finish(typer, typed)
+        self.finish(typer, typed, &[typed])
     }
 
     /// Types the units of one `ast`, each the root of a source file with the offset it starts at,
@@ -121,7 +128,7 @@ impl Units {
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         typer.file_starts = units.iter().skip(1).map(|&(start, _)| start).collect();
         typer.macros = macros.map(|m| m as &mut dyn Macros);
-        let ctx = root_context(&mut typer);
+        let ctx = Ctx::root(&mut typer);
         typer.index(&roots, ctx);
         typer.check_split_companions();
         let typed: Vec<TNodeId> = roots.iter().map(|&r| typer.typed(r, typer::Pt::Any, ctx)).collect();
@@ -131,43 +138,7 @@ impl Units {
         let pid = typer.tpd.node(tpd::Tree::Ident { name }, Span::NONE, Some(tpe), Some(root));
         let stats = typer.tpd.list(&typed);
         let unit = typer.tpd.node(tpd::Tree::PackageDef { pid, stats }, Span::NONE, Some(tpe), None);
-        self.finish(typer, unit)
-    }
-
-    /// Completes typed unit `typed`: its annotations, type variables and inline calls.
-    fn finish(&mut self, mut typer: Typer, typed: TNodeId) -> Result<Typed, Fallback> {
-        typer.typed_annotations();
-        typer.check_dynamic_calls();
-        if let Err(what) = typer.zonk_trees() {
-            typer.unsupported_at(Span::NONE, what);
-        }
-        if !self.typer_only
-            && typer.unsupported.is_none()
-            && !typer.diags.has_errors()
-            && let Err((at, what)) = typer.with_inlining(false, |i| i.run(typed))
-        {
-            typer.unsupported_at(at, what);
-        }
-        if typer.unsupported.is_none() && !typer.diags.has_errors() {
-            typer.check_macro_annotated();
-            typer.check_forward_refs(typed);
-        }
-        self.syms = std::mem::take(&mut typer.syms);
-        self.syms.end_unit(typer.u);
-        if self.errors_first && typer.diags.has_errors() {
-            return Err(Fallback::Errors(typer.diags));
-        }
-        if let Some((at, what)) = typer.unsupported.take() {
-            return Err(Fallback::Unsupported { at, what });
-        }
-        if typer.diags.has_errors() {
-            return Err(Fallback::Errors(typer.diags));
-        }
-        let mut diags = typer.diags;
-        if !self.typer_only {
-            diags.items.append(&mut typer.erasure_diags.items);
-        }
-        Ok(Typed { tpd: typer.tpd, root: typed, diags })
+        self.finish(typer, unit, &typed)
     }
 
     /// Removes the object `name` from the root package, and it and the definitions in it from
@@ -188,18 +159,4 @@ impl Units {
         self.syms.flags.retain(|&s, _| !under(s));
         objects.iter().for_each(|&o| u.unenter(o));
     }
-}
-
-/// The context of a unit: the members of the root package, then the wildcard imports of
-/// `java.lang`, `scala` and `Predef` (dotty's `rootImports`), outermost first.
-fn root_context(t: &mut Typer) -> Ctx {
-    let root = t.u.root();
-    let java_lang = t.u.intern_type(tasty::Type::Package(t.defn.java_lang));
-    let scala = t.u.intern_type(tasty::Type::Package(t.defn.scala));
-    let predef = defn::type_ref(t.u, t.defn.predef);
-    let level = t.levels.push(None, Level::Members(root));
-    let level = t.root_import(Some(level), java_lang);
-    let level = t.root_import(Some(level), scala);
-    let level = t.root_import(Some(level), predef);
-    Ctx { owner: root, level, mode: Mode::NONE }
 }

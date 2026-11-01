@@ -97,7 +97,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// `this.x_=(rhs)`, or `this.T$_setter_$x_=(rhs)` for a `val`, for getter `getter` of trait `class`,
-/// `rhs` at the definition's `span`.
+/// `rhs` at the definition's `span`, kept by the one `SelectStatic` made after positioning the call.
 fn set(l: &mut Lower, class: tasty::SymbolId, getter: tasty::SymbolId, rhs: TNodeId, span: Span) -> TNodeId {
     let name = l.u.symbol(getter).name.clone();
     let var_setter =
@@ -110,7 +110,11 @@ fn set(l: &mut Lower, class: tasty::SymbolId, getter: tasty::SymbolId, rhs: TNod
     let this = l.this(class, Span::NONE);
     let fun = l.select(this, setter, Span::NONE);
     let unit = l.u.class_ref("scala.Unit");
-    l.tpd.get_mut(rhs).span = span;
+    let own = std::mem::replace(&mut l.tpd.get_mut(rhs).span, span);
     let call = l.apply(fun, &[rhs], unit, Span::NONE);
-    l.positioned(call)
+    l.positioned(call);
+    if l.static_selects.contains(&rhs) {
+        l.tpd.get_mut(rhs).span = own;
+    }
+    call
 }

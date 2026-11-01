@@ -14,6 +14,7 @@ mod encode;
 mod eta;
 mod from_symbol;
 mod implicits;
+mod imports;
 mod lambda_types;
 mod lambda_variances;
 mod made;

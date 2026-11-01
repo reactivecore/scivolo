@@ -112,7 +112,7 @@ impl Typer<'_> {
             if !package && !self.is_stable_path(typed) && !super::stability::is_stable_path(self.u, tpe) {
                 self.unsupported(expr, "import prefix that is not a pure expression");
             }
-            let qual = self.tpd.tpe(typed);
+            let qual = self.import_qual(typed);
             let site = self.import_site(qual).map(|s| self.u.full_name(s).replace('$', ""));
             if self.looks_like_language(expr) && !site.is_some_and(|s| s.starts_with("scala.language")) {
                 self.unsupported(

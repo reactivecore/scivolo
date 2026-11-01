@@ -44,7 +44,7 @@ pub fn quote_match(
     let mut r = Reflect { u, tpd, names, span };
     let exprs = holes.into_iter().map(|h| match h {
         Hole::Closed(t) => Ok(t),
-        Hole::Open(t, params, tparams) => r.open_closure(owner, t, (&params, &tparams)),
+        Hole::Open(t, params, tparams) => r.open_closure(owner, t, (&params, &tparams), fills),
     });
     Ok(Some((types, exprs.collect::<Result<_, _>>()?)))
 }

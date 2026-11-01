@@ -15,6 +15,7 @@ impl Desugar<'_> {
     /// The desugared form of a `for`, interpolated string, symbol literal or unary operation
     /// (dotty's `desugar(tree)`), at the span of `id`.
     pub fn desugar_expr(&mut self, id: NodeId) -> NodeId {
+        let from = self.fresh.uniques.made();
         let t = match self.ast.tree(id).clone() {
             Tree::SymbolLit { value } => {
                 let symbol = self.sym_ref("scala.Symbol", false);
@@ -46,6 +47,7 @@ impl Desugar<'_> {
             _ => unreachable!("a tree desugar(tree) expands"),
         };
         let span = self.ast.span(id);
+        self.fresh.uniques.group_on_typing(from, span);
         self.ast.respan(t, span)
     }
 

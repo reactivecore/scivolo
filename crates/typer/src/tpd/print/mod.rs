@@ -1,5 +1,6 @@
 //! Typed trees as S-expressions, in the format of `scripts/typer-oracle`.
 
+mod staged;
 pub mod symbols;
 pub mod types;
 
@@ -116,6 +117,9 @@ impl Printer<'_> {
             self.out.push_str("(EmptyTypeIdent$ - T:)");
             return;
         }
+        if self.staged(id) {
+            return;
+        }
         write!(self.out, "({} {}", class_name(&tree), self.span(node.span)).unwrap();
         if let Tree::Ident { name } = tree
             && node.sym == Some(self.u.root())
@@ -144,7 +148,10 @@ impl Printer<'_> {
         }
         match tree {
             Tree::ClassLiteral { tpe } => write!(self.out, " :#Class:{}", types::tpe(self.u, tpe)).unwrap(),
-            Tree::Alternative { .. } | Tree::NamedArg { .. } | Tree::SeqLiteral { .. } => {}
+            Tree::Alternative { .. }
+            | Tree::NamedArg { .. }
+            | Tree::SeqLiteral { .. }
+            | Tree::QuotePattern { .. } => {}
             Tree::Inlined { expansion, .. } if !self.is_term_or_type(expansion) => {}
             _ => {
                 if let Some(t) = node.tpe {
@@ -160,7 +167,10 @@ impl Printer<'_> {
     /// what its expansion is.
     fn is_term_or_type(&self, t: TNodeId) -> bool {
         match *self.tpd.tree(t) {
-            Tree::Alternative { .. } | Tree::NamedArg { .. } | Tree::SeqLiteral { .. } => false,
+            Tree::Alternative { .. }
+            | Tree::NamedArg { .. }
+            | Tree::SeqLiteral { .. }
+            | Tree::QuotePattern { .. } => false,
             Tree::Inlined { expansion, .. } => self.is_term_or_type(expansion),
             _ => true,
         }

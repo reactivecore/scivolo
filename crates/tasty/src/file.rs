@@ -6,7 +6,7 @@ use crate::cursor::{Cursor, Result};
 use crate::names::{NameRef, Names};
 use crate::tags::{MAJOR_VERSION, MINOR_VERSION};
 
-const MAGIC: [u8; 4] = [0x5C, 0xA1, 0xAB, 0x1F];
+pub const MAGIC: [u8; 4] = [0x5C, 0xA1, 0xAB, 0x1F];
 
 #[derive(Debug, Clone)]
 pub struct Header<'a> {

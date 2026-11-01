@@ -10,7 +10,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId};
-use tasty::{Binder, SymbolId, Type, TypeId, TypeVars};
+use tasty::{ANY, Binder, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -138,7 +138,11 @@ impl Typer<'_> {
             let java_object = of_java && self.u.class_symbol(hi) == Some(self.u.builtins().object);
             let upper = match var {
                 _ if java_object => true,
-                Some(v) if self.u.dealias(hi) != hi && self.open_vars(hi).is_empty() => {
+                Some(v)
+                    if (self.u.dealias(hi) != hi
+                        || hi != ANY && self.u.class_symbol(hi) == Some(self.u.builtins().any))
+                        && self.open_vars(hi).is_empty() =>
+                {
                     self.constraint.add_upper(self.u, v, hi)
                 }
                 _ => self.conforms(arg, hi),

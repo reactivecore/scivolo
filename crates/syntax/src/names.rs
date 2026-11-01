@@ -121,9 +121,13 @@ impl Names {
     }
 }
 
-/// The counters of a compilation unit's fresh names, one per prefix (dotty's `FreshNameCreator`).
+/// The counters of a compilation unit's fresh names, one per prefix (dotty's `FreshNameCreator`),
+/// and the `$N$` names made.
 #[derive(Default)]
-pub struct FreshNames(rustc_hash::FxHashMap<String, u32>);
+pub struct FreshNames {
+    counts: rustc_hash::FxHashMap<String, u32>,
+    pub uniques: crate::desugar::uniques::Uniques,
+}
 
 impl FreshNames {
     /// `prefix` followed by the next number for it: `_$1`, `evidence$2`.
@@ -135,19 +139,22 @@ impl FreshNames {
     /// The next `$N$` (dotty's `UniqueName`).
     pub fn unique(&mut self, names: &mut Names) -> Name {
         let n = self.count("$");
-        names.intern(&format!("${n}$"))
+        let name = names.intern(&format!("${n}$"));
+        self.uniques.push(name);
+        name
     }
 
-    /// Raises each counter to at least that of `other`.
+    /// Raises each counter to at least that of `other`; takes its `$N$` names.
     pub fn include(&mut self, other: &FreshNames) {
-        for (prefix, &n) in &other.0 {
-            let mine = self.0.entry(prefix.clone()).or_insert(0);
+        for (prefix, &n) in &other.counts {
+            let mine = self.counts.entry(prefix.clone()).or_insert(0);
             *mine = (*mine).max(n);
         }
+        self.uniques.include(&other.uniques);
     }
 
     fn count(&mut self, prefix: &str) -> u32 {
-        let n = self.0.entry(prefix.to_owned()).or_insert(0);
+        let n = self.counts.entry(prefix.to_owned()).or_insert(0);
         *n += 1;
         *n
     }

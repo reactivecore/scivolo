@@ -74,9 +74,13 @@ fn body(
         _ if sym == cc.any_equals => l.equals_body(class, &accessors, args[0], can_equal, locals, cc),
         _ if sym == cc.to_string && l.u.is_module_class(class) => l.string_literal(&own_name),
         _ if sym == cc.to_string => {
-            let run_time = l.ident(cc.scala_run_time, Span::NONE);
+            let fun = l.ident(cc.runtime_to_string, Span::NONE);
+            let fun = l.positioned(fun);
             let this = l.this(class, Span::NONE);
-            l.call(run_time, cc.runtime_to_string, &[this])
+            let info = l.u.info(cc.runtime_to_string);
+            let string = l.u.result_type(info);
+            let apply = l.apply(fun, &[this], string, Span::NONE);
+            l.positioned(apply)
         }
         _ if sym == cc.can_equal => {
             let tpe = type_ref(l.u, class);

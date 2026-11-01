@@ -6,6 +6,7 @@
 use super::walk::subtrees;
 use crate::codegen::callee::is_primitive;
 use crate::{Lower, Result, unsupported};
+use syntax::ast::Span;
 use tasty::tags::OPAQUE;
 use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
@@ -35,7 +36,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
 /// primitive value class made a call of that class's method taking the argument's class (dotty's
 /// `applyOverloaded`).
 fn resolve_equality(l: &mut Lower, t: TNodeId, s: SymbolId, qualifier: TNodeId) -> Result<()> {
-    let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return Ok(()) };
+    let Tree::Apply { args, .. } = *l.tpd.tree(t) else { return Ok(()) };
     let Some(class) = underlying_class(l, qualifier) else { return Ok(()) };
     if !is_primitive(&l.u.full_name(class)) {
         return Ok(());
@@ -51,8 +52,11 @@ fn resolve_equality(l: &mut Lower, t: TNodeId, s: SymbolId, qualifier: TNodeId) 
         arg.is_some() && param.is_some_and(|p| l.u.class_symbol(p) == arg)
     });
     let Some(method) = method else { return unsupported(l.tpd.span(t), "equality of opaque type values") };
-    let select = l.select(qualifier, method, l.tpd.span(fun));
-    l.tpd.get_mut(t).tree = Tree::Apply { fun: select, args };
+    let select = l.select(qualifier, method, Span::NONE);
+    l.positioned(select);
+    let node = l.tpd.get_mut(t);
+    (node.tree, node.span) = (Tree::Apply { fun: select, args }, Span::NONE);
+    l.positioned(t);
     Ok(())
 }
 

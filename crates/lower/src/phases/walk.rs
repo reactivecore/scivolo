@@ -130,15 +130,28 @@ pub fn subtrees(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
 
 /// The class definitions of unit `root`, local ones too, each before the classes it contains.
 pub fn class_defs(tpd: &Tpd, root: TNodeId) -> Vec<TNodeId> {
-    let mut out = Vec::new();
-    let mut todo = vec![root];
-    while let Some(t) = todo.pop() {
+    ordered_class_defs(tpd, root, false)
+}
+
+/// The class definitions of unit `root`, each after the classes it contains (PostTyper's order).
+pub fn class_defs_inner_first(tpd: &Tpd, root: TNodeId) -> Vec<TNodeId> {
+    ordered_class_defs(tpd, root, true)
+}
+
+fn ordered_class_defs(tpd: &Tpd, root: TNodeId, inner_first: bool) -> Vec<TNodeId> {
+    let (mut out, mut todo) = (Vec::new(), vec![(root, false)]);
+    while let Some((t, done)) = todo.pop() {
         match *tpd.tree(t) {
+            _ if done => {
+                out.push(t);
+                continue;
+            }
             Tree::TypeDef { rhs, .. } if !matches!(tpd.tree(rhs), Tree::Template { .. }) => continue,
+            Tree::TypeDef { .. } if inner_first => todo.push((t, true)),
             Tree::TypeDef { .. } => out.push(t),
             _ => {}
         }
-        todo.extend(children(tpd, t).into_iter().rev());
+        todo.extend(children(tpd, t).into_iter().rev().map(|c| (c, false)));
     }
     out
 }

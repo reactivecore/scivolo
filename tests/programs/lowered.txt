@@ -200,3 +200,9 @@ blockconditions
 inlineproxies
 nameorder
 positionsscopes
+hkoverrides
+nestedmirrors
+liftouterthis
+inlineimports
+mirrorproxies
+usermirrors

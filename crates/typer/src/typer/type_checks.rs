@@ -5,8 +5,9 @@
 
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
+use crate::inlining::CheckedErrors;
 use crate::tpd::TNodeId;
-use syntax::ast::{Ast, NodeId, Span, TName, Tree};
+use syntax::ast::{Ast, NodeId, TName, Tree};
 use syntax::config::Config;
 use syntax::desugar::Desugar;
 use syntax::diag::Level;
@@ -17,9 +18,10 @@ use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Statements `code` as a block typed in `ctx`, owned by a synthetic value of the context's
-    /// owner; `None` if parsing or typing them reports an error, whose diagnostics and the
-    /// constructs outside the subset it holds are dropped.
-    pub fn typed_code_in(&mut self, code: &str, ctx: Ctx) -> Option<TNodeId> {
+    /// owner, its spans in another source at the offsets of `{\n code \n}`; the errors if parsing
+    /// or typing them reports one, whose diagnostics and the constructs outside the subset it
+    /// holds are dropped.
+    pub fn typed_code_in(&mut self, code: &str, ctx: Ctx) -> Result<TNodeId, CheckedErrors> {
         let text = format!("{{\n{code}\n}}");
         let source = SourceFile::new("tasty-reflect", &text);
         let mut p = Parser::new(&source, self.names, Config::default());
@@ -39,9 +41,10 @@ impl Typer<'_> {
         *self.ast = std::mem::take(&mut p.ast);
         *self.fresh = std::mem::take(&mut p.fresh);
         for i in first..end {
-            self.ast.get_mut(NodeId::new(i)).span = Span::NONE;
+            let node = self.ast.get_mut(NodeId::new(i));
+            node.span = node.span.in_other_source();
         }
-        let block = block.filter(|_| parsed)?;
+        let block = block.filter(|_| parsed).ok_or(None)?;
         let dummy = self.u.define(Symbol {
             name: "$typingDummy".to_owned(),
             kind: Kind::Val,
@@ -56,13 +59,15 @@ impl Typer<'_> {
         self.u.set_owner(dummy, ctx.owner);
         self.u.set_info(dummy, tasty::ANY);
         let (mark, erasure_mark) = (self.diags.items.len(), self.erasure_diags.items.len());
+        let expansion_mark = self.expansion_errors.len();
         let outer = (self.unsupported.take(), self.checked_code.replace((block, None)));
         let typed = self.typed(block, Pt::Any, ctx.with_owner(dummy));
         let first_refusal = std::mem::replace(&mut self.checked_code, outer.1).and_then(|(_, n)| n);
         let refused = std::mem::replace(&mut self.unsupported, outer.0);
         let end = first_refusal.unwrap_or(self.diags.items.len()).max(mark);
-        let errors = self.diags.items[mark..end].iter().any(|d| d.level == Level::Error);
-        if !errors && self.unsupported.is_none() {
+        let errors = self.diags.items[mark..end].iter().filter(|d| d.level == Level::Error).count();
+        let expanded = self.expansion_errors.split_off(expansion_mark);
+        if errors == 0 && self.unsupported.is_none() {
             self.unsupported = refused;
         }
         if let (Some((_, first)), Some(f)) = (&mut self.checked_code, first_refusal) {
@@ -70,7 +75,10 @@ impl Typer<'_> {
         }
         self.diags.items.truncate(mark);
         self.erasure_diags.items.truncate(erasure_mark);
-        (!errors).then_some(typed)
+        match errors {
+            0 => Ok(typed),
+            n => Err((expanded.len() == n).then_some(expanded)),
+        }
     }
 
     /// `MissingIdent` for identifier `id` named `name` of the code of `typeChecks`, outside a

@@ -6,8 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags::{CASE, GIVEN};
-use syntax::ast::modifiers::Modifiers;
-use syntax::ast::{NodeId, Span, TName, Tree};
+use syntax::ast::{NodeId, Span, TName, Tree, modifiers::Modifiers};
 use syntax::names::is_var_pattern_name;
 use tasty::{Kind, Type, TypeId};
 
@@ -32,7 +31,8 @@ impl Typer<'_> {
         }
         let pattern = ctx.mode.is(Mode::PATTERN);
         let tpt_id = tpt;
-        let tpt = self.typed_type(tpt, ctx.with_mode(if pattern { Mode::PATTERN_TYPE } else { Mode::NONE }));
+        let mode = if pattern { Mode::PATTERN_TYPE } else { ctx.mode.within(Mode::QUOTED_PATTERN) };
+        let tpt = self.typed_type(tpt, ctx.with_mode(mode));
         let tpe = self.bounded_pattern_type(tpt, pattern, pt);
         if pattern && !self.is_testable_type(tpe) {
             match self.try_with_type_test(id, expr, tpt_id, tpe, pt, ctx) {
@@ -103,6 +103,7 @@ impl Typer<'_> {
         let flags = if implicit || given { CASE.or(GIVEN) } else { CASE };
         let flags = flags.to_term_flags();
         let sym = self.syms.define(self.u, &text, Kind::Val, ctx.owner, flags);
+        self.defined_unique(name.name, sym, self.ast.span(id));
         self.u.set_info(sym, info);
         self.levels.enter(ctx.level, &text, sym);
         let tpe = self.u.intern_type(Type::Sym(None, sym));

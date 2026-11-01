@@ -60,11 +60,11 @@ impl Lower<'_> {
         self.build().apply(fun, args, tpe, span)
     }
 
-    /// `C.this`, of class `c`.
+    /// `C.this`, of class `c`, its qualifier the name of `c` (dotty's `This(cls)`).
     pub fn this(&mut self, c: SymbolId, span: Span) -> TNodeId {
         let class = type_ref(self.u, c);
         let tpe = self.u.intern_type(Type::This(class));
-        let name = TName { name: self.names.intern(""), is_type: true };
+        let name = TName { name: self.names.intern(&self.u.symbol(c).name), is_type: true };
         let qual = self.tpd.node(Tree::Ident { name }, span, Some(tpe), None);
         self.tpd.node(Tree::This { qual }, span, Some(tpe), Some(c))
     }

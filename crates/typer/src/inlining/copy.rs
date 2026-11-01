@@ -10,7 +10,7 @@ use crate::tpd::{TNodeId, Tree as T, map_children};
 use rustc_hash::FxHashMap;
 use tasty::{Kind, Symbol, SymbolId, Type, TypeId};
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct TreeTypeMap {
     /// The references replaced, by the symbol referred to, with the types replacing them.
     pub refs: FxHashMap<SymbolId, TypeId>,
@@ -76,15 +76,9 @@ impl<'a> Inlining<'a> {
         let (tree, span, tpe, sym) = (node.tree.clone(), node.span, node.tpe, node.sym);
         match tree {
             T::Block { stats, .. } => {
-                let defs: Vec<SymbolId> = self
-                    .tpd
-                    .items(stats)
-                    .iter()
-                    .filter(|&&s| {
-                        matches!(self.tpd.tree(s), T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. })
-                    })
-                    .filter_map(|&s| self.tpd.sym(s))
-                    .collect();
+                let is_def = |t: &T| matches!(t, T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. });
+                let defs = self.tpd.items(stats).iter().filter(|&&s| is_def(self.tpd.tree(s)));
+                let defs: Vec<SymbolId> = defs.filter_map(|&s| self.tpd.sym(s)).collect();
                 self.fresh_symbols(m, &defs);
             }
             T::CaseDef { pat, .. } => {
@@ -94,21 +88,21 @@ impl<'a> Inlining<'a> {
             T::TypeDef { .. } if sym.is_some_and(|s| self.u.symbol(s).kind == Kind::TypeParam) => {
                 self.fresh_symbol(m, sym.expect("a type parameter"));
             }
-            T::RefinedTypeTree { .. } => {
-                let tpe = tpe.map(|t| self.map_type(m, t));
-                return Ok(self.tpd.node(T::TypeTree { inferred: false }, span, tpe, None));
+            T::RefinedTypeTree { refinements, .. } => {
+                for s in self.tpd.items(refinements).iter().filter_map(|&r| self.tpd.sym(r)) {
+                    m.syms.entry(s).or_insert(s);
+                }
             }
             T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. } | T::TypeDef { .. } => {
                 if let Some(s) = sym {
                     self.fresh_symbol(m, s);
                 }
             }
-            T::Import { export: false, .. } => return Err((span, "inline body with an import")),
             _ => {}
         }
         let tpe = tpe.map(|t| self.map_type(m, t));
         let sym = sym.map(|s| m.syms.get(&s).copied().unwrap_or(s));
-        let (tree, call) = match self.without_imports(tree) {
+        let (tree, call) = match tree {
             T::Inlined { call, bindings, expansion } => {
                 (T::Inlined { call: None, bindings, expansion }, call)
             }
@@ -193,6 +187,9 @@ impl<'a> Inlining<'a> {
         };
         let n = self.u.define(fresh);
         m.syms.insert(s, n);
+        let within = self.u.access_qualifier(s).map(|q| m.syms.get(&q).copied().unwrap_or(q));
+        self.u.set_access_qualifier(n, within);
+        self.host.copied_symbol(s, n);
         n
     }
 }

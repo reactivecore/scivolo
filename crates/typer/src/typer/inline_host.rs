@@ -5,7 +5,8 @@ use super::Typer;
 use super::implicits::is_misfit;
 use crate::ctx::{Ctx, Level, Mode};
 use crate::inlining::{
-    AnnotationCall, Annotations, Expanded, Host, Inlining, Lent, MacroCall, MacroError, Macros,
+    AnnotationCall, Annotations, CheckedErrors, Expanded, Host, ImportSelector, Inlining, Lent, MacroCall,
+    MacroError, Macros,
 };
 use crate::tpd::{TNodeId, Tree as T};
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
@@ -78,6 +79,10 @@ impl Host for Typer<'_> {
         Ctx { level: self.levels.push(Some(ctx.level), Level::Scope(locals)), ..ctx }
     }
 
+    fn within_import(&mut self, ctx: Ctx, path: (TypeId, TNodeId), selectors: Vec<ImportSelector>) -> Ctx {
+        self.typed_import_ctx(ctx, path, selectors)
+    }
+
     fn copied_call(&mut self, original: TNodeId, copy: TNodeId) {
         if let Some(&ctx) = self.inline_ctxs.get(&original) {
             self.inline_ctxs.insert(copy, ctx);
@@ -105,6 +110,7 @@ impl Host for Typer<'_> {
     }
 
     fn error(&mut self, at: Span, msg: String) {
+        self.expansion_errors.push((at, msg.clone()));
         self.error_at(at, msg);
     }
 
@@ -116,17 +122,19 @@ impl Host for Typer<'_> {
         self.diags.has_errors()
     }
 
-    fn error_count(&self) -> usize {
-        self.diags.items.len()
+    fn error_count(&self) -> (usize, usize) {
+        (self.diags.items.len(), self.expansion_errors.len())
     }
 
-    fn errors_since(&mut self, mark: usize) -> bool {
-        let errors = self.diags.items[mark..].iter().any(|d| d.level == syntax::diag::Level::Error);
-        self.diags.items.truncate(mark);
-        errors
+    fn errors_since(&mut self, (diags, expansions): (usize, usize)) -> CheckedErrors {
+        let errors = self.diags.items[diags..].iter().filter(|d| d.level == syntax::diag::Level::Error);
+        let errors = errors.count();
+        self.diags.items.truncate(diags);
+        let reported = self.expansion_errors.split_off(expansions);
+        (reported.len() == errors).then_some(reported)
     }
 
-    fn typed_code(&mut self, lent: Lent<'_>, code: &str, ctx: Ctx) -> Option<TNodeId> {
+    fn typed_code(&mut self, lent: Lent<'_>, code: &str, ctx: Ctx) -> Result<TNodeId, CheckedErrors> {
         let (u, tpd, names, fresh) = lent;
         self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
         let typed = catch_unwind(AssertUnwindSafe(|| self.typed_code_in(code, ctx)));
@@ -148,6 +156,12 @@ impl Host for Typer<'_> {
 
     fn annotations(&self, s: SymbolId) -> Vec<TNodeId> {
         self.syms.annotations.get(&s).cloned().unwrap_or_default()
+    }
+
+    fn copied_symbol(&mut self, s: SymbolId, copy: SymbolId) {
+        if let Some(annots) = self.syms.annotations.get(&s).cloned() {
+            self.syms.annotations.insert(copy, annots);
+        }
     }
 
     fn expand_annotation(&mut self, lent: Lent<'_>, call: &AnnotationCall) -> Result<Expanded, MacroError> {

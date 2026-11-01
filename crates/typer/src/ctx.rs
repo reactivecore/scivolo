@@ -26,8 +26,6 @@ impl Mode {
     pub const APPLY_QUALIFIER: Mode = Mode(32);
     /// The left-hand side of an assignment, where a context function value stays unapplied.
     pub const ASSIGNMENT_LHS: Mode = Mode(64);
-    /// The argument of a top-level splice of an inline method, where quotes may stand.
-    pub const SPLICE: Mode = Mode(128);
     /// A case of an inline match, whose patterns the inliner matches at the call.
     pub const INLINE_CASE: Mode = Mode(256);
     /// The name of an extractor, which refers to no method (dotty's `UnapplySelectionProto`).
@@ -35,6 +33,12 @@ impl Mode {
     /// The name of an extension method applied to its receiver, which refers to extension methods
     /// only (dotty's `findRef` with `ExtensionMethod` required).
     pub const EXTENSION_METHOD: Mode = Mode(1024);
+    /// The body of a term quote pattern `'{ ... }`, outside its splices.
+    pub const QUOTED_EXPR_PATTERN: Mode = Mode(2048);
+    /// The body of a type quote pattern `'[ ... ]`.
+    pub const QUOTED_TYPE_PATTERN: Mode = Mode(4096);
+    /// Either quote pattern body (dotty's `QuotedPatternBits`).
+    pub const QUOTED_PATTERN: Mode = Mode(2048 | 4096);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0
@@ -46,6 +50,11 @@ impl Mode {
 
     pub fn without(self, m: Mode) -> Mode {
         Mode(self.0 & !m.0)
+    }
+
+    /// The modes of `self` among `m`.
+    pub fn within(self, m: Mode) -> Mode {
+        Mode(self.0 & m.0)
     }
 }
 
@@ -127,9 +136,25 @@ pub struct Ctx {
     pub owner: SymbolId,
     pub level: LevelId,
     pub mode: Mode,
+    /// The staging level (dotty's `StagingLevel.level`): +1 in a quote, -1 in a splice.
+    pub staging: i32,
 }
 
 impl Ctx {
+    /// The context of a unit: the members of the root package, then the wildcard imports of
+    /// `java.lang`, `scala` and `Predef` (dotty's `rootImports`), outermost first.
+    pub fn root(t: &mut crate::Typer) -> Ctx {
+        let root = t.u.root();
+        let java_lang = t.u.intern_type(tasty::Type::Package(t.defn.java_lang));
+        let scala = t.u.intern_type(tasty::Type::Package(t.defn.scala));
+        let predef = crate::defn::type_ref(t.u, t.defn.predef);
+        let level = t.levels.push(None, Level::Members(root));
+        let level = t.root_import(Some(level), java_lang);
+        let level = t.root_import(Some(level), scala);
+        let level = t.root_import(Some(level), predef);
+        Ctx { owner: root, level, mode: Mode::NONE, staging: 0 }
+    }
+
     pub fn with_owner(self, owner: SymbolId) -> Ctx {
         Ctx { owner, ..self }
     }

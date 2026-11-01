@@ -48,6 +48,26 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
     }
 }
 
+/// The result part of the signature of method `s`, a constructor's its class, `None` if `s` is
+/// not a method (dotty's `Signature.NotAMethod`).
+pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
+    let mut t = u.info(s);
+    let mut method = false;
+    while let Type::Poly { result, .. } | Type::Method { result, .. } = *u.types().get(t) {
+        (t, method) = (result, true);
+    }
+    if !method {
+        return None;
+    }
+    if u.is_constructor(s) {
+        return u.symbol(s).owner.map(|c| full_name(u, c));
+    }
+    Some(match u.erase(t) {
+        Erased::Unit => "scala.Unit".into(),
+        e => sig_name(u, t, &e),
+    })
+}
+
 /// The name of an erased parameter type in a signature: `scala.Int`, `java.lang.String[]`.
 fn sig_name(u: &mut Universe, t: TypeId, e: &Erased) -> String {
     match e {

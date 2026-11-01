@@ -134,4 +134,20 @@ impl Typer<'_> {
         };
         Ok((text, info, tree))
     }
+
+    /// Completes the members of `t`'s class that the refinements of `pt` name.
+    pub fn complete_refined_members(&mut self, t: TypeId, pt: TypeId) {
+        let mut names = Vec::new();
+        let mut r = pt;
+        while let Type::Refined(parent, name, _) = self.u.types().get(r).clone() {
+            names.push(name);
+            r = parent;
+        }
+        let Some(class) = names.first().and_then(|_| self.u.class_symbol(t)) else { return };
+        for name in names {
+            for m in self.u.member(class, &name) {
+                self.complete(m);
+            }
+        }
+    }
 }

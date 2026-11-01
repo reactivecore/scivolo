@@ -137,7 +137,7 @@ fn formals(l: &mut Lower, mut fun: TNodeId) -> (Vec<tasty::TypeId>, bool) {
 /// `{ def $anonfun(): T = arg; closure($anonfun) }` of type `() => T`, `T` the widened `formal`,
 /// its target type explicit as dotty's `ByNameFunction`.
 fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) -> TNodeId {
-    let span = l.tpd.span(arg);
+    let span = super::drop_inlined::span_before_erasure(l, arg);
     let result = l.u.widen(formal);
     let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
     let owner = l.lazy_members.get(&owner).map_or(owner, |m| m.init);
@@ -172,6 +172,9 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
     }
     let tpt = l.type_tree(result, span.start_pos());
     let def_span = super::drop_inlined::own_span(l, arg);
+    if span.is_inlined_call() {
+        l.inlined_at.insert(anon, span.without_inlined_call().start());
+    }
     let def = l.method_def(anon, &[], tpt, arg, from_start(def_span));
     let function = l.u.class_ref("scala.Function0");
     let function = l.u.intern_type(Type::Applied(function, vec![result]));

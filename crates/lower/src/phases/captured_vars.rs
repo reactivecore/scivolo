@@ -109,7 +109,10 @@ fn rewrite(l: &mut Lower, td: TNodeId, refs: &FxHashMap<SymbolId, Ref>) {
             let tpe = type_ref(l.u, r.class);
             let value = as_variable(l, rhs, v, r);
             let rhs = l.apply(create, &[value], tpe, Span::NONE);
-            l.positioned(rhs);
+            match l.tpd.span(value) {
+                at if at.is_inlined_call() => l.with_span(rhs, Span::synthetic(at.start(), at.end())),
+                _ => l.positioned(rhs),
+            };
             let tpt = l.type_tree(tpe, span);
             l.tpd.get_mut(t).tree = Tree::ValDef { name, tpt, rhs: Some(rhs) };
             Walk::Children
