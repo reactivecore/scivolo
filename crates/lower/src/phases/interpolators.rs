@@ -160,7 +160,7 @@ fn concat(l: &mut Lower, parts: &[TNodeId], args: &[TNodeId]) -> TNodeId {
 
 /// `left + right` at the span of `right`.
 fn append(l: &mut Lower, left: TNodeId, plus: SymbolId, right: TNodeId, tpe: TypeId) -> TNodeId {
-    let span = l.tpd.span(right);
+    let span = super::drop_inlined::span_before_erasure(l, right);
     let fun = l.select(left, plus, span);
     l.apply(fun, &[right], tpe, span)
 }

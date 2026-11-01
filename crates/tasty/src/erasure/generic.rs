@@ -35,6 +35,11 @@ impl Universe {
             }
             Type::Applied(tycon, args) => match self.expand(tycon, &args) {
                 Some(alias) => self.is_generic(alias),
+                None if let Some(alias) = self.overriding_member(tycon) => {
+                    let applied = self.intern_type(Type::Applied(alias, args));
+                    let reduced = self.dealias_step(applied);
+                    self.is_generic(reduced)
+                }
                 None if self.is_abstract(tycon) => match self.expand_upper(tycon, &args) {
                     Some(upper) => self.holder(upper) == Holder::None,
                     None => true,
@@ -42,6 +47,7 @@ impl Universe {
                 None => false,
             },
             Type::Sym(..) | Type::TypeRef(..) => match self.referenced(t) {
+                _ if let Some(alias) = self.overriding_member(t) => self.is_generic(alias),
                 Some(s) if matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                     let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
                     match *self.types().get(info) {
@@ -54,6 +60,18 @@ impl Universe {
             },
             _ => false,
         }
+    }
+
+    /// The alias or class by which the class of the prefix of abstract type reference `t`
+    /// overrides it (dotty's `dealias` of a member found through the prefix).
+    fn overriding_member(&mut self, t: TypeId) -> Option<TypeId> {
+        let prefix = match *self.types().get(t) {
+            Type::Sym(p, _) => p?,
+            Type::TypeRef(p, _) => p,
+            _ => return None,
+        };
+        let s = self.referenced(t)?;
+        self.overriding_alias(prefix, s)
     }
 
     /// The body of match type case `case`, under its captures' lambda if any.
