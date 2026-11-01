@@ -64,13 +64,28 @@ impl Typer<'_> {
         (score >= 0 && self.u.is_subtype(ra, rb)).then_some(a)
     }
 
-    /// Whether both sides of intersection `t` have members `name`, which `and_members` cannot
-    /// merge into one.
+    /// Whether both sides of intersection `t`, or of one nested in it, have members `name`, which
+    /// `and_members` cannot merge into one; `t` a `this` stands for its given self type.
     pub fn needs_joint_member(&mut self, t: TypeId, name: &str) -> bool {
-        let t = self.u.widen(t);
-        let t = self.u.dealias(t);
+        let t = match *self.u.types().get(t) {
+            Type::This(c) => {
+                let Some(k) = self.u.class_symbol(c) else { return false };
+                self.ensure_self(k);
+                if self.u.given_self_type(k).is_none() {
+                    return false;
+                }
+                self.u.self_type(k)
+            }
+            _ => {
+                let w = self.u.widen(t);
+                self.u.dealias(w)
+            }
+        };
         let Type::And(a, b) = *self.u.types().get(t) else { return false };
-        !self.type_members(a, name).is_empty() && !self.type_members(b, name).is_empty()
+        let (ma, mb) = (self.type_members(a, name), self.type_members(b, name));
+        !ma.is_empty() && !mb.is_empty()
+            || ma.is_empty() && self.needs_joint_member(a, name)
+            || mb.is_empty() && self.needs_joint_member(b, name)
     }
 
     /// Positive to pick `a`, negative to pick `b` (dotty's `symScore`): the concrete one, the one

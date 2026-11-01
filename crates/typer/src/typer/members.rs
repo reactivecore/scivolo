@@ -98,6 +98,11 @@ impl Typer<'_> {
             }
             Type::And(a, b) => {
                 let (ma, mb) = (self.members_within(a, name, within), self.members_within(b, name, within));
+                if ma.is_empty() && self.needs_joint_member(a, name)
+                    || mb.is_empty() && self.needs_joint_member(b, name)
+                {
+                    return Vec::new();
+                }
                 self.and_members(t, (ma, mb), ctx)
             }
             Type::Or(..) => match self.u.join(t) {

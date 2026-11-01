@@ -2,7 +2,9 @@
 //! the prefixes a selection keeps.
 
 use super::{Inlining, Unsupported};
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
+use crate::typer::dependent_params::applied_result;
+use crate::typer::type_apply::instantiate_poly;
 use tasty::tags::PRIVATE;
 use tasty::{SymbolId, Type, TypeId};
 
@@ -52,6 +54,35 @@ impl Inlining<'_> {
             }
         }
         Ok(None)
+    }
+
+    /// Gives application `t` of `fun`, if its method part selects another member than `before`,
+    /// the type of applying `fun`'s retyped method type (dotty's `typedApply` and `typedTypeApply`).
+    pub fn reapply(&mut self, t: TNodeId, before: Option<SymbolId>) {
+        let (fun, args) = match self.tpd.tree(t) {
+            T::Apply { fun, args } | T::TypeApply { fun, args } => (*fun, *args),
+            _ => return,
+        };
+        let applied = matches!(self.tpd.tree(t), T::Apply { .. });
+        let meth = self.tpd.sym(self.tpd.meth_part(fun));
+        if meth == before {
+            return;
+        }
+        let info = self.tpd.tpe(fun);
+        let info = self.u.widen(info);
+        let args: Vec<TypeId> = self.tpd.items(args).iter().map(|&a| self.tpd.tpe(a)).collect();
+        let tpe = match self.u.types().get(info).clone() {
+            Type::Method { binder, params, result, .. } if applied && params.len() == args.len() => {
+                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                applied_result(self.u, result, (binder, &names), meth, &args)
+            }
+            Type::Poly { binder, params, result } if !applied && params.len() == args.len() => {
+                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                instantiate_poly(self.u, result, (binder, &names), &args, meth)
+            }
+            _ => return,
+        };
+        self.tpd.get_mut(t).tpe = Some(tpe);
     }
 
     /// Whether member `s` has no body: deferred in the source or without a right-hand side in TASTy.

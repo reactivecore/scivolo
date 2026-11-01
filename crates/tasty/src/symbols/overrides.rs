@@ -28,7 +28,10 @@ impl Universe {
                         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
                         u.subst(result, binder, &names, &args)
                     }
-                    _ => match u.expand(tycon, &args) {
+                    _ => match u
+                        .expand(tycon, &args)
+                        .filter(|&e| !matches!(u.types().get(e), Type::Bounds(..)))
+                    {
                         Some(e) => e,
                         None => {
                             let Type::Sym(Some(prefix), s) = *u.types().get(tycon) else {

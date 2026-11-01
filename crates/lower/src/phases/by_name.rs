@@ -137,7 +137,7 @@ fn formals(l: &mut Lower, mut fun: TNodeId) -> (Vec<tasty::TypeId>, bool) {
 /// `{ def $anonfun(): T = arg; closure($anonfun) }` of type `() => T`, `T` the widened `formal`,
 /// its target type explicit as dotty's `ByNameFunction`.
 fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) -> TNodeId {
-    let span = l.tpd.span(arg);
+    let span = super::drop_inlined::span_before_erasure(l, arg);
     let result = l.u.widen(formal);
     let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
     let owner = l.lazy_members.get(&owner).map_or(owner, |m| m.init);
