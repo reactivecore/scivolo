@@ -93,7 +93,7 @@ executables. A library macro runs from its NIR in the VM; its quotes are unpickl
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
 `Quotes` is refused by name. Macro annotations expand in the inlining (ADR 0039). Circe
 0.14.10's `derives Codec.AsObject`, sourcecode 0.4.4, fastparse 3.1.1, mainargs 0.7.8, upickle,
-pprint and os-lib work. dotty's `tests/run-macros`: 296 of 321 pass (2026-10-31,
+pprint and os-lib work. dotty's `tests/run-macros`: 304 of 321 pass (2026-11-01,
 `just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
@@ -123,7 +123,12 @@ slower meanwhile:
    i16065 (#166); named tuples, XXL tuples, named and higher-kinded type arguments (#139);
    mirrors through refined paths, match-type reduction through them, `codeOf` (#129, #120).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the run-macros refusals,
-   measured on `tests/run-macros`. Done 2026-10-31: package prefixes of quoted types,
+   measured on `tests/run-macros`. Done 2026-11-01: constructor-proxy companions, operator
+   types, quote-local givens, access qualifiers and top-level annotations in reflect show,
+   `typeCheckErrors`, name-based type prefixes as stored, higher-kinded aliases overriding
+   type members, staging levels for quotes and splices (#197) (304 of 321 pass). Next: macro
+   libraries compiled from source, their quotes pickled to TASTy as dotty does (#196,
+   [research 43](docs/research/43-pickle-quotes.md)). Done 2026-10-31: package prefixes of quoted types,
    `Symbol.tree`, beta reduction of polymorphic functions, generic number literals,
    `searchIgnoring`, type holes of runtime quote patterns, `newTypeAlias`, `Refined.apply`,
    exports, nested spliced types (296 of 321 pass). Done 2026-10-30: reflect printers and `toString`, the type
@@ -136,7 +141,8 @@ slower meanwhile:
    annotations (ADR 0039), `Symbol.newClass`, `newModule`, `newMethod`, `newVal`,
    `ClassDef`/`DefDef`/`ValDef` construction, `Term.etaExpand`.
 3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): done
-   2026-10-24: upickle derivation of case classes, sealed traits and enums (R7, R8), pprint's
+   2026-11-01: `just lib-source` builds sourcecode from its sources but its quoted macros
+   (#196). Done 2026-10-24: upickle derivation of case classes, sealed traits and enums (R7, R8), pprint's
    `tprint`, os-lib paths, as scripts and native executables; earlier fastparse (R2) and
    mainargs (R5, R6; ADR 0037).
 4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md),
@@ -177,6 +183,10 @@ slower meanwhile:
    methods with more than four (Scala Native takes them from a hash set) as `var-order`.
    After the 10-31 stack javalib lowers 601 of 601: 3,375 NIR files same, 80 var-order, 41
    differ (2 of them also in var order); nativelib 692 same, 6 var-order, 17 differ (3).
+   2026-11-01: nativelib against the JDK declarations, fresh names in dotty's order, NIR
+   positions of extension calls, lowering trees and the last files: javalib 3,413 same, 82
+   var-order, 1 differs; nativelib lowers 101 of 103 (quotes outside splices wait for #196):
+   697 same, 9 var-order, 3 differ.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
