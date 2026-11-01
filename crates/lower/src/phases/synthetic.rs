@@ -8,6 +8,7 @@ use super::case_members::case_members;
 use super::enum_values::enum_value_members;
 use super::mirrors::mirror_support;
 use super::value_members::value_members;
+use super::walk::class_defs_inner_first;
 use crate::definitions::{applied, symbol, type_ref};
 use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
@@ -16,8 +17,13 @@ use tasty::tags::{PRIVATE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
+/// Adds the synthetic members each class of unit `root` lacks, inner classes first.
+pub fn add_all(l: &mut Lower, root: TNodeId) -> Result<()> {
+    class_defs_inner_first(l.tpd, root).into_iter().try_for_each(|td| add_synthetic_members(l, root, td))
+}
+
 /// Adds the synthetic members of class definition `td` of unit `root`.
-pub fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()> {
+fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
@@ -51,7 +57,7 @@ pub fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Resul
 /// `private def writeReplace(): AnyRef = new ModuleSerializationProxy(classOf[C.type])` for a
 /// static object `C` without one (dotty's `serializableObjectMethod`).
 fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TNodeId>> {
-    if !is_static_module(l.u, class) || has_write_replace(l, class) {
+    if !is_static_module(l.u, class) || has_serialization_method(l, class, "writeReplace") {
         return Ok(Vec::new());
     }
     let span = if span.exists() { Span::synthetic(span.point(), span.point()) } else { span };
@@ -87,10 +93,10 @@ pub fn private_method(l: &mut Lower, class: SymbolId, name: &str) -> (SymbolId, 
     (sym, any_ref)
 }
 
-/// Whether `class` has a member `writeReplace(): AnyRef`.
-fn has_write_replace(l: &mut Lower, class: SymbolId) -> bool {
+/// Whether `class` has a member `name(): AnyRef`, `writeReplace` or `readResolve`.
+pub fn has_serialization_method(l: &mut Lower, class: SymbolId, name: &str) -> bool {
     let object = tasty::Erased::Class("java.lang.Object".into());
-    l.u.member(class, "writeReplace")
+    l.u.member(class, name)
         .into_iter()
         .any(|m| l.u.symbol(m).kind == Kind::Def && l.u.erased_method(m) == (Vec::new(), object.clone()))
 }

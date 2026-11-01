@@ -19,9 +19,8 @@ pub struct CaseClasses {
     /// `Any.equals`, and `Statics.anyHash(Object)`, a Java static.
     pub any_equals: SymbolId,
     pub any_hash: SymbolId,
-    /// `ScalaRunTime._toString`, its object.
+    /// `ScalaRunTime._toString`.
     pub runtime_to_string: SymbolId,
-    pub scala_run_time: SymbolId,
     /// `Statics.mix`, `finalizeHash`, `longHash`, `doubleHash`, `floatHash`: Java statics.
     pub mix: SymbolId,
     pub finalize_hash: SymbolId,
@@ -99,7 +98,6 @@ impl CaseClasses {
             any_equals: equality.any_equals,
             any_hash: equality.any_hash,
             runtime_to_string: member(u, run_time_class, "_toString", Kind::Def)?,
-            scala_run_time,
             mix: statics_method(u, "mix", &[int, int]),
             finalize_hash: statics_method(u, "finalizeHash", &[int, int]),
             long_hash: statics_method(u, "longHash", &[long]),

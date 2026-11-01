@@ -5,7 +5,7 @@
 //! `ordinalBody`): `def ordinal(x$0: S): Int = x$0 match { case _: C1 => 0; ... }`.
 
 use super::mirror_prefixes::{child_prefix, class_prefix};
-use super::mirrors::is_generic_product;
+use super::mirrors::{has_mirror_method, is_generic_product};
 use super::walk::class_defs;
 use crate::definitions::type_ref;
 use crate::symbols::has;
@@ -54,15 +54,46 @@ pub fn is_generic_sum(l: &mut Lower, root: TNodeId, s: SymbolId) -> bool {
         })
 }
 
+/// `def ordinal(x$0: E): Int = x$0.ordinal` for enum `enum_class` (dotty's `ordinalBody`); none if
+/// `class` has one.
+pub fn enum_ordinal(
+    l: &mut Lower,
+    class: SymbolId,
+    enum_class: SymbolId,
+    focus: Span,
+) -> Result<Option<TNodeId>> {
+    let cc = l.case_classes()?;
+    let param = type_ref(l.u, enum_class);
+    let int = l.u.class_ref("scala.Int");
+    let binder = l.u.fresh_binder();
+    let params = vec![("x$0".into(), param)];
+    let info =
+        l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
+    let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
+    let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
+    if has_mirror_method(l, class, like, info) {
+        return Ok(None);
+    }
+    let flags = Flags::default().with(SYNTHETIC);
+    let java = l.u.linearization(enum_class).into_iter().find(|&b| l.u.full_name(b) == "java.lang.Enum");
+    let java_ordinal = java.and_then(|j| l.u.decl(j, "ordinal").ok()?.into_iter().next());
+    let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
+        let x = l.copy_ident(args[0]);
+        l.call(x, java_ordinal.unwrap_or(cc.enum_ordinal), &[])
+    })?;
+    l.tpd.get_mut(def).span = Span::NONE;
+    Ok(Some(l.with_span(def, focus)))
+}
+
 /// `def ordinal(x$0: P): Int` of class `class` for sealed class `sealed` of unit `root`, `P` the
-/// type `param`.
+/// type `param`; none if `class` has one.
 pub fn ordinal(
     l: &mut Lower,
     root: TNodeId,
     (class, sealed): (SymbolId, SymbolId),
     param: TypeId,
     focus: Span,
-) -> Result<TNodeId> {
+) -> Result<Option<TNodeId>> {
     let cc = l.case_classes()?;
     let children = children(l, root, sealed);
     let int = l.u.class_ref("scala.Int");
@@ -72,6 +103,9 @@ pub fn ordinal(
         l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
     let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
+    if has_mirror_method(l, class, like, info) {
+        return Ok(None);
+    }
     let flags = Flags::default().with(SYNTHETIC);
     let local = l.u.symbol(sealed).owner.is_some_and(|o| l.u.symbol(o).kind.is_term());
     let no_prefix = local.then(|| l.u.intern_type(Type::NoPrefix));
@@ -98,5 +132,5 @@ pub fn ordinal(
         l.positioned(m)
     })?;
     l.tpd.get_mut(def).span = Span::NONE;
-    Ok(l.with_span(def, focus))
+    Ok(Some(l.with_span(def, focus)))
 }

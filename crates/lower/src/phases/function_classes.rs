@@ -38,12 +38,13 @@ pub fn erased_linearization(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     erased_classes(l, bases)
 }
 
-/// `classes` with the function classes replaced as erasure leaves them, first occurrences kept.
+/// `classes` with the function classes replaced as erasure leaves them, of those replaced the
+/// first occurrences kept.
 pub fn erased_classes(l: &mut Lower, classes: Vec<SymbolId>) -> Vec<SymbolId> {
     let mut out = Vec::new();
     for c in classes {
         let erased = erased_function_class(l, c).unwrap_or(c);
-        if !out.contains(&erased) {
+        if erased == c || !out.contains(&erased) {
             out.push(erased);
         }
     }

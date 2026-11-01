@@ -6,6 +6,7 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::flags::{PARAM_ACCESSOR, TYPE_PARAM};
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, SymbolId};
 
@@ -37,9 +38,13 @@ impl Typer<'_> {
     pub fn complete_class(&mut self, cls: SymbolId, (tree, rhs): (NodeId, NodeId), ctx: Ctx) {
         let t = self.template(rhs);
         let cctx = self.class_ctx(cls, ctx);
-        let mut members = vec![t.constr];
-        members.extend(&t.body);
-        self.index(&members, cctx);
+        let params = t.body.iter().take_while(|&&s| match *self.ast.tree(s) {
+            Tree::TypeDef { mods, .. } => self.ast.modifiers(mods).flags.is(TYPE_PARAM),
+            Tree::ValDef { mods, .. } => self.ast.modifiers(mods).flags.is(PARAM_ACCESSOR),
+            _ => false,
+        });
+        let params = params.count();
+        self.index(&[&t.body[..params], &[t.constr], &t.body[params..]].concat(), cctx);
         if let Some(&ctor) = self.syms.by_tree.get(&t.constr) {
             self.syms.primary_ctors.insert(cls, ctor);
         }

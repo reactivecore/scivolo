@@ -7,6 +7,7 @@ mod constraint;
 mod ctx;
 mod defn;
 pub mod dump;
+mod finish;
 pub mod inlining;
 mod main_proxies;
 mod namer;
@@ -27,6 +28,7 @@ use tasty::Universe;
 use tpd::{TNodeId, Tpd};
 
 pub use completion::Request;
+pub use finish::SyntheticMembers;
 pub use typer::{RETAINED_BODY, Typer, fold_binop, fold_unop};
 
 /// Why a unit takes the JVM frontend instead.
@@ -66,6 +68,8 @@ pub struct Units {
     typer_only: bool,
     /// The paths of the next unit's source files, relative to the source root.
     pub source_names: Vec<String>,
+    /// What adds the synthetic members of a unit's classes before its inline calls expand.
+    pub synthetic_members: Option<SyntheticMembers>,
 }
 
 impl Units {
@@ -135,47 +139,6 @@ impl Units {
         let stats = typer.tpd.list(&typed);
         let unit = typer.tpd.node(tpd::Tree::PackageDef { pid, stats }, Span::NONE, Some(tpe), None);
         self.finish(typer, unit, &typed)
-    }
-
-    /// Completes typed unit `typed` of source files `files`: its annotations, type variables and
-    /// inline calls.
-    fn finish(&mut self, mut typer: Typer, typed: TNodeId, files: &[TNodeId]) -> Result<Typed, Fallback> {
-        typer.typed_annotations();
-        if !self.typer_only {
-            typer.top_level_annotations(files, &self.source_names);
-        }
-        typer.check_dynamic_calls();
-        if let Err(what) = typer.zonk_trees() {
-            typer.unsupported_at(Span::NONE, what);
-        }
-        typer.renumber_uniques();
-        if !self.typer_only
-            && typer.unsupported.is_none()
-            && !typer.diags.has_errors()
-            && let Err((at, what)) = typer.with_inlining(false, |i| i.run(typed))
-        {
-            typer.unsupported_at(at, what);
-        }
-        if typer.unsupported.is_none() && !typer.diags.has_errors() {
-            typer.check_macro_annotated();
-            typer.check_forward_refs(typed);
-        }
-        self.syms = std::mem::take(&mut typer.syms);
-        self.syms.end_unit(typer.u);
-        if self.errors_first && typer.diags.has_errors() {
-            return Err(Fallback::Errors(typer.diags));
-        }
-        if let Some((at, what)) = typer.unsupported.take() {
-            return Err(Fallback::Unsupported { at, what });
-        }
-        if typer.diags.has_errors() {
-            return Err(Fallback::Errors(typer.diags));
-        }
-        let mut diags = typer.diags;
-        if !self.typer_only {
-            diags.items.append(&mut typer.erasure_diags.items);
-        }
-        Ok(Typed { tpd: typer.tpd, root: typed, diags })
     }
 
     /// Removes the object `name` from the root package, and it and the definitions in it from

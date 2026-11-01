@@ -61,7 +61,7 @@ impl Session {
     pub fn new(mut vm: Vm, image: &'static Image, width: i32) -> Result<Session, VmError> {
         vm.start_runtime("repl", &[])?;
         let (names, fresh) = (Names::default(), FreshNames::default());
-        let (u, units) = (Universe::open_image(image), Units::default());
+        let (u, units) = (Universe::open_image(image), lower::typer_units());
         let (earlier, exit) = (Vec::new(), None);
         let (line, base, res, quiet, loading) = (0, 0, 0, false, 0);
         Ok(Session {
@@ -85,7 +85,7 @@ impl Session {
     /// Forgets the definitions of all inputs; the VM keeps their code under names not reused.
     pub fn reset(&mut self) {
         self.u = Universe::open_image(self.image);
-        self.units = Units::default();
+        self.units = lower::typer_units();
         self.names = Names::default();
         self.fresh = FreshNames::default();
         self.base = self.line;

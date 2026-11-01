@@ -64,6 +64,11 @@ impl Code<'_> {
                 self.trees(&self.items(args), ", ")?;
                 self.push("]");
             }
+            T::RefinedTypeTree { tpt, refinements } => {
+                self.type_tree(tpt)?;
+                let refinements = self.items(refinements);
+                self.in_block(|c| c.trees(&refinements, "; "))?;
+            }
             T::Annotated { arg, annot } => {
                 let class = self.h.tpd.get(self.r(annot)).tpe.and_then(|a| self.h.u.class_symbol(a));
                 if class.is_none_or(|c| self.h.u.full_name(c) != "scala.annotation.internal.Repeated") {

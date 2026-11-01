@@ -7,19 +7,15 @@ use typer::tpd::{TNodeId, Tree as T};
 
 impl Code<'_> {
     pub fn cases(&mut self, cases: &[TNodeId]) -> Shown {
-        self.push(" {");
-        self.indent += 1;
-        self.line_break();
-        for (i, &c) in cases.iter().enumerate() {
-            if i > 0 {
-                self.line_break();
+        self.in_block(|c| {
+            for (i, &case) in cases.iter().enumerate() {
+                if i > 0 {
+                    c.line_break();
+                }
+                c.case_def(case)?;
             }
-            self.case_def(c)?;
-        }
-        self.indent -= 1;
-        self.line_break();
-        self.push("}");
-        Ok(())
+            Ok(())
+        })
     }
 
     pub fn case_def(&mut self, c: TNodeId) -> Shown {

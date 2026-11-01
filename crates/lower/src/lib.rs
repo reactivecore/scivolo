@@ -20,6 +20,7 @@ use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::Sources;
 use tasty::{SymbolId, Universe};
+use typer::inlining::Lent;
 use typer::tpd::{TNodeId, Tpd};
 pub use units::{compile_sources, position};
 
@@ -44,6 +45,8 @@ pub struct Lower<'a> {
     pub fresh: &'a mut FreshNames,
     pub sources: Sources<'a>,
     defs: Definitions,
+    /// Whether the unit's inline calls are still to expand (dotty's PostTyper).
+    before_inlining: bool,
     /// The fields `Memoize` made, each with its getter.
     fields: FxHashMap<SymbolId, SymbolId>,
     /// The bridges `Bridges` made and the `$adapted` methods of lambdas.
@@ -160,64 +163,96 @@ pub fn lower_sources(
     (names, fresh): (&mut Names, &mut FreshNames),
     sources: Sources,
 ) -> Result<Vec<NirFile>> {
-    let defs = Definitions::new(u).map_err(|what| Unsupported { at: Span::NONE, what })?;
-    let mut l = Lower {
-        u,
-        tpd,
-        names,
-        fresh,
-        sources,
-        defs,
-        fields: FxHashMap::default(),
-        bridges: FxHashSet::default(),
-        library_bridges: FxHashMap::default(),
-        extensions: FxHashMap::default(),
-        lazy_fields: Vec::new(),
-        lazy_members: FxHashMap::default(),
-        local_objects: FxHashMap::default(),
-        local_lazy_accessors: FxHashSet::default(),
-        endless_loops: FxHashSet::default(),
-        proxies: Vec::new(),
-        captured_fields: FxHashMap::default(),
-        captured_params: FxHashMap::default(),
-        context_results: FxHashMap::default(),
-        trait_methods: FxHashMap::default(),
-        trait_forwards: FxHashMap::default(),
-        applied_references: FxHashSet::default(),
-        local_classes: FxHashMap::default(),
-        explicit_casts: FxHashSet::default(),
-        null_casts: FxHashSet::default(),
-        boxed_ascriptions: FxHashSet::default(),
-        static_selects: FxHashSet::default(),
-        mixed_in: FxHashSet::default(),
-        specialized: FxHashSet::default(),
-        mixed_in_lazy_names: FxHashMap::default(),
-        forwarded: FxHashMap::default(),
-        getter_rhs: FxHashMap::default(),
-        outers: FxHashMap::default(),
-        outer_accessors: FxHashMap::default(),
-        coords: FxHashMap::default(),
-        narrowed: FxHashMap::default(),
-        lifted_from: FxHashMap::default(),
-        lifted_to: FxHashMap::default(),
-        super_accessors: FxHashMap::default(),
-        inlined_spans: FxHashMap::default(),
-        own_spans: FxHashMap::default(),
-        inlined_at: FxHashMap::default(),
-        inlined_blocks: FxHashSet::default(),
-        impure_modules: FxHashSet::default(),
-        erasure_owner: None,
-        evaluated_once: Vec::new(),
-        was_named_args: FxHashSet::default(),
-        in_match_values: FxHashSet::default(),
-        non_erased: FxHashMap::default(),
-        tail_vars: FxHashMap::default(),
-        tail_locals: FxHashSet::default(),
-        moved_classes: Vec::new(),
-    };
+    let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
     let files = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
         .and_then(|()| codegen::unit(&mut l, root));
     l.u.elide_opaques(false);
     files
+}
+
+/// Typer units whose synthetic members are added before their inline calls expand.
+pub fn typer_units() -> typer::Units {
+    let mut units = typer::Units::default();
+    units.synthetic_members = Some(synthetic_members);
+    units
+}
+
+/// Adds the synthetic members of the classes of typed unit `root` (dotty's `SyntheticMembers` as
+/// PostTyper runs it).
+fn synthetic_members(lent: Lent<'_>, root: TNodeId) -> std::result::Result<(), (Span, String)> {
+    let (u, tpd, names, fresh) = lent;
+    let sources = Sources::new([]).map_err(|what| (Span::NONE, what))?;
+    Lower::new(u, tpd, (names, fresh), sources)
+        .and_then(|mut l| {
+            l.before_inlining = true;
+            phases::synthetic::add_all(&mut l, root)
+        })
+        .map_err(|e| (e.at, e.what))
+}
+
+impl<'a> Lower<'a> {
+    fn new(
+        u: &'a mut Universe,
+        tpd: &'a mut Tpd,
+        (names, fresh): (&'a mut Names, &'a mut FreshNames),
+        sources: Sources<'a>,
+    ) -> Result<Self> {
+        let defs = Definitions::new(u).map_err(|what| Unsupported { at: Span::NONE, what })?;
+        Ok(Lower {
+            u,
+            tpd,
+            names,
+            fresh,
+            sources,
+            defs,
+            before_inlining: false,
+            fields: FxHashMap::default(),
+            bridges: FxHashSet::default(),
+            library_bridges: FxHashMap::default(),
+            extensions: FxHashMap::default(),
+            lazy_fields: Vec::new(),
+            lazy_members: FxHashMap::default(),
+            local_objects: FxHashMap::default(),
+            local_lazy_accessors: FxHashSet::default(),
+            endless_loops: FxHashSet::default(),
+            proxies: Vec::new(),
+            captured_fields: FxHashMap::default(),
+            captured_params: FxHashMap::default(),
+            context_results: FxHashMap::default(),
+            trait_methods: FxHashMap::default(),
+            trait_forwards: FxHashMap::default(),
+            applied_references: FxHashSet::default(),
+            local_classes: FxHashMap::default(),
+            explicit_casts: FxHashSet::default(),
+            null_casts: FxHashSet::default(),
+            boxed_ascriptions: FxHashSet::default(),
+            static_selects: FxHashSet::default(),
+            mixed_in: FxHashSet::default(),
+            specialized: FxHashSet::default(),
+            mixed_in_lazy_names: FxHashMap::default(),
+            forwarded: FxHashMap::default(),
+            getter_rhs: FxHashMap::default(),
+            outers: FxHashMap::default(),
+            outer_accessors: FxHashMap::default(),
+            coords: FxHashMap::default(),
+            narrowed: FxHashMap::default(),
+            lifted_from: FxHashMap::default(),
+            lifted_to: FxHashMap::default(),
+            super_accessors: FxHashMap::default(),
+            inlined_spans: FxHashMap::default(),
+            own_spans: FxHashMap::default(),
+            inlined_at: FxHashMap::default(),
+            inlined_blocks: FxHashSet::default(),
+            impure_modules: FxHashSet::default(),
+            erasure_owner: None,
+            evaluated_once: Vec::new(),
+            was_named_args: FxHashSet::default(),
+            in_match_values: FxHashSet::default(),
+            non_erased: FxHashMap::default(),
+            tail_vars: FxHashMap::default(),
+            tail_locals: FxHashSet::default(),
+            moved_classes: Vec::new(),
+        })
+    }
 }

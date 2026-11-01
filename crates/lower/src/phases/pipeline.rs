@@ -1,6 +1,6 @@
 //! The order the phases run in over a unit.
 
-use super::walk::{class_defs, class_defs_inner_first, retain_outside};
+use super::walk::{class_defs, retain_outside};
 use super::*;
 use crate::{Lower, Result};
 use typer::tpd::TNodeId;
@@ -22,9 +22,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let mut classes = class_defs(l.tpd, root);
     let inits = module_purity::objects_with_inits(l, &classes);
     super_accessors::transform(l, &classes)?;
-    for td in class_defs_inner_first(l.tpd, root) {
-        synthetic::add_synthetic_members(l, root, td)?;
-    }
+    synthetic::add_all(l, root)?;
     for &td in &classes {
         enumerations::transform(l, td)?;
         package_objects::transform(l, td);

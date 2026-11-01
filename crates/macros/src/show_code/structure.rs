@@ -100,10 +100,14 @@ impl Code<'_> {
                 self.symbol_structure(from);
                 self.push(")");
             }
+            T::TypeTree { .. } if is_type && self.h.has_bounds(t) => {
+                self.push("TypeBoundsTree(Inferred(), Inferred())")
+            }
             T::TypeTree { .. } if is_type => self.push("Inferred()"),
             T::SingletonTypeTree { reference } => self.node("Singleton", &[reference], &[])?,
             T::AppliedTypeTree { tpt, args } => self.node("Applied", &[tpt], &[args])?,
             T::ByNameTypeTree { result } => self.node("ByName", &[result], &[])?,
+            T::RefinedTypeTree { tpt, refinements } => self.node("Refined", &[tpt], &[refinements])?,
             T::Annotated { arg, annot } => self.node("Annotated", &[arg, annot], &[])?,
             T::TypeBoundsTree { lo, hi, alias: None } => self.node("TypeBoundsTree", &[lo, hi], &[])?,
             T::CaseDef { pat, guard, body } => {
