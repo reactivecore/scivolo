@@ -126,9 +126,10 @@ slower meanwhile:
    measured on `tests/run-macros`. Done 2026-11-01: constructor-proxy companions, operator
    types, quote-local givens, access qualifiers and top-level annotations in reflect show,
    `typeCheckErrors`, name-based type prefixes as stored, higher-kinded aliases overriding
-   type members, staging levels for quotes and splices (#197) (304 of 321 pass). Next: macro
-   libraries compiled from source, their quotes pickled to TASTy as dotty does (#196,
-   [research 43](docs/research/43-pickle-quotes.md)). Done 2026-10-31: package prefixes of quoted types,
+   type members, staging levels for quotes and splices, quote patterns as `QuotePattern` trees
+   (#197) (304 of 321 pass). Next: macro libraries compiled from source, their quotes pickled
+   to TASTy as dotty does (#196, [research 43](docs/research/43-pickle-quotes.md)); done: the
+   TASTy writer (#198). Done 2026-10-31: package prefixes of quoted types,
    `Symbol.tree`, beta reduction of polymorphic functions, generic number literals,
    `searchIgnoring`, type holes of runtime quote patterns, `newTypeAlias`, `Refined.apply`,
    exports, nested spliced types (296 of 321 pass). Done 2026-10-30: reflect printers and `toString`, the type
@@ -184,9 +185,9 @@ slower meanwhile:
    After the 10-31 stack javalib lowers 601 of 601: 3,375 NIR files same, 80 var-order, 41
    differ (2 of them also in var order); nativelib 692 same, 6 var-order, 17 differ (3).
    2026-11-01: nativelib against the JDK declarations, fresh names in dotty's order, NIR
-   positions of extension calls, lowering trees and the last files: javalib 3,413 same, 82
-   var-order, 1 differs; nativelib lowers 101 of 103 (quotes outside splices wait for #196):
-   697 same, 9 var-order, 3 differ.
+   positions of extension calls, lowering trees and the last files, joint member types of
+   intersections (#202): javalib 3,413 same, 82 var-order, 1 differs; nativelib lowers 102 of
+   103 (quotes outside splices wait for #196): 703 same, 9 var-order, 3 differ.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
