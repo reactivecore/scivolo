@@ -21,7 +21,7 @@ const CASES: &[(&str, &str)] = &[
     ),
     (
         "import scala.quoted.*\nobject Q { def f(x: Expr[Any])(using Quotes): Int = x match { case '{ $i: Int } => 1; case _ => 0 } }",
-        "quote patterns need QuotePatterns.encode, #199",
+        "quote patterns outside inline methods",
     ),
     (
         "object O { val v: Any = 1; def f(): Boolean = O.v.isInstanceOf[String | Int] }",

@@ -24,7 +24,9 @@ impl Typer<'_> {
     pub fn typed_quoted_type_var(&mut self, id: NodeId, name: TName, pt: Pt) -> TNodeId {
         let text = self.text(name.name).to_owned();
         let span = self.ast.span(id);
-        let Some(scope) = self.quote_pattern.as_ref() else { return self.unsupported(id, "quoted type variable") };
+        let Some(scope) = self.quote_pattern.as_ref() else {
+            return self.unsupported(id, "quoted type variable");
+        };
         let outer = scope.outer;
         if let Some(&(_, sym)) = scope.type_vars.iter().find(|(n, _)| *n == text) {
             let tpe = self.u.intern_type(Type::Sym(None, sym));
@@ -91,10 +93,13 @@ impl Typer<'_> {
             T::AppliedTypeTree { tpt, args } => {
                 let tycon = self.tpd.tpe(tpt);
                 let args = self.tpd.items(args).to_vec();
-                let and = matches!(*self.u.types().get(tycon), Type::Sym(_, s) if self.u.full_name(s) == "scala.&");
+                let and =
+                    matches!(*self.u.types().get(tycon), Type::Sym(_, s) if self.u.full_name(s) == "scala.&");
                 let variances = match (and, self.u.class_symbol(tycon)) {
                     (true, _) => vec![1; args.len()],
-                    (false, Some(c)) => Some(self.u.variances(c)).filter(|v| v.len() == args.len()).unwrap_or_default(),
+                    (false, Some(c)) => {
+                        Some(self.u.variances(c)).filter(|v| v.len() == args.len()).unwrap_or_default()
+                    }
                     (false, None) => Vec::new(),
                 };
                 let mut changed = false;
@@ -104,7 +109,10 @@ impl Typer<'_> {
                     changed |= self.extract_type_bindings(a, v, out);
                 }
                 changed |= self.extract_type_bindings(tpt, variance, out);
-                if changed && and && let &[a, b] = &args[..] {
+                if changed
+                    && and
+                    && let &[a, b] = &args[..]
+                {
                     let tpe = Type::And(self.tpd.tpe(a), self.tpd.tpe(b));
                     self.tpd.get_mut(t).tpe = Some(self.u.intern_type(tpe));
                 }

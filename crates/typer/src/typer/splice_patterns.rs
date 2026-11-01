@@ -12,7 +12,14 @@ use tasty::TypeId;
 impl Typer<'_> {
     /// Splice `$body` at `id` applied to `args` (`$body(args)`) in a quote pattern, matching an
     /// expression of type `pt`.
-    pub fn typed_splice_pattern(&mut self, id: NodeId, body: NodeId, args: &[NodeId], pt: Pt, ctx: Ctx) -> TNodeId {
+    pub fn typed_splice_pattern(
+        &mut self,
+        id: NodeId,
+        body: NodeId,
+        args: &[NodeId],
+        pt: Pt,
+        ctx: Ctx,
+    ) -> TNodeId {
         let Some(outer) = self.quote_pattern.as_ref().map(|q| q.outer) else {
             return self.unsupported(id, "splice pattern outside a quote pattern");
         };
@@ -31,7 +38,8 @@ impl Typer<'_> {
             }
             typed_args.push(self.typed(a, Pt::Any, ctx));
         }
-        let mut parts: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).map(|t| self.u.widen(t)).collect();
+        let mut parts: Vec<TypeId> =
+            typed_args.iter().map(|&a| self.tpd.tpe(a)).map(|t| self.u.widen(t)).collect();
         let pat_type = match parts.is_empty() {
             true => pt,
             false => {
@@ -57,8 +65,17 @@ impl Typer<'_> {
 
     /// `$f(args)` at `id`, splice `splice` applied in a quote pattern, matching an expression of
     /// type `pt`.
-    pub fn typed_applied_splice(&mut self, id: NodeId, splice: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
-        let Tree::SplicePattern { body } = *self.ast.tree(splice) else { return self.unsupported(id, "splice") };
+    pub fn typed_applied_splice(
+        &mut self,
+        id: NodeId,
+        splice: NodeId,
+        args: List,
+        pt: Pt,
+        ctx: Ctx,
+    ) -> TNodeId {
+        let Tree::SplicePattern { body } = *self.ast.tree(splice) else {
+            return self.unsupported(id, "splice");
+        };
         if self.ast.span(splice).end() != self.ast.span(body).end() {
             return self.unsupported(id, "applied splice in braces in a quote pattern");
         }

@@ -16,7 +16,7 @@ pub fn refuse(l: &Lower, root: TNodeId) -> Result<()> {
         match l.tpd.tree(t) {
             Tree::DefDef { .. } if sym.is_some_and(|s| has(l.u, s, INLINE)) => continue,
             Tree::QuotePattern { .. } => {
-                return unsupported(l.tpd.span(t), "quote patterns need QuotePatterns.encode, #199");
+                return unsupported(l.tpd.span(t), "quote patterns outside inline methods");
             }
             Tree::Ident { .. } | Tree::Select { .. }
                 if sym.is_some_and(|s| QUOTED.contains(&l.u.full_name(s).as_str())) =>

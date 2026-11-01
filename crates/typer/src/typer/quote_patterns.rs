@@ -40,7 +40,9 @@ impl Typer<'_> {
         }
         let base = self.u.base_type(pt, class).map(|b| self.u.types().get(b).clone());
         let quoted_pt = match base {
-            Some(Type::Applied(_, args)) if !matches!(self.u.types().get(args[0]), Type::Bounds(..)) => args[0],
+            Some(Type::Applied(_, args)) if !matches!(self.u.types().get(args[0]), Type::Bounds(..)) => {
+                args[0]
+            }
             _ => ANY,
         };
         let body = self.adapted_to_expected(body, quoted_pt);
@@ -49,7 +51,8 @@ impl Typer<'_> {
         }
         let saved = self.quote_pattern.replace(QuotePatternScope { outer: ctx, type_vars: Vec::new() });
         let quoted = if is_type { Mode::QUOTED_TYPE_PATTERN } else { Mode::QUOTED_EXPR_PATTERN };
-        let qctx = Ctx { mode: ctx.mode.without(Mode::PATTERN).with(quoted), staging: ctx.staging + 1, ..ctx };
+        let qctx =
+            Ctx { mode: ctx.mode.without(Mode::PATTERN).with(quoted), staging: ctx.staging + 1, ..ctx };
         let body = if is_type { self.typed_type(body, qctx) } else { self.typed(body, Pt::Any, qctx) };
         self.quote_pattern = saved;
         let mut bindings = Vec::new();
@@ -75,7 +78,7 @@ impl Typer<'_> {
     /// scrutinee quotes (dotty's `desugar.quotedPattern`).
     fn adapted_to_expected(&mut self, t: NodeId, quoted_pt: TypeId) -> NodeId {
         let tree = self.ast.tree(t).clone();
-        let leaf =|p: &mut Self, t| p.adapted_to_expected(t, quoted_pt);
+        let leaf = |p: &mut Self, t| p.adapted_to_expected(t, quoted_pt);
         let adapted = match tree {
             Tree::SplicePattern { .. } => {
                 let span = self.ast.span(t);
