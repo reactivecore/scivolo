@@ -1,5 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
+//   compiler/src/dotty/tools/dotc/typer/ReTyper.scala
 //! The typing pass over a copied inline body (dotty's `InlineTyper`, a `ReTyper`): inline
 //! arguments in place of their proxies, operations on constants folded into literals, `if`s on
 //! constants and inline matches reduced, the types of `if`s recomputed.
@@ -77,9 +78,12 @@ impl Inlining<'_> {
             | T::AppliedTypeTree { .. }
             | T::TypeBoundsTree { .. }
             | T::LambdaTypeTree { .. }
-            | T::RefinedTypeTree { .. }
             | T::Annotated { .. }
             | T::Import { export: true, .. } => Ok(t),
+            T::RefinedTypeTree { .. } => {
+                let tpe = self.tpd.get(t).tpe;
+                Ok(self.tpd.node(T::TypeTree { inferred: false }, span, tpe, None))
+            }
             T::If { cond, thenp, elsep, inline } => {
                 let cond = self.retype_forced(inline, cond, args, owner)?;
                 if let Some(C::Boolean(b)) = self.constant_of(cond) {

@@ -16,3 +16,4 @@ object Code:
   val k = code(Code.this.one :: Nil)
   val l = code { def g[T](t: T): T = t; g(one); List(1).foldLeft(0)((s, x) => { val y = s; y + x }) }
   val m = code(List(1, 2).sum(using Numeric.IntIsIntegral) - 'a'.toInt)
+  val n = code { class Foo { type X }; def f(a: Foo { type X = Int; def h: Int }): a.X = ??? }

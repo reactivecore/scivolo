@@ -98,6 +98,18 @@ impl Code<'_> {
         self.out.push_str(&"  ".repeat(self.indent));
     }
 
+    /// `body` in braces on its own indented lines (dotty's `inBlock`).
+    fn in_block(&mut self, body: impl FnOnce(&mut Self) -> Shown) -> Shown {
+        self.push(" {");
+        self.indent += 1;
+        self.line_break();
+        body(self)?;
+        self.indent -= 1;
+        self.line_break();
+        self.push("}");
+        Ok(())
+    }
+
     fn trees(&mut self, trees: &[TNodeId], sep: &str) -> Shown {
         for (i, &t) in trees.iter().enumerate() {
             if i > 0 {

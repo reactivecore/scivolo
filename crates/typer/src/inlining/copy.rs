@@ -88,9 +88,10 @@ impl<'a> Inlining<'a> {
             T::TypeDef { .. } if sym.is_some_and(|s| self.u.symbol(s).kind == Kind::TypeParam) => {
                 self.fresh_symbol(m, sym.expect("a type parameter"));
             }
-            T::RefinedTypeTree { .. } => {
-                let tpe = tpe.map(|t| self.map_type(m, t));
-                return Ok(self.tpd.node(T::TypeTree { inferred: false }, span, tpe, None));
+            T::RefinedTypeTree { refinements, .. } => {
+                for s in self.tpd.items(refinements).iter().filter_map(|&r| self.tpd.sym(r)) {
+                    m.syms.entry(s).or_insert(s);
+                }
             }
             T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. } | T::TypeDef { .. } => {
                 if let Some(s) = sym {

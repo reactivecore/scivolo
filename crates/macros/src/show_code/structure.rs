@@ -107,6 +107,7 @@ impl Code<'_> {
             T::SingletonTypeTree { reference } => self.node("Singleton", &[reference], &[])?,
             T::AppliedTypeTree { tpt, args } => self.node("Applied", &[tpt], &[args])?,
             T::ByNameTypeTree { result } => self.node("ByName", &[result], &[])?,
+            T::RefinedTypeTree { tpt, refinements } => self.node("Refined", &[tpt], &[refinements])?,
             T::Annotated { arg, annot } => self.node("Annotated", &[arg, annot], &[])?,
             T::TypeBoundsTree { lo, hi, alias: None } => self.node("TypeBoundsTree", &[lo, hi], &[])?,
             T::CaseDef { pat, guard, body } => {
