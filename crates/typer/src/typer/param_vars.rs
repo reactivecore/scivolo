@@ -27,7 +27,7 @@ impl Typer<'_> {
                 let declared_lo = declared.iter().find(|&&(w, _)| w == v).map_or(NOTHING, |&(_, l)| l);
                 if matches!(self.u.types().get(lo), Type::And(..)) {
                     return Err("type variable minimized to an intersection before an implicit search");
-                } else if lo != NOTHING && declared_lo != NOTHING && hi != ANY {
+                } else if lo != NOTHING && declared_lo != NOTHING && !self.is_any(hi) {
                     return Err("type variable with a declared lower bound constrained from above");
                 } else if lo != NOTHING {
                     self.instantiate_var(v, true)?;
@@ -40,7 +40,7 @@ impl Typer<'_> {
     }
 
     /// Whether `t` is `Any` or `AnyKind`.
-    fn is_any(&mut self, t: TypeId) -> bool {
+    pub fn is_any(&mut self, t: TypeId) -> bool {
         let builtins = self.u.builtins();
         t == ANY || self.u.class_symbol(t).is_some_and(|c| c == builtins.any || c == builtins.any_kind)
     }

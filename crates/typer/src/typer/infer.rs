@@ -8,7 +8,7 @@ use super::{Typer, Widen};
 use crate::constraint::Constraint;
 use crate::symbols::SCRIPT_BINDERS;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{ANY, Kind, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
+use tasty::{Kind, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 
 /// Whether `t` is a type lambda the script made (bound by a `fresh_binder` of the typer or of
 /// the universe).
@@ -145,7 +145,7 @@ impl Typer<'_> {
                 let variance = variances.get(&v.0).copied().unwrap_or(0);
                 let from_below = match lo != NOTHING {
                     true => variance >= 0,
-                    false => bottom_ok && (variance > 0 || variance == 0 && hi == ANY),
+                    false => bottom_ok && (variance > 0 || variance == 0 && self.is_any(hi)),
                 };
                 self.instantiate_var(v, from_below)?;
             }

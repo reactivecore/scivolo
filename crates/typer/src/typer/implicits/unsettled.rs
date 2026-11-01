@@ -73,7 +73,7 @@ impl Typer<'_> {
             _ => return None,
         };
         let (lo, hi) = self.constraint.bounds(var);
-        if lo != tasty::NOTHING || hi == tasty::ANY {
+        if lo != tasty::NOTHING || self.is_any(hi) {
             return None;
         }
         let hi = self.zonk(hi);
