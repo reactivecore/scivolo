@@ -10,11 +10,12 @@ use super::case_members::case_accessors;
 use super::enum_values::is_enum_value;
 use super::lift_names::fresh;
 use super::mirror_prefixes::new_seen_from;
-use super::sum_mirrors::is_generic_sum;
+use super::sum_mirrors::{enum_ordinal, is_generic_sum};
+use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result};
-use syntax::ast::Span;
+use syntax::ast::{Span, TName};
 use tasty::tags::{CASE, ENUM, SEALED, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -26,6 +27,11 @@ pub fn mirror_support(
     class: SymbolId,
     span: Span,
 ) -> Result<Option<(SymbolId, Vec<TNodeId>)>> {
+    if let Ok(cc) = l.case_classes()
+        && [cc.mirror_product, cc.mirror_singleton, cc.mirror_sum].iter().any(|&m| l.u.derives_from(class, m))
+    {
+        return Ok(None);
+    }
     if let Some(kind) = l.tpd.anon_mirror(class) {
         return anon_mirror_support(l, root, class, kind, span).map(Some);
     }
@@ -38,26 +44,25 @@ pub fn mirror_support(
     if has(l.u, class, CASE) {
         return Ok(Some((l.case_classes()?.mirror_singleton, Vec::new())));
     }
-    let Some(linked) = l.u.companion_class(class) else { return Ok(None) };
-    if has(l.u, linked, SEALED) && has(l.u, linked, ENUM) {
-        mono_type(l, class, linked);
-        let focus = Span::new(span.point(), span.point(), span.point());
-        let ordinal = ordinal(l, class, linked, focus)?;
-        return Ok(Some((l.case_classes()?.mirror_sum, vec![ordinal])));
-    }
+    let Some(linked) = linked_class(l, root, class) else { return Ok(None) };
     let focus = Span::new(span.point(), span.point(), span.point());
+    if has(l.u, linked, SEALED) && has(l.u, linked, ENUM) {
+        let mono = mono_type(l, class, linked, focus);
+        let ordinal = enum_ordinal(l, class, linked, focus)?;
+        return Ok(Some((l.case_classes()?.mirror_sum, vec![mono, ordinal])));
+    }
     if is_generic_product(l, linked) {
-        mono_type(l, class, linked);
+        let mono = mono_type(l, class, linked, focus);
         let from_product = from_product(l, class, linked, None, focus)?;
-        return Ok(Some((l.case_classes()?.mirror_product, vec![from_product])));
+        return Ok(Some((l.case_classes()?.mirror_product, vec![mono, from_product])));
     }
     if !has(l.u, linked, SEALED) || !is_generic_sum(l, root, linked) {
         return Ok(None);
     }
-    mono_type(l, class, linked);
+    let mono = mono_type(l, class, linked, focus);
     let param = type_ref(l.u, linked);
     let ordinal = super::sum_mirrors::ordinal(l, root, (class, linked), param, focus)?;
-    Ok(Some((l.case_classes()?.mirror_sum, vec![ordinal])))
+    Ok(Some((l.case_classes()?.mirror_sum, vec![mono, ordinal])))
 }
 
 /// Whether `c` is a case class dotty gives a product mirror (`isGenericProduct`).
@@ -66,13 +71,17 @@ pub fn is_generic_product(l: &mut Lower, c: SymbolId) -> bool {
     typer::sealed::is_product_shape(l.u, c, value_class)
 }
 
-/// `type MirroredMonoType = C` in object class `class` for its companion class `linked`.
-fn mono_type(l: &mut Lower, class: SymbolId, linked: SymbolId) {
+/// `type MirroredMonoType = C` in object class `class` for its companion class `linked`, at
+/// `focus`.
+fn mono_type(l: &mut Lower, class: SymbolId, linked: SymbolId, focus: Span) -> TNodeId {
     let alias = symbol("MirroredMonoType", Kind::Type, class, Flags::default().with(SYNTHETIC));
     let alias = l.u.define(alias);
     let linked = type_ref(l.u, linked);
     let info = l.u.intern_type(Type::Alias(linked));
     l.u.set_info(alias, info);
+    let rhs = l.type_tree(info, focus);
+    let name = TName { name: l.names.intern("MirroredMonoType"), is_type: true };
+    l.tpd.node(Tree::TypeDef { name, rhs }, focus, None, Some(alias))
 }
 
 /// `def fromProduct(x$0: Product): C = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C(a$1, ...) }`
@@ -152,26 +161,21 @@ pub fn from_product(
     Ok(l.with_span(def, focus))
 }
 
-/// `def ordinal(x$0: E): Int = x$0.ordinal` for enum `enum_class` (dotty's `ordinalBody`).
-pub fn ordinal(l: &mut Lower, class: SymbolId, enum_class: SymbolId, focus: Span) -> Result<TNodeId> {
-    let cc = l.case_classes()?;
-    let param = type_ref(l.u, enum_class);
-    let int = l.u.class_ref("scala.Int");
-    let binder = l.u.fresh_binder();
-    let params = vec![("x$0".into(), param)];
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
-    let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
-    let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
-    let flags = Flags::default().with(SYNTHETIC);
-    let java = l.u.linearization(enum_class).into_iter().find(|&b| l.u.full_name(b) == "java.lang.Enum");
-    let java_ordinal = java.and_then(|j| l.u.decl(j, "ordinal").ok()?.into_iter().next());
-    let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
-        let x = l.copy_ident(args[0]);
-        l.call(x, java_ordinal.unwrap_or(cc.enum_ordinal), &[])
+/// The companion class of object class `class` of unit `root`; of a local one, the class of its
+/// name among the statements that define it (dotty's `companionNamed`).
+fn linked_class(l: &mut Lower, root: TNodeId, class: SymbolId) -> Option<SymbolId> {
+    let owner = l.u.symbol(class).owner?;
+    if !l.u.symbol(owner).kind.is_term() {
+        return l.u.companion_class(class);
+    }
+    let name = tasty::module_name(&l.u.symbol(class).name)?.to_owned();
+    let defined_in = |l: &Lower, stats| l.tpd.items(stats).iter().any(|&s| l.tpd.sym(s) == Some(class));
+    let stats = subtrees(l.tpd, root).into_iter().find_map(|t| match *l.tpd.tree(t) {
+        Tree::Block { stats, .. } if defined_in(l, stats) => Some(l.tpd.items(stats).to_vec()),
+        _ => None,
     })?;
-    l.tpd.get_mut(def).span = Span::NONE;
-    Ok(l.with_span(def, focus))
+    let linked = |s: SymbolId| l.u.symbol(s).name == name && l.u.is_class(s) && !l.u.is_module_class(s);
+    stats.into_iter().filter_map(|s| l.tpd.sym(s)).find(|&s| linked(s))
 }
 
 impl Lower<'_> {

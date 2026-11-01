@@ -126,7 +126,7 @@ mod static_members;
 mod static_values;
 mod sum_mirrors;
 mod super_accessors;
-mod synthetic;
+pub(crate) mod synthetic;
 mod tail_calls;
 mod tailrec;
 mod trait_fields;

@@ -5,7 +5,7 @@
 //! `ordinal`, `hashCode`.
 
 use super::case_members::existing_def;
-use super::synthetic::private_method;
+use super::synthetic::{has_serialization_method, private_method};
 use super::walk::subtrees;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
@@ -41,7 +41,10 @@ pub fn enum_value_members(l: &mut Lower, root: TNodeId, class: SymbolId, span: S
     };
     let focus = Span::new(span.point(), span.point(), span.point());
     let java = super::java_enums::derives_from_java_enum(l, class);
-    let mut out = if java { Vec::new() } else { vec![read_resolve(l, class, owner, focus)?] };
+    let mut out = Vec::new();
+    if !java && !has_serialization_method(l, class, "readResolve") {
+        out.push(read_resolve(l, class, owner, focus)?);
+    }
     let cc = l.case_classes()?;
     let synthesized = match java {
         true => vec![cc.product_prefix],

@@ -9,8 +9,8 @@ use syntax::names::{FreshNames, Names};
 use syntax::parse::Parser;
 use syntax::source::{Offset, SourceFile, Sources};
 use tasty::Universe;
+use typer::Fallback;
 use typer::inlining::Macros;
-use typer::{Fallback, Units};
 
 /// The NIR files and warnings of `files` under settings `cfg`, typed together so that each sees
 /// the definitions of all, their macro calls expanded through `macros`, or why they take the JVM
@@ -49,7 +49,7 @@ pub fn compile_sources(
         ast.shift_spans(mark, base);
         units.push((base, root));
     }
-    let mut typer = Units::default();
+    let mut typer = crate::typer_units();
     typer.source_names = files.iter().map(|f| f.name.clone()).collect();
     let typed = typer.type_units(u, &mut ast, (&mut names, &mut fresh), (&units, cfg), macros);
     let mut typed = match typed {

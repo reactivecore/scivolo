@@ -357,6 +357,13 @@ object Members:
     import quotes.reflect.*
     Expr(TypeRepr.of[T].typeSymbol.methodMember(name.valueOrAbort).size)
 
+  inline def declarations[T]: String = ${ declarationsImpl[T] }
+  def declarationsImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val s = TypeRepr.of[T].typeSymbol
+    def names(c: Symbol) = c.declarations.filterNot(_.isClassConstructor).map(_.name).mkString(",")
+    Expr(s"${names(s)}; ${names(s.companionModule.moduleClass)}")
+
   inline def required: String = ${ requiredImpl }
   def requiredImpl(using Quotes): Expr[String] =
     import quotes.reflect.*

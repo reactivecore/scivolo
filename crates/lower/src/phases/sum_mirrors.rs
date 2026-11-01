@@ -54,6 +54,28 @@ pub fn is_generic_sum(l: &mut Lower, root: TNodeId, s: SymbolId) -> bool {
         })
 }
 
+/// `def ordinal(x$0: E): Int = x$0.ordinal` for enum `enum_class` (dotty's `ordinalBody`).
+pub fn enum_ordinal(l: &mut Lower, class: SymbolId, enum_class: SymbolId, focus: Span) -> Result<TNodeId> {
+    let cc = l.case_classes()?;
+    let param = type_ref(l.u, enum_class);
+    let int = l.u.class_ref("scala.Int");
+    let binder = l.u.fresh_binder();
+    let params = vec![("x$0".into(), param)];
+    let info =
+        l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
+    let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
+    let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
+    let flags = Flags::default().with(SYNTHETIC);
+    let java = l.u.linearization(enum_class).into_iter().find(|&b| l.u.full_name(b) == "java.lang.Enum");
+    let java_ordinal = java.and_then(|j| l.u.decl(j, "ordinal").ok()?.into_iter().next());
+    let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
+        let x = l.copy_ident(args[0]);
+        l.call(x, java_ordinal.unwrap_or(cc.enum_ordinal), &[])
+    })?;
+    l.tpd.get_mut(def).span = Span::NONE;
+    Ok(l.with_span(def, focus))
+}
+
 /// `def ordinal(x$0: P): Int` of class `class` for sealed class `sealed` of unit `root`, `P` the
 /// type `param`.
 pub fn ordinal(

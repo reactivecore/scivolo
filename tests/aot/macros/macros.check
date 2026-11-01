@@ -2,3 +2,5 @@
 Hello, Bob!
 List(a, b)
 10
+x,y,copy,copy$default$1,copy$default$2,_1,_2,hashCode,equals,toString,canEqual,productArity,productPrefix,productElement,productElementName; apply,unapply,toString,writeReplace,MirroredMonoType,fromProduct
+4

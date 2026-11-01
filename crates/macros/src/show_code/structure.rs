@@ -100,6 +100,9 @@ impl Code<'_> {
                 self.symbol_structure(from);
                 self.push(")");
             }
+            T::TypeTree { .. } if is_type && self.h.has_bounds(t) => {
+                self.push("TypeBoundsTree(Inferred(), Inferred())")
+            }
             T::TypeTree { .. } if is_type => self.push("Inferred()"),
             T::SingletonTypeTree { reference } => self.node("Singleton", &[reference], &[])?,
             T::AppliedTypeTree { tpt, args } => self.node("Applied", &[tpt], &[args])?,

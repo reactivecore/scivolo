@@ -3,13 +3,13 @@
 //   compiler/src/dotty/tools/dotc/transform/SyntheticMembers.scala
 //! `equals` of case classes as dotty's `SyntheticMembers` writes it (`equalsBody`).
 
-use super::casts::cast;
+use super::adapt::from_start;
 use crate::Lower;
 use crate::definitions::{CaseClasses, primitive_class_name, symbol, type_ref};
 use crate::symbols::has;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, SYNTHETIC};
-use tasty::{Erased, Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{MatchKind, TNodeId, Tree};
 
 impl Lower<'_> {
@@ -88,9 +88,12 @@ impl Lower<'_> {
             return matched;
         }
         let this = self.this(class, Span::NONE);
-        let that_object = self.copy_ident(that);
-        let that_object = cast(self, that_object, &Erased::Class("java.lang.Object".into()));
-        self.tpd.get_mut(that_object).span = Span::NONE;
+        let that_ref = self.copy_ident(that);
+        let span = from_start(self.tpd.span(that_ref));
+        let object = self.u.class_ref("java.lang.Object");
+        let fun = self.select(that_ref, self.defs.type_cast, span);
+        let tpt = self.type_tree(object, span);
+        let that_object = self.build().type_apply(fun, &[tpt], object, Span::NONE);
         let same = self.call(this, cc.eq, &[that_object]);
         self.call(same, cc.or, &[matched])
     }
