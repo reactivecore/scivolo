@@ -10,6 +10,8 @@ object LotOuter:
     object Deeper:
       def d = List(1).map(_ * k)
       def e = List(1).map(x => LotOuter.this.k + Inner.this.m + x)
+      def p = List(1).map(x => LotOuter.this.k + List(x).map(y => Inner.this.m + y).head)
+      def q = List(1).map(x => Inner.this.m + List(x).map(y => LotOuter.this.k + y).head)
   class Member:
     def c = List(1).map(_ - k)
     def n = List(1).map(_ - LotOuter.this.k)
@@ -23,5 +25,7 @@ object liftouterthis:
     println(LotOuter.Inner.i)
     println(LotOuter.Inner.Deeper.d)
     println(LotOuter.Inner.Deeper.e)
+    println(LotOuter.Inner.Deeper.p)
+    println(LotOuter.Inner.Deeper.q)
     println(LotOuter.Member().c)
     println(LotOuter.Member().n)

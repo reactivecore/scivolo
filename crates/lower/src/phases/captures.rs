@@ -5,6 +5,7 @@
 
 use super::lambda_lift::Function;
 use super::lift_names::Pending;
+use super::narrowed::{narrow_logic_owner, narrow_to};
 use super::walk::{children, is_type_tree};
 use crate::symbols::{has, is_static, is_static_owner};
 use crate::{Lower, Result, unsupported};
@@ -59,7 +60,7 @@ pub fn dependencies(
         todo.extend(steps(l, t, pending).into_iter().rev().map(|s| (s, enclosure)));
         let Some(i) = enclosure else { continue };
         match (l.tpd.tree(t), l.tpd.sym(t)) {
-            (Tree::This { .. }, s) => super::narrowed::narrow_to(l, class, &mut functions[i], s),
+            (Tree::This { .. }, s) => narrow_to(l, class, &mut functions[i], s),
             (&Tree::New { tpt }, _) if matches!(l.u.types().get(l.tpd.tpe(tpt)), Type::Sym(_, c) if l.local_classes.contains_key(c)) => {
                 functions[i].this |= in_class
             }
@@ -102,9 +103,9 @@ pub fn dependencies(
                     Callee::Function(j) => {
                         changed |= functions[j].this && !functions[*caller].this;
                         functions[*caller].this |= functions[j].this;
-                        let narrowed = functions[j].into.filter(|_| !functions[*caller].instance());
-                        changed |= narrowed.is_some();
-                        functions[*caller].into = functions[*caller].into.or(narrowed);
+                        if let Some(c) = functions[j].into {
+                            changed |= narrow_logic_owner(l, &mut functions[*caller], c);
+                        }
                         functions[j].captured.clone()
                     }
                     Callee::Value(s) => vec![s],
