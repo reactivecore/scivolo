@@ -15,6 +15,7 @@ pub mod tags;
 mod tree;
 mod types;
 mod view;
+pub mod write;
 
 pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
 pub use positions::TastySpan;

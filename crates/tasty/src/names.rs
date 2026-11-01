@@ -29,18 +29,18 @@ pub enum Name<'a> {
     Signed { orig: NameRef, target: Option<NameRef>, result: NameRef, params: Vec<ParamSig> },
 }
 
-const UTF8: u8 = 1;
-const QUALIFIED: u8 = 2;
-const EXPANDED: u8 = 3;
-const EXPANDPREFIX: u8 = 4;
-const UNIQUE: u8 = 10;
-const DEFAULTGETTER: u8 = 11;
-const SUPERACCESSOR: u8 = 20;
-const INLINEACCESSOR: u8 = 21;
-const BODYRETAINER: u8 = 22;
-const OBJECTCLASS: u8 = 23;
-const TARGETSIGNED: u8 = 62;
-const SIGNED: u8 = 63;
+pub const UTF8: u8 = 1;
+pub const QUALIFIED: u8 = 2;
+pub const EXPANDED: u8 = 3;
+pub const EXPANDPREFIX: u8 = 4;
+pub const UNIQUE: u8 = 10;
+pub const DEFAULTGETTER: u8 = 11;
+pub const SUPERACCESSOR: u8 = 20;
+pub const INLINEACCESSOR: u8 = 21;
+pub const BODYRETAINER: u8 = 22;
+pub const OBJECTCLASS: u8 = 23;
+pub const TARGETSIGNED: u8 = 62;
+pub const SIGNED: u8 = 63;
 
 pub struct Names<'a> {
     entries: Vec<Name<'a>>,

@@ -47,11 +47,11 @@ impl Cmp<'_> {
                         let names: Vec<String> = p2.iter().map(|(n, _)| n.clone()).collect();
                         let refs: Vec<TypeId> =
                             (0..p1.len() as u32).map(|i| self.u.intern_type(Type::Param(b1, i))).collect();
-                        let own = |s: &mut Self, t: TypeId| s.param_syms_as_refs(t, &p1, b1);
+                        let own = |s: &mut Self, t: TypeId| s.u.param_syms_as_refs(t, &p1, b1);
                         let (x, r1): (Vec<TypeId>, TypeId) =
                             (p1.iter().map(|&(_, x)| own(self, x)).collect(), own(self, r1));
                         let theirs = |s: &mut Self, t: TypeId| {
-                            let t = s.param_syms_as_refs(t, &p2, b2);
+                            let t = s.u.param_syms_as_refs(t, &p2, b2);
                             s.u.subst(t, b2, &names, &refs)
                         };
                         let y: Vec<TypeId> = p2.iter().map(|&(_, y)| theirs(self, y)).collect();

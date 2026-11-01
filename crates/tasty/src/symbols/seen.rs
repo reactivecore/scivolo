@@ -118,9 +118,14 @@ impl Universe {
         args.get(index).copied()
     }
 
-    /// The type of member `m` of `prefix`; the `apply` of a dependent function type, or a term
-    /// member a refinement narrows, the one its refinement gives.
+    /// The type of member `m` of `prefix`; a joint member of an intersection, its joint type.
     pub fn member_info(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {
+        self.joint_info(prefix, m).unwrap_or_else(|| self.own_member_info(prefix, m))
+    }
+
+    /// The type of member `m` of `prefix` that `m` declares; the `apply` of a dependent function
+    /// type, or a term member a refinement narrows, the one its refinement gives.
+    pub fn own_member_info(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {
         let info = self.info(m);
         match self.symbol(m).owner {
             Some(owner) if self.symbol(owner).kind == Kind::Class => {
