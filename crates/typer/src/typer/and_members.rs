@@ -34,7 +34,10 @@ impl Typer<'_> {
             for &s in out.iter().chain([&m]) {
                 self.complete(s);
             }
-            match out.iter().position(|&o| self.same_member(site, o, m)) {
+            match out
+                .iter()
+                .position(|&o| self.same_member(site, o, m) && self.same_erased_params(site, o, m))
+            {
                 Some(k) => match self.merged(site, (out[k], m), ctx) {
                     Some(s) => out[k] = s,
                     None => return Vec::new(),
@@ -47,8 +50,8 @@ impl Typer<'_> {
 
     /// Of matching members `a` and `b` of `site`, the one whose denotation dotty keeps: the one
     /// accessible in `ctx` if the other is not, else by `symScore` the one whose type conforms to
-    /// the other's, else the one recorded with the meet of both types as its joint type; `None`
-    /// where dotty overloads both.
+    /// the other's, else the one recorded as the joint member of both; `None` where dotty
+    /// overloads both or joins members not both public.
     fn merged(&mut self, site: TypeId, (a, b): (SymbolId, SymbolId), ctx: Option<Ctx>) -> Option<SymbolId> {
         if let Some(ctx) = ctx {
             let (hidden_a, hidden_b) = (!self.is_accessible(a, ctx), !self.is_accessible(b, ctx));
@@ -65,10 +68,20 @@ impl Typer<'_> {
         if score >= 0 && self.u.is_subtype(ra, rb) {
             return Some(a);
         }
-        let joint = self.u.info_meet(ia, ib)?;
+        if self.visibility(a) < 2 || self.visibility(b) < 2 {
+            return None;
+        }
+        self.u.info_meet(ia, ib)?;
         let s = if score >= 0 { a } else { b };
-        self.u.set_joint_info(site, s, joint);
+        self.u.set_joint_member(site, s, (a, b));
         Some(s)
+    }
+
+    /// Whether members `a` and `b` of `site` erase to the same parameter types, as their
+    /// signatures match.
+    fn same_erased_params(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
+        let (ia, ib) = (self.u.own_member_info(site, a), self.u.own_member_info(site, b));
+        self.u.erased_method_type(ia).0 == self.u.erased_method_type(ib).0
     }
 
     /// Whether both sides of intersection `t`, or of one nested in it, have members `name`, which

@@ -115,8 +115,7 @@ pub struct Universe {
     /// The declared variances of the type lambdas made outside TASTy that declare them.
     lambda_variances: FxHashMap<Binder, Vec<i8>>,
     unions: Unions,
-    /// Per joint member of intersections, each intersection and the member's type there.
-    joint_infos: FxHashMap<SymbolId, Vec<(TypeId, TypeId)>>,
+    joint_members: joint::JointMembers,
     /// How many steps comparisons have taken computing atoms and `Nothing`-ness.
     pub subtype_steps: u64,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.

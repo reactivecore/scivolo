@@ -61,7 +61,7 @@ impl Universe {
             binders: 0,
             lambda_variances: FxHashMap::default(),
             unions: Default::default(),
-            joint_infos: FxHashMap::default(),
+            joint_members: FxHashMap::default(),
             subtype_steps: 0,
             scala2_erasure: false,
         };

@@ -6,42 +6,64 @@
 use super::{SymbolId, Universe};
 use crate::subtype::NoVars;
 use crate::types::{Binder, Type, TypeId};
+use rustc_hash::FxHashMap;
 
 /// How many steps finding the intersection a prefix selects a joint member on takes at most.
 const MAX_STEPS: u32 = 64;
 
+/// Per joint member of intersections, each intersection and the members of its two sides.
+pub type JointMembers = FxHashMap<SymbolId, Vec<(TypeId, (SymbolId, SymbolId))>>;
+
 impl Universe {
-    /// Records `info` as the type of member `m` of intersection `site`.
-    pub fn set_joint_info(&mut self, site: TypeId, m: SymbolId, info: TypeId) {
-        let entries = self.joint_infos.entry(m).or_default();
+    /// Records `m` as the joint member of intersection `site` whose sides have members `sides`.
+    pub fn set_joint_member(&mut self, site: TypeId, m: SymbolId, sides: (SymbolId, SymbolId)) {
+        let entries = self.joint_members.entry(m).or_default();
         if !entries.iter().any(|&(s, _)| s == site) {
-            entries.push((site, info));
+            entries.push((site, sides));
         }
     }
 
     /// The type of member `m` of intersection `site` that its sides give it: a joint type of a
     /// nested intersection, else `m`'s own.
     pub fn side_member_info(&mut self, site: TypeId, m: SymbolId) -> TypeId {
-        let joint = match *self.types().get(site) {
-            Type::And(a, b) => self.joint_info(a, m).or_else(|| self.joint_info(b, m)),
-            _ => None,
-        };
-        joint.unwrap_or_else(|| self.own_member_info(site, m))
+        self.side_info(site, site, m)
     }
 
-    /// The joint type of member `m` selected on `prefix`, through its underlying types, the
-    /// given self type of a `this`, bounds and both sides of intersections.
+    /// The joint type of member `m` selected on `prefix`: the meet of its sides' types seen from
+    /// `prefix`.
     pub fn joint_info(&mut self, prefix: TypeId, m: SymbolId) -> Option<TypeId> {
-        if !self.joint_infos.contains_key(&m) {
+        let site = self.joint_site(prefix, m)?;
+        self.joint_at(prefix, site, m)
+    }
+
+    fn joint_at(&mut self, prefix: TypeId, site: TypeId, m: SymbolId) -> Option<TypeId> {
+        let &(_, (a, b)) = self.joint_members[&m].iter().find(|&&(s, _)| s == site)?;
+        let (ia, ib) = (self.side_info(prefix, site, a), self.side_info(prefix, site, b));
+        self.info_meet(ia, ib)
+    }
+
+    /// The type of member `m` of a side of intersection `site`, seen from `prefix`.
+    fn side_info(&mut self, prefix: TypeId, site: TypeId, m: SymbolId) -> TypeId {
+        let nested = match *self.types().get(site) {
+            Type::And(a, b) => self.joint_site(a, m).or_else(|| self.joint_site(b, m)),
+            _ => None,
+        };
+        nested.and_then(|n| self.joint_at(prefix, n, m)).unwrap_or_else(|| self.own_member_info(prefix, m))
+    }
+
+    /// The intersection with joint member `m` that `prefix` selects it on, through its
+    /// underlying types, the given self type of a `this`, bounds and both sides of intersections.
+    fn joint_site(&mut self, prefix: TypeId, m: SymbolId) -> Option<TypeId> {
+        if !self.joint_members.contains_key(&m) {
             return None;
         }
         let mut t = prefix;
         for _ in 0..MAX_STEPS {
-            if let Some(&(_, info)) = self.joint_infos[&m].iter().find(|&&(s, _)| s == t) {
-                return Some(info);
+            if self.joint_members[&m].iter().any(|&(s, _)| s == t) {
+                return Some(t);
             }
             t = match *self.types().get(t) {
-                Type::And(a, b) => return self.joint_info(a, m).or_else(|| self.joint_info(b, m)),
+                Type::And(a, b) => return self.joint_site(a, m).or_else(|| self.joint_site(b, m)),
                 Type::This(c) => {
                     let c = self.class_symbol(c)?;
                     self.given_self_type(c)?;
@@ -71,23 +93,21 @@ impl Universe {
                 Type::Method { binder, params, result, implicit, contextual },
                 Type::Method { binder: b2, params: p2, result: r2, implicit: i2, .. },
             ) => {
-                let r2 = self.with_binder(r2, (b2, &p2), binder);
-                let theirs: Vec<TypeId> =
-                    p2.iter().map(|&(_, p)| self.with_binder(p, (b2, &p2), binder)).collect();
+                let own = |u: &mut Self, t| u.param_syms_as_refs(t, &params, binder);
+                let theirs = |u: &mut Self, t| {
+                    let t = u.param_syms_as_refs(t, &p2, b2);
+                    u.with_binder(t, (b2, &p2), binder)
+                };
+                let (result, r2) = (own(self, result), theirs(self, r2));
+                let ours: Vec<TypeId> = params.iter().map(|&(_, p)| own(self, p)).collect();
+                let theirs: Vec<TypeId> = p2.iter().map(|&(_, p)| theirs(self, p)).collect();
                 let matching = params.len() == p2.len()
-                    && params
-                        .iter()
-                        .zip(&theirs)
-                        .all(|(&(_, x), &y)| self.is_same_type_in(x, y, &mut NoVars));
+                    && ours.iter().zip(&theirs).all(|(&x, &y)| self.is_same_type_in(x, y, &mut NoVars));
                 if !matching || implicit != i2 {
                     return None;
                 }
                 let result = self.info_meet(result, r2)?;
-                let params = merged_names(&params, &p2, "x$")
-                    .into_iter()
-                    .zip(&params)
-                    .map(|(n, &(_, t))| (n, t))
-                    .collect();
+                let params = merged_names(&params, &p2, "x$").into_iter().zip(ours).collect();
                 Some(self.intern_type(Type::Method { binder, params, result, implicit, contextual }))
             }
             (Type::Poly { binder, params, result }, Type::Poly { binder: b2, params: p2, result: r2 })

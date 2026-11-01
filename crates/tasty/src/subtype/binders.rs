@@ -27,21 +27,6 @@ impl Cmp<'_> {
         bounds_ok && self.recur(body_a, body_b)
     }
 
-    /// `t` with its references to the symbols of term parameters of clause `params` with binder
-    /// `binder`, the symbols of a method whose info has that clause, replaced by parameter
-    /// references.
-    pub fn param_syms_as_refs(&mut self, t: TypeId, params: &[(String, TypeId)], binder: Binder) -> TypeId {
-        self.u.map_type(t, &mut |u, x| {
-            let Type::Sym(None, s) = *u.types().get(x) else { return None };
-            if u.symbol(s).kind != Kind::Param || !u.symbol(s).owner.is_some_and(|o| has_clause(u, o, binder))
-            {
-                return None;
-            }
-            let i = params.iter().position(|(n, _)| *n == u.symbol(s).name)?;
-            Some(u.intern_type(Type::Param(binder, i as u32)))
-        })
-    }
-
     /// Higher-kinded bounds `[X] =>> >: L <: H` as `>: [X] =>> L <: [X] =>> H`, `Nothing` as
     /// the lower bound for a lower bound `Nothing`.
     fn lambda_bounds(&mut self, t: TypeId) -> TypeId {
@@ -68,6 +53,23 @@ impl Cmp<'_> {
                 method.then(|| refs[i])
             }
             _ => None,
+        })
+    }
+}
+
+impl Universe {
+    /// `t` with its references to the symbols of term parameters of clause `params` with binder
+    /// `binder`, the symbols of a method whose info has that clause, replaced by parameter
+    /// references.
+    pub fn param_syms_as_refs(&mut self, t: TypeId, params: &[(String, TypeId)], binder: Binder) -> TypeId {
+        self.map_type(t, &mut |u, x| {
+            let Type::Sym(None, s) = *u.types().get(x) else { return None };
+            if u.symbol(s).kind != Kind::Param || !u.symbol(s).owner.is_some_and(|o| has_clause(u, o, binder))
+            {
+                return None;
+            }
+            let i = params.iter().position(|(n, _)| *n == u.symbol(s).name)?;
+            Some(u.intern_type(Type::Param(binder, i as u32)))
         })
     }
 }
