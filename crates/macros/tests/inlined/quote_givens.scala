@@ -5,6 +5,8 @@ object QuoteGivens:
   val inBlock = Searches.inBlock
   val inObject = Searches.inObject
   val usingClass = Searches.usingClass
+  val outerQuotes = Searches.outerQuotes
+  val sibling = Searches.sibling
 
 object Proxies:
   def names: List[String] =

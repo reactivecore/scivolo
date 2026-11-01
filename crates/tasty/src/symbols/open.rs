@@ -49,6 +49,7 @@ impl Universe {
             annotations: Default::default(),
             annotation_strings: Default::default(),
             opaque_aliases: Default::default(),
+            constructor_proxies: Default::default(),
             opaques_elided: false,
             comparison_owner: None,
             opaque_lifts: 0,

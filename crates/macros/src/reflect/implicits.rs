@@ -6,7 +6,7 @@
 use super::Fallible;
 use super::decode::symbol;
 use crate::host::Host;
-use tasty::tags::{GIVEN, IMPLICIT, LAZY};
+use tasty::tags::{GIVEN, IMPLICIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::inlining::{Annotations, Search};
 use typer::tpd::{TNodeId, Tree as T};
@@ -33,25 +33,38 @@ impl Host {
         self.settings.macro_settings.join("\n")
     }
 
-    /// The implicit argument of type `pt` found as `[1, tree]`, `[0]` for none, candidates
-    /// `ignored` left out (`Implicits.searchIgnoring`), searched by the `asQuotes` of symbol
-    /// `owner` or its holes' (`-1` for none), with the givens and implicits of the owners and
-    /// enclosing quotes in scope.
-    pub fn search(&mut self, pt: TypeId, owner: i32, ignored: Vec<SymbolId>) -> Fallible<Vec<i32>> {
+    /// The implicit argument of type `pt` found as `[1, tree]`, `[0]` for none, searched by the
+    /// `asQuotes` of symbol `owner` or its holes' (`-1` for none). `rest` is `n`, then `n` pairs
+    /// of a quote and its hole the searching `Quotes` fill, outermost first (`n` is `-1` for
+    /// `Quotes` not known to fill any), then the candidates left out (`Implicits.searchIgnoring`).
+    /// The givens and implicits of the owners and those quotes at those holes are in scope.
+    pub fn search(&mut self, pt: TypeId, owner: i32, rest: Vec<i32>) -> Fallible<Vec<i32>> {
         const REFUSED: &str = "an implicit search inside a quote or owner that may define candidates";
+        let (&n, rest) = rest.split_first().ok_or(super::decode::NO_ARGUMENTS)?;
+        let (holes, ignored) =
+            rest.split_at_checked(2 * n.max(0) as usize).ok_or(super::decode::NO_ARGUMENTS)?;
+        let ignored = ignored.iter().map(|&s| symbol(s)).collect::<Fallible<Vec<_>>>()?;
+        let holes = match n {
+            0.. => holes.chunks(2).map(|p| self.hole_at(p[0], p[1])).collect::<Fallible<Vec<_>>>()?,
+            _ => self.running_holes(),
+        };
         let mut locals = match owner {
             0.. => self.owner_givens(symbol(owner)?)?.ok_or(REFUSED)?,
             _ => Vec::new(),
         };
-        for (root, holes) in self.open_quotes() {
-            locals.extend(self.quote_givens(root, &holes).ok_or(REFUSED)?);
+        for (root, hole) in holes {
+            let found = self.quote_givens(root, hole).ok_or(REFUSED)?;
+            if n < 0 && !found.is_empty() {
+                return Err(REFUSED);
+            }
+            locals.extend(found);
         }
         self.answered(Search { pt, ignored, locals })
     }
 
-    /// The givens and implicits of quote `root` in scope at all of `holes`; none if it holds an
-    /// import, a class inheriting one, or they differ between the holes.
-    fn quote_givens(&mut self, root: TNodeId, holes: &[TNodeId]) -> Option<Vec<SymbolId>> {
+    /// The givens and implicits of quote `root` in scope at `hole`; none if it holds an import
+    /// or a class inheriting one.
+    fn quote_givens(&mut self, root: TNodeId, hole: TNodeId) -> Option<Vec<SymbolId>> {
         let (imports, types) =
             self.tpd.fold((false, Vec::new()), root, &mut |(mut imports, mut types), d| {
                 match self.tpd.tree(d) {
@@ -61,14 +74,12 @@ impl Host {
                 }
                 (imports, types)
             });
-        let problem = imports || types.into_iter().any(|s| self.inherited_givens(s));
-        let mut at = holes.iter().map(|&h| {
-            let mut found = Vec::new();
-            typer::inlining::implicit_defs_at(&self.tpd, &self.u, (root, h), &mut found);
-            found
-        });
-        let first = at.next().unwrap_or_default();
-        (!problem && at.all(|f| f == first)).then_some(first)
+        if imports || types.into_iter().any(|s| self.inherited_givens(s)) {
+            return None;
+        }
+        let mut found = Vec::new();
+        typer::inlining::implicit_defs_at(&self.tpd, &self.u, (root, hole), &mut found);
+        Some(found)
     }
 
     /// The givens and implicits of `s` and its owners up to the splice owner: the parameters of
@@ -139,17 +150,14 @@ impl Host {
     }
 
     /// Argument `found` of an earlier run's search with local candidates `earlier`, referring
-    /// to `now`'s instead, at its span: an identifier as it was, or a selection from the `this`
-    /// of its class for a lazy member.
+    /// to `now`'s instead, at its span.
     fn relocated(&mut self, found: TNodeId, earlier: &[SymbolId], now: &[SymbolId]) -> Fallible<TNodeId> {
         if let Some(i) = self.tpd.sym(found).and_then(|s| earlier.iter().position(|&l| l == s))
             && matches!(self.tpd.tree(found), T::Ident { .. } | T::Select { .. })
         {
             let span = self.tpd.span(found);
-            let lazy_member = self.u.symbol(now[i]).flags.has(LAZY)
-                && self.u.symbol(now[i]).owner.is_some_and(|o| self.u.is_class(o));
             let t = match *self.tpd.tree(found) {
-                T::Ident { name } if !lazy_member => {
+                T::Ident { name } => {
                     let tpe = self.reflect().symbol_ref(now[i]);
                     self.tpd.node(T::Ident { name }, span, Some(tpe), Some(now[i]))
                 }

@@ -522,8 +522,25 @@ object Searches:
   inline def companionName[T]: String = ${ companionNameImpl[T] }
   def companionNameImpl[T: Type](using Quotes): Expr[String] =
     import quotes.reflect.*
-    val companion = TypeRepr.of[T].typeSymbol.companionModule.companionClass
-    Expr(if companion.isNoSymbol then "" else companion.fullName)
+    val module = TypeRepr.of[T].typeSymbol.companionModule
+    val companion = module.companionClass
+    val one = module == TypeRepr.of[T].typeSymbol.companionModule
+    Expr((if companion.isNoSymbol then "" else companion.fullName) + (if one then "" else " twice"))
+
+  inline def outerQuotes: Int = ${ outerQuotesImpl }
+  def outerQuotesImpl(using outer: Quotes): Expr[Int] = '{
+    given Int = 45
+    ${ summonInt(using outer) }
+  }
+
+  inline def sibling: Int = ${ siblingImpl }
+  def siblingImpl(using Quotes): Expr[Int] = '{
+    def a =
+      given Int = 46
+      0
+    def b = ${ summonInt }
+    a + b
+  }
 
   def pick(a: Int)(f: Int => Int): Int = f(a)
   def pick(a: Int)(f: PartialFunction[Int, Int]): Option[Int] = f.lift(a)

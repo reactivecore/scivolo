@@ -1,6 +1,7 @@
 //! The frontend's side of a running macro: the typer's trees and tables, lent for the run, and
 //! the expressions and types the macro holds by number.
 
+mod holes;
 mod natives;
 mod settings;
 
@@ -179,18 +180,5 @@ impl Host {
             }
         };
         self.exprs.iter().map(quoted).collect()
-    }
-
-    /// The roots of the quotes with a hole not filled yet, those whose holes the macro runs in,
-    /// with the placeholders of those holes.
-    pub fn open_quotes(&self) -> Vec<(TNodeId, Vec<TNodeId>)> {
-        let open = |e: &Expr| match e {
-            Expr::Quote(q) => {
-                let open: Vec<TNodeId> = q.holes.iter().filter(|h| h.3.is_none()).map(|h| h.0).collect();
-                (!open.is_empty()).then_some((q.root, open))
-            }
-            _ => None,
-        };
-        self.exprs.iter().filter_map(open).collect()
     }
 }

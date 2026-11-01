@@ -75,7 +75,8 @@ impl Inlining<'_> {
     ) -> Result<TNodeId, Unsupported> {
         let mut refs = cx.4.clone();
         refs.extend(m.refs.clone());
-        let mut inner = TreeTypeMap { refs, syms: m.syms.clone(), ..TreeTypeMap::default() };
+        let mut inner =
+            TreeTypeMap { refs, syms: m.syms.clone(), classes: m.classes, ..TreeTypeMap::default() };
         let mut failed = None;
         let copy = self.copy(&mut inner, t, &mut |i, m, node| {
             let (e, own) = match cx.2.get(&node).copied().filter(|&e| Some(e) != own) {

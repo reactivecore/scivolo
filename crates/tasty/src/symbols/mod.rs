@@ -91,6 +91,8 @@ pub struct Universe {
     annotation_strings: FxHashMap<(SymbolId, SymbolId), Vec<Option<String>>>,
     /// The right-hand sides of the opaque types defined outside TASTy.
     opaque_aliases: FxHashMap<SymbolId, TypeId>,
+    /// The constructor proxy object made for each class outside its owner's declarations.
+    constructor_proxies: FxHashMap<SymbolId, SymbolId>,
     /// Whether those aliases are seen through every prefix (after dotty's `ElimOpaque`).
     opaques_elided: bool,
     /// The symbol whose definition comparisons are made in (dotty's `ctx.owner`), if known.
