@@ -26,8 +26,8 @@ already and work on the typer's `Tpd` trees and `Universe` symbols.
 
 ## 2 What dotty has at macro time [V: scala-cli 3.9.0, `tmp/probe44/`]
 
-Probe: the test's `printTree` of `case class Foo()`, `Foo(a: Int, b: String)`, `case object`, `enum`,
-class + companion, nested, `final case class`, user `toString` (the backend does not matter):
+Probe: the test's `printTree` of `case class Foo()`, `Foo(a: Int, b: String)`, `case object`,
+`enum`, class + companion, nested, `final case class`, user `toString`; the backend does not matter:
 - Order: synthetic members *before* the typer's body (`syntheticMembers ::: impl.body`,
   `D/transform/SyntheticMembers.scala:729`): `hashCode, equals, toString, canEqual, productArity,
   productPrefix, productElement, productElementName`, then `a, b, copy, copy$default$N, _1, _2`.
@@ -55,12 +55,11 @@ class + companion, nested, `final case class`, user `toString` (the backend does
   i7987 names `fromProduct` and passes (library mirrors). `tests/run` has no dependents.
 - Regression set, macros inspecting a case class or enum of their own group, all passing today:
   expr-mirror-info, i11161, i12188, i19732, i22616c, i5941, i8007, quoted-ToExpr-derivation-macro,
-  quoted-liftable-derivation-macro{,-2} (gestalt-type-toolbox-reflect, tasty-simplified: other causes).
+  quoted-liftable-derivation-macro{,-2} (gestalt-type-toolbox-reflect, tasty-simplified: not this).
 
 ## 4 Options
 
-- (a) Delay macro expansion until after a PostTyper step: the expansion is already delayed; what
-  must move is SyntheticMembers. Reframed as (c').
+- (a) Delay macro expansion until after PostTyper: it already is; SyntheticMembers must move: (c').
 - (b) Synthesize in the reflect views only (`M/reflect/from_symbol.rs:111`, `symbols.rs`): a second
   port of 1232 lines, views and trees disagree (`show`, `asTerm`, the argument pickled into a
   quote), same-unit `declarations` still wrong. Rejected.
