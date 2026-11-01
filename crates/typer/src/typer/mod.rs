@@ -309,6 +309,8 @@ pub struct Typer<'a> {
     /// The code of `typeChecks` being typed, and the number of diagnostics at its first construct
     /// outside the subset.
     pub checked_code: Option<(NodeId, Option<usize>)>,
+    /// The errors inline expansions reported, with their spans.
+    pub expansion_errors: Vec<(Span, String)>,
     /// How many constructs outside the subset were reported.
     reports: u32,
     /// `method_info`'s results in universe generation `.0`.
@@ -409,6 +411,7 @@ impl<'a> Typer<'a> {
             ambiguous: Vec::new(),
             unsupported: None,
             checked_code: None,
+            expansion_errors: Vec::new(),
             reports: 0,
             method_infos: Default::default(),
             probe: None,

@@ -62,7 +62,7 @@ mod unapply_fun;
 mod unused;
 
 pub use erased::is_erased_value;
-pub use host::{Host, Lent};
+pub use host::{CheckedErrors, Host, Lent};
 pub use macros::{
     AnnotationCall, Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted, Reports, Search,
 };
