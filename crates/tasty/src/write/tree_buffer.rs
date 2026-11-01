@@ -66,7 +66,7 @@ impl TreeBuffer {
         }
         let start = self.buf.skip_nat(at);
         let len1 = original + delta[i] - self.delta_at(Addr(original + start.0), delta);
-        debug_assert_eq!(
+        assert_eq!(
             len1,
             self.adjusted(Addr(original + start.0), delta).0 - self.adjusted(start, delta).0,
             "adjusting offset #{i} at {at:?}"
@@ -105,7 +105,7 @@ impl TreeBuffer {
         for (&next, &d) in self.offsets.iter().zip(delta) {
             bytes.copy_within(start..next, start - last);
             start = next + d - last;
-            debug_assert!(bytes[next..start].iter().all(|&b| b == 0), "eliminated non-zero");
+            assert!(bytes[next..start].iter().all(|&b| b == 0), "eliminated non-zero");
             last = d;
         }
         let len = bytes.len();

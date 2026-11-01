@@ -37,8 +37,8 @@ impl NameTable {
             }
             Name::Unique { under, sep, .. } => {
                 self.index(&Name::utf8(sep));
-                if let Some(u) = under.as_deref().filter(|u| !u.is_empty()) {
-                    self.index(u);
+                if !under.is_empty() {
+                    self.index(under);
                 }
             }
             Name::DefaultGetter(u, _)
@@ -124,8 +124,8 @@ impl NameTable {
             Name::Unique { under, sep, num } => {
                 self.write_ref(buf, &Name::utf8(sep));
                 buf.write_nat(*num as u64);
-                if let Some(u) = under.as_deref().filter(|u| !u.is_empty()) {
-                    self.write_ref(buf, u);
+                if !under.is_empty() {
+                    self.write_ref(buf, under);
                 }
             }
             Name::DefaultGetter(u, num) => {

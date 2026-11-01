@@ -31,7 +31,8 @@ impl Pickler {
     pub fn assemble(&self) -> Vec<u8> {
         let names = self.names.assemble();
         let mut hashes = self.sections.iter().map(|(_, b)| pjw_hash64(b));
-        let uuid_low = pjw_hash64(&names.bytes) ^ hashes.next().unwrap_or(0);
+        let tree_hash = hashes.next().expect("a TASTy file has a tree section");
+        let uuid_low = pjw_hash64(&names.bytes) ^ tree_hash;
         let uuid_high = hashes.fold(0, |h, x| h ^ x);
         let mut all = Buffer::default();
         all.write_bytes(&MAGIC);

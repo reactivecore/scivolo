@@ -9,7 +9,7 @@ pub enum Name {
     Qualified(Box<Name>, Box<Name>),
     Expanded(Box<Name>, Box<Name>),
     ExpandPrefix(Box<Name>, Box<Name>),
-    Unique { under: Option<Box<Name>>, sep: String, num: u32 },
+    Unique { under: Box<Name>, sep: String, num: u32 },
     DefaultGetter(Box<Name>, u32),
     SuperAccessor(Box<Name>),
     InlineAccessor(Box<Name>),
@@ -39,11 +39,12 @@ impl Name {
             N::Expanded(a, b) => Name::Expanded(at(*a)?, at(*b)?),
             N::ExpandPrefix(a, b) => Name::ExpandPrefix(at(*a)?, at(*b)?),
             N::Unique { sep, num, under } => {
+                let N::Utf8(sep) = names.get(*sep)? else { return None };
                 let under = match under {
-                    Some(u) => Some(at(*u)?),
-                    None => None,
+                    Some(u) => at(*u)?,
+                    None => Box::new(Name::utf8("")),
                 };
-                Name::Unique { under, sep: names.show(*sep), num: *num }
+                Name::Unique { under, sep: sep.to_string(), num: *num }
             }
             N::DefaultGetter(u, i) => Name::DefaultGetter(at(*u)?, *i),
             N::SuperAccessor(u) => Name::SuperAccessor(at(*u)?),
