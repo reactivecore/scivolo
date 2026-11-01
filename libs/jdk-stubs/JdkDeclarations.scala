@@ -1,0 +1,235 @@
+// The JDK's declarations of classes javalib also defines, and javalib-intf's Java classes, for
+// nativelib's sources in `just lib-compile`, which see them in place of javalib's: only the members
+// those sources use, Java's static members `@static` (`Long.hashCode`, which its class also has, a
+// member of the object), its fields `var`s.
+import scala.annotation.static
+
+package java.lang {
+  final class Boolean extends java.io.Serializable
+  object Boolean { @static val TYPE: Class[Boolean] = null }
+
+  final class Byte extends Number {
+    def intValue(): Int = 0
+    def longValue(): scala.Long = 0L
+    def floatValue(): scala.Float = 0f
+    def doubleValue(): scala.Double = 0d
+  }
+  object Byte {
+    @static val TYPE: Class[Byte] = null
+    @static def toUnsignedInt(x: scala.Byte): Int = 0
+  }
+
+  final class Short extends Number {
+    def intValue(): Int = 0
+    def longValue(): scala.Long = 0L
+    def floatValue(): scala.Float = 0f
+    def doubleValue(): scala.Double = 0d
+  }
+  object Short { @static val TYPE: Class[Short] = null }
+
+  final class Character extends java.io.Serializable
+  object Character {
+    @static val TYPE: Class[Character] = null
+    @static def charCount(codePoint: Int): Int = 0
+    @static def isLowerCase(ch: Char): scala.Boolean = false
+    @static def isLowerCase(codePoint: Int): scala.Boolean = false
+    @static def isUpperCase(ch: Char): scala.Boolean = false
+    @static def isUpperCase(codePoint: Int): scala.Boolean = false
+    @static def isTitleCase(ch: Char): scala.Boolean = false
+    @static def isTitleCase(codePoint: Int): scala.Boolean = false
+    @static def codePointAt(seq: CharSequence, index: Int): Int = 0
+    @static def codePointAt(a: Array[Char], index: Int): Int = 0
+    @static def codePointBefore(seq: CharSequence, index: Int): Int = 0
+    @static def codePointBefore(a: Array[Char], index: Int): Int = 0
+    @static def toChars(codePoint: Int): Array[Char] = null
+  }
+
+  final class Integer extends Number {
+    def intValue(): Int = 0
+    def longValue(): scala.Long = 0L
+    def floatValue(): scala.Float = 0f
+    def doubleValue(): scala.Double = 0d
+  }
+  object Integer {
+    @static val TYPE: Class[Integer] = null
+    @static def toHexString(i: Int): String = null
+    @static def compare(x: Int, y: Int): Int = 0
+    @static def compareUnsigned(x: Int, y: Int): Int = 0
+    @static def toUnsignedLong(x: Int): scala.Long = 0L
+    @static def toUnsignedString(i: Int): String = null
+    @static def valueOf(i: Int): Integer = null
+    @static def valueOf(s: String, radix: Int): Integer = null
+  }
+
+  final class Long extends Number {
+    def intValue(): Int = 0
+    def longValue(): scala.Long = 0L
+    def floatValue(): scala.Float = 0f
+    def doubleValue(): scala.Double = 0d
+  }
+  object Long {
+    @static val TYPE: Class[Long] = null
+    @static def toHexString(i: scala.Long): String = null
+    def hashCode(value: scala.Long): Int = 0
+    @static def compare(x: scala.Long, y: scala.Long): Int = 0
+    @static def compareUnsigned(x: scala.Long, y: scala.Long): Int = 0
+    @static def toUnsignedString(i: scala.Long): String = null
+    @static def parseUnsignedLong(s: String, radix: Int): scala.Long = 0L
+  }
+
+  final class Float extends Number {
+    def intValue(): Int = 0
+    def longValue(): scala.Long = 0L
+    def floatValue(): scala.Float = 0f
+    def doubleValue(): scala.Double = 0d
+  }
+  object Float { @static val TYPE: Class[Float] = null }
+
+  final class Double extends Number {
+    def intValue(): Int = 0
+    def longValue(): scala.Long = 0L
+    def floatValue(): scala.Float = 0f
+    def doubleValue(): scala.Double = 0d
+  }
+  object Double { @static val TYPE: Class[Double] = null }
+
+  final class Void
+  object Void { @static val TYPE: Class[Void] = null }
+
+  final class StringBuilder(capacity: Int) extends AbstractStringBuilder with CharSequence {
+    def this() = this(16)
+    def this(str: String) = this(16)
+    override def append(obj: Object): StringBuilder = this
+    override def append(str: String): StringBuilder = this
+    override def append(s: CharSequence): StringBuilder = this
+    override def append(s: CharSequence, start: Int, end: Int): StringBuilder = this
+    override def append(str: Array[Char]): StringBuilder = this
+    override def append(str: Array[Char], offset: Int, len: Int): StringBuilder = this
+    override def append(b: scala.Boolean): StringBuilder = this
+    override def append(c: Char): StringBuilder = this
+    override def append(i: Int): StringBuilder = this
+    override def append(lng: scala.Long): StringBuilder = this
+    override def append(f: scala.Float): StringBuilder = this
+    override def append(d: scala.Double): StringBuilder = this
+    override def appendCodePoint(codePoint: Int): StringBuilder = this
+    override def indexOf(str: String): Int = 0
+    override def indexOf(str: String, fromIndex: Int): Int = 0
+    override def toString(): String = null
+  }
+
+  class Thread(task: Runnable) extends Runnable {
+    def this() = this(null)
+    def run(): Unit = ()
+    def start(): Unit = ()
+    def isInterrupted(): scala.Boolean = false
+    final def isAlive(): scala.Boolean = false
+    final def isDaemon(): scala.Boolean = false
+    final def setDaemon(on: scala.Boolean): Unit = ()
+    final def getName(): String = null
+    final def setName(name: String): Unit = ()
+    final def setPriority(newPriority: Int): Unit = ()
+    def getId(): scala.Long = 0L
+    def getState(): Thread.State = null
+    def getUncaughtExceptionHandler(): Thread.UncaughtExceptionHandler = null
+  }
+
+  object Thread {
+    @static final val MIN_PRIORITY = 1
+    @static final val NORM_PRIORITY = 5
+    @static final val MAX_PRIORITY = 10
+    @static def currentThread(): Thread = null
+    @static def interrupted(): scala.Boolean = false
+    @static def `yield`(): Unit = ()
+    @static def onSpinWait(): Unit = ()
+    @static def getDefaultUncaughtExceptionHandler(): UncaughtExceptionHandler = null
+
+    trait UncaughtExceptionHandler { def uncaughtException(t: Thread, e: Throwable): Unit }
+
+    enum State extends java.lang.Enum[State] {
+      case NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED
+    }
+  }
+}
+
+package java.util {
+  trait List[E] extends Collection[E] {
+    def size(): Int
+    def isEmpty(): scala.Boolean
+    def contains(o: Object): scala.Boolean
+    def iterator(): Iterator[E]
+    def toArray(): Array[Object]
+    def toArray[T <: Object](a: Array[T]): Array[T]
+    def add(e: E): scala.Boolean
+    def remove(o: Object): scala.Boolean
+    def containsAll(c: Collection[?]): scala.Boolean
+    def addAll(c: Collection[? <: E]): scala.Boolean
+    def addAll(index: Int, c: Collection[? <: E]): scala.Boolean
+    def removeAll(c: Collection[?]): scala.Boolean
+    def retainAll(c: Collection[?]): scala.Boolean
+    def clear(): Unit
+    def get(index: Int): E
+    def set(index: Int, element: E): E
+    def add(index: Int, element: E): Unit
+    def remove(index: Int): E
+    def indexOf(o: Object): Int
+    def lastIndexOf(o: Object): Int
+    def listIterator(): ListIterator[E]
+    def listIterator(index: Int): ListIterator[E]
+    def subList(fromIndex: Int, toIndex: Int): List[E]
+  }
+
+  class ArrayList[E](initialCapacity: Int) extends AbstractList[E] with List[E] with RandomAccess {
+    def this() = this(10)
+    def this(c: Collection[? <: E]) = this(10)
+    def trimToSize(): Unit = ()
+    def ensureCapacity(minCapacity: Int): Unit = ()
+    override def size(): Int = 0
+    override def isEmpty(): scala.Boolean = false
+    override def contains(o: Object): scala.Boolean = false
+    override def indexOf(o: Object): Int = 0
+    override def lastIndexOf(o: Object): Int = 0
+    override def toArray(): Array[Object] = null
+    override def toArray[T <: Object](a: Array[T]): Array[T] = a
+    def get(index: Int): E = null.asInstanceOf[E]
+    override def set(index: Int, element: E): E = element
+    override def add(e: E): scala.Boolean = false
+    override def add(index: Int, element: E): Unit = ()
+    override def remove(index: Int): E = null.asInstanceOf[E]
+    override def remove(o: Object): scala.Boolean = false
+    override def clear(): Unit = ()
+    override def addAll(c: Collection[? <: E]): scala.Boolean = false
+    override def addAll(index: Int, c: Collection[? <: E]): scala.Boolean = false
+    override protected def removeRange(fromIndex: Int, toIndex: Int): Unit = ()
+    override def removeAll(c: Collection[?]): scala.Boolean = false
+    override def retainAll(c: Collection[?]): scala.Boolean = false
+    override def listIterator(): ListIterator[E] = null
+    override def listIterator(index: Int): ListIterator[E] = null
+    override def iterator(): Iterator[E] = null
+    override def subList(fromIndex: Int, toIndex: Int): List[E] = null
+  }
+}
+
+package java.io {
+  class BufferedInputStream(in: InputStream, size: Int) extends FilterInputStream(in) {
+    def this(in: InputStream) = this(in, 8192)
+    protected var buf: Array[Byte] = null
+    protected var count: Int = 0
+    protected var pos: Int = 0
+    protected var markpos: Int = -1
+    protected var marklimit: Int = 0
+  }
+}
+
+package scala.scalanative.javalibintf {
+  final class PointerBuffer
+  object PointerBuffer {
+    @static def wrapPointerByte(ptr: Object, size: Int): java.nio.ByteBuffer = null
+    @static def hasPointer(buffer: java.nio.Buffer): scala.Boolean = false
+    @static def pointer(buffer: java.nio.Buffer): Object = null
+  }
+
+  final class String
+  object String {
+    @static def fromByteBuffer(data: java.nio.ByteBuffer, encoding: java.nio.charset.Charset): java.lang.String = null
+  }
+}
