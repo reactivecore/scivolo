@@ -20,6 +20,10 @@ const CASES: &[(&str, &str)] = &[
         "reference to scala.quoted.runtime.Expr outside a quote or splice",
     ),
     (
+        "import scala.quoted.*\nobject Q { def f(x: Expr[Any])(using Quotes): Int = x match { case '{ $i: Int } => 1; case _ => 0 } }",
+        "quote patterns outside inline methods",
+    ),
+    (
         "object O { val v: Any = 1; def f(): Boolean = O.v.isInstanceOf[String | Int] }",
         "type tests of unions or intersections of paths other than names",
     ),

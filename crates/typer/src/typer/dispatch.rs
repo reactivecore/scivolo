@@ -21,6 +21,9 @@ impl Typer<'_> {
                 self.typed_as_function(id, qualifier, pt, ctx)
             }
             Tree::Select { qualifier, name } => self.typed_select(id, qualifier, name, pt, ctx),
+            Tree::Apply { fun, args } if matches!(self.ast.tree(fun), Tree::SplicePattern { .. }) => {
+                self.typed_applied_splice(id, fun, args, pt, ctx)
+            }
             Tree::Apply { fun, args } if ctx.mode.is(Mode::PATTERN) => {
                 self.typed_unapply(id, fun, args, pt, ctx)
             }
@@ -44,6 +47,7 @@ impl Typer<'_> {
             Tree::TypedSplice { sym } => self.typed_full_ref(id, sym, ctx),
             Tree::Splice { expr } => self.typed_splice(id, expr, pt, ctx),
             Tree::Quote { body } => self.typed_quote(id, body, pt, ctx),
+            Tree::SplicePattern { body } => self.typed_splice_pattern(id, body, &[], pt, ctx),
             Tree::This { qual } => self.typed_this(id, qual, ctx),
             Tree::Super { qual, mix } => self.typed_super(id, qual, mix, ctx),
             Tree::New { tpt } if matches!(self.ast.tree(tpt), Tree::Template { .. }) => {

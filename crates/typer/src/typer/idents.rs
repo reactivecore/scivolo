@@ -45,6 +45,9 @@ impl Typer<'_> {
         if ctx.mode.is(Mode::PATTERN) && !name.is_type && self.is_var_pattern(id, &text) {
             return self.pattern_var(id, name, pt, ctx);
         }
+        if self.quoted_type_var(id, ctx).is_some() {
+            return self.typed_quoted_type_var(id, name, pt);
+        }
         if (text == "_root_" || text == "<empty>") && !name.is_type {
             let root = self.u.root();
             let tpe = self.u.intern_type(Type::Package(root));
