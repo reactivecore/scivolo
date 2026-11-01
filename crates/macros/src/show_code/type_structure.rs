@@ -56,20 +56,8 @@ impl Host {
                 };
                 self.reference(term, prefix, &name, out)?;
             }
-            Type::TypeRef(p, n) | Type::TermRef(p, n) => {
-                let term = matches!(self.u.types().get(t), Type::TermRef(..));
-                let resolved = if term { self.u.resolve_ref(t) } else { None };
-                if let Some(package) = resolved.filter(|&s| self.u.symbol(s).kind == Kind::Package) {
-                    return self.package_ref(package, out);
-                }
-                match self.package_class(p).filter(|_| !self.quoted_types.contains(&t)) {
-                    Some(pkg) => {
-                        let what = if term { "TermRef" } else { "TypeRef" };
-                        out.push_str(&format!("{what}({}, \"{n}\")", package_this(&pkg)));
-                    }
-                    None => self.reference(term, p, &n, out)?,
-                }
-            }
+            Type::TypeRef(p, n) => self.reference(false, p, &n, out)?,
+            Type::TermRef(p, n) => self.reference(true, p, &n, out)?,
             Type::Package(p) => self.package_ref(p, out)?,
             Type::This(inner) => match self.package_class(inner) {
                 Some(pkg) => out.push_str(&package_this(&pkg)),
