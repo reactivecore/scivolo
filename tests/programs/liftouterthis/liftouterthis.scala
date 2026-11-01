@@ -1,5 +1,7 @@
 object LotOuter:
+  val pre = Inner.o
   val k = 1
+  lazy val z = { println("z"); 10 }
   object Inner:
     val m = 2
     def f = List(1).map(_ + k)
@@ -7,6 +9,7 @@ object LotOuter:
     def h = List(1).map(x => x + k + m)
     def o = List(1).map(_ + LotOuter.this.k + m)
     def i = List(1).map(_ + this.m + LotOuter.this.k)
+    def l = List(1, 2).map(_ + LotOuter.this.z)
     object Deeper:
       def d = List(1).map(_ * k)
       def e = List(1).map(x => LotOuter.this.k + Inner.this.m + x)
@@ -18,6 +21,8 @@ object LotOuter:
 
 object liftouterthis:
   def main(args: Array[String]): Unit =
+    println(LotOuter.pre)
+    println(LotOuter.Inner.l)
     println(LotOuter.Inner.f)
     println(LotOuter.Inner.g)
     println(LotOuter.Inner.h)
