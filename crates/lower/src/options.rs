@@ -33,7 +33,6 @@ fn no_code_effect(o: &str) -> bool {
         o,
         "-Werror"
             | "-Xfatal-warnings"
-            | "-experimental"
             | "-deprecation"
             | "-feature"
             | "-unchecked"

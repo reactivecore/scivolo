@@ -48,7 +48,7 @@ JDK_STUBS = ROOT / "libs/jdk-stubs.jar"
 # (windowslib's, which the library lacks, and the JDK classes javalib does not define), and
 # javalib's own classes as Scala classes, the JDK stubs' as Java classes.
 OPTIONS = {
-    "nativelib": ["--tasty", str(JDK_STUBS)],
+    "nativelib": ["--jdk-tasty", str(JDK_STUBS)],
     "windowslib": ["--tasty", str(WINDOWSLIB)],
     "javalib": ["--javalib", "--tasty", str(WINDOWSLIB), "--jdk-tasty", str(JDK_STUBS)],
 }

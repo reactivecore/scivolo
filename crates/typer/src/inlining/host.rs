@@ -15,6 +15,10 @@ const ABORTED: &str = "Macro expansion was aborted by the macro without any erro
 /// The trees and tables an expansion works on, lent back to the typer for a search.
 pub type Lent<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names, &'l mut FreshNames);
 
+/// The errors of the code of `typeChecks`: the messages and spans of those inline expansions
+/// reported; `None` if the parser or the typer reported one.
+pub type CheckedErrors = Option<Vec<(Span, String)>>;
+
 pub trait Host {
     /// The context of inline call `call`, outside an inline method, as the typer recorded it.
     fn call_ctx(&self, call: TNodeId) -> Option<Ctx>;
@@ -38,19 +42,21 @@ pub trait Host {
     fn warning(&mut self, at: Span, msg: String);
     /// Whether an error has been reported.
     fn has_errors(&self) -> bool;
-    /// How many errors have been reported, and whether there are more than `mark`, which it
-    /// takes back (for `typeChecks`).
-    fn error_count(&self) -> usize;
-    fn errors_since(&mut self, mark: usize) -> bool;
-    /// Statements `code` parsed and typed as a block in `ctx`, `None` if that reports an error
+    /// How many diagnostics and errors of expansions have been reported (for `typeChecks`).
+    fn error_count(&self) -> (usize, usize);
+    /// The errors reported since `mark`, which it takes back.
+    fn errors_since(&mut self, mark: (usize, usize)) -> CheckedErrors;
+    /// Statements `code` parsed and typed as a block in `ctx`, or the errors that reports
     /// (dotty's `Inlines.Intrinsics.compileForErrors` up to the typer).
-    fn typed_code(&mut self, lent: Lent<'_>, code: &str, ctx: Ctx) -> Option<TNodeId>;
+    fn typed_code(&mut self, lent: Lent<'_>, code: &str, ctx: Ctx) -> Result<TNodeId, CheckedErrors>;
     /// The typed definition of inline method `meth` of the unit, `Ok(None)` if it has none.
     fn inline_def(&mut self, lent: Lent<'_>, meth: SymbolId) -> Result<Option<TNodeId>, &'static str>;
     /// What macro call `call` expands to (dotty's `Splicer.splice`).
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError>;
     /// The typed annotations on `s`, a symbol of the unit, in source order.
     fn annotations(&self, s: SymbolId) -> Vec<TNodeId>;
+    /// Gives `copy`, a fresh copy of symbol `s`, the annotations of `s`.
+    fn copied_symbol(&mut self, s: SymbolId, copy: SymbolId);
     /// The definitions macro annotation call `call` returns (dotty's `MacroAnnotations.callMacro`).
     fn expand_annotation(&mut self, lent: Lent<'_>, call: &AnnotationCall) -> Result<Expanded, MacroError>;
 }
@@ -59,15 +65,16 @@ impl Inlining<'_> {
     /// An implicit argument of type `pt` at `at` in the context of the outermost call; `Ok(None)`
     /// if there is none. Refused where implicits the expansion defines may take part.
     pub fn summon(&mut self, pt: TypeId, at: Span) -> Result<Option<TNodeId>, Unsupported> {
-        self.summon_ignoring(pt, at, &[])
+        self.summon_ignoring(pt, at, (&[], &[]))
     }
 
-    /// `summon` with the candidates `ignored` left out.
+    /// `summon` with the candidates `ignored` left out, in a scope of the givens and implicits
+    /// `defined` inside the expansion.
     pub fn summon_ignoring(
         &mut self,
         pt: TypeId,
         at: Span,
-        ignored: &[SymbolId],
+        (ignored, defined): (&[SymbolId], &[SymbolId]),
     ) -> Result<Option<TNodeId>, Unsupported> {
         let Some(ctx) = self.ctx else { return Err((at, "implicit search without the call's context")) };
         let outer = std::mem::take(&mut self.outer_implicits);
@@ -102,7 +109,11 @@ impl Inlining<'_> {
             _ => return Err((at, "implicit search fitting several givens of summonFrom cases")),
         }
         let mut ctx = ctx;
-        for scope in self.block_implicits.clone() {
+        if let Some(owner) = defined.first().and_then(|&d| self.u.symbol(d).owner) {
+            ctx = ctx.with_owner(owner);
+        }
+        let defined = (!defined.is_empty()).then(|| defined.to_vec());
+        for scope in self.block_implicits.clone().into_iter().chain(defined) {
             let locals = scope.into_iter().map(|s| (self.u.symbol(s).name.clone(), s)).collect();
             ctx = self.host.within(ctx, locals);
         }

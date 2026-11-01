@@ -80,8 +80,9 @@ def lowered(name, groups, check, dir, options=()):
             return "earlier groups failed", why
         cp = ["--cp", str(before)]
     out = WORK / "lowered" / (name if dir == "run" else f"{dir}-{name}")
+    root = next(p for p in Path(groups[-1][0]).parents if p.name == "tests").parent
     try:
-        r = subprocess.run([str(LOWER), *cp, *map(str, groups[-1]), str(out)], capture_output=True,
+        r = subprocess.run([str(LOWER), *cp, "--sourceroot", str(root), *map(str, groups[-1]), str(out)], capture_output=True,
                            text=True, errors="replace", timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         return "frontend crashed", "timeout"

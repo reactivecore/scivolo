@@ -88,6 +88,7 @@ impl Typer<'_> {
             }
             return tree;
         }
+        self.complete_refined_members(tpe, pt);
         let lifts = self.u.opaque_lifts();
         if self.conforms(tpe, pt) {
             if self.u.opaque_lifts() != lifts && !self.conforms_unlifted(tpe, pt) {

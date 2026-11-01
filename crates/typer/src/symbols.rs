@@ -77,6 +77,7 @@ pub struct Syms {
     pub def_results: FxHashMap<SymbolId, tasty::TypeId>,
     /// The script symbols whose units ended before their infos were complete.
     pub incomplete: rustc_hash::FxHashSet<SymbolId>,
+    pub uniques: crate::typer::unique_names::UniqueOrder,
     binders: u32,
 }
 

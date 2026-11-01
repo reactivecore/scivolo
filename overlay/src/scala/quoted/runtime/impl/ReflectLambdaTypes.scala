@@ -80,8 +80,8 @@ trait ReflectLambdaTypes extends reflectModule { self: reflect.type =>
         else if (self.isImplicit) MethodTypeKind.Implicit
         else MethodTypeKind.Plain
       def isErased: Boolean = false
-      def erasedParams: List[Boolean] = List.fill(TypeShapes.lambda(self)._1(2))(false)
-      def hasErasedParams: Boolean = false
+      def erasedParams: List[Boolean] = ReflectOps.results("erasedParams", ReflectOps.id(self)).map(_ != 0)
+      def hasErasedParams: Boolean = self.erasedParams.contains(true)
       def param(idx: Int): TypeRepr = LambdaTypes.paramRef(self, idx).asInstanceOf[TypeRepr]
     }
   }

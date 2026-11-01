@@ -49,11 +49,13 @@ pub struct MacroCall {
 }
 
 /// An implicit search of a macro: of an argument of type `pt`, the candidates `ignored` left out
-/// (`Implicits.searchIgnoring`).
+/// (`Implicits.searchIgnoring`), the givens and implicits `locals` of its quotes and owners in
+/// scope.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Search {
     pub pt: TypeId,
     pub ignored: Vec<SymbolId>,
+    pub locals: Vec<SymbolId>,
 }
 
 /// The call of `transform` of macro annotation `annotation`, a typed `new`, on `definition` and
@@ -82,6 +84,8 @@ pub struct Expanded {
     pub exprs: Vec<Quoted>,
     pub results: Vec<u32>,
     pub warnings: Reports,
+    /// The implicit arguments the typer found for it, which keep their spans in holes.
+    pub found: Vec<TNodeId>,
 }
 
 /// The errors and warnings a macro reported (`quotes.reflect.report`), with their spans.

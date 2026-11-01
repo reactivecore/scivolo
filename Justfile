@@ -560,7 +560,7 @@ jdk-stubs:
     rm -rf tmp/jdk-stubs
     mkdir -p tmp/jdk-stubs/out
     scala-cli --power compile --quiet --scala 3.9.0 --server=false --workspace tmp/jdk-stubs/ws \
-        -d tmp/jdk-stubs/classes libs/jdk-stubs/JdkStubs.scala \
+        -d tmp/jdk-stubs/classes libs/jdk-stubs \
         -O -Yearly-tasty-output -O {{ justfile_directory() }}/tmp/jdk-stubs/out -O -Ystop-before:erasure
     find tmp/jdk-stubs/out -name '*.tasty' -exec touch -t 201001010000 {} +
     rm -f libs/jdk-stubs.jar

@@ -184,4 +184,10 @@ final class ExprImpl(val id: Int, val expansion: Int, val tree: Boolean) extends
 final class TypeImpl(val id: Int, val expansion: Int, val repr: Boolean) extends Type[Nothing] {
   override def toString: String =
     if (repr) ReflectOps.text("typeString", QuoteHost.typeId(this)) else super.toString
+  override def equals(that: Any): Boolean = that match {
+    case t: TypeImpl if repr && t.repr => (this eq t) || identity == t.identity
+    case _                             => this eq that.asInstanceOf[AnyRef]
+  }
+  override def hashCode: Int = if (repr) identity else System.identityHashCode(this)
+  private def identity: Int = ReflectOps.one("typeIdentity", QuoteHost.typeId(this))
 }

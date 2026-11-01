@@ -49,10 +49,17 @@ impl super::Universe {
         self.javalib_sources = true;
     }
 
-    /// Makes the classes of the jars from index `first` on Java classes when javalib's sources are
-    /// compiled: they stand for the JDK's.
-    pub fn set_jdk_jars(&mut self, first: usize) {
-        self.jdk_jars = first;
+    /// Makes the classes of the jars `jars` (indices) stand for the JDK's: Java classes when
+    /// javalib's sources are compiled, their values Java fields.
+    pub fn set_jdk_jars(&mut self, jars: std::ops::Range<usize>) {
+        self.jdk_jars = jars;
+    }
+
+    /// Whether class `c` is one of the JDK jars'.
+    pub fn is_from_jdk_jars(&self, c: crate::SymbolId) -> bool {
+        let Some((file, _)) = self.symbol(c).tree else { return false };
+        let jar = self.library.jar_of(&self.files[file.0 as usize].path);
+        jar.is_some_and(|j| self.jdk_jars.contains(&j))
     }
 
     /// Whether javalib's sources are compiled.
@@ -64,14 +71,15 @@ impl super::Universe {
     /// sources are compiled, only a class of the JDK jars or a JDK class javalib defines under
     /// another name.
     pub fn may_be_java(&self, c: crate::SymbolId) -> bool {
-        let Some((file, _)) = self.symbol(c).tree else { return false };
+        if self.symbol(c).tree.is_none() {
+            return false;
+        }
         if !self.javalib_sources {
             return true;
         }
-        let jar = self.library.jar_of(&self.files[file.0 as usize].path);
         let name = self.full_name(c);
         let name = name.strip_suffix('$').unwrap_or(&name);
-        jar.is_some_and(|j| j >= self.jdk_jars) || RENAMED.iter().any(|&(_, jdk)| jdk == name)
+        self.is_from_jdk_jars(c) || RENAMED.iter().any(|&(_, jdk)| jdk == name)
     }
 }
 

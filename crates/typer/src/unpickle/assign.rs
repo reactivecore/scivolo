@@ -123,12 +123,15 @@ impl Unpickler<'_> {
         }
         let part = self.tpd.meth_part(fun);
         let curried = matches!(self.u.types().get(result), Type::Method { .. });
+        let mut result = result;
         if self.tpd.sym(part).is_some_and(|s| self.u.symbol(s).name == "<init>") {
             match *self.tpd.tree(part) {
                 T::Select { qualifier, .. } if matches!(self.tpd.tree(qualifier), T::New { .. }) => {
+                    let class = self.tpd.tpe(qualifier);
                     if !curried {
-                        return Ok(self.tpd.tpe(qualifier));
+                        return Ok(class);
                     }
+                    result = constructed(self.u, result, class);
                 }
                 _ => return Err("constructor call in a library inline body"),
             }
@@ -150,5 +153,16 @@ impl Unpickler<'_> {
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         let args: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         Ok(instantiate_poly(self.u, result, (binder, &names), &args, meth))
+    }
+}
+
+/// Constructor clauses `t` with the constructed `class` as their final result.
+fn constructed(u: &mut tasty::Universe, t: TypeId, class: TypeId) -> TypeId {
+    match u.types().get(t).clone() {
+        Type::Method { binder, params, result, implicit, contextual } => {
+            let result = constructed(u, result, class);
+            u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+        }
+        _ => class,
     }
 }

@@ -49,7 +49,12 @@ impl Desugar<'_> {
                 *p = self.ast.node(Tree::Typed { expr: *p, tpt });
             }
         }
+        let from = self.fresh.uniques.made();
         let defs: Vec<NodeId> = pats.into_iter().map(|p| self.make_pat_def(id, p, rhs)).collect();
+        let defs = self.flatten(&defs);
+        for &d in &defs {
+            self.fresh.uniques.group_on_entry(from, self.ast.span(d));
+        }
         self.flat_tree(&defs)
     }
 
