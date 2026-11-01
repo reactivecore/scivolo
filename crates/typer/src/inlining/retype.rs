@@ -144,6 +144,7 @@ impl Inlining<'_> {
                     T::Closure { meth, .. } => Some(meth),
                     _ => None,
                 };
+                let selected = unadapted.map(|f| self.tpd.sym(self.tpd.meth_part(f)));
                 map_children(self, t, &mut |i, c| match Some(c) == call {
                     true => c,
                     false => i.retype_part(c, args, inner, Some(c) != unadapted).unwrap_or_else(|e| {
@@ -154,6 +155,15 @@ impl Inlining<'_> {
                 self.block_implicits.truncate(mark);
                 self.enclosing_class = outer_class;
                 failed.map_or(Ok(()), Err)?;
+                let fun = match *self.tpd.tree(t) {
+                    T::Apply { fun, .. } | T::TypeApply { fun, .. } => Some(fun),
+                    _ => None,
+                };
+                if let (Some(before), Some(fun)) = (selected, fun)
+                    && self.tpd.sym(self.tpd.meth_part(fun)) != before
+                {
+                    self.reapply(t);
+                }
                 self.retyped(t, owner)
             }
             T::Return { expr, from } => {
