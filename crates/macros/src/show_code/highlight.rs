@@ -1,9 +1,9 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/scala/quoted/runtime/impl/printers/SourceCode.scala
-//! The syntax highlighting of `Printer.TreeAnsiCode` and definition annotations.
+//! The syntax highlighting of `Printer.TreeAnsiCode`, and annotations.
 
 use super::{Code, REFUSED, Shown};
-use tasty::{Highlight, SymbolId};
+use tasty::{Highlight, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Code<'_> {
@@ -31,17 +31,19 @@ impl Code<'_> {
         Ok(())
     }
 
-    /// The annotations of definition `s`, each followed by a space (dotty's `printDefAnnotations`);
-    /// refused for those of a definition in TASTy.
+    /// The annotations of definition `s` but `@forceInline`, each followed by a space (dotty's
+    /// `printDefAnnotations`).
     pub fn def_annotations(&mut self, s: SymbolId) -> Shown {
-        let annots = self.h.typer.annotations.get(&s).cloned().unwrap_or_default();
-        let shown = |u: &tasty::Universe, c: SymbolId| {
-            u.full_name(c) != "scala.forceInline"
-                && u.symbol(c).owner.is_none_or(|p| u.full_name(p) != "scala.annotation.internal")
-        };
-        if annots.is_empty() && self.h.u.tasty_annotations(s).into_iter().any(|c| shown(&self.h.u, c)) {
-            return Err(REFUSED);
+        let mut annots = self.h.typer.annotations.get(&s).cloned().unwrap_or_default();
+        if annots.is_empty() && !self.h.u.tasty_annotations(s).is_empty() {
+            let h = &mut *self.h;
+            annots =
+                typer::unpickle::annotations(&mut h.u, &mut h.tpd, &mut h.names, s).map_err(|_| REFUSED)?;
         }
+        annots.retain(|&a| {
+            let class = self.h.u.class_symbol(self.h.tpd.tpe(a));
+            class.is_none_or(|c| self.h.u.full_name(c) != "scala.forceInline")
+        });
         for (i, &a) in annots.iter().enumerate() {
             if i > 0 {
                 self.push(" ");
@@ -52,6 +54,24 @@ impl Code<'_> {
             self.push(" ");
         }
         Ok(())
+    }
+
+    /// Inferred type `tpe` followed by its annotations (dotty's `printTypeAndAnnots`); refused for
+    /// an annotation of a class that takes arguments, which the type does not keep.
+    pub fn annotated_type(&mut self, tpe: TypeId) -> Shown {
+        let Type::Annotated(inner, annot) = *self.h.u.types().get(tpe) else {
+            self.ty(tpe)?;
+            if self.is_singleton(tpe) {
+                self.push(".type");
+            }
+            return Ok(());
+        };
+        if !self.h.u.is_argless_annotation(annot) {
+            return Err(REFUSED);
+        }
+        self.annotated_type(inner)?;
+        self.push(" @");
+        self.ty(annot)
     }
 
     /// An annotation `new A(args)` as `@A(args)`.

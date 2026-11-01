@@ -12,6 +12,7 @@ mod highlight;
 mod imports;
 mod literals;
 mod local_names;
+mod modifiers;
 mod parents;
 mod structure;
 mod type_string;

@@ -4,10 +4,12 @@
 //! with full names): `scala.collection.immutable.List[scala.Int]`, `scala.Predef.String`; and
 //! as `Printer.TypeReprShortCode` shows them, without prefixes.
 
+mod annotated;
 mod highlight;
 mod paths;
 mod refinements;
 
+pub use annotated::escape;
 pub use highlight::Highlight;
 
 use super::{Binder, Type, TypeId};
@@ -54,9 +56,8 @@ impl SourcePrinter<'_> {
                 };
                 self.paint(Highlight::Literal, &text);
             }
-            Type::Str(s) if s.chars().all(|c| c.is_ascii_graphic() && c != '"' && c != '\\' || c == ' ') => {
-                self.paint(Highlight::Literal, &format!("\"{s}\""));
-            }
+            Type::Str(s) => self.string(&s),
+            Type::Annotated(inner, annot) => self.annotated(inner, annot)?,
             Type::NoPrefix => self.out.push_str("<NoPrefix() does not have a source representation>"),
             Type::TypeRef(p, n) => {
                 self.type_prefix(p)?;

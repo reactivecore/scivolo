@@ -65,6 +65,8 @@ impl Host for NoHost {
         Vec::new()
     }
 
+    fn copied_symbol(&mut self, _: SymbolId, _: SymbolId) {}
+
     fn expand_annotation(&mut self, _: Lent<'_>, _: &AnnotationCall) -> Result<Expanded, MacroError> {
         Err(MacroError::Unsupported("a macro annotation in Term.betaReduce".into()))
     }

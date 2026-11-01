@@ -48,7 +48,9 @@ pub fn compile_sources(
         ast.shift_spans(mark, base);
         units.push((base, root));
     }
-    let typed = Units::default().type_units(u, &mut ast, (&mut names, &mut fresh), (&units, cfg), macros);
+    let mut typer = Units::default();
+    typer.source_names = files.iter().map(|f| f.name.clone()).collect();
+    let typed = typer.type_units(u, &mut ast, (&mut names, &mut fresh), (&units, cfg), macros);
     let mut typed = match typed {
         Ok(typed) => typed,
         Err(Fallback::Unsupported { what, at }) => {

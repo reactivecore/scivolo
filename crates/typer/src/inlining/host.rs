@@ -51,6 +51,8 @@ pub trait Host {
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError>;
     /// The typed annotations on `s`, a symbol of the unit, in source order.
     fn annotations(&self, s: SymbolId) -> Vec<TNodeId>;
+    /// Gives `copy`, a fresh copy of symbol `s`, the annotations of `s`.
+    fn copied_symbol(&mut self, s: SymbolId, copy: SymbolId);
     /// The definitions macro annotation call `call` returns (dotty's `MacroAnnotations.callMacro`).
     fn expand_annotation(&mut self, lent: Lent<'_>, call: &AnnotationCall) -> Result<Expanded, MacroError>;
 }

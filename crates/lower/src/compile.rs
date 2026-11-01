@@ -58,7 +58,9 @@ pub fn compile_with(
     if p.s.diags.has_errors() {
         return Err(Refusal { what: "syntax errors".into(), diags: std::mem::take(&mut p.s.diags) });
     }
-    let mut typed = match typer::type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), (root, cfg), macros) {
+    let mut units = typer::Units::default();
+    units.source_names = vec![source.name.clone()];
+    let mut typed = match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), (root, cfg), macros) {
         Ok(typed) => typed,
         Err(Fallback::Unsupported { what, at }) => {
             return Err(Refusal::new(format!("the typer does not support {what}{}", at_point(source, at))));

@@ -63,6 +63,8 @@ pub struct Units {
     errors_first: bool,
     /// Whether typing stops before the inline calls expand (dotty's `-Ystop-after:typer`).
     typer_only: bool,
+    /// The paths of the next unit's source files, relative to the source root.
+    pub source_names: Vec<String>,
 }
 
 impl Units {
@@ -92,7 +94,7 @@ impl Units {
         typer.macros = macros.map(|m| m as &mut dyn Macros);
         let ctx = root_context(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);
-        self.finish(typer, typed)
+        self.finish(typer, typed, &[typed])
     }
 
     /// Types the units of one `ast`, each the root of a source file with the offset it starts at,
@@ -131,12 +133,20 @@ impl Units {
         let pid = typer.tpd.node(tpd::Tree::Ident { name }, Span::NONE, Some(tpe), Some(root));
         let stats = typer.tpd.list(&typed);
         let unit = typer.tpd.node(tpd::Tree::PackageDef { pid, stats }, Span::NONE, Some(tpe), None);
-        self.finish(typer, unit)
+        self.finish(typer, unit, &typed)
     }
 
-    /// Completes typed unit `typed`: its annotations, type variables and inline calls.
-    fn finish(&mut self, mut typer: Typer, typed: TNodeId) -> Result<Typed, Fallback> {
+    /// Completes typed unit `typed` of source files `files`: its annotations, type variables and
+    /// inline calls.
+    fn finish(&mut self, mut typer: Typer, typed: TNodeId, files: &[TNodeId]) -> Result<Typed, Fallback> {
         typer.typed_annotations();
+        if !self.typer_only {
+            for &f in files {
+                if let Some(name) = self.source_names.get(typer.file_of(typer.tpd.span(f))) {
+                    typer.top_level_annotations(f, name);
+                }
+            }
+        }
         typer.check_dynamic_calls();
         if let Err(what) = typer.zonk_trees() {
             typer.unsupported_at(Span::NONE, what);

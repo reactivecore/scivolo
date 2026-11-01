@@ -150,6 +150,12 @@ impl Host for Typer<'_> {
         self.syms.annotations.get(&s).cloned().unwrap_or_default()
     }
 
+    fn copied_symbol(&mut self, s: SymbolId, copy: SymbolId) {
+        if let Some(annots) = self.syms.annotations.get(&s).cloned() {
+            self.syms.annotations.insert(copy, annots);
+        }
+    }
+
     fn expand_annotation(&mut self, lent: Lent<'_>, call: &AnnotationCall) -> Result<Expanded, MacroError> {
         self.with_macros(lent, call.span, |m, lent, annotations| m.expand_annotation(lent, call, annotations))
     }

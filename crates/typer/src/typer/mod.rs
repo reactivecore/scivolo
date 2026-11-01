@@ -192,6 +192,7 @@ mod supers;
 mod this;
 mod this_calls;
 mod throws_types;
+mod top_level_annotations;
 mod trait_params;
 mod transparent;
 mod transparent_traits;
