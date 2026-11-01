@@ -3,6 +3,7 @@
 //! Selections `qual.name` (dotty's `typedSelect`).
 
 use super::implicits::conversions::{Goal, Viewed};
+use super::source_splices::STAGING_REFERENCE;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -152,6 +153,11 @@ impl Typer<'_> {
         }
         if text == "deferred" && self.u.full_name(sym).starts_with("scala.compiletime.") {
             return self.unsupported(id, "deferred given");
+        }
+        if self.is_staging_method(sym)
+            && !matches!(self.ast.tree(qualifier), syntax::ast::Tree::TypedSplice { .. })
+        {
+            return self.unsupported(id, STAGING_REFERENCE);
         }
         let tpe = self.ref_type(Some(qual_tpe), sym);
         let span = self.ast.span(id);

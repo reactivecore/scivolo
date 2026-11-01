@@ -98,6 +98,9 @@ impl Typer<'_> {
         if let Err(what) = self.check_reference(sym, found.prefix, ctx) {
             return self.unsupported(id, what);
         }
+        if self.is_staging_method(sym) {
+            return self.unsupported(id, super::source_splices::STAGING_REFERENCE);
+        }
         if let Err(what) = self.check_value(sym, name, pt, ctx) {
             return self.unsupported(id, what);
         }
