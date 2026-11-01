@@ -215,6 +215,7 @@ mod unapply_results;
 mod unapply_seq;
 mod unapply_targs;
 mod unchecked_tests;
+pub(crate) mod unique_names;
 mod unknown_params;
 mod untupled;
 mod variances;

@@ -141,6 +141,7 @@ impl Units {
         if let Err(what) = typer.zonk_trees() {
             typer.unsupported_at(Span::NONE, what);
         }
+        typer.renumber_uniques();
         if !self.typer_only
             && typer.unsupported.is_none()
             && !typer.diags.has_errors()

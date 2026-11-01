@@ -56,6 +56,13 @@ impl Desugar<'_> {
     /// The definitions of the variables `pat` binds in `rhs`; `original` is the `PatDef` or
     /// generator alias.
     pub fn make_pat_def(&mut self, original: NodeId, pat: NodeId, rhs: Option<NodeId>) -> NodeId {
+        let from = self.fresh.uniques_made();
+        let def = self.lower_pat_def(original, pat, rhs);
+        self.fresh.group_since(from);
+        def
+    }
+
+    fn lower_pat_def(&mut self, original: NodeId, pat: NodeId, rhs: Option<NodeId>) -> NodeId {
         let (mods, given_allowed) = match *self.ast.tree(original) {
             Tree::PatDef { mods, .. } => (mods, false),
             _ => match *self.ast.tree(pat) {

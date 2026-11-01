@@ -34,13 +34,17 @@ impl Desugar<'_> {
             Tree::ForDo { enums, body } => {
                 let foreach = self.term("foreach");
                 let enums = self.ast.items(enums).to_vec();
+                let from = self.fresh.uniques_made();
                 let t = self.make_for(foreach, foreach, &enums, body);
+                self.fresh.group_since(from);
                 if matches!(self.ast.tree(t), Tree::Empty) { id } else { t }
             }
             Tree::ForYield { enums, expr } => {
                 let (map, flat_map) = (self.term("map"), self.term("flatMap"));
                 let enums = self.ast.items(enums).to_vec();
+                let from = self.fresh.uniques_made();
                 let t = self.make_for(map, flat_map, &enums, expr);
+                self.fresh.group_since(from);
                 if matches!(self.ast.tree(t), Tree::Empty) { id } else { t }
             }
             _ => unreachable!("a tree desugar(tree) expands"),
