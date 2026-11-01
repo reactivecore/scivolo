@@ -142,8 +142,9 @@ slower meanwhile:
    annotations (ADR 0039), `Symbol.newClass`, `newModule`, `newMethod`, `newVal`,
    `ClassDef`/`DefDef`/`ValDef` construction, `Term.etaExpand`.
 3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): done
-   2026-11-01: `just lib-source sourcecode` builds sourcecode 0.4.4 from its sources, 37 of 37
-   NIR files the same as scala-cli's. Done 2026-10-24: upickle derivation of case classes, sealed traits and enums (R7, R8), pprint's
+   2026-11-01: `just lib-source sourcecode` builds sourcecode 0.4.4 from its sources:
+   SourceContext.scala's 37 NIR files are the same as scala-cli's; Macros.scala waits on
+   PickleQuotes (#196). Done 2026-10-24: upickle derivation of case classes, sealed traits and enums (R7, R8), pprint's
    `tprint`, os-lib paths, as scripts and native executables; earlier fastparse (R2) and
    mainargs (R5, R6; ADR 0037).
 4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md),
