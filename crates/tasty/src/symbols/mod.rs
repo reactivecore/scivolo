@@ -19,6 +19,7 @@ mod java_strings;
 mod java_stubs;
 mod jdk;
 mod joined_bases;
+mod joint;
 mod loaded;
 mod lookup;
 mod members;
@@ -114,6 +115,7 @@ pub struct Universe {
     /// The declared variances of the type lambdas made outside TASTy that declare them.
     lambda_variances: FxHashMap<Binder, Vec<i8>>,
     unions: Unions,
+    joint_members: joint::JointMembers,
     /// How many steps comparisons have taken computing atoms and `Nothing`-ness.
     pub subtype_steps: u64,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.

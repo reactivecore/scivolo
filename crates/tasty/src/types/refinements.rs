@@ -53,7 +53,7 @@ impl Universe {
     }
 
     /// The upper bound of abstract type or type parameter reference `t`, seen from its prefix.
-    fn abstract_upper(&mut self, t: TypeId) -> Option<TypeId> {
+    pub fn abstract_upper(&mut self, t: TypeId) -> Option<TypeId> {
         let Type::Sym(prefix, s) = *self.types().get(t) else { return None };
         if !matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) {
             return None;

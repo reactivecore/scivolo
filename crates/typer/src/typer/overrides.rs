@@ -172,7 +172,7 @@ impl Typer<'_> {
             || sm.kind != Kind::Def
             || sd.flags.has(EXTENSION) != sm.flags.has(EXTENSION);
         let this = self.u.intern_type(Type::This(site));
-        let (rd, rm) = (self.u.member_info(this, d), self.u.member_info(this, m));
+        let (rd, rm) = (self.u.own_member_info(this, d), self.u.own_member_info(this, m));
         let (rd, rm) = (self.u.result_type(rd), self.u.result_type(rm));
         refused || !self.conforms(rd, rm)
     }
