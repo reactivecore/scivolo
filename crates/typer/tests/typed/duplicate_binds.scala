@@ -13,3 +13,8 @@ object Dups:
   def types(t: (Type[?], Type[?]))(using Quotes): Int = t match
     case ('[a], '[a]) => 1
     case _            => 0
+  def order(p: (Int, Int, Int)): Int = p match
+    case (a, b @ a, b) => 1
+  type M[X] = X match
+    case Map[k, List[k]] => k
+    case _               => Int
