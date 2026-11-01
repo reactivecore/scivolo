@@ -99,8 +99,8 @@ pub struct Universe {
     opaque_lifts: u64,
     /// Whether the sources compiled are javalib's, whose TASTy classes are then Scala classes.
     javalib_sources: bool,
-    /// The index of the first jar whose classes stand for the JDK's when javalib's are compiled.
-    jdk_jars: usize,
+    /// The indices of the jars whose classes stand for the JDK's.
+    jdk_jars: std::ops::Range<usize>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,
