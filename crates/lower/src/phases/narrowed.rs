@@ -44,6 +44,9 @@ pub fn narrow(l: &Lower, class: SymbolId, functions: &mut [Function]) {
 /// Narrows function `f` of `class` reading `C.this` of class `c`: into `c` if a static object
 /// enclosing `class` and narrower than where `f` goes, else into `class` (dotty's `narrowTo`).
 pub fn narrow_to(l: &Lower, class: SymbolId, f: &mut Function, c: Option<SymbolId>) {
+    if c.is_some() && c == f.into {
+        return;
+    }
     match c.filter(|&c| c != class && is_static_module(l.u, c) && within(l, class, c)) {
         Some(c) => _ = narrow_logic_owner(l, f, c),
         None => f.this = true,
