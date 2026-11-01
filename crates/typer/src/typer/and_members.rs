@@ -12,7 +12,7 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 impl Typer<'_> {
     /// The members of `site`, an intersection, from those of its sides `ma` and `mb` as selected
     /// in `ctx`: of each pair of matching term members the one dotty keeps, the others
-    /// overloaded; none for two different type members or a pair `merged` cannot pick from
+    /// overloaded; none for two different type members or a pair dotty joins
     /// (`needs_joint_member`).
     pub fn and_members(
         &mut self,
@@ -47,8 +47,7 @@ impl Typer<'_> {
 
     /// Of matching members `a` and `b` of `site`, the one whose denotation dotty keeps: the one
     /// accessible in `ctx` if the other is not, else by `symScore` the one whose type conforms to
-    /// the other's, else for unrelated result types the one `symScore` prefers, typed by its own
-    /// result; `None` for the other pairs dotty joins with the intersection of their types.
+    /// the other's; `None` where dotty joins both with the intersection of their types.
     fn merged(&mut self, site: TypeId, (a, b): (SymbolId, SymbolId), ctx: Option<Ctx>) -> Option<SymbolId> {
         if let Some(ctx) = ctx {
             let (hidden_a, hidden_b) = (!self.is_accessible(a, ctx), !self.is_accessible(b, ctx));
@@ -59,24 +58,34 @@ impl Typer<'_> {
         let score = self.sym_score(site, a, b);
         let (ia, ib) = (self.u.member_info(site, a), self.u.member_info(site, b));
         let (ra, rb) = (self.u.result_type(ia), self.u.result_type(ib));
-        let (a_conforms, b_conforms) = (self.u.is_subtype(ra, rb), self.u.is_subtype(rb, ra));
-        if score <= 0 && b_conforms {
+        if score <= 0 && self.u.is_subtype(rb, ra) {
             return Some(b);
         }
-        if score >= 0 && a_conforms {
-            return Some(a);
-        }
-        let unrelated = score != 0 && !a_conforms && !b_conforms;
-        unrelated.then_some(if score > 0 { a } else { b })
+        (score >= 0 && self.u.is_subtype(ra, rb)).then_some(a)
     }
 
-    /// Whether both sides of intersection `t` have members `name`, which `and_members` cannot
-    /// merge into one.
+    /// Whether both sides of intersection `t`, or of one nested in it, have members `name`, which
+    /// `and_members` cannot merge into one; `t` a `this` stands for its given self type.
     pub fn needs_joint_member(&mut self, t: TypeId, name: &str) -> bool {
-        let t = self.u.widen(t);
-        let t = self.u.dealias(t);
+        let t = match *self.u.types().get(t) {
+            Type::This(c) => {
+                let Some(k) = self.u.class_symbol(c) else { return false };
+                self.ensure_self(k);
+                if self.u.given_self_type(k).is_none() {
+                    return false;
+                }
+                self.u.self_type(k)
+            }
+            _ => {
+                let w = self.u.widen(t);
+                self.u.dealias(w)
+            }
+        };
         let Type::And(a, b) = *self.u.types().get(t) else { return false };
-        !self.type_members(a, name).is_empty() && !self.type_members(b, name).is_empty()
+        let (ma, mb) = (self.type_members(a, name), self.type_members(b, name));
+        !ma.is_empty() && !mb.is_empty()
+            || ma.is_empty() && self.needs_joint_member(a, name)
+            || mb.is_empty() && self.needs_joint_member(b, name)
     }
 
     /// Positive to pick `a`, negative to pick `b` (dotty's `symScore`): the concrete one, the one
