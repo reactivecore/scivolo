@@ -8,6 +8,7 @@ use super::lambda_lift::Function;
 use super::lifted::Method;
 use super::local_free::is_method;
 use super::walk::children;
+use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::{SymbolId, Type};
@@ -34,7 +35,7 @@ pub fn calls(
                     functions[i].captured.iter().map(|&s| l.ident(s, Span::NONE)).collect();
                 let home = l.u.symbol(methods[i].sym).owner.unwrap_or(class);
                 let receiver = match functions[i].into {
-                    Some(c) if around == Some(c) || c == class => l.this(c, span),
+                    Some(c) if around == Some(c) || c == class || is_static_module(l.u, c) => l.this(c, span),
                     Some(_) if around.is_some() => {
                         return unsupported(span, "local functions narrowed into different classes");
                     }

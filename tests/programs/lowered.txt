@@ -202,3 +202,4 @@ nameorder
 positionsscopes
 hkoverrides
 nestedmirrors
+liftouterthis
