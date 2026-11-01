@@ -1,0 +1,12 @@
+List[Int]
+scala.collection.immutable.List[scala.Int]
+[32mscala[0m.[32mcollection[0m.[32mimmutable[0m.[32mList[0m[[32mscala[0m.[32mInt[0m]
+AppliedType(TypeRef(TermRef(TermRef(TermRef(ThisType(TypeRef(NoPrefix(), "<root>")), "scala"), "collection"), "immutable"), "List"), List(TypeRef(TermRef(ThisType(TypeRef(NoPrefix(), "<root>")), "scala"), "Int")))
+(3 + (a * b))
+scala.compiletime.ops.int.+[3, scala.compiletime.ops.int.*[a, b]]
+[32mscala[0m.[32mcompiletime[0m.[32mops[0m.[32mint[0m.[32m+[0m[[32m3[0m, [32mscala[0m.[32mcompiletime[0m.[32mops[0m.[32mint[0m.[32m*[0m[[32ma[0m, [32mb[0m]]
+AppliedType(TypeRef(TermRef(TermRef(TermRef(TermRef(ThisType(TypeRef(NoPrefix(), "<root>")), "scala"), "compiletime"), "ops"), "int"), "+"), List(ConstantType(IntConstant(3)), AppliedType(TypeRef(TermRef(TermRef(TermRef(TermRef(ThisType(TypeRef(NoPrefix(), "<root>")), "scala"), "compiletime"), "ops"), "int"), "*"), List(TermRef(NoPrefix(), "a"), TermRef(NoPrefix(), "b")))))
+((3 + a) * b)
+scala.compiletime.ops.int.*[scala.compiletime.ops.int.+[3, a], b]
+[32mscala[0m.[32mcompiletime[0m.[32mops[0m.[32mint[0m.[32m*[0m[[32mscala[0m.[32mcompiletime[0m.[32mops[0m.[32mint[0m.[32m+[0m[[32m3[0m, [32ma[0m], [32mb[0m]
+AppliedType(TypeRef(TermRef(TermRef(TermRef(TermRef(ThisType(TypeRef(NoPrefix(), "<root>")), "scala"), "compiletime"), "ops"), "int"), "*"), List(AppliedType(TypeRef(TermRef(TermRef(TermRef(TermRef(ThisType(TypeRef(NoPrefix(), "<root>")), "scala"), "compiletime"), "ops"), "int"), "+"), List(ConstantType(IntConstant(3)), TermRef(NoPrefix(), "a"))), TermRef(NoPrefix(), "b")))
