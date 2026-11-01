@@ -10,7 +10,7 @@ use crate::tpd::{TNodeId, Tree as T, map_children};
 use rustc_hash::FxHashMap;
 use tasty::{Kind, Symbol, SymbolId, Type, TypeId};
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct TreeTypeMap {
     /// The references replaced, by the symbol referred to, with the types replacing them.
     pub refs: FxHashMap<SymbolId, TypeId>,

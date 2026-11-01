@@ -24,6 +24,7 @@ trait ReflectConstants extends reflectModule { self: reflect.type =>
   given StringConstantTypeTest: TypeTest[Constant, StringConstant] = test(7)
   given UnitConstantTypeTest: TypeTest[Constant, UnitConstant] = test(9)
   given NullConstantTypeTest: TypeTest[Constant, NullConstant] = test(8)
+  given ClassOfConstantTypeTest: TypeTest[Constant, ClassOfConstant] = test(12)
 
   object Constant extends ConstantModule
   object BooleanConstant extends BooleanConstantModule {
@@ -71,6 +72,10 @@ trait ReflectConstants extends reflectModule { self: reflect.type =>
   object NullConstant extends NullConstantModule {
     def apply(): NullConstant = constant(8, 0L).asInstanceOf[NullConstant]
     def unapply(c: NullConstant): true = true
+  }
+  object ClassOfConstant extends ClassOfConstantModule {
+    def apply(x: TypeRepr): ClassOfConstant = throw new Unsupported("ClassOfConstant.apply")
+    def unapply(c: ClassOfConstant): Some[TypeRepr] = throw new Unsupported("ClassOfConstant.unapply")
   }
 
   abstract class ConstantMethodsImpl extends ConstantMethods {
