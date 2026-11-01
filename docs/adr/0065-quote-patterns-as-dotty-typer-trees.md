@@ -19,7 +19,7 @@ typed trees cannot be printed back as dotty's from it.
 - The encoded form is made where dotty makes it, by the port of `QuotePatterns.encode` in the
   staging step (research 43, step 4), so the pickled shape is the one the unpickler and the
   matcher already read. Until then the lowering refuses quote patterns outside inline
-  methods (#199).
+  methods (#200).
 
 ## Consequences
 - Tree walks see two more classes; those that only look at children need no change.

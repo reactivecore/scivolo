@@ -1,9 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/QuotesAndSplices.scala
 //   compiler/src/dotty/tools/dotc/ast/Desugar.scala
-//   compiler/src/dotty/tools/dotc/quoted/QuotePatterns.scala
-//! Quote patterns `case '{ ... }` and `case '[ ... ]` (dotty's `typedQuotePattern`,
-//! `desugar.quotedPattern` and `QuotePatterns.checkPattern`).
+//! Quote patterns `case '{ ... }` and `case '[ ... ]` (dotty's `typedQuotePattern` and
+//! `desugar.quotedPattern`).
 
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
@@ -138,27 +137,6 @@ impl Typer<'_> {
         self.ast.with_span(tpt, at);
         self.splices.insert(tpt, typed);
         tpt
-    }
-
-    /// Reports the trees in quote pattern body `t` outside its splices that a quote pattern cannot
-    /// match (dotty's `QuotePatterns.checkPattern`).
-    fn check_quote_pattern(&mut self, t: TNodeId) {
-        let class = self.tpd.sym(t).filter(|&s| self.u.is_class(s));
-        let what = match *self.tpd.tree(t) {
-            T::SplicePattern { .. } => return,
-            T::Match { .. } => "`match` expressions",
-            T::Try { .. } => "`try` expressions",
-            T::Return { .. } => "`return` statements",
-            T::TypeDef { .. } if class.is_some_and(|c| self.u.symbol(c).flags.has(tasty::tags::OBJECT)) => {
-                "objects"
-            }
-            T::TypeDef { .. } if class.is_some() => "classes",
-            _ => {
-                self.tpd.children(t).into_iter().for_each(|c| self.check_quote_pattern(c));
-                return;
-            }
-        };
-        self.error_at(self.tpd.span(t), format!("Implementation restriction: cannot match {what}"));
     }
 
     /// Whether quote pattern body `t` starts with type variable definitions `type t`.

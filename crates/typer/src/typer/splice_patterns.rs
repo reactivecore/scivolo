@@ -38,6 +38,14 @@ impl Typer<'_> {
             }
             typed_args.push(self.typed(a, Pt::Any, ctx));
         }
+        for &a in &typed_args {
+            if self.tpd.sym(a).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::MUTABLE)) {
+                self.error_at(
+                    self.tpd.span(a),
+                    "References to `var`s cannot be used in higher-order pattern",
+                );
+            }
+        }
         let mut parts: Vec<TypeId> =
             typed_args.iter().map(|&a| self.tpd.tpe(a)).map(|t| self.u.widen(t)).collect();
         let pat_type = match parts.is_empty() {

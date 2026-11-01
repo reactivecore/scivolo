@@ -163,6 +163,7 @@ mod purity;
 mod qual_skolems;
 mod qualifier_views;
 mod qualifies;
+mod quote_pattern_checks;
 mod quote_patterns;
 mod quote_type_bindings;
 mod refined_types;
