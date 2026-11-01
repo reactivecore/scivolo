@@ -77,12 +77,14 @@ impl Universe {
         self.is_module_class(c) && self.is_java_stub(c)
     }
 
-    /// Whether `s` is an instance field of a Java class entered here.
+    /// Whether `s` is an instance field of a Java class entered here or of a class of the JDK
+    /// jars.
     pub fn is_java_field(&self, s: SymbolId) -> bool {
+        let java_class = |c| self.is_java_stub(c) || self.is_from_jdk_jars(c) && !self.is_module_class(c);
         self.symbol(s).kind == Kind::Val
             && !self.is_module(s)
             && !self.symbol(s).flags.has(STATIC)
-            && self.symbol(s).owner.is_some_and(|c| self.is_java_stub(c))
+            && self.symbol(s).owner.is_some_and(java_class)
     }
 
     fn is_java_stub(&self, c: SymbolId) -> bool {

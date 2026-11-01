@@ -29,8 +29,9 @@ impl Code<'_> {
         let t = self.r(t);
         let tpe = self.h.tpd.get(t).tpe;
         match self.tree_of(t) {
-            T::TypeTree { .. } => {
+            T::TypeTree { inferred } => {
                 let tpe = tpe.ok_or(REFUSED)?;
+                let tpe = if inferred { tpe } else { self.without_param_annotations(tpe) };
                 match *self.h.u.types().get(tpe) {
                     Type::Bounds(lo, hi) => {
                         self.push("_ >: ");
@@ -38,7 +39,7 @@ impl Code<'_> {
                         self.push(" <: ");
                         return self.ty(hi);
                     }
-                    Type::Annotated(..) => return Err(REFUSED),
+                    Type::Annotated(..) => return self.annotated_type(tpe),
                     _ => {}
                 }
                 self.ty(tpe)?;
@@ -91,7 +92,7 @@ impl Code<'_> {
 
     /// Whether an inferred type tree of `t` prints with `.type`: a term reference or a module
     /// class.
-    fn is_singleton(&mut self, t: TypeId) -> bool {
+    pub fn is_singleton(&mut self, t: TypeId) -> bool {
         match *self.h.u.types().get(t) {
             Type::Sym(_, s) => self.h.u.symbol(s).kind.is_term() || self.h.u.is_module_class(s),
             Type::TermRef(..) => true,

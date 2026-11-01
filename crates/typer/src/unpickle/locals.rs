@@ -29,8 +29,14 @@ impl Unpickler<'_> {
         Ok(self.bare(T::Block { stats, expr }, Some(tpe), None))
     }
 
-    /// Defines the symbols of the local values and methods among statements `stats`.
+    /// Defines the symbols of the local values and methods among statements `stats`, the classes
+    /// first.
     fn define_locals(&mut self, stats: &[NodeId]) -> Result<Vec<SymbolId>, Refusal> {
+        for &s in stats {
+            if matches!(view(self.ast(), s), View::TypeDef { is_class: true, .. }) {
+                self.define_local(s)?;
+            }
+        }
         let mut locals = Vec::new();
         for &s in stats {
             match self.tag(s) {

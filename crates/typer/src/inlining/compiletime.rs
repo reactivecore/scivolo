@@ -52,15 +52,14 @@ impl Inlining<'_> {
             }
             ("codeOf", Some(arg), _) => self.code_of(arg, span)?,
             ("typeChecks", Some(arg), _) => {
-                let checks = self.type_checks(arg, owner, span)?;
-                self.literal(C::Boolean(checks), span)
+                let (_, errors) = self.checked_errors(arg, owner, span)?;
+                self.literal(C::Boolean(errors.is_some_and(|e| e.is_empty())), span)
             }
-            ("typeCheckErrors", Some(arg), _) => {
-                if !self.type_checks(arg, owner, span)? {
-                    return Err((span, "typeCheckErrors of code with errors"));
-                }
-                self.no_errors(call, span)?
-            }
+            ("typeCheckErrors", Some(arg), _) => match self.checked_errors(arg, owner, span)? {
+                (_, Some(errors)) if errors.is_empty() => self.no_errors(call, span)?,
+                (code, Some(errors)) => self.error_values(call, &code, &errors, span)?,
+                (_, None) => return Err((span, "typeCheckErrors of code with errors")),
+            },
             ("constValue", _, Some(t)) => {
                 let tpe = self.tpd.tpe(t);
                 let value =

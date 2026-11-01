@@ -105,6 +105,11 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
      of `scala/runtime/BoxedUnit.scala` point into `scala/scalanative/runtime/BoxedUnit.scala`,
      past its end.
    - Fix: convert `sym.sourcePos`. VM: positions in the member's own file.
+7. **`-language:experimental.X` is named twice in `@experimental`** (dotty,
+   `compiler/src/dotty/tools/dotc/typer/Checking.scala:964`).
+   - `checkAndAdaptExperimentalImports` writes `-language:experimental.$sel` where `sel` already
+     is `experimental.X`: `@experimental("Added by -language:experimental.experimental.erasedDefinitions")`.
+   - Fix: `-language:$sel`. Frontend: the same text as dotty.
 
 ## M4: dotty `tests/run`
 

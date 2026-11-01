@@ -99,11 +99,15 @@ impl Reflect<'_> {
         }
     }
 
-    /// `Symbol.companionModule`: the object of class `s`, or `s`'s own if it is a module class.
+    /// `Symbol.companionModule`: the object of class `s`, its constructor proxy object if it has
+    /// none, or `s`'s own if it is a module class.
     pub fn companion_module(&mut self, s: SymbolId) -> Option<SymbolId> {
         match self.u.is_module_class(s) {
             true => self.u.source_module(s),
-            false if self.u.is_class(s) => self.u.companion_module(s),
+            false if self.u.is_class(s) => {
+                let proxy = |u: &mut Universe| crate::typer::constructor_proxies::proxy_module(u, s);
+                self.u.companion_module(s).or_else(|| proxy(self.u))
+            }
             false => None,
         }
     }

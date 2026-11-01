@@ -76,15 +76,9 @@ impl<'a> Inlining<'a> {
         let (tree, span, tpe, sym) = (node.tree.clone(), node.span, node.tpe, node.sym);
         match tree {
             T::Block { stats, .. } => {
-                let defs: Vec<SymbolId> = self
-                    .tpd
-                    .items(stats)
-                    .iter()
-                    .filter(|&&s| {
-                        matches!(self.tpd.tree(s), T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. })
-                    })
-                    .filter_map(|&s| self.tpd.sym(s))
-                    .collect();
+                let is_def = |t: &T| matches!(t, T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. });
+                let defs = self.tpd.items(stats).iter().filter(|&&s| is_def(self.tpd.tree(s)));
+                let defs: Vec<SymbolId> = defs.filter_map(|&s| self.tpd.sym(s)).collect();
                 self.fresh_symbols(m, &defs);
             }
             T::CaseDef { pat, .. } => {
@@ -193,6 +187,9 @@ impl<'a> Inlining<'a> {
         };
         let n = self.u.define(fresh);
         m.syms.insert(s, n);
+        let within = self.u.access_qualifier(s).map(|q| m.syms.get(&q).copied().unwrap_or(q));
+        self.u.set_access_qualifier(n, within);
+        self.host.copied_symbol(s, n);
         n
     }
 }

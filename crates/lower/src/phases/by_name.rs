@@ -172,6 +172,9 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
     }
     let tpt = l.type_tree(result, span.start_pos());
     let def_span = super::drop_inlined::own_span(l, arg);
+    if span.is_inlined_call() {
+        l.inlined_at.insert(anon, span.without_inlined_call().start());
+    }
     let def = l.method_def(anon, &[], tpt, arg, from_start(def_span));
     let function = l.u.class_ref("scala.Function0");
     let function = l.u.intern_type(Type::Applied(function, vec![result]));

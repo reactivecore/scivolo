@@ -75,4 +75,14 @@ impl Universe {
         let decls = self.decls(owner).unwrap_or_default();
         decls.into_iter().find(|&s| self.is_module(s) && self.module_class(s) == Some(class))
     }
+
+    /// The constructor proxy object of class `c`, made by `make` on the first call.
+    pub fn constructor_proxy(&mut self, c: SymbolId, make: impl FnOnce(&mut Self) -> SymbolId) -> SymbolId {
+        if let Some(&m) = self.constructor_proxies.get(&c) {
+            return m;
+        }
+        let m = make(self);
+        self.constructor_proxies.insert(c, m);
+        m
+    }
 }

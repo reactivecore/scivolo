@@ -75,6 +75,11 @@ impl Host {
         self.decided(holds, [a, b])
     }
 
+    /// The interned identity of `t`, equal for equal types (dotty's `Type.equals`).
+    pub fn type_identity(&mut self, t: TypeId) -> i32 {
+        t.0 as i32
+    }
+
     /// `t` with each reference to a symbol of `pairs` but `this` replaced by its type.
     pub fn substitute_types(&mut self, t: TypeId, pairs: Vec<(SymbolId, TypeId)>) -> TypeId {
         self.u.map_type(t, &mut |u, part| {
