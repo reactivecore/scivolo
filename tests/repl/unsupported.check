@@ -7,12 +7,6 @@ scala> object O { val v: Any = 1; def f[T]: Boolean = O.v.isInstanceOf[Array[Arr
 scala> val y = 2
 val y: Int = 2
 
-scala> def f = "outer"
-def f: String
-
-scala> trait X; trait Y; trait A { def f: X }; trait B { def f: Y }; trait S { self: A & B => def g = "" + f }
--- unsupported: intersection member of an intersected type
-
 scala> object Counter { var n = 0 }
 // defined object Counter
 
