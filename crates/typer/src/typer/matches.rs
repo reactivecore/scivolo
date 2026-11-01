@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::tree::MatchKind;
-use syntax::ast::{Attrs, List, NodeId, Tree};
+use syntax::ast::{Attrs, List, NodeId, TName, Tree};
 use tasty::{NOTHING, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -117,6 +117,7 @@ impl Typer<'_> {
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
         let cctx = Ctx { level, mode: ctx.mode.without(Mode::INLINE_CASE), ..ctx };
         let pat = self.typed(pat, Pt::Type(selector), cctx.with_mode(ctx.mode.with(Mode::PATTERN)));
+        self.check_duplicate_binds(pat, &mut Vec::new());
         let body_pt = case.map(|c| self.dependent_case_body_pt(pat, c));
         let pt = match body_pt {
             Some(Some(b)) => Pt::Type(b),
@@ -148,6 +149,21 @@ impl Typer<'_> {
         };
         let span = self.ast.span(id);
         self.tpd.node(T::CaseDef { pat, guard, body }, span, None, None)
+    }
+
+    /// Reports each bind in pattern `t`, children first, of a name in `seen`, and adds the others'
+    /// names to `seen` (the check of dotty's `indexPattern`).
+    fn check_duplicate_binds(&mut self, t: TNodeId, seen: &mut Vec<TName>) {
+        for c in self.tpd.children(t) {
+            self.check_duplicate_binds(c, seen);
+        }
+        let T::Bind { name, .. } = *self.tpd.tree(t) else { return };
+        if seen.contains(&name) {
+            let msg = super::errors::duplicate_bind(self.text(name.name));
+            self.error_at(self.tpd.span(t), msg);
+        } else {
+            seen.push(name);
+        }
     }
 
     /// Pattern `p1 | p2 | ...` against a value of type `pt` (dotty's `typedAlternative`).
