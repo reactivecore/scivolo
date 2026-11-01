@@ -14,8 +14,9 @@ runs in `Units::finish`, but the port of `SyntheticMembers` runs in the lowering
   phase, through a hook on `typer::Units` that the lowering's drivers set; the typer does not
   depend on the lowering, and `typer_only` units (typer-compare) stay dotty-typer trees.
 - The lowering runs the same pass again and adds only what is missing: classes made or copied
-  while inlining. Every part of the pass skips members and parents that exist (dotty's
-  `existingDef`), so no class gets a member twice.
+  while inlining. Every part of the pass skips members that exist (dotty's `existingDef`), so no
+  class gets a member twice; it skips the mirror parent of a class that has one only in that
+  second run, as the first adds it again to a companion that extends a mirror itself, as dotty does.
 - Fresh names the pass takes follow dotty's order: PostTyper, then Inlining, then PostInlining.
 
 ## Consequences
