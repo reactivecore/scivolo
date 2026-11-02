@@ -37,7 +37,7 @@ impl Universe {
                     false => Vec::new(),
                 }
             }
-            Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Rec(_, p) => {
+            Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Flexible(p) | Type::Rec(_, p) => {
                 self.member_of_type_within(p, name, steps)
             }
             Type::Match { bound, .. } => {
@@ -90,7 +90,7 @@ impl Universe {
             Type::Or(a, b, _) => {
                 self.union_classes(a, classes, steps) && self.union_classes(b, classes, steps)
             }
-            Type::And(a, _) | Type::Refined(a, ..) | Type::Annotated(a, _) | Type::Rec(_, a) => {
+            Type::And(a, _) | Type::Refined(a, ..) | Type::Annotated(a, _) | Type::Flexible(a) | Type::Rec(_, a) => {
                 self.union_classes(a, classes, steps)
             }
             _ => match self.class_symbol(t) {

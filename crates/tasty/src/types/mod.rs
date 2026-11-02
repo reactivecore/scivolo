@@ -2,6 +2,7 @@
 //! method and lambda types.
 
 mod decode;
+mod flexible;
 mod map;
 mod parts;
 mod refinements;
@@ -56,6 +57,9 @@ pub enum Type {
     Or(TypeId, TypeId, bool),
     /// A type and the class type of its annotation.
     Annotated(TypeId, TypeId),
+    /// A Java member's type `T?` (dotty's `FlexibleType`): a subtype of `T` and a supertype of
+    /// `T | Null`, holding `T`.
+    Flexible(TypeId),
     ByName(TypeId),
     Refined(TypeId, String, TypeId),
     Rec(Binder, TypeId),

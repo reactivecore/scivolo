@@ -35,6 +35,7 @@ impl Universe {
             Type::This(u)
             | Type::Super(_, u)
             | Type::Annotated(u, _)
+            | Type::Flexible(u)
             | Type::Refined(u, _, _)
             | Type::Alias(u)
             | Type::Bounds(_, u)

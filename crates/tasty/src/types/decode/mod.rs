@@ -124,7 +124,8 @@ impl<'a> Decoder<'a> {
                 self.refining.pop();
                 self.types.get(t).clone()
             }
-            IDENTtpt | IDENT | SINGLETONtpt | FLEXIBLEtype if !k.is_empty() => self.decode(k[0]),
+            IDENTtpt | IDENT | SINGLETONtpt if !k.is_empty() => self.decode(k[0]),
+            FLEXIBLEtype if !k.is_empty() => Type::Flexible(self.kid(id, 0)),
             SUPERtype if k.len() > 1 => self.decode(k[1]),
             TYPEREF | SELECTtpt | TYPEREFin => Type::TypeRef(self.kid(id, 0), self.name(id)),
             TERMREF | SELECT | TERMREFin | SELECTin => Type::TermRef(self.kid(id, 0), self.name(id)),

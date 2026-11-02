@@ -39,6 +39,7 @@ impl Universe {
             erased_methods: FxHashMap::default(),
             types: Types::default(),
             infos: FxHashMap::default(),
+            nullified_infos: FxHashMap::default(),
             parents: FxHashMap::default(),
             linearizations: FxHashMap::default(),
             disagreeing_bases: FxHashMap::default(),

@@ -141,6 +141,7 @@ impl Universe {
             Type::TypeRef(..) => self.resolve_ref(t)?,
             Type::Applied(inner, _)
             | Type::Annotated(inner, _)
+            | Type::Flexible(inner)
             | Type::Alias(inner)
             | Type::Bounds(_, inner)
             | Type::Lambda { result: inner, .. } => return self.class_symbol_within(inner, depth),

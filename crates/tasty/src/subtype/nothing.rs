@@ -54,7 +54,7 @@ impl Cmp<'_> {
                     _ => None,
                 },
             },
-            Type::ByName(r) | Type::Refined(r, ..) | Type::Rec(_, r) | Type::Annotated(r, _) => {
+            Type::ByName(r) | Type::Refined(r, ..) | Type::Rec(_, r) | Type::Annotated(r, _) | Type::Flexible(r) => {
                 self.nothing_at(r, d)
             }
             Type::Var(v) => {

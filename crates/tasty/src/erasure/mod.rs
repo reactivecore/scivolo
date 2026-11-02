@@ -112,7 +112,12 @@ impl Universe {
                 },
             },
             Type::Applied(tycon, args) => self.erase_applied(tycon, &args),
-            Type::This(c) | Type::Alias(c) | Type::Bounds(_, c) | Type::Annotated(c, _) | Type::Rec(_, c) => {
+            Type::This(c)
+            | Type::Alias(c)
+            | Type::Bounds(_, c)
+            | Type::Annotated(c, _)
+            | Type::Flexible(c)
+            | Type::Rec(_, c) => {
                 self.erase(c)
             }
             Type::Match { bound, .. } => match self.try_normalize(t) {

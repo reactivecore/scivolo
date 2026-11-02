@@ -15,6 +15,7 @@ mod function_classes;
 mod impure_functions;
 mod info;
 mod inits;
+mod java_nulls;
 mod java_strings;
 mod java_stubs;
 mod jdk;
@@ -74,6 +75,8 @@ pub struct Universe {
     types: Types,
     /// The declared type of each symbol whose type was asked for.
     infos: FxHashMap<SymbolId, TypeId>,
+    /// The type under explicit nulls of each symbol whose type was asked for in that mode.
+    nullified_infos: FxHashMap<SymbolId, TypeId>,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// Per class and base class, whether the class's parents give the base different types.

@@ -79,6 +79,7 @@ impl Universe {
             Type::Sym(..) | Type::TypeRef(..) => self.referenced(t).map_or(Pseudo::Type(t), Pseudo::Sym),
             Type::Applied(u, _)
             | Type::Annotated(u, _)
+            | Type::Flexible(u)
             | Type::Rec(_, u)
             | Type::Bounds(_, u)
             | Type::Lambda { result: u, .. } => self.pseudo(u),

@@ -129,6 +129,7 @@ impl Typer<'_> {
             Ok(Some(converted)) => converted,
             Ok(None) if self.defined_further(tpe, pt) => tree,
             Ok(None) => self.type_mismatch(tree, pt, ctx).unwrap_or_else(|| {
+                eprintln!("DBG {} vs {}", self.u.show(tpe), self.u.show(pt));
                 self.unsupported_at(span, "adaptation");
                 tree
             }),
