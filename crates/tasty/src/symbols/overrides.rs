@@ -115,6 +115,10 @@ impl Universe {
         }
         let pairs = ca.into_iter().zip(cb).flat_map(|((_, x), (_, y))| x.into_iter().zip(y));
         pairs.collect::<Vec<_>>().into_iter().all(|(x, y)| {
+            let ((rx, x), (ry, y)) = (self.repeated_elem(x), self.repeated_elem(y));
+            if rx != ry {
+                return false;
+            }
             let (x, y) = (self.normalize(x), self.normalize(y));
             let rename =
                 |u: &mut Universe, t: TypeId, own: &[SymbolId], binders: Option<(Binder, Binder)>| {
@@ -131,6 +135,22 @@ impl Universe {
             let y = rename(self, y, &tb, binders);
             x == y || self.is_same_type_in(x, y, &mut crate::subtype::NoVars)
         })
+    }
+
+    /// Whether parameter type `t` is repeated, `<repeated>[T]` or `Seq[T] @Repeated` as TASTy
+    /// gives it, and then its element type `T`, else `t`.
+    fn repeated_elem(&mut self, t: TypeId) -> (bool, TypeId) {
+        let is_class =
+            |u: &mut Self, c: TypeId, name: &str| u.class_symbol(c).is_some_and(|c| u.full_name(c) == name);
+        let (applied, repeated) = match self.types().get(t).clone() {
+            Type::Annotated(seq, annot) => (seq, is_class(self, annot, "scala.annotation.internal.Repeated")),
+            Type::Applied(c, _) => (t, is_class(self, c, "scala.<repeated>")),
+            _ => return (false, t),
+        };
+        match self.types().get(applied) {
+            Type::Applied(_, args) if repeated && args.len() == 1 => (true, args[0]),
+            _ => (false, t),
+        }
     }
 
     /// The result type of method type `t` after all its clauses.
