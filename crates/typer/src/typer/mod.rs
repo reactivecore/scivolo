@@ -234,7 +234,8 @@ mod wildcard_aliases;
 mod wildcard_members;
 
 use crate::ctx::{Ctx, LevelId, Levels};
-use crate::defn::{Defn, entered};
+use crate::defn::Defn;
+use crate::special::entered;
 use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::{FxHashMap, FxHashSet};

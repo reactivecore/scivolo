@@ -98,7 +98,7 @@ pub fn annotations(
 pub fn define_repeated(u: &mut Universe) -> Result<(), Refusal> {
     let scala = u.package("scala").ok_or("a library without package scala")?;
     let synthetic = tasty::Flags::default().with(tasty::tags::SYNTHETIC);
-    crate::defn::special(u, scala, "<repeated>", tasty::Kind::Class, synthetic);
+    crate::special::special(u, scala, "<repeated>", tasty::Kind::Class, synthetic);
     Ok(())
 }
 

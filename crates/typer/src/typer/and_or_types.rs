@@ -5,7 +5,7 @@
 
 use super::Typer;
 use crate::ctx::{Ctx, Mode};
-use crate::defn::entered;
+use crate::special::entered;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Kind, SymbolId, Type, TypeId};
 

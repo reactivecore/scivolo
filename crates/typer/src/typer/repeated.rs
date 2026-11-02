@@ -4,7 +4,7 @@
 //! `SeqLiteral`s typed `<repeated>[T]` (dotty's `typedArgs` for `RepeatedParamClass`).
 
 use super::Typer;
-use crate::defn::entered;
+use crate::special::entered;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId};

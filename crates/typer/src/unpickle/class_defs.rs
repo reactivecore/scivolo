@@ -51,7 +51,7 @@ impl Unpickler<'_> {
     /// The local dummy of class `class`, which owns the statements of its template.
     fn local_dummy(&mut self, class: SymbolId) -> SymbolId {
         let name = format!("<local {}>", self.u.symbol(class).name);
-        crate::defn::entered(self.u, class, &name, Kind::Val).unwrap_or_else(|| {
+        crate::special::entered(self.u, class, &name, Kind::Val).unwrap_or_else(|| {
             self.u.define(Symbol {
                 name,
                 kind: Kind::Val,

@@ -4,8 +4,9 @@
 
 use super::names::sym_name;
 use super::{Refusal, TreePickler};
-use crate::defn::{throw_method, type_ref};
+use crate::defn::type_ref;
 use crate::signatures::result_sig;
+use crate::special::throw_method;
 use crate::tpd::{List, TNodeId, Tree as T, constant_type_of};
 use syntax::ast::TName;
 use tasty::tags::*;
