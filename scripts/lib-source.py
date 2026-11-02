@@ -78,7 +78,7 @@ def compare_with(name, oracle, outs, work):
             counts[state] += 1
             rows.append([name, path, state, lines, int(reordered)])
     return rows, (f"  vs {name}: nir {counts['same']} same, {counts['differ']} differ, "
-                  f"{counts['var-order']} var-order, {counts['missing']} missing")
+                  f"{counts['var-order']} var-order, {counts['quote-pos']} quote-pos, {counts['missing']} missing")
 
 
 def write_jar(path, published, outs):

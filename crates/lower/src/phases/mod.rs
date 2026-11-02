@@ -102,6 +102,7 @@ mod outer_traits;
 mod package_objects;
 mod param_forwarding;
 mod patmat;
+mod pickle_quotes;
 mod pipeline;
 mod poly_functions;
 mod protected_accessors;
