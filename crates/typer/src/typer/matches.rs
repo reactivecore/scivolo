@@ -50,10 +50,10 @@ impl Typer<'_> {
         };
         let dependent = self.dependent_match_cases(pt, sel, &case_ids);
         let typed_cases: Vec<TNodeId> = match &dependent {
-            Some(case_types) => self.typed_cases(&case_ids, sel_tpe, case_pt, Some(case_types), ctx),
+            Some(case_types) => self.typed_cases(&case_ids, sel, sel_tpe, case_pt, Some(case_types), ctx),
             None => {
                 let before = self.before_harmonic();
-                let typed = self.typed_cases(&case_ids, sel_tpe, case_pt, None, ctx);
+                let typed = self.typed_cases(&case_ids, sel, sel_tpe, case_pt, None, ctx);
                 if typed.is_empty() {
                     return self.unsupported(id, "match without cases");
                 }
