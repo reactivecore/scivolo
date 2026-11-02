@@ -33,7 +33,9 @@ pub fn read(paths: &[PathBuf], root: Option<&Path>) -> R<Unit> {
     let mut unit = Unit { files: Vec::new(), options: Vec::new(), deps: Vec::new() };
     for path in paths {
         let named = match root {
-            Some(r) => path.strip_prefix(r).map_err(|_| format!("{} is not under {}", path.display(), r.display()))?,
+            Some(r) => path
+                .strip_prefix(r)
+                .map_err(|_| format!("{} is not under {}", path.display(), r.display()))?,
             None => path,
         };
         let name = named.to_string_lossy().into_owned();
