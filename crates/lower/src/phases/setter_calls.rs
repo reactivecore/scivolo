@@ -58,13 +58,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// The class `C` if reference `id`'s prefix is `C.this` (dotty's `desugarIdentPrefix`).
-fn this_prefix(l: &Lower, id: TNodeId) -> Option<SymbolId> {
+fn this_prefix(l: &mut Lower, id: TNodeId) -> Option<SymbolId> {
     let Type::Sym(Some(prefix), _) = *l.u.types().get(l.tpd.get(id).tpe?) else { return None };
     let Type::This(c) = *l.u.types().get(prefix) else { return None };
-    match *l.u.types().get(c) {
-        Type::Sym(_, c) => Some(c),
-        _ => None,
-    }
+    l.u.class_symbol(c)
 }
 
 /// Gives `qual.!=` of `Any` the span of `qual`, as `InterceptedMethods`' `qual.==(..).!` has.
