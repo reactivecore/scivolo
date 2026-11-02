@@ -77,5 +77,5 @@ impl Parser<'_> {
 }
 
 fn is_source_version_name(name: &str) -> bool {
-    matches!(name, "2.13" | "never") || SourceVersion::parse(name).is_some()
+    name == "never" || SourceVersion::parse(name).is_some()
 }

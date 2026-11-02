@@ -29,9 +29,11 @@ mod avoid_select;
 mod by_name_repeated;
 mod call_types;
 mod callee_types;
+mod capture_types;
 mod captured_paths;
 mod case_companion;
 mod case_lambdas;
+mod case_nulls;
 mod clashing_synthetics;
 mod class_bound;
 mod class_members;
@@ -134,12 +136,15 @@ mod no_inits;
 mod non_method_apply;
 mod not_a_member;
 mod not_found;
+mod null_infos;
+pub(crate) mod nullables;
 mod op_assign;
 mod overload_errors;
 mod overloaded_extractors;
 mod overloads;
 mod override_kinds;
 mod overrides;
+mod overrides_nothing;
 mod package_members;
 mod param_vars;
 mod parameterless;
@@ -198,6 +203,7 @@ mod this;
 mod this_calls;
 mod throws_types;
 mod top_level_annotations;
+mod tracked_refs;
 mod trait_params;
 mod transparent;
 mod transparent_traits;
@@ -268,12 +274,17 @@ pub struct Typer<'a> {
     pub erasure_diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
+    /// `-Yexplicit-nulls`.
+    pub explicit_nulls: bool,
+    pub nullables: nullables::Nullables,
     /// The setting that makes the top-level definitions experimental (`Config::experimental`).
     pub experimental: Option<&'static str>,
     /// The `-W` lints the options enable.
     pub lints: Lints,
     /// Whether the source version is `future`.
     pub source_future: bool,
+    /// Whether the unit behaves as the Scala 2 library (`language.\`2.13\``).
+    pub scala2: bool,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -401,9 +412,12 @@ impl<'a> Typer<'a> {
             diags: Diagnostics::default(),
             erasure_diags: Diagnostics::default(),
             features: cfg.features,
+            explicit_nulls: cfg.explicit_nulls,
+            nullables: Default::default(),
             experimental: cfg.experimental,
             lints: cfg.warnings.lints,
             source_future: v.requires_new_syntax(),
+            scala2: v.is_scala2(),
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
@@ -447,6 +461,7 @@ impl<'a> Typer<'a> {
             file_starts: Vec::new(),
             macros: None,
         };
+        typer.tpd.scala2 = typer.scala2;
         typer.enter_and_or();
         typer.u.set_comparison_owner(None);
         Ok(typer)
@@ -464,12 +479,23 @@ impl<'a> Typer<'a> {
         self.depth += 1;
         self.type_uniques(id);
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
+        let nulls = self.null_mode(ctx);
+        let outer_nulls = self.u.set_null_mode(nulls);
         let vars = self.constraint.count();
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER.with(crate::ctx::Mode::ASSIGNMENT_LHS);
         let inner = ctx.with_mode(ctx.mode.without(top_only));
         let tree = match self.contextual_function(id, pt, inner).or_else(|| self.ready(id, inner)) {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, inner),
+        };
+        let tree = match self.ast.tree(id) {
+            syntax::ast::Tree::Ident { .. } | syntax::ast::Tree::Select { .. }
+                if self.explicit_nulls && !ctx.mode.is(crate::ctx::Mode::ASSIGNMENT_LHS) =>
+            {
+                let select = matches!(self.ast.tree(id), syntax::ast::Tree::Select { .. });
+                self.to_not_null_ref(tree, select, inner)
+            }
+            _ => tree,
         };
         if let Err(what) = self.interpolate(tree, pt, vars) {
             self.unsupported(id, what);
@@ -484,6 +510,7 @@ impl<'a> Typer<'a> {
             self.unsupported(id, what);
         }
         self.u.set_comparison_owner(outer);
+        self.u.set_null_mode(outer_nulls);
         self.depth -= 1;
         adapted
     }

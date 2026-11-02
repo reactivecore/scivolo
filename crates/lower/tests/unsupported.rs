@@ -214,6 +214,8 @@ const CASES: &[(&str, &str)] = &[
         "adaptation",
     ),
     ("trait T { def finalize(): String }", "abstract member overriding a concrete one"),
+    ("class C { override def f = 1 }", "member overriding nothing"),
+    ("class C { override type T = Int }", "member overriding nothing"),
     (
         "import language.experimental.erasedDefinitions\n\
          object O { def f(erased b: Boolean) = 1; def g(x: Any) = f(x.isInstanceOf[String]) }",
@@ -225,9 +227,8 @@ const CASES: &[(&str, &str)] = &[
         "right-hand side of an erased value that is not pure",
     ),
     (
-        "class P extends java.io.PrintStream(System.out) {\n\
-         override def printf(f: String, args: Object*): java.io.PrintStream = this }",
-        "overrides of Java varargs methods",
+        "class D { def g(xs: Array[Int]): Int = 0; @annotation.varargs def g(xs: Int*): Int = 1 }",
+        "a varargs forwarder conflicting with a member of its signature",
     ),
 ];
 

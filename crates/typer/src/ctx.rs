@@ -138,6 +138,8 @@ pub struct Ctx {
     pub mode: Mode,
     /// The staging level (dotty's `StagingLevel.level`): +1 in a quote, -1 in a splice.
     pub staging: i32,
+    /// The most recent not-null info (`Typer::with_not_null`).
+    pub nulls: Option<u32>,
 }
 
 impl Ctx {
@@ -152,7 +154,7 @@ impl Ctx {
         let level = t.root_import(Some(level), java_lang);
         let level = t.root_import(Some(level), scala);
         let level = t.root_import(Some(level), predef);
-        Ctx { owner: root, level, mode: Mode::NONE, staging: 0 }
+        Ctx { owner: root, level, mode: Mode::NONE, staging: 0, nulls: None }
     }
 
     pub fn with_owner(self, owner: SymbolId) -> Ctx {

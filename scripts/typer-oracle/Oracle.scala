@@ -45,9 +45,11 @@ object Oracle:
       out.print(b)
       out.flush()
 
-  /** A compiler with the standard library, and the `-classpath` of `opts`, on its class path. */
+  /** A compiler with the standard library on its class path, initialized with the settings `opts`. */
   def newBase(opts: List[String] = Nil): (Compiler, FreshContext) =
     val root = (new ContextBase).initialCtx.fresh
+    if opts.nonEmpty then
+      root.setSettings(ScalacCommand.distill(opts.toArray, root.settings)(root.settingsState)(using root).sstate)
     root.setSetting(root.settings.color, "never")
     root.setSetting(root.settings.Yusejavacp, true)
     opts.sliding(2).collect { case List("-classpath", cp) => cp }.foreach(cp => root.setSetting(root.settings.classpath, cp))

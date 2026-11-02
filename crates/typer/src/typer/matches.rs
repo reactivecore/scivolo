@@ -50,17 +50,10 @@ impl Typer<'_> {
         };
         let dependent = self.dependent_match_cases(pt, sel, &case_ids);
         let typed_cases: Vec<TNodeId> = match &dependent {
-            Some(case_types) => {
-                let pairs: Vec<(NodeId, TypeId)> = case_ids.iter().copied().zip(case_types.clone()).collect();
-                pairs
-                    .into_iter()
-                    .map(|(c, ct)| self.typed_case_in(c, sel_tpe, case_pt, Some(ct), ctx))
-                    .collect()
-            }
+            Some(case_types) => self.typed_cases(&case_ids, sel, sel_tpe, case_pt, Some(case_types), ctx),
             None => {
                 let before = self.before_harmonic();
-                let typed: Vec<TNodeId> =
-                    case_ids.iter().map(|&c| self.typed_case(c, sel_tpe, case_pt, ctx)).collect();
+                let typed = self.typed_cases(&case_ids, sel, sel_tpe, case_pt, None, ctx);
                 if typed.is_empty() {
                     return self.unsupported(id, "match without cases");
                 }
@@ -103,7 +96,7 @@ impl Typer<'_> {
     }
 
     /// `typed_case`, the body expected to be the body of match type case `case` if given.
-    fn typed_case_in(
+    pub fn typed_case_in(
         &mut self,
         id: NodeId,
         selector: TypeId,

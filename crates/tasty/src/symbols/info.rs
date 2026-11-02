@@ -8,8 +8,22 @@ use crate::{NodeId, View, view};
 
 impl Universe {
     /// The declared type of `sym`: a method's type, a value's type, a type member's alias or
-    /// bounds, a type parameter's bounds; `Other(TEMPLATE)` for classes and packages.
+    /// bounds, a type parameter's bounds; `Other(TEMPLATE)` for classes and packages. Under
+    /// explicit nulls a JDK member's references are flexible.
     pub fn info(&mut self, sym: SymbolId) -> TypeId {
+        let t = self.declared_info(sym);
+        if !self.null_mode().explicit {
+            return t;
+        }
+        if let Some(&n) = self.nullified_infos.get(&sym) {
+            return n;
+        }
+        let n = self.nullified_member(sym, t);
+        self.nullified_infos.insert(sym, n);
+        n
+    }
+
+    fn declared_info(&mut self, sym: SymbolId) -> TypeId {
         if let Some(&t) = self.infos.get(&sym) {
             return t;
         }

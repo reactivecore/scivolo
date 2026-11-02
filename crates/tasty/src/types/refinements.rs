@@ -30,7 +30,7 @@ impl Universe {
                 {
                     return Some(info);
                 }
-                Type::Refined(p, ..) | Type::Annotated(p, _) => t = p,
+                Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Flexible(p) => t = p,
                 Type::And(a, b) => {
                     let (a, b) = (self.refinement_named(a, name), self.refinement_named(b, name));
                     let (Some(a), Some(b)) = (a, b) else { return a.or(b) };
@@ -171,7 +171,7 @@ impl Universe {
                 {
                     return Some(info);
                 }
-                Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Rec(_, p) => t = p,
+                Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Flexible(p) | Type::Rec(_, p) => t = p,
                 _ => match self.dealias(t) {
                     d if d != t => t = d,
                     _ => return None,

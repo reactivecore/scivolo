@@ -37,6 +37,7 @@ impl Universe {
             Type::And(a, b) => format!("{} & {}", self.show(*a), self.show(*b)),
             Type::Or(a, b, _) => format!("{} | {}", self.show(*a), self.show(*b)),
             Type::Annotated(u, _) => self.show(*u),
+            Type::Flexible(u) => format!("({})?", self.show(*u)),
             Type::ByName(u) => format!("=> {}", self.show(*u)),
             Type::Refined(p, n, i) => format!("{} {{ {n}: {} }}", self.show(*p), self.show(*i)),
             Type::Rec(_, p) => self.show(*p),

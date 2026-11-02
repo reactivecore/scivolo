@@ -37,6 +37,10 @@ impl Universe {
             Type::And(a, b) => Type::And(m(self, a), m(self, b)),
             Type::Or(a, b, soft) => Type::Or(m(self, a), m(self, b), soft),
             Type::Annotated(a, annot) => Type::Annotated(m(self, a), annot),
+            Type::Flexible(hi) => {
+                let hi = m(self, hi);
+                return self.flexible(hi);
+            }
             Type::ByName(a) => Type::ByName(m(self, a)),
             Type::Refined(p, n, i) => Type::Refined(m(self, p), n, m(self, i)),
             Type::Rec(b, a) => Type::Rec(b, m(self, a)),

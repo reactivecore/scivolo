@@ -222,6 +222,11 @@ evening batch: 861 passed, 28 refused by the lowering, 543 by the typer; before 
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
   libraries compiled before 3.4, which dotty accepts) and checks no other `future` rule.
+- **Capture checking:** typed as dotty's typer types it (`ImpureFunctionN`, `@retains` trees);
+  types drop `@retains`, `@retainsCap` and `@retainsByName` as unpickled ones do (case 1: the
+  annotations are not refining and erase away), and the capture checker, which runs after the
+  typer and leaves the NIR unchanged, is not run (#168). Quotes under capture checking, whose
+  TASTy would keep the annotations, are refused.
 - **Frontend crashed:** t8199, `scivolo-lower` panics writing a NIR file.
 
 ## M5: scala/scala `test/junit`

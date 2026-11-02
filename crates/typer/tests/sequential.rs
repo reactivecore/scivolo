@@ -23,9 +23,18 @@ fn universe() -> Option<Universe> {
 }
 
 fn type_unit(u: &mut Universe, units: &mut Units, name: &str, text: &str) -> Result<(), String> {
+    type_unit_with(u, units, (name, text), &[])
+}
+
+fn type_unit_with(
+    u: &mut Universe,
+    units: &mut Units,
+    (name, text): (&str, &str),
+    options: &[&str],
+) -> Result<(), String> {
     let source = SourceFile::new(name, text);
     let mut names = Names::default();
-    let mut p = Parser::new(&source, &mut names, Config::from_options(&[]));
+    let mut p = Parser::new(&source, &mut names, Config::from_options(options));
     let root = p.parse();
     let cfg = p.s.cfg;
     let root = Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, &source, cfg).unit(root);
@@ -93,6 +102,47 @@ fn classes_of_earlier_units() {
         ],
     );
     assert_eq!(member_type(&mut u, "rs$line$3", "y"), "scala.Int");
+}
+
+#[test]
+fn explicit_nulls_end_with_their_unit() {
+    let Some(mut u) = universe() else { return };
+    let mut units = Units::default();
+    let flagged = &["-Yexplicit-nulls"];
+    let first = "object rs$line$1 { val s: String | Null = null; def j = if s == null then \"a\" else null }";
+    assert_eq!(type_unit_with(&mut u, &mut units, ("line.scala", first), flagged), Ok(()));
+    let j = member_type(&mut u, "rs$line$1", "j");
+    assert!(j.contains("Null"), "{j}");
+    let plain = "object rs$line$2 { import rs$line$1.*; val t: String = null; val k = if true then \"a\" else null; val m = s.length + j.length }";
+    assert_eq!(type_unit(&mut u, &mut units, "line.scala", plain), Ok(()));
+    assert_eq!(member_type(&mut u, "rs$line$2", "k"), "String");
+    let third = "object rs$line$3 { val x: String = null }";
+    assert!(type_unit_with(&mut u, &mut units, ("line.scala", third), flagged).is_err());
+    let java = "object rs$line$4 { val a = \"abc\".trim; val f = String.format(\"%s\", 1) }";
+    assert_eq!(type_unit_with(&mut u, &mut units, ("line.scala", java), flagged), Ok(()));
+    let a = member_type(&mut u, "rs$line$4", "a");
+    assert!(a.contains('?'), "{a}");
+    let plain_java = "object rs$line$5 { val b = \"abc\".trim }";
+    assert_eq!(type_unit(&mut u, &mut units, "line.scala", plain_java), Ok(()));
+    let b = member_type(&mut u, "rs$line$5", "b");
+    assert!(!b.contains('?'), "{b}");
+}
+
+#[test]
+fn selector_known_not_null_in_a_case_refuses() {
+    let Some(mut u) = universe() else { return };
+    let mut units = Units::default();
+    let flagged = &["-Yexplicit-nulls"];
+    let refused = Err("unsupported selector known not null in a case".to_owned());
+    for (i, cases) in
+        ["case _: String => f(n); case _ => 0", "case null => 0; case _ => f(n)"].iter().enumerate()
+    {
+        let text =
+            format!("object O{i} {{ def f(x: Any) = 1; def g(n: String | Null) = n match {{ {cases} }} }}");
+        assert_eq!(type_unit_with(&mut u, &mut units, ("o.scala", &text), flagged), refused, "{cases}");
+    }
+    let kept = "object O2 { def f(x: Any) = 1; def g(n: String | Null) = n match { case s: String => f(n); case _ => 0 } }";
+    assert_eq!(type_unit_with(&mut u, &mut units, ("o.scala", kept), flagged), Ok(()));
 }
 
 #[test]

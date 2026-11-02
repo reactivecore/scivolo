@@ -125,6 +125,9 @@ impl Typer<'_> {
             self.unenter_classpath_members(ctx.owner, &text);
         }
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
+        if kind == Kind::Class && self.scala2 {
+            self.u.set_scala2(sym);
+        }
         self.defined_unique(name.name, sym, self.ast.span(tree));
         if flags.is(f::OPAQUE)
             && kind == Kind::Type

@@ -51,6 +51,8 @@ pub struct Lower<'a> {
     fields: FxHashMap<SymbolId, SymbolId>,
     /// The bridges `Bridges` made and the `$adapted` methods of lambdas.
     bridges: FxHashSet<SymbolId>,
+    /// The varargs forwarders `ElimRepeated` made.
+    varargs_forwarders: FxHashSet<SymbolId>,
     /// The bridges of each library class javalib's build compiles with the unit, each with the
     /// member it calls.
     library_bridges: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
@@ -168,7 +170,10 @@ pub fn lower_sources(
         .and_then(|()| phases::run(&mut l, root))
         .and_then(|()| codegen::unit(&mut l, root));
     l.u.elide_opaques(false);
-    files
+    match std::mem::take(&mut l.u.reductions_exhausted) {
+        true => unsupported(Span::NONE, "match type reduction over the reduction budget"),
+        false => files,
+    }
 }
 
 /// Typer units whose synthetic members are added before their inline calls expand.
@@ -209,6 +214,7 @@ impl<'a> Lower<'a> {
             before_inlining: false,
             fields: FxHashMap::default(),
             bridges: FxHashSet::default(),
+            varargs_forwarders: FxHashSet::default(),
             library_bridges: FxHashMap::default(),
             extensions: FxHashMap::default(),
             lazy_fields: Vec::new(),

@@ -112,6 +112,7 @@ impl<'u> Printer<'u> {
             Type::And(a, b) => self.infix("&", a, b, prec),
             Type::Or(a, b, _) => self.infix("|", a, b, prec),
             Type::Annotated(inner, annot) => self.annotated(inner, annot, prec),
+            Type::Flexible(u) => format!("({})?", self.text(u, GLOBAL)),
             Type::ByName(r) => paren(GLOBAL, prec, format!("=> {}", self.text(r, GLOBAL))),
             Type::Refined(..) => self.refined(t, prec),
             Type::Rec(_, p) => self.text(p, prec),

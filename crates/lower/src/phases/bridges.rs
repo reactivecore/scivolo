@@ -7,6 +7,7 @@
 
 use super::adapt::adapt;
 use super::mixin::{is_jdk, javalib_only_bases, with_java_param_names};
+use super::varargs_forwarders::forwarded;
 use crate::symbols::{has, is_static_module};
 use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
@@ -29,7 +30,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
         if is_deferred(l, deferred, member) {
             continue;
         }
-        if !differ(l, member, other) {
+        if !differ(l, member, other) || forwarded(l, member, other) {
             continue;
         }
         let (params, result) = l.u.erased_method(other);

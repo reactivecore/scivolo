@@ -85,6 +85,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         specialize::transform(l, td)?;
         specialize_tuples::transform(l, td, &inits)?;
         repeated::transform(l, td)?;
+        varargs_forwarders::transform(l, td)?;
         resolve_super::transform(l, td)?;
         function_xxl_forwarders::transform(l, td)?;
         tuple_optimizations::transform(l, td);

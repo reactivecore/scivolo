@@ -17,6 +17,10 @@ impl Cmp<'_> {
                 None => self.fourth_try(a, b),
             },
             Type::Var(v) => self.var_above(a, b, v),
+            Type::Flexible(hi) => {
+                let lo = self.u.or_null(hi);
+                self.recur(a, lo)
+            }
             Type::Refined(parent, name, info) => {
                 self.recur(a, parent) && self.has_matching_member(a, &name, info) || self.fourth_try(a, b)
             }

@@ -65,12 +65,16 @@ impl Cmp<'_> {
         match self.u.types().get(n) {
             Type::Match { .. } => {
                 if self.normalizing.contains(&n) || self.normalizing.len() >= MAX_NORMALIZING {
+                    self.u.reductions_exhausted = true;
                     return None;
                 }
+                let exhausted = std::mem::take(&mut self.u.reductions_exhausted);
                 self.normalizing.push(n);
                 let normal = self.reduced(n).map(|reduced| self.normal(reduced));
                 self.normalizing.pop();
-                normal
+                let refused = self.u.reductions_exhausted;
+                self.u.reductions_exhausted |= exhausted;
+                normal.filter(|_| !refused)
             }
             _ => self.fold_compiletime(n),
         }
@@ -138,11 +142,8 @@ impl Cmp<'_> {
         if self.u.reducing == 0 {
             self.u.reductions_left = MAX_TOTAL_REDUCTIONS;
         }
-        if self.u.reductions_left == 0 {
+        if self.u.reductions_left == 0 || self.reductions >= MAX_REDUCTIONS {
             self.u.reductions_exhausted = true;
-            return None;
-        }
-        if self.reductions >= MAX_REDUCTIONS {
             return None;
         }
         self.reductions += 1;

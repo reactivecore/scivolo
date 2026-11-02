@@ -11,15 +11,21 @@ CORPORA = ("programs", "pos", "neg")
 USING = re.compile(r"^//> using options (.*)$", re.M)
 
 
+def options_of(text):
+    return " ".join(o for u in USING.findall(text) for o in u.split())
+
+
 def tests():
     """(path relative to the repository, options, skip reason or None) for each Scala file."""
     for f in sorted(ROOT.glob("tests/programs/*/*.scala")):
         yield f, "", None
+    for f in sorted(ROOT.glob("tests/explicit-nulls/pos/*.scala")):
+        yield f, options_of(f.read_text()), None
     if not TESTS.is_dir():
         sys.exit(f"{TESTS} missing: run `just syntax-fetch`")
     for f in sorted(TESTS.glob("pos/*.scala")) + sorted(TESTS.glob("neg/*.scala")):
         text = f.read_text(errors="replace")
-        options = " ".join(o for u in USING.findall(text) for o in u.split())
+        options = options_of(text)
         reason = None
         if "-Ymagic-offset-header" in options:
             reason = "magic offset header"
@@ -40,7 +46,7 @@ def selected(filter_):
 
 
 def corpus(rel):
-    return "programs" if rel.startswith("tests/programs/") else rel.split("/")[3]
+    return "programs" if rel.startswith("tests/") else rel.split("/")[3]
 
 
 def write_list(name, rows):
@@ -63,7 +69,7 @@ def relative(path):
     """`path` relative to the repository, also for a path from another checkout."""
     if Path(path).is_relative_to(ROOT):
         return str(Path(path).relative_to(ROOT))
-    marker = next((m for m in ("/ref/dotty/", "/tests/programs/", "/crates/") if m in path), None)
+    marker = next((m for m in ("/ref/dotty/", "/tests/programs/", "/tests/explicit-nulls/", "/crates/") if m in path), None)
     if marker is None:
         sys.exit(f"{path}: not in the repository")
     return marker[1:] + path.split(marker, 1)[1]

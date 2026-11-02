@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Downloads the library jars the VM loads (Scala Native's) and the frontend reads (the Scala
-# standard library's TASTy) from Maven Central into ref/libs and checks their sha256.
+# standard library's TASTy), and the standard library's sources (`just lib-compile scalalib`), from
+# Maven Central into ref/libs and checks their sha256.
 set -euo pipefail
 dir=$(cd "$(dirname "$0")/.." && pwd)/ref/libs
 mkdir -p "$dir"
@@ -25,4 +26,5 @@ b05fe9855ca50ac60854de6700f518e031df76c85021727505dab660d8757886 org/scala-nativ
 88a5664596bfb750c57946cae4c9adac30f3e696d3c57667fa57c2fdd06badac org/scala-native/windowslib_native0.5_3/0.5.12/windowslib_native0.5_3-0.5.12.jar
 50fe972cf958bbb0f350a2aa0f16916f2ed8089232331e00a7004321576652cf org/scala-native/scalalib_native0.5_3/3.9.0%2B0.5.12/scalalib_native0.5_3-3.9.0%2B0.5.12.jar
 b844bf6fb3080c73df6b9c523b7a69b9ef4a980bb15e5c37c35443d1d0b0e0cd org/scala-lang/scala-library/3.9.0/scala-library-3.9.0.jar
+6a1405c0b617e51f02a22ff63d6df1e572ab49c158e2aa9bccd0327d1a4ec1cc org/scala-lang/scala-library/3.9.0/scala-library-3.9.0-sources.jar
 EOF

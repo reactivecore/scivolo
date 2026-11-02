@@ -1,15 +1,17 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/config/SourceVersion.scala
-/// The `-source` version, as dotty's `SourceVersion`: `3.minor` or `future`, possibly in
-/// its `-migration` variant, which counts as the version itself in comparisons.
+/// The `-source` version, as dotty's `SourceVersion`: `3.minor`, `2.13` (between `3.10` and
+/// `future`) or `future`, possibly in its `-migration` variant, which counts as the version
+/// itself in comparisons.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SourceVersion {
-    /// The minor version; `FUTURE` for `future`.
+    /// The minor version; `SCALA2` for `2.13`, `FUTURE` for `future`.
     minor: u8,
     pub migrating: bool,
 }
 
 impl SourceVersion {
+    const SCALA2: u8 = 98;
     const FUTURE: u8 = 99;
     pub const V3_0: SourceVersion = SourceVersion::stable(0);
     pub const V3_2: SourceVersion = SourceVersion::stable(2);
@@ -25,8 +27,11 @@ impl SourceVersion {
         SourceVersion { minor, migrating: false }
     }
 
-    /// `3.x`, `3.x-migration`, `future` or `future-migration`.
+    /// `3.x`, `3.x-migration`, `2.13`, `future` or `future-migration`.
     pub fn parse(s: &str) -> Option<Self> {
+        if s == "2.13" {
+            return Some(SourceVersion::stable(Self::SCALA2));
+        }
         let (base, migrating) = s.strip_suffix("-migration").map_or((s, false), |b| (b, true));
         let minor = match base {
             "future" => Self::FUTURE,
@@ -42,6 +47,11 @@ impl SourceVersion {
 
     pub fn is_at_least(self, v: SourceVersion) -> bool {
         self.minor >= v.minor
+    }
+
+    /// `2.13`: the unit behaves as the Scala 2 standard library (dotty's `shouldBehaveAsScala2`).
+    pub fn is_scala2(self) -> bool {
+        self.minor == Self::SCALA2
     }
 
     pub fn migrate_to_3(self) -> bool {

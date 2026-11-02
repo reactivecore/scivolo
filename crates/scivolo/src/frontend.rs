@@ -67,6 +67,9 @@ pub fn compile(
     }
     options.retain(|o| !Settings::reads(o));
     let cfg = Config::checked(&options).map_err(|o| format!("option `{o}`"))?;
+    if cfg.explicit_nulls {
+        return Err("option `-Yexplicit-nulls`".into());
+    }
     let macros = macros.map(|m| m as &mut dyn Macros);
     let image = image.ok_or("no library image")?;
     let name = source.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
