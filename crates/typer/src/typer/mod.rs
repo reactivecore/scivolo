@@ -29,6 +29,7 @@ mod avoid_select;
 mod by_name_repeated;
 mod call_types;
 mod callee_types;
+mod capture_types;
 mod captured_paths;
 mod case_companion;
 mod case_lambdas;

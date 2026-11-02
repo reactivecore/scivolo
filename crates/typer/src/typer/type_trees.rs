@@ -127,6 +127,7 @@ impl Typer<'_> {
             }
             Tree::Function { args, body, mods, .. } => self.typed_function_type(id, (args, body), mods, ctx),
             Tree::ByNameTypeTree { result } => {
+                let result = self.by_name_retaining(result);
                 let result = self.typed_type(result, ctx);
                 let tpe = self.u.intern_type(Type::ByName(self.tpd.tpe(result)));
                 self.tpd.node(T::ByNameTypeTree { result }, span, Some(tpe), None)

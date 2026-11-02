@@ -135,27 +135,37 @@ impl Typer<'_> {
         mods: Option<(ModsId, Box<[bool]>)>,
         ctx: Ctx,
     ) -> TNodeId {
+        if let syntax::ast::Tree::CapturesAndResult { refs, parent } = *self.ast.tree(body) {
+            return self.typed_retaining_function(id, (refs, parent), ctx);
+        }
         let arg_ids = self.ast.items(args).to_vec();
         let n = arg_ids.len();
-        let (contextual, erased) = match mods {
-            None => (false, vec![false; n]),
+        let (contextual, erased, impure) = match mods {
+            None => (false, vec![false; n], false),
             Some((m, erased)) => {
                 let flags = self.ast.modifiers(m).flags;
-                if flags.is(f::IMPURE) {
-                    return self.unsupported(id, "impure function type");
-                }
-                (flags.is(f::GIVEN), erased.to_vec())
+                (flags.is(f::GIVEN), erased.to_vec(), flags.is(f::IMPURE))
             }
         };
+        let dependent =
+            arg_ids.first().is_some_and(|&a| matches!(self.ast.tree(a), syntax::ast::Tree::ValDef { .. }));
+        if impure && (dependent || erased.contains(&true)) {
+            return self.unsupported(id, "impure dependent function type");
+        }
         if erased.contains(&true) {
             let typed = self.typed_erased_function_type(id, (&arg_ids, body), (&erased, contextual), ctx);
             return typed.unwrap_or_else(|| self.unsupported(id, "erased function type"));
         }
-        let class = if contextual { self.context_function_class(n) } else { self.function_class(n) };
+        let class = match (contextual, impure) {
+            (false, false) => self.function_class(n),
+            (true, false) => self.context_function_class(n),
+            (false, true) => self.class_of_full_name(&format!("scala.ImpureFunction{n}")),
+            (true, true) => self.class_of_full_name(&format!("scala.ImpureContextFunction{n}")),
+        };
         let Some(class) = class else {
             return self.unsupported(id, "function type of that many parameters");
         };
-        if arg_ids.first().is_some_and(|&a| matches!(self.ast.tree(a), syntax::ast::Tree::ValDef { .. })) {
+        if dependent {
             return self.typed_dependent_function_type(id, (&arg_ids, body), (class, contextual), ctx);
         }
         let parts = arg_ids.iter().chain([&body]);
@@ -168,6 +178,9 @@ impl Typer<'_> {
             let tpe = self.tpd.tpe(p);
             self.derives_erased_class(tpe)
         }) {
+            if impure {
+                return self.unsupported(id, "impure dependent function type");
+            }
             let typed = self.typed_erased_function_type(id, (&arg_ids, body), (&erased, contextual), ctx);
             return typed.unwrap_or_else(|| self.unsupported(id, "erased function type"));
         }
