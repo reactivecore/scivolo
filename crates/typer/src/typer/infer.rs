@@ -117,9 +117,9 @@ impl Typer<'_> {
         self.fully_defined_as(t, false)
     }
 
-    /// `fully_defined` with dotty's `ForceDegree.all` if `bottom_ok` (`fullyDefinedType`), the variables of each pass
-    /// by their variances at its start: a variable with a lower
-    /// bound maximized where it occurs contravariantly, one without minimized where it occurs
+    /// `fully_defined` with dotty's `ForceDegree.all` if `bottom_ok` (`fullyDefinedType`), the
+    /// variables of each pass in the direction their declared bounds give (`instDecision`), else
+    /// by their variances at its start: a variable with a lower bound maximized where it occurs contravariantly, one without minimized where it occurs
     /// covariantly, or invariantly without upper bound.
     pub fn fully_defined_as(&mut self, t: TypeId, bottom_ok: bool) -> Result<TypeId, &'static str> {
         for _ in 0..64 {
@@ -143,9 +143,10 @@ impl Typer<'_> {
                 }
                 let (lo, hi) = self.constraint.bounds(v);
                 let variance = variances.get(&v.0).copied().unwrap_or(0);
-                let from_below = match lo != NOTHING {
-                    true => variance >= 0,
-                    false => bottom_ok && (variance > 0 || variance == 0 && self.is_exactly_any(hi)),
+                let from_below = match (self.constraint.direction(self.u, v), lo != NOTHING) {
+                    (0, true) => variance >= 0,
+                    (0, false) => bottom_ok && (variance > 0 || variance == 0 && self.is_exactly_any(hi)),
+                    (direction, _) => direction < 0,
                 };
                 self.instantiate_var(v, from_below)?;
             }
