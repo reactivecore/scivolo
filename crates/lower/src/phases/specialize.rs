@@ -80,7 +80,7 @@ fn specialize(l: &mut Lower, app: TNodeId, fun: TNodeId, arity: usize) -> Result
     let result = l.u.widen(l.tpd.tpe(app));
     let result = l.u.erase_value(result);
     let primitives = params.iter().all(|p| matches!(p, Erased::Prim(_)));
-    if !primitives || !specializable(&params, &result) {
+    if !primitives || !specializable(&params, &result) || l.tpd.scala2 {
         return Ok(());
     }
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else {
@@ -138,7 +138,7 @@ fn specialized_for(l: &mut Lower, class: SymbolId, sym: SymbolId) -> Option<Symb
     let params: Option<Vec<Erased>> = param_types.iter().map(|&t| primitive(l, t)).collect();
     let result_type = l.u.result_type(info);
     let (params, result) = (params?, primitive(l, result_type)?);
-    specializable(&params, &result).then(|| specialized_apply(l.u, &params, &result).ok()).flatten()
+    (specializable(&params, &result) && !l.tpd.scala2).then(|| specialized_apply(l.u, &params, &result).ok()).flatten()
 }
 
 /// For method definition `dd` of `class`, an `apply` of specializable primitive types: makes it

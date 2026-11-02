@@ -10,6 +10,7 @@ pub struct SourceVersion {
 }
 
 impl SourceVersion {
+    const SCALA2: u8 = 98;
     const FUTURE: u8 = 99;
     pub const V3_0: SourceVersion = SourceVersion::stable(0);
     pub const V3_2: SourceVersion = SourceVersion::stable(2);
@@ -25,8 +26,11 @@ impl SourceVersion {
         SourceVersion { minor, migrating: false }
     }
 
-    /// `3.x`, `3.x-migration`, `future` or `future-migration`.
+    /// `3.x`, `3.x-migration`, `2.13`, `future` or `future-migration`.
     pub fn parse(s: &str) -> Option<Self> {
+        if s == "2.13" {
+            return Some(SourceVersion::stable(Self::SCALA2));
+        }
         let (base, migrating) = s.strip_suffix("-migration").map_or((s, false), |b| (b, true));
         let minor = match base {
             "future" => Self::FUTURE,
@@ -42,6 +46,11 @@ impl SourceVersion {
 
     pub fn is_at_least(self, v: SourceVersion) -> bool {
         self.minor >= v.minor
+    }
+
+    /// `2.13`: the unit behaves as the Scala 2 standard library (dotty's `shouldBehaveAsScala2`).
+    pub fn is_scala2(self) -> bool {
+        self.minor == Self::SCALA2
     }
 
     pub fn migrate_to_3(self) -> bool {

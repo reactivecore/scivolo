@@ -76,7 +76,8 @@ impl Desugar<'_> {
         let clauses = self.join_params(&tparams, &paramss);
         let creator = self.creator_expr(c);
         let kept = c.mods.flags.to_term_flags().and(flags::GIVEN_OR_IMPLICIT.or(flags::INLINE));
-        let m = self.companion_mods(c).or(kept.or(flags::FINAL));
+        let fin = if self.cfg.source_version.is_scala2() { flags::EMPTY } else { flags::FINAL };
+        let m = self.companion_mods(c).or(kept.or(fin));
         let mods = self.ast.mods(m);
         let name = TName { is_type: false, ..c.name };
         let wrapper = self.method(name, &clauses, Some(c.class_type_ref), creator, mods);
