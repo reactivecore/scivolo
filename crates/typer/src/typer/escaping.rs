@@ -50,14 +50,14 @@ impl Typer<'_> {
                 None
             });
             for v in vars {
-                let inner = locals.iter().all(|&s| self.constraint.made_after(v, s));
-                if seen.contains(&v) || inner || self.constraint.instance(v).is_some() {
+                if seen.contains(&v) || self.constraint.instance(v).is_some() {
                     continue;
                 }
                 seen.push(v);
+                let inner = locals.iter().all(|&s| self.constraint.made_after(v, s));
                 let (lo, hi) = self.constraint.bounds(v);
                 let (lo, hi) = (self.zonk(lo), self.zonk(hi));
-                if self.refers_to(lo, locals) || self.refers_to(hi, locals) {
+                if !inner && (self.refers_to(lo, locals) || self.refers_to(hi, locals)) {
                     return true;
                 }
                 todo.extend([lo, hi]);

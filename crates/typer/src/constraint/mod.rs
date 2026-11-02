@@ -162,17 +162,17 @@ impl Constraint {
     }
 
     /// Sets the bounds of `v` to `lo` and `hi` if `checked <: hi` holds then, `checked` being
-    /// the part of `lo` to check; instantiates `v` to equal bounds that do not refer to it and
-    /// are not a bare type constructor (dotty's `addOneBound` and its `tryReplace`).
+    /// the part of `lo` to check; instantiates `v` to equal bounds without uninstantiated
+    /// variables that are not a bare type constructor (dotty's `addOneBound` and its `tryReplace`).
     fn narrow(&mut self, u: &mut Universe, v: VarId, lo: TypeId, hi: TypeId, checked: TypeId) -> bool {
-        let mut recursive = false;
         if lo == hi {
+            let mut open = false;
             u.map_type(lo, &mut |u, part| {
-                recursive |= *u.types().get(part) == Type::Var(v);
+                open |= matches!(*u.types().get(part), Type::Var(w) if self.vars[w.0 as usize].instance.is_none());
                 None
             });
             let tycon = matches!(*u.types().get(lo), Type::Sym(_, s) if !u.type_params(s).is_empty());
-            if !recursive && !tycon {
+            if !open && !tycon {
                 self.instantiate(v, lo);
                 return true;
             }

@@ -59,6 +59,12 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether `t` refers to a type symbol being completed.
+    pub fn is_completing_type(&mut self, t: TypeId) -> bool {
+        matches!(*self.u.types().get(t), Type::Sym(_, s) if self.u.is_type_symbol(s)
+            && matches!(self.syms.completions.get(&s), Some(crate::symbols::Completion::Completing(_))))
+    }
+
     /// How many type parameters type member `s` declares while its info is completed and is not
     /// provisional (dotty's `completerTypeParams`).
     fn arity_while_completing(&self, s: SymbolId) -> Option<usize> {

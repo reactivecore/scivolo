@@ -5,8 +5,8 @@
 
 use super::Typer;
 use super::approx::{self, Approx};
-use super::avoid_map::Avoided;
-use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId};
+use super::avoid::Avoided;
+use tasty::{Kind, NOTHING, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// `pre.s` with prefix `pre` approximated as `p`: the member's alias, bounds or singleton
@@ -33,7 +33,7 @@ impl Typer<'_> {
         }
         let name = self.u.symbol(s).name.clone();
         if self.type_members(p.hi(), &name).is_empty() {
-            return Some(approx::range(self.u, Approx::Exact(NOTHING), Approx::Exact(ANY), v));
+            return Some(approx::empty(self.u, v));
         }
         let hi = self.u.intern_type(Type::Sym(Some(p.hi()), s));
         let lo = match p.lo() {
@@ -63,6 +63,7 @@ impl Typer<'_> {
     fn avoid_term_info(&mut self, pre: TypeId, s: SymbolId, v: i8, a: Avoided) -> Option<Approx> {
         let info = self.u.term_type(Some(pre), s);
         let info = self.u.widen(info);
+        let a = a.elsewhere();
         if matches!(self.u.types().get(info), Type::Bounds(..)) {
             return self.avoid_info(info, v, a);
         }
@@ -70,7 +71,8 @@ impl Typer<'_> {
     }
 
     /// `pre.s` replaced by what it is equal to or bounded by (dotty's `tryWiden` and
-    /// `expandParam`); `None` if it has no such type, `Some(None)` if avoiding that fails.
+    /// `expandParam`); `None` if it has no such type, `Some(None)` if avoiding that fails, also
+    /// when the bounds of `s` are reached again while expanding them.
     fn try_widen(
         &mut self,
         t: TypeId,
@@ -79,17 +81,16 @@ impl Typer<'_> {
         v: i8,
         a: Avoided,
     ) -> Option<Option<Approx>> {
-        let kind = self.u.symbol(s).kind;
-        if matches!(kind, Kind::TypeParam | Kind::Type) && a.expanding.contains(&s) {
-            return Some(Some(approx::range(self.u, Approx::Exact(NOTHING), Approx::Exact(ANY), v)));
-        }
         let expanding = [a.expanding, &[s]].concat();
-        let inner = Avoided { expanding: &expanding, ..a };
-        match kind {
+        let cyclic = a.expanding.contains(&s);
+        let inner = Avoided { expanding: &expanding, own: Some(s), ..a };
+        let a = a.elsewhere();
+        match self.u.symbol(s).kind {
             Kind::TypeParam => {
                 let arg = super::seen_from::class_param_arg(self.u, t).map(|a| self.resolve_class_params(a));
                 arg.map(|arg| match *self.u.types().get(arg) {
-                    Type::Bounds(..) => self.avoid_info(arg, v, inner),
+                    Type::Bounds(..) if cyclic => None,
+                    Type::Bounds(..) => self.avoid_info(arg, v, inner.elsewhere()),
                     _ => self.avoid_at(arg, v, a),
                 })
             }
@@ -99,7 +100,8 @@ impl Typer<'_> {
                     return Some(self.avoid_at(alias, v, a));
                 }
                 let info = self.u.member_info(pre, s);
-                matches!(self.u.types().get(info), Type::Bounds(..)).then(|| self.avoid_info(info, v, inner))
+                let bounds = matches!(self.u.types().get(info), Type::Bounds(..));
+                bounds.then(|| if cyclic { None } else { self.avoid_info(info, v, inner) })
             }
             k if k.is_term() => {
                 let info = self.u.term_type(Some(pre), s);

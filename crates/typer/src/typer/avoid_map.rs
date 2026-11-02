@@ -4,24 +4,8 @@
 
 use super::Typer;
 use super::approx::{self, Approx};
+use super::avoid::Avoided;
 use tasty::{Kind, NOTHING, SymbolId, Type, TypeId, TypeVars};
-
-/// The symbols to avoid, those whose bounds are unknown, and the local symbols being expanded:
-/// reaching one of the last two fails. Reaching a type member whose bounds are being expanded
-/// gives `Nothing .. Any` (dotty's `LazyRef` of an F-bound under `isExpandingBounds`).
-#[derive(Clone, Copy)]
-pub struct Avoided<'a> {
-    pub locals: &'a [SymbolId],
-    pub opaque: &'a [SymbolId],
-    pub visiting: &'a [SymbolId],
-    pub expanding: &'a [SymbolId],
-}
-
-impl<'a> Avoided<'a> {
-    pub fn new(locals: &'a [SymbolId], opaque: &'a [SymbolId]) -> Self {
-        Avoided { locals, opaque, visiting: &[], expanding: &[] }
-    }
-}
 
 impl Typer<'_> {
     /// `t` approximated at variance `v` by types without references to `a.locals`; `None` if an
@@ -30,6 +14,7 @@ impl Typer<'_> {
         let exact = |t| Some(Approx::Exact(t));
         let m = |this: &mut Self, t, v| this.avoid_at(t, v, a);
         match self.u.types().get(t).clone() {
+            Type::Sym(_, s) if a.own == Some(s) => Some(approx::empty(self.u, v)),
             Type::Sym(_, s) if a.opaque.contains(&s) => None,
             Type::Sym(_, s) if a.locals.contains(&s) => self.avoid_local(s, v, a),
             Type::Sym(Some(pre), s) if !self.u.is_static_symbol(s) => {
@@ -101,7 +86,7 @@ impl Typer<'_> {
             return None;
         }
         let visiting = [a.visiting, &[s]].concat();
-        let a = Avoided { visiting: &visiting, ..a };
+        let a = Avoided { visiting: &visiting, ..a.elsewhere() };
         let info = self.u.info(s);
         let info = match *self.u.types().get(info) {
             Type::ByName(r) => r,
