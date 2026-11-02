@@ -57,11 +57,12 @@ pub fn extract(l: &mut Lower, body: TNodeId) -> Result<Holes> {
             return unsupported(l.tpd.span(c), "captured reference in a quote");
         }
         let n = l.tpd.get(splice);
-        let (tree, span, tpe, sym) = (n.tree.clone(), n.span, n.tpe, n.sym);
+        let (tree, tpe, sym) = (n.tree.clone(), n.tpe, n.sym);
+        let span = l.tpd.span(content).to_synthetic();
         let node = l.tpd.node(tree, span, tpe, sym);
         let bindings = l.tpd.list(&[]);
         let s = l.tpd.get_mut(splice);
-        (s.tree, s.sym) = (Tree::Inlined { call: None, bindings, expansion: node }, None);
+        (s.tree, s.sym, s.span) = (Tree::Inlined { call: None, bindings, expansion: node }, None, span);
         holes.holes.push(QuoteHole { node, index: index as u32, args: Vec::new() });
         holes.contents.push(content);
     }

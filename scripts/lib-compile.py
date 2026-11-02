@@ -67,8 +67,10 @@ def jar_name(module):
 
 
 def lower_cmd(module, root, files, out):
-    """The `scivolo-lower` command lowering `files` of source directory `root` into `out`."""
-    return [str(LOWER), "--macros", *OPTIONS.get(module, []), "--sourceroot", str(root), *map(str, files), str(out)]
+    """The `scivolo-lower` command lowering `files` of source directory `root` into `out`, the
+    checkout the source root as in Scala Native's build."""
+    roots = ["--sourceroot", str(SN), "--position-root", str(root)]
+    return [str(LOWER), "--macros", *OPTIONS.get(module, []), *roots, *map(str, files), str(out)]
 
 
 def oracle(module):

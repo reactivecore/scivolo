@@ -100,6 +100,21 @@ impl TreePickler<'_> {
                     Ok(())
                 })
             }
+            Type::Local(local, name) => {
+                let (binder, i) = self
+                    .scopes
+                    .iter()
+                    .rev()
+                    .filter(|(b, _)| b.0 == local.0)
+                    .find_map(|(b, names)| Some((*b, names.iter().position(|n| *n == name)?)))
+                    .ok_or("a reference to a local type outside its lambda")?;
+                let at = self.binders[&binder];
+                self.with_length(PARAMtype, &mut |p| {
+                    p.buf.write_ref(at);
+                    p.nat(i as u64);
+                    Ok(())
+                })
+            }
             _ => Err("a type outside the subset pickled"),
         }
     }
@@ -113,7 +128,8 @@ impl TreePickler<'_> {
         modifier: Option<u8>,
     ) -> Result<(), Refusal> {
         self.binders.insert(binder, at);
-        self.with_length(tag, &mut |p| {
+        self.scopes.push((binder, params.iter().map(|(n, _)| n.clone()).collect()));
+        let pickled = self.with_length(tag, &mut |p| {
             p.ty(result, true)?;
             for (name, t) in params {
                 p.ty(*t, false)?;
@@ -121,7 +137,9 @@ impl TreePickler<'_> {
             }
             modifier.into_iter().for_each(|m| p.byte(m));
             Ok(())
-        })
+        });
+        self.scopes.pop();
+        pickled
     }
 
     /// Constant type `t` (dotty's `pickleConstant`).

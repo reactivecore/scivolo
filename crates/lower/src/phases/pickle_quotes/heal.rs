@@ -40,7 +40,9 @@ pub fn heal(l: &mut Lower, body: TNodeId) {
                     continue;
                 }
                 let parts: Vec<TypeId> = parts.map(|p| l.tpd.tpe(p)).collect();
-                l.u.intern_type(Type::Applied(parts[0], parts[1..].to_vec()))
+                let applied = l.u.intern_type(Type::Applied(parts[0], parts[1..].to_vec()));
+                let bounded = parts[1..].iter().any(|&a| matches!(l.u.types().get(a), Type::Bounds(..)));
+                if bounded { applied } else { l.u.beta_reduced(applied) }
             }
             _ => healed(l.u, tpe),
         };

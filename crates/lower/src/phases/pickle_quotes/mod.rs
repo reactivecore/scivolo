@@ -13,7 +13,7 @@ use crate::{Lower, Result, unsupported};
 use syntax::ast::{Span, TName};
 use tasty::tags::INLINE;
 use tasty::{Kind, SymbolId, Type, TypeId};
-use typer::pickle::pickle_quote;
+use typer::pickle::{QuoteSource, pickle_positioned_quote};
 use typer::tpd::{TNodeId, Tree, Walk, traverse};
 
 const QUOTE: &str = "scala.quoted.runtime.Expr$.quote";
@@ -76,16 +76,18 @@ fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
     }
     heal::heal(l, q.body);
     let holes = holes::extract(l, q.body)?;
-    let call = inline_call_trace(l, owner, span);
+    let call = inline_call_trace(l, owner, span.to_synthetic());
     let bindings = l.tpd.list(&[]);
     let body_tpe = l.tpd.tpe(q.body);
     let root = l.tpd.node(
         Tree::Inlined { call: Some(call), bindings, expansion: q.body },
-        span,
+        span.to_synthetic(),
         Some(body_tpe),
         None,
     );
-    let bytes = pickle_quote((l.u, l.tpd, l.names), root, &holes.holes)
+    let (base, file) = l.sources.files()[l.sources.index(span.in_own_source().start())];
+    let source = QuoteSource::of(file.tasty_path().to_owned(), file, base);
+    let bytes = pickle_positioned_quote((l.u, l.tpd, l.names), root, &holes.holes, &source)
         .or_else(|r| unsupported(span, format!("quotes with {r}")))?;
     let pickled = strings::pickled(l, &bytes)
         .or_else(|()| unsupported(span, "quotes whose TASTy takes several strings"))?;
