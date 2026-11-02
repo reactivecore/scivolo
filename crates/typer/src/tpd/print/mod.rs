@@ -88,8 +88,8 @@ impl Printer<'_> {
             Field::Node(t) => self.node(*t),
             Field::Opt(None) if template => self.out.push_str(" _self"),
             Field::Opt(Some(t)) if Some(*t) == bound => {
-                let span = self.tpd.span(*t);
-                write!(self.out, " (TypedSplice {}..{}", span.start(), span.end()).unwrap();
+                let span = self.span(self.tpd.span(*t).to_synthetic());
+                write!(self.out, " (TypedSplice {span}").unwrap();
                 self.node(*t);
                 self.out.push(')');
             }

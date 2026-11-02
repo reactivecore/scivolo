@@ -79,6 +79,11 @@ impl World {
         self.classpath.shadows(packages)
     }
 
+    /// The top-level names before the library whose NIR files have entry points, sorted.
+    pub fn entry_point_tops(&mut self) -> Vec<String> {
+        self.classpath.entry_point_tops()
+    }
+
     /// The top-level names on the classpath that end in `suffix`.
     pub fn tops_ending(&mut self, suffix: &str) -> Vec<String> {
         self.classpath.tops_ending(suffix)

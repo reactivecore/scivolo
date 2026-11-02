@@ -53,10 +53,13 @@ instead of the run.
   (ADR 0008).
 - **Object layout.** `IntrinsicsTest.sizeOfClassTest` expects the lock word multithreaded Scala
   Native adds to object headers; the VM keeps monitors outside objects (ADR 0003).
-- **Static initializers.** Scala Native runs every `<clinit>` (of `@static` values) before
-  `main`, the VM on first use of the class; side effects of the initial values, or a companion
-  object reading them during its construction, come in another order or see other values
-  (ADR 0047).
+- **Static initializers.** Before `main`, Scala Native runs every `<clinit>` (of `@static`
+  values) in the order of its linker's `Reach.done` hash map, which depends on how many
+  definitions the program reaches, before the runtime's `init`; the VM runs the `<clinit>`s of
+  the files before the library sorted by class name, after `init`, which the heap snapshot
+  holds (#188). A dependency jar's file that replaces a library file counts as having a
+  `<clinit>` only if the library's has one. Files added to a REPL session run theirs on first
+  use of the class (ADR 0047).
 
 ## Upstream bugs to report
 
