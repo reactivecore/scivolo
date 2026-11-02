@@ -35,6 +35,12 @@ pub struct Prelude {
     pub has_entry_points: bool,
 }
 
+/// Whether `header`, the first `LENGTH` bytes of a file, is a NIR header that says the file has
+/// entry points.
+pub fn has_entry_points(header: &[u8]) -> bool {
+    header.len() == LENGTH && header[..4] == MAGIC.to_be_bytes() && header[LENGTH - 1] != 0
+}
+
 impl Prelude {
     pub fn read(data: &[u8]) -> Result<Prelude> {
         let mut c = Cursor::new(data);
