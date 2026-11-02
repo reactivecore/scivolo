@@ -129,6 +129,8 @@ mod named_tuple_types;
 mod named_tuples;
 mod named_type_args;
 mod names;
+mod null_infos;
+pub(crate) mod nullables;
 mod new_type_args;
 mod no_inits;
 mod non_method_apply;
@@ -271,6 +273,7 @@ pub struct Typer<'a> {
     pub features: Features,
     /// `-Yexplicit-nulls`.
     pub explicit_nulls: bool,
+    pub nullables: nullables::Nullables,
     /// The setting that makes the top-level definitions experimental (`Config::experimental`).
     pub experimental: Option<&'static str>,
     /// The `-W` lints the options enable.
@@ -405,6 +408,7 @@ impl<'a> Typer<'a> {
             erasure_diags: Diagnostics::default(),
             features: cfg.features,
             explicit_nulls: cfg.explicit_nulls,
+            nullables: Default::default(),
             experimental: cfg.experimental,
             lints: cfg.warnings.lints,
             source_future: v.requires_new_syntax(),
@@ -476,6 +480,14 @@ impl<'a> Typer<'a> {
         let tree = match self.contextual_function(id, pt, inner).or_else(|| self.ready(id, inner)) {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, inner),
+        };
+        let tree = match self.ast.tree(id) {
+            syntax::ast::Tree::Ident { .. } | syntax::ast::Tree::Select { .. }
+                if self.explicit_nulls && !ctx.mode.is(crate::ctx::Mode::ASSIGNMENT_LHS) =>
+            {
+                self.to_not_null_ref(tree, inner)
+            }
+            _ => tree,
         };
         if let Err(what) = self.interpolate(tree, pt, vars) {
             self.unsupported(id, what);

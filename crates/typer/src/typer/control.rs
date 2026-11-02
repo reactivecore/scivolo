@@ -35,7 +35,8 @@ impl Typer<'_> {
         let cond = self.typed(cond, Pt::Type(boolean), ctx);
         let Some(elsep) = elsep else {
             let unit = self.unit_type();
-            let thenp = self.typed(thenp, Pt::Type(unit), ctx);
+            let then_ctx = self.nullable_ctx_if(cond, true, ctx);
+            let thenp = self.typed(thenp, Pt::Type(unit), then_ctx);
             let elsep = self.build().literal(Constant::Unit, span.end_pos());
             return self.tpd.node(T::If { cond, thenp, elsep, inline }, span, Some(unit), None);
         };
@@ -45,7 +46,8 @@ impl Typer<'_> {
             pt => pt,
         };
         let before = self.before_harmonic();
-        let branches = vec![self.typed(thenp, branch_pt, ctx), self.typed(elsep, branch_pt, ctx)];
+        let (then_ctx, else_ctx) = (self.nullable_ctx_if(cond, true, ctx), self.nullable_ctx_if(cond, false, ctx));
+        let branches = vec![self.typed(thenp, branch_pt, then_ctx), self.typed(elsep, branch_pt, else_ctx)];
         let (thenp, elsep) = match self.harmonic(branches, branch_pt, Some(before), ctx) {
             Ok(h) => (h[0], h[1]),
             Err(what) => return self.unsupported(id, what),
@@ -76,7 +78,8 @@ impl Typer<'_> {
         let boolean = self.boolean();
         let cond = self.typed(cond, Pt::Type(boolean), ctx);
         let unit = self.unit_type();
-        let body = self.typed(body, Pt::Type(unit), ctx);
+        let body_ctx = self.nullable_ctx_if(cond, true, ctx);
+        let body = self.typed(body, Pt::Type(unit), body_ctx);
         let span = self.ast.span(id);
         self.tpd.node(T::WhileDo { cond, body }, span, Some(unit), None)
     }

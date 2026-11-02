@@ -93,9 +93,14 @@ impl Typer<'_> {
         let mut ctxs = Vec::new();
         for &s in stats {
             if !matches!(self.ast.tree(s), Tree::Empty) {
-                out.push(self.typed_stat(s, ctx));
+                self.adapt_creation_ctx(s, ctx);
+                let typed = self.typed_stat(s, ctx);
+                out.push(typed);
                 ctxs.push(ctx);
                 ctx = self.after_stat(s, ctx);
+                if !self.is_definition(s) {
+                    ctx = self.nullable_ctx(typed, ctx);
+                }
             }
         }
         self.finalize_derived(&out, &ctxs);
@@ -105,14 +110,7 @@ impl Typer<'_> {
     /// Statement `s`, an expression checked for purity.
     pub fn typed_stat(&mut self, s: NodeId, ctx: Ctx) -> TNodeId {
         let typed = self.typed(s, Pt::Any, ctx);
-        let definition = matches!(
-            self.ast.tree(s),
-            Tree::ValDef { .. }
-                | Tree::DefDef { .. }
-                | Tree::TypeDef { .. }
-                | Tree::Import { .. }
-                | Tree::PackageDef { .. }
-        );
+        let definition = self.is_definition(s);
         if !definition
             && !matches!(self.ast.tree(s), Tree::Function { .. })
             && self.is_eta_closure(typed)
@@ -125,6 +123,13 @@ impl Typer<'_> {
             self.check_statement_purity(typed, parens);
         }
         typed
+    }
+
+    fn is_definition(&self, s: NodeId) -> bool {
+        matches!(
+            self.ast.tree(s),
+            Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } | Tree::PackageDef { .. }
+        )
     }
 
     /// Whether `s` is the setter desugaring gives a variable, which a block does not define
@@ -149,6 +154,12 @@ impl Typer<'_> {
         self.index(&stat_ids, bctx);
         let typed = self.typed_stats(&stat_ids, bctx);
         let expr_ctx = stat_ids.iter().fold(bctx, |c, &s| self.after_stat(s, c));
+        let typed_ids = stat_ids.iter().filter(|&&s| !matches!(self.ast.tree(s), Tree::Empty));
+        let stats: Vec<(NodeId, TNodeId)> = typed_ids.copied().zip(typed.iter().copied()).collect();
+        let expr_ctx = stats.iter().fold(expr_ctx, |c, &(s, t)| match self.is_definition(s) {
+            true => c,
+            false => self.nullable_ctx(t, c),
+        });
         let expr = match expr {
             Some(e) => self.typed(e, pt, expr_ctx),
             None => return self.unsupported(id, "block without result"),
