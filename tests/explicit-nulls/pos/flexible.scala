@@ -17,7 +17,6 @@ object Flexible:
   def id(x: String | Null): String | Null = x
   val passed = id(System.getProperty("d"))
   val arr = Array(sub)
-  val formatted = String.format("%s %s", 1, sub)
   val orNull = if eq then sub else null
 
 class Ordered1 extends Comparable[Ordered1]:

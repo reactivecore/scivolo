@@ -118,7 +118,7 @@ fn explicit_nulls_end_with_their_unit() {
     assert_eq!(member_type(&mut u, "rs$line$2", "k"), "String");
     let third = "object rs$line$3 { val x: String = null }";
     assert!(type_unit_with(&mut u, &mut units, ("line.scala", third), flagged).is_err());
-    let java = "object rs$line$4 { val a = \"abc\".trim }";
+    let java = "object rs$line$4 { val a = \"abc\".trim; val f = String.format(\"%s\", 1) }";
     assert_eq!(type_unit_with(&mut u, &mut units, ("line.scala", java), flagged), Ok(()));
     let a = member_type(&mut u, "rs$line$4", "a");
     assert!(a.contains('?'), "{a}");
