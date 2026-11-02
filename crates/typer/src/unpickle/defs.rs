@@ -145,7 +145,7 @@ impl Unpickler<'_> {
             flags,
             target: None,
             is_extern: false,
-            derived: false,
+            derived: self.is_derived_name(id),
             decls: Vec::new(),
             tree: Some((self.file, id)),
         });

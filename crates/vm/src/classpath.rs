@@ -1,5 +1,6 @@
 //! Finds the `.nir` file of a top-level name in directories, jars and the library image.
 
+mod entries;
 mod shadow;
 
 use crate::member_table::Table;
@@ -21,6 +22,8 @@ pub struct Classpath {
     roots: Vec<Root>,
     /// How many roots come before the library's.
     own: usize,
+    /// Files of directories read by `entry_point_tops`, by path, until `find` takes them.
+    read_ahead: rustc_hash::FxHashMap<String, Vec<u8>>,
 }
 
 impl Classpath {
@@ -32,7 +35,7 @@ impl Classpath {
                 false => ZipArchive::new(File::open(p)?).map(Root::Jar).map_err(io::Error::other),
             })
             .collect::<io::Result<_>>()?;
-        Ok(Self { own: roots.len(), roots })
+        Ok(Self { own: roots.len(), roots, read_ahead: Default::default() })
     }
 
     /// `paths`, then the library files of `image`.
@@ -137,6 +140,9 @@ impl Classpath {
     /// The bytes of the file defining `top`, e.g. `scala.Predef$` → `scala/Predef$.nir`.
     pub fn find(&mut self, top: &str) -> Option<(Cow<'static, [u8]>, Option<Table>)> {
         let rel = format!("{}.nir", top.replace('.', "/"));
+        if let Some(data) = self.read_ahead.remove(&rel) {
+            return Some((Cow::Owned(data), None));
+        }
         keep_errno(|| {
             self.roots.iter_mut().find_map(|root| match root {
                 Root::Image(image) => {

@@ -4,13 +4,14 @@
 //! captured values, its abstract methods calling the lifted method (nscplugin's `genClosure`).
 
 use super::Gen;
+use crate::phases::adapt::from_start;
 use crate::phases::sam::abstract_methods;
 use crate::symbols::is_java_static;
 use crate::{Result, unsupported};
 use nir::sig::{Scope, Sig};
 use nir::{Defn, DefnKind, GlobalId, Op, Type, TypeId, Val, ValId};
 use tasty::SymbolId;
-use typer::tpd::{List, TNodeId};
+use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
     /// Closure `t` of method `meth` with captured values `env`, implementing functional interface
@@ -81,15 +82,19 @@ impl Gen<'_, '_> {
         let alloc = self.emit(Op::Classalloc { name: anon, zone: None });
         let mut args = vec![alloc];
         if instance {
-            let this = match self.l.u.is_package_object(class) || home != class {
-                true => {
-                    let scope = self.m.scopes.iter().find(|s| s.id == self.m.scope).map(|s| s.pos);
-                    let outer = self.at(scope.unwrap_or(self.m.pos));
+            let receiver = match *self.l.tpd.tree(meth) {
+                Tree::Select { qualifier, .. } => Some(qualifier),
+                _ => None,
+            };
+            let this = match (receiver, self.l.u.is_package_object(class) || home != class) {
+                (Some(receiver), _) => self.gen_expr(receiver)?,
+                (None, true) => {
+                    let outer = self.at_span(from_start(span));
                     let module = self.this_of(home, span);
                     self.m.pos = outer;
                     module?
                 }
-                false => self.m.this.expect("`this` of a method"),
+                (None, false) => self.m.this.expect("`this` of a method"),
             };
             args.push(this);
         }

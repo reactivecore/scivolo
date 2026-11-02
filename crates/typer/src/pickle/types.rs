@@ -3,55 +3,17 @@
 //! Types (dotty's `pickleType`, `pickleNewType`, `pickleMethodic`, `pickleConstant`).
 
 use super::names::qualified;
-use super::{Refusal, Shared, TreePickler};
+use super::{Refusal, TreePickler};
 use tasty::tags::*;
 use tasty::write::{Addr, Name};
-use tasty::{Binder, SymbolId, Type, TypeId};
+use tasty::{Binder, Type, TypeId};
 
 impl TreePickler<'_> {
-    /// Type `t`, a `SHAREDtype` if pickled before; `rich` admits method types.
-    pub fn ty(&mut self, t: TypeId, rich: bool) -> Result<(), Refusal> {
-        let at = self.buf.buf.current_addr();
-        if self.is_shared(Shared::Type(t)) {
-            return Ok(());
-        }
-        self.new_type(t, rich, at)
-    }
-
-    /// The `this` of package `p`, a `SHAREDtype` if pickled before (dotty's `ThisType` case).
-    pub fn package_this(&mut self, p: SymbolId) {
-        if self.is_shared(Shared::PackageThis(p)) {
-            return;
-        }
-        if p == self.u.root() {
-            self.byte(THIS);
-            self.byte(TYPEREFpkg);
-        } else {
-            self.byte(TERMREFpkg);
-        }
-        self.package_name(p);
-    }
-
-    /// Writes a `SHAREDtype` if `key` was pickled before, else records it at the current address.
-    fn is_shared(&mut self, key: Shared) -> bool {
-        match self.types.get(&key) {
-            Some(&at) => {
-                self.byte(SHAREDtype);
-                self.buf.write_ref(at);
-                true
-            }
-            None => {
-                self.types.insert(key, self.buf.buf.current_addr());
-                false
-            }
-        }
-    }
-
     fn types(&mut self, ts: &[TypeId], rich: bool) -> Result<(), Refusal> {
         ts.iter().try_for_each(|&t| self.ty(t, rich))
     }
 
-    fn new_type(&mut self, t: TypeId, rich: bool, at: Addr) -> Result<(), Refusal> {
+    pub fn new_type(&mut self, t: TypeId, rich: bool, at: Addr) -> Result<(), Refusal> {
         match self.u.types().get(t).clone() {
             Type::Applied(tycon, args) => self.with_length(APPLIEDtype, &mut |p| {
                 p.ty(tycon, false)?;

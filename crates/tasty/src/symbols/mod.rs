@@ -18,6 +18,7 @@ mod inits;
 mod java_strings;
 mod java_stubs;
 mod jdk;
+mod jdk_declarations;
 mod joined_bases;
 mod joint;
 mod loaded;
@@ -197,6 +198,11 @@ impl Universe {
     pub fn file(&self, file: FileId) -> (&Ast, &[String]) {
         let f = self.files[file.0 as usize].decoded();
         (&f.ast, &f.names)
+    }
+
+    /// Whether name `i` of loaded file `file` is of a kind other than `Utf8`.
+    pub fn is_derived_name(&self, file: FileId, i: usize) -> bool {
+        self.files[file.0 as usize].decoded().derived.get(i).copied().unwrap_or_default()
     }
 
     /// Whether `s` comes from the Scala 2 standard library (dotty's `Scala2x` flag).

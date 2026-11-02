@@ -5,9 +5,9 @@
 
 use super::lambda_lift::Function;
 use super::lift_names::Pending;
-use super::narrowed::{narrow_logic_owner, narrow_to};
+use super::narrowed::{encloses, enclosing_instance, narrow_logic_owner, narrow_to};
 use super::walk::{children, is_type_tree};
-use crate::symbols::{has, is_static, is_static_owner};
+use crate::symbols::{has, is_static, is_static_module, is_static_owner};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::MUTABLE;
@@ -68,7 +68,16 @@ pub fn dependencies(
                 let tpe = l.tpd.tpe(tpt);
                 let tycon = if let Type::Applied(t, _) = l.u.types().get(tpe) { *t } else { tpe };
                 let created = if let Type::Sym(_, c) = *l.u.types().get(tycon) { Some(c) } else { None };
-                functions[i].this |= created.is_some_and(|c| l.u.symbol(c).owner == Some(class));
+                match created.and_then(|c| l.u.symbol(c).owner) {
+                    Some(o) if o == class => functions[i].this = true,
+                    Some(o)
+                        if enclosing_instance(l, class, o)
+                            || is_static_module(l.u, o) && encloses(l, o, class) =>
+                    {
+                        _ = narrow_logic_owner(l, &mut functions[i], o)
+                    }
+                    _ => {}
+                }
             }
             (Tree::Ident { .. }, Some(s)) if pending.passed.contains(&t) => {
                 add_call(&mut called, i, Callee::Value(s))
