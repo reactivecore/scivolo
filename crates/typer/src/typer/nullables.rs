@@ -137,8 +137,8 @@ impl Typer<'_> {
     }
 
     /// Reference `tree`, cast to `ref.type & T` if it is known not to be null and of type
-    /// `T | Null` (dotty's `toNotNullTermRef`).
-    pub fn to_not_null_ref(&mut self, tree: TNodeId, ctx: Ctx) -> TNodeId {
+    /// `T | Null` (dotty's `toNotNullTermRef`); the cast of a selection keeps its span.
+    pub fn to_not_null_ref(&mut self, tree: TNodeId, select: bool, ctx: Ctx) -> TNodeId {
         let r = self.tpd.tpe(tree);
         let Some(sym) = self.term_ref_sym(r) else { return tree };
         if !self.implies_not_null(ctx, r) || self.used_out_of_order(sym, ctx) {
@@ -152,11 +152,9 @@ impl Typer<'_> {
             return tree;
         }
         let to = self.u.intern_type(Type::And(r, stripped));
-        let span = match self.tpd.span(tree) {
-            s if s.point() == s.start() => s.to_synthetic(),
-            s => s,
-        };
-        match self.cast_to(tree, to, span) {
+        let span = self.tpd.span(tree);
+        let cast_span = if select { span } else { span.to_synthetic() };
+        match self.cast_to(tree, to, cast_span) {
             Ok(t) => {
                 if let T::TypeApply { fun, args } = *self.tpd.tree(t) {
                     let tpt = self.tpd.items(args)[0];

@@ -11,6 +11,9 @@ object FlowBlock:
       if s == null then throw new NullPointerException()
       s.length
     n + 1
+  def nothing(s: String | Null): Int =
+    if s == null then sys.error("null")
+    s.length
   def nested(s: String | Null): Int =
     {
       if s == null then return 0

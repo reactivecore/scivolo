@@ -486,7 +486,8 @@ impl<'a> Typer<'a> {
             syntax::ast::Tree::Ident { .. } | syntax::ast::Tree::Select { .. }
                 if self.explicit_nulls && !ctx.mode.is(crate::ctx::Mode::ASSIGNMENT_LHS) =>
             {
-                self.to_not_null_ref(tree, inner)
+                let select = matches!(self.ast.tree(id), syntax::ast::Tree::Select { .. });
+                self.to_not_null_ref(tree, select, inner)
             }
             _ => tree,
         };

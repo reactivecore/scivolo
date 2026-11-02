@@ -8,7 +8,7 @@ use super::Typer;
 use super::nullables::{NotNullInfo, union};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
-use tasty::TypeId;
+use tasty::{Type, TypeId};
 
 type Conditional = (Vec<TypeId>, Vec<TypeId>);
 
@@ -31,14 +31,11 @@ impl Typer<'_> {
             T::Inlined { expansion, .. } => self.not_null_info(expansion),
             T::Typed { expr, .. } => self.not_null_info(expr),
             T::TypeApply { fun, .. } => self.not_null_info(fun),
-            T::Apply { fun, args } if self.is_throw(fun) => {
-                let args = self.tpd.items(args).to_vec();
-                args.iter().fold(NotNullInfo::empty(), |i, &a| i.seq(self.not_null_info(a))).terminated_info()
-            }
             T::Apply { fun, args } => {
                 let args = self.tpd.items(args).to_vec();
                 let fun = self.not_null_info(fun);
-                args.iter().fold(fun, |i, &a| i.seq(self.not_null_info(a)))
+                let info = args.iter().fold(fun, |i, &a| i.seq(self.not_null_info(a)));
+                if self.is_nothing_type(t) { info.terminated_info() } else { info }
             }
             T::Block { stats, expr } => {
                 let stats = self.tpd.items(stats).to_vec();
@@ -132,7 +129,7 @@ impl Typer<'_> {
         let known = match (op == fun, name.as_str()) {
             (true, "==" | "!=") => owner == b.any,
             (true, "eq" | "ne") => owner == b.object || owner == self.defn.object,
-            (false, "eq" | "ne") => self.u.full_name(owner).starts_with("scala.Predef"),
+            (false, "eq" | "ne") => self.u.module_class(self.defn.predef) == Some(owner),
             _ => false,
         };
         let operand = match (self.is_null_literal(arg), self.is_null_literal(l)) {
@@ -155,7 +152,13 @@ impl Typer<'_> {
         (self.u.full_name(owner) == "scala.Boolean").then(|| self.u.symbol(m).name.clone())
     }
 
-    fn is_throw(&self, fun: TNodeId) -> bool {
-        self.tpd.sym(fun).is_some_and(|s| Some(s) == self.syms.throw_method)
+    /// Whether the type of `t` is a reference to class `Nothing` (dotty's `isNothingType`).
+    fn is_nothing_type(&mut self, t: TNodeId) -> bool {
+        let (nothing, tpe) = (self.u.builtins().nothing, self.tpd.tpe(t));
+        match *self.u.types().get(tpe) {
+            Type::Sym(_, s) => s == nothing,
+            Type::TypeRef(..) => self.u.resolve_ref(tpe) == Some(nothing),
+            _ => false,
+        }
     }
 }
