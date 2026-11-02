@@ -16,3 +16,6 @@ object CaseNull:
     case null => None
     case Some(s) => Some(s)
     case o => o
+  def p(n: String | Null) = n match
+    case null | "" => 0
+    case s => s.length
