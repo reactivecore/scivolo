@@ -536,6 +536,20 @@ subtype-oracle:
 inline-fixture:
     scala-cli --power package --library --server=false -S 3.9.0 crates/typer/tests/inlined/lib/Lib.scala -o crates/typer/tests/inlined/lib/lib.jar -f
 
+# Compile crates/lower/tests/superlib/lib into its lib.jar (TASTy) and superlib.scala against it
+# into Scala Native's NIR beside it.
+superlib-fixture:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir={{ justfile_directory() }}/crates/lower/tests/superlib
+    rm -rf tmp/superlib "$dir"/*.nir "$dir/lib/lib.jar"
+    sn() { scala-cli --power compile --quiet --native --native-version 0.5.12 --scala 3.9.0 --server=false "$@"; }
+    sn --workspace tmp/superlib/ws-lib -d tmp/superlib/lib "$dir/lib/P.scala"
+    sn --scalac-option -sourceroot --scalac-option "$dir" --extra-jars tmp/superlib/lib \
+        --workspace tmp/superlib/ws -d tmp/superlib/out "$dir/superlib.scala"
+    (cd tmp/superlib/lib && zip -q -X -r "$dir/lib/lib.jar" . -i '*/' '*.tasty')
+    cp tmp/superlib/out/*.nir "$dir"
+
 # Compile the macro library tests/macros/lib with Scala Native into tests/macros/lib/macros.jar:
 # NIR and TASTy, as a `--dep` jar holds them, and the class files dotty's oracle runs.
 macro-fixture:

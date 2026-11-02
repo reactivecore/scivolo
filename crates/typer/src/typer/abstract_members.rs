@@ -62,7 +62,7 @@ impl Typer<'_> {
             for d in decls {
                 let (kind, name) = (self.u.symbol(d).kind, self.u.symbol(d).name.clone());
                 let mixin =
-                    !self.syms.is_script(d) && (name.contains("$$super$") || name.contains("$_setter_$"));
+                    !self.syms.is_script(d) && (name.contains("$super$") || name.contains("$_setter_$"));
                 if !matches!(kind, Kind::Val | Kind::Def)
                     || name == "<init>"
                     || mixin
