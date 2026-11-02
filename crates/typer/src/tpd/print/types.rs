@@ -136,6 +136,7 @@ impl Printer<'_> {
                 Some(c) => format!("{} @{}", self.tpe(a, n), full_name(self.u, c)),
                 None => self.tpe(a, n),
             },
+            Type::Flexible(hi) => format!("{}?", self.tpe(hi, n)),
             Type::ByName(r) => format!("=> {}", self.tpe(r, n)),
             Type::Refined(p, name, info) => format!("{}{{{name} {}}}", self.tpe(p, n), self.tpe(info, n)),
             Type::Rec(_, p) => format!("rec{{{}}}", self.tpe(p, n)),

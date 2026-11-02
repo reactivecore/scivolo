@@ -136,6 +136,8 @@ mod no_inits;
 mod non_method_apply;
 mod not_a_member;
 mod not_found;
+mod null_infos;
+pub(crate) mod nullables;
 mod op_assign;
 mod overload_errors;
 mod overloaded_extractors;
@@ -201,6 +203,7 @@ mod this;
 mod this_calls;
 mod throws_types;
 mod top_level_annotations;
+mod tracked_refs;
 mod trait_params;
 mod transparent;
 mod transparent_traits;
@@ -273,12 +276,15 @@ pub struct Typer<'a> {
     pub features: Features,
     /// `-Yexplicit-nulls`.
     pub explicit_nulls: bool,
+    pub nullables: nullables::Nullables,
     /// The setting that makes the top-level definitions experimental (`Config::experimental`).
     pub experimental: Option<&'static str>,
     /// The `-W` lints the options enable.
     pub lints: Lints,
     /// Whether the source version is `future`.
     pub source_future: bool,
+    /// Whether the unit behaves as the Scala 2 library (`language.\`2.13\``).
+    pub scala2: bool,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -407,9 +413,11 @@ impl<'a> Typer<'a> {
             erasure_diags: Diagnostics::default(),
             features: cfg.features,
             explicit_nulls: cfg.explicit_nulls,
+            nullables: Default::default(),
             experimental: cfg.experimental,
             lints: cfg.warnings.lints,
             source_future: v.requires_new_syntax(),
+            scala2: v.is_scala2(),
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
@@ -453,6 +461,7 @@ impl<'a> Typer<'a> {
             file_starts: Vec::new(),
             macros: None,
         };
+        typer.tpd.scala2 = typer.scala2;
         typer.enter_and_or();
         typer.u.set_comparison_owner(None);
         Ok(typer)
@@ -478,6 +487,15 @@ impl<'a> Typer<'a> {
         let tree = match self.contextual_function(id, pt, inner).or_else(|| self.ready(id, inner)) {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, inner),
+        };
+        let tree = match self.ast.tree(id) {
+            syntax::ast::Tree::Ident { .. } | syntax::ast::Tree::Select { .. }
+                if self.explicit_nulls && !ctx.mode.is(crate::ctx::Mode::ASSIGNMENT_LHS) =>
+            {
+                let select = matches!(self.ast.tree(id), syntax::ast::Tree::Select { .. });
+                self.to_not_null_ref(tree, select, inner)
+            }
+            _ => tree,
         };
         if let Err(what) = self.interpolate(tree, pt, vars) {
             self.unsupported(id, what);

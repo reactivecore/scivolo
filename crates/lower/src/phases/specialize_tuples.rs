@@ -15,8 +15,12 @@ use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Specializes the tuple creations and element selections in class definition `td`; `inits`
-/// are the unit's objects with initialization code.
+/// are the unit's objects with initialization code; nothing in a unit behaving as the Scala 2
+/// library.
 pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) -> Result<()> {
+    if l.tpd.scala2 {
+        return Ok(());
+    }
     let (mut result, mut specialized) = (Ok(()), FxHashSet::default());
     walk_class_up(l, td, &mut |_, _, _| Walk::Children, &mut |l, t, _| {
         let s = &mut specialized;

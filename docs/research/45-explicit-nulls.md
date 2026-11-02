@@ -101,8 +101,10 @@ touches in `TypeComparer.scala` 4 lines, `Types.scala` 35 `FlexibleType` lines, 
 4. Java members: `System.arraycopy` 67 calls, `Arrays.copyOf` 47, `Arrays.sort` 26, `String.valueOf`
    14, `getClass` 28. On Scala Native `java.*` is javalib, whose TASTy (`libs/javalib-tasty-0.5.12.jar`)
    carries only `SOURCEFILE`: no `EXPLICITNULLS`, no `JAVA` attribute, so dotty keeps their declared
-   types. Members become flexible only when the build JDK's class files shadow javalib on the class
-   path; whether `"a".substring(1)` is `String` or `String?` in Scala Native's build is the first probe.
+   types. javalib on the class path shadows the JDK's class files: only the classes javalib defines
+   under other names (`String`, `Object`, `Comparable`, …, `T/symbols/jdk.rs` `RENAMED`) come from the
+   JDK, so `"a".substring(1)` is `String?` while `new StringBuilder().append("a")` and
+   `System.getProperty("a")` stay `String`-typed (probes `java-members.scala`, `flexible.scala`).
 5. The published `scala-library-3.9.0.jar` TASTy is compiled with explicit nulls (attributes
    `SCALA2STANDARDLIBRARY, EXPLICITNULLS, CAPTURECHECKED, WITHPUREFUNS, SOURCEFILE`): `| Null` members
    and `FLEXIBLEtype` already reach our unpickler today.
@@ -116,8 +118,8 @@ touches in `TypeComparer.scala` 4 lines, `Types.scala` 35 `FlexibleType` lines, 
    `T/subtype/refs.rs:64`, `Y/typer/patterns.rs:113-118`. `widen_union` is "without explicit nulls"
    (`Y/typer/widen_union.rs:19-21`). Erasure handles `Null` beside a reference
    (`T/erasure/bounds.rs:91-96`, `:177-183`).
-2. `FLEXIBLEtype`: tag exists (`T/tags.rs:152`); decoding replaces it by its underlying type
-   (`T/types/decode/mod.rs:127`); no flexible variant; printer shows `(T)?` (`T/print/inline.rs:111`).
+2. `FLEXIBLEtype` decodes to `Type::Flexible(hi)` (`T/types/flexible.rs`); JDK members are nullified
+   under explicit nulls in `T/symbols/java_nulls.rs`.
    TASTy attributes are parsed (`T/file.rs:62-88`), only `SCALA2STANDARDLIBRARY` used.
 3. `.nn`, `eq`/`ne`: ordinary Predef extensions. No `unsafeNulls`, no `SafeNulls` mode, no not-null
    tracking, no `case null` stripping.

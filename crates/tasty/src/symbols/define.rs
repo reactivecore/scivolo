@@ -74,6 +74,7 @@ impl Universe {
     /// Sets the declared type `info` returns for `sym`; replacing a different info drops the
     /// resolved references.
     pub fn set_info(&mut self, sym: SymbolId, info: TypeId) {
+        self.nullified_infos.remove(&sym);
         if self.infos.insert(sym, info).is_some_and(|old| old != info) {
             self.changed();
         }

@@ -64,7 +64,9 @@ pub fn plan(
     let needed = adaptation_needed(&erased, &erased_result, &sam_params, &sam_result);
     let specialized_interface = match needed {
         _ if !function || needed == (false, false) => None,
-        _ if specializable(&erased, &erased_result) => Some(specialized(l.u, &erased, &erased_result)),
+        _ if specializable(&erased, &erased_result) && !l.tpd.scala2 => {
+            Some(specialized(l.u, &erased, &erased_result))
+        }
         (false, _) if erased_result == Erased::Unit => Some(procedure(l.u, params.len())),
         _ => None,
     };

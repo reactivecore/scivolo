@@ -15,6 +15,7 @@ mod function_classes;
 mod impure_functions;
 mod info;
 mod inits;
+mod java_nulls;
 mod java_strings;
 mod java_stubs;
 mod jdk;
@@ -74,6 +75,8 @@ pub struct Universe {
     types: Types,
     /// The declared type of each symbol whose type was asked for.
     infos: FxHashMap<SymbolId, TypeId>,
+    /// The type under explicit nulls of each symbol whose type was asked for in that mode.
+    nullified_infos: FxHashMap<SymbolId, TypeId>,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// Per class and base class, whether the class's parents give the base different types.
@@ -82,6 +85,8 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
+    /// The classes defined outside TASTy in a unit that behaves as the Scala 2 library.
+    scala2_classes: FxHashSet<SymbolId>,
     /// The Java classes of the Scala library entered without TASTy, their objects and objects'
     /// classes.
     java_stubs: FxHashSet<SymbolId>,
@@ -214,7 +219,15 @@ impl Universe {
 
     /// Whether `s` comes from the Scala 2 standard library (dotty's `Scala2x` flag).
     pub fn is_scala2(&self, s: SymbolId) -> bool {
-        self.symbol(s).tree.is_some_and(|(file, _)| self.files[file.0 as usize].scala2)
+        match self.symbol(s).tree {
+            Some((file, _)) => self.files[file.0 as usize].scala2,
+            None => self.scala2_classes.contains(&s),
+        }
+    }
+
+    /// Records that class `c`, defined outside TASTy, behaves as the Scala 2 library's.
+    pub fn set_scala2(&mut self, c: SymbolId) {
+        self.scala2_classes.insert(c);
     }
 
     /// Whether `erase` erases as Scala 2 does.

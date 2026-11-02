@@ -12,10 +12,17 @@ use tasty::SymbolId;
 
 impl Typer<'_> {
     /// Whether statement `s` of a class body initializes nothing (dotty's `defKind` has `NoInits`):
-    /// a synthetic companion object counts as part of its class, an extension method does not.
+    /// a synthetic companion object counts as part of its class, an extension method does not;
+    /// in a unit behaving as the Scala 2 library, neither do a class and a concrete method.
     fn is_no_init_member(&self, s: NodeId) -> bool {
         match *self.ast.tree(s) {
-            Tree::Empty | Tree::Import { .. } | Tree::TypeDef { .. } => true,
+            Tree::Empty | Tree::Import { .. } => true,
+            Tree::TypeDef { rhs, .. } => !self.scala2 || !matches!(self.ast.tree(rhs), Tree::Template { .. }),
+            Tree::DefDef { paramss, rhs, .. } if self.scala2 => {
+                let mut params = self.ast.clause_items(paramss).iter().flat_map(|&c| self.ast.items(c));
+                rhs.is_none()
+                    && params.all(|&p| !matches!(self.ast.tree(p), Tree::ValDef { rhs: Some(_), .. }))
+            }
             Tree::DefDef { mods, .. } => !self.ast.modifiers(mods).flags.is(f::EXTENSION_METHOD),
             Tree::ValDef { rhs, mods, .. } => {
                 let flags = self.ast.modifiers(mods).flags;

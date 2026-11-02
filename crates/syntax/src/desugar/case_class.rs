@@ -61,6 +61,9 @@ impl Desugar<'_> {
             meths.push(self.method(name, &joined, None, creator, mods));
         }
         meths.extend(enum_meths);
+        if self.cfg.source_version.is_scala2() {
+            return (meths, scaffolding);
+        }
         let names_in_body: Vec<TName> = c
             .body
             .iter()
@@ -127,6 +130,8 @@ impl Desugar<'_> {
         });
         let (rhs, res) = if c.arity() == 0 {
             (self.literal(Constant::Boolean(true)), Some(self.literal(Constant::Boolean(true))))
+        } else if self.cfg.source_version.is_scala2() {
+            (self.scala2_unapply_rhs(c, param_name), None)
         } else {
             (self.ident(param_name), None)
         };
@@ -142,11 +147,45 @@ impl Desugar<'_> {
         meths
     }
 
+    /// `Option(x.p)`, or `Option(scala.TupleN(x.p1, ..., x.pN))`, of the parameters of case class
+    /// `c` and `unapply`'s parameter `x` (dotty's `scala2LibCompatUnapplyRhs`).
+    fn scala2_unapply_rhs(&mut self, c: &ClassParts, x: TName) -> NodeId {
+        let names: Vec<TName> = c.derived_vparamss[0]
+            .iter()
+            .filter_map(|&p| match *self.ast.tree(p) {
+                Tree::ValDef { name, .. } => Some(name),
+                _ => None,
+            })
+            .collect();
+        let members: Vec<NodeId> = names
+            .into_iter()
+            .map(|name| {
+                let x = self.ident(x);
+                self.select(x, name)
+            })
+            .collect();
+        let value = match members[..] {
+            [one] => one,
+            _ => {
+                let (scala, tuple) = (self.term("scala"), self.term(&format!("Tuple{}", members.len())));
+                let scala = self.ident(scala);
+                let tuple = self.select(scala, tuple);
+                self.apply(tuple, &members)
+            }
+        };
+        let option = self.term("Option");
+        let option = self.scala_dot(option);
+        self.apply(option, &[value])
+    }
+
     /// `Synthetic` with the access of the primary constructor.
     fn synthetic_access_mods(&mut self, c: &ClassParts) -> ModsId {
         let constr = self.ast.modifiers(self.ast.mods_of(c.constr1).expect("modifiers")).clone();
         let access = if self.cfg.source_version.migrate_to_3() { flags::EMPTY } else { flags::ACCESS_FLAGS };
-        let flags = flags::SYNTHETIC.or(constr.flags.and(access));
+        let mut flags = flags::SYNTHETIC.or(constr.flags.and(access));
+        if self.cfg.source_version.is_scala2() {
+            flags = flags.and_not(flags::PRIVATE);
+        }
         self.ast.mods(Modifiers { flags, private_within: constr.private_within, ..Modifiers::default() })
     }
 

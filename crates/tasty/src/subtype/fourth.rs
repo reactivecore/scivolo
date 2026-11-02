@@ -28,6 +28,7 @@ impl Cmp<'_> {
             Type::Refined(parent, ..)
             | Type::Rec(_, parent)
             | Type::Annotated(parent, _)
+            | Type::Flexible(parent)
             | Type::Match { bound: parent, .. } => self.recur(parent, b),
             Type::And(x, y) => self.and_below(a, b, x, y),
             _ => false,
