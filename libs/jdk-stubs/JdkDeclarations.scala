@@ -31,6 +31,21 @@ package java.lang {
   final class Character extends java.io.Serializable
   object Character {
     @static val TYPE: Class[Character] = null
+    @static final val MIN_RADIX = 2
+    @static final val MAX_RADIX = 36
+    @static final val MIN_VALUE = '\u0000'
+    @static final val MAX_VALUE = '￿'
+    @static final val MIN_HIGH_SURROGATE = '\ud800'
+    @static final val MAX_HIGH_SURROGATE = '\udbff'
+    @static final val MIN_LOW_SURROGATE = '\udc00'
+    @static final val MAX_LOW_SURROGATE = '\udfff'
+    @static final val MIN_SURROGATE = '\ud800'
+    @static final val MAX_SURROGATE = '\udfff'
+    @static final val MIN_SUPPLEMENTARY_CODE_POINT = 0x10000
+    @static final val MIN_CODE_POINT = 0
+    @static final val MAX_CODE_POINT = 0x10ffff
+    @static final val SIZE = 16
+    @static final val BYTES = 2
     @static def charCount(codePoint: Int): Int = 0
     @static def isLowerCase(ch: Char): scala.Boolean = false
     @static def isLowerCase(codePoint: Int): scala.Boolean = false
@@ -239,6 +254,87 @@ package java.util {
     override def listIterator(index: Int): ListIterator[E] = null
     override def iterator(): Iterator[E] = null
     override def subList(fromIndex: Int, toIndex: Int): List[E] = null
+  }
+
+  class LinkedHashMap[K, V](initialCapacity: Int, loadFactor: scala.Float, accessOrder: scala.Boolean)
+      extends HashMap[K, V] {
+    override def containsValue(value: Any): scala.Boolean = false
+    override def get(key: Any): V = null.asInstanceOf[V]
+    override def getOrDefault(key: Any, defaultValue: V): V = defaultValue
+    override def clear(): Unit = ()
+    protected def removeEldestEntry(eldest: Map.Entry[K, V]): scala.Boolean = false
+    override def keySet(): Set[K] = null
+    override def values(): Collection[V] = null
+    override def entrySet(): Set[Map.Entry[K, V]] = null
+    override def forEach(action: java.util.function.BiConsumer[? >: K, ? >: V]): Unit = ()
+    override def replaceAll(function: java.util.function.BiFunction[? >: K, ? >: V, ? <: V]): Unit = ()
+  }
+  object LinkedHashMap { private[util] class Entry[K, V] }
+}
+
+package java.nio.file {
+  import java.io.{BufferedWriter, InputStream, OutputStream}
+  import java.nio.charset.Charset
+  import java.nio.file.attribute.{BasicFileAttributes, FileAttribute, FileAttributeView, FileTime}
+  import java.nio.file.attribute.{PosixFilePermission, UserPrincipal}
+
+  abstract class FileSystem extends java.io.Closeable {
+    def getPath(first: String, more: String*): Path
+  }
+
+  final class Files
+  object Files {
+    @static def newInputStream(path: Path, options: OpenOption*): InputStream = null
+    @static def newOutputStream(path: Path, options: OpenOption*): OutputStream = null
+    @static def newByteChannel(
+        path: Path,
+        options: java.util.Set[? <: OpenOption],
+        attrs: FileAttribute[?]*
+    ): java.nio.channels.SeekableByteChannel = null
+    @static def newByteChannel(path: Path, options: OpenOption*): java.nio.channels.SeekableByteChannel = null
+    @static def createFile(path: Path, attrs: FileAttribute[?]*): Path = null
+    @static def createDirectory(dir: Path, attrs: FileAttribute[?]*): Path = null
+    @static def createDirectories(dir: Path, attrs: FileAttribute[?]*): Path = null
+    @static def createTempFile(dir: Path, prefix: String, suffix: String, attrs: FileAttribute[?]*): Path = null
+    @static def createTempFile(prefix: String, suffix: String, attrs: FileAttribute[?]*): Path = null
+    @static def createTempDirectory(dir: Path, prefix: String, attrs: FileAttribute[?]*): Path = null
+    @static def createTempDirectory(prefix: String, attrs: FileAttribute[?]*): Path = null
+    @static def createSymbolicLink(link: Path, target: Path, attrs: FileAttribute[?]*): Path = null
+    @static def copy(source: Path, target: Path, options: CopyOption*): Path = null
+    @static def copy(in: InputStream, target: Path, options: CopyOption*): scala.Long = 0L
+    @static def copy(source: Path, out: OutputStream): scala.Long = 0L
+    @static def move(source: Path, target: Path, options: CopyOption*): Path = null
+    @static def getFileAttributeView[V <: FileAttributeView](path: Path, tpe: Class[V], options: LinkOption*): V =
+      null.asInstanceOf[V]
+    @static def readAttributes[A <: BasicFileAttributes](path: Path, tpe: Class[A], options: LinkOption*): A =
+      null.asInstanceOf[A]
+    @static def readAttributes(path: Path, attributes: String, options: LinkOption*): java.util.Map[String, Object] =
+      null
+    @static def setAttribute(path: Path, attribute: String, value: Object, options: LinkOption*): Path = null
+    @static def getAttribute(path: Path, attribute: String, options: LinkOption*): Object = null
+    @static def getPosixFilePermissions(path: Path, options: LinkOption*): java.util.Set[PosixFilePermission] = null
+    @static def getOwner(path: Path, options: LinkOption*): UserPrincipal = null
+    @static def isDirectory(path: Path, options: LinkOption*): scala.Boolean = false
+    @static def isRegularFile(path: Path, options: LinkOption*): scala.Boolean = false
+    @static def getLastModifiedTime(path: Path, options: LinkOption*): FileTime = null
+    @static def exists(path: Path, options: LinkOption*): scala.Boolean = false
+    @static def notExists(path: Path, options: LinkOption*): scala.Boolean = false
+    @static def newBufferedWriter(path: Path, cs: Charset, options: OpenOption*): BufferedWriter = null
+    @static def newBufferedWriter(path: Path, options: OpenOption*): BufferedWriter = null
+    @static def write(path: Path, bytes: Array[scala.Byte], options: OpenOption*): Path = null
+    @static def write(path: Path, lines: java.lang.Iterable[? <: CharSequence], cs: Charset, options: OpenOption*): Path =
+      null
+    @static def write(path: Path, lines: java.lang.Iterable[? <: CharSequence], options: OpenOption*): Path = null
+    @static def writeString(path: Path, csq: CharSequence, options: OpenOption*): Path = null
+    @static def writeString(path: Path, csq: CharSequence, cs: Charset, options: OpenOption*): Path = null
+    @static def walk(start: Path, maxDepth: Int, options: FileVisitOption*): java.util.stream.Stream[Path] = null
+    @static def walk(start: Path, options: FileVisitOption*): java.util.stream.Stream[Path] = null
+    @static def find(
+        start: Path,
+        maxDepth: Int,
+        matcher: java.util.function.BiPredicate[Path, BasicFileAttributes],
+        options: FileVisitOption*
+    ): java.util.stream.Stream[Path] = null
   }
 }
 

@@ -4,6 +4,7 @@
 use super::entries::Entry;
 use super::{FileId, Kind, Symbol, SymbolId, Universe};
 use crate::tags::{OBJECT, SYNTHETIC};
+use crate::types::{Type, TypeId};
 
 /// The directory of the JDK's declarations in the library, beside the packages.
 pub const JDK_DECLARATIONS: &str = "jdk-declarations/";
@@ -96,6 +97,27 @@ impl Universe {
                 self.unenter(d);
             }
         }
+    }
+
+    /// Type `t` of a member of file `file` with its repeated parameters `Seq[T] @Repeated` made
+    /// Java varargs, `Array[T] @Repeated`, if the file holds JDK declarations.
+    pub fn with_declared_varargs(&mut self, file: FileId, t: TypeId) -> TypeId {
+        if !self.files[file.0 as usize].path.starts_with(JDK_DECLARATIONS) {
+            return t;
+        }
+        self.map_type(t, &mut |u, part| {
+            let Type::Annotated(seq, annot) = *u.types().get(part) else { return None };
+            let Type::Applied(_, ref args) = *u.types().get(seq) else { return None };
+            let args = args.clone();
+            let repeated =
+                u.class_symbol(annot).is_some_and(|c| u.full_name(c) == "scala.annotation.internal.Repeated");
+            if !repeated || args.len() != 1 {
+                return None;
+            }
+            let array = u.class_ref("scala.Array");
+            let array = u.intern_type(Type::Applied(array, args));
+            Some(u.intern_type(Type::Annotated(array, annot)))
+        })
     }
 
     fn define_declared(&mut self, owner: SymbolId, kind: Kind, file: FileId, e: &Entry) -> SymbolId {

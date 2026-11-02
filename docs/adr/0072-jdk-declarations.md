@@ -19,6 +19,12 @@ JDK's declarations, as whole classes in place of javalib's (`--jdk-tasty libs/jd
   their classes, objects and type parameters are javalib's symbols; each member they declare
   replaces javalib's members of its name in that class, so a name lists all the JDK's overloads
   of its class. Constructors, synthetic members and classes javalib lacks are not entered.
+- A declared repeated parameter `T*` is Java varargs, `Array[T] @Repeated`.
+- `libs/jdk-stubs/JdkClasses.scala` holds JDK classes javalib lacks that library sources import
+  (`java.io.SequenceInputStream`); their TASTy is in `libs/jdk-declarations.jar` in the package
+  table, without NIR, so a use fails to link, as in Scala Native.
+- The values of javalib's objects of JDK classes are static, as their methods are: Java's enum
+  constants and static fields (`TimeUnit.SECONDS`) are `TimeUnit::static SECONDS()`.
 - Bodies stay javalib's: the VM runs javalib's NIR. NIR calls keep the JDK's declaring class and
   the JDK's static members (`Integer::static TYPE()`), which javalib's static forwarders define.
 - When JDK jars stand for the JDK (`--jdk-tasty`: nativelib's and javalib's builds), they replace

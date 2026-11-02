@@ -84,6 +84,8 @@ object Returns:
     type T = Option[Int]
     val t: T = wrap { if k > 2 then return Some(k); None }
     t
+  def handler(n: Int): PartialFunction[Throwable, Int] = { case _: ArithmeticException => n }
+  def nested(k: Int): Int = try 10 / (try 10 / k catch handler(1)) catch handler(2)
 
 object Reduced:
   def anon(): Unit = (new Function0[Unit] { def apply() = println("anon") })()
@@ -121,5 +123,6 @@ object Statement:
   Calls.run()
   println(Returns.f(1))
   println(Returns.f(5))
+  println(Returns.nested(0))
   Reduced.run()
   Statement

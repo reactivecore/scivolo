@@ -27,7 +27,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         for acc in l.u.decls(mixin).unwrap_or_default() {
             if l.super_accessors.contains_key(&acc) {
                 defs.push(implementation(l, class, acc, at)?);
-            } else if library && has(l.u, acc, ARTIFACT) && is_library_accessor(&l.u.symbol(acc).name) {
+            } else if library && has(l.u, acc, ARTIFACT) && decompose(l, acc, &l.u.symbol(acc).name).is_some()
+            {
                 defs.push(library_implementation(l, class, acc, at)?);
             }
         }
@@ -49,8 +50,9 @@ fn implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: Span) -> 
     let target = match mixed {
         true => member,
         false => {
-            let name = l.u.symbol(member).name.clone();
-            rebind_super(l, class, acc, &name, span)?
+            let m = l.u.symbol(member);
+            let (name, target) = (m.name.clone(), m.target.clone().unwrap_or_else(|| m.name.clone()));
+            rebind_super(l, class, acc, Wanted { name: &name, mix: "", target: &target }, span)?
         }
     };
     let owner = l.u.symbol(target).owner.expect("a member's owner");
@@ -65,23 +67,35 @@ fn implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: Span) -> 
     Ok(def)
 }
 
-/// Whether `name` is that of a super accessor a library trait's TASTy declares: `super$m` or
-/// `T$$super$m`.
-fn is_library_accessor(name: &str) -> bool {
-    name.starts_with("super$") || name.contains("$$super$")
+/// The member name and mix of super accessor name `name` of `acc`: `m` and an empty mix for
+/// `super$m`, `m` and `Q` for `m$super$Q`, each also with the prefix `T$$` of the accessor's
+/// trait `T` (dotty's `decomposeSuperName`).
+fn decompose<'a>(l: &Lower, acc: SymbolId, name: &'a str) -> Option<(&'a str, &'a str)> {
+    let owner = l.u.symbol(acc).owner?;
+    let prefix = format!("{}$$", l.u.expanded_prefix(owner));
+    let unexpanded = name.strip_prefix(prefix.as_str()).unwrap_or(name);
+    match unexpanded.strip_prefix("super$") {
+        Some(member) => Some((member, "")),
+        None => unexpanded.rsplit_once("$super$"),
+    }
 }
 
 /// The implementation in `class` of super accessor `acc` of a library trait, at `span`.
 fn library_implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: Span) -> Result<TNodeId> {
-    let expanded = l.u.symbol(acc).name.clone();
-    let Some((_, name)) = expanded.rsplit_once("$$super$") else {
-        return unsupported(span, "super accessors of library traits without an expanded name");
+    let (expanded, renamed) = (l.u.symbol(acc).name.clone(), l.u.symbol(acc).target.clone());
+    let (name, mix) = decompose(l, acc, &expanded).expect("a super accessor name");
+    let target = match &renamed {
+        Some(t) => decompose(l, acc, t).map_or(t.as_str(), |(m, _)| m),
+        None => name,
     };
-    let target = rebind_super(l, class, acc, name, span)?;
+    let target = rebind_super(l, class, acc, Wanted { name, mix, target }, span)?;
     let owner = l.u.symbol(target).owner.expect("a member's owner");
     let this = l.u.this_type(class);
     let info = l.u.member_info(this, acc);
     let sym = l.u.define(symbol(&expanded, Kind::Def, class, Flags::default().with(ARTIFACT)));
+    if let Some(t) = &renamed {
+        l.u.set_target(sym, t);
+    }
     l.u.set_info(sym, info);
     Ok(l.forwarding_def(sym, span, |l, args, result| {
         let sup = l.super_mix(class, owner, span);
@@ -90,16 +104,31 @@ fn library_implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: S
     }))
 }
 
-/// The member named `name` super accessor `acc` calls in `base`: the first concrete one in the
-/// base classes of `base` after the accessor's trait whose type seen from `base` matches the
-/// accessor's, bridges left out (dotty's `rebindSuper`).
-fn rebind_super(l: &mut Lower, base: SymbolId, acc: SymbolId, name: &str, span: Span) -> Result<SymbolId> {
+/// The member a super accessor calls: its name, the trait `Q` of `super[Q]` or an empty mix, and
+/// its run-time name.
+struct Wanted<'a> {
+    name: &'a str,
+    mix: &'a str,
+    target: &'a str,
+}
+
+/// The member `w` super accessor `acc` calls in `base`: the first concrete one in the base
+/// classes of `base` after the accessor's trait, declared in a class named `w.mix` unless that is
+/// empty, whose type seen from `base` matches the accessor's, bridges left out (dotty's
+/// `rebindSuper`).
+fn rebind_super(l: &mut Lower, base: SymbolId, acc: SymbolId, w: Wanted, span: Span) -> Result<SymbolId> {
     let owner = l.u.symbol(acc).owner;
     let site = l.u.this_type(base);
     let bases = l.u.linearization(base);
     for &b in bases.iter().skip_while(|&&b| Some(b) != owner).skip(1) {
-        for other in l.u.decl(b, name).unwrap_or_default() {
-            let candidate = !has(l.u, other, PRIVATE) && !l.bridges.contains(&other) && has_body(l, other);
+        if !w.mix.is_empty() && l.u.symbol(b).name != w.mix {
+            continue;
+        }
+        for other in l.u.decl(b, w.name).unwrap_or_default() {
+            let s = l.u.symbol(other);
+            let named = s.target.as_deref().unwrap_or(&s.name) == w.target;
+            let candidate =
+                named && !has(l.u, other, PRIVATE) && !l.bridges.contains(&other) && has_body(l, other);
             if candidate && l.u.matches(site, other, acc) {
                 return Ok(other);
             }
