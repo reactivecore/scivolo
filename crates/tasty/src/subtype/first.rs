@@ -146,6 +146,9 @@ impl Cmp<'_> {
     /// `a <: b` through the instance of class `c`, `b`'s class, that `a` derives.
     pub fn try_base_type(&mut self, a: TypeId, b: TypeId, c: SymbolId) -> bool {
         let widened = self.u.widen(a);
+        if self.explicit_nulls() && self.u.class_symbol(widened) == Some(self.u.builtins().null) {
+            return self.fourth_try(a, b);
+        }
         match self.u.base_type(widened, c) {
             Some(base) if base != a => {
                 let and = matches!(self.u.types().get(widened), Type::And(..));

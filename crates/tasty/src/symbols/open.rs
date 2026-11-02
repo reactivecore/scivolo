@@ -53,6 +53,7 @@ impl Universe {
             constructor_proxies: Default::default(),
             opaques_elided: false,
             comparison_owner: None,
+            null_mode: Default::default(),
             opaque_lifts: 0,
             javalib_sources: false,
             jdk_jars: 0..0,

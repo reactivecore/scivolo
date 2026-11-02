@@ -30,6 +30,8 @@ impl Typer<'_> {
         let open = std::mem::take(&mut self.history.open);
         let start = self.constraint.attempt();
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
+        let nulls = self.null_mode(ctx);
+        let outer_nulls = self.u.set_null_mode(nulls);
         self.add_annotations(sym, tree, ctx);
         let flags = self.u.symbol(sym).flags;
         if flags.has(tasty::tags::INFIX)
@@ -67,6 +69,7 @@ impl Typer<'_> {
             _ => {}
         }
         self.u.set_comparison_owner(outer);
+        self.u.set_null_mode(outer_nulls);
         self.syms.completions.insert(sym, Completion::Done);
         self.constraint.keep(start);
         self.history.open = open;

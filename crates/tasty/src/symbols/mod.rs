@@ -102,6 +102,7 @@ pub struct Universe {
     opaques_elided: bool,
     /// The symbol whose definition comparisons are made in (dotty's `ctx.owner`), if known.
     comparison_owner: Option<SymbolId>,
+    null_mode: crate::NullMode,
     /// How many comparisons succeeded through a reference lifted to an object's `this`.
     opaque_lifts: u64,
     /// Whether the sources compiled are javalib's, whose TASTy classes are then Scala classes.

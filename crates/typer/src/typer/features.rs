@@ -6,6 +6,7 @@
 use super::Typer;
 use crate::ctx::{Ctx, Level};
 use syntax::config::Features;
+use tasty::NullMode;
 
 impl Typer<'_> {
     /// Whether feature `f`, `scala.language.name` (`name` dotted or not), is enabled in `ctx`.
@@ -33,5 +34,17 @@ impl Typer<'_> {
             level = self.levels.outer(l);
         }
         false
+    }
+
+    /// How comparisons in `ctx` treat `Null`: explicit nulls, and safe without `unsafeNulls`.
+    pub fn null_mode(&mut self, ctx: Ctx) -> NullMode {
+        let explicit = self.explicit_nulls;
+        let safe = explicit && !self.feature_enabled(Features::UNSAFE_NULLS, "unsafeNulls", ctx);
+        NullMode { explicit, safe }
+    }
+
+    /// Whether `ctx` types with explicit nulls and no `unsafeNulls` (dotty's `Mode.SafeNulls`).
+    pub fn safe_nulls(&mut self, ctx: Ctx) -> bool {
+        self.null_mode(ctx).safe
     }
 }

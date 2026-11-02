@@ -19,7 +19,7 @@ pub mod write;
 
 pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
 pub use positions::{TastySpan, decode_positions, line_sizes};
-pub use subtype::{Changes, Mark, NoVars, TypeVars};
+pub use subtype::{Changes, Mark, NoVars, NullMode, TypeVars};
 pub use symbols::{
     ANY, BodyInfo, Builtins, Error as LoadError, FileId, Flags, Kind, MAX_IMPLEMENTED_ARITY, NOTHING,
     PACKAGE_TABLE, SYMBOL_TABLE_VERSION, Symbol, SymbolId, Universe, decode, defined_name, encode,
