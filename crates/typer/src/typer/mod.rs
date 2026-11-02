@@ -33,6 +33,7 @@ mod capture_types;
 mod captured_paths;
 mod case_companion;
 mod case_lambdas;
+mod case_nulls;
 mod clashing_synthetics;
 mod class_bound;
 mod class_members;
