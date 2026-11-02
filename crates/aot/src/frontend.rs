@@ -111,9 +111,6 @@ fn build(unit: &Unit, image: &'static Image, classes: &Path) -> R<Vec<String>> {
     let settings = Settings::from_options(&options);
     options.retain(|o| !Settings::reads(o));
     let cfg = Config::checked(&options).map_err(|o| format!("option `{o}`"))?;
-    if cfg.explicit_nulls {
-        return Err("option `-Yexplicit-nulls`".into());
-    }
     let classpath = vm::Classpath::with_image(&[], image).map_err(|e| e.to_string())?;
     let mut vm = vm::Vm::new(classpath).map_err(|e| format!("the macro VM: {e}"))?;
     let compiled = catch_unwind(AssertUnwindSafe(|| {
