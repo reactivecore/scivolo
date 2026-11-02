@@ -5,15 +5,19 @@ use super::{Kind, SymbolId, Universe};
 use crate::types::{Type, TypeId};
 
 /// JDK methods with varargs that javalib has: class, method, number of parameters.
-const VARARGS: [(&str, &str, usize); 19] = [
+const VARARGS: [(&str, &str, usize); 23] = [
     ("java.io.PrintStream", "format", 2),
     ("java.io.PrintStream", "printf", 2),
     ("java.io.PrintWriter", "format", 2),
     ("java.io.PrintWriter", "printf", 2),
+    ("java.lang.ProcessBuilder", "<init>", 1),
+    ("java.lang.ProcessBuilder", "command", 1),
     ("java.lang.String", "format", 2),
     ("java.lang.String", "format", 3),
     ("java.lang.String", "formatted", 1),
     ("java.lang.String", "join", 2),
+    ("java.nio.channels.FileChannel", "open", 2),
+    ("java.nio.channels.FileChannel", "open", 3),
     ("java.nio.file.Path", "of", 2),
     ("java.nio.file.Paths", "get", 2),
     ("java.util.Arrays", "asList", 1),

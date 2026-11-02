@@ -26,11 +26,12 @@ pub fn is_effectively_final(u: &Universe, class: SymbolId, s: SymbolId) -> bool 
     has(u, s, PRIVATE) || has(u, s, FINAL) || has(u, class, FINAL) || u.is_module_class(class)
 }
 
-/// Java's `static`, which `@main` proxies carry; the methods of javalib's objects that stand
-/// for the static members of JDK classes; and the library's `@static` members.
+/// Java's `static`, which `@main` proxies carry; the methods and values of javalib's objects
+/// that stand for the static members of JDK classes; and the library's `@static` members.
 pub fn is_java_static(u: &mut Universe, s: SymbolId) -> bool {
+    let member = matches!(u.symbol(s).kind, Kind::Def | Kind::Val) && !u.is_module(s);
     has(u, s, STATIC)
-        || (u.symbol(s).kind == Kind::Def && u.symbol(s).owner.is_some_and(|o| is_jdk_object(u, o)))
+        || (member && u.symbol(s).owner.is_some_and(|o| is_jdk_object(u, o)))
         || (u.symbol(s).tree.is_some() && u.is_annotated(s, "scala.annotation.static"))
 }
 

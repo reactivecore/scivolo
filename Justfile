@@ -568,7 +568,8 @@ javalib-tasty:
     scripts/javalib-tasty.sh
 
 # Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs as dotty's pickler writes
-# it (scala-cli), and libs/jdk-declarations.jar, that of JdkDeclarations.scala under jdk-declarations/.
+# it (scala-cli), and libs/jdk-declarations.jar, that of JdkDeclarations.scala under jdk-declarations/
+# and that of JdkClasses.scala.
 jdk-stubs:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -583,6 +584,7 @@ jdk-stubs:
     (cd tmp/jdk-stubs/out && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-stubs.jar -@)
     mkdir -p tmp/jdk-stubs/decl/jdk-declarations
     (cd tmp/jdk-stubs/out && grep -rl --include='*.tasty' JdkDeclarations.scala . | cpio -pdm ../decl/jdk-declarations 2> /dev/null)
+    (cd tmp/jdk-stubs/out && grep -rl --include='*.tasty' JdkClasses.scala . | cpio -pdm ../decl 2> /dev/null)
     rm -f libs/jdk-declarations.jar
     (cd tmp/jdk-stubs/decl && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-declarations.jar -@)
 
