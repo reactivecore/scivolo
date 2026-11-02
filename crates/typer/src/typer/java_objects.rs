@@ -8,8 +8,12 @@ use tasty::{ANY, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// `Any` for parameter type `p` of `method` if `p` is `java.lang.Object` and `method` a member
-    /// of a Java class; `p` otherwise.
+    /// of a Java class, `Any?` if it is `Object?`; `p` otherwise.
     pub fn from_java_object(&mut self, method: Option<SymbolId>, p: TypeId) -> TypeId {
+        if let Type::Flexible(hi) = *self.u.types().get(p) {
+            let any = self.from_java_object(method, hi);
+            return if any == hi { p } else { self.u.flexible(any) };
+        }
         let object = self.u.builtins().object;
         let dealiased = self.u.dealias(p);
         let is_object = matches!(self.u.types().get(dealiased), Type::Sym(..) | Type::TypeRef(..))

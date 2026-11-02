@@ -55,6 +55,10 @@ impl Typer<'_> {
                 let (sa, sb) = (self.strip_null(a), self.strip_null(b));
                 if sa != a && sb != b { self.u.intern_type(Type::And(sa, sb)) } else { w }
             }
+            Type::Flexible(hi) => {
+                let stripped = self.strip_null(hi);
+                self.u.flexible(stripped)
+            }
             _ => w,
         };
         if stripped != w { stripped } else { t }
@@ -63,8 +67,7 @@ impl Typer<'_> {
     /// Whether `t` is a reference to `Null` (dotty's `isNullType`).
     fn is_null_type(&mut self, t: TypeId) -> bool {
         let d = self.u.dealias(t);
-        matches!(self.u.types().get(d), Type::Sym(..) | Type::TypeRef(..))
-            && self.u.class_symbol(d) == Some(self.u.builtins().null)
+        self.u.is_null_ref(d)
     }
 
     fn widen_union_without_null(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
@@ -97,6 +100,10 @@ impl Typer<'_> {
                     Type::Or(..) if soft => self.join(union)?,
                     _ => union,
                 }
+            }
+            Type::Flexible(hi) => {
+                let wide = self.widen_union_without_null(hi)?;
+                self.u.flexible(wide)
             }
             _ => t,
         })
@@ -182,6 +189,10 @@ impl Typer<'_> {
             Type::Or(a, b, _) => {
                 let (ha, hb) = (self.harden_unions(a), self.harden_unions(b));
                 self.u.intern_type(Type::Or(ha, hb, false))
+            }
+            Type::Flexible(hi) => {
+                let hard = self.harden_unions(hi);
+                self.u.flexible(hard)
             }
             _ => t,
         }

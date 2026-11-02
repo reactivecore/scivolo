@@ -16,9 +16,10 @@ impl Typer<'_> {
         let t = self.translucent(t);
         match *self.u.types().get(t) {
             Type::And(a, b) | Type::Or(a, b, _) => self.has_stable_erasure(a) && self.has_stable_erasure(b),
-            Type::Applied(inner, _) | Type::Refined(inner, ..) | Type::Annotated(inner, _) => {
-                self.has_stable_erasure(inner)
-            }
+            Type::Applied(inner, _)
+            | Type::Refined(inner, ..)
+            | Type::Annotated(inner, _)
+            | Type::Flexible(inner) => self.has_stable_erasure(inner),
             Type::Constant(..) | Type::Str(_) => true,
             Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => match self.referenced(t) {
                 Some(s) if self.u.symbol(s).kind == Kind::Class => true,
