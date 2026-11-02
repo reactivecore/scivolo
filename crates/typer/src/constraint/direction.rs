@@ -20,17 +20,8 @@ impl Constraint {
     pub fn direction(&mut self, u: &mut Universe, v: VarId) -> i8 {
         let (lo, hi) = self.bounds(v);
         let (declared_lo, declared_hi) = self.declared.get(v.0 as usize).copied().unwrap_or((NOTHING, ANY));
-        let below = lo != declared_lo && !self.frozen_subtype(u, lo, declared_lo);
-        let above = hi != declared_hi && !self.frozen_subtype(u, declared_hi, hi);
+        let below = !u.is_subtype_frozen_in(lo, declared_lo, self);
+        let above = !u.is_subtype_frozen_in(declared_hi, hi, self);
         above as i8 - below as i8
-    }
-
-    /// Whether `a <: b` holds without narrowing the bounds of variables.
-    fn frozen_subtype(&mut self, u: &mut Universe, a: TypeId, b: TypeId) -> bool {
-        let (mark, escaped) = (self.mark(), self.escaped);
-        let ok = u.is_subtype_in(a, b, self);
-        self.rollback(mark);
-        self.escaped = escaped;
-        ok
     }
 }
