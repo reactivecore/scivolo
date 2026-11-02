@@ -90,7 +90,7 @@ impl Typer<'_> {
     }
 
     /// The base classes of the classes in the given self type of class `c`.
-    fn self_type_bases(&mut self, c: SymbolId) -> Vec<SymbolId> {
+    pub fn self_type_bases(&mut self, c: SymbolId) -> Vec<SymbolId> {
         let Some(self_type) = self.u.given_self_type(c) else { return Vec::new() };
         let mut todo = vec![self_type];
         let mut out = Vec::new();

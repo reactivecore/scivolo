@@ -214,6 +214,8 @@ const CASES: &[(&str, &str)] = &[
         "adaptation",
     ),
     ("trait T { def finalize(): String }", "abstract member overriding a concrete one"),
+    ("class C { override def f = 1 }", "member overriding nothing"),
+    ("class C { override type T = Int }", "member overriding nothing"),
     (
         "import language.experimental.erasedDefinitions\n\
          object O { def f(erased b: Boolean) = 1; def g(x: Any) = f(x.isInstanceOf[String]) }",
