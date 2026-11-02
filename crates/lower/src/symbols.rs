@@ -1,6 +1,6 @@
 //! What the lowering asks of symbols (dotty's `SymDenotations` predicates).
 
-use tasty::tags::{EXTENSION, FINAL, IMPLICIT, PRIVATE, STATIC};
+use tasty::tags::{EXTENSION, FINAL, IMPLICIT, LAZY, PRIVATE, STATIC};
 use tasty::{Kind, SymbolId, Universe};
 
 pub fn has(u: &Universe, s: SymbolId, tag: u8) -> bool {
@@ -40,6 +40,22 @@ pub fn is_jdk_object(u: &Universe, c: SymbolId) -> bool {
     let name = u.full_name(c);
     let jdk = name.starts_with("java.") || name.starts_with("javax.");
     u.may_be_java(c) && u.is_module_class(c) && jdk || u.is_java_statics(c)
+}
+
+/// Whether `s` is a Java field: one of a JDK stub or a JDK jar, or a value javalib's class in a
+/// JDK package declares outside private and lazy ones, which dotty reads from the JDK's class;
+/// not one of Scala Native's renamed classes such as `_Class`.
+pub fn is_java_field(u: &Universe, s: SymbolId) -> bool {
+    let jdk_class = |c| {
+        let name = u.full_name(c);
+        let jdk = name.starts_with("java.") || name.starts_with("javax.");
+        jdk && u.may_be_java(c) && !u.is_module_class(c) && tasty::defined_name(&name).is_none()
+    };
+    let javalib = u.symbol(s).kind == Kind::Val
+        && ![PRIVATE, STATIC, LAZY].iter().any(|&f| has(u, s, f))
+        && !u.is_module(s)
+        && u.symbol(s).owner.is_some_and(jdk_class);
+    javalib || u.is_java_field(s)
 }
 
 /// Whether `s` is a package or an object reachable through static paths.

@@ -5,7 +5,7 @@
 //! field becomes a call of its setter; and the span `InterceptedMethods` gives `!=`.
 
 use super::getters::is_setter;
-use crate::symbols::{has, is_extern};
+use crate::symbols::{has, is_extern, is_java_field};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{FIELDaccessor, MUTABLE, TRAIT};
 use tasty::{Kind, SymbolId};
@@ -24,7 +24,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             super::library_traits::prepare(l, trait_, l.tpd.span(t))?;
         }
         let var = l.tpd.sym(lhs).filter(|&s| has(l.u, s, FIELDaccessor) || is_library_var_param(l, s));
-        let Some(var) = var.filter(|&s| !is_extern(l.u, s) && !l.u.is_java_field(s)) else {
+        let Some(var) = var.filter(|&s| !is_extern(l.u, s) && !is_java_field(l.u, s)) else {
             continue;
         };
         let owner = l.u.symbol(var).owner.expect("a variable's class");

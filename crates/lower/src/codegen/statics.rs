@@ -5,7 +5,7 @@
 
 use super::Gen;
 use super::method::Method;
-use crate::symbols::{has, is_extern, is_static, is_static_module, jdk_api_owner};
+use crate::symbols::{has, is_extern, is_java_field, is_static, is_static_module, jdk_api_owner};
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, Param, PosId, Type, Val};
 use syntax::ast::Span;
@@ -109,7 +109,7 @@ impl Gen<'_, '_> {
             {
                 continue;
             }
-            if self.l.u.is_java_field(m) {
+            if is_java_field(self.l.u, m) {
                 return unsupported(Span::NONE, "forwarders to fields of JDK classes");
             }
             let signature = (self.l.u.symbol(m).name.clone(), self.l.u.erased_method(m));
