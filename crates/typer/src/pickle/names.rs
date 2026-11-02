@@ -27,22 +27,25 @@ const UNIQUE_SEPARATORS: [&str; 6] = ["evidence$", "contextual$", "ev$", "ex$", 
 /// there is of such a kind.
 pub fn local_name(u: &Universe, s: SymbolId) -> Name {
     let sym = u.symbol(s);
-    let name = &sym.name;
-    let digits = name.trim_end_matches(|c: char| c.is_ascii_digit());
-    let num: Option<u32> =
-        name[digits.len()..].parse().ok().filter(|_| !name[digits.len()..].starts_with('0'));
-    let sep = UNIQUE_SEPARATORS.iter().find(|&&sep| digits.ends_with(sep));
     if sym.tree.is_some() && !sym.derived {
         return sym_name(u, s);
     }
-    match (num, sep, digits.strip_suffix("$default$")) {
-        (Some(num), _, Some(method)) if num > 0 => Name::DefaultGetter(utf8(method), num - 1),
-        (Some(num), Some(sep), _) => {
-            let under = &digits[..digits.len() - sep.len()];
-            Name::Unique { under: utf8(under), sep: sep.to_string(), num }
-        }
-        _ => sym_name(u, s),
+    derived_name(&sym.name).unwrap_or_else(|| sym_name(u, s))
+}
+
+/// Name `name` as a default getter's or a unique name, the name it is derived from also one.
+fn derived_name(name: &str) -> Option<Name> {
+    let digits = name.trim_end_matches(|c: char| c.is_ascii_digit());
+    let num: u32 = name[digits.len()..].parse().ok().filter(|_| !name[digits.len()..].starts_with('0'))?;
+    if let Some(method) = digits.strip_suffix("$default$")
+        && num > 0
+    {
+        return Some(Name::DefaultGetter(utf8(method), num - 1));
     }
+    let sep = UNIQUE_SEPARATORS.iter().find(|&&sep| digits.ends_with(sep))?;
+    let under = &digits[..digits.len() - sep.len()];
+    let under = derived_name(under).map_or_else(|| utf8(under), Box::new);
+    Some(Name::Unique { under, sep: sep.to_string(), num })
 }
 
 /// The full name of package `p` (dotty's `fullName`), the root package's `<empty>`.
