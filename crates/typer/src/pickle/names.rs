@@ -19,6 +19,37 @@ pub fn sym_name(u: &Universe, s: SymbolId) -> Name {
     }
 }
 
+/// The separators of dotty's unique name kinds, longest first.
+const UNIQUE_SEPARATORS: [&str; 6] = ["evidence$", "contextual$", "ev$", "ex$", "_$", "$"];
+
+/// The name of definition `s` of a quote: a default getter's or a unique name if it ends in
+/// `$default$` or one of dotty's unique separators and a number, and if read from TASTy, its name
+/// there is of such a kind.
+pub fn local_name(u: &Universe, s: SymbolId) -> Name {
+    let sym = u.symbol(s);
+    if sym.tree.is_some() && !sym.derived {
+        return sym_name(u, s);
+    }
+    derived_name(&sym.name).unwrap_or_else(|| sym_name(u, s))
+}
+
+/// Name `name` as a default getter's or a unique name, the name it is derived from also one
+/// unless that is a `$`-separated unique name, as dotty's synthetic parameter `x$1`.
+fn derived_name(name: &str) -> Option<Name> {
+    let digits = name.trim_end_matches(|c: char| c.is_ascii_digit());
+    let num: u32 = name[digits.len()..].parse().ok().filter(|_| !name[digits.len()..].starts_with('0'))?;
+    if let Some(method) = digits.strip_suffix("$default$")
+        && num > 0
+    {
+        return Some(Name::DefaultGetter(utf8(method), num - 1));
+    }
+    let sep = UNIQUE_SEPARATORS.iter().find(|&&sep| digits.ends_with(sep))?;
+    let under = &digits[..digits.len() - sep.len()];
+    let inner = derived_name(under).filter(|n| !matches!(n, Name::Unique { sep, .. } if sep == "$"));
+    let under = inner.map_or_else(|| utf8(under), Box::new);
+    Some(Name::Unique { under, sep: sep.to_string(), num })
+}
+
 /// The full name of package `p` (dotty's `fullName`), the root package's `<empty>`.
 fn package_name(u: &Universe, p: SymbolId) -> Name {
     let name = if p == u.root() { "<empty>" } else { u.symbol(p).name.as_str() };
@@ -37,7 +68,19 @@ fn sig_type_name(u: &mut Universe, full: &str) -> Result<Name, Refusal> {
         Some(b) if is_module_class(u, base)? => (true, b),
         _ => (false, base),
     };
-    let name = qualified(&format!("{base}{arrays}"));
+    let path = format!("{base}{arrays}");
+    let parts: Vec<&str> = path.split('.').collect();
+    let mut name: Option<Name> = None;
+    for (i, part) in parts.iter().enumerate() {
+        let object = i + 1 < parts.len() && part.len() > 1 && part.ends_with('$');
+        let part = Name::utf8(if object { &part[..part.len() - 1] } else { part });
+        let qualified = match name {
+            Some(q) => Name::Qualified(Box::new(q), Box::new(part)),
+            None => part,
+        };
+        name = Some(if object { Name::ObjectClass(Box::new(qualified)) } else { qualified });
+    }
+    let name = name.expect("a name");
     Ok(if module { Name::ObjectClass(Box::new(name)) } else { name })
 }
 
@@ -64,6 +107,11 @@ fn utf8(s: &str) -> Box<Name> {
 
 impl TreePickler<'_> {
     pub fn name(&mut self, name: &Name) {
+        if self.keying {
+            let text = format!("{name:?}");
+            self.nat(text.len() as u64);
+            return self.buf.buf.write_bytes(text.as_bytes());
+        }
         let r = self.pickler.names.index(name);
         self.nat(r.0 as u64);
     }

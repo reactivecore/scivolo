@@ -5,9 +5,9 @@
 
 use super::lambda_lift::Function;
 use super::lift_names::Pending;
-use super::narrowed::{narrow_logic_owner, narrow_to};
+use super::narrowed::{encloses, enclosing_instance, narrow_logic_owner, narrow_to};
 use super::walk::{children, is_type_tree};
-use crate::symbols::{has, is_static, is_static_owner};
+use crate::symbols::{has, is_static, is_static_module, is_static_owner};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::MUTABLE;
@@ -38,7 +38,7 @@ pub fn dependencies(
     (in_class, pending): (bool, &Pending),
 ) -> Result<()> {
     let defs: FxHashMap<TNodeId, usize> = functions.iter().enumerate().map(|(i, f)| (f.def, i)).collect();
-    let (mut order, mut called) = (Vec::new(), Vec::<(usize, Vec<Callee>)>::new());
+    let mut called = Vec::<(usize, Vec<Callee>)>::new();
     let mut todo: Vec<(Step, Option<usize>)> = roots.iter().rev().map(|&r| (Step::Tree(r), None)).collect();
     while let Some((step, enclosure)) = todo.pop() {
         let t = match step {
@@ -46,7 +46,7 @@ pub fn dependencies(
             Step::Class(values) => {
                 if let Some(i) = enclosure {
                     for &s in values {
-                        mark_free(l, functions, &mut order, s, i);
+                        mark_free(l, functions, s, i);
                     }
                 }
                 continue;
@@ -68,7 +68,16 @@ pub fn dependencies(
                 let tpe = l.tpd.tpe(tpt);
                 let tycon = if let Type::Applied(t, _) = l.u.types().get(tpe) { *t } else { tpe };
                 let created = if let Type::Sym(_, c) = *l.u.types().get(tycon) { Some(c) } else { None };
-                functions[i].this |= created.is_some_and(|c| l.u.symbol(c).owner == Some(class));
+                match created.and_then(|c| l.u.symbol(c).owner) {
+                    Some(o) if o == class => functions[i].this = true,
+                    Some(o)
+                        if enclosing_instance(l, class, o)
+                            || is_static_module(l.u, o) && encloses(l, o, class) =>
+                    {
+                        _ = narrow_logic_owner(l, &mut functions[i], o)
+                    }
+                    _ => {}
+                }
             }
             (Tree::Ident { .. }, Some(s)) if pending.passed.contains(&t) => {
                 add_call(&mut called, i, Callee::Value(s))
@@ -85,7 +94,7 @@ pub fn dependencies(
                 let local = matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param)
                     && owner.is_some_and(|o| matches!(l.u.symbol(o).kind, Kind::Def | Kind::Val));
                 if local
-                    && mark_free(l, functions, &mut order, s, i)
+                    && mark_free(l, functions, s, i)
                     && has(l.u, s, MUTABLE)
                     && !l.tail_locals.contains(&s)
                 {
@@ -111,14 +120,18 @@ pub fn dependencies(
                     Callee::Value(s) => vec![s],
                 };
                 for s in captured {
-                    changed |= mark_free(l, functions, &mut order, s, *caller);
+                    changed |= mark_free(l, functions, s, *caller);
                 }
             }
         }
         if !changed {
-            return Ok(());
+            break;
         }
     }
+    if let Some(d) = &pending.deps {
+        functions.iter_mut().for_each(|f| d.sort(f.sym, &mut f.captured));
+    }
+    Ok(())
 }
 
 /// The children of `t`, with the definitions of the local classes lifted out of it, if a block.
@@ -158,7 +171,7 @@ fn add_call(called: &mut Vec<(usize, Vec<Callee>)>, caller: usize, callee: Calle
 
 /// Marks local value `s` free in function `i` and the functions it is in, up to the one defining
 /// `s` or the value `s` is in, outermost first; whether that added any.
-fn mark_free(l: &Lower, functions: &mut [Function], order: &mut Vec<usize>, s: SymbolId, i: usize) -> bool {
+fn mark_free(l: &Lower, functions: &mut [Function], s: SymbolId, i: usize) -> bool {
     let mut owner = l.u.symbol(s).owner;
     while let Some(o) =
         owner.filter(|&o| l.u.symbol(o).kind == Kind::Val && functions.iter().all(|f| f.sym != o))
@@ -178,9 +191,6 @@ fn mark_free(l: &Lower, functions: &mut [Function], order: &mut Vec<usize>, s: S
     for &j in chain.iter().rev() {
         if functions[j].captured.contains(&s) {
             continue;
-        }
-        if functions[j].captured.is_empty() {
-            order.push(j);
         }
         functions[j].captured.push(s);
         added = true;

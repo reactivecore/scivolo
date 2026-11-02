@@ -26,14 +26,20 @@ impl TreePickler<'_> {
             self.package_name(s);
             return Ok(());
         }
+        let enclosing = |p: TypeId| match *self.u.types().get(p) {
+            Type::Package(q) if self.packages.contains(&q) => Some(q),
+            _ => None,
+        };
         let prefix = match (prefix, owner.map(|o| (o, self.u.symbol(o).kind))) {
+            (Some(p), _) if let Some(q) = enclosing(p) => Prefix::PackageThis(q),
             (Some(p), _) => Prefix::Type(p),
+            (None, _) if self.is_defined_here(s) => return self.direct_ref(s),
             (None, Some((o, Kind::Package))) => Prefix::PackageThis(o),
             (None, Some((o, Kind::Class))) => {
                 let class = type_ref(self.u, o);
                 Prefix::Type(self.u.intern_type(Type::This(class)))
             }
-            _ => return Err("a reference to a local definition"),
+            _ => return self.direct_ref(s),
         };
         let owner = owner.ok_or("a reference to a symbol without owner")?;
         let shadowed = match prefix {
@@ -54,6 +60,13 @@ impl TreePickler<'_> {
         self.byte(if is_type { TYPEREF } else { TERMREF });
         self.signed_name(s, !is_type)?;
         self.prefix(prefix)
+    }
+
+    /// A reference without a prefix to a definition of the quote, by its address.
+    fn direct_ref(&mut self, s: SymbolId) -> Result<(), Refusal> {
+        self.byte(if self.u.symbol(s).kind.is_type() { TYPEREFdirect } else { TERMREFdirect });
+        self.sym_addr(s);
+        Ok(())
     }
 
     fn prefix(&mut self, prefix: Prefix) -> Result<(), Refusal> {

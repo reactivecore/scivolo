@@ -53,10 +53,13 @@ instead of the run.
   (ADR 0008).
 - **Object layout.** `IntrinsicsTest.sizeOfClassTest` expects the lock word multithreaded Scala
   Native adds to object headers; the VM keeps monitors outside objects (ADR 0003).
-- **Static initializers.** Scala Native runs every `<clinit>` (of `@static` values) before
-  `main`, the VM on first use of the class; side effects of the initial values, or a companion
-  object reading them during its construction, come in another order or see other values
-  (ADR 0047).
+- **Static initializers.** Before `main`, Scala Native runs every `<clinit>` (of `@static`
+  values) in the order of its linker's `Reach.done` hash map, which depends on how many
+  definitions the program reaches, before the runtime's `init`; the VM runs the `<clinit>`s of
+  the files before the library sorted by class name, after `init`, which the heap snapshot
+  holds (#188). A dependency jar's file that replaces a library file counts as having a
+  `<clinit>` only if the library's has one. Files added to a REPL session run theirs on first
+  use of the class (ADR 0047).
 
 ## Upstream bugs to report
 
@@ -124,6 +127,22 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
    - Scala Native: "Unknown method `…$anon$1.fromProduct(scala.Product): scala.Some`" at link
      time; JVM: `NoSuchMethodError`.
    - Fix: give the inlined anonymous mirror classes their mirror members. Frontend: defines them.
+10. **A trait with an `extension` group has `NoInits` only when read from TASTy** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/ast/TreeInfo.scala:485`, `defKind`).
+    - `Namer` takes the flag from `untpd.bodyKind` of the unexpanded body, where `ExtMethods`
+      counts as an initializer; `TreeUnpickler.indexStats` sees only methods and sets `NoInits`.
+    - A class extending the trait calls its empty `$init$` when compiled with the trait, not
+      against its TASTy: nativelib's `unsafe/package$` and `UnsafePackageCompat`.
+    - Fix: `defKind` of `ExtMethods` as of its methods. Frontend: as dotty; `just lib-compile
+      nativelib` reads `UnsafePackageCompat` from TASTy until #196, so `unsafe/package$` lacks the
+      call and `unsafe/package`'s forwarders to its members have the object's position, as in
+      separate compilation.
+11. **`super[Q].m` of a `@targetName` member crashes `ResolveSuper`** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/ResolveSuper.scala:89`, `decomposeSuperName`).
+    - Trait `P extends Q` with `@targetName("tn") def n` calling `P.super[Q].n` from a nested
+      class: the accessor's target name `tn$super$Q` is a `SimpleName`, so neither case matches
+      (`MatchError`).
+    - Fix: decompose the target name's string. Frontend: compiles it, calling `Q`'s `tn`.
 
 ## M4: dotty `tests/run`
 

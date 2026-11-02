@@ -72,6 +72,15 @@ impl Inlining<'_> {
         retyped.map(Some)
     }
 
+    /// 1 if `t` quotes its argument, -1 if it splices it, else 0.
+    pub fn staging_level(&self, t: TNodeId) -> i32 {
+        match (self.runtime_call(t, "quote"), self.runtime_call(t, "splice")) {
+            (Some(_), _) => 1,
+            (_, Some(_)) => -1,
+            _ => 0,
+        }
+    }
+
     /// The argument of `t` if it is a call `scala.quoted.runtime.Expr.<name>[T](arg)`.
     fn runtime_call(&self, t: TNodeId, name: &str) -> Option<TNodeId> {
         let T::Apply { fun, args } = *self.tpd.tree(t) else { return None };

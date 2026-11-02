@@ -15,6 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tasty_quotes import without_positions
+
 NIR_DUMP = Path(__file__).resolve().parent.parent / "target/release/scivolo-nir-dump"
 SET_SIZE = 4
 CANDIDATES = 120
@@ -105,12 +107,17 @@ def dump(path):
 
 
 def compare(ours, theirs, diff_file):
-    """(`same`, `var-order` (same once the var slots are aligned), `differ` or `missing`; the lines
-    changed once they are aligned, the diff written to `diff_file`; whether they were aligned)."""
+    """(`same`, `var-order` (same once the var slots are aligned), `quote-pos` (same but for the
+    positions in TASTy quotes), `differ` or `missing`; the lines changed once they are aligned,
+    the diff written to `diff_file`; whether they were aligned)."""
     if not theirs.exists():
         return "missing", 0, False
     mine = dump(ours)
     aligned, reordered = align(dump(theirs), mine)
+    if aligned != mine and (keyed := without_positions(aligned)) != aligned:
+        if keyed == without_positions(mine):
+            return "quote-pos", 0, reordered
+        aligned, mine = keyed, without_positions(mine)
     diff = list(difflib.unified_diff(aligned, mine, "oracle", "ours", lineterm="", n=0))
     changed = sum(1 for l in diff if l[:1] in "+-" and not l.startswith(("+++", "---")))
     if changed:

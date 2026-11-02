@@ -1,4 +1,4 @@
-//! Refuses the quotes outside the splices of inline methods.
+//! Refuses the type quotes and quote patterns outside inline methods, which `pickle_quotes` leaves.
 
 use super::walk::children;
 use crate::symbols::has;

@@ -150,6 +150,10 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let body = conform(l, cond, &holder, info);
     let accessor_def = method_def(l, accessor, info, body);
     l.position_thicket(&[holder_def, init_def, accessor_def]);
+    let holder_span = l.tpd.span(holder_def);
+    if holder_span.exists() && span.exists() {
+        l.tpd.get_mut(holder_def).span = holder_span.with_point(span.point());
+    }
     let class = boxed.map(|(c, _, _)| c);
     Ok(Expanded { defs: [holder_def, init_def, accessor_def], value, accessor, class })
 }

@@ -5,7 +5,8 @@
 
 use super::Gen;
 use super::method::Method;
-use crate::symbols::{has, is_extern, is_static, is_static_module, jdk_api_owner};
+use crate::phases::getters::is_setter;
+use crate::symbols::{has, is_extern, is_java_field, is_static, is_static_module, jdk_api_owner};
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, Param, PosId, Type, Val};
 use syntax::ast::Span;
@@ -106,11 +107,9 @@ impl Gen<'_, '_> {
                 || excluded.iter().any(|&f| has(self.l.u, m, f))
                 || self.l.lifted_from.contains_key(&m)
                 || jdk && !self.l.u.javalib_sources() && has(self.l.u, m, PRIVATEqualified)
+                || self.is_java_field_or_setter(m)
             {
                 continue;
-            }
-            if self.l.u.is_java_field(m) {
-                return unsupported(Span::NONE, "forwarders to fields of JDK classes");
             }
             let signature = (self.l.u.symbol(m).name.clone(), self.l.u.erased_method(m));
             if seen.contains(&signature) {
@@ -135,6 +134,18 @@ impl Gen<'_, '_> {
         Ok(out)
     }
 
+    /// Whether `m` is a Java field or the setter `x_=` of one.
+    fn is_java_field_or_setter(&mut self, m: SymbolId) -> bool {
+        let name = self.l.u.symbol(m).name.clone();
+        let getter = match is_setter(self.l, m) {
+            true => name.strip_suffix("_=").unwrap_or(&name),
+            false => return is_java_field(self.l.u, m),
+        };
+        let owner = self.l.u.symbol(m).owner.expect("a setter's class");
+        let fields = self.l.u.decl(owner, getter).unwrap_or_default();
+        fields.into_iter().any(|f| is_java_field(self.l.u, f))
+    }
+
     /// The position nscplugin gives the forwarder of member `m` of another of javalib's sources
     /// when javalib's are compiled: the point of its definition as an offset in the unit's
     /// source of `module_class`.
@@ -142,12 +153,10 @@ impl Gen<'_, '_> {
         if !self.l.u.javalib_sources() {
             return None;
         }
-        let (file, id) = self.l.u.symbol(m).tree?;
-        let addr = self.l.u.file(file).0.node(id).addr;
-        let span = self.l.u.body_info(file).ok()?.span(addr)?;
+        let point = self.l.u.pickled_point(m)?;
         let at = self.spans.get(&module_class)?.point();
         let (base, src) = self.l.sources.files()[self.l.sources.index(at)];
-        let offset = base + src.advance_utf16(0, span.point.unwrap_or(span.start) as usize);
+        let offset = base + src.advance_utf16(0, point as usize);
         self.pos_of(Span::at(offset))
     }
 

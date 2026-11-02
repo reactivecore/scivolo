@@ -1,5 +1,5 @@
 //! Pickling quotes: typed trees pickled read back equal; dotty's quotes read and pickled again
-//! give their bytes, positions aside.
+//! give their bytes.
 
 use std::path::Path;
 use syntax::ast::Span;
@@ -8,16 +8,20 @@ use syntax::desugar::Desugar;
 use syntax::names::Names;
 use syntax::parse::Parser;
 use syntax::source::SourceFile;
-use tasty::{Kind, Tasty, Universe};
+use tasty::write::text_line_sizes;
+use tasty::{Ast, Kind, SymbolId, Tasty, TastySpan, Universe, decode_positions, dump, line_sizes};
 use typer::dump::library_jars;
-use typer::pickle::pickle_quote;
+use typer::pickle::{QuoteSource, pickle_positioned_quote, pickle_quote};
 use typer::tpd::print::Printer;
 use typer::tpd::{TNodeId, Tpd, Tree};
 use typer::type_unit;
 use typer::unpickle::{Unpickled, quote};
 
-fn universe() -> Option<Universe> {
-    let jars = library_jars(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"));
+/// The library with the jars `extra` of the repository.
+fn universe(extra: &[&str]) -> Option<Universe> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut jars = library_jars(&root.join("ref/libs"));
+    jars.extend(extra.iter().map(|j| root.join(j)));
     if let Some(missing) = jars.iter().find(|j| !j.exists()) {
         assert!(std::env::var_os("CI").is_none(), "{} missing: run `just fetch-libs`", missing.display());
         return None;
@@ -30,6 +34,15 @@ fn parts(bytes: &[u8]) -> (Vec<String>, Vec<u8>) {
     let t = Tasty::parse(bytes).unwrap();
     let names = t.names.iter().map(|(r, _)| format!("{:?}", t.names.get(r))).collect();
     (names, t.section("ASTs").unwrap().bytes.to_vec())
+}
+
+/// The `ASTs` section of TASTy `bytes`, printed.
+fn shown_ast(bytes: &[u8]) -> String {
+    let t = Tasty::parse(bytes).unwrap();
+    match Ast::parse(t.section("ASTs").unwrap().bytes) {
+        Ok(ast) => dump(&ast, &t.names),
+        Err(e) => format!("unparsed: {e:?}"),
+    }
 }
 
 /// `printed` without the span after each tree's class name.
@@ -75,7 +88,7 @@ fn typed_rhss(u: &mut Universe, text: &str, vals: &[&str]) -> (Tpd, Names, Vec<T
 
 #[test]
 fn typed_expressions_read_back_equal() {
-    let Some(mut u) = universe() else { return };
+    let Some(mut u) = universe(&[]) else { return };
     let text = "object T {
         val a = if \"x\".length < 2 then 1 else Math.max(3, 4)
         val b = new java.lang.StringBuilder(\"y\").append(1.5f).toString
@@ -106,24 +119,164 @@ fn typed_expressions_read_back_equal() {
     }
 }
 
+/// The right-hand side of `val a` in unit `text`, quoted, pickled with positions and read back.
+fn positioned_read_back(text: &str) -> Result<Span, String> {
+    let mut u = universe(&[]).ok_or("no library")?;
+    let (mut tpd, mut names, rhss) = typed_rhss(&mut u, text, &["a"]);
+    let source = SourceFile::new("t.scala", text);
+    let (bindings, span, tpe) = (tpd.list(&[]), tpd.span(rhss[0]), tpd.get(rhss[0]).tpe);
+    let root = tpd.node(Tree::Inlined { call: None, bindings, expansion: rhss[0] }, span, tpe, None);
+    let quote_source = QuoteSource::of("t.scala".into(), &source, 0);
+    let bytes = pickle_positioned_quote((&mut u, &tpd, &names), root, &[], &quote_source)?;
+    let unit = u.root();
+    let Ok(Unpickled::Quote(q)) = quote((&mut u, &mut tpd, &mut names), bytes, unit, &[]) else {
+        panic!("unread")
+    };
+    let Tree::Inlined { expansion, .. } = *tpd.tree(q.root) else { panic!("not inlined") };
+    Ok(tpd.span(expansion).in_own_source())
+}
+
+#[test]
+fn spans_of_typed_trees_read_back_in_utf16_units() {
+    let text = "object T { val é = \"ü\"; val a = é.length + 1 }";
+    let Ok(read) = positioned_read_back(text) else { return };
+    let start = text.find("é.length").unwrap() as u32 - 2;
+    assert_eq!((read.start(), read.end()), (start, start + 12));
+}
+
+#[test]
+fn quotes_with_a_library_s_inlined_code_refused() {
+    if universe(&[]).is_none() {
+        return;
+    }
+    let read = positioned_read_back("object T { val a = assert(1 == 1) }");
+    assert_eq!(read, Err("a quote with a span in a library's source".into()));
+}
+
+/// The module class `name` of package `pkg`.
+fn module_class(u: &mut Universe, pkg: &str, name: &str) -> SymbolId {
+    let pkg = u.package(pkg).unwrap();
+    let decls = u.decl(pkg, name).unwrap();
+    *decls.iter().find(|&&c| u.symbol(c).kind == Kind::Class).unwrap()
+}
+
+/// The source of quote `bytes`: its path, last in the name table, and its line sizes, of the
+/// source in the repository or Scala Native's checkout if there, else of the quote.
+fn quote_source(bytes: &[u8]) -> QuoteSource<'static> {
+    let t = Tasty::parse(bytes).unwrap();
+    let last = t.names.iter().last().unwrap().0;
+    let path = t.names.show(last);
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let text = [root.join(&path), root.join("ref/scala-native").join(&path)]
+        .iter()
+        .find_map(|p| std::fs::read_to_string(p).ok());
+    let line_sizes = match text {
+        Some(text) => text_line_sizes(&text),
+        None => line_sizes(t.section("Positions").unwrap().bytes).unwrap(),
+    };
+    QuoteSource { path, line_sizes, file: None }
+}
+
+/// Reads quote `file` of `tests/pickle` owned by `owner` and pickles it again: how the names or
+/// the bytes differ from the file's, or with `exact` unset the trees printed without addresses,
+/// if they do.
+fn repickled(u: &mut Universe, owner: SymbolId, file: &str, exact: bool) -> Result<(), String> {
+    let path = format!("{}/../../tests/pickle/{file}.tasty", env!("CARGO_MANIFEST_DIR"));
+    let bytes = std::fs::read(path).unwrap();
+    let (mut tpd, mut names) = (Tpd::default(), Names::default());
+    let read = quote((&mut *u, &mut tpd, &mut names), bytes.clone(), owner, &[]);
+    let Ok(Unpickled::Quote(q)) = read else { return Err(format!("{file} unread: {:?}", read.err())) };
+    let source = quote_source(&bytes);
+    let ours = pickle_positioned_quote((u, &tpd, &names), q.root, &q.holes, &source);
+    let ours = ours.map_err(|e| format!("{file}: {e}"))?;
+    let ((our_names, our_ast), (names, ast)) = (parts(&ours), parts(&bytes));
+    if our_names != names {
+        return Err(format!("{file}: names {our_names:?}, not {names:?}"));
+    }
+    let (printed, expected) = (shown_ast(&ours), shown_ast(&bytes));
+    let same_trees =
+        if exact { our_ast == ast } else { without_addresses(&printed) == without_addresses(&expected) };
+    if !same_trees {
+        return Err(format!("{file}: ASTs differ:\n{printed}\n{expected}"));
+    }
+    match if exact { ours == bytes } else { same_spans(&ours, &bytes) } {
+        true => Ok(()),
+        false => Err(format!("{file}: positions differ:\n{:?}\n{:?}", spans(&ours), spans(&bytes))),
+    }
+}
+
+/// The spans of the Positions section of TASTy `bytes`, by address.
+fn spans(bytes: &[u8]) -> Vec<(u32, TastySpan)> {
+    let t = Tasty::parse(bytes).unwrap();
+    let mut spans: Vec<_> =
+        decode_positions(t.section("Positions").unwrap().bytes).unwrap().into_iter().collect();
+    spans.sort_by_key(|&(a, _)| a);
+    spans
+}
+
+/// Whether TASTy `ours` and `theirs` give the same spans in the same order, addresses aside.
+fn same_spans(ours: &[u8], theirs: &[u8]) -> bool {
+    let [a, b] = [ours, theirs].map(|t| spans(t).into_iter().map(|(_, s)| s).collect::<Vec<_>>());
+    a == b
+}
+
+/// `printed` without the addresses of definitions and binders.
+fn without_addresses(printed: &str) -> String {
+    let mut out = String::new();
+    let mut chars = printed.chars().peekable();
+    while let Some(c) = chars.next() {
+        out.push(c);
+        if c == '@' || c == '#' {
+            while chars.next_if(char::is_ascii_digit).is_some() {}
+        }
+    }
+    out
+}
+
+/// Whether each quote of `files` pickles to its bytes, or with `exact` unset to the same trees.
+fn all_repickled(u: &mut Universe, owner: SymbolId, files: &[&str], exact: bool) {
+    let failed: Vec<String> = files.iter().filter_map(|f| repickled(u, owner, f, exact).err()).collect();
+    assert!(failed.is_empty(), "{}", failed.join("\n"));
+}
+
 #[test]
 fn quotes_of_unsafe_package_compat_pickle_to_their_bytes() {
-    let Some(mut u) = universe() else { return };
-    let pkg = u.package("scala.scalanative.unsafe").unwrap();
-    let decls = u.decl(pkg, "UnsafePackageCompat$").unwrap();
-    let owner = *decls.iter().find(|&&c| u.symbol(c).kind == Kind::Class).unwrap();
-    for n in 1..=2 {
-        let path =
-            format!("{}/../../tests/pickle/unsafe-package-compat-{n}.tasty", env!("CARGO_MANIFEST_DIR"));
-        let bytes = std::fs::read(path).unwrap();
-        let (mut tpd, mut names) = (Tpd::default(), Names::default());
-        let Ok(Unpickled::Quote(q)) = quote((&mut u, &mut tpd, &mut names), bytes.clone(), owner, &[]) else {
-            panic!("quote {n} unread");
-        };
-        let ours = pickle_quote((&mut u, &tpd, &names), q.root, &q.holes).unwrap();
-        let ((our_names, our_ast), (names, ast)) = (parts(&ours), parts(&bytes));
-        assert_eq!(our_names[..], names[..our_names.len()], "quote {n}");
-        assert_eq!(names[our_names.len()..].len(), 2, "quote {n}: only the positions' names left");
-        assert_eq!(our_ast, ast, "quote {n}");
-    }
+    let Some(mut u) = universe(&[]) else { return };
+    let owner = module_class(&mut u, "scala.scalanative.unsafe", "UnsafePackageCompat$");
+    all_repickled(&mut u, owner, &["unsafe-package-compat-1", "unsafe-package-compat-2"], true);
+}
+
+#[test]
+fn quotes_with_definitions_pickle_to_their_bytes() {
+    let Some(mut u) = universe(&["tests/pickle/probe.jar"]) else { return };
+    let owner = module_class(&mut u, "probe", "Probe$");
+    let quotes = [
+        "probe-vals",
+        "probe-defs",
+        "probe-folded",
+        "probe-matching",
+        "probe-options",
+        "probe-alternatives",
+        "probe-dollar",
+    ];
+    all_repickled(&mut u, owner, &quotes, true);
+}
+
+/// Quotes whose types dotty shares apart where they refer to a package as its `this` and as a
+/// reference, which TASTy writes alike: pickled to the same trees, the types shared otherwise.
+#[test]
+fn quotes_with_package_prefixes_pickle_to_their_trees() {
+    let Some(mut u) = universe(&["tests/pickle/probe.jar"]) else { return };
+    let owner = module_class(&mut u, "probe", "Probe$");
+    let quotes = [
+        "probe-lambda",
+        "probe-function",
+        "probe-fold",
+        "probe-higher",
+        "probe-alias",
+        "probe-vars",
+        "probe-tries",
+        "probe-clauses",
+    ];
+    all_repickled(&mut u, owner, &quotes, false);
 }

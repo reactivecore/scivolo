@@ -11,7 +11,7 @@ use super::function_classes::{erased_function_class, function_class_arity};
 use super::lambda_lift::Function;
 use super::lift_names::fresh;
 use super::lifted::{Method, define};
-use super::narrowed::home;
+use super::narrowed::{enclosing_instance, home};
 use super::poly_functions::poly_function_class;
 use super::sam::{abstract_methods, adaptation_needed};
 use crate::definitions::{procedure, specialized, type_ref};
@@ -84,13 +84,26 @@ pub fn plan(
     Ok(Plan { interface: specialized_interface.or(erased_context), adapted })
 }
 
-/// Makes the block of lambda `f` the closure of `method`, or of its `$adapted` method.
-pub fn rewrite(l: &mut Lower, f: &Function, method: &Method, plan: &Plan) {
+/// Makes the block of lambda `f` of definition `td` of `class` the closure of `method`, or of its
+/// `$adapted` method, selected on the enclosing instance it is narrowed into.
+pub fn rewrite(
+    l: &mut Lower,
+    (td, class): (TNodeId, SymbolId),
+    f: &Function,
+    method: &Method,
+    plan: &Plan,
+) -> Result<()> {
     let closure = f.closure.expect("a lambda's closure");
     let span = l.tpd.span(closure);
     let env: Vec<TNodeId> = f.captured.iter().map(|&s| l.ident(s, from_start(span))).collect();
     let target = plan.adapted.as_ref().unwrap_or(method).sym;
-    let meth = l.ident(target, span);
+    let meth = match f.into.filter(|&c| enclosing_instance(l, class, c)) {
+        Some(c) => {
+            let receiver = super::outer_fields::outer_path(l, (td, class), c, !f.ctor, from_start(span))?;
+            l.select(receiver, target, span)
+        }
+        None => l.ident(target, span),
+    };
     let Tree::Closure { tpt, .. } = *l.tpd.tree(closure) else { unreachable!("a closure") };
     let tpt = match plan.interface {
         Some(interface) => {
@@ -112,4 +125,5 @@ pub fn rewrite(l: &mut Lower, f: &Function, method: &Method, plan: &Plan) {
         None => closure,
     };
     l.tpd.get_mut(f.block).tree = Tree::Block { stats, expr };
+    Ok(())
 }

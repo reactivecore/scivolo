@@ -5,10 +5,10 @@
 //! field becomes a call of its setter; and the span `InterceptedMethods` gives `!=`.
 
 use super::getters::is_setter;
-use crate::symbols::{has, is_extern};
+use crate::symbols::{has, is_extern, is_java_field};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{FIELDaccessor, MUTABLE, TRAIT};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes each assignment to a variable in class definition `td` a call of its setter.
@@ -24,7 +24,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             super::library_traits::prepare(l, trait_, l.tpd.span(t))?;
         }
         let var = l.tpd.sym(lhs).filter(|&s| has(l.u, s, FIELDaccessor) || is_library_var_param(l, s));
-        let Some(var) = var.filter(|&s| !is_extern(l.u, s) && !l.u.is_java_field(s)) else {
+        let Some(var) = var.filter(|&s| !is_extern(l.u, s) && !is_java_field(l.u, s)) else {
             continue;
         };
         let owner = l.u.symbol(var).owner.expect("a variable's class");
@@ -41,13 +41,27 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             }
             _ => {
                 let s = l.tpd.span(rhs);
-                l.ident(setter, if s.exists() { s.with_point(s.start()) } else { l.tpd.span(lhs) })
+                let at = if s.exists() { s.with_point(s.start()) } else { l.tpd.span(lhs) };
+                match this_prefix(l, lhs) {
+                    Some(c) => {
+                        let this = l.this(c, at);
+                        l.select(this, setter, at)
+                    }
+                    None => l.ident(setter, at),
+                }
             }
         };
         let args = l.tpd.list(&[rhs]);
         l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
     }
     Ok(())
+}
+
+/// The class `C` if reference `id`'s prefix is `C.this` (dotty's `desugarIdentPrefix`).
+fn this_prefix(l: &mut Lower, id: TNodeId) -> Option<SymbolId> {
+    let Type::Sym(Some(prefix), _) = *l.u.types().get(l.tpd.get(id).tpe?) else { return None };
+    let Type::This(c) = *l.u.types().get(prefix) else { return None };
+    l.u.class_symbol(c)
 }
 
 /// Gives `qual.!=` of `Any` the span of `qual`, as `InterceptedMethods`' `qual.==(..).!` has.
