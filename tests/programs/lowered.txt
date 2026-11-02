@@ -208,3 +208,4 @@ mirrorproxies
 usermirrors
 javafields
 nestedobjlambda
+lazycaptures

@@ -31,6 +31,7 @@ impl Typer<'_> {
             if let Type::Sym(_, s) = *self.u.types().get(a) {
                 self.u.set_info(s, bounds);
             } else if let Type::Bounds(lo, hi) = *self.u.types().get(bounds) {
+                self.constraint.declare(self.u, a, lo, hi);
                 self.conforms(lo, a);
                 self.conforms(a, hi);
             }

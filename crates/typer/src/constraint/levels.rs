@@ -8,6 +8,11 @@ use super::Constraint;
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 impl Constraint {
+    /// Whether `v` was made after symbol `s` was defined (dotty's deeper `nestingLevel`).
+    pub fn made_after(&self, v: VarId, s: SymbolId) -> bool {
+        self.vars[v.0 as usize].born.0 > s.0
+    }
+
     /// Whether `t` refers to a local symbol defined from `born` on, or has an uninstantiated
     /// variable made after `born` whose bounds do, `depth` variables deep.
     pub fn refers_to_local(&self, u: &mut Universe, t: TypeId, born: SymbolId, depth: u32) -> bool {

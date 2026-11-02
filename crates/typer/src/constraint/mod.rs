@@ -7,6 +7,7 @@
 
 pub(crate) mod attempt;
 mod avoid;
+mod direction;
 mod lambda_params;
 mod levels;
 mod unify;
@@ -41,6 +42,8 @@ pub struct Constraint {
     /// Whether a lower bound referred to a local symbol defined after its variable and could not
     /// do without it, also in an abandoned attempt.
     escaped: bool,
+    /// The declared bounds of each variable, `Nothing` and `Any` past its end.
+    declared: Vec<(TypeId, TypeId)>,
 }
 
 /// How many satisfiability checks may be in progress at once; deeper ones fail.
@@ -96,16 +99,6 @@ impl Constraint {
             [m] => (v.0 as usize >= m) != (w.0 as usize >= m),
             _ => false,
         }
-    }
-
-    /// Whether a local symbol escaped into the bound of a variable made before it.
-    pub fn escaped(&self) -> bool {
-        self.escaped
-    }
-
-    /// Whether `v` was made after symbol `s` was defined (dotty's deeper `nestingLevel`).
-    pub fn made_after(&self, v: VarId, s: SymbolId) -> bool {
-        self.vars[v.0 as usize].born.0 > s.0
     }
 
     /// Whether `v` keeps the unions of its lower bound when instantiated (dotty's `isHard`).

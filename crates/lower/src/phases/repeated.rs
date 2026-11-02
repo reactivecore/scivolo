@@ -8,7 +8,8 @@ use super::array_wraps::{array_of, repeated_array, seq_value, wrap_array};
 use super::walk::try_walk_class;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId, Type, TypeId};
+use tasty::tags::PRIVATE;
+use tasty::{Erased, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewrites the repeated arguments of the calls in class definition `td`.
@@ -17,6 +18,12 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         if let Tree::SeqLiteral { elems, elemtpt } = *l.tpd.tree(t) {
             seq_value(l, t, elems, elemtpt)?;
             return Ok(Walk::Children);
+        }
+        if let Tree::DefDef { .. } = l.tpd.tree(t)
+            && let Some(def) = l.tpd.sym(t)
+            && overrides_java_varargs(l, def)
+        {
+            return unsupported(l.tpd.span(t), "overrides of Java varargs methods");
         }
         if let Tree::ValDef { name, tpt, rhs: Some(rhs) } = *l.tpd.tree(t)
             && let Some(wrapped) = repeated_array(l, rhs)?
@@ -121,6 +128,29 @@ fn callee(l: &Lower, app: TNodeId) -> Option<(SymbolId, usize)> {
     }
 }
 
+/// Whether method `def` overrides a method with Java varargs (dotty's `overridesJava`, which
+/// `addVarArgsForwarder` gives an array forwarder).
+fn overrides_java_varargs(l: &mut Lower, def: SymbolId) -> bool {
+    let Some(owner) = l.u.symbol(def).owner.filter(|&o| l.u.is_class(o)) else { return false };
+    let name = l.u.symbol(def).name.clone();
+    let site = l.u.intern_type(Type::Sym(None, owner));
+    let site = l.u.intern_type(Type::This(site));
+    for base in l.u.linearization(owner).into_iter().skip(1) {
+        for m in l.u.decl(base, &name).unwrap_or_default() {
+            let s = l.u.symbol(m);
+            if s.kind != Kind::Def || s.flags.has(PRIVATE) {
+                continue;
+            }
+            let info = l.u.info(m);
+            let params: Vec<TypeId> = l.u.param_clauses(info).into_iter().flat_map(|(_, ps)| ps).collect();
+            if params.into_iter().any(|p| java_array(l, p).is_some()) && l.u.matches(site, def, m) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// The type of the `i`th parameter of clause `clause` of `method` if it is Java varargs: an
 /// array marked repeated.
 fn java_varargs(l: &mut Lower, method: SymbolId, clause: usize, i: usize) -> Option<TypeId> {
@@ -130,17 +160,19 @@ fn java_varargs(l: &mut Lower, method: SymbolId, clause: usize, i: usize) -> Opt
         match l.u.types().get(t).clone() {
             Type::Poly { result, .. } => t = result,
             Type::Method { result, .. } if clauses < clause => (t, clauses) = (result, clauses + 1),
-            Type::Method { params, .. } => {
-                let &(_, p) = params.get(i)?;
-                let Type::Annotated(inner, annot) = l.u.types().get(p).clone() else { return None };
-                let array = matches!(l.u.types().get(inner).clone(),
-                    Type::Applied(c, _) if is_class(l, c, "scala.Array"));
-                let repeated = is_class(l, annot, "scala.annotation.internal.Repeated");
-                return (array && repeated).then_some(inner);
-            }
+            Type::Method { params, .. } => return java_array(l, params.get(i)?.1),
             _ => return None,
         }
     }
+}
+
+/// The array of parameter type `p` if it is Java varargs, an array marked repeated.
+fn java_array(l: &mut Lower, p: TypeId) -> Option<TypeId> {
+    let Type::Annotated(inner, annot) = l.u.types().get(p).clone() else { return None };
+    let array =
+        matches!(l.u.types().get(inner).clone(), Type::Applied(c, _) if is_class(l, c, "scala.Array"));
+    let repeated = is_class(l, annot, "scala.annotation.internal.Repeated");
+    (array && repeated).then_some(inner)
 }
 
 pub fn is_class(l: &mut Lower, t: TypeId, full: &str) -> bool {

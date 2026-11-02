@@ -43,14 +43,16 @@ fn programs_lower_as_scala_native_compiles_them() {
 }
 
 #[test]
-fn a_library_traits_super_accessors_lower_as_scala_native_compiles_them() {
+fn programs_against_a_library_jar_lower_as_scala_native_compiles_them() {
     let jars = typer::dump::library_jars(&root().join("ref/libs"));
     if !jars[0].exists() && std::env::var_os("CI").is_none() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/superlib");
-    lowers_as_scala_native(&[&jars[..], &[dir.join("lib/lib.jar")]].concat(), &dir, "superlib");
+    for program in ["superlib", "bridgelib"] {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join(program);
+        lowers_as_scala_native(&[&jars[..], &[dir.join("lib/lib.jar")]].concat(), &dir, program);
+    }
 }
 
 /// Asserts that `program`.scala in `dir`, seeing the TASTy of `jars`, lowers into the NIR files

@@ -40,6 +40,7 @@ impl Typer<'_> {
             let info = self.u.info(s);
             if let Type::Bounds(lo, hi) = *self.u.types().get(info) {
                 let (lo, hi) = (subst(self.u, lo), subst(self.u, hi));
+                self.constraint.declare(self.u, v, lo, hi);
                 ok &= self.conforms(lo, v) && self.conforms(v, hi);
             }
         }
