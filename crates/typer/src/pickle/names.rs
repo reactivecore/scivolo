@@ -19,6 +19,25 @@ pub fn sym_name(u: &Universe, s: SymbolId) -> Name {
     }
 }
 
+/// The separators of dotty's unique name kinds, longest first.
+const UNIQUE_SEPARATORS: [&str; 6] = ["evidence$", "contextual$", "ev$", "ex$", "_$", "$"];
+
+/// The name of definition `s` of a quote: a unique name if it ends in one of dotty's unique
+/// separators and a number.
+pub fn local_name(u: &Universe, s: SymbolId) -> Name {
+    let name = &u.symbol(s).name;
+    let digits = name.trim_end_matches(|c: char| c.is_ascii_digit());
+    let num = name[digits.len()..].parse().ok().filter(|_| !name[digits.len()..].starts_with('0'));
+    let sep = UNIQUE_SEPARATORS.iter().find(|&&sep| digits.ends_with(sep));
+    match (num, sep) {
+        (Some(num), Some(sep)) => {
+            let under = &digits[..digits.len() - sep.len()];
+            Name::Unique { under: utf8(under), sep: sep.to_string(), num }
+        }
+        _ => sym_name(u, s),
+    }
+}
+
 /// The full name of package `p` (dotty's `fullName`), the root package's `<empty>`.
 fn package_name(u: &Universe, p: SymbolId) -> Name {
     let name = if p == u.root() { "<empty>" } else { u.symbol(p).name.as_str() };
@@ -64,6 +83,11 @@ fn utf8(s: &str) -> Box<Name> {
 
 impl TreePickler<'_> {
     pub fn name(&mut self, name: &Name) {
+        if self.keying {
+            let text = format!("{name:?}");
+            self.nat(text.len() as u64);
+            return self.buf.buf.write_bytes(text.as_bytes());
+        }
         let r = self.pickler.names.index(name);
         self.nat(r.0 as u64);
     }

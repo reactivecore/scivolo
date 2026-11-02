@@ -73,7 +73,21 @@ impl Unpickler<'_> {
                 let tpe = self.u.intern_type(Type::Annotated(self.tpd.tpe(arg), annot_tpe));
                 self.bare(T::Annotated { arg, annot }, Some(tpe), None)
             }
-            LAMBDAtpt | REFINEDtpt | MATCHtpt | BLOCK | HOLE => {
+            LAMBDAtpt => {
+                let (body, params) = k.split_last().ok_or("type lambda without a body")?;
+                let syms = params.iter().map(|&p| self.define_local(p)).collect::<Result<Vec<_>, _>>()?;
+                let mut tparams = Vec::new();
+                for (&p, s) in params.iter().zip(syms) {
+                    let (rhs, name) = (self.tpt(self.kids(p)[0])?, self.tname(p, true));
+                    let t = self.bare(T::TypeDef { name, rhs }, None, Some(s));
+                    tparams.push(self.positioned(p, t));
+                }
+                let body = self.tpt(*body)?;
+                let tpe = self.ty(id);
+                let tparams = self.tpd.list(&tparams);
+                self.bare(T::LambdaTypeTree { tparams, body }, Some(tpe), None)
+            }
+            REFINEDtpt | MATCHtpt | BLOCK | HOLE => {
                 return Err("type tree of another kind in a library inline body");
             }
             _ => {

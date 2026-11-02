@@ -548,6 +548,21 @@ macro-fixture:
     rm -f tests/macros/lib/macros.jar
     (cd tmp/macro-fixture/out && zip -q -X -r {{ justfile_directory() }}/tests/macros/lib/macros.jar . -i '*/' '*.nir' '*.tasty' '*.class')
 
+# Compile tests/pickle/Probe.scala with Scala Native: its TASTy into tests/pickle/probe.jar, the
+# quote of each method into tests/pickle/probe-<method>.tasty.
+pickle-fixture:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf tmp/pickle-fixture
+    scala-cli --power compile --quiet --native --native-version 0.5.12 --scala 3.9.0 --server=false \
+        --scalac-option -sourceroot --scalac-option {{ justfile_directory() }} \
+        --workspace tmp/pickle-fixture/ws -d tmp/pickle-fixture/out tests/pickle/Probe.scala
+    rm -f tests/pickle/probe.jar tests/pickle/probe-*.tasty
+    (cd tmp/pickle-fixture/out && zip -q -X -r {{ justfile_directory() }}/tests/pickle/probe.jar . -i '*/' '*.tasty')
+    cargo build -q --release -p scivolo-nir-dump
+    target/release/scivolo-nir-dump 'tmp/pickle-fixture/out/probe/Probe$.nir' > tmp/pickle-fixture/probe.dump
+    python3 -I tests/pickle/quotes.py tmp/pickle-fixture/probe.dump tests/pickle
+
 # Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native.
 javalib-tasty:
     scripts/javalib-tasty.sh
