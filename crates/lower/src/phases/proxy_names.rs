@@ -13,10 +13,7 @@ use tasty::SymbolId;
 /// `pending` for `name_late`.
 pub fn name_proxies(l: &mut Lower, proxies: &[Proxy], pending: &mut Pending) -> Result<()> {
     let mut ranked = Vec::new();
-    let trait_params = l.trait_methods.values().flat_map(|(_, pairs)| pairs);
-    let class_params = pending.proxies.iter().map(|p| (p.sym, p.value));
-    let originals: FxHashMap<SymbolId, SymbolId> =
-        trait_params.map(|&(v, p)| (p, v)).chain(class_params).collect();
+    let originals = originals(l, pending);
     for p in proxies {
         let value = originals.get(&p.value).copied().unwrap_or(p.value);
         let deps = pending.deps.as_ref();
@@ -32,11 +29,16 @@ pub fn name_proxies(l: &mut Lower, proxies: &[Proxy], pending: &mut Pending) -> 
     Ok(())
 }
 
-/// Names the proxies of `pending` and of the `$adapted` method of each lambda of `adapted`.
+/// Names the proxies of `pending` and of the `$adapted` method of each lambda of `adapted`, the
+/// latter as the values the captured proxies stand for.
 pub fn name_late(l: &mut Lower, pending: &mut Pending, adapted: &[Adapted]) {
     let mut late = std::mem::take(&mut pending.late);
-    for (f, proxies) in adapted {
-        for (j, &p) in proxies.iter().enumerate() {
+    let originals = originals(l, pending);
+    for (f, pairs) in adapted {
+        for (j, &(value, p)) in pairs.iter().enumerate() {
+            let original = originals.get(&value).copied().unwrap_or(value);
+            let name = l.u.symbol(original).name.clone();
+            l.u.rename(p, &name);
             let rank = pending.deps.as_ref().and_then(|d| d.adapted_rank(*f, j));
             late.push((rank.unwrap_or((usize::MAX, j)), p));
         }
@@ -44,8 +46,15 @@ pub fn name_late(l: &mut Lower, pending: &mut Pending, adapted: &[Adapted]) {
     name_ranked(l, late);
 }
 
-/// A lambda and the proxies of its `$adapted` method.
-pub type Adapted = (SymbolId, Vec<SymbolId>);
+/// A lambda and the values its `$adapted` method captures, each with its proxy.
+pub type Adapted = (SymbolId, Vec<(SymbolId, SymbolId)>);
+
+/// The value each proxy of a trait method or of a lifted class's constructor stands for.
+fn originals(l: &Lower, pending: &Pending) -> FxHashMap<SymbolId, SymbolId> {
+    let trait_params = l.trait_methods.values().flat_map(|(_, pairs)| pairs);
+    let class_params = pending.proxies.iter().map(|p| (p.sym, p.value));
+    trait_params.map(|&(v, p)| (p, v)).chain(class_params).collect()
+}
 
 fn name_ranked(l: &mut Lower, mut ranked: Vec<((usize, usize), SymbolId)>) {
     ranked.sort_by_key(|&(rank, _)| rank);

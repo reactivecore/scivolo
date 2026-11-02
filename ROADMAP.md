@@ -191,6 +191,10 @@ slower meanwhile:
    positions of extension calls, lowering trees and the last files, joint member types of
    intersections (#202): javalib 3,413 same, 82 var-order, 1 differs; nativelib lowers 102 of
    103 (quotes outside splices wait for #196): 703 same, 9 var-order, 3 differ.
+   2026-11-02: auxlib 80 same, 5 differ; windowslib 130 same; clib 114 same, 1 differs; posixlib
+   270 same. nativelib's `unsafe/package{,$}` differ only as a joint compilation with its refused
+   `UnsafePackageCompat` does; lowered against its TASTy they match Scala Native's separate
+   compilation.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs

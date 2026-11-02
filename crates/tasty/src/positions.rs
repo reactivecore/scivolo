@@ -7,7 +7,7 @@ use crate::cursor::{Cursor, Result};
 use rustc_hash::FxHashMap;
 
 /// The header marking a change of source file.
-const SOURCE: i64 = 4;
+pub const SOURCE: i64 = 4;
 
 /// A span in the source of a TASTy file: offsets in UTF-16 units, the point `None` for a
 /// synthetic span.
@@ -47,6 +47,13 @@ pub fn decode_positions(bytes: &[u8]) -> Result<FxHashMap<u32, TastySpan>> {
         spans.insert(offset(index)?, span);
     }
     Ok(spans)
+}
+
+/// The size of each line of the source, of the Positions section `bytes`.
+pub fn line_sizes(bytes: &[u8]) -> Result<Vec<u32>> {
+    let mut cur = Cursor::new(bytes);
+    let lines = cur.nat()?;
+    (0..lines).map(|_| cur.nat().map(|n| n as u32)).collect()
 }
 
 #[cfg(test)]

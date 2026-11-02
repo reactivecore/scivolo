@@ -1,10 +1,10 @@
 //! Linked classes, traits and modules: hierarchy and instance layout.
 
+mod clinit;
 mod fields;
 
 pub use fields::{FieldSlot, instance_fields};
 
-use crate::interp::Unwound;
 use crate::{Vm, VmError};
 use nir::{DefnKind, GlobalId, Type, TypeId};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -47,6 +47,8 @@ pub struct Classes {
     pub all: Vec<Class>,
     pub by_name: FxHashMap<GlobalId, ClassId>,
     pub vtables: FxHashMap<(ClassId, nir::StrId), crate::interp::FuncId>,
+    /// The classes whose `<clinit>` runs before `main` instead of on linking.
+    pub eager: FxHashSet<GlobalId>,
 }
 
 const ARRAYS: [(&str, u32); 10] = [
@@ -103,23 +105,10 @@ impl Vm {
         });
         self.classes.by_name.insert(name, id);
         self.init_rtti(id)?;
-        self.run_static_initializer(name)?;
+        if !self.classes.eager.contains(&name) {
+            self.run_static_initializer(name)?;
+        }
         Ok(id)
-    }
-
-    /// Runs the `<clinit>` of class `name`, if it has one.
-    fn run_static_initializer(&mut self, name: GlobalId) -> Result<(), VmError> {
-        let clinit = self.world.member(name, "IE");
-        if self.world.defn(clinit).is_err() {
-            return Ok(());
-        }
-        match self.call_global(clinit, &[]) {
-            Ok(_) => Ok(()),
-            Err(u) => match u.into_inner() {
-                Unwound::Throw(exc) => Err(VmError::Initializer(exc)),
-                Unwound::Fatal(e) => Err(e),
-            },
-        }
     }
 
     /// Links the class that owns member `g`, running its static initializer on first use.

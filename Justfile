@@ -548,12 +548,27 @@ macro-fixture:
     rm -f tests/macros/lib/macros.jar
     (cd tmp/macro-fixture/out && zip -q -X -r {{ justfile_directory() }}/tests/macros/lib/macros.jar . -i '*/' '*.nir' '*.tasty' '*.class')
 
+# Compile tests/pickle/Probe.scala with Scala Native: its TASTy into tests/pickle/probe.jar, the
+# quote of each method into tests/pickle/probe-<method>.tasty.
+pickle-fixture:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf tmp/pickle-fixture
+    scala-cli --power compile --quiet --native --native-version 0.5.12 --scala 3.9.0 --server=false \
+        --scalac-option -sourceroot --scalac-option {{ justfile_directory() }} \
+        --workspace tmp/pickle-fixture/ws -d tmp/pickle-fixture/out tests/pickle/Probe.scala
+    rm -f tests/pickle/probe.jar tests/pickle/probe-*.tasty
+    (cd tmp/pickle-fixture/out && zip -q -X -r {{ justfile_directory() }}/tests/pickle/probe.jar . -i '*/' '*.tasty')
+    cargo build -q --release -p scivolo-nir-dump
+    target/release/scivolo-nir-dump 'tmp/pickle-fixture/out/probe/Probe$.nir' > tmp/pickle-fixture/probe.dump
+    python3 -I tests/pickle/quotes.py tmp/pickle-fixture/probe.dump tests/pickle
+
 # Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native.
 javalib-tasty:
     scripts/javalib-tasty.sh
 
 # Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs as dotty's pickler writes
-# it (scala-cli).
+# it (scala-cli), and libs/jdk-declarations.jar, that of JdkDeclarations.scala under jdk-declarations/.
 jdk-stubs:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -561,10 +576,15 @@ jdk-stubs:
     mkdir -p tmp/jdk-stubs/out
     scala-cli --power compile --quiet --scala 3.9.0 --server=false --workspace tmp/jdk-stubs/ws \
         -d tmp/jdk-stubs/classes libs/jdk-stubs \
-        -O -Yearly-tasty-output -O {{ justfile_directory() }}/tmp/jdk-stubs/out -O -Ystop-before:erasure
+        -O -Yearly-tasty-output -O {{ justfile_directory() }}/tmp/jdk-stubs/out -O -Ystop-before:erasure \
+        -O -sourceroot -O {{ justfile_directory() }}
     find tmp/jdk-stubs/out -name '*.tasty' -exec touch -t 201001010000 {} +
     rm -f libs/jdk-stubs.jar
     (cd tmp/jdk-stubs/out && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-stubs.jar -@)
+    mkdir -p tmp/jdk-stubs/decl/jdk-declarations
+    (cd tmp/jdk-stubs/out && grep -rl --include='*.tasty' JdkDeclarations.scala . | cpio -pdm ../decl/jdk-declarations 2> /dev/null)
+    rm -f libs/jdk-declarations.jar
+    (cd tmp/jdk-stubs/decl && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-declarations.jar -@)
 
 # Check out Scala Native v0.5.12 into ref/scala-native.
 fetch-scala-native:
