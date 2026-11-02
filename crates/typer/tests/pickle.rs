@@ -1,5 +1,5 @@
 //! Pickling quotes: typed trees pickled read back equal; dotty's quotes read and pickled again
-//! give their bytes, positions aside.
+//! give their bytes.
 
 use std::path::Path;
 use syntax::ast::Span;
@@ -8,9 +8,10 @@ use syntax::desugar::Desugar;
 use syntax::names::Names;
 use syntax::parse::Parser;
 use syntax::source::SourceFile;
-use tasty::{Ast, Kind, SymbolId, Tasty, Universe, dump};
+use tasty::write::text_line_sizes;
+use tasty::{Ast, Kind, SymbolId, Tasty, TastySpan, Universe, decode_positions, dump, line_sizes};
 use typer::dump::library_jars;
-use typer::pickle::pickle_quote;
+use typer::pickle::{QuoteSource, pickle_positioned_quote, pickle_quote};
 use typer::tpd::print::Printer;
 use typer::tpd::{TNodeId, Tpd, Tree};
 use typer::type_unit;
@@ -118,6 +119,32 @@ fn typed_expressions_read_back_equal() {
     }
 }
 
+#[test]
+fn spans_of_typed_trees_read_back_in_utf16_units() {
+    let Some(mut u) = universe(&[]) else { return };
+    let text = "object T { val é = \"ü\"; val a = é.length + 1 }";
+    let (mut tpd, mut names, rhss) = typed_rhss(&mut u, text, &["a"]);
+    let source = SourceFile::new("t.scala", text);
+    let bindings = tpd.list(&[]);
+    let span = tpd.span(rhss[0]);
+    let root = tpd.node(
+        Tree::Inlined { call: None, bindings, expansion: rhss[0] },
+        span,
+        tpd.get(rhss[0]).tpe,
+        None,
+    );
+    let quote_source = QuoteSource::of("t.scala".into(), &source, 0);
+    let bytes = pickle_positioned_quote((&mut u, &tpd, &names), root, &[], &quote_source).unwrap();
+    let unit = u.root();
+    let Ok(Unpickled::Quote(q)) = quote((&mut u, &mut tpd, &mut names), bytes, unit, &[]) else {
+        panic!("unread")
+    };
+    let Tree::Inlined { expansion, .. } = *tpd.tree(q.root) else { panic!("not inlined") };
+    let read = tpd.span(expansion).in_own_source();
+    let start = text.find("é.length").unwrap() as u32 - 2;
+    assert_eq!((read.start(), read.end()), (start, start + 12));
+}
+
 /// The module class `name` of package `pkg`.
 fn module_class(u: &mut Universe, pkg: &str, name: &str) -> SymbolId {
     let pkg = u.package(pkg).unwrap();
@@ -125,27 +152,64 @@ fn module_class(u: &mut Universe, pkg: &str, name: &str) -> SymbolId {
     *decls.iter().find(|&&c| u.symbol(c).kind == Kind::Class).unwrap()
 }
 
+/// The source of quote `bytes`: its path, last in the name table, and its line sizes, of the
+/// source in the repository or Scala Native's checkout if there, else of the quote.
+fn quote_source(bytes: &[u8]) -> QuoteSource<'static> {
+    let t = Tasty::parse(bytes).unwrap();
+    let last = t.names.iter().last().unwrap().0;
+    let path = t.names.show(last);
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let text = [root.join(&path), root.join("ref/scala-native").join(&path)]
+        .iter()
+        .find_map(|p| std::fs::read_to_string(p).ok());
+    let line_sizes = match text {
+        Some(text) => text_line_sizes(&text),
+        None => line_sizes(t.section("Positions").unwrap().bytes).unwrap(),
+    };
+    QuoteSource { path, line_sizes, file: None }
+}
+
 /// Reads quote `file` of `tests/pickle` owned by `owner` and pickles it again: how the names or
-/// the `ASTs` bytes differ from the file's, or with `exact` unset the trees printed without
-/// addresses, if they do.
+/// the bytes differ from the file's, or with `exact` unset the trees printed without addresses,
+/// if they do.
 fn repickled(u: &mut Universe, owner: SymbolId, file: &str, exact: bool) -> Result<(), String> {
     let path = format!("{}/../../tests/pickle/{file}.tasty", env!("CARGO_MANIFEST_DIR"));
     let bytes = std::fs::read(path).unwrap();
     let (mut tpd, mut names) = (Tpd::default(), Names::default());
     let read = quote((&mut *u, &mut tpd, &mut names), bytes.clone(), owner, &[]);
     let Ok(Unpickled::Quote(q)) = read else { return Err(format!("{file} unread: {:?}", read.err())) };
-    let ours = pickle_quote((u, &tpd, &names), q.root, &q.holes).map_err(|e| format!("{file}: {e}"))?;
+    let source = quote_source(&bytes);
+    let ours = pickle_positioned_quote((u, &tpd, &names), q.root, &q.holes, &source);
+    let ours = ours.map_err(|e| format!("{file}: {e}"))?;
     let ((our_names, our_ast), (names, ast)) = (parts(&ours), parts(&bytes));
-    let shown = names.len().saturating_sub(2);
-    if our_names != names[..shown] {
-        return Err(format!("{file}: names {our_names:?}, not {:?}", &names[..shown]));
+    if our_names != names {
+        return Err(format!("{file}: names {our_names:?}, not {names:?}"));
     }
     let (printed, expected) = (shown_ast(&ours), shown_ast(&bytes));
-    match exact {
-        true if our_ast == ast => Ok(()),
-        false if without_addresses(&printed) == without_addresses(&expected) => Ok(()),
-        _ => Err(format!("{file}: ASTs differ:\n{printed}\n{expected}")),
+    let same_trees =
+        if exact { our_ast == ast } else { without_addresses(&printed) == without_addresses(&expected) };
+    if !same_trees {
+        return Err(format!("{file}: ASTs differ:\n{printed}\n{expected}"));
     }
+    match if exact { ours == bytes } else { same_spans(&ours, &bytes) } {
+        true => Ok(()),
+        false => Err(format!("{file}: positions differ:\n{:?}\n{:?}", spans(&ours), spans(&bytes))),
+    }
+}
+
+/// The spans of the Positions section of TASTy `bytes`, by address.
+fn spans(bytes: &[u8]) -> Vec<(u32, TastySpan)> {
+    let t = Tasty::parse(bytes).unwrap();
+    let mut spans: Vec<_> =
+        decode_positions(t.section("Positions").unwrap().bytes).unwrap().into_iter().collect();
+    spans.sort_by_key(|&(a, _)| a);
+    spans
+}
+
+/// Whether TASTy `ours` and `theirs` give the same spans in the same order, addresses aside.
+fn same_spans(ours: &[u8], theirs: &[u8]) -> bool {
+    let [a, b] = [ours, theirs].map(|t| spans(t).into_iter().map(|(_, s)| s).collect::<Vec<_>>());
+    a == b
 }
 
 /// `printed` without the addresses of definitions and binders.
