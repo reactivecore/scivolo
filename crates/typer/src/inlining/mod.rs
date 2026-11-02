@@ -95,6 +95,8 @@ pub struct Inlining<'a> {
     bodies: FxHashMap<SymbolId, TNodeId>,
     /// How many inline calls are being expanded, one inside another.
     depth: u32,
+    /// The staging level of the tree being transformed: inside a quote's body, calls stay.
+    staging: i32,
     /// The class enclosing the call being expanded.
     pub enclosing_class: Option<SymbolId>,
     /// The span of the call being expanded.
@@ -151,6 +153,7 @@ impl<'a> Inlining<'a> {
             fresh,
             bodies: FxHashMap::default(),
             depth: 0,
+            staging: 0,
             enclosing_class: None,
             call_span: Span::NONE,
             with_inits: FxHashSet::default(),
@@ -213,6 +216,8 @@ impl Inlining<'_> {
             self.typer_inlined = outer.or(Some(self.tpd.span(t)));
             self.typer_ctx = if outer.is_some() { outer_ctx } else { typer_ctx };
         }
+        let level = self.staging_level(t);
+        self.staging += level;
         let mut failed = None;
         let changed = map_children(self, t, &mut |i, c| match Some(c) == call {
             true => c,
@@ -222,6 +227,7 @@ impl Inlining<'_> {
             }),
         });
         (self.typer_inlined, self.typer_ctx) = (outer, outer_ctx);
+        self.staging -= level;
         if let Some(e) = failed {
             return Err(e);
         }
@@ -243,6 +249,9 @@ impl Inlining<'_> {
     /// (dotty's `needsInlining`).
     fn inline_method(&mut self, t: TNodeId) -> Result<Option<TNodeId>, Unsupported> {
         let Some(tpe) = self.tpd.get(t).tpe else { return Ok(None) };
+        if self.staging > 0 {
+            return Ok(None);
+        }
         let widened = self.u.widen(tpe);
         if self.tpd.is_type_tree(t)
             || matches!(self.u.types().get(widened), Type::Method { .. } | Type::Poly { .. })

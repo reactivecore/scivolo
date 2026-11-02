@@ -39,6 +39,8 @@ pub struct TreePickler<'a> {
     /// The parameter names of each binder pickled.
     params: FxHashMap<Binder, Vec<String>>,
     holes: FxHashMap<TNodeId, (u32, Vec<TNodeId>)>,
+    /// The package of the quote, whose members the typer refers to through the package.
+    packages: Vec<SymbolId>,
     /// The definitions of the quote: their addresses, `None` until pickled (dotty's `symRefs`).
     defs: FxHashMap<SymbolId, Option<Addr>>,
     /// The references to definitions not pickled yet (dotty's `forwardSymRefs`).
@@ -73,6 +75,7 @@ fn pickle(
     let mut pickler = Pickler::default();
     let section = pickler.new_section("ASTs");
     let holes = holes.iter().map(|h| (h.node, (h.index, h.args.clone()))).collect();
+    let packages = enclosing_packages(u, tpd, root);
     let mut p = TreePickler {
         u,
         tpd,
@@ -85,6 +88,7 @@ fn pickle(
         binders: FxHashMap::default(),
         params: FxHashMap::default(),
         holes,
+        packages,
         defs: FxHashMap::default(),
         forward: FxHashMap::default(),
     };
@@ -99,6 +103,15 @@ fn pickle(
         p.positions(root, source)?;
     }
     Ok(p.pickler.assemble())
+}
+
+/// The package of the class an inlined quote `root`'s call refers to.
+fn enclosing_packages(u: &Universe, tpd: &Tpd, root: TNodeId) -> Vec<SymbolId> {
+    let crate::tpd::Tree::Inlined { call: Some(call), .. } = *tpd.tree(root) else { return Vec::new() };
+    std::iter::successors(tpd.sym(call), |&s| u.symbol(s).owner)
+        .find(|&s| u.symbol(s).kind == tasty::Kind::Package)
+        .into_iter()
+        .collect()
 }
 
 impl TreePickler<'_> {

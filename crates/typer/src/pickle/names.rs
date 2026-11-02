@@ -66,7 +66,19 @@ fn sig_type_name(u: &mut Universe, full: &str) -> Result<Name, Refusal> {
         Some(b) if is_module_class(u, base)? => (true, b),
         _ => (false, base),
     };
-    let name = qualified(&format!("{base}{arrays}"));
+    let path = format!("{base}{arrays}");
+    let parts: Vec<&str> = path.split('.').collect();
+    let mut name: Option<Name> = None;
+    for (i, part) in parts.iter().enumerate() {
+        let object = i + 1 < parts.len() && part.len() > 1 && part.ends_with('$');
+        let part = Name::utf8(if object { &part[..part.len() - 1] } else { part });
+        let qualified = match name {
+            Some(q) => Name::Qualified(Box::new(q), Box::new(part)),
+            None => part,
+        };
+        name = Some(if object { Name::ObjectClass(Box::new(qualified)) } else { qualified });
+    }
+    let name = name.expect("a name");
     Ok(if module { Name::ObjectClass(Box::new(name)) } else { name })
 }
 

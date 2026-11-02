@@ -8,6 +8,7 @@ mod heal;
 mod holes;
 mod strings;
 mod tags;
+mod values;
 
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
@@ -72,8 +73,8 @@ fn staged(l: &Lower, t: TNodeId, method: &str) -> Option<(TNodeId, TypeId)> {
 /// Makes quote application `t` in `owner` the call unpickling the quote (dotty's `pickleAsTasty`).
 fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
     let span = l.tpd.span(q.body);
-    if literal(l, q.body) {
-        return unsupported(span, "quotes of a literal");
+    if let Some(lit) = literal(l, q.body) {
+        return values::lifted(l, t, &q, lit);
     }
     let tags = l.tpd.quote_tags(t).to_vec();
     let used = heal::heal(l, q.body, &tags);
@@ -122,15 +123,15 @@ fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
     Ok(())
 }
 
-/// Whether `t` is a literal, past blocks and `Inlined` trees without statements.
-fn literal(l: &Lower, t: TNodeId) -> bool {
+/// The literal `t` is, past blocks and `Inlined` trees without statements (dotty's `getLiteral`).
+fn literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     match *l.tpd.tree(t) {
-        Tree::Literal { .. } => true,
+        Tree::Literal { .. } => Some(t),
         Tree::Block { stats, expr } if l.tpd.items(stats).is_empty() => literal(l, expr),
         Tree::Inlined { bindings, expansion, .. } if l.tpd.items(bindings).is_empty() => {
             literal(l, expansion)
         }
-        _ => false,
+        _ => None,
     }
 }
 
