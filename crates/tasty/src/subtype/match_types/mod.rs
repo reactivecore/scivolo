@@ -18,6 +18,8 @@ use crate::types::{Type, TypeId};
 
 /// How many reductions may be nested.
 const MAX_REDUCTIONS: u32 = 64;
+/// How many normalizations may be nested.
+const MAX_NORMALIZING: usize = 512;
 /// How many strippings and beta-reductions `underlying_normalizable` takes at most.
 const MAX_STEPS: u32 = 64;
 
@@ -54,8 +56,13 @@ impl Cmp<'_> {
         let n = self.underlying_normalizable(t)?;
         match self.u.types().get(n) {
             Type::Match { .. } => {
-                let reduced = self.reduced(n)?;
-                Some(self.normal(reduced))
+                if self.normalizing.contains(&n) || self.normalizing.len() >= MAX_NORMALIZING {
+                    return None;
+                }
+                self.normalizing.push(n);
+                let normal = self.reduced(n).map(|reduced| self.normal(reduced));
+                self.normalizing.pop();
+                normal
             }
             _ => self.fold_compiletime(n),
         }

@@ -4,10 +4,33 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Types without references to local symbols (dotty's `ensureNoLocalRefs`, `TypeOps.avoid`).
 
-use super::avoid_map::Avoided;
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{SymbolId, Type, TypeId};
+
+/// The symbols to avoid, those whose bounds are unknown, the local symbols being expanded and
+/// the types whose bounds are: reaching one of the last three fails. A reference to `own`, the
+/// type member whose declared bounds are traversed, gives `Nothing .. Any` (dotty's `LazyRef` of
+/// an F-bound under `isExpandingBounds`).
+#[derive(Clone, Copy)]
+pub struct Avoided<'a> {
+    pub locals: &'a [SymbolId],
+    pub opaque: &'a [SymbolId],
+    pub visiting: &'a [SymbolId],
+    pub expanding: &'a [SymbolId],
+    pub own: Option<SymbolId>,
+}
+
+impl<'a> Avoided<'a> {
+    pub fn new(locals: &'a [SymbolId], opaque: &'a [SymbolId]) -> Self {
+        Avoided { locals, opaque, visiting: &[], expanding: &[], own: None }
+    }
+
+    /// `self` for a type that is not part of the bounds of `own`.
+    pub fn elsewhere(self) -> Self {
+        Avoided { own: None, ..self }
+    }
+}
 
 impl Typer<'_> {
     /// Whether type `t` refers to one of `syms`.

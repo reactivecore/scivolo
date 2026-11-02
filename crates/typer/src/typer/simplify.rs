@@ -13,9 +13,14 @@ impl Typer<'_> {
         simplify(self.u, t)
     }
 
-    /// `simplified`, match types reduced and compile-time operations folded too.
+    /// `simplified`, match types reduced and compile-time operations folded too; a reduction
+    /// that reaches its own type again is outside the subset.
     pub fn simplified_inferred(&mut self, t: TypeId) -> TypeId {
-        let t = normalize_all(self.u, t);
+        let mut cyclic = false;
+        let t = normalize_outside(self.u, t, &mut Vec::new(), &mut cyclic);
+        if cyclic {
+            self.unsupported_at(syntax::ast::Span::NONE, "recursive match type reduction");
+        }
         simplify(self.u, t)
     }
 }
@@ -62,14 +67,33 @@ fn is_class_type(u: &mut tasty::Universe, t: TypeId) -> bool {
 }
 
 /// `t` with match types reduced and compile-time operations folded, everywhere (dotty's
-/// `simplified` of an inferred type).
+/// `simplified` of an inferred type); a type reached again inside its own reduction is left as
+/// it is.
 pub fn normalize_all(u: &mut tasty::Universe, t: TypeId) -> TypeId {
-    u.map_type(t, &mut |u, part| match *u.types().get(part) {
-        Type::Applied(tycon, _) if matches!(u.types().get(tycon), Type::Lambda { .. }) => {
-            let reduced = u.beta_reduced(part);
-            Some(normalize_all(u, reduced))
-        }
-        Type::Applied(..) | Type::Match { .. } => u.try_normalize(part).map(|n| normalize_all(u, n)),
-        _ => None,
+    normalize_outside(u, t, &mut Vec::new(), &mut false)
+}
+
+fn normalize_outside(
+    u: &mut tasty::Universe,
+    t: TypeId,
+    reducing: &mut Vec<TypeId>,
+    cyclic: &mut bool,
+) -> TypeId {
+    u.map_type(t, &mut |u, part| {
+        let reduced = match *u.types().get(part) {
+            _ if reducing.contains(&part) => {
+                *cyclic = true;
+                return Some(part);
+            }
+            Type::Applied(tycon, _) if matches!(u.types().get(tycon), Type::Lambda { .. }) => {
+                u.beta_reduced(part)
+            }
+            Type::Applied(..) | Type::Match { .. } => u.try_normalize(part)?,
+            _ => return None,
+        };
+        reducing.push(part);
+        let normal = normalize_outside(u, reduced, reducing, cyclic);
+        reducing.pop();
+        Some(normal)
     })
 }
