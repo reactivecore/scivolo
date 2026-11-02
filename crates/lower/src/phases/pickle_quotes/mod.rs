@@ -77,7 +77,7 @@ fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
         return values::lifted(l, t, &q, lit);
     }
     let tags = l.tpd.quote_tags(t).to_vec();
-    let used = heal::heal(l, q.body, &tags);
+    let used = heal::heal(l, q.body, &tags)?;
     let mut holes = holes::extract(l, q.body)?;
     let (body, type_holes, tag_refs) = tags::encode(l, q.body, (&tags, &used), owner)?;
     holes.holes.extend(type_holes);

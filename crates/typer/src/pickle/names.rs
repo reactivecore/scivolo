@@ -33,7 +33,8 @@ pub fn local_name(u: &Universe, s: SymbolId) -> Name {
     derived_name(&sym.name).unwrap_or_else(|| sym_name(u, s))
 }
 
-/// Name `name` as a default getter's or a unique name, the name it is derived from also one.
+/// Name `name` as a default getter's or a unique name, the name it is derived from also one
+/// unless that is a `$`-separated unique name, as dotty's synthetic parameter `x$1`.
 fn derived_name(name: &str) -> Option<Name> {
     let digits = name.trim_end_matches(|c: char| c.is_ascii_digit());
     let num: u32 = name[digits.len()..].parse().ok().filter(|_| !name[digits.len()..].starts_with('0'))?;
@@ -44,7 +45,8 @@ fn derived_name(name: &str) -> Option<Name> {
     }
     let sep = UNIQUE_SEPARATORS.iter().find(|&&sep| digits.ends_with(sep))?;
     let under = &digits[..digits.len() - sep.len()];
-    let under = derived_name(under).map_or_else(|| utf8(under), Box::new);
+    let inner = derived_name(under).filter(|n| !matches!(n, Name::Unique { sep, .. } if sep == "$"));
+    let under = inner.map_or_else(|| utf8(under), Box::new);
     Some(Name::Unique { under, sep: sep.to_string(), num })
 }
 

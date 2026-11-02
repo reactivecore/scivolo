@@ -21,6 +21,18 @@ const CASES: &[(&str, &str)] = &[
         "quotes outside the splices of inline methods",
     ),
     (
+        "import scala.quoted.*\nobject Q { def f[T](using Quotes): Expr[Any] = '{ Option.empty[T] } }",
+        "quotes referring to T of level 0 without a given Type",
+    ),
+    (
+        "import scala.quoted.*\nobject Q { def f[T](x: Expr[List[T]])(using Quotes): Expr[Any] = '{ $x.headOption } }",
+        "quotes referring to T of level 0 without a given Type",
+    ),
+    (
+        "import scala.quoted.*\ntrait B { type T }\nobject Q { def f(b: B)(using Quotes): Expr[Any] = '{ Option.empty[b.T] } }",
+        "quotes referring to b of level 0 without a given Type",
+    ),
+    (
         "object Q { def f(x: scala.quoted.Expr[Int]): Int = scala.quoted.runtime.Expr.splice(x) }",
         "reference to scala.quoted.runtime.Expr outside a quote or splice",
     ),
