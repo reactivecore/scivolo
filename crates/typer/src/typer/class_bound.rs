@@ -3,7 +3,7 @@
 //! The type a local class is approximated by when avoiding it (dotty's `classBound`).
 
 use super::Typer;
-use super::avoid_map::Avoided;
+use super::avoid::Avoided;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {

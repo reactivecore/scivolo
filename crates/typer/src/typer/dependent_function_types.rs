@@ -4,7 +4,7 @@
 //! parameters and result (`toFunctionType`, `nonDependentResultApprox`), and taken apart.
 
 use super::Typer;
-use super::avoid_map::Avoided;
+use super::avoid::Avoided;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId};
 
 /// The parameter types and result of an `apply`, and the binder and names of its parameters.
