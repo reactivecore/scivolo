@@ -64,17 +64,17 @@ impl Cmp<'_> {
         let n = self.underlying_normalizable(t)?;
         match self.u.types().get(n) {
             Type::Match { .. } => {
-                if self.normalizing.contains(&n) {
-                    return None;
-                }
-                if self.normalizing.len() >= MAX_NORMALIZING {
+                if self.normalizing.contains(&n) || self.normalizing.len() >= MAX_NORMALIZING {
                     self.u.reductions_exhausted = true;
                     return None;
                 }
+                let exhausted = std::mem::take(&mut self.u.reductions_exhausted);
                 self.normalizing.push(n);
                 let normal = self.reduced(n).map(|reduced| self.normal(reduced));
                 self.normalizing.pop();
-                normal
+                let refused = self.u.reductions_exhausted;
+                self.u.reductions_exhausted |= exhausted;
+                normal.filter(|_| !refused)
             }
             _ => self.fold_compiletime(n),
         }

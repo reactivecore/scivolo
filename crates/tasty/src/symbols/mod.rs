@@ -123,7 +123,7 @@ pub struct Universe {
     pub reducing: u32,
     /// How many more reductions the outermost reduction in progress may start.
     pub reductions_left: u32,
-    /// Whether a reduction was refused because the outermost one used up `reductions_left`.
+    /// Whether a reduction was refused: over a budget, or reaching its own match type again.
     pub reductions_exhausted: bool,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.
     scala2_erasure: bool,
