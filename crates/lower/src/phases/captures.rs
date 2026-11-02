@@ -5,9 +5,9 @@
 
 use super::lambda_lift::Function;
 use super::lift_names::Pending;
-use super::narrowed::{enclosing_instance, narrow_logic_owner, narrow_to};
+use super::narrowed::{encloses, enclosing_instance, narrow_logic_owner, narrow_to};
 use super::walk::{children, is_type_tree};
-use crate::symbols::{has, is_static, is_static_owner};
+use crate::symbols::{has, is_static, is_static_module, is_static_owner};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::MUTABLE;
@@ -70,7 +70,10 @@ pub fn dependencies(
                 let created = if let Type::Sym(_, c) = *l.u.types().get(tycon) { Some(c) } else { None };
                 match created.and_then(|c| l.u.symbol(c).owner) {
                     Some(o) if o == class => functions[i].this = true,
-                    Some(o) if enclosing_instance(l, class, o) => {
+                    Some(o)
+                        if enclosing_instance(l, class, o)
+                            || is_static_module(l.u, o) && encloses(l, o, class) =>
+                    {
                         _ = narrow_logic_owner(l, &mut functions[i], o)
                     }
                     _ => {}

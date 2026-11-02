@@ -124,6 +124,16 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
    - Scala Native: "Unknown method `…$anon$1.fromProduct(scala.Product): scala.Some`" at link
      time; JVM: `NoSuchMethodError`.
    - Fix: give the inlined anonymous mirror classes their mirror members. Frontend: defines them.
+10. **A trait with an `extension` group has `NoInits` only when read from TASTy** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/ast/TreeInfo.scala:485`, `defKind`).
+    - `Namer` takes the flag from `untpd.bodyKind` of the unexpanded body, where `ExtMethods`
+      counts as an initializer; `TreeUnpickler.indexStats` sees only methods and sets `NoInits`.
+    - A class extending the trait calls its empty `$init$` when compiled with the trait, not
+      against its TASTy: nativelib's `unsafe/package$` and `UnsafePackageCompat`.
+    - Fix: `defKind` of `ExtMethods` as of its methods. Frontend: as dotty; `just lib-compile
+      nativelib` reads `UnsafePackageCompat` from TASTy until #196, so `unsafe/package$` lacks the
+      call and `unsafe/package`'s forwarders to its members have the object's position, as in
+      separate compilation.
 
 ## M4: dotty `tests/run`
 

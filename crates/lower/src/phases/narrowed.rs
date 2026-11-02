@@ -63,12 +63,14 @@ pub fn narrow_logic_owner(l: &Lower, f: &mut Function, c: SymbolId) -> bool {
     deeper
 }
 
-/// Whether `o` is a non-static, non-local class enclosing non-local `class`.
+/// Whether `o` is a non-static, non-local class enclosing `class` before lifting.
 pub fn enclosing_instance(l: &Lower, class: SymbolId, o: SymbolId) -> bool {
-    l.u.is_class(o)
-        && !is_static_owner(l.u, o)
-        && ![o, class].iter().any(|c| l.local_classes.contains_key(c))
-        && within(l, class, o)
+    l.u.is_class(o) && !is_static_owner(l.u, o) && !l.local_classes.contains_key(&o) && encloses(l, o, class)
+}
+
+/// Whether class `o` is `class` or encloses it before lifting.
+pub fn encloses(l: &Lower, o: SymbolId, class: SymbolId) -> bool {
+    std::iter::successors(Some(class), |&s| original_owner(l, s)).any(|s| s == o)
 }
 
 /// `class` and the local traits it is in before lifting, innermost first.

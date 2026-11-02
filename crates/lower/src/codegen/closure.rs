@@ -4,6 +4,7 @@
 //! captured values, its abstract methods calling the lifted method (nscplugin's `genClosure`).
 
 use super::Gen;
+use crate::phases::adapt::from_start;
 use crate::phases::sam::abstract_methods;
 use crate::symbols::is_java_static;
 use crate::{Result, unsupported};
@@ -88,8 +89,7 @@ impl Gen<'_, '_> {
             let this = match (receiver, self.l.u.is_package_object(class) || home != class) {
                 (Some(receiver), _) => self.gen_expr(receiver)?,
                 (None, true) => {
-                    let scope = self.m.scopes.iter().find(|s| s.id == self.m.scope).map(|s| s.pos);
-                    let outer = self.at(scope.unwrap_or(self.m.pos));
+                    let outer = self.at_span(from_start(span));
                     let module = self.this_of(home, span);
                     self.m.pos = outer;
                     module?
