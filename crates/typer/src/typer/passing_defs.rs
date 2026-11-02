@@ -47,8 +47,7 @@ impl Typer<'_> {
         if let Type::ByName(r) = *self.u.types().get(info) {
             info = r;
         }
-        let at = self.syms.def_trees.get(&accessed).map_or(span, |&d| self.ast.span(d));
-        let at = Span::at(at.point());
+        let at = self.accessor_span(accessed, span);
         let mut defs = Vec::new();
         if !locals.is_empty() {
             let mut tparams = Vec::new();

@@ -6,7 +6,9 @@
 //! `TermLambda.resultType`, `safeSubstParam` in `matchArgs` and `safeSubstParams` in `assignType`).
 
 use super::Typer;
-use super::dependent_params::{applied_result, mentions_clause_params, mentions_params};
+use super::dependent_params::{
+    applied_result, mentions_clause_params, mentions_params, mentions_params_except,
+};
 use crate::tpd::TNodeId;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId};
 
@@ -57,11 +59,13 @@ impl Typer<'_> {
 
     /// Whether one of `formals` of the clause `clause` of method `method` refers to an earlier
     /// parameter of the clause; `Err` for a formal outside the subset: by-name inside, referring
-    /// to a parameter of another clause, or to its own clause unless the arguments are `in_order`.
+    /// to a parameter of another clause but those `applied`, or to its own clause unless the
+    /// arguments are `in_order`.
     pub fn param_dependent(
         &mut self,
         formals: &[TypeId],
         (clause, method): ((Binder, &[String]), Option<SymbolId>),
+        applied: &[SymbolId],
         in_order: bool,
     ) -> Result<bool, &'static str> {
         let mut dependent = false;
@@ -69,7 +73,9 @@ impl Typer<'_> {
             let own = self.mentions_clause_params(p, clause, method);
             dependent |= own;
             if own && !in_order
-                || !own && (self.is_special_param(p) || self.mentions_params(p, clause.0, method))
+                || !own
+                    && (self.is_special_param(p)
+                        || mentions_params_except(self.u, p, clause.0, method, applied))
             {
                 return Err("dependent parameter");
             }

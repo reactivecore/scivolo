@@ -117,7 +117,8 @@ impl Typer<'_> {
             .collect();
         let in_order = aligned.is_none() && pretyped.is_none() && repeated.is_none();
         let clause = ((binder, &names[..]), meth);
-        let param_dependent = match self.param_dependent(&formals, clause, in_order) {
+        let applied = self.applied_params(f, meth);
+        let param_dependent = match self.param_dependent(&formals, clause, &applied, in_order) {
             Ok(dependent) => dependent,
             Err(what) => return self.unsupported(id, what),
         };
@@ -258,5 +259,16 @@ impl Typer<'_> {
         let arg = self.sequence_arg(arg, Some(elem), ctx);
         let tpe = self.tpd.get(arg).tpe;
         self.tpd.node(T::NamedArg { name, arg }, self.ast.span(a), tpe, None)
+    }
+
+    /// The parameters of the value clauses of script method `method` that `f` applies.
+    fn applied_params(&self, mut f: TNodeId, method: Option<tasty::SymbolId>) -> Vec<tasty::SymbolId> {
+        let mut n = 0;
+        while let T::Apply { fun, .. } | T::TypeApply { fun, .. } = *self.tpd.tree(f) {
+            n += usize::from(matches!(self.tpd.tree(f), T::Apply { .. }));
+            f = fun;
+        }
+        let clauses = method.and_then(|m| self.syms.param_clauses.get(&m));
+        clauses.map_or_else(Vec::new, |c| c.iter().take(n).flatten().copied().collect())
     }
 }

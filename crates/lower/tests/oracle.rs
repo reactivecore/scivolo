@@ -38,26 +38,42 @@ fn programs_lower_as_scala_native_compiles_them() {
     }
     let programs = std::fs::read_to_string(root().join("tests/programs/lowered.txt")).unwrap();
     for program in programs.lines().filter(|p| !p.is_empty()) {
-        let mut u = Universe::open(&jars).unwrap();
-        let dir = root().join("tests/programs").join(program);
-        let file = format!("{program}.scala");
-        let text = std::fs::read_to_string(dir.join(&file)).unwrap();
-        let files = lower::compile(&mut u, &SourceFile::new(file, text), &[]).unwrap();
-        let mut ours: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
-        ours.sort_unstable();
-        let mut theirs = nir_names(&dir, "");
-        theirs.sort_unstable();
-        assert_eq!(ours, theirs, "{program}: files");
-        for f in &files {
-            let reference = std::fs::read(dir.join(format!("{}.nir", f.name.replace('.', "/")))).unwrap();
-            let (ours, theirs) = (decoded(&f.bytes), decoded(&reference));
-            for (a, b) in ours.iter().zip(&theirs) {
-                if a != b {
-                    panic!("{program}: {}\n{}", f.name, first_difference(a, b));
-                }
+        lowers_as_scala_native(&jars, &root().join("tests/programs").join(program), program);
+    }
+}
+
+#[test]
+fn a_library_traits_super_accessors_lower_as_scala_native_compiles_them() {
+    let jars = typer::dump::library_jars(&root().join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/superlib");
+    lowers_as_scala_native(&[&jars[..], &[dir.join("lib/lib.jar")]].concat(), &dir, "superlib");
+}
+
+/// Asserts that `program`.scala in `dir`, seeing the TASTy of `jars`, lowers into the NIR files
+/// beside it.
+fn lowers_as_scala_native(jars: &[PathBuf], dir: &Path, program: &str) {
+    let mut u = Universe::open(jars).unwrap();
+    let file = format!("{program}.scala");
+    let text = std::fs::read_to_string(dir.join(&file)).unwrap();
+    let files = lower::compile(&mut u, &SourceFile::new(file, text), &[]).unwrap();
+    let mut ours: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
+    ours.sort_unstable();
+    let mut theirs = nir_names(dir, "");
+    theirs.sort_unstable();
+    assert_eq!(ours, theirs, "{program}: files");
+    for f in &files {
+        let reference = std::fs::read(dir.join(format!("{}.nir", f.name.replace('.', "/")))).unwrap();
+        let (ours, theirs) = (decoded(&f.bytes), decoded(&reference));
+        for (a, b) in ours.iter().zip(&theirs) {
+            if a != b {
+                panic!("{program}: {}\n{}", f.name, first_difference(a, b));
             }
-            assert_eq!(ours.len(), theirs.len(), "{program}: {} definitions", f.name);
         }
+        assert_eq!(ours.len(), theirs.len(), "{program}: {} definitions", f.name);
     }
 }
 

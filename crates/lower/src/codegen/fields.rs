@@ -7,7 +7,7 @@
 //! `genAssign`).
 
 use super::Gen;
-use crate::symbols::{has, is_static_module};
+use crate::symbols::{has, is_java_field, is_static_module};
 use crate::{Result, unsupported};
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Defn, DefnKind, GlobalId, Op, PosId, Val, ValId};
@@ -20,7 +20,7 @@ use typer::tpd::{TNodeId, Tree};
 impl Gen<'_, '_> {
     /// Whether `s` is a field: one `Memoize` made, a private local value, or a Java field.
     pub fn is_field(&self, s: SymbolId) -> bool {
-        self.l.fields.contains_key(&s) || self.l.u.is_java_field(s)
+        self.l.fields.contains_key(&s) || is_java_field(self.l.u, s)
     }
 
     /// A `var` for each field of class `c` with template `template`, in the order of their
