@@ -7,8 +7,15 @@ use super::{Error, FileId, Kind, Symbol, SymbolId, Universe, table};
 use crate::{NodeId, View, view};
 
 impl Universe {
-    /// Loads the file at `path` and enters its symbols.
+    /// Loads the file at `path` and enters its symbols, and the JDK's declarations over them.
     pub fn load(&mut self, path: &str) -> Result<(), Error> {
+        let (file, entries) = self.read_entries(path)?;
+        self.enter_entries(file, entries);
+        self.load_jdk_declarations(path)
+    }
+
+    /// Loads the file at `path` and the entries of the symbols it defines.
+    pub fn read_entries(&mut self, path: &str) -> Result<(FileId, Vec<Entry>), Error> {
         let (bytes, table) = self.library.read(path).map_err(|e| Error::Io(path.to_owned(), e))?;
         let (loaded, entries) = match table.and_then(table::decode) {
             Some((scala2, entries)) => {
@@ -23,8 +30,7 @@ impl Universe {
         };
         let file = FileId(self.files.len() as u32);
         self.files.push(loaded);
-        self.enter_entries(file, entries);
-        Ok(())
+        Ok((file, entries))
     }
 
     /// Loads the TASTy of a pickled quote, which enters no symbols; its trees are the quote's.
