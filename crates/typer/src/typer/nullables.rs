@@ -109,16 +109,21 @@ impl Typer<'_> {
         }
     }
 
-    /// Gives local definition `stat`, if not completed yet, the not-null infos of `ctx` (dotty's
-    /// `adaptCreationContext`).
-    pub fn adapt_creation_ctx(&mut self, stat: syntax::ast::NodeId, ctx: Ctx) {
-        if !self.u.symbol(ctx.owner).kind.is_term() {
-            return;
-        }
-        let Some(&sym) = self.syms.by_tree.get(&stat) else { return };
-        if let Some(crate::symbols::Completion::Pending { ctx: c, .. }) = self.syms.completions.get_mut(&sym)
-        {
-            c.nulls = ctx.nulls;
+    /// The context of definition `stat` in a statement sequence whose not-null infos were `initial`:
+    /// `ctx` if `stat` is local and not completed yet, which then gets the infos of `ctx` (dotty's
+    /// `adaptCreationContext`), else `ctx` with the `initial` infos.
+    pub fn definition_ctx(&mut self, stat: syntax::ast::NodeId, initial: Option<u32>, ctx: Ctx) -> Ctx {
+        let sym = self.syms.by_tree.get(&stat).copied();
+        let pending = match sym.and_then(|s| self.syms.completions.get_mut(&s)) {
+            Some(crate::symbols::Completion::Pending { ctx: c, .. }) => Some(c),
+            _ => None,
+        };
+        match pending {
+            Some(c) if self.u.symbol(ctx.owner).kind.is_term() => {
+                c.nulls = ctx.nulls;
+                ctx
+            }
+            _ => Ctx { nulls: initial, ..ctx },
         }
     }
 

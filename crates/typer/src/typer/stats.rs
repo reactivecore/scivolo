@@ -91,10 +91,18 @@ impl Typer<'_> {
     pub fn typed_stats(&mut self, stats: &[NodeId], mut ctx: Ctx) -> Vec<TNodeId> {
         let mut out = Vec::new();
         let mut ctxs = Vec::new();
+        let initial = ctx.nulls;
         for &s in stats {
             if !matches!(self.ast.tree(s), Tree::Empty) {
-                self.adapt_creation_ctx(s, ctx);
-                let typed = self.typed_stat(s, ctx);
+                let stat_ctx = match self.ast.tree(s) {
+                    Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. }
+                        if self.explicit_nulls =>
+                    {
+                        self.definition_ctx(s, initial, ctx)
+                    }
+                    _ => ctx,
+                };
+                let typed = self.typed_stat(s, stat_ctx);
                 out.push(typed);
                 ctxs.push(ctx);
                 ctx = self.after_stat(s, ctx);

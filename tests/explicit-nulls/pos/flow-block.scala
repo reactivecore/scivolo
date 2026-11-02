@@ -14,6 +14,11 @@ object FlowBlock:
   def nothing(s: String | Null): Int =
     if s == null then sys.error("null")
     s.length
+  def localDefs(s: String | Null): Int =
+    if s == null then throw new Exception()
+    def h: Int = s.length
+    val v = s.length
+    h + v
   def nested(s: String | Null): Int =
     {
       if s == null then return 0
