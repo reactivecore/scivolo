@@ -21,10 +21,7 @@ impl Unpickler<'_> {
             IDENTtpt => {
                 let tpe = self.ty(id);
                 let (tpe, sym) = match self.u.types().get(tpe).clone() {
-                    Type::TypeRef(p, n) => match self.u.resolve(p, &n, true) {
-                        Some(s) => (self.u.intern_type(Type::Sym(Some(p), s)), Some(s)),
-                        None => (tpe, None),
-                    },
+                    Type::TypeRef(p, n) => (tpe, self.u.resolve(p, &n, true)),
                     Type::Sym(_, s) => (tpe, Some(s)),
                     _ => (tpe, None),
                 };

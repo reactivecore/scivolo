@@ -32,8 +32,7 @@ impl TreePickler<'_> {
                 self.named_ref(prefix, &name, matches!(self.u.types().get(t), Type::TypeRef(..)))
             }
             Type::Package(p) => {
-                self.byte(TERMREFpkg);
-                self.package_name(p);
+                self.package_ref(p);
                 Ok(())
             }
             Type::PackageName(n) => {

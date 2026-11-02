@@ -6,7 +6,7 @@
 
 use super::{Refusal, TreePickler};
 use crate::signatures::{params_sig, result_sig};
-use tasty::tags::OBJECT;
+use tasty::tags::{OBJECT, TERMREFpkg};
 use tasty::write::{Name, ParamSig};
 use tasty::{Kind, SymbolId, Universe};
 
@@ -119,6 +119,15 @@ impl TreePickler<'_> {
     pub fn package_name(&mut self, p: SymbolId) {
         let name = package_name(self.u, p);
         self.name(&name);
+    }
+
+    /// `TERMREFpkg` of package `p`, the root package's as `_root_`.
+    pub fn package_ref(&mut self, p: SymbolId) {
+        self.byte(TERMREFpkg);
+        match p == self.u.root() {
+            true => self.name(&Name::utf8("_root_")),
+            false => self.package_name(p),
+        }
     }
 
     /// The name of `s`, signed if `signed` and `s` is a method (dotty's `pickleNameAndSig`).
