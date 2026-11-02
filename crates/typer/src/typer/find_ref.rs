@@ -7,7 +7,7 @@ use super::Typer;
 use super::idents::Found;
 use crate::ctx::{Ctx, Level, LevelId, Mode};
 use crate::defn::ref_type;
-use tasty::Kind;
+use tasty::{Kind, Type};
 
 /// The precedence of a binding (dotty's `BindingPrec`), lowest first.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -207,7 +207,11 @@ impl Typer<'_> {
                     return Some(Found { prefix: None, syms: vec![s] });
                 }
                 let prefix = crate::defn::owner_prefix(self.u, owner);
-                self.members_found(prefix, name.text, name.is_type)
+                let mut found = self.members_found(prefix, name.text, name.is_type)?;
+                if self.u.symbol(owner).kind == Kind::Package {
+                    found.prefix = Some(self.u.intern_type(Type::This(prefix)));
+                }
+                Some(found)
             }
             Level::Import(_) => None,
         }

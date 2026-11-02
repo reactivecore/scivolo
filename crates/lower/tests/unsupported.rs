@@ -8,12 +8,29 @@ use tasty::Universe;
 /// Each source and what the refusal names.
 const CASES: &[(&str, &str)] = &[
     (
-        "import scala.quoted.*\nobject Q { def f(x: Expr[Int])(using Quotes): Expr[Int] = '{ $x + 1 } }",
-        "quotes outside the splices of inline methods",
+        "import scala.quoted.*\nobject Q { def g(x: Expr[Int])(using Quotes): Expr[Int] = x\n\
+         def f(using Quotes): Expr[Int] = '{ val y = 1; ${ g('y) } } }",
+        "captured reference in a quote",
+    ),
+    (
+        "import scala.quoted.*\nobject Q { def f(x: Expr[Int])(using Quotes): Expr[Expr[Int]] = '{ '{ 1 } } }",
+        "nested quotes",
     ),
     (
         "import scala.quoted.*\nobject Q { def f[T: Type](using Quotes): Type[List[T]] = Type.of[List[T]] }",
         "quotes outside the splices of inline methods",
+    ),
+    (
+        "import scala.quoted.*\nobject Q { def f[T](using Quotes): Expr[Any] = '{ Option.empty[T] } }",
+        "quotes referring to T of level 0 without a given Type",
+    ),
+    (
+        "import scala.quoted.*\nobject Q { def f[T](x: Expr[List[T]])(using Quotes): Expr[Any] = '{ $x.headOption } }",
+        "quotes referring to T of level 0 without a given Type",
+    ),
+    (
+        "import scala.quoted.*\ntrait B { type T }\nobject Q { def f(b: B)(using Quotes): Expr[Any] = '{ Option.empty[b.T] } }",
+        "quotes referring to b of level 0 without a given Type",
     ),
     (
         "object Q { def f(x: scala.quoted.Expr[Int]): Int = scala.quoted.runtime.Expr.splice(x) }",
@@ -206,6 +223,11 @@ const CASES: &[(&str, &str)] = &[
         "import language.experimental.erasedDefinitions\n\
          object O { erased val e: Int = { println(); 1 } }",
         "right-hand side of an erased value that is not pure",
+    ),
+    (
+        "class P extends java.io.PrintStream(System.out) {\n\
+         override def printf(f: String, args: Object*): java.io.PrintStream = this }",
+        "overrides of Java varargs methods",
     ),
 ];
 

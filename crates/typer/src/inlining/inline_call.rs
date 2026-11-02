@@ -178,4 +178,23 @@ impl Inlining<'_> {
         }
         self.tpd.children(t).into_iter().find_map(|c| self.inline_ref_in(c))
     }
+
+    /// Gives the qualifier of each `this` in `t` its class's symbol and type, as dotty's copy of
+    /// the call in `inlineCall` does after the typer.
+    pub fn type_this_qualifiers(&mut self, t: TNodeId) {
+        if self.transparent_only {
+            return;
+        }
+        if let T::This { qual } = *self.tpd.tree(t)
+            && let Some(c) = self.tpd.sym(t)
+            && self.tpd.get(qual).tpe.is_none()
+        {
+            let tpe = crate::defn::type_ref(self.u, c);
+            let node = self.tpd.get_mut(qual);
+            (node.sym, node.tpe) = (Some(c), Some(tpe));
+        }
+        for c in self.tpd.traversed(t) {
+            self.type_this_qualifiers(c);
+        }
+    }
 }

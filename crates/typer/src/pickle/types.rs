@@ -3,6 +3,7 @@
 //! Types (dotty's `pickleType`, `pickleNewType`, `pickleMethodic`, `pickleConstant`).
 
 use super::names::qualified;
+use super::sharing::BY_NAME;
 use super::{Refusal, TreePickler};
 use tasty::tags::*;
 use tasty::write::{Addr, Name};
@@ -24,11 +25,14 @@ impl TreePickler<'_> {
             }
             Type::Constant(..) | Type::Str(_) => self.constant(t),
             Type::Sym(prefix, s) => self.sym_ref(prefix, s),
-            Type::TypeRef(prefix, name) => self.named_ref(prefix, &name, true),
-            Type::TermRef(prefix, name) => self.named_ref(prefix, &name, false),
+            Type::TypeRef(prefix, name) | Type::TermRef(prefix, name) => {
+                if self.keying {
+                    self.byte(BY_NAME);
+                }
+                self.named_ref(prefix, &name, matches!(self.u.types().get(t), Type::TypeRef(..)))
+            }
             Type::Package(p) => {
-                self.byte(TERMREFpkg);
-                self.package_name(p);
+                self.package_ref(p);
                 Ok(())
             }
             Type::PackageName(n) => {
@@ -38,7 +42,7 @@ impl TreePickler<'_> {
             }
             Type::This(class) => match *self.u.types().get(class) {
                 Type::Package(p) => {
-                    self.package_this(p);
+                    self.new_package_this(p);
                     Ok(())
                 }
                 Type::PackageName(_) => Err("the this of a package the universe does not have"),
@@ -92,13 +96,16 @@ impl TreePickler<'_> {
                 let mods = if contextual { Some(GIVEN) } else { implicit.then_some(IMPLICIT) };
                 self.methodic(METHODtype, (binder, at), &params, result, mods)
             }
-            Type::Param(binder, i) => {
-                let at = *self.binders.get(&binder).ok_or("a parameter reference outside its binder")?;
-                self.with_length(PARAMtype, &mut |p| {
-                    p.buf.write_ref(at);
-                    p.nat(i as u64);
-                    Ok(())
-                })
+            Type::Param(binder, i) => self.param(binder, i),
+            Type::Local(def, name) => {
+                let (binder, i) = self
+                    .params
+                    .iter()
+                    .filter(|(b, _)| b.0 == def.0 && b.1 < def.1)
+                    .filter_map(|(&b, names)| Some((b, names.iter().position(|n| *n == name)?)))
+                    .max_by_key(|(b, _)| b.1)
+                    .ok_or("a parameter reference outside its binder")?;
+                self.param(binder, i as u32)
             }
             _ => Err("a type outside the subset pickled"),
         }
@@ -113,6 +120,7 @@ impl TreePickler<'_> {
         modifier: Option<u8>,
     ) -> Result<(), Refusal> {
         self.binders.insert(binder, at);
+        self.params.insert(binder, params.iter().map(|(n, _)| n.clone()).collect());
         self.with_length(tag, &mut |p| {
             p.ty(result, true)?;
             for (name, t) in params {
@@ -120,6 +128,16 @@ impl TreePickler<'_> {
                 p.name(&Name::utf8(name));
             }
             modifier.into_iter().for_each(|m| p.byte(m));
+            Ok(())
+        })
+    }
+
+    /// A reference to parameter `i` of the method or type lambda `binder`.
+    fn param(&mut self, binder: Binder, i: u32) -> Result<(), Refusal> {
+        let at = *self.binders.get(&binder).ok_or("a parameter reference outside its binder")?;
+        self.with_length(PARAMtype, &mut |p| {
+            p.buf.write_ref(at);
+            p.nat(i as u64);
             Ok(())
         })
     }

@@ -22,8 +22,7 @@ impl TreePickler<'_> {
         let sym = self.u.symbol(s);
         let (is_type, owner) = (sym.kind.is_type(), sym.owner);
         if sym.kind == Kind::Package {
-            self.byte(TERMREFpkg);
-            self.package_name(s);
+            self.package_ref(s);
             return Ok(());
         }
         let prefix = match (prefix, owner.map(|o| (o, self.u.symbol(o).kind))) {

@@ -171,7 +171,7 @@ impl Typer<'_> {
     /// `newLocalDummy`), defined if no one has.
     pub fn local_dummy(&mut self, owner: SymbolId) -> SymbolId {
         let name = format!("<local {}>", self.u.symbol(owner).name);
-        crate::defn::entered(self.u, owner, &name, Kind::Val)
+        crate::special::entered(self.u, owner, &name, Kind::Val)
             .unwrap_or_else(|| self.syms.define(self.u, &name, Kind::Val, owner, syntax::ast::flags::EMPTY))
     }
 

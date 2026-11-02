@@ -5,6 +5,7 @@
 
 use super::names::local_name;
 use super::{Refusal, TreePickler};
+use crate::defn::type_ref;
 use crate::tpd::{Clauses, TNodeId, Tree as T};
 use tasty::tags::*;
 use tasty::{Flags, SymbolId};
@@ -157,11 +158,20 @@ impl TreePickler<'_> {
         if flags.has(PRIVATEqualified) || flags.has(PROTECTEDqualified) {
             return Err("a qualified private or protected definition");
         }
-        if !self.u.annotations(sym).is_empty() {
+        let classes = self.u.annotations(sym).to_vec();
+        let trees = self.tpd.annotations(sym);
+        if classes.len() != trees.len() {
             return Err("an annotated definition");
         }
         let term = s.kind.is_term();
         self.flags(flags, term);
+        for (class, &annot) in classes.into_iter().zip(trees) {
+            let class = type_ref(self.u, class);
+            self.with_length(ANNOTATION, &mut |p| {
+                p.ty(class, false)?;
+                p.tree(annot)
+            })?;
+        }
         Ok(())
     }
 

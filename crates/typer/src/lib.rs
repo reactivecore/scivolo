@@ -14,6 +14,7 @@ mod namer;
 pub mod pickle;
 pub mod sealed;
 mod signatures;
+mod special;
 mod symbols;
 pub mod tpd;
 mod typer;

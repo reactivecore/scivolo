@@ -14,7 +14,7 @@ use tasty::{NOTHING, SymbolId, Type, TypeId};
 impl Typer<'_> {
     /// dotty's `<special-ops>.throw(x: Throwable): Nothing`, defined on first use.
     fn throw_method(&mut self) -> SymbolId {
-        let throw = self.syms.throw_method.unwrap_or_else(|| crate::defn::throw_method(self.u));
+        let throw = self.syms.throw_method.unwrap_or_else(|| crate::special::throw_method(self.u));
         self.syms.throw_method = Some(throw);
         throw
     }

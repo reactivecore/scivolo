@@ -206,4 +206,6 @@ liftouterthis
 inlineimports
 mirrorproxies
 usermirrors
+javafields
 nestedobjlambda
+lazycaptures

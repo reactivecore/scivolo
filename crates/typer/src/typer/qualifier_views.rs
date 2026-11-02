@@ -31,7 +31,7 @@ impl Typer<'_> {
         {
             return None;
         }
-        let reported = self.diags.items.len();
+        let (reported, uniques) = (self.diags.items.len(), self.syms.uniques.clone());
         let ((fits, types), _, _) = self.speculatively(|t| {
             let mut types = Vec::new();
             for &a in &args {
@@ -49,6 +49,9 @@ impl Typer<'_> {
         });
         let diagnosed = self.diags.items.len() > reported;
         self.diags.items.truncate(reported);
+        if fits {
+            self.syms.uniques = uniques;
+        }
         if fits || diagnosed {
             return None;
         }

@@ -36,6 +36,8 @@ pub struct Tpd {
     trailing_maps: FxHashSet<TNodeId>,
     backquoted: FxHashSet<TNodeId>,
     anon_mirrors: FxHashMap<SymbolId, AnonMirror>,
+    quote_tags: FxHashMap<TNodeId, Vec<(SymbolId, TypeId)>>,
+    annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
 }
 
 /// What an anonymous class the typer made for a mirror becomes (dotty's
@@ -136,5 +138,25 @@ impl Tpd {
 
     pub fn anon_mirror(&self, class: SymbolId) -> Option<AnonMirror> {
         self.anon_mirrors.get(&class).copied()
+    }
+
+    /// Records for quote `quote` the given `Type[T]` of each type `T` of an outer level it refers to.
+    pub fn set_quote_tags(&mut self, quote: TNodeId, tags: Vec<(SymbolId, TypeId)>) {
+        self.quote_tags.insert(quote, tags);
+    }
+
+    /// The types of an outer level quote `quote` refers to, each with the path of its `Type[T]`.
+    pub fn quote_tags(&self, quote: TNodeId) -> &[(SymbolId, TypeId)] {
+        self.quote_tags.get(&quote).map_or(&[], Vec::as_slice)
+    }
+
+    /// Records annotation tree `annot` of definition `sym`, which a phase made.
+    pub fn annotate(&mut self, sym: SymbolId, annot: TNodeId) {
+        self.annotations.entry(sym).or_default().push(annot);
+    }
+
+    /// The annotation trees phases recorded for definition `sym`.
+    pub fn annotations(&self, sym: SymbolId) -> &[TNodeId] {
+        self.annotations.get(&sym).map_or(&[], Vec::as_slice)
     }
 }

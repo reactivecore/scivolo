@@ -131,6 +131,9 @@ impl Typer<'_> {
                 Type::Var(v) if fresh => Some(v),
                 _ => None,
             };
+            if var.is_some() {
+                self.constraint.declare(self.u, arg, lo.unwrap_or(tasty::NOTHING), hi);
+            }
             let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
             if var.is_none() && !any_kind && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");

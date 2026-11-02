@@ -7,6 +7,9 @@ use tasty::tags::*;
 use tasty::write::Addr;
 use tasty::{SymbolId, TypeId};
 
+/// The key byte of a reference by name, told from a reference to a symbol (dotty's designators).
+pub const BY_NAME: u8 = 0;
+
 impl TreePickler<'_> {
     /// Type `t`, a `SHAREDtype` if pickled before; `rich` admits method types.
     pub fn ty(&mut self, t: TypeId, rich: bool) -> Result<(), Refusal> {
@@ -39,12 +42,15 @@ impl TreePickler<'_> {
 
     /// The `this` of package `p`, a `SHAREDtype` if pickled before (dotty's `ThisType` case).
     pub fn package_this(&mut self, p: SymbolId) {
-        let key = [&[THIS, TERMREFpkg][..], &p.0.to_le_bytes()].concat();
-        if self.keying {
-            return self.buf.buf.write_bytes(&key);
+        if self.keying || !self.is_shared(this_key(p)) {
+            self.new_package_this(p);
         }
-        if self.is_shared(key) {
-            return;
+    }
+
+    /// The `this` of package `p`, not shared.
+    pub fn new_package_this(&mut self, p: SymbolId) {
+        if self.keying {
+            return self.buf.buf.write_bytes(&this_key(p));
         }
         if p == self.u.root() {
             self.byte(THIS);
@@ -69,4 +75,9 @@ impl TreePickler<'_> {
             }
         }
     }
+}
+
+/// What identifies the `this` of package `p`, told from the package's reference.
+fn this_key(p: SymbolId) -> Vec<u8> {
+    [&[THIS, TERMREFpkg][..], &p.0.to_le_bytes()].concat()
 }

@@ -36,6 +36,14 @@ impl Dependencies {
         self.free.iter().find(|(o, _)| *o == owner).map_or(&[], |(_, vs)| vs)
     }
 
+    /// Sorts `values` in the order of the values free in `owner`, if all are.
+    pub fn sort(&self, owner: SymbolId, values: &mut [SymbolId]) {
+        let order = self.of(owner);
+        if values.iter().all(|v| order.contains(v)) {
+            values.sort_by_key(|v| order.iter().position(|o| o == v));
+        }
+    }
+
     /// The index of `owner` among the owners and of `value` among its values.
     pub fn rank(&self, owner: SymbolId, value: SymbolId) -> Option<(usize, usize)> {
         let i = self.order.iter().position(|&o| o == (owner, false))?;
