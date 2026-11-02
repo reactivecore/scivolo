@@ -59,5 +59,6 @@ fn main() {
             }
         }
         out.write_all(b.as_bytes()).unwrap();
+        out.flush().unwrap();
     }
 }

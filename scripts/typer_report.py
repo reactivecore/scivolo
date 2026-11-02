@@ -1,12 +1,13 @@
 """The typer report: each file's outcome against dotty's typed trees, and their counts per corpus."""
 import collections
+import queue
 import subprocess
-import sys
+import threading
 
 from typer_corpus import (CORPORA, DUMP, WORK, corpus, feature_stats, has_errors, load_expected, selected, split,
                           write_list)
 
-REPORT_TIMEOUT = 1800
+FILE_TIMEOUT = 120
 OUTCOMES = ["passed", "differ", "warnings differ", "rejected", "accepted", "syntax errors", "unsupported",
             "crashed", "skipped"]
 SUBSET_EXCLUDED = ("ty_match", "tt_match_type", "quotes", "macro_calls")
@@ -82,16 +83,50 @@ def write_results(rows):
         print(f"{before} -> {after}: {n} {d}")
 
 
+def dump_until_stuck(rows):
+    """The dumps of `rows` in order, up to the first that aborts the process or takes longer than
+    FILE_TIMEOUT."""
+    lst = write_list("run.tsv", rows)
+    proc = subprocess.Popen([str(DUMP), "--list", str(lst)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                            text=True, encoding="utf-8", errors="replace")
+    lines, done = [], queue.Queue()
+
+    def read():
+        for line in proc.stdout:
+            lines.append(line)
+            if line.startswith("== file "):
+                done.put(True)
+        done.put(False)
+
+    reader = threading.Thread(target=read)
+    reader.start()
+    try:
+        while done.get(timeout=FILE_TIMEOUT):
+            pass
+    except queue.Empty:
+        proc.kill()
+    reader.join()
+    proc.wait()
+    return split("".join(lines))
+
+
+def dump(rows):
+    """The dump of each of `rows`; a crash record for one that aborts the process or times out."""
+    actual = {}
+    while rows:
+        got = dump_until_stuck(rows)
+        actual.update(got)
+        if len(got) >= len(rows):
+            break
+        actual[rows[len(got)][0]] = f"== crash aborted or over {FILE_TIMEOUT} s\n"
+        rows = rows[len(got) + 1:]
+    return actual
+
+
 def report(filter_):
     expected = load_expected()
     runnable, rows = runnable_rows(filter_, expected)
-    lst = write_list("run.tsv", runnable)
-    try:
-        out = subprocess.run([str(DUMP), "--list", str(lst)], capture_output=True, text=True, encoding="utf-8",
-                             errors="replace", timeout=REPORT_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        sys.exit(f"scivolo-typer-dump did not finish within {REPORT_TIMEOUT} s: a unit hangs")
-    actual = split(out.stdout)
+    actual = dump(runnable)
     for rel, _ in runnable:
         got = actual.get(rel, "== crash no output")
         rows[rel] = classify_neg(got) if corpus(rel) == "neg" else classify(expected[rel], got)

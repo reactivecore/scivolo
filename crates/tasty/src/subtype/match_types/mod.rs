@@ -20,6 +20,8 @@ use crate::types::{Type, TypeId};
 const MAX_REDUCTIONS: u32 = 64;
 /// How many normalizations may be nested.
 const MAX_NORMALIZING: usize = 512;
+/// How many reductions an outermost reduction starts at most, over all comparisons.
+const MAX_TOTAL_REDUCTIONS: u32 = 100_000;
 /// How many strippings and beta-reductions `underlying_normalizable` takes at most.
 const MAX_STEPS: u32 = 64;
 
@@ -43,6 +45,12 @@ impl Universe {
     /// Whether match type case `case` has a pattern that reduction handles.
     pub fn is_reducible_case(&mut self, case: TypeId) -> bool {
         !matches!(Cmp::new(self, &mut NoVars).analyze(case), spec::Spec::Unsupported)
+    }
+}
+
+impl Drop for Cmp<'_> {
+    fn drop(&mut self) {
+        self.u.reducing -= self.reductions;
     }
 }
 
@@ -127,10 +135,19 @@ impl Cmp<'_> {
     /// The reduction of match type `m`, if it reduces (dotty's `MatchType.reduced`).
     pub fn reduced(&mut self, m: TypeId) -> Option<TypeId> {
         let Type::Match { scrutinee, cases, .. } = self.u.types().get(m).clone() else { return None };
+        if self.u.reducing == 0 {
+            self.u.reductions_left = MAX_TOTAL_REDUCTIONS;
+        }
+        if self.u.reductions_left == 0 {
+            self.u.reductions_exhausted = true;
+            return None;
+        }
         if self.reductions >= MAX_REDUCTIONS {
             return None;
         }
         self.reductions += 1;
+        self.u.reducing += 1;
+        self.u.reductions_left -= 1;
         let frozen = std::mem::replace(&mut self.frozen, true);
         let scrutinee = self.u.dealias(scrutinee);
         let scrutinee = self.fixed(scrutinee);
@@ -138,6 +155,7 @@ impl Cmp<'_> {
         let reduced = self.match_cases(scrutinee, &cases);
         self.frozen = frozen;
         self.reductions -= 1;
+        self.u.reducing -= 1;
         reduced
     }
 }

@@ -86,7 +86,7 @@ impl Typer<'_> {
             return None;
         }
         let visiting = [a.visiting, &[s]].concat();
-        let a = Avoided { visiting: &visiting, ..a.elsewhere() };
+        let a = Avoided { visiting: &visiting, in_var_bound: false, ..a.elsewhere() };
         let info = self.u.info(s);
         let info = match *self.u.types().get(info) {
             Type::ByName(r) => r,
@@ -145,10 +145,13 @@ impl Typer<'_> {
         if let Some(inst) = self.constraint.instance(var) {
             return self.avoid_at(inst, v, a);
         }
+        if a.in_var_bound {
+            return Some(Approx::Exact(t));
+        }
         let (lo, hi) = self.constraint.bounds(var);
         let bound = if v > 0 || v == 0 && lo != NOTHING { lo } else { hi };
         let bound = self.zonk(bound);
-        let mapped = self.avoid_at(bound, v, a)?;
+        let mapped = self.avoid_at(bound, v, Avoided { in_var_bound: true, ..a })?;
         Some(if mapped == Approx::Exact(bound) { Approx::Exact(t) } else { mapped })
     }
 

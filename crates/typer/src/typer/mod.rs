@@ -382,6 +382,7 @@ impl<'a> Typer<'a> {
             return Err("source versions other than 3.7 to 3.9".into());
         }
         let defn = Defn::new(u)?;
+        u.reductions_exhausted = false;
         let mut syms = std::mem::take(syms);
         let ops = u.package("<special-ops>");
         syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, "throw", Kind::Def));

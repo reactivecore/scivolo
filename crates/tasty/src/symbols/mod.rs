@@ -119,6 +119,12 @@ pub struct Universe {
     joint_members: joint::JointMembers,
     /// How many steps comparisons have taken computing atoms and `Nothing`-ness.
     pub subtype_steps: u64,
+    /// How many match type reductions are in progress, over all comparisons.
+    pub reducing: u32,
+    /// How many more reductions the outermost reduction in progress may start.
+    pub reductions_left: u32,
+    /// Whether a reduction was refused because the outermost one used up `reductions_left`.
+    pub reductions_exhausted: bool,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.
     scala2_erasure: bool,
 }
