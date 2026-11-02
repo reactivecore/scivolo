@@ -42,8 +42,12 @@ TIMEOUT = 120
 
 
 def coursier(*args):
-    return [Path(j) for j in subprocess.run(["coursier", "fetch", *args], capture_output=True, text=True,
-                                            check=True).stdout.split()]
+    if not shutil.which("coursier"):
+        sys.exit("lib-source: coursier not found on PATH")
+    r = subprocess.run(["coursier", "fetch", *args], stdout=subprocess.PIPE, text=True)
+    if r.returncode != 0:
+        sys.exit(f"lib-source: coursier fetch {' '.join(args)} failed")
+    return [Path(j) for j in r.stdout.split()]
 
 
 def fetch(coordinate):
@@ -168,7 +172,7 @@ def main(name):
     published = {p for p, _, _ in built}
     jars = [o for _, o, _ in built] + sorted({d for _, _, ds in built for d in ds} - published)
     for test in tests:
-        print(f"  tests/aot/{test} on our {name}: {run_test(test, work / "tests" / test, jars)}")
+        print(f"  tests/aot/{test} on our {name}: {run_test(test, work / 'tests' / test, jars)}")
 
 
 if __name__ == "__main__":
