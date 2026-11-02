@@ -18,7 +18,24 @@ fn with_javalib() -> Option<Universe> {
     }
     let mut jars = fetched.to_vec();
     jars.push(root.join("libs/javalib-tasty-0.5.12.jar"));
+    jars.push(root.join("libs/jdk-declarations.jar"));
     Some(Universe::open(&jars).unwrap())
+}
+
+#[test]
+fn jdk_declarations_replace_javalib_members_of_their_names() {
+    let Some(mut u) = with_javalib() else { return };
+    let list = class(&mut u, "java.util", "List");
+    let size = u.decl(list, "size").unwrap();
+    let info = u.info(size[0]);
+    assert_eq!((size.len(), u.show(info).as_str()), (1, "(): scala.Int"));
+    let integer = class(&mut u, "java.lang", "Integer$");
+    let ty = u.decl(integer, "TYPE").unwrap()[0];
+    let info = u.info(ty);
+    assert_eq!(u.show(info), "java.lang.Class[java.lang.Integer]");
+    assert_eq!(u.decl(integer, "valueOf").unwrap().len(), 3);
+    assert!(!u.decl(integer, "parseInt").unwrap().is_empty());
+    assert!(u.package("jdk-declarations").is_none());
 }
 
 fn class(u: &mut Universe, pkg: &str, name: &str) -> SymbolId {

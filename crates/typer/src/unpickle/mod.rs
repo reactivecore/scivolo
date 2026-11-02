@@ -11,6 +11,7 @@ mod cases;
 mod class_defs;
 mod closure_type;
 mod defs;
+mod imports;
 mod locals;
 mod paths;
 mod quote_patterns;
@@ -97,7 +98,7 @@ pub fn annotations(
 pub fn define_repeated(u: &mut Universe) -> Result<(), Refusal> {
     let scala = u.package("scala").ok_or("a library without package scala")?;
     let synthetic = tasty::Flags::default().with(tasty::tags::SYNTHETIC);
-    crate::defn::special(u, scala, "<repeated>", tasty::Kind::Class, synthetic);
+    crate::special::special(u, scala, "<repeated>", tasty::Kind::Class, synthetic);
     Ok(())
 }
 
@@ -118,6 +119,11 @@ impl Unpickler<'_> {
     fn name(&self, id: NodeId) -> String {
         let (ast, names) = self.u.file(self.file);
         names.get(ast.node(id).a as usize).cloned().unwrap_or_default()
+    }
+
+    /// Whether the name the tree at `id` holds is of a kind other than `Utf8`.
+    fn is_derived_name(&self, id: NodeId) -> bool {
+        self.u.is_derived_name(self.file, self.ast().node(id).a as usize)
     }
 
     fn tname(&mut self, id: NodeId, is_type: bool) -> TName {

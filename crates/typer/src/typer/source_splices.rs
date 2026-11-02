@@ -69,6 +69,11 @@ impl Typer<'_> {
         let span = self.ast.span(body).to_synthetic();
         let applied = self.runtime_call(span, "quote", body, pt, Ctx { staging: ctx.staging + 1, ..ctx });
         self.as_quote(applied, self.ast.span(id));
+        if ctx.staging == 0
+            && let Some(body) = self.quote_body(applied)
+        {
+            self.record_quote_tags(applied, body, ctx);
+        }
         applied
     }
 

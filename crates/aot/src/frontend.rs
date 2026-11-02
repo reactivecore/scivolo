@@ -27,12 +27,18 @@ impl Unit {
     }
 }
 
-/// Reads `paths`, each named by its path as given, with the shebang line blanked, or the first
-/// directive the own frontend does not honour.
-pub fn read(paths: &[PathBuf]) -> R<Unit> {
+/// Reads `paths`, each named by its path as given or relative to `root`, with the shebang line
+/// blanked, or the first directive the own frontend does not honour.
+pub fn read(paths: &[PathBuf], root: Option<&Path>) -> R<Unit> {
     let mut unit = Unit { files: Vec::new(), options: Vec::new(), deps: Vec::new() };
     for path in paths {
-        let name = path.to_string_lossy().into_owned();
+        let named = match root {
+            Some(r) => path
+                .strip_prefix(r)
+                .map_err(|_| format!("{} is not under {}", path.display(), r.display()))?,
+            None => path,
+        };
+        let name = named.to_string_lossy().into_owned();
         let text = std::fs::read_to_string(path).map_err(|e| format!("{name}: {e}"))?;
         let lower::directives::Directives { options, deps } =
             directives(&text, SCALA).map_err(|d| format!("{name}: {d} is not supported"))?;

@@ -89,12 +89,12 @@ impl Inlining<'_> {
     pub fn constant_of_type(&mut self, t: TypeId) -> Option<C> {
         match self.u.types().get(t).clone() {
             Type::Str(s) => Some(C::String(s.encode_utf16().collect())),
+            Type::Constant(tasty::tags::CHARconst, bits) => Some(C::Char(bits as u16)),
             Type::Constant(tag, bits) => Some(match constant(tag, bits)? {
                 Const::Unit => C::Unit,
                 Const::Bool(b) => C::Boolean(b),
                 Const::Byte(n) => C::Int(n as i32),
                 Const::Short(n) => C::Int(n as i32),
-                Const::Char(c) => C::Char(c as u16),
                 Const::Int(n) => C::Int(n),
                 Const::Long(n) => C::Long(n),
                 Const::Float(f) => C::Float(f),
@@ -164,7 +164,7 @@ impl Inlining<'_> {
     /// static object or the `this` of either, or `s` is a parameter accessor of the `this` of the
     /// class enclosing the call (dotty's `prefixIsElidable`).
     pub fn is_elidable_prefix(&mut self, p: TypeId, s: SymbolId) -> bool {
-        match *self.u.types().get(p) {
+        match *self.u.types().get(crate::defn::package_ref(self.u, p)) {
             Type::Package(_) => true,
             Type::This(c) => self.u.class_symbol(c).is_some_and(|c| {
                 let accessor = self.u.symbol(s).flags.has(PARAMsetter)

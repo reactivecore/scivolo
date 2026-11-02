@@ -79,7 +79,7 @@ impl Reflect<'_> {
         let span = self.span;
         let ctor = self.constructor(cls)?;
         let dummy = format!("<local {}>", self.u.symbol(cls).name);
-        let dummy = crate::defn::entered(self.u, cls, &dummy, Kind::Val);
+        let dummy = crate::special::entered(self.u, cls, &dummy, Kind::Val);
         let unit = self.u.class_ref("scala.Unit");
         let tpt = self.type_tree(unit);
         let clauses: Vec<&[TNodeId]> = params.iter().map(Vec::as_slice).collect();

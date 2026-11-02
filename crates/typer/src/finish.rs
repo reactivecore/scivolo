@@ -36,6 +36,9 @@ impl Units {
             typer.check_macro_annotated();
             typer.check_forward_refs(typed);
         }
+        if std::mem::take(&mut typer.u.reductions_exhausted) {
+            typer.unsupported_at(Span::NONE, "match type reduction over the reduction budget");
+        }
         self.syms = std::mem::take(&mut typer.syms);
         self.syms.end_unit(typer.u);
         if self.errors_first && typer.diags.has_errors() {

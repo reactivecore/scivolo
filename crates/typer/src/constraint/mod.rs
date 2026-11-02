@@ -7,6 +7,7 @@
 
 pub(crate) mod attempt;
 mod avoid;
+mod direction;
 mod lambda_params;
 mod levels;
 mod unify;
@@ -41,6 +42,8 @@ pub struct Constraint {
     /// Whether a lower bound referred to a local symbol defined after its variable and could not
     /// do without it, also in an abandoned attempt.
     escaped: bool,
+    /// The declared bounds of each variable, `Nothing` and `Any` past its end.
+    declared: Vec<(TypeId, TypeId)>,
 }
 
 /// How many satisfiability checks may be in progress at once; deeper ones fail.
@@ -98,11 +101,6 @@ impl Constraint {
         }
     }
 
-    /// Whether a local symbol escaped into the bound of a variable made before it.
-    pub fn escaped(&self) -> bool {
-        self.escaped
-    }
-
     /// Whether `v` keeps the unions of its lower bound when instantiated (dotty's `isHard`).
     pub fn is_hard(&self, v: VarId) -> bool {
         self.vars[v.0 as usize].hard
@@ -157,8 +155,21 @@ impl Constraint {
     }
 
     /// Sets the bounds of `v` to `lo` and `hi` if `checked <: hi` holds then, `checked` being
-    /// the part of `lo` to check (dotty's `addOneBound`).
+    /// the part of `lo` to check; instantiates `v` to equal bounds without uninstantiated
+    /// variables that are not a bare type constructor (dotty's `addOneBound` and its `tryReplace`).
     fn narrow(&mut self, u: &mut Universe, v: VarId, lo: TypeId, hi: TypeId, checked: TypeId) -> bool {
+        if lo == hi {
+            let mut open = false;
+            u.map_type(lo, &mut |u, part| {
+                open |= matches!(*u.types().get(part), Type::Var(w) if self.vars[w.0 as usize].instance.is_none());
+                None
+            });
+            let tycon = matches!(*u.types().get(lo), Type::Sym(_, s) if !u.type_params(s).is_empty());
+            if !open && !tycon {
+                self.instantiate(v, lo);
+                return true;
+            }
+        }
         let mark = self.mark();
         self.set(v, lo, hi);
         let ok = hi == ANY || self.satisfiable(u, checked, hi);

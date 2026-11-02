@@ -51,7 +51,7 @@ impl Unpickler<'_> {
     /// argument.
     pub fn throw(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
         let expr = self.term(self.kids(id)[0])?;
-        let throw = crate::defn::throw_method(self.u);
+        let throw = crate::special::throw_method(self.u);
         let fun_tpe = self.u.intern_type(Type::Sym(None, throw));
         let name = TName { name: self.names.intern("throw"), is_type: false };
         let fun = self.bare(T::Ident { name }, Some(fun_tpe), Some(throw));
@@ -110,7 +110,7 @@ impl Unpickler<'_> {
                 flags: Flags::default().with(CASE),
                 target: None,
                 is_extern: false,
-                derived: false,
+                derived: self.is_derived_name(pat),
                 decls: Vec::new(),
                 tree: Some((self.file, pat)),
             });
@@ -146,7 +146,7 @@ impl Unpickler<'_> {
             flags: Flags::default().with(CASE),
             target: None,
             is_extern: false,
-            derived: false,
+            derived: self.is_derived_name(id),
             decls: Vec::new(),
             tree: Some((self.file, id)),
         });

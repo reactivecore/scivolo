@@ -55,7 +55,7 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
   and VM.
 - **Macros:** 307 of dotty's 321 `tests/run-macros` pass.
 - **Scala Native's library through the own frontend:** javalib 601 of 601 files, auxlib 15 of
-  15, nativelib 102 of 103, clib, posixlib and windowslib complete.
+  15, nativelib 103 of 103, clib, posixlib and windowslib complete.
 - **Native executables:** 218 of 226 test programs, built from source.
 - **Startup:** hello 7.5 ms from the heap snapshot; `moderate.scala` 48 ms edit-then-run
   (scala-cli: 360–520 ms, python3 startup: 18 ms).
@@ -203,6 +203,7 @@ Outside the crates:
 | `native/` | Scala Native 0.5.12's C runtime (nativelib, javalib, posixlib, clib), copied; patched files marked | by hand, checked by `just native-stale` |
 | `libs/javalib-tasty-0.5.12.jar` | TASTy of Scala Native's javalib, which the published jar lacks | `just javalib-tasty` |
 | `libs/jdk-stubs.jar` | TASTy of the JDK classes javalib's sources use, and the JDK's declarations nativelib's see (`libs/jdk-stubs`), for `just lib-compile` | `just jdk-stubs` |
+| `libs/jdk-declarations.jar` | TASTy of `JdkDeclarations.scala`, the JDK's declarations every other compile types javalib's classes from (ADR 0072) | `just jdk-stubs` |
 | `tests/programs/*/` | NIR and `.check` output of each test program, compiled by Scala Native 0.5.12: the byte oracle | `just program-update NAME` |
 | `overlay/nir` | NIR of `overlay/src`, compiled by Scala Native's compiler | `just overlay` |
 | `tests/macros/lib/macros.jar`, `crates/*/tests/**` jars, `.nir`, `.tasty` | Test fixtures compiled by dotty or Scala Native | `just macro-fixture`, `just inline-fixture` |

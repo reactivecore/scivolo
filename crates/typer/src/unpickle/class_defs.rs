@@ -51,7 +51,7 @@ impl Unpickler<'_> {
     /// The local dummy of class `class`, which owns the statements of its template.
     fn local_dummy(&mut self, class: SymbolId) -> SymbolId {
         let name = format!("<local {}>", self.u.symbol(class).name);
-        crate::defn::entered(self.u, class, &name, Kind::Val).unwrap_or_else(|| {
+        crate::special::entered(self.u, class, &name, Kind::Val).unwrap_or_else(|| {
             self.u.define(Symbol {
                 name,
                 kind: Kind::Val,
@@ -104,7 +104,7 @@ impl Unpickler<'_> {
                 DEFDEF if constr.is_none() => constr = Some(self.local_def(k)?),
                 VALDEF | DEFDEF => body.push(self.local_def(k)?),
                 TYPEDEF => body.push(self.type_def(k)?),
-                IMPORT | EXPORT => {}
+                IMPORT | EXPORT => body.push(self.import_or_export(k)?),
                 tag if constr.is_none() && is_modifier(tag) => {}
                 APPLY | TYPEAPPLY | BLOCK | NEW if constr.is_none() => parents.push(self.term(k)?),
                 _ if constr.is_none() => parents.push(self.tpt(k)?),

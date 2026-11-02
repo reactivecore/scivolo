@@ -7,7 +7,7 @@
 use super::lambda_lift::Function;
 use super::local_free::{enclosing_class, is_term, original_owner, top_level, within};
 use super::walk::subtrees;
-use crate::symbols::is_static_module;
+use crate::symbols::{is_static_module, is_static_owner};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::SymbolId;
@@ -63,6 +63,16 @@ pub fn narrow_logic_owner(l: &Lower, f: &mut Function, c: SymbolId) -> bool {
     deeper
 }
 
+/// Whether `o` is a non-static, non-local class enclosing `class` before lifting.
+pub fn enclosing_instance(l: &Lower, class: SymbolId, o: SymbolId) -> bool {
+    l.u.is_class(o) && !is_static_owner(l.u, o) && !l.local_classes.contains_key(&o) && encloses(l, o, class)
+}
+
+/// Whether class `o` is `class` or encloses it before lifting.
+pub fn encloses(l: &Lower, o: SymbolId, class: SymbolId) -> bool {
+    std::iter::successors(Some(class), |&s| original_owner(l, s)).any(|s| s == o)
+}
+
 /// `class` and the local traits it is in before lifting, innermost first.
 fn enclosing_traits(l: &Lower, class: SymbolId) -> Vec<SymbolId> {
     let mut out = vec![class];
@@ -87,7 +97,8 @@ pub fn check(l: &Lower, class: SymbolId, functions: &mut [Function]) -> Result<(
         }
         f.into = None;
     }
-    let local = |f: &Function| f.into.is_some_and(|c| !is_static_module(l.u, c));
+    let local =
+        |f: &Function| f.into.is_some_and(|c| !is_static_module(l.u, c) && !enclosing_instance(l, class, c));
     for f in functions.iter().filter(|f| f.closure.is_some() && outside(f) && local(f)) {
         if f.parent.is_none_or(|p| functions[p].into != f.into) {
             return unsupported(l.tpd.span(f.def), "lambdas reading values of enclosing local classes");

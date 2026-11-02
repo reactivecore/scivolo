@@ -18,6 +18,10 @@ use crate::types::{Type, TypeId};
 
 /// How many reductions may be nested.
 const MAX_REDUCTIONS: u32 = 64;
+/// How many normalizations may be nested.
+const MAX_NORMALIZING: usize = 512;
+/// How many reductions an outermost reduction starts at most, over all comparisons.
+const MAX_TOTAL_REDUCTIONS: u32 = 100_000;
 /// How many strippings and beta-reductions `underlying_normalizable` takes at most.
 const MAX_STEPS: u32 = 64;
 
@@ -44,6 +48,12 @@ impl Universe {
     }
 }
 
+impl Drop for Cmp<'_> {
+    fn drop(&mut self) {
+        self.u.reducing -= self.reductions;
+    }
+}
+
 impl Cmp<'_> {
     /// `t` normalized (dotty's `normalized`).
     pub fn normal(&mut self, t: TypeId) -> TypeId {
@@ -54,8 +64,13 @@ impl Cmp<'_> {
         let n = self.underlying_normalizable(t)?;
         match self.u.types().get(n) {
             Type::Match { .. } => {
-                let reduced = self.reduced(n)?;
-                Some(self.normal(reduced))
+                if self.normalizing.contains(&n) || self.normalizing.len() >= MAX_NORMALIZING {
+                    return None;
+                }
+                self.normalizing.push(n);
+                let normal = self.reduced(n).map(|reduced| self.normal(reduced));
+                self.normalizing.pop();
+                normal
             }
             _ => self.fold_compiletime(n),
         }
@@ -120,10 +135,19 @@ impl Cmp<'_> {
     /// The reduction of match type `m`, if it reduces (dotty's `MatchType.reduced`).
     pub fn reduced(&mut self, m: TypeId) -> Option<TypeId> {
         let Type::Match { scrutinee, cases, .. } = self.u.types().get(m).clone() else { return None };
+        if self.u.reducing == 0 {
+            self.u.reductions_left = MAX_TOTAL_REDUCTIONS;
+        }
+        if self.u.reductions_left == 0 {
+            self.u.reductions_exhausted = true;
+            return None;
+        }
         if self.reductions >= MAX_REDUCTIONS {
             return None;
         }
         self.reductions += 1;
+        self.u.reducing += 1;
+        self.u.reductions_left -= 1;
         let frozen = std::mem::replace(&mut self.frozen, true);
         let scrutinee = self.u.dealias(scrutinee);
         let scrutinee = self.fixed(scrutinee);
@@ -131,6 +155,7 @@ impl Cmp<'_> {
         let reduced = self.match_cases(scrutinee, &cases);
         self.frozen = frozen;
         self.reductions -= 1;
+        self.u.reducing -= 1;
         reduced
     }
 }

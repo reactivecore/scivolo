@@ -129,9 +129,10 @@ slower meanwhile:
    type members, staging levels for quotes and splices, quote patterns as `QuotePattern` trees
    (#197), import selectors in `quotes.reflect`, imports kept in inline bodies, synthetic
    members before macros (ADR 0071), refined type trees through inline copies, TASTy `Any`
-   bounds, package selections of import paths (307 of 321 pass). Next: macro libraries compiled from source, their quotes pickled to TASTy as dotty
-   does (#196, [research 43](docs/research/43-pickle-quotes.md)); done: the TASTy writer
-   (#198), the tree pickler for quotes without definitions (#199, first part). Done 2026-10-31: package prefixes of quoted types,
+   bounds, package selections of import paths (307 of 321 pass). Done 2026-11-02: macro
+   libraries compiled from source, their quotes pickled to TASTy as dotty does (#196,
+   [research 43](docs/research/43-pickle-quotes.md)): the TASTy writer (#198), the tree pickler
+   (#199), quote positions (#201), quote type tags (#200). Done 2026-10-31: package prefixes of quoted types,
    `Symbol.tree`, beta reduction of polymorphic functions, generic number literals,
    `searchIgnoring`, type holes of runtime quote patterns, `newTypeAlias`, `Refined.apply`,
    exports, nested spliced types (296 of 321 pass). Done 2026-10-30: reflect printers and `toString`, the type
@@ -144,9 +145,13 @@ slower meanwhile:
    annotations (ADR 0039), `Symbol.newClass`, `newModule`, `newMethod`, `newVal`,
    `ClassDef`/`DefDef`/`ValDef` construction, `Term.etaExpand`.
 3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): done
-   2026-11-01: `just lib-source sourcecode` builds sourcecode 0.4.4 from its sources:
-   SourceContext.scala's 37 NIR files are the same as scala-cli's; Macros.scala waits on
-   PickleQuotes (#196). Done 2026-10-24: upickle derivation of case classes, sealed traits and enums (R7, R8), pprint's
+   2026-11-02: `just lib-source geny|ujson|os-lib`: geny 1.1.1 5 of 5 files, 72 of 72 NIR files
+   the same as scala-cli's; ujson 4.4.3 with upickle-core and upack 50 of 53 files, 290 of 292
+   the same (2 var-order); os-lib 0.11.9-M8 16 of 20 files, 206 of 207 the same; `tests/aot/ujson`,
+   `oslib` and `Lh24oslib` pass on our NIR. Scripts and library sources type against the JDK's
+   signatures of varargs, constants and statics (ADR 0072). sourcecode 0.4.4 with its
+   Macros.scala: 103 of 104 NIR files the same as scala-cli's.
+   Done 2026-11-01: `just lib-source sourcecode` builds sourcecode 0.4.4 from its sources. Done 2026-10-24: upickle derivation of case classes, sealed traits and enums (R7, R8), pprint's
    `tprint`, os-lib paths, as scripts and native executables; earlier fastparse (R2) and
    mainargs (R5, R6; ADR 0037).
 4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md),
@@ -191,6 +196,10 @@ slower meanwhile:
    positions of extension calls, lowering trees and the last files, joint member types of
    intersections (#202): javalib 3,413 same, 82 var-order, 1 differs; nativelib lowers 102 of
    103 (quotes outside splices wait for #196): 703 same, 9 var-order, 3 differ.
+   2026-11-02: auxlib 80 same, 5 differ; windowslib 130 same; clib 114 same, 1 differs; posixlib
+   270 same. nativelib lowers 103 of 103 with pickled quotes: 707 same, 9 var-order, 3 differ;
+   `unsafe/package{,$}` differ only as a joint compilation with `UnsafePackageCompat` does;
+   lowered against its TASTy they match Scala Native's separate compilation.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs

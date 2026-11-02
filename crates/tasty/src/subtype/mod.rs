@@ -82,23 +82,29 @@ impl Universe {
         self.compare_in(a, b, vars, true)
     }
 
+    /// Whether `a <: b` holds under the constraint `vars` as it is (dotty's `isSubTypeWhenFrozen`).
+    pub fn is_subtype_frozen_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
+        Cmp::new(self, vars).recur_frozen(a, b)
+    }
+
     fn compare_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars, necessary: bool) -> bool {
         let mark = vars.mark();
         let mut c = Cmp::new(self, vars);
         c.necessary = necessary;
         let result = c.recur(a, b);
+        drop(c);
         if !result {
             vars.rollback(mark);
         }
         result
     }
 
-    /// Whether `a` and `b` are subtypes of each other under the constraint `vars`; a failed
-    /// comparison leaves `vars` as it was.
+    /// Whether `a` and `b` are subtypes of each other under `vars`, unchanged if they are not.
     pub fn is_same_type_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
         let mark = vars.mark();
         let mut c = Cmp::new(self, vars);
         let result = c.recur(a, b) && c.recur(b, a);
+        drop(c);
         if !result {
             vars.rollback(mark);
         }
@@ -129,6 +135,8 @@ pub struct Cmp<'a> {
     walk: walk::Walk,
     /// How many match type reductions are in progress.
     reductions: u32,
+    /// The match types being normalized, outermost first.
+    normalizing: Vec<TypeId>,
 }
 
 /// How many steps computing atoms and `Nothing`-ness may take in one comparison.
@@ -136,18 +144,18 @@ const MAX_STEPS: u32 = 1_000_000;
 
 impl<'a> Cmp<'a> {
     fn new(u: &'a mut Universe, vars: &'a mut dyn TypeVars) -> Self {
-        let (pending, walk) = (FxHashSet::default(), walk::Walk::default());
         Cmp {
             u,
             vars,
             frozen: false,
             necessary: false,
             depth: 0,
-            pending,
+            pending: FxHashSet::default(),
             provisional: false,
             steps: MAX_STEPS,
-            walk,
+            walk: walk::Walk::default(),
             reductions: 0,
+            normalizing: Vec::new(),
         }
     }
 

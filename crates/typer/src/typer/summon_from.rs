@@ -89,7 +89,7 @@ impl Typer<'_> {
         if let Some(t) = self.syms.implicit_scrutinee {
             return t;
         }
-        let sym = crate::defn::special(self.u, self.defn.scala, "implicit", Kind::Type, Flags::default());
+        let sym = crate::special::special(self.u, self.defn.scala, "implicit", Kind::Type, Flags::default());
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, tasty::ANY));
         self.u.set_info(sym, bounds);
         let t = crate::defn::type_ref(self.u, sym);

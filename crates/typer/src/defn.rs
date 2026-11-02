@@ -4,7 +4,7 @@
 //   compiler/src/dotty/tools/dotc/core/TypeUtils.scala
 //! The library symbols the typer refers to by name (dotty's `Definitions`).
 
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// The symbols every unit needs, and those resolved on first use.
 pub struct Defn {
@@ -89,46 +89,6 @@ fn member(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind) -> Result<S
         .ok_or_else(|| format!("{}.{name} missing from the library", u.full_name(owner)))
 }
 
-/// The declaration `name` of `kind` already entered in `owner`, loading nothing.
-pub fn entered(u: &Universe, owner: SymbolId, name: &str, kind: Kind) -> Option<SymbolId> {
-    u.symbol(owner).decls.iter().copied().find(|&d| u.symbol(d).name == name && u.symbol(d).kind == kind)
-}
-
-/// The symbol `name` of kind `kind` in `owner`, defined with `flags` if no one has.
-pub fn special(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flags: Flags) -> SymbolId {
-    if let Some(s) = entered(u, owner, name, kind) {
-        return s;
-    }
-    u.define(Symbol {
-        name: name.into(),
-        kind,
-        owner: Some(owner),
-        flags,
-        target: None,
-        is_extern: false,
-        derived: false,
-        decls: Vec::new(),
-        tree: None,
-    })
-}
-
-/// dotty's `<special-ops>.throw(x: Throwable): Nothing`, defined if no one has.
-pub fn throw_method(u: &mut Universe) -> SymbolId {
-    let ops = u.enter_package("<special-ops>");
-    if let Some(t) = entered(u, ops, "throw", Kind::Def) {
-        return t;
-    }
-    let throwable = u.class_ref("java.lang.Throwable");
-    let nothing = type_ref(u, u.builtins().nothing);
-    let binder = u.fresh_binder();
-    let params = vec![("x".into(), throwable)];
-    let info =
-        u.intern_type(Type::Method { binder, params, result: nothing, implicit: false, contextual: false });
-    let throw = special(u, ops, "throw", Kind::Def, Flags::default());
-    u.set_info(throw, info);
-    throw
-}
-
 /// The prefix of references to members of `owner`: a package, or the `this` of a class.
 pub fn owner_prefix(u: &mut Universe, owner: SymbolId) -> TypeId {
     match u.symbol(owner).kind {
@@ -137,6 +97,14 @@ pub fn owner_prefix(u: &mut Universe, owner: SymbolId) -> TypeId {
             let class = type_ref(u, owner);
             u.intern_type(Type::This(class))
         }
+    }
+}
+
+/// Prefix `t`, the package's reference for the `this` of a package.
+pub fn package_ref(u: &Universe, t: TypeId) -> TypeId {
+    match *u.types().get(t) {
+        Type::This(c) if matches!(u.types().get(c), Type::Package(_)) => c,
+        _ => t,
     }
 }
 
@@ -161,7 +129,7 @@ pub fn ref_type(u: &mut Universe, prefix: Option<TypeId>, sym: SymbolId) -> Type
     let in_package_object = |u: &mut Universe, c: TypeId| {
         !opaque && u.class_symbol(c).is_some_and(|c| is_named_package_object(u, c))
     };
-    let prefix = match prefix.map(|p| u.types().get(p).clone()) {
+    let prefix = match prefix.map(|p| u.types().get(package_ref(u, p)).clone()) {
         Some(Type::Package(p)) => package_object_prefix(u, Some(p), sym).or(prefix),
         Some(Type::This(c)) if in_package_object(u, c) => package_object_prefix(u, None, sym).or(prefix),
         _ => prefix,

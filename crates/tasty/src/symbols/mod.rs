@@ -18,6 +18,7 @@ mod inits;
 mod java_strings;
 mod java_stubs;
 mod jdk;
+mod jdk_declarations;
 mod joined_bases;
 mod joint;
 mod loaded;
@@ -118,6 +119,12 @@ pub struct Universe {
     joint_members: joint::JointMembers,
     /// How many steps comparisons have taken computing atoms and `Nothing`-ness.
     pub subtype_steps: u64,
+    /// How many match type reductions are in progress, over all comparisons.
+    pub reducing: u32,
+    /// How many more reductions the outermost reduction in progress may start.
+    pub reductions_left: u32,
+    /// Whether a reduction was refused because the outermost one used up `reductions_left`.
+    pub reductions_exhausted: bool,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.
     scala2_erasure: bool,
 }
@@ -197,6 +204,11 @@ impl Universe {
     pub fn file(&self, file: FileId) -> (&Ast, &[String]) {
         let f = self.files[file.0 as usize].decoded();
         (&f.ast, &f.names)
+    }
+
+    /// Whether name `i` of loaded file `file` is of a kind other than `Utf8`.
+    pub fn is_derived_name(&self, file: FileId, i: usize) -> bool {
+        self.files[file.0 as usize].decoded().derived.get(i).copied().unwrap_or_default()
     }
 
     /// Whether `s` comes from the Scala 2 standard library (dotty's `Scala2x` flag).

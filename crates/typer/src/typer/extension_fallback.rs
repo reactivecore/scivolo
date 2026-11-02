@@ -60,6 +60,7 @@ impl Typer<'_> {
                     for (&(_, bounds), &v) in params.iter().zip(&vars) {
                         let bounds = inst(self, bounds);
                         if let (Some(lo), hi, 0) = self.bounds_of(bounds) {
+                            self.constraint.declare(self.u, v, lo, hi);
                             let _ = self.conforms(lo, v) && self.conforms(v, hi);
                         }
                     }

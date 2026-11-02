@@ -153,6 +153,7 @@ impl Typer<'_> {
                 })
             };
             let (lo, hi) = (subst(self.u, lo), subst(self.u, hi));
+            self.constraint.declare(self.u, v, lo, hi);
             ok &= self.conforms(lo, v) && self.conforms(v, hi);
         }
         ok

@@ -4,8 +4,9 @@
 
 use super::names::sym_name;
 use super::{Refusal, TreePickler};
-use crate::defn::{throw_method, type_ref};
+use crate::defn::type_ref;
 use crate::signatures::result_sig;
+use crate::special::throw_method;
 use crate::tpd::{List, TNodeId, Tree as T, constant_type_of};
 use syntax::ast::TName;
 use tasty::tags::*;
@@ -61,7 +62,35 @@ impl TreePickler<'_> {
                 self.tree(arg)
             }
             T::Assign { lhs, rhs } => self.node(ASSIGN, &[lhs, rhs], &[]),
-            T::Block { stats, expr } => self.node(BLOCK, &[expr], &[stats]),
+            T::Block { stats, expr } => {
+                self.pre_register(self.tpd.items(stats));
+                self.node(BLOCK, &[expr], &[stats])
+            }
+            T::Closure { env, meth, tpt } if env.is_empty() => {
+                self.node(LAMBDA, &[&[meth][..], &tpt.into_iter().collect::<Vec<_>>()].concat(), &[])
+            }
+            T::Match { selector, cases, kind } => self.match_(selector, cases, kind),
+            T::CaseDef { pat, guard, body } => self.case_def(pat, guard, body),
+            T::Try { expr, cases, finalizer } => self.try_(expr, cases, finalizer),
+            T::Bind { body, .. } => self.bind(id, body),
+            T::Alternative { trees } => self.node(ALTERNATIVE, &[], &[trees]),
+            T::UnApply { fun, implicits, patterns } => self.unapply(id, fun, implicits, patterns),
+            T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } => self.definition(id),
+            T::LambdaTypeTree { tparams, body } => {
+                let tparams = self.tpd.items(tparams).to_vec();
+                self.with_length(LAMBDAtpt, &mut |p| {
+                    p.params(&tparams)?;
+                    p.tree(body)
+                })
+            }
+            T::TypeBoundsTree { lo, hi, alias } => self.with_length(TYPEBOUNDStpt, &mut |p| {
+                p.tree(lo)?;
+                match alias {
+                    None if hi == lo => Ok(()),
+                    None => p.tree(hi),
+                    Some(a) => p.tree(hi).and_then(|_| p.tree(a)),
+                }
+            }),
             T::If { cond, thenp, elsep, inline } => self.with_length(IF, &mut |p| {
                 if inline {
                     p.byte(INLINE);
@@ -70,9 +99,10 @@ impl TreePickler<'_> {
             }),
             T::WhileDo { cond, body } => self.node(WHILE, &[cond, body], &[]),
             T::SeqLiteral { elems, elemtpt } => self.node(REPEATED, &[elemtpt], &[elems]),
-            T::Inlined { call, bindings, expansion } if bindings.is_empty() => {
+            T::Inlined { call, bindings, expansion } => {
+                self.pre_register(self.tpd.items(bindings));
                 let call: Vec<TNodeId> = call.into_iter().collect();
-                self.node(INLINED, &[&[expansion][..], &call].concat(), &[])
+                self.node(INLINED, &[&[expansion][..], &call].concat(), &[bindings])
             }
             T::TypeTree { .. } => self.ty(typed()?, false),
             T::SingletonTypeTree { reference } => {

@@ -9,6 +9,11 @@ use tasty::tags::PRIVATE;
 use tasty::{ANY, Kind, SymbolId, Type, TypeId, TypeVars, Universe};
 
 impl Constraint {
+    /// Whether a local symbol escaped into the bound of a variable made before it.
+    pub fn escaped(&self) -> bool {
+        self.escaped
+    }
+
     /// `t` at variance `v` without the local symbols defined from `born` on: where covariant, a
     /// local class without members of its own replaced by its parents, a local value or method by
     /// its type, a class member of a local value selected on the value's type, a variable made after
