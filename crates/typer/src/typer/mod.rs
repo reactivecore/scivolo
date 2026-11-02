@@ -29,6 +29,7 @@ mod avoid_select;
 mod by_name_repeated;
 mod call_types;
 mod callee_types;
+mod capture_types;
 mod captured_paths;
 mod case_companion;
 mod case_lambdas;
@@ -269,6 +270,8 @@ pub struct Typer<'a> {
     pub erasure_diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
+    /// `-Yexplicit-nulls`.
+    pub explicit_nulls: bool,
     /// The setting that makes the top-level definitions experimental (`Config::experimental`).
     pub experimental: Option<&'static str>,
     /// The `-W` lints the options enable.
@@ -404,6 +407,7 @@ impl<'a> Typer<'a> {
             diags: Diagnostics::default(),
             erasure_diags: Diagnostics::default(),
             features: cfg.features,
+            explicit_nulls: cfg.explicit_nulls,
             experimental: cfg.experimental,
             lints: cfg.warnings.lints,
             source_future: v.requires_new_syntax(),
@@ -469,6 +473,8 @@ impl<'a> Typer<'a> {
         self.depth += 1;
         self.type_uniques(id);
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
+        let nulls = self.null_mode(ctx);
+        let outer_nulls = self.u.set_null_mode(nulls);
         let vars = self.constraint.count();
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER.with(crate::ctx::Mode::ASSIGNMENT_LHS);
         let inner = ctx.with_mode(ctx.mode.without(top_only));
@@ -489,6 +495,7 @@ impl<'a> Typer<'a> {
             self.unsupported(id, what);
         }
         self.u.set_comparison_owner(outer);
+        self.u.set_null_mode(outer_nulls);
         self.depth -= 1;
         adapted
     }

@@ -110,11 +110,12 @@ impl Typer<'_> {
         self.tpd.node(T::Bind { name, body }, self.ast.span(id), Some(tpe), Some(sym))
     }
 
-    /// Whether `t` is `Nothing` or `Null` (dotty's `isBottomType`).
+    /// Whether `t` is `Nothing`, or `Null` without safe nulls (dotty's `isBottomType`).
     pub fn is_bottom_type(&mut self, t: TypeId) -> bool {
         let b = self.u.builtins();
         let (nothing, null) = (b.nothing, b.null);
-        matches!(self.u.class_symbol(t), Some(c) if c == nothing || c == null)
+        let safe = self.u.null_mode().safe;
+        matches!(self.u.class_symbol(t), Some(c) if c == nothing || c == null && !safe)
     }
 
     /// Whether `t` is a class type, possibly applied, without wildcard arguments.

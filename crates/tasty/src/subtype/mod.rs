@@ -28,6 +28,7 @@ mod unions;
 mod walk;
 
 pub use no_vars::NoVars;
+pub use null::NullMode;
 pub use unions::Unions;
 
 use crate::Universe;

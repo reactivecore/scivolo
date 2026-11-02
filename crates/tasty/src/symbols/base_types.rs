@@ -104,7 +104,7 @@ impl Universe {
         if s == base {
             return Some(t);
         }
-        if !self.derives_from(s, base) {
+        if !self.derives_from(s, base) || self.is_null_without(s, base) {
             return None;
         }
         let join = self.parents_disagree(s, base);
@@ -130,10 +130,18 @@ impl Universe {
         joined
     }
 
-    /// Whether `t` refers to `Nothing` or `Null`.
+    /// Whether `t` refers to `Nothing`, or to `Null` without safe nulls.
     fn is_bottom_ref(&self, t: TypeId) -> bool {
         let b = self.builtins();
-        matches!(*self.types().get(t), Type::Sym(_, s) if s == b.nothing || s == b.null)
+        let safe = self.null_mode.safe;
+        matches!(*self.types().get(t), Type::Sym(_, s) if s == b.nothing || s == b.null && !safe)
+    }
+
+    /// Whether `c` is `Null` under explicit nulls, whose parents are `Any` and `Matchable`, and
+    /// `base` is neither.
+    fn is_null_without(&self, c: SymbolId, base: SymbolId) -> bool {
+        let b = self.builtins();
+        self.null_mode.explicit && c == b.null && base != b.any && base != b.matchable
     }
 
     /// `t` with the type parameters of class `c` replaced by `args`.

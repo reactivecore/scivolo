@@ -13,7 +13,7 @@ pub use warnings::{Lints, Warnings};
 
 /// Language features that change scanning, parsing or typing.
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub struct Features(u16);
+pub struct Features(u32);
 
 impl Features {
     pub const ERASED_DEFINITIONS: Features = Features(1);
@@ -32,6 +32,7 @@ impl Features {
     pub const NO_AUTO_TUPLING: Features = Features(1 << 13);
     pub const NAMED_TYPE_ARGUMENTS: Features = Features(1 << 14);
     pub const SAFER_EXCEPTIONS: Features = Features(1 << 15);
+    pub const UNSAFE_NULLS: Features = Features(1 << 16);
 
     /// The feature a `-language:` option or `import scala.language.` path names.
     pub fn named(name: &str) -> Option<Features> {
@@ -54,6 +55,7 @@ impl Features {
             "noAutoTupling" => Features::NO_AUTO_TUPLING,
             "experimental.namedTypeArguments" => Features::NAMED_TYPE_ARGUMENTS,
             "experimental.saferExceptions" => Features::SAFER_EXCEPTIONS,
+            "unsafeNulls" => Features::UNSAFE_NULLS,
             _ => return None,
         })
     }
