@@ -164,7 +164,7 @@ impl Inlining<'_> {
     /// static object or the `this` of either, or `s` is a parameter accessor of the `this` of the
     /// class enclosing the call (dotty's `prefixIsElidable`).
     pub fn is_elidable_prefix(&mut self, p: TypeId, s: SymbolId) -> bool {
-        match *self.u.types().get(p) {
+        match *self.u.types().get(crate::defn::package_ref(self.u, p)) {
             Type::Package(_) => true,
             Type::This(c) => self.u.class_symbol(c).is_some_and(|c| {
                 let accessor = self.u.symbol(s).flags.has(PARAMsetter)

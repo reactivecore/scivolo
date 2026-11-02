@@ -137,7 +137,7 @@ impl Reflect<'_> {
 
     /// `TermRef(qual, name)`: the reference to the only term member `name` of `qual`.
     pub fn term_ref(&mut self, qual: TypeId, name: &str) -> Result<TypeId, &'static str> {
-        let found = match *self.u.types().get(qual) {
+        let found = match *self.u.types().get(crate::defn::package_ref(self.u, qual)) {
             Type::Package(p) => self.u.decl(p, name).unwrap_or_default(),
             _ => self.u.member_of_type(qual, name),
         };

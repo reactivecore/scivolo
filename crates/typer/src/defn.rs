@@ -140,6 +140,14 @@ pub fn owner_prefix(u: &mut Universe, owner: SymbolId) -> TypeId {
     }
 }
 
+/// Prefix `t`, the package's reference for the `this` of a package.
+pub fn package_ref(u: &Universe, t: TypeId) -> TypeId {
+    match *u.types().get(t) {
+        Type::This(c) if matches!(u.types().get(c), Type::Package(_)) => c,
+        _ => t,
+    }
+}
+
 /// The type of a reference to `s` from where its owner's members are visible (dotty's
 /// `typeRef`/`termRef`); a local symbol, owned by a term, and a member of a package have no
 /// prefix.
@@ -161,7 +169,7 @@ pub fn ref_type(u: &mut Universe, prefix: Option<TypeId>, sym: SymbolId) -> Type
     let in_package_object = |u: &mut Universe, c: TypeId| {
         !opaque && u.class_symbol(c).is_some_and(|c| is_named_package_object(u, c))
     };
-    let prefix = match prefix.map(|p| u.types().get(p).clone()) {
+    let prefix = match prefix.map(|p| u.types().get(package_ref(u, p)).clone()) {
         Some(Type::Package(p)) => package_object_prefix(u, Some(p), sym).or(prefix),
         Some(Type::This(c)) if in_package_object(u, c) => package_object_prefix(u, None, sym).or(prefix),
         _ => prefix,

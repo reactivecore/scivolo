@@ -3,6 +3,7 @@
 //! Types (dotty's `pickleType`, `pickleNewType`, `pickleMethodic`, `pickleConstant`).
 
 use super::names::qualified;
+use super::sharing::BY_NAME;
 use super::{Refusal, TreePickler};
 use tasty::tags::*;
 use tasty::write::{Addr, Name};
@@ -24,8 +25,12 @@ impl TreePickler<'_> {
             }
             Type::Constant(..) | Type::Str(_) => self.constant(t),
             Type::Sym(prefix, s) => self.sym_ref(prefix, s),
-            Type::TypeRef(prefix, name) => self.named_ref(prefix, &name, true),
-            Type::TermRef(prefix, name) => self.named_ref(prefix, &name, false),
+            Type::TypeRef(prefix, name) | Type::TermRef(prefix, name) => {
+                if self.keying {
+                    self.byte(BY_NAME);
+                }
+                self.named_ref(prefix, &name, matches!(self.u.types().get(t), Type::TypeRef(..)))
+            }
             Type::Package(p) => {
                 self.byte(TERMREFpkg);
                 self.package_name(p);
@@ -38,7 +43,7 @@ impl TreePickler<'_> {
             }
             Type::This(class) => match *self.u.types().get(class) {
                 Type::Package(p) => {
-                    self.package_this(p);
+                    self.new_package_this(p);
                     Ok(())
                 }
                 Type::PackageName(_) => Err("the this of a package the universe does not have"),

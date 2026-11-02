@@ -26,12 +26,7 @@ impl TreePickler<'_> {
             self.package_name(s);
             return Ok(());
         }
-        let enclosing = |p: TypeId| match *self.u.types().get(p) {
-            Type::Package(q) if self.packages.contains(&q) => Some(q),
-            _ => None,
-        };
         let prefix = match (prefix, owner.map(|o| (o, self.u.symbol(o).kind))) {
-            (Some(p), _) if let Some(q) = enclosing(p) => Prefix::PackageThis(q),
             (Some(p), _) => Prefix::Type(p),
             (None, _) if self.is_defined_here(s) => return self.direct_ref(s),
             (None, Some((o, Kind::Package))) => Prefix::PackageThis(o),

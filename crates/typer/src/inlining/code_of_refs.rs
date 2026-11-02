@@ -17,6 +17,7 @@ impl Inlining<'_> {
             }
             return Some(format!("{}.", self.shown_full_name(owner)));
         };
+        let p = crate::defn::package_ref(self.u, p);
         let omitted = match *self.u.types().get(p) {
             Type::Package(s) | Type::Sym(_, s) => self.is_omitted(s),
             Type::This(c) => self.u.class_symbol(c).is_some_and(|c| self.is_omitted(c)),
