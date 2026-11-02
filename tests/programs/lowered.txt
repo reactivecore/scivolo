@@ -207,3 +207,4 @@ inlineimports
 mirrorproxies
 usermirrors
 nestedobjlambda
+lazycaptures
