@@ -168,7 +168,10 @@ pub fn lower_sources(
         .and_then(|()| phases::run(&mut l, root))
         .and_then(|()| codegen::unit(&mut l, root));
     l.u.elide_opaques(false);
-    files
+    match std::mem::take(&mut l.u.reductions_exhausted) {
+        true => unsupported(Span::NONE, "match type reduction over the reduction budget"),
+        false => files,
+    }
 }
 
 /// Typer units whose synthetic members are added before their inline calls expand.

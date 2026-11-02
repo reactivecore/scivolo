@@ -128,6 +128,8 @@ fn positioned_read_back(text: &str) -> Result<Span, String> {
     let root = tpd.node(Tree::Inlined { call: None, bindings, expansion: rhss[0] }, span, tpe, None);
     let quote_source = QuoteSource::of("t.scala".into(), &source, 0);
     let bytes = pickle_positioned_quote((&mut u, &tpd, &names), root, &[], &quote_source)?;
+    let uuid_high = &Tasty::parse(&bytes).unwrap().header.uuid[8..];
+    assert!(uuid_high.iter().any(|&b| b != 0), "UUID without the hash of the Positions section");
     let unit = u.root();
     let Ok(Unpickled::Quote(q)) = quote((&mut u, &mut tpd, &mut names), bytes, unit, &[]) else {
         panic!("unread")

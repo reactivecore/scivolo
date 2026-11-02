@@ -64,7 +64,11 @@ impl Cmp<'_> {
         let n = self.underlying_normalizable(t)?;
         match self.u.types().get(n) {
             Type::Match { .. } => {
-                if self.normalizing.contains(&n) || self.normalizing.len() >= MAX_NORMALIZING {
+                if self.normalizing.contains(&n) {
+                    return None;
+                }
+                if self.normalizing.len() >= MAX_NORMALIZING {
+                    self.u.reductions_exhausted = true;
                     return None;
                 }
                 self.normalizing.push(n);
@@ -138,11 +142,8 @@ impl Cmp<'_> {
         if self.u.reducing == 0 {
             self.u.reductions_left = MAX_TOTAL_REDUCTIONS;
         }
-        if self.u.reductions_left == 0 {
+        if self.u.reductions_left == 0 || self.reductions >= MAX_REDUCTIONS {
             self.u.reductions_exhausted = true;
-            return None;
-        }
-        if self.reductions >= MAX_REDUCTIONS {
             return None;
         }
         self.reductions += 1;
