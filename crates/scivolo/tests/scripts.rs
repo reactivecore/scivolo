@@ -149,6 +149,35 @@ fn the_frontend_mode_chooses_the_compiler() {
 }
 
 #[test]
+fn explicit_nulls_scripts_compile_with_the_own_frontend() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    if !typer::dump::library_jars(&root.join("ref/libs"))[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let dir = scratch("explicit-nulls");
+    let text = "//> using options -Yexplicit-nulls
+def len(s: String | Null): Int = if s == null then -1 else s.length
+def first(x: Any): String = x match
+  case null => \"null\"
+  case s: String => s.substring(0, 1).nn
+  case _ => \"?\"
+@main def nulls(): Unit =
+  val sub = \"abc\".substring(1)
+  val t: String = if sub != null then sub else \"\"
+  println(t)
+  println(len(null))
+  println(first(null) + first(\"xyz\"))
+  println(System.getProperty(\"no.such.property\") == null)
+";
+    std::fs::write(dir.join("nulls.scala"), text).unwrap();
+    let r = scivolo(&dir, "nulls.scala", "strict");
+    assert!(r.out.status.success(), "{}", r.stderr);
+    assert_eq!((r.stdout.as_str(), r.stderr.as_str()), ("bc\n-1\nnullx\ntrue\n", ""));
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn shutdown_hooks_run_after_main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     if !typer::dump::library_jars(&root.join("ref/libs"))[0].exists() && std::env::var_os("CI").is_none() {
