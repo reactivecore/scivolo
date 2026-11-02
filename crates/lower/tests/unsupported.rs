@@ -224,6 +224,10 @@ const CASES: &[(&str, &str)] = &[
          object O { erased val e: Int = { println(); 1 } }",
         "right-hand side of an erased value that is not pure",
     ),
+    (
+        "class D { def g(xs: Array[Int]): Int = 0; @annotation.varargs def g(xs: Int*): Int = 1 }",
+        "a varargs forwarder conflicting with a member of its signature",
+    ),
 ];
 
 #[test]

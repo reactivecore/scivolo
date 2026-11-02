@@ -8,8 +8,8 @@ use super::repeated::{is_class, java_array};
 use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::PRIVATE;
-use tasty::{Erased, Kind, SymbolId, Type, TypeId};
+use tasty::tags::{ARTIFACT, OVERRIDE, PRIVATE};
+use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the forwarders to class definition `td`, each after its method.
@@ -23,9 +23,24 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         new.push(stat);
         let Tree::DefDef { .. } = l.tpd.tree(stat) else { continue };
         let Some(meth) = l.tpd.sym(stat) else { continue };
-        let annotated = l.u.annotations(meth).iter().any(|&c| l.u.full_name(c) == "scala.annotation.varargs");
-        if annotated || overrides_java_varargs(l, meth) {
-            new.push(forwarder(l, class, meth, stat)?);
+        let annotated = has_varargs(l, meth);
+        if !has_repeated(l, meth) {
+            if annotated {
+                return unsupported(l.tpd.span(stat), "@varargs on a method without repeated parameters");
+            }
+            continue;
+        }
+        let overridden = overridden(l, meth);
+        let java = overridden.iter().any(|&m| java_varargs(l, m));
+        let inherited = overridden.iter().any(|&m| has_varargs(l, m));
+        let flags = l.u.symbol(meth).flags;
+        let flags = match (java, annotated && !inherited) {
+            (true, _) => flags.with(ARTIFACT),
+            (false, true) => flags.without(OVERRIDE),
+            (false, false) => flags,
+        };
+        if annotated || java || inherited {
+            new.push(forwarder(l, class, (meth, flags), stat, java)?);
         }
     }
     let body = l.tpd.list(&new);
@@ -33,8 +48,15 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
-/// `def meth(…, xs: Array[T]) = this.meth(…, wrapXArray(xs))` for `meth(…, xs: T*)` in `class`.
-fn forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId, def: TNodeId) -> Result<TNodeId> {
+/// `def meth(…, xs: Array[T]) = this.meth(…, wrapXArray(xs))` for `meth(…, xs: T*)` in `class`,
+/// with `flags`; `java` if `meth` overrides Java varargs.
+fn forwarder(
+    l: &mut Lower,
+    class: SymbolId,
+    (meth, flags): (SymbolId, Flags),
+    def: TNodeId,
+    java: bool,
+) -> Result<TNodeId> {
     let span = l.tpd.span(def);
     let info = l.u.info(meth);
     let Type::Method { params, result, implicit, contextual, .. } = l.u.types().get(info).clone() else {
@@ -61,9 +83,13 @@ fn forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId, def: TNodeId) -> Re
     let binder = l.u.fresh_binder();
     let finfo = l.u.intern_type(Type::Method { binder, params: fparams, result, implicit, contextual });
     let name = l.u.symbol(meth).name.clone();
-    let flags = l.u.symbol(meth).flags;
+    if conflicts(l, class, &name, finfo, java) {
+        return unsupported(span, "a varargs forwarder conflicting with a member of its signature");
+    }
     let sym = l.u.define(symbol(&name, Kind::Def, class, flags));
     l.u.set_info(sym, finfo);
+    l.varargs_forwarders.insert(sym);
+    l.coords.insert(sym, Span::NONE);
     let at = Span::at(span.start());
     let def = l.forwarding_def(sym, span.to_synthetic(), |l, args, _| {
         let mut args = args.to_vec();
@@ -80,30 +106,58 @@ fn forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId, def: TNodeId) -> Re
 /// Whether `member` overriding `other` is left to `member`'s forwarder: its repeated parameter
 /// is Java varargs in `other`.
 pub fn forwarded(l: &mut Lower, member: SymbolId, other: SymbolId) -> bool {
-    let params = |l: &mut Lower, s| {
-        let info = l.u.info(s);
-        l.u.param_clauses(info).into_iter().flat_map(|(_, ps)| ps).collect::<Vec<TypeId>>()
-    };
-    let (ours, theirs) = (params(l, member), params(l, other));
-    ours.into_iter().any(|p| is_class(l, p, "scala.<repeated>"))
-        && theirs.into_iter().any(|p| java_array(l, p).is_some())
+    has_repeated(l, member) && java_varargs(l, other)
 }
 
-/// Whether method `def` overrides a method with Java varargs (dotty's `overridesJava`).
-pub fn overrides_java_varargs(l: &mut Lower, def: SymbolId) -> bool {
-    let Some(owner) = l.u.symbol(def).owner.filter(|&o| l.u.is_class(o)) else { return false };
+fn params(l: &mut Lower, s: SymbolId) -> Vec<TypeId> {
+    let info = l.u.info(s);
+    l.u.param_clauses(info).into_iter().flat_map(|(_, ps)| ps).collect()
+}
+
+fn has_repeated(l: &mut Lower, s: SymbolId) -> bool {
+    params(l, s).into_iter().any(|p| is_class(l, p, "scala.<repeated>"))
+}
+
+fn java_varargs(l: &mut Lower, s: SymbolId) -> bool {
+    params(l, s).into_iter().any(|p| java_array(l, p).is_some())
+}
+
+fn has_varargs(l: &mut Lower, s: SymbolId) -> bool {
+    l.u.annotations(s).iter().any(|&c| l.u.full_name(c) == "scala.annotation.varargs")
+}
+
+/// The non-private methods of the base classes of `def`'s owner that `def` matches.
+fn overridden(l: &mut Lower, def: SymbolId) -> Vec<SymbolId> {
+    let Some(owner) = l.u.symbol(def).owner.filter(|&o| l.u.is_class(o)) else { return Vec::new() };
     let name = l.u.symbol(def).name.clone();
     let site = l.u.intern_type(Type::Sym(None, owner));
     let site = l.u.intern_type(Type::This(site));
+    let mut found = Vec::new();
     for base in l.u.linearization(owner).into_iter().skip(1) {
         for m in l.u.decl(base, &name).unwrap_or_default() {
             let s = l.u.symbol(m);
-            if s.kind != Kind::Def || s.flags.has(PRIVATE) {
+            if s.kind == Kind::Def && !s.flags.has(PRIVATE) && l.u.matches(site, def, m) {
+                found.push(m);
+            }
+        }
+    }
+    found
+}
+
+/// Whether a member of `class` named `name`, but a varargs forwarder and, for an override of
+/// Java varargs, a Java varargs method, has the erasure of method type `info`.
+fn conflicts(l: &mut Lower, class: SymbolId, name: &str, info: TypeId, java: bool) -> bool {
+    let erased = l.u.erased_method_type(info);
+    for base in l.u.linearization(class) {
+        for m in l.u.decl(base, name).unwrap_or_default() {
+            let s = l.u.symbol(m);
+            if s.kind != Kind::Def || (base != class && s.flags.has(PRIVATE)) {
                 continue;
             }
-            let info = l.u.info(m);
-            let params: Vec<TypeId> = l.u.param_clauses(info).into_iter().flat_map(|(_, ps)| ps).collect();
-            if params.into_iter().any(|p| java_array(l, p).is_some()) && l.u.matches(site, def, m) {
+            if l.varargs_forwarders.contains(&m) || (java && java_varargs(l, m)) {
+                continue;
+            }
+            if l.u.erased_method(m) == erased {
                 return true;
             }
         }

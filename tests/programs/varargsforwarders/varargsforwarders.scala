@@ -11,6 +11,12 @@ class J:
   @varargs def join(sep: String, parts: String*): String = parts.mkString(sep)
   @varargs def total(xs: Int*): Int = xs.sum
 
+object Joined:
+  @varargs def of(parts: String*): String = parts.mkString("+")
+
+class K extends J:
+  override def total(xs: Int*): Int = xs.product
+
 @main def varargsforwarders(): Unit =
   val c = Counting(System.out)
   val p: java.io.PrintStream = c
@@ -20,3 +26,6 @@ class J:
   val j = J()
   println(j.join(",", "x", "y"))
   println(j.total(1, 2, 3))
+  val k: J = K()
+  println(k.total(2, 3, 4))
+  println(Joined.of("p", "q"))
