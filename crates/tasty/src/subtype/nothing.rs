@@ -54,9 +54,11 @@ impl Cmp<'_> {
                     _ => None,
                 },
             },
-            Type::ByName(r) | Type::Refined(r, ..) | Type::Rec(_, r) | Type::Annotated(r, _) | Type::Flexible(r) => {
-                self.nothing_at(r, d)
-            }
+            Type::ByName(r)
+            | Type::Refined(r, ..)
+            | Type::Rec(_, r)
+            | Type::Annotated(r, _)
+            | Type::Flexible(r) => self.nothing_at(r, d),
             Type::Var(v) => {
                 self.provisional = true;
                 let bound = self.vars.instance(v).unwrap_or(self.vars.bounds(v).1);

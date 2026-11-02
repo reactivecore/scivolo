@@ -90,9 +90,11 @@ impl Universe {
             Type::Or(a, b, _) => {
                 self.union_classes(a, classes, steps) && self.union_classes(b, classes, steps)
             }
-            Type::And(a, _) | Type::Refined(a, ..) | Type::Annotated(a, _) | Type::Flexible(a) | Type::Rec(_, a) => {
-                self.union_classes(a, classes, steps)
-            }
+            Type::And(a, _)
+            | Type::Refined(a, ..)
+            | Type::Annotated(a, _)
+            | Type::Flexible(a)
+            | Type::Rec(_, a) => self.union_classes(a, classes, steps),
             _ => match self.class_symbol(t) {
                 Some(c) => {
                     classes.push(c);

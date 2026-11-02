@@ -117,9 +117,7 @@ impl Universe {
             | Type::Bounds(_, c)
             | Type::Annotated(c, _)
             | Type::Flexible(c)
-            | Type::Rec(_, c) => {
-                self.erase(c)
-            }
+            | Type::Rec(_, c) => self.erase(c),
             Type::Match { bound, .. } => match self.try_normalize(t) {
                 Some(r) => self.erase(r),
                 None => self.erase(bound),
