@@ -78,8 +78,7 @@ pub fn conforms(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
         (_, Erased::Class(o)) if o == "java.lang.Object" => true,
         _ if from == to => true,
         (Erased::Array(x), Erased::Array(y)) => {
-            matches!(**y, Erased::Class(ref o) if o == "java.lang.Object")
-                && matches!(**x, Erased::Class(_) | Erased::Array(_))
+            matches!(**x, Erased::Class(_) | Erased::Array(_)) && conforms(l, x, y)
         }
         (Erased::Class(f), Erased::Class(t)) => match (class_named(l, f), class_named(l, t)) {
             (Some(f), Some(t)) => {

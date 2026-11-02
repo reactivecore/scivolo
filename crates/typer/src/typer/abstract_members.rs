@@ -7,7 +7,7 @@
 use super::Typer;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::tags::{ABSTRACT, CASE, ENUM, MUTABLE, PRIVATE, TRAIT};
+use tasty::tags::{ABSTRACT, ARTIFACT, CASE, ENUM, MUTABLE, PRIVATE, TRAIT};
 use tasty::{Erased, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -61,8 +61,8 @@ impl Typer<'_> {
             let decls = self.u.symbol(base).decls.clone();
             for d in decls {
                 let (kind, name) = (self.u.symbol(d).kind, self.u.symbol(d).name.clone());
-                let mixin =
-                    !self.syms.is_script(d) && (name.contains("$$super$") || name.contains("$_setter_$"));
+                let accessor = self.u.symbol(d).flags.has(ARTIFACT) && name.contains("$super$");
+                let mixin = !self.syms.is_script(d) && (accessor || name.contains("$_setter_$"));
                 if !matches!(kind, Kind::Val | Kind::Def)
                     || name == "<init>"
                     || mixin

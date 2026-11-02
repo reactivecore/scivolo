@@ -258,9 +258,9 @@ lib-jar-report +modules: fetch-libs fetch-scala-native release
     SCIVOLO_LIBS='{{ justfile_directory() }}/tmp/libs-ours' SCIVOLO_CACHE='{{ justfile_directory() }}/tmp/cache-ours' \
         SCIVOLO_TIMEOUT=1800 scripts/sn-report.sh
 
-# Compile Maven library `name` (sourcecode) from its `-sources.jar` file by file with `scivolo-aot
-# -d`, compare its NIR with the published jar's and run tests/aot/<name> on a jar with our NIR;
-# results under tmp/srclib/<name>.
+# Compile Maven library `name` (sourcecode, geny, ujson, os-lib) from its modules' `-sources.jar`
+# files file by file with `scivolo-aot -d`, compare their NIR with the published jars' and
+# scala-cli's and run its tests/aot programs on jars with our NIR; results under tmp/srclib/<name>.
 lib-source name: fetch-libs
     cargo build -q --release -p scivolo-aot -p scivolo-nir-dump
     python3 scripts/lib-source.py '{{ name }}'
@@ -536,6 +536,20 @@ subtype-oracle:
 inline-fixture:
     scala-cli --power package --library --server=false -S 3.9.0 crates/typer/tests/inlined/lib/Lib.scala -o crates/typer/tests/inlined/lib/lib.jar -f
 
+# Compile crates/lower/tests/superlib/lib into its lib.jar (TASTy) and superlib.scala against it
+# into Scala Native's NIR beside it.
+superlib-fixture:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir={{ justfile_directory() }}/crates/lower/tests/superlib
+    rm -rf tmp/superlib "$dir"/*.nir "$dir/lib/lib.jar"
+    sn() { scala-cli --power compile --quiet --native --native-version 0.5.12 --scala 3.9.0 --server=false "$@"; }
+    sn --workspace tmp/superlib/ws-lib -d tmp/superlib/lib "$dir/lib/P.scala"
+    sn --scalac-option -sourceroot --scalac-option "$dir" --extra-jars tmp/superlib/lib \
+        --workspace tmp/superlib/ws -d tmp/superlib/out "$dir/superlib.scala"
+    (cd tmp/superlib/lib && zip -q -X -r "$dir/lib/lib.jar" . -i '*/' '*.tasty')
+    cp tmp/superlib/out/*.nir "$dir"
+
 # Compile the macro library tests/macros/lib with Scala Native into tests/macros/lib/macros.jar:
 # NIR and TASTy, as a `--dep` jar holds them, and the class files dotty's oracle runs.
 macro-fixture:
@@ -568,7 +582,8 @@ javalib-tasty:
     scripts/javalib-tasty.sh
 
 # Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs as dotty's pickler writes
-# it (scala-cli), and libs/jdk-declarations.jar, that of JdkDeclarations.scala under jdk-declarations/.
+# it (scala-cli), and libs/jdk-declarations.jar, that of JdkDeclarations.scala under jdk-declarations/
+# and that of JdkClasses.scala.
 jdk-stubs:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -583,6 +598,7 @@ jdk-stubs:
     (cd tmp/jdk-stubs/out && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-stubs.jar -@)
     mkdir -p tmp/jdk-stubs/decl/jdk-declarations
     (cd tmp/jdk-stubs/out && grep -rl --include='*.tasty' JdkDeclarations.scala . | cpio -pdm ../decl/jdk-declarations 2> /dev/null)
+    (cd tmp/jdk-stubs/out && grep -rl --include='*.tasty' JdkClasses.scala . | cpio -pdm ../decl 2> /dev/null)
     rm -f libs/jdk-declarations.jar
     (cd tmp/jdk-stubs/decl && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-declarations.jar -@)
 

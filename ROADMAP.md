@@ -144,7 +144,12 @@ slower meanwhile:
    annotations (ADR 0039), `Symbol.newClass`, `newModule`, `newMethod`, `newVal`,
    `ClassDef`/`DefDef`/`ValDef` construction, `Term.etaExpand`.
 3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): done
-   2026-11-01: `just lib-source sourcecode` builds sourcecode 0.4.4 from its sources:
+   2026-11-02: `just lib-source geny|ujson|os-lib`: geny 1.1.1 5 of 5 files, 72 of 72 NIR files
+   the same as scala-cli's; ujson 4.4.3 with upickle-core and upack 50 of 53 files, 290 of 292
+   the same (2 var-order); os-lib 0.11.9-M8 16 of 20 files, 201 of 207 the same; `tests/aot/ujson`,
+   `oslib` and `Lh24oslib` pass on our NIR. Scripts and library sources type against the JDK's
+   signatures of varargs, constants and statics (ADR 0072).
+   Done 2026-11-01: `just lib-source sourcecode` builds sourcecode 0.4.4 from its sources:
    SourceContext.scala's 37 NIR files are the same as scala-cli's; Macros.scala waits on
    PickleQuotes (#196). Done 2026-10-24: upickle derivation of case classes, sealed traits and enums (R7, R8), pprint's
    `tprint`, os-lib paths, as scripts and native executables; earlier fastparse (R2) and

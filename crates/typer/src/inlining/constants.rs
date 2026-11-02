@@ -89,12 +89,12 @@ impl Inlining<'_> {
     pub fn constant_of_type(&mut self, t: TypeId) -> Option<C> {
         match self.u.types().get(t).clone() {
             Type::Str(s) => Some(C::String(s.encode_utf16().collect())),
+            Type::Constant(tasty::tags::CHARconst, bits) => Some(C::Char(bits as u16)),
             Type::Constant(tag, bits) => Some(match constant(tag, bits)? {
                 Const::Unit => C::Unit,
                 Const::Bool(b) => C::Boolean(b),
                 Const::Byte(n) => C::Int(n as i32),
                 Const::Short(n) => C::Int(n as i32),
-                Const::Char(c) => C::Char(c as u16),
                 Const::Int(n) => C::Int(n),
                 Const::Long(n) => C::Long(n),
                 Const::Float(f) => C::Float(f),
