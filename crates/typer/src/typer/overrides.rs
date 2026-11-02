@@ -155,7 +155,7 @@ impl Typer<'_> {
                 }
             }
         }
-        if self.overriding_nothing(cls, site, &bases).is_some() {
+        if self.overrides_nothing(cls, site, &bases) {
             return self.unsupported_at(span, "member overriding nothing");
         }
         self.check_inherited_conflicts(cls, site, &bases, span);
