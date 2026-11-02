@@ -119,30 +119,38 @@ fn typed_expressions_read_back_equal() {
     }
 }
 
-#[test]
-fn spans_of_typed_trees_read_back_in_utf16_units() {
-    let Some(mut u) = universe(&[]) else { return };
-    let text = "object T { val é = \"ü\"; val a = é.length + 1 }";
+/// The right-hand side of `val a` in unit `text`, quoted, pickled with positions and read back.
+fn positioned_read_back(text: &str) -> Result<Span, String> {
+    let mut u = universe(&[]).ok_or("no library")?;
     let (mut tpd, mut names, rhss) = typed_rhss(&mut u, text, &["a"]);
     let source = SourceFile::new("t.scala", text);
-    let bindings = tpd.list(&[]);
-    let span = tpd.span(rhss[0]);
-    let root = tpd.node(
-        Tree::Inlined { call: None, bindings, expansion: rhss[0] },
-        span,
-        tpd.get(rhss[0]).tpe,
-        None,
-    );
+    let (bindings, span, tpe) = (tpd.list(&[]), tpd.span(rhss[0]), tpd.get(rhss[0]).tpe);
+    let root = tpd.node(Tree::Inlined { call: None, bindings, expansion: rhss[0] }, span, tpe, None);
     let quote_source = QuoteSource::of("t.scala".into(), &source, 0);
-    let bytes = pickle_positioned_quote((&mut u, &tpd, &names), root, &[], &quote_source).unwrap();
+    let bytes = pickle_positioned_quote((&mut u, &tpd, &names), root, &[], &quote_source)?;
     let unit = u.root();
     let Ok(Unpickled::Quote(q)) = quote((&mut u, &mut tpd, &mut names), bytes, unit, &[]) else {
         panic!("unread")
     };
     let Tree::Inlined { expansion, .. } = *tpd.tree(q.root) else { panic!("not inlined") };
-    let read = tpd.span(expansion).in_own_source();
+    Ok(tpd.span(expansion).in_own_source())
+}
+
+#[test]
+fn spans_of_typed_trees_read_back_in_utf16_units() {
+    let text = "object T { val é = \"ü\"; val a = é.length + 1 }";
+    let Ok(read) = positioned_read_back(text) else { return };
     let start = text.find("é.length").unwrap() as u32 - 2;
     assert_eq!((read.start(), read.end()), (start, start + 12));
+}
+
+#[test]
+fn quotes_with_a_library_s_inlined_code_refused() {
+    if universe(&[]).is_none() {
+        return;
+    }
+    let read = positioned_read_back("object T { val a = assert(1 == 1) }");
+    assert_eq!(read, Err("a quote with a span in a library's source".into()));
 }
 
 /// The module class `name` of package `pkg`.
