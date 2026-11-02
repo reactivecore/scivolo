@@ -116,11 +116,25 @@ fn substituted(
 /// Whether type `t` refers to a value parameter of the method type of binder `binder`, or of
 /// method `method`.
 pub fn mentions_params(u: &mut Universe, t: TypeId, binder: Binder, method: Option<SymbolId>) -> bool {
+    mentions_params_except(u, t, binder, method, &[])
+}
+
+/// `mentions_params` without the parameters `applied`, those of the clauses an application
+/// passed arguments for: a reference to one is such an argument (dotty's `instantiate`).
+pub fn mentions_params_except(
+    u: &mut Universe,
+    t: TypeId,
+    binder: Binder,
+    method: Option<SymbolId>,
+    applied: &[SymbolId],
+) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, part| {
         match *u.types().get(part) {
             Type::Param(b, _) if b == binder => found = true,
-            Type::Sym(_, s) if u.symbol(s).kind == Kind::Param && method.is_some() => {
+            Type::Sym(_, s)
+                if u.symbol(s).kind == Kind::Param && method.is_some() && !applied.contains(&s) =>
+            {
                 found |= u.symbol(s).owner == method;
             }
             _ => {}

@@ -24,6 +24,16 @@ object Test {
     println(Lib.elemCount[Shape])
     println(Lib.mk(n))
     Lib.anon("there").run()
+    println(Lib.shown)
+    println(Lib.renamed(n))
+    println(Lib.excluded(n))
+    competing()
+  }
+
+  def competing(): Unit = {
+    given inl.Show[Int] = a => "local " + a
+    println(Lib.shown)
+    println(Lib.shownBounded)
   }
 }
 

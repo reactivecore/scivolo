@@ -1,12 +1,18 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //   compiler/src/dotty/tools/dotc/quoted/PickledQuotes.scala
-//! dotty's `TreePickler` over typed trees, for the TASTy of quotes.
+//! dotty's `TreePickler` and `PositionPickler` over typed trees, for the TASTy of quotes.
 
+mod cases;
+mod defs;
 mod names;
+mod positions;
 mod refs;
+mod sharing;
 mod trees;
 mod types;
+
+pub use positions::QuoteSource;
 
 use crate::tpd::{TNodeId, Tpd};
 use crate::unpickle::QuoteHole;
@@ -18,30 +24,51 @@ use tasty::{Binder, SymbolId, TypeId, Universe};
 /// Why a tree is outside the subset pickled.
 pub type Refusal = &'static str;
 
-/// What `SHAREDtype` refers back to: a type, or the `this` of a package, which dotty keeps apart
-/// from the package's reference.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum Shared {
-    Type(TypeId),
-    PackageThis(SymbolId),
-}
-
 pub struct TreePickler<'a> {
     u: &'a mut Universe,
     tpd: &'a Tpd,
     names: &'a Names,
     pickler: Pickler,
     buf: TreeBuffer,
-    types: FxHashMap<Shared, Addr>,
+    /// The address of each type pickled, by its sharing key (`sharing::key`).
+    types: FxHashMap<Vec<u8>, Addr>,
+    keys: FxHashMap<TypeId, Vec<u8>>,
+    /// Whether the buffer is a scratch one that a sharing key is written to.
+    keying: bool,
     binders: FxHashMap<Binder, Addr>,
+    /// The parameter names of each binder pickled.
+    params: FxHashMap<Binder, Vec<String>>,
     holes: FxHashMap<TNodeId, (u32, Vec<TNodeId>)>,
+    /// The definitions of the quote: their addresses, `None` until pickled (dotty's `symRefs`).
+    defs: FxHashMap<SymbolId, Option<Addr>>,
+    /// The references to definitions not pickled yet (dotty's `forwardSymRefs`).
+    forward: FxHashMap<SymbolId, Vec<Addr>>,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
 pub fn pickle_quote(
+    cx: (&mut Universe, &Tpd, &Names),
+    root: TNodeId,
+    holes: &[QuoteHole],
+) -> Result<Vec<u8>, Refusal> {
+    pickle(cx, root, holes, None)
+}
+
+/// The TASTy of quote `root` of `source`, `holes` its term holes, with positions.
+pub fn pickle_positioned_quote(
+    cx: (&mut Universe, &Tpd, &Names),
+    root: TNodeId,
+    holes: &[QuoteHole],
+    source: &QuoteSource,
+) -> Result<Vec<u8>, Refusal> {
+    pickle(cx, root, holes, Some(source))
+}
+
+fn pickle(
     (u, tpd, names): (&mut Universe, &Tpd, &Names),
     root: TNodeId,
     holes: &[QuoteHole],
+    source: Option<&QuoteSource>,
 ) -> Result<Vec<u8>, Refusal> {
     let mut pickler = Pickler::default();
     let section = pickler.new_section("ASTs");
@@ -53,13 +80,24 @@ pub fn pickle_quote(
         pickler,
         buf: TreeBuffer::default(),
         types: FxHashMap::default(),
+        keys: FxHashMap::default(),
+        keying: false,
         binders: FxHashMap::default(),
+        params: FxHashMap::default(),
         holes,
+        defs: FxHashMap::default(),
+        forward: FxHashMap::default(),
     };
     p.tree(root)?;
+    if !p.forward.is_empty() {
+        return Err("a reference to a local definition outside the quote");
+    }
     p.buf.compactify();
     let bytes = std::mem::take(&mut p.buf.buf.bytes);
     p.pickler.set_section(section, bytes);
+    if let Some(source) = source {
+        p.positions(root, source)?;
+    }
     Ok(p.pickler.assemble())
 }
 

@@ -1,7 +1,7 @@
 //! What reading method bodies needs of a loaded file beyond its symbols: the spans of its trees
 //! and the signatures of its signed names, decoded from the file again on first use.
 
-use super::{Error, FileId, Universe};
+use super::{Error, FileId, SymbolId, Universe};
 use crate::Tasty;
 use crate::names::{Name, NameRef, ParamSig};
 use crate::positions::{TastySpan, decode_positions};
@@ -35,6 +35,14 @@ impl Universe {
             loaded.body_info = Some(info);
         }
         Ok(loaded.body_info.as_ref().expect("decoded"))
+    }
+
+    /// The point, else the start, of the span pickled for the tree defining loaded symbol `s`.
+    pub fn pickled_point(&mut self, s: SymbolId) -> Option<u32> {
+        let (file, id) = self.symbol(s).tree?;
+        let addr = self.file(file).0.node(id).addr;
+        let span = self.body_info(file).ok()?.span(addr)?;
+        Some(span.point.unwrap_or(span.start))
     }
 }
 

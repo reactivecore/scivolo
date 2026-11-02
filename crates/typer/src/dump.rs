@@ -14,7 +14,8 @@ use syntax::parse::Parser;
 use syntax::source::SourceFile;
 use tasty::Universe;
 
-/// The library jars in `libs`, and javalib's TASTy checked in beside the crate.
+/// The library jars in `libs`, and javalib's TASTy and the JDK's declarations checked in beside
+/// the crate.
 pub fn library_jars(libs: &std::path::Path) -> Vec<PathBuf> {
     let jars = [
         "scala-library-3.9.0.jar",
@@ -23,7 +24,8 @@ pub fn library_jars(libs: &std::path::Path) -> Vec<PathBuf> {
         "posixlib_native0.5_3-0.5.12.jar",
     ];
     let mut out: Vec<PathBuf> = jars.iter().map(|j| libs.join(j)).collect();
-    out.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../libs/javalib-tasty-0.5.12.jar"));
+    let checked_in = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../libs");
+    out.extend(["javalib-tasty-0.5.12.jar", "jdk-declarations.jar"].map(|j| checked_in.join(j)));
     out
 }
 

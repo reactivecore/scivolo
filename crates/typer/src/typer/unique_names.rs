@@ -44,7 +44,8 @@ impl Typer<'_> {
         }
     }
 
-    fn meet_uniques(&mut self, span: Span, names: &[Name]) {
+    /// Meets `names`, made by the typer at `span`.
+    pub fn meet_uniques(&mut self, span: Span, names: &[Name]) {
         let file = self.file_of(span);
         let order = &mut self.syms.uniques;
         for &n in names {

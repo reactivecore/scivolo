@@ -144,7 +144,12 @@ slower meanwhile:
    annotations (ADR 0039), `Symbol.newClass`, `newModule`, `newMethod`, `newVal`,
    `ClassDef`/`DefDef`/`ValDef` construction, `Term.etaExpand`.
 3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): done
-   2026-11-01: `just lib-source sourcecode` builds sourcecode 0.4.4 from its sources:
+   2026-11-02: `just lib-source geny|ujson|os-lib`: geny 1.1.1 4 of 5 files, 56 of 57 NIR files
+   the same as scala-cli's; ujson 4.4.3 with upickle-core and upack 49 of 53 files, 279 of 284
+   the same (2 var-order); os-lib 0.11.9-M8 9 of 20 files, 80 of 91 the same; `tests/aot/ujson`,
+   `oslib` and `Lh24oslib` pass on our NIR. Most refusals and differences come from typing
+   against javalib's TASTy instead of the JDK's signatures (varargs, constants, statics).
+   Done 2026-11-01: `just lib-source sourcecode` builds sourcecode 0.4.4 from its sources:
    SourceContext.scala's 37 NIR files are the same as scala-cli's; Macros.scala waits on
    PickleQuotes (#196). Done 2026-10-24: upickle derivation of case classes, sealed traits and enums (R7, R8), pprint's
    `tprint`, os-lib paths, as scripts and native executables; earlier fastparse (R2) and
@@ -191,6 +196,10 @@ slower meanwhile:
    positions of extension calls, lowering trees and the last files, joint member types of
    intersections (#202): javalib 3,413 same, 82 var-order, 1 differs; nativelib lowers 102 of
    103 (quotes outside splices wait for #196): 703 same, 9 var-order, 3 differ.
+   2026-11-02: auxlib 80 same, 5 differ; windowslib 130 same; clib 114 same, 1 differs; posixlib
+   270 same. nativelib's `unsafe/package{,$}` differ only as a joint compilation with its refused
+   `UnsafePackageCompat` does; lowered against its TASTy they match Scala Native's separate
+   compilation.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs

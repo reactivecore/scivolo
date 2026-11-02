@@ -46,6 +46,7 @@ impl Typer<'_> {
         let handler = self.spliced(typed);
         let rhs = if partial {
             let tmp = TName { name: self.fresh.unique(self.names), is_type: false };
+            self.meet_uniques(whole, &[tmp.name]);
             let tpt = node(self, Tree::TypeTree, whole.start_pos().to_synthetic());
             let mods = self.ast.mods(Modifiers::default());
             let init = node(self, Tree::ValDef { name: tmp, tpt, rhs: Some(handler), mods }, whole);

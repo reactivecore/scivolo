@@ -61,11 +61,14 @@ def lib():
     run()
     out = []
     for path in sorted((ROOT / "tmp/lib").glob("*/results.tsv")):
-        for file, state, reason, same, differ, missing, var_order in (l.split("\t") for l in
-                                                                      path.read_text().splitlines()):
+        for file, state, reason, same, differ, missing, var_order, *quote_pos in (l.split("\t") for l in
+                                                                                  path.read_text().splitlines()):
+            quote_pos = (quote_pos or ["0"])[0]
             if state == "ok":
-                state = "differs" if differ != "0" or missing != "0" else "var-order" if var_order != "0" else "same"
+                state = ("differs" if differ != "0" or missing != "0" else "quote-pos" if quote_pos != "0"
+                         else "var-order" if var_order != "0" else "same")
                 reason = f"{same} same, {differ} differ, {var_order} var-order"
+                reason += f", {quote_pos} quote-pos" if quote_pos != "0" else ""
             out.append(f"{path.parent.name}/{file}\t{state}\t{reason}\n")
     return "".join(out)
 

@@ -3,55 +3,17 @@
 //! Types (dotty's `pickleType`, `pickleNewType`, `pickleMethodic`, `pickleConstant`).
 
 use super::names::qualified;
-use super::{Refusal, Shared, TreePickler};
+use super::{Refusal, TreePickler};
 use tasty::tags::*;
 use tasty::write::{Addr, Name};
-use tasty::{Binder, SymbolId, Type, TypeId};
+use tasty::{Binder, Type, TypeId};
 
 impl TreePickler<'_> {
-    /// Type `t`, a `SHAREDtype` if pickled before; `rich` admits method types.
-    pub fn ty(&mut self, t: TypeId, rich: bool) -> Result<(), Refusal> {
-        let at = self.buf.buf.current_addr();
-        if self.is_shared(Shared::Type(t)) {
-            return Ok(());
-        }
-        self.new_type(t, rich, at)
-    }
-
-    /// The `this` of package `p`, a `SHAREDtype` if pickled before (dotty's `ThisType` case).
-    pub fn package_this(&mut self, p: SymbolId) {
-        if self.is_shared(Shared::PackageThis(p)) {
-            return;
-        }
-        if p == self.u.root() {
-            self.byte(THIS);
-            self.byte(TYPEREFpkg);
-        } else {
-            self.byte(TERMREFpkg);
-        }
-        self.package_name(p);
-    }
-
-    /// Writes a `SHAREDtype` if `key` was pickled before, else records it at the current address.
-    fn is_shared(&mut self, key: Shared) -> bool {
-        match self.types.get(&key) {
-            Some(&at) => {
-                self.byte(SHAREDtype);
-                self.buf.write_ref(at);
-                true
-            }
-            None => {
-                self.types.insert(key, self.buf.buf.current_addr());
-                false
-            }
-        }
-    }
-
     fn types(&mut self, ts: &[TypeId], rich: bool) -> Result<(), Refusal> {
         ts.iter().try_for_each(|&t| self.ty(t, rich))
     }
 
-    fn new_type(&mut self, t: TypeId, rich: bool, at: Addr) -> Result<(), Refusal> {
+    pub fn new_type(&mut self, t: TypeId, rich: bool, at: Addr) -> Result<(), Refusal> {
         match self.u.types().get(t).clone() {
             Type::Applied(tycon, args) => self.with_length(APPLIEDtype, &mut |p| {
                 p.ty(tycon, false)?;
@@ -130,13 +92,16 @@ impl TreePickler<'_> {
                 let mods = if contextual { Some(GIVEN) } else { implicit.then_some(IMPLICIT) };
                 self.methodic(METHODtype, (binder, at), &params, result, mods)
             }
-            Type::Param(binder, i) => {
-                let at = *self.binders.get(&binder).ok_or("a parameter reference outside its binder")?;
-                self.with_length(PARAMtype, &mut |p| {
-                    p.buf.write_ref(at);
-                    p.nat(i as u64);
-                    Ok(())
-                })
+            Type::Param(binder, i) => self.param(binder, i),
+            Type::Local(def, name) => {
+                let (binder, i) = self
+                    .params
+                    .iter()
+                    .filter(|(b, _)| b.0 == def.0 && b.1 < def.1)
+                    .filter_map(|(&b, names)| Some((b, names.iter().position(|n| *n == name)?)))
+                    .max_by_key(|(b, _)| b.1)
+                    .ok_or("a parameter reference outside its binder")?;
+                self.param(binder, i as u32)
             }
             _ => Err("a type outside the subset pickled"),
         }
@@ -151,6 +116,7 @@ impl TreePickler<'_> {
         modifier: Option<u8>,
     ) -> Result<(), Refusal> {
         self.binders.insert(binder, at);
+        self.params.insert(binder, params.iter().map(|(n, _)| n.clone()).collect());
         self.with_length(tag, &mut |p| {
             p.ty(result, true)?;
             for (name, t) in params {
@@ -158,6 +124,16 @@ impl TreePickler<'_> {
                 p.name(&Name::utf8(name));
             }
             modifier.into_iter().for_each(|m| p.byte(m));
+            Ok(())
+        })
+    }
+
+    /// A reference to parameter `i` of the method or type lambda `binder`.
+    fn param(&mut self, binder: Binder, i: u32) -> Result<(), Refusal> {
+        let at = *self.binders.get(&binder).ok_or("a parameter reference outside its binder")?;
+        self.with_length(PARAMtype, &mut |p| {
+            p.buf.write_ref(at);
+            p.nat(i as u64);
             Ok(())
         })
     }

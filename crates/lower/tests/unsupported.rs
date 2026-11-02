@@ -8,8 +8,13 @@ use tasty::Universe;
 /// Each source and what the refusal names.
 const CASES: &[(&str, &str)] = &[
     (
-        "import scala.quoted.*\nobject Q { def f(x: Expr[Int])(using Quotes): Expr[Int] = '{ $x + 1 } }",
-        "quotes outside the splices of inline methods",
+        "import scala.quoted.*\nobject Q { def g(x: Expr[Int])(using Quotes): Expr[Int] = x\n\
+         def f(using Quotes): Expr[Int] = '{ val y = 1; ${ g('y) } } }",
+        "captured reference in a quote",
+    ),
+    (
+        "import scala.quoted.*\nobject Q { def f(x: Expr[Int])(using Quotes): Expr[Expr[Int]] = '{ '{ 1 } } }",
+        "nested quotes",
     ),
     (
         "import scala.quoted.*\nobject Q { def f[T: Type](using Quotes): Type[List[T]] = Type.of[List[T]] }",

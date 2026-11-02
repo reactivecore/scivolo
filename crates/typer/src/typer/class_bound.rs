@@ -3,7 +3,7 @@
 //! The type a local class is approximated by when avoiding it (dotty's `classBound`).
 
 use super::Typer;
-use super::avoid_map::Avoided;
+use super::avoid::Avoided;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -32,7 +32,7 @@ impl Typer<'_> {
             let is_type = self.u.is_type_symbol(d);
             let name = self.u.symbol(d).name.clone();
             let info = if is_type { self.type_info(d) } else { self.term_info(d) };
-            let avoided = Avoided { locals: &missing, opaque: &[], visiting };
+            let avoided = Avoided { visiting, ..Avoided::new(&missing, &[]) };
             let info = self.avoid_at(info, 1, avoided)?.hi();
             if self.refers_to(info, &[c]) {
                 return None;
