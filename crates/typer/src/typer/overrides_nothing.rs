@@ -17,7 +17,7 @@ impl Typer<'_> {
         let own: Vec<SymbolId> = self.u.symbol(cls).decls.clone();
         own.into_iter().any(|d| {
             let flags = self.syms.flags.get(&d).copied().unwrap_or_default();
-            flags.is_one_of(f::OVERRIDE.or(f::ABS_OVERRIDE))
+            (flags.is(f::OVERRIDE) || flags.is(f::ABS_OVERRIDE))
                 && !flags.is(f::SYNTHETIC)
                 && self.matches_nothing(site, &bases, d)
         })
@@ -40,8 +40,12 @@ impl Typer<'_> {
         })
     }
 
-    /// Whether in some parameter clause the last parameters of `a` and `b` differ in being repeated.
+    /// Whether neither of `a` and `b` is a Java member and in some parameter clause their last
+    /// parameters differ in being repeated.
     fn incompatible_repeated_param(&mut self, a: SymbolId, b: SymbolId) -> bool {
+        if self.is_java_member(a) || self.is_java_member(b) {
+            return false;
+        }
         let (ia, ib) = (self.u.info(a), self.u.info(b));
         let (ca, cb) = (self.u.param_clauses(ia), self.u.param_clauses(ib));
         ca.into_iter().zip(cb).any(|((_, x), (_, y))| match (x.last(), y.last()) {
