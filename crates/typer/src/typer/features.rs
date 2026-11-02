@@ -42,9 +42,4 @@ impl Typer<'_> {
         let safe = explicit && !self.feature_enabled(Features::UNSAFE_NULLS, "unsafeNulls", ctx);
         NullMode { explicit, safe }
     }
-
-    /// Whether `ctx` types with explicit nulls and no `unsafeNulls` (dotty's `Mode.SafeNulls`).
-    pub fn safe_nulls(&mut self, ctx: Ctx) -> bool {
-        self.null_mode(ctx).safe
-    }
 }

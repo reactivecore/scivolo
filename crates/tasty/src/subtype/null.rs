@@ -22,11 +22,11 @@ pub struct NullMode {
 const MAX_NULLABLE: u32 = 64;
 
 impl Cmp<'_> {
-    pub fn explicit_nulls(&self) -> bool {
+    fn explicit_nulls(&self) -> bool {
         self.u.null_mode().explicit
     }
 
-    pub fn safe_nulls(&self) -> bool {
+    fn safe_nulls(&self) -> bool {
         self.u.null_mode().safe
     }
 
