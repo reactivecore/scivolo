@@ -135,6 +135,10 @@ impl Universe {
             _ => {
                 let widened = self.widen(t);
                 let c = self.class_symbol(widened)?;
+                let b = self.builtins();
+                if c == b.null && self.null_mode().explicit {
+                    return Some(vec![b.null, b.matchable, b.any]);
+                }
                 Some(self.linearization(c))
             }
         }
