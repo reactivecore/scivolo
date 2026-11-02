@@ -86,7 +86,7 @@ impl Typer<'_> {
             return None;
         }
         let visiting = [a.visiting, &[s]].concat();
-        let a = Avoided { visiting: &visiting, ..a.elsewhere() };
+        let a = Avoided { visiting: &visiting, in_var_bound: false, ..a.elsewhere() };
         let info = self.u.info(s);
         let info = match *self.u.types().get(info) {
             Type::ByName(r) => r,

@@ -65,6 +65,7 @@ impl Universe {
             subtype_steps: 0,
             reducing: 0,
             reductions_left: 0,
+            reductions_exhausted: false,
             scala2_erasure: false,
         };
         let root = u.define(Symbol {

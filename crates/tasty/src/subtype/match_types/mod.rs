@@ -138,7 +138,11 @@ impl Cmp<'_> {
         if self.u.reducing == 0 {
             self.u.reductions_left = MAX_TOTAL_REDUCTIONS;
         }
-        if self.reductions >= MAX_REDUCTIONS || self.u.reductions_left == 0 {
+        if self.u.reductions_left == 0 {
+            self.u.reductions_exhausted = true;
+            return None;
+        }
+        if self.reductions >= MAX_REDUCTIONS {
             return None;
         }
         self.reductions += 1;

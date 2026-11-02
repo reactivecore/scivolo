@@ -12,7 +12,7 @@ use tasty::{SymbolId, Type, TypeId};
 /// the types whose bounds are: reaching one of the last three fails. A reference to `own`, the
 /// type member whose declared bounds are traversed, gives `Nothing .. Any` (dotty's `LazyRef` of
 /// an F-bound under `isExpandingBounds`). In the bound of a type variable, type variables stay as
-/// they are (dotty's `TypeParamRef`s of a constraint).
+/// they are (dotty's `TypeParamRef`s of a constraint), but not in the info of a local symbol.
 #[derive(Clone, Copy)]
 pub struct Avoided<'a> {
     pub locals: &'a [SymbolId],
