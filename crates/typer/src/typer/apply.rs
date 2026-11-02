@@ -148,6 +148,7 @@ impl Typer<'_> {
                 None => return self.unsupported(id, "dependent result type"),
             },
         };
+        let ctx = self.nullable_in_arg_ctx(f, ctx);
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
         let mut before_elems = None;
         for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {

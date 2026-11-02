@@ -38,7 +38,7 @@ impl Typer<'_> {
     }
 
     /// `t` without the `Null` parts of its top-level unions (dotty's `stripNull`).
-    fn strip_null(&mut self, t: TypeId) -> TypeId {
+    pub fn strip_null(&mut self, t: TypeId) -> TypeId {
         let widened = self.u.widen(t);
         let w = self.u.dealias(widened);
         let stripped = match *self.u.types().get(w) {

@@ -89,10 +89,14 @@ fn body(
         _ if sym == cc.product_arity => l.int_literal(accessors.len() as i32),
         _ if sym == cc.product_prefix => l.string_literal(&own_name),
         _ if sym == cc.product_element => {
+            let scala2 = l.u.is_scala2(class);
             let elems: Vec<TNodeId> = (1..=accessors.len())
                 .map(|i| {
                     let this = l.this(class, Span::NONE);
-                    let sel = l.u.decl(class, &format!("_{i}")).unwrap_or_default();
+                    let sel = match scala2 {
+                        true => vec![accessors[i - 1]],
+                        false => l.u.decl(class, &format!("_{i}")).unwrap_or_default(),
+                    };
                     let sel = sel.into_iter().find(|&s| l.u.symbol(s).kind.is_term()).expect("a selector");
                     let info = l.u.info(sel);
                     let result = l.u.result_type(info);

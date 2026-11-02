@@ -107,7 +107,7 @@ impl Translator<'_, '_> {
             self.l.u.companion_class(owner).map(|c| case_accessors(self.l, c)).unwrap_or_default();
         let unapp_type = self.l.tpd.tpe(unapp);
         let named_field = self.is_named_field_of_get(unapp_type, args);
-        if self.l.u.is_scala2(extractor)
+        if self.l.u.is_scala2(owner)
             && has(self.l.u, extractor, SYNTHETIC)
             && accessors.len() == args.len()
             && !named_field
