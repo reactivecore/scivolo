@@ -141,6 +141,7 @@ mod type_tests;
 mod uninitialized_defs;
 mod value_classes;
 mod value_members;
+mod varargs_forwarders;
 mod vc_elide;
 pub(crate) mod walk;
 
