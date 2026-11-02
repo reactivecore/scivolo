@@ -23,7 +23,10 @@ impl Typer<'_> {
             return tree;
         }
         let span = self.tpd.span(tree);
-        let method = self.method_info(tpe).or(Some(tpe)).map(|i| self.u.types().get(i).clone());
+        let completing = matches!(*self.u.types().get(tpe), Type::Sym(_, s) if self.u.is_type_symbol(s)
+            && matches!(self.syms.completions.get(&s), Some(crate::symbols::Completion::Completing(_))));
+        let info = if completing { None } else { self.method_info(tpe) };
+        let method = info.or(Some(tpe)).map(|i| self.u.types().get(i).clone());
         if let Some(Type::Poly { .. }) = method {
             return match self.with_type_vars(tree) {
                 Ok(applied) => self.adapt(applied, pt, ctx),

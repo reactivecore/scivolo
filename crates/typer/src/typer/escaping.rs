@@ -33,8 +33,8 @@ impl Typer<'_> {
             && (!self.constraint.avoid_in_bounds(self.u, t) || self.var_bounds_refer_to(t, locals))
     }
 
-    /// Whether an uninstantiated type variable in `t` has a bound that refers to one of `locals`,
-    /// directly or through the bounds of the variables in it.
+    /// Whether an uninstantiated type variable in `t` made before one of `locals` has a bound
+    /// that refers to one of them, directly or through the bounds of the variables in it.
     pub fn var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         if locals.is_empty() {
             return false;
@@ -50,7 +50,8 @@ impl Typer<'_> {
                 None
             });
             for v in vars {
-                if seen.contains(&v) || self.constraint.instance(v).is_some() {
+                let inner = locals.iter().all(|&s| self.constraint.made_after(v, s));
+                if seen.contains(&v) || inner || self.constraint.instance(v).is_some() {
                     continue;
                 }
                 seen.push(v);

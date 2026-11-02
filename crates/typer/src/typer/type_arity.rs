@@ -28,6 +28,9 @@ impl Typer<'_> {
                     self.u.type_params(s).len()
                 }
                 Kind::Type | Kind::TypeParam => {
+                    if let Some(n) = self.arity_while_completing(s) {
+                        return n;
+                    }
                     self.complete(s);
                     if let Some(n) = self.completing_arity(s) {
                         return n;
@@ -53,6 +56,20 @@ impl Typer<'_> {
                 if reduced == t { 0 } else { self.type_arity_within(reduced, depth) }
             }
             _ => 0,
+        }
+    }
+
+    /// How many type parameters type member `s` declares while its info is completed and is not
+    /// provisional (dotty's `completerTypeParams`).
+    fn arity_while_completing(&self, s: SymbolId) -> Option<usize> {
+        let Some(&crate::symbols::Completion::Completing(tree)) = self.syms.completions.get(&s) else {
+            return None;
+        };
+        let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return None };
+        match *self.ast.tree(rhs) {
+            _ if self.is_provisional(tree) => None,
+            Tree::LambdaTypeTree { tparams, .. } => Some(self.ast.items(tparams).len()),
+            _ => Some(0),
         }
     }
 

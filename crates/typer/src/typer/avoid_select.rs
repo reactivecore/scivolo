@@ -79,11 +79,17 @@ impl Typer<'_> {
         v: i8,
         a: Avoided,
     ) -> Option<Option<Approx>> {
-        match self.u.symbol(s).kind {
+        let kind = self.u.symbol(s).kind;
+        if matches!(kind, Kind::TypeParam | Kind::Type) && a.expanding.contains(&s) {
+            return Some(Some(approx::range(self.u, Approx::Exact(NOTHING), Approx::Exact(ANY), v)));
+        }
+        let expanding = [a.expanding, &[s]].concat();
+        let inner = Avoided { expanding: &expanding, ..a };
+        match kind {
             Kind::TypeParam => {
                 let arg = super::seen_from::class_param_arg(self.u, t).map(|a| self.resolve_class_params(a));
                 arg.map(|arg| match *self.u.types().get(arg) {
-                    Type::Bounds(..) => self.avoid_info(arg, v, a),
+                    Type::Bounds(..) => self.avoid_info(arg, v, inner),
                     _ => self.avoid_at(arg, v, a),
                 })
             }
@@ -93,7 +99,7 @@ impl Typer<'_> {
                     return Some(self.avoid_at(alias, v, a));
                 }
                 let info = self.u.member_info(pre, s);
-                matches!(self.u.types().get(info), Type::Bounds(..)).then(|| self.avoid_info(info, v, a))
+                matches!(self.u.types().get(info), Type::Bounds(..)).then(|| self.avoid_info(info, v, inner))
             }
             k if k.is_term() => {
                 let info = self.u.term_type(Some(pre), s);

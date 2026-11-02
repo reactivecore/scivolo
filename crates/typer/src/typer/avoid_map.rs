@@ -7,17 +7,19 @@ use super::approx::{self, Approx};
 use tasty::{Kind, NOTHING, SymbolId, Type, TypeId, TypeVars};
 
 /// The symbols to avoid, those whose bounds are unknown, and the local symbols being expanded:
-/// reaching one of the last two fails.
+/// reaching one of the last two fails. Reaching a type member whose bounds are being expanded
+/// gives `Nothing .. Any` (dotty's `LazyRef` of an F-bound under `isExpandingBounds`).
 #[derive(Clone, Copy)]
 pub struct Avoided<'a> {
     pub locals: &'a [SymbolId],
     pub opaque: &'a [SymbolId],
     pub visiting: &'a [SymbolId],
+    pub expanding: &'a [SymbolId],
 }
 
 impl<'a> Avoided<'a> {
     pub fn new(locals: &'a [SymbolId], opaque: &'a [SymbolId]) -> Self {
-        Avoided { locals, opaque, visiting: &[] }
+        Avoided { locals, opaque, visiting: &[], expanding: &[] }
     }
 }
 

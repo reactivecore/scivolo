@@ -54,8 +54,13 @@ impl Cmp<'_> {
         let n = self.underlying_normalizable(t)?;
         match self.u.types().get(n) {
             Type::Match { .. } => {
-                let reduced = self.reduced(n)?;
-                Some(self.normal(reduced))
+                if self.normalizing.contains(&n) || self.normalizing.len() >= MAX_REDUCTIONS as usize {
+                    return None;
+                }
+                self.normalizing.push(n);
+                let normal = self.reduced(n).map(|reduced| self.normal(reduced));
+                self.normalizing.pop();
+                normal
             }
             _ => self.fold_compiletime(n),
         }

@@ -103,6 +103,11 @@ impl Constraint {
         self.escaped
     }
 
+    /// Whether `v` was made after symbol `s` was defined (dotty's deeper `nestingLevel`).
+    pub fn made_after(&self, v: VarId, s: SymbolId) -> bool {
+        self.vars[v.0 as usize].born.0 > s.0
+    }
+
     /// Whether `v` keeps the unions of its lower bound when instantiated (dotty's `isHard`).
     pub fn is_hard(&self, v: VarId) -> bool {
         self.vars[v.0 as usize].hard
@@ -157,8 +162,21 @@ impl Constraint {
     }
 
     /// Sets the bounds of `v` to `lo` and `hi` if `checked <: hi` holds then, `checked` being
-    /// the part of `lo` to check (dotty's `addOneBound`).
+    /// the part of `lo` to check; instantiates `v` to equal bounds that do not refer to it and
+    /// are not a bare type constructor (dotty's `addOneBound` and its `tryReplace`).
     fn narrow(&mut self, u: &mut Universe, v: VarId, lo: TypeId, hi: TypeId, checked: TypeId) -> bool {
+        let mut recursive = false;
+        if lo == hi {
+            u.map_type(lo, &mut |u, part| {
+                recursive |= *u.types().get(part) == Type::Var(v);
+                None
+            });
+            let tycon = matches!(*u.types().get(lo), Type::Sym(_, s) if !u.type_params(s).is_empty());
+            if !recursive && !tycon {
+                self.instantiate(v, lo);
+                return true;
+            }
+        }
         let mark = self.mark();
         self.set(v, lo, hi);
         let ok = hi == ANY || self.satisfiable(u, checked, hi);
