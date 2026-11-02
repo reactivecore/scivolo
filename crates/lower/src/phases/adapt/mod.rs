@@ -14,7 +14,7 @@ pub use polymorphic::{array_op, is_synchronized, qualify_synchronized, synchroni
 use super::casts::{cast, conforms, is_cast, is_new_array};
 use super::select_static::is_static_enum_value;
 use crate::Lower;
-use crate::symbols::{has, is_java_static};
+use crate::symbols::{has, is_java_field, is_java_static};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
 use tasty::{Erased, Kind, SymbolId, Type};
@@ -32,7 +32,7 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
         && in_class
         && !l.u.is_module(s)
         && !l.fields.contains_key(&s)
-        && !l.u.is_java_field(s)
+        && !is_java_field(l.u, s)
         && !is_static_enum_value(l, s)
         && s != l.defs.boxed_unit_unit;
     let method = l.u.symbol(s).kind == Kind::Def || has(l.u, s, FIELDaccessor) || class_value;

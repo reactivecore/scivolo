@@ -137,6 +137,12 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       nativelib` reads `UnsafePackageCompat` from TASTy until #196, so `unsafe/package$` lacks the
       call and `unsafe/package`'s forwarders to its members have the object's position, as in
       separate compilation.
+11. **`super[Q].m` of a `@targetName` member crashes `ResolveSuper`** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/ResolveSuper.scala:89`, `decomposeSuperName`).
+    - Trait `P extends Q` with `@targetName("tn") def n` calling `P.super[Q].n` from a nested
+      class: the accessor's target name `tn$super$Q` is a `SimpleName`, so neither case matches
+      (`MatchError`).
+    - Fix: decompose the target name's string. Frontend: compiles it, calling `Q`'s `tn`.
 
 ## M4: dotty `tests/run`
 
