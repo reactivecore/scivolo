@@ -42,14 +42,17 @@ pub fn is_jdk_object(u: &Universe, c: SymbolId) -> bool {
     u.may_be_java(c) && u.is_module_class(c) && jdk || u.is_java_statics(c)
 }
 
-/// Whether `s` is a Java field: one of a JDK stub or a JDK jar, or a value javalib's class in a
-/// JDK package declares outside private and lazy ones, which dotty reads from the JDK's class;
-/// not one of Scala Native's renamed classes such as `_Class`.
+/// Whether `s` is a Java field: one of a JDK stub or a JDK jar, or a value javalib's class (not
+/// trait) in a JDK package declares outside private and lazy ones, which dotty reads from the
+/// JDK's class; not one of Scala Native's renamed classes such as `_Class`.
 pub fn is_java_field(u: &Universe, s: SymbolId) -> bool {
     let jdk_class = |c| {
         let name = u.full_name(c);
         let jdk = name.starts_with("java.") || name.starts_with("javax.");
-        jdk && u.may_be_java(c) && !u.is_module_class(c) && tasty::defined_name(&name).is_none()
+        jdk && u.may_be_java(c)
+            && !u.is_module_class(c)
+            && !u.is_trait(c)
+            && tasty::defined_name(&name).is_none()
     };
     let javalib = u.symbol(s).kind == Kind::Val
         && ![PRIVATE, STATIC, LAZY].iter().any(|&f| has(u, s, f))

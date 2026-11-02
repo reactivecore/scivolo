@@ -57,7 +57,7 @@ mod from_product;
 pub(crate) mod function_classes;
 mod function_xxl_forwarders;
 mod get_class;
-mod getters;
+pub(crate) mod getters;
 mod hoist_super_args;
 mod initializers;
 mod inline_patterns;

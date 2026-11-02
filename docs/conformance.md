@@ -124,6 +124,12 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
    - Scala Native: "Unknown method `…$anon$1.fromProduct(scala.Product): scala.Some`" at link
      time; JVM: `NoSuchMethodError`.
    - Fix: give the inlined anonymous mirror classes their mirror members. Frontend: defines them.
+10. **`super[Q].m` of a `@targetName` member crashes `ResolveSuper`** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/ResolveSuper.scala:89`, `decomposeSuperName`).
+    - Trait `P extends Q` with `@targetName("tn") def n` calling `P.super[Q].n` from a nested
+      class: the accessor's target name `tn$super$Q` is a `SimpleName`, so neither case matches
+      (`MatchError`).
+    - Fix: decompose the target name's string. Frontend: compiles it, calling `Q`'s `tn`.
 
 ## M4: dotty `tests/run`
 

@@ -5,6 +5,7 @@
 
 use super::Gen;
 use super::method::Method;
+use crate::phases::getters::is_setter;
 use crate::symbols::{has, is_extern, is_java_field, is_static, is_static_module, jdk_api_owner};
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, Param, PosId, Type, Val};
@@ -106,11 +107,9 @@ impl Gen<'_, '_> {
                 || excluded.iter().any(|&f| has(self.l.u, m, f))
                 || self.l.lifted_from.contains_key(&m)
                 || jdk && !self.l.u.javalib_sources() && has(self.l.u, m, PRIVATEqualified)
+                || self.is_java_field_or_setter(m)
             {
                 continue;
-            }
-            if is_java_field(self.l.u, m) {
-                return unsupported(Span::NONE, "forwarders to fields of JDK classes");
             }
             let signature = (self.l.u.symbol(m).name.clone(), self.l.u.erased_method(m));
             if seen.contains(&signature) {
@@ -133,6 +132,18 @@ impl Gen<'_, '_> {
             out.push(self.forwarder(m, module_class, name, pos));
         }
         Ok(out)
+    }
+
+    /// Whether `m` is a Java field or the setter `x_=` of one.
+    fn is_java_field_or_setter(&mut self, m: SymbolId) -> bool {
+        let name = self.l.u.symbol(m).name.clone();
+        let getter = match is_setter(self.l, m) {
+            true => name.strip_suffix("_=").unwrap_or(&name),
+            false => return is_java_field(self.l.u, m),
+        };
+        let owner = self.l.u.symbol(m).owner.expect("a setter's class");
+        let fields = self.l.u.decl(owner, getter).unwrap_or_default();
+        fields.into_iter().any(|f| is_java_field(self.l.u, f))
     }
 
     /// The position nscplugin gives the forwarder of member `m` of another of javalib's sources
