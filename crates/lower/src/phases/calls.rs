@@ -62,10 +62,12 @@ impl Lower<'_> {
         self.class_of(p)
     }
 
-    /// The class of type `tpe`, through singletons, unions and aliases to its erasure's.
+    /// The class of type `tpe`, through singletons, unions, aliases and opaque types visible as
+    /// aliases, to its erasure's.
     pub fn class_of(&mut self, tpe: TypeId) -> Option<SymbolId> {
         let widened = self.u.widen(tpe);
-        if let Some(c) = self.u.class_symbol(widened) {
+        let dealiased = self.u.dealias(widened);
+        if let Some(c) = self.u.class_symbol(dealiased) {
             return Some(c);
         }
         let name = match self.u.erase(tpe) {

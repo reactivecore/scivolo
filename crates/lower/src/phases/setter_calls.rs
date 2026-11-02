@@ -8,7 +8,7 @@ use super::getters::is_setter;
 use crate::symbols::{has, is_extern};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{FIELDaccessor, MUTABLE, TRAIT};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes each assignment to a variable in class definition `td` a call of its setter.
@@ -41,13 +41,30 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             }
             _ => {
                 let s = l.tpd.span(rhs);
-                l.ident(setter, if s.exists() { s.with_point(s.start()) } else { l.tpd.span(lhs) })
+                let at = if s.exists() { s.with_point(s.start()) } else { l.tpd.span(lhs) };
+                match this_prefix(l, lhs) {
+                    Some(c) => {
+                        let this = l.this(c, at);
+                        l.select(this, setter, at)
+                    }
+                    None => l.ident(setter, at),
+                }
             }
         };
         let args = l.tpd.list(&[rhs]);
         l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
     }
     Ok(())
+}
+
+/// The class `C` if reference `id`'s prefix is `C.this` (dotty's `desugarIdentPrefix`).
+fn this_prefix(l: &Lower, id: TNodeId) -> Option<SymbolId> {
+    let Type::Sym(Some(prefix), _) = *l.u.types().get(l.tpd.get(id).tpe?) else { return None };
+    let Type::This(c) = *l.u.types().get(prefix) else { return None };
+    match *l.u.types().get(c) {
+        Type::Sym(_, c) => Some(c),
+        _ => None,
+    }
 }
 
 /// Gives `qual.!=` of `Any` the span of `qual`, as `InterceptedMethods`' `qual.==(..).!` has.
