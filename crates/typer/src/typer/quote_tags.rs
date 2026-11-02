@@ -8,12 +8,12 @@ use crate::ctx::Ctx;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashSet;
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Typer<'_> {
     /// Records the tags of quote `quote` of body `body`, typed at level 0 in `ctx`: for each abstract
-    /// type local to a term and defined outside the quote that a type in the body outside its
-    /// splices refers to, the stable path a search for its `Type[T]` finds.
+    /// type not static and defined outside the quote that a type in the body outside its splices
+    /// refers to, the stable path a search for its `Type[T]` finds.
     pub fn record_quote_tags(&mut self, quote: TNodeId, body: TNodeId, ctx: Ctx) {
         let (mut todo, mut defined, mut used) = (vec![body], FxHashSet::default(), Vec::new());
         while let Some(t) = todo.pop() {
@@ -23,10 +23,10 @@ impl Typer<'_> {
             }
             if let Some(tpe) = node.tpe {
                 self.u.map_type(tpe, &mut |u, x| {
-                    if let Type::Sym(None, s) = *u.types().get(x)
-                        && !used.contains(&s)
+                    if let Some(s) = this_or_local(u, x)
+                        && !used.iter().any(|&(u, _)| u == s)
                     {
-                        used.push(s);
+                        used.push((s, x));
                     }
                     None
                 });
@@ -37,11 +37,11 @@ impl Typer<'_> {
         }
         let Some(class) = self.resolve_full_name("scala.quoted.Type", true) else { return };
         let mut tags = Vec::new();
-        for s in used {
-            if defined.contains(&s) || !self.is_level_zero_type(s) {
+        for (s, arg) in used {
+            let mut owners = std::iter::successors(Some(s), |&o| self.u.symbol(o).owner);
+            if owners.any(|o| defined.contains(&o)) || !self.is_level_zero_type(s) {
                 continue;
             }
-            let arg = self.u.intern_type(Type::Sym(None, s));
             let tycon = type_ref(self.u, class);
             let pt = self.u.intern_type(Type::Applied(tycon, vec![arg]));
             let Ok(tag) = self.implicit_arg(pt, self.tpd.span(body), ctx, 0) else { continue };
@@ -70,11 +70,19 @@ impl Typer<'_> {
         self.tpd.sym(m).is_some_and(|s| self.is_staging_method(s) && self.u.symbol(s).name == "splice")
     }
 
-    /// Whether `s` is an abstract type local to a term.
+    /// Whether `s` is an abstract type that is not static.
     fn is_level_zero_type(&mut self, s: SymbolId) -> bool {
-        let sym = self.u.symbol(s);
-        matches!(sym.kind, Kind::Type | Kind::TypeParam)
-            && sym.owner.is_some_and(|o| self.u.symbol(o).kind.is_term())
+        matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam)
+            && !self.u.is_static_symbol(s)
             && self.u.alias_of(s).is_none()
+    }
+}
+
+/// The symbol `t` refers to without a prefix or through its owner's `this`.
+pub fn this_or_local(u: &Universe, t: TypeId) -> Option<SymbolId> {
+    match *u.types().get(t) {
+        Type::Sym(None, s) => Some(s),
+        Type::Sym(Some(p), s) if matches!(u.types().get(p), Type::This(_)) => Some(s),
+        _ => None,
     }
 }

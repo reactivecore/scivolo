@@ -31,8 +31,10 @@ pub fn encode(
     let (mut defs, mut holes, mut refs, mut locals) =
         (Vec::new(), Vec::new(), Vec::new(), FxHashMap::default());
     for (index, &tag) in used.iter().enumerate() {
-        let Type::Sym(None, evidence) = *l.u.types().get(tag) else {
-            return unsupported(span, "quotes whose type tag is not a local value");
+        let (evidence, this) = match *l.u.types().get(tag) {
+            Type::Sym(None, evidence) => (evidence, None),
+            Type::Sym(Some(p), evidence) if let Type::This(c) = *l.u.types().get(p) => (evidence, Some(c)),
+            _ => return unsupported(span, "quotes whose type tag is not a local value or field"),
         };
         let tpe = tags.iter().find(|(_, t)| *t == tag).map(|&(s, _)| s).expect("a tag's type");
         let name = fresh(l, &l.u.symbol(evidence).name.clone());
@@ -49,7 +51,15 @@ pub fn encode(
         defs.push(l.tpd.node(Tree::TypeDef { name, rhs: hole }, at, Some(local_ref), Some(local)));
         spliced_type(l, local, at);
         locals.insert(underlying, local_ref);
-        refs.push(l.ident(evidence, at));
+        let class = this.and_then(|c| l.u.class_symbol(c));
+        let tag_ref = match class {
+            Some(c) => {
+                let this = l.this(c, at);
+                l.select(this, evidence, at)
+            }
+            None => l.ident(evidence, at),
+        };
+        refs.push(tag_ref);
     }
     substitute(l, body, &locals);
     let tpe = l.tpd.tpe(body);
