@@ -106,6 +106,8 @@ pub struct Config {
     pub experimental: Option<&'static str>,
     pub kind_projector: KindProjector,
     pub warnings: Warnings,
+    /// `-Yexplicit-nulls`; the typer does not read it yet.
+    pub explicit_nulls: bool,
 }
 
 impl Default for Config {
@@ -121,6 +123,7 @@ impl Default for Config {
             experimental: None,
             kind_projector: KindProjector::Disabled,
             warnings: Warnings::default(),
+            explicit_nulls: false,
         }
     }
 }

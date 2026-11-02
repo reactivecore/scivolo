@@ -70,6 +70,7 @@ impl Config {
                 "-preview" => cfg.preview = true,
                 "-indent" => cfg.indent = true,
                 "-experimental" => experimental = true,
+                "-Yexplicit-nulls" => cfg.explicit_nulls = true,
                 "-language" => {
                     for name in value().split(',') {
                         match Features::named(name) {
@@ -122,6 +123,7 @@ mod tests {
         }
         let good = ["-nowarn", "-language:implicitConversions,postfixOps", "-Xkind-projector:disable"];
         assert!(Config::checked(&good).is_ok());
+        assert!(Config::checked(&["-Yexplicit-nulls"]).unwrap().explicit_nulls);
         assert!(Config::checked(&["-Wnonunit-statement", "-source", "3.9"]).is_ok());
     }
 

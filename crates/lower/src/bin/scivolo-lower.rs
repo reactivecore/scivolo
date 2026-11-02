@@ -37,6 +37,9 @@ struct Cli {
     /// Scala Native's `positionRelativizationPaths`; TASTy keeps the path from `--sourceroot`.
     #[arg(long, requires = "sourceroot")]
     position_root: Option<PathBuf>,
+    /// A compiler option of all sources, checked as the options of their directives.
+    #[arg(long = "scalac-option", allow_hyphen_values = true)]
+    scalac_options: Vec<String>,
     /// The Scala files.
     #[arg(required = true)]
     files: Vec<String>,
@@ -45,8 +48,18 @@ struct Cli {
 }
 
 fn main() {
-    let Cli { cp, tasty, jdk_tasty, javalib, macros, sourceroot, position_root, files, out_dir: out } =
-        Cli::parse();
+    let Cli {
+        cp,
+        tasty,
+        jdk_tasty,
+        javalib,
+        macros,
+        sourceroot,
+        position_root,
+        scalac_options,
+        files,
+        out_dir: out,
+    } = Cli::parse();
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = [&typer::dump::library_jars(&libs)[..], &cp, &tasty].concat();
@@ -74,7 +87,7 @@ fn main() {
         let classpath = vm::Classpath::with_jars(&cp, &nir).unwrap_or_else(|e| fail(&format!("{cp:?}: {e}")));
         vm::Vm::new(classpath).unwrap_or_else(|e| fail(&format!("the macro VM: {e}")))
     });
-    let mut options: Vec<&str> = Vec::new();
+    let mut options: Vec<&str> = scalac_options.iter().map(String::as_str).collect();
     for s in &sources {
         let directives = lower::directives::directives(&s.text, "3.9.0");
         options
