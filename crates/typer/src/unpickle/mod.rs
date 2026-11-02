@@ -11,6 +11,7 @@ mod cases;
 mod class_defs;
 mod closure_type;
 mod defs;
+mod imports;
 mod locals;
 mod paths;
 mod quote_patterns;

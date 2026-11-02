@@ -104,7 +104,8 @@ impl Unpickler<'_> {
                 DEFDEF if constr.is_none() => constr = Some(self.local_def(k)?),
                 VALDEF | DEFDEF => body.push(self.local_def(k)?),
                 TYPEDEF => body.push(self.type_def(k)?),
-                IMPORT | EXPORT => {}
+                IMPORT => body.push(self.import(k)?),
+                EXPORT => {}
                 tag if constr.is_none() && is_modifier(tag) => {}
                 APPLY | TYPEAPPLY | BLOCK | NEW if constr.is_none() => parents.push(self.term(k)?),
                 _ if constr.is_none() => parents.push(self.tpt(k)?),

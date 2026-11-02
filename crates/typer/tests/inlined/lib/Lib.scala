@@ -47,6 +47,26 @@ object Lib:
     new Foo(n).twice + 1
   inline def anon(s: String): Runnable = new Runnable:
     def run() = println("hi " + s)
+  inline def shown: String =
+    import Instances.given
+    compiletime.summonInline[Show[Int]].show(1)
+  inline def shownBounded: String =
+    import Instances.given Show[Int]
+    compiletime.summonInline[Show[Int]].show(2)
+  inline def renamed(n: Int): Int =
+    import Instances.twice as double
+    double(n)
+  inline def excluded(n: Int): Int =
+    import Instances.{twice as _, *}
+    thrice(n)
+
+trait Show[A]:
+  def show(a: A): String
+
+object Instances:
+  given Show[Int] = a => "imported " + a
+  def twice(n: Int): Int = n * 2
+  def thrice(n: Int): Int = n * 3
 
 object Overloads:
   def andThen[A, B](a: A)(f: A => B): B = f(a)
