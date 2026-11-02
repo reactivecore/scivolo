@@ -142,12 +142,10 @@ impl Gen<'_, '_> {
         if !self.l.u.javalib_sources() {
             return None;
         }
-        let (file, id) = self.l.u.symbol(m).tree?;
-        let addr = self.l.u.file(file).0.node(id).addr;
-        let span = self.l.u.body_info(file).ok()?.span(addr)?;
+        let point = self.l.u.pickled_point(m)?;
         let at = self.spans.get(&module_class)?.point();
         let (base, src) = self.l.sources.files()[self.l.sources.index(at)];
-        let offset = base + src.advance_utf16(0, span.point.unwrap_or(span.start) as usize);
+        let offset = base + src.advance_utf16(0, point as usize);
         self.pos_of(Span::at(offset))
     }
 

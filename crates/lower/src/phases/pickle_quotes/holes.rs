@@ -116,7 +116,12 @@ pub fn lambda(l: &mut Lower, contents: &[TNodeId], owner: SymbolId) -> TNodeId {
             })
             .collect();
         let cases = l.tpd.list(&cases);
-        let selector = Some(l.ident(idx, Span::NONE));
+        let unchecked = l.u.class_ref("scala.unchecked");
+        let annotated = l.u.intern_type(Type::Annotated(int, unchecked));
+        let expr = l.ident(idx, Span::NONE);
+        let tpt = l.type_tree(annotated, Span::NONE);
+        let selector = l.tpd.node(Tree::Typed { expr, tpt }, Span::NONE, Some(annotated), None);
+        let selector = Some(l.positioned(selector));
         let m =
             l.tpd.node(Tree::Match { selector, cases, kind: MatchKind::Plain }, Span::NONE, Some(tpe), None);
         l.positioned(m)

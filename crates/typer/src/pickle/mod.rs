@@ -36,8 +36,8 @@ pub struct TreePickler<'a> {
     /// Whether the buffer is a scratch one that a sharing key is written to.
     keying: bool,
     binders: FxHashMap<Binder, Addr>,
-    /// The binders of the lambdas and methods being pickled, innermost last, with their parameter names.
-    scopes: Vec<(Binder, Vec<String>)>,
+    /// The parameter names of each binder pickled.
+    params: FxHashMap<Binder, Vec<String>>,
     holes: FxHashMap<TNodeId, (u32, Vec<TNodeId>)>,
     /// The definitions of the quote: their addresses, `None` until pickled (dotty's `symRefs`).
     defs: FxHashMap<SymbolId, Option<Addr>>,
@@ -83,7 +83,7 @@ fn pickle(
         keys: FxHashMap::default(),
         keying: false,
         binders: FxHashMap::default(),
-        scopes: Vec::new(),
+        params: FxHashMap::default(),
         holes,
         defs: FxHashMap::default(),
         forward: FxHashMap::default(),
