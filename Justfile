@@ -568,7 +568,7 @@ javalib-tasty:
     scripts/javalib-tasty.sh
 
 # Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs as dotty's pickler writes
-# it (scala-cli).
+# it (scala-cli), and libs/jdk-declarations.jar, that of JdkDeclarations.scala under jdk-declarations/.
 jdk-stubs:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -576,10 +576,15 @@ jdk-stubs:
     mkdir -p tmp/jdk-stubs/out
     scala-cli --power compile --quiet --scala 3.9.0 --server=false --workspace tmp/jdk-stubs/ws \
         -d tmp/jdk-stubs/classes libs/jdk-stubs \
-        -O -Yearly-tasty-output -O {{ justfile_directory() }}/tmp/jdk-stubs/out -O -Ystop-before:erasure
+        -O -Yearly-tasty-output -O {{ justfile_directory() }}/tmp/jdk-stubs/out -O -Ystop-before:erasure \
+        -O -sourceroot -O {{ justfile_directory() }}
     find tmp/jdk-stubs/out -name '*.tasty' -exec touch -t 201001010000 {} +
     rm -f libs/jdk-stubs.jar
     (cd tmp/jdk-stubs/out && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-stubs.jar -@)
+    mkdir -p tmp/jdk-stubs/decl/jdk-declarations
+    (cd tmp/jdk-stubs/out && grep -rl --include='*.tasty' JdkDeclarations.scala . | cpio -pdm ../decl/jdk-declarations 2> /dev/null)
+    rm -f libs/jdk-declarations.jar
+    (cd tmp/jdk-stubs/decl && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-declarations.jar -@)
 
 # Check out Scala Native v0.5.12 into ref/scala-native.
 fetch-scala-native:

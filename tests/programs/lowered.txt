@@ -206,3 +206,4 @@ liftouterthis
 inlineimports
 mirrorproxies
 usermirrors
+nestedobjlambda

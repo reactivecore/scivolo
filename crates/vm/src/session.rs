@@ -11,14 +11,15 @@ const SHOW: &str = "scivolo.repl.Show$";
 
 impl Vm {
     /// Runs `main(args)` of the top-level object or class `entry` on the main green thread as a
-    /// Scala Native executable does: runtime initialization, `main`, then the runtime's
-    /// shutdown, which runs queued tasks. Interpreted calls throw `StackOverflowError` within
-    /// `STACK_RESERVE` of the end of their thread's stack.
+    /// Scala Native executable does: runtime initialization, the program's static initializers,
+    /// `main`, then the runtime's shutdown, which runs queued tasks. Interpreted calls throw
+    /// `StackOverflowError` within `STACK_RESERVE` of the end of their thread's stack.
     pub fn run_main(&mut self, entry: &str, args: &[String]) -> Result<(), VmError> {
         let init = self.initializer(entry, args);
         let entry = entry.to_owned();
         self.run_training(move |vm| {
             let args = init(vm)?;
+            vm.run_program_initializers()?;
             let top = vm.world.top(&entry);
             let main = vm.world.member(top, "D4mainLAL16java.lang.String_uEo");
             vm.call_global(main, &[args])?;

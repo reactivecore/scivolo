@@ -18,12 +18,17 @@ const LIBS: [&str; 6] = ["auxlib", "javalib", "nativelib", "clib", "posixlib", "
 /// The TASTy of Scala Native's javalib (research 08 §3).
 const JAVALIB_TASTY: &[u8] = include_bytes!("../../../libs/javalib-tasty-0.5.12.jar");
 
-/// The library image of `jars`, the standard library's TASTy and javalib's: their NIR with
-/// member tables, and their TASTy with symbol tables and its package table.
+/// The TASTy of the JDK's declarations javalib's classes are typed from (`just jdk-stubs`).
+const JDK_DECLARATIONS: &[u8] = include_bytes!("../../../libs/jdk-declarations.jar");
+
+/// The library image of `jars`, the standard library's TASTy, javalib's and the JDK's
+/// declarations: their NIR with member tables, and their TASTy with symbol tables and its
+/// package table.
 pub fn image(jars: &[PathBuf]) -> io::Result<&'static Image> {
     let mut sources: Vec<Source> = jars.iter().cloned().map(Source::File).collect();
     sources.extend(scala_library().map(Source::File));
     sources.push(Source::Bytes("javalib-tasty-0.5.12.jar", JAVALIB_TASTY));
+    sources.push(Source::Bytes("jdk-declarations.jar", JDK_DECLARATIONS));
     let keep = |name: &str| name.ends_with(".nir") || name.ends_with(".tasty");
     let extra = |name: &str, data: &[u8]| match name.ends_with(".tasty") {
         true => tasty::symbol_table(data),

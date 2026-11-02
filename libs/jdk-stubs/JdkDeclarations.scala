@@ -1,7 +1,8 @@
-// The JDK's declarations of classes javalib also defines, and javalib-intf's Java classes, for
-// nativelib's sources in `just lib-compile`, which see them in place of javalib's: only the members
-// those sources use, Java's static members `@static` (`Long.hashCode`, which its class also has, a
-// member of the object), its fields `var`s.
+// The JDK's declarations of classes javalib also defines, and javalib-intf's Java classes. nativelib's
+// sources in `just lib-compile` see these classes in place of javalib's; every other compile sees
+// each member declared here in place of javalib's members of its name (ADR 0072), so a name has
+// all the JDK's overloads of its class. Java's static members are `@static` (`Long.hashCode`,
+// which its class also has, a member of the object), its fields `var`s.
 import scala.annotation.static
 
 package java.lang {
@@ -39,9 +40,12 @@ package java.lang {
     @static def isTitleCase(codePoint: Int): scala.Boolean = false
     @static def codePointAt(seq: CharSequence, index: Int): Int = 0
     @static def codePointAt(a: Array[Char], index: Int): Int = 0
+    @static def codePointAt(a: Array[Char], index: Int, limit: Int): Int = 0
     @static def codePointBefore(seq: CharSequence, index: Int): Int = 0
     @static def codePointBefore(a: Array[Char], index: Int): Int = 0
+    @static def codePointBefore(a: Array[Char], index: Int, start: Int): Int = 0
     @static def toChars(codePoint: Int): Array[Char] = null
+    @static def toChars(codePoint: Int, dst: Array[Char], dstIndex: Int): Int = 0
   }
 
   final class Integer extends Number {
@@ -57,7 +61,9 @@ package java.lang {
     @static def compareUnsigned(x: Int, y: Int): Int = 0
     @static def toUnsignedLong(x: Int): scala.Long = 0L
     @static def toUnsignedString(i: Int): String = null
+    @static def toUnsignedString(i: Int, radix: Int): String = null
     @static def valueOf(i: Int): Integer = null
+    @static def valueOf(s: String): Integer = null
     @static def valueOf(s: String, radix: Int): Integer = null
   }
 
@@ -74,7 +80,10 @@ package java.lang {
     @static def compare(x: scala.Long, y: scala.Long): Int = 0
     @static def compareUnsigned(x: scala.Long, y: scala.Long): Int = 0
     @static def toUnsignedString(i: scala.Long): String = null
+    @static def toUnsignedString(i: scala.Long, radix: Int): String = null
+    @static def parseUnsignedLong(s: String): scala.Long = 0L
     @static def parseUnsignedLong(s: String, radix: Int): scala.Long = 0L
+    @static def parseUnsignedLong(s: CharSequence, beginIndex: Int, endIndex: Int, radix: Int): scala.Long = 0L
   }
 
   final class Float extends Number {
@@ -101,6 +110,7 @@ package java.lang {
     def this(str: String) = this(16)
     override def append(obj: Object): StringBuilder = this
     override def append(str: String): StringBuilder = this
+    override def append(sb: StringBuffer): StringBuilder = this
     override def append(s: CharSequence): StringBuilder = this
     override def append(s: CharSequence, start: Int, end: Int): StringBuilder = this
     override def append(str: Array[Char]): StringBuilder = this
@@ -135,6 +145,8 @@ package java.lang {
     def getStackTrace(): Array[StackTraceElement] = null
     def setStackTrace(stackTrace: Array[StackTraceElement]): Unit = ()
     def printStackTrace(): Unit = ()
+    def printStackTrace(s: java.io.PrintStream): Unit = ()
+    def printStackTrace(s: java.io.PrintWriter): Unit = ()
     override def toString(): String = null
   }
 
@@ -176,12 +188,12 @@ package java.util {
   trait List[E] extends Collection[E] {
     def size(): Int
     def isEmpty(): scala.Boolean
-    def contains(o: Object): scala.Boolean
+    def contains(o: Any): scala.Boolean
     def iterator(): Iterator[E]
     def toArray(): Array[Object]
     def toArray[T <: Object](a: Array[T]): Array[T]
     def add(e: E): scala.Boolean
-    def remove(o: Object): scala.Boolean
+    def remove(o: Any): scala.Boolean
     def containsAll(c: Collection[?]): scala.Boolean
     def addAll(c: Collection[? <: E]): scala.Boolean
     def addAll(index: Int, c: Collection[? <: E]): scala.Boolean
@@ -192,8 +204,8 @@ package java.util {
     def set(index: Int, element: E): E
     def add(index: Int, element: E): Unit
     def remove(index: Int): E
-    def indexOf(o: Object): Int
-    def lastIndexOf(o: Object): Int
+    def indexOf(o: Any): Int
+    def lastIndexOf(o: Any): Int
     def listIterator(): ListIterator[E]
     def listIterator(index: Int): ListIterator[E]
     def subList(fromIndex: Int, toIndex: Int): List[E]
@@ -206,9 +218,9 @@ package java.util {
     def ensureCapacity(minCapacity: Int): Unit = ()
     override def size(): Int = 0
     override def isEmpty(): scala.Boolean = false
-    override def contains(o: Object): scala.Boolean = false
-    override def indexOf(o: Object): Int = 0
-    override def lastIndexOf(o: Object): Int = 0
+    override def contains(o: Any): scala.Boolean = false
+    override def indexOf(o: Any): Int = 0
+    override def lastIndexOf(o: Any): Int = 0
     override def toArray(): Array[Object] = null
     override def toArray[T <: Object](a: Array[T]): Array[T] = a
     def get(index: Int): E = null.asInstanceOf[E]
@@ -216,7 +228,7 @@ package java.util {
     override def add(e: E): scala.Boolean = false
     override def add(index: Int, element: E): Unit = ()
     override def remove(index: Int): E = null.asInstanceOf[E]
-    override def remove(o: Object): scala.Boolean = false
+    override def remove(o: Any): scala.Boolean = false
     override def clear(): Unit = ()
     override def addAll(c: Collection[? <: E]): scala.Boolean = false
     override def addAll(index: Int, c: Collection[? <: E]): scala.Boolean = false
