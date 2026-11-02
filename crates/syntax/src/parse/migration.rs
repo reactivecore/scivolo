@@ -87,9 +87,12 @@ impl Parser<'_> {
     }
 
     /// Report `msg` as an error, a migration warning or a warning, depending on the source
-    /// version and when `m` became legacy syntax.
+    /// version and when `m` became legacy syntax; nothing under `2.13`.
     pub fn error_or_migration_warning(&mut self, msg: impl Into<Message>, span: Span, m: Migration) {
         let version = self.s.cfg.source_version;
+        if version.is_scala2() {
+            return;
+        }
         let (warn_from, error_from) = m.versions();
         if let Some(error_from) = error_from.filter(|&e| version.is_at_least(e)) {
             if version != error_from.migrating_variant() {

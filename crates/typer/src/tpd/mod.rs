@@ -38,6 +38,8 @@ pub struct Tpd {
     anon_mirrors: FxHashMap<SymbolId, AnonMirror>,
     quote_tags: FxHashMap<TNodeId, Vec<(SymbolId, TypeId)>>,
     annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
+    /// Whether the unit behaves as the Scala 2 library (dotty's `shouldBehaveAsScala2`).
+    pub scala2: bool,
 }
 
 /// What an anonymous class the typer made for a mirror becomes (dotty's

@@ -4,7 +4,8 @@
 Usage: scripts/lib-compile.py MODULE [FILTER]
 
 MODULE is one of MODULES or `all`. Each `.scala` file of the module's Scala 3 source directories
-in ref/scala-native (those whose paths contain FILTER) is lowered on its own, or with its group of
+in ref/scala-native, scalalib's those of scalalib_sources.py (those whose paths contain FILTER),
+except the classes the published scalalib takes from Scala 2.13, is lowered on its own, or with its group of
 UNITS as one unit, its macros run, against the jars of tmp/lib/sn/jars (`just lib-oracle`) if
 there, else the published ones, into tmp/lib/MODULE/out/FILE/; each NIR file written is compared,
 as `just nir-cmp` compares them (nir_compare.py), with the oracle's: the module compiled by Scala
@@ -30,6 +31,7 @@ import sys
 import zipfile
 from pathlib import Path
 
+import scalalib_sources
 from nir_compare import compare, dump
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,7 +41,7 @@ WORK = ROOT / "tmp/lib"
 ORACLE_JARS = WORK / "sn/jars"
 ENV = os.environ | {"SCIVOLO_LIBS": str(ORACLE_JARS)} if ORACLE_JARS.is_dir() else None
 LOWER = ROOT / "target/release/scivolo-lower"
-MODULES = ["nativelib", "clib", "posixlib", "windowslib", "javalib", "auxlib"]
+MODULES = ["nativelib", "clib", "posixlib", "windowslib", "javalib", "auxlib", "scalalib"]
 SOURCE_DIRS = ["scala", "scala-3", "scala-2.13+"]
 VERSION = "0.5.12"
 WINDOWSLIB = LIBS / f"windowslib_native0.5_3-{VERSION}.jar"
@@ -51,6 +53,7 @@ OPTIONS = {
     "nativelib": ["--jdk-tasty", str(JDK_STUBS)],
     "windowslib": ["--tasty", str(WINDOWSLIB)],
     "javalib": ["--javalib", "--tasty", str(WINDOWSLIB), "--jdk-tasty", str(JDK_STUBS)],
+    "scalalib": scalalib_sources.OPTIONS,
 }
 # The groups of files of a module lowered as one unit, by path prefix in their source directory:
 # files that refer to each other's classes.
@@ -63,13 +66,13 @@ TIMEOUT = 60
 
 
 def jar_name(module):
-    return f"{module}_native0.5_3-{VERSION}.jar"
+    return f"{module}_native0.5_3-{'3.9.0%2B' if module == 'scalalib' else ''}{VERSION}.jar"
 
 
 def lower_cmd(module, root, files, out):
     """The `scivolo-lower` command lowering `files` of source directory `root` into `out`, the
     checkout the source root as in Scala Native's build."""
-    roots = ["--sourceroot", str(SN), "--position-root", str(root)]
+    roots = ["--sourceroot", str(root if module == "scalalib" else SN), "--position-root", str(root)]
     return [str(LOWER), "--macros", *OPTIONS.get(module, []), *roots, *map(str, files), str(out)]
 
 
@@ -90,13 +93,13 @@ def units(module, filter_):
     """(source directory, files) of each unit of `module`'s Scala sources with a file whose path
     contains `filter_`: each group of UNITS, each other file on its own."""
     found = {}
-    for name in SOURCE_DIRS:
-        root = SN / module / "src/main" / name
+    roots = [scalalib_sources.sources(LIBS)] if module == "scalalib" else [SN / module / "src/main" / n for n in SOURCE_DIRS]
+    for root in roots:
         for f in sorted(root.rglob("*.scala")):
             rel = str(f.relative_to(root))
             group = next((i for i, g in enumerate(UNITS.get(module, [])) if rel.startswith(tuple(g))), rel)
             found.setdefault((root, group), []).append(f)
-    return [(root, fs) for (root, _), fs in found.items() if any(filter_ in str(f.relative_to(SN)) for f in fs)]
+    return [(root, fs) for (root, _), fs in found.items() if any(filter_ in str(f.relative_to(ROOT)) for f in fs)]
 
 
 def run(cmd, timeout, env=None):
@@ -123,6 +126,8 @@ def one(module, root, files):
     theirs, by_file = oracle(module), {s: (collections.Counter(), []) for s in shown}
     for name in stdout.split():
         path = name.removesuffix(".nir").replace(".", "/") + ".nir"
+        if module == "scalalib" and scalalib_sources.specialized(path):
+            continue
         positions = (l[2:].rsplit(":", 2)[0] for l in dump(out / path) if l.startswith("@ ")) if files[1:] else iter(())
         counts, cmp = by_file.get(f"{root.name}/{next(positions, None)}", by_file[shown[0]])
         state, lines, reordered = compare(out / path, theirs / path, WORK / module / "diffs" / f"{path}.diff")
@@ -172,7 +177,8 @@ def compile_module(module, filter_):
           f"nir {nir[0]} same, {nir[1]} differ ({mixed} of them also var-order), {nir[3]} var-order, {nir[4]} quote-pos, "
           f"{nir[2]} missing (oracle {oracle(module).relative_to(ROOT)})")
     if not keep:
-        expected = {str(p.relative_to(oracle(module))) for p in oracle(module).rglob("*.nir")}
+        expected = {str(p.relative_to(oracle(module))) for p in oracle(module).rglob("*.nir")
+                    if module != "scalalib" or not scalalib_sources.specialized(str(p.relative_to(oracle(module))))}
         generated = {c[1] for c in compared}
         missing = sorted(expected - generated)
         (work / "oracle-only.txt").write_text("".join(f"{p}\n" for p in missing))

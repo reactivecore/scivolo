@@ -53,6 +53,7 @@ impl Config {
                 "-source" => {
                     let v = value();
                     match SourceVersion::parse(v) {
+                        Some(sv) if sv.is_scala2() => unknown(arg),
                         Some(sv) if !v.ends_with("-migration") => cfg.source_version = sv,
                         Some(sv) if v != "3.1-migration" => {
                             cfg.source_version = sv;
@@ -123,6 +124,7 @@ mod tests {
         }
         let good = ["-nowarn", "-language:implicitConversions,postfixOps", "-Xkind-projector:disable"];
         assert!(Config::checked(&good).is_ok());
+        assert!(Config::checked(&["-Yexplicit-nulls"]).unwrap().explicit_nulls);
         assert!(Config::checked(&["-Wnonunit-statement", "-source", "3.9"]).is_ok());
     }
 

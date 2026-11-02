@@ -29,6 +29,7 @@ mod avoid_select;
 mod by_name_repeated;
 mod call_types;
 mod callee_types;
+mod capture_types;
 mod captured_paths;
 mod case_companion;
 mod case_lambdas;
@@ -281,6 +282,8 @@ pub struct Typer<'a> {
     pub lints: Lints,
     /// Whether the source version is `future`.
     pub source_future: bool,
+    /// Whether the unit behaves as the Scala 2 library (`language.\`2.13\``).
+    pub scala2: bool,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -413,6 +416,7 @@ impl<'a> Typer<'a> {
             experimental: cfg.experimental,
             lints: cfg.warnings.lints,
             source_future: v.requires_new_syntax(),
+            scala2: v.is_scala2(),
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
@@ -456,6 +460,7 @@ impl<'a> Typer<'a> {
             file_starts: Vec::new(),
             macros: None,
         };
+        typer.tpd.scala2 = typer.scala2;
         typer.enter_and_or();
         typer.u.set_comparison_owner(None);
         Ok(typer)

@@ -1,0 +1,71 @@
+"""Scala Native's scalalib for Scala 3.9.0 as its build assembles it (research 36,
+ref/scala-native/project/Settings.scala `commonScalalibSettings`): the `.scala` files of
+scala-library's sources jar, patched with `git apply` and overridden by the files of
+ref/scala-native-scalalib/scalalib/overrides-3, in tmp/lib/scalalib/src; beside it, the TASTy of
+the JDK classes they use that javalib does not define."""
+import shutil
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+OVERRIDES = ROOT / "ref/scala-native-scalalib/scalalib/overrides-3"
+SRC = ROOT / "tmp/lib/scalalib/src"
+JDK_ONLY = ROOT / "tmp/lib/scalalib/jdk-only.jar"
+# auxlib's TASTy (the classes Scala's library defines in Java), which `just lib-oracle` builds.
+AUXLIB = ROOT / "tmp/lib/sn/jars/auxlib_native0.5_3-0.5.12.jar"
+OPTIONS = ["--jdk-tasty", str(JDK_ONLY), "--tasty", str(AUXLIB),
+           *(f"--scalac-option={o}" for o in ["-Yexplicit-nulls", "-language:implicitConversions", "-Wconf:any:silent"])]
+# The files of scala-library's `library-aux` the build leaves out.
+IGNORED = {f"scala/{n}.scala" for n in ["Any", "AnyRef", "Singleton", "Nothing", "Null", "AnyKind", "Matchable"]}
+# The classes the published jar takes from the Scala 2.13 scalalib for their specializations
+# (Build.scala's `overridenFiles`), with their companions and nested classes.
+SPECIALIZED = [
+    *(f"scala/{c}" for c in ["Function0", "Function1", "Function2", "Product1", "Product2", "Tuple1", "Tuple2"]),
+    *(f"scala/collection/{c}" for c in ["ArrayOps", "Stepper", "DoubleStepper", "IntStepper", "LongStepper"]),
+    *(f"scala/collection/immutable/{c}VectorStepper" for c in ["Double", "Int", "Long"]),
+    "scala/collection/immutable/Range",
+    *(f"scala/jdk/{c}Accumulator" for c in ["", "Double", "Int", "Long"]),
+    *(f"scala/jdk/FunctionWrappers.FromJava{c}" for c in [
+        "DoubleBinaryOperator", "BooleanSupplier", "DoubleConsumer", "DoublePredicate", "DoubleSupplier",
+        "DoubleToIntFunction", "DoubleToLongFunction", "IntBinaryOperator", "DoubleUnaryOperator",
+        "IntPredicate", "IntConsumer", "IntSupplier", "IntToDoubleFunction", "IntToLongFunction",
+        "IntUnaryOperator", "LongBinaryOperator", "LongConsumer", "LongPredicate", "LongSupplier",
+        "LongToDoubleFunction", "LongToIntFunction", "LongUnaryOperator"]),
+    *(f"scala/runtime/{c}" for c in ["AbstractFunction0", "AbstractFunction1", "AbstractFunction2",
+                                     "AbstractPartialFunction", "NonLocalReturnControl"]),
+    "scala/util/Sorting", "scala/util/hashing/MurmurHash3",
+]
+
+
+def specialized(nir_path):
+    """Whether NIR file `nir_path` (`scala/Function1.nir`) is one of SPECIALIZED's."""
+    name = nir_path.removesuffix(".nir").replace("$", ".")
+    return any(name == s or name.startswith(s + ".") for s in SPECIALIZED)
+
+
+def sources(libs):
+    """SRC, assembled once from the sources jar in `libs`, and JDK_ONLY."""
+    if not AUXLIB.exists():
+        sys.exit(f"{AUXLIB.relative_to(ROOT)} missing (the published auxlib has no TASTy): run `just lib-oracle`")
+    if (SRC / ".done").exists():
+        return SRC
+    shutil.rmtree(SRC, ignore_errors=True)
+    SRC.mkdir(parents=True)
+    javalib = set(zipfile.ZipFile(ROOT / "libs/javalib-tasty-0.5.12.jar").namelist())
+    with zipfile.ZipFile(ROOT / "libs/jdk-stubs.jar") as stubs, zipfile.ZipFile(JDK_ONLY, "w") as out:
+        for n in stubs.namelist():
+            if n.endswith(".tasty") and n not in javalib:
+                out.writestr(n, stubs.read(n))
+    with zipfile.ZipFile(libs / "scala-library-3.9.0-sources.jar") as jar:
+        jar.extractall(SRC, [n for n in jar.namelist() if n.endswith(".scala") and n not in IGNORED])
+    for f in sorted(OVERRIDES.rglob("*.scala")):
+        shutil.copy(f, SRC / f.relative_to(OVERRIDES))
+    for patch in sorted(OVERRIDES.rglob("*.scala.patch")):
+        cmd = ["git", "apply", "--whitespace=fix", "--recount", str(patch)]
+        r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.exit(f"{patch.relative_to(ROOT)} does not apply: {r.stderr.strip()}")
+    (SRC / ".done").touch()
+    return SRC

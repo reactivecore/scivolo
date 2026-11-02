@@ -15,12 +15,15 @@ use tasty::tags::{EXTENSION, FIELDaccessor, LAZY, SYNTHETIC};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Records the unit's traits among `classes` whose bodies have values, statements or extension
-/// methods.
+/// methods; in a Scala 2 library trait, also concrete methods and classes.
 pub fn find_inits(l: &mut Lower, classes: &[TNodeId]) {
     for &td in classes {
         let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_trait(c)) else { continue };
         let Some(Template { body, .. }) = l.tpd.class_template(td) else { continue };
+        let scala2 = l.u.is_scala2(class);
         let inits = l.tpd.items(body).iter().any(|&s| match *l.tpd.tree(s) {
+            Tree::DefDef { rhs: Some(_), .. } if scala2 => true,
+            Tree::TypeDef { .. } if scala2 => l.tpd.class_template(s).is_some(),
             Tree::DefDef { .. } => l.tpd.sym(s).is_some_and(|d| has(l.u, d, EXTENSION)),
             Tree::TypeDef { .. } | Tree::Import { .. } => false,
             Tree::ValDef { rhs, .. } => {
