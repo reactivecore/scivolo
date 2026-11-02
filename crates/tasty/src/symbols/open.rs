@@ -63,6 +63,8 @@ impl Universe {
             unions: Default::default(),
             joint_members: FxHashMap::default(),
             subtype_steps: 0,
+            reducing: 0,
+            reductions_left: 0,
             scala2_erasure: false,
         };
         let root = u.define(Symbol {

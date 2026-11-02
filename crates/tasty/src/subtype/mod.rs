@@ -87,6 +87,7 @@ impl Universe {
         let mut c = Cmp::new(self, vars);
         c.necessary = necessary;
         let result = c.recur(a, b);
+        drop(c);
         if !result {
             vars.rollback(mark);
         }
@@ -99,6 +100,7 @@ impl Universe {
         let mark = vars.mark();
         let mut c = Cmp::new(self, vars);
         let result = c.recur(a, b) && c.recur(b, a);
+        drop(c);
         if !result {
             vars.rollback(mark);
         }
