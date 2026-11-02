@@ -36,7 +36,7 @@ impl Typer<'_> {
             let (mut this, mut member) = (false, None);
             self.u.map_type(t, &mut |u, part| {
                 match *u.types().get(part) {
-                    Type::This(_) => this = true,
+                    Type::This(c) => this |= !matches!(u.types().get(c), Type::Package(_)),
                     Type::Sym(_, s) if u.symbol(s).owner == owner => member = member.or(Some(s)),
                     _ => {}
                 }
