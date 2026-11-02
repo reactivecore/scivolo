@@ -212,6 +212,11 @@ const CASES: &[(&str, &str)] = &[
          object O { erased val e: Int = { println(); 1 } }",
         "right-hand side of an erased value that is not pure",
     ),
+    (
+        "class P extends java.io.PrintStream(System.out) {\n\
+         override def printf(f: String, args: Object*): java.io.PrintStream = this }",
+        "overrides of Java varargs methods",
+    ),
 ];
 
 #[test]
