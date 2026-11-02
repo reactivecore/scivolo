@@ -18,6 +18,7 @@ mod inits;
 mod java_strings;
 mod java_stubs;
 mod jdk;
+mod jdk_declarations;
 mod joined_bases;
 mod joint;
 mod loaded;
