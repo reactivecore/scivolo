@@ -22,3 +22,6 @@ object Probe:
     '{ $x match { case 1 | 2 => true; case _ => false } }
   def tries(x: Expr[Int])(using Quotes): Expr[Int] =
     '{ try 10 / $x catch { case e: ArithmeticException => 0 } finally println("done") }
+  def dollar(x: Expr[Int])(using Quotes): Expr[Int] = '{ val a$1 = $x; val b = a$1 + 1; b }
+  def clauses(x: Expr[Int])(using Quotes): Expr[Int] =
+    '{ def f[A](a: A)[B](b: B)()(c: Int)(using d: String): Int = c; f[Int](1)[String]("")()(2)(using "") + $x }

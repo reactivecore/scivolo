@@ -178,8 +178,15 @@ fn quotes_of_unsafe_package_compat_pickle_to_their_bytes() {
 fn quotes_with_definitions_pickle_to_their_bytes() {
     let Some(mut u) = universe(&["tests/pickle/probe.jar"]) else { return };
     let owner = module_class(&mut u, "probe", "Probe$");
-    let quotes =
-        ["probe-vals", "probe-defs", "probe-folded", "probe-matching", "probe-options", "probe-alternatives"];
+    let quotes = [
+        "probe-vals",
+        "probe-defs",
+        "probe-folded",
+        "probe-matching",
+        "probe-options",
+        "probe-alternatives",
+        "probe-dollar",
+    ];
     all_repickled(&mut u, owner, &quotes, true);
 }
 
@@ -197,6 +204,7 @@ fn quotes_with_package_prefixes_pickle_to_their_trees() {
         "probe-alias",
         "probe-vars",
         "probe-tries",
+        "probe-clauses",
     ];
     all_repickled(&mut u, owner, &quotes, false);
 }

@@ -22,15 +22,22 @@ pub fn sym_name(u: &Universe, s: SymbolId) -> Name {
 /// The separators of dotty's unique name kinds, longest first.
 const UNIQUE_SEPARATORS: [&str; 6] = ["evidence$", "contextual$", "ev$", "ex$", "_$", "$"];
 
-/// The name of definition `s` of a quote: a unique name if it ends in one of dotty's unique
-/// separators and a number.
+/// The name of definition `s` of a quote: a default getter's or a unique name if it ends in
+/// `$default$` or one of dotty's unique separators and a number, and if read from TASTy, its name
+/// there is of such a kind.
 pub fn local_name(u: &Universe, s: SymbolId) -> Name {
-    let name = &u.symbol(s).name;
+    let sym = u.symbol(s);
+    let name = &sym.name;
     let digits = name.trim_end_matches(|c: char| c.is_ascii_digit());
-    let num = name[digits.len()..].parse().ok().filter(|_| !name[digits.len()..].starts_with('0'));
+    let num: Option<u32> =
+        name[digits.len()..].parse().ok().filter(|_| !name[digits.len()..].starts_with('0'));
     let sep = UNIQUE_SEPARATORS.iter().find(|&&sep| digits.ends_with(sep));
-    match (num, sep) {
-        (Some(num), Some(sep)) => {
+    if sym.tree.is_some() && !sym.derived {
+        return sym_name(u, s);
+    }
+    match (num, sep, digits.strip_suffix("$default$")) {
+        (Some(num), _, Some(method)) if num > 0 => Name::DefaultGetter(utf8(method), num - 1),
+        (Some(num), Some(sep), _) => {
             let under = &digits[..digits.len() - sep.len()];
             Name::Unique { under: utf8(under), sep: sep.to_string(), num }
         }

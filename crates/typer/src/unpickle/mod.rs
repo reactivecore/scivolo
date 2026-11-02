@@ -120,6 +120,11 @@ impl Unpickler<'_> {
         names.get(ast.node(id).a as usize).cloned().unwrap_or_default()
     }
 
+    /// Whether the name the tree at `id` holds is of a kind other than `Utf8`.
+    fn is_derived_name(&self, id: NodeId) -> bool {
+        self.u.is_derived_name(self.file, self.ast().node(id).a as usize)
+    }
+
     fn tname(&mut self, id: NodeId, is_type: bool) -> TName {
         let text = self.name(id);
         TName { name: self.names.intern(&text), is_type }
