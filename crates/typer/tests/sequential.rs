@@ -23,9 +23,18 @@ fn universe() -> Option<Universe> {
 }
 
 fn type_unit(u: &mut Universe, units: &mut Units, name: &str, text: &str) -> Result<(), String> {
+    type_unit_with(u, units, (name, text), &[])
+}
+
+fn type_unit_with(
+    u: &mut Universe,
+    units: &mut Units,
+    (name, text): (&str, &str),
+    options: &[&str],
+) -> Result<(), String> {
     let source = SourceFile::new(name, text);
     let mut names = Names::default();
-    let mut p = Parser::new(&source, &mut names, Config::from_options(&[]));
+    let mut p = Parser::new(&source, &mut names, Config::from_options(options));
     let root = p.parse();
     let cfg = p.s.cfg;
     let root = Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, &source, cfg).unit(root);
@@ -93,6 +102,22 @@ fn classes_of_earlier_units() {
         ],
     );
     assert_eq!(member_type(&mut u, "rs$line$3", "y"), "scala.Int");
+}
+
+#[test]
+fn explicit_nulls_end_with_their_unit() {
+    let Some(mut u) = universe() else { return };
+    let mut units = Units::default();
+    let flagged = &["-Yexplicit-nulls"];
+    let first = "object rs$line$1 { val s: String | Null = null; def j = if s == null then \"a\" else null }";
+    assert_eq!(type_unit_with(&mut u, &mut units, ("line.scala", first), flagged), Ok(()));
+    let j = member_type(&mut u, "rs$line$1", "j");
+    assert!(j.contains("Null"), "{j}");
+    let plain = "object rs$line$2 { import rs$line$1.*; val t: String = null; val k = if true then \"a\" else null; val m = s.length + j.length }";
+    assert_eq!(type_unit(&mut u, &mut units, "line.scala", plain), Ok(()));
+    assert_eq!(member_type(&mut u, "rs$line$2", "k"), "String");
+    let third = "object rs$line$3 { val x: String = null }";
+    assert!(type_unit_with(&mut u, &mut units, ("line.scala", third), flagged).is_err());
 }
 
 #[test]

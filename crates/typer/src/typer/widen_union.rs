@@ -38,7 +38,7 @@ impl Typer<'_> {
     }
 
     /// `t` without the `Null` parts of its top-level unions (dotty's `stripNull`).
-    pub fn strip_null(&mut self, t: TypeId) -> TypeId {
+    fn strip_null(&mut self, t: TypeId) -> TypeId {
         let widened = self.u.widen(t);
         let w = self.u.dealias(widened);
         let stripped = match *self.u.types().get(w) {
@@ -61,7 +61,7 @@ impl Typer<'_> {
     }
 
     /// Whether `t` is a reference to `Null` (dotty's `isNullType`).
-    pub fn is_null_type(&mut self, t: TypeId) -> bool {
+    fn is_null_type(&mut self, t: TypeId) -> bool {
         let d = self.u.dealias(t);
         matches!(self.u.types().get(d), Type::Sym(..) | Type::TypeRef(..))
             && self.u.class_symbol(d) == Some(self.u.builtins().null)
