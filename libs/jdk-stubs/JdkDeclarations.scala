@@ -188,12 +188,12 @@ package java.util {
   trait List[E] extends Collection[E] {
     def size(): Int
     def isEmpty(): scala.Boolean
-    def contains(o: Object): scala.Boolean
+    def contains(o: Any): scala.Boolean
     def iterator(): Iterator[E]
     def toArray(): Array[Object]
     def toArray[T <: Object](a: Array[T]): Array[T]
     def add(e: E): scala.Boolean
-    def remove(o: Object): scala.Boolean
+    def remove(o: Any): scala.Boolean
     def containsAll(c: Collection[?]): scala.Boolean
     def addAll(c: Collection[? <: E]): scala.Boolean
     def addAll(index: Int, c: Collection[? <: E]): scala.Boolean
@@ -204,8 +204,8 @@ package java.util {
     def set(index: Int, element: E): E
     def add(index: Int, element: E): Unit
     def remove(index: Int): E
-    def indexOf(o: Object): Int
-    def lastIndexOf(o: Object): Int
+    def indexOf(o: Any): Int
+    def lastIndexOf(o: Any): Int
     def listIterator(): ListIterator[E]
     def listIterator(index: Int): ListIterator[E]
     def subList(fromIndex: Int, toIndex: Int): List[E]
@@ -218,9 +218,9 @@ package java.util {
     def ensureCapacity(minCapacity: Int): Unit = ()
     override def size(): Int = 0
     override def isEmpty(): scala.Boolean = false
-    override def contains(o: Object): scala.Boolean = false
-    override def indexOf(o: Object): Int = 0
-    override def lastIndexOf(o: Object): Int = 0
+    override def contains(o: Any): scala.Boolean = false
+    override def indexOf(o: Any): Int = 0
+    override def lastIndexOf(o: Any): Int = 0
     override def toArray(): Array[Object] = null
     override def toArray[T <: Object](a: Array[T]): Array[T] = a
     def get(index: Int): E = null.asInstanceOf[E]
@@ -228,7 +228,7 @@ package java.util {
     override def add(e: E): scala.Boolean = false
     override def add(index: Int, element: E): Unit = ()
     override def remove(index: Int): E = null.asInstanceOf[E]
-    override def remove(o: Object): scala.Boolean = false
+    override def remove(o: Any): scala.Boolean = false
     override def clear(): Unit = ()
     override def addAll(c: Collection[? <: E]): scala.Boolean = false
     override def addAll(index: Int, c: Collection[? <: E]): scala.Boolean = false
