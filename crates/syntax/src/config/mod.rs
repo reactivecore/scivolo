@@ -106,7 +106,7 @@ pub struct Config {
     pub experimental: Option<&'static str>,
     pub kind_projector: KindProjector,
     pub warnings: Warnings,
-    /// `-Yexplicit-nulls`; the typer does not read it yet.
+    /// `-Yexplicit-nulls`.
     pub explicit_nulls: bool,
 }
 
