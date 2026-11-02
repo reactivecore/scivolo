@@ -71,7 +71,12 @@ impl TreePickler<'_> {
                 }
             }
             let hole_args = self.holes.get(&t).map(|(_, args)| args.clone()).unwrap_or_default();
-            let children = self.tpd.children(t).iter().copied().chain(hole_args).collect::<Vec<_>>();
+            let annots = match self.tpd.sym(t).filter(|_| self.needs_pos(t)) {
+                Some(s) => self.tpd.annotations(s).to_vec(),
+                None => Vec::new(),
+            };
+            let own = self.tpd.children(t);
+            let children = annots.into_iter().chain(own.iter().copied()).chain(hole_args).collect::<Vec<_>>();
             todo.extend(children.into_iter().rev().map(|c| (c, false)));
         }
         self.pickler.set_section(section, out.buf.bytes);

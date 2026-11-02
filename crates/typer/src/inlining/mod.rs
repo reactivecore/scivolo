@@ -29,6 +29,7 @@ mod macros;
 mod no_inits;
 mod opaque_proxies;
 pub mod outer_this;
+mod phase;
 mod prefix_seen;
 mod proxies;
 mod purity;
@@ -73,12 +74,11 @@ pub use quote_matcher::quote_match;
 pub use reflect::Reflect;
 
 use crate::ctx::Ctx;
-use crate::tpd::{TNodeId, Tpd, Tree as T, map_children};
+use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
-use tasty::tags::{INLINE, TRANSPARENT};
-use tasty::{Kind, SymbolId, Type, Universe};
+use tasty::{SymbolId, Universe};
 
 /// How many inline calls may expand one inside another (dotty's `-Xmax-inlines`).
 const MAX_INLINES: u32 = 32;
@@ -95,6 +95,8 @@ pub struct Inlining<'a> {
     bodies: FxHashMap<SymbolId, TNodeId>,
     /// How many inline calls are being expanded, one inside another.
     depth: u32,
+    /// The staging level of the tree being transformed: inside a quote's body, calls stay.
+    staging: i32,
     /// The class enclosing the call being expanded.
     pub enclosing_class: Option<SymbolId>,
     /// The span of the call being expanded.
@@ -151,6 +153,7 @@ impl<'a> Inlining<'a> {
             fresh,
             bodies: FxHashMap::default(),
             depth: 0,
+            staging: 0,
             enclosing_class: None,
             call_span: Span::NONE,
             with_inits: FxHashSet::default(),
@@ -166,141 +169,6 @@ impl<'a> Inlining<'a> {
             scopes: Vec::new(),
             case_givens: Vec::new(),
             in_macro_result: false,
-        }
-    }
-}
-
-impl Inlining<'_> {
-    /// Expands the inline calls of unit `root` in place.
-    pub fn run(&mut self, root: TNodeId) -> Result<(), Unsupported> {
-        self.collect_bodies(root);
-        let owner = self.u.root();
-        let new_root = self.transform(root, owner)?;
-        debug_assert_eq!(new_root, root);
-        Ok(())
-    }
-
-    fn collect_bodies(&mut self, t: TNodeId) {
-        if let T::DefDef { rhs: Some(_), .. } = self.tpd.tree(t)
-            && let Some(s) = self.tpd.sym(t)
-            && self.u.symbol(s).flags.has(INLINE)
-        {
-            self.bodies.insert(s, t);
-        }
-        self.note_inits(t);
-        for c in self.tpd.children(t) {
-            self.collect_bodies(c);
-        }
-    }
-
-    /// `t`, owned by `owner`, with the inline calls in it expanded; inline definitions stay.
-    fn transform(&mut self, t: TNodeId, owner: SymbolId) -> Result<TNodeId, Unsupported> {
-        let inner = match self.tpd.tree(t) {
-            T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } | T::Template { .. } => {
-                match self.tpd.sym(t) {
-                    Some(s) if self.u.symbol(s).flags.has(INLINE) => return Ok(t),
-                    Some(s) => s,
-                    None => owner,
-                }
-            }
-            _ => owner,
-        };
-        self.expand_macro_annotations(t)?;
-        let typer_ctx = self.typer_inlined_ctx(t);
-        let call = self.traced_call(t);
-        let (outer, outer_ctx) = (self.typer_inlined, self.typer_ctx);
-        if call.is_some() {
-            self.typer_inlined = outer.or(Some(self.tpd.span(t)));
-            self.typer_ctx = if outer.is_some() { outer_ctx } else { typer_ctx };
-        }
-        let mut failed = None;
-        let changed = map_children(self, t, &mut |i, c| match Some(c) == call {
-            true => c,
-            false => i.transform(c, inner).unwrap_or_else(|e| {
-                failed.get_or_insert(e);
-                c
-            }),
-        });
-        (self.typer_inlined, self.typer_ctx) = (outer, outer_ctx);
-        if let Some(e) = failed {
-            return Err(e);
-        }
-        self.fold_constants(t);
-        if changed {
-            self.retype_inlined(t);
-        }
-        if let T::UnApply { fun, implicits, patterns } = *self.tpd.tree(t) {
-            let fun = self.inlined_unapply_fun(fun, owner)?;
-            self.tpd.get_mut(t).tree = T::UnApply { fun, implicits, patterns };
-        }
-        match self.inline_method(t)? {
-            Some(def) => self.inline_call(t, def, owner),
-            None => Ok(t),
-        }
-    }
-
-    /// The definition of the inline method `t` calls with all its arguments, if it is one
-    /// (dotty's `needsInlining`).
-    fn inline_method(&mut self, t: TNodeId) -> Result<Option<TNodeId>, Unsupported> {
-        let Some(tpe) = self.tpd.get(t).tpe else { return Ok(None) };
-        let widened = self.u.widen(tpe);
-        if self.tpd.is_type_tree(t)
-            || matches!(self.u.types().get(widened), Type::Method { .. } | Type::Poly { .. })
-        {
-            return Ok(None);
-        }
-        let Some(meth) = self.method_part(t).and_then(|f| self.tpd.sym(f)) else { return Ok(None) };
-        let sym = self.u.symbol(meth);
-        if sym.kind != Kind::Def
-            || !sym.flags.has(INLINE)
-            || self.transparent_only && !self.force_inline && !sym.flags.has(TRANSPARENT)
-        {
-            return Ok(None);
-        }
-        if let Some(&def) = self.bodies.get(&meth) {
-            return Ok(Some(def));
-        }
-        if self.u.is_deferred(meth) {
-            return Err((self.tpd.span(t), "call of a deferred inline method"));
-        }
-        let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
-        let def = match self.host.inline_def(lent, meth).map_err(|what| (self.tpd.span(t), what))? {
-            Some(def) => def,
-            None if self.u.symbol(meth).tree.is_none() => {
-                return Err((self.tpd.span(t), "call of an inline method defined elsewhere"));
-            }
-            None => crate::unpickle::inline_def(self.u, self.tpd, self.names, meth)
-                .map_err(|what| (self.tpd.span(t), what))?,
-        };
-        self.bodies.insert(meth, def);
-        Ok(Some(def))
-    }
-
-    /// The reference `t` applies, through its applications and type applications.
-    pub fn method_part(&self, t: TNodeId) -> Option<TNodeId> {
-        match *self.tpd.tree(t) {
-            T::Apply { fun, .. } | T::TypeApply { fun, .. } => self.method_part(fun),
-            T::Ident { .. } | T::Select { .. } => Some(t),
-            _ => None,
-        }
-    }
-
-    /// Gives the qualifier of each `this` in `t` its class's symbol and type, as dotty's copy of
-    /// the call in `inlineCall` does after the typer.
-    pub fn type_this_qualifiers(&mut self, t: TNodeId) {
-        if self.transparent_only {
-            return;
-        }
-        if let T::This { qual } = *self.tpd.tree(t)
-            && let Some(c) = self.tpd.sym(t)
-            && self.tpd.get(qual).tpe.is_none()
-        {
-            let tpe = crate::defn::type_ref(self.u, c);
-            let node = self.tpd.get_mut(qual);
-            (node.sym, node.tpe) = (Some(c), Some(tpe));
-        }
-        for c in self.tpd.traversed(t) {
-            self.type_this_qualifiers(c);
         }
     }
 }

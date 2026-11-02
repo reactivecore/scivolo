@@ -33,6 +33,10 @@ struct Cli {
     /// Names each source in positions by its path relative to this directory, not by its file name.
     #[arg(long)]
     sourceroot: Option<PathBuf>,
+    /// Names each source in NIR positions by its path relative to this directory instead, as
+    /// Scala Native's `positionRelativizationPaths`; TASTy keeps the path from `--sourceroot`.
+    #[arg(long, requires = "sourceroot")]
+    position_root: Option<PathBuf>,
     /// The Scala files.
     #[arg(required = true)]
     files: Vec<String>,
@@ -41,7 +45,8 @@ struct Cli {
 }
 
 fn main() {
-    let Cli { cp, tasty, jdk_tasty, javalib, macros, sourceroot, files, out_dir: out } = Cli::parse();
+    let Cli { cp, tasty, jdk_tasty, javalib, macros, sourceroot, position_root, files, out_dir: out } =
+        Cli::parse();
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = [&typer::dump::library_jars(&libs)[..], &cp, &tasty].concat();
@@ -54,8 +59,16 @@ fn main() {
     if javalib {
         u.set_javalib_sources();
     }
-    let sources: Vec<SourceFile> =
-        files.iter().map(|f| SourceFile::new(source_name(f, sourceroot.as_deref()), read(f))).collect();
+    let sources: Vec<SourceFile> = files
+        .iter()
+        .map(|f| {
+            let path = source_name(f, sourceroot.as_deref());
+            let Some(root) = position_root.as_deref() else { return SourceFile::new(path, read(f)) };
+            let mut file = SourceFile::new(source_name(f, Some(root)), read(f));
+            file.tasty_path = Some(path);
+            file
+        })
+        .collect();
     let mut vm = (macros || !cp.is_empty()).then(|| {
         let nir = libs::jars().unwrap_or_else(|e| fail(&e));
         let classpath = vm::Classpath::with_jars(&cp, &nir).unwrap_or_else(|e| fail(&format!("{cp:?}: {e}")));

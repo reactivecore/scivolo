@@ -12,6 +12,8 @@ pub struct SourceFile {
     line_starts: Vec<Offset>,
     /// Whether the text may be a prefix of the input, so EOF closes no indented region.
     pub maybe_incomplete: bool,
+    /// The path from the source root that TASTy records, where it is not `name`.
+    pub tasty_path: Option<String>,
 }
 
 impl SourceFile {
@@ -36,7 +38,12 @@ impl SourceFile {
             }
         }
         line_starts.push(text.len() as Offset);
-        Self { name: name.into(), text, line_starts, maybe_incomplete: false }
+        Self { name: name.into(), text, line_starts, maybe_incomplete: false, tasty_path: None }
+    }
+
+    /// The path from the source root that TASTy records.
+    pub fn tasty_path(&self) -> &str {
+        self.tasty_path.as_deref().unwrap_or(&self.name)
     }
 
     pub fn len(&self) -> Offset {

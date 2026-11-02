@@ -7,13 +7,15 @@
 mod heal;
 mod holes;
 mod strings;
+mod tags;
+mod values;
 
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::{Span, TName};
 use tasty::tags::INLINE;
 use tasty::{Kind, SymbolId, Type, TypeId};
-use typer::pickle::pickle_quote;
+use typer::pickle::{QuoteSource, pickle_positioned_quote};
 use typer::tpd::{TNodeId, Tree, Walk, traverse};
 
 const QUOTE: &str = "scala.quoted.runtime.Expr$.quote";
@@ -71,25 +73,30 @@ fn staged(l: &Lower, t: TNodeId, method: &str) -> Option<(TNodeId, TypeId)> {
 /// Makes quote application `t` in `owner` the call unpickling the quote (dotty's `pickleAsTasty`).
 fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
     let span = l.tpd.span(q.body);
-    if literal(l, q.body) {
-        return unsupported(span, "quotes of a literal");
+    if let Some(lit) = literal(l, q.body) {
+        return values::lifted(l, t, &q, lit);
     }
-    heal::heal(l, q.body);
-    let holes = holes::extract(l, q.body)?;
-    let call = inline_call_trace(l, owner, span);
+    let tags = l.tpd.quote_tags(t).to_vec();
+    let used = heal::heal(l, q.body, &tags)?;
+    let mut holes = holes::extract(l, q.body)?;
+    let (body, type_holes, tag_refs) = tags::encode(l, q.body, (&tags, &used), owner)?;
+    holes.holes.extend(type_holes);
+    let call = inline_call_trace(l, owner, span.to_synthetic());
     let bindings = l.tpd.list(&[]);
     let body_tpe = l.tpd.tpe(q.body);
     let root = l.tpd.node(
-        Tree::Inlined { call: Some(call), bindings, expansion: q.body },
-        span,
+        Tree::Inlined { call: Some(call), bindings, expansion: body },
+        span.to_synthetic(),
         Some(body_tpe),
         None,
     );
-    let bytes = pickle_quote((l.u, l.tpd, l.names), root, &holes.holes)
+    let (base, file) = l.sources.files()[l.sources.index(span.in_own_source().start())];
+    let source = QuoteSource::of(file.tasty_path().to_owned(), file, base);
+    let bytes = pickle_positioned_quote((l.u, l.tpd, l.names), root, &holes.holes, &source)
         .or_else(|r| unsupported(span, format!("quotes with {r}")))?;
     let pickled = strings::pickled(l, &bytes)
         .or_else(|()| unsupported(span, "quotes whose TASTy takes several strings"))?;
-    let types = l.null_literal(Span::NONE);
+    let types = types(l, &tag_refs);
     let term_holes = holes::lambda(l, &holes.contents, owner);
     let unpickler = l.u.class_ref("scala.quoted.runtime.QuoteUnpickler");
     let class = l.u.class_symbol(unpickler).expect("QuoteUnpickler");
@@ -116,15 +123,15 @@ fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
     Ok(())
 }
 
-/// Whether `t` is a literal, past blocks and `Inlined` trees without statements.
-fn literal(l: &Lower, t: TNodeId) -> bool {
+/// The literal `t` is, past blocks and `Inlined` trees without statements (dotty's `getLiteral`).
+fn literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     match *l.tpd.tree(t) {
-        Tree::Literal { .. } => true,
+        Tree::Literal { .. } => Some(t),
         Tree::Block { stats, expr } if l.tpd.items(stats).is_empty() => literal(l, expr),
         Tree::Inlined { bindings, expansion, .. } if l.tpd.items(bindings).is_empty() => {
             literal(l, expansion)
         }
-        _ => false,
+        _ => None,
     }
 }
 
@@ -138,4 +145,20 @@ fn inline_call_trace(l: &mut Lower, sym: SymbolId, span: Span) -> TNodeId {
     let name = l.u.symbol(top).name.clone();
     let name = TName { name: l.names.intern(&name), is_type: true };
     l.tpd.node(Tree::Ident { name }, span, Some(tpe), Some(top))
+}
+
+/// `null` without tags, else the sequence literal of `refs` of `Type[? <: AnyKind]` elements.
+fn types(l: &mut Lower, refs: &[TNodeId]) -> TNodeId {
+    if refs.is_empty() {
+        return l.null_literal(Span::NONE);
+    }
+    let [class, any_kind, seq] =
+        ["quoted.Type", "AnyKind", "collection.immutable.Seq"].map(|c| l.u.class_ref(&format!("scala.{c}")));
+    let bounds = l.u.intern_type(Type::Bounds(tasty::NOTHING, any_kind));
+    let elem = l.u.intern_type(Type::Applied(class, vec![bounds]));
+    let elemtpt = l.type_tree(elem, Span::NONE);
+    let elems = l.tpd.list(refs);
+    let tpe = l.u.intern_type(Type::Applied(seq, vec![elem]));
+    let literal = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, Span::NONE, Some(tpe), None);
+    l.positioned(literal)
 }
