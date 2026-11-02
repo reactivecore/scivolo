@@ -42,6 +42,9 @@ struct Args {
     /// or `group:artifact:version` as named; repeatable.
     #[arg(long = "dep", value_name = "COORDINATE")]
     deps: Vec<String>,
+    /// Names each source in positions by its path relative to this directory.
+    #[arg(long)]
+    sourceroot: Option<PathBuf>,
     /// Print the wall time of each phase to stderr.
     #[arg(long)]
     timings: bool,
@@ -76,7 +79,7 @@ fn run(args: &Args) -> R<()> {
     check(args, &srcs, &named)?;
     let unit = match srcs.is_empty() {
         true => None,
-        false => Some(frontend::read(&sources::collect(&srcs)?)?),
+        false => Some(frontend::read(&sources::collect(&srcs)?, args.sourceroot.as_deref())?),
     };
     let (jars, dirs): (Vec<PathBuf>, Vec<PathBuf>) =
         args.classpath.iter().cloned().partition(|p| p.extension().is_some_and(|e| e == "jar"));

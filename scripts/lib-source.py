@@ -47,7 +47,8 @@ def scala_cli(src, work):
     """The NIR directory of `src` compiled by scala-cli, or None with its error printed."""
     out = work / "scala-cli"
     r = subprocess.run(["scala-cli", "--power", "compile", "--quiet", "--server=false", "--native", "--native-version",
-                        NATIVE, "--scala", SCALA, "--workspace", str(work / "scala-cli-work"), "-d", str(out), str(src)],
+                        NATIVE, "--scala", SCALA, "--scalac-option", "-sourceroot", "--scalac-option", str(src),
+                        "--workspace", str(work / "scala-cli-work"), "-d", str(out), str(src)],
                        capture_output=True, text=True, errors="replace")
     if r.returncode != 0:
         print(f"  scala-cli failed: {r.stderr.strip()[-300:]}")
@@ -61,7 +62,8 @@ def compile_files(work, jar, src):
     for f in sorted(src.rglob("*.scala")):
         rel = str(f.relative_to(src))
         out = work / "out" / rel.removesuffix(".scala")
-        state, reason, _ = lib.run([str(AOT), "--cp", str(jar), "-d", str(out), str(f)], TIMEOUT)
+        state, reason, _ = lib.run([str(AOT), "--cp", str(jar), "--sourceroot", str(src), "-d", str(out), str(f)],
+                                   TIMEOUT)
         results.append([rel, state, reason, sum(1 for _ in out.rglob("*.nir")) if state == "ok" else 0])
         if state == "ok":
             outs.append(out)
