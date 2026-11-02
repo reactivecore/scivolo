@@ -129,6 +129,8 @@ pub struct Cmp<'a> {
     walk: walk::Walk,
     /// How many match type reductions are in progress.
     reductions: u32,
+    /// The match types being normalized, outermost first.
+    normalizing: Vec<TypeId>,
 }
 
 /// How many steps computing atoms and `Nothing`-ness may take in one comparison.
@@ -148,6 +150,7 @@ impl<'a> Cmp<'a> {
             steps: MAX_STEPS,
             walk,
             reductions: 0,
+            normalizing: Vec::new(),
         }
     }
 

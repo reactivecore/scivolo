@@ -38,6 +38,13 @@ object Macros {
     '{ if ($size < 0) throw new IllegalArgumentException("negative size") else $size }
 
   def twice(x: Expr[Int])(using Quotes): Expr[Int] = '{ Math.addExact($x, $x) }
+
+  type Str = String
+
+  def listed(x: Expr[Int])(using Quotes): Expr[Int] = '{ val xs: List[Int] = List($x); xs.length }
+
+  def described(x: Expr[Any])(using Quotes): Expr[String] =
+    '{ $x match { case s: Str => s; case _ => "other" } }
 }
 
 object quotesources {

@@ -58,8 +58,7 @@ impl Typer<'_> {
         } else {
             info
         };
-        let at = self.syms.def_trees.get(&accessed).map_or(span, |&d| self.ast.span(d));
-        let at = Span::at(at.point());
+        let at = self.accessor_span(accessed, span);
         let target = self.accessed_ref(host, accessed, at);
         let mut rhs = self.ast.node(Tree::TypeTree);
         self.splices.insert(rhs, target);
@@ -190,5 +189,16 @@ impl Typer<'_> {
             !s.flags.has(tasty::tags::FINAL) && !self.u.is_module_class(host) && !s.name.starts_with("$anon");
         let name = if extensible { format!("{prefix}$${base}") } else { base };
         if setter { format!("{name}_=") } else { name }
+    }
+
+    /// The span of the accessors of `accessed`: its definition's point, else `span`'s.
+    pub fn accessor_span(&mut self, accessed: SymbolId, span: Span) -> Span {
+        match self.syms.def_trees.get(&accessed) {
+            Some(&d) => Span::at(self.ast.span(d).point()),
+            None => self
+                .u
+                .pickled_point(accessed)
+                .map_or(Span::at(span.point()), |p| Span::at(p).in_other_source()),
+        }
     }
 }

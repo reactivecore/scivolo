@@ -61,6 +61,11 @@ pub fn range(u: &mut Universe, lo: Approx, hi: Approx, v: i8) -> Approx {
     }
 }
 
+/// `Nothing .. Any` at variance `v` (dotty's `emptyRange`).
+pub fn empty(u: &mut Universe, v: i8) -> Approx {
+    range(u, Approx::Exact(NOTHING), Approx::Exact(ANY), v)
+}
+
 /// `make(parts)` for exact parts, the range of `make` over the lower and the upper parts
 /// otherwise; `flip[i]` takes part `i`'s bounds the other way round.
 pub fn derived(
