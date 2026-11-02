@@ -19,8 +19,7 @@ impl Unpickler<'_> {
             stats.push(match self.tag(s) {
                 VALDEF | DEFDEF => self.local_def(s)?,
                 TYPEDEF => self.type_def(s)?,
-                IMPORT => self.import(s)?,
-                EXPORT => continue,
+                IMPORT | EXPORT => self.import_or_export(s)?,
                 _ => self.term(s)?,
             });
         }

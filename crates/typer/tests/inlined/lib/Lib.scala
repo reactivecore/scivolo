@@ -77,3 +77,15 @@ trait Greeter:
 
 object Greeters:
   def hello: Greeter = s => "hello " + s
+
+object Scopes:
+  inline def scoped: String =
+    val before = compiletime.summonInline[Show[Int]].show(3)
+    import Instances.given
+    before + " " + compiletime.summonInline[Show[Int]].show(4)
+  inline def inClass(n: Int): Int =
+    class C:
+      import Instances.twice
+      export Instances.thrice
+      def run = twice(n)
+    C().run + C().thrice(n)
