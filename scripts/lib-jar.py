@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A module of Scala Native's library built as the jar Scala Native ships (research 41 §4).
 
-Usage: scripts/lib-jar.py MODULE
+Usage: scripts/lib-jar.py MODULE (one of lib-compile.py's MODULES but scalalib)
 
 Lowers each of the module's Scala 3 source directories as one unit, as lib-compile.py does each
 file, and writes tmp/lib/MODULE/MODULE_native0.5_3-0.5.12.jar: that NIR, the resources under
@@ -90,6 +90,6 @@ def main(module):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] not in lib.MODULES:
+    if len(sys.argv) != 2 or sys.argv[1] not in lib.MODULES or sys.argv[1] == "scalalib":
         sys.exit(__doc__)
     main(sys.argv[1])

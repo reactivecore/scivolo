@@ -3,7 +3,7 @@
 //   compiler/src/dotty/tools/dotc/parsing/Parsers.scala
 //! The trees capture checking adds: `@retains` annotations, capability markers, `CapSet`.
 
-use crate::ast::{Attrs, NodeId, Tree};
+use crate::ast::{NodeId, Tree};
 use crate::parse::Parser;
 
 impl Parser<'_> {
@@ -37,44 +37,8 @@ impl Parser<'_> {
 
     /// `parent @retains[refs]`, or `parent @retainsCap` without `refs` (dotty's `makeRetaining`).
     pub fn make_retaining(&mut self, parent: NodeId, refs: Option<&[NodeId]>) -> NodeId {
-        let annot = match refs {
-            None => {
-                let name = self.type_name("retainsCap");
-                let tpt = self.scala_path(&["annotation"], name);
-                self.new_annot(tpt)
-            }
-            Some(refs) => {
-                let trefs = match refs {
-                    [] => {
-                        let sym = self.type_name("scala.Nothing");
-                        self.ast.node(Tree::TypedSplice { sym })
-                    }
-                    _ => {
-                        let singletons: Vec<NodeId> = refs
-                            .iter()
-                            .map(|&reference| self.ast.node(Tree::SingletonTypeTree { reference }))
-                            .collect();
-                        singletons.into_iter().reduce(|a, b| self.make_or_type(a, b)).expect("a reference")
-                    }
-                };
-                let name = self.type_name("retains");
-                let tycon = self.scala_path(&["annotation"], name);
-                let args = self.ast.list(&[trefs]);
-                let tpt = self.ast.node(Tree::AppliedTypeTree { tpt: tycon, args });
-                let annot = self.new_annot(tpt);
-                self.ast.add_attrs(annot, Attrs::RETAINS_ANNOT);
-                annot
-            }
-        };
-        self.ast.node(Tree::Annotated { arg: parent, annot })
-    }
-
-    /// `A | B` (dotty's `makeOrType`).
-    fn make_or_type(&mut self, left: NodeId, right: NodeId) -> NodeId {
-        let sym = self.type_name("scala.|");
-        let or = self.ast.node(Tree::TypedSplice { sym });
-        let args = self.ast.list(&[left, right]);
-        self.ast.node(Tree::AppliedTypeTree { tpt: or, args })
+        let annot = if refs.is_some() { "retains" } else { "retainsCap" };
+        self.ast.make_retaining(self.s.names, parent, refs.unwrap_or_default(), annot)
     }
 
     /// `{caps.any} tp`, the result of an impure by-name type `=> tp` (dotty's

@@ -5,7 +5,8 @@ use syntax::config::Config;
 #[derive(Debug)]
 pub struct Options {
     pub config: Config,
-    /// `-Werror`, `-Xfatal-warnings` or a `-Wconf` option is given.
+    /// `-Werror`, `-Xfatal-warnings` or a `-Wconf` option is given that does not only silence or
+    /// keep warnings.
     pub fatal: bool,
     pub macros: macros::Settings,
 }
@@ -15,8 +16,7 @@ impl Options {
     /// dotty generates that the frontend does not implement; else the first option the
     /// frontend does not implement.
     pub fn checked(options: &[&str]) -> Result<Options, String> {
-        let fatal =
-            options.iter().any(|o| ["-Werror", "-Xfatal-warnings"].contains(o) || o.starts_with("-Wconf"));
+        let fatal = options.iter().any(|o| ["-Werror", "-Xfatal-warnings"].contains(o) || fatal_wconf(o));
         let macros = macros::Settings::from_options(options);
         let rest: Vec<&str> = options
             .iter()
@@ -25,6 +25,16 @@ impl Options {
             .collect();
         Ok(Options { config: Config::checked(&rest)?, fatal, macros })
     }
+}
+
+/// Whether `o` is a `-Wconf` option with a rule whose action is not `silent`, `info`, `verbose`
+/// or `warning`.
+fn fatal_wconf(o: &str) -> bool {
+    let Some(rules) = o.strip_prefix("-Wconf") else { return false };
+    let kept = ["s", "silent", "i", "info", "v", "verbose", "w", "warning"];
+    rules
+        .strip_prefix(':')
+        .is_none_or(|r| r.split(',').any(|rule| !kept.contains(&rule.rsplit(':').next().unwrap_or(""))))
 }
 
 /// Whether option `o` cannot change the code of a program dotty compiles.
@@ -47,11 +57,13 @@ mod tests {
 
     #[test]
     fn fatal_warnings() {
-        for o in ["-Werror", "-Xfatal-warnings", "-Wconf:any:e"] {
+        for o in ["-Werror", "-Xfatal-warnings", "-Wconf:any:e", "-Wconf:msg=a:s,cat=deprecation:error"] {
             let options = Options::checked(&[o]).unwrap();
             assert!(options.fatal && !options.config.warnings.fatal, "{o}");
         }
-        assert!(!Options::checked(&["-deprecation"]).unwrap().fatal);
+        for o in ["-deprecation", "-Wconf:any:silent", "-Wconf:msg=a:s,any:w"] {
+            assert!(!Options::checked(&[o]).unwrap().fatal, "{o}");
+        }
     }
 
     #[test]

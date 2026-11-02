@@ -56,6 +56,9 @@ impl Typer<'_> {
 
     /// `'{ body }`, a term quote.
     pub fn typed_quote(&mut self, id: NodeId, body: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        if self.features.capture_checking() {
+            return self.unsupported(id, "quote under capture checking");
+        }
         if ctx.mode.is(Mode::PATTERN) {
             return self.typed_quote_pattern(id, body, pt, ctx);
         }
