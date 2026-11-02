@@ -121,7 +121,7 @@ pub fn lift(
     super::lifted_calls::calls(l, (td, class), functions, methods)?;
     for ((f, method), plan) in functions.iter().zip(methods).zip(&plans) {
         match plan {
-            Some(plan) => rewrite(l, f, method, plan),
+            Some(plan) => rewrite(l, (td, class), f, method, plan)?,
             None => leave_block(l, f),
         }
     }
