@@ -8,7 +8,7 @@ use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
-use tasty::{Kind, SymbolId, Type, TypeId, tags};
+use tasty::{Type, TypeId};
 
 /// The references known not to be null after a tree completes normally (`None`: it does not),
 /// and the variables it may set to null (dotty's `NotNullInfo`).
@@ -48,9 +48,7 @@ impl NotNullInfo {
         }
         let asserted = match (self.asserted, &that.asserted) {
             (Some(a), Some(b)) => {
-                let mut a: Vec<TypeId> = a.into_iter().filter(|r| !that.retracted.contains(r)).collect();
-                a.extend(b.iter().filter(|r| !a.contains(r)).copied().collect::<Vec<_>>());
-                Some(a)
+                Some(union(a.into_iter().filter(|r| !that.retracted.contains(r)).collect(), b))
             }
             _ => None,
         };
@@ -67,7 +65,7 @@ impl NotNullInfo {
     }
 }
 
-fn union(mut a: Vec<TypeId>, b: &[TypeId]) -> Vec<TypeId> {
+pub fn union(mut a: Vec<TypeId>, b: &[TypeId]) -> Vec<TypeId> {
     a.extend(b.iter().filter(|r| !a.contains(r)).copied().collect::<Vec<_>>());
     a
 }
@@ -118,7 +116,8 @@ impl Typer<'_> {
             return;
         }
         let Some(&sym) = self.syms.by_tree.get(&stat) else { return };
-        if let Some(crate::symbols::Completion::Pending { ctx: c, .. }) = self.syms.completions.get_mut(&sym) {
+        if let Some(crate::symbols::Completion::Pending { ctx: c, .. }) = self.syms.completions.get_mut(&sym)
+        {
             c.nulls = ctx.nulls;
         }
     }
@@ -168,46 +167,5 @@ impl Typer<'_> {
             }
             Err(what) => self.unsupported_tree(span, what),
         }
-    }
-
-    fn term_ref_sym(&mut self, r: TypeId) -> Option<SymbolId> {
-        match *self.u.types().get(r) {
-            Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => Some(s),
-            _ => None,
-        }
-    }
-
-    fn is_mutable_var(&self, s: SymbolId) -> bool {
-        let sym = self.u.symbol(s);
-        sym.kind == Kind::Val && sym.flags.has(tags::MUTABLE)
-    }
-
-    /// Whether `r` is tracked: a stable path, or a local variable (dotty's `TrackedRef`).
-    pub fn tracked(&mut self, t: TNodeId) -> Option<TypeId> {
-        let r = self.tpd.tpe(t);
-        let sym = self.term_ref_sym(r)?;
-        if super::stability::is_stable_path(self.u, r) {
-            return Some(r);
-        }
-        let local = self.u.symbol(sym).owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
-        (self.is_mutable_var(sym) && local).then_some(r)
-    }
-
-    /// Whether a use of variable `sym` in `ctx` is in a method, lazy value or class inside its
-    /// owner (dotty's `usedOutOfOrder`).
-    fn used_out_of_order(&self, sym: SymbolId, ctx: Ctx) -> bool {
-        let Some(owner) = self.u.symbol(sym).owner else { return false };
-        if !self.is_mutable_var(sym) || !self.u.symbol(owner).kind.is_term() {
-            return false;
-        }
-        let mut s = Some(ctx.owner);
-        while let Some(o) = s.filter(|&o| o != owner) {
-            let os = self.u.symbol(o);
-            if matches!(os.kind, Kind::Def | Kind::Class) || os.flags.has(tags::LAZY) {
-                return true;
-            }
-            s = os.owner;
-        }
-        false
     }
 }

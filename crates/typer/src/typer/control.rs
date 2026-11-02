@@ -46,7 +46,8 @@ impl Typer<'_> {
             pt => pt,
         };
         let before = self.before_harmonic();
-        let (then_ctx, else_ctx) = (self.nullable_ctx_if(cond, true, ctx), self.nullable_ctx_if(cond, false, ctx));
+        let (then_ctx, else_ctx) =
+            (self.nullable_ctx_if(cond, true, ctx), self.nullable_ctx_if(cond, false, ctx));
         let branches = vec![self.typed(thenp, branch_pt, then_ctx), self.typed(elsep, branch_pt, else_ctx)];
         let (thenp, elsep) = match self.harmonic(branches, branch_pt, Some(before), ctx) {
             Ok(h) => (h[0], h[1]),

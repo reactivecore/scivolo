@@ -5,7 +5,7 @@
 //! `notNullInfo`, `notNullConditional`, `CompareNull`).
 
 use super::Typer;
-use super::nullables::NotNullInfo;
+use super::nullables::{NotNullInfo, union};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use tasty::TypeId;
@@ -96,18 +96,14 @@ impl Typer<'_> {
                         None => empty,
                     };
                 }
-                let (T::Select { qualifier: x, .. }, [y]) = (self.tpd.tree(fun).clone(), self.tpd.items(args))
+                let (T::Select { qualifier: x, .. }, [y]) =
+                    (self.tpd.tree(fun).clone(), self.tpd.items(args))
                 else {
                     return empty;
                 };
                 let y = *y;
                 let op = self.boolean_op(fun);
                 let ((xt, xf), (yt, yf)) = (self.not_null_conditional(x), self.not_null_conditional(y));
-                let union = |a: Vec<TypeId>, b: &[TypeId]| {
-                    let mut a = a;
-                    a.extend(b.iter().filter(|r| !a.contains(r)).copied().collect::<Vec<_>>());
-                    a
-                };
                 let meet = |a: Vec<TypeId>, b: &[TypeId]| a.into_iter().filter(|r| b.contains(r)).collect();
                 match op.as_deref() {
                     Some("&&") => (union(xt, &yt), meet(xf, &yf)),

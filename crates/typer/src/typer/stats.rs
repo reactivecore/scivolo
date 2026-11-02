@@ -128,7 +128,11 @@ impl Typer<'_> {
     fn is_definition(&self, s: NodeId) -> bool {
         matches!(
             self.ast.tree(s),
-            Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } | Tree::PackageDef { .. }
+            Tree::ValDef { .. }
+                | Tree::DefDef { .. }
+                | Tree::TypeDef { .. }
+                | Tree::Import { .. }
+                | Tree::PackageDef { .. }
         )
     }
 
