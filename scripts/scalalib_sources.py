@@ -15,7 +15,7 @@ SRC = ROOT / "tmp/lib/scalalib/src"
 JDK_ONLY = ROOT / "tmp/lib/scalalib/jdk-only.jar"
 # auxlib's TASTy (the classes Scala's library defines in Java), which `just lib-oracle` builds.
 AUXLIB = ROOT / "tmp/lib/sn/jars/auxlib_native0.5_3-0.5.12.jar"
-OPTIONS = ["--jdk-tasty", str(JDK_ONLY), *(["--tasty", str(AUXLIB)] if AUXLIB.exists() else []),
+OPTIONS = ["--jdk-tasty", str(JDK_ONLY), "--tasty", str(AUXLIB),
            *(f"--scalac-option={o}" for o in ["-Yexplicit-nulls", "-language:implicitConversions", "-Wconf:any:silent"])]
 # The files of scala-library's `library-aux` the build leaves out.
 IGNORED = {f"scala/{n}.scala" for n in ["Any", "AnyRef", "Singleton", "Nothing", "Null", "AnyKind", "Matchable"]}
@@ -47,6 +47,8 @@ def specialized(nir_path):
 
 def sources(libs):
     """SRC, assembled once from the sources jar in `libs`, and JDK_ONLY."""
+    if not AUXLIB.exists():
+        sys.exit(f"{AUXLIB.relative_to(ROOT)} missing (the published auxlib has no TASTy): run `just lib-oracle`")
     if (SRC / ".done").exists():
         return SRC
     shutil.rmtree(SRC, ignore_errors=True)
