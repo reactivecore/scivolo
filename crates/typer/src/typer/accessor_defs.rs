@@ -83,7 +83,7 @@ impl Typer<'_> {
                 (false, true) => self.ast.node(Tree::Assign { lhs: fun, rhs: args[0] }),
                 (false, false) => self.ast.node(Tree::Apply { fun, args: list }),
             };
-            if clause.flags.is(f::GIVEN) {
+            if clause.flags.is(f::GIVEN) || clause.flags.is(f::IMPLICIT) {
                 self.ast.add_attrs(rhs, syntax::ast::Attrs::USING_APPLY);
             }
             defs.push(self.ast.list(&params));
