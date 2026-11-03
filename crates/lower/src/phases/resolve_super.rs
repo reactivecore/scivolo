@@ -129,7 +129,7 @@ fn rebind_super(l: &mut Lower, base: SymbolId, acc: SymbolId, w: Wanted, span: S
             let named = s.target.as_deref().unwrap_or(&s.name) == w.target;
             let candidate =
                 named && !has(l.u, other, PRIVATE) && !l.bridges.contains(&other) && has_body(l, other);
-            if candidate && l.u.matches(site, other, acc) {
+            if candidate && l.u.info_matches(site, other, acc) {
                 return Ok(other);
             }
         }

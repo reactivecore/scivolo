@@ -76,6 +76,7 @@ impl Typer<'_> {
     }
 
     pub fn typed_while(&mut self, id: NodeId, cond: NodeId, body: NodeId, ctx: Ctx) -> TNodeId {
+        let ctx = self.while_ctx(self.ast.span(id), ctx);
         let boolean = self.boolean();
         let cond = self.typed(cond, Pt::Type(boolean), ctx);
         let unit = self.unit_type();

@@ -1,16 +1,13 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Nullables.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! The not-null infos of typed trees and the conditionals of null tests (dotty's
-//! `notNullInfo`, `notNullConditional`, `CompareNull`).
+//! The not-null infos of typed trees (dotty's `notNullInfo` and the infos `Typer` attaches).
 
 use super::Typer;
-use super::nullables::{NotNullInfo, union};
+use super::nullables::NotNullInfo;
+use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::constant::Constant;
-use tasty::{Type, TypeId};
-
-type Conditional = (Vec<TypeId>, Vec<TypeId>);
+use tasty::Type;
 
 impl Typer<'_> {
     /// The references known not to be null after `t` completes normally.
@@ -27,7 +24,7 @@ impl Typer<'_> {
     }
 
     fn collect_not_null_info(&mut self, t: TNodeId) -> NotNullInfo {
-        match *self.tpd.tree(t) {
+        match self.tpd.tree(t).clone() {
             T::Inlined { expansion, .. } => self.not_null_info(expansion),
             T::Typed { expr, .. } => self.not_null_info(expr),
             T::TypeApply { fun, .. } => self.not_null_info(fun),
@@ -56,8 +53,49 @@ impl Typer<'_> {
                 self.not_null_info(body).retracted_info().seq(self.not_null_info_if(cond, false))
             }
             T::Return { expr, .. } => self.not_null_info(expr).terminated_info(),
+            T::Assign { lhs, rhs } => self.assign_info(lhs, rhs),
+            T::Match { selector, cases, .. } => {
+                let cases = self.tpd.items(cases).to_vec();
+                let infos: Vec<NotNullInfo> = cases.iter().map(|&c| self.not_null_info(c)).collect();
+                match infos.into_iter().reduce(NotNullInfo::alt) {
+                    Some(info) => info,
+                    None => selector.map_or_else(NotNullInfo::empty, |s| self.not_null_info(s)),
+                }
+            }
+            T::CaseDef { pat, guard, body } => {
+                let guard = guard.map_or_else(NotNullInfo::empty, |g| self.not_null_info_if(g, true));
+                self.not_null_info(pat).seq(guard).seq(self.not_null_info(body))
+            }
+            T::Try { expr, cases, finalizer } => {
+                let cases = self.tpd.items(cases).to_vec();
+                let after_cases = self.after_cases_info(expr, &cases);
+                let finalizer = finalizer.map_or_else(NotNullInfo::empty, |f| self.not_null_info(f));
+                self.not_null_info(expr).alt(after_cases).seq(finalizer)
+            }
             _ => NotNullInfo::empty(),
         }
+    }
+
+    /// The info after `try` expression `expr` failed and one of handler `cases` completed.
+    fn after_cases_info(&mut self, expr: TNodeId, cases: &[TNodeId]) -> NotNullInfo {
+        let terminated = NotNullInfo::empty().terminated_info();
+        let cases = cases.iter().fold(terminated, |i, &c| i.alt(self.not_null_info(c)));
+        self.not_null_info(expr).retracted_info().seq(cases)
+    }
+
+    /// `ctx` of the finalizer of `try` expression `expr` with handler `cases`.
+    pub fn finalizer_ctx(&mut self, expr: TNodeId, cases: &[TNodeId], ctx: Ctx) -> Ctx {
+        let info = self.after_cases_info(expr, cases).retracted_info();
+        self.with_not_null(ctx, info)
+    }
+
+    /// The info of `lhs = rhs` (dotty's `computeAssignNullable`).
+    fn assign_info(&mut self, lhs: TNodeId, rhs: TNodeId) -> NotNullInfo {
+        let info = self.not_null_info(rhs);
+        let Some(r) = self.tracked(lhs).filter(|&r| self.strip_null(r) != r) else { return info };
+        let rhs = self.tpd.tpe(rhs);
+        let nullable = self.is_null_type(rhs) || self.strip_null(rhs) != rhs;
+        info.seq(if nullable { NotNullInfo::retracting(vec![r]) } else { NotNullInfo::of(vec![r]) })
     }
 
     /// The info of condition `t` when it is `c` (dotty's `notNullInfoIf`).
@@ -68,88 +106,6 @@ impl Typer<'_> {
             return info;
         }
         info.seq(NotNullInfo::of(if c { if_true } else { if_false }))
-    }
-
-    /// The references known not to be null if condition `t` is true and if it is false.
-    fn not_null_conditional(&mut self, t: TNodeId) -> Conditional {
-        let empty = (Vec::new(), Vec::new());
-        if !self.explicit_nulls {
-            return empty;
-        }
-        match self.tpd.tree(t).clone() {
-            T::Block { stats, expr } if self.tpd.items(stats).is_empty() => self.not_null_conditional(expr),
-            T::Inlined { expansion, bindings, .. } if self.tpd.items(bindings).is_empty() => {
-                self.not_null_conditional(expansion)
-            }
-            T::Select { qualifier, .. } if self.boolean_op(t).as_deref() == Some("unary_!") => {
-                let (a, b) = self.not_null_conditional(qualifier);
-                (b, a)
-            }
-            T::Apply { fun, args } => {
-                if let Some((operand, equal)) = self.compare_null(fun, args) {
-                    return match self.tracked(operand) {
-                        Some(r) if equal => (Vec::new(), vec![r]),
-                        Some(r) => (vec![r], Vec::new()),
-                        None => empty,
-                    };
-                }
-                let (T::Select { qualifier: x, .. }, [y]) =
-                    (self.tpd.tree(fun).clone(), self.tpd.items(args))
-                else {
-                    return empty;
-                };
-                let y = *y;
-                let op = self.boolean_op(fun);
-                let ((xt, xf), (yt, yf)) = (self.not_null_conditional(x), self.not_null_conditional(y));
-                let meet = |a: Vec<TypeId>, b: &[TypeId]| a.into_iter().filter(|r| b.contains(r)).collect();
-                match op.as_deref() {
-                    Some("&&") => (union(xt, &yt), meet(xf, &yf)),
-                    Some("||") => (meet(xt, &yt), union(xf, &yf)),
-                    _ => empty,
-                }
-            }
-            _ => empty,
-        }
-    }
-
-    /// The operand of null test `fun(args)` and whether it tests equality (dotty's `CompareNull`).
-    fn compare_null(&mut self, fun: TNodeId, args: crate::tpd::List) -> Option<(TNodeId, bool)> {
-        let &[arg] = self.tpd.items(args) else { return None };
-        let (op, l) = match *self.tpd.tree(fun) {
-            T::Select { qualifier, .. } => (fun, qualifier),
-            T::Apply { fun: op, args: inner } => match *self.tpd.items(inner) {
-                [l] => (op, l),
-                _ => return None,
-            },
-            _ => return None,
-        };
-        let m = self.tpd.sym(op)?;
-        let (name, owner) = (self.u.symbol(m).name.clone(), self.u.symbol(m).owner?);
-        let b = self.u.builtins();
-        let known = match (op == fun, name.as_str()) {
-            (true, "==" | "!=") => owner == b.any,
-            (true, "eq" | "ne") => owner == b.object || owner == self.defn.object,
-            (false, "eq" | "ne") => self.u.module_class(self.defn.predef) == Some(owner),
-            _ => false,
-        };
-        let operand = match (self.is_null_literal(arg), self.is_null_literal(l)) {
-            _ if !known => return None,
-            (true, _) => l,
-            (_, true) => arg,
-            _ => return None,
-        };
-        Some((operand, matches!(name.as_str(), "==" | "eq")))
-    }
-
-    fn is_null_literal(&self, t: TNodeId) -> bool {
-        matches!(self.tpd.tree(t), T::Literal { value: Constant::Null })
-    }
-
-    /// The name of `Boolean` method `f` selects.
-    pub fn boolean_op(&mut self, f: TNodeId) -> Option<String> {
-        let m = self.tpd.sym(f)?;
-        let owner = self.u.symbol(m).owner?;
-        (self.u.full_name(owner) == "scala.Boolean").then(|| self.u.symbol(m).name.clone())
     }
 
     /// Whether the type of `t` is a reference to class `Nothing` (dotty's `isNothingType`).

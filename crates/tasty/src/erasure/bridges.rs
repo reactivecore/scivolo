@@ -39,7 +39,7 @@ impl Universe {
                     continue;
                 }
                 let Some(sig) = self.method_signature(other) else { continue };
-                if sig != own && !out.contains(&sig) && self.matches(site, def, other) {
+                if sig != own && !out.contains(&sig) && self.info_matches(site, def, other) {
                     out.push(sig);
                 }
             }

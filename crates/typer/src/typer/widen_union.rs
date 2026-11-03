@@ -65,7 +65,7 @@ impl Typer<'_> {
     }
 
     /// Whether `t` is a reference to `Null` (dotty's `isNullType`).
-    fn is_null_type(&mut self, t: TypeId) -> bool {
+    pub fn is_null_type(&mut self, t: TypeId) -> bool {
         let d = self.u.dealias(t);
         self.u.is_null_ref(d)
     }

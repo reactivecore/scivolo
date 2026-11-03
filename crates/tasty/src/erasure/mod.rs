@@ -13,6 +13,7 @@ mod generic;
 mod mangle;
 mod poly_functions;
 mod scala2;
+mod signatures;
 mod special;
 mod symbols;
 mod value;
@@ -22,6 +23,7 @@ use crate::tags::{OBJECT as MODULE, PARAMsetter, TRAIT};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
 use compactify::compactify;
+pub use signatures::{MatchDegree, match_degree};
 pub use special::PRIMITIVE_VALUE_CLASSES;
 use special::special;
 
