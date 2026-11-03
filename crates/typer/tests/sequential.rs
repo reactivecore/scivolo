@@ -136,7 +136,9 @@ fn flow_typed_variables_in_by_name_arguments() {
     let refused = Err("unsupported flow typing of a variable in a by-name argument".to_owned());
     let defs = "def b(n: => Int) = n; def g(s: String) = 1; def k(s: String | Null) = 1";
     let call = |i: usize, arg: &str| {
-        format!("object B{i} {{ {defs}; def f(s: String | Null) = {{ var x = s; b(if x != null then {arg} else 0) }} }}")
+        format!(
+            "object B{i} {{ {defs}; def f(s: String | Null) = {{ var x = s; b(if x != null then {arg} else 0) }} }}"
+        )
     };
     for (i, arg) in ["g(x)", "x.length", "{ val y: String = x; 1 }"].iter().enumerate() {
         assert_eq!(type_unit_with(&mut u, &mut units, ("b.scala", &call(i, arg)), flagged), refused, "{arg}");
