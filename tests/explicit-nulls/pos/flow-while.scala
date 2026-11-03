@@ -35,6 +35,16 @@ object FlowWhile:
         x = s
     n
 
+  def keep(s: String | Null): Int = 1
+
+  def blockCondition(s: String | Null): Int =
+    var x: String | Null = s
+    var n = 0
+    while { n += 1; x != null } do
+      n += keep(x)
+      x = if n > 3 then null else "a"
+    n
+
   def stable(s: String | Null): Int =
     var n = 0
     while s != null && n < s.length do n += 1

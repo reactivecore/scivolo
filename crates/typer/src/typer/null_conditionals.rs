@@ -18,10 +18,7 @@ impl Typer<'_> {
             return empty;
         }
         match self.tpd.tree(t).clone() {
-            T::Block { stats, expr } if self.tpd.items(stats).is_empty() => self.not_null_conditional(expr),
-            T::Inlined { expansion, bindings, .. } if self.tpd.items(bindings).is_empty() => {
-                self.not_null_conditional(expansion)
-            }
+            T::Block { expr, .. } | T::Inlined { expansion: expr, .. } => self.not_null_conditional(expr),
             T::Select { qualifier, .. } if self.boolean_op(t).as_deref() == Some("unary_!") => {
                 let (a, b) = self.not_null_conditional(qualifier);
                 (b, a)
