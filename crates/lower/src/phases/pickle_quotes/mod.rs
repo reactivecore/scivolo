@@ -8,6 +8,7 @@
 mod avoid;
 mod cancelled;
 mod captured_apps;
+mod class_bound;
 mod heal;
 mod holes;
 mod reflect;

@@ -1,20 +1,30 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/Variances.scala
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //   compiler/src/dotty/tools/dotc/core/TypeApplications.scala
 //! Type constructors that are type lambdas: whether a constructor is one, and the variances of
-//! a lambda's parameters.
+//! a lambda's parameters, declared or those of their occurrences in its body (dotty's
+//! `setStructuralVariances`), as flags: covariant 1, contravariant 2, both (bivariant) 3,
+//! invariant 0.
 
 use super::{Kind, Universe};
 use crate::{Binder, Type, TypeId};
 
 impl Universe {
-    /// Whether type constructor `tycon` is a type lambda or bounded by one, and not a match alias
-    /// (dotty's `isLambdaSub && !isMatchAlias`).
-    pub fn is_lambda_sub(&mut self, tycon: TypeId) -> bool {
-        let t = self.dealias(tycon);
+    /// Whether type constructor `t` is a type lambda, an application reducing to one or an
+    /// abstract type bounded by one, and not a match alias (dotty's `isLambdaSub &&
+    /// !isMatchAlias`); not a named alias, which dotty reduces on application.
+    pub fn is_lambda_sub(&mut self, t: TypeId) -> bool {
         match *self.types().get(t) {
             Type::Lambda { result, .. } => !matches!(self.types().get(result), Type::Match { .. }),
+            Type::Applied(..) => {
+                let d = self.dealias(t);
+                d != t && matches!(self.types().get(d), Type::Lambda { .. }) && self.is_lambda_sub(d)
+            }
             Type::Sym(..) | Type::TypeRef(..) => {
+                if self.referenced_alias(t).is_some() {
+                    return false;
+                }
                 let Some(s) = self.referenced(t) else { return false };
                 if !matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) {
                     return false;
@@ -29,59 +39,142 @@ impl Universe {
         }
     }
 
-    /// The variances of the `n` parameters of type lambda `binder` over `result`: declared, else
-    /// structural, a parameter that does not occur covariant (dotty's `paramVarianceSign`).
-    pub fn lambda_param_variances(&mut self, binder: Binder, n: usize, result: TypeId) -> Vec<i8> {
-        if let Some(declared) = self.declared_variances(binder) {
-            return declared;
-        }
-        let mut seen = vec![0u8; n];
-        self.occurrences(result, binder, 1, &mut seen);
-        seen.into_iter().map(|s| [1, 1, -1, 0][s as usize]).collect()
+    /// The variance signs of the `n` type parameters of `tycon`, invariant where unknown: those
+    /// of the type lambda an alias or application stands for, else those declared; bivariant
+    /// counts as covariant (dotty's `paramVarianceSign`).
+    pub fn tycon_variances(&mut self, tycon: TypeId, n: usize) -> Vec<i8> {
+        let lambda = match self.types().get(tycon) {
+            Type::Lambda { .. } => Some(tycon),
+            Type::Applied(..) => Some(self.dealias(tycon)),
+            _ => self.referenced_alias(tycon),
+        };
+        let signs = match lambda.and_then(|l| self.lambda_variance_flags(l, &[])) {
+            Some(found) => found.into_iter().map(|f| [0, 1, -1, 1][f as usize]).collect(),
+            None => self.constructor_variances(tycon),
+        };
+        if signs.len() == n { signs } else { vec![0; n] }
     }
 
-    /// Marks in `seen` how parameters of `binder` occur in `t` at variance `v`: bit 1
-    /// covariantly, bit 2 contravariantly.
-    fn occurrences(&mut self, t: TypeId, binder: Binder, v: i8, seen: &mut [u8]) {
-        match self.types().get(t).clone() {
-            Type::Param(b, i) if b == binder => {
-                if let Some(s) = seen.get_mut(i as usize) {
-                    *s |= match v {
-                        1 => 1,
-                        -1 => 2,
-                        _ => 3,
-                    };
-                }
+    /// The variances of the parameters of type lambda `t`; bivariant for a lambda of `pending`,
+    /// whose variances are being computed.
+    pub fn lambda_variance_flags(&mut self, t: TypeId, pending: &[Binder]) -> Option<Vec<i32>> {
+        let Type::Lambda { binder, params, result } = self.types().get(t).clone() else { return None };
+        if let Some(declared) = self.declared_variances(binder).filter(|v| v.len() == params.len()) {
+            return Some(declared.into_iter().map(flags).collect());
+        }
+        if pending.contains(&binder) {
+            return Some(vec![3; params.len()]);
+        }
+        let pending = [pending, &[binder]].concat();
+        let mut narrowing = Narrowing { binder, found: vec![3; params.len()], params, pending };
+        narrowing.go(self, result, 1);
+        Some(narrowing.found)
+    }
+}
+
+fn flags(sign: i8) -> i32 {
+    match sign {
+        1 => 1,
+        -1 => 2,
+        _ => 0,
+    }
+}
+
+/// The variances of the parameters of a type lambda, narrowed by their occurrences.
+struct Narrowing {
+    binder: Binder,
+    params: Vec<(String, TypeId)>,
+    found: Vec<i32>,
+    pending: Vec<Binder>,
+}
+
+impl Narrowing {
+    /// Narrows the variances by the occurrences in `t`, at variance `v`.
+    fn go(&mut self, u: &mut Universe, t: TypeId, v: i8) {
+        if let Some(i) = self.param(u, t) {
+            if let Some(f) = self.found.get_mut(i) {
+                *f &= flags(v);
+            }
+            return;
+        }
+        match u.types().get(t).clone() {
+            Type::Sym(Some(prefix), _) | Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => {
+                self.go(u, prefix, v.max(0))
             }
             Type::Applied(tycon, args) => {
-                let variances = self.constructor_variances(tycon);
-                for (i, a) in args.into_iter().enumerate() {
-                    self.occurrences(a, binder, v * variances.get(i).copied().unwrap_or(0), seen);
+                self.go(u, tycon, v);
+                let signs = self.tycon_variances(u, tycon, args.len());
+                for (arg, s) in args.into_iter().zip(signs) {
+                    let bounds = matches!(u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));
+                    self.go(u, arg, if bounds { v } else { v * s });
                 }
-                self.occurrences(tycon, binder, v, seen);
             }
             Type::Bounds(lo, hi) => {
-                self.occurrences(lo, binder, -v, seen);
-                self.occurrences(hi, binder, v, seen);
+                self.go(u, lo, -v);
+                self.go(u, hi, v);
             }
-            Type::And(a, b) | Type::Or(a, b, _) => {
-                self.occurrences(a, binder, v, seen);
-                self.occurrences(b, binder, v, seen);
+            Type::Alias(a) => self.go(u, a, 0),
+            Type::Wildcard(Some(b)) | Type::ByName(b) | Type::Annotated(b, _) | Type::Rec(_, b) => {
+                self.go(u, b, v)
             }
-            Type::Annotated(a, _) | Type::ByName(a) => self.occurrences(a, binder, v, seen),
-            _ => {
-                let mut parts = Vec::new();
-                self.map_type(t, &mut |_, x| {
-                    if x == t {
-                        return None;
-                    }
-                    parts.push(x);
-                    Some(x)
-                });
-                for p in parts {
-                    self.occurrences(p, binder, 0, seen);
+            Type::And(a, b) | Type::Or(a, b, _) | Type::Refined(a, _, b) => {
+                self.go(u, a, v);
+                self.go(u, b, v);
+            }
+            Type::Method { params, result, .. }
+            | Type::Poly { params, result, .. }
+            | Type::Lambda { params, result, .. } => {
+                let case = matches!(u.types().get(result), Type::MatchCase(..));
+                for (_, p) in params {
+                    self.go(u, p, if case { 0 } else { -v });
+                }
+                self.go(u, result, v);
+            }
+            Type::Match { bound, scrutinee, cases } => {
+                self.go(u, bound, v);
+                self.go(u, scrutinee, 0);
+                for c in cases {
+                    self.go(u, c, v);
                 }
             }
+            Type::MatchCase(pattern, body) => {
+                self.go(u, pattern, 0);
+                self.go(u, body, v);
+            }
+            _ => {}
         }
+    }
+
+    /// The index of the parameter `t` refers to, if it refers to one; a lambda read from TASTy
+    /// refers to its parameters by name.
+    fn param(&self, u: &Universe, t: TypeId) -> Option<usize> {
+        match u.types().get(t) {
+            Type::Param(b, i) if *b == self.binder => Some(*i as usize),
+            Type::Local(b, n) if b.0 == self.binder.0 => self.params.iter().position(|(m, _)| m == n),
+            _ => None,
+        }
+    }
+
+    /// The variance signs of the `n` type parameters of `tycon`, invariant where unknown: those of
+    /// the type lambda bounding a parameter of the lambda or an alias stands for, else those
+    /// declared.
+    fn tycon_variances(&self, u: &mut Universe, tycon: TypeId, n: usize) -> Vec<i8> {
+        let lambda = match self.param(u, tycon) {
+            Some(i) => self.params.get(i).map(|&(_, p)| upper(u, p)),
+            None => u.referenced_alias(tycon),
+        };
+        let signs = match lambda.and_then(|l| u.lambda_variance_flags(l, &self.pending)) {
+            Some(found) => found.into_iter().map(|f| [0, 1, -1, 1][f as usize]).collect(),
+            None => u.constructor_variances(tycon),
+        };
+        if signs.len() == n { signs } else { vec![0; n] }
+    }
+}
+
+/// The upper bound of bounds `t`, else `t`.
+fn upper(u: &Universe, t: TypeId) -> TypeId {
+    match *u.types().get(t) {
+        Type::Bounds(_, hi) => hi,
+        _ => t,
     }
 }

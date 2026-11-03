@@ -26,7 +26,7 @@ impl Typer<'_> {
             Type::This(_) | Type::Sym(..) => exact(t),
             Type::Applied(tycon, args) => {
                 let c = m(self, tycon, v)?;
-                let variances = approx::tycon_variances(self.u, tycon, args.len());
+                let variances = self.u.tycon_variances(tycon, args.len());
                 let mut mapped = Vec::with_capacity(args.len());
                 for (&arg, &pv) in args.iter().zip(&variances) {
                     let wildcard = matches!(self.u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));

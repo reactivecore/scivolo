@@ -121,25 +121,6 @@ pub fn applied(u: &mut Universe, tycon: Approx, args: &[Approx], variances: &[i8
     range(u, Approx::Exact(NOTHING), Approx::Exact(hi), v)
 }
 
-/// The variances of the `n` parameters of type constructor `tycon`, invariant where unknown.
-pub fn tycon_variances(u: &mut Universe, tycon: TypeId, n: usize) -> Vec<i8> {
-    let s = match *u.types().get(tycon) {
-        Type::Sym(_, s) => Some(s),
-        Type::TypeRef(..) => u.resolve_ref(tycon),
-        _ => None,
-    };
-    if let Some(vs) = s.map(|s| u.variances(s)).filter(|vs| vs.len() == n) {
-        return vs;
-    }
-    let lambda = u.dealias(tycon);
-    match *u.types().get(lambda) {
-        Type::Lambda { binder, ref params, result } if params.len() == n => {
-            u.lambda_param_variances(binder, n, result)
-        }
-        _ => vec![0; n],
-    }
-}
-
 /// Whether `a` is a range with bounds or an alias as one of its ends (dotty's
 /// `isRangeOfNonTermTypes`).
 fn is_range_of_bounds(u: &Universe, a: Approx) -> bool {

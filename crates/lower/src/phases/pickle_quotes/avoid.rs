@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/transform/PickleQuotes.scala
 //   compiler/src/dotty/tools/dotc/core/TypeOps.scala
 
+use super::class_bound::class_bound;
 use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId, Universe};
 use typer::approx::{self, Approx};
 
@@ -39,7 +40,7 @@ fn over(u: &mut Universe, t: TypeId, v: i8) -> TypeId {
 
 /// `tycon[args]` with a member class `tycon` to avoid made its class bound applied to `args`.
 fn applied(u: &mut Universe, t: TypeId, tycon: TypeId, args: &[TypeId], v: i8) -> Approx {
-    let variances = approx::tycon_variances(u, tycon, args.len());
+    let variances = u.tycon_variances(tycon, args.len());
     let mapped: Vec<Approx> = args
         .iter()
         .zip(&variances)
@@ -116,20 +117,4 @@ fn static_prefix(u: &mut Universe, t: TypeId) -> bool {
         _ => return true,
     };
     u.symbol(s).kind == Kind::Package || u.is_static_symbol(s) && prefix.is_none_or(|p| static_prefix(u, p))
-}
-
-/// The intersection of class `c`'s parents with its type parameters replaced by `args` (dotty's
-/// `classBound`, applied).
-fn class_bound(u: &mut Universe, c: SymbolId, args: &[TypeId]) -> TypeId {
-    let parents = u.parents(c);
-    let parents: Vec<TypeId> = parents
-        .into_iter()
-        .map(|p| {
-            u.map_type(p, &mut |u, x| match u.class_param(x) {
-                Some((owner, i)) if owner == c => args.get(i).copied(),
-                _ => None,
-            })
-        })
-        .collect();
-    parents.into_iter().reduce(|a, b| u.intern_type(Type::And(a, b))).unwrap_or(ANY)
 }

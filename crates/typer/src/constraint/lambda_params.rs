@@ -34,7 +34,7 @@ fn approx_at(u: &mut Universe, t: TypeId, v: i8) -> Option<Approx> {
         Type::Param(..) => Some(approx::range(u, Approx::Exact(NOTHING), Approx::Exact(ANY), v)),
         Type::Applied(tycon, args) => {
             let c = approx_at(u, tycon, v)?;
-            let variances = approx::tycon_variances(u, tycon, args.len());
+            let variances = u.tycon_variances(tycon, args.len());
             let mut mapped = Vec::with_capacity(args.len());
             for (&arg, &pv) in args.iter().zip(&variances) {
                 let wildcard = matches!(u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));

@@ -4,6 +4,8 @@ trait Base[T] { def put(t: T): Unit }
 trait Outer {
   trait Mid[V] extends Base[V]
   trait Inner[V] extends Mid[V] { def length(v: V): Int }
+  trait Narrow extends Base[Int] { def get: Any; def put(t: Int): Unit }
+  trait Narrower extends Narrow { def get: Int }
 }
 
 object quotemembers {
@@ -29,4 +31,5 @@ object quotemembers {
   def inner[T: Type](self: Expr[Outer#Inner[T]], v: Expr[T])(using Quotes): Expr[Int] =
     '{ ${ self }.length(${ v }) }
   def mid(self: Expr[Outer#Mid[Int]])(using Quotes): Expr[Unit] = '{ ${ self }.put(1) }
+  def narrower(self: Expr[Outer#Narrower])(using Quotes): Expr[Int] = '{ ${ self }.get }
 }
