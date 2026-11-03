@@ -21,11 +21,15 @@ impl Typer<'_> {
         (tycon, i): (TypeId, usize),
         ctx: Ctx,
     ) -> (TNodeId, Option<(TName, Span)>) {
-        if let Tree::TypeBoundsTree { lo: None, hi: None, alias: None } = *self.ast.tree(id)
-            && let Some(bounds) = self.lambda_sub_param_bounds(tycon, i)
-        {
-            let span = self.ast.span(id);
-            return (self.tpd.node(T::TypeTree { inferred: false }, span, Some(bounds), None), None);
+        if let Tree::TypeBoundsTree { lo: None, hi: None, alias: None } = *self.ast.tree(id) {
+            match self.lambda_sub_param_bounds(tycon, i) {
+                Ok(Some(bounds)) => {
+                    let span = self.ast.span(id);
+                    return (self.tpd.node(T::TypeTree { inferred: false }, span, Some(bounds), None), None);
+                }
+                Ok(None) => {}
+                Err(what) => return (self.unsupported(id, what), None),
+            }
         }
         let var = match *self.ast.tree(id) {
             Tree::Ident { name } if ctx.mode.is(Mode::PATTERN_TYPE) => {
@@ -42,22 +46,49 @@ impl Typer<'_> {
     }
 
     /// The bounds of the `i`th type parameter of class `tycon` if they are of a higher or any kind
-    /// and refer to no other parameter (dotty's `isLambdaSub`).
-    fn lambda_sub_param_bounds(&mut self, tycon: TypeId, i: usize) -> Option<TypeId> {
-        let Type::Sym(_, c) = *self.u.types().get(tycon) else { return None };
+    /// and refer to no other parameter (dotty's `isLambdaSub`); an error while the parameter
+    /// with bounds is being completed.
+    fn lambda_sub_param_bounds(&mut self, tycon: TypeId, i: usize) -> Result<Option<TypeId>, &'static str> {
+        let Type::Sym(_, c) = *self.u.types().get(tycon) else { return Ok(None) };
         if self.u.symbol(c).kind != Kind::Class {
-            return None;
+            return Ok(None);
         }
         let params = self.u.type_params(c);
-        let &param = params.get(i)?;
-        if !matches!(self.syms.completions.get(&param), None | Some(Completion::Done)) {
-            return None;
+        let Some(&param) = params.get(i) else { return Ok(None) };
+        let completion = self.syms.completions.get(&param).copied();
+        if matches!(completion, Some(Completion::Pending { .. } | Completion::Completing(_)))
+            && !self.class_param_tree(c, i).is_some_and(|p| self.may_be_lambda_sub(p))
+        {
+            return Ok(None);
+        }
+        match completion {
+            Some(Completion::Pending { .. }) => self.complete(param),
+            Some(Completion::Completing(_)) => {
+                return Err("wildcard argument of a higher or any kind parameter being completed");
+            }
+            _ => {}
         }
         let info = self.u.info(param);
-        let Type::Bounds(_, hi) = *self.u.types().get(info) else { return None };
+        let Type::Bounds(_, hi) = *self.u.types().get(info) else { return Ok(None) };
         let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
         let lambda = matches!(self.u.types().get(hi), Type::Lambda { .. });
-        ((any_kind || lambda) && !self.refers_to(info, &params)).then_some(info)
+        Ok(((any_kind || lambda) && !self.refers_to(info, &params)).then_some(info))
+    }
+
+    /// Whether type parameter tree `p` takes type parameters or has an upper bound that is a type
+    /// lambda or names `AnyKind`.
+    fn may_be_lambda_sub(&self, p: NodeId) -> bool {
+        let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { return true };
+        let hi = match *self.ast.tree(rhs) {
+            Tree::TypeBoundsTree { hi: Some(hi), .. } => hi,
+            Tree::TypeBoundsTree { hi: None, .. } => return false,
+            _ => return true,
+        };
+        match *self.ast.tree(hi) {
+            Tree::Ident { name } | Tree::Select { name, .. } => self.text(name.name) == "AnyKind",
+            Tree::LambdaTypeTree { .. } => true,
+            _ => false,
+        }
     }
 
     /// Type arguments `args` of `tycon` in a pattern's type tree with each wildcard replaced by a

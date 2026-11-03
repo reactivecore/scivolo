@@ -162,13 +162,18 @@ impl Typer<'_> {
     /// The number of type parameters of the `i`th type parameter tree of script class `c`'s
     /// primary constructor; `None` if it has none.
     fn param_tree_arity(&self, c: SymbolId, i: usize) -> Option<usize> {
+        self.lambda_tree_arity(self.class_param_tree(c, i)?)
+    }
+
+    /// The `i`th type parameter tree of script class `c`'s primary constructor.
+    pub fn class_param_tree(&self, c: SymbolId, i: usize) -> Option<NodeId> {
         let Tree::TypeDef { rhs, .. } = *self.ast.tree(*self.syms.def_trees.get(&c)?) else { return None };
         let Tree::Template { constr, .. } = *self.ast.tree(rhs) else { return None };
         let Tree::DefDef { paramss, .. } = *self.ast.tree(constr) else { return None };
         let is_type_def = |&p: &NodeId| matches!(self.ast.tree(p), Tree::TypeDef { .. });
         let mut clauses = self.ast.clause_items(paramss).iter().map(|&l| self.ast.items(l));
         let clause = clauses.find(|ps| ps.first().is_some_and(is_type_def))?;
-        self.lambda_tree_arity(*clause.get(i)?)
+        clause.get(i).copied()
     }
 
     /// The number of type parameters of type parameter tree `p`; `None` if it has none.
