@@ -3,7 +3,7 @@
 
 use super::entries::Entry;
 use super::{FileId, Kind, Symbol, SymbolId, Universe};
-use crate::tags::{OBJECT, SYNTHETIC};
+use crate::tags::{BYTEconst, FINAL, OBJECT, SHORTconst, SYNTHETIC};
 use crate::types::{Type, TypeId};
 
 /// The directory of the JDK's declarations in the library, beside the packages.
@@ -118,6 +118,23 @@ impl Universe {
             let array = u.intern_type(Type::Applied(array, args));
             Some(u.intern_type(Type::Annotated(array, annot)))
         })
+    }
+
+    /// Type `t` of value `sym` of file `file` made the constant of its `Byte` or `Short` literal
+    /// right-hand side if the file holds JDK declarations and `sym` is final, as Java's
+    /// `static final` fields with a constant are.
+    pub fn with_declared_constant(&mut self, sym: SymbolId, file: FileId, t: TypeId) -> TypeId {
+        let s = self.symbol(sym);
+        let declared = self.files[file.0 as usize].path.starts_with(JDK_DECLARATIONS);
+        if !declared || s.kind != Kind::Val || !s.flags.has(FINAL) {
+            return t;
+        }
+        let Some((file, rhs)) = self.body(sym) else { return t };
+        let n = self.file(file).0.node(rhs);
+        match n.tag {
+            BYTEconst | SHORTconst => self.intern_type(Type::Constant(n.tag, n.a)),
+            _ => t,
+        }
     }
 
     fn define_declared(&mut self, owner: SymbolId, kind: Kind, file: FileId, e: &Entry) -> SymbolId {
