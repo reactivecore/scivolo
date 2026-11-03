@@ -1,6 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //   compiler/src/dotty/tools/dotc/core/TypeApplications.scala
+//   compiler/src/dotty/tools/dotc/core/NamerOps.scala
 //! The type aliases export clauses define for type members (dotty's `addForwarder` of a type).
 
 use super::exports::{Export, Forwarder};
@@ -14,6 +15,24 @@ impl Typer<'_> {
     /// Whether `s` is a type alias an export clause defines.
     pub fn is_exported_type(&self, s: SymbolId) -> bool {
         self.u.symbol(s).kind == Kind::Type && self.u.symbol(s).flags.has(t::EXPORTED)
+    }
+
+    /// Whether `s` is a type alias an export clause defines for a class that gets constructor
+    /// proxies (dotty's `needsConstructorProxies`).
+    pub fn is_exported_class(&mut self, s: SymbolId) -> bool {
+        if !self.is_exported_type(s) {
+            return false;
+        }
+        let info = self.u.info(s);
+        let Type::Alias(mut target) = *self.u.types().get(info) else { return false };
+        if let Type::Lambda { result, .. } = *self.u.types().get(target) {
+            target = result;
+        }
+        if let Type::Applied(tycon, _) = *self.u.types().get(target) {
+            target = tycon;
+        }
+        let target = self.u.dealias(target);
+        self.u.class_symbol(target).is_some_and(|c| self.needs_constructor_proxies(c))
     }
 
     /// The type alias forwarding to type member `m` of `e`'s path.

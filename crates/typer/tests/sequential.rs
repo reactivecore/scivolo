@@ -364,6 +364,10 @@ fn no_false_errors_behind_unsupported_constructs() {
             "constructor proxy of an exported class",
         ),
         (
+            "object I:\n  class P(x: Int)\nobject P:\n  def apply(x: Int) = 0\nobject M:\n  export I.P\n  val p = P(1)\n",
+            "constructor proxy of an exported class",
+        ),
+        (
             "trait T\nclass O:\n  object S extends T { self =>\n    def f() = self.hashCode\n  }\n",
             "named self of an object not static",
         ),
