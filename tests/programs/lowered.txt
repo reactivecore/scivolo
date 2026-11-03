@@ -212,7 +212,6 @@ lazycaptures
 ctornames
 usingextractors
 quotecaptures
-quoteholes
 skolemparams
 outerparams
 outerlambdas
@@ -222,3 +221,4 @@ forwardaliases
 jdkurls
 interpsplices
 erasedjoins
+quoteholes
