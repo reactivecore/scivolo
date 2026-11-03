@@ -258,9 +258,10 @@ lib-jar-report +modules: fetch-libs fetch-scala-native release
     SCIVOLO_LIBS='{{ justfile_directory() }}/tmp/libs-ours' SCIVOLO_CACHE='{{ justfile_directory() }}/tmp/cache-ours' \
         SCIVOLO_TIMEOUT=1800 scripts/sn-report.sh
 
-# Compile Maven library `name` (sourcecode, geny, ujson, os-lib) from its modules' `-sources.jar`
-# files file by file with `scivolo-aot -d`, compare their NIR with the published jars' and
-# scala-cli's and run its tests/aot programs on jars with our NIR; results under tmp/srclib/<name>.
+# Compile Maven library `name` (sourcecode, geny, ujson, fansi, pprint, upickle, mainargs,
+# fastparse, os-lib) from its modules' `-sources.jar` files file by file with `scivolo-aot -d`,
+# compare their NIR with the published jars' and scala-cli's and run its tests/aot programs on
+# jars with our NIR; results under tmp/srclib/<name>.
 lib-source name: fetch-libs
     cargo build -q --release -p scivolo-aot -p scivolo-nir-dump
     python3 scripts/lib-source.py '{{ name }}'

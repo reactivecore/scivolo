@@ -40,10 +40,14 @@ impl Inlining<'_> {
         }
         let level = self.staging_level(t);
         self.staging += level;
+        let (parents, constr) = match *self.tpd.tree(t) {
+            T::Template { constr, parents, .. } => (self.tpd.items(parents).to_vec(), self.tpd.sym(constr)),
+            _ => (Vec::new(), None),
+        };
         let mut failed = None;
         let changed = map_children(self, t, &mut |i, c| match Some(c) == call {
             true => c,
-            false => i.transform(c, inner).unwrap_or_else(|e| {
+            false => i.transform(c, constr.filter(|_| parents.contains(&c)).unwrap_or(inner)).unwrap_or_else(|e| {
                 failed.get_or_insert(e);
                 c
             }),

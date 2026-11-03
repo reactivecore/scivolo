@@ -14,9 +14,8 @@ impl Typer<'_> {
     pub fn instantiate_param_vars(&mut self, tree: TNodeId, params: &[TypeId]) -> Result<(), &'static str> {
         let mut bound = Vec::new();
         self.bound_vars(tree, &mut bound);
-        let declared: Vec<(VarId, TypeId)> = bound.clone();
         let mut selected = Vec::new();
-        self.occurring_vars(tree, bound.into_iter().map(|(v, _)| v).collect(), &mut selected);
+        self.occurring_vars(tree, bound, &mut selected);
         for &p in params {
             for v in self.open_vars(p) {
                 if !selected.contains(&v) || self.constraint.instance(v).is_some() {
@@ -24,14 +23,13 @@ impl Typer<'_> {
                 }
                 let (lo, hi) = self.constraint.bounds(v);
                 let (lo, hi) = (self.zonk(lo), self.zonk(hi));
-                let declared_lo = declared.iter().find(|&&(w, _)| w == v).map_or(NOTHING, |&(_, l)| l);
-                if matches!(self.u.types().get(lo), Type::And(..)) {
-                    return Err("type variable minimized to an intersection before an implicit search");
-                } else if lo != NOTHING && declared_lo != NOTHING && !self.is_exactly_any(hi) {
-                    return Err("type variable with a declared lower bound constrained from above");
-                } else if lo != NOTHING {
+                let direction = self.constraint.direction(self.u, v);
+                if direction <= 0 && lo != NOTHING {
+                    if matches!(self.u.types().get(lo), Type::And(..)) {
+                        return Err("type variable minimized to an intersection before an implicit search");
+                    }
                     self.instantiate_var(v, true)?;
-                } else if !self.is_any(hi) && !matches!(self.u.types().get(hi), Type::Var(_)) {
+                } else if direction >= 0 && !self.is_any(hi) && !matches!(self.u.types().get(hi), Type::Var(_)) {
                     self.instantiate_var(v, false)?;
                 }
             }
@@ -65,9 +63,8 @@ impl Typer<'_> {
         vars
     }
 
-    /// The type variables inferred type arguments in `tree`'s prefixes bind, with the declared
-    /// lower bounds of their parameters.
-    fn bound_vars(&mut self, tree: TNodeId, acc: &mut Vec<(VarId, TypeId)>) {
+    /// The type variables inferred type arguments in `tree`'s prefixes bind.
+    fn bound_vars(&mut self, tree: TNodeId, acc: &mut Vec<VarId>) {
         match *self.tpd.tree(tree) {
             T::Apply { fun, args } => {
                 for a in self.tpd.items(args).to_vec() {
@@ -76,27 +73,13 @@ impl Typer<'_> {
                 self.bound_vars(fun, acc);
             }
             T::TypeApply { fun, args } => {
-                let fun_tpe = self.tpd.tpe(fun);
-                let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-                let bounds = match self.u.types().get(info) {
-                    Type::Poly { params, .. } => params.iter().map(|&(_, b)| b).collect(),
-                    _ => Vec::new(),
-                };
-                for (i, a) in self.tpd.items(args).to_vec().into_iter().enumerate() {
+                for a in self.tpd.items(args).to_vec() {
                     let tpe = self.zonk(self.tpd.tpe(a));
                     if matches!(self.tpd.tree(a), T::TypeTree { inferred: true })
                         && let Type::Var(v) = *self.u.types().get(tpe)
                         && v.0 as usize >= self.locked_vars
                     {
-                        let lo = match bounds.get(i).map(|&b| self.u.types().get(b).clone()) {
-                            Some(Type::Bounds(lo, _))
-                                if self.u.class_symbol(lo) != Some(self.u.builtins().nothing) =>
-                            {
-                                lo
-                            }
-                            _ => NOTHING,
-                        };
-                        acc.push((v, lo));
+                        acc.push(v);
                     }
                 }
                 self.bound_vars(fun, acc);
