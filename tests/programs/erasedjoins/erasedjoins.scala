@@ -27,9 +27,14 @@ trait Types {
 
 class Lib extends Types
 
+trait tagged { def tag = 3 }
+class Labelled extends tagged
+def pick(x: Boolean, c: Labelled, t: tagged & caps.Pure): Labelled | (tagged & caps.Pure) = if (x) c else t
+
 @main def erasedjoins(): Unit = {
   val l = new Lib
   val r = new l.Reader[Int] { def visit(t: Any) = 1 }
   val w = new l.Writer[Int] { def write(t: Int) = t.toString }
   println(l.ReadWriter.join(r, w).write(2))
+  println(pick(false, new Labelled, (new Labelled).asInstanceOf[tagged & caps.Pure]).tag)
 }
