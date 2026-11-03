@@ -158,7 +158,10 @@ impl TreePickler<'_> {
 
     /// The name of `s`, signed if `signed` and `s` is a method (dotty's `pickleNameAndSig`).
     pub fn signed_name(&mut self, s: SymbolId, signed: bool) -> Result<(), Refusal> {
-        let orig = sym_name(self.u, s);
+        let orig = match self.is_defined_here(s) {
+            true => local_name(self.u, s),
+            false => sym_name(self.u, s),
+        };
         let result = if signed { result_sig(self.u, s) } else { None };
         let Some(result) = result else {
             self.name(&orig);
@@ -175,7 +178,8 @@ impl TreePickler<'_> {
             Some(t) => Name::utf8(t),
             None => orig.clone(),
         };
-        let result = match self.u.symbol(s).owner.filter(|_| self.u.is_constructor(s)) {
+        let class = self.u.symbol(s).owner.filter(|_| self.u.is_constructor(s));
+        let result = match class.filter(|&c| self.u.underlying(c).is_none()) {
             Some(class) => Box::new(class_sig_name(self.u, class)),
             None => Box::new(sig_type_name(self.u, &result)?),
         };
