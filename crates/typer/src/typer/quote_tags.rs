@@ -44,16 +44,15 @@ impl Typer<'_> {
             if owners.any(|o| defined.contains(&o)) || !self.is_level_zero_type(s) {
                 continue;
             }
-            if let Some(given) = self.tpd.pattern_given(s) {
-                tags.push((s, self.u.intern_type(Type::Sym(None, given))));
-                continue;
-            }
             let tycon = type_ref(self.u, class);
             let pt = self.u.intern_type(Type::Applied(tycon, vec![arg]));
-            let Ok(tag) = self.implicit_arg(pt, self.tpd.span(body), ctx, 0) else { continue };
-            let path = self.tpd.tpe(tag);
-            if matches!(*self.u.types().get(path), Type::Sym(_, t) if self.u.symbol(t).kind.is_term()) {
-                tags.push((s, path));
+            let found = self.implicit_arg(pt, self.tpd.span(body), ctx, 0).map(|tag| self.tpd.tpe(tag));
+            match (found, self.tpd.pattern_given(s)) {
+                (Ok(path), _) if matches!(*self.u.types().get(path), Type::Sym(_, t) if self.u.symbol(t).kind.is_term()) => {
+                    tags.push((s, path))
+                }
+                (_, Some(given)) => tags.push((s, self.u.intern_type(Type::Sym(None, given)))),
+                _ => {}
             }
         }
         if !tags.is_empty() {

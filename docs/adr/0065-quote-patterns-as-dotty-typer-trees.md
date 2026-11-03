@@ -21,7 +21,8 @@ typed trees cannot be printed back as dotty's from it.
   unpickler and the matcher already read.
 - The implicit searches dotty's staging makes run in the typer, as for the tags of term
   quotes: it records the shape's tags on the `QuotePattern` and defines the given
-  `t$givenN: Type[t]` of each type variable, which the tags of the case body's quotes refer to.
+  `t$givenN: Type[t]` of each type variable, which the tags of the case body's quotes refer to
+  where the search finds no given of the body, which is nested deeper.
 
 ## Consequences
 - Tree walks see two more classes; those that only look at children need no change.

@@ -3,7 +3,6 @@
 //! Bounds without the local symbols defined after a variable (dotty's `LevelAvoidMap`).
 
 use super::Constraint;
-use super::levels::is_local_since;
 use super::unify::meet;
 use tasty::tags::PRIVATE;
 use tasty::{ANY, Kind, SymbolId, Type, TypeId, TypeVars, Universe};
@@ -39,7 +38,7 @@ impl Constraint {
                 let dealiased = u.dealias(t);
                 if dealiased == t { None } else { self.avoided(u, dealiased, born, v) }
             }
-            Type::Sym(Some(pre), s) if !is_local_since(u, s, born) => match u.symbol(s).kind {
+            Type::Sym(Some(pre), s) if !self.is_local_since(u, s, born) => match u.symbol(s).kind {
                 Kind::Class if v > 0 => {
                     let widened = u.widen(pre);
                     let selected = u.intern_type(Type::Sym(Some(widened), s));

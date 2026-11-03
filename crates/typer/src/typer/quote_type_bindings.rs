@@ -27,7 +27,7 @@ impl Typer<'_> {
         let Some(scope) = self.quote_pattern.as_ref() else {
             return self.unsupported(id, "quoted type variable");
         };
-        let outer = scope.outer;
+        let (outer, before) = (scope.outer, scope.before);
         if let Some(&(_, sym)) = scope.type_vars.iter().find(|(n, _)| *n == text) {
             let tpe = self.u.intern_type(Type::Sym(None, sym));
             return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym));
@@ -39,6 +39,7 @@ impl Typer<'_> {
         let sym = self.syms.define(self.u, &text, Kind::Type, outer.owner, SYNTHETIC.or(CASE));
         self.u.set_info(sym, info);
         self.known_pattern_types.insert(sym);
+        self.constraint.define_at(sym, before);
         self.levels.enter(outer.level, &text, sym);
         if let Some(scope) = self.quote_pattern.as_mut() {
             scope.type_vars.push((text, sym));

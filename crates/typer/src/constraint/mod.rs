@@ -45,6 +45,9 @@ pub struct Constraint {
     escaped: bool,
     /// The declared bounds of each variable, `Nothing` and `Any` past its end.
     declared: Vec<(TypeId, TypeId)>,
+    /// The symbols that count as defined where another symbol was (dotty's `nestingLevel` of an
+    /// outer context).
+    defined_at: rustc_hash::FxHashMap<SymbolId, SymbolId>,
 }
 
 /// How many satisfiability checks may be in progress at once; deeper ones fail.

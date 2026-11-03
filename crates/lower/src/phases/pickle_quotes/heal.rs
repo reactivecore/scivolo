@@ -164,11 +164,14 @@ fn inconsistent_root(u: &mut Universe, defined: &FxHashSet<SymbolId>, t: TypeId)
 }
 
 /// `t` with each abstract type that is not static made its upper bound, an intersection with
-/// `Any` its other part (dotty's `AvoidMap` of `getPicklableHoleType`).
+/// `Any` where a part changed its other part (dotty's `AvoidMap` of `getPicklableHoleType`).
 pub fn avoided(u: &mut Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, x| {
-        if let Type::And(a, b) = *u.types().get(x) {
-            let (a, b) = (avoided(u, a), avoided(u, b));
+        if let Type::And(a0, b0) = *u.types().get(x) {
+            let (a, b) = (avoided(u, a0), avoided(u, b0));
+            if (a, b) == (a0, b0) {
+                return Some(x);
+            }
             return Some(match (a, b) {
                 (tasty::ANY, _) => b,
                 (_, tasty::ANY) => a,

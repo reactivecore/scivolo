@@ -14,6 +14,8 @@ use tasty::{ANY, SymbolId, Type, TypeId};
 pub struct QuotePatternScope {
     pub outer: Ctx,
     pub type_vars: Vec<(String, SymbolId)>,
+    /// The last symbol defined before the pattern, where its type variables count as defined.
+    pub before: SymbolId,
 }
 
 impl Typer<'_> {
@@ -48,7 +50,11 @@ impl Typer<'_> {
         if self.defines_type_variables(body) {
             return self.unsupported(id, "type variable definitions in a quote pattern");
         }
-        let saved = self.quote_pattern.replace(QuotePatternScope { outer: ctx, type_vars: Vec::new() });
+        let saved = self.quote_pattern.replace(QuotePatternScope {
+            outer: ctx,
+            type_vars: Vec::new(),
+            before: SymbolId(self.u.next_symbol().0 - 1),
+        });
         let quoted = if is_type { Mode::QUOTED_TYPE_PATTERN } else { Mode::QUOTED_EXPR_PATTERN };
         let qctx =
             Ctx { mode: ctx.mode.without(Mode::PATTERN).with(quoted), staging: ctx.staging + 1, ..ctx };
