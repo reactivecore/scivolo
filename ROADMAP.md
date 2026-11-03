@@ -145,7 +145,13 @@ slower meanwhile:
    annotations (ADR 0039), `Symbol.newClass`, `newModule`, `newMethod`, `newVal`,
    `ClassDef`/`DefDef`/`ValDef` construction, `Term.etaExpand`.
 3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): done
-   2026-11-02: `just lib-source geny|ujson|os-lib`: geny 1.1.1 5 of 5 files, 72 of 72 NIR files
+   2026-11-03: `just lib-source fansi|pprint|upickle|mainargs|fastparse` (NIR files the same as
+   scala-cli's): fansi 0.5.1 1 of 1 file, 54 of 54; pprint 0.9.6 11 of 12 files, 109 of 111;
+   upickle 4.4.3 upickle-implicits 8 of 10 files, 106 of 106, upickle 3 of 5 files (no scala-cli
+   oracle: Scala 3.9 reports cyclic references in `Api.scala`); mainargs 0.7.8 12 of 15 files,
+   140 of 141 (1 var-order); fastparse 3.1.1 12 of 14 files, 144 of 149; `tests/aot/pprint`,
+   `Lh24pprint`, `Lh24upickle`, `mainargs`, `fastparse` and `fastparsews` pass on our NIR.
+   Done 2026-11-02: `just lib-source geny|ujson|os-lib`: geny 1.1.1 5 of 5 files, 72 of 72 NIR files
    the same as scala-cli's; ujson 4.4.3 with upickle-core and upack 50 of 53 files, 290 of 292
    the same (2 var-order); os-lib 0.11.9-M8 16 of 20 files, 206 of 207 the same; `tests/aot/ujson`,
    `oslib` and `Lh24oslib` pass on our NIR. Scripts and library sources type against the JDK's
