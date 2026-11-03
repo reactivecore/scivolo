@@ -9,6 +9,7 @@ mod names;
 mod positions;
 mod refs;
 mod sharing;
+mod templates;
 mod trees;
 mod types;
 
@@ -16,7 +17,7 @@ pub use positions::QuoteSource;
 
 use crate::tpd::{TNodeId, Tpd};
 use crate::unpickle::QuoteHole;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::names::Names;
 use tasty::write::{Addr, Pickler, TreeBuffer};
 use tasty::{Binder, SymbolId, TypeId, Universe};
@@ -43,6 +44,11 @@ pub struct TreePickler<'a> {
     defs: FxHashMap<SymbolId, Option<Addr>>,
     /// The references to definitions not pickled yet (dotty's `forwardSymRefs`).
     forward: FxHashMap<SymbolId, Vec<Addr>>,
+    /// The trees that are one tree in dotty's, by the tree pickled first: the class of a module
+    /// val's `new` its type's.
+    shared: FxHashMap<TNodeId, TNodeId>,
+    /// The references to a self pickled as `C.this`, the class name after their tag.
+    self_refs: FxHashSet<TNodeId>,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -87,6 +93,8 @@ fn pickle(
         holes,
         defs: FxHashMap::default(),
         forward: FxHashMap::default(),
+        shared: FxHashMap::default(),
+        self_refs: FxHashSet::default(),
     };
     p.tree(root)?;
     if !p.forward.is_empty() {

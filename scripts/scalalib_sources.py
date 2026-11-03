@@ -46,18 +46,19 @@ def specialized(nir_path):
 
 
 def sources(libs):
-    """SRC, assembled once from the sources jar in `libs`, and JDK_ONLY."""
+    """SRC, assembled once from the sources jar in `libs`, and JDK_ONLY, each time."""
     if not AUXLIB.exists():
         sys.exit(f"{AUXLIB.relative_to(ROOT)} missing (the published auxlib has no TASTy): run `just lib-oracle`")
-    if (SRC / ".done").exists():
-        return SRC
-    shutil.rmtree(SRC, ignore_errors=True)
-    SRC.mkdir(parents=True)
     javalib = set(zipfile.ZipFile(ROOT / "libs/javalib-tasty-0.5.12.jar").namelist())
+    JDK_ONLY.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(ROOT / "libs/jdk-stubs.jar") as stubs, zipfile.ZipFile(JDK_ONLY, "w") as out:
         for n in stubs.namelist():
             if n.endswith(".tasty") and n not in javalib:
                 out.writestr(n, stubs.read(n))
+    if (SRC / ".done").exists():
+        return SRC
+    shutil.rmtree(SRC, ignore_errors=True)
+    SRC.mkdir(parents=True)
     with zipfile.ZipFile(libs / "scala-library-3.9.0-sources.jar") as jar:
         jar.extractall(SRC, [n for n in jar.namelist() if n.endswith(".scala") and n not in IGNORED])
     for f in sorted(OVERRIDES.rglob("*.scala")):

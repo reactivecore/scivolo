@@ -35,7 +35,9 @@ impl Universe {
                 let t = self.with_java_varargs(sym, t);
                 let t = self.with_declared_varargs(file, t);
                 let t = self.with_declared_constant(sym, file, t);
-                self.with_java_strings(sym, t)
+                let t = self.with_java_param_names(sym, t);
+                let t = self.with_java_strings(sym, t);
+                self.with_java_wildcards(sym, t)
             }
         };
         self.infos.insert(sym, t);

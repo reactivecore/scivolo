@@ -59,8 +59,8 @@ impl Typer<'_> {
             tpe = self.u.intern_type(Type::Constant(tasty::tags::CLASSconst, i64::from(arg.0)));
         }
         let args = self.tpd.list(&typed_args);
-        let span = self.ast.span(id);
-        self.tpd.node(T::TypeApply { fun: f, args }, span, Some(tpe), None)
+        let applied = self.tpd.node(T::TypeApply { fun: f, args }, self.ast.span(id), Some(tpe), None);
+        self.with_type_quote_tags(applied, fun_name.as_deref(), ctx)
     }
 
     /// `f` applied to type arguments if it is polymorphic, else `f`: a constructor of `new C[Ts]`
@@ -100,7 +100,7 @@ impl Typer<'_> {
 
     /// The type of polymorphic `f` applied to `args`, which must be within the bounds of its
     /// type parameters, or constrained to be if they are type variables; the `Object` bound of a
-    /// Java class's type parameter admits any type (dotty's `FromJavaObject`).
+    /// Java member's type parameter admits any type (dotty's `FromJavaObject`).
     pub fn instantiated(&mut self, f: TNodeId, args: &[TypeId]) -> Result<TypeId, &'static str> {
         self.instantiated_with(f, args, false)
     }
@@ -122,11 +122,16 @@ impl Typer<'_> {
         }
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         let method = self.tpd.sym(self.tpd.meth_part(f));
-        let ctor = method.filter(|&m| self.u.is_constructor(m));
-        let of_java = ctor.and_then(|m| self.u.symbol(m).owner).is_some_and(|c| self.is_java_class_name(c));
-        for (&(_, bounds), &arg) in params.iter().zip(args) {
+        let of_java = method.is_some_and(|m| self.is_java_member(m));
+        let class_params = self.java_class_params(method.filter(|_| of_java));
+        for (i, (&(_, bounds), &arg)) in params.iter().zip(args).enumerate() {
             let bounds = self.instantiate_poly(bounds, binder, &names, args, method);
             let (lo, hi, arity) = self.bounds_of(bounds);
+            let unbounded = class_params.get(i).is_some_and(|&p| self.is_unbounded(p));
+            let lo = lo.filter(|_| !unbounded);
+            let java_object =
+                unbounded || of_java && self.u.class_symbol(hi) == Some(self.u.builtins().object);
+            let hi = if java_object { ANY } else { hi };
             let var = match *self.u.types().get(arg) {
                 Type::Var(v) if fresh => Some(v),
                 _ => None,
@@ -138,7 +143,6 @@ impl Typer<'_> {
             if var.is_none() && !any_kind && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
-            let java_object = of_java && self.u.class_symbol(hi) == Some(self.u.builtins().object);
             let upper = match var {
                 _ if java_object => true,
                 Some(v)

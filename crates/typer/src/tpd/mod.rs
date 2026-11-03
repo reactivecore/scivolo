@@ -37,6 +37,7 @@ pub struct Tpd {
     backquoted: FxHashSet<TNodeId>,
     anon_mirrors: FxHashMap<SymbolId, AnonMirror>,
     quote_tags: FxHashMap<TNodeId, Vec<(SymbolId, TypeId)>>,
+    pattern_givens: FxHashMap<SymbolId, SymbolId>,
     annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
     /// Whether the unit behaves as the Scala 2 library (dotty's `shouldBehaveAsScala2`).
     pub scala2: bool,
@@ -150,6 +151,16 @@ impl Tpd {
     /// The types of an outer level quote `quote` refers to, each with the path of its `Type[T]`.
     pub fn quote_tags(&self, quote: TNodeId) -> &[(SymbolId, TypeId)] {
         self.quote_tags.get(&quote).map_or(&[], Vec::as_slice)
+    }
+
+    /// Records `given`, the given `Type[t]` the encoded quote pattern binds for its type variable `t`.
+    pub fn set_pattern_given(&mut self, t: SymbolId, given: SymbolId) {
+        self.pattern_givens.insert(t, given);
+    }
+
+    /// The given `Type[t]` of quote pattern type variable `t`.
+    pub fn pattern_given(&self, t: SymbolId) -> Option<SymbolId> {
+        self.pattern_givens.get(&t).copied()
     }
 
     /// Records annotation tree `annot` of definition `sym`, which a phase made.

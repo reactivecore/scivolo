@@ -1,14 +1,18 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PickleQuotes.scala
 //   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
-//! dotty's `PickleQuotes` for term quotes whose holes capture nothing: `'{ e }` applied to its
-//! `Quotes` becomes `quotes.asInstanceOf[QuoteUnpickler].unpickleExprV2[T](pickled, null, holes)`.
+//! dotty's `PickleQuotes` for quotes whose holes capture nothing: `'{ e }` applied to its
+//! `Quotes` becomes `quotes.asInstanceOf[QuoteUnpickler].unpickleExprV2[T](pickled, null, holes)`,
+//! `Type.of[T](quotes)` an `unpickleTypeV2[T](pickled, tags)`.
 
 mod heal;
 mod holes;
 mod strings;
 mod tags;
+mod type_quotes;
 mod values;
+
+pub use tags::{annotate_new, substitute};
 
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
@@ -17,6 +21,7 @@ use tasty::tags::INLINE;
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::pickle::{QuoteSource, pickle_positioned_quote};
 use typer::tpd::{TNodeId, Tree, Walk, traverse};
+use typer::unpickle::QuoteHole;
 
 const QUOTE: &str = "scala.quoted.runtime.Expr$.quote";
 const SPLICE: &str = "scala.quoted.runtime.Expr$.splice";
@@ -35,8 +40,12 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
         if matches!(l.tpd.tree(t), Tree::DefDef { .. }) && l.tpd.sym(t).is_some_and(|s| has(l.u, s, INLINE)) {
             return Walk::Skip;
         }
-        let Some(q) = quoted(l, t) else { return Walk::Children };
-        match pickle(l, t, q, owner) {
+        let done = match (quoted(l, t), type_quotes::quoted(l, t)) {
+            (Some(q), _) => pickle(l, t, q, owner),
+            (None, Some(q)) => type_quotes::pickle(l, t, q, owner),
+            (None, None) => return Walk::Children,
+        };
+        match done {
             Ok(()) => Walk::Children,
             Err(e) => {
                 result = Err(e);
@@ -76,6 +85,13 @@ fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
     if let Some(lit) = literal(l, q.body) {
         return values::lifted(l, t, &q, lit);
     }
+    if let Some(content) = cancelled(l, q.body)
+        && let Tree::Apply { fun, .. } = *l.tpd.tree(t)
+        && let Tree::Select { qualifier, .. } = *l.tpd.tree(fun)
+    {
+        l.copy_node(qualifier, content);
+        return Ok(());
+    }
     let tags = l.tpd.quote_tags(t).to_vec();
     let used = heal::heal(l, q.body, &tags)?;
     let mut holes = holes::extract(l, q.body)?;
@@ -90,37 +106,58 @@ fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
         Some(body_tpe),
         None,
     );
-    let (base, file) = l.sources.files()[l.sources.index(span.in_own_source().start())];
-    let source = QuoteSource::of(file.tasty_path().to_owned(), file, base);
-    let bytes = pickle_positioned_quote((l.u, l.tpd, l.names), root, &holes.holes, &source)
-        .or_else(|r| unsupported(span, format!("quotes with {r}")))?;
-    let pickled = strings::pickled(l, &bytes)
-        .or_else(|()| unsupported(span, "quotes whose TASTy takes several strings"))?;
+    let pickled = pickled(l, root, &holes.holes, span)?;
     let types = types(l, &tag_refs);
     let term_holes = holes::lambda(l, &holes.contents, owner);
+    let call =
+        unpickled(l, q.quotes, ("unpickleExprV2", "scala.quoted.Expr", q.tpe), &[pickled, types, term_holes]);
+    let call = l.with_span(call, l.tpd.span(body));
+    l.copy_node(t, call);
+    Ok(())
+}
+
+/// The string literal of the TASTy of quote `root` at `span` with holes `holes`.
+fn pickled(l: &mut Lower, root: TNodeId, holes: &[QuoteHole], span: Span) -> Result<TNodeId> {
+    let (base, file) = l.sources.files()[l.sources.index(span.in_own_source().start())];
+    let source = QuoteSource::of(file.tasty_path().to_owned(), file, base);
+    let bytes = pickle_positioned_quote((l.u, l.tpd, l.names), root, holes, &source)
+        .or_else(|r| unsupported(span, format!("quotes with {r}")))?;
+    strings::pickled(l, &bytes).or_else(|()| unsupported(span, "quotes whose TASTy takes several strings"))
+}
+
+/// `quotes.asInstanceOf[QuoteUnpickler].meth[T](args)` of type `C[T]`.
+fn unpickled(
+    l: &mut Lower,
+    quotes: TNodeId,
+    (meth, class, t): (&str, &str, TypeId),
+    args: &[TNodeId],
+) -> TNodeId {
     let unpickler = l.u.class_ref("scala.quoted.runtime.QuoteUnpickler");
-    let class = l.u.class_symbol(unpickler).expect("QuoteUnpickler");
-    let meth =
-        l.u.decl(class, "unpickleExprV2").ok().and_then(|d| d.first().copied()).expect("unpickleExprV2");
-    let quotes = l.ensure_conforms(q.quotes, unpickler);
+    let unpickler_class = l.u.class_symbol(unpickler).expect("QuoteUnpickler");
+    let meth = l.u.decl(unpickler_class, meth).ok().and_then(|d| d.first().copied()).expect("an unpickler");
+    let quotes = l.ensure_conforms(quotes, unpickler);
     let fun = l.select(quotes, meth, Span::NONE);
     let fun = l.positioned(fun);
     let info = l.u.info(meth);
-    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
-        panic!("unpickleExprV2 not polymorphic")
-    };
+    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else { panic!("an unpickler") };
     let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
-    let instance = l.u.subst(result, binder, &names, &[q.tpe]);
-    let targ = l.type_tree(q.tpe, Span::NONE);
+    let instance = l.u.subst(result, binder, &names, &[t]);
+    let targ = l.type_tree(t, Span::NONE);
     let fun = l.build().type_apply(fun, &[targ], instance, Span::NONE);
     let fun = l.positioned(fun);
-    let expr = l.u.class_ref("scala.quoted.Expr");
-    let expr = l.u.intern_type(Type::Applied(expr, vec![q.tpe]));
-    let call = l.apply(fun, &[pickled, types, term_holes], expr, Span::NONE);
-    let call = l.positioned(call);
-    let call = l.with_span(call, span);
-    l.copy_node(t, call);
-    Ok(())
+    let class = l.u.class_ref(class);
+    let tpe = l.u.intern_type(Type::Applied(class, vec![t]));
+    let call = l.apply(fun, args, tpe, Span::NONE);
+    l.positioned(call)
+}
+
+/// The content of the splice quote body `t` is, past blocks without statements (dotty's
+/// `CancelledQuote`).
+fn cancelled(l: &Lower, t: TNodeId) -> Option<TNodeId> {
+    match *l.tpd.tree(t) {
+        Tree::Block { stats, expr } if l.tpd.items(stats).is_empty() => cancelled(l, expr),
+        _ => staged(l, t, SPLICE).map(|(content, _)| content),
+    }
 }
 
 /// The literal `t` is, past blocks and `Inlined` trees without statements (dotty's `getLiteral`).
