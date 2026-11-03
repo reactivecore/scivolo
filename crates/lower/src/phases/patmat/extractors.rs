@@ -59,7 +59,8 @@ impl Translator<'_, '_> {
             let args = self.l.tpd.items(args).to_vec();
             self.unapply_plan(scrutinee, unapp, &args, on_success)?
         };
-        let not_null = matches!(erased, tasty::Erased::Prim(_) | tasty::Erased::Nothing);
+        let not_null = matches!(erased, tasty::Erased::Prim(_) | tasty::Erased::Nothing)
+            || crate::phases::type_tests::is_not_null(self.l, info);
         if not_null || self.non_null.contains(&scrutinee) {
             return Ok(plan);
         }
