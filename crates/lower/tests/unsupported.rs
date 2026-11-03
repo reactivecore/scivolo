@@ -9,7 +9,7 @@ use tasty::Universe;
 const CASES: &[(&str, &str)] = &[
     (
         "import scala.quoted.*\nobject Q { def g(x: Expr[Int])(using Quotes): Expr[Int] = x\n\
-         def f(using Quotes): Expr[Int] = '{ val y = 1; ${ g('y) } } }",
+         def f(using Quotes): Expr[Int] = '{ var y = 1; ${ g('{ y = 2; y }) } } }",
         "captured reference in a quote",
     ),
     (

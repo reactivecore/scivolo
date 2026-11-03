@@ -1,12 +1,18 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PickleQuotes.scala
 //   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
-//! dotty's `PickleQuotes` for quotes whose holes capture nothing: `'{ e }` applied to its
+//! dotty's `Splicing` and `PickleQuotes`: `'{ e }` applied to its
 //! `Quotes` becomes `quotes.asInstanceOf[QuoteUnpickler].unpickleExprV2[T](pickled, null, holes)`,
 //! `Type.of[T](quotes)` an `unpickleTypeV2[T](pickled, tags)`.
 
+mod avoid;
+mod cancelled;
+mod captured_apps;
 mod heal;
 mod holes;
+mod reflect;
+mod splicing;
+mod staged_trees;
 mod strings;
 mod tags;
 mod type_quotes;
@@ -26,8 +32,9 @@ use typer::unpickle::QuoteHole;
 const QUOTE: &str = "scala.quoted.runtime.Expr$.quote";
 const SPLICE: &str = "scala.quoted.runtime.Expr$.splice";
 
-/// A term quote applied to its `Quotes`: the quote's body, its type argument and `quotes`.
+/// A term quote applied to its `Quotes`: the quote, its body, its type argument and `quotes`.
 struct Quoted {
+    quote: TNodeId,
     body: TNodeId,
     tpe: TypeId,
     quotes: TNodeId,
@@ -35,6 +42,12 @@ struct Quoted {
 
 /// Lowers the term quotes of unit `root`, owned by `owner`, outside its inline methods.
 pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
+    cancelled::cancel(l, root, owner);
+    pickle_all(l, root, owner)
+}
+
+/// Lowers the quotes under `root` in `owner`, outside its inline methods.
+fn pickle_all(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
     let mut result = Ok(());
     traverse(l, root, owner, &mut |l, t, owner| {
         if matches!(l.tpd.tree(t), Tree::DefDef { .. }) && l.tpd.sym(t).is_some_and(|s| has(l.u, s, INLINE)) {
@@ -62,7 +75,7 @@ fn quoted(l: &Lower, t: TNodeId) -> Option<Quoted> {
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };
     let (body, tpe) = staged(l, qualifier, QUOTE)?;
     let &[quotes] = l.tpd.items(args) else { return None };
-    Some(Quoted { body, tpe, quotes })
+    Some(Quoted { quote: qualifier, body, tpe, quotes })
 }
 
 /// The argument and type argument of `t` if it calls `method[T](arg)`.
@@ -81,22 +94,16 @@ fn staged(l: &Lower, t: TNodeId, method: &str) -> Option<(TNodeId, TypeId)> {
 
 /// Makes quote application `t` in `owner` the call unpickling the quote (dotty's `pickleAsTasty`).
 fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
-    let span = l.tpd.span(q.body);
+    let span = l.tpd.span(q.quote);
     if let Some(lit) = literal(l, q.body) {
-        return values::lifted(l, t, &q, lit);
-    }
-    if let Some(content) = cancelled(l, q.body)
-        && let Tree::Apply { fun, .. } = *l.tpd.tree(t)
-        && let Tree::Select { qualifier, .. } = *l.tpd.tree(fun)
-    {
-        l.copy_node(qualifier, content);
-        return Ok(());
+        return values::lifted(l, t, &q, lit, owner);
     }
     let tags = l.tpd.quote_tags(t).to_vec();
     let used = heal::heal(l, q.body, &tags)?;
-    let mut holes = holes::extract(l, q.body)?;
+    let mut holes = holes::extract(l, q.body, owner)?;
     let (body, type_holes, tag_refs) = tags::encode(l, q.body, (&tags, &used), owner)?;
     holes.holes.extend(type_holes);
+    holes.contents.iter().try_for_each(|&(c, _)| pickle_all(l, c, owner))?;
     let call = inline_call_trace(l, owner, span.to_synthetic());
     let bindings = l.tpd.list(&[]);
     let body_tpe = l.tpd.tpe(q.body);
@@ -149,15 +156,6 @@ fn unpickled(
     let tpe = l.u.intern_type(Type::Applied(class, vec![t]));
     let call = l.apply(fun, args, tpe, Span::NONE);
     l.positioned(call)
-}
-
-/// The content of the splice quote body `t` is, past blocks without statements (dotty's
-/// `CancelledQuote`).
-fn cancelled(l: &Lower, t: TNodeId) -> Option<TNodeId> {
-    match *l.tpd.tree(t) {
-        Tree::Block { stats, expr } if l.tpd.items(stats).is_empty() => cancelled(l, expr),
-        _ => staged(l, t, SPLICE).map(|(content, _)| content),
-    }
 }
 
 /// The literal `t` is, past blocks and `Inlined` trees without statements (dotty's `getLiteral`).

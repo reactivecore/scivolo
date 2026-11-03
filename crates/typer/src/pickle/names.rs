@@ -158,7 +158,10 @@ impl TreePickler<'_> {
 
     /// The name of `s`, signed if `signed` and `s` is a method (dotty's `pickleNameAndSig`).
     pub fn signed_name(&mut self, s: SymbolId, signed: bool) -> Result<(), Refusal> {
-        let orig = sym_name(self.u, s);
+        let orig = match derived_name(&self.u.symbol(s).name) {
+            Some(getter @ Name::DefaultGetter(..)) => getter,
+            _ => sym_name(self.u, s),
+        };
         let result = if signed { result_sig(self.u, s) } else { None };
         let Some(result) = result else {
             self.name(&orig);

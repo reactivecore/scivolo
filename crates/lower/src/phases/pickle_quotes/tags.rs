@@ -3,7 +3,8 @@
 //! A quote's tags as type holes (dotty's `encodeTypeArgs`): `t_i.Underlying` becomes a local
 //! type `@SplicedType type T_i = {{ i }}` defined before the body.
 
-use super::heal::{UNDERLYING, avoided};
+use super::avoid::avoided;
+use super::heal::UNDERLYING;
 use crate::definitions::symbol;
 use crate::phases::lift_names::fresh;
 use crate::phases::walk::subtrees;
