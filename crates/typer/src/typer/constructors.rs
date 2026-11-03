@@ -27,6 +27,11 @@ impl Typer<'_> {
             && let Some(owner) = self.u.symbol(s).owner
             && self.u.symbol(owner).kind == Kind::Class
             && !self.is_static_owner(owner)
+            && !self
+                .u
+                .class_symbol(tpe)
+                .and_then(|c| self.u.symbol(c).owner)
+                .is_some_and(|o| self.is_static_owner(o))
         {
             return self.unsupported(id, "new of a type alias of a non-static owner");
         }

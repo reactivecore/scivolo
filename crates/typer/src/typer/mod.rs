@@ -40,6 +40,7 @@ mod class_members;
 mod classes;
 mod closure_params;
 mod closures;
+mod completion_diags;
 mod const_fold;
 pub(crate) mod const_ops;
 mod constants;
@@ -143,6 +144,7 @@ mod null_infos;
 mod null_loops;
 pub(crate) mod nullables;
 mod op_assign;
+mod opaque_paths;
 mod overload_errors;
 mod overloaded_extractors;
 mod overloads;
@@ -274,6 +276,8 @@ pub struct Typer<'a> {
     pub levels: Levels,
     pub syms: Syms,
     pub diags: Diagnostics,
+    /// The diagnostics completions reported.
+    pub completion_diags: Vec<syntax::diag::Diagnostic>,
     /// The warnings dotty reports after the typer, in erasure.
     pub erasure_diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
@@ -414,6 +418,7 @@ impl<'a> Typer<'a> {
             levels: Levels::default(),
             syms,
             diags: Diagnostics::default(),
+            completion_diags: Vec::new(),
             erasure_diags: Diagnostics::default(),
             features: cfg.features,
             explicit_nulls: cfg.explicit_nulls,
@@ -485,6 +490,7 @@ impl<'a> Typer<'a> {
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
         let nulls = self.null_mode(ctx);
         let outer_nulls = self.u.set_null_mode(nulls);
+        let outer_nesting = self.constraint.set_nesting(self.levels.nesting(ctx.level));
         let vars = self.constraint.count();
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER.with(crate::ctx::Mode::ASSIGNMENT_LHS);
         let inner = ctx.with_mode(ctx.mode.without(top_only));
@@ -515,6 +521,7 @@ impl<'a> Typer<'a> {
         }
         self.u.set_comparison_owner(outer);
         self.u.set_null_mode(outer_nulls);
+        self.constraint.set_nesting(outer_nesting);
         self.depth -= 1;
         adapted
     }

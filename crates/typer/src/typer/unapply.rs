@@ -72,6 +72,7 @@ impl Typer<'_> {
             Some((_, args)) => self.with_unapply_type_args(applied, unapp, args, ctx)?,
             None => self.with_type_vars(unapp)?,
         };
+        let unapp = self.leading_implicits_applied(unapp, ctx)?;
         let fun_tpe = self.tpd.tpe(unapp);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
         let Type::Method { binder, params, result, implicit: false, .. } = self.u.types().get(info).clone()
@@ -170,7 +171,7 @@ impl Typer<'_> {
     fn view_may_supply_unapply(&mut self, qual: TNodeId, ctx: Ctx) -> bool {
         let reported = self.diags.items.len();
         let (found, clean, _) = self.speculatively(|t| t.viewed(qual, Goal::Member("unapply"), ctx));
-        self.diags.items.truncate(reported);
+        self.retract_diags(reported);
         match found {
             Ok(None) if clean => false,
             Ok(Some(_)) => true,

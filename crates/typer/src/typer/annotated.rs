@@ -1,6 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! Annotated expressions `e: @a`, as `e: T @a` (dotty's `typedAnnotated` outside types).
+//! Annotated expressions `e: @a`, as `e: T @a`, and annotated types (dotty's `typedAnnotated`).
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
@@ -33,6 +33,25 @@ impl Typer<'_> {
         let span = self.ast.span(id);
         let tpt = self.type_tree(annotated, self.tpd.span(expr).end_pos(), false);
         self.tpd.node(T::Typed { expr, tpt }, span, Some(annotated), None)
+    }
+
+    /// Annotated type `id`, `arg @annot`; an annotation meta-annotated `@annot` refused unless
+    /// it is `deprecated`.
+    pub fn typed_annotated_type(&mut self, id: NodeId, arg: NodeId, annot: NodeId, ctx: Ctx) -> TNodeId {
+        let arg = self.typed_type(arg, ctx);
+        let annot = self.typed(annot, Pt::Any, ctx);
+        let annot_tpe = self.tpd.tpe(annot);
+        let Some(annot_class) = self.u.class_symbol(annot_tpe) else {
+            return self.unsupported(id, "annotated type");
+        };
+        let arg_class = self.u.class_symbol(self.tpd.tpe(arg));
+        if self.u.full_name(annot_class).starts_with("scala.annotation.meta.")
+            && arg_class.is_none_or(|c| self.u.full_name(c) != "scala.deprecated")
+        {
+            return self.unsupported(id, "meta-annotated annotation other than deprecated");
+        }
+        let tpe = self.u.intern_type(Type::Annotated(self.tpd.tpe(arg), annot_tpe));
+        self.tpd.node(T::Annotated { arg, annot }, self.ast.span(id), Some(tpe), None)
     }
 
     /// `t` without its annotations (dotty's `stripped`).

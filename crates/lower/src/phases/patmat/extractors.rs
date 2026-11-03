@@ -43,18 +43,24 @@ impl Translator<'_, '_> {
             let arg = self.l.ensure_conforms(value, params[0].1);
             let unapp = self.l.apply(fun, &[arg], result, Span::NONE);
             let mut unapp = self.l.positioned(unapp);
-            if !implicits.is_empty() {
-                let Type::Method { result, .. } = *self.l.u.types().get(result) else {
-                    return unsupported(span, "extractors with implicit arguments");
+            let all = self.l.tpd.items(implicits).to_vec();
+            let (mut implicits, mut mt) = (&all[..], result);
+            while !implicits.is_empty() {
+                let (n, result) = match self.l.u.types().get(mt) {
+                    Type::Method { params, result, .. } => (params.len(), *result),
+                    _ => return unsupported(span, "extractors with implicit arguments"),
                 };
-                let implicits = self.l.tpd.items(implicits).to_vec();
-                unapp = self.l.apply(unapp, &implicits, result, Span::NONE);
+                let (args, rest) = implicits.split_at(n.min(implicits.len()));
+                let applied = self.l.apply(unapp, args, result, Span::NONE);
+                unapp = self.l.positioned(applied);
+                (implicits, mt) = (rest, result);
             }
             let unapp = self.l.positioned(unapp);
             let args = self.l.tpd.items(args).to_vec();
             self.unapply_plan(scrutinee, unapp, &args, on_success)?
         };
-        let not_null = matches!(erased, tasty::Erased::Prim(_) | tasty::Erased::Nothing);
+        let not_null = matches!(erased, tasty::Erased::Prim(_) | tasty::Erased::Nothing)
+            || crate::phases::type_tests::is_not_null(self.l, info);
         if not_null || self.non_null.contains(&scrutinee) {
             return Ok(plan);
         }

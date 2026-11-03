@@ -3,7 +3,6 @@
 //! The result type a class member without one inherits from the members it overrides (the
 //! `inherited` of dotty's `Namer.inferredResultType`).
 
-use crate::symbols::Completion;
 use crate::typer::Typer;
 use syntax::ast::Tree;
 use syntax::ast::flags as f;
@@ -124,6 +123,15 @@ impl Typer<'_> {
             let args: Vec<TypeId> = tparams.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
             let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
             t = self.u.subst(result, binder, &names, &args);
+            let theirs: Vec<SymbolId> = self
+                .u
+                .symbol(m)
+                .decls
+                .iter()
+                .copied()
+                .filter(|&d| self.u.symbol(d).kind == Kind::TypeParam)
+                .collect();
+            t = self.subst_syms(t, &theirs, &args);
         }
         t = self.u.map_type(t, &mut |u, x| Some(u.beta_reduced(x)).filter(|&r| r != x));
         let theirs: Vec<SymbolId> = self.value_params(m).concat();
@@ -149,12 +157,7 @@ impl Typer<'_> {
             refs.extend(clause.iter().map(|&p| self.ref_type(None, p)));
             t = self.u.subst(result, binder, &names, &refs[start..]);
         }
-        if theirs.len() == refs.len() {
-            t = self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
-                Type::Sym(None, s) => theirs.iter().position(|&p| p == s).map(|i| refs[i]),
-                _ => None,
-            });
-        }
+        t = self.subst_syms(t, &theirs, &refs);
         match self.u.types().get(t) {
             Type::Method { .. } | Type::Poly { .. } => None,
             Type::ByName(r) => Some(*r),
@@ -169,29 +172,20 @@ impl Typer<'_> {
         }
     }
 
+    /// `t` with references to `from` replaced by `to` if both have the same length.
+    fn subst_syms(&mut self, t: TypeId, from: &[SymbolId], to: &[TypeId]) -> TypeId {
+        if from.len() != to.len() {
+            return t;
+        }
+        self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
+            Type::Sym(None, s) => from.iter().position(|&p| p == s).map(|i| to[i]),
+            _ => None,
+        })
+    }
+
     /// Whether `t` is a reference to the class named `name`.
     fn is_class(&mut self, t: TypeId, name: &str) -> bool {
         self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == name)
-    }
-
-    /// Reports implicit method `sym`, or implicit value of a class, whose type is inferred, and
-    /// makes it a plain one (dotty's `missingType`).
-    pub fn check_inferred_implicit(&mut self, sym: SymbolId) {
-        if !self.u.symbol(sym).flags.has(tasty::tags::IMPLICIT) {
-            return;
-        }
-        let Some(&Completion::Completing(tree)) = self.syms.completions.get(&sym) else { return };
-        let member = self.u.symbol(sym).owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Class);
-        let modifier = match self.ast.tree(tree) {
-            Tree::DefDef { .. } => "result ",
-            Tree::ValDef { .. } if member => "",
-            _ => return,
-        };
-        let span = self.ast.span(tree);
-        let msg = format!("{modifier}type of implicit definition needs to be given explicitly");
-        self.diags.error_at(span.start(), span.end(), span.point(), msg);
-        let flags = self.u.symbol(sym).flags.without(tasty::tags::IMPLICIT);
-        self.u.set_flags(sym, flags);
     }
 
     /// Whether `sym` keeps its right-hand side's type over an inherited one: an inline value.

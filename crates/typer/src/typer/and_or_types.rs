@@ -31,12 +31,12 @@ impl Typer<'_> {
     }
 
     /// The type of `tree` typed in `ctx` with its instantiated type variables replaced, and
-    /// simplified outside patterns.
+    /// simplified unless it is a typed pattern.
     pub fn settle_type(&mut self, tree: TNodeId, ctx: Ctx) {
         let Some(t) = self.tpd.get(tree).tpe else { return };
         let t = self.zonk(t);
         self.tpd.get_mut(tree).tpe = Some(t);
-        if !ctx.mode.is(Mode::PATTERN) {
+        if !(ctx.mode.is(Mode::PATTERN) && matches!(self.tpd.tree(tree), T::Typed { .. })) {
             self.simplify_tree_type(tree);
         }
     }

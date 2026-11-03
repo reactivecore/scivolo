@@ -363,7 +363,10 @@ fn no_false_errors_behind_unsupported_constructs() {
             "class C:\n  class D\nclass Baz:\n  val c = new C\n  export c.*\nobject M:\n  val d = Baz().D()\n",
             "export of a class without a companion object",
         ),
-        ("trait T\nobject S extends T { self =>\n  def f() = self.hashCode\n}\n", "named self of an object"),
+        (
+            "trait T\nclass O:\n  object S extends T { self =>\n    def f() = self.hashCode\n  }\n",
+            "named self of an object not static",
+        ),
         (
             "trait B\ntrait A { self: B => }\nclass C extends A\n",
             "class not conforming to a parent's self type",
@@ -546,6 +549,11 @@ fn constructs_diverging_from_dotty_are_refused() {
             "no implicit argument",
         ),
         ("object Vu { def u[L <: Unit](implicit v: ValueOf[L]): L = v.value; val c = u }", "no implicit argument"),
+        (
+            "trait En[A]; object En { implicit def lit[L <: Int](implicit v: ValueOf[L]): En[L] = new En[L] {} }
+             object Ve { def f[A <: 1](implicit e: En[A]): Int = 1; val x = f }",
+            "no implicit argument",
+        ),
         (
             "class A(x: Int) { def this(s: String) = this(); def this() = this(0) }",
             "secondary constructor calling a later constructor",

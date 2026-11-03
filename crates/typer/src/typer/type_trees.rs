@@ -126,22 +126,8 @@ impl Typer<'_> {
                 self.tpd.node(T::SingletonTypeTree { reference }, span, Some(tpe), None)
             }
             Tree::Function { args, body, mods, .. } => self.typed_function_type(id, (args, body), mods, ctx),
-            Tree::ByNameTypeTree { result } => {
-                let result = self.by_name_retaining(result);
-                let result = self.typed_type(result, ctx);
-                let tpe = self.u.intern_type(Type::ByName(self.tpd.tpe(result)));
-                self.tpd.node(T::ByNameTypeTree { result }, span, Some(tpe), None)
-            }
-            Tree::Annotated { arg, annot } => {
-                let arg = self.typed_type(arg, ctx);
-                let annot = self.typed(annot, Pt::Any, ctx);
-                let annot_tpe = self.tpd.tpe(annot);
-                if self.u.class_symbol(annot_tpe).is_none() {
-                    return self.unsupported(id, "annotated type");
-                }
-                let tpe = self.u.intern_type(Type::Annotated(self.tpd.tpe(arg), annot_tpe));
-                self.tpd.node(T::Annotated { arg, annot }, span, Some(tpe), None)
-            }
+            Tree::ByNameTypeTree { result } => self.typed_by_name_type(id, result, ctx),
+            Tree::Annotated { arg, annot } => self.typed_annotated_type(id, arg, annot, ctx),
             Tree::TypeBoundsTree { lo, hi, alias } => self.typed_type_bounds(id, lo, hi, alias, ctx),
             Tree::LambdaTypeTree { tparams, body } => self.typed_lambda_type(id, tparams, body, ctx),
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
@@ -149,6 +135,7 @@ impl Typer<'_> {
             Tree::RefinedTypeTree { tpt, refinements } => self.typed_refined_type(id, tpt, refinements, ctx),
             Tree::PolyFunction { targs, body } => self.typed_poly_function_type(id, targs, body, ctx),
             Tree::Tuple { trees } => self.typed_tuple_type(id, trees, ctx),
+            Tree::Parens { t } => self.typed_type(t, ctx),
             Tree::MatchTypeTree { bound, selector, cases } => {
                 self.typed_match_type_tree(id, (bound, selector, cases), ctx)
             }

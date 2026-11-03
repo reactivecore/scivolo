@@ -9,8 +9,8 @@ org.scala-lang and org.scala-native); each `.scala` file of the sources is compi
 `scivolo-aot -d` against the TASTy of those jars into tmp/srclib/LIBRARY/MODULE/out/FILE/. Each
 NIR file written is compared, as lib-compile.py compares them, with two oracles: the published
 jar's (`published`) and the sources compiled by scala-cli with Scala 3.9.0 and Scala Native 0.5.12
-(`scala-cli`). MODULE/MODULE.jar is the published jar with our NIR in place of its own; each
-test program tests/aot/TEST, its `//> using dep` lines blanked, is built against those jars and
+against the published jar, for the sources it lacks (`scala-cli`). MODULE/MODULE.jar is the
+published jar with our NIR in place of its own; each test program tests/aot/TEST, its `//> using dep` lines blanked, is built against those jars and
 the other dependencies, and its output compared with its `.check`.
 
 Writes under tmp/srclib/LIBRARY/MODULE: results.tsv (file, ok|refused|timeout|crashed, reason, NIR
@@ -35,6 +35,11 @@ LIBRARIES = {
     "sourcecode": (["com.lihaoyi:sourcecode_native0.5_3:0.4.4"], ["sourcecode"]),
     "geny": (["com.lihaoyi:geny_native0.5_3:1.1.1"], []),
     "ujson": ([f"com.lihaoyi:{m}_native0.5_3:4.4.3" for m in ("upickle-core", "ujson", "upack")], ["ujson"]),
+    "fansi": (["com.lihaoyi:fansi_native0.5_3:0.5.1"], []),
+    "pprint": (["com.lihaoyi:pprint_native0.5_3:0.9.6"], ["pprint", "Lh24pprint"]),
+    "upickle": ([f"com.lihaoyi:{m}_native0.5_3:4.4.3" for m in ("upickle-implicits", "upickle")], ["Lh24upickle"]),
+    "mainargs": (["com.lihaoyi:mainargs_native0.5_3:0.7.8"], ["mainargs"]),
+    "fastparse": (["com.lihaoyi:fastparse_native0.5_3:3.1.1"], ["fastparse", "fastparsews"]),
     "os-lib": (["com.lihaoyi:os-lib_native0.5_3:0.11.9-M8"], ["oslib", "Lh24oslib"]),
 }
 SCALA, NATIVE = "3.9.0", "0.5.12"
@@ -151,7 +156,7 @@ def build_module(coordinate, work):
     for r in results:
         if r[1] != "ok":
             print(f"  {r[0]}: {r[1]} {r[2]}")
-    oracles = {"published": theirs, "scala-cli": scala_cli(src, work, deps)}
+    oracles = {"published": theirs, "scala-cli": scala_cli(src, work, [published, *deps])}
     cmp = []
     for oracle, nir in oracles.items():
         if nir:

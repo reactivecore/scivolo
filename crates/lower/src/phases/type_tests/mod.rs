@@ -159,7 +159,7 @@ fn is_instance_of(
 
 /// Whether a value of type `tpe` is never null: a constant other than `null` or of a value class
 /// type (dotty's `isNotNull`).
-fn is_not_null(l: &mut Lower, tpe: tasty::TypeId) -> bool {
+pub fn is_not_null(l: &mut Lower, tpe: tasty::TypeId) -> bool {
     let widened = l.u.widen(tpe);
     if l.u.value_class(widened).is_some() {
         return true;

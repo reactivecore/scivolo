@@ -3,12 +3,16 @@
 //! The fields and constructor parameters standing for the values local classes use, and the
 //! order in which the local classes are named.
 
+use super::drop_inlined::naming_order;
 use super::lift_names::{Pending, Proxy};
-use super::local_free::Local;
+use super::local_free::{Local, is_term};
 use crate::Lower;
 use crate::definitions::symbol;
+use crate::symbols::has;
+use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::tags::{LOCAL, PRIVATE};
+use syntax::source::Offset;
+use tasty::tags::{FIELDaccessor, LAZY, LOCAL, PRIVATE};
 use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
@@ -75,6 +79,56 @@ pub fn definition_order(l: &Lower, locals: &[Local]) -> Vec<usize> {
         order.insert(to + 1, m);
     }
     order
+}
+
+/// The key `LambdaLift` names local class `class` of definition `td` by and its sequence: 1 in
+/// the primary constructor of one of `classes` (a field's initializer or a statement of its
+/// body), seen before that class's methods; 2 in the arguments of the parent constructor call of
+/// one, seen after its body (`HoistSuperArgs`); else 0. In a local class of `named`, the key of that
+/// class where it is in the constructor, or the class is.
+pub fn naming_key(
+    l: &Lower,
+    (classes, named): (&[TNodeId], &FxHashMap<SymbolId, NamingKey>),
+    td: TNodeId,
+    class: SymbolId,
+) -> NamingKey {
+    let in_method = (naming_order(l, class, l.tpd.span(td).start()), 0);
+    let mut s = class;
+    let enclosing = loop {
+        let Some(owner) = l.u.symbol(s).owner else { return in_method };
+        if let Some((c, ctd)) = hoisted_from(l, classes, owner) {
+            return (naming_order(l, c, l.tpd.span(ctd).end()), 2);
+        }
+        if !is_term(l, owner) {
+            break owner;
+        }
+        s = owner;
+    };
+    let Some(&ctd) = classes.iter().find(|&&t| s != class && l.tpd.sym(t) == Some(enclosing)) else {
+        return in_method;
+    };
+    let Some(Template { constr, .. }) = l.tpd.class_template(ctd) else { return in_method };
+    let primary = l.tpd.sym(constr) == Some(s);
+    let method = l.u.symbol(s).kind == Kind::Def && !primary && !has(l.u, s, FIELDaccessor);
+    let outer = named.get(&enclosing).copied();
+    if method || has(l.u, s, LAZY) {
+        return outer.filter(|&(_, sequence)| sequence != 0).unwrap_or(in_method);
+    }
+    outer.unwrap_or((naming_order(l, enclosing, l.tpd.span(ctd).start()), 1))
+}
+
+/// The naming key of a local class and its sequence.
+pub type NamingKey = ((Offset, Offset), usize);
+
+/// The class among the definitions `classes` that method `m` hoists a superclass constructor
+/// argument of, with its definition.
+fn hoisted_from(l: &Lower, classes: &[TNodeId], m: SymbolId) -> Option<(SymbolId, TNodeId)> {
+    let sym = l.u.symbol(m);
+    let (name, _) = sym.name.split_once("$superArg$").filter(|_| sym.kind == Kind::Def)?;
+    let hoisting = |c: SymbolId| {
+        l.u.symbol(c).name == name && (Some(c) == sym.owner || l.u.symbol(c).owner == sym.owner)
+    };
+    classes.iter().find_map(|&t| l.tpd.sym(t).filter(|&c| hoisting(c)).map(|c| (c, t)))
 }
 
 /// The indices of the classes of the local objects among `locals` with a companion class after
