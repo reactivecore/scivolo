@@ -1,6 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PostTyper.scala
 //   compiler/src/dotty/tools/dotc/typer/Namer.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Annotations of definitions: their classes resolved when the definitions are completed
 //! (dotty's `Namer.addAnnotations`), those refused, and the checks of those the typer acts on.
 
@@ -141,11 +142,10 @@ impl Typer<'_> {
                 if self.annotation_class(annot, ctx).is_none_or(|c| self.u.full_name(c) != DEPRECATED_NAME) {
                     continue;
                 }
-                let first = match *self.ast.tree(annot) {
-                    Tree::Apply { args, .. } => self.ast.items(args).first().copied(),
-                    _ => None,
+                let deprecated = match self.deprecated_name_arg(annot) {
+                    Some(arg) => self.string_value(arg).unwrap_or_default(),
+                    None => "<none>".to_owned(),
                 };
-                let deprecated = first.and_then(|a| self.string_value(a)).unwrap_or_default();
                 if seen.contains(&deprecated) {
                     self.unsupported(annot, "deprecated parameter name equal to another name");
                 }
@@ -153,6 +153,17 @@ impl Typer<'_> {
             }
             seen.push(name);
         }
+    }
+
+    /// The `name` argument of `@deprecatedName` annotation `annot`: its first positional argument
+    /// or the one named `name`.
+    fn deprecated_name_arg(&self, annot: NodeId) -> Option<NodeId> {
+        let Tree::Apply { args, .. } = *self.ast.tree(annot) else { return None };
+        let args = self.ast.items(args);
+        args.iter().copied().find(|&a| match *self.ast.tree(a) {
+            Tree::NamedArg { name, .. } => self.text(name.name) == "name",
+            _ => a == args[0],
+        })
     }
 
     /// Refuses `@unroll` annotation `annot` of `sym` unless `sym` is a parameter with a default
