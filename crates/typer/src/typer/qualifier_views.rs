@@ -48,7 +48,7 @@ impl Typer<'_> {
             (fits, types)
         });
         let diagnosed = self.diags.items.len() > reported;
-        self.diags.items.truncate(reported);
+        self.retract_diags(reported);
         if fits {
             self.syms.uniques = uniques;
         }
@@ -61,7 +61,7 @@ impl Typer<'_> {
             Ok(None) => Some(false),
             _ => None,
         });
-        self.diags.items.truncate(reported);
+        self.retract_diags(reported);
         match applies {
             _ if !clean => None,
             Some(true) => match self.viewed(qual, Goal::Member(name), ctx) {
@@ -102,7 +102,7 @@ impl Typer<'_> {
                 let converted = t.try_conversion(c, (qual, false), Goal::Member(name), ctx);
                 converted.is_ok_and(|q| t.member_applies(q, name, args, ctx))
             });
-            self.diags.items.truncate(reported);
+            self.retract_diags(reported);
             if fits && clean {
                 fitting.push(c);
             }

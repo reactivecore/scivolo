@@ -26,6 +26,7 @@ impl Typer<'_> {
             _ => return,
         };
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        let reported = self.diags.items.len();
         self.set_provisional_info(sym, tree, ctx);
         let open = std::mem::take(&mut self.history.open);
         let start = self.constraint.attempt();
@@ -71,6 +72,7 @@ impl Typer<'_> {
         self.u.set_comparison_owner(outer);
         self.u.set_null_mode(outer_nulls);
         self.syms.completions.insert(sym, Completion::Done);
+        self.record_completion_diags(reported);
         self.constraint.keep(start);
         self.history.open = open;
     }

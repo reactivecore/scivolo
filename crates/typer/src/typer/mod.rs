@@ -40,6 +40,7 @@ mod class_members;
 mod classes;
 mod closure_params;
 mod closures;
+mod completion_diags;
 mod const_fold;
 pub(crate) mod const_ops;
 mod constants;
@@ -142,6 +143,7 @@ mod null_infos;
 mod null_loops;
 pub(crate) mod nullables;
 mod op_assign;
+mod opaque_paths;
 mod overload_errors;
 mod overloaded_extractors;
 mod overloads;
@@ -273,6 +275,8 @@ pub struct Typer<'a> {
     pub levels: Levels,
     pub syms: Syms,
     pub diags: Diagnostics,
+    /// The diagnostics completions reported.
+    pub completion_diags: Vec<syntax::diag::Diagnostic>,
     /// The warnings dotty reports after the typer, in erasure.
     pub erasure_diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
@@ -413,6 +417,7 @@ impl<'a> Typer<'a> {
             levels: Levels::default(),
             syms,
             diags: Diagnostics::default(),
+            completion_diags: Vec::new(),
             erasure_diags: Diagnostics::default(),
             features: cfg.features,
             explicit_nulls: cfg.explicit_nulls,

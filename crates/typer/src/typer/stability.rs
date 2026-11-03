@@ -98,18 +98,31 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
     }
 }
 
-/// Whether `t` is a class type, realizable as dotty's `realizability` finds it.
+/// Whether `t` is a class type whose arguments and abstract type members have good bounds
+/// (dotty's `realizability`, `boundsRealizability`).
 fn is_realizable_class(u: &mut Universe, t: TypeId) -> bool {
     let d = u.dealias(t);
-    let s = match *u.types().get(d) {
-        Type::Sym(_, s) => s,
-        Type::Applied(c, _) => match *u.types().get(c) {
-            Type::Sym(_, s) => s,
+    let (s, args) = match u.types().get(d).clone() {
+        Type::Sym(_, s) => (s, Vec::new()),
+        Type::Applied(c, args) => match *u.types().get(c) {
+            Type::Sym(_, s) => (s, args),
             _ => return false,
         },
         _ => return false,
     };
-    u.symbol(s).kind == Kind::Class
+    if u.symbol(s).kind != Kind::Class || args.iter().any(|&a| matches!(u.types().get(a), Type::Bounds(..))) {
+        return false;
+    }
+    let members: Vec<SymbolId> = u.linearization(s).iter().flat_map(|&c| u.symbol(c).decls.clone()).collect();
+    let types: Vec<SymbolId> = members.into_iter().filter(|&m| u.symbol(m).kind == Kind::Type).collect();
+    types.into_iter().all(|m| {
+        let info = u.info(m);
+        match *u.types().get(info) {
+            Type::Alias(_) => true,
+            Type::Bounds(lo, hi) => u.is_subtype(lo, hi),
+            _ => false,
+        }
+    })
 }
 
 fn is_term_ref(u: &Universe, t: TypeId) -> bool {

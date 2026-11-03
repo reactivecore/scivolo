@@ -88,12 +88,6 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
     })
 }
 
-/// The intersection of `a` and `b`, its skolems approximated where the subset allows.
-pub fn deskolemized_glb(u: &mut Universe, a: TypeId, b: TypeId) -> TypeId {
-    let glb = u.glb(a, b);
-    deskolemized(u, glb, 1).unwrap_or(glb)
-}
-
 /// Whether `t` has a skolem in it.
 pub fn has_skolem(u: &mut Universe, t: TypeId) -> bool {
     let mut found = false;

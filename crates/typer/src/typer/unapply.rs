@@ -170,7 +170,7 @@ impl Typer<'_> {
     fn view_may_supply_unapply(&mut self, qual: TNodeId, ctx: Ctx) -> bool {
         let reported = self.diags.items.len();
         let (found, clean, _) = self.speculatively(|t| t.viewed(qual, Goal::Member("unapply"), ctx));
-        self.diags.items.truncate(reported);
+        self.retract_diags(reported);
         match found {
             Ok(None) if clean => false,
             Ok(Some(_)) => true,

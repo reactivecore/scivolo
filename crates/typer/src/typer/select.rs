@@ -3,6 +3,7 @@
 //! Selections `qual.name` (dotty's `typedSelect`).
 
 use super::implicits::conversions::{Goal, Viewed};
+use super::opaque_paths::OPAQUE_THROUGH_OBJECT;
 use super::source_splices::STAGING_REFERENCE;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
@@ -58,6 +59,9 @@ impl Typer<'_> {
             }
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
+            }
+            if self.opaque_member_through_object(qual_tpe, &text, ctx) {
+                return self.unsupported(id, OPAQUE_THROUGH_OBJECT);
             }
             if let Some(apply) = self.poly_function_select(id, qual, qual_tpe, name) {
                 return apply;
@@ -160,6 +164,9 @@ impl Typer<'_> {
             return self.unsupported(id, STAGING_REFERENCE);
         }
         let tpe = self.ref_type(Some(qual_tpe), sym);
+        if name.is_type && self.is_opaque_through_object(tpe) {
+            return self.unsupported(id, OPAQUE_THROUGH_OBJECT);
+        }
         let span = self.ast.span(id);
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);

@@ -96,7 +96,7 @@ impl Typer<'_> {
             Pt::Type(p) if stable_or_literal || named_tuple => p,
             Pt::Type(p) if self.binds_tuple_pt(body_tpe, p) => p,
             Pt::Type(p) if !self.is_bottom_type(p) && !self.u.is_subtype(body_tpe, p) => {
-                super::deskolemize::deskolemized_glb(self.u, body_tpe, p)
+                self.u.glb(body_tpe, p)
             }
             _ => body_tpe,
         };

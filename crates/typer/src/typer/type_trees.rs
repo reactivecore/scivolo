@@ -127,16 +127,7 @@ impl Typer<'_> {
             }
             Tree::Function { args, body, mods, .. } => self.typed_function_type(id, (args, body), mods, ctx),
             Tree::ByNameTypeTree { result } => self.typed_by_name_type(id, result, ctx),
-            Tree::Annotated { arg, annot } => {
-                let arg = self.typed_type(arg, ctx);
-                let annot = self.typed(annot, Pt::Any, ctx);
-                let annot_tpe = self.tpd.tpe(annot);
-                if self.u.class_symbol(annot_tpe).is_none() {
-                    return self.unsupported(id, "annotated type");
-                }
-                let tpe = self.u.intern_type(Type::Annotated(self.tpd.tpe(arg), annot_tpe));
-                self.tpd.node(T::Annotated { arg, annot }, span, Some(tpe), None)
-            }
+            Tree::Annotated { arg, annot } => self.typed_annotated_type(id, arg, annot, ctx),
             Tree::TypeBoundsTree { lo, hi, alias } => self.typed_type_bounds(id, lo, hi, alias, ctx),
             Tree::LambdaTypeTree { tparams, body } => self.typed_lambda_type(id, tparams, body, ctx),
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
