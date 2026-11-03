@@ -40,7 +40,7 @@ impl Typer<'_> {
             let _ = self.constrain_applied_result(meth, info, pt);
             let applied =
                 self.refinement_result(info, pt).and_then(|()| self.implicit_clause_applied(tree, ctx));
-            return match applied {
+            return match applied.inspect(|&apply| self.settle_adapted(apply, pt, ctx)) {
                 Ok(apply) => self.adapt(apply, pt, ctx),
                 Err(what) => {
                     self.unsupported_at(span, what);
@@ -65,6 +65,7 @@ impl Typer<'_> {
             if params.is_empty() && (self.is_constructor_ref(tree) || self.is_auto_applicable(tree)) {
                 let apply = self.build().apply(tree, &[], *result, span.to_synthetic());
                 self.fold_apply(apply);
+                self.settle_adapted(apply, pt, ctx);
                 return self.adapt(apply, pt, ctx);
             }
         }

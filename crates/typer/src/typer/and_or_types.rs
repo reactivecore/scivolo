@@ -3,7 +3,7 @@
 //! Intersection and union types `A & B`, `A | B`: dotty's aliases `scala.&` and `scala.|`
 //! (`Definitions.andType`, `orType`), applied as `AndType` and `OrType`.
 
-use super::Typer;
+use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::special::entered;
 use crate::tpd::{TNodeId, Tree as T};
@@ -33,12 +33,27 @@ impl Typer<'_> {
     /// The type of `tree` typed in `ctx` with its instantiated type variables replaced, and
     /// simplified unless it is a typed pattern.
     pub fn settle_type(&mut self, tree: TNodeId, ctx: Ctx) {
-        let Some(t) = self.tpd.get(tree).tpe else { return };
-        let t = self.zonk(t);
-        self.tpd.get_mut(tree).tpe = Some(t);
+        self.zonk_type(tree);
         if !(ctx.mode.is(Mode::PATTERN) && matches!(self.tpd.tree(tree), T::Typed { .. })) {
             self.simplify_tree_type(tree);
         }
+    }
+
+    /// The type variables created while typing `tree` interpolated and its type settled (dotty's
+    /// `simplify` of a tree built by `adapt`).
+    pub fn settle_adapted(&mut self, tree: TNodeId, pt: Pt, ctx: Ctx) {
+        if let Err(what) = self.interpolate(tree, pt, self.locked_vars) {
+            let span = self.tpd.span(tree);
+            self.unsupported_at(span, what);
+        }
+        self.settle_type(tree, ctx);
+    }
+
+    /// The type of `tree` with its instantiated type variables replaced.
+    pub fn zonk_type(&mut self, tree: TNodeId) {
+        let Some(t) = self.tpd.get(tree).tpe else { return };
+        let t = self.zonk(t);
+        self.tpd.get_mut(tree).tpe = Some(t);
     }
 
     /// The type of term tree `tree` simplified, unless it is a method's (dotty's `simplify` of a

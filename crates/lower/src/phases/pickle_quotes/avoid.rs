@@ -6,18 +6,18 @@ use super::class_bound::class_bound;
 use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId, Universe};
 use typer::approx::{self, Approx};
 
-/// `t` with each abstract type that is not static, or reached through a value that is not, made
-/// its bounds, an alias through such a value its alias, a member class of a class that is not
-/// static its parents, an intersection with `Any` where a part changed its other part (dotty's
-/// `AvoidMap` of `getPicklableHoleType`).
+/// `t` with each abstract type that is not static, or reached through a value that is not,
+/// approximated by its bounds as its variance asks, an alias through such a value its alias, a
+/// member class of a class that is not static its parents, an intersection with `Any` where a
+/// part changed its other part (dotty's `AvoidMap` of `getPicklableHoleType`).
 pub fn avoided(u: &mut Universe, t: TypeId) -> TypeId {
-    avoid(u, t, 1).hi()
+    avoided_at(u, t, 1).hi()
 }
 
-fn avoid(u: &mut Universe, t: TypeId, v: i8) -> Approx {
+fn avoided_at(u: &mut Universe, t: TypeId, v: i8) -> Approx {
     match u.types().get(t).clone() {
         Type::And(a0, b0) => {
-            let parts = [avoid(u, a0, v), avoid(u, b0, v)];
+            let parts = [avoided_at(u, a0, v), avoided_at(u, b0, v)];
             if parts == [Approx::Exact(a0), Approx::Exact(b0)] {
                 return Approx::Exact(t);
             }
@@ -27,51 +27,100 @@ fn avoid(u: &mut Universe, t: TypeId, v: i8) -> Approx {
                 (a, b) => u.intern_type(Type::And(a, b)),
             })
         }
-        Type::Applied(tycon, args) => applied(u, t, tycon, &args, v),
-        Type::Sym(..) | Type::TypeRef(..) => named(u, t, v).unwrap_or_else(|| Approx::Exact(over(u, t, v))),
-        _ => Approx::Exact(over(u, t, v)),
+        Type::Or(a, b, soft) => {
+            let parts = [avoided_at(u, a, v), avoided_at(u, b, v)];
+            approx::derived(u, &parts, &[], v, &mut |u, p| u.intern_type(Type::Or(p[0], p[1], soft)))
+        }
+        Type::Applied(tycon, args) if !matches!(u.types().get(tycon), Type::Lambda { .. }) => {
+            avoided_applied(u, t, tycon, &args, v)
+        }
+        Type::Bounds(lo, hi) => {
+            let (l, h) = (avoided_at(u, lo, -v), avoided_at(u, hi, v));
+            approx::bounds(u, l, h, v)
+        }
+        Type::Alias(x) => {
+            let x = avoided_at(u, x, 0);
+            approx::alias(u, x, v)
+        }
+        Type::Refined(parent, name, info) => {
+            let (p, i) = (avoided_at(u, parent, v), avoided_at(u, info, v));
+            if (p, i) == (Approx::Exact(parent), Approx::Exact(info)) {
+                return Approx::Exact(t);
+            }
+            approx::refined(u, p, &name, i, v)
+        }
+        Type::Annotated(x, annot) => {
+            let parts = [avoided_at(u, x, v)];
+            approx::derived(u, &parts, &[], v, &mut |u, p| u.intern_type(Type::Annotated(p[0], annot)))
+        }
+        Type::Sym(..) | Type::TypeRef(..) => avoided_ref(u, t, v),
+        Type::Method { params, result, .. }
+        | Type::Poly { params, result, .. }
+        | Type::Lambda { params, result, .. } => avoided_lambda(u, t, &params, result, v),
+        _ => Approx::Exact(children_avoided(u, t, v)),
     }
 }
 
-/// `t` with its parts avoided.
-fn over(u: &mut Universe, t: TypeId, v: i8) -> TypeId {
-    u.map_type(t, &mut |u, x| (x != t).then(|| avoid(u, x, v).hi()))
-}
-
-/// `tycon[args]` with a member class `tycon` to avoid made its class bound applied to `args`.
-fn applied(u: &mut Universe, t: TypeId, tycon: TypeId, args: &[TypeId], v: i8) -> Approx {
+/// `tycon[args]` avoided at variance `v`, a member class `tycon` to avoid made its class bound
+/// applied to `args`.
+fn avoided_applied(u: &mut Universe, t: TypeId, tycon: TypeId, args: &[TypeId], v: i8) -> Approx {
     let variances = u.tycon_variances(tycon, args.len());
     let mapped: Vec<Approx> = args
         .iter()
         .zip(&variances)
         .map(|(&a, &pv)| {
             let wildcard = matches!(u.types().get(a), Type::Bounds(..) | Type::Wildcard(_));
-            avoid(u, a, if wildcard { v } else { v * pv })
+            avoided_at(u, a, if wildcard { v } else { v * pv })
         })
         .collect();
     if let Some(c) = avoided_class(u, tycon) {
         let args: Vec<TypeId> = mapped.iter().map(|a| a.to_bounds(u)).collect();
         let bound = class_bound(u, c, &args);
-        let bound = avoid(u, bound, v);
+        let bound = avoided_at(u, bound, v);
         return approx::range(u, Approx::Exact(NOTHING), bound, v);
     }
-    let c = avoid(u, tycon, v);
+    let c = avoided_at(u, tycon, v);
     if c == Approx::Exact(tycon) && mapped.iter().zip(args).all(|(m, &a)| *m == Approx::Exact(a)) {
         return Approx::Exact(t);
     }
     approx::applied(u, c, &mapped, &variances, v)
 }
 
-fn named(u: &mut Universe, t: TypeId, v: i8) -> Option<Approx> {
+/// Method, polymorphic or lambda type `t` with its parameters avoided contravariantly and its
+/// result covariantly (dotty's `derivedLambdaType`).
+fn avoided_lambda(u: &mut Universe, t: TypeId, params: &[(String, TypeId)], result: TypeId, v: i8) -> Approx {
+    let mut parts: Vec<Approx> = params.iter().map(|&(_, p)| avoided_at(u, p, -v)).collect();
+    parts.push(avoided_at(u, result, v));
+    if parts.iter().zip(params.iter().map(|p| p.1).chain([result])).all(|(m, x)| *m == Approx::Exact(x)) {
+        return Approx::Exact(t);
+    }
+    let flip: Vec<bool> = (0..parts.len()).map(|i| i < params.len()).collect();
+    let node = u.types().get(t).clone();
+    approx::derived(u, &parts, &flip, v, &mut |u, p| {
+        let (ps, r) = p.split_at(params.len());
+        let ps = params.iter().zip(ps).map(|((n, _), &x)| (n.clone(), x)).collect();
+        u.intern_type(match node.clone() {
+            Type::Method { binder, implicit, contextual, .. } => {
+                Type::Method { binder, params: ps, result: r[0], implicit, contextual }
+            }
+            Type::Poly { binder, .. } => Type::Poly { binder, params: ps, result: r[0] },
+            Type::Lambda { binder, .. } => Type::Lambda { binder, params: ps, result: r[0] },
+            other => other,
+        })
+    })
+}
+
+/// Reference `t` avoided at variance `v`.
+fn avoided_ref(u: &mut Universe, t: TypeId, v: i8) -> Approx {
     if let Some(c) = avoided_class(u, t) {
         let bound = class_bound(u, c, &[]);
-        let bound = avoid(u, bound, v);
-        return Some(approx::range(u, Approx::Exact(NOTHING), bound, v));
+        let bound = avoided_at(u, bound, v);
+        return approx::range(u, Approx::Exact(NOTHING), bound, v);
     }
     let (prefix, s) = match *u.types().get(t) {
         Type::Sym(prefix, s) => (prefix, Some(s)),
         Type::TypeRef(prefix, _) => (Some(prefix), None),
-        _ => return None,
+        _ => return Approx::Exact(t),
     };
     let static_path = match (prefix.map(|p| u.types().get(p).clone()), s) {
         (None, Some(s)) => u.is_static_symbol(s),
@@ -79,18 +128,24 @@ fn named(u: &mut Universe, t: TypeId, v: i8) -> Option<Approx> {
         _ => true,
     };
     if static_path {
-        return None;
+        return Approx::Exact(t);
     }
     if prefix.is_some()
         && let Some(alias) = u.referenced_alias(t)
     {
-        return Some(avoid(u, alias, v));
+        return avoided_at(u, alias, v);
     }
-    let s = s.filter(|&s| matches!(u.symbol(s).kind, Kind::Type | Kind::TypeParam))?;
+    let Some(s) = s.filter(|&s| matches!(u.symbol(s).kind, Kind::Type | Kind::TypeParam)) else {
+        return Approx::Exact(children_avoided(u, t, v));
+    };
     let info = u.info(s);
-    let Type::Bounds(lo, hi) = *u.types().get(info) else { return None };
-    let (lo, hi) = (avoid(u, lo, -v), avoid(u, hi, v));
-    Some(approx::range(u, lo, hi, v))
+    match *u.types().get(info) {
+        Type::Bounds(lo, hi) => {
+            let (l, h) = (avoided_at(u, lo, -v), avoided_at(u, hi, v));
+            approx::range(u, l, h, v)
+        }
+        _ => Approx::Exact(children_avoided(u, t, v)),
+    }
 }
 
 /// The class `t` refers to if it is a member of a class and not static, or reached through a
@@ -117,4 +172,9 @@ fn static_prefix(u: &mut Universe, t: TypeId) -> bool {
         _ => return true,
     };
     u.symbol(s).kind == Kind::Package || u.is_static_symbol(s) && prefix.is_none_or(|p| static_prefix(u, p))
+}
+
+/// `t` with the types it is made of avoided, each at their upper bound.
+fn children_avoided(u: &mut Universe, t: TypeId, v: i8) -> TypeId {
+    u.map_type(t, &mut |u, x| (x != t).then(|| avoided_at(u, x, v).hi()))
 }
