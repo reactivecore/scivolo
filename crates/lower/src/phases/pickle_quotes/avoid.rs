@@ -50,10 +50,52 @@ fn avoided_at(u: &mut Universe, t: TypeId, v: i8) -> Approx {
             let (l, h) = (avoided_at(u, lo, -v), avoided_at(u, hi, v));
             approx::bounds(u, l, h, v)
         }
+        Type::Alias(x) => {
+            let x = avoided_at(u, x, 0);
+            approx::alias(u, x, v)
+        }
+        Type::Refined(parent, name, info) => {
+            let (p, i) = (avoided_at(u, parent, v), avoided_at(u, info, v));
+            if (p, i) == (Approx::Exact(parent), Approx::Exact(info)) {
+                return Approx::Exact(t);
+            }
+            approx::refined(u, p, &name, i, v)
+        }
+        Type::Annotated(x, annot) => {
+            let parts = [avoided_at(u, x, v)];
+            approx::derived(u, &parts, &[], v, &mut |u, p| u.intern_type(Type::Annotated(p[0], annot)))
+        }
         Type::Sym(prefix, s) => avoided_ref(u, t, prefix, Some(s), v),
         Type::TypeRef(prefix, _) => avoided_ref(u, t, Some(prefix), None, v),
+        Type::Method { params, result, .. }
+        | Type::Poly { params, result, .. }
+        | Type::Lambda { params, result, .. } => avoided_lambda(u, t, &params, result, v),
         _ => Approx::Exact(children_avoided(u, t, v)),
     }
+}
+
+/// Method, polymorphic or lambda type `t` with its parameters avoided contravariantly and its
+/// result covariantly (dotty's `derivedLambdaType`).
+fn avoided_lambda(u: &mut Universe, t: TypeId, params: &[(String, TypeId)], result: TypeId, v: i8) -> Approx {
+    let mut parts: Vec<Approx> = params.iter().map(|&(_, p)| avoided_at(u, p, -v)).collect();
+    parts.push(avoided_at(u, result, v));
+    if parts.iter().zip(params.iter().map(|p| p.1).chain([result])).all(|(m, x)| *m == Approx::Exact(x)) {
+        return Approx::Exact(t);
+    }
+    let flip: Vec<bool> = (0..parts.len()).map(|i| i < params.len()).collect();
+    let node = u.types().get(t).clone();
+    approx::derived(u, &parts, &flip, v, &mut |u, p| {
+        let (ps, r) = p.split_at(params.len());
+        let ps = params.iter().zip(ps).map(|((n, _), &x)| (n.clone(), x)).collect();
+        u.intern_type(match node.clone() {
+            Type::Method { binder, implicit, contextual, .. } => {
+                Type::Method { binder, params: ps, result: r[0], implicit, contextual }
+            }
+            Type::Poly { binder, .. } => Type::Poly { binder, params: ps, result: r[0] },
+            Type::Lambda { binder, .. } => Type::Lambda { binder, params: ps, result: r[0] },
+            other => other,
+        })
+    })
 }
 
 /// Reference `t` to `s` or through `prefix` avoided at variance `v`.

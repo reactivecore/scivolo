@@ -13,4 +13,7 @@ object quoteholes {
 
   def holes[B: Type](inv: Expr[Inv[B]], f: Expr[B => Int], o: Expr[Option[B]])(using Quotes): Expr[Int] =
     '{ $f(${ o }.get) + ${ inv }.hashCode }
+
+  def refined[B: Type](e: Expr[Opts { def extra(b: B): Int }])(using Quotes): Expr[Int] =
+    '{ ${ e }.a }
 }

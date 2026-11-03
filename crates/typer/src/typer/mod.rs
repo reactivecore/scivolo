@@ -498,9 +498,12 @@ impl<'a> Typer<'a> {
         let inner = ctx.with_mode(ctx.mode.without(top_only));
         let (tree, ahead) = match self.contextual_function(id, pt, inner) {
             Some(t) => (t, false),
-            None => match self.ready(id, inner) {
+            None => match self.typed_ahead_tree(id, inner) {
                 Some(t) => (t, true),
-                None => (self.typed_unadapted(id, pt, inner), false),
+                None => (
+                    self.splice_tree(id, inner).unwrap_or_else(|| self.typed_unadapted(id, pt, inner)),
+                    false,
+                ),
             },
         };
         let tree = match self.ast.tree(id) {

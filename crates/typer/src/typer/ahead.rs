@@ -16,15 +16,22 @@ impl Typer<'_> {
     /// The tree typed for `id` ahead of typing it with the owner of `ctx`, or the typed tree it
     /// stands for.
     pub fn ready(&mut self, id: NodeId, ctx: Ctx) -> Option<TNodeId> {
-        if let Some(entries) = self.ahead.get_mut(&id)
-            && let Some(i) = entries.iter().position(|&(owner, _)| owner == ctx.owner)
-        {
-            let (_, t) = entries.remove(i);
-            if entries.is_empty() {
-                self.ahead.remove(&id);
-            }
-            return Some(t);
+        self.typed_ahead_tree(id, ctx).or_else(|| self.splice_tree(id, ctx))
+    }
+
+    /// The tree typed for `id` ahead of typing it with the owner of `ctx`.
+    pub fn typed_ahead_tree(&mut self, id: NodeId, ctx: Ctx) -> Option<TNodeId> {
+        let entries = self.ahead.get_mut(&id)?;
+        let i = entries.iter().position(|&(owner, _)| owner == ctx.owner)?;
+        let (_, t) = entries.remove(i);
+        if entries.is_empty() {
+            self.ahead.remove(&id);
         }
+        Some(t)
+    }
+
+    /// The typed tree `id` stands for, owned by the owner of `ctx`.
+    pub fn splice_tree(&mut self, id: NodeId, ctx: Ctx) -> Option<TNodeId> {
         let &t = self.splices.get(&id)?;
         self.tpd.get_mut(t).span = self.ast.span(id);
         if let Some(&owner) = self.splice_owners.get(&id)
