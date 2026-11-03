@@ -99,6 +99,8 @@ impl Typer<'_> {
                 let original = if poly { types.pop() } else { terms.pop() };
                 let default = original.is_some_and(|o| self.u.symbol(o).flags.has(t::HASDEFAULT));
                 let flags = if default { flags.or(f::HAS_DEFAULT) } else { flags };
+                let inline = original.is_some_and(|o| self.u.symbol(o).flags.has(t::INLINE));
+                let flags = if inline { flags.or(f::INLINE) } else { flags };
                 let kind = if poly { Kind::TypeParam } else { Kind::Param };
                 let s = self.syms.define(self.u, &fresh(n), kind, fwd, flags);
                 pairs.extend(original.map(|o| (o, s)));

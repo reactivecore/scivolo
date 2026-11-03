@@ -147,8 +147,9 @@ slower meanwhile:
 3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): done
    2026-11-03: `just lib-source fansi|pprint|upickle|mainargs|fastparse` (NIR files the same as
    scala-cli's): fansi 0.5.1 1 of 1 file, 54 of 54; pprint 0.9.6 11 of 12 files, 109 of 111;
-   upickle 4.4.3 upickle-implicits 8 of 10 files, 106 of 106, upickle 3 of 5 files (no scala-cli
-   oracle: Scala 3.9 reports cyclic references in `Api.scala`); mainargs 0.7.8 12 of 15 files,
+   upickle 4.4.3 upickle-implicits 8 of 10 files, 106 of 106, upickle 5 of 5 files (no scala-cli
+   oracle: Scala 3.9 reports cyclic references in `Api.scala`; compiled alone, `Api.scala` 25 of 27
+   the same, `NonDefaultExport.scala` 2 of 2); mainargs 0.7.8 12 of 15 files,
    140 of 141 (1 var-order); fastparse 3.1.1 12 of 14 files, 144 of 149; `tests/aot/pprint`,
    `Lh24pprint`, `Lh24upickle`, `mainargs`, `fastparse` and `fastparsews` pass on our NIR.
    Done 2026-11-02: `just lib-source geny|ujson|os-lib`: geny 1.1.1 5 of 5 files, 72 of 72 NIR files

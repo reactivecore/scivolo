@@ -34,7 +34,7 @@ impl Typer<'_> {
             }
             target = dealiased;
         }
-        let Some(target) = self.eta_expanded_member(m, target, class) else {
+        let Some(target) = self.eta_expanded_member(m, (e.path, target), class) else {
             self.unsupported_at(span, "export of a type constructor");
             return;
         };
@@ -51,7 +51,12 @@ impl Typer<'_> {
 
     /// `target`, a reference to type member `m`, as a type lambda applying it to its type
     /// parameters if it has some, else itself (dotty's `etaExpand`).
-    fn eta_expanded_member(&mut self, m: SymbolId, target: TypeId, class: bool) -> Option<TypeId> {
+    fn eta_expanded_member(
+        &mut self,
+        m: SymbolId,
+        (path, target): (TypeId, TypeId),
+        class: bool,
+    ) -> Option<TypeId> {
         self.complete(m);
         let lambda = if class {
             if self.u.type_params(m).is_empty() {
@@ -81,6 +86,8 @@ impl Typer<'_> {
             let result = self.u.intern_type(Type::Applied(target, args));
             self.u.intern_type(Type::Lambda { binder, params, result })
         };
+        let owner = self.u.symbol(m).owner?;
+        let lambda = self.u.as_seen_from(lambda, path, owner);
         let variances = self.u.variances(m);
         if let Type::Lambda { binder, .. } = *self.u.types().get(lambda)
             && variances.iter().any(|&v| v != 0)
