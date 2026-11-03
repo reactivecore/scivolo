@@ -25,6 +25,7 @@ mod joint;
 mod loaded;
 mod lookup;
 mod members;
+mod normal_form;
 mod opaques;
 mod open;
 mod overrides;
