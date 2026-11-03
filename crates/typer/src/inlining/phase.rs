@@ -47,10 +47,12 @@ impl Inlining<'_> {
         let mut failed = None;
         let changed = map_children(self, t, &mut |i, c| match Some(c) == call {
             true => c,
-            false => i.transform(c, constr.filter(|_| parents.contains(&c)).unwrap_or(inner)).unwrap_or_else(|e| {
-                failed.get_or_insert(e);
-                c
-            }),
+            false => {
+                i.transform(c, constr.filter(|_| parents.contains(&c)).unwrap_or(inner)).unwrap_or_else(|e| {
+                    failed.get_or_insert(e);
+                    c
+                })
+            }
         });
         (self.typer_inlined, self.typer_ctx) = (outer, outer_ctx);
         self.staging -= level;

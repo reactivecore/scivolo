@@ -29,7 +29,10 @@ impl Typer<'_> {
                         return Err("type variable minimized to an intersection before an implicit search");
                     }
                     self.instantiate_var(v, true)?;
-                } else if direction >= 0 && !self.is_any(hi) && !matches!(self.u.types().get(hi), Type::Var(_)) {
+                } else if direction >= 0
+                    && !self.is_any(hi)
+                    && !matches!(self.u.types().get(hi), Type::Var(_))
+                {
                     self.instantiate_var(v, false)?;
                 }
             }

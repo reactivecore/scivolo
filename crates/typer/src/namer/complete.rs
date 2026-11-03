@@ -112,7 +112,8 @@ impl Typer<'_> {
             self.unsupported(rhs, what);
             tpe
         });
-        match (inherited, default.filter(|_| exact && !by_name)) {
+        let inline_param = self.syms.flags.get(&sym).is_some_and(|fl| fl.is(syntax::ast::flags::INLINE));
+        match (inherited, default.filter(|_| exact && !by_name && !inline_param)) {
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.default_getter_type(d),
             _ => {
                 let mut wildcard = false;

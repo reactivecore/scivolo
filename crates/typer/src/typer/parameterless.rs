@@ -49,6 +49,7 @@ impl Typer<'_> {
                 found.push(s);
             }
         }
+        let with_implicits = !implicit.is_empty();
         if found.is_empty() {
             found = implicit.into_iter().filter(|&(_, r)| self.result_fits(r, pt)).map(|(s, _)| s).collect();
         }
@@ -57,7 +58,7 @@ impl Typer<'_> {
         {
             return self.taking_params(syms, prefix, &sam.params, None);
         }
-        if let ([], [s]) = (&found[..], &parameterless[..]) {
+        if let ([], [s], false) = (&found[..], &parameterless[..], with_implicits) {
             return Ok(*s);
         }
         let values: Vec<SymbolId> =

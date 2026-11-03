@@ -107,7 +107,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
                 _ => c.at,
             };
             last = Some(at);
-            sequences[usize::from(!in_ctor)].push((at, (i, at)));
+            sequences[usize::from(in_ctor)].push((at, (i, at)));
         }
     }
     for (i, at) in merged(&sequences) {
