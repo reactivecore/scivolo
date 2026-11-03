@@ -212,3 +212,5 @@ lazycaptures
 ctornames
 usingextractors
 quotecaptures
+skolemparams
+outerparams

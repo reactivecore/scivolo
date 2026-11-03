@@ -48,6 +48,17 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
                 _ => u.intern_type(Type::Bounds(bounds.0, bounds.1)),
             }
         }
+        Type::Sym(Some(p), s) if u.symbol(s).kind == Kind::TypeParam && is_skolem(u, p) => {
+            let Type::Skolem(_, info) = *u.types().get(p) else { return None };
+            let info = deskolemized(u, info, 1)?;
+            let arg = u.arg_for_param(info, s)?;
+            let Type::Bounds(lo, hi) = *u.types().get(arg) else { return deskolemized(u, arg, v) };
+            match v {
+                1 => hi,
+                -1 => lo,
+                _ => arg,
+            }
+        }
         Type::Sym(Some(p), s) if v == 1 => {
             let p = deskolemized(u, p, 1)?;
             match u.refinement_info(p, s).map(|i| u.types().get(i).clone()) {
