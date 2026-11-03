@@ -20,7 +20,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
     let mut mixes_inner = Vec::new();
     for &td in classes {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
-        mixes_inner.push(super::outer_traits::implement(l, td, class)?);
+        mixes_inner.push(super::outer_traits::implement(l, td, class, classes)?);
     }
     let mut with_outer = Vec::new();
     for (&td, mixes_inner) in classes.iter().zip(mixes_inner) {

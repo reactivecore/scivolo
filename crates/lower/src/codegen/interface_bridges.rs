@@ -49,7 +49,8 @@ impl Gen<'_, '_> {
                     continue;
                 }
                 seen.push(signature);
-                let at = self.spans.get(&m).copied().unwrap_or(self.l.tpd.span(dd));
+                let coord = self.l.coords.get(&m).copied().filter(|c| c.exists());
+                let at = coord.or(self.spans.get(&m).copied()).unwrap_or(self.l.tpd.span(dd));
                 let span = match params.is_empty() {
                     true => at,
                     false => self.spans.get(&class).copied().unwrap_or(at),

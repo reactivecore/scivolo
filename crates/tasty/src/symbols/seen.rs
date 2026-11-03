@@ -28,9 +28,16 @@ impl Universe {
             Type::Sym(Some(p), _) | Type::TypeRef(p, _) if !matches!(u.types().get(p), Type::This(_)) => None,
             _ => {
                 let (c, i) = u.class_param(x)?;
-                let prefix = match u.derives_from(owner, c) {
-                    true => prefix,
-                    false => u.this_seen_from(prefix, owner, c, MAX_DEPTH)?,
+                let this_cls = match *u.types().get(x) {
+                    Type::Sym(Some(p), _) | Type::TypeRef(p, _) => match *u.types().get(p) {
+                        Type::This(t) => u.class_symbol(t).filter(|&t| !u.derives_from(t, owner)),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let prefix = match this_cls {
+                    None if u.derives_from(owner, c) => prefix,
+                    _ => u.this_seen_from(prefix, owner, this_cls.unwrap_or(c), MAX_DEPTH)?,
                 };
                 let seen = u.base_type(prefix, c)?;
                 let arg = *u.applied(seen)?.1.get(i)?;

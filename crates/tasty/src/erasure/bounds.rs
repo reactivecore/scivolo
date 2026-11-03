@@ -11,21 +11,24 @@ use crate::{SymbolId, Universe};
 const MAX_UNWRAP: u32 = 16;
 
 impl Universe {
-    /// The erasure of `a & b`: of the other side if one is `caps.Pure`, else of the side first in
-    /// dotty's `compareErasedGlb`.
+    /// The erasure of `a & b`: of its `glb_side`.
     pub fn erase_and(&mut self, a: TypeId, b: TypeId) -> Erased {
+        let side = self.glb_side(a, b);
+        self.erase(side)
+    }
+
+    /// The side of `a & b` it erases as: the other side if one is `caps.Pure`, else the side first
+    /// in dotty's `compareErasedGlb`.
+    fn glb_side(&mut self, a: TypeId, b: TypeId) -> TypeId {
         let pure = |u: &mut Self, t| {
             let t = u.dealias(t);
             u.class_symbol(t).is_some_and(|c| u.full_name(c) == "scala.caps.Pure")
         };
-        let first = if pure(self, a) {
-            b
-        } else if pure(self, b) || self.glb_prefers(a, b) {
-            a
-        } else {
-            b
-        };
-        self.erase(first)
+        match pure(self, a) {
+            true => b,
+            false if pure(self, b) || self.glb_prefers(a, b) => a,
+            false => b,
+        }
     }
 
     /// Whether `a` comes before `b` in dotty's order for intersections: value classes, arrays
@@ -104,7 +107,10 @@ impl Universe {
             && ea != eb
         {
             let class = |u: &mut Self, t: TypeId, name: &str| {
-                let widened = u.widen(t);
+                let mut widened = u.widen(t);
+                while let Type::And(x, y) = *u.types().get(widened) {
+                    widened = u.glb_side(x, y);
+                }
                 u.erased_class(widened).or_else(|| {
                     let r = u.class_ref(name);
                     u.class_symbol(r)
@@ -137,15 +143,10 @@ impl Universe {
                 }
             }
         }
-        let mut minimal = Vec::new();
-        for &c in &candidates {
-            if self.full_name(c) != "scala.*:"
-                && candidates.iter().all(|&x| x == c || !self.derives_from(x, c))
-            {
-                minimal.push(c);
-            }
-        }
-        let base = *minimal.last()?;
+        let minimal = |u: &mut Self, c: SymbolId| {
+            u.full_name(c) != "scala.*:" && candidates.iter().all(|&x| x == c || !u.derives_from(x, c))
+        };
+        let base = candidates.iter().copied().rfind(|&c| minimal(self, c))?;
         let full = self.full_name(base);
         (!matches!(full.as_str(), "scala.Any" | "scala.AnyVal")).then_some(base)
     }

@@ -213,3 +213,12 @@ ctornames
 usingextractors
 quotecaptures
 quoteholes
+skolemparams
+outerparams
+outerlambdas
+traitpatterns
+realpaths
+forwardaliases
+jdkurls
+interpsplices
+erasedjoins

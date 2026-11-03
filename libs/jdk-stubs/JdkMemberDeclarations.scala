@@ -24,6 +24,10 @@ package java.lang.reflect {
   }
 }
 
+package java.nio.file {
+  trait Path { def toRealPath(options: LinkOption*): Path }
+}
+
 package java.util {
   final class Arrays
   object Arrays {

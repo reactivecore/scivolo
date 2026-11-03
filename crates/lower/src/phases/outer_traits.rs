@@ -48,8 +48,9 @@ pub fn is_pure_interface(u: &Universe, t: SymbolId) -> bool {
 }
 
 /// Adds to class definition `td` of `class`, not a trait, the implementations of the outer
-/// accessors of the traits it mixes in that may need one; whether there are any.
-pub fn implement(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<bool> {
+/// accessors of the traits it mixes in that may need one, each at the point of its trait among
+/// `classes`; whether there are any.
+pub fn implement(l: &mut Lower, td: TNodeId, class: SymbolId, classes: &[TNodeId]) -> Result<bool> {
     if l.u.is_trait(class) {
         return Ok(false);
     }
@@ -66,16 +67,18 @@ pub fn implement(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<bool> {
         let sym = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(FINAL)));
         let info = method_type(l, result);
         l.u.set_info(sym, info);
+        if let Some(&t) = classes.iter().find(|&&t| l.tpd.sym(t) == Some(m)) {
+            l.coords.insert(sym, Span::at(l.tpd.span(t).point()));
+        }
         let tpt = l.type_tree(result, span);
         defs.push(l.method_def(sym, &[], tpt, rhs, span));
     }
-    let any = !defs.is_empty();
     append(l, td, &defs);
-    if any {
+    if !defs.is_empty() {
         let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
         l.recopy(template);
     }
-    Ok(any)
+    Ok(!defs.is_empty())
 }
 
 /// Whether a parent of `class` may use its enclosing instance.
@@ -139,10 +142,8 @@ pub fn append(l: &mut Lower, td: TNodeId, defs: &[TNodeId]) {
 fn prefix(l: &mut Lower, class: SymbolId, m: SymbolId, outer: SymbolId) -> TypeId {
     let this = type_ref(l.u, class);
     let this = l.u.intern_type(Type::This(this));
-    let base = l.u.base_type(this, m).map(|b| match *l.u.types().get(b) {
-        Type::Applied(tycon, _) => tycon,
-        _ => b,
-    });
+    let base =
+        l.u.base_type(this, m).map(|b| if let Type::Applied(t, _) = *l.u.types().get(b) { t } else { b });
     match base.map(|b| l.u.types().get(b)) {
         Some(&(Type::Sym(Some(pre), _) | Type::TypeRef(pre, _))) => pre,
         _ => {

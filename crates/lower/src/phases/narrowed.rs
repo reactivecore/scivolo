@@ -88,7 +88,7 @@ fn enclosing_traits(l: &Lower, class: SymbolId) -> Vec<SymbolId> {
 
 /// Keeps in `class` the functions narrowed into an enclosing class only through calls that need
 /// `this`; fails where a function narrowed itself needs `this`, or a lambda is narrowed into a
-/// local class but not where it is created.
+/// local class other than the function it is created in.
 pub fn check(l: &Lower, class: SymbolId, functions: &mut [Function]) -> Result<()> {
     let outside = |f: &Function| f.into.is_some_and(|c| c != class);
     for f in functions.iter_mut().filter(|f| f.this && outside(f)) {
@@ -100,7 +100,7 @@ pub fn check(l: &Lower, class: SymbolId, functions: &mut [Function]) -> Result<(
     let local =
         |f: &Function| f.into.is_some_and(|c| !is_static_module(l.u, c) && !enclosing_instance(l, class, c));
     for f in functions.iter().filter(|f| f.closure.is_some() && outside(f) && local(f)) {
-        if f.parent.is_none_or(|p| functions[p].into != f.into) {
+        if f.parent.is_some_and(|p| functions[p].into != f.into) {
             return unsupported(l.tpd.span(f.def), "lambdas reading values of enclosing local classes");
         }
     }

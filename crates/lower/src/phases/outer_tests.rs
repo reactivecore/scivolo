@@ -36,8 +36,7 @@ pub enum OuterTest {
 }
 
 /// The test of the enclosing instance of a value of type `p.C` of a class `C`, `None` if `C` has
-/// no enclosing instance, is a trait whose enclosing instance must be tested, or `p` is neither a
-/// singleton nor a class type.
+/// no enclosing instance or `p` is neither a singleton nor a class type.
 pub fn outer_test(l: &mut Lower, target: TypeId) -> Option<OuterTest> {
     let target = l.u.dealias(target);
     let target = match *l.u.types().get(target) {
@@ -48,7 +47,7 @@ pub fn outer_test(l: &mut Lower, target: TypeId) -> Option<OuterTest> {
     if !l.u.is_class(c) || outer_class(l, c).is_none() {
         return None;
     }
-    let has_field = enclosing_instance(l, c).is_some();
+    let has_field = l.u.is_trait(c) || enclosing_instance(l, c).is_some();
     if super::type_tests::singletons::is_singleton(l, pre) {
         return has_field.then_some(OuterTest::Is(pre));
     }
