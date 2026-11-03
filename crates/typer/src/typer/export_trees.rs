@@ -123,7 +123,7 @@ impl Typer<'_> {
                 args.push(self.type_tree(r, arg_at, false));
                 continue;
             }
-            let ptype = self.method_param_type(s);
+            let ptype = self.param_type(s);
             let tpt = self.type_tree(ptype, at, false);
             let pname = TName { name: pname, is_type: false };
             defs.push(self.tpd.node(T::ValDef { name: pname, tpt, rhs: None }, at, None, Some(s)));

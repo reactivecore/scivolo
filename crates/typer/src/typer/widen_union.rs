@@ -16,9 +16,8 @@ impl Typer<'_> {
         }
     }
 
-    /// `t` with its top-level soft unions replaced by their joins, hard ones simplified, type
-    /// variables constrained to simplify them, under explicit nulls a top-level `| Null` kept
-    /// (dotty's `widenUnion`).
+    /// `t` with top-level soft unions joined, hard ones simplified, type variables constrained to
+    /// simplify them, under explicit nulls a top-level `| Null` kept (dotty's `widenUnion`).
     pub fn widen_union(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
         let w = self.widened(t);
         if !self.explicit_nulls || !matches!(self.u.types().get(w), Type::Or(..)) {
@@ -29,10 +28,11 @@ impl Typer<'_> {
             return self.widen_union_without_null(w);
         }
         let wide = self.widen_union_without_null(stripped)?;
-        if self.u.class_symbol(wide) == Some(self.u.builtins().any) {
+        let d = self.u.dealias(wide);
+        let Type::Or(_, _, soft) = *self.u.types().get(w) else { unreachable!() };
+        if matches!(*self.u.types().get(d), Type::Sym(_, s) if s == self.u.builtins().any) {
             return Ok(wide);
         }
-        let Type::Or(_, _, soft) = *self.u.types().get(w) else { unreachable!() };
         let null = self.u.intern_type(Type::Sym(None, self.u.builtins().null));
         Ok(self.u.intern_type(Type::Or(wide, null, soft)))
     }
@@ -65,7 +65,7 @@ impl Typer<'_> {
     }
 
     /// Whether `t` is a reference to `Null` (dotty's `isNullType`).
-    fn is_null_type(&mut self, t: TypeId) -> bool {
+    pub fn is_null_type(&mut self, t: TypeId) -> bool {
         let d = self.u.dealias(t);
         self.u.is_null_ref(d)
     }

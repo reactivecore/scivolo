@@ -119,14 +119,20 @@ impl Typer<'_> {
     }
 
     /// A reference to candidate `c` at `span` from `ctx` (dotty's `tpd.ref`): an identifier, or a
-    /// selection from `this`; a misfit if `c` is inaccessible and not javalib's.
+    /// selection from `this`; a misfit if `c` is inaccessible and not javalib's, or javalib's and
+    /// would need an inline accessor.
     pub fn candidate_ref(&mut self, c: Candidate, span: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let javalib = !self.syms.is_script(c.sym) && is_jdk(&self.u.full_name(c.sym));
-        if !javalib && !self.is_accessible_from(c.sym, c.prefix, ctx) {
+        let accessible = self.is_accessible_from(c.sym, c.prefix, ctx);
+        if !javalib && !accessible {
             return Err("inaccessible implicit");
         }
         if self.needs_inline_accessor(c.sym, ctx) {
-            return Err("non-public implicit in an inline method");
+            return Err(if accessible {
+                "non-public implicit in an inline method"
+            } else {
+                "inaccessible implicit"
+            });
         }
         let package_object = self.u.symbol(c.sym).owner.filter(|&o| self.is_named_package_object(o));
         let through_object = |t: &mut Self, p: Option<Type>, o: SymbolId| match p {

@@ -63,17 +63,40 @@ impl Typer<'_> {
                                 return Err("intersection member of an intersected type");
                             }
                         }
-                        let class = self
-                            .defined(l, Name { is_type: true, ..name })
-                            .is_some_and(|f| f.syms.iter().any(|&s| self.u.symbol(s).kind == Kind::Class));
-                        if !name.is_type && class && !ctx.mode.is(Mode::EXTENSION_METHOD) {
+                        let classes = self.defined(l, Name { is_type: true, ..name }).map(|f| f.syms);
+                        let classes = classes.unwrap_or_default();
+                        if !name.is_type
+                            && !ctx.mode.is(Mode::EXTENSION_METHOD)
+                            && classes.iter().any(|&s| self.is_exported_class(s))
+                        {
+                            return Err("constructor proxy of an exported class");
+                        }
+                        let class = classes.iter().any(|&s| self.u.symbol(s).kind == Kind::Class);
+                        let proxy = classes.iter().any(|&s| self.needs_constructor_proxies(s));
+                        if !name.is_type
+                            && class
+                            && !proxy
+                            && prev.is_none()
+                            && !ctx.mode.is(Mode::EXTENSION_METHOD)
+                        {
+                            let outer = self.levels.outer(l);
+                            let found =
+                                outer.map(|o| self.find_ref(name.text, false, Ctx { level: o, ..ctx }));
+                            if !matches!(found, Some(Ok(Some(_)))) {
+                                return Err("constructor proxy");
+                            }
+                        }
+                        if !name.is_type && proxy && !ctx.mode.is(Mode::EXTENSION_METHOD) {
                             if prev.is_some() {
                                 return Err("constructor proxy and an imported term");
                             }
                             let Some(outer) = self.levels.outer(l) else { return Err("constructor proxy") };
                             return match self.find_ref(name.text, false, Ctx { level: outer, ..ctx }) {
                                 Ok(Some(_)) => Err("constructor proxy shadowing a term"),
-                                Ok(None) | Err("constructor proxy") => Err("constructor proxy"),
+                                Ok(None)
+                                | Err("constructor proxy" | "constructor proxy of an exported class") => {
+                                    Err("constructor proxy")
+                                }
                                 Err(what) => Err(what),
                             };
                         }
@@ -122,6 +145,15 @@ impl Typer<'_> {
                         let found = self.new_or_shadowed(prev, hit, l, name)?;
                         prev = Some(Hit { found, prec, scope });
                     } else {
+                        let types = (!name.is_type && !ctx.mode.is(Mode::EXTENSION_METHOD))
+                            .then(|| {
+                                self.named_import_ref(i, name.text, true)
+                                    .or_else(|| self.wild_import_ref(i, name.text, true))
+                            })
+                            .flatten();
+                        if types.is_some_and(|f| f.syms.iter().any(|&s| self.is_exported_class(s))) {
+                            return Err("constructor proxy of an exported class");
+                        }
                         unimported.extend(self.unimported(i));
                     }
                 }

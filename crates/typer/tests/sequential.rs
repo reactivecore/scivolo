@@ -129,20 +129,23 @@ fn explicit_nulls_end_with_their_unit() {
 }
 
 #[test]
-fn selector_known_not_null_in_a_case_refuses() {
+fn flow_typed_variables_in_by_name_arguments() {
     let Some(mut u) = universe() else { return };
     let mut units = Units::default();
     let flagged = &["-Yexplicit-nulls"];
-    let refused = Err("unsupported selector known not null in a case".to_owned());
-    for (i, cases) in
-        ["case _: String => f(n); case _ => 0", "case null => 0; case _ => f(n)"].iter().enumerate()
-    {
-        let text =
-            format!("object O{i} {{ def f(x: Any) = 1; def g(n: String | Null) = n match {{ {cases} }} }}");
-        assert_eq!(type_unit_with(&mut u, &mut units, ("o.scala", &text), flagged), refused, "{cases}");
+    let refused = Err("unsupported flow typing of a variable in a by-name argument".to_owned());
+    let defs = "def b(n: => Int) = n; def g(s: String) = 1; def k(s: String | Null) = 1";
+    let call = |i: usize, arg: &str| {
+        format!(
+            "object B{i} {{ {defs}; def f(s: String | Null) = {{ var x = s; b(if x != null then {arg} else 0) }} }}"
+        )
+    };
+    for (i, arg) in ["g(x)", "x.length", "{ val y: String = x; 1 }"].iter().enumerate() {
+        assert_eq!(type_unit_with(&mut u, &mut units, ("b.scala", &call(i, arg)), flagged), refused, "{arg}");
     }
-    let kept = "object O2 { def f(x: Any) = 1; def g(n: String | Null) = n match { case s: String => f(n); case _ => 0 } }";
-    assert_eq!(type_unit_with(&mut u, &mut units, ("o.scala", kept), flagged), Ok(()));
+    assert_eq!(type_unit_with(&mut u, &mut units, ("b.scala", &call(3, "k(x)")), flagged), Ok(()));
+    let pair = "object B4 { def f(s: String | Null) = { var a, c: String | Null = s; a = \"a\"; a.length } }";
+    assert!(type_unit_with(&mut u, &mut units, ("b.scala", pair), flagged).is_err());
 }
 
 #[test]
@@ -358,9 +361,16 @@ fn no_false_errors_behind_unsupported_constructs() {
     let cases = [
         (
             "class C:\n  class D\nclass Baz:\n  val c = new C\n  export c.*\nobject M:\n  val d = Baz().D()\n",
-            "export of a class without a companion object",
+            "constructor proxy of an exported class",
         ),
-        ("trait T\nobject S extends T { self =>\n  def f() = self.hashCode\n}\n", "named self of an object"),
+        (
+            "object I:\n  class P(x: Int)\nobject P:\n  def apply(x: Int) = 0\nobject M:\n  export I.P\n  val p = P(1)\n",
+            "constructor proxy of an exported class",
+        ),
+        (
+            "trait T\nclass O:\n  object S extends T { self =>\n    def f() = self.hashCode\n  }\n",
+            "named self of an object not static",
+        ),
         (
             "trait B\ntrait A { self: B => }\nclass C extends A\n",
             "class not conforming to a parent's self type",
@@ -512,7 +522,7 @@ fn synthetic_symbols_are_shared() {
     let repeated = u.symbol(scala).decls.iter().filter(|&&d| u.symbol(d).name == "<repeated>").count();
     assert_eq!(repeated, 1);
     let ops = u.package("<special-ops>").expect("<special-ops>");
-    assert_eq!(u.symbol(ops).decls.len(), 1);
+    assert_eq!(u.symbol(ops).decls.iter().filter(|&&d| u.symbol(d).name == "throw").count(), 1);
 }
 
 #[test]
@@ -543,6 +553,11 @@ fn constructs_diverging_from_dotty_are_refused() {
             "no implicit argument",
         ),
         ("object Vu { def u[L <: Unit](implicit v: ValueOf[L]): L = v.value; val c = u }", "no implicit argument"),
+        (
+            "trait En[A]; object En { implicit def lit[L <: Int](implicit v: ValueOf[L]): En[L] = new En[L] {} }
+             object Ve { def f[A <: 1](implicit e: En[A]): Int = 1; val x = f }",
+            "no implicit argument",
+        ),
         (
             "class A(x: Int) { def this(s: String) = this(); def this() = this(0) }",
             "secondary constructor calling a later constructor",

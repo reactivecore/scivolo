@@ -8,7 +8,7 @@
 use super::super::{Pt, Typer};
 use super::attempts::BestFirst;
 use super::candidates::Candidate;
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use tasty::{Type, TypeId};
@@ -17,8 +17,6 @@ use tasty::{Type, TypeId};
 const MAX_DEPTH: u32 = 12;
 /// How many candidates one search may try, nested searches included.
 pub const MAX_TRIES: u32 = 400;
-/// The refusal of a search whose winner among several leaves type variables to instantiate.
-const OPEN: &str = "implicit search for a type with type variables";
 
 /// The failures that only mean a candidate does not fit.
 pub const MISFITS: [&str; 9] = [
@@ -96,6 +94,13 @@ impl Typer<'_> {
             };
             group.retain(|c| !ignored.contains(&c.sym));
             let group = self.fitting(&group, |t, c| t.tried(c, (pt, by_name), at, ctx, (depth, true)))?;
+            let existence = ctx.mode.is(Mode::EXISTENCE);
+            if coherent && existence && !self.is_fully_defined(pt) {
+                match self.first_fitting(&group, (pt, by_name), at, ctx, depth)? {
+                    Some(tree) => return Ok(tree),
+                    None => continue,
+                }
+            }
             let unpruned = coherent || self.has_unbounded_var(pt);
             match self.best_first(&group, (pt, by_name), at, ctx, depth, unpruned)? {
                 BestFirst::Found(tree) => return Ok(tree),
@@ -114,8 +119,15 @@ impl Typer<'_> {
                     return Err("implicit candidate rejected by a search with type variables");
                 }
                 [c] => *c,
-                _ if coherent && !self.is_fully_defined(pt) => return Err(OPEN),
-                [c, ..] if coherent => *c,
+                [c, ..] if coherent => {
+                    if !existence
+                        && (!self.is_fully_defined(pt)
+                            || !self.found_one_type(&found, (pt, by_name), at, ctx, depth)?)
+                    {
+                        return Err("several CanEqual instances, tried in an order of a hash table");
+                    }
+                    *c
+                }
                 _ => self.most_specific(&found, ctx).ok_or("ambiguous implicit arguments")?,
             };
             return self.tried(winner, (pt, by_name), at, ctx, (depth, false));
@@ -178,6 +190,7 @@ impl Typer<'_> {
         let tree = if method { self.eta_expanded_implicit(tree, pt, ctx)? } else { tree };
         let tree = self.inlined_transparent(tree, Pt::Type(pt), ctx).unwrap_or(tree);
         self.record_inline_call(tree, ctx);
+        self.record_implicit_type_quote(tree, ctx);
         let t = self.tpd.tpe(tree);
         let info = self.method_info(t).unwrap_or(t);
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {

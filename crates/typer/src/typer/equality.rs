@@ -74,7 +74,7 @@ impl Typer<'_> {
     ) -> Result<(), &'static str> {
         let (a, b) = (self.fully_defined(a)?, self.fully_defined(b)?);
         let (a, b) = (self.u.widen(a), self.u.widen(b));
-        let ctx = ctx.with_mode(Mode::NONE);
+        let ctx = ctx.with_mode(Mode::EXISTENCE);
         if !self.is_strict_equality(ctx) && self.assumed_can_equal(a, b) {
             return Ok(());
         }

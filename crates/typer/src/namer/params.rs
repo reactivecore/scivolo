@@ -96,8 +96,12 @@ impl Typer<'_> {
                 self.levels.enter(ctx.level, &name, param);
                 syms.push(param);
             }
+            let entered = !fresh.is_empty();
             for (s, p) in fresh {
                 self.param_info(s, p, ctx);
+            }
+            if entered {
+                self.check_deprecated_names(&syms);
             }
             out.push(syms);
         }
@@ -119,8 +123,10 @@ impl Typer<'_> {
         if flags.is(f::INLINE) && !self.u.symbol(method).flags.has(tasty::tags::INLINE) {
             self.unsupported(p, "inline parameter of a method that is not inline");
         }
-        if flags.is_all_of(f::INLINE.or(f::HAS_DEFAULT)) {
-            self.unsupported(p, "default argument of an inline parameter");
+        if flags.is_all_of(f::INLINE.or(f::HAS_DEFAULT))
+            && self.u.symbol(method).flags.has(tasty::tags::TRANSPARENT)
+        {
+            self.unsupported(p, "default argument of an inline parameter of a transparent method");
         }
         let text = self.text(name.name).to_owned();
         let s = self.syms.define(self.u, &text, kind, method, flags);

@@ -2,12 +2,17 @@
 // sources in `just lib-compile` see these classes in place of javalib's; every other compile sees
 // each member declared here in place of javalib's members of its name (ADR 0072), so a name has
 // all the JDK's overloads of its class. Java's static members are `@static` (`Long.hashCode`,
-// which its class also has, a member of the object), its fields `var`s.
+// which its class also has, a member of the object), its final fields `val`s and other fields
+// `var`s.
 import scala.annotation.static
 
 package java.lang {
   final class Boolean extends java.io.Serializable
-  object Boolean { @static val TYPE: Class[Boolean] = null }
+  object Boolean {
+    @static val TYPE: Class[Boolean] = null
+    @static val TRUE: Boolean = null
+    @static val FALSE: Boolean = null
+  }
 
   final class Byte extends Number {
     def intValue(): Int = 0
@@ -17,6 +22,8 @@ package java.lang {
   }
   object Byte {
     @static val TYPE: Class[Byte] = null
+    @static final val MIN_VALUE: scala.Byte = -128
+    @static final val MAX_VALUE: scala.Byte = 127
     @static def toUnsignedInt(x: scala.Byte): Int = 0
   }
 
@@ -26,7 +33,11 @@ package java.lang {
     def floatValue(): scala.Float = 0f
     def doubleValue(): scala.Double = 0d
   }
-  object Short { @static val TYPE: Class[Short] = null }
+  object Short {
+    @static val TYPE: Class[Short] = null
+    @static final val MIN_VALUE: scala.Short = -32768
+    @static final val MAX_VALUE: scala.Short = 32767
+  }
 
   final class Character extends java.io.Serializable
   object Character {
@@ -46,6 +57,36 @@ package java.lang {
     @static final val MAX_CODE_POINT = 0x10ffff
     @static final val SIZE = 16
     @static final val BYTES = 2
+    @static final val UNASSIGNED: scala.Byte = 0
+    @static final val UPPERCASE_LETTER: scala.Byte = 1
+    @static final val LOWERCASE_LETTER: scala.Byte = 2
+    @static final val TITLECASE_LETTER: scala.Byte = 3
+    @static final val MODIFIER_LETTER: scala.Byte = 4
+    @static final val OTHER_LETTER: scala.Byte = 5
+    @static final val NON_SPACING_MARK: scala.Byte = 6
+    @static final val ENCLOSING_MARK: scala.Byte = 7
+    @static final val COMBINING_SPACING_MARK: scala.Byte = 8
+    @static final val DECIMAL_DIGIT_NUMBER: scala.Byte = 9
+    @static final val LETTER_NUMBER: scala.Byte = 10
+    @static final val OTHER_NUMBER: scala.Byte = 11
+    @static final val SPACE_SEPARATOR: scala.Byte = 12
+    @static final val LINE_SEPARATOR: scala.Byte = 13
+    @static final val PARAGRAPH_SEPARATOR: scala.Byte = 14
+    @static final val CONTROL: scala.Byte = 15
+    @static final val FORMAT: scala.Byte = 16
+    @static final val PRIVATE_USE: scala.Byte = 18
+    @static final val SURROGATE: scala.Byte = 19
+    @static final val DASH_PUNCTUATION: scala.Byte = 20
+    @static final val START_PUNCTUATION: scala.Byte = 21
+    @static final val END_PUNCTUATION: scala.Byte = 22
+    @static final val CONNECTOR_PUNCTUATION: scala.Byte = 23
+    @static final val OTHER_PUNCTUATION: scala.Byte = 24
+    @static final val MATH_SYMBOL: scala.Byte = 25
+    @static final val CURRENCY_SYMBOL: scala.Byte = 26
+    @static final val MODIFIER_SYMBOL: scala.Byte = 27
+    @static final val OTHER_SYMBOL: scala.Byte = 28
+    @static final val INITIAL_QUOTE_PUNCTUATION: scala.Byte = 29
+    @static final val FINAL_QUOTE_PUNCTUATION: scala.Byte = 30
     @static def charCount(codePoint: Int): Int = 0
     @static def isLowerCase(ch: Char): scala.Boolean = false
     @static def isLowerCase(codePoint: Int): scala.Boolean = false
@@ -53,6 +94,12 @@ package java.lang {
     @static def isUpperCase(codePoint: Int): scala.Boolean = false
     @static def isTitleCase(ch: Char): scala.Boolean = false
     @static def isTitleCase(codePoint: Int): scala.Boolean = false
+    @static def toTitleCase(ch: Char): Char = ch
+    @static def toTitleCase(codePoint: Int): Int = 0
+    @static def getNumericValue(ch: Char): Int = 0
+    @static def getNumericValue(codePoint: Int): Int = 0
+    @static def getDirectionality(ch: Char): scala.Byte = 0
+    @static def getDirectionality(codePoint: Int): scala.Byte = 0
     @static def codePointAt(seq: CharSequence, index: Int): Int = 0
     @static def codePointAt(a: Array[Char], index: Int): Int = 0
     @static def codePointAt(a: Array[Char], index: Int, limit: Int): Int = 0
@@ -270,6 +317,21 @@ package java.util {
     override def replaceAll(function: java.util.function.BiFunction[? >: K, ? >: V, ? <: V]): Unit = ()
   }
   object LinkedHashMap { private[util] class Entry[K, V] }
+}
+
+package java.util.regex {
+  final class Pattern extends java.io.Serializable
+  object Pattern {
+    @static final val UNIX_LINES = 1
+    @static final val CASE_INSENSITIVE = 2
+    @static final val COMMENTS = 4
+    @static final val MULTILINE = 8
+    @static final val LITERAL = 16
+    @static final val DOTALL = 32
+    @static final val UNICODE_CASE = 64
+    @static final val CANON_EQ = 128
+    @static final val UNICODE_CHARACTER_CLASS = 256
+  }
 }
 
 package java.nio.file {

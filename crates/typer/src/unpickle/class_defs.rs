@@ -90,17 +90,21 @@ impl Unpickler<'_> {
     /// The template at `id` of a local class whose local dummy is `dummy`.
     fn template(&mut self, id: NodeId, dummy: SymbolId) -> Result<TNodeId, Refusal> {
         let (mut constr, mut parents, mut body, mut self_) = (None, Vec::new(), Vec::new(), None);
-        let module = self.u.symbol(dummy).owner.is_some_and(|c| self.u.is_module_class(c));
+        let class = self.u.symbol(dummy).owner.ok_or("a local dummy without a class")?;
+        let module = self.u.is_module_class(class);
         for k in self.kids(id) {
             match self.tag(k) {
                 TYPEPARAM | PARAM => body.push(self.param(k)?),
-                SELFDEF if module => {
+                SELFDEF => {
                     let name = self.tname(k, false);
                     let tpt =
                         self.tpt(self.kids(k).first().copied().ok_or("self definition without a type")?)?;
+                    let own = matches!(*self.u.types().get(self.tpd.tpe(tpt)), Type::Sym(_, c) if c == class);
+                    if !module && !own {
+                        return Err("self type of a class in a library inline body");
+                    }
                     self_ = Some(self.bare(T::ValDef { name, tpt, rhs: None }, None, None));
                 }
-                SELFDEF => return Err("self type of a class in a library inline body"),
                 DEFDEF if constr.is_none() => constr = Some(self.local_def(k)?),
                 VALDEF | DEFDEF => body.push(self.local_def(k)?),
                 TYPEDEF => body.push(self.type_def(k)?),

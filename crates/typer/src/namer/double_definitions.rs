@@ -8,7 +8,7 @@ use crate::ctx::{Ctx, Level};
 use crate::typer::Typer;
 use syntax::ast::NodeId;
 use syntax::ast::flags as f;
-use tasty::{Kind, SymbolId, Type};
+use tasty::Kind;
 
 impl Typer<'_> {
     /// Whether definition `tree` of `name` and `kind` in `ctx` conflicts with a definition this
@@ -47,9 +47,9 @@ impl Typer<'_> {
             }
             let conflicts = match (kind, s.kind) {
                 _ if is_type || getter => true,
-                (Kind::Def, Kind::Val) => !in_class || self.empty_clauses_def(tree),
+                (Kind::Def, Kind::Val) => !in_class || self.is_nullary_def(tree),
                 (Kind::Def, _) => false,
-                (_, Kind::Def) => !in_class || self.empty_clauses(d),
+                (_, Kind::Def) => !in_class || self.is_nullary(d),
                 _ => true,
             };
             if conflicts {
@@ -57,28 +57,5 @@ impl Typer<'_> {
             }
         }
         false
-    }
-
-    /// Whether every parameter clause of method `s` is empty, type-parameter clauses included.
-    fn empty_clauses(&mut self, s: SymbolId) -> bool {
-        use crate::symbols::Completion;
-        if let Some(&(Completion::Pending { tree, .. } | Completion::Completing(tree))) =
-            self.syms.completions.get(&s)
-        {
-            return self.empty_clauses_def(tree);
-        }
-        let mut info = self.u.info(s);
-        loop {
-            match self.u.types().get(info) {
-                Type::Method { params, result, .. } if params.is_empty() => info = *result,
-                Type::Method { .. } | Type::Poly { .. } => return false,
-                _ => return true,
-            }
-        }
-    }
-
-    /// Whether every parameter clause of method definition `tree` is empty.
-    fn empty_clauses_def(&self, tree: NodeId) -> bool {
-        self.def_clauses(tree).iter().all(Vec::is_empty)
     }
 }

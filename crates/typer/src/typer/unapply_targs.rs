@@ -22,7 +22,7 @@ impl Typer<'_> {
             let info = t.method_info(tpe).unwrap_or(tpe);
             Some(matches!(t.u.types().get(info), Type::Poly { params, .. } if params.len() == n))
         });
-        self.diags.items.truncate(reported);
+        self.retract_diags(reported);
         (clean && found == Some(true)).then_some((qual, args))
     }
 

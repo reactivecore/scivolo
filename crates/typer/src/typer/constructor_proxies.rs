@@ -91,11 +91,12 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Option<TNodeId> {
         let text = self.text(name.name).to_owned();
-        let classes: Vec<SymbolId> = self
-            .type_members(qual_tpe, &text)
-            .into_iter()
-            .filter(|&c| self.u.symbol(c).kind == Kind::Class)
-            .collect();
+        let members = self.type_members(qual_tpe, &text);
+        if members.iter().any(|&s| self.is_exported_type(s)) {
+            return Some(self.unsupported(id, "constructor proxy of an exported class"));
+        }
+        let classes: Vec<SymbolId> =
+            members.into_iter().filter(|&c| self.u.symbol(c).kind == Kind::Class).collect();
         let [class] = classes[..] else { return None };
         let owner = self.u.symbol(class).owner?;
         let term_exists = self.u.linearization(owner).into_iter().any(|b| {

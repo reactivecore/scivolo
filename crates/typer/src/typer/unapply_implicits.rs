@@ -10,8 +10,26 @@ use syntax::ast::constant::Constant;
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
-    /// The result of extractor `unapp` applied to a value of type `own`, its implicit clause, of
-    /// result type `result`, applied to the arguments the search finds, and those arguments.
+    /// Extractor `unapp` with the implicit clauses before its scrutinee's applied to the
+    /// arguments the search finds (dotty's `adapt` of `unapplyFn` to `FunProto(dummyArg)`).
+    pub fn leading_implicits_applied(
+        &mut self,
+        mut unapp: TNodeId,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
+        loop {
+            let tpe = self.tpd.tpe(unapp);
+            let info = self.method_info(tpe).unwrap_or(tpe);
+            if !matches!(self.u.types().get(info), Type::Method { implicit: true, .. }) {
+                return Ok(unapp);
+            }
+            unapp = self.implicit_clause_applied(unapp, ctx.with_mode(Mode::NONE))?;
+        }
+    }
+
+    /// The result of extractor `unapp` applied to a value of type `own`, its implicit clauses, the
+    /// first of result type `result`, applied to the arguments the search finds, and those
+    /// arguments in one list.
     pub fn unapply_implicits(
         &mut self,
         unapp: TNodeId,
@@ -25,16 +43,23 @@ impl Typer<'_> {
         let span = self.tpd.span(unapp);
         let dummy = self.build().literal(Constant::Null, span.end_pos());
         self.tpd.get_mut(dummy).tpe = Some(own);
-        let app = self.build().apply(unapp, &[dummy], result, span);
-        let applied = self.implicit_clause_applied(app, ctx.with_mode(Mode::NONE))?;
-        let T::Apply { fun, args } = *self.tpd.tree(applied) else { return Err("extractor with implicits") };
-        if fun != app {
-            return Err("extractor with lifted implicit arguments");
+        let mut app = self.build().apply(unapp, &[dummy], result, span);
+        let mut implicits = Vec::new();
+        loop {
+            let applied = self.implicit_clause_applied(app, ctx.with_mode(Mode::NONE))?;
+            let T::Apply { fun, args } = *self.tpd.tree(applied) else {
+                return Err("extractor with implicits");
+            };
+            if fun != app {
+                return Err("extractor with lifted implicit arguments");
+            }
+            implicits.extend_from_slice(self.tpd.items(args));
+            let tpe = self.tpd.tpe(applied);
+            match self.u.types().get(tpe) {
+                Type::Method { implicit: true, .. } => app = applied,
+                Type::Method { .. } | Type::Poly { .. } => return Err("extractor with more parameters"),
+                _ => return Ok((tpe, implicits)),
+            }
         }
-        let tpe = self.tpd.tpe(applied);
-        if matches!(self.u.types().get(tpe), Type::Method { .. } | Type::Poly { .. }) {
-            return Err("extractor with more parameters");
-        }
-        Ok((tpe, self.tpd.items(args).to_vec()))
     }
 }

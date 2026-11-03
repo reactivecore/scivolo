@@ -6,12 +6,12 @@
 
 use super::dependencies::{Dependencies, dependencies};
 use super::leading_params::add_params;
-use super::lift_names::{Caller, LocalClass, Pending};
+use super::lift_names::{Caller, LocalClass, Pending, merged};
 use super::local_free::{
     Free, Local, enclosing_class, free_values, is_local, is_method, is_term, lifted_into, within,
 };
 use super::local_lift::{lift, pass_values};
-use super::local_proxies::{constructor, definition_order, definition_span, make_proxies};
+use super::local_proxies::{constructor, definition_order, definition_span, make_proxies, naming_key};
 use super::nested_reads::Nested;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
@@ -24,6 +24,7 @@ use typer::tpd::{TNodeId, Tree};
 /// Lifts the local classes among `classes` out of the blocks of unit `root`; their names and
 /// those of their proxies are left to `lambda_lift`.
 pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pending> {
+    let all = classes;
     let mut deps = dependencies(l, root);
     let (mut locals, mut traits) = (Vec::new(), Vec::new());
     for &td in classes {
@@ -66,7 +67,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
     pending.deps = Some(deps);
     let own = locals.iter().map(|c| (c.class, (c.free.values.clone(), c.free.in_methods.clone()))).collect();
     let mut nested = Nested { own, named_in: FxHashMap::default() };
-    let mut classes = Vec::new();
+    let (mut classes, mut named) = (Vec::new(), FxHashMap::default());
     for (Local { td, class, named_in, free, .. }, (fields, params)) in locals.into_iter().zip(proxies) {
         let spans: Vec<Span> = free.in_methods.iter().map(|&v| definition_span(l, root, v)).collect();
         if !l.u.is_trait(class) {
@@ -85,20 +86,29 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
             classes.push(None);
             continue;
         }
+        let (at, sequence) = naming_key(l, (all, &named), td, class);
+        named.insert(class, (at, sequence));
         if let Some((block, index)) = lift(l, root, td, class) {
             pending.definitions.push((block, index, free.values.clone()));
         }
-        let at = super::drop_inlined::naming_order(l, class, l.tpd.span(td).start());
-        classes.push(Some(LocalClass { at, class, outer: named_in }));
+        classes.push(Some((LocalClass { at, class, outer: named_in }, sequence)));
     }
-    let mut last = None;
-    for i in order {
-        let Some(c) = &classes[i] else { continue };
-        let at = match last {
-            Some(before) if c.at < before => before,
-            _ => c.at,
-        };
-        last = Some(at);
+    let mut sequences = [Vec::new(), Vec::new(), Vec::new()];
+    for (s, sequence) in sequences.iter_mut().enumerate() {
+        let mut last = None;
+        for &i in &order {
+            let Some((c, _)) = classes[i].as_ref().filter(|&&(_, of)| of == s) else { continue };
+            let at = match last {
+                Some(before) if s == 0 && c.at < before => before,
+                _ => c.at,
+            };
+            last = Some(at);
+            sequence.push((at, (i, at)));
+        }
+        sequence.sort_by_key(|&(at, _)| at);
+    }
+    for (i, at) in merged(&sequences) {
+        let (c, _) = classes[i].as_ref().expect("a lifted class");
         pending.classes.push(LocalClass { at, class: c.class, outer: c.outer });
     }
     Ok(pending)

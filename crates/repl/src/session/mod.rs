@@ -150,14 +150,17 @@ impl Session {
         let line = import_text::Line { typed: &typed, template, names: &self.names, source: &parsed.source };
         let shown = import_text::shown(&mut self.u, &line);
         let units = render::inferred_units(&mut self.u, &typed, template);
-        let defs = render::definitions(&mut self.u, &object, &units);
+        let points = render::points(&typed, template);
+        let defs = render::definitions(&mut self.u, &object, &units, &points);
+        let defs = defs.into_iter().map(|d| (report::place(&parsed.source, d.point, false), d)).collect();
         let members = earlier::members(&mut self.u, &object);
         let (names, fresh) = (&mut self.names, &mut self.fresh);
         let lowered = lower::lower(&mut self.u, &mut typed.tpd, typed.root, names, fresh, &parsed.source);
         let files = lowered.map_err(|e| vec![report::unsupported(&e.what)])?;
         let earlier = Earlier { object, imports, shown, members };
-        let warnings = report::warnings(&parsed.source, &parsed.diags, self.width as usize);
-        Ok(Unit { module, files, defs, earlier, unit_res: render::results(&self.u, &units), warnings })
+        let (count, warnings) = report::warnings(&parsed.source, &parsed.diags, self.width as usize);
+        let unit_res = render::results(&self.u, &units);
+        Ok(Unit { module, files, defs, earlier, unit_res, count, warnings })
     }
 
     /// The statements of `parsed` typed as the body of wrapper object `object`, with the

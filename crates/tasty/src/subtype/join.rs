@@ -158,11 +158,24 @@ impl Universe {
                 (Some(x), Some(y)) => Some(self.glb(x, y)),
                 (x, y) => x.or(y),
             },
+            _ if self.is_static_symbol(c) && self.type_params(c).is_empty() => {
+                let widened = self.widen(t);
+                self.base_type(widened, c).map(|_| self.static_class_ref(c))
+            }
             _ => {
                 let widened = self.widen(t);
                 self.base_type(widened, c)
             }
         }
+    }
+
+    /// The reference to static class `c` through the `this` of its enclosing objects.
+    fn static_class_ref(&mut self, c: SymbolId) -> TypeId {
+        let prefix = self.symbol(c).owner.filter(|&o| self.symbol(o).kind == Kind::Class).map(|o| {
+            let owner = self.static_class_ref(o);
+            self.intern_type(Type::This(owner))
+        });
+        self.intern_type(Type::Sym(prefix, c))
     }
 
     /// The other part of union `a | b` if one part is a bottom type, `Nothing` or `Null`,
@@ -230,10 +243,9 @@ impl Universe {
         }
     }
 
-    /// The class of class references `x` and `y` if both are the same top-level class.
+    /// The class of class references `x` and `y` if both are the same static class.
     fn same_static_class(&mut self, x: TypeId, y: TypeId) -> Option<SymbolId> {
         let c = self.class_symbol(x)?;
-        let static_class = self.symbol(c).owner.is_some_and(|o| self.symbol(o).kind == Kind::Package);
-        (static_class && self.class_symbol(y) == Some(c)).then_some(c)
+        (self.is_static_symbol(c) && self.class_symbol(y) == Some(c)).then_some(c)
     }
 }

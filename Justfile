@@ -258,9 +258,10 @@ lib-jar-report +modules: fetch-libs fetch-scala-native release
     SCIVOLO_LIBS='{{ justfile_directory() }}/tmp/libs-ours' SCIVOLO_CACHE='{{ justfile_directory() }}/tmp/cache-ours' \
         SCIVOLO_TIMEOUT=1800 scripts/sn-report.sh
 
-# Compile Maven library `name` (sourcecode, geny, ujson, os-lib) from its modules' `-sources.jar`
-# files file by file with `scivolo-aot -d`, compare their NIR with the published jars' and
-# scala-cli's and run its tests/aot programs on jars with our NIR; results under tmp/srclib/<name>.
+# Compile Maven library `name` (sourcecode, geny, ujson, fansi, pprint, upickle, mainargs,
+# fastparse, os-lib) from its modules' `-sources.jar` files file by file with `scivolo-aot -d`,
+# compare their NIR with the published jars' and scala-cli's and run its tests/aot programs on
+# jars with our NIR; results under tmp/srclib/<name>.
 lib-source name: fetch-libs
     cargo build -q --release -p scivolo-aot -p scivolo-nir-dump
     python3 scripts/lib-source.py '{{ name }}'
@@ -583,8 +584,9 @@ javalib-tasty:
     scripts/javalib-tasty.sh
 
 # Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs as dotty's pickler writes
-# it (scala-cli), and libs/jdk-declarations.jar, that of JdkDeclarations.scala under jdk-declarations/
-# and that of JdkClasses.scala.
+# it (scala-cli) but that of JdkMemberDeclarations.scala, and libs/jdk-declarations.jar, that of
+# JdkDeclarations.scala and JdkMemberDeclarations.scala under jdk-declarations/ and that of
+# JdkClasses.scala.
 jdk-stubs:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -596,9 +598,10 @@ jdk-stubs:
         -O -sourceroot -O {{ justfile_directory() }}
     find tmp/jdk-stubs/out -name '*.tasty' -exec touch -t 201001010000 {} +
     rm -f libs/jdk-stubs.jar
-    (cd tmp/jdk-stubs/out && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-stubs.jar -@)
+    (cd tmp/jdk-stubs/out && grep -rL --include='*.tasty' JdkMemberDeclarations.scala . | sed 's|^\./||' | sort \
+        | zip -q -X {{ justfile_directory() }}/libs/jdk-stubs.jar -@)
     mkdir -p tmp/jdk-stubs/decl/jdk-declarations
-    (cd tmp/jdk-stubs/out && grep -rl --include='*.tasty' JdkDeclarations.scala . | cpio -pdm ../decl/jdk-declarations 2> /dev/null)
+    (cd tmp/jdk-stubs/out && grep -rlE --include='*.tasty' 'Jdk(Member)?Declarations.scala' . | cpio -pdm ../decl/jdk-declarations 2> /dev/null)
     (cd tmp/jdk-stubs/out && grep -rl --include='*.tasty' JdkClasses.scala . | cpio -pdm ../decl 2> /dev/null)
     rm -f libs/jdk-declarations.jar
     (cd tmp/jdk-stubs/decl && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-declarations.jar -@)

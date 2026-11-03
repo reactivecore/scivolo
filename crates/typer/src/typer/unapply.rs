@@ -72,6 +72,7 @@ impl Typer<'_> {
             Some((_, args)) => self.with_unapply_type_args(applied, unapp, args, ctx)?,
             None => self.with_type_vars(unapp)?,
         };
+        let unapp = self.leading_implicits_applied(unapp, ctx)?;
         let fun_tpe = self.tpd.tpe(unapp);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
         let Type::Method { binder, params, result, implicit: false, .. } = self.u.types().get(info).clone()
@@ -170,7 +171,7 @@ impl Typer<'_> {
     fn view_may_supply_unapply(&mut self, qual: TNodeId, ctx: Ctx) -> bool {
         let reported = self.diags.items.len();
         let (found, clean, _) = self.speculatively(|t| t.viewed(qual, Goal::Member("unapply"), ctx));
-        self.diags.items.truncate(reported);
+        self.retract_diags(reported);
         match found {
             Ok(None) if clean => false,
             Ok(Some(_)) => true,
@@ -202,16 +203,6 @@ impl Typer<'_> {
                 None
             });
         }
-        found
-    }
-
-    /// Whether `t` has a wildcard type argument, also inside another argument.
-    fn has_wildcard(&mut self, t: TypeId) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            found |= matches!(u.types().get(part), Type::Bounds(..));
-            None
-        });
         found
     }
 
@@ -252,11 +243,6 @@ impl Typer<'_> {
             }
         }
         let bound = self.maximize_type(arg_type, vars, unapp, ctx)?;
-        let tpe = self.zonk(arg_type);
-        let widened = self.u.widen(sel);
-        if !bound.is_empty() && (self.has_wildcard(widened) || self.has_wildcard(tpe)) {
-            return Err("pattern-bound type against a wildcard argument");
-        }
         self.add_binders(unapp, &bound);
         Ok(self.zonk(arg_type))
     }

@@ -18,8 +18,8 @@ impl Typer<'_> {
     /// `ensure_self` in the class's context `cctx`.
     pub fn complete_self(&mut self, cls: SymbolId, s: NodeId, cctx: Ctx) {
         let Tree::ValDef { name, .. } = *self.ast.tree(s) else { return };
-        if self.u.is_module_class(cls) {
-            self.unsupported(s, "named self of an object");
+        if self.u.is_module_class(cls) && !self.u.is_static_symbol(cls) {
+            self.unsupported(s, "named self of an object not static");
             return;
         }
         let text = self.text(name.name).to_owned();
@@ -42,7 +42,7 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(typed);
         self.u.set_info(self.syms.by_tree[&s], tpe);
         let applied = self.u.this_type(cls);
-        if !self.u.is_subtype(applied, tpe) {
+        if !self.u.is_module_class(cls) && !self.u.is_subtype(applied, tpe) {
             self.u.set_self_type(cls, tpe);
         }
     }
@@ -56,7 +56,8 @@ impl Typer<'_> {
             None => self.typed_type(tpt, cctx),
         };
         let span = self.ast.span(tpt);
-        let tpt = match span.start() == span.end() {
+        let singleton = matches!(self.ast.tree(tpt), Tree::SingletonTypeTree { .. });
+        let tpt = match span.start() == span.end() && !singleton {
             true => {
                 let tpe = self.tpd.tpe(typed);
                 self.type_tree(tpe, span, true)

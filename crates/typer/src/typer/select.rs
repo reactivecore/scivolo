@@ -3,6 +3,8 @@
 //! Selections `qual.name` (dotty's `typedSelect`).
 
 use super::implicits::conversions::{Goal, Viewed};
+use super::opaque_paths::OPAQUE_THROUGH_OBJECT;
+use super::qualifier_views::QualifierView;
 use super::source_splices::STAGING_REFERENCE;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
@@ -42,9 +44,17 @@ impl Typer<'_> {
             if !syms.is_empty()
                 && !converted
                 && !name.is_type
-                && let Some(q) = self.qualifier_view(qual, (qual_tpe, &syms), &text, pt, ctx)
+                && let Some(view) = self.qualifier_view(qual, (qual_tpe, &syms), &text, pt, ctx)
             {
-                (qual, converted) = (q, true);
+                match view {
+                    QualifierView::Converted(q) => (qual, converted) = (q, true),
+                    QualifierView::Extension => {
+                        let call = self.extension_select(id, qual, name, pt, ctx);
+                        let span = self.ast.span(id);
+                        self.tpd.get_mut(call).span = span.to_synthetic();
+                        return call;
+                    }
+                }
                 continue;
             }
             if !syms.is_empty()
@@ -58,6 +68,13 @@ impl Typer<'_> {
             }
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
+            }
+            if let Some(cast) = self.java_null_stripped(qual) {
+                qual = cast;
+                continue;
+            }
+            if self.opaque_member_through_object(qual_tpe, &text, ctx) {
+                return self.unsupported(id, OPAQUE_THROUGH_OBJECT);
             }
             if let Some(apply) = self.poly_function_select(id, qual, qual_tpe, name) {
                 return apply;
@@ -160,6 +177,9 @@ impl Typer<'_> {
             return self.unsupported(id, STAGING_REFERENCE);
         }
         let tpe = self.ref_type(Some(qual_tpe), sym);
+        if name.is_type && self.is_opaque_through_object(tpe) {
+            return self.unsupported(id, OPAQUE_THROUGH_OBJECT);
+        }
         let span = self.ast.span(id);
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);

@@ -45,40 +45,6 @@ impl Typer<'_> {
         decls.iter().filter(keep).copied().collect()
     }
 
-    pub fn same_member(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
-        let (ka, kb) = (self.u.symbol(a).kind, self.u.symbol(b).kind);
-        match (ka, kb) {
-            (Kind::Def, Kind::Def) => self.u.matches(site, a, b) || self.is_nullary(a) && self.is_nullary(b),
-            (Kind::Def, _) => self.is_nullary(a),
-            (_, Kind::Def) => self.is_nullary(b),
-            _ => true,
-        }
-    }
-
-    /// Whether method `s` takes no parameters or one empty non-implicit clause and nothing else.
-    pub fn is_nullary(&mut self, s: SymbolId) -> bool {
-        use crate::symbols::Completion;
-        if let Some(&(Completion::Pending { tree, .. } | Completion::Completing(tree))) =
-            self.syms.completions.get(&s)
-        {
-            return self.is_nullary_def(tree);
-        }
-        let info = self.u.info(s);
-        match self.u.types().get(info) {
-            Type::Method { params, result, implicit: false, .. } if params.is_empty() => {
-                !matches!(self.u.types().get(*result), Type::Method { .. } | Type::Poly { .. })
-            }
-            Type::Method { .. } | Type::Poly { .. } => false,
-            _ => true,
-        }
-    }
-
-    /// Whether method definition `tree` has no parameters or one empty clause and nothing else.
-    pub fn is_nullary_def(&self, tree: syntax::ast::NodeId) -> bool {
-        let clauses = self.def_clauses(tree);
-        clauses.len() <= 1 && clauses.concat().is_empty()
-    }
-
     pub fn check_overrides(&mut self, cls: SymbolId, span: Span) {
         let site = crate::defn::type_ref(self.u, cls);
         let bases: Vec<SymbolId> = self.u.linearization(cls).into_iter().skip(1).collect();
@@ -90,10 +56,7 @@ impl Typer<'_> {
                 if self.u.symbol(a).name != self.u.symbol(b).name {
                     continue;
                 }
-                if self.run_name(a) == self.run_name(b)
-                    && self.u.matches(site, a, b)
-                    && self.u.erased_method(a).0 == self.u.erased_method(b).0
-                {
+                if self.same_member(site, a, b) && self.u.erased_method(a).0 == self.u.erased_method(b).0 {
                     return self.unsupported_at(span, "double definition");
                 }
                 if self.has_default_args(a) && self.has_default_args(b) {
@@ -123,7 +86,7 @@ impl Typer<'_> {
                     let changed = inline(self, d) && self.inline_params(d) != self.inline_params(m);
                     let final_inline = inline(self, m) && self.is_concrete(m);
                     if (inline(self, m) && !inline(self, d) || inline_value || changed || final_inline)
-                        && self.same_member(site, d, m)
+                        && self.matches_loosely(site, d, m)
                     {
                         return self.unsupported_at(
                             span,
@@ -132,15 +95,22 @@ impl Typer<'_> {
                         );
                     }
                     self.complete(m);
-                    if self.run_name(d) != self.run_name(m) && self.same_member(site, d, m) {
+                    if !self.matches_loosely(site, d, m) {
+                        continue;
+                    }
+                    if self.run_name(d) != self.run_name(m) {
+                        if !self.u.info_matches(site, d, m) {
+                            continue;
+                        }
                         return self.unsupported_at(span, "override with another @targetName");
                     }
-                    if self.same_member(site, d, m)
-                        && let Some(what) = self.override_kind_refusal(d, m)
-                    {
+                    if let Some(what) = self.override_kind_refusal(d, m) {
                         return self.unsupported_at(span, what);
                     }
-                    if !self.is_concrete(m) || !self.same_member(site, d, m) {
+                    if self.overrides_other_nullary(cls, d, m) {
+                        return self.unsupported_at(span, "override changing empty parameter lists");
+                    }
+                    if !self.is_concrete(m) {
                         continue;
                     }
                     if flags.is(f::DEFERRED) {

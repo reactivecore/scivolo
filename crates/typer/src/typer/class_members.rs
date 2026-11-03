@@ -45,9 +45,14 @@ impl Typer<'_> {
         self.members_of_bases(c, &classes[1..], name, true)
     }
 
-    /// The linearization of class `c`, `c` and its base classes without TASTy completed.
+    /// The linearization of class `c`, `c` and its base classes without TASTy completed; `Null`'s
+    /// without `Object` under explicit nulls.
     fn completed_linearization(&mut self, c: SymbolId) -> Vec<SymbolId> {
         self.complete(c);
+        let b = self.u.builtins();
+        if c == b.null && self.u.null_mode().explicit {
+            return vec![b.null, b.matchable, b.any];
+        }
         let classes = self.u.linearization(c);
         for &base in classes.iter().skip(1) {
             if self.u.symbol(base).tree.is_none() {
@@ -93,7 +98,10 @@ impl Typer<'_> {
                             self.complete(s);
                         }
                     }
-                    if !self.signatures_differ(o, m) && self.same_member(site, o, m) {
+                    if !self.signatures_differ(o, m)
+                        && self.u.info_matches(site, o, m)
+                        && self.same_member(site, o, m)
+                    {
                         overridden = Some(k);
                         break;
                     }

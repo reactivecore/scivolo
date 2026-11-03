@@ -22,7 +22,8 @@ impl Universe {
         let skipped = matches!(s.name.as_str(), "TYPE" | "getClass" | "toString")
             || !matches!(s.kind, Kind::Def | Kind::Val)
             || s.flags.has(ENUM)
-            || self.is_module(def);
+            || self.is_module(def)
+            || self.is_entered_object_member(def);
         if skipped || !self.is_jdk_class(owner) || !self.may_be_java(owner) {
             return t;
         }
@@ -32,11 +33,16 @@ impl Universe {
     }
 
     /// Whether class `c` is read from the JDK's class files in Scala Native's build: one javalib
-    /// defines under another name, or one of the JDK jars'.
+    /// defines under another name, one of the JDK jars', or, in the build of a library other
+    /// than javalib that JDK jars stand for, any of a JDK package.
     fn is_jdk_class(&self, c: SymbolId) -> bool {
         let name = self.full_name(c);
         let name = name.strip_suffix('$').unwrap_or(&name);
-        super::jdk::RENAMED.iter().any(|&(_, jdk)| jdk == name) || self.is_from_jdk_jars(c)
+        let jdk_package = name.starts_with("java.") || name.starts_with("javax.");
+        let library_build = !self.jdk_jars.is_empty() && !self.javalib_sources();
+        super::jdk::RENAMED.iter().any(|&(_, jdk)| jdk == name)
+            || self.is_from_jdk_jars(c)
+            || jdk_package && library_build
     }
 
     fn nullify(&mut self, t: TypeId, modes: Modes) -> TypeId {

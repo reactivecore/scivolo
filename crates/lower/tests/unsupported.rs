@@ -9,7 +9,7 @@ use tasty::Universe;
 const CASES: &[(&str, &str)] = &[
     (
         "import scala.quoted.*\nobject Q { def g(x: Expr[Int])(using Quotes): Expr[Int] = x\n\
-         def f(using Quotes): Expr[Int] = '{ val y = 1; ${ g('y) } } }",
+         def f(using Quotes): Expr[Int] = '{ var y = 1; ${ g('{ y = 2; y }) } } }",
         "captured reference in a quote",
     ),
     (
@@ -17,8 +17,8 @@ const CASES: &[(&str, &str)] = &[
         "nested quotes",
     ),
     (
-        "import scala.quoted.*\nobject Q { def f[T: Type](using Quotes): Type[List[T]] = Type.of[List[T]] }",
-        "quotes outside the splices of inline methods",
+        "import scala.quoted.*\nobject Q { def f(using Quotes): Expr[Any] = '{ class C { private[C] val x = 1 }; new C } }",
+        "quotes with a qualified private or protected definition",
     ),
     (
         "import scala.quoted.*\nobject Q { def f[T](using Quotes): Expr[Any] = '{ Option.empty[T] } }",
@@ -35,10 +35,6 @@ const CASES: &[(&str, &str)] = &[
     (
         "object Q { def f(x: scala.quoted.Expr[Int]): Int = scala.quoted.runtime.Expr.splice(x) }",
         "reference to scala.quoted.runtime.Expr outside a quote or splice",
-    ),
-    (
-        "import scala.quoted.*\nobject Q { def f(x: Expr[Any])(using Quotes): Int = x match { case '{ $i: Int } => 1; case _ => 0 } }",
-        "quote patterns outside inline methods",
     ),
     (
         "object O { val v: Any = 1; def f(): Boolean = O.v.isInstanceOf[String | Int] }",
@@ -217,6 +213,36 @@ const CASES: &[(&str, &str)] = &[
     ("class C { override def f = 1 }", "member overriding nothing"),
     ("class C { override type T = Int }", "member overriding nothing"),
     (
+        "class A { def f(x: Int) = 1 }; class B extends A { override def f(x: String) = 2 }",
+        "member overriding nothing",
+    ),
+    (
+        "class A { def f(): Int = 1 }; class B extends A { override def f: Int = 2 }",
+        "override changing empty parameter lists",
+    ),
+    (
+        "class A { def f()(): Int = 1 }; class B extends A { override def f: Int = 2 }",
+        "override changing empty parameter lists",
+    ),
+    (
+        "trait T { def f: Int }; class C extends T { def f(): Int = 1 }",
+        "override changing empty parameter lists",
+    ),
+    ("class A { val f: Int = 1 }; class B extends A { override def f(): Int = 2 }", "unstable member"),
+    ("object O { def f(): Int = 1; def f: String = \"\" }", "double definition"),
+    (
+        "class A { def f(x: List[Int]) = 1 }; class B extends A { override def f(x: List[String]) = 2 }",
+        "name clash between defined and inherited member",
+    ),
+    (
+        "class A { def f(x: Int, y: Int) = 1 }; class B extends A { def f(x: Int)(y: Int) = 2 }",
+        "name clash between defined and inherited member",
+    ),
+    (
+        "trait A { def f[T](x: T) = 1 }; class B extends A { def f(x: Any) = 2 }",
+        "name clash between defined and inherited member",
+    ),
+    (
         "import language.experimental.erasedDefinitions\n\
          object O { def f(erased b: Boolean) = 1; def g(x: Any) = f(x.isInstanceOf[String]) }",
         "argument of an erased parameter that is not pure",
@@ -229,6 +255,14 @@ const CASES: &[(&str, &str)] = &[
     (
         "class D { def g(xs: Array[Int]): Int = 0; @annotation.varargs def g(xs: Int*): Int = 1 }",
         "a varargs forwarder conflicting with a member of its signature",
+    ),
+    (
+        "object O { @annotation.compileTimeOnly(\"no\") def g: Int = 1; def h = g }",
+        "reference to a @compileTimeOnly definition",
+    ),
+    (
+        "object O { def f(@deprecatedName(\"y\") x: Int, y: Int) = x }",
+        "parameter name equal to a deprecated name",
     ),
 ];
 

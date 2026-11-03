@@ -157,7 +157,7 @@ impl Cmp<'_> {
             (None, None) => match variance {
                 1 => self.recur(x, y),
                 -1 => self.recur(y, x),
-                _ => self.recur(x, y) && self.recur(y, x),
+                _ => self.recur(y, x) && self.recur(x, y),
             },
         }
     }

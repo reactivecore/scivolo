@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/Definitions.scala
 //   compiler/src/dotty/tools/dotc/core/classfile/ClassfileParser.scala
 //! The classes dotty defines without TASTy (`Definitions`): `Any`, `AnyKind`, `Matchable`,
-//! `Nothing`, `Null`, `Singleton`, the alias `AnyRef`, and `java.lang.Object` where no library
+//! `Nothing`, `Null`, `Singleton`, the aliases `AnyRef` and `<FromJavaObject>`, and `java.lang.Object` where no library
 //! defines it; `Object` extends `Any` and `Matchable`, `java.io.Serializable` and
 //! `java.lang.Cloneable` only `Any`.
 
@@ -26,6 +26,9 @@ pub struct Builtins {
     pub singleton: SymbolId,
     pub any_ref: SymbolId,
     pub object: SymbolId,
+    /// dotty's `<special-ops>.<FromJavaObject>`, the alias of `Object` that Java signatures have
+    /// for it and that every type conforms to.
+    pub from_java_object: SymbolId,
     /// `scala.AnyVal`, from the library's TASTy.
     pub any_val: Option<SymbolId>,
 }
@@ -43,6 +46,7 @@ impl Builtins {
             singleton: r,
             any_ref: r,
             object: r,
+            from_java_object: r,
             any_val: None,
         }
     };
@@ -105,13 +109,27 @@ pub fn enter(u: &mut Universe) -> Builtins {
     }
     let any_ref = synthetic(u, scala, "AnyRef", Kind::Type, &[]);
     u.infos.insert(any_ref, object_ref);
+    let ops = u.enter_package("<special-ops>");
+    let from_java_object = synthetic(u, ops, "<FromJavaObject>", Kind::Type, &[]);
+    u.infos.insert(from_java_object, object_ref);
     let any_val =
         u.decl(scala, "AnyVal").ok().and_then(|d| d.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
     super::any_members::enter(u, any, object);
     super::impure_functions::enter(u, scala);
     super::function_classes::enter(u, scala, object_ref);
     super::java_stubs::enter(u, object);
-    Builtins { any, any_kind, matchable, nothing, null, singleton, any_ref, object, any_val }
+    Builtins {
+        any,
+        any_kind,
+        matchable,
+        nothing,
+        null,
+        singleton,
+        any_ref,
+        object,
+        from_java_object,
+        any_val,
+    }
 }
 
 impl Universe {

@@ -35,8 +35,8 @@ impl Typer<'_> {
             && (!s.flags.has(MACRO) || self.macros.is_some())
     }
 
-    /// `tree` expanded if it is a call of a transparent inline method outside an inline method,
-    /// `None` if it is not one.
+    /// `tree` expanded if it is a call of a transparent inline method at staging level 0 outside
+    /// an inline method, `None` if it is not one.
     pub fn inlined_transparent(&mut self, tree: TNodeId, pt: Pt, ctx: Ctx) -> Option<TNodeId> {
         if let T::Block { stats, expr } = *self.tpd.tree(tree) {
             let inlined = self.inlined_transparent(expr, pt, ctx)?;
@@ -48,6 +48,7 @@ impl Typer<'_> {
         if !self.is_transparent_inline(meth)
             || matches!(self.u.types().get(widened), Type::Method { .. } | Type::Poly { .. })
             || ctx.mode.is(Mode::PATTERN)
+            || ctx.staging != 0
             || self.enclosing_inline(ctx.owner).is_some()
         {
             return None;

@@ -139,7 +139,7 @@ fn matching_now(l: &mut Lower, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
     };
     let (ca, cb) = (clauses(l, a), clauses(l, b));
     let nullary = |c: &[usize]| c.is_empty() || c == [0];
-    (nullary(&ca) && nullary(&cb)) || methods && l.u.matches(site, a, b)
+    (nullary(&ca) && nullary(&cb)) || methods && l.u.info_matches(site, a, b)
 }
 
 /// Whether `s` is a non-private method or value a class can override.

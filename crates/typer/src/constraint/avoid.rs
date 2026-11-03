@@ -2,9 +2,8 @@
 //   compiler/src/dotty/tools/dotc/core/ConstraintHandling.scala
 //! Bounds without the local symbols defined after a variable (dotty's `LevelAvoidMap`).
 
-use super::Constraint;
-use super::levels::is_local_since;
 use super::unify::meet;
+use super::{At, Constraint};
 use tasty::tags::PRIVATE;
 use tasty::{ANY, Kind, SymbolId, Type, TypeId, TypeVars, Universe};
 
@@ -14,96 +13,96 @@ impl Constraint {
         self.escaped
     }
 
-    /// `t` at variance `v` without the local symbols defined from `born` on: where covariant, a
+    /// `t` at variance `v` without the local symbols defined since `at`: where covariant, a
     /// local class without members of its own replaced by its parents, a local value or method by
-    /// its type, a class member of a local value selected on the value's type, a variable made after
-    /// `born` whose bounds refer to one by a new variable above it made at `born` (dotty's
+    /// its type, a class member of a local value selected on the value's type, a variable nested
+    /// more deeply than `at` whose bounds refer to one by a new variable above it made `at` (dotty's
     /// `legalVar`); a type member of a local value by its alias, or by its bound where not
     /// invariant; an invariant argument by the wildcard of its avoided bounds where covariant.
     /// `None` if another such symbol remains.
-    pub fn avoided(&mut self, u: &mut Universe, t: TypeId, born: SymbolId, v: i32) -> Option<TypeId> {
-        if !self.refers_to_local(u, t, born, 4) {
+    pub fn avoided(&mut self, u: &mut Universe, t: TypeId, at: At, v: i32) -> Option<TypeId> {
+        if !self.refers_to_local(u, t, at, 4) {
             return Some(t);
         }
         match u.types().get(t).clone() {
             Type::Var(x) => match self.vars[x.0 as usize].instance {
-                Some(i) => self.avoided(u, i, born, v),
+                Some(i) => self.avoided(u, i, at, v),
                 None if v > 0 => {
-                    let above = self.fresh_at(u, born);
+                    let above = self.fresh_at(u, at);
                     self.add_upper(u, x, above).then_some(above)
                 }
-                None if v == 0 => self.unified_at(u, x, born),
+                None if v == 0 => self.unified_at(u, x, at),
                 None => None,
             },
             Type::Applied(tycon, _) if u.class_symbol(tycon).is_none() => {
                 let dealiased = u.dealias(t);
-                if dealiased == t { None } else { self.avoided(u, dealiased, born, v) }
+                if dealiased == t { None } else { self.avoided(u, dealiased, at, v) }
             }
-            Type::Sym(Some(pre), s) if !is_local_since(u, s, born) => match u.symbol(s).kind {
+            Type::Sym(Some(pre), s) if !self.is_local_since(u, s, at.born) => match u.symbol(s).kind {
                 Kind::Class if v > 0 => {
                     let widened = u.widen(pre);
                     let selected = u.intern_type(Type::Sym(Some(widened), s));
-                    if widened == pre { None } else { self.avoided(u, selected, born, v) }
+                    if widened == pre { None } else { self.avoided(u, selected, at, v) }
                 }
                 Kind::Type => {
                     let dealiased = u.dealias(t);
                     if dealiased != t {
-                        return self.avoided(u, dealiased, born, v);
+                        return self.avoided(u, dealiased, at, v);
                     }
                     let info = u.member_info(pre, s);
                     match *u.types().get(info) {
-                        Type::Bounds(_, hi) if v > 0 => self.avoided(u, hi, born, v),
-                        Type::Bounds(lo, _) if v < 0 => self.avoided(u, lo, born, v),
+                        Type::Bounds(_, hi) if v > 0 => self.avoided(u, hi, at, v),
+                        Type::Bounds(lo, _) if v < 0 => self.avoided(u, lo, at, v),
                         _ => None,
                     }
                 }
                 Kind::TypeParam => {
                     let (lo, hi) = class_param_bounds(u, pre, s)?;
                     match v {
-                        1 => self.avoided(u, hi, born, v),
-                        -1 => self.avoided(u, lo, born, v),
+                        1 => self.avoided(u, hi, at, v),
+                        -1 => self.avoided(u, lo, at, v),
                         _ => None,
                     }
                 }
-                _ if v > 0 => self.widened(u, t, born, v),
+                _ if v > 0 => self.widened(u, t, at, v),
                 _ => None,
             },
             Type::Sym(None, s) if u.symbol(s).kind == Kind::Type => {
                 let info = u.info(s);
                 match *u.types().get(info) {
-                    Type::Alias(a) => self.avoided(u, a, born, v),
-                    Type::Bounds(_, hi) if v > 0 => self.avoided(u, hi, born, v),
-                    Type::Bounds(lo, _) if v < 0 => self.avoided(u, lo, born, v),
+                    Type::Alias(a) => self.avoided(u, a, at, v),
+                    Type::Bounds(_, hi) if v > 0 => self.avoided(u, hi, at, v),
+                    Type::Bounds(lo, _) if v < 0 => self.avoided(u, lo, at, v),
                     _ => None,
                 }
             }
             Type::Sym(_, s) if v > 0 => match u.symbol(s).kind {
                 Kind::Class if owned_by_term(u, s) && !declares_members(u, s) => {
                     let parents = u.parents(s).into_iter().fold(ANY, |acc, p| meet(u, acc, p));
-                    self.avoided(u, parents, born, v)
+                    self.avoided(u, parents, at, v)
                 }
-                Kind::Val | Kind::Param | Kind::Def => self.widened(u, t, born, v),
+                Kind::Val | Kind::Param | Kind::Def => self.widened(u, t, at, v),
                 _ => None,
             },
             Type::Applied(tycon, args) => {
                 let class = u.class_symbol(tycon)?;
                 let variances = u.variances(class);
-                if variances.len() != args.len() || self.refers_to_local(u, tycon, born, 4) {
+                if variances.len() != args.len() || self.refers_to_local(u, tycon, at, 4) {
                     return None;
                 }
                 let mut out = Vec::with_capacity(args.len());
                 for (&a, &pv) in args.iter().zip(&variances) {
                     if pv == 0 && self.is_open_var(u, a) {
-                        out.push(self.avoided(u, a, born, 0)?);
+                        out.push(self.avoided(u, a, at, 0)?);
                         continue;
                     }
-                    if pv == 0 && self.refers_to_local(u, a, born, 4) {
+                    if pv == 0 && self.refers_to_local(u, a, at, 4) {
                         let (bounds, wildcard) = match *u.types().get(a) {
                             Type::Bounds(lo, hi) => ((lo, hi), true),
                             _ => ((a, a), false),
                         };
-                        let lo = self.avoided(u, bounds.0, born, -1)?;
-                        let hi = self.avoided(u, bounds.1, born, 1)?;
+                        let lo = self.avoided(u, bounds.0, at, -1)?;
+                        let hi = self.avoided(u, bounds.1, at, 1)?;
                         match (wildcard, lo == hi) {
                             (false, true) => out.push(lo),
                             (false, false) if v <= 0 => return None,
@@ -111,17 +110,17 @@ impl Constraint {
                         }
                         continue;
                     }
-                    out.push(self.avoided(u, a, born, v * i32::from(pv))?);
+                    out.push(self.avoided(u, a, at, v * i32::from(pv))?);
                 }
                 Some(u.intern_type(Type::Applied(tycon, out)))
             }
             Type::Refined(parent, name, info) => {
-                let parent = self.avoided(u, parent, born, v)?;
+                let parent = self.avoided(u, parent, at, v)?;
                 let info = match u.types().get(info).clone() {
-                    _ if !self.refers_to_local(u, info, born, 4) => info,
+                    _ if !self.refers_to_local(u, info, at, 4) => info,
                     Type::Alias(_) if v > 0 => return Some(parent),
                     Type::Bounds(lo, hi) if v > 0 => {
-                        let (lo, hi) = (self.avoided(u, lo, born, -1)?, self.avoided(u, hi, born, 1)?);
+                        let (lo, hi) = (self.avoided(u, lo, at, -1)?, self.avoided(u, hi, at, 1)?);
                         u.intern_type(Type::Bounds(lo, hi))
                     }
                     _ => return None,
@@ -129,11 +128,11 @@ impl Constraint {
                 Some(u.intern_type(Type::Refined(parent, name, info)))
             }
             Type::And(a, b) => {
-                let (a, b) = (self.avoided(u, a, born, v)?, self.avoided(u, b, born, v)?);
+                let (a, b) = (self.avoided(u, a, at, v)?, self.avoided(u, b, at, v)?);
                 Some(meet(u, a, b))
             }
             Type::Or(a, b, soft) => {
-                let (a, b) = (self.avoided(u, a, born, v)?, self.avoided(u, b, born, v)?);
+                let (a, b) = (self.avoided(u, a, at, v)?, self.avoided(u, b, at, v)?);
                 Some(u.intern_type(Type::Or(a, b, soft)))
             }
             _ => None,
@@ -141,14 +140,14 @@ impl Constraint {
     }
 
     /// Value reference `t` widened and dealiased, then `avoided`.
-    fn widened(&mut self, u: &mut Universe, t: TypeId, born: SymbolId, v: i32) -> Option<TypeId> {
+    fn widened(&mut self, u: &mut Universe, t: TypeId, at: At, v: i32) -> Option<TypeId> {
         let widened = u.widen(t);
         let widened = match *u.types().get(widened) {
             Type::ByName(r) => r,
             _ => widened,
         };
         let widened = u.dealias(widened);
-        if widened == t { None } else { self.avoided(u, widened, born, v) }
+        if widened == t { None } else { self.avoided(u, widened, at, v) }
     }
 }
 

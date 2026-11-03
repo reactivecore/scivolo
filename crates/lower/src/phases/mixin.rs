@@ -65,7 +65,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
         let inits = !l.u.no_inits(mixin) || library && super::library_traits::has_lazy(l, mixin);
         if library && inits {
-            super::library_traits::prepare(l, mixin, span)?;
+            super::library_traits::prepare(l, mixin);
         }
         if !library || inits {
             forwarders.extend(mixed_in(l, class, mixin, args.remove(&mixin), span)?);
@@ -154,7 +154,7 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
             };
             if member
                 && !deferred
-                && (l.u.erased_method(other) == signature || l.u.matches(site, other, meth))
+                && (l.u.erased_method(other) == signature || l.u.info_matches(site, other, meth))
             {
                 return other == meth;
             }

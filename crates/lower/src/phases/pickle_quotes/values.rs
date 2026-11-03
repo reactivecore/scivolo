@@ -1,21 +1,35 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PickleQuotes.scala
 //! A quote of a literal (dotty's `pickleAsValue`): `'{ 42 }` applied to `quotes` becomes
-//! `scala.quoted.ToExpr.IntToExpr[T].apply(42)(quotes)`.
+//! `scala.quoted.ToExpr.IntToExpr[T].apply(42)(quotes)`, `'{ () }`
+//! `quotes.reflect.TreeMethods.asExpr(quotes.reflect.Literal(quotes.reflect.UnitConstant()))`.
 
 use super::Quoted;
+use super::reflect::{Reflect, call};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Kind, Type};
+use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// Makes quote application `t` of literal `lit` the call lifting the literal's value.
-pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId) -> Result<()> {
+/// Makes quote application `t` in `owner` of literal `lit` the call lifting the literal's value.
+pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId, owner: SymbolId) -> Result<()> {
     let span = l.tpd.span(q.body);
     let Tree::Literal { value } = l.tpd.tree(lit) else { unreachable!("a literal") };
-    if matches!(value, Constant::Null | Constant::Unit) {
-        return unsupported(span, "quotes of null or ()");
+    if let Some(constant) = match value {
+        Constant::Null => Some("NullConstant"),
+        Constant::Unit => Some("UnitConstant"),
+        _ => None,
+    } {
+        let reflect = Reflect { quotes: q.quotes, owner };
+        let constant = reflect.method(l, constant, "apply")?;
+        let constant = call(l, constant, &[]);
+        let literal = reflect.method(l, "Literal", "apply")?;
+        let literal = call(l, literal, &[constant]);
+        let tpe = l.tpd.tpe(q.body);
+        let expr = reflect.as_expr(l, tpe, literal)?;
+        l.copy_node(t, expr);
+        return Ok(());
     }
     let lifter = format!("{}ToExpr", value.tag());
     let quoted = l.u.package("scala.quoted").expect("scala.quoted");
@@ -51,7 +65,8 @@ pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId) -> Result<()>
         contextual: true,
     });
     let first = l.apply(fun, &[lit], using, Span::NONE);
-    let call = l.apply(first, &[q.quotes], expr, span);
+    let first = l.positioned(first);
+    let call = l.apply(first, &[q.quotes], expr, Span::NONE);
     let call = l.positioned(call);
     l.copy_node(t, call);
     Ok(())

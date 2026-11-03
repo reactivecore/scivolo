@@ -168,7 +168,7 @@ impl Typer<'_> {
         }
         let parts = arg_ids.iter().chain([&body]);
         let (mut typed, vars): (Vec<TNodeId>, Vec<_>) =
-            parts.map(|&a| self.typed_pattern_type_arg(a, ctx)).unzip();
+            parts.enumerate().map(|(i, &a)| self.typed_pattern_type_arg(a, (class, i), ctx)).unzip();
         if matches!(self.tpd.tree(typed[n]), T::ByNameTypeTree { .. }) {
             return self.unsupported(id, "by-name function parameter");
         }

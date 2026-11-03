@@ -91,7 +91,9 @@ impl<'i, 'a> Expansion<'i, 'a> {
             let to = if inline_param { self.i.u.info(p) } else { b };
             m.refs.insert(p, to);
         }
-        self.i.type_this_qualifiers(rhs);
+        if self.i.u.symbol(meth).tree.is_none() {
+            self.i.type_this_qualifiers(rhs);
+        }
         let (binding, arg_span) = (self.binding.clone(), self.arg_span.clone());
         let call_span = self.i.tpd.span(self.call);
         let expansion = self.i.copy(&mut m, rhs, &mut |i, _, t| {

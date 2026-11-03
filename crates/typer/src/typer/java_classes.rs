@@ -19,9 +19,26 @@ impl Typer<'_> {
             return false;
         }
         let name = self.u.full_name(c);
-        let library_java =
-            name.rsplit_once('.').is_some_and(|(pkg, simple)| java_classes(pkg).any(|c| c == simple));
+        let library_java = name.rsplit_once('.').is_some_and(|(pkg, simple)| {
+            let simple = tasty::module_name(simple).unwrap_or(simple);
+            java_classes(pkg).any(|c| c == simple)
+        });
         name.starts_with("java.") || name.starts_with("javax.") || library_java
+    }
+
+    /// The type parameters of the class of constructor `ctor`, whose bounds may be the JDK's
+    /// where the constructor's are javalib's; none if `ctor` is no constructor.
+    pub fn java_class_params(&mut self, ctor: Option<SymbolId>) -> Vec<SymbolId> {
+        let Some(c) = ctor.filter(|&m| self.u.is_constructor(m)) else { return Vec::new() };
+        self.u.symbol(c).owner.map_or_else(Vec::new, |o| self.u.type_params(o))
+    }
+
+    /// Whether type parameter `p` has the bounds `>: Nothing <: Any`.
+    pub fn is_unbounded(&mut self, p: SymbolId) -> bool {
+        let info = self.u.info(p);
+        let tasty::Type::Bounds(lo, hi) = *self.u.types().get(info) else { return false };
+        let b = self.u.builtins();
+        self.u.class_symbol(lo) == Some(b.nothing) && self.u.class_symbol(hi) == Some(b.any)
     }
 }
 
@@ -37,6 +54,12 @@ pub fn is_functional_interface(full: &str) -> bool {
                 | "java.io.FilenameFilter"
                 | "java.nio.file.PathMatcher"
         )
+}
+
+/// Whether `full` names a Java class of the Scala library.
+pub fn is_scala_library_java(full: &str) -> bool {
+    full.rsplit_once('.')
+        .is_some_and(|(pkg, simple)| pkg.starts_with("scala") && java_classes(pkg).any(|c| c == simple))
 }
 
 /// The names of the Java classes of package `package` the universe may lack.

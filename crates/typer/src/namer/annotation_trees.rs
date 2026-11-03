@@ -6,11 +6,11 @@
 
 use super::annotations::STATIC;
 use crate::ctx::{Ctx, Level};
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::{Pt, Typer};
 use rustc_hash::FxHashMap;
 use syntax::ast::NodeId;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// The context of the annotations of `sym`, defined in `ctx` (dotty's `annotContext`): for a
@@ -56,6 +56,9 @@ impl Typer<'_> {
                 None => {
                     let typed = self.typed(annot, Pt::Any, ctx);
                     let t = (!self.is_error(typed) && self.check_annot_class(annot, typed)).then_some(typed);
+                    if t.is_some() {
+                        self.check_annot_args(typed);
+                    }
                     *typed_trees.entry(annot).or_insert(t)
                 }
             };
@@ -65,6 +68,7 @@ impl Typer<'_> {
                 self.check_static(sym, annot);
             }
             self.syms.annotations.entry(sym).or_default().push(typed);
+            self.tpd.annotate(sym, typed);
         }
         self.syms.annotation_trees.clear();
     }
@@ -82,5 +86,37 @@ impl Typer<'_> {
         );
         self.error(annot, msg);
         false
+    }
+
+    /// Reports the argument of typed annotation `typed` if the annotation is an `@implicitNotFound`
+    /// or `@implicitAmbiguous` and the argument is not constant (dotty's `checkAnnotArgs`).
+    fn check_annot_args(&mut self, typed: TNodeId) {
+        let tpe = self.tpd.tpe(typed);
+        let Some(class) = self.u.class_symbol(tpe) else { return };
+        let name = self.u.full_name(class);
+        let Some(short) = name.strip_prefix("scala.annotation.") else { return };
+        if !matches!(short, "implicitNotFound" | "implicitAmbiguous") {
+            return;
+        }
+        let T::Apply { args, .. } = self.tpd.tree(typed) else { return };
+        let &[arg] = self.tpd.items(*args) else { return };
+        let mut t = self.tpd.tpe(arg);
+        loop {
+            let term = match *self.u.types().get(t) {
+                Type::TermRef(..) => true,
+                Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
+                _ => false,
+            };
+            match term.then(|| self.u.widen_once(t)).flatten() {
+                Some(w) if w != t => t = w,
+                _ => break,
+            }
+        }
+        if !matches!(self.u.types().get(t), Type::Constant(..) | Type::Str(_)) {
+            self.error_at(
+                self.tpd.span(arg),
+                format!("@{short} requires constant expressions as a parameter"),
+            );
+        }
     }
 }

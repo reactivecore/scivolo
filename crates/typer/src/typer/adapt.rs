@@ -119,7 +119,7 @@ impl Typer<'_> {
                 tree
             });
         }
-        if let Some(cast) = self.matchable_cast(tree, pt) {
+        if let Some(cast) = self.matchable_cast(tree, pt).or_else(|| self.java_null_stripped(tree)) {
             return self.adapt(cast, Pt::Type(pt), ctx);
         }
         if let Some(values) = self.named_tuple_values(tree, pt, ctx) {

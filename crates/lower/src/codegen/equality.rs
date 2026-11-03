@@ -143,7 +143,7 @@ impl<'l, 'a> Gen<'l, 'a> {
 
     fn is_non_null(&self, t: TNodeId) -> bool {
         matches!(self.l.tpd.tree(t), Tree::Literal { .. } | Tree::ClassLiteral { .. })
-            || self.l.tpd.sym(t).is_some_and(|s| self.l.u.is_module(s))
+            || self.l.tpd.sym(self.l.tpd.meth_part(t)).is_some_and(|s| self.l.u.is_module(s))
     }
 
     /// Whether either side may be a boxed number, character or boolean at run time, unless both
