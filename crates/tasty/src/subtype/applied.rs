@@ -58,6 +58,7 @@ impl Cmp<'_> {
                 let reduced = self.u.dealias(b);
                 reduced != b && self.recur(a, reduced)
             }
+            Type::Applied(..) => self.compare_curried2(a, b, tycon, args),
             _ => self.fourth_try(a, b),
         }
     }
@@ -128,6 +129,7 @@ impl Cmp<'_> {
                 let reduced = self.u.dealias(a);
                 reduced != a && self.recur(reduced, b)
             }
+            Type::Applied(..) => self.compare_curried1(a, b, tycon, args),
             _ => false,
         }
     }

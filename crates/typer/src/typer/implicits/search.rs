@@ -17,6 +17,8 @@ use tasty::{Type, TypeId};
 const MAX_DEPTH: u32 = 12;
 /// How many candidates one search may try, nested searches included.
 pub const MAX_TRIES: u32 = 400;
+/// The failure of a search that finds several candidates, none ranking above the others.
+pub const AMBIGUOUS: &str = "ambiguous implicit arguments";
 
 /// The failures that only mean a candidate does not fit.
 pub const MISFITS: [&str; 9] = [
@@ -128,7 +130,7 @@ impl Typer<'_> {
                     }
                     *c
                 }
-                _ => self.most_specific(&found, ctx).ok_or("ambiguous implicit arguments")?,
+                _ => self.most_specific(&found, ctx).ok_or(AMBIGUOUS)?,
             };
             return self.tried(winner, (pt, by_name), at, ctx, (depth, false));
         }

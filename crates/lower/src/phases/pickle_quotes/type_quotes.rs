@@ -51,6 +51,7 @@ pub fn pickle(l: &mut Lower, t: TNodeId, q: TypeQuote, owner: SymbolId) -> Resul
     }
     let class = match *l.u.types().get(tpe) {
         Type::Sym(_, c) => Some(c),
+        Type::TypeRef(..) => l.u.resolve_ref(tpe),
         _ => None,
     };
     if class.is_some_and(|c| tasty::PRIMITIVE_VALUE_CLASSES.contains(&l.u.full_name(c).as_str())) {

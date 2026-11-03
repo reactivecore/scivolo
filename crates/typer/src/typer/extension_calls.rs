@@ -82,12 +82,11 @@ impl Typer<'_> {
             Err(what) => return self.unsupported(id, what),
         };
         let typed = self.inlined_transparent(typed, pt, ctx).unwrap_or(typed);
-        let typed = match pt {
+        self.tpd.get_mut(typed).span = span;
+        match pt {
             Pt::Type(_) => self.adapt(typed, pt, ctx),
             _ => typed,
-        };
-        self.tpd.get_mut(typed).span = span;
-        typed
+        }
     }
 
     /// Whether `pt` applies a function to the receiver of an extension method call (dotty's

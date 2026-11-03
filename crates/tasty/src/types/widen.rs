@@ -75,7 +75,9 @@ impl Universe {
                     let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
                     self.subst(result, binder, &names, &args)
                 }
-                _ => self.referenced_alias(tycon).map_or(t, |a| self.intern_type(Type::Applied(a, args))),
+                _ => Some(self.dealias_step(tycon))
+                    .filter(|&d| d != tycon)
+                    .map_or(t, |d| self.intern_type(Type::Applied(d, args))),
             },
             Type::Sym(..) | Type::TypeRef(..) => self.referenced_alias(t).unwrap_or(t),
             _ => t,
@@ -154,10 +156,7 @@ impl Universe {
     /// The type of `this` in class `c` with its given self type (dotty's `ClassInfo.selfType`).
     pub fn self_type(&mut self, c: SymbolId) -> TypeId {
         let applied = self.this_type(c);
-        match self.given_self_type(c) {
-            Some(s) => self.intern_type(Type::And(s, applied)),
-            None => applied,
-        }
+        self.given_self_type(c).map_or(applied, |s| self.intern_type(Type::And(s, applied)))
     }
 
     /// The class type of a constant with tag `tag`.
