@@ -7,15 +7,28 @@
 use super::Constraint;
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
+/// Where a variable was made: the first symbol defined after it, and the nesting of the scope it
+/// was made in (dotty's `nestingLevel`).
+#[derive(Clone, Copy, PartialEq)]
+pub struct At {
+    pub born: SymbolId,
+    pub nesting: u32,
+}
+
 impl Constraint {
-    /// Whether `v` was made after symbol `s` was defined (dotty's deeper `nestingLevel`).
-    pub fn made_after(&self, v: VarId, s: SymbolId) -> bool {
-        self.vars[v.0 as usize].born.0 > s.0
+    /// Sets the nesting of the scope being typed, returning the previous one.
+    pub fn set_nesting(&mut self, nesting: u32) -> u32 {
+        std::mem::replace(&mut self.nesting, nesting)
     }
 
-    /// Whether `t` refers to a local symbol defined from `born` on, or has an uninstantiated
-    /// variable made after `born` whose bounds do, `depth` variables deep.
-    pub fn refers_to_local(&self, u: &mut Universe, t: TypeId, born: SymbolId, depth: u32) -> bool {
+    /// Whether `v` was made after symbol `s` was defined.
+    pub fn made_after(&self, v: VarId, s: SymbolId) -> bool {
+        self.vars[v.0 as usize].at.born.0 > s.0
+    }
+
+    /// Whether `t` refers to a local symbol defined since `at`, or has an uninstantiated
+    /// variable nested more deeply than `at` whose bounds do, `depth` variables deep.
+    pub fn refers_to_local(&self, u: &mut Universe, t: TypeId, at: At, depth: u32) -> bool {
         let mut syms = Vec::new();
         let mut vars = Vec::new();
         u.map_type(t, &mut |u, part| {
@@ -26,13 +39,13 @@ impl Constraint {
             }
             None
         });
-        syms.into_iter().any(|s| is_local_since(u, s, born))
+        syms.into_iter().any(|s| is_local_since(u, s, at.born))
             || vars.into_iter().any(|x| {
                 let e = self.vars[x.0 as usize];
-                let bounds = |c: &Self, u: &mut Universe, b| c.refers_to_local(u, b, born, depth - 1);
+                let bounds = |c: &Self, u: &mut Universe, b| c.refers_to_local(u, b, at, depth - 1);
                 match e.instance {
                     Some(i) => depth == 0 || bounds(self, u, i),
-                    None if e.born.0 <= born.0 => false,
+                    None if e.at.nesting <= at.nesting => false,
                     None => depth == 0 || bounds(self, u, e.lo) || bounds(self, u, e.hi),
                 }
             })
@@ -43,16 +56,16 @@ impl Constraint {
         matches!(*u.types().get(t), Type::Var(x) if self.vars[x.0 as usize].instance.is_none())
     }
 
-    /// A fresh variable at the level of `born`, `x` instantiated to it, its bounds those of `x`
-    /// without the local symbols defined from `born` on; `None` if they cannot do without them
-    /// (dotty's `legalVar` at variance 0).
-    pub fn unified_at(&mut self, u: &mut Universe, x: VarId, born: SymbolId) -> Option<TypeId> {
+    /// A fresh variable made `at`, `x` instantiated to it, its bounds those of `x` without the
+    /// local symbols defined since `at`; `None` if they cannot do without them (dotty's
+    /// `legalVar` at variance 0).
+    pub fn unified_at(&mut self, u: &mut Universe, x: VarId, at: At) -> Option<TypeId> {
         let e = self.vars[x.0 as usize];
         let mark = self.mark();
-        let kept = self.fresh_at(u, born);
+        let kept = self.fresh_at(u, at);
         let k = VarId(self.vars.len() as u32 - 1);
         self.instantiate(x, kept);
-        let (Some(lo), Some(hi)) = (self.avoided(u, e.lo, born, 1), self.avoided(u, e.hi, born, -1)) else {
+        let (Some(lo), Some(hi)) = (self.avoided(u, e.lo, at, 1), self.avoided(u, e.hi, at, -1)) else {
             self.rollback(mark);
             return None;
         };
@@ -80,7 +93,7 @@ impl Constraint {
                 }
                 continue;
             }
-            let (Some(lo), Some(hi)) = (self.avoided(u, e.lo, e.born, 1), self.avoided(u, e.hi, e.born, -1))
+            let (Some(lo), Some(hi)) = (self.avoided(u, e.lo, e.at, 1), self.avoided(u, e.hi, e.at, -1))
             else {
                 return false;
             };

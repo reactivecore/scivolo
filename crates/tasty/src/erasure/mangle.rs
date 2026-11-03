@@ -90,9 +90,7 @@ impl Universe {
             return e.clone();
         }
         let generation = self.generation();
-        let owner = self.symbol(def).owner;
-        let in_scala2_class = owner.is_some_and(|o| self.symbol(o).kind == Kind::Class && self.is_scala2(o));
-        let scala2 = in_scala2_class && !self.symbol(def).flags.has(INLINE);
+        let scala2 = self.erased_as_scala2(def);
         let previous = self.set_scala2_erasure(scala2);
         let (info, val) = (self.info(def), self.symbol(def).kind == Kind::Val);
         let erased = self.erase_method(info, val, semi);

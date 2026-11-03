@@ -73,6 +73,9 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         }
         if private_local && !is_param_accessor(l, sym) && !retained.contains(&sym) {
             l.u.set_owner(sym, constructor);
+            for local in l.u.symbol(sym).decls.clone() {
+                l.u.set_owner(local, constructor);
+            }
             continue;
         }
         if private_local {

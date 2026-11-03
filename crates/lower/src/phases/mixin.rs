@@ -154,7 +154,7 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
             };
             if member
                 && !deferred
-                && (l.u.erased_method(other) == signature || l.u.matches(site, other, meth))
+                && (l.u.erased_method(other) == signature || l.u.info_matches(site, other, meth))
             {
                 return other == meth;
             }

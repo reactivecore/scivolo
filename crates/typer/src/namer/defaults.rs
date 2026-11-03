@@ -133,9 +133,11 @@ impl Typer<'_> {
 }
 
 /// `t` with references to the value parameters of `method` made wildcards bounded by their types,
-/// and selections on such a wildcard made wildcards (dotty's `wildApprox` of a `TermParamRef`).
+/// selections on such a wildcard made wildcards and annotations dropped (dotty's `wildApprox` of a
+/// `TermParamRef` and an `AnnotatedType`).
 fn value_params_approximated(u: &mut tasty::Universe, t: TypeId, method: SymbolId) -> TypeId {
     u.map_type(t, &mut |u, x| match *u.types().get(x) {
+        Type::Annotated(t, _) => Some(value_params_approximated(u, t, method)),
         Type::Sym(None, s) if u.symbol(s).owner == Some(method) && u.symbol(s).kind == Kind::Param => {
             let info = u.info(s);
             let hi = value_params_approximated(u, info, method);

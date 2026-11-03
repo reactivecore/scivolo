@@ -9,7 +9,8 @@ impl Typer<'_> {
     /// The only alternative of `syms` without parameter lists, its type conforming to `pt`
     /// unless that is a function type, of several the only value if more specific than each method,
     /// else the only one with an implicit clause only, else for a single abstract method type `pt` the only
-    /// method taking its parameters (dotty's `resolveOverloaded` without arguments).
+    /// method taking its parameters, else the only parameterless one (dotty's `resolveOverloaded`
+    /// without arguments, then `tryParameterless`).
     pub fn parameterless_alternative(
         &mut self,
         syms: &[SymbolId],
@@ -21,12 +22,15 @@ impl Typer<'_> {
         {
             return self.taking_params(syms, prefix, &args, Some(p));
         }
-        let (mut found, mut implicit) = (Vec::new(), Vec::new());
+        let (mut found, mut implicit, mut parameterless) = (Vec::new(), Vec::new(), Vec::new());
         for &s in syms {
             self.complete(s);
             let tpe = self.ref_type(prefix, s);
             let info = self.method_info(tpe).unwrap_or(tpe);
             let info = self.mapped_info(info, s);
+            if !matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
+                parameterless.push(s);
+            }
             let result = match *self.u.types().get(info) {
                 Type::ByName(r) => r,
                 Type::Poly { result, .. } => match self.u.types().get(result) {
@@ -45,6 +49,7 @@ impl Typer<'_> {
                 found.push(s);
             }
         }
+        let with_implicits = !implicit.is_empty();
         if found.is_empty() {
             found = implicit.into_iter().filter(|&(_, r)| self.result_fits(r, pt)).map(|(s, _)| s).collect();
         }
@@ -52,6 +57,9 @@ impl Typer<'_> {
             && let Some(sam) = (0..=22).find_map(|n| self.sam_shape(p, n).ok().flatten())
         {
             return self.taking_params(syms, prefix, &sam.params, None);
+        }
+        if let ([], [s], false) = (&found[..], &parameterless[..], with_implicits) {
+            return Ok(*s);
         }
         let values: Vec<SymbolId> =
             found.iter().copied().filter(|&s| self.u.symbol(s).kind != Kind::Def).collect();

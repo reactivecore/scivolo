@@ -125,6 +125,7 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
         }
     }
     let receiver = dup(l, holder_ref);
+    let rhs = conform(l, rhs, &holder, info);
     let initialize = holder_call(l, &holder, receiver, "initialize", &[rhs], span)?;
     let receiver = dup(l, holder_ref);
     let sync = l.select(receiver, l.defs.synchronized, Span::NONE);

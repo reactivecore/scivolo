@@ -34,6 +34,7 @@ impl Universe {
                 let t = self.with_decoder(file, |d| d.definition_type(id));
                 let t = self.with_java_varargs(sym, t);
                 let t = self.with_declared_varargs(file, t);
+                let t = self.with_declared_constant(sym, file, t);
                 self.with_java_strings(sym, t)
             }
         };

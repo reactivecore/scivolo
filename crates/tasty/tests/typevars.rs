@@ -119,7 +119,7 @@ fn comparisons_constrain_variables() {
     let array_int = t(&mut u, "scala.Array", &[int]);
     let mut vars = Bounds::default();
     assert!(u.is_same_type_in(array_x, array_int, &mut vars));
-    assert_eq!(vars.added, [(x, int, true), (x, int, false)]);
+    assert_eq!(vars.added, [(x, int, false), (x, int, true)]);
 }
 
 #[test]

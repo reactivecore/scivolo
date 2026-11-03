@@ -162,13 +162,18 @@ impl Typer<'_> {
     /// The number of type parameters of the `i`th type parameter tree of script class `c`'s
     /// primary constructor; `None` if it has none.
     fn param_tree_arity(&self, c: SymbolId, i: usize) -> Option<usize> {
+        self.lambda_tree_arity(self.class_param_tree(c, i)?)
+    }
+
+    /// The `i`th type parameter tree of script class `c`'s primary constructor.
+    pub fn class_param_tree(&self, c: SymbolId, i: usize) -> Option<NodeId> {
         let Tree::TypeDef { rhs, .. } = *self.ast.tree(*self.syms.def_trees.get(&c)?) else { return None };
         let Tree::Template { constr, .. } = *self.ast.tree(rhs) else { return None };
         let Tree::DefDef { paramss, .. } = *self.ast.tree(constr) else { return None };
         let is_type_def = |&p: &NodeId| matches!(self.ast.tree(p), Tree::TypeDef { .. });
         let mut clauses = self.ast.clause_items(paramss).iter().map(|&l| self.ast.items(l));
         let clause = clauses.find(|ps| ps.first().is_some_and(is_type_def))?;
-        self.lambda_tree_arity(*clause.get(i)?)
+        clause.get(i).copied()
     }
 
     /// The number of type parameters of type parameter tree `p`; `None` if it has none.
@@ -176,5 +181,21 @@ impl Typer<'_> {
         let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { return None };
         let Tree::LambdaTypeTree { tparams, .. } = *self.ast.tree(rhs) else { return None };
         Some(self.ast.items(tparams).len())
+    }
+
+    /// Whether type parameter tree `p` takes type parameters or has an upper bound that is a type
+    /// lambda or names `AnyKind`.
+    pub fn may_be_lambda_sub(&self, p: NodeId) -> bool {
+        let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { return true };
+        let hi = match *self.ast.tree(rhs) {
+            Tree::TypeBoundsTree { hi: Some(hi), .. } => hi,
+            Tree::TypeBoundsTree { hi: None, .. } => return false,
+            _ => return true,
+        };
+        match *self.ast.tree(hi) {
+            Tree::Ident { name } | Tree::Select { name, .. } => self.text(name.name) == "AnyKind",
+            Tree::LambdaTypeTree { .. } => true,
+            _ => false,
+        }
     }
 }

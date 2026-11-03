@@ -58,7 +58,7 @@ fn implements_xxl_apply(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool 
             continue;
         }
         let applies = l.u.decl(base, "apply").unwrap_or_default();
-        if applies.into_iter().any(|apply| l.u.matches(site, meth, apply)) {
+        if applies.into_iter().any(|apply| l.u.info_matches(site, meth, apply)) {
             return true;
         }
     }
