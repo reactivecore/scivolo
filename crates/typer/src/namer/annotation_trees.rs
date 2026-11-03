@@ -68,6 +68,7 @@ impl Typer<'_> {
                 self.check_static(sym, annot);
             }
             self.syms.annotations.entry(sym).or_default().push(typed);
+            self.tpd.annotate(sym, typed);
         }
         self.syms.annotation_trees.clear();
     }

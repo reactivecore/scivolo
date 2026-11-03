@@ -99,11 +99,11 @@ impl TreePickler<'_> {
         tpt: TNodeId,
         rhs: Option<TNodeId>,
     ) -> Result<(), Refusal> {
-        if matches!(self.tpd.tree(tpt), T::Template { .. }) {
-            return Err("a class definition");
-        }
         self.defs.entry(sym).or_insert(None);
         self.register_def(sym);
+        if tag == VALDEF && self.u.symbol(sym).flags.has(OBJECT) {
+            self.share_module_class(tpt, rhs);
+        }
         self.with_length(tag, &mut |p| {
             p.name(&local_name(p.u, sym));
             if let Some(paramss) = paramss {
@@ -164,6 +164,10 @@ impl TreePickler<'_> {
             return Err("an annotated definition");
         }
         let term = s.kind.is_term();
+        let flags = match term && !s.name.ends_with("_=") {
+            true => flags.without(PARAMsetter),
+            false => flags,
+        };
         self.flags(flags, term);
         for (class, &annot) in classes.into_iter().zip(trees) {
             let class = type_ref(self.u, class);

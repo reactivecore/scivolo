@@ -4,6 +4,7 @@
 //! Methods' signatures as dotty's `Signature.paramsSig` gives them: the number of type parameters
 //! of each type parameter clause and the erased class of each value parameter.
 
+use crate::defn::type_ref;
 use crate::tpd::print::symbols::full_name;
 use tasty::{Binder, Erased, SymbolId, Type, TypeId, Universe};
 
@@ -48,8 +49,8 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
     }
 }
 
-/// The result part of the signature of method `s`, a constructor's its class, `None` if `s` is
-/// not a method (dotty's `Signature.NotAMethod`).
+/// The result part of the signature of method `s`, a constructor's its class or a value class's
+/// underlying type, `None` if `s` is not a method (dotty's `Signature.NotAMethod`).
 pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
     let mut t = u.info(s);
     let mut method = false;
@@ -60,7 +61,11 @@ pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
         return None;
     }
     if u.is_constructor(s) {
-        return u.symbol(s).owner.map(|c| full_name(u, c));
+        let c = u.symbol(s).owner?;
+        if u.underlying(c).is_none() {
+            return Some(full_name(u, c));
+        }
+        t = type_ref(u, c);
     }
     Some(match u.erase(t) {
         Erased::Unit => "scala.Unit".into(),

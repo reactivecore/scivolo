@@ -24,6 +24,16 @@ impl Lower<'_> {
         t
     }
 
+    /// Gives `t` the span of `start` and its children if it has none, as a parent with span
+    /// `start` gives a new child; `t`.
+    pub fn positioned_from(&mut self, t: TNodeId, start: Span) -> TNodeId {
+        if !self.tpd.span(t).exists() {
+            let span = self.envelope(t, start);
+            self.tpd.get_mut(t).span = span;
+        }
+        t
+    }
+
     /// Gives `t` span `span`, first assigning its children spans from `span`'s start if `t` has
     /// none (dotty's `withSpan`); `t`.
     pub fn with_span(&mut self, t: TNodeId, span: Span) -> TNodeId {

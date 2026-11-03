@@ -25,6 +25,21 @@ impl Typer<'_> {
         });
         name.starts_with("java.") || name.starts_with("javax.") || library_java
     }
+
+    /// The type parameters of the class of constructor `ctor`, whose bounds may be the JDK's
+    /// where the constructor's are javalib's; none if `ctor` is no constructor.
+    pub fn java_class_params(&mut self, ctor: Option<SymbolId>) -> Vec<SymbolId> {
+        let Some(c) = ctor.filter(|&m| self.u.is_constructor(m)) else { return Vec::new() };
+        self.u.symbol(c).owner.map_or_else(Vec::new, |o| self.u.type_params(o))
+    }
+
+    /// Whether type parameter `p` has the bounds `>: Nothing <: Any`.
+    pub fn is_unbounded(&mut self, p: SymbolId) -> bool {
+        let info = self.u.info(p);
+        let tasty::Type::Bounds(lo, hi) = *self.u.types().get(info) else { return false };
+        let b = self.u.builtins();
+        self.u.class_symbol(lo) == Some(b.nothing) && self.u.class_symbol(hi) == Some(b.any)
+    }
 }
 
 /// Whether the JDK class named `full` is one the JDK annotates `@FunctionalInterface`.

@@ -4,7 +4,7 @@
 //! The term holes of a quote: its splices without captured references, and the `termHoles`
 //! lambda calling their contents.
 
-use super::{QUOTE, SPLICE, staged};
+use super::{QUOTE, SPLICE, splicing, staged};
 use crate::definitions::symbol;
 use crate::phases::lift_names::fresh;
 use crate::phases::walk::{children, subtrees};
@@ -16,15 +16,17 @@ use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{MatchKind, TNodeId, Tree};
 use typer::unpickle::QuoteHole;
 
-/// The holes of a quote and, by index, the contents of their splices.
+/// The holes of a quote and, by index, the contents of their splices with the parameters their
+/// hole's arguments bind.
 pub struct Holes {
     pub holes: Vec<QuoteHole>,
-    pub contents: Vec<TNodeId>,
+    pub contents: Vec<(TNodeId, Vec<SymbolId>)>,
 }
 
-/// Makes each splice of quote body `body` an `Inlined` tree around a hole (dotty's
-/// `Splicing` and `extractHolesContents`); refuses nested quotes and captured references.
-pub fn extract(l: &mut Lower, body: TNodeId) -> Result<Holes> {
+/// Makes each splice of quote body `body` in `owner` an `Inlined` tree around a hole (dotty's
+/// `Splicing` and `extractHolesContents`); refuses nested quotes and the captured references
+/// `splicing` leaves.
+pub fn extract(l: &mut Lower, body: TNodeId, owner: SymbolId) -> Result<Holes> {
     let (mut splices, mut defined, mut refs) = (Vec::new(), FxHashSet::default(), Vec::new());
     let mut todo = vec![body];
     while let Some(t) = todo.pop() {
@@ -51,20 +53,20 @@ pub fn extract(l: &mut Lower, body: TNodeId) -> Result<Holes> {
     }
     let mut holes = Holes { holes: Vec::new(), contents: Vec::new() };
     for (index, (splice, content)) in splices.into_iter().enumerate() {
+        let captures = splicing::capture(l, content, &defined, owner);
         if let Some(&c) =
             subtrees(l.tpd, content).iter().find(|&&c| l.tpd.sym(c).is_some_and(|s| defined.contains(&s)))
         {
             return unsupported(l.tpd.span(c), "captured reference in a quote");
         }
-        let n = l.tpd.get(splice);
-        let (tree, tpe, sym) = (n.tree.clone(), n.tpe, n.sym);
+        let tpe = l.tpd.get(splice).tpe;
         let span = l.tpd.span(content).to_synthetic();
-        let node = l.tpd.node(tree, span, tpe, sym);
+        let node = l.tpd.node(Tree::TypeTree { inferred: false }, span, tpe, None);
         let bindings = l.tpd.list(&[]);
         let s = l.tpd.get_mut(splice);
         (s.tree, s.sym, s.span) = (Tree::Inlined { call: None, bindings, expansion: node }, None, span);
-        holes.holes.push(QuoteHole { node, index: index as u32, args: Vec::new() });
-        holes.contents.push(content);
+        holes.holes.push(QuoteHole { node, index: index as u32, args: captures.args });
+        holes.contents.push((content, captures.params));
     }
     Ok(holes)
 }
@@ -77,9 +79,9 @@ fn is_local(l: &Lower, s: SymbolId) -> bool {
 }
 
 /// `null` without holes, else `(idx, contents, quotes) => idx match { case i => content_i(quotes) }`
-/// in `owner`, the only case's body without a match; each tree spanned as dotty's constructors
-/// span it, from its children.
-pub fn lambda(l: &mut Lower, contents: &[TNodeId], owner: SymbolId) -> TNodeId {
+/// in `owner`, `content_i` its parameters bound to `contents`, the only case's body without a
+/// match; each tree spanned as dotty's constructors span it, from its children.
+pub fn lambda(l: &mut Lower, contents: &[(TNodeId, Vec<SymbolId>)], owner: SymbolId) -> TNodeId {
     if contents.is_empty() {
         return l.null_literal(Span::NONE);
     }
@@ -94,14 +96,19 @@ pub fn lambda(l: &mut Lower, contents: &[TNodeId], owner: SymbolId) -> TNodeId {
     let binder = l.u.fresh_binder();
     let info = l.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
     l.u.set_info(anon, info);
-    for &c in contents {
-        reown(l, c, anon);
+    for (c, _) in contents {
+        reown(l, *c, anon);
     }
     let def = l.forwarding_def(anon, Span::NONE, |l, args, _| {
-        let [idx, quotes_param] = [args[0], args[2]].map(|a| l.tpd.sym(a).expect("a parameter"));
-        let mut at = Span::NONE;
-        let rhss: Vec<TNodeId> =
-            contents.iter().map(|&c| applied(l, c, quotes_param, quotes, &mut at)).collect();
+        let [idx, seq_param, quotes_param] = [0, 1, 2].map(|i| l.tpd.sym(args[i]).expect("a parameter"));
+        let (mut at, mut bound_at) = (Span::NONE, Span::NONE);
+        let rhss: Vec<TNodeId> = contents
+            .iter()
+            .map(|(c, params)| {
+                let c = splicing::bound(l, (*c, params), (seq_param, anon), &mut bound_at);
+                applied(l, c, quotes_param, quotes, &mut at)
+            })
+            .collect();
         if let &[rhs] = &rhss[..] {
             return rhs;
         }

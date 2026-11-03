@@ -46,6 +46,11 @@ impl Universe {
         self.lambda_variances.insert(binder, variances);
     }
 
+    /// Records `variances` as those type lambda `binder`, made outside TASTy, declares.
+    pub fn declare_lambda_variances(&mut self, binder: Binder, variances: Vec<i8>) {
+        self.lambda_variances.insert(binder, variances);
+    }
+
     /// Whether type parameter `s` is declared covariant or contravariant.
     pub fn has_variance(&self, s: SymbolId) -> bool {
         variance(self.symbol(s).flags) != 0

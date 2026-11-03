@@ -11,12 +11,13 @@ use crate::tpd::{List, TNodeId, Tree as T, constant_type_of};
 use syntax::ast::TName;
 use tasty::tags::*;
 use tasty::write::Name;
-use tasty::{SymbolId, Type};
+use tasty::{SymbolId, Type, TypeId};
 
 impl TreePickler<'_> {
     /// Tree `id`, a `SHAREDterm` if pickled before.
     pub fn tree(&mut self, id: TNodeId) -> Result<(), Refusal> {
-        let at = self.buf.register_tree(id.index() as u32);
+        let first = self.shared.get(&id).copied().unwrap_or(id);
+        let at = self.buf.register_tree(first.index() as u32);
         if at != self.buf.buf.current_addr() {
             self.byte(SHAREDterm);
             self.buf.write_ref(at);
@@ -29,7 +30,7 @@ impl TreePickler<'_> {
         let (tpe, sym) = (node.tpe, node.sym);
         let typed = || tpe.ok_or("a tree without a type");
         match node.tree.clone() {
-            T::Ident { name } => self.ident(name, typed()?, sym),
+            T::Ident { name } => self.ident(id, name, typed()?, sym),
             T::Select { qualifier, name } => self.select(qualifier, name, sym),
             T::Apply { fun, args } if self.tpd.sym(fun).is_some_and(|f| f == throw_method(self.u)) => {
                 self.byte(THROW);
@@ -76,6 +77,8 @@ impl TreePickler<'_> {
             T::Alternative { trees } => self.node(ALTERNATIVE, &[], &[trees]),
             T::UnApply { fun, implicits, patterns } => self.unapply(id, fun, implicits, patterns),
             T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } => self.definition(id),
+            T::Template { .. } => self.template(id),
+            T::This { qual } => self.this(qual, typed()?),
             T::LambdaTypeTree { tparams, body } => {
                 let tparams = self.tpd.items(tparams).to_vec();
                 self.with_length(LAMBDAtpt, &mut |p| {
@@ -134,8 +137,12 @@ impl TreePickler<'_> {
         }
     }
 
-    /// An identifier: a path as its type, else its name and type.
-    fn ident(&mut self, name: TName, tpe: tasty::TypeId, sym: Option<SymbolId>) -> Result<(), Refusal> {
+    /// Identifier `id`: a reference to a self as its class's `this`, a path as its type, else its
+    /// name and type.
+    fn ident(&mut self, id: TNodeId, name: TName, tpe: TypeId, sym: Option<SymbolId>) -> Result<(), Refusal> {
+        if let Type::This(class) = *self.u.types().get(tpe) {
+            return self.class_this(id, None, class);
+        }
         if self.is_term_ref(tpe) && self.names.text(name.name) != "_" {
             return self.ty(tpe, false);
         }

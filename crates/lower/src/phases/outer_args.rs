@@ -69,7 +69,7 @@ pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
 
 /// Gives constructor `ctor` of library class `class` the leading parameter `$outer` of the type
 /// of `outer` unless it has it, and `class` its entry in `l.outers` (dotty's `needsOuterAlways`).
-fn declare_library(l: &mut Lower, class: SymbolId, ctor: SymbolId, outer: SymbolId) {
+pub fn declare_library(l: &mut Lower, class: SymbolId, ctor: SymbolId, outer: SymbolId) {
     let tpe = type_ref(l.u, outer);
     let info = l.u.info(ctor);
     let first = l.u.strip_poly(info);

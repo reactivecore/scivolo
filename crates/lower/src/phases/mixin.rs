@@ -65,7 +65,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
         let inits = !l.u.no_inits(mixin) || library && super::library_traits::has_lazy(l, mixin);
         if library && inits {
-            super::library_traits::prepare(l, mixin, span)?;
+            super::library_traits::prepare(l, mixin);
         }
         if !library || inits {
             forwarders.extend(mixed_in(l, class, mixin, args.remove(&mixin), span)?);

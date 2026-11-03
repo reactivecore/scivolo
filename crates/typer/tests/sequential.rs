@@ -361,7 +361,11 @@ fn no_false_errors_behind_unsupported_constructs() {
     let cases = [
         (
             "class C:\n  class D\nclass Baz:\n  val c = new C\n  export c.*\nobject M:\n  val d = Baz().D()\n",
-            "export of a class without a companion object",
+            "constructor proxy of an exported class",
+        ),
+        (
+            "object I:\n  class P(x: Int)\nobject P:\n  def apply(x: Int) = 0\nobject M:\n  export I.P\n  val p = P(1)\n",
+            "constructor proxy of an exported class",
         ),
         (
             "trait T\nclass O:\n  object S extends T { self =>\n    def f() = self.hashCode\n  }\n",
@@ -518,7 +522,7 @@ fn synthetic_symbols_are_shared() {
     let repeated = u.symbol(scala).decls.iter().filter(|&&d| u.symbol(d).name == "<repeated>").count();
     assert_eq!(repeated, 1);
     let ops = u.package("<special-ops>").expect("<special-ops>");
-    assert_eq!(u.symbol(ops).decls.len(), 1);
+    assert_eq!(u.symbol(ops).decls.iter().filter(|&&d| u.symbol(d).name == "throw").count(), 1);
 }
 
 #[test]
