@@ -158,10 +158,12 @@ impl Typer<'_> {
                 formal = self.dependent_formal(formal, clause, &typed_args);
             }
             let pre = pretyped.as_ref().and_then(|typed| typed[i]);
-            let arg = self.arg_against(a, pre, formal, ctx);
             let by_name =
                 params.get(i).is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
-            typed_args.push(if by_name { self.by_name_uncaptured(arg) } else { arg });
+            let arg_ctx = if by_name { self.retract_mutables(ctx) } else { ctx };
+            let arg = self.arg_against(a, pre, formal, arg_ctx);
+            let arg = if by_name { self.by_name_uncaptured(arg) } else { arg };
+            typed_args.push(self.by_name_flow_dropped(arg, i, meth));
         }
         let result = match dependent {
             true => self.dependent_result(result, (binder, &params), meth, &typed_args).filter(|_| plain),
