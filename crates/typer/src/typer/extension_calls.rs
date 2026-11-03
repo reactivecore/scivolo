@@ -82,12 +82,21 @@ impl Typer<'_> {
             Err(what) => return self.unsupported(id, what),
         };
         let typed = self.inlined_transparent(typed, pt, ctx).unwrap_or(typed);
-        let typed = match pt {
+        let adapted = match pt {
             Pt::Type(_) => self.adapt(typed, pt, ctx),
             _ => typed,
         };
-        self.tpd.get_mut(typed).span = span;
-        typed
+        self.tpd.get_mut(adapted).span = span;
+        if self.is_cast_of(adapted, typed) {
+            self.tpd.get_mut(typed).span = span;
+        }
+        adapted
+    }
+
+    /// Whether `tree` is `inner.asInstanceOf[T]`, a cast to captured wildcards.
+    fn is_cast_of(&self, tree: TNodeId, inner: TNodeId) -> bool {
+        let T::TypeApply { fun, .. } = *self.tpd.tree(tree) else { return false };
+        matches!(*self.tpd.tree(fun), T::Select { qualifier, .. } if qualifier == inner)
     }
 
     /// Whether `pt` applies a function to the receiver of an extension method call (dotty's

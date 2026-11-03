@@ -82,7 +82,7 @@ impl Universe {
         };
         let class = self.erased_class(t);
         let Erased::Class(name) = e else { return class };
-        let own = class.map(|c| self.intern_type(Type::Sym(None, c)));
+        let own = class.filter(|_| name != OBJECT).map(|c| self.intern_type(Type::Sym(None, c)));
         if let Some(t) = own.filter(|&t| self.erase(t) == *e) {
             return self.class_symbol(t);
         }

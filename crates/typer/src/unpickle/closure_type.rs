@@ -55,7 +55,7 @@ impl Unpickler<'_> {
             Type::TypeRef(pre, name) => self.member_approx(pre, Err(name), v, ps),
             Type::Applied(tycon, args) => {
                 let c = self.approx(tycon, v, ps)?;
-                let variances = approx::tycon_variances(self.u, tycon, args.len());
+                let variances = self.u.tycon_variances(tycon, args.len());
                 let mut mapped = Vec::with_capacity(args.len());
                 for (&arg, &pv) in args.iter().zip(&variances) {
                     let wildcard = matches!(self.u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));

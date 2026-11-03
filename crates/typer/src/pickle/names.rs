@@ -156,13 +156,19 @@ impl TreePickler<'_> {
         }
     }
 
-    /// The name of `s`, signed if `signed` and `s` is a method (dotty's `pickleNameAndSig`).
-    pub fn signed_name(&mut self, s: SymbolId, signed: bool) -> Result<(), Refusal> {
-        let orig = match (self.is_defined_here(s), derived_name(&self.u.symbol(s).name)) {
+    /// The name of `s` in a reference: its local name if defined in the quote, else a default
+    /// getter's if it is one.
+    pub fn ref_name(&self, s: SymbolId) -> Name {
+        match (self.is_defined_here(s), derived_name(&self.u.symbol(s).name)) {
             (true, _) => local_name(self.u, s),
             (false, Some(getter @ Name::DefaultGetter(..))) => getter,
             (false, _) => sym_name(self.u, s),
-        };
+        }
+    }
+
+    /// The name of `s`, signed if `signed` and `s` is a method (dotty's `pickleNameAndSig`).
+    pub fn signed_name(&mut self, s: SymbolId, signed: bool) -> Result<(), Refusal> {
+        let orig = self.ref_name(s);
         let result = if signed { result_sig(self.u, s) } else { None };
         let Some(result) = result else {
             self.name(&orig);

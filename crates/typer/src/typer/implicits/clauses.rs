@@ -5,6 +5,7 @@
 //! `adaptNoArgsImplicitMethod`).
 
 use super::super::{Pt, Typer};
+use super::search::AMBIGUOUS;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -44,7 +45,11 @@ impl Typer<'_> {
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         let meth = self.tpd.sym(self.tpd.meth_part(tree));
         let mut found: Vec<Option<TNodeId>> = Vec::new();
+        let mut ambiguous = false;
         for (i, (name, p)) in params.iter().enumerate() {
+            if ambiguous && self.mentions_clause_params(*p, (binder, &names), meth) {
+                break;
+            }
             if found.contains(&None) && self.mentions_clause_params(*p, (binder, &names), meth) {
                 return Err("implicit parameter depending on a defaulted one");
             }
@@ -69,8 +74,12 @@ impl Typer<'_> {
                     }
                     return Err(what);
                 }
+                Err(AMBIGUOUS) if depth > 0 => ambiguous = true,
                 arg => found.push(Some(arg?)),
             }
+        }
+        if ambiguous {
+            return Err(AMBIGUOUS);
         }
         if found.contains(&None) {
             return Ok(Some(self.with_default_implicits(tree, &names, &found, ctx)));

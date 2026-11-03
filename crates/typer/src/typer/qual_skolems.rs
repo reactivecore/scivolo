@@ -4,7 +4,6 @@
 //! Skolemized prefixes of members selected on unstable qualifiers (dotty's `QualSkolemType`).
 
 use super::Typer;
-use super::approx::tycon_variances;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Typer<'_> {
@@ -45,7 +44,7 @@ fn approximated(u: &mut Universe, t: TypeId, v: i8, (p, owner): (TypeId, SymbolI
         Type::Sym(Some(pre), s) if v <= 0 && is_owner_this(u, pre, owner) => not_forwarded(u, p, s),
         Type::Sym(Some(pre), _) => m(u, pre, v.max(0)),
         Type::Applied(tycon, args) => {
-            let variances = tycon_variances(u, tycon, args.len());
+            let variances = u.tycon_variances(tycon, args.len());
             m(u, tycon, v)
                 || args.iter().zip(variances).any(|(&a, pv)| {
                     let wildcard = matches!(u.types().get(a), Type::Bounds(..) | Type::Wildcard(_));
