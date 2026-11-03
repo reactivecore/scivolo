@@ -145,7 +145,8 @@ impl Typer<'_> {
             r = parent;
         }
         let class = names.first().and_then(|_| self.u.class_symbol(t));
-        let mut wanted: Vec<(SymbolId, String)> = names.into_iter().filter_map(|n| Some((class?, n))).collect();
+        let mut wanted: Vec<(SymbolId, String)> =
+            names.into_iter().filter_map(|n| Some((class?, n))).collect();
         if let Type::Sym(Some(p), s) = *self.u.types().get(t)
             && self.u.symbol(s).kind == Kind::Type
         {

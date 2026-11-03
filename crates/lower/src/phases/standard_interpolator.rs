@@ -20,6 +20,10 @@ pub fn transform(l: &mut Lower, t: TNodeId, raw: bool, owner: SymbolId) -> Resul
         return unsupported(span, "interpolations without a `StringContext` prefix");
     };
     let pre = *pre;
+    let args_span = match *l.tpd.tree(args) {
+        Tree::Typed { expr, .. } if !matches!(l.tpd.tree(expr), Tree::SeqLiteral { .. }) => l.tpd.span(expr),
+        _ => l.tpd.span(args),
+    };
     let module = string_context(l)?;
     let class = l.u.module_class(module).expect("StringContext's class");
     let member = |l: &mut Lower, owner: SymbolId, name: &str| -> Result<SymbolId> {
@@ -37,7 +41,7 @@ pub fn transform(l: &mut Lower, t: TNodeId, raw: bool, owner: SymbolId) -> Resul
         (pre, None)
     } else {
         let (ev, def) = eval_once(l, pre, owner);
-        (l.ident(ev, Span::NONE), Some(def))
+        (l.ident(ev, args_span.end_pos()), Some(def))
     };
     let parts = l.select(sc, parts, Span::NONE);
     let parts = l.positioned(parts);
