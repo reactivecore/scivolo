@@ -31,7 +31,7 @@ impl Host {
                     Const::Null => C::Null,
                     Const::Byte(n) => C::Byte(n),
                     Const::Short(n) => C::Short(n),
-                    Const::Char(c) => C::Char(u16::try_from(c as u32).map_err(|_| STRUCTURE)?),
+                    Const::Char(_) => C::Char(u16::try_from(bits).map_err(|_| STRUCTURE)?),
                     Const::Int(n) => C::Int(n),
                     Const::Long(n) => C::Long(n),
                     Const::Float(x) => C::Float(x),

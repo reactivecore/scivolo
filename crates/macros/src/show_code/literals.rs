@@ -23,14 +23,14 @@ impl Code<'_> {
             C::Double(x) => java_decimal(*x, format!("{x:?}")).ok_or(REFUSED)?,
             &C::Char(u) => {
                 let mut s = String::from("'");
-                escape(&mut s, char::from_u32(u as u32).unwrap_or('\u{fffd}'));
+                escape(&mut s, char::from_u32(u as u32).ok_or(REFUSED)?);
                 s.push('\'');
                 s
             }
             C::String(units) => {
                 let mut s = String::from("\"");
                 for c in char::decode_utf16(units.iter().copied()) {
-                    escape(&mut s, c.unwrap_or('\u{fffd}'));
+                    escape(&mut s, c.map_err(|_| REFUSED)?);
                 }
                 s.push('"');
                 s
@@ -55,8 +55,10 @@ pub fn constant_structure(c: &C) -> Result<String, &'static str> {
             format!("FloatConstant({}f)", java_decimal(*x as f64, format!("{x:?}")).ok_or(REFUSED)?)
         }
         C::Double(x) => format!("DoubleConstant({}d)", java_decimal(*x, format!("{x:?}")).ok_or(REFUSED)?),
-        &C::Char(u) => format!("CharConstant('{}')", char::from_u32(u as u32).unwrap_or('\u{fffd}')),
-        C::String(units) => format!("StringConstant(\"{}\")", String::from_utf16_lossy(units)),
+        &C::Char(u) => format!("CharConstant('{}')", char::from_u32(u as u32).ok_or(REFUSED)?),
+        C::String(units) => {
+            format!("StringConstant(\"{}\")", String::from_utf16(units).map_err(|_| REFUSED)?)
+        }
     })
 }
 
@@ -68,7 +70,7 @@ pub fn constant_value(tag: u8, bits: i64) -> Option<String> {
         Const::Null => "null".to_owned(),
         Const::Byte(n) => n.to_string(),
         Const::Short(n) => n.to_string(),
-        Const::Char(c) => c.to_string(),
+        Const::Char(_) => char::from_u32(bits as u32)?.to_string(),
         Const::Int(n) => n.to_string(),
         Const::Long(n) => n.to_string(),
         Const::Float(x) => java_decimal(x as f64, format!("{x:?}"))?,
@@ -87,4 +89,21 @@ pub fn java_decimal(x: f64, shortest: String) -> Option<String> {
         return Some(if x > 0.0 { "Infinity" } else { "-Infinity" }.into());
     }
     (x == 0.0 || (1e-3..1e7).contains(&x.abs())).then_some(shortest)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{C, constant_structure, constant_value};
+    use tasty::tags::CHARconst;
+
+    #[test]
+    fn lone_surrogates_are_refused() {
+        assert!(constant_structure(&C::Char(0xd800)).is_err());
+        assert!(constant_structure(&C::String(vec![0x61, 0xdc00].into())).is_err());
+        assert!(constant_value(CHARconst, 0xd800).is_none());
+        assert_eq!(
+            constant_structure(&C::String(vec![0xd83d, 0xde00].into())).unwrap(),
+            "StringConstant(\"😀\")"
+        );
+    }
 }
