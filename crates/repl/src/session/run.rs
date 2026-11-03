@@ -9,6 +9,9 @@ use crate::trace;
 use lower::NirFile;
 use vm::VmError;
 
+/// The place of the wrapper module, whose span starts the input.
+const WRAPPER: Place = (0, true, 0);
+
 /// A compiled input: its wrapper module, NIR files and definitions to print.
 pub struct Unit {
     pub module: String,
@@ -35,9 +38,11 @@ impl Session {
             }
         }
         self.vm.clear_interrupts();
-        let first = defs.iter().find(|(_, d)| d.point.is_some()).map_or((-1, true, 0), |(p, _)| *p);
         if let Err(e) = self.vm.eval_module(&module) {
-            warnings.push((first, self.failed(e)));
+            let init = defs.iter().position(|(_, d)| d.initializes()).unwrap_or(defs.len());
+            let lazies = defs[..init].iter().filter(|(_, d)| d.before_init() && !self.quiet);
+            warnings.extend(lazies.map(|(p, d)| (*p, vec![d.text().to_owned()])));
+            warnings.push((defs.get(init).map_or(WRAPPER, |(p, _)| *p), self.failed(e)));
         } else {
             self.res -= unit_res;
             self.earlier.push(earlier);
@@ -51,7 +56,7 @@ impl Session {
     /// The lines of `defs` of module `module` by place, up to the first that fails.
     fn rendered(&mut self, module: &str, defs: Vec<(Place, Definition)>) -> Vec<(Place, Vec<String>)> {
         let mut out = Vec::new();
-        for (p, d) in defs {
+        for (p, d) in defs.into_iter().filter(|(_, d)| d.printed) {
             match render::line(&mut self.vm, module, &d, self.width) {
                 Ok(line) if !self.quiet => out.push((p, vec![line])),
                 Ok(_) => {}

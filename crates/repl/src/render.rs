@@ -16,16 +16,34 @@ use vm::{Vm, VmError};
 /// How many lines a value prints at most, as dotty's `-Xrepl-print-height`.
 const HEIGHT: i32 = 50;
 
-/// A definition to print: its text, for a value the show method of its value, and the point of
-/// its tree in the input.
+/// A definition: its text, for a value the show method of its value, the point of its tree in
+/// the input, whether it is a lazy value and whether it prints.
 pub struct Definition {
     text: String,
     show: Option<String>,
     pub point: Option<Offset>,
+    lazy: bool,
+    pub printed: bool,
 }
 
-/// The definitions of top-level object `object` but `unprinted`, in source order (dotty's
-/// `ReplDriver.renderDefinitions`), with the points `points` gives their symbols.
+impl Definition {
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// Whether printing it initializes its module: a value that is not lazy.
+    pub fn initializes(&self) -> bool {
+        self.show.is_some()
+    }
+
+    /// Whether it prints although its module fails to initialize at a later value.
+    pub fn before_init(&self) -> bool {
+        self.lazy && self.printed
+    }
+}
+
+/// The definitions of top-level object `object` in source order, `unprinted` not printing
+/// (dotty's `ReplDriver.renderDefinitions`), with the points `points` gives their symbols.
 pub fn definitions(
     u: &mut Universe,
     object: &str,
@@ -36,8 +54,11 @@ pub fn definitions(
     let Some(class) = u.module_class_in(root, object) else { return Vec::new() };
     let decls = u.symbol(class).decls.clone();
     let point = |d| points.iter().find(|&&(s, _)| s == d).map(|&(_, p)| p);
-    let shown = decls.into_iter().filter(|d| !unprinted.contains(d));
-    shown.filter_map(|d| Some(Definition { point: point(d), ..definition(u, d)? })).collect()
+    let printed = |d| !unprinted.contains(&d);
+    decls
+        .into_iter()
+        .filter_map(|d| Some(Definition { point: point(d), printed: printed(d), ..definition(u, d)? }))
+        .collect()
 }
 
 /// The symbols of the definitions in wrapper template `template` of `typed` with the points of
@@ -82,13 +103,13 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
     if hidden || special || generated || name.ends_with(SUFFIX) {
         return None;
     }
-    let text = |text: String| Some(Definition { text, show: None, point: None });
+    let text = |text: String| Some(Definition { text, show: None, point: None, lazy: false, printed: true });
     match kind {
         Kind::Class => text(format!("// defined {}", u.show_def(d))),
         Kind::Type if u.alias_of(d).is_some() => text(format!("// defined alias {}", u.show_def(d))),
         Kind::Type => text(format!("// defined {}", u.show_def(d))),
         Kind::Val if flags.has(OBJECT) => None,
-        Kind::Val | Kind::Param if flags.has(LAZY) => text(u.show_def(d)),
+        Kind::Val | Kind::Param if flags.has(LAZY) => Some(Definition { lazy: true, ..text(u.show_def(d))? }),
         Kind::Val | Kind::Param => {
             let info = u.info(d);
             let show = Some(tasty::encode(&format!("{name}{SUFFIX}")));
@@ -96,7 +117,7 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
                 Some(var) => format!("{var}: {}", u.show_user(info)),
                 None => u.show_def(d),
             };
-            Some(Definition { text, show, point: None })
+            Some(Definition { text, show, point: None, lazy: false, printed: true })
         }
         Kind::Def => text(u.show_def(d)),
         Kind::Package | Kind::TypeParam => None,

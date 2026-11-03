@@ -43,3 +43,44 @@ val res0: String = "x"
   |
   | longer explanation available when compiling with `-explain`
 val j$k: Int = 1
+
+scala> def f = 1
+     | val g$h = 2
+     | val x: Int = throw new Exception("x")
+1 warning found
+-- [E230] Syntax Warning: ------------------------------------------------------
+2 |val g$h = 2
+  |    ^^^
+  |The identifier `g$h` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+java.lang.Exception: x
+  ... 1 elided
+
+scala> lazy val a = 1
+     | val b$c = 2
+     | val y: Int = throw new Exception("y")
+1 warning found
+lazy val a: Int
+-- [E230] Syntax Warning: ------------------------------------------------------
+2 |val b$c = 2
+  |    ^^^
+  |The identifier `b$c` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+java.lang.Exception: y
+  ... 1 elided
+
+scala> class D
+     | Console.flush()
+     | val k$l = 2
+     | val z: Int = throw new Exception("z")
+1 warning found
+java.lang.Exception: z
+  ... 1 elided
+-- [E230] Syntax Warning: ------------------------------------------------------
+3 |val k$l = 2
+  |    ^^^
+  |The identifier `k$l` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
