@@ -99,11 +99,11 @@ impl TreePickler<'_> {
         tpt: TNodeId,
         rhs: Option<TNodeId>,
     ) -> Result<(), Refusal> {
-        if matches!(self.tpd.tree(tpt), T::Template { .. }) {
-            return Err("a class definition");
-        }
         self.defs.entry(sym).or_insert(None);
         self.register_def(sym);
+        if tag == VALDEF && self.u.symbol(sym).flags.has(OBJECT) {
+            self.share_module_class(tpt, rhs);
+        }
         self.with_length(tag, &mut |p| {
             p.name(&local_name(p.u, sym));
             if let Some(paramss) = paramss {
@@ -115,6 +115,16 @@ impl TreePickler<'_> {
             }
             p.modifiers(sym)
         })
+    }
+
+    /// Shares the class of module val's `new Foo$()` `rhs` with its type `tpt`, one tree in
+    /// dotty's `moduleDef`.
+    fn share_module_class(&mut self, tpt: TNodeId, rhs: Option<TNodeId>) {
+        let Some(T::Apply { fun, .. }) = rhs.map(|r| self.tpd.tree(r)) else { return };
+        let T::Select { qualifier, .. } = *self.tpd.tree(*fun) else { return };
+        if let T::New { tpt: class } = *self.tpd.tree(qualifier) {
+            self.shared.insert(class, tpt);
+        }
     }
 
     /// The parameter clauses `paramss` of a method (dotty's `pickleParamss`).
@@ -164,6 +174,10 @@ impl TreePickler<'_> {
             return Err("an annotated definition");
         }
         let term = s.kind.is_term();
+        let flags = match term && !s.name.ends_with("_=") {
+            true => flags.without(PARAMsetter),
+            false => flags,
+        };
         self.flags(flags, term);
         for (class, &annot) in classes.into_iter().zip(trees) {
             let class = type_ref(self.u, class);

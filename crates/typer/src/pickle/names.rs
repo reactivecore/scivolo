@@ -6,7 +6,7 @@
 
 use super::{Refusal, TreePickler};
 use crate::signatures::{params_sig, result_sig};
-use tasty::tags::{OBJECT, TERMREFpkg};
+use tasty::tags::{OBJECT, PARAMsetter, TERMREFpkg};
 use tasty::write::{Name, ParamSig};
 use tasty::{Kind, SymbolId, Universe};
 
@@ -24,10 +24,12 @@ const UNIQUE_SEPARATORS: [&str; 7] = ["evidence$", "contextual$", "$given", "ev$
 
 /// The name of definition `s` of a quote: a default getter's or a unique name if it ends in
 /// `$default$` or one of dotty's unique separators and a number, and if read from TASTy, its name
-/// there is of such a kind.
+/// there is of such a kind; a synthetic parameter's `x$N` simple (dotty's `syntheticParamName`).
 pub fn local_name(u: &Universe, s: SymbolId) -> Name {
     let sym = u.symbol(s);
-    if sym.tree.is_some() && !sym.derived {
+    let param = sym.kind == Kind::Param || sym.flags.has(PARAMsetter);
+    let synthetic = sym.name.strip_prefix("x$").is_some_and(|n| n.parse::<u32>().is_ok());
+    if sym.tree.is_some() && !sym.derived || param && synthetic && !sym.derived {
         return sym_name(u, s);
     }
     derived_name(&sym.name).unwrap_or_else(|| sym_name(u, s))
@@ -94,6 +96,30 @@ fn is_module_class(u: &mut Universe, full: &str) -> Result<bool, Refusal> {
     Ok(u.symbol(class).flags.has(OBJECT))
 }
 
+/// The name of class `c` in a signature (dotty's `fullNameSeparated(QualifiedName)`): a `_$` for
+/// each term between it and its enclosing class, a module class's as an `OBJECTCLASS` name.
+fn class_sig_name(u: &Universe, c: SymbolId) -> Name {
+    let sym = u.symbol(c);
+    let module = sym.kind == Kind::Class && sym.flags.has(OBJECT);
+    let mut name = match sym.name.strip_suffix('$') {
+        Some(n) if module => n.to_owned(),
+        _ => sym.name.clone(),
+    };
+    let mut encl = sym.owner;
+    while let Some(e) = encl.filter(|&e| !matches!(u.symbol(e).kind, Kind::Class | Kind::Package)) {
+        name.insert_str(0, "_$");
+        encl = u.symbol(e).owner;
+    }
+    let name = match encl.filter(|&e| e != u.root()) {
+        Some(e) if u.symbol(e).kind == Kind::Package => {
+            Name::Qualified(Box::new(package_name(u, e)), utf8(&name))
+        }
+        Some(e) => Name::Qualified(Box::new(class_sig_name(u, e)), utf8(&name)),
+        None => Name::utf8(&name),
+    };
+    if module { Name::ObjectClass(Box::new(name)) } else { name }
+}
+
 /// The qualified name of dotted path `path`.
 pub fn qualified(path: &str) -> Name {
     let mut parts = path.split('.').map(Name::utf8);
@@ -149,7 +175,10 @@ impl TreePickler<'_> {
             Some(t) => Name::utf8(t),
             None => orig.clone(),
         };
-        let result = Box::new(sig_type_name(self.u, &result)?);
+        let result = match self.u.symbol(s).owner.filter(|_| self.u.is_constructor(s)) {
+            Some(class) => Box::new(class_sig_name(self.u, class)),
+            None => Box::new(sig_type_name(self.u, &result)?),
+        };
         self.name(&Name::Signed { orig: Box::new(orig), target: Box::new(target), result, params });
         Ok(())
     }

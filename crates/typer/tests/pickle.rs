@@ -264,6 +264,18 @@ fn quotes_with_definitions_pickle_to_their_bytes() {
     all_repickled(&mut u, owner, &quotes, true);
 }
 
+/// Quotes defining classes, read in the method that made them: pickled to the same trees, the
+/// classes of their parents shared apart as in `quotes_with_package_prefixes_pickle_to_their_trees`.
+#[test]
+fn quotes_with_classes_pickle_to_their_trees() {
+    let Some(mut u) = universe(&["tests/pickle/probe.jar"]) else { return };
+    let class = module_class(&mut u, "probe", "Probe$");
+    for method in ["objects", "classes", "anonymous", "selves"] {
+        let owner = u.decl(class, method).unwrap()[0];
+        all_repickled(&mut u, owner, &[&format!("probe-{method}")], false);
+    }
+}
+
 /// Quotes whose types dotty shares apart where they refer to a package as its `this` and as a
 /// reference, which TASTy writes alike: pickled to the same trees, the types shared otherwise.
 #[test]

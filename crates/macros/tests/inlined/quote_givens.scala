@@ -4,7 +4,9 @@ import macrolib.Searches
 object QuoteGivens:
   val inBlock = Searches.inBlock
   val inObject = Searches.inObject
+  val inObjectAgain = Searches.inObject
   val usingClass = Searches.usingClass
+  val usingClassAgain = Searches.usingClass
   val outerQuotes = Searches.outerQuotes
   val sibling = Searches.sibling
 

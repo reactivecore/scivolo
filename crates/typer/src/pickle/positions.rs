@@ -9,7 +9,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::source::{Offset, SourceFile};
 use tasty::TastySpan;
-use tasty::write::{PositionsBuffer, text_line_sizes};
+use tasty::write::{Addr, PositionsBuffer, text_line_sizes};
 
 /// The source of a quote: its path from the source root and the size of each of its lines.
 pub struct QuoteSource<'a> {
@@ -69,6 +69,11 @@ impl TreePickler<'_> {
                 {
                     out.span(addr, source.tasty_span(span)?);
                 }
+            }
+            if let Some(addr) =
+                self.buf.addr_of_tree(t.index() as u32).filter(|_| self.self_refs.contains(&t))
+            {
+                out.span(Addr(addr.0 + 1), source.tasty_span(span.start_pos().to_synthetic())?);
             }
             let hole_args = self.holes.get(&t).map(|(_, args)| args.clone()).unwrap_or_default();
             let annots = match self.tpd.sym(t).filter(|_| self.needs_pos(t)) {

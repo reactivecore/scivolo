@@ -25,3 +25,9 @@ object Probe:
   def dollar(x: Expr[Int])(using Quotes): Expr[Int] = '{ val a$1 = $x; val b = a$1 + 1; b }
   def clauses(x: Expr[Int])(using Quotes): Expr[Int] =
     '{ def f[A](a: A)[B](b: B)()(c: Int)(using d: String): Int = c; f[Int](1)[String]("")()(2)(using "") + $x }
+  def objects(x: Expr[Int])(using Quotes): Expr[Int] = '{ object Foo { given Int = 43; val y = $x }; Foo.y }
+  def classes(x: Expr[Int])(using Quotes): Expr[Int] = '{ class C(val a: Int) { def b = a + $x }; new C(1).b }
+  def anonymous(x: Expr[Int])(using Quotes): Expr[String] =
+    '{ new Object { override def toString = "a" + $x }.toString }
+  def selves(x: Expr[Int])(using Quotes): Expr[Int] =
+    '{ class D(var n: Int) { self => def me: D = self; def it = D.this }; new D($x).me.it.n }

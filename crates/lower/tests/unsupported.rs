@@ -17,8 +17,8 @@ const CASES: &[(&str, &str)] = &[
         "nested quotes",
     ),
     (
-        "import scala.quoted.*\nobject Q { def f(using Quotes): Expr[Any] = '{ class C; new C } }",
-        "quotes with a class definition",
+        "import scala.quoted.*\nobject Q { def f(using Quotes): Expr[Any] = '{ class C { private[C] val x = 1 }; new C } }",
+        "quotes with a qualified private or protected definition",
     ),
     (
         "import scala.quoted.*\nobject Q { def f[T](using Quotes): Expr[Any] = '{ Option.empty[T] } }",
