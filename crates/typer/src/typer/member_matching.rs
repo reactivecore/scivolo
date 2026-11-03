@@ -71,10 +71,7 @@ impl Typer<'_> {
             let owner = t.u.symbol(x).owner;
             let clone = owner == Some(object) && t.u.symbol(x).name == "clone";
             let name = owner.map(|o| t.u.full_name(o)).unwrap_or_default();
-            let library_java = name.rsplit_once('.').is_some_and(|(pkg, simple)| {
-                pkg.starts_with("scala") && super::java_classes::java_classes(pkg).any(|c| c == simple)
-            });
-            clone || library_java || t.is_loose_member(x)
+            clone || super::java_classes::is_scala_library_java(&name) || t.is_loose_member(x)
         };
         test(self, s) || self.overridden_members(s, owner).into_iter().any(|m| test(self, m))
     }

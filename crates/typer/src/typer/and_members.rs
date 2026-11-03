@@ -35,8 +35,8 @@ impl Typer<'_> {
                 self.complete(s);
             }
             match out.iter().position(|&o| {
-                self.same_member(site, o, m)
-                    && self.u.info_matches(site, o, m)
+                self.u.info_matches(site, o, m)
+                    && self.same_member(site, o, m)
                     && self.same_erased_params(site, o, m)
             }) {
                 Some(k) => match self.merged(site, (out[k], m), ctx) {

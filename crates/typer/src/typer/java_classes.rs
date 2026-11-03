@@ -39,6 +39,12 @@ pub fn is_functional_interface(full: &str) -> bool {
         )
 }
 
+/// Whether `full` names a Java class of the Scala library.
+pub fn is_scala_library_java(full: &str) -> bool {
+    full.rsplit_once('.')
+        .is_some_and(|(pkg, simple)| pkg.starts_with("scala") && java_classes(pkg).any(|c| c == simple))
+}
+
 /// The names of the Java classes of package `package` the universe may lack.
 pub fn java_classes(package: &str) -> impl Iterator<Item = &'static str> {
     let classes = match package {

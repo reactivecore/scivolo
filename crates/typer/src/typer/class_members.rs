@@ -94,8 +94,8 @@ impl Typer<'_> {
                         }
                     }
                     if !self.signatures_differ(o, m)
-                        && self.same_member(site, o, m)
                         && self.u.info_matches(site, o, m)
+                        && self.same_member(site, o, m)
                     {
                         overridden = Some(k);
                         break;
