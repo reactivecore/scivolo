@@ -163,7 +163,7 @@ impl Universe {
 
     /// The owner and name of a definition named `name` in `owner`: its JDK package and name if
     /// Scala Native defines it under another name.
-    fn jdk_renamed(&mut self, owner: SymbolId, name: String) -> (SymbolId, String) {
+    pub fn jdk_renamed(&mut self, owner: SymbolId, name: String) -> (SymbolId, String) {
         if !name.starts_with('_') {
             return (owner, name);
         }

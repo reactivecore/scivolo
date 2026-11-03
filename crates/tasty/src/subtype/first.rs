@@ -32,6 +32,7 @@ impl Cmp<'_> {
             },
             Type::And(x, y) => self.recur(a, x) && self.recur(a, y),
             Type::Or(x, y, _) if x == y => self.recur(a, x),
+            Type::Sym(_, s) if s == self.u.builtins().from_java_object => self.recur(a, crate::ANY),
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => self.compare_named(a, b),
             _ => self.second_try(a, b),
         }
