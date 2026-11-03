@@ -109,25 +109,6 @@ impl Typer<'_> {
         }
     }
 
-    /// Makes the parameter and result type trees of typed accessor definition `def` type trees
-    /// of their types (dotty's `tpd.DefDef`).
-    fn with_type_trees(&mut self, def: TNodeId) {
-        let T::DefDef { paramss, tpt, .. } = *self.tpd.tree(def) else { return };
-        let mut tpts = vec![tpt];
-        for &clause in self.tpd.clause_items(paramss) {
-            for &p in self.tpd.items(clause) {
-                match *self.tpd.tree(p) {
-                    T::ValDef { tpt, .. } => tpts.push(tpt),
-                    T::TypeDef { rhs, .. } => tpts.push(rhs),
-                    _ => {}
-                }
-            }
-        }
-        for t in tpts {
-            self.tpd.get_mut(t).tree = T::TypeTree { inferred: false };
-        }
-    }
-
     /// Whether `t` refers to an inline accessor.
     fn rewired(&self, t: TNodeId) -> bool {
         self.tpd.sym(t).is_some_and(|s| self.accessors.made.values().any(|&a| a == s))

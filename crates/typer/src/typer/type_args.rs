@@ -128,9 +128,9 @@ impl Typer<'_> {
         Ok(lambda)
     }
 
-    /// How many type parameters the `i`th type parameter of class or type lambda constructor
-    /// `tycon` takes; while a class's parameter is not completed, the number of type parameters
-    /// of its tree in the class's primary constructor if it has any, else `None`.
+    /// How many type parameters the `i`th type parameter of `tycon` takes, `None` if `AnyKind`
+    /// bounds it; while a class's parameter is not completed, that of its tree in the primary
+    /// constructor if it has any, else `None`.
     fn param_arity(&mut self, tycon: TypeId, i: usize) -> Option<usize> {
         let Type::Sym(_, c) = *self.u.types().get(tycon) else { return None };
         if matches!(self.u.symbol(c).kind, Kind::Type | Kind::TypeParam) {
@@ -156,7 +156,8 @@ impl Typer<'_> {
             return self.param_tree_arity(c, i);
         }
         let info = self.u.info(p);
-        Some(self.bounds_of(info).2)
+        let (_, hi, arity) = self.bounds_of(info);
+        (self.u.class_symbol(hi) != Some(self.u.builtins().any_kind)).then_some(arity)
     }
 
     /// The number of type parameters of the `i`th type parameter tree of script class `c`'s

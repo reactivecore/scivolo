@@ -54,9 +54,7 @@ impl Typer<'_> {
         let any = self.u.decl(module_class, "canEqualAny").unwrap_or_default();
         let any =
             any.into_iter().find(|&d| self.u.symbol(d).kind == Kind::Def).ok_or("CanEqual.canEqualAny")?;
-        let module_tpe = crate::defn::type_ref(self.u, module);
-        let qualifier = self.build().ident(module, module_tpe, at);
-        let select = self.build().select(qualifier, any, at);
+        let select = self.member_ref(any, at);
         let targs = [self.type_tree(l, at, false), self.type_tree(r, at, false)];
         let tpe = self.instantiated(select, &[l, r])?;
         Ok(Some(self.build().type_apply(select, &targs, tpe, at)))
@@ -72,7 +70,7 @@ impl Typer<'_> {
     /// Whether a `CanEqual[t, t]` instance exists under `strictEquality`.
     fn has_eq(&mut self, t: TypeId, at: Span, ctx: Ctx, depth: u32) -> Result<bool, &'static str> {
         let pt = self.can_equal_type(t, t).ok_or("CanEqual")?;
-        self.implicit_exists(pt, at, ctx.with_mode(Mode::STRICT_EQUALITY), depth + 1)
+        self.implicit_exists(pt, at, ctx.with_mode(Mode::STRICT_EQUALITY.with(Mode::EXISTENCE)), depth + 1)
     }
 
     /// Whether `CanEqual` is assumed for the classes of `l` and `r`: the same or two numeric

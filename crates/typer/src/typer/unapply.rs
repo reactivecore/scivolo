@@ -206,16 +206,6 @@ impl Typer<'_> {
         found
     }
 
-    /// Whether `t` has a wildcard type argument, also inside another argument.
-    fn has_wildcard(&mut self, t: TypeId) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            found |= matches!(u.types().get(part), Type::Bounds(..));
-            None
-        });
-        found
-    }
-
     /// The type of a pattern whose extractor takes `arg_type` against a value of type `sel`:
     /// `sel` if it conforms, else `arg_type` constrained by `sel`, unless only variant type
     /// arguments of an open class would be, and maximized with the binders added to extractor
@@ -253,11 +243,6 @@ impl Typer<'_> {
             }
         }
         let bound = self.maximize_type(arg_type, vars, unapp, ctx)?;
-        let tpe = self.zonk(arg_type);
-        let widened = self.u.widen(sel);
-        if !bound.is_empty() && (self.has_wildcard(widened) || self.has_wildcard(tpe)) {
-            return Err("pattern-bound type against a wildcard argument");
-        }
         self.add_binders(unapp, &bound);
         Ok(self.zonk(arg_type))
     }

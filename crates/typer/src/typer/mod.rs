@@ -6,6 +6,7 @@ mod abstract_members;
 mod access;
 mod accessible;
 mod accessor_defs;
+mod accessor_types;
 mod adapt;
 mod adapt_by_result;
 mod ahead;

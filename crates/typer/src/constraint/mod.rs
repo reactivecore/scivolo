@@ -45,6 +45,8 @@ pub struct Constraint {
     escaped: bool,
     /// The declared bounds of each variable, `Nothing` and `Any` past its end.
     declared: Vec<(TypeId, TypeId)>,
+    /// The variables with declared bounds.
+    declared_vars: rustc_hash::FxHashSet<u32>,
     /// The nesting of the scope being typed.
     nesting: u32,
     /// The symbols that count as defined where another symbol was (dotty's `nestingLevel` of an
@@ -207,7 +209,8 @@ impl TypeVars for Constraint {
         if *u.types().get(lo) == Type::Var(v) {
             return true;
         }
-        let Some(lo) = lambda_params::avoid_lambda_params(u, lo, true) else { return false };
+        let lo = lambda_params::avoid_lambda_params(u, lo, true).filter(|&t| self.kind_compatible(u, v, t));
+        let Some(lo) = lo else { return false };
         let lo = match self.avoided(u, lo, e.at, 1) {
             Some(avoided) => avoided,
             None => {
@@ -246,7 +249,8 @@ impl TypeVars for Constraint {
         if *u.types().get(hi) == Type::Var(v) {
             return true;
         }
-        let Some(hi) = lambda_params::avoid_lambda_params(u, hi, false) else { return false };
+        let hi = lambda_params::avoid_lambda_params(u, hi, false).filter(|&t| self.kind_compatible(u, v, t));
+        let Some(hi) = hi else { return false };
         if let Type::Var(w) = *u.types().get(hi)
             && self.unifiable(v, w)
             && self.unify(u, v, w)

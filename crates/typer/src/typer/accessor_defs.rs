@@ -6,15 +6,16 @@
 //! `hostForAccessorOf`, `InlineAccessorName`, `accessorDef`).
 
 use super::Typer;
+use super::accessor_types::Clause;
 use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Binder, Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// `def name(ps): T = C.this.accessed(ps)` in class `host`, or `= C.this.accessed = x$0` for
-    /// a setter; `None`, reported at `span`, for a polymorphic or implicit method.
+    /// a setter; `None`, reported at `span`, if a type cannot be rebuilt around its parameters.
     pub fn accessor_def(
         &mut self,
         name: &str,
@@ -30,22 +31,19 @@ impl Typer<'_> {
         {
             info = self.u.intern_type(Type::Sym(prefix, accessed));
         }
-        let mut poly = None;
-        if !setter && let Type::Poly { binder, params, result } = self.u.types().get(info).clone() {
-            (poly, info) = (Some((binder, params)), result);
-        }
-        let mut clauses: Vec<Vec<(String, TypeId)>> = Vec::new();
-        loop {
-            match self.u.types().get(info).clone() {
-                Type::Method { params, result, implicit: false, .. } if !setter => {
-                    clauses.push(params);
-                    info = result;
-                }
-                Type::Method { .. } | Type::Poly { .. } => {
-                    self.unsupported_at(span, "inline accessor of a polymorphic or implicit method");
-                    return None;
-                }
-                _ => break,
+        let mut clauses: Vec<Clause> = Vec::new();
+        if !setter {
+            while let Type::Poly { binder, params, result: r }
+            | Type::Method { binder, params, result: r, .. } = self.u.types().get(info).clone()
+            {
+                let flags = match *self.u.types().get(info) {
+                    Type::Poly { .. } => f::TYPE_PARAM,
+                    Type::Method { contextual: true, .. } => f::TERM_PARAM.or(f::GIVEN),
+                    Type::Method { implicit: true, .. } => f::TERM_PARAM.or(f::IMPLICIT),
+                    _ => f::TERM_PARAM,
+                };
+                clauses.push(Clause { binder: Some(binder), params, flags });
+                info = r;
             }
         }
         if self.is_context_function_type(info) {
@@ -53,7 +51,8 @@ impl Typer<'_> {
             return None;
         }
         let result = if setter {
-            clauses.push(vec![("x$0".to_owned(), info)]);
+            let params = vec![("x$0".to_owned(), info)];
+            clauses.push(Clause { binder: None, params, flags: f::TERM_PARAM });
             crate::defn::type_ref(self.u, self.defn.unit)
         } else {
             info
@@ -63,40 +62,33 @@ impl Typer<'_> {
         let mut rhs = self.ast.node(Tree::TypeTree);
         self.splices.insert(rhs, target);
         let mut defs = Vec::new();
-        if let Some((_, tparams)) = &poly {
+        for (i, clause) in clauses.iter().enumerate() {
+            let is_type = clause.flags.is(f::TYPE_PARAM);
             let mut params = Vec::new();
             let mut args = Vec::new();
-            for (pname, bounds) in tparams {
-                let name = TName { name: self.name(pname), is_type: true };
-                let rhs = self.accessor_tpt(*bounds, &poly, span)?;
-                let mods = self.ast.mods(Modifiers::with_flags(f::TYPE_PARAM));
-                params.push(self.ast.node(Tree::TypeDef { name, rhs, mods }));
+            for (pname, ptype) in &clause.params {
+                let name = TName { name: self.name(pname), is_type };
+                let tpt = self.accessor_tpt(*ptype, &clauses[..=i], span)?;
+                let mods = self.ast.mods(Modifiers::with_flags(clause.flags));
+                params.push(match is_type {
+                    true => self.ast.node(Tree::TypeDef { name, rhs: tpt, mods }),
+                    false => self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods }),
+                });
                 args.push(self.ast.node(Tree::Ident { name }));
             }
-            let args = self.ast.list(&args);
-            rhs = self.ast.node(Tree::TypeApply { fun: rhs, args });
-            defs.push(self.ast.list(&params));
-        }
-        for clause in &clauses {
-            let mut params = Vec::new();
-            let mut args = Vec::new();
-            for (pname, ptype) in clause {
-                let name = TName { name: self.name(pname), is_type: false };
-                let tpt = self.accessor_tpt(*ptype, &poly, span)?;
-                let mods = self.ast.mods(Modifiers::with_flags(f::TERM_PARAM));
-                params.push(self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods }));
-                args.push(self.ast.node(Tree::Ident { name }));
-            }
-            rhs = match setter {
-                true => self.ast.node(Tree::Assign { lhs: rhs, rhs: args[0] }),
-                false => {
-                    let args = self.ast.list(&args);
-                    self.ast.node(Tree::Apply { fun: rhs, args })
-                }
+            let fun = rhs;
+            let list = self.ast.list(&args);
+            rhs = match (is_type, setter) {
+                (true, _) => self.ast.node(Tree::TypeApply { fun, args: list }),
+                (false, true) => self.ast.node(Tree::Assign { lhs: fun, rhs: args[0] }),
+                (false, false) => self.ast.node(Tree::Apply { fun, args: list }),
             };
+            if clause.flags.is(f::GIVEN) {
+                self.ast.add_attrs(rhs, syntax::ast::Attrs::USING_APPLY);
+            }
             defs.push(self.ast.list(&params));
         }
-        let tpt = self.accessor_tpt(result, &poly, span)?;
+        let tpt = self.accessor_tpt(result, &clauses, span)?;
         let paramss = self.ast.clauses(&defs);
         let private = self.u.symbol(accessed).flags.has(tasty::tags::PRIVATE);
         let flags = f::SYNTHETIC.or(if private { f::FINAL } else { f::EMPTY });
@@ -105,36 +97,6 @@ impl Typer<'_> {
         let def = self.ast.node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs), mods });
         self.ast.with_span(def, at);
         Some(def)
-    }
-
-    /// The type tree of type `t` in an accessor of the type parameters `poly`: one of them by
-    /// name, else `t` spliced; `None`, reported at `span`, for another type referring to them.
-    fn accessor_tpt(
-        &mut self,
-        t: TypeId,
-        poly: &Option<(Binder, Vec<(String, TypeId)>)>,
-        span: Span,
-    ) -> Option<NodeId> {
-        let Some((binder, params)) = poly else { return Some(self.splice_type(t)) };
-        if let Type::Param(b, i) = *self.u.types().get(t)
-            && b == *binder
-        {
-            let name = TName { name: self.name(&params[i as usize].0), is_type: true };
-            return Some(self.ast.node(Tree::Ident { name }));
-        }
-        let mut refers = false;
-        self.u.map_type(t, &mut |u, part| {
-            refers |= matches!(*u.types().get(part), Type::Param(b, _) if b == *binder);
-            None
-        });
-        if refers {
-            self.unsupported_at(
-                span,
-                "inline accessor of a polymorphic method with a type built of its parameters",
-            );
-            return None;
-        }
-        Some(self.splice_type(t))
     }
 
     /// A reference to `accessed` from the `this` of `host`: an identifier for a member of a

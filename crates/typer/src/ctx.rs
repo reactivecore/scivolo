@@ -26,6 +26,8 @@ impl Mode {
     pub const APPLY_QUALIFIER: Mode = Mode(32);
     /// The left-hand side of an assignment, where a context function value stays unapplied.
     pub const ASSIGNMENT_LHS: Mode = Mode(64);
+    /// An implicit search whose argument is dropped, only its existence checked.
+    pub const EXISTENCE: Mode = Mode(128);
     /// A case of an inline match, whose patterns the inliner matches at the call.
     pub const INLINE_CASE: Mode = Mode(256);
     /// The name of an extractor, which refers to no method (dotty's `UnapplySelectionProto`).
