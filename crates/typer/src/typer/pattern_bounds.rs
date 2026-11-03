@@ -5,15 +5,28 @@
 
 use super::Typer;
 use crate::ctx::{Ctx, Mode};
+use crate::symbols::Completion;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags::CASE;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Type argument `id` of a pattern's type tree, a variable pattern typed as a wildcard `_`;
-    /// its name and span if it is one.
-    pub fn typed_pattern_type_arg(&mut self, id: NodeId, ctx: Ctx) -> (TNodeId, Option<(TName, Span)>) {
+    /// Type argument `id`, the `i`th of `tycon`: a wildcard without bounds for a parameter of a
+    /// higher or any kind a type tree of the parameter's bounds; in a pattern's type tree a
+    /// variable pattern typed as a wildcard `_`, with its name and span.
+    pub fn typed_pattern_type_arg(
+        &mut self,
+        id: NodeId,
+        (tycon, i): (TypeId, usize),
+        ctx: Ctx,
+    ) -> (TNodeId, Option<(TName, Span)>) {
+        if let Tree::TypeBoundsTree { lo: None, hi: None, alias: None } = *self.ast.tree(id)
+            && let Some(bounds) = self.lambda_sub_param_bounds(tycon, i)
+        {
+            let span = self.ast.span(id);
+            return (self.tpd.node(T::TypeTree { inferred: false }, span, Some(bounds), None), None);
+        }
         let var = match *self.ast.tree(id) {
             Tree::Ident { name } if ctx.mode.is(Mode::PATTERN_TYPE) => {
                 Some(name).filter(|n| self.is_var_pattern(id, self.text(n.name)))
@@ -26,6 +39,25 @@ impl Typer<'_> {
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
         let at = Span::synthetic(span.start(), span.start());
         (self.tpd.node(T::Ident { name: wild }, at, Some(bounds), None), Some((name, span)))
+    }
+
+    /// The bounds of the `i`th type parameter of class `tycon` if they are of a higher or any kind
+    /// and refer to no other parameter (dotty's `isLambdaSub`).
+    fn lambda_sub_param_bounds(&mut self, tycon: TypeId, i: usize) -> Option<TypeId> {
+        let Type::Sym(_, c) = *self.u.types().get(tycon) else { return None };
+        if self.u.symbol(c).kind != Kind::Class {
+            return None;
+        }
+        let params = self.u.type_params(c);
+        let &param = params.get(i)?;
+        if !matches!(self.syms.completions.get(&param), None | Some(Completion::Done)) {
+            return None;
+        }
+        let info = self.u.info(param);
+        let Type::Bounds(_, hi) = *self.u.types().get(info) else { return None };
+        let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
+        let lambda = matches!(self.u.types().get(hi), Type::Lambda { .. });
+        ((any_kind || lambda) && !self.refers_to(info, &params)).then_some(info)
     }
 
     /// Type arguments `args` of `tycon` in a pattern's type tree with each wildcard replaced by a
