@@ -16,8 +16,8 @@ impl Constraint {
 
     /// `t` at variance `v` without the local symbols defined since `at`: where covariant, a
     /// local class without members of its own replaced by its parents, a local value or method by
-    /// its type, a class member of a local value selected on the value's type, a variable nested
-    /// deeper than `at` whose bounds refer to one by a new variable above it made `at` (dotty's
+    /// its type, a class member of a local value selected on the value's type, a variable made
+    /// after `at` whose bounds refer to one by a new variable above it made `at` (dotty's
     /// `legalVar`); a type member of a local value by its alias, or by its bound where not
     /// invariant; an invariant argument by the wildcard of its avoided bounds where covariant.
     /// `None` if another such symbol remains.

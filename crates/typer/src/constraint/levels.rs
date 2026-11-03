@@ -14,7 +14,7 @@ impl Constraint {
     }
 
     /// Whether `t` refers to a local symbol defined since `at`, or has an uninstantiated
-    /// variable nested deeper than `at` whose bounds do, `depth` variables deep.
+    /// variable made after `at` whose bounds do, `depth` variables deep.
     pub fn refers_to_local(&self, u: &mut Universe, t: TypeId, at: At, depth: u32) -> bool {
         let mut syms = Vec::new();
         let mut vars = Vec::new();
