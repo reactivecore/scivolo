@@ -31,7 +31,7 @@ pub fn place(source: &SourceFile, offset: Option<Offset>, warning: bool) -> Plac
     offset.map_or((-1, !warning, 0), |o| (source.offset_to_line(o) as i64, !warning, source.column(o)))
 }
 
-/// The warnings of an input that compiles: their count, and each warning with its place.
+/// The warnings of an input that compiles: their count, and each warning with its place, by place.
 pub fn warnings(
     source: &SourceFile,
     diags: &Diagnostics,
@@ -40,7 +40,9 @@ pub fn warnings(
     let shown = diags.unique();
     let count = count(&shown, Level::Warning, "warning").into_iter().collect();
     let boxes = shown.iter().map(|d| (place(source, d.offset, true), diagnostic::lines(source, d, width)));
-    (count, boxes.collect())
+    let mut boxes: Vec<_> = boxes.collect();
+    boxes.sort_by_key(|(p, _)| *p);
+    (count, boxes)
 }
 
 fn boxes(source: &SourceFile, shown: &[&Diagnostic], width: usize) -> Vec<String> {
