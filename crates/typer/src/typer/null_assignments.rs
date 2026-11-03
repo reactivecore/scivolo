@@ -6,7 +6,7 @@
 use super::Typer;
 use rustc_hash::FxHashMap;
 use syntax::ast::flags as f;
-use syntax::ast::{Ast, NodeId, Span, Tree};
+use syntax::ast::{Ast, Attrs, NodeId, Span, Tree};
 use syntax::names::Name;
 use tasty::SymbolId;
 
@@ -29,7 +29,10 @@ impl Populate {
                     .items(stats)
                     .iter()
                     .filter_map(|&s| match *ast.tree(s) {
-                        Tree::ValDef { name, mods, .. } if ast.modifiers(mods).flags.is(f::MUTABLE) => {
+                        Tree::ValDef { name, mods, .. }
+                            if ast.modifiers(mods).flags.is(f::MUTABLE)
+                                && !ast.attrs(s).contains(Attrs::PATTERN_VAR) =>
+                        {
                             Some((name.name, s))
                         }
                         _ => None,
