@@ -207,7 +207,7 @@ slower meanwhile:
    members nullified, `@compileTimeOnly`, `@deprecatedName` and non-literal `@implicitNotFound`:
    538 lower, 2,163 same, 504 differ. Against the published scalalib jar, with flow typing of
    `var`s (#215) 547 lower, 2,300 same; with `@stableNull` fields, inherited result types of
-   library methods, named selves of objects and annotation arguments desugared 569, 2,568.
+   library methods, named selves of objects and annotation arguments desugared 568, 2,556.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
