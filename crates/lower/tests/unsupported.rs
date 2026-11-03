@@ -260,6 +260,14 @@ const CASES: &[(&str, &str)] = &[
         "class D { def g(xs: Array[Int]): Int = 0; @annotation.varargs def g(xs: Int*): Int = 1 }",
         "a varargs forwarder conflicting with a member of its signature",
     ),
+    (
+        "object O { @annotation.compileTimeOnly(\"no\") def g: Int = 1; def h = g }",
+        "reference to a @compileTimeOnly definition",
+    ),
+    (
+        "object O { def f(@deprecatedName(\"y\") x: Int, y: Int) = x }",
+        "parameter name equal to a deprecated name",
+    ),
 ];
 
 #[test]

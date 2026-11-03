@@ -19,8 +19,10 @@ impl Typer<'_> {
             return false;
         }
         let name = self.u.full_name(c);
-        let library_java =
-            name.rsplit_once('.').is_some_and(|(pkg, simple)| java_classes(pkg).any(|c| c == simple));
+        let library_java = name.rsplit_once('.').is_some_and(|(pkg, simple)| {
+            let simple = tasty::module_name(simple).unwrap_or(simple);
+            java_classes(pkg).any(|c| c == simple)
+        });
         name.starts_with("java.") || name.starts_with("javax.") || library_java
     }
 }

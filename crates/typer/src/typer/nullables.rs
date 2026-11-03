@@ -27,6 +27,14 @@ impl NotNullInfo {
         NotNullInfo { asserted: Some(asserted), retracted: Vec::new() }
     }
 
+    pub fn retracting(retracted: Vec<TypeId>) -> Self {
+        NotNullInfo { asserted: Some(Vec::new()), retracted }
+    }
+
+    pub fn asserted(&self) -> &[TypeId] {
+        self.asserted.as_deref().unwrap_or_default()
+    }
+
     fn is_empty(&self) -> bool {
         *self == Self::empty()
     }
@@ -75,6 +83,7 @@ pub fn union(mut a: Vec<TypeId>, b: &[TypeId]) -> Vec<TypeId> {
 pub struct Nullables {
     chain: Vec<(Option<u32>, NotNullInfo)>,
     pub infos: FxHashMap<TNodeId, NotNullInfo>,
+    pub assignments: Option<super::null_assignments::Assignments>,
 }
 
 impl Typer<'_> {
@@ -127,7 +136,13 @@ impl Typer<'_> {
         }
     }
 
-    fn implies_not_null(&self, ctx: Ctx, r: TypeId) -> bool {
+    /// The infos of `ctx`, the most recent first.
+    pub fn not_null_infos(&self, ctx: Ctx) -> impl Iterator<Item = &NotNullInfo> {
+        std::iter::successors(ctx.nulls, |&i| self.nullables.chain[i as usize].0)
+            .map(|i| &self.nullables.chain[i as usize].1)
+    }
+
+    pub fn implies_not_null(&self, ctx: Ctx, r: TypeId) -> bool {
         let mut at = ctx.nulls;
         while let Some(i) = at {
             let (outer, info) = &self.nullables.chain[i as usize];
@@ -148,9 +163,6 @@ impl Typer<'_> {
         let Some(sym) = self.term_ref_sym(r) else { return tree };
         if !self.implies_not_null(ctx, r) || self.used_out_of_order(sym, ctx) {
             return tree;
-        }
-        if self.is_mutable_var(sym) {
-            return self.unsupported_tree(self.tpd.span(tree), "flow typing of a local variable");
         }
         let stripped = self.strip_null(r);
         if stripped == r {
