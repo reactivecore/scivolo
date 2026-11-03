@@ -82,7 +82,9 @@ impl Typer<'_> {
         let expr = self.with_can_throw(expr, cases, ctx);
         let expr = self.typed(expr, pt, ctx);
         let mut all = vec![expr];
-        all.extend(cases.iter().map(|&c| self.typed_case(c, throwable, pt, ctx)));
+        let expr_info = self.not_null_info(expr).retracted_info();
+        let cases_ctx = self.with_not_null(ctx, expr_info);
+        all.extend(cases.iter().map(|&c| self.typed_case(c, throwable, pt, cases_ctx)));
         let all = match self.harmonic(all, pt, Some(before), ctx) {
             Ok(h) => h,
             Err(what) => return self.unsupported(id, what),
@@ -95,7 +97,8 @@ impl Typer<'_> {
         }
         let tpe = types.iter().fold(NOTHING, |acc, &t| self.u.lub_in(acc, t, &mut self.constraint));
         let unit = crate::defn::type_ref(self.u, self.defn.unit);
-        let finalizer = finalizer.map(|f| self.typed(f, Pt::Type(unit), ctx));
+        let finalizer_ctx = self.finalizer_ctx(expr, typed_cases, ctx);
+        let finalizer = finalizer.map(|f| self.typed(f, Pt::Type(unit), finalizer_ctx));
         let cases = self.tpd.list(typed_cases);
         let span = self.ast.span(id);
         self.tpd.node(T::Try { expr, cases, finalizer }, span, Some(tpe), None)

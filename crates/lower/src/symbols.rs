@@ -35,11 +35,11 @@ pub fn is_java_static(u: &mut Universe, s: SymbolId) -> bool {
         || (u.symbol(s).tree.is_some() && u.is_annotated(s, "scala.annotation.static"))
 }
 
-/// Whether class `c` is the class of a javalib object in a JDK package that stands for a JDK
-/// class, or of a Java class's stub object.
+/// Whether class `c` is the class of a javalib object in a JDK package or of an object of the JDK
+/// jars that stands for a JDK class, or of a Java class's stub object.
 pub fn is_jdk_object(u: &Universe, c: SymbolId) -> bool {
     let name = u.full_name(c);
-    let jdk = name.starts_with("java.") || name.starts_with("javax.");
+    let jdk = name.starts_with("java.") || name.starts_with("javax.") || u.is_from_jdk_jars(c);
     u.may_be_java(c) && u.is_module_class(c) && jdk || u.is_java_statics(c)
 }
 

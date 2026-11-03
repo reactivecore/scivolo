@@ -198,7 +198,7 @@ fn accessor(
     let bases = l.u.linearization(host);
     let inherited: Vec<SymbolId> =
         bases.into_iter().skip(1).flat_map(|b| l.u.decl(b, name).unwrap_or_default()).collect();
-    if inherited.into_iter().any(|m| has_body(l, m) && l.u.matches(site, m, sym)) {
+    if inherited.into_iter().any(|m| has_body(l, m) && l.u.info_matches(site, m, sym)) {
         l.u.set_flags(sym, flags.with(OVERRIDE));
     }
     made.push(Accessor { sym, accessed, setter });

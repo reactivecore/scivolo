@@ -208,6 +208,10 @@ slower meanwhile:
    lowered against its TASTy they match Scala Native's separate compilation.
    2026-11-02 scalalib baseline (scala-library 3.9.0 patched as Scala Native does, `-Yexplicit-nulls`
    accepted, not acted on): 403 of 649 files lower; 1,121 NIR same, 610 differ, mostly `language.`2.13``.
+   2026-11-03, against Scala Native's own 3.9.0 build of scalalib (`just lib-oracle`): 431 of 649
+   lower, 1,829 same, 453 differ before; auxlib's classes as the library's Java classes, the JDK's
+   members nullified, `@compileTimeOnly`, `@deprecatedName` and non-literal `@implicitNotFound`:
+   538 lower, 2,163 same, 504 differ.
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs

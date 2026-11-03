@@ -96,8 +96,12 @@ impl Typer<'_> {
                 self.levels.enter(ctx.level, &name, param);
                 syms.push(param);
             }
+            let entered = !fresh.is_empty();
             for (s, p) in fresh {
                 self.param_info(s, p, ctx);
+            }
+            if entered {
+                self.check_deprecated_names(&syms);
             }
             out.push(syms);
         }
