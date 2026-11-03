@@ -218,3 +218,4 @@ outerlambdas
 traitpatterns
 realpaths
 forwardaliases
+jdkurls

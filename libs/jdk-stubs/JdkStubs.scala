@@ -201,12 +201,6 @@ package java.util {
   }
 }
 
-package java.net {
-  final class URL(spec: String) {
-    final def openStream(): java.io.InputStream = null
-  }
-}
-
 package scala.scalanative.runtime {
   abstract class UnsupportedFeature
 
