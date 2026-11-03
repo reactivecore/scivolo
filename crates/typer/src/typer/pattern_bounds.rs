@@ -75,22 +75,6 @@ impl Typer<'_> {
         Ok(((any_kind || lambda) && !self.refers_to(info, &params)).then_some(info))
     }
 
-    /// Whether type parameter tree `p` takes type parameters or has an upper bound that is a type
-    /// lambda or names `AnyKind`.
-    fn may_be_lambda_sub(&self, p: NodeId) -> bool {
-        let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { return true };
-        let hi = match *self.ast.tree(rhs) {
-            Tree::TypeBoundsTree { hi: Some(hi), .. } => hi,
-            Tree::TypeBoundsTree { hi: None, .. } => return false,
-            _ => return true,
-        };
-        match *self.ast.tree(hi) {
-            Tree::Ident { name } | Tree::Select { name, .. } => self.text(name.name) == "AnyKind",
-            Tree::LambdaTypeTree { .. } => true,
-            _ => false,
-        }
-    }
-
     /// Type arguments `args` of `tycon` in a pattern's type tree with each wildcard replaced by a
     /// bind of a pattern-bound type, named by `vars` or `_$n`, bounded also by its type
     /// parameter; their types.
