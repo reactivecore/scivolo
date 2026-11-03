@@ -14,7 +14,7 @@ mod unify;
 
 use attempt::Fate;
 use levels::At;
-use tasty::{ANY, Changes, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
+use tasty::{ANY, Changes, Mark, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 use unify::has_var;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -47,6 +47,9 @@ pub struct Constraint {
     declared: Vec<(TypeId, TypeId)>,
     /// The nesting of the scope being typed.
     nesting: u32,
+    /// The symbols that count as defined where another symbol was (dotty's `nestingLevel` of an
+    /// outer context).
+    defined_at: rustc_hash::FxHashMap<SymbolId, SymbolId>,
 }
 
 /// How many satisfiability checks may be in progress at once; deeper ones fail.
