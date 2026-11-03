@@ -190,35 +190,28 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
 
-Results (2026-10-19):
+Results (2026-11-03):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 990 |
+| passed | 1447 |
 | wrong output | 0 |
-| crashed | 1 |
+| crashed | 0 |
 | timeout | 0 |
-| lowering refused | 12 |
-| typer refused | 429 |
-| parser refused | 13 |
-| frontend crashed | 1 |
-| several files | 59 |
-| fails in the VM | 31 |
-| skipped | 175 |
+| lowering refused | 2 |
+| typer refused | 57 |
+| parser refused | 0 |
+| macro refused | 0 |
+| frontend crashed | 0 |
+| fails in the VM | 32 |
+| skipped | 173 |
 | **total** | **1711** |
 
-On 2026-10-16: 964 passed, 9 refused by the lowering, 458 by the typer. On 2026-10-15: 878
-passed, 23 refused by the lowering, 531 by the typer. Before the 2026-10-15
-evening batch: 861 passed, 28 refused by the lowering, 543 by the typer; before the
-2026-10-15 afternoon batch: 855 passed; before the 2026-10-15 batch: 809 passed; before the
-2026-10-14 batch: 684 passed.
-
-- **Lowering refused:** reflective calls, selections of values that are not fields, forwarders of
-  objects extending JDK classes (2 each); other reasons one test each.
-- **Typer refused:** mostly adaptations (25), members not found (18), generic tuples (16 + 11),
-  missing implicit arguments (11) and overloaded references with type arguments (10); see
-  research 23.
-- **Crashed:** i15618, a match type erased unreduced (#120).
+- **Lowering refused:** an inline method not erased; branches of erased types other than
+  classes and arrays.
+- **Typer refused:** mostly adaptations (8), members not found (4), implicit candidates with
+  undetermined type variables (3, #123), GADT constraints (3), inline methods of objects with
+  opaque types (3), `$scope` (3) and structural refinements of existing members (3).
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
   libraries compiled before 3.4, which dotty accepts) and checks no other `future` rule.
@@ -227,7 +220,6 @@ evening batch: 861 passed, 28 refused by the lowering, 543 by the typer; before 
   annotations are not refining and erase away), and the capture checker, which runs after the
   typer and leaves the NIR unchanged, is not run (#168). Quotes under capture checking, whose
   TASTy would keep the annotations, are refused.
-- **Frontend crashed:** t8199, `scivolo-lower` panics writing a NIR file.
 
 ## M5: scala/scala `test/junit`
 

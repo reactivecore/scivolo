@@ -55,18 +55,18 @@ Done: the library image (ADR 0005), per-site caches, fused instructions, tier-up
 inlining (ADR 0006).
 
 - **Heap snapshot** (done, #9, ADR 0034): the initialized runtime's heap, written after a
-  training run and restored at start, also for the REPL; hello 10.2 → 7.5 ms, moderate 18.6 →
-  16.6 ms (2026-10-22, minima). Next: decoded definitions and lowered code in the snapshot.
+  training run and restored at start, also for the REPL; hello 7.5 ms, moderate 16.6 ms
+  (minima). Next: decoded definitions and lowered code in the snapshot.
 - **Precise roots.** Typed slot maps would make frame scanning precise (ADR 0004); MMTk stays
   the alternative collector.
 - **Optional JIT.** A Cranelift baseline tier for hot methods.
 
 ## Phase 3 — own Rust frontend: no JVM, no compile step
 
-Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
+Exit criterion (met): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,441 of 1,711 pass (2026-10-30); 65 stop at the typer, none at
-the lowering, 32 fail in the VM.
+(`just dotty-lower-report`, 2026-11-03): 1,447 of 1,711 pass; 57 stop at the typer, 2 at the
+lowering, 32 fail in the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
    `DesugarEnums`. Tokens match dotty on all 5,893 files, trees and desugaring on 5,891
@@ -76,8 +76,8 @@ the lowering, 32 fail in the VM.
    bridges; 99.8% of the library's signatures match Scala Native's mangled names.
 3. **Typer for the scripting subset** (`crates/typer`): inference, overloads, implicits and
    givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`.
-   `just typer-report` (2026-10-22): tests/pos 1,803 typed as dotty, 141 differ (20 only in
-   warnings), 1,081 refused. Unsupported
+   `just typer-report` (2026-11-03): tests/pos 2,140 typed as dotty, 203 differ (31 only in
+   warnings), 682 refused. Unsupported
    input is refused, never compiled silently wrong.
 4. **Lowering** (`crates/lower`): dotty's phases from FirstTransform to Constructors and
    nscplugin's NIR generation; every lowered test program matches Scala Native's NIR byte for
@@ -88,13 +88,14 @@ the lowering, 32 fail in the VM.
 
 ## Phase 4 — macros without a JVM (started)
 
-Status (2026-10-19, #40, ADR 0029): macro calls expand in scripts, the REPL and native
+Status (#40, ADR 0029): macro calls expand in scripts, the REPL and native
 executables. A library macro runs from its NIR in the VM; its quotes are unpickled into the
-typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
-`Quotes` is refused by name. Macro annotations expand in the inlining (ADR 0039). Circe
-0.14.10's `derives Codec.AsObject`, sourcecode 0.4.4, fastparse 3.1.1, mainargs 0.7.8, upickle,
-pprint and os-lib work. dotty's `tests/run-macros`: 307 of 321 pass (2026-11-01,
-`just dotty-lower-report "" run-macros`).
+typer's trees. Macro libraries compile from source, their quotes pickled to TASTy as dotty does
+([research 43](docs/research/43-pickle-quotes.md)). Typed-hole quote patterns and a
+`quotes.reflect` subset work; the rest of `Quotes` is refused by name. Macro annotations expand
+in the inlining (ADR 0039). Circe 0.14.10's `derives Codec.AsObject` and the com-lihaoyi
+libraries work. dotty's `tests/run-macros`: 307 of 321 pass
+(`just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
 
@@ -111,113 +112,40 @@ pprint and os-lib work. dotty's `tests/run-macros`: 307 of 321 pass (2026-11-01,
 
 Compatibility first, in order of the tests it unblocks; startup comes last and must not get
 slower meanwhile:
-1. **Typer groups**: [research 37](docs/research/37-refusals-after-1023.md)'s census;
-   named-tuple leftovers (#146); match-type leftovers (#120); typed-tree printing gap 2 (#122).
-   Done 2026-10-30: printing of library object prefixes and default getters (#156), `IArray`
-   indexing (#187), `os.proc` with stdin (#173). Done 2026-10-26: `Selectable` and structural calls, higher-kinded aliases, named tuple
-   trees (#146); dependent matches, pattern-bound types, library sealed children (#120, #129);
-   erased definitions and saferExceptions (ADR 0054); implicit scope through prefixes,
-   ClassTag/Manifest synthesis, polymorphic givens as import bounds (#155, #164); wrong
-   overrides refused (#124). Done 2026-10-24: Java enums (§2.7), dependent function
-   types, refinements adding type members (#164); extension fallback to the implicit scope,
-   i16065 (#166); named tuples, XXL tuples, named and higher-kinded type arguments (#139);
-   mirrors through refined paths, match-type reduction through them, `codeOf` (#129, #120).
-2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the run-macros refusals,
-   measured on `tests/run-macros`. Done 2026-11-01: constructor-proxy companions, operator
-   types, quote-local givens, access qualifiers and top-level annotations in reflect show,
-   `typeCheckErrors`, name-based type prefixes as stored, higher-kinded aliases overriding
-   type members, staging levels for quotes and splices, quote patterns as `QuotePattern` trees
-   (#197), import selectors in `quotes.reflect`, imports kept in inline bodies, synthetic
-   members before macros (ADR 0071), refined type trees through inline copies, TASTy `Any`
-   bounds, package selections of import paths (307 of 321 pass). Done 2026-11-02: macro
-   libraries compiled from source, their quotes pickled to TASTy as dotty does (#196,
-   [research 43](docs/research/43-pickle-quotes.md)): the TASTy writer (#198), the tree pickler
-   (#199), quote positions (#201), quote type tags (#200). Done 2026-10-31: package prefixes of quoted types,
-   `Symbol.tree`, beta reduction of polymorphic functions, generic number literals,
-   `searchIgnoring`, type holes of runtime quote patterns, `newTypeAlias`, `Refined.apply`,
-   exports, nested spliced types (296 of 321 pass). Done 2026-10-30: reflect printers and `toString`, the type
-   and method-type API, `newClass` with `conMethodType`, `ClassDef` printing and
-   `TreeAnsiCode`, transparent macros, macro varargs and by-name arguments (273 of 321 pass);
-   `TypeReprStructure` of packages,
-   `TreeStructure` of `Return` and `ClassDef`, curried, dependent and polymorphic higher-order
-   holes, local classes from macro annotations (#185). Done 2026-10-26: reflect tree and type operations, TreeMap/ExprMap,
-   `typeChecks` (ADR 0053). Done 2026-10-24: macro
-   annotations (ADR 0039), `Symbol.newClass`, `newModule`, `newMethod`, `newVal`,
-   `ClassDef`/`DefDef`/`ValDef` construction, `Term.etaExpand`.
-3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): done
-   2026-11-03: `just lib-source fansi|pprint|upickle|mainargs|fastparse` (NIR files the same as
-   scala-cli's): fansi 0.5.1 1 of 1 file, 54 of 54; pprint 0.9.6 11 of 12 files, 109 of 111;
-   upickle 4.4.3 upickle-implicits 8 of 10 files, 106 of 106, upickle 5 of 5 files (no scala-cli
-   oracle: Scala 3.9 reports cyclic references in `Api.scala`; compiled alone, `Api.scala` 25 of 27
-   the same, `NonDefaultExport.scala` 2 of 2); mainargs 0.7.8 12 of 15 files,
-   140 of 141 (1 var-order); fastparse 3.1.1 12 of 14 files, 144 of 149; `tests/aot/pprint`,
-   `Lh24pprint`, `Lh24upickle`, `mainargs`, `fastparse` and `fastparsews` pass on our NIR.
-   Done 2026-11-02: `just lib-source geny|ujson|os-lib`: geny 1.1.1 5 of 5 files, 72 of 72 NIR files
-   the same as scala-cli's; ujson 4.4.3 with upickle-core and upack 50 of 53 files, 290 of 292
-   the same (2 var-order); os-lib 0.11.9-M8 16 of 20 files, 206 of 207 the same; `tests/aot/ujson`,
-   `oslib` and `Lh24oslib` pass on our NIR. Scripts and library sources type against the JDK's
-   signatures of varargs, constants and statics (ADR 0072). sourcecode 0.4.4 with its
-   Macros.scala: 103 of 104 NIR files the same as scala-cli's.
-   Done 2026-11-01: `just lib-source sourcecode` builds sourcecode 0.4.4 from its sources. Done 2026-10-24: upickle derivation of case classes, sealed traits and enums (R7, R8), pprint's
-   `tprint`, os-lib paths, as scripts and native executables; earlier fastparse (R2) and
-   mainargs (R5, R6; ADR 0037).
-4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md),
-   [research 35](docs/research/35-local-classes-in-inline-bodies.md), #165): done 2026-10-30
-   ([research 42](docs/research/42-lowering-leftovers-after-1029.md)): no lowering refusal left in
-   `tests/run`; local captures, polymorphic `super` calls, library trait parameters,
-   `@static` members of trait companions (#184). Done 2026-10-26: local objects and `super` in inline bodies, members of
-   path-dependent aliases seen from the path, local lazy values of value classes, `@static`
-   values (ADR 0047). Done 2026-10-24: implicit
-   search in the call's context, `summonFrom` givens, polymorphic inline accessors, library
-   trait variables, the forward-reference check (#90), local enums, nested context-result
-   bridges.
-5. **Value classes and statics** (#88): done 2026-10-24: i15725, t13033, `@static` members
-   (ADR 0044), `scala.runtime` stubs, exports of inline members, opaque types in classes.
-6. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
-7. **Scala Native's library through the own frontend** (#168,
-   [research 36](docs/research/36-compiling-the-native-stdlib.md), ADR 0042, 0043): `just
-   lib-compile MODULE` lowers each file and compares its NIR with Scala Native's build of it
-   (`just lib-oracle`, Scala 3.9.0, ADR 0046; the published jars are Scala 3.1.3's).
-   2026-10-26, measured per branch: javalib 387 of 601 files lowered with G4, 380 with G6c
-   (977 of 1,063 NIR files identical); nativelib 77 of 103; posixlib 57; windowslib 32.
-   Done: G1, G2, G3, G4 (intrinsics, `CFuncPtr`, `c"…"`, link-time conditions, `@struct`,
-   ADR 0045), G5, G6a, G6b in part, G6c. Next: extern varargs, `@align`, SafeZone.
-   2026-10-27: same-array branches, default `@align`, extern field reads and vararg declarations
-   lower; against the 3.9.0 oracle nativelib lowers 88 of 103, clib 18 of 21, posixlib 59 of 67,
-   javalib 488 of 601, auxlib 6 of 15. `lib-compile` also
-   reports oracle NIR files absent from the generated set. Windows remains out of scope.
-   2026-10-29 ([research 41](docs/research/41-native-stdlib-after-1029.md)): JDK stubs for javalib,
-   access rules; nativelib lowers 92 of 103, clib 19 of 21, posixlib 66
-   of 67, windowslib 34, javalib 531 of 601, auxlib 7 of 15.
-   2026-10-30: clib and posixlib complete and pass Scala Native's unit tests on our jars (`just
-   lib-jar-report`); nativelib lowers 101 of 103, clib 21, posixlib 67, windowslib 34, javalib
-   556 of 601, auxlib 7 of 15.
-   2026-10-30 afternoon: closures against callee and SAM types, outer `this`, JDK stubs as Java
-   classes, nio buffers; javalib lowers 594 of 601, auxlib 15 of 15, nativelib 102 of 103, clib
-   21, posixlib 67, windowslib 34.
-   2026-10-31: `lib-compile` reports NIR files that differ only in the order of the var slots of
-   methods with more than four (Scala Native takes them from a hash set) as `var-order`.
-   After the 10-31 stack javalib lowers 601 of 601: 3,375 NIR files same, 80 var-order, 41
-   differ (2 of them also in var order); nativelib 692 same, 6 var-order, 17 differ (3).
-   2026-11-01: nativelib against the JDK declarations, fresh names in dotty's order, NIR
-   positions of extension calls, lowering trees and the last files, joint member types of
-   intersections (#202): javalib 3,413 same, 82 var-order, 1 differs; nativelib lowers 102 of
-   103 (quotes outside splices wait for #196): 703 same, 9 var-order, 3 differ.
-   2026-11-02: auxlib 80 same, 5 differ; windowslib 130 same; clib 114 same, 1 differs; posixlib
-   270 same. nativelib lowers 103 of 103 with pickled quotes: 707 same, 9 var-order, 3 differ;
-   `unsafe/package{,$}` differ only as a joint compilation with `UnsafePackageCompat` does;
-   lowered against its TASTy they match Scala Native's separate compilation.
-   2026-11-02 scalalib baseline (scala-library 3.9.0 patched as Scala Native does, `-Yexplicit-nulls`
-   accepted, not acted on): 403 of 649 files lower; 1,121 NIR same, 610 differ, mostly `language.`2.13``.
-   2026-11-03, against Scala Native's own 3.9.0 build of scalalib (`just lib-oracle`): 431 of 649
-   lower, 1,829 same, 453 differ before; auxlib's classes as the library's Java classes, the JDK's
-   members nullified, `@compileTimeOnly`, `@deprecatedName` and non-literal `@implicitNotFound`:
-   538 lower, 2,163 same, 504 differ. Against the published scalalib jar, with flow typing of
-   `var`s (#215) 547 lower, 2,300 same; with `@stableNull` fields, inherited result types of
-   library methods, named selves of objects and annotation arguments desugared 568, 2,556.
-   With the JDK's declarations over javalib in scalalib's build too (ADR 0082) and more JDK
-   classes and members: 586 lower, 2,654 same (from 570, 2,571 on the same base).
-8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
+1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 57 typer
+   refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 682 in
+   `tests/pos`; implicit candidates with undetermined type variables (#123).
+2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the 14 failing
+   `tests/run-macros`.
+3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): `just
+   lib-source NAME` compiles every file of fansi 0.5.1, geny 1.1.1, sourcecode 0.4.4, pprint
+   0.9.6, fastparse 3.1.1, mainargs 0.7.8, upickle 4.4.3 (with upickle-core, upickle-implicits,
+   ujson and upack) and os-lib 0.11.9-M8; 1,772 of 1,786 NIR files are the same as scala-cli's
+   (3 differ only in var order; upickle's own 35 have no scala-cli oracle, as Scala 3.9 reports
+   cyclic references in `Api.scala`). Their `tests/aot` programs pass on our NIR. Open: the
+   remaining differences, mostly quote type sharing in macro files, from compiling file by file.
+4. **Lowering and inlining gaps** ([research 42](docs/research/42-lowering-leftovers-after-1029.md)):
+   the 2 lowering refusals in `tests/run`.
+5. **Scala Native's library through the own frontend** (#168,
+   [research 36](docs/research/36-compiling-the-native-stdlib.md), ADR 0042, 0043, 0046): `just
+   lib-compile MODULE` lowers each file and compares its NIR with Scala Native's 3.9.0 build of
+   it (`just lib-oracle`), reporting files that differ only in the order of var slots (Scala
+   Native takes them from a hash set) as `var-order`. Windows is out of scope.
+
+   | Module | Files lowered | NIR same | var-order | differ |
+   |---|---:|---:|---:|---:|
+   | javalib | 601 of 601 | 3,413 | 82 | 1 |
+   | nativelib | 103 of 103 | 707 | 9 | 3 |
+   | auxlib | 15 of 15 | 80 | | 5 |
+   | clib | 21 of 21 | 114 | | 1 |
+   | posixlib | 67 of 67 | 270 | | |
+   | windowslib | 34 | 130 | | |
+   | scalalib | 590 of 649 | 2,703 | | |
+
+   scalalib is compared with the published scalalib jar. clib and posixlib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
+   `unsafe/package{,$}` in nativelib differ only as a joint compilation with
+   `UnsafePackageCompat` does. Open: the rest of scalalib.
+6. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
 lower` shows worsened tests, which needs `tmp/dotty/3.9.0-0.5.12/results.tsv` from `just

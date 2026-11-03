@@ -51,11 +51,14 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
 [docs/conformance.md](docs/conformance.md) and [ROADMAP.md](ROADMAP.md).
 
 - **VM:** 11,336 of Scala Native's 11,360 unit tests pass (NIR compiled by Scala Native).
-- **Own frontend:** 1,441 of dotty's 1,711 `tests/run` pass through parser, typer, lowering
+- **Own frontend:** 1,447 of dotty's 1,711 `tests/run` pass through parser, typer, lowering
   and VM.
 - **Macros:** 307 of dotty's 321 `tests/run-macros` pass.
 - **Scala Native's library through the own frontend:** javalib 601 of 601 files, auxlib 15 of
-  15, nativelib 103 of 103, clib, posixlib and windowslib complete.
+  15, nativelib 103 of 103, clib, posixlib and windowslib complete; scalalib 590 of 649.
+- **com-lihaoyi libraries from source:** fastparse, mainargs, upickle, ujson, pprint, os-lib,
+  geny, fansi and sourcecode compile through the own frontend, every file, macros included;
+  1,772 of their 1,786 NIR files are the same as scala-cli's.
 - **Native executables:** 218 of 226 test programs, built from source.
 - **Startup:** hello 7.5 ms from the heap snapshot; `moderate.scala` 48 ms edit-then-run
   (scala-cli: 360–520 ms, python3 startup: 18 ms).
@@ -69,6 +72,8 @@ Features:
 - [x] REPL with completion, history and dependencies
 - [x] Native executables via Cranelift (single-threaded)
 - [x] Macros: a subset of `scala.quoted` (Circe's `derives Codec.AsObject` works)
+- [x] The com-lihaoyi toolkit (fastparse, mainargs, upickle, pprint, os-lib) in scripts and
+      compiled from source
 - [x] Startup from a heap snapshot
 - [ ] Typer: the rest of Scala 3 (match types in part; GADTs, capture checking)
 - [ ] Macros: the rest of `Quotes`
