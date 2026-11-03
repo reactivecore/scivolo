@@ -71,6 +71,8 @@ pub enum Level {
 struct Entry {
     outer: Option<LevelId>,
     level: Level,
+    /// How many scope and members levels the chain has from this one outward.
+    nesting: u32,
 }
 
 /// The levels of all contexts of a unit.
@@ -81,8 +83,14 @@ pub struct Levels {
 
 impl Levels {
     pub fn push(&mut self, outer: Option<LevelId>, level: Level) -> LevelId {
-        self.all.push(Entry { outer, level });
+        let nesting = outer.map_or(0, |o| self.nesting(o)) + u32::from(!matches!(level, Level::Import(_)));
+        self.all.push(Entry { outer, level, nesting });
         LevelId(self.all.len() as u32 - 1)
+    }
+
+    /// The nesting of the scope of `id` (dotty's `Context.nestingLevel`).
+    pub fn nesting(&self, id: LevelId) -> u32 {
+        self.all[id.0 as usize].nesting
     }
 
     pub fn get(&self, id: LevelId) -> &Level {

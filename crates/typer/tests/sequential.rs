@@ -544,6 +544,11 @@ fn constructs_diverging_from_dotty_are_refused() {
         ),
         ("object Vu { def u[L <: Unit](implicit v: ValueOf[L]): L = v.value; val c = u }", "no implicit argument"),
         (
+            "trait En[A]; object En { implicit def lit[L <: Int](implicit v: ValueOf[L]): En[L] = new En[L] {} }
+             object Ve { def f[A <: 1](implicit e: En[A]): Int = 1; val x = f }",
+            "no implicit argument",
+        ),
+        (
             "class A(x: Int) { def this(s: String) = this(); def this() = this(0) }",
             "secondary constructor calling a later constructor",
         ),
