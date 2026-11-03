@@ -3,7 +3,7 @@
 
 use super::{Flags, Kind, SymbolId, Universe};
 use crate::tags::{CONTRAVARIANT, COVARIANT, LAMBDAtpt, STABLE, TYPEBOUNDStpt, TYPELAMBDAtype, TYPEPARAM};
-use crate::{Ast, Binder, NodeId, TypeId};
+use crate::{Ast, Binder, NodeId, Type, TypeId};
 
 /// How deep below its definition a type's lambda is looked for.
 const LAMBDA_DEPTH: u32 = 3;
@@ -15,6 +15,9 @@ impl Universe {
     pub fn variances(&self, s: SymbolId) -> Vec<i8> {
         let kind = self.symbol(s).kind;
         let script_type = matches!(kind, Kind::Type | Kind::TypeParam) && self.symbol(s).tree.is_none();
+        if script_type && let Some(v) = self.info_lambda_variances(s) {
+            return v;
+        }
         if kind == Kind::Class || script_type {
             return self.type_params(s).into_iter().map(|p| variance(self.symbol(p).flags)).collect();
         }
@@ -25,6 +28,16 @@ impl Universe {
         params
             .map(|&p| variance(ast.kids(p).iter().fold(Flags::default(), |f, &m| f.with(ast.tag(m)))))
             .collect()
+    }
+
+    /// The variances the type lambda of the recorded bounds or alias of `s` declares.
+    fn info_lambda_variances(&self, s: SymbolId) -> Option<Vec<i8>> {
+        let mut t = *self.infos.get(&s)?;
+        if let Type::Bounds(_, hi) = *self.types.get(t) {
+            t = hi;
+        }
+        let Type::Lambda { binder, .. } = *self.types.get(t) else { return None };
+        self.declared_variances(binder)
     }
 
     /// The variances of the type parameters of type constructor `t`: an abstract or opaque

@@ -62,7 +62,7 @@ impl Typer<'_> {
         }
         let score = self.sym_score(site, a, b);
         let (ia, ib) = (self.u.side_member_info(site, a), self.u.side_member_info(site, b));
-        let (ra, rb) = (self.u.result_type(ia), self.u.result_type(ib));
+        let (ra, rb) = self.u.aligned_results((a, ia), (b, ib));
         if score <= 0 && self.u.is_subtype(rb, ra) {
             return Some(b);
         }

@@ -136,6 +136,32 @@ impl Universe {
         }
     }
 
+    /// The result types `a` and `b` of members `sa` and `sb`, `sb`'s type parameters, symbols or
+    /// those of its leading polymorphic clause, replaced by `sa`'s.
+    pub fn aligned_results(
+        &mut self,
+        (sa, a): (SymbolId, TypeId),
+        (sb, b): (SymbolId, TypeId),
+    ) -> (TypeId, TypeId) {
+        let (ra, mut rb) = (self.result_type(a), self.result_type(b));
+        if let (Type::Poly { binder, params, .. }, Type::Poly { binder: b2, params: p2, .. }) =
+            (self.types().get(a).clone(), self.types().get(b).clone())
+            && params.len() == p2.len()
+        {
+            rb = self.with_binder(rb, (b2, &p2), binder);
+        }
+        let (ta, tb) = (self.type_params(sa), self.type_params(sb));
+        if ta.len() == tb.len() && ta != tb {
+            rb = self.map_type(rb, &mut |u, t| match *u.types().get(t) {
+                Type::Sym(None, s) => {
+                    tb.iter().position(|&p| p == s).map(|i| u.intern_type(Type::Sym(None, ta[i])))
+                }
+                _ => None,
+            });
+        }
+        (ra, rb)
+    }
+
     /// `t` with the parameters of `binder`, named as `params`, replaced by those of `to`.
     fn with_binder(
         &mut self,

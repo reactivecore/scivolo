@@ -111,8 +111,29 @@ impl Typer<'_> {
                 }
                 _ => Vec::new(),
             },
-            _ => self.u.class_symbol(t).map_or_else(Vec::new, |c| self.class_members(c, name)),
+            _ => match self.abstract_applied_upper(t) {
+                Some(upper) => self.members_within(upper, name, within),
+                None => self.u.class_symbol(t).map_or_else(Vec::new, |c| self.class_members(c, name)),
+            },
         }
+    }
+
+    /// The upper bound of `t`, `F[args]` for an abstract type `F` bounded by a type lambda, applied
+    /// to `args`.
+    fn abstract_applied_upper(&mut self, t: TypeId) -> Option<TypeId> {
+        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
+        let s = self.u.referenced(tycon)?;
+        if !matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) {
+            return None;
+        }
+        self.complete(s);
+        let info = self.u.info(s);
+        let Type::Bounds(_, hi) = *self.u.types().get(info) else { return None };
+        if !matches!(self.u.types().get(hi), Type::Lambda { .. }) {
+            return None;
+        }
+        let applied = self.u.intern_type(Type::Applied(hi, args));
+        Some(self.u.beta_reduced(applied))
     }
 
     /// `t`, a type variable without instance but with a lower bound, or a flexible one,
