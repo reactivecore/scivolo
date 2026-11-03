@@ -5,7 +5,7 @@
 use crate::diagnostic;
 use std::any::Any;
 use syntax::diag::{Diagnostic, Diagnostics, Level};
-use syntax::source::SourceFile;
+use syntax::source::{Offset, SourceFile};
 
 /// The diagnostics of an input that does not parse: no count.
 pub fn syntax_errors(source: &SourceFile, diags: &Diagnostics, width: usize) -> Vec<String> {
@@ -22,13 +22,27 @@ pub fn compile_errors(source: &SourceFile, diags: &Diagnostics, width: usize) ->
     out
 }
 
-/// The warnings of an input that compiles: their count, then the warnings in source order.
-pub fn warnings(source: &SourceFile, diags: &Diagnostics, width: usize) -> Vec<String> {
-    let mut shown = diags.unique();
-    shown.sort_by_key(|d| d.offset);
-    let mut out: Vec<String> = count(&shown, Level::Warning, "warning").into_iter().collect();
-    out.extend(boxes(source, &shown, width));
-    out
+/// Where an entry of an input's output sorts, as dotty's `ReplDriver` orders definitions and
+/// warnings: by line (-1 without a position), warnings first, then by column.
+pub type Place = (i64, bool, usize);
+
+/// The place of an entry at `offset` of `source`.
+pub fn place(source: &SourceFile, offset: Option<Offset>, warning: bool) -> Place {
+    offset.map_or((-1, !warning, 0), |o| (source.offset_to_line(o) as i64, !warning, source.column(o)))
+}
+
+/// The warnings of an input that compiles: their count, and each warning with its place, by place.
+pub fn warnings(
+    source: &SourceFile,
+    diags: &Diagnostics,
+    width: usize,
+) -> (Vec<String>, Vec<(Place, Vec<String>)>) {
+    let shown = diags.unique();
+    let count = count(&shown, Level::Warning, "warning").into_iter().collect();
+    let boxes = shown.iter().map(|d| (place(source, d.offset, true), diagnostic::lines(source, d, width)));
+    let mut boxes: Vec<_> = boxes.collect();
+    boxes.sort_by_key(|(p, _)| *p);
+    (count, boxes)
 }
 
 fn boxes(source: &SourceFile, shown: &[&Diagnostic], width: usize) -> Vec<String> {

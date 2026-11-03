@@ -40,12 +40,23 @@ pub fn seq_value(l: &mut Lower, t: TNodeId, elems: typer::tpd::List, elemtpt: TN
     if is_class(l, tpe, "scala.Array") {
         return Ok(());
     }
-    let (elem, span) = (l.tpd.tpe(elemtpt), l.tpd.span(t));
+    let elem = l.tpd.tpe(elemtpt);
     let array = array_of(l, elem);
-    let seq = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, span, Some(array), None);
-    let wrapped = wrap_array(l, seq, elem, tpe, span)?;
+    let seq = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, Span::NONE, Some(array), None);
+    let wrapped = wrap_seq(l, seq, elem, tpe, l.tpd.span(t))?;
     l.tpd.get_mut(t).tree = l.tpd.tree(wrapped).clone();
     Ok(())
+}
+
+/// Array literal `seq` wrapped as `wrap_array` does, the array spanning its elements and the call
+/// `span` (dotty's `SeqLiterals`, whose new `JavaSeqLiteral` takes the envelope of its elements).
+pub fn wrap_seq(l: &mut Lower, seq: TNodeId, elem: TypeId, tpe: TypeId, span: Span) -> Result<TNodeId> {
+    l.tpd.get_mut(seq).span = Span::NONE;
+    l.positioned(seq);
+    let wrapped = wrap_array(l, seq, elem, tpe, Span::NONE)?;
+    l.positioned(wrapped);
+    l.tpd.get_mut(wrapped).span = span;
+    Ok(wrapped)
 }
 
 /// `ScalaRunTime.wrapXArray(array)` of type `tpe`, for elements of type `elem` (dotty's

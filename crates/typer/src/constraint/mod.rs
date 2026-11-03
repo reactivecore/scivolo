@@ -13,7 +13,8 @@ mod levels;
 mod unify;
 
 use attempt::Fate;
-use tasty::{ANY, Changes, Mark, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
+use levels::At;
+use tasty::{ANY, Changes, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 use unify::has_var;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -23,8 +24,7 @@ struct Entry {
     instance: Option<TypeId>,
     /// Whether a hard union was added as a lower bound (dotty's hard variable).
     hard: bool,
-    /// The first symbol defined after the variable was made; the later, the deeper its level.
-    born: SymbolId,
+    at: At,
 }
 
 #[derive(Default)]
@@ -45,6 +45,8 @@ pub struct Constraint {
     escaped: bool,
     /// The declared bounds of each variable, `Nothing` and `Any` past its end.
     declared: Vec<(TypeId, TypeId)>,
+    /// The nesting of the scope being typed.
+    nesting: u32,
 }
 
 /// How many satisfiability checks may be in progress at once; deeper ones fail.
@@ -53,13 +55,13 @@ const MAX_CHECKS: u32 = 8;
 impl Constraint {
     /// A fresh variable without bounds, of any kind until it gets an upper bound other than `Any`.
     pub fn fresh(&mut self, u: &mut Universe) -> TypeId {
-        let born = u.next_symbol();
-        self.fresh_at(u, born)
+        let at = At { born: u.next_symbol(), nesting: self.nesting };
+        self.fresh_at(u, at)
     }
 
-    /// `fresh` at the level of the variables made when symbol `born` was the next one.
-    fn fresh_at(&mut self, u: &mut Universe, born: SymbolId) -> TypeId {
-        self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, hard: false, born });
+    /// `fresh` where the variables made `at` were made.
+    fn fresh_at(&mut self, u: &mut Universe, at: At) -> TypeId {
+        self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, hard: false, at });
         self.fates.push(Fate::Open);
         u.intern_type(Type::Var(VarId(self.vars.len() as u32 - 1)))
     }
@@ -203,7 +205,7 @@ impl TypeVars for Constraint {
             return true;
         }
         let Some(lo) = lambda_params::avoid_lambda_params(u, lo, true) else { return false };
-        let lo = match self.avoided(u, lo, e.born, 1) {
+        let lo = match self.avoided(u, lo, e.at, 1) {
             Some(avoided) => avoided,
             None => {
                 self.escaped = true;
@@ -221,6 +223,9 @@ impl TypeVars for Constraint {
             let lub = u.lub(e.lo, lo);
             (lub, lub)
         };
+        if self.propagating && lo == e.lo && self.is_open_var(u, e.hi) {
+            return true;
+        }
         if !self.add_bound(u, v, (lo, true), e.hi, (lo, e.hi), unchecked) {
             return false;
         }

@@ -89,3 +89,18 @@ object Scopes:
       export Instances.thrice
       def run = twice(n)
     C().run + C().thrice(n)
+
+object Shared:
+  inline def withThis(n: Int): Int =
+    class C:
+      val k = n
+      def get = C.this.k + this.k
+    C().get
+  inline def exported(n: Int): Int =
+    class D:
+      export Instances.thrice
+    D().thrice(n)
+  inline def exportedToo(n: Int): Int =
+    class E:
+      export Instances.thrice
+    E().thrice(n) + 1
