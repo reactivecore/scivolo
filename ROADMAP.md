@@ -214,6 +214,8 @@ slower meanwhile:
    538 lower, 2,163 same, 504 differ. Against the published scalalib jar, with flow typing of
    `var`s (#215) 547 lower, 2,300 same; with `@stableNull` fields, inherited result types of
    library methods, named selves of objects and annotation arguments desugared 568, 2,556.
+   With the JDK's declarations over javalib in scalalib's build too (ADR 0082) and more JDK
+   classes and members: 586 lower, 2,654 same (from 570, 2,571 on the same base).
 8. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs

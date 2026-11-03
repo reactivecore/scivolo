@@ -16,6 +16,7 @@ mod impure_functions;
 mod info;
 mod inits;
 mod java_nulls;
+mod java_params;
 mod java_strings;
 mod java_stubs;
 mod jdk;
