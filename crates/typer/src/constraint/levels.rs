@@ -4,17 +4,30 @@
 //! variable, deeper variables replaced by ones at its level (dotty's `legalVar`), and bounds that
 //! came to refer to local symbols avoided once they go out of scope.
 
-use super::{At, Constraint};
+use super::Constraint;
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
+/// Where a variable was made: the first symbol defined after it, and the nesting of the scope it
+/// was made in (dotty's `nestingLevel`).
+#[derive(Clone, Copy, PartialEq)]
+pub struct At {
+    pub born: SymbolId,
+    pub nesting: u32,
+}
+
 impl Constraint {
+    /// Sets the nesting of the scope being typed, returning the previous one.
+    pub fn set_nesting(&mut self, nesting: u32) -> u32 {
+        std::mem::replace(&mut self.nesting, nesting)
+    }
+
     /// Whether `v` was made after symbol `s` was defined.
     pub fn made_after(&self, v: VarId, s: SymbolId) -> bool {
         self.vars[v.0 as usize].at.born.0 > s.0
     }
 
     /// Whether `t` refers to a local symbol defined since `at`, or has an uninstantiated
-    /// variable made after `at` whose bounds do, `depth` variables deep.
+    /// variable nested more deeply than `at` whose bounds do, `depth` variables deep.
     pub fn refers_to_local(&self, u: &mut Universe, t: TypeId, at: At, depth: u32) -> bool {
         let mut syms = Vec::new();
         let mut vars = Vec::new();
@@ -32,7 +45,7 @@ impl Constraint {
                 let bounds = |c: &Self, u: &mut Universe, b| c.refers_to_local(u, b, at, depth - 1);
                 match e.instance {
                     Some(i) => depth == 0 || bounds(self, u, i),
-                    None if e.at.born.0 <= at.born.0 => false,
+                    None if e.at.nesting <= at.nesting => false,
                     None => depth == 0 || bounds(self, u, e.lo) || bounds(self, u, e.hi),
                 }
             })

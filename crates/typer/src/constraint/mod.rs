@@ -13,7 +13,8 @@ mod levels;
 mod unify;
 
 use attempt::Fate;
-use tasty::{ANY, Changes, Mark, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
+use levels::At;
+use tasty::{ANY, Changes, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 use unify::has_var;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -24,14 +25,6 @@ struct Entry {
     /// Whether a hard union was added as a lower bound (dotty's hard variable).
     hard: bool,
     at: At,
-}
-
-/// Where a variable was made: the first symbol defined after it, and the nesting of the scope it
-/// was made in (dotty's `nestingLevel`).
-#[derive(Clone, Copy, PartialEq)]
-pub struct At {
-    born: SymbolId,
-    nesting: u32,
 }
 
 #[derive(Default)]
@@ -64,11 +57,6 @@ impl Constraint {
     pub fn fresh(&mut self, u: &mut Universe) -> TypeId {
         let at = At { born: u.next_symbol(), nesting: self.nesting };
         self.fresh_at(u, at)
-    }
-
-    /// Sets the nesting of the scope being typed, returning the previous one.
-    pub fn set_nesting(&mut self, nesting: u32) -> u32 {
-        std::mem::replace(&mut self.nesting, nesting)
     }
 
     /// `fresh` where the variables made `at` were made.
