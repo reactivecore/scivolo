@@ -12,8 +12,7 @@ use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `Expr.splice[T]((x$0: Quotes) ?=> body)` in `owner`, `body` made from a reference to `x$0`
-/// in the closure's method (dotty's `spliced`); `T` is `tpe` as its hole's type avoids it, as no
-/// healing sees the splice in dotty.
+/// in the closure's method (dotty's `spliced`); `T` is `tpe` as its hole's type avoids it.
 pub fn spliced(
     l: &mut Lower,
     tpe: TypeId,

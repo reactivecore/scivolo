@@ -211,3 +211,4 @@ nestedobjlambda
 lazycaptures
 ctornames
 usingextractors
+quotecaptures
