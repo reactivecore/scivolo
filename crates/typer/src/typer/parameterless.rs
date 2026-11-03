@@ -77,7 +77,12 @@ impl Typer<'_> {
             return false;
         }
         match pt {
-            Pt::Type(p) => !self.is_fully_defined(p) || self.u.is_subtype(result, p),
+            Pt::Type(p) => {
+                !self.is_fully_defined(p) || {
+                    let p = self.zonk(p);
+                    self.u.is_subtype(result, p)
+                }
+            }
             _ => true,
         }
     }
@@ -101,8 +106,10 @@ impl Typer<'_> {
                 values.extend(fun.filter(|&f| self.u.is_subtype(tpe, f)).map(|_| s));
                 continue;
             }
-            let Some((formals, false)) = self.param_types(s, prefix, false) else {
-                return Err("overloaded reference against a function type");
+            let formals = match self.param_types(s, prefix, false) {
+                Some((formals, false)) => formals,
+                Some((formals, true)) if formals.len() != args.len() => continue,
+                _ => return Err("overloaded reference against a function type"),
             };
             if formals.len() == args.len()
                 && args.iter().zip(&formals).all(|(&a, &f)| self.u.is_subtype(a, f))
