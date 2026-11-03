@@ -92,14 +92,15 @@ impl Typer<'_> {
     /// Case `id` of a match on a value of type `selector`, its body expected to be `pt`; a body
     /// whose type refers to the pattern's variables ascribed a type that does not.
     pub fn typed_case(&mut self, id: NodeId, selector: TypeId, pt: Pt, ctx: Ctx) -> TNodeId {
-        self.typed_case_in(id, selector, pt, None, ctx)
+        self.typed_case_in(id, (None, selector), pt, None, ctx)
     }
 
-    /// `typed_case`, the body expected to be the body of match type case `case` if given.
+    /// `typed_case` against selector `sel` if given, the body expected to be the body of match
+    /// type case `case` if given.
     pub fn typed_case_in(
         &mut self,
         id: NodeId,
-        selector: TypeId,
+        (sel, selector): (Option<TNodeId>, TypeId),
         pt: Pt,
         case: Option<TypeId>,
         ctx: Ctx,
@@ -118,8 +119,13 @@ impl Typer<'_> {
             None => pt,
         };
         let boolean = self.boolean();
+        let cctx = self.case_ctx(sel, pat, cctx);
         let guard = guard.map(|g| self.typed(g, Pt::Type(boolean), cctx));
-        let typed_body = self.typed(body, pt, cctx);
+        let body_ctx = match guard {
+            Some(g) => self.nullable_ctx_if(g, true, cctx),
+            None => cctx,
+        };
+        let typed_body = self.typed(body, pt, body_ctx);
         let mut locals = self.levels.scope_symbols(level);
         let mut types = Vec::new();
         self.pattern_types(pat, &mut types, false);

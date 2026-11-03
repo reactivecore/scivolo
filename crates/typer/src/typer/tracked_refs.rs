@@ -20,15 +20,15 @@ impl Typer<'_> {
         sym.kind == Kind::Val && sym.flags.has(tags::MUTABLE)
     }
 
-    /// The type of `t` if it is tracked: a stable path or a local variable.
+    /// The type of `t` if it is tracked: a stable path or a local variable assigned only where its
+    /// block reaches (dotty's `isTracked`).
     pub fn tracked(&mut self, t: TNodeId) -> Option<TypeId> {
         let r = self.tpd.tpe(t);
         let sym = self.term_ref_sym(r)?;
         if super::stability::is_stable_path(self.u, r) {
             return Some(r);
         }
-        let local = self.u.symbol(sym).owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
-        (self.is_mutable_var(sym) && local).then_some(r)
+        self.assignment_spans(sym).is_some().then_some(r)
     }
 
     /// Whether a use of local variable `sym` in `ctx` is in a method, lazy value or class inside
