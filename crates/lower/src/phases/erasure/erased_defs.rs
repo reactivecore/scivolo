@@ -141,13 +141,22 @@ fn is_caps_erased_value(l: &Lower, s: SymbolId) -> bool {
     is_erased_sym(l, s) && !has(l.u, s, ERASED) && l.u.full_name(s).starts_with("scala.caps.")
 }
 
-/// Refuses references to erased values left in unit `root` (dotty's `checkNotErased`).
+/// Refuses references to erased values left in unit `root`, and to `@compileTimeOnly` definitions
+/// outside types (dotty's `checkNotErased`).
 fn refuse_erased_refs(l: &mut Lower, root: TNodeId) -> Result<()> {
+    let mut in_types = FxHashSet::default();
     for t in subtrees(l.tpd, root) {
-        if matches!(l.tpd.tree(t), Tree::Ident { .. } | Tree::Select { .. })
-            && l.tpd.sym(t).is_some_and(|s| is_erased_sym(l, s))
-        {
+        if let Tree::SingletonTypeTree { reference } = *l.tpd.tree(t) {
+            in_types.extend(subtrees(l.tpd, reference));
+        }
+        let (Tree::Ident { name } | Tree::Select { name, .. }) = *l.tpd.tree(t) else { continue };
+        let Some(s) = l.tpd.sym(t) else { continue };
+        if is_erased_sym(l, s) {
             return unsupported(l.tpd.span(t), "reference to an erased value");
+        }
+        let in_type = name.is_type || in_types.contains(&t);
+        if !in_type && l.u.is_annotated(s, "scala.annotation.compileTimeOnly") {
+            return unsupported(l.tpd.span(t), "reference to a @compileTimeOnly definition");
         }
     }
     Ok(())

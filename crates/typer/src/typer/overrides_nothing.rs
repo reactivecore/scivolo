@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/RefChecks.scala
 //! dotty's `checkAllOverrides` step 4, a member with an `override` modifier overrides some member,
-//! where no base member has its name or each one differs in a repeated parameter.
+//! where no base member matches it without differing in a repeated parameter.
 
 use super::Typer;
 use syntax::ast::flags as f;
@@ -19,11 +19,11 @@ impl Typer<'_> {
             let flags = self.syms.flags.get(&d).copied().unwrap_or_default();
             (flags.is(f::OVERRIDE) || flags.is(f::ABS_OVERRIDE))
                 && !flags.is(f::SYNTHETIC)
-                && self.matches_nothing(site, &bases, d)
+                && self.matches_nothing(cls, site, &bases, d)
         })
     }
 
-    fn matches_nothing(&mut self, site: TypeId, bases: &[SymbolId], d: SymbolId) -> bool {
+    fn matches_nothing(&mut self, cls: SymbolId, site: TypeId, bases: &[SymbolId], d: SymbolId) -> bool {
         let name = self.u.symbol(d).name.clone();
         if !self.u.symbol(d).kind.is_term() {
             return !bases.iter().any(|&b| {
@@ -34,10 +34,15 @@ impl Typer<'_> {
             });
         }
         let named: Vec<SymbolId> = bases.iter().flat_map(|&b| self.overridable(b, &name)).collect();
-        named.into_iter().all(|m| {
+        let nothing = named.into_iter().all(|m| {
             self.complete(m);
-            self.incompatible_repeated_param(d, m) && !self.same_member(site, d, m)
-        })
+            !self.same_member(site, d, m) || self.incompatible_repeated_param(d, m)
+        });
+        nothing && !(name == "getClass" && self.is_primitive_value_class(cls))
+    }
+
+    fn is_primitive_value_class(&self, c: SymbolId) -> bool {
+        tasty::PRIMITIVE_VALUE_CLASSES.contains(&self.u.full_name(c).as_str())
     }
 
     /// Whether neither of `a` and `b` is a Java member and in some parameter clause their last

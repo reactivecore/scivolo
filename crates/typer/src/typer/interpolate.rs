@@ -18,8 +18,8 @@ impl Typer<'_> {
     /// occur and have one; invariant ones stay, and all stay while `tree` is a method not applied
     /// to all its parameter clauses.
     pub fn interpolate(&mut self, tree: TNodeId, pt: Pt, from: usize) -> Result<(), &'static str> {
-        let Some(tpe) = self.tpd.get(tree).tpe else { return Ok(()) };
-        let tpe = self.u.widen(tpe);
+        let Some(unwidened) = self.tpd.get(tree).tpe else { return Ok(()) };
+        let tpe = self.u.widen(unwidened);
         let tpe = match *self.u.types().get(tpe) {
             Type::ByName(r) => r,
             _ => tpe,
@@ -36,7 +36,7 @@ impl Typer<'_> {
         if let Some(p) = pt
             && !matches!(self.tpd.tree(tree), T::Apply { .. })
         {
-            self.constrain_result(tree, tpe, p);
+            self.constrain_result(tree, unwidened, p);
         }
         let variances = self.variances(tpe, pt, from);
         let mut pending = Vec::new();

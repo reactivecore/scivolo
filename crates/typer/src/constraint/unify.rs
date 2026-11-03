@@ -52,6 +52,16 @@ fn without_var(u: &mut Universe, t: TypeId, v: VarId) -> Option<TypeId> {
     }
 }
 
+/// Whether `t` has a type variable among its parts.
+pub fn has_var(u: &mut Universe, t: TypeId) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, part| {
+        found |= matches!(u.types().get(part), Type::Var(_));
+        None
+    });
+    found
+}
+
 fn join(u: &mut Universe, a: TypeId, b: TypeId) -> TypeId {
     if b == NOTHING || u.is_subtype(b, a) {
         a

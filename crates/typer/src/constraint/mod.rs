@@ -14,6 +14,7 @@ mod unify;
 
 use attempt::Fate;
 use tasty::{ANY, Changes, Mark, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
+use unify::has_var;
 
 #[derive(Clone, Copy, PartialEq)]
 struct Entry {
@@ -169,7 +170,8 @@ impl Constraint {
     }
 
     /// Sets the bounds of `v` to `lo` and `hi` if `checked <: hi` holds then, `checked` being
-    /// the part of `lo` to check; instantiates `v` to equal bounds without uninstantiated
+    /// the part of `lo` to check, added to variable `hi` as its lower bound undealiased if it
+    /// has no variables (dotty's `addLess`); instantiates `v` to equal bounds without uninstantiated
     /// variables that are not a bare type constructor (dotty's `addOneBound` and its `tryReplace`).
     fn narrow(&mut self, u: &mut Universe, v: VarId, lo: TypeId, hi: TypeId, checked: TypeId) -> bool {
         if lo == hi {
@@ -186,7 +188,14 @@ impl Constraint {
         }
         let mark = self.mark();
         self.set(v, lo, hi);
-        let ok = hi == ANY || self.satisfiable(u, checked, hi);
+        let ok = hi == ANY
+            || match u.types().get(hi).clone() {
+                Type::Var(w) if self.vars[w.0 as usize].instance.is_none() && !has_var(u, checked) => {
+                    let lo_w = self.vars[w.0 as usize].lo;
+                    u.is_subtype(checked, lo_w) || self.propagated(u, w, checked, true)
+                }
+                _ => self.satisfiable(u, checked, hi),
+            };
         if !ok {
             self.rollback(mark);
         }

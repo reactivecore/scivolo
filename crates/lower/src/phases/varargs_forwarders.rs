@@ -136,7 +136,7 @@ fn overridden(l: &mut Lower, def: SymbolId) -> Vec<SymbolId> {
     for base in l.u.linearization(owner).into_iter().skip(1) {
         for m in l.u.decl(base, &name).unwrap_or_default() {
             let s = l.u.symbol(m);
-            if s.kind == Kind::Def && !s.flags.has(PRIVATE) && l.u.matches(site, def, m) {
+            if s.kind == Kind::Def && !s.flags.has(PRIVATE) && l.u.info_matches(site, def, m) {
                 found.push(m);
             }
         }
