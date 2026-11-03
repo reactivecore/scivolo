@@ -50,7 +50,8 @@ impl Typer<'_> {
     }
 
     /// The bounds a type variable gets as argument `i` of `tycon` in a quote pattern: those of
-    /// the type parameter, if they refer to no other parameter.
+    /// the type parameter of the class or of the type lambda an alias stands for, if they refer
+    /// to no other parameter.
     pub fn quoted_type_arg_bounds(&mut self, tycon: TypeId, i: usize) -> TypeId {
         let empty = self.u.intern_type(Type::Bounds(NOTHING, ANY));
         let class = match self.u.types().get(tycon).clone() {
@@ -60,6 +61,26 @@ impl Typer<'_> {
         };
         let params = match class {
             Some(c) if self.u.symbol(c).kind == Kind::Class => self.u.type_params(c),
+            Some(a) => {
+                let lambda = self.u.alias_of(a).map(|t| self.u.types().get(t).clone());
+                let Some(Type::Lambda { params, .. }) = lambda else { return empty };
+                let refers = |u: &mut tasty::Universe, t| {
+                    let mut found = false;
+                    u.map_type(t, &mut |u, x| {
+                        found |= matches!(u.types().get(x), Type::Param(..) | Type::Local(..));
+                        None
+                    });
+                    found
+                };
+                return match params.get(i) {
+                    Some(&(_, b))
+                        if matches!(self.u.types().get(b), Type::Bounds(..)) && !refers(self.u, b) =>
+                    {
+                        b
+                    }
+                    _ => empty,
+                };
+            }
             _ => return empty,
         };
         let Some(&param) = params.get(i) else { return empty };

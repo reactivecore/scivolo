@@ -59,8 +59,8 @@ impl Typer<'_> {
             tpe = self.u.intern_type(Type::Constant(tasty::tags::CLASSconst, i64::from(arg.0)));
         }
         let args = self.tpd.list(&typed_args);
-        let span = self.ast.span(id);
-        self.tpd.node(T::TypeApply { fun: f, args }, span, Some(tpe), None)
+        let applied = self.tpd.node(T::TypeApply { fun: f, args }, self.ast.span(id), Some(tpe), None);
+        self.with_type_quote_tags(applied, fun_name.as_deref(), ctx)
     }
 
     /// `f` applied to type arguments if it is polymorphic, else `f`: a constructor of `new C[Ts]`

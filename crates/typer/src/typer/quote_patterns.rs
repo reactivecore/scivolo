@@ -59,8 +59,12 @@ impl Typer<'_> {
         self.check_quote_pattern(body);
         let tpe = self.tpd.tpe(body);
         let tpe = crate::defn::applied(self.u, class, vec![tpe]);
-        let bindings = self.tpd.list(&bindings);
-        self.tpd.node(T::QuotePattern { bindings, body, quotes }, span, Some(tpe), None)
+        let list = self.tpd.list(&bindings);
+        let pattern = self.tpd.node(T::QuotePattern { bindings: list, body, quotes }, span, Some(tpe), None);
+        if ctx.staging == 0 {
+            self.record_pattern_givens(pattern, body, &bindings, ctx);
+        }
+        pattern
     }
 
     /// The `Quotes` a quote pattern at `span` matches with.

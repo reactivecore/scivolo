@@ -31,11 +31,8 @@ pub fn encode(
     let (mut defs, mut holes, mut refs, mut locals) =
         (Vec::new(), Vec::new(), Vec::new(), FxHashMap::default());
     for (index, &tag) in used.iter().enumerate() {
-        let (evidence, this) = match *l.u.types().get(tag) {
-            Type::Sym(None, evidence) => (evidence, None),
-            Type::Sym(Some(p), evidence) if let Type::This(c) = *l.u.types().get(p) => (evidence, Some(c)),
-            _ => return unsupported(span, "quotes whose type tag is not a local value or field"),
-        };
+        let Type::Sym(_, evidence) = *l.u.types().get(tag) else { unreachable!("a tag") };
+        refs.push(tag_ref(l, tag, at).or_else(|()| unsupported(span, TAG_PATH))?);
         let tpe = tags.iter().find(|(_, t)| *t == tag).map(|&(s, _)| s).expect("a tag's type");
         let name = fresh(l, &l.u.symbol(evidence).name.clone());
         let local = l.u.define(symbol(&name, Kind::Type, owner, Flags::default().with(SYNTHETIC)));
@@ -49,17 +46,10 @@ pub fn encode(
         let name = TName { name: l.names.intern(&name), is_type: true };
         let local_ref = l.u.intern_type(Type::Sym(None, local));
         defs.push(l.tpd.node(Tree::TypeDef { name, rhs: hole }, at, Some(local_ref), Some(local)));
-        spliced_type(l, local, at);
+        let class = l.u.class_ref("scala.quoted.runtime.SplicedType");
+        let class = l.u.class_symbol(class).expect("SplicedType");
+        annotate_new(l, local, class, at);
         locals.insert(underlying, local_ref);
-        let class = this.and_then(|c| l.u.class_symbol(c));
-        let tag_ref = match class {
-            Some(c) => {
-                let this = l.this(c, at);
-                l.select(this, evidence, at)
-            }
-            None => l.ident(evidence, at),
-        };
-        refs.push(tag_ref);
     }
     substitute(l, body, &locals);
     let tpe = l.tpd.tpe(body);
@@ -68,11 +58,25 @@ pub fn encode(
     Ok((block, holes, refs))
 }
 
-/// Annotates `local` with `new scala.quoted.runtime.SplicedType()` at `at`.
-fn spliced_type(l: &mut Lower, local: SymbolId, at: Span) {
-    let class = l.u.class_ref("scala.quoted.runtime.SplicedType");
-    let class = l.u.class_symbol(class).expect("SplicedType");
-    let init = l.u.decl(class, "<init>").ok().and_then(|d| d.first().copied()).expect("SplicedType()");
+/// The refusal of a tag that is not a local value or a field.
+pub const TAG_PATH: &str = "quotes whose type tag is not a local value or field";
+
+/// A reference at `at` to tag `tag`, a local value or a field of an enclosing class.
+pub fn tag_ref(l: &mut Lower, tag: TypeId, at: Span) -> std::result::Result<TNodeId, ()> {
+    match *l.u.types().get(tag) {
+        Type::Sym(None, evidence) => Ok(l.ident(evidence, at)),
+        Type::Sym(Some(p), evidence) if let Type::This(c) = *l.u.types().get(p) => {
+            let class = l.u.class_symbol(c).ok_or(())?;
+            let this = l.this(class, at);
+            Ok(l.select(this, evidence, at))
+        }
+        _ => Err(()),
+    }
+}
+
+/// Annotates `local` with `new C()` at `at`, `C` class `class`.
+pub fn annotate_new(l: &mut Lower, local: SymbolId, class: SymbolId, at: Span) {
+    let init = l.u.decl(class, "<init>").ok().and_then(|d| d.first().copied()).expect("a constructor");
     let tpe = l.u.intern_type(Type::Sym(None, class));
     let tpt = l.type_tree(tpe, at);
     let new = l.tpd.node(Tree::New { tpt }, at, Some(tpe), None);
@@ -82,9 +86,9 @@ fn spliced_type(l: &mut Lower, local: SymbolId, at: Span) {
     l.tpd.annotate(local, annot);
 }
 
-/// Replaces `t.Underlying` by its local type in the types of the trees under `body` and the
+/// Replaces the types `locals` maps by theirs in the types of the trees under `body` and the
 /// infos of their definitions.
-fn substitute(l: &mut Lower, body: TNodeId, locals: &FxHashMap<TypeId, TypeId>) {
+pub fn substitute(l: &mut Lower, body: TNodeId, locals: &FxHashMap<TypeId, TypeId>) {
     let map = |l: &mut Lower, t: TypeId| l.u.map_type(t, &mut |_, x| locals.get(&x).copied());
     for t in subtrees(l.tpd, body) {
         if let Some(tpe) = l.tpd.get(t).tpe {

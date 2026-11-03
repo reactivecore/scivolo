@@ -51,7 +51,8 @@ pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId) -> Result<()>
         contextual: true,
     });
     let first = l.apply(fun, &[lit], using, Span::NONE);
-    let call = l.apply(first, &[q.quotes], expr, span);
+    let first = l.positioned(first);
+    let call = l.apply(first, &[q.quotes], expr, Span::NONE);
     let call = l.positioned(call);
     l.copy_node(t, call);
     Ok(())

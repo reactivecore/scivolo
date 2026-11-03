@@ -8,6 +8,7 @@ use crate::ctx::Ctx;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashSet;
+use syntax::ast::flags::{CASE, GIVEN};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Typer<'_> {
@@ -22,6 +23,7 @@ impl Typer<'_> {
                 defined.extend(node.sym);
             }
             if let Some(tpe) = node.tpe {
+                let tpe = self.zonk(tpe);
                 self.u.map_type(tpe, &mut |u, x| {
                     if let Some(s) = this_or_local(u, x)
                         && !used.iter().any(|&(u, _)| u == s)
@@ -42,6 +44,10 @@ impl Typer<'_> {
             if owners.any(|o| defined.contains(&o)) || !self.is_level_zero_type(s) {
                 continue;
             }
+            if let Some(given) = self.tpd.pattern_given(s) {
+                tags.push((s, self.u.intern_type(Type::Sym(None, given))));
+                continue;
+            }
             let tycon = type_ref(self.u, class);
             let pt = self.u.intern_type(Type::Applied(tycon, vec![arg]));
             let Ok(tag) = self.implicit_arg(pt, self.tpd.span(body), ctx, 0) else { continue };
@@ -53,6 +59,48 @@ impl Typer<'_> {
         if !tags.is_empty() {
             self.tpd.set_quote_tags(quote, tags);
         }
+    }
+
+    /// Records the tags of quote pattern `pattern` of body `body` at level 0 in `ctx`, and for
+    /// each of its type variables `bindings` the given `t$givenN: Type[t]` its encoding binds
+    /// (dotty's `QuotePatterns.encode`).
+    pub fn record_pattern_givens(&mut self, pattern: TNodeId, body: TNodeId, bindings: &[TNodeId], ctx: Ctx) {
+        self.record_quote_tags(pattern, body, ctx);
+        let Some(class) = self.resolve_full_name("scala.quoted.Type", true) else { return };
+        for &b in bindings {
+            let Some(t) = self.tpd.sym(b) else { continue };
+            let name = format!("{}$given", self.u.symbol(t).name);
+            let name = self.fresh.next(self.names, &name);
+            let name = self.names.text(name).to_owned();
+            let given = self.syms.define(self.u, &name, Kind::Val, ctx.owner, GIVEN.or(CASE));
+            let arg = self.u.intern_type(Type::Sym(None, t));
+            let tycon = type_ref(self.u, class);
+            let info = self.u.intern_type(Type::Applied(tycon, vec![arg]));
+            self.u.set_info(given, info);
+            self.tpd.set_pattern_given(t, given);
+        }
+    }
+
+    /// `applied`, a type application of method `fun`, with its tags recorded if it is a type
+    /// quote `scala.quoted.Type.of[T]` at level 0 in `ctx`.
+    pub fn with_type_quote_tags(&mut self, applied: TNodeId, fun: Option<&str>, ctx: Ctx) -> TNodeId {
+        if ctx.staging == 0
+            && fun == Some("scala.quoted.Type$.of")
+            && let T::TypeApply { args, .. } = *self.tpd.tree(applied)
+            && let &[body] = self.tpd.items(args)
+        {
+            self.record_quote_tags(applied, body, ctx);
+        }
+        applied
+    }
+
+    /// Records the tags of implicit argument `tree` in `ctx` if it is a type quote
+    /// `Type.of[T](quotes)`.
+    pub fn record_implicit_type_quote(&mut self, tree: TNodeId, ctx: Ctx) {
+        let T::Apply { fun, .. } = *self.tpd.tree(tree) else { return };
+        let T::TypeApply { fun: of, .. } = *self.tpd.tree(fun) else { return };
+        let name = self.tpd.sym(of).map(|s| self.u.full_name(s));
+        self.with_type_quote_tags(fun, name.as_deref(), ctx);
     }
 
     /// The body of `quote(body).apply(quotes)`.
