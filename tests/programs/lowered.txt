@@ -215,3 +215,4 @@ quotecaptures
 skolemparams
 outerparams
 outerlambdas
+traitpatterns
