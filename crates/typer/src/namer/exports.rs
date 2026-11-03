@@ -187,7 +187,7 @@ impl Typer<'_> {
     }
 
     /// Whether path type `t` refers to a private term (dotty's `refersToPrivate`).
-    fn refers_to_private(&self, t: TypeId) -> bool {
+    pub fn refers_to_private(&self, t: TypeId) -> bool {
         match *self.u.types().get(t) {
             Type::Sym(p, s) if self.u.symbol(s).kind.is_term() => {
                 self.u.symbol(s).flags.has(t::PRIVATE) || p.is_some_and(|p| self.refers_to_private(p))
@@ -224,47 +224,6 @@ impl Typer<'_> {
             None
         });
         found
-    }
-
-    /// The type alias forwarding to type member `m` of `e`'s path.
-    fn add_type_forwarder(&mut self, e: &mut Export, alias: &str, m: SymbolId, span: Span) {
-        let info = self.u.info(m);
-        let class = self.u.symbol(m).kind == Kind::Class;
-        let class_params =
-            class && self.u.symbol(m).decls.iter().any(|&d| self.u.symbol(d).kind == Kind::TypeParam);
-        if class_params || matches!(self.u.types().get(info), Type::Lambda { .. }) {
-            self.unsupported_at(span, "export of a type constructor");
-            return;
-        }
-        let name = self.u.symbol(m).name.clone();
-        if class && !self.type_members(e.path, &name).iter().any(|&c| !self.u.is_type_symbol(c)) {
-            self.unsupported_at(span, "export of a class without a companion object");
-            return;
-        }
-        let taken =
-            self.u.decl(e.cls, alias).unwrap_or_default().into_iter().any(|d| self.u.is_type_symbol(d));
-        if taken {
-            self.unsupported_at(span, "export of a type whose name the class defines");
-            return;
-        }
-        let mut target = self.u.intern_type(Type::Sym(Some(e.path), m));
-        if self.refers_to_private(e.path) {
-            let dealiased = self.u.dealias(target);
-            if dealiased == target {
-                self.unsupported_at(span, "export of a type through a private path");
-                return;
-            }
-            target = dealiased;
-        }
-        let fl = f::EXPORTED.or(f::FINAL).or(if self.u.symbol(m).flags.has(t::INFIX) {
-            f::INFIX
-        } else {
-            f::EMPTY
-        });
-        let sym = self.syms.define(self.u, alias, Kind::Type, e.cls, fl);
-        let info = self.u.intern_type(Type::Alias(target));
-        self.u.set_info(sym, info);
-        e.out.push(Forwarder { sym, target: m, span });
     }
 
     /// Fails on two forwarders of the same name that erase alike (dotty's `avoidClashes`).

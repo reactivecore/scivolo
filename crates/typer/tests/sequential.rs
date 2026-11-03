@@ -361,7 +361,7 @@ fn no_false_errors_behind_unsupported_constructs() {
     let cases = [
         (
             "class C:\n  class D\nclass Baz:\n  val c = new C\n  export c.*\nobject M:\n  val d = Baz().D()\n",
-            "export of a class without a companion object",
+            "constructor proxy of an exported class",
         ),
         (
             "trait T\nclass O:\n  object S extends T { self =>\n    def f() = self.hashCode\n  }\n",
