@@ -117,7 +117,7 @@ slower meanwhile:
    `tests/pos`; implicit candidates with undetermined type variables (#123).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the 14 failing
    `tests/run-macros`.
-3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): `just
+3. **com-lihaoyi toolkit** (#216, [research 31](docs/research/31-lihaoyi-macros.md)): `just
    lib-source NAME` compiles every file of fansi 0.5.1, geny 1.1.1, sourcecode 0.4.4, pprint
    0.9.6, fastparse 3.1.1, mainargs 0.7.8, upickle 4.4.3 (with upickle-core, upickle-implicits,
    ujson and upack) and os-lib 0.11.9-M8; 1,772 of 1,786 NIR files are the same as scala-cli's
