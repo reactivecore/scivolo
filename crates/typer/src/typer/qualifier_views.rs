@@ -11,9 +11,18 @@ use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, Tree};
 use tasty::{SymbolId, Type, TypeId};
 
+/// How a selection whose members do not apply to the arguments is retried.
+pub enum QualifierView {
+    /// As a call of the extension methods in scope.
+    Extension,
+    /// On the qualifier converted.
+    Converted(TNodeId),
+}
+
 impl Typer<'_> {
-    /// `qual` converted to have a member `name` when none of `syms`, its members as seen from
-    /// `prefix`, applies to the literal or path arguments of `pt`; `None` otherwise.
+    /// How selection `qual.name` is retried when none of `syms`, its members as seen from
+    /// `prefix`, applies to the literal or path arguments of `pt`: as an extension call if one in
+    /// scope takes `qual`, else on `qual` converted to have a member `name`; `None` otherwise.
     pub fn qualifier_view(
         &mut self,
         qual: TNodeId,
@@ -21,7 +30,7 @@ impl Typer<'_> {
         name: &str,
         pt: Pt,
         ctx: Ctx,
-    ) -> Option<TNodeId> {
+    ) -> Option<QualifierView> {
         let Pt::Fun(proto) = pt else { return None };
         let args = self.untupled_args(proto, syms).unwrap_or_else(|| self.protos[proto].args.clone());
         let arg_ctx = self.protos[proto].ctx;
@@ -55,6 +64,9 @@ impl Typer<'_> {
         if fits || diagnosed {
             return None;
         }
+        if self.extension_visible(name, ctx) && !self.extensions_reject(qual, name, ctx) {
+            return Some(QualifierView::Extension);
+        }
         let reported = self.diags.items.len();
         let (applies, clean, _) = self.speculatively(|t| match t.viewed(qual, Goal::Member(name), ctx) {
             Ok(Some(Viewed::Converted(q))) => Some(t.member_applies(q, name, &types, ctx)),
@@ -62,7 +74,7 @@ impl Typer<'_> {
             _ => None,
         });
         self.retract_diags(reported);
-        match applies {
+        let converted = match applies {
             _ if !clean => None,
             Some(true) => match self.viewed(qual, Goal::Member(name), ctx) {
                 Ok(Some(Viewed::Converted(q))) => Some(q),
@@ -70,7 +82,8 @@ impl Typer<'_> {
             },
             Some(false) => self.arg_scope_view(qual, name, &types, ctx),
             None => None,
-        }
+        };
+        converted.map(QualifierView::Converted)
     }
 
     /// Whether a member `name` of `q` applies to arguments of types `args`.

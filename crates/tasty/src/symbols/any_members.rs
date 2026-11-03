@@ -30,6 +30,12 @@ impl Universe {
             || owner == builtins.any && PURE_ANY_METHODS.contains(&name)
             || owner == builtins.object && matches!(name, "eq" | "ne")
     }
+
+    /// Whether `m` is one of the members `enter` gives `Object`, which are Scala ones.
+    pub fn is_entered_object_member(&self, m: SymbolId) -> bool {
+        let s = self.symbol(m);
+        s.owner == Some(self.builtins().object) && matches!(s.name.as_str(), "eq" | "ne" | "synchronized")
+    }
 }
 
 /// Enters the members of `any` and `object`, and `String`'s `+`; `object`'s TASTy, if loaded,
