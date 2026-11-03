@@ -65,7 +65,7 @@ impl Typer<'_> {
                         }
                         let class = self
                             .defined(l, Name { is_type: true, ..name })
-                            .is_some_and(|f| f.syms.iter().any(|&s| self.u.symbol(s).kind == Kind::Class));
+                            .is_some_and(|f| f.syms.iter().any(|&s| self.needs_constructor_proxies(s)));
                         if !name.is_type && class && !ctx.mode.is(Mode::EXTENSION_METHOD) {
                             if prev.is_some() {
                                 return Err("constructor proxy and an imported term");

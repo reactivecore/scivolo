@@ -7,8 +7,9 @@ use super::lift_names::{Pending, Proxy};
 use super::local_free::Local;
 use crate::Lower;
 use crate::definitions::symbol;
+use crate::symbols::has;
 use syntax::ast::Span;
-use tasty::tags::{LOCAL, PRIVATE};
+use tasty::tags::{FIELDaccessor, LAZY, LOCAL, PRIVATE};
 use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
@@ -75,6 +76,22 @@ pub fn definition_order(l: &Lower, locals: &[Local]) -> Vec<usize> {
         order.insert(to + 1, m);
     }
     order
+}
+
+/// The class whose constructor local class `class` is defined in, if it is: in a field's
+/// initializer or a statement of the class body, which `LambdaLift` sees before its methods.
+pub fn constructor_class(l: &Lower, class: SymbolId) -> Option<SymbolId> {
+    let mut s = l.u.symbol(class).owner.filter(|&o| super::local_free::is_term(l, o))?;
+    loop {
+        let owner = l.u.symbol(s).owner?;
+        if super::local_free::is_term(l, owner) {
+            s = owner;
+            continue;
+        }
+        let lazy = has(l.u, s, LAZY);
+        let method = l.u.symbol(s).kind == Kind::Def && !l.u.is_constructor(s) && !has(l.u, s, FIELDaccessor);
+        return (!lazy && !method).then_some(owner);
+    }
 }
 
 /// The indices of the classes of the local objects among `locals` with a companion class after

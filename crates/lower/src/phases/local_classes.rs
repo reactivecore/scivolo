@@ -6,12 +6,12 @@
 
 use super::dependencies::{Dependencies, dependencies};
 use super::leading_params::add_params;
-use super::lift_names::{Caller, LocalClass, Pending};
+use super::lift_names::{Caller, LocalClass, Pending, merged};
 use super::local_free::{
     Free, Local, enclosing_class, free_values, is_local, is_method, is_term, lifted_into, within,
 };
 use super::local_lift::{lift, pass_values};
-use super::local_proxies::{constructor, definition_order, definition_span, make_proxies};
+use super::local_proxies::{constructor, constructor_class, definition_order, definition_span, make_proxies};
 use super::nested_reads::Nested;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
@@ -24,6 +24,7 @@ use typer::tpd::{TNodeId, Tree};
 /// Lifts the local classes among `classes` out of the blocks of unit `root`; their names and
 /// those of their proxies are left to `lambda_lift`.
 pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pending> {
+    let all = classes;
     let mut deps = dependencies(l, root);
     let (mut locals, mut traits) = (Vec::new(), Vec::new());
     for &td in classes {
@@ -85,20 +86,32 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
             classes.push(None);
             continue;
         }
+        let in_ctor = constructor_class(l, class)
+            .and_then(|c| all.iter().find(|&&t| l.tpd.sym(t) == Some(c)).map(|&t| (c, t)));
         if let Some((block, index)) = lift(l, root, td, class) {
             pending.definitions.push((block, index, free.values.clone()));
         }
-        let at = super::drop_inlined::naming_order(l, class, l.tpd.span(td).start());
-        classes.push(Some(LocalClass { at, class, outer: named_in }));
-    }
-    let mut last = None;
-    for i in order {
-        let Some(c) = &classes[i] else { continue };
-        let at = match last {
-            Some(before) if c.at < before => before,
-            _ => c.at,
+        let at = match in_ctor {
+            Some((c, ctd)) => super::drop_inlined::naming_order(l, c, l.tpd.span(ctd).start()),
+            None => super::drop_inlined::naming_order(l, class, l.tpd.span(td).start()),
         };
-        last = Some(at);
+        classes.push(Some((LocalClass { at, class, outer: named_in }, in_ctor.is_some())));
+    }
+    let mut sequences = [Vec::new(), Vec::new()];
+    for in_ctor in [true, false] {
+        let mut last = None;
+        for &i in &order {
+            let Some((c, _)) = classes[i].as_ref().filter(|(_, ctor)| *ctor == in_ctor) else { continue };
+            let at = match last {
+                Some(before) if c.at < before => before,
+                _ => c.at,
+            };
+            last = Some(at);
+            sequences[usize::from(!in_ctor)].push((at, (i, at)));
+        }
+    }
+    for (i, at) in merged(&sequences) {
+        let (c, _) = classes[i].as_ref().expect("a lifted class");
         pending.classes.push(LocalClass { at, class: c.class, outer: c.outer });
     }
     Ok(pending)
