@@ -128,11 +128,12 @@ impl TreePickler<'_> {
         self.with_length(tag, &mut |p| all.iter().try_for_each(|&t| p.tree(t)))
     }
 
-    /// The name of tree name `name`, as `sym`'s name if it is the symbol's.
+    /// The name of tree name `name`, as `sym`'s name if it is the symbol's or a default getter's.
     fn tree_name(&self, name: TName, sym: Option<SymbolId>) -> Name {
         let text = self.names.text(name.name);
         match sym {
             Some(s) if self.u.symbol(s).name == text => sym_name(self.u, s),
+            Some(s) if text.contains("$default$") => self.ref_name(s),
             _ => Name::utf8(text),
         }
     }

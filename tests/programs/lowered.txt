@@ -212,3 +212,13 @@ lazycaptures
 ctornames
 usingextractors
 quotecaptures
+skolemparams
+outerparams
+outerlambdas
+traitpatterns
+realpaths
+forwardaliases
+jdkurls
+interpsplices
+erasedjoins
+quoteholes

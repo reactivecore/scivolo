@@ -7,6 +7,7 @@ mod applied;
 mod atoms;
 mod atoms_lub;
 mod binders;
+mod curried;
 mod either;
 mod first;
 mod fourth;

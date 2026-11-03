@@ -105,10 +105,6 @@ const CASES: &[(&str, &str)] = &[
         "classes in local classes capturing values",
     ),
     (
-        "object O { def f(k: Int) = { class C { def g = { class D { def h = List(1).map(_ + k) }; new D().h } }; new C().g } }",
-        "lambdas reading values of enclosing local classes",
-    ),
-    (
         "class A { val x: Int = scala.compiletime.uninitialized }",
         "`uninitialized` other than as a variable field's value",
     ),

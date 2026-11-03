@@ -52,6 +52,9 @@ impl Typer<'_> {
     ) -> Option<TypeId> {
         let types: Vec<TypeId> = params.iter().map(|&p| self.u.info(p)).collect();
         let projected = self.projected(result, params, 1);
+        if self.refined_by_dependent_method(projected, params) {
+            return None;
+        }
         let approx = self.avoid_at(projected, 1, Avoided::new(params, &[]))?.hi();
         let approx = self.normalized(approx);
         if self.refers_to(approx, params) {
@@ -71,6 +74,28 @@ impl Typer<'_> {
         args.push(approx);
         let core = self.u.intern_type(Type::Applied(class, args));
         Some(self.u.intern_type(Type::Refined(core, "apply".into(), method)))
+    }
+
+    /// Whether `t` has a refinement by a method whose type refers to `params` and to its own
+    /// parameters.
+    fn refined_by_dependent_method(&mut self, t: TypeId, params: &[SymbolId]) -> bool {
+        let mut found = Vec::new();
+        self.u.map_type(t, &mut |u, part| {
+            if let Type::Refined(_, _, info) = *u.types().get(part)
+                && let Type::Method { binder, result, .. } = *u.types().get(info)
+            {
+                found.push((info, binder, result));
+            }
+            None
+        });
+        found.into_iter().any(|(info, binder, result)| {
+            let mut own = false;
+            self.u.map_type(result, &mut |u, part| {
+                own |= matches!(*u.types().get(part), Type::Param(b, _) if b == binder);
+                None
+            });
+            own && self.refers_to(info, params)
+        })
     }
 
     /// `t` at variance `v` with the type members selected from `params` replaced, through class

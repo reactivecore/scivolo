@@ -27,6 +27,12 @@ package java.lang.reflect {
   }
 }
 
+package java.net {
+  final class URL(spec: String) {
+    final def openStream(): java.io.InputStream = null
+  }
+}
+
 package sun.nio.cs {
   final class StreamEncoder private () extends java.io.Writer {
     def write(cbuf: Array[Char], off: Int, len: Int): Unit = ()

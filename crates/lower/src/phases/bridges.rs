@@ -43,7 +43,8 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
             removed.push(other);
         }
         let own = stats.iter().copied().find(|&s| l.tpd.sym(s) == Some(member) && l.tpd.span(s).exists());
-        let at = Span::at(l.tpd.span(own.unwrap_or(td)).point());
+        let coord = l.coords.get(&member).copied().filter(|c| c.exists());
+        let at = coord.unwrap_or_else(|| Span::at(l.tpd.span(own.unwrap_or(td)).point()));
         let depth = |l: &Lower, s| l.context_results.get(&s).map_or(0, |&(_, d)| d);
         match depth(l, member) > depth(l, other) {
             true => stats.extend(super::context_bridges::bridge(l, class, member, other, at)?),
