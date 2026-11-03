@@ -38,7 +38,7 @@ pub fn abstract_methods(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
                 .filter(|&&(m, b)| b != base && l.u.symbol(m).name == key.0)
                 .map(|&(m, _)| m)
                 .collect();
-            let overridden = same_name.into_iter().any(|m| l.u.matches(site, m, d));
+            let overridden = same_name.into_iter().any(|m| l.u.info_matches(site, m, d));
             if seen.contains(&key) || overridden {
                 continue;
             }

@@ -52,7 +52,7 @@ impl Typer<'_> {
                             let bounds = self.quoted_type_arg_bounds(tycon, i);
                             (self.typed_quoted_type_var(a, name, Pt::Type(bounds)), None)
                         }
-                        None => self.typed_pattern_type_arg(a, ctx),
+                        None => self.typed_pattern_type_arg(a, (tycon, i), ctx),
                     })
                     .unzip();
                 let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();

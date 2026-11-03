@@ -11,7 +11,8 @@ use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     /// Refuses class `cls` if two of its members, or one of them and an inherited member of
-    /// another name, have the same name at run time and the same erased signature.
+    /// another name or of a type it does not match, have the same name at run time and the same
+    /// erased signature.
     pub fn check_no_clashes(&mut self, cls: SymbolId, span: Span) {
         let decls = self.u.symbol(cls).decls.clone();
         let own: Vec<SymbolId> = decls.into_iter().filter(|&d| self.at_run_time(d)).collect();
@@ -23,6 +24,7 @@ impl Typer<'_> {
                 }
             }
         }
+        let site = crate::defn::type_ref(self.u, cls);
         let bases: Vec<SymbolId> = self.u.linearization(cls).into_iter().skip(1).collect();
         for b in bases {
             let inherited = self.u.symbol(b).decls.clone();
@@ -35,11 +37,15 @@ impl Typer<'_> {
                 }
                 for &d in &own {
                     let same_name = self.u.symbol(m).name == self.u.symbol(d).name;
-                    if same_name || self.run_name(m) != self.run_name(d) {
+                    let defs = [m, d].iter().all(|&s| self.u.symbol(s).kind == Kind::Def);
+                    let loose = !defs || b == self.u.builtins().any || self.is_java_member(m);
+                    if same_name && loose || self.run_name(m) != self.run_name(d) {
                         continue;
                     }
                     self.complete(m);
-                    if self.u.erased_method(m) == self.u.erased_method(d) {
+                    if self.u.erased_method(m) == self.u.erased_method(d)
+                        && (!same_name || !self.u.info_matches(site, d, m))
+                    {
                         return self.unsupported_at(span, "name clash between defined and inherited member");
                     }
                 }

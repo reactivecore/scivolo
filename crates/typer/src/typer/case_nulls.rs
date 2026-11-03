@@ -1,15 +1,17 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //   compiler/src/dotty/tools/dotc/typer/Nullables.scala
-//! Cases typed against a selector type without `Null` once a case matches `null` (dotty's
-//! `typedCases`, `matchesNull`).
+//! Cases typed against a selector type without `Null` once a case matches `null`, and the
+//! selector known not null where its patterns exclude it (dotty's `typedCases`, `matchesNull`,
+//! `caseContext`, `afterPatternContext`).
 
+use super::nullables::NotNullInfo;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::NodeId;
 use syntax::ast::constant::Constant;
-use tasty::{SymbolId, TypeId};
+use tasty::TypeId;
 
 impl Typer<'_> {
     /// Cases `ids` against selector `sel` of widened type `selector`, each with the body expected
@@ -23,20 +25,16 @@ impl Typer<'_> {
         bodies: Option<&[TypeId]>,
         ctx: Ctx,
     ) -> Vec<TNodeId> {
-        let tracked = self.nullable_selector(sel);
-        let (mut stripped, mut after_null) = (false, false);
+        let tracked = if self.explicit_nulls { self.tracked(sel) } else { None };
+        let (mut stripped, mut case_ctx) = (false, ctx);
         let mut typed = Vec::with_capacity(ids.len());
         for (i, &c) in ids.iter().enumerate() {
-            let case = self.typed_case_in(c, selector, pt, bodies.map(|b| b[i]), ctx);
-            if let Some(s) = tracked
-                && let T::CaseDef { pat, guard, body } = *self.tpd.tree(case)
+            let case = self.typed_case_in(c, (Some(sel), selector), pt, bodies.map(|b| b[i]), case_ctx);
+            if let Some(r) = tracked
+                && let T::CaseDef { pat, .. } = *self.tpd.tree(case)
+                && self.is_null_literal(pat)
             {
-                if (after_null || self.matches_not_null(pat))
-                    && let Some(r) = guard.into_iter().chain([body]).find_map(|t| self.reference_to(t, s))
-                {
-                    self.unsupported_at(self.tpd.span(r), "selector known not null in a case");
-                }
-                after_null |= matches!(self.tpd.tree(pat), T::Literal { value: Constant::Null });
+                case_ctx = self.with_not_null(case_ctx, NotNullInfo::of(vec![r]));
             }
             if self.explicit_nulls && !stripped && self.matches_null(case) {
                 selector = self.strip_null(selector);
@@ -47,22 +45,14 @@ impl Typer<'_> {
         typed
     }
 
-    /// The symbol of selector `sel` under explicit nulls if it is a reference of a type with `Null`
-    /// (dotty's `TrackedRef` and `OrNull`, every reference taken as tracked).
-    fn nullable_selector(&mut self, sel: TNodeId) -> Option<SymbolId> {
-        let s = self.tpd.sym(sel).filter(|_| self.explicit_nulls)?;
-        let (T::Ident { name } | T::Select { name, .. }) = *self.tpd.tree(sel) else { return None };
-        let tpe = self.tpd.tpe(sel);
-        (!name.is_type && self.strip_null(tpe) != tpe).then_some(s)
-    }
-
-    fn reference_to(&self, t: TNodeId, s: SymbolId) -> Option<TNodeId> {
-        self.tpd.fold(None, t, &mut |found, t| {
-            found.or_else(|| {
-                (matches!(self.tpd.tree(t), T::Ident { .. } | T::Select { .. }) && self.tpd.sym(t) == Some(s))
-                    .then_some(t)
-            })
-        })
+    /// `ctx` of the guard and body of a case of pattern `pat` against selector `sel`: the selector
+    /// known not null if the pattern matches only values that are not (dotty's `caseContext`).
+    pub fn case_ctx(&mut self, sel: Option<TNodeId>, pat: TNodeId, ctx: Ctx) -> Ctx {
+        let Some(sel) = sel.filter(|_| self.explicit_nulls) else { return ctx };
+        match self.tracked(sel) {
+            Some(r) if self.matches_not_null(pat) => self.with_not_null(ctx, NotNullInfo::of(vec![r])),
+            _ => ctx,
+        }
     }
 
     fn matches_not_null(&self, pat: TNodeId) -> bool {

@@ -119,7 +119,13 @@ impl Printer<'_> {
                     None => format!("{}.{}{name}", self.tpe(p, n), if ty { "T:" } else { "t:" }),
                 }
             }
-            Type::Local(_, name) => format!("T:{name}"),
+            Type::Local(b, name) => {
+                let found = self.binders.iter().rev().find(|(binder, _, t)| binder.0 == b.0 && !t);
+                match found.and_then(|(_, names, _)| names.iter().position(|n| *n == name)) {
+                    Some(i) => format!("{name}#{i}"),
+                    None => format!("T:{name}"),
+                }
+            }
             Type::Package(p) => format!("t:{}", full_name(self.u, p)),
             Type::PackageName(p) => format!("t:{p}"),
             Type::This(c) => format!("{}.this", self.tpe(c, n)),

@@ -50,7 +50,7 @@ impl Typer<'_> {
     }
 
     /// The members of the base classes of `owner` that member `s` overrides.
-    fn overridden_members(&mut self, s: SymbolId, owner: SymbolId) -> Vec<SymbolId> {
+    pub fn overridden_members(&mut self, s: SymbolId, owner: SymbolId) -> Vec<SymbolId> {
         let name = self.u.symbol(s).name.clone();
         let site = crate::defn::type_ref(self.u, owner);
         let mut out = Vec::new();
@@ -67,7 +67,7 @@ impl Typer<'_> {
 
     /// Whether `s` is a member of `Any`, of a `java.*` or `javax.*` class, or of a class of the
     /// Scala 2 standard library.
-    fn is_loose_member(&mut self, s: SymbolId) -> bool {
+    pub fn is_loose_member(&mut self, s: SymbolId) -> bool {
         let Some(owner) = self.u.symbol(s).owner else { return false };
         owner == self.u.builtins().any || self.u.is_scala2(owner) || self.is_java_member(s)
     }

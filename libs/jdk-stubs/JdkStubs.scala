@@ -102,6 +102,10 @@ package java.io {
     def read(): Int = -1
     def defaultReadObject(): Unit = ()
     final def readObject(): Object = null
+    def readBoolean(): Boolean = false
+    def readInt(): Int = 0
+    def readLong(): Long = 0L
+    def readDouble(): Double = 0.0
   }
 
   object ObjectOutputStream {
@@ -124,6 +128,10 @@ package java.io {
     def putFields(): ObjectOutputStream.PutField = null
     def writeFields(): Unit = ()
     final def writeObject(obj: Object): Unit = ()
+    def writeBoolean(v: Boolean): Unit = ()
+    def writeInt(v: Int): Unit = ()
+    def writeLong(v: Long): Unit = ()
+    def writeDouble(v: Double): Unit = ()
   }
 }
 
@@ -148,7 +156,9 @@ package java.util {
 }
 
 package java.net {
-  final class URL(spec: String)
+  final class URL(spec: String) {
+    final def openStream(): java.io.InputStream = null
+  }
 }
 
 package scala.scalanative.runtime {
