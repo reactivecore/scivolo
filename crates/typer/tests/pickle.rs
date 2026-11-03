@@ -270,7 +270,7 @@ fn quotes_with_definitions_pickle_to_their_bytes() {
 fn quotes_with_classes_pickle_to_their_trees() {
     let Some(mut u) = universe(&["tests/pickle/probe.jar"]) else { return };
     let class = module_class(&mut u, "probe", "Probe$");
-    for method in ["objects", "classes", "anonymous", "selves"] {
+    for method in ["objects", "classes", "anonymous", "selves", "bound"] {
         let owner = u.decl(class, method).unwrap()[0];
         all_repickled(&mut u, owner, &[&format!("probe-{method}")], false);
     }
@@ -291,6 +291,7 @@ fn quotes_with_package_prefixes_pickle_to_their_trees() {
         "probe-vars",
         "probe-tries",
         "probe-clauses",
+        "probe-arrow",
     ];
     all_repickled(&mut u, owner, &quotes, false);
 }

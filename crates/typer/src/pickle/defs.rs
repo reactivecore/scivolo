@@ -117,16 +117,6 @@ impl TreePickler<'_> {
         })
     }
 
-    /// Shares the class of module val's `new Foo$()` `rhs` with its type `tpt`, one tree in
-    /// dotty's `moduleDef`.
-    fn share_module_class(&mut self, tpt: TNodeId, rhs: Option<TNodeId>) {
-        let Some(T::Apply { fun, .. }) = rhs.map(|r| self.tpd.tree(r)) else { return };
-        let T::Select { qualifier, .. } = *self.tpd.tree(*fun) else { return };
-        if let T::New { tpt: class } = *self.tpd.tree(qualifier) {
-            self.shared.insert(class, tpt);
-        }
-    }
-
     /// The parameter clauses `paramss` of a method (dotty's `pickleParamss`).
     fn paramss(&mut self, paramss: Clauses) -> Result<(), Refusal> {
         let clauses: Vec<Vec<TNodeId>> =

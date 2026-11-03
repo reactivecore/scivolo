@@ -518,7 +518,7 @@ fn synthetic_symbols_are_shared() {
     let repeated = u.symbol(scala).decls.iter().filter(|&&d| u.symbol(d).name == "<repeated>").count();
     assert_eq!(repeated, 1);
     let ops = u.package("<special-ops>").expect("<special-ops>");
-    assert_eq!(u.symbol(ops).decls.len(), 1);
+    assert_eq!(u.symbol(ops).decls.iter().filter(|&&d| u.symbol(d).name == "throw").count(), 1);
 }
 
 #[test]

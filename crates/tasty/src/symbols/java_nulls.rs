@@ -22,7 +22,8 @@ impl Universe {
         let skipped = matches!(s.name.as_str(), "TYPE" | "getClass" | "toString")
             || !matches!(s.kind, Kind::Def | Kind::Val)
             || s.flags.has(ENUM)
-            || self.is_module(def);
+            || self.is_module(def)
+            || self.is_entered_object_member(def);
         if skipped || !self.is_jdk_class(owner) || !self.may_be_java(owner) {
             return t;
         }

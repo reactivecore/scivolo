@@ -2,12 +2,17 @@
 // sources in `just lib-compile` see these classes in place of javalib's; every other compile sees
 // each member declared here in place of javalib's members of its name (ADR 0072), so a name has
 // all the JDK's overloads of its class. Java's static members are `@static` (`Long.hashCode`,
-// which its class also has, a member of the object), its fields `var`s.
+// which its class also has, a member of the object), its final fields `val`s and other fields
+// `var`s.
 import scala.annotation.static
 
 package java.lang {
   final class Boolean extends java.io.Serializable
-  object Boolean { @static val TYPE: Class[Boolean] = null }
+  object Boolean {
+    @static val TYPE: Class[Boolean] = null
+    @static val TRUE: Boolean = null
+    @static val FALSE: Boolean = null
+  }
 
   final class Byte extends Number {
     def intValue(): Int = 0
@@ -89,6 +94,12 @@ package java.lang {
     @static def isUpperCase(codePoint: Int): scala.Boolean = false
     @static def isTitleCase(ch: Char): scala.Boolean = false
     @static def isTitleCase(codePoint: Int): scala.Boolean = false
+    @static def toTitleCase(ch: Char): Char = ch
+    @static def toTitleCase(codePoint: Int): Int = 0
+    @static def getNumericValue(ch: Char): Int = 0
+    @static def getNumericValue(codePoint: Int): Int = 0
+    @static def getDirectionality(ch: Char): scala.Byte = 0
+    @static def getDirectionality(codePoint: Int): scala.Byte = 0
     @static def codePointAt(seq: CharSequence, index: Int): Int = 0
     @static def codePointAt(a: Array[Char], index: Int): Int = 0
     @static def codePointAt(a: Array[Char], index: Int, limit: Int): Int = 0

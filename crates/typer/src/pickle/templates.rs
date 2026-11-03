@@ -78,6 +78,16 @@ impl TreePickler<'_> {
         self.ty(class, false)
     }
 
+    /// Shares the class of module val's `new Foo$()` `rhs` with its type `tpt`, one tree in
+    /// dotty's `moduleDef`.
+    pub fn share_module_class(&mut self, tpt: TNodeId, rhs: Option<TNodeId>) {
+        let Some(T::Apply { fun, .. }) = rhs.map(|r| self.tpd.tree(r)) else { return };
+        let T::Select { qualifier, .. } = *self.tpd.tree(*fun) else { return };
+        if let T::New { tpt: class } = *self.tpd.tree(qualifier) {
+            self.shared.insert(class, tpt);
+        }
+    }
+
     /// The self definition `s` of a template.
     fn self_def(&mut self, s: TNodeId) -> Result<(), Refusal> {
         let T::ValDef { name, tpt, .. } = *self.tpd.tree(s) else { return Err("a self of another kind") };

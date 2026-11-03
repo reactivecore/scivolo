@@ -8,21 +8,58 @@ package java.lang {
   final class SuppressWarnings(value: Array[String]) extends scala.annotation.StaticAnnotation
 }
 
+package java.lang {
+  abstract class ClassValue[T] {
+    protected def computeValue(tpe: Class[?]): T
+    def get(tpe: Class[?]): T = computeValue(tpe)
+    def remove(tpe: Class[?]): Unit = ()
+  }
+}
+
 package java.lang.invoke {
   final class MethodHandles
+  object MethodHandles {
+    final class Lookup { def revealDirect(target: MethodHandle): MethodHandleInfo = null }
+    @static def constant(tpe: Class[?], value: Object): MethodHandle = null
+  }
+  abstract class MethodHandle {
+    final def asType(newType: MethodType): MethodHandle = this
+    def bindTo(x: Object): MethodHandle = this
+  }
+  trait MethodHandleInfo {
+    def getName(): String
+    def getMethodType(): MethodType
+  }
+  final class MethodType {
+    def parameterArray(): Array[Class[?]] = null
+    def toMethodDescriptorString(): String = null
+  }
+  abstract class CallSite
+  class ConstantCallSite(target: MethodHandle) extends CallSite
+  final class SerializedLambda
   abstract class VarHandle
 }
 
 package java.lang.reflect {
   trait AnnotatedElement
-  final class Field
-  final class Method
 }
 
 package java.time {
   final class Duration private () {
     def getSeconds(): Long = 0L
     def getNano(): Int = 0
+  }
+
+  object Duration {
+    @static val ZERO: Duration = new Duration()
+    @static def ofDays(days: Long): Duration = ZERO
+    @static def ofHours(hours: Long): Duration = ZERO
+    @static def ofMinutes(minutes: Long): Duration = ZERO
+    @static def ofSeconds(seconds: Long): Duration = ZERO
+    @static def ofSeconds(seconds: Long, nanoAdjustment: Long): Duration = ZERO
+    @static def ofMillis(millis: Long): Duration = ZERO
+    @static def ofNanos(nanos: Long): Duration = ZERO
+    @static def of(amount: Long, unit: java.time.temporal.TemporalUnit): Duration = ZERO
   }
 
   final class Instant private () {
@@ -55,6 +92,11 @@ package java.security {
   }
   trait PrivilegedAction[T] { def run(): T }
   trait PrivilegedExceptionAction[T] { def run(): T }
+  class PrivilegedActionException extends Exception { def getException(): Exception = null }
+  final class AccessController
+  object AccessController {
+    @static def doPrivileged[T](action: PrivilegedExceptionAction[T]): T = action.run()
+  }
   final class CodeSigner
 }
 
@@ -77,6 +119,10 @@ package java.text {
   }
 
   abstract class NumberFormat
+
+  class MessageFormat(pattern: String) {
+    def parse(source: String): Array[Object] = null
+  }
 
   object NumberFormat {
     @static def getNumberInstance(locale: java.util.Locale): NumberFormat = new DecimalFormat()

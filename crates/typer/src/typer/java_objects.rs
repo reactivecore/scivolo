@@ -18,6 +18,7 @@ impl Typer<'_> {
         let dealiased = self.u.dealias(p);
         let is_object = matches!(self.u.types().get(dealiased), Type::Sym(..) | Type::TypeRef(..))
             && self.u.class_symbol(dealiased) == Some(object);
-        if is_object && method.is_some_and(|m| self.is_java_member(m)) { ANY } else { p }
+        let java = method.is_some_and(|m| !self.u.is_entered_object_member(m) && self.is_java_member(m));
+        if is_object && java { ANY } else { p }
     }
 }
