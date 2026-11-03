@@ -1,0 +1,45 @@
+scala> val a = 1
+     | val b$c = 2
+1 warning found
+val a: Int = 1
+-- [E230] Syntax Warning: ------------------------------------------------------
+2 |val b$c = 2
+  |    ^^^
+  |The identifier `b$c` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+val b$c: Int = 2
+
+scala> val d$e = 1; val f = 2
+     | val g = 3; val h$i = 4
+     | class C
+2 warnings found
+-- [E230] Syntax Warning: ------------------------------------------------------
+1 |val d$e = 1; val f = 2
+  |    ^^^
+  |The identifier `d$e` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+val d$e: Int = 1
+val f: Int = 2
+-- [E230] Syntax Warning: ------------------------------------------------------
+2 |val g = 3; val h$i = 4
+  |               ^^^
+  |The identifier `h$i` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+val g: Int = 3
+val h$i: Int = 4
+// defined class C
+
+scala> "x"
+     | val j$k = 1
+1 warning found
+val res0: String = "x"
+-- [E230] Syntax Warning: ------------------------------------------------------
+2 |val j$k = 1
+  |    ^^^
+  |The identifier `j$k` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+val j$k: Int = 1
