@@ -65,6 +65,7 @@ impl Typer<'_> {
             if params.is_empty() && (self.is_constructor_ref(tree) || self.is_auto_applicable(tree)) {
                 let apply = self.build().apply(tree, &[], *result, span.to_synthetic());
                 self.fold_apply(apply);
+                self.settle_type(apply, ctx);
                 return self.adapt(apply, pt, ctx);
             }
         }

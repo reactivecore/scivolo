@@ -19,7 +19,7 @@ mod anon_classes;
 mod applicability;
 mod apply;
 mod apply_insertion;
-pub(crate) mod approx;
+pub mod approx;
 mod arg_shapes;
 mod assign;
 mod auto_apply;
@@ -496,9 +496,12 @@ impl<'a> Typer<'a> {
         let vars = self.constraint.count();
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER.with(crate::ctx::Mode::ASSIGNMENT_LHS);
         let inner = ctx.with_mode(ctx.mode.without(top_only));
-        let tree = match self.contextual_function(id, pt, inner).or_else(|| self.ready(id, inner)) {
-            Some(t) => t,
-            None => self.typed_unadapted(id, pt, inner),
+        let (tree, ahead) = match self.contextual_function(id, pt, inner) {
+            Some(t) => (t, false),
+            None => match self.ready(id, inner) {
+                Some(t) => (t, true),
+                None => (self.typed_unadapted(id, pt, inner), false),
+            },
         };
         let tree = match self.ast.tree(id) {
             syntax::ast::Tree::Ident { .. } | syntax::ast::Tree::Select { .. }
@@ -509,10 +512,14 @@ impl<'a> Typer<'a> {
             }
             _ => tree,
         };
-        if let Err(what) = self.interpolate(tree, pt, vars) {
-            self.unsupported(id, what);
+        if ahead {
+            self.zonk_type(tree);
+        } else {
+            if let Err(what) = self.interpolate(tree, pt, vars) {
+                self.unsupported(id, what);
+            }
+            self.settle_type(tree, inner);
         }
-        self.settle_type(tree, inner);
         let tree = self.structural_call(tree, inner);
         let locked = std::mem::replace(&mut self.locked_vars, vars);
         let adapted = self.adapt(tree, pt, ctx);
