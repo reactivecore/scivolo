@@ -363,7 +363,10 @@ fn no_false_errors_behind_unsupported_constructs() {
             "class C:\n  class D\nclass Baz:\n  val c = new C\n  export c.*\nobject M:\n  val d = Baz().D()\n",
             "export of a class without a companion object",
         ),
-        ("trait T\nobject S extends T { self =>\n  def f() = self.hashCode\n}\n", "named self of an object"),
+        (
+            "trait T\nclass O:\n  object S extends T { self =>\n    def f() = self.hashCode\n  }\n",
+            "named self of an object not static",
+        ),
         (
             "trait B\ntrait A { self: B => }\nclass C extends A\n",
             "class not conforming to a parent's self type",
