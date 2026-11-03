@@ -4,7 +4,7 @@
 //! Java varargs parameter becomes an array, one passed to a Scala repeated parameter an array
 //! wrapped by `ScalaRunTime.wrapXArray`.
 
-use super::array_wraps::{array_of, repeated_array, seq_value, wrap_array};
+use super::array_wraps::{array_of, repeated_array, seq_value, wrap_array, wrap_seq};
 use super::walk::try_walk_class;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
@@ -71,7 +71,7 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
         }
         return Ok(seq);
     }
-    wrap_array(l, seq, elem, ascribed, span)
+    wrap_seq(l, seq, elem, ascribed, span)
 }
 
 /// Sequence `seq` of elements of type `elem` passed to Java varargs: an array as it is, another

@@ -15,7 +15,8 @@ impl Unpickler<'_> {
         let k = self.kids(id);
         let t = match self.tag(id) {
             SHAREDterm => {
-                let target = self.ast().deref(id);
+                let addr = self.ast().node(id).a as u32;
+                let target = self.ast().at(addr).ok_or("a dangling shared tree in a library inline body")?;
                 self.term(target)?
             }
             IDENT => self.ident(id)?,
