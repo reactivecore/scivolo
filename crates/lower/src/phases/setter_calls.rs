@@ -21,7 +21,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
         let Tree::Assign { lhs, rhs } = *l.tpd.tree(t) else { continue };
         if let Some(trait_) = l.tpd.sym(lhs).and_then(|s| library_trait_var(l, s)) {
-            super::library_traits::prepare(l, trait_, l.tpd.span(t))?;
+            super::library_traits::prepare(l, trait_);
         }
         let var = l.tpd.sym(lhs).filter(|&s| has(l.u, s, FIELDaccessor) || is_library_var_param(l, s));
         let Some(var) = var.filter(|&s| !is_extern(l.u, s) && !is_java_field(l.u, s)) else {
