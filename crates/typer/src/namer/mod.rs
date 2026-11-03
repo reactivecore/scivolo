@@ -16,6 +16,7 @@ mod export_members;
 mod export_paths;
 pub(crate) mod exports;
 mod forwarders;
+mod implicit_types;
 mod inheritance;
 mod inherited;
 mod inline_checks;
