@@ -104,7 +104,10 @@ impl Universe {
             && ea != eb
         {
             let class = |u: &mut Self, t: TypeId, name: &str| {
-                let widened = u.widen(t);
+                let mut widened = u.widen(t);
+                while let Type::And(x, y) = *u.types().get(widened) {
+                    widened = if u.glb_prefers(x, y) { x } else { y };
+                }
                 u.erased_class(widened).or_else(|| {
                     let r = u.class_ref(name);
                     u.class_symbol(r)
