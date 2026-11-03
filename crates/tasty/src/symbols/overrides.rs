@@ -88,10 +88,24 @@ impl Universe {
         (!matches!(self.types().get(a), Type::Lambda { .. })).then_some(a)
     }
 
-    /// Whether methods `a` and `b`, as members of `site`, take the same numbers of type
-    /// parameters and the same parameter types, `b`'s type parameters, symbols or those of its
-    /// polymorphic type, renamed to `a`'s.
+    /// Whether members `a` and `b` of `site` match as Scala members (dotty's `matchesLoosely`):
+    /// their signatures match, a method without parameters matching a non-method, or their
+    /// parameters do and so do their types (`info_matches`).
     pub fn matches(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
+        use crate::erasure::{MatchDegree, match_degree};
+        if self.info_matches(site, a, b) {
+            return true;
+        }
+        let scala2 = self.erased_as_scala2(a) || self.erased_as_scala2(b);
+        let (sa, sb) = (self.signature(site, a, scala2), self.signature(site, b, scala2));
+        matches!(match_degree(&sa, &sb), MatchDegree::Full | MatchDegree::MethodNotAMethod)
+    }
+
+    /// Whether the types of members `a` and `b` of `site` match (dotty's relaxed `matchesType`):
+    /// the same numbers of type parameters and the same parameter types, `b`'s type parameters,
+    /// symbols or those of its polymorphic type, renamed to `a`'s; clauses past the other's last
+    /// empty.
+    pub fn info_matches(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
         let (ta, tb) = (self.type_params(a), self.type_params(b));
         if ta.len() != tb.len() {
             return false;
@@ -109,8 +123,9 @@ impl Universe {
             _ => None,
         };
         let (ca, cb) = (self.param_clauses(ia), self.param_clauses(ib));
-        let shape = |c: &[(bool, Vec<TypeId>)]| c.iter().map(|(i, ps)| (*i, ps.len())).collect::<Vec<_>>();
-        if shape(&ca) != shape(&cb) {
+        let n = ca.len().min(cb.len());
+        let rest_empty = ca[n..].iter().chain(&cb[n..]).all(|(_, ps)| ps.is_empty());
+        if !rest_empty || ca.iter().zip(&cb).any(|((_, x), (_, y))| x.len() != y.len()) {
             return false;
         }
         let pairs = ca.into_iter().zip(cb).flat_map(|((_, x), (_, y))| x.into_iter().zip(y));

@@ -118,6 +118,7 @@ mod matches;
 mod maximize;
 mod member_hiding;
 mod member_hint;
+mod member_matching;
 mod member_views;
 mod members;
 mod migrations;

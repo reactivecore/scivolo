@@ -217,6 +217,24 @@ const CASES: &[(&str, &str)] = &[
     ("class C { override def f = 1 }", "member overriding nothing"),
     ("class C { override type T = Int }", "member overriding nothing"),
     (
+        "class A { def f(x: Int) = 1 }; class B extends A { override def f(x: String) = 2 }",
+        "member overriding nothing",
+    ),
+    (
+        "class A { def f(): Int = 1 }; class B extends A { override def f: Int = 2 }",
+        "override changing empty parameter lists",
+    ),
+    (
+        "class A { def f()(): Int = 1 }; class B extends A { override def f: Int = 2 }",
+        "override changing empty parameter lists",
+    ),
+    (
+        "trait T { def f: Int }; class C extends T { def f(): Int = 1 }",
+        "override changing empty parameter lists",
+    ),
+    ("class A { val f: Int = 1 }; class B extends A { override def f(): Int = 2 }", "unstable member"),
+    ("object O { def f(): Int = 1; def f: String = \"\" }", "double definition"),
+    (
         "import language.experimental.erasedDefinitions\n\
          object O { def f(erased b: Boolean) = 1; def g(x: Any) = f(x.isInstanceOf[String]) }",
         "argument of an erased parameter that is not pure",

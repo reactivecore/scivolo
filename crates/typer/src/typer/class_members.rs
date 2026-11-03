@@ -93,7 +93,10 @@ impl Typer<'_> {
                             self.complete(s);
                         }
                     }
-                    if !self.signatures_differ(o, m) && self.same_member(site, o, m) {
+                    if !self.signatures_differ(o, m)
+                        && self.same_member(site, o, m)
+                        && self.u.info_matches(site, o, m)
+                    {
                         overridden = Some(k);
                         break;
                     }

@@ -34,10 +34,11 @@ impl Typer<'_> {
             for &s in out.iter().chain([&m]) {
                 self.complete(s);
             }
-            match out
-                .iter()
-                .position(|&o| self.same_member(site, o, m) && self.same_erased_params(site, o, m))
-            {
+            match out.iter().position(|&o| {
+                self.same_member(site, o, m)
+                    && self.u.info_matches(site, o, m)
+                    && self.same_erased_params(site, o, m)
+            }) {
                 Some(k) => match self.merged(site, (out[k], m), ctx) {
                     Some(s) => out[k] = s,
                     None => return Vec::new(),
