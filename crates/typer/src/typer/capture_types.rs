@@ -5,8 +5,9 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Tree};
+use tasty::Type;
 
 impl Typer<'_> {
     /// Function type `id` of result `result` with capture set `refs` as
@@ -28,8 +29,16 @@ impl Typer<'_> {
         self.typed_type(retaining, ctx)
     }
 
+    /// By-name type `id` of result `result`.
+    pub fn typed_by_name_type(&mut self, id: NodeId, result: NodeId, ctx: Ctx) -> TNodeId {
+        let result = self.by_name_retaining(result);
+        let result = self.typed_type(result, ctx);
+        let tpe = self.u.intern_type(Type::ByName(self.tpd.tpe(result)));
+        self.tpd.node(T::ByNameTypeTree { result }, self.ast.span(id), Some(tpe), None)
+    }
+
     /// By-name result `result`, `parent @retainsByName[refs]` if it has capture set `refs`.
-    pub fn by_name_retaining(&mut self, result: NodeId) -> NodeId {
+    fn by_name_retaining(&mut self, result: NodeId) -> NodeId {
         let Tree::CapturesAndResult { refs, parent } = *self.ast.tree(result) else { return result };
         let refs = self.ast.items(refs).to_vec();
         self.ast.make_retaining(self.names, parent, &refs, "retainsByName")
