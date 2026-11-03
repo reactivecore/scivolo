@@ -12,27 +12,19 @@ just vm-profile cpu                # call and instruction counts; `just script-p
 python3 scripts/profile.py cpu     # native profile (macOS `sample`)
 ```
 
-## Where it stands (2026-09-29, M4 Pro, release)
+## Where it stands (2026-11-03, M4 Pro, release, minima)
 
 | Program | scivolo | Scala Native binary | notes |
 |---|---:|---:|---|
-| hello | 9.5 ms | 5 ms | runtime initialization |
-| moderate | 18 ms | 5 ms | |
-| fib 30 | 53 ms | 7 ms | 2.7M calls; the recursion is inlined one level |
+| hello | 7.9 ms | 5 ms | runtime initialization |
+| moderate | 17 ms | 5 ms | |
+| fib 30 | 48 ms | 7 ms | 2.7M calls; the recursion is inlined one level |
 | loops 100 | 2.8 s | 0.8 s | 10⁷-iteration sum and Collatz up to 10⁶, ≈130M loop iterations |
 | cpu | 0.26 s | 22 ms | fib 30 and a sort through a boxed comparator chain |
 
-Steps so far and their effect on `cpu`: interpreting NIR directly 3.5 s → lowered code
-with per-site caches 1.08 s → casts/boxing/vars/elem lowered 0.97 s → fused `method`+`call`
-and direct frame filling 0.89 s → two-word `Flow` 0.87 s → frame-less getters, constants
-and forwarders 0.80 s → virtual forwarders too 0.76 s → dense slots, copy aliases and
-module constants → compare-and-branch fusion and sized memory access → tier-up with
-devirtualization, guarded speculation of virtual calls and inlining (ADR 0006) 0.35 s →
-speculation inside inlined callees 0.34 s → constant conversions folded, var values written
-in place, jumps to a branch replaced by the branch 0.32 s (`loops` 7.0 → 3.8 s) → arithmetic,
-comparisons, copies and cached field and array loads run in `run` without recording the pc,
-`Int`/`Long` operations and comparisons resolved to one operation when lowered
-(`ops/int.rs`), 8-byte operands 0.26 s (`loops` 3.8 → 2.8 s, fib 63 → 53 ms).
+What makes it fast: lowered code with per-site caches, fused instructions, frame-less getters
+and forwarders, tier-up with devirtualization, guarded speculation and inlining (ADR 0006),
+and `Int`/`Long` operations resolved when lowered (`ops/int.rs`).
 
 Measured and not pursued: virtual call sites that change target are rare (a few dozen target
 changes per run of `cpu` or `moderate`, none in hot loops), so guarded inlining of a second
@@ -62,15 +54,10 @@ or two `java.lang` boxes of one class directly (`Instr::BoxedEquals`), which mad
 6. **Baseline JIT with Cranelift** (roadmap phase 2): translate hot lowered methods to machine
    code. Largest gain (10×+ on loops) and largest effort. Only worth it after 1–4 show their
    limits.
-7. **Startup:** the library image and lazy decoding (ADR 0005) brought hello from 47 to 20 ms;
-   linking classes from their fields alone (not decoding every method) and ASCII strings
-   straight from the file to 10 ms; member tables in the image (no index decoding) and files
-   read from the mapping without copying to 9.3 ms. What remains: ~2 ms process start,
-   ~1.4 ms decoding the 1,093 definitions hello uses, ~1.6 ms lowering 736 methods, ~1 ms
-   laying out classes, and running the runtime's initialization. The heap snapshot of the
-   initialized runtime (ADR 0034) removes the initialization: hello 12.5 → 8.9 ms, moderate
-   21.8 → 18.1 ms (2026-10-22, M4 under load, minima). Next: decoded definitions and lowered
-   code in the snapshot too.
+7. **Startup:** the library image and lazy decoding (ADR 0005), and the heap snapshot of the
+   initialized runtime (ADR 0034). What remains for hello: ~2 ms process start, ~1.4 ms
+   decoding the 1,093 definitions it uses, ~1.6 ms lowering 736 methods, ~1 ms laying out
+   classes. Next: decoded definitions and lowered code in the snapshot too.
 8. **Allocation:** boxing in generic collections allocates an `Integer` per element. Cache
    small boxed values the way `Integer.valueOf` does on the JVM (javalib may already do it;
    check).
