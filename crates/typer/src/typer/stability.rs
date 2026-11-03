@@ -90,8 +90,26 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
         Type::TermRef(p, _) => {
             u.resolve_ref(t).is_some_and(|s| is_stable_member(u, s)) && is_stable_path(u, p)
         }
+        Type::And(a, b) => {
+            is_stable_path(u, a) && is_realizable_class(u, b)
+                || is_stable_path(u, b) && is_realizable_class(u, a)
+        }
         _ => false,
     }
+}
+
+/// Whether `t` is a class type, realizable as dotty's `realizability` finds it.
+fn is_realizable_class(u: &mut Universe, t: TypeId) -> bool {
+    let d = u.dealias(t);
+    let s = match *u.types().get(d) {
+        Type::Sym(_, s) => s,
+        Type::Applied(c, _) => match *u.types().get(c) {
+            Type::Sym(_, s) => s,
+            _ => return false,
+        },
+        _ => return false,
+    };
+    u.symbol(s).kind == Kind::Class
 }
 
 fn is_term_ref(u: &Universe, t: TypeId) -> bool {
