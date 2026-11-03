@@ -19,6 +19,7 @@ mod java_nulls;
 mod java_params;
 mod java_strings;
 mod java_stubs;
+mod java_wildcards;
 mod jdk;
 mod jdk_declarations;
 mod joined_bases;

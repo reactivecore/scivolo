@@ -52,7 +52,10 @@ impl Typer<'_> {
                 captured.push(a);
                 continue;
             };
-            if java && hi == tasty::ANY {
+            let from_java_object = self.u.builtins().from_java_object;
+            let java_any = hi == tasty::ANY
+                || matches!(self.u.types().get(hi), Type::Sym(_, s) if *s == from_java_object);
+            if java && java_any {
                 return None;
             }
             let boxed = crate::defn::applied(self.u, type_box, vec![lo, hi]);

@@ -29,8 +29,11 @@ in the class itself, not in a member. nativelib's build takes the declared class
 - A Java `static final` field is a declared `val`, so stable, as in dotty (`isStableMember`).
 - The term parameters of JDK methods are named `x$0`, `x$1`, …, as dotty names those of class
   files without parameter names.
+- A wildcard `? <: Any` in a JDK member's type is `? <: <FromJavaObject>`, dotty's alias of
+  `Object` that every type conforms to.
 
 ## Consequences
 - JDK classes that scalalib needs and javalib lacks go into `JdkClasses.scala` when a
   declaration refers to them (`java.lang.reflect.Field`), else into `JdkStubs.scala`.
-- A Java wildcard is still `? <: Any` where dotty has `? <: FromJavaObject`; typed trees show it.
+- The `Object` bound of a Java type parameter and an `Object` parameter stay `Object`, admitting
+  any type in the typer only; dotty has `<FromJavaObject>` there too.
