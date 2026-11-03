@@ -9,8 +9,8 @@ org.scala-lang and org.scala-native); each `.scala` file of the sources is compi
 `scivolo-aot -d` against the TASTy of those jars into tmp/srclib/LIBRARY/MODULE/out/FILE/. Each
 NIR file written is compared, as lib-compile.py compares them, with two oracles: the published
 jar's (`published`) and the sources compiled by scala-cli with Scala 3.9.0 and Scala Native 0.5.12
-against the published jar, for the sources it lacks (`scala-cli`). MODULE/MODULE.jar is the published jar with our NIR in place of its own; each
-test program tests/aot/TEST, its `//> using dep` lines blanked, is built against those jars and
+against the published jar, for the sources it lacks (`scala-cli`). MODULE/MODULE.jar is the
+published jar with our NIR in place of its own; each test program tests/aot/TEST, its `//> using dep` lines blanked, is built against those jars and
 the other dependencies, and its output compared with its `.check`.
 
 Writes under tmp/srclib/LIBRARY/MODULE: results.tsv (file, ok|refused|timeout|crashed, reason, NIR
