@@ -12,6 +12,7 @@ mod define;
 mod enter;
 mod entries;
 mod function_classes;
+mod higher_kinds;
 mod impure_functions;
 mod info;
 mod inits;
