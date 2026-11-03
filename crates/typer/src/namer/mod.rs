@@ -14,6 +14,7 @@ mod double_definitions;
 mod erased;
 mod export_members;
 mod export_paths;
+mod export_types;
 pub(crate) mod exports;
 mod forwarders;
 mod implicit_types;

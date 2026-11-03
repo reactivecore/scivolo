@@ -14,7 +14,7 @@ use super::trait_lazies::{lazy_forwarder, module_forwarder};
 use super::trait_params::TraitCall;
 use crate::definitions::symbol;
 use crate::symbols::has;
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PARAMsetter, PRIVATE, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type};
@@ -105,10 +105,6 @@ pub fn mixed_in(
         .filter(|&s| is_setter(l, s) && !is_abstract_var_setter(l, class, mixin, s))
         .collect();
     for &getter in &decls {
-        let library = l.u.symbol(getter).tree.is_some();
-        if l.u.is_module(getter) && library {
-            return unsupported(span, "objects in library traits");
-        }
         if is_param_accessor(l, getter) && !is_setter(l, getter) {
             out.push(super::trait_params::param_init(l, class, getter, args.next(), span)?);
         } else if l.u.is_module(getter) {

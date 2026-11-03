@@ -6,8 +6,10 @@
 //! leaving the class.
 
 use super::accessor_names::accessor_name;
+use super::explicit_outer::enclosing_instance;
 use super::lazy_vals::{define_members, fresh, name_members};
 use super::mixin::{has_body, mixins};
+use super::outer_args::declare_library;
 use super::trait_fields::{forwarder, implemented_by};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
@@ -45,6 +47,11 @@ pub fn module_forwarder(l: &mut Lower, class: SymbolId, getter: SymbolId, span: 
     let (Some(module_class), Some(ctor)) = (module_class, ctor) else {
         return unsupported(span, "objects in traits without their class");
     };
+    if l.u.symbol(module_class).tree.is_some()
+        && let Some(outer) = enclosing_instance(l, module_class)
+    {
+        declare_library(l, module_class, ctor, outer);
+    }
     let new = l.new_(module_class, Span::NONE);
     let this = l.this(class, Span::NONE);
     let rhs = l.call(new, ctor, &[this]);

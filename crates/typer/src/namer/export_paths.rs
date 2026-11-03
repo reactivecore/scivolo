@@ -14,13 +14,8 @@ impl Typer<'_> {
     /// Defines the forwarders of the export clauses among `body`, the statements of class `cls`
     /// indexed in `ctx`.
     pub fn process_exports(&mut self, cls: SymbolId, body: &[NodeId], mut ctx: Ctx) {
-        let top_level = self.is_named_package_object(cls);
         for &stat in body {
             if let Tree::Export { expr, selectors, ext } = *self.ast.tree(stat) {
-                if top_level {
-                    self.unsupported(stat, "top-level export");
-                    continue;
-                }
                 let path_method = match ext {
                     None => None,
                     Some(ext) => match self.export_path_method(cls, expr, ext) {
