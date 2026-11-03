@@ -16,10 +16,13 @@ typed trees cannot be printed back as dotty's from it.
 - The typed trees have `QuotePattern { bindings, body, quotes }` and
   `SplicePattern { body, typeargs, args }` in the field order of dotty's classes; the typer
   makes them as `typedQuotePattern`, `typedSplicePattern` and `typedQuotedTypeVar` do.
-- The encoded form is made where dotty makes it, by the port of `QuotePatterns.encode` in the
-  staging step (research 43, step 4), so the pickled shape is the one the unpickler and the
-  matcher already read. Until then the lowering refuses quote patterns outside inline
-  methods (#200).
+- The encoded form is made by the port of `QuotePatterns.encode` (`phases/quote_patterns/`),
+  the first lowering phase, ahead of `pickle_quotes`, so the pickled shape is the one the
+  unpickler and the matcher already read.
+- The implicit searches dotty's staging makes run in the typer, as for the tags of term
+  quotes: it records the shape's tags on the `QuotePattern` and defines the given
+  `t$givenN: Type[t]` of each type variable, which the tags of the case body's quotes refer to
+  where the search finds no given of the body, which is nested deeper.
 
 ## Consequences
 - Tree walks see two more classes; those that only look at children need no change.

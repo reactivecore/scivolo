@@ -2,7 +2,6 @@
 //   compiler/src/dotty/tools/dotc/core/ConstraintHandling.scala
 //! Bounds without the local symbols defined after a variable (dotty's `LevelAvoidMap`).
 
-use super::levels::is_local_since;
 use super::unify::meet;
 use super::{At, Constraint};
 use tasty::tags::PRIVATE;
@@ -39,7 +38,7 @@ impl Constraint {
                 let dealiased = u.dealias(t);
                 if dealiased == t { None } else { self.avoided(u, dealiased, at, v) }
             }
-            Type::Sym(Some(pre), s) if !is_local_since(u, s, at.born) => match u.symbol(s).kind {
+            Type::Sym(Some(pre), s) if !self.is_local_since(u, s, at.born) => match u.symbol(s).kind {
                 Kind::Class if v > 0 => {
                     let widened = u.widen(pre);
                     let selected = u.intern_type(Type::Sym(Some(widened), s));

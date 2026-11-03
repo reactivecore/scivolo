@@ -21,9 +21,19 @@ impl Constraint {
         std::mem::replace(&mut self.nesting, nesting)
     }
 
+    /// Makes symbol `s` count as defined where symbol `at` was.
+    pub fn define_at(&mut self, s: SymbolId, at: SymbolId) {
+        self.defined_at.insert(s, at);
+    }
+
+    /// The symbol whose definition `s` counts as.
+    fn level(&self, s: SymbolId) -> SymbolId {
+        self.defined_at.get(&s).copied().unwrap_or(s)
+    }
+
     /// Whether `v` was made after symbol `s` was defined.
     pub fn made_after(&self, v: VarId, s: SymbolId) -> bool {
-        self.vars[v.0 as usize].at.born.0 > s.0
+        self.vars[v.0 as usize].at.born.0 > self.level(s).0
     }
 
     /// Whether `t` refers to a local symbol defined since `at`, or has an uninstantiated
@@ -39,7 +49,7 @@ impl Constraint {
             }
             None
         });
-        syms.into_iter().any(|s| is_local_since(u, s, at.born))
+        syms.into_iter().any(|s| self.is_local_since(u, s, at.born))
             || vars.into_iter().any(|x| {
                 let e = self.vars[x.0 as usize];
                 let bounds = |c: &Self, u: &mut Universe, b| c.refers_to_local(u, b, at, depth - 1);
@@ -103,20 +113,20 @@ impl Constraint {
         }
         true
     }
-}
 
-/// Whether `s`, other than a type parameter, is defined from `born` on, or its owner is, in a
-/// method or value.
-pub fn is_local_since(u: &Universe, s: SymbolId, born: SymbolId) -> bool {
-    if u.symbol(s).kind == Kind::TypeParam {
-        return false;
-    }
-    let mut s = s;
-    while let Some(o) = u.symbol(s).owner {
-        if s.0 >= born.0 && matches!(u.symbol(o).kind, Kind::Def | Kind::Val) {
-            return true;
+    /// Whether `s`, other than a type parameter, is defined from `born` on, or its owner is, in a
+    /// method or value.
+    pub fn is_local_since(&self, u: &Universe, s: SymbolId, born: SymbolId) -> bool {
+        if u.symbol(s).kind == Kind::TypeParam {
+            return false;
         }
-        s = o;
+        let mut s = s;
+        while let Some(o) = u.symbol(s).owner {
+            if self.level(s).0 >= born.0 && matches!(u.symbol(o).kind, Kind::Def | Kind::Val) {
+                return true;
+            }
+            s = o;
+        }
+        false
     }
-    false
 }

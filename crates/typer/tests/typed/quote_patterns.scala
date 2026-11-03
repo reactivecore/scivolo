@@ -56,6 +56,16 @@ object Traced:
     e match
       case '{ $r: t } => '{ println("x"); $r }
 
+object Applied:
+  def f(e: Expr[Any])(using Quotes): Expr[Any] =
+    e match
+      case '{ Some($x: Int) }      => x
+      case '{ ($a: t, $b: u) }     => '{ Map.empty[u, t] }
+      case '{ Some($y: t) }        =>
+        given Type[t] = Type.of[Int].asInstanceOf[Type[t]]
+        '{ Option.empty[t] }
+      case _                       => e
+
 object Contra:
   def f(e: Expr[Any])(using Quotes): Expr[Any] =
     e match

@@ -80,7 +80,7 @@ impl Typer<'_> {
 
     /// Whether the first parameter clause of `s` has exactly one parameter, not repeated
     /// (dotty's `isUnary`).
-    fn is_unary(&mut self, s: SymbolId) -> bool {
+    pub fn is_unary(&mut self, s: SymbolId) -> bool {
         self.complete(s);
         let info = self.u.info(s);
         match self.u.param_clauses(info).first().map(|(_, ps)| ps.clone()).as_deref() {

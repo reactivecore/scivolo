@@ -9,7 +9,7 @@ use super::{SPLICE, staged};
 use crate::phases::literals::is_wildcard;
 use crate::phases::walk::children;
 use crate::{Lower, Result, unsupported};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 use typer::tpd::{TNodeId, Tree};
 
@@ -19,8 +19,8 @@ pub const UNDERLYING: &str = "Underlying";
 /// The tags of a quote's types of level 0 and those the healed body uses.
 struct Healer<'t> {
     tags: &'t [(SymbolId, TypeId)],
-    /// The tags used, each with the tree order of its first use.
-    used: FxHashMap<TypeId, usize>,
+    /// The tags used in the order met, each with the tree order of its first use.
+    used: Vec<(TypeId, usize)>,
     at: usize,
     /// The definitions of the body, where references of an earlier level without a tag are checked.
     defined: Option<&'t FxHashSet<SymbolId>>,
@@ -47,7 +47,7 @@ pub fn heal(l: &mut Lower, body: TNodeId, tags: &[(SymbolId, TypeId)]) -> Result
             todo.extend(children(l.tpd, t).into_iter().rev());
         }
     }
-    let mut h = Healer { tags, used: FxHashMap::default(), at: 0, defined: Some(&defined), missing: None };
+    let mut h = Healer { tags, used: Vec::new(), at: 0, defined: Some(&defined), missing: None };
     let mut changed = FxHashSet::default();
     for (at, &t) in order.iter().enumerate().rev() {
         h.at = at;
@@ -64,8 +64,7 @@ pub fn heal(l: &mut Lower, body: TNodeId, tags: &[(SymbolId, TypeId)]) -> Result
             _ if staged(l, t, SPLICE).is_some() => {
                 let widened = l.u.widen(tpe);
                 h.healed(l.u, widened);
-                let mut hole =
-                    Healer { tags: &[], used: FxHashMap::default(), at, defined: None, missing: None };
+                let mut hole = Healer { tags: &[], used: Vec::new(), at, defined: None, missing: None };
                 let healed = hole.healed(l.u, widened);
                 avoided(l.u, healed)
             }
@@ -98,7 +97,7 @@ pub fn heal(l: &mut Lower, body: TNodeId, tags: &[(SymbolId, TypeId)]) -> Result
             format!("quotes referring to {name} of level 0 without a given Type"),
         );
     }
-    let mut used: Vec<(TypeId, usize)> = h.used.into_iter().collect();
+    let mut used = h.used;
     used.sort_by_key(|&(_, at)| at);
     Ok(used.into_iter().map(|(tag, _)| tag).collect())
 }
@@ -122,8 +121,10 @@ impl Healer<'_> {
                 if p.is_none_or(|p| matches!(u.types().get(p), Type::This(_)))
                     && let Some(&(_, tag)) = self.tags.iter().find(|(t, _)| *t == s) =>
             {
-                let first = self.used.entry(tag).or_insert(self.at);
-                *first = (*first).min(self.at);
+                match self.used.iter_mut().find(|(t, _)| *t == tag) {
+                    Some((_, first)) => *first = (*first).min(self.at),
+                    None => self.used.push((tag, self.at)),
+                }
                 Some(u.intern_type(Type::TypeRef(tag, UNDERLYING.into())))
             }
             Type::Sym(..) | Type::TypeRef(..) => {
@@ -162,10 +163,21 @@ fn inconsistent_root(u: &mut Universe, defined: &FxHashSet<SymbolId>, t: TypeId)
     }
 }
 
-/// `t` with each abstract type that is not static made its upper bound (dotty's `AvoidMap` of
-/// `getPicklableHoleType`).
+/// `t` with each abstract type that is not static made its upper bound, an intersection with
+/// `Any` where a part changed its other part (dotty's `AvoidMap` of `getPicklableHoleType`).
 pub fn avoided(u: &mut Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, x| {
+        if let Type::And(a0, b0) = *u.types().get(x) {
+            let (a, b) = (avoided(u, a0), avoided(u, b0));
+            if (a, b) == (a0, b0) {
+                return Some(x);
+            }
+            return Some(match (a, b) {
+                (tasty::ANY, _) => b,
+                (_, tasty::ANY) => a,
+                _ => u.intern_type(Type::And(a, b)),
+            });
+        }
         let Type::Sym(None, s) = *u.types().get(x) else { return None };
         if !matches!(u.symbol(s).kind, Kind::Type | Kind::TypeParam) || u.is_static_symbol(s) {
             return None;
