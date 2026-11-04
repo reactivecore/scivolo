@@ -23,6 +23,12 @@ package user {
     override def pick[S <: AnyRef](xs: List[S]): S & AnyRef = xs.last
   }
 
+  trait Redeclared extends Shapes {
+    def pick[S <: AnyRef](xs: List[S]): S & AnyRef
+  }
+
+  final class First extends Shapes with Redeclared
+
   object P { val n = 1 }
   object Q { val n = 2 }
 
@@ -41,6 +47,7 @@ object memberpaths {
     a.adopt(b)
     println(a.describe(b))
     println(new user.Last().pick(List("x", "y")))
+    println(new user.First().pick(List("x", "y")))
     println(new user.Shadow().get)
   }
 }
