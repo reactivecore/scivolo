@@ -33,7 +33,6 @@ impl Typer<'_> {
         let span = self.ast.span(id);
         let lhs_span = self.tpd.span(lhs);
         let copy = self.copied_path(lhs);
-        self.tpd.mark_copy(copy, lhs);
         let qualifier = self.spliced(copy);
         let op = TName { name: self.name(op), is_type: false };
         let select = self.ast.node(Tree::Select { qualifier, name: op });

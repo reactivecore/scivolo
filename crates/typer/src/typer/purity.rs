@@ -90,13 +90,16 @@ impl Typer<'_> {
     }
 
     /// The purity of reference `tree`: a path if it is to a method not applied yet, of a
-    /// constant type, or to a stable value; an idempotent path for a lazy value or an object
-    /// that runs code when created.
+    /// constant type, or to a stable value; an idempotent path for a package, a lazy value or an
+    /// object that runs code when created.
     fn ref_purity(&mut self, tree: TNodeId) -> u8 {
         if self.is_method_typed(tree) || self.has_constant_type(tree) {
             return PURE_PATH;
         }
         let Some(s) = self.tpd.sym(tree) else { return IMPURE };
+        if self.u.symbol(s).kind == Kind::Package {
+            return IDEMPOTENT_PATH;
+        }
         if !self.is_stable_member(s) {
             return IMPURE;
         }

@@ -64,11 +64,7 @@ impl Typer<'_> {
         } else {
             let receiver = match *self.tpd.tree(mref) {
                 T::Select { qualifier, .. } if ctor => self.companion_ref(qualifier, method, ctx)?,
-                T::Select { qualifier, .. } => {
-                    let copy = self.copied_path(qualifier);
-                    self.tpd.mark_copy(copy, qualifier);
-                    copy
-                }
+                T::Select { qualifier, .. } => self.copied_path(qualifier),
                 T::Ident { .. } => self.ident_receiver(mref, span.start_pos(), ctx)?,
                 _ => return Err("default argument"),
             };
