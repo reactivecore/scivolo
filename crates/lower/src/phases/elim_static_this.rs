@@ -1,6 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/ElimStaticThis.scala
-//! dotty's `ElimStaticThis`: in a method `LambdaLift` made static, `C.this` of an object and
+//! dotty's `ElimStaticThis`: in a method `LambdaLift` or `HoistSuperArgs` made static, `C.this` of an object and
 //! references to its members through it lose their spans, and the enclosing tree is copied as
 //! dotty's tree copiers do, which gives them one.
 
@@ -13,10 +13,12 @@ use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) {
+    let class = l.tpd.sym(td);
     let defs: Vec<(TNodeId, SymbolId)> = subtrees(l.tpd, td)
         .into_iter()
         .filter(|&t| matches!(l.tpd.tree(t), Tree::DefDef { .. }))
         .filter_map(|t| Some((t, l.tpd.sym(t)?)))
+        .filter(|&(_, s)| l.u.symbol(s).owner == class)
         .collect();
     for (m, s) in defs {
         if !is_lifted_static(l, s) {
