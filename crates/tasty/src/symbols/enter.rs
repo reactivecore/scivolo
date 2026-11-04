@@ -96,6 +96,25 @@ impl Universe {
         self.annotation_strings.get(&(sym, class)).map_or(&[], Vec::as_slice)
     }
 
+    /// Records meta-annotation class `meta` on the annotation of class `class` on `sym`.
+    pub fn annotate_meta(&mut self, sym: SymbolId, class: SymbolId, meta: SymbolId) {
+        self.annotation_metas.entry((sym, class)).or_default().push(meta);
+    }
+
+    /// The annotation classes of `sym` meta-annotated `scala.annotation.meta.<target>`, where
+    /// they annotate it or their class, and if `unmarked`, those without meta-annotations
+    /// (dotty's `annotationsCarrying`).
+    pub fn annotations_carrying(&mut self, sym: SymbolId, target: &str, unmarked: bool) -> Vec<SymbolId> {
+        let mut classes = self.annotations(sym).to_vec();
+        classes.retain(|&c| {
+            let mut metas = self.annotation_metas.get(&(sym, c)).cloned().unwrap_or_default();
+            metas.extend(self.tasty_annotations(c));
+            metas.retain(|&m| self.full_name(m).starts_with("scala.annotation.meta."));
+            metas.iter().any(|&m| self.symbol(m).name == target) || unmarked && metas.is_empty()
+        });
+        classes
+    }
+
     /// The first `Int` argument of the annotation of the class with full name `full` on method
     /// `sym` in its TASTy.
     pub fn annotation_int(&mut self, sym: SymbolId, full: &str) -> Option<i32> {

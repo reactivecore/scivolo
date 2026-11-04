@@ -113,8 +113,15 @@ impl Typer<'_> {
                 self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)
             }
             Tree::SingletonTypeTree { reference } => {
+                if let Tree::Annotated { arg, annot } = *self.ast.tree(reference)
+                    && ctx.mode.is(Mode::IN_CAPTURE_SET)
+                {
+                    let singleton = self.ast.node(Tree::SingletonTypeTree { reference: arg });
+                    self.ast.with_span(singleton, self.ast.span(arg));
+                    return self.typed_annotated_type(id, singleton, annot, ctx);
+                }
                 let reference = self.typed(reference, Pt::Any, ctx);
-                if !self.is_stable_path(reference) {
+                if !self.is_stable_path(reference) && !self.is_capability(reference, ctx) {
                     return self.unsupported(id, "singleton type of an unstable reference");
                 }
                 let tpe = self.tpd.tpe(reference);

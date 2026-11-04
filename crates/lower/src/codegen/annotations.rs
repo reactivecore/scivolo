@@ -5,6 +5,7 @@
 
 use super::Gen;
 use super::attrs::canonical;
+use crate::phases::getters::{is_param_accessor, is_setter};
 use crate::{Lower, Result, unsupported};
 use nir::{Attr, StrId};
 use tasty::SymbolId;
@@ -131,7 +132,11 @@ impl Gen<'_, '_> {
         let is_final = attrs.iter().any(|a| matches!(a, Attr::Final));
         let mut aligned = false;
         for (sym, of_class) in field.into_iter().flatten().map(|s| (s, false)).chain([(c, true)]) {
-            for &class in self.l.u.annotations(sym) {
+            let classes = match of_class || sym == f {
+                true => self.l.u.annotations(sym).to_vec(),
+                false => self.l.u.annotations_carrying(sym, "field", !is_param_accessor(self.l, sym)),
+            };
+            for class in classes {
                 if matches!(gives(self.l, class), Some(Gives::Align)) && !aligned {
                     let group = self.l.u.annotation_strings(sym, class).first().cloned().flatten();
                     let group =
@@ -159,7 +164,13 @@ impl Gen<'_, '_> {
             annotated.filter(|(_, g)| !matches!(g, Gives::Named(_))).map(|&(_, g)| (g, None)).collect()
         } else {
             let mut found = Vec::new();
-            for &c in self.l.u.annotations(sym).iter().rev() {
+            let memoized = || self.l.fields.iter().any(|(&f, &g)| g == sym && f != g);
+            let classes = match () {
+                _ if method && is_setter(self.l, sym) => self.l.u.annotations_carrying(sym, "setter", false),
+                _ if method && memoized() => self.l.u.annotations_carrying(sym, "getter", false),
+                _ => self.l.u.annotations(sym).to_vec(),
+            };
+            for &c in classes.iter().rev() {
                 match gives(self.l, c) {
                     Some(g @ Gives::Named(_)) => {
                         found.extend(self.l.u.annotation_strings(sym, c).iter().rev().map(|s| (g, s.clone())))

@@ -183,7 +183,7 @@ impl Typer<'_> {
 
     /// Whether pattern `t` or a pattern inside it binds a variable.
     fn binds_variable(&self, t: TNodeId) -> bool {
-        matches!(self.tpd.tree(t), T::Bind { .. })
+        matches!(self.tpd.tree(t), T::Bind { name, .. } if !name.is_type)
             || self.tpd.children(t).into_iter().any(|c| self.binds_variable(c))
     }
 }

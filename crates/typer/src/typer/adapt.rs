@@ -92,7 +92,7 @@ impl Typer<'_> {
         }
         self.complete_refined_members(tpe, pt);
         let lifts = self.u.opaque_lifts();
-        if self.conforms(tpe, pt) {
+        if self.conforms(tpe, pt) || self.complete_unit_classes() && self.conforms(tpe, pt) {
             if self.u.opaque_lifts() != lifts && !self.conforms_unlifted(tpe, pt) {
                 let tpt = self.type_tree(pt, span.end_pos(), true);
                 return self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(pt), None);
@@ -110,7 +110,8 @@ impl Typer<'_> {
             Some(Err(what)) => self.unsupported_at(span, what),
             None => {}
         }
-        if self.u.class_symbol(pt) == Some(self.defn.unit) {
+        if self.u.class_symbol(pt).is_some_and(|c| c == self.defn.unit || self.u.full_name(c) == "scala.Unit")
+        {
             self.check_unit_purity(tree);
             return self.discarded(tree, span);
         }

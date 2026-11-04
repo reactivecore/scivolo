@@ -127,7 +127,8 @@ pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolI
 
 /// Whether `meth` is a method `class` inherits as it is: the first non-private concrete method
 /// or value of its name and erased signature, or matching it, in the linearization of `class`,
-/// bridges and inline accessors aside.
+/// or abstract one of a class deriving from the owner of `meth`, bridges and inline accessors
+/// aside.
 fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
@@ -139,7 +140,7 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     {
         return false;
     }
-    let name = m.name.clone();
+    let (name, m_owner) = (m.name.clone(), m.owner);
     let signature = l.u.erased_method(meth);
     let site = l.u.this_type(class);
     for base in erased_linearization(l, class) {
@@ -152,8 +153,10 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
                 true => l.u.body(other).is_none(),
                 false => s.kind == Kind::Def && !has(l.u, other, FIELDaccessor) && !has_body(l, other),
             };
+            let overrides =
+                |l: &mut Lower| !deferred || m_owner.is_some_and(|o| base != o && l.u.derives_from(base, o));
             if member
-                && !deferred
+                && overrides(l)
                 && (l.u.erased_method(other) == signature || l.u.info_matches(site, other, meth))
             {
                 return other == meth;
