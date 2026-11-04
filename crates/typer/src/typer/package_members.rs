@@ -11,8 +11,8 @@ const TOP_CLASSES: [&str; 4] = ["scala.Any", "scala.Matchable", "java.lang.Objec
 
 impl Typer<'_> {
     /// The members named `name` of package `p`: its own and those of its package objects, the
-    /// ones the unit defines among them completed first; of package `scala` its own if it has
-    /// some (dotty's `computeMembersNamed`).
+    /// ones the unit defines among them completed first; of package `scala` its own types or
+    /// terms if it has some (dotty's `computeMembersNamed`).
     pub fn package_members(&mut self, p: SymbolId, name: &str) -> Vec<SymbolId> {
         let named: Vec<SymbolId> =
             self.u.symbol(p).decls.iter().copied().filter(|&d| self.is_named_package_object(d)).collect();
@@ -22,7 +22,9 @@ impl Typer<'_> {
             }
         }
         let mut members = self.u.decl(p, name).unwrap_or_default();
-        if !members.is_empty() && self.u.full_name(p) == "scala" {
+        let scala = self.u.full_name(p) == "scala";
+        let own: Vec<bool> = members.iter().map(|&m| self.u.is_type_symbol(m)).collect();
+        if scala && own.contains(&true) && own.contains(&false) {
             return members;
         }
         let Ok(objects) = self.u.package_objects(p) else {
@@ -31,7 +33,8 @@ impl Typer<'_> {
         };
         for o in objects {
             for m in self.class_members(o, name) {
-                if !members.contains(&m) && self.is_package_object_member(o, m) {
+                let shadowed = scala && own.contains(&self.u.is_type_symbol(m));
+                if !shadowed && !members.contains(&m) && self.is_package_object_member(o, m) {
                     members.push(m);
                 }
             }

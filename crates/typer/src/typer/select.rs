@@ -153,7 +153,11 @@ impl Typer<'_> {
             return self.unsupported(id, "Object member a JDK interface redeclares");
         }
         if let Err(what) = self.check_value(sym, name, pt, ctx) {
-            return self.unsupported(id, what);
+            let Some(object) = self.package_object_value(sym, ctx) else { return self.unsupported(id, what) };
+            let mode = ctx.mode.with(Mode::QUALIFIER);
+            let path = self.typed_select(id, qualifier, name, Pt::Any, ctx.with_mode(mode));
+            let span = self.ast.span(id);
+            return self.build().select(path, object, span);
         }
         let new = matches!(self.tpd.tree(qual), T::New { .. });
         if let Err(what) = self.check_protected_path(sym, qual_tpe, new, ctx) {

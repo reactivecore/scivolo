@@ -152,7 +152,7 @@ impl Typer<'_> {
     }
 
     /// Partial application `tree` of a call whose arguments were lifted into `defs`; `Err` unless
-    /// applied further or only `using` clauses follow, without open type variables.
+    /// applied further or only implicit or `using` clauses follow, without open type variables.
     pub fn lifted_partial(
         &mut self,
         tree: TNodeId,
@@ -166,7 +166,8 @@ impl Typer<'_> {
         if matches!(pt, Pt::Fun(_)) {
             return Ok(tree);
         }
-        if matches!(pt, Pt::PolyFun(_)) || !self.takes_using(tree) || self.is_open(tpe) {
+        let implicit = matches!(self.u.types().get(tpe), Type::Method { implicit: true, .. });
+        if matches!(pt, Pt::PolyFun(_)) || !(implicit || self.takes_using(tree)) || self.is_open(tpe) {
             return Err("lifted call of a curried method");
         }
         Ok(tree)

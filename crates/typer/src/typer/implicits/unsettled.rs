@@ -64,15 +64,20 @@ impl Typer<'_> {
         (self.u.type_params(class).len() == args.len()).then(|| self.u.intern_type(Type::Applied(hi, args)))
     }
 
-    /// `t` with its type variables whose bounds are equal up to aliases instantiated to them,
-    /// and so those of the instances.
+    /// `t` with its type variables whose bounds are equal up to aliases instantiated to them, or
+    /// to their upper bound if their lower bound is not normal and both normalize alike, and so
+    /// those of the instances.
     pub fn determined(&mut self, t: TypeId) -> TypeId {
         let mut t = self.zonk(t);
         for _ in 0..4 {
             let mut changed = false;
             for v in self.open_vars(t) {
                 let (lo, hi) = self.constraint.bounds(v);
-                if lo == hi || self.dealiased_parts(lo) == self.dealiased_parts(hi) {
+                let normal = self.u.normalized(lo);
+                if normal != lo && normal == self.u.normalized(hi) {
+                    self.constraint.instantiate(v, hi);
+                    changed = true;
+                } else if lo == hi || self.dealiased_parts(lo) == self.dealiased_parts(hi) {
                     self.constraint.instantiate(v, lo);
                     changed = true;
                 }

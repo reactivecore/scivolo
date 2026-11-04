@@ -9,7 +9,7 @@ const WARNING_ONLY_FEATURES: [&str; 4] =
 /// The `-language:` features that make every top-level definition experimental, in the order
 /// of `scala.language.experimental` (dotty's `experimentalAutoEnableFeatures`), as dotty's
 /// `checkAndAdaptExperimentalImports` names them.
-const VIRAL_FEATURES: [(Features, &str); 10] = [
+const VIRAL_FEATURES: [(Features, &str); 11] = [
     (Features::NAMED_TYPE_ARGUMENTS, "-language:experimental.experimental.namedTypeArguments"),
     (Features::GENERIC_NUMBER_LITERALS, "-language:experimental.experimental.genericNumberLiterals"),
     (Features::ERASED_DEFINITIONS, "-language:experimental.experimental.erasedDefinitions"),
@@ -17,6 +17,7 @@ const VIRAL_FEATURES: [(Features, &str); 10] = [
     (Features::PURE_FUNCTIONS, "-language:experimental.experimental.pureFunctions"),
     (Features::INTO, "-language:experimental.experimental.into"),
     (Features::MODULARITY, "-language:experimental.experimental.modularity"),
+    (Features::PACKAGE_OBJECT_VALUES, "-language:experimental.experimental.packageObjectValues"),
     (Features::MULTI_SPREADS, "-language:experimental.experimental.multiSpreads"),
     (Features::SUB_CASES, "-language:experimental.experimental.subCases"),
     (Features::RELAXED_LAMBDA_SYNTAX, "-language:experimental.experimental.relaxedLambdaSyntax"),

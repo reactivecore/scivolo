@@ -55,10 +55,14 @@ impl Lower<'_> {
         self.positioned(apply)
     }
 
-    /// The class of the only parameter of method `m`.
+    /// The class of the only parameter of method `m`, which has one parameter list.
     fn single_param_class(&mut self, m: SymbolId) -> Option<SymbolId> {
         let info = self.u.info(m);
-        let &[(_, p)] = self.u.method(info)?.params else { return None };
+        let method = self.u.method(info)?;
+        let (&[(_, p)], result) = (method.params, method.result) else { return None };
+        if self.u.method(result).is_some() {
+            return None;
+        }
         self.class_of(p)
     }
 
