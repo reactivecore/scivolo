@@ -33,9 +33,7 @@ impl Desugar<'_> {
             let lookups = self.defines_enum_lookups(id);
             let m = self.ast.modifiers(mods).clone();
             let last = pats.len().saturating_sub(1);
-            let cases: Vec<NodeId> = pats
-                .iter()
-                .enumerate()
+            let cases: Vec<NodeId> = (pats.iter().enumerate())
                 .map(|(i, &p)| {
                     let Tree::Ident { name } = *self.ast.tree(p) else { return p };
                     let s = self.ast.span(p);

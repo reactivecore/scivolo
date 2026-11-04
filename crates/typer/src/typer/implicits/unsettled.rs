@@ -65,7 +65,8 @@ impl Typer<'_> {
     }
 
     /// `t` with its type variables whose bounds are equal up to aliases instantiated to them, or
-    /// to their upper bound if their lower bound normalizes to another type as it does, and so those of the instances.
+    /// to their upper bound if their lower bound is not normal and both normalize alike, and so
+    /// those of the instances.
     pub fn determined(&mut self, t: TypeId) -> TypeId {
         let mut t = self.zonk(t);
         for _ in 0..4 {
