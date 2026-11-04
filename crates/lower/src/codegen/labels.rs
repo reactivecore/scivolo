@@ -65,7 +65,7 @@ impl Gen<'_, '_> {
                 let Tree::Literal { ref value } = *self.l.tpd.tree(lit) else {
                     return unsupported(self.l.tpd.span(lit), "matches on patterns other than literals");
                 };
-                let value = self.gen_literal(lit, &value.clone())?;
+                let value = self.gen_literal(&value.clone());
                 let id = self.fresh();
                 switch_cases.push(Case { id, value, lit, body, span: self.l.tpd.span(c) });
             }

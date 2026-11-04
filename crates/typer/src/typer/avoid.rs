@@ -61,12 +61,12 @@ impl Typer<'_> {
         let span = syntax::ast::Span::synthetic(span.start(), span.end());
         let syms: Vec<SymbolId> = defs.iter().filter_map(|&d| self.tpd.sym(d)).collect();
         let original = self.tpd.get(tree).tpe;
-        let tpe = original.map(|t| match self.refers_to(t, &syms) {
-            true => match self.avoid_at(t, 1, Avoided::new(&syms, &[])) {
-                Some(a) => self.normalized(a.hi()),
-                None => t,
-            },
-            false => t,
+        let tpe = original.map(|t| {
+            let avoided = self.avoid_at(t, 1, Avoided::new(&syms, &[]));
+            match avoided {
+                Some(a) if self.refers_to(t, &syms) => self.normalized(a.hi()),
+                _ => t,
+            }
         });
         let widened = original.zip(tpe).is_some_and(|(t, a)| t != a && !self.u.is_subtype(t, a));
         if widened || tpe.is_some_and(|t| self.refers_to(t, &syms)) {

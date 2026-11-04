@@ -114,15 +114,7 @@ impl<'a> Reader<'a> {
             for _ in 0..n {
                 units.push(r.c.uleb32()? as u16);
             }
-            match String::from_utf16(&units) {
-                Ok(s) => Ok(r.pool.strings.intern(s.into_boxed_str())),
-                Err(_) => {
-                    let key = format!("{}\u{0}utf16{units:x?}", String::from_utf16_lossy(&units));
-                    let id = r.pool.strings.intern(key.into_boxed_str());
-                    r.pool.utf16.insert(StrId(id), units.into_boxed_slice());
-                    Ok(id)
-                }
-            }
+            Ok(r.pool.intern_utf16(&units).0)
         })
         .map(StrId)
     }

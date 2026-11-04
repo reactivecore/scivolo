@@ -65,8 +65,8 @@ inlining (ADR 0006).
 
 Exit criterion (met): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`, 2026-11-03): 1,447 of 1,711 pass; 57 stop at the typer, 2 at the
-lowering, 32 fail in the VM.
+(`just dotty-lower-report`, 2026-11-04): 1,451 of 1,711 pass; 55 stop at the typer, 32 fail in
+the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
    `DesugarEnums`. Tokens match dotty on all 5,893 files, trees and desugaring on 5,891
@@ -125,7 +125,7 @@ slower meanwhile:
    cyclic references in `Api.scala`). Their `tests/aot` programs pass on our NIR. Open: the
    remaining differences, mostly quote type sharing in macro files, from compiling file by file.
 4. **Lowering and inlining gaps** ([research 42](docs/research/42-lowering-leftovers-after-1029.md)):
-   the 2 lowering refusals in `tests/run`.
+   done; `tests/run` has no lowering refusals left.
 5. **Scala Native's library through the own frontend** (#168,
    [research 36](docs/research/36-compiling-the-native-stdlib.md), ADR 0042, 0043, 0046): `just
    lib-compile MODULE` lowers each file and compares its NIR with Scala Native's 3.9.0 build of

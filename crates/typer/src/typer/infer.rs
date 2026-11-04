@@ -61,22 +61,32 @@ impl Typer<'_> {
         self.normalized(t)
     }
 
-    /// Instantiates `v` to its lower bound widened (dotty's `instanceType`), or its upper bound.
-    pub fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
+    /// `v`'s lower bound widened below `v`, which may constrain `v`, or its upper bound (dotty's
+    /// `instanceType`).
+    pub fn instance_type(&mut self, v: VarId, from_below: bool) -> Result<TypeId, &'static str> {
         let (lo, hi) = self.constraint.bounds(v);
-        let (lo, hi) = (self.zonk(lo), self.zonk(hi));
-        let mut inst = if from_below { lo } else { hi };
-        inst = self.simplified_inferred(inst);
-        if from_below {
-            let widen = if self.constraint.is_hard(v) { Widen::Singletons } else { Widen::Unions };
-            inst = self.widen_inferred(inst, hi, widen)?;
-            if matches!(self.u.types().get(hi), Type::Var(_))
-                && !self.is_below_singleton(hi, 0)
-                && let widened = self.widen_singletons(inst, false)
-                && self.module_ref(widened) != inst
-            {
-                return Err("singleton instance below another type variable");
-            }
+        let inst = if from_below { self.zonk(lo) } else { self.zonk(hi) };
+        let inst = self.simplified_inferred(inst);
+        if !from_below {
+            return Ok(inst);
+        }
+        let widen = if self.constraint.is_hard(v) { Widen::Singletons } else { Widen::Unions };
+        let bound = self.u.intern_type(Type::Var(v));
+        self.widen_inferred(inst, bound, widen)
+    }
+
+    /// Instantiates `v` to its instance type.
+    pub fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
+        let inst = self.instance_type(v, from_below)?;
+        let hi = self.constraint.bounds(v).1;
+        let hi = self.zonk(hi);
+        if from_below
+            && matches!(self.u.types().get(hi), Type::Var(_))
+            && !self.is_below_singleton(hi, 0)
+            && let widened = self.widen_singletons(inst, false)
+            && self.module_ref(widened) != inst
+        {
+            return Err("singleton instance below another type variable");
         }
         let mut cyclic = false;
         self.u.map_type(inst, &mut |u, part| {

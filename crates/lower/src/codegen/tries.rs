@@ -30,7 +30,7 @@ impl<'l, 'a> Gen<'l, 'a> {
         if cases.is_empty() && finalizer.is_none() {
             return self.gen_expr(expr);
         }
-        let retty = self.gen_type(self.l.tpd.tpe(t));
+        let retty = self.branches_type(t);
         let pos = self.pos_or(self.l.tpd.span(expr), self.m.pos);
         let saved = self.at(pos);
         let cases = cases.into_iter().map(|c| self.catch_case(c)).collect::<Result<Vec<_>>>()?;

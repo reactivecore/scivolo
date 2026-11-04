@@ -10,6 +10,7 @@ use crate::{Result, unsupported};
 use nir::{Type, TypeId, Val, ValId};
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId};
+use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
     pub fn erased(&mut self, e: &Erased) -> TypeId {
@@ -65,6 +66,17 @@ impl Gen<'_, '_> {
     /// The NIR type of the erasure of `t`.
     pub fn gen_type(&mut self, t: tasty::TypeId) -> TypeId {
         let e = self.l.u.erase(t);
+        self.erased(&e)
+    }
+
+    /// The NIR type of conditional or `try` `t`, with value classes boxed if erasure typed its
+    /// branches against a reference.
+    pub fn branches_type(&mut self, t: TNodeId) -> TypeId {
+        let tpe = self.l.tpd.tpe(t);
+        if !self.l.boxed_types.contains(&t) {
+            return self.gen_type(tpe);
+        }
+        let e = self.l.u.erase_boxed(tpe);
         self.erased(&e)
     }
 

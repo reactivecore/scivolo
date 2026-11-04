@@ -194,11 +194,11 @@ Results (2026-11-04):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1449 |
+| passed | 1451 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 2 |
+| lowering refused | 0 |
 | typer refused | 55 |
 | parser refused | 0 |
 | macro refused | 0 |
@@ -207,8 +207,6 @@ Results (2026-11-04):
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Lowering refused:** an inline method not erased; branches of erased types other than
-  classes and arrays.
 - **Typer refused:** mostly adaptations (8), members not found (5), GADT constraints (3), inline
   methods of objects with opaque types (3), `$scope` (3) and structural refinements of existing members (3).
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
