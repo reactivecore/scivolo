@@ -39,8 +39,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
                 Tree::Match { kind: MatchKind::Sub, .. } if !case_bodies.contains(&t) => {
                     return crate::unsupported(l.tpd.span(t), "sub match");
                 }
-                Tree::Match { kind: MatchKind::Sub, .. } => {}
-                Tree::Match { .. } => matches.push((t, owner)),
+                Tree::Match { kind: MatchKind::Plain, .. } => matches.push((t, owner)),
                 _ => {}
             }
             matches.extend(try_catch::fallback(l, t, owner)?.map(|m| (m, owner)));

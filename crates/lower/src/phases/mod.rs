@@ -35,6 +35,7 @@ mod drop_imports;
 mod drop_inlined;
 mod elideable;
 mod elim_opaque;
+mod elim_static_this;
 mod enum_values;
 mod enumerations;
 mod envelope;

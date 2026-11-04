@@ -93,9 +93,10 @@ pub fn with_bindings(l: &mut Lower, body: TNodeId, bindings: &[TNodeId], owner: 
             annotate_new(l, new, from_above, span);
         }
         let name = TName { name: l.names.intern(&l.u.symbol(new).name.clone()), is_type: true };
-        let rhs = l.type_tree(info, span);
+        let at = Span::at(span.point());
+        let rhs = l.type_tree(info, at);
         let tpe = l.u.intern_type(Type::Sym(None, new));
-        defs.push(l.tpd.node(Tree::TypeDef { name, rhs }, span, Some(tpe), Some(new)));
+        defs.push(l.tpd.node(Tree::TypeDef { name, rhs }, at, Some(tpe), Some(new)));
     }
     substitute(l, body, &map);
     let tpe = l.tpd.tpe(body);
