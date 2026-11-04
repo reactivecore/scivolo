@@ -114,8 +114,12 @@ impl Typer<'_> {
     }
 
     /// Completes the unit's classes not yet completed, members of packages and classes, whose
-    /// parents a library class may reach; whether there were any.
+    /// parents a library class may reach, unless a definition is being completed; whether there
+    /// were any.
     pub fn complete_unit_classes(&mut self) -> bool {
+        if self.syms.completions.values().any(|c| matches!(c, Completion::Completing(_))) {
+            return false;
+        }
         let mut pending: Vec<SymbolId> = (self.syms.completions.iter())
             .filter(|&(&s, c)| {
                 matches!(c, Completion::Pending { .. }) && self.u.symbol(s).kind == Kind::Class

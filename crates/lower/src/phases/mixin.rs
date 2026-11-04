@@ -127,8 +127,7 @@ pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolI
 
 /// Whether `meth` is a method `class` inherits as it is: the first non-private concrete method
 /// or value of its name and erased signature, or matching it, in the linearization of `class`,
-/// or abstract one of a class deriving from the owner of `meth`, bridges and inline accessors
-/// aside.
+/// bridges and inline accessors aside, if `class` inherits it.
 fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
@@ -140,30 +139,59 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     {
         return false;
     }
-    let (name, m_owner) = (m.name.clone(), m.owner);
-    let signature = l.u.erased_method(meth);
     let site = l.u.this_type(class);
+    if !inherits(l, class, meth, site, &mut FxHashSet::default()) {
+        return false;
+    }
     for base in erased_linearization(l, class) {
-        for other in l.u.decl(base, &name).unwrap_or_default() {
+        for other in matching_decls(l, base, meth, site) {
             let s = l.u.symbol(other);
-            let member = matches!(s.kind, Kind::Def | Kind::Val)
-                && !has(l.u, other, PRIVATE)
-                && !l.bridges.contains(&other);
             let deferred = match s.tree.is_some() {
                 true => l.u.body(other).is_none(),
                 false => s.kind == Kind::Def && !has(l.u, other, FIELDaccessor) && !has_body(l, other),
             };
-            let overrides =
-                |l: &mut Lower| !deferred || m_owner.is_some_and(|o| base != o && l.u.derives_from(base, o));
-            if member
-                && overrides(l)
-                && (l.u.erased_method(other) == signature || l.u.info_matches(site, other, meth))
-            {
+            if !deferred {
                 return other == meth;
             }
         }
     }
     false
+}
+
+/// Whether `meth` is a member of `class`, not hidden by a matching declaration of `class` or of
+/// a base class between them (dotty's `nonPrivateMembersNamed`, `mapInherited`).
+fn inherits(
+    l: &mut Lower,
+    class: SymbolId,
+    meth: SymbolId,
+    site: TypeId,
+    seen: &mut FxHashSet<SymbolId>,
+) -> bool {
+    let Some(owner) = l.u.symbol(meth).owner else { return false };
+    if class == owner {
+        return true;
+    }
+    if !seen.insert(class) || !matching_decls(l, class, meth, site).is_empty() {
+        return false;
+    }
+    let parents: Vec<SymbolId> = l.u.parents(class).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
+    parents.into_iter().any(|p| l.u.derives_from(p, owner) && inherits(l, p, meth, site, seen))
+}
+
+/// The non-private methods and values of `base`, bridges aside, with the name and erased
+/// signature of `meth`, or matching it as members of `site`.
+fn matching_decls(l: &mut Lower, base: SymbolId, meth: SymbolId, site: TypeId) -> Vec<SymbolId> {
+    let name = l.u.symbol(meth).name.clone();
+    let signature = l.u.erased_method(meth);
+    let Lower { u, bridges, .. } = l;
+    let mut decls = u.decl(base, &name).unwrap_or_default();
+    decls.retain(|&other| {
+        matches!(u.symbol(other).kind, Kind::Def | Kind::Val)
+            && !has(u, other, PRIVATE)
+            && !bridges.contains(&other)
+            && (u.erased_method(other) == signature || u.info_matches(site, other, meth))
+    });
+    decls
 }
 
 /// `def m(params) = C.super[T].m(params)` in class `class` for method `meth` of trait `mixin`,

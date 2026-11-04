@@ -6,9 +6,11 @@
 use super::Gen;
 use super::attrs::canonical;
 use crate::phases::getters::{is_param_accessor, is_setter};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use nir::{Attr, StrId};
 use tasty::SymbolId;
+use tasty::tags::FIELDaccessor;
 use typer::tpd::{TNodeId, Tree};
 
 /// What an annotation class gives the definition it annotates.
@@ -134,7 +136,7 @@ impl Gen<'_, '_> {
         for (sym, of_class) in field.into_iter().flatten().map(|s| (s, false)).chain([(c, true)]) {
             let classes = match of_class || sym == f {
                 true => self.l.u.annotations(sym).to_vec(),
-                false => self.l.u.annotations_carrying(sym, "field", !is_param_accessor(self.l, sym)),
+                false => self.l.u.annotations_carrying(sym, &["field"], !is_param_accessor(self.l, sym)),
             };
             for class in classes {
                 if matches!(gives(self.l, class), Some(Gives::Align)) && !aligned {
@@ -165,9 +167,16 @@ impl Gen<'_, '_> {
         } else {
             let mut found = Vec::new();
             let memoized = || self.l.fields.iter().any(|(&f, &g)| g == sym && f != g);
+            let getter = method && has(self.l.u, sym, FIELDaccessor);
             let classes = match () {
-                _ if method && is_setter(self.l, sym) => self.l.u.annotations_carrying(sym, "setter", false),
-                _ if method && memoized() => self.l.u.annotations_carrying(sym, "getter", false),
+                _ if getter && is_setter(self.l, sym) => {
+                    self.l.u.annotations_carrying(sym, &["setter"], false)
+                }
+                _ if getter && memoized() => self.l.u.annotations_carrying(sym, &["getter"], false),
+                _ if getter => {
+                    let unmarked = !is_param_accessor(self.l, sym);
+                    self.l.u.annotations_carrying(sym, &["getter", "field"], unmarked)
+                }
                 _ => self.l.u.annotations(sym).to_vec(),
             };
             for &c in classes.iter().rev() {
