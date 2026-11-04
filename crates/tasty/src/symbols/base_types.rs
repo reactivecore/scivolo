@@ -23,7 +23,7 @@ impl Universe {
             Type::Applied(tycon, args) => (tycon, args),
             Type::And(a, b) => {
                 return match (self.base_type_within(a, base, depth), self.base_type_within(b, base, depth)) {
-                    (Some(x), Some(y)) if x != y => Some(self.glb(x, y)),
+                    (Some(x), Some(y)) => self.merged_bases(t, base, (x, y), true),
                     (x, y) => x.or(y),
                 };
             }
@@ -32,7 +32,7 @@ impl Universe {
             Type::Or(a, b, _) => {
                 let x = self.base_type_within(a, base, depth)?;
                 let y = self.base_type_within(b, base, depth)?;
-                return Some(if x == y { x } else { self.lub(x, y) });
+                return self.merged_bases(t, base, (x, y), false);
             }
             Type::This(u)
             | Type::Super(_, u)
@@ -131,6 +131,26 @@ impl Universe {
             });
         }
         joined
+    }
+
+    /// The base types `x` and `y` of the parts of intersection (`and`) or union `t` merged by
+    /// `glb` or `lub`; while that merge is in progress, `x` of an intersection, else `None`.
+    fn merged_bases(
+        &mut self,
+        t: TypeId,
+        base: SymbolId,
+        (x, y): (TypeId, TypeId),
+        and: bool,
+    ) -> Option<TypeId> {
+        if x == y {
+            return Some(x);
+        }
+        if !self.merging_bases.insert((t, base)) {
+            return and.then_some(x);
+        }
+        let merged = if and { self.glb(x, y) } else { self.lub(x, y) };
+        self.merging_bases.remove(&(t, base));
+        Some(merged)
     }
 
     /// Whether `t` refers to `Nothing`, or to `Null` without safe nulls.

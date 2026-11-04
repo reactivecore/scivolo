@@ -39,7 +39,7 @@ impl Cmp<'_> {
     /// `[X..] =>> result <: b` for a `b` that is no lambda: `result <: b[X..]` if `b` takes as
     /// many type parameters (dotty's `compareHKLambda`).
     fn lambda_below(&mut self, binder: crate::types::Binder, n: usize, result: TypeId, b: TypeId) -> bool {
-        if matches!(self.u.types().get(b), Type::Lambda { .. }) || self.constructor_arity(b) != Some(n) {
+        if matches!(self.u.types().get(b), Type::Lambda { .. }) || self.hk_arity(b) != Some(n) {
             return false;
         }
         let refs: Vec<TypeId> = (0..n as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();

@@ -21,7 +21,12 @@ impl Cmp<'_> {
         args1.len() == args2.len()
             && (0..args1.len()).all(|i| {
                 let variance = variances.get(i).copied().unwrap_or(0);
-                let bounds = tparams.get(i).and_then(|&p| self.param_bounds(p, tparams, args2));
+                let wildcards =
+                    self.written_bounds(args1[i]).is_some() && self.written_bounds(args2[i]).is_some();
+                let bounds = match tparams.get(i) {
+                    Some(&p) if wildcards => self.param_bounds(p, tparams, args2),
+                    _ => None,
+                };
                 self.sub_arg(args1[i], args2[i], variance, bounds)
             })
     }

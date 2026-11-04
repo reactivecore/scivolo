@@ -120,6 +120,8 @@ pub struct Universe {
     jdk_jars: std::ops::Range<usize>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
+    /// The intersections and unions whose base types `base_type` is merging, with the base class.
+    merging_bases: FxHashSet<(TypeId, SymbolId)>,
     builtins: Builtins,
     /// How many binders `fresh_binder` has made.
     binders: u32,
