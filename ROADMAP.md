@@ -76,8 +76,8 @@ the VM.
    bridges; 99.8% of the library's signatures match Scala Native's mangled names.
 3. **Typer for the scripting subset** (`crates/typer`): inference, overloads, implicits and
    givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`.
-   `just typer-report` (2026-11-03): tests/pos 2,140 typed as dotty, 203 differ (31 only in
-   warnings), 682 refused. Unsupported
+   `just typer-report` (2026-11-04): tests/pos 2,187 typed as dotty, 208 differ (31 only in
+   warnings), 630 refused. Unsupported
    input is refused, never compiled silently wrong.
 4. **Lowering** (`crates/lower`): dotty's phases from FirstTransform to Constructors and
    nscplugin's NIR generation; every lowered test program matches Scala Native's NIR byte for
@@ -113,7 +113,7 @@ libraries work. dotty's `tests/run-macros`: 307 of 321 pass
 Compatibility first, in order of the tests it unblocks; startup comes last and must not get
 slower meanwhile:
 1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 42 typer
-   refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 682 in
+   refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 630 in
    `tests/pos`; implicit candidates with undetermined type variables (#123).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the 14 failing
    `tests/run-macros`.
@@ -141,7 +141,7 @@ slower meanwhile:
    | clib | 21 of 21 | 114 | | 1 |
    | posixlib | 67 of 67 | 270 | | |
    | windowslib | 34 | 130 | | |
-   | scalalib | 604 of 649 | 2,885 | 4 | 699 |
+   | scalalib | 606 of 649 | 2,910 | 4 | 700 |
 
    scalalib is compared with `just lib-oracle`'s build of it. clib and posixlib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
    `unsafe/package{,$}` in nativelib differ only as a joint compilation with

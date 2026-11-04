@@ -55,7 +55,7 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
   and VM.
 - **Macros:** 307 of dotty's 321 `tests/run-macros` pass.
 - **Scala Native's library through the own frontend:** javalib 601 of 601 files, auxlib 15 of
-  15, nativelib 103 of 103, clib, posixlib and windowslib complete; scalalib 590 of 649.
+  15, nativelib 103 of 103, clib, posixlib and windowslib complete; scalalib 606 of 649.
 - **com-lihaoyi libraries from source:** fastparse, mainargs, upickle, ujson, pprint, os-lib,
   geny, fansi and sourcecode compile through the own frontend, every file, macros included;
   1,776 of their 1,786 NIR files are the same as scala-cli's.
