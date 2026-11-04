@@ -47,7 +47,7 @@ impl Gen<'_, '_> {
             return Ok(self.val(Val::ClassOf(name)));
         }
         let object = tasty::Erased::Class("java.lang.Object".into());
-        if self.l.u.erase(tpe) == object {
+        if self.l.u.erase_boxed(tpe) == object {
             let name = self.pool.top("java.lang.Object");
             return Ok(self.val(Val::ClassOf(name)));
         }

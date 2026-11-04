@@ -24,6 +24,8 @@ def ident[T](t: T): T = t
   println(id(b).isInstanceOf[Box])
   println(b.pick(true).show)
   println(b.pick(false).isEmpty)
+  println(classOf[Box].getName)
+  println((b: Any) == (new Box(1): Any))
   var i = 0
   while i < 3 do ident { i += 1 }
   println(i)
