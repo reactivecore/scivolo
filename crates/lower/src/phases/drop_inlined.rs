@@ -41,9 +41,10 @@ fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>, depth: u32) -> TNodeId {
         let expansion = drop(l, expansion, call, inner);
         if stats.is_empty() {
             l.inlined_spans.insert(expansion, l.tpd.span(t));
-            if let Some(&own) = l.own_spans.get(&t) {
-                l.own_spans.insert(expansion, own);
-            }
+            match l.own_spans.get(&t).copied() {
+                Some(own) => l.own_spans.insert(expansion, own),
+                None => l.own_spans.remove(&expansion),
+            };
             return expansion;
         }
         let stats = l.tpd.list(&stats);
