@@ -76,10 +76,10 @@ impl Universe {
 
     /// The class `t` erases to if its erasure is `e`, else the class named by `e`.
     fn side_class(&mut self, t: TypeId, e: &Erased) -> Option<SymbolId> {
-        let t = match *self.types().get(t) {
-            Type::This(c) => c,
-            _ => t,
-        };
+        let mut t = t;
+        while let Type::This(p) | Type::Refined(p, ..) | Type::Annotated(p, _) = *self.types().get(t) {
+            t = p;
+        }
         let class = self.erased_class(t);
         let Erased::Class(name) = e else { return class };
         let own = class.filter(|_| name != OBJECT).map(|c| self.intern_type(Type::Sym(None, c)));

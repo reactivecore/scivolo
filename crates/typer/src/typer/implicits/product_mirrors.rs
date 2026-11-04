@@ -74,7 +74,8 @@ impl Typer<'_> {
             .iter()
             .map(|&a| {
                 self.complete(a);
-                let t = self.u.member_info(site, a);
+                let info = self.u.info(a);
+                let t = self.u.as_seen_from(info, site, cls);
                 match *self.u.types().get(t) {
                     Type::ByName(r) => r,
                     _ => t,

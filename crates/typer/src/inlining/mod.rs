@@ -28,6 +28,7 @@ mod macro_trees;
 mod macros;
 mod no_inits;
 mod opaque_proxies;
+mod opaque_results;
 pub mod outer_this;
 mod phase;
 mod prefix_seen;

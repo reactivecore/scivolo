@@ -100,6 +100,7 @@ fn substituted(
         if new_pre == pre {
             return None;
         }
+        let new_pre = refined_path(u, new_pre).unwrap_or(new_pre);
         if matches!(u.types().get(new_pre), Type::Skolem(..) | Type::Refined(..))
             && let Some(info) = u.refinement_info(new_pre, s)
             && let Type::Alias(alias) = *u.types().get(info)
@@ -111,6 +112,21 @@ fn substituted(
         let member = members.into_iter().find(|&m| u.symbol(m).kind == Kind::Type).unwrap_or(s);
         Some(u.intern_type(Type::Sym(Some(new_pre), member)))
     })
+}
+
+/// The path a refinement of skolem `s`'s type gives term member `m` for selection `s.m`.
+fn refined_path(u: &mut Universe, t: TypeId) -> Option<TypeId> {
+    let Type::Sym(Some(pre), m) = *u.types().get(t) else { return None };
+    if !matches!(u.types().get(pre), Type::Skolem(..)) || !u.symbol(m).kind.is_term() {
+        return None;
+    }
+    let name = u.symbol(m).name.clone();
+    let info = u.term_refinement_named(pre, &name)?;
+    match *u.types().get(info) {
+        Type::Sym(_, p) if u.symbol(p).kind.is_term() => Some(info),
+        Type::TermRef(..) => Some(info),
+        _ => None,
+    }
 }
 
 /// Whether type `t` refers to a value parameter of the method type of binder `binder`, or of
