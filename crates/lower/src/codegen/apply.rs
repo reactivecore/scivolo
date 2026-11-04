@@ -3,7 +3,6 @@
 //! Calls: of methods, constructors and static methods (nscplugin's `genApply`).
 
 use super::Gen;
-use crate::phases::adapt::from_start;
 use crate::symbols::{is_extern, is_java_static};
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
@@ -73,18 +72,7 @@ impl Gen<'_, '_> {
                     tasty::Type::Sym(Some(p), _) | tasty::Type::TermRef(p, _) => p,
                     _ => return unsupported(span, "a call of a local method"),
                 };
-                let module_this = match *self.l.u.types().get(prefix) {
-                    tasty::Type::This(c) => {
-                        self.l.u.class_symbol(c).is_some_and(|c| self.l.u.is_module_class(c))
-                    }
-                    _ => false,
-                };
-                let at = match args.first() {
-                    Some(&first) if module_this && self.m.this.is_none() => {
-                        from_start(self.l.tpd.span(first))
-                    }
-                    _ => self.l.tpd.span(fun),
-                };
+                let at = self.l.tpd.span(fun);
                 self.gen_apply_method(sym, false, Receiver::Prefix(prefix, at), &args, span)?
             }
             _ => return unsupported(span, "a call of a function value or with several argument lists"),
