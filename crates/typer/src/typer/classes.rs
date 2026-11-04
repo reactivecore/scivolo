@@ -50,7 +50,7 @@ impl Typer<'_> {
         }
         let super_ctx = self.super_call_ctx(t.constr, ctx);
         self.u.type_params(cls).into_iter().for_each(|p| self.complete(p));
-        let parents = self.parent_types(cls, &t.parents, super_ctx);
+        let parents = self.parent_types(cls, tree, &t.parents, super_ctx);
         self.check_parents(cls, rhs, &parents);
         self.check_dynamics_enabled(rhs, &parents, ctx);
         self.u.set_parents(cls, parents);
