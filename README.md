@@ -51,7 +51,7 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
 [docs/conformance.md](docs/conformance.md) and [ROADMAP.md](ROADMAP.md).
 
 - **VM:** 11,336 of Scala Native's 11,360 unit tests pass (NIR compiled by Scala Native).
-- **Own frontend:** 1,451 of dotty's 1,711 `tests/run` pass through parser, typer, lowering
+- **Own frontend:** 1,457 of dotty's 1,711 `tests/run` pass through parser, typer, lowering
   and VM.
 - **Macros:** 307 of dotty's 321 `tests/run-macros` pass.
 - **Scala Native's library through the own frontend:** javalib 601 of 601 files, auxlib 15 of

@@ -194,12 +194,12 @@ Results (2026-11-04):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1451 |
+| passed | 1457 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
 | lowering refused | 0 |
-| typer refused | 55 |
+| typer refused | 49 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -207,8 +207,7 @@ Results (2026-11-04):
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** mostly adaptations (8), members not found (5), GADT constraints (3), inline
-  methods of objects with opaque types (3), `$scope` (3) and structural refinements of existing members (3).
+- **Typer refused:** mostly adaptations (8), members not found (5), GADT constraints (3) and `$scope` (3).
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
   libraries compiled before 3.4, which dotty accepts) and checks no other `future` rule.
