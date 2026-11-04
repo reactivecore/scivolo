@@ -13,7 +13,8 @@ use syntax::ast::{Attrs, List, NodeId, Span, TName, Tree};
 impl Typer<'_> {
     /// `x$1 => x$1 match { case (a1, …, aN) => e }` of a synthetic parameter `x$1` as
     /// `(a1, …, aN) => e` where `pt` is a function or single abstract method type of N > 1
-    /// parameters and each `ai` a name, possibly typed; its parameters and body.
+    /// parameters and each `ai` a name, possibly typed, else as a case lambda of N parameters;
+    /// its parameters and body.
     pub fn untupled_case(&mut self, params: &[NodeId], body: NodeId, pt: Pt) -> Option<(List, NodeId)> {
         let (&[param], Pt::Type(p)) = (params, pt) else { return None };
         let Tree::ValDef { name, mods, .. } = *self.ast.tree(param) else { return None };
