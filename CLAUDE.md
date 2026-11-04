@@ -121,7 +121,15 @@ Merge requests:
 - Review your own code before raising one.
 - The title starts with the issue number (`#123`).
 - The description summarizes; it does not repeat the issue text.
-- A short note on *how* something was done belongs in it.
+- The description has these sections, in this order, written as in issues (summary in prose, the
+  rest bullets, an optional section without content left out):
+  1. **Summary**
+  2. **Context**: the issue(s), roadmap item, ADR.
+  3. **Problem**
+  4. **Example** (optional)
+  5. **Solution**: a short note on *how* it was done, measured numbers, named differences from
+     dotty with their case.
+  6. **Notes** (optional): what is left, out of scope.
 - It carries the checkboxes `Human Code Review` and `Human Test`, which are
   not exclusive:
 
