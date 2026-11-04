@@ -65,8 +65,8 @@ inlining (ADR 0006).
 
 Exit criterion (met): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`, 2026-11-03): 1,447 of 1,711 pass; 57 stop at the typer, 2 at the
-lowering, 32 fail in the VM.
+(`just dotty-lower-report`, 2026-11-04): 1,464 of 1,711 pass; 42 stop at the typer, 32 fail in
+the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
    `DesugarEnums`. Tokens match dotty on all 5,893 files, trees and desugaring on 5,891
@@ -76,8 +76,8 @@ lowering, 32 fail in the VM.
    bridges; 99.8% of the library's signatures match Scala Native's mangled names.
 3. **Typer for the scripting subset** (`crates/typer`): inference, overloads, implicits and
    givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`.
-   `just typer-report` (2026-11-03): tests/pos 2,140 typed as dotty, 203 differ (31 only in
-   warnings), 682 refused. Unsupported
+   `just typer-report` (2026-11-04): tests/pos 2,195 typed as dotty, 208 differ (31 only in
+   warnings), 622 refused. Unsupported
    input is refused, never compiled silently wrong.
 4. **Lowering** (`crates/lower`): dotty's phases from FirstTransform to Constructors and
    nscplugin's NIR generation; every lowered test program matches Scala Native's NIR byte for
@@ -112,20 +112,21 @@ libraries work. dotty's `tests/run-macros`: 307 of 321 pass
 
 Compatibility first, in order of the tests it unblocks; startup comes last and must not get
 slower meanwhile:
-1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 57 typer
-   refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 682 in
+1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 42 typer
+   refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 622 in
    `tests/pos`; implicit candidates with undetermined type variables (#123).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the 14 failing
    `tests/run-macros`.
 3. **com-lihaoyi toolkit** (#216, [research 31](docs/research/31-lihaoyi-macros.md)): `just
    lib-source NAME` compiles every file of fansi 0.5.1, geny 1.1.1, sourcecode 0.4.4, pprint
    0.9.6, fastparse 3.1.1, mainargs 0.7.8, upickle 4.4.3 (with upickle-core, upickle-implicits,
-   ujson and upack) and os-lib 0.11.9-M8; 1,772 of 1,786 NIR files are the same as scala-cli's
+   ujson and upack) and os-lib 0.11.9-M8; 1,776 of 1,786 NIR files are the same as scala-cli's
    (3 differ only in var order; upickle's own 35 have no scala-cli oracle, as Scala 3.9 reports
-   cyclic references in `Api.scala`). Their `tests/aot` programs pass on our NIR. Open: the
-   remaining differences, mostly quote type sharing in macro files, from compiling file by file.
+   cyclic references in `Api.scala`); 4 differ also from scala-cli compiling the file alone
+   (docs/conformance.md). Their `tests/aot` programs pass on our NIR. Open: fastparse's inline
+   expansion position.
 4. **Lowering and inlining gaps** ([research 42](docs/research/42-lowering-leftovers-after-1029.md)):
-   the 2 lowering refusals in `tests/run`.
+   done; `tests/run` has no lowering refusals left.
 5. **Scala Native's library through the own frontend** (#168,
    [research 36](docs/research/36-compiling-the-native-stdlib.md), ADR 0042, 0043, 0046): `just
    lib-compile MODULE` lowers each file and compares its NIR with Scala Native's 3.9.0 build of
@@ -140,9 +141,9 @@ slower meanwhile:
    | clib | 21 of 21 | 114 | | 1 |
    | posixlib | 67 of 67 | 270 | | |
    | windowslib | 34 | 130 | | |
-   | scalalib | 590 of 649 | 2,703 | | |
+   | scalalib | 617 of 649 | 3,066 | 5 | 733 |
 
-   scalalib is compared with the published scalalib jar. clib and posixlib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
+   scalalib is compared with `just lib-oracle`'s build of it. clib and posixlib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
    `unsafe/package{,$}` in nativelib differ only as a joint compilation with
    `UnsafePackageCompat` does. Open: the rest of scalalib.
 6. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.

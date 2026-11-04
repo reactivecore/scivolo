@@ -146,7 +146,20 @@ impl Typer<'_> {
             || sd.flags.has(EXTENSION) != sm.flags.has(EXTENSION);
         let this = self.u.intern_type(Type::This(site));
         let (rd, rm) = (self.u.own_member_info(this, d), self.u.own_member_info(this, m));
-        let (rd, rm) = (self.u.result_type(rd), self.u.result_type(rm));
+        let binder = match *self.u.types().get(rd) {
+            Type::Poly { binder, .. } => Some(binder),
+            _ => None,
+        };
+        let (rd, mut rm) = self.u.aligned_results((d, rd), (m, rm));
+        let params = self.u.type_params(d);
+        if let Some(binder) = binder {
+            rm = self.u.map_type(rm, &mut |u, t| match *u.types().get(t) {
+                Type::Sym(None, s) => {
+                    params.iter().position(|&p| p == s).map(|i| u.intern_type(Type::Param(binder, i as u32)))
+                }
+                _ => None,
+            });
+        }
         refused || !self.conforms(rd, rm)
     }
 }

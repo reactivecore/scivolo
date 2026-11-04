@@ -67,7 +67,7 @@ pub fn literal(a: &MacroArg, param: &Erased) -> Option<Option<vm::MacroArg>> {
         &Constant::Long(n) => (b'J', n as u64, None),
         &Constant::Float(x) => (b'F', x.to_bits() as u64, None),
         &Constant::Double(x) => (b'D', x.to_bits(), None),
-        Constant::String(units) => (b'T', 0, Some(String::from_utf16_lossy(units))),
+        Constant::String(units) => (b'T', 0, Some(units.to_vec())),
         Constant::Null => (b'N', 0, None),
     };
     Some(Some(match *param {

@@ -119,6 +119,10 @@ impl Typer<'_> {
                     }
                 }
                 Level::Import(i) => {
+                    if let Some(s) = scope.filter(|&s| self.defines_before_imports(s, name, ctx)) {
+                        level = Some(s);
+                        continue;
+                    }
                     if prev.is_some() && self.is_root_import(i) {
                         return Ok(prev.map(|h| h.found));
                     }
@@ -214,6 +218,17 @@ impl Typer<'_> {
             (Some(p), Some(q)) => p == q || self.u.is_subtype(p, q) && self.u.is_subtype(q, p),
             (p, q) => p == q,
         }
+    }
+
+    /// Whether scope or class members level `s` defines `name`; its definitions are seen before
+    /// the imports that share its scope (dotty's `isNewDefScope`), unlike a package's.
+    fn defines_before_imports(&mut self, s: LevelId, name: Name, ctx: Ctx) -> bool {
+        let defines = match *self.levels.get(s) {
+            Level::Scope(_) => true,
+            Level::Members(o) => self.u.symbol(o).kind == Kind::Class && !self.is_named_package_object(o),
+            Level::Import(_) => false,
+        };
+        defines && self.defined(s, name).and_then(|f| self.qualifying(f, s, ctx)).is_some()
     }
 
     /// Whether `found` has a symbol this unit defines.

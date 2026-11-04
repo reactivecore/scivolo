@@ -98,6 +98,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     drop_inlined::unmark_calls(l);
     array_apply::transform(l, &classes)?;
     for &td in &classes {
+        elim_static_this::transform(l, td);
         select_static::transform(l, td);
         tailrec::transform(l, td);
     }

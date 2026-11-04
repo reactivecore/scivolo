@@ -60,6 +60,7 @@ pub fn module_forwarder(l: &mut Lower, class: SymbolId, getter: SymbolId, span: 
     let sym = l.tpd.sym(def).expect("a forwarder's symbol");
     let flags = l.u.symbol(sym).flags.with(LAZY).with(FIELDaccessor);
     l.u.set_flags(sym, flags);
+    l.coords.insert(sym, Span::NONE);
     define(l, class, getter, sym, rhs);
     Ok(def)
 }

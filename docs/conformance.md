@@ -190,16 +190,16 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
 
-Results (2026-11-03):
+Results (2026-11-04):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1447 |
+| passed | 1464 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 2 |
-| typer refused | 57 |
+| lowering refused | 0 |
+| typer refused | 42 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -207,11 +207,7 @@ Results (2026-11-03):
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Lowering refused:** an inline method not erased; branches of erased types other than
-  classes and arrays.
-- **Typer refused:** mostly adaptations (8), members not found (4), implicit candidates with
-  undetermined type variables (3, #123), GADT constraints (3), inline methods of objects with
-  opaque types (3), `$scope` (3) and structural refinements of existing members (3).
+- **Typer refused:** mostly adaptations (8), members not found (5), GADT constraints (3) and `$scope` (3).
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
   libraries compiled before 3.4, which dotty accepts) and checks no other `future` rule.
@@ -220,6 +216,27 @@ Results (2026-11-03):
   annotations are not refining and erase away), and the capture checker, which runs after the
   typer and leaves the NIR unchanged, is not run (#168). Quotes under capture checking, whose
   TASTy would keep the annotations, are refused.
+
+### com-lihaoyi libraries from source
+
+`just lib-source NAME` compiles each file of a library on its own and compares its NIR with
+scala-cli's build of the whole module and, for the files that differ, with scala-cli's build of
+that file alone. Differences from both (2026-11-04):
+
+- **Quote type sharing** (fastparse `MacroInlineImpls$`, `MacroRepImpls$`, upickle-implicits
+  `macros$package$`; case 1): a quote string writes a type it wrote before as a `SHAREDtype`
+  where dotty writes it again, or the reverse. dotty shares types by object identity: a class
+  reference read from TASTy (by name), one from a JDK class file (by symbol through the package's
+  `this`) and an implicit-scope companion through its class's prefix are different objects;
+  ours tells references apart by symbol, name and `this` only. The quote reads back as the same
+  trees.
+- **Inline expansion position** (fastparse `package$`): one position of `LogOpsStr`'s expansion
+  is the definition's (`29:67`) where dotty's is the call's (`296:108`). Open.
+
+Against the whole-module build alone, sourcecode `Macros$`, mainargs `Macros$` and pprint
+`package` differ (case 1: types shared across files, static forwarders of members a package
+object inherits); compiled alone, dotty gives ours, mainargs' up to quote positions. upickle's
+own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `Api.scala`).
 
 ## M5: scala/scala `test/junit`
 

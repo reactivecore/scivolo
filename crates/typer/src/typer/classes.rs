@@ -49,14 +49,12 @@ impl Typer<'_> {
             self.syms.primary_ctors.insert(cls, ctor);
         }
         let super_ctx = self.super_call_ctx(t.constr, ctx);
-        let with_args = |p: &NodeId| matches!(*self.ast.tree(*p), Tree::Apply { args, .. } if !self.ast.items(args).is_empty());
-        if t.parents.iter().any(with_args) {
-            self.u.type_params(cls).into_iter().for_each(|p| self.complete(p));
-        }
-        let parents = self.parent_types(cls, &t.parents, super_ctx);
+        self.u.type_params(cls).into_iter().for_each(|p| self.complete(p));
+        let parents = self.parent_types(cls, tree, &t.parents, super_ctx);
         self.check_parents(cls, rhs, &parents);
         self.check_dynamics_enabled(rhs, &parents, ctx);
         self.u.set_parents(cls, parents);
+        self.check_object_parent_assumed(cls, tree);
         if let Tree::Template { parents_or_derived, derived: Some(n), .. } = *self.ast.tree(rhs) {
             let items = self.ast.items(parents_or_derived);
             let derived = items[items.len() - n as usize..].to_vec();

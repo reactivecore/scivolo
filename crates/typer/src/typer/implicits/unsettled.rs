@@ -33,24 +33,6 @@ impl Typer<'_> {
         unbounded.then_some("implicit search for a type with a higher-kinded type variable")
     }
 
-    /// Whether `t` applies an uninstantiated type variable of id `from` or later whose bounds
-    /// differ.
-    pub fn has_open_constructor(&mut self, t: TypeId, from: usize) -> bool {
-        let mut tycons = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Applied(c, _) = *u.types().get(part) {
-                tycons.push(c);
-            }
-            None
-        });
-        tycons.into_iter().any(|c| {
-            let c = self.zonk(c);
-            let Type::Var(v) = *self.u.types().get(c) else { return false };
-            let (lo, hi) = self.constraint.bounds(v);
-            v.0 as usize >= from && self.constraint.is_pending(v) && lo != hi
-        })
-    }
-
     /// What the search looks for in place of `t` (dotty's `wildApprox`): the upper bound of an
     /// uninstantiated type variable bounded from above only; that bound applied to the arguments
     /// of such a variable applied, if it is a class taking as many; an intersection with such
@@ -82,15 +64,20 @@ impl Typer<'_> {
         (self.u.type_params(class).len() == args.len()).then(|| self.u.intern_type(Type::Applied(hi, args)))
     }
 
-    /// `t` with its type variables whose bounds are equal up to aliases instantiated to them,
-    /// and so those of the instances.
+    /// `t` with its type variables whose bounds are equal up to aliases instantiated to them, or
+    /// to their upper bound if their lower bound is not normal and both normalize alike, and so
+    /// those of the instances.
     pub fn determined(&mut self, t: TypeId) -> TypeId {
         let mut t = self.zonk(t);
         for _ in 0..4 {
             let mut changed = false;
             for v in self.open_vars(t) {
                 let (lo, hi) = self.constraint.bounds(v);
-                if lo == hi || self.dealiased_parts(lo) == self.dealiased_parts(hi) {
+                let normal = self.u.normalized(lo);
+                if normal != lo && normal == self.u.normalized(hi) {
+                    self.constraint.instantiate(v, hi);
+                    changed = true;
+                } else if lo == hi || self.dealiased_parts(lo) == self.dealiased_parts(hi) {
                     self.constraint.instantiate(v, lo);
                     changed = true;
                 }

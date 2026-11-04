@@ -60,7 +60,8 @@ impl TreePickler<'_> {
         let mut todo = vec![(root, true)];
         while let Some((t, first)) = todo.pop() {
             let span = self.tpd.span(t);
-            if let Some(addr) = self.buf.addr_of_tree(t.index() as u32).filter(|_| span.exists()) {
+            let key = self.tpd.copy_of(t).unwrap_or(t).index() as u32;
+            if let Some(addr) = self.buf.addr_of_tree(key).filter(|_| span.exists()) {
                 if first {
                     out.span(addr, source.tasty_span(span)?);
                     out.source(self.pickler.names.utf8(&source.path));

@@ -4,6 +4,7 @@
 use super::NativeFn;
 use crate::interp::Flow;
 use crate::layout::{ARRAY_HEADER, ARRAY_LENGTH};
+use crate::object::Space;
 use crate::{Vm, heap};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -27,7 +28,7 @@ pub trait QuoteHost: std::any::Any {
     fn matched(&self, i: u32) -> Option<Result<u32, u32>>;
     /// Operation `op` of `quotes.reflect` on handles and numbers `args` and text `text`: its
     /// handles and numbers, and its text if it answers one.
-    fn reflect(&mut self, op: &str, args: &[i32], text: &str) -> Result<Reflected, &'static str>;
+    fn reflect(&mut self, op: &str, args: &[i32], text: &[u16]) -> Result<Reflected, &'static str>;
     /// Refuses the expansion for `what`, whatever the macro returns.
     fn refuse(&mut self, what: &str);
 }
@@ -36,8 +37,8 @@ pub trait QuoteHost: std::any::Any {
 /// `Ok`, a type `Err`.
 pub type Hole = (u32, Vec<Result<u32, u32>>);
 
-/// What a `quotes.reflect` operation answers: numbers and a text.
-pub type Reflected = (Vec<i32>, Option<String>);
+/// What a `quotes.reflect` operation answers: numbers and a text of UTF-16 units.
+pub type Reflected = (Vec<i32>, Option<Vec<u16>>);
 
 /// An argument of a macro implementation; a literal boxed by the JVM descriptor letter of its
 /// type (`T` a string, `N` null), its value's bits and its text, or a primitive's bits unboxed.
@@ -48,7 +49,7 @@ pub enum MacroArg {
     Expr(u32),
     Type(u32),
     Quotes,
-    Literal(u8, u64, Option<String>),
+    Literal(u8, u64, Option<Vec<u16>>),
     Unboxed(u64),
     Varargs(u32),
     ByName,
@@ -115,7 +116,7 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
             _ => Ok(0),
         },
         (HOST, "D11literalTextiL16java.lang.StringEO") => |vm, args| match macro_arg(vm, args[1]).cloned() {
-            Some(MacroArg::Literal(_, _, Some(text))) => Ok(vm.new_string(&text)? as u64),
+            Some(MacroArg::Literal(_, _, Some(text))) => Ok(vm.new_string_utf16(&text, Space::Gc)? as u64),
             _ => Ok(0),
         },
         (HOST, "D6refuseL16java.lang.StringuEO") => |vm, args| {

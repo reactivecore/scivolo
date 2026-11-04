@@ -82,8 +82,8 @@ impl Typer<'_> {
         self.typed_literal(id, value)
     }
 
-    /// Number literal `id` as `fromDigits` of the given `FromDigits` instance for `pt`; none if
-    /// there is none.
+    /// Number literal `id` as `fromDigits` of the given `FromDigits` instance for `pt`, in a
+    /// pattern as the expression of a block; none if there is none.
     fn generic_number(
         &mut self,
         id: NodeId,
@@ -113,9 +113,8 @@ impl Typer<'_> {
             Err(what) if is_misfit(what) => return Ok(None),
             Err(what) => return Err(what),
         };
-        if ctx.mode.is(Mode::PATTERN) {
-            return Err("generic number literal in a pattern");
-        }
+        let pattern = ctx.mode.is(Mode::PATTERN);
+        let ctx = ctx.with_mode(ctx.mode.without(Mode::PATTERN));
         let qualifier = self.spliced(arg);
         let name = TName { name: self.name("fromDigits"), is_type: false };
         let fun = self.ast.node(Tree::Select { qualifier, name });
@@ -137,7 +136,12 @@ impl Typer<'_> {
         let args = self.ast.list(&args);
         let app = self.ast.node(Tree::Apply { fun, args });
         self.ast.with_span(app, span.to_synthetic());
-        Ok(Some(self.typed(app, Pt::Type(pt), ctx)))
+        let typed = self.typed(app, Pt::Type(pt), ctx);
+        if !pattern {
+            return Ok(Some(typed));
+        }
+        let (stats, span) = (self.tpd.list(&[]), self.tpd.span(typed));
+        Ok(Some(self.build().block(stats, typed, span)))
     }
 
     pub fn typed_literal(&mut self, id: NodeId, value: Constant) -> TNodeId {

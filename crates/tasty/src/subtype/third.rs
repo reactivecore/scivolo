@@ -5,7 +5,7 @@
 //! variables, refinements, lambdas, unions, method types, bounds.
 
 use super::Cmp;
-use crate::types::{Type, TypeId, VarId};
+use crate::types::{Binder, Type, TypeId, VarId};
 use crate::{ANY, NOTHING};
 
 impl Cmp<'_> {
@@ -24,7 +24,7 @@ impl Cmp<'_> {
             Type::Refined(parent, name, info) => {
                 self.recur(a, parent) && self.has_matching_member(a, &name, info) || self.fourth_try(a, b)
             }
-            Type::Rec(_, parent) => self.recur(a, parent) || self.fourth_try(a, b),
+            Type::Rec(binder, parent) => self.compare_rec(a, binder, parent) || self.fourth_try(a, b),
             Type::Match { .. } => match self.reduced(b) {
                 Some(r) => self.recur(a, r),
                 None => self.fourth_try(a, b),
@@ -117,6 +117,28 @@ impl Cmp<'_> {
                 self.vars.add_lower(self.u, v, a)
             }
         }
+    }
+
+    /// `a <:` recursive type `binder`, `parent`: the parent of recursive `a` against `parent` with
+    /// one `this`, else stable `a` or a skolem of `a` against `parent` with that as `this` (dotty's
+    /// `compareRec`).
+    fn compare_rec(&mut self, a: TypeId, binder: Binder, parent: TypeId) -> bool {
+        let d = self.u.dealias(a);
+        let rec = match *self.u.types().get(d) {
+            Type::Rec(b1, p1) => Some((b1, p1)),
+            _ => None,
+        };
+        let (a, this) = match rec {
+            Some((b1, p1)) => (p1, self.u.intern_type(Type::RecThis(b1))),
+            _ if self.is_stable(a) => (a, a),
+            _ => {
+                let skolem = self.u.fresh_skolem(a);
+                (skolem, skolem)
+            }
+        };
+        let opened =
+            self.u.map_type(parent, &mut |u, x| (*u.types().get(x) == Type::RecThis(binder)).then_some(this));
+        self.recur(a, opened)
     }
 
     /// `tycon[args]` expanded if `tycon` is a type alias (dotty's `superType` of an applied alias).

@@ -41,9 +41,7 @@ impl Typer<'_> {
             let (lo, hi) = self.constraint.bounds(v);
             let (lo, hi) = (self.zonk(lo), self.zonk(hi));
             let final_hi = self.u.class_symbol(hi).is_some_and(|c| self.u.symbol(c).flags.has(FINAL));
-            let attempt = self.constraint.attempt();
-            let fixed = lo == hi || final_hi || self.conforms(hi, lo);
-            self.constraint.abandon(attempt);
+            let fixed = lo == hi || final_hi || self.u.is_subtype_frozen_in(hi, lo, &mut self.constraint);
             if fixed {
                 self.instantiate_var(v, false)?;
                 continue;

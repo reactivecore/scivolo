@@ -10,11 +10,11 @@ use typer::tpd::TNodeId;
 pub struct Args<'a> {
     numbers: &'a [i32],
     at: usize,
-    text: &'a str,
+    text: &'a [u16],
 }
 
 impl<'a> Args<'a> {
-    pub fn new(numbers: &'a [i32], text: &'a str) -> Self {
+    pub fn new(numbers: &'a [i32], text: &'a [u16]) -> Self {
         Args { numbers, at: 0, text }
     }
 
@@ -50,8 +50,10 @@ pub struct TyShape;
 pub struct Tree;
 /// An expression number, `None` for a negative one.
 pub struct OptTree;
-/// The text.
+/// The text, a lone surrogate replaced.
 pub struct Name;
+/// The text as UTF-16 units.
+pub struct Units;
 /// The arguments of kind `K` from here on.
 pub struct Rest<K>(PhantomData<K>);
 
@@ -130,7 +132,14 @@ impl Decode for Expr {
 impl Decode for Name {
     type Out = String;
     fn decode(_: &Host, args: &mut Args<'_>) -> Fallible<String> {
-        Ok(args.text.to_owned())
+        Ok(String::from_utf16_lossy(args.text))
+    }
+}
+
+impl Decode for Units {
+    type Out = Vec<u16>;
+    fn decode(_: &Host, args: &mut Args<'_>) -> Fallible<Vec<u16>> {
+        Ok(args.text.to_vec())
     }
 }
 

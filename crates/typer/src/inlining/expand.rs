@@ -77,7 +77,8 @@ impl<'i, 'a> Expansion<'i, 'a> {
             self.bind_clause(params, apply)?;
         }
         let mut this = self.bind_this(fun, meth, rhs)?;
-        this.extend(self.bind_opaque_this(meth, rhs, this.len())?);
+        let opaque_this = self.bind_opaque_this(meth, rhs, &this)?;
+        this.extend(opaque_this);
         let this_tpe =
             this.iter().map(|&(cls, proxy)| (cls, self.i.u.intern_type(Type::Sym(None, proxy)))).collect();
         let mut m = TreeTypeMap {
@@ -179,6 +180,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
                         let tpt = self.i.tpd.items(args)[0];
                         self.i.tpd.get_mut(tpt).span = span.end_pos();
                     }
+                    self.arg_span.insert(p, self.i.tpd.span(cast));
                     cast
                 }
                 None => arg,

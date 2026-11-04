@@ -122,7 +122,7 @@ impl Typer<'_> {
                     && self.occurrences(result, p, v, seen)
             }
             Type::Bounds(lo, hi) => self.occurrences(lo, p, -v, seen) && self.occurrences(hi, p, v, seen),
-            Type::ByName(r) => self.occurrences(r, p, v, seen),
+            Type::ByName(r) | Type::Flexible(r) => self.occurrences(r, p, v, seen),
             Type::And(a, b) | Type::Or(a, b, _) => {
                 self.occurrences(a, p, v, seen) && self.occurrences(b, p, v, seen)
             }
@@ -161,8 +161,9 @@ impl Typer<'_> {
         self.complete(c);
         let ctors = self.u.decl(c, "<init>").unwrap_or_default();
         let mut applicable = 0;
-        for ctor in &ctors {
-            let info = self.u.info(*ctor);
+        for &ctor in &ctors {
+            self.complete(ctor);
+            let info = self.u.info(ctor);
             let info = self.u.strip_poly(info);
             let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { continue };
             let no_args = match params[..] {

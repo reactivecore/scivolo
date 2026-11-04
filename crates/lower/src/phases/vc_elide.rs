@@ -8,6 +8,7 @@ use super::casts::class_named;
 use crate::Lower;
 use crate::definitions::primitive_class_name;
 use crate::symbols::has;
+use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
 use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
@@ -24,7 +25,8 @@ pub fn elided(l: &mut Lower, t: TNodeId) -> TNodeId {
     let [other] = args[..] else { return t };
     match new_with_arg(l, other) {
         Some((c, v)) if c == class && m == l.defs.any_eq && !has_own_equals(l, class) => {
-            let span = l.tpd.span(t);
+            let span = l.tpd.span(u).union(l.tpd.span(v));
+            let span = Span::new(span.start(), span.end(), span.start());
             let eq = equal_values(l, u, v);
             l.tpd.get_mut(eq).span = span;
             eq
@@ -33,8 +35,13 @@ pub fn elided(l: &mut Lower, t: TNodeId) -> TNodeId {
     }
 }
 
-/// The class and argument of `new C(u)`.
+/// The class and argument of `new C(u)`, also ascribed or in a block without statements.
 fn new_with_arg(l: &Lower, t: TNodeId) -> Option<(SymbolId, TNodeId)> {
+    match *l.tpd.tree(t) {
+        Tree::Typed { expr, .. } => return new_with_arg(l, expr),
+        Tree::Block { stats, expr } if l.tpd.items(stats).is_empty() => return new_with_arg(l, expr),
+        _ => {}
+    }
     let Tree::Apply { mut fun, args } = *l.tpd.tree(t) else { return None };
     if let Tree::TypeApply { fun: inner, .. } = *l.tpd.tree(fun) {
         fun = inner;

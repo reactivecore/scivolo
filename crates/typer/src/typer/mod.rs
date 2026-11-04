@@ -21,6 +21,7 @@ mod apply;
 mod apply_insertion;
 pub mod approx;
 mod arg_shapes;
+mod ascriptions;
 mod assign;
 mod auto_apply;
 mod avoid;
@@ -40,6 +41,7 @@ mod class_bound;
 mod class_members;
 mod classes;
 mod closure_params;
+mod closure_trees;
 mod closures;
 mod completion_diags;
 mod const_fold;
@@ -179,6 +181,7 @@ mod quote_pattern_checks;
 mod quote_patterns;
 mod quote_tags;
 mod quote_type_bindings;
+mod refined_projections;
 mod refined_types;
 mod refinement_members;
 mod refutable_warnings;
@@ -218,6 +221,7 @@ mod tries;
 mod try_capabilities;
 mod try_handlers;
 mod tuple_xxl;
+mod tupled_cases;
 pub(crate) mod type_apply;
 mod type_args;
 mod type_arity;
@@ -246,6 +250,7 @@ mod widening;
 mod wild_approx;
 mod wildcard_aliases;
 mod wildcard_members;
+mod zonk_trees;
 
 use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::Defn;
@@ -306,6 +311,8 @@ pub struct Typer<'a> {
     pub extension_receivers: rustc_hash::FxHashSet<NodeId>,
     /// The `new`s of parent calls (dotty's `noCheckNews`).
     pub parent_news: rustc_hash::FxHashSet<NodeId>,
+    /// The traits whose class parent was taken as `Object` while their parents were completed.
+    pub object_parents_assumed: Vec<SymbolId>,
     /// The imports of the unit, root imports first, by `Level::Import` index.
     pub imports: Vec<imports::ImportEntry>,
     /// The level each import tree opens.
@@ -434,6 +441,7 @@ impl<'a> Typer<'a> {
             splice_owners: FxHashMap::default(),
             extension_receivers: Default::default(),
             parent_news: Default::default(),
+            object_parents_assumed: Vec::new(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
             package_levels: FxHashMap::default(),

@@ -1,6 +1,7 @@
 //! The symbols of a library: packages known up front, each top-level file's classes and members
 //! entered when a name it defines is first looked up.
 
+mod annotations;
 mod any_members;
 mod base_types;
 mod bodies;
@@ -100,6 +101,9 @@ pub struct Universe {
     annotations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The string literal that is the only argument of each such annotation, by symbol and class.
     annotation_strings: FxHashMap<(SymbolId, SymbolId), Vec<Option<String>>>,
+    /// The `scala.annotation.meta` classes meta-annotating each such annotation, by symbol and
+    /// class.
+    annotation_metas: FxHashMap<(SymbolId, SymbolId), Vec<SymbolId>>,
     /// The class or package `q` of `private[q]` or `protected[q]` of the symbols defined outside
     /// TASTy.
     access_qualifiers: FxHashMap<SymbolId, SymbolId>,
@@ -120,6 +124,8 @@ pub struct Universe {
     jdk_jars: std::ops::Range<usize>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
+    /// The intersections and unions whose base types `base_type` is merging, with the base class.
+    merging_bases: FxHashSet<(TypeId, SymbolId)>,
     builtins: Builtins,
     /// How many binders `fresh_binder` has made.
     binders: u32,

@@ -58,6 +58,7 @@ impl Typer<'_> {
     fn proto_arity(&mut self, pt: Pt) -> usize {
         let Pt::Type(p) = pt else { return 1 };
         let t = self.zonk(p);
+        let t = self.function_type_in(t).unwrap_or(t);
         let t = self.u.dealias(t);
         if let Some((tycon, len)) = self.u.applied(t).map(|(c, args)| (c, args.len()))
             && let Some(class) = self.u.class_symbol(tycon)

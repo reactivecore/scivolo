@@ -105,7 +105,10 @@ impl Typer<'_> {
             return self.unsupported(id, super::source_splices::STAGING_REFERENCE);
         }
         if let Err(what) = self.check_value(sym, name, pt, ctx) {
-            return self.unsupported(id, what);
+            let Some(object) = self.package_object_value(sym, ctx) else { return self.unsupported(id, what) };
+            let qual = self.typed_ident(id, name, Pt::Any, ctx.with_mode(ctx.mode.with(Mode::QUALIFIER)));
+            let span = self.ast.span(id);
+            return self.build().select(qual, object, span);
         }
         if found.prefix.is_some_and(|p| self.jdk_redeclares(sym, p)) {
             return self.unsupported(id, "Object member a JDK interface redeclares");

@@ -9,8 +9,13 @@ use tasty::Universe;
 const CASES: &[(&str, &str)] = &[
     (
         "import scala.quoted.*\nobject Q { def g(x: Expr[Int])(using Quotes): Expr[Int] = x\n\
-         def f(using Quotes): Expr[Int] = '{ var y = 1; ${ g('{ y = 2; y }) } } }",
+         def f(using Quotes): Expr[Int] = '{ class C { val v = 1; def k: Int = ${ g('{ this.v }) } }; 1 } }",
         "captured reference in a quote",
+    ),
+    (
+        "import scala.quoted.*\nobject Q { def g(x: Expr[Int])(using Quotes): Expr[Int] = x\n\
+         def f(using Quotes): Expr[Int] = '{ def m[T](x: T): Int = ${ g('{ val l = List(x); l.size }) }; 1 } }",
+        "inferred types referring to a type of an outer quote",
     ),
     (
         "import scala.quoted.*\nobject Q { def f(x: Expr[Int])(using Quotes): Expr[Expr[Int]] = '{ '{ 1 } } }",

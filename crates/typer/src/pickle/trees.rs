@@ -2,22 +2,22 @@
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //! Trees (dotty's `pickleTree`): the terms and type trees of quotes without definitions.
 
-use super::names::sym_name;
 use super::{Refusal, TreePickler};
-use crate::defn::type_ref;
-use crate::signatures::result_sig;
 use crate::special::throw_method;
 use crate::tpd::{List, TNodeId, Tree as T, constant_type_of};
-use syntax::ast::TName;
+use tasty::Type;
 use tasty::tags::*;
-use tasty::write::Name;
-use tasty::{SymbolId, Type, TypeId};
 
 impl TreePickler<'_> {
+    /// The key tree `id` is registered under: the tree it is shared with or a copy of, else itself.
+    fn tree_key(&self, id: TNodeId) -> u32 {
+        let first = self.shared.get(&id).copied().or_else(|| self.tpd.copy_of(id)).unwrap_or(id);
+        first.index() as u32
+    }
+
     /// Tree `id`, a `SHAREDterm` if pickled before.
     pub fn tree(&mut self, id: TNodeId) -> Result<(), Refusal> {
-        let first = self.shared.get(&id).copied().unwrap_or(id);
-        let at = self.buf.register_tree(first.index() as u32);
+        let at = self.buf.register_tree(self.tree_key(id));
         if at != self.buf.buf.current_addr() {
             self.byte(SHAREDterm);
             self.buf.write_ref(at);
@@ -31,7 +31,7 @@ impl TreePickler<'_> {
         let typed = || tpe.ok_or("a tree without a type");
         match node.tree.clone() {
             T::Ident { name } => self.ident(id, name, typed()?, sym),
-            T::Select { qualifier, name } => self.select(qualifier, name, sym),
+            T::Select { qualifier, name } => self.select(id, qualifier, name, sym),
             T::Apply { fun, args } if self.tpd.sym(fun).is_some_and(|f| f == throw_method(self.u)) => {
                 self.byte(THROW);
                 self.tree(self.tpd.items(args)[0])
@@ -128,52 +128,8 @@ impl TreePickler<'_> {
         self.with_length(tag, &mut |p| all.iter().try_for_each(|&t| p.tree(t)))
     }
 
-    /// The name of tree name `name`, as `sym`'s name if it is the symbol's or a default getter's.
-    fn tree_name(&self, name: TName, sym: Option<SymbolId>) -> Name {
-        let text = self.names.text(name.name);
-        match sym {
-            Some(s) if self.u.symbol(s).name == text => sym_name(self.u, s),
-            Some(s) if text.contains("$default$") => self.ref_name(s),
-            _ => Name::utf8(text),
-        }
-    }
-
-    /// Identifier `id`: a reference to a self as its class's `this`, a path as its type, else its
-    /// name and type.
-    fn ident(&mut self, id: TNodeId, name: TName, tpe: TypeId, sym: Option<SymbolId>) -> Result<(), Refusal> {
-        if let Type::This(class) = *self.u.types().get(tpe) {
-            return self.class_this(id, None, class);
-        }
-        if self.is_term_ref(tpe) && self.names.text(name.name) != "_" {
-            return self.ty(tpe, false);
-        }
-        self.byte(if name.is_type { IDENTtpt } else { IDENT });
-        self.name(&self.tree_name(name, sym));
-        self.ty(tpe, false)
-    }
-
-    /// A selection, of a method through its owner unless the qualifier is a hole.
-    fn select(&mut self, qual: TNodeId, name: TName, sym: Option<SymbolId>) -> Result<(), Refusal> {
-        let method = sym.filter(|&s| !name.is_type && result_sig(self.u, s).is_some());
-        let Some(s) = method.filter(|_| !self.holes.contains_key(&qual)) else {
-            self.byte(if name.is_type { SELECTtpt } else { SELECT });
-            match method {
-                Some(s) => self.signed_name(s, true)?,
-                None => self.name(&self.tree_name(name, sym)),
-            }
-            return self.tree(qual);
-        };
-        let owner = self.u.symbol(s).owner.ok_or("a method without owner")?;
-        let owner = type_ref(self.u, owner);
-        self.with_length(SELECTin, &mut |p| {
-            p.signed_name(s, true)?;
-            p.tree(qual)?;
-            p.ty(owner, false)
-        })
-    }
-
     /// Whether `t` is a reference to a term or package (dotty's `TermRef`).
-    fn is_term_ref(&self, t: tasty::TypeId) -> bool {
+    pub fn is_term_ref(&self, t: tasty::TypeId) -> bool {
         match *self.u.types().get(t) {
             Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
             Type::TermRef(..) | Type::Package(_) | Type::PackageName(_) => true,

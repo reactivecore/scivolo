@@ -1,8 +1,10 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! `apply` inserted on an applied value (dotty's `tryInsertApplyOrImplicit`).
+//! `apply` inserted on an applied value (dotty's `tryInsertApplyOrImplicit`), an extension
+//! method `apply` if the member does not apply (`tryWithImplicitOnQualifier`).
 
 use super::implicits::conversions::{Goal, Viewed};
+use super::qualifier_views::QualifierView;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
@@ -63,6 +65,13 @@ impl Typer<'_> {
             };
             return dynamic.ok_or("application of a non-method");
         };
+        if self.extension_visible("apply", ctx)
+            && let Some(QualifierView::Extension) =
+                self.qualifier_view(f, (tpe, &found.syms), "apply", pt, ctx)
+            && let Some(apply) = self.extension_apply(f, pt, ctx)
+        {
+            return Ok(apply);
+        }
         let sym = match self.choose(&found.syms, Some(tpe), pt) {
             Err(_) if self.unusable_for_inference(pt) => return Ok(self.error_tree(self.tpd.span(f))),
             chosen => chosen?,

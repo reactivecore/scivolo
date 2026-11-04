@@ -89,8 +89,9 @@ pub struct Lower<'a> {
     explicit_casts: FxHashSet<TNodeId>,
     /// The casts of `null` codegen keeps: unboxed nulls of value classes.
     null_casts: FxHashSet<TNodeId>,
-    /// The type trees of ascriptions erased with value classes boxed (dotty's `Typed` of a cast).
-    boxed_ascriptions: FxHashSet<TNodeId>,
+    /// The trees whose types erase with value classes boxed: type trees of ascriptions (dotty's
+    /// `Typed` of a cast), conditionals and `try`s typed against a reference (`erasedLub`).
+    boxed_types: FxHashSet<TNodeId>,
     /// The static references `SelectStatic` made of selections (dotty's new `ref`s and blocks).
     static_selects: FxHashSet<TNodeId>,
     /// The local classes lifted out of blocks, each with its owner before.
@@ -232,7 +233,7 @@ impl<'a> Lower<'a> {
             local_classes: FxHashMap::default(),
             explicit_casts: FxHashSet::default(),
             null_casts: FxHashSet::default(),
-            boxed_ascriptions: FxHashSet::default(),
+            boxed_types: FxHashSet::default(),
             static_selects: FxHashSet::default(),
             mixed_in: FxHashSet::default(),
             specialized: FxHashSet::default(),

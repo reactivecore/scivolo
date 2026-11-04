@@ -7,8 +7,7 @@
 use super::{Typer, Widen};
 use crate::constraint::Constraint;
 use crate::symbols::SCRIPT_BINDERS;
-use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Kind, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
+use tasty::{NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 
 /// Whether `t` is a type lambda the script made (bound by a `fresh_binder` of the typer or of
 /// the universe).
@@ -61,22 +60,32 @@ impl Typer<'_> {
         self.normalized(t)
     }
 
-    /// Instantiates `v` to its lower bound widened (dotty's `instanceType`), or its upper bound.
-    pub fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
+    /// `v`'s lower bound widened below `v`, which may constrain `v`, or its upper bound (dotty's
+    /// `instanceType`).
+    pub fn instance_type(&mut self, v: VarId, from_below: bool) -> Result<TypeId, &'static str> {
         let (lo, hi) = self.constraint.bounds(v);
-        let (lo, hi) = (self.zonk(lo), self.zonk(hi));
-        let mut inst = if from_below { lo } else { hi };
-        inst = self.simplified_inferred(inst);
-        if from_below {
-            let widen = if self.constraint.is_hard(v) { Widen::Singletons } else { Widen::Unions };
-            inst = self.widen_inferred(inst, hi, widen)?;
-            if matches!(self.u.types().get(hi), Type::Var(_))
-                && !self.is_below_singleton(hi, 0)
-                && let widened = self.widen_singletons(inst, false)
-                && self.module_ref(widened) != inst
-            {
-                return Err("singleton instance below another type variable");
-            }
+        let inst = if from_below { self.zonk(lo) } else { self.zonk(hi) };
+        let inst = self.simplified_inferred(inst);
+        if !from_below {
+            return Ok(inst);
+        }
+        let widen = if self.constraint.is_hard(v) { Widen::Singletons } else { Widen::Unions };
+        let bound = self.u.intern_type(Type::Var(v));
+        self.widen_inferred(inst, bound, widen)
+    }
+
+    /// Instantiates `v` to its instance type.
+    pub fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
+        let inst = self.instance_type(v, from_below)?;
+        let hi = self.constraint.bounds(v).1;
+        let hi = self.zonk(hi);
+        if from_below
+            && matches!(self.u.types().get(hi), Type::Var(_))
+            && !self.is_below_singleton(hi, 0)
+            && let widened = self.widen_singletons(inst, false)
+            && self.module_ref(widened) != inst
+        {
+            return Err("singleton instance below another type variable");
         }
         let mut cyclic = false;
         self.u.map_type(inst, &mut |u, part| {
@@ -153,37 +162,5 @@ impl Typer<'_> {
             }
         }
         Err("type variables")
-    }
-
-    /// Makes the types of all trees, and of closures' symbols, fully defined; `Err` if a local
-    /// symbol escaped into the bound of a type variable.
-    pub fn zonk_trees(&mut self) -> Result<(), &'static str> {
-        for s in self.syms.closure_syms.clone() {
-            let info = self.u.info(s);
-            let info = self.fully_defined(info)?;
-            self.u.set_info(s, info);
-        }
-        for i in 0..self.tpd.len() {
-            let id = TNodeId::new(i);
-            if let Some(t) = self.tpd.get(id).tpe {
-                let t = self.fully_defined(t)?;
-                self.tpd.get_mut(id).tpe = Some(t);
-            }
-            let defines = matches!(self.tpd.tree(id), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });
-            if let Some(s) = self.tpd.sym(id).filter(|_| defines)
-                && !self.u.symbol(s).flags.has(tasty::tags::INLINEPROXY)
-                && !(self.syms.closure_syms.contains(&s)
-                    && matches!(self.u.symbol(s).kind, Kind::Param | Kind::Def))
-            {
-                let info = self.u.info(s);
-                if super::deskolemize::has_skolem(self.u, info) {
-                    return Err("skolem in the type of a definition");
-                }
-            }
-        }
-        if self.constraint.escaped() {
-            return Err("local type escaping through a type variable");
-        }
-        Ok(())
     }
 }

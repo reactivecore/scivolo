@@ -152,8 +152,9 @@ impl Typer<'_> {
     }
 
     /// Refuses protected `sym` selected from a path of type `qual_tpe` other than `this` or
-    /// `super`, outside its access boundary, unless it is a constructor of a parent of the class
-    /// whose parent calls `ctx` is in and `new` the qualifier.
+    /// `super`, outside its access boundary, from a class not deriving from its owner, a class,
+    /// unless it is a constructor of a parent of the class whose parent calls `ctx` is in and `new`
+    /// the qualifier (dotty's `ProtectedAccessors.needsAccessor`).
     pub fn check_protected_path(
         &mut self,
         sym: SymbolId,
@@ -168,10 +169,14 @@ impl Typer<'_> {
         {
             return Ok(());
         }
-        let s = self.u.symbol(sym);
-        let parent = s.owner;
+        let parent = self.u.symbol(sym).owner;
+        let enclosing = self.enclosing_class(ctx.owner);
+        if parent.is_some_and(|p| self.u.is_trait(p) || enclosing.is_some_and(|c| self.u.derives_from(c, p)))
+        {
+            return Ok(());
+        }
         let super_call = new
-            && s.name == "<init>"
+            && self.u.symbol(sym).name == "<init>"
             && self.super_call_class(ctx).zip(parent).is_some_and(|(c, p)| self.u.derives_from(c, p));
         if super_call { Ok(()) } else { Err("protected member through a path") }
     }

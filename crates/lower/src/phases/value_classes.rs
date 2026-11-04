@@ -143,7 +143,7 @@ fn inferred(l: &mut Lower, tpe: tasty::TypeId, span: syntax::ast::Span) -> TNode
 /// `ensureConforms`.
 fn cast_type(l: &mut Lower, tpe: tasty::TypeId, span: syntax::ast::Span) -> TNodeId {
     let tpt = inferred(l, tpe, span);
-    l.boxed_ascriptions.insert(tpt);
+    l.boxed_types.insert(tpt);
     tpt
 }
 

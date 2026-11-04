@@ -24,9 +24,16 @@ impl Typer<'_> {
             self.known_pattern_types.extend(syms);
             return tpe;
         }
-        if !pattern || syms.is_empty() || self.is_top(sel) || !self.refines_invariantly(tpe, sel) {
+        if !pattern || syms.is_empty() || self.is_top(sel) {
             return tpe;
         }
+        let sel = match self.refines_invariantly(tpe, sel) {
+            true => sel,
+            false => match self.without_variant_args(sel) {
+                Some(widened) => widened,
+                None => return tpe,
+            },
+        };
         let mark = self.constraint.mark();
         let vars: Vec<TypeId> = syms.iter().map(|_| self.constraint.fresh(self.u)).collect();
         let subst = |u: &mut tasty::Universe, t: TypeId| {
@@ -80,6 +87,13 @@ impl Typer<'_> {
     /// arguments otherwise left unconstrained).
     fn refines_invariantly(&mut self, pat: TypeId, sel: TypeId) -> bool {
         let sel = self.dealiased(sel);
+        if let Type::Or(a, b, _) = *self.u.types().get(sel) {
+            return match (self.is_null_type(a), self.is_null_type(b)) {
+                (true, _) => self.refines_invariantly(pat, b),
+                (_, true) => self.refines_invariantly(pat, a),
+                _ => self.refines_invariantly(pat, a) && self.refines_invariantly(pat, b),
+            };
+        }
         let widened = self.u.widen(sel);
         if has_wildcard(self.u, widened) {
             return false;
@@ -91,6 +105,27 @@ impl Typer<'_> {
         }
         let base = if self.u.derives_from(p, s) { s } else { p };
         self.u.variances(base).iter().all(|&v| v == 0)
+    }
+
+    /// Class application `sel` with its arguments at variant parameters replaced by `?`, which
+    /// `constrainSimplePatternType` leaves unconstrained, its `Null` parts dropped; `None` if `sel` has a wildcard
+    /// argument or no invariant parameter.
+    fn without_variant_args(&mut self, sel: TypeId) -> Option<TypeId> {
+        let sel = self.strip_null(sel);
+        let sel = self.dealiased(sel);
+        let sel = self.u.widen(sel);
+        if has_wildcard(self.u, sel) {
+            return None;
+        }
+        let Type::Applied(tycon, args) = self.u.types().get(sel).clone() else { return None };
+        let class = self.u.class_symbol(tycon)?;
+        let variances = self.u.variances(class);
+        if variances.len() != args.len() || variances.iter().all(|&v| v != 0) {
+            return None;
+        }
+        let any = self.u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY));
+        let args = args.iter().zip(&variances).map(|(&a, &v)| if v == 0 { a } else { any }).collect();
+        Some(self.u.intern_type(Type::Applied(tycon, args)))
     }
 
     /// Whether pattern type `pat` and `sel` apply the same class, each of `syms` an argument of

@@ -33,6 +33,7 @@ impl Features {
     pub const NAMED_TYPE_ARGUMENTS: Features = Features(1 << 14);
     pub const SAFER_EXCEPTIONS: Features = Features(1 << 15);
     pub const UNSAFE_NULLS: Features = Features(1 << 16);
+    pub const PACKAGE_OBJECT_VALUES: Features = Features(1 << 17);
 
     /// The feature a `-language:` option or `import scala.language.` path names.
     pub fn named(name: &str) -> Option<Features> {
@@ -56,6 +57,7 @@ impl Features {
             "experimental.namedTypeArguments" => Features::NAMED_TYPE_ARGUMENTS,
             "experimental.saferExceptions" => Features::SAFER_EXCEPTIONS,
             "unsafeNulls" => Features::UNSAFE_NULLS,
+            "experimental.packageObjectValues" => Features::PACKAGE_OBJECT_VALUES,
             _ => return None,
         })
     }

@@ -5,6 +5,7 @@ use super::NativeFn;
 use super::quotes::{HOST, QuoteHost, ints, with_host};
 use crate::Vm;
 use crate::interp::Flow;
+use crate::object::Space;
 
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
     let f: NativeFn = match (owner, sig) {
@@ -24,7 +25,7 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
             |vm, args| Ok(vm.quotes.reflected.0.get(args[1] as usize).map_or(0, |&n| n as u32 as u64))
         }
         (HOST, "D10resultTextL16java.lang.StringEO") => |vm, _| match vm.quotes.reflected.1.clone() {
-            Some(text) => Ok(vm.new_string(&text)? as u64),
+            Some(text) => Ok(vm.new_string_utf16(&text, Space::Gc)? as u64),
             None => Ok(0),
         },
         (HOST, "D8allocateL16java.lang.StringL16java.lang.ObjectEO") => |vm, args| {
@@ -45,7 +46,7 @@ fn reflect(vm: &mut Vm, args: &[u64]) -> Flow {
     }
     let op = vm.read_string(args[1] as usize)?;
     let numbers = ints(args[2] as usize);
-    let text = if args[3] == 0 { String::new() } else { vm.read_string(args[3] as usize)? };
+    let text = if args[3] == 0 { Vec::new() } else { vm.read_utf16(args[3] as usize)? };
     let mut answer = None;
     let count = with_host(vm, |h| {
         let reflected = h.reflect(&op, &numbers, &text)?;

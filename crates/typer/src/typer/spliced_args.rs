@@ -43,7 +43,8 @@ impl Typer<'_> {
         }
     }
 
-    /// A copy of path or call `t`, its qualifiers, functions and arguments copied too.
+    /// A copy of path or call `t`, its qualifiers, functions and arguments copied too, each node
+    /// marked a copy of its original.
     pub fn copied_path(&mut self, t: TNodeId) -> TNodeId {
         let tree = match self.tpd.tree(t).clone() {
             T::Select { qualifier, name } => T::Select { qualifier: self.copied_path(qualifier), name },
@@ -67,6 +68,8 @@ impl Typer<'_> {
             tree => tree,
         };
         let (span, tpe, sym) = (self.tpd.span(t), self.tpd.get(t).tpe, self.tpd.sym(t));
-        self.tpd.node(tree, span, tpe, sym)
+        let copy = self.tpd.node(tree, span, tpe, sym);
+        self.tpd.mark_copy(copy, t);
+        copy
     }
 }

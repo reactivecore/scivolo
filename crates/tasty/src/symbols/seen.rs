@@ -40,11 +40,13 @@ impl Universe {
                     _ => u.this_seen_from(prefix, owner, this_cls.unwrap_or(c), MAX_DEPTH)?,
                 };
                 let seen = u.base_type(prefix, c)?;
-                let arg = *u.applied(seen)?.1.get(i)?;
+                let param = u.type_params(c)[i];
+                let Some(arg) = u.base_arg(seen, i) else {
+                    return matches!(u.types().get(seen), Type::Or(..)).then_some(x);
+                };
                 if !matches!(u.types().get(arg), Type::Bounds(..)) {
                     return Some(arg);
                 }
-                let param = u.type_params(c)[i];
                 Some(u.intern_type(Type::Sym(Some(prefix), param)))
             }
         })
@@ -121,8 +123,21 @@ impl Universe {
         let class = self.symbol(p).owner.filter(|&c| self.symbol(c).kind == Kind::Class)?;
         let index = self.type_params(class).iter().position(|&q| q == p)?;
         let widened = self.widen(prefix);
-        let (_, args) = self.base_type(widened, class).and_then(|b| self.applied(b))?;
-        args.get(index).copied()
+        let base = self.base_type(widened, class)?;
+        self.base_arg(base, index)
+    }
+
+    /// The `i`th argument of base type `base`; of an intersection, its first part's; of a union,
+    /// its parts' if they agree.
+    fn base_arg(&mut self, base: TypeId, i: usize) -> Option<TypeId> {
+        match *self.types().get(base) {
+            Type::And(a, _) => self.base_arg(a, i),
+            Type::Or(a, b, _) => {
+                let x = self.base_arg(a, i)?;
+                (self.base_arg(b, i)? == x).then_some(x)
+            }
+            _ => self.applied(base)?.1.get(i).copied(),
+        }
     }
 
     /// The type of member `m` of `prefix`; a joint member of an intersection, its joint type.

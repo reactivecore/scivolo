@@ -27,15 +27,46 @@ impl Typer<'_> {
         }
     }
 
-    /// The parent types of a class from parent trees `parents`, typed in `ctx` and dealiased,
-    /// with a class first.
-    pub fn parent_types(&mut self, cls: SymbolId, parents: &[NodeId], ctx: Ctx) -> Vec<TypeId> {
+    /// Whether constructor call `parent` has type arguments.
+    fn has_type_args(&self, parent: NodeId) -> bool {
+        match *self.ast.tree(parent) {
+            Tree::TypeApply { .. } => true,
+            Tree::Apply { fun, .. } => self.has_type_args(fun),
+            _ => false,
+        }
+    }
+
+    /// Reports implicit or given object `cls`, defined by `tree`, whose class parent `parent`
+    /// has its type arguments or tracked parameters inferred (dotty's `missingType`).
+    fn check_inferred_parent(&mut self, cls: SymbolId, tree: NodeId, parent: NodeId) {
+        let implicit = |s: SymbolId, u: &tasty::Universe| {
+            let flags = u.symbol(s).flags;
+            flags.has(tasty::tags::IMPLICIT) || flags.has(tasty::tags::GIVEN)
+        };
+        if self.has_type_args(parent) || !self.u.is_module_class(cls) {
+            return;
+        }
+        if self.u.source_module(cls).is_some_and(|m| implicit(m, self.u)) {
+            let msg = "parent type of implicit definition needs to be given explicitly";
+            self.error_at(self.ast.span(tree), msg);
+        }
+    }
+
+    /// The parent types of class `cls`, defined by `tree`, from parent trees `parents`, typed in
+    /// `ctx` and dealiased, with a class first.
+    pub fn parent_types(&mut self, cls: SymbolId, tree: NodeId, parents: &[NodeId], ctx: Ctx) -> Vec<TypeId> {
         let mut types = Vec::new();
         for &p in parents {
             let tpt = self.parent_tpt(p);
             let typed = self.typed_type(tpt, ctx);
             let mut tpe = self.tpd.tpe(typed);
-            if matches!(self.ast.tree(p), Tree::Apply { .. }) && self.type_arity(tpe) > 0 {
+            let dealiased = self.u.dealias(tpe);
+            let dependent = self
+                .u
+                .class_symbol(dealiased)
+                .is_some_and(|c| self.u.symbol(c).flags.has(tasty::tags::TRACKED));
+            if matches!(self.ast.tree(p), Tree::Apply { .. }) && (self.type_arity(tpe) > 0 || dependent) {
+                self.check_inferred_parent(cls, tree, p);
                 let call = self.typed(p, super::Pt::Any, ctx);
                 self.typed_ahead(p, call, ctx);
                 tpe = self.tpd.tpe(call);
@@ -117,6 +148,19 @@ impl Typer<'_> {
         out
     }
 
+    /// Reports trait `cls` of definition `tree`, whose parents are set now, if its class parent
+    /// was taken as `Object` while they were completed and is another class.
+    pub fn check_object_parent_assumed(&mut self, cls: SymbolId, tree: NodeId) {
+        if !self.object_parents_assumed.contains(&cls) {
+            return;
+        }
+        self.object_parents_assumed.retain(|&c| c != cls);
+        let first = self.u.parents(cls).first().and_then(|&p| self.u.class_symbol(p));
+        if self.real_class_parent(first) != self.defn.object {
+            self.unsupported(tree, "class parent of a trait whose parents were being completed");
+        }
+    }
+
     /// The class `sym` is or, for a trait, the class its first parent leads to.
     fn real_class_parent(&mut self, sym: Option<SymbolId>) -> SymbolId {
         let Some(sym) = sym.filter(|&s| self.u.is_class(s)) else {
@@ -126,8 +170,10 @@ impl Typer<'_> {
             return sym;
         }
         self.complete(sym);
-        if let Some(&crate::symbols::Completion::Completing(tree)) = self.syms.completions.get(&sym) {
-            self.unsupported(tree, "parents of a class whose parents are being completed");
+        if let Some(crate::symbols::Completion::Completing(_)) = self.syms.completions.get(&sym)
+            && self.u.parents(sym).is_empty()
+        {
+            self.object_parents_assumed.push(sym);
         }
         let first = self.u.parents(sym).first().copied();
         let parent = first.and_then(|p| self.u.class_symbol(p));

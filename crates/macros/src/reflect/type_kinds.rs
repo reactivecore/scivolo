@@ -72,7 +72,7 @@ impl Host {
         parts.extend(params.iter().map(|&(_, t)| self.add_type(t) as i32));
         parts.push(self.add_type(result) as i32);
         let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
-        Ok((parts, Some(names.join("\0"))))
+        Ok((parts, Some(names.join("\0").encode_utf16().collect())))
     }
 
     /// The `this` of package `p`, which the operations other than type tests and extractors

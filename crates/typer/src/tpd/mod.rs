@@ -39,6 +39,7 @@ pub struct Tpd {
     quote_tags: FxHashMap<TNodeId, Vec<(SymbolId, TypeId)>>,
     pattern_givens: FxHashMap<SymbolId, SymbolId>,
     annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
+    copies: FxHashMap<TNodeId, TNodeId>,
     /// Whether the unit behaves as the Scala 2 library (dotty's `shouldBehaveAsScala2`).
     pub scala2: bool,
 }
@@ -171,5 +172,15 @@ impl Tpd {
     /// The annotation trees phases recorded for definition `sym`.
     pub fn annotations(&self, sym: SymbolId) -> &[TNodeId] {
         self.annotations.get(&sym).map_or(&[], Vec::as_slice)
+    }
+
+    /// Marks `copy` as a copy of `of` that is one tree with it in dotty's.
+    pub fn mark_copy(&mut self, copy: TNodeId, of: TNodeId) {
+        self.copies.insert(copy, self.copy_of(of).unwrap_or(of));
+    }
+
+    /// The tree `id` is a copy of, if marked one.
+    pub fn copy_of(&self, id: TNodeId) -> Option<TNodeId> {
+        self.copies.get(&id).copied()
     }
 }
