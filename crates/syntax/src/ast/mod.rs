@@ -4,6 +4,7 @@
 pub mod children;
 pub mod constant;
 mod copy;
+mod deep_copy;
 pub mod flags;
 pub mod from_digits;
 mod kinds;

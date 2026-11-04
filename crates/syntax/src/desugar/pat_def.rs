@@ -22,7 +22,8 @@ pub enum Lowering {
 const GIVEN_IN_VAL: &str = "given patterns are not allowed in a val definition,\nplease bind to an identifier and use an alias given.";
 
 impl Desugar<'_> {
-    /// `val p1, ..., pN: T = E` as the definitions of `makePatDef` for each pattern.
+    /// `val p1, ..., pN: T = E` as the definitions of `makePatDef` for each pattern, each but
+    /// the first with a copy of `E`.
     pub fn pat_def(&mut self, id: NodeId) -> NodeId {
         let Tree::PatDef { pats, tpt, rhs, mods } = *self.ast.tree(id) else {
             unreachable!("a pattern definition")
@@ -50,7 +51,12 @@ impl Desugar<'_> {
             }
         }
         let from = self.fresh.uniques.made();
-        let defs: Vec<NodeId> = pats.into_iter().map(|p| self.make_pat_def(id, p, rhs)).collect();
+        let defs: Vec<NodeId> = (pats.into_iter().enumerate())
+            .map(|(i, p)| {
+                let rhs = if i == 0 { rhs } else { rhs.map(|r| self.ast.deep_copy(r)) };
+                self.make_pat_def(id, p, rhs)
+            })
+            .collect();
         let defs = self.flatten(&defs);
         for &d in &defs {
             self.fresh.uniques.group_on_entry(from, self.ast.span(d));
