@@ -4,7 +4,7 @@
 //! The term holes of a quote: its splices without captured references, and the `termHoles`
 //! lambda calling their contents.
 
-use super::{QUOTE, SPLICE, splicing, staged};
+use super::{QUOTE, SPLICE, bound, splicing, staged};
 use crate::definitions::symbol;
 use crate::phases::lift_names::fresh;
 use crate::phases::walk::{children, subtrees};
@@ -54,6 +54,15 @@ pub fn extract(l: &mut Lower, body: TNodeId, owner: SymbolId) -> Result<Holes> {
     let mut holes = Holes { holes: Vec::new(), contents: Vec::new() };
     for (index, (splice, content)) in splices.into_iter().enumerate() {
         let captures = splicing::capture(l, content, &defined, owner);
+        if let Some(t) = captures.untranslated {
+            return unsupported(l.tpd.span(t), "inferred types referring to a type of an outer quote");
+        }
+        let start = l.tpd.span(content).start_pos();
+        for &a in &captures.args {
+            if !l.tpd.span(a).exists() {
+                l.tpd.get_mut(a).span = start;
+            }
+        }
         if let Some(&c) =
             subtrees(l.tpd, content).iter().find(|&&c| l.tpd.sym(c).is_some_and(|s| defined.contains(&s)))
         {
@@ -105,7 +114,7 @@ pub fn lambda(l: &mut Lower, contents: &[(TNodeId, Vec<SymbolId>)], owner: Symbo
         let rhss: Vec<TNodeId> = contents
             .iter()
             .map(|(c, params)| {
-                let c = splicing::bound(l, (*c, params), (seq_param, anon), &mut bound_at);
+                let c = bound::bound(l, (*c, params), (seq_param, anon), &mut bound_at);
                 applied(l, c, quotes_param, quotes, &mut at)
             })
             .collect();

@@ -18,8 +18,8 @@ const TYPE_OF: &str = "scala.quoted.Type$.of";
 /// A type quote: `Type.of[body]`, the type application the typer recorded the tags of, and the
 /// `Quotes` it is applied to.
 pub struct TypeQuote {
-    of: TNodeId,
-    body: TNodeId,
+    pub of: TNodeId,
+    pub body: TNodeId,
     quotes: TNodeId,
 }
 

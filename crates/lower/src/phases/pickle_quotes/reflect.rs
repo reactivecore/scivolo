@@ -71,6 +71,19 @@ pub fn call(l: &mut Lower, fun: TNodeId, args: &[TNodeId]) -> TNodeId {
     l.positioned(call)
 }
 
+/// `fun[targ]`, `fun` a reference to a method of one type parameter.
+pub fn type_applied(l: &mut Lower, fun: TNodeId, targ: TypeId) -> TNodeId {
+    let info = l.u.widen(l.tpd.tpe(fun));
+    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
+        panic!("a polymorphic method")
+    };
+    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+    let instance = l.u.subst(result, binder, &names, &[targ]);
+    let tpt = l.type_tree(targ, Span::NONE);
+    let applied = l.build().type_apply(fun, &[tpt], instance, Span::NONE);
+    l.positioned(applied)
+}
+
 /// `t.asInstanceOf[tpe]`.
 pub fn cast(l: &mut Lower, t: TNodeId, tpe: TypeId) -> TNodeId {
     let fun = l.select(t, l.defs.as_instance_of, Span::NONE);
