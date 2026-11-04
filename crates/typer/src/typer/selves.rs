@@ -37,8 +37,9 @@ impl Typer<'_> {
     pub fn ensure_self(&mut self, cls: SymbolId) {
         let Some((s, cctx)) = self.syms.pending_selves.remove(&cls) else { return };
         let Tree::ValDef { tpt, .. } = *self.ast.tree(s) else { return };
-        let typed = self.typed_type(tpt, cctx);
-        self.typed_ahead(tpt, typed, cctx);
+        let sctx = self.self_ctx(s, cctx);
+        let typed = self.typed_type(tpt, sctx);
+        self.typed_ahead(tpt, typed, sctx);
         let tpe = self.tpd.tpe(typed);
         self.u.set_info(self.syms.by_tree[&s], tpe);
         let applied = self.u.this_type(cls);
@@ -51,9 +52,10 @@ impl Typer<'_> {
     /// source leaves out is an inferred one.
     pub fn typed_self(&mut self, s: NodeId, cctx: Ctx) -> TNodeId {
         let Tree::ValDef { name, tpt, .. } = *self.ast.tree(s) else { unreachable!("a self definition") };
-        let typed = match self.ready(tpt, cctx) {
+        let sctx = self.self_ctx(s, cctx);
+        let typed = match self.ready(tpt, sctx) {
             Some(t) => t,
-            None => self.typed_type(tpt, cctx),
+            None => self.typed_type(tpt, sctx),
         };
         let span = self.ast.span(tpt);
         let singleton = matches!(self.ast.tree(tpt), Tree::SingletonTypeTree { .. });
@@ -66,6 +68,12 @@ impl Typer<'_> {
         };
         let sym = self.syms.by_tree.get(&s).copied();
         self.tpd.node(T::ValDef { name, tpt, rhs: None }, self.ast.span(s), None, sym)
+    }
+
+    /// The context of self definition `s`'s type: the class's context `cctx` owned by the self.
+    fn self_ctx(&self, s: NodeId, cctx: Ctx) -> Ctx {
+        let owner = self.syms.by_tree.get(&s).copied().unwrap_or(cctx.owner);
+        Ctx { owner, ..cctx }
     }
 
     /// Refuses class `cls` if its self type does not conform to a parent's given self type seen

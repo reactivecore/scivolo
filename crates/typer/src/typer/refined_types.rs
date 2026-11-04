@@ -44,11 +44,12 @@ impl Typer<'_> {
         for &r in &items {
             let Tree::TypeDef { name, rhs, .. } = *self.ast.tree(r) else {
                 match self.term_refinement(class, r, ctx) {
-                    Ok((name, ..)) if !self.type_members(tpe, &name).is_empty() => {
-                        return self.unsupported(r, "structural refinement of an existing member");
-                    }
                     Ok((name, info, tree)) => {
-                        tpe = self.u.intern_type(Type::Refined(tpe, name, info));
+                        let refined = self.u.intern_type(Type::Refined(tpe, name.clone(), info));
+                        if let Err(what) = self.refines_member(tpe, refined, &name) {
+                            return self.unsupported(r, what);
+                        }
+                        tpe = refined;
                         members.push(tree);
                     }
                     Err(what) => return self.unsupported(r, what),
@@ -135,6 +136,25 @@ impl Typer<'_> {
                 .mods_of(p)
                 .is_some_and(|m| self.ast.modifiers(m).flags.is_one_of(COVARIANT.or(CONTRAVARIANT)))
         })
+    }
+
+    /// `Ok` if `refined`, `parent` refined by term member `name`, adds that member, or refines
+    /// the member of `parent` it names, one without a target name, with a type it already has or
+    /// one narrowing it.
+    fn refines_member(&mut self, parent: TypeId, refined: TypeId, name: &str) -> Result<(), &'static str> {
+        let members = self.type_members(parent, name);
+        let terms: Vec<_> = members.into_iter().filter(|&m| self.u.symbol(m).kind.is_term()).collect();
+        if terms.iter().any(|&m| self.u.symbol(m).target.is_some()) {
+            return Err("structural refinement of a member with a target name");
+        }
+        if terms.is_empty() || self.u.is_subtype(parent, refined) {
+            return Ok(());
+        }
+        let narrows = terms.into_iter().any(|m| {
+            let seen = self.u.member_info(parent, m);
+            self.u.narrowing_refinement(refined, m, seen).is_some()
+        });
+        narrows.then_some(()).ok_or("structural refinement unlike its existing member")
     }
 
     /// Whether `t` has a member class named `name`.

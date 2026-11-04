@@ -86,6 +86,7 @@ impl Typer<'_> {
                 self.side_classes(a, out);
                 self.side_classes(b, out);
             }
+            Type::Refined(p, ..) | Type::Annotated(p, _) => self.side_classes(p, out),
             _ => {
                 let widened = self.u.widen(t);
                 let widened = self.u.dealias(widened);

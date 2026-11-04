@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
-//! The proxies `$proxyN` of the static objects with opaque types read from TASTy that an inline
-//! call refers to, without the refinements exposing the aliases, and the proxy of the `this` of
-//! such an object bound to one (dotty's `mapOpaquesInValueArg`, `addOpaqueProxies`,
+//! The proxies `$proxyN` of the objects with opaque types that an inline call's arguments or
+//! prefix refer to, and the proxy of the `this` of a static object with opaque types read from
+//! TASTy bound to one (dotty's `mapOpaquesInValueArg`, `addOpaqueProxies`,
 //! `accountForOpaques`, `canElideThis` on `seesOpaques`).
 
 use super::Unsupported;
@@ -91,9 +91,9 @@ impl Expansion<'_, '_> {
         Ok(vec![(cls, proxy)])
     }
 
-    /// The `$proxyN` of path `r` if it refers to an object with opaque types read from TASTy,
-    /// one enclosing `within` if given, bound after the others at `span`.
-    fn opaque_proxy(&mut self, r: TypeId, within: Option<SymbolId>, span: Span) -> Option<SymbolId> {
+    /// The `$proxyN` of path `r` if it refers to an object with opaque types, one enclosing
+    /// `within` if given, bound after the others at `span`.
+    pub fn opaque_proxy(&mut self, r: TypeId, within: Option<SymbolId>, span: Span) -> Option<SymbolId> {
         if let Some(&(_, p)) = self.opaque_refs.iter().find(|&&(x, _)| x == r) {
             return Some(p);
         }
@@ -103,9 +103,10 @@ impl Expansion<'_, '_> {
         }
         let class = self.i.u.class_symbol(widened)?;
         let bases = self.i.u.linearization(class);
-        let cls = bases
-            .into_iter()
-            .find(|&c| self.contains_tasty_opaques(c) && within.is_none_or(|m| encloses(self, c, m)))?;
+        let cls = bases.into_iter().find(|&c| {
+            let opaques = self.contains_tasty_opaques(c) || self.i.u.has_opaques(c);
+            opaques && within.is_none_or(|m| encloses(self, c, m))
+        })?;
         let point = Span::at(span.start());
         let refined = self.i.opaques_exposed(r, cls);
         let rhs = self.i.singleton(r, point)?;

@@ -22,8 +22,22 @@ impl Cmp<'_> {
         let site = if self.is_stable(a) { a } else { t };
         members.into_iter().any(|m| {
             let have = self.u.member_info(site, m);
-            self.info_conforms(have, info) || self.abstract_member_matches(a, m, have, info)
+            self.info_conforms(have, info)
+                || self.abstract_member_matches(a, m, have, info)
+                || self.stable_member_matches(a, m, info)
         })
+    }
+
+    /// Whether `a.m`, for path `a` and stable value `m`, conforms to value type `want`.
+    fn stable_member_matches(&mut self, a: TypeId, m: crate::SymbolId, want: TypeId) -> bool {
+        let sym = self.u.symbol(m);
+        let stable =
+            matches!(sym.kind, crate::Kind::Val | crate::Kind::Param) && !sym.flags.has(crate::tags::MUTABLE);
+        if !stable || !self.is_stable(a) || !self.is_value_type(want) {
+            return false;
+        }
+        let selected = self.u.intern_type(Type::Sym(Some(a), m));
+        self.recur(selected, want)
     }
 
     /// Whether abstract type member `m` of path `a`, selected on `a`, lies within the bounds
