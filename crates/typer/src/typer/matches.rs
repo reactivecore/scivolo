@@ -181,9 +181,10 @@ impl Typer<'_> {
         self.tpd.node(T::Alternative { trees }, span, Some(tpe), None)
     }
 
-    /// Whether pattern `t` or a pattern inside it binds a variable.
+    /// Whether pattern `t` or a pattern inside it binds a variable, a wildcard type argument's
+    /// type aside.
     fn binds_variable(&self, t: TNodeId) -> bool {
-        matches!(self.tpd.tree(t), T::Bind { .. })
+        matches!(self.tpd.tree(t), T::Bind { name, .. } if !name.is_type || !self.tpd.span(t).is_synthetic())
             || self.tpd.children(t).into_iter().any(|c| self.binds_variable(c))
     }
 }

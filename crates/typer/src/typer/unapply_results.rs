@@ -7,7 +7,7 @@ use super::Typer;
 use super::dependent_params::applied_result;
 use crate::symbols::Completion;
 use crate::tpd::TNodeId;
-use tasty::{Binder, SymbolId, Type, TypeId, Universe};
+use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 
 impl Typer<'_> {
     /// Result `t` of extractor `unapp` of parameter `param` of the method type of binder
@@ -111,6 +111,25 @@ impl Typer<'_> {
             }
             _ => false,
         }
+    }
+
+    /// Completes the unit's classes not yet completed, members of packages and classes, whose
+    /// parents a library class may reach, unless a definition is being completed; whether there
+    /// were any.
+    pub fn complete_unit_classes(&mut self) -> bool {
+        if self.syms.completions.values().any(|c| matches!(c, Completion::Completing(_))) {
+            return false;
+        }
+        let mut pending: Vec<SymbolId> = (self.syms.completions.iter())
+            .filter(|&(&s, c)| {
+                matches!(c, Completion::Pending { .. }) && self.u.symbol(s).kind == Kind::Class
+            })
+            .filter(|&(&s, _)| self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind != Kind::Def))
+            .map(|(&s, _)| s)
+            .collect();
+        pending.sort_by_key(|s| s.0);
+        pending.iter().for_each(|&s| self.complete(s));
+        !pending.is_empty()
     }
 
     /// Completes class `c` and the unit's classes among its base classes.

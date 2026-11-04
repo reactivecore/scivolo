@@ -3,10 +3,14 @@
 //! Annotated expressions `e: @a`, as `e: T @a`, and annotated types (dotty's `typedAnnotated`).
 
 use super::{Pt, Typer};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::NodeId;
+use syntax::ast::{Attrs, NodeId};
 use tasty::{Type, TypeId};
+
+/// The meta-annotations of `scala.annotation.meta` that choose the definitions a field's
+/// annotation goes to.
+const ACCESSOR_METAS: [&str; 4] = ["field", "getter", "setter", "param"];
 
 impl Typer<'_> {
     pub fn typed_annotated(&mut self, id: NodeId, arg: NodeId, annot: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -39,13 +43,16 @@ impl Typer<'_> {
     /// it is `deprecated`.
     pub fn typed_annotated_type(&mut self, id: NodeId, arg: NodeId, annot: NodeId, ctx: Ctx) -> TNodeId {
         let arg = self.typed_type(arg, ctx);
-        let annot = self.typed(annot, Pt::Any, ctx);
+        let retains = self.ast.attrs(annot).contains(Attrs::RETAINS_ANNOT);
+        let annot_ctx = if retains { ctx.with_mode(ctx.mode.with(Mode::IN_CAPTURE_SET)) } else { ctx };
+        let annot = self.typed(annot, Pt::Any, annot_ctx);
         let annot_tpe = self.tpd.tpe(annot);
         let Some(annot_class) = self.u.class_symbol(annot_tpe) else {
             return self.unsupported(id, "annotated type");
         };
         let arg_class = self.u.class_symbol(self.tpd.tpe(arg));
-        if self.u.full_name(annot_class).starts_with("scala.annotation.meta.")
+        let meta = self.u.full_name(annot_class);
+        if meta.strip_prefix("scala.annotation.meta.").is_some_and(|m| !ACCESSOR_METAS.contains(&m))
             && arg_class.is_none_or(|c| self.u.full_name(c) != "scala.deprecated")
         {
             return self.unsupported(id, "meta-annotated annotation other than deprecated");

@@ -10,7 +10,7 @@ use crate::typer::Typer;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type};
 
 /// The annotation classes refused: those whose meaning dotty's later phases implement and the
 /// lowering does not. A backend's own annotations are its code generator's to read or refuse.
@@ -33,7 +33,7 @@ impl Typer<'_> {
         }
         let ctx = self.annot_ctx(sym, ctx);
         for annot in annots {
-            let Some(class) = self.annotation_class(annot, ctx) else {
+            let Some((class, metas)) = self.annotation_class(annot, ctx) else {
                 self.unsupported(annot, "annotation");
                 continue;
             };
@@ -46,6 +46,9 @@ impl Typer<'_> {
                 "scala.annotation.targetName" => self.enter_target_name(sym, annot),
                 "scala.annotation.unroll" => self.check_unroll(sym, annot),
                 _ => {}
+            }
+            if !self.u.annotations(sym).contains(&class) {
+                metas.into_iter().for_each(|m| self.u.annotate_meta(sym, class, m));
             }
             self.u.annotate(sym, class);
             if self.defn.main_annot(self.u) == Ok(class) {
@@ -63,15 +66,23 @@ impl Typer<'_> {
 
     /// The class of annotation `annot`, its type tree typed in `ctx` (dotty's
     /// `typedAheadAnnotationClass`).
-    fn annotation_class(&mut self, annot: NodeId, ctx: Ctx) -> Option<SymbolId> {
+    fn annotation_class(&mut self, annot: NodeId, ctx: Ctx) -> Option<(SymbolId, Vec<SymbolId>)> {
         let mut t = annot;
-        while let Tree::Apply { fun: inner, .. } | Tree::Select { qualifier: inner, .. } = *self.ast.tree(t) {
+        while let Tree::Apply { fun: inner, .. }
+        | Tree::TypeApply { fun: inner, .. }
+        | Tree::Select { qualifier: inner, .. } = *self.ast.tree(t)
+        {
             t = inner;
         }
         let Tree::New { tpt } = *self.ast.tree(t) else { return None };
         let typed = self.typed_type(tpt, ctx);
-        let tpe = self.tpd.tpe(typed);
-        self.u.class_symbol(tpe)
+        let mut tpe = self.tpd.tpe(typed);
+        let mut metas = Vec::new();
+        while let Type::Annotated(inner, meta) = *self.u.types().get(tpe) {
+            metas.extend(self.u.class_symbol(meta));
+            tpe = inner;
+        }
+        Some((self.u.class_symbol(tpe)?, metas))
     }
 
     /// Gives method or value `sym` the run-time name of `@targetName` annotation `annot`, whose
@@ -139,7 +150,10 @@ impl Typer<'_> {
             let annots: Vec<(NodeId, Ctx)> =
                 self.syms.annotation_trees.iter().filter(|a| a.0 == p).map(|a| (a.1, a.2)).collect();
             for (annot, ctx) in annots {
-                if self.annotation_class(annot, ctx).is_none_or(|c| self.u.full_name(c) != DEPRECATED_NAME) {
+                if self
+                    .annotation_class(annot, ctx)
+                    .is_none_or(|(c, _)| self.u.full_name(c) != DEPRECATED_NAME)
+                {
                     continue;
                 }
                 let deprecated = match self.deprecated_name_arg(annot) {
