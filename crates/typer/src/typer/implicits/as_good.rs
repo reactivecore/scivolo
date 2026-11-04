@@ -139,6 +139,15 @@ impl Typer<'_> {
                 let x = self.flipped(x, v)?;
                 Some(self.u.intern_type(Type::Annotated(x, annot)))
             }
+            Type::Refined(parent, name, info) => {
+                let (parent, info) = (self.flipped(parent, v)?, self.flipped(info, v)?);
+                Some(self.u.intern_type(Type::Refined(parent, name, info)))
+            }
+            Type::Alias(_) => Some(t),
+            Type::Bounds(lo, hi) => {
+                let (lo, hi) = (self.flipped(lo, -v)?, self.flipped(hi, v)?);
+                Some(self.u.intern_type(Type::Bounds(lo, hi)))
+            }
             _ => {
                 let mut applied = false;
                 self.u.map_type(t, &mut |u, part| {

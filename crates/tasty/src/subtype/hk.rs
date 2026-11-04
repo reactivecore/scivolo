@@ -89,7 +89,7 @@ impl Cmp<'_> {
             return true;
         }
         let Some(class) = self.u.class_symbol(widened) else { return false };
-        for base in self.u.linearization(class).into_iter().skip(1) {
+        for base in self.u.linearization(class) {
             if let Some(base_type) = self.u.base_type(widened, base)
                 && self.unify_constructor(var, args, base_type, true)
             {
