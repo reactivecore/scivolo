@@ -33,7 +33,6 @@ pub fn adapt_from(l: &mut Lower, t: TNodeId, from: Erased, pt: &Erased) -> TNode
             super::ascribed(l, c, tpe, span)
         }
         (Erased::Value(_, u), Erased::Value(_, v)) => adapt_from(l, t, *u, v),
-        (Erased::Value(_, u), pt) if *u == *pt => t,
         (Erased::Value(class, u), pt) if reference(pt) => {
             let boxed = boxed(l, t, &class, &u);
             adapt(l, boxed, pt)

@@ -28,7 +28,7 @@ impl Gen<'_, '_> {
             }
             Tree::Ident { .. } => self.gen_ident(t),
             Tree::If { cond, thenp, elsep, .. } => {
-                let retty = self.gen_type(self.l.tpd.tpe(t));
+                let retty = self.branches_type(t);
                 self.gen_if(retty, cond, thenp, elsep)
             }
             Tree::Literal { ref value } => self.gen_literal(t, &value.clone()),

@@ -13,7 +13,7 @@ use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, Type};
 use typer::RETAINED_BODY;
 use typer::tpd::{TNodeId, Tree};
 
@@ -118,7 +118,7 @@ fn move_body(l: &mut Lower, class: SymbolId, def: TNodeId, ext: SymbolId) -> TNo
     let class_type = type_ref(l.u, class);
     l.u.set_info(this, class_type);
     let span = l.tpd.span(def);
-    let this_def = l.param_def(this, Span::NONE);
+    let this_def = l.param_def(this, Span::at(span.point()));
     let mut ext_clauses = vec![l.tpd.list(&[this_def])];
     let mut kept = Vec::new();
     let mut forwarded = Vec::new();
@@ -171,8 +171,13 @@ fn rewire_body(l: &mut Lower, class: SymbolId, m: SymbolId, ext: SymbolId, this:
         let span = l.tpd.span(t);
         let sym = l.tpd.sym(t);
         let rewired = sym.filter(|&s| l.u.symbol(s).owner == Some(class) && has_extension(l, s));
+        let this_of_class = match l.tpd.tree(t) {
+            Tree::This { .. } => sym == Some(class),
+            &Tree::Ident { name } => !name.is_type && is_self_ref(l, t, class),
+            _ => false,
+        };
         match (l.tpd.tree(t), rewired) {
-            (Tree::This { .. }, _) if sym == Some(class) => {
+            (Tree::This { .. } | Tree::Ident { .. }, _) if this_of_class => {
                 let this_ref = l.ident(this, span);
                 l.copy_node(t, this_ref);
             }
@@ -211,6 +216,13 @@ fn rewired_call(l: &mut Lower, module: SymbolId, m: SymbolId, qualifier: TNodeId
     let tpe = l.u.result_type(l.u.strip_poly(info));
     let span = l.tpd.span(qualifier);
     l.apply(fun, &[qualifier], tpe, span)
+}
+
+/// Whether `t` refers to the self of `class`.
+fn is_self_ref(l: &mut Lower, t: TNodeId, class: SymbolId) -> bool {
+    let Some(tpe) = l.tpd.get(t).tpe else { return false };
+    let Type::This(c) = *l.u.types().get(tpe) else { return false };
+    l.u.class_symbol(c) == Some(class)
 }
 
 /// Whether `s` is a term member of `class`.

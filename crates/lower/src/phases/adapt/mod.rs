@@ -66,6 +66,7 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
         Tree::TypeApply { .. } if is_cast(l, t) => l.u.erase_boxed(l.tpd.tpe(t)),
         Tree::New { .. } => l.u.erase_boxed(l.tpd.tpe(t)),
         Tree::Block { expr, .. } => erased_type(l, expr),
+        Tree::If { .. } | Tree::Try { .. } if l.boxed_types.contains(&t) => l.u.erase_boxed(l.tpd.tpe(t)),
         Tree::Typed { tpt, .. } => ascription_type(l, tpt),
         Tree::Ident { .. } | Tree::Select { .. } if sym == Some(l.defs.boxed_unit_unit) => {
             Erased::Class("scala.runtime.BoxedUnit".into())
@@ -90,7 +91,7 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
 /// a value class boxed if `tpt` is a boxed ascription's (dotty's `typedTyped`).
 pub fn ascription_type(l: &mut Lower, tpt: TNodeId) -> Erased {
     let tpe = l.tpd.tpe(tpt);
-    if l.boxed_ascriptions.contains(&tpt) {
+    if l.boxed_types.contains(&tpt) {
         return l.u.erase_boxed(tpe);
     }
     match l.u.erase_value(tpe) {
