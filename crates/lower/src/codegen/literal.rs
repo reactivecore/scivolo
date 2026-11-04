@@ -10,7 +10,7 @@ use syntax::ast::constant::Constant;
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
-    pub fn gen_literal(&mut self, t: TNodeId, c: &Constant) -> Result<ValId> {
+    pub fn gen_literal(&mut self, c: &Constant) -> ValId {
         let v = match *c {
             Constant::Unit => Val::Unit,
             Constant::Null => Val::Null,
@@ -23,12 +23,9 @@ impl Gen<'_, '_> {
             Constant::Long(l) => Val::Long(l),
             Constant::Float(f) => Val::Float(f.to_bits()),
             Constant::Double(d) => Val::Double(d.to_bits()),
-            Constant::String(ref units) => match String::from_utf16(units) {
-                Ok(s) => Val::String(self.str(&s)),
-                Err(_) => return unsupported(self.l.tpd.span(t), "strings that are not valid Unicode"),
-            },
+            Constant::String(ref units) => Val::String(self.pool.intern_utf16(units)),
         };
-        Ok(self.val(v))
+        self.val(v)
     }
 
     /// `classOf[tpe]`: the class of an object for its singleton type.

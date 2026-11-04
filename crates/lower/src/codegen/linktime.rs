@@ -114,7 +114,7 @@ impl Gen<'_, '_> {
     /// The value of literal `t`.
     fn literal_value(&mut self, t: TNodeId) -> Option<Val> {
         let Tree::Literal { value } = self.l.tpd.tree(t).clone() else { return None };
-        let v = self.gen_literal(t, &value).ok()?;
+        let v = self.gen_literal(&value);
         Some(self.pool.val(v).clone())
     }
 }

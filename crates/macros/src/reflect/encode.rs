@@ -55,7 +55,7 @@ impl Encode for u64 {
 
 impl Encode for String {
     fn put(self, _: &mut Host, out: &mut Reflected) -> Fallible<()> {
-        out.1 = Some(self);
+        out.1 = Some(self.encode_utf16().collect());
         Ok(())
     }
 }

@@ -31,7 +31,7 @@ impl Gen<'_, '_> {
                 let retty = self.branches_type(t);
                 self.gen_if(retty, cond, thenp, elsep)
             }
-            Tree::Literal { ref value } => self.gen_literal(t, &value.clone()),
+            Tree::Literal { ref value } => Ok(self.gen_literal(&value.clone())),
             Tree::ClassLiteral { tpe } => self.gen_class_literal(t, tpe),
             Tree::Select { qualifier, .. } => self.gen_select(t, qualifier),
             Tree::SeqLiteral { elems, elemtpt } => self.gen_array_literal(t, elems, elemtpt),

@@ -16,13 +16,13 @@ impl Host {
     }
 
     /// The literal of the constant of kind `kind`, value words `bits` and text `text`.
-    pub fn literal(&mut self, kind: i32, bits: u64, text: String) -> Fallible<TNodeId> {
+    pub fn literal(&mut self, kind: i32, bits: u64, text: Vec<u16>) -> Fallible<TNodeId> {
         let c = decoded(kind, bits, &text)?;
         self.reflect().literal(c)
     }
 
     /// The constant type of the constant of kind `kind`, value words `bits` and text `text`.
-    pub fn constant_type_of(&mut self, kind: i32, bits: u64, text: String) -> Fallible<TypeId> {
+    pub fn constant_type_of(&mut self, kind: i32, bits: u64, text: Vec<u16>) -> Fallible<TypeId> {
         let c = decoded(kind, bits, &text)?;
         Ok(typer::tpd::constant_type_of(&mut self.u, &c))
     }
@@ -38,7 +38,7 @@ pub fn encoded(c: Constant) -> Reflected {
         Constant::Char(c) => (4, c as u64),
         Constant::Double(d) => (5, d.to_bits()),
         Constant::Float(f) => (6, f.to_bits() as u64),
-        Constant::String(ref s) => return (vec![7, 0, 0], Some(String::from_utf16_lossy(s))),
+        Constant::String(ref s) => return (vec![7, 0, 0], Some(s.to_vec())),
         Constant::Null => (8, 0),
         Constant::Unit => (9, 0),
         Constant::Byte(b) => (10, b as i64 as u64),
@@ -48,7 +48,7 @@ pub fn encoded(c: Constant) -> Reflected {
 }
 
 /// The constant of kind `kind` with value `bits` and text `text`.
-fn decoded(kind: i32, bits: u64, text: &str) -> Fallible<Constant> {
+fn decoded(kind: i32, bits: u64, text: &[u16]) -> Fallible<Constant> {
     Ok(match kind {
         1 => Constant::Int(bits as i32),
         2 => Constant::Long(bits as i64),
@@ -56,7 +56,7 @@ fn decoded(kind: i32, bits: u64, text: &str) -> Fallible<Constant> {
         4 => Constant::Char(bits as u16),
         5 => Constant::Double(f64::from_bits(bits)),
         6 => Constant::Float(f32::from_bits(bits as u32)),
-        7 => Constant::String(text.encode_utf16().collect()),
+        7 => Constant::String(text.into()),
         8 => Constant::Null,
         9 => Constant::Unit,
         10 => Constant::Byte(bits as i8),

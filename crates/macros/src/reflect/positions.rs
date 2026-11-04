@@ -43,7 +43,7 @@ impl Host {
             let line = f.offset_to_line(byte(units));
             [line as i32, units - utf16(f, f.line_to_offset(line))]
         };
-        let code = f.text.get(byte(start) as usize..byte(end) as usize).map(str::to_owned);
+        let code = f.text.get(byte(start) as usize..byte(end) as usize).map(|c| c.encode_utf16().collect());
         Ok(([at(start), at(end)].concat(), code))
     }
 

@@ -101,7 +101,7 @@ impl Host {
             children = self.bounds_trees(t).into_iter().map(Some).collect();
         }
         let children = children.into_iter().map(|c| c.map_or(-1, |c| self.add_tree(c) as i32));
-        Ok(([kind as i32].into_iter().chain(children).collect(), name))
+        Ok(([kind as i32].into_iter().chain(children).collect(), name.map(|n| n.encode_utf16().collect())))
     }
 
     /// Type trees of the bounds of type tree `t` of a bounds or alias type, at its span.

@@ -120,11 +120,15 @@ impl Vm {
         if obj == 0 {
             return Ok("null".into());
         }
+        Ok(String::from_utf16_lossy(&self.read_utf16(obj)?))
+    }
+
+    /// The UTF-16 units of the `java.lang.String` at `obj`, which is not null.
+    pub fn read_utf16(&mut self, obj: usize) -> Result<Vec<u16>, VmError> {
         let chars: usize = heap::read(obj + self.string_field("F5valueO")?);
         let offset: i32 = heap::read(obj + self.string_field("F6offsetO")?);
         let count: i32 = heap::read(obj + self.string_field("F5countO")?);
         let base = chars + ARRAY_HEADER as usize + 2 * offset as usize;
-        let units: Vec<u16> = (0..count as usize).map(|i| heap::read(base + 2 * i)).collect();
-        Ok(String::from_utf16_lossy(&units))
+        Ok((0..count as usize).map(|i| heap::read(base + 2 * i)).collect())
     }
 }

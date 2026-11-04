@@ -81,6 +81,17 @@ impl Pool {
         self.globals.get(id.0)
     }
 
+    /// The string of UTF-16 units `units`, kept in `utf16` if they are not valid Unicode.
+    pub fn intern_utf16(&mut self, units: &[u16]) -> StrId {
+        if let Ok(s) = String::from_utf16(units) {
+            return StrId(self.strings.intern(s.into_boxed_str()));
+        }
+        let key = format!("{}\u{0}utf16{units:x?}", String::from_utf16_lossy(units));
+        let id = StrId(self.strings.intern(key.into_boxed_str()));
+        self.utf16.insert(id, units.into());
+        id
+    }
+
     pub fn ty(&self, id: TypeId) -> &Type {
         self.types.get(id.0)
     }

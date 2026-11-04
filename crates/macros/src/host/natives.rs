@@ -61,7 +61,7 @@ impl vm::QuoteHost for Host {
         self.matched.get(i as usize).copied()
     }
 
-    fn reflect(&mut self, op: &str, args: &[i32], text: &str) -> Result<vm::Reflected, &'static str> {
+    fn reflect(&mut self, op: &str, args: &[i32], text: &[u16]) -> Result<vm::Reflected, &'static str> {
         self.run_reflect(op, args, text)
     }
 

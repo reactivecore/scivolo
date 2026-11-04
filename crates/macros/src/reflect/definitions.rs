@@ -81,7 +81,7 @@ impl Host {
         let mut answer = vec![self.add_tree(constr) as i32, self_.map_or(-1, |s| self.add_tree(s) as i32)];
         answer.push(parents.len() as i32);
         answer.extend(parents.into_iter().chain(body).map(|p| self.add_tree(p) as i32));
-        Ok((answer, Some(self.names.text(name.name).to_owned())))
+        Ok((answer, Some(self.names.text(name.name).encode_utf16().collect())))
     }
 
     /// A copy of class definition `t` named `name` with the first `n` of `rest` as its parents,
