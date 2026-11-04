@@ -166,18 +166,14 @@ impl Gen<'_, '_> {
             annotated.filter(|(_, g)| !matches!(g, Gives::Named(_))).map(|&(_, g)| (g, None)).collect()
         } else {
             let mut found = Vec::new();
-            let memoized = || self.l.fields.iter().any(|(&f, &g)| g == sym && f != g);
-            let getter = method && has(self.l.u, sym, FIELDaccessor);
-            let classes = match () {
-                _ if getter && is_setter(self.l, sym) => {
-                    self.l.u.annotations_carrying(sym, &["setter"], false)
-                }
-                _ if getter && memoized() => self.l.u.annotations_carrying(sym, &["getter"], false),
-                _ if getter => {
-                    let unmarked = !is_param_accessor(self.l, sym);
-                    self.l.u.annotations_carrying(sym, &["getter", "field"], unmarked)
-                }
-                _ => self.l.u.annotations(sym).to_vec(),
+            let (targets, unmarked): (&[&str], _) = match () {
+                _ if is_setter(self.l, sym) => (&["setter"], false),
+                _ if self.l.fields.iter().any(|(&f, &g)| g == sym && f != g) => (&["getter"], false),
+                _ => (&["getter", "field"], !is_param_accessor(self.l, sym)),
+            };
+            let classes = match method && has(self.l.u, sym, FIELDaccessor) {
+                true => self.l.u.annotations_carrying(sym, targets, unmarked),
+                false => self.l.u.annotations(sym).to_vec(),
             };
             for &c in classes.iter().rev() {
                 match gives(self.l, c) {
