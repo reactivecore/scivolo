@@ -41,6 +41,7 @@ mod class_bound;
 mod class_members;
 mod classes;
 mod closure_params;
+mod closure_trees;
 mod closures;
 mod completion_diags;
 mod const_fold;

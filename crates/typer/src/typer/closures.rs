@@ -6,7 +6,7 @@
 
 use super::{Pt, Typer, Widen};
 use crate::ctx::{Ctx, Level};
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use syntax::ast::{List, NodeId, Tree};
 use tasty::{Kind, Type, TypeId};
@@ -172,33 +172,5 @@ impl Typer<'_> {
             .or(dependent_tpe)
             .unwrap_or_else(|| self.u.intern_type(Type::Applied(class, fun_args)));
         self.closure_tree(id, anonfun, &param_trees, (result, body), sam.unwrap_or(fun_tpe), sam.is_some())
-    }
-
-    /// `{ def $anonfun(params): result = body; closure($anonfun) }` of type `fun_tpe` at the span
-    /// of function `id`, the closure given that type if `sam`.
-    fn closure_tree(
-        &mut self,
-        id: NodeId,
-        anonfun: tasty::SymbolId,
-        params: &[TNodeId],
-        (result, body): (TypeId, TNodeId),
-        fun_tpe: TypeId,
-        sam: bool,
-    ) -> TNodeId {
-        let span = self.ast.span(id);
-        let result_at = match params.last() {
-            Some(&p) => self.tpd.span(p).end_pos(),
-            None => self.tpd.span(body).start_pos(),
-        };
-        let tpt = self.type_tree(result, result_at, true);
-        let def = self.build().def_def(anonfun, &[params], tpt, Some(body), span);
-        let meth_tpe = self.u.intern_type(Type::Sym(None, anonfun));
-        let meth = self.build().ident(anonfun, meth_tpe, span.start_pos());
-        let env = self.tpd.list(&[]);
-        let tpt = sam.then(|| self.type_tree(fun_tpe, span.start_pos(), false));
-        let tpe = if sam { fun_tpe } else { self.simplified(fun_tpe) };
-        let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(tpe), None);
-        let stats = self.tpd.list(&[def]);
-        self.build().block(stats, closure, span.to_synthetic())
     }
 }

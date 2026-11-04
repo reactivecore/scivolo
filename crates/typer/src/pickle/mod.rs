@@ -10,6 +10,7 @@ mod positions;
 mod refs;
 mod selects;
 mod sharing;
+mod signed_names;
 mod templates;
 mod trees;
 mod types;
