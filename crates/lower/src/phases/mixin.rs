@@ -5,7 +5,7 @@
 //! method it inherits from a trait of the unit or the library, a forwarder calling that method
 //! on `super`.
 
-use super::function_classes::erased_linearization;
+use super::function_classes::{erased_classes, erased_linearization};
 use super::trait_fields::{mixed_in, trait_defs};
 use crate::definitions::specialized_applies;
 use crate::symbols::has;
@@ -175,7 +175,10 @@ fn inherits(
         return false;
     }
     let parents: Vec<SymbolId> = l.u.parents(class).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
-    parents.into_iter().any(|p| l.u.derives_from(p, owner) && inherits(l, p, meth, site, seen))
+    let parents = erased_classes(l, parents);
+    parents
+        .into_iter()
+        .any(|p| erased_linearization(l, p).contains(&owner) && inherits(l, p, meth, site, seen))
 }
 
 /// The non-private methods and values of `base`, bridges aside, with the name and erased
