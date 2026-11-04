@@ -70,9 +70,9 @@ fn reposition(l: &mut Lower, t: TNodeId, at: Span) {
 }
 
 /// The span `t` had in another source before `drop_inlined` gave it the span of an inline call,
-/// kept by the definitions later phases make of `t`; else its span.
+/// kept by the definitions later phases make of `t`; else its span before erasure.
 pub fn own_span(l: &Lower, t: TNodeId) -> Span {
-    l.own_spans.get(&t).copied().unwrap_or_else(|| l.tpd.span(t))
+    l.own_spans.get(&t).copied().unwrap_or_else(|| span_before_erasure(l, t))
 }
 
 /// Makes the spans of inline calls given to trees from another source plain spans, as erasure
