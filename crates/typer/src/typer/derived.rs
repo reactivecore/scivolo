@@ -92,7 +92,10 @@ impl Typer<'_> {
     /// `ctx` (dotty's `DerivedFromParamTree.derivedTree`).
     fn derived_from_param(&mut self, name: &str, is_type: bool, ctx: Ctx) -> Option<TypeId> {
         let ctor = self.source_constructor(ctx)?;
-        self.complete(ctor);
+        match is_type {
+            true => self.enter_leading_type_params(ctor),
+            false => self.complete(ctor),
+        }
         let decls = self.u.symbol(ctor).decls.clone();
         let original = decls
             .into_iter()
