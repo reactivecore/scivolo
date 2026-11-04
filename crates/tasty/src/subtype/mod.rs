@@ -4,11 +4,13 @@
 //! variables, whose constraint the caller keeps behind `TypeVars`.
 
 mod applied;
+mod args;
 mod atoms;
 mod atoms_lub;
 mod binders;
 mod curried;
 mod either;
+mod eta;
 mod first;
 mod fourth;
 mod glb;

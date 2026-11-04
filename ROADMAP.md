@@ -141,9 +141,9 @@ slower meanwhile:
    | clib | 21 of 21 | 114 | | 1 |
    | posixlib | 67 of 67 | 270 | | |
    | windowslib | 34 | 130 | | |
-   | scalalib | 590 of 649 | 2,703 | | |
+   | scalalib | 604 of 649 | 2,885 | 4 | 699 |
 
-   scalalib is compared with the published scalalib jar. clib and posixlib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
+   scalalib is compared with `just lib-oracle`'s build of it. clib and posixlib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
    `unsafe/package{,$}` in nativelib differ only as a joint compilation with
    `UnsafePackageCompat` does. Open: the rest of scalalib.
 6. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.

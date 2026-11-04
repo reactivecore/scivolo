@@ -31,8 +31,20 @@ impl Cmp<'_> {
             | Type::Flexible(parent)
             | Type::Match { bound: parent, .. } => self.recur(parent, b),
             Type::And(x, y) => self.and_below(a, b, x, y),
+            Type::Lambda { binder, params, result } => self.lambda_below(binder, params.len(), result, b),
             _ => false,
         }
+    }
+
+    /// `[X..] =>> result <: b` for a `b` that is no lambda: `result <: b[X..]` if `b` takes as
+    /// many type parameters (dotty's `compareHKLambda`).
+    fn lambda_below(&mut self, binder: crate::types::Binder, n: usize, result: TypeId, b: TypeId) -> bool {
+        if matches!(self.u.types().get(b), Type::Lambda { .. }) || self.hk_arity(b) != Some(n) {
+            return false;
+        }
+        let refs: Vec<TypeId> = (0..n as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
+        let applied = self.apply(b, &refs);
+        self.recur(result, applied)
     }
 
     /// `a <: b` for `a` the type of module class `c`: `b` a reference to `c`'s object through a

@@ -3,18 +3,15 @@
 //   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Higher-kinded types: a type variable applied to arguments, constrained to a constructor of
-//! the other side (dotty's `compareAppliedTypeParamRef`), class constructors as type lambdas
-//! (`etaExpand`), constructors combined under a lambda (`liftIfHK`), and tuple classes as
-//! nested pairs.
+//! the other side (dotty's `compareAppliedTypeParamRef`), constructors combined under a lambda
+//! (`liftIfHK`), and tuple classes as nested pairs.
 
 use super::Cmp;
-use super::refs::Meaning;
 use crate::types::{Binder, Type, TypeId};
 use crate::{ANY, FileId, Kind, NOTHING, SymbolId};
 
-/// The files of the binders of eta-expansions (numbered by their constructor), of adapted
-/// constructors (numbered by the constructor they apply) and of combined constructors.
-const ETA: u32 = u32::MAX - 2;
+/// The files of the binders of adapted constructors (numbered by the constructor they apply)
+/// and of combined constructors.
 const ADAPTED: u32 = u32::MAX - 3;
 const LIFTED: u32 = u32::MAX - 4;
 
@@ -29,7 +26,7 @@ impl Cmp<'_> {
     /// `a` and `b` combined by `op`; for two constructors of as many parameters, a type lambda
     /// of that of their applications (dotty's `liftIfHK`).
     pub fn lift_if_constructors(&mut self, a: TypeId, b: TypeId, op: Connective) -> TypeId {
-        let combined = match (self.constructor_arity(a), self.constructor_arity(b)) {
+        let combined = match (self.hk_arity(a), self.hk_arity(b)) {
             (Some(n), Some(m)) if n == m => n,
             _ => return self.balanced(a, b, op),
         };
@@ -142,39 +139,6 @@ impl Cmp<'_> {
             self.vars.rollback(mark);
         }
         unified
-    }
-
-    /// How many type parameters type constructor `t` takes: a type lambda's, or those of a class
-    /// referred to without arguments.
-    pub fn constructor_arity(&mut self, t: TypeId) -> Option<usize> {
-        if let Type::Lambda { params, .. } = self.u.types().get(t) {
-            return Some(params.len());
-        }
-        let Some(Meaning::Class(c)) = self.named(t).map(|n| n.meaning) else { return None };
-        let n = self.u.type_params(c).len();
-        (n > 0).then_some(n)
-    }
-
-    /// Class constructor `t`, which takes type parameters, as a type lambda applying it to
-    /// them, their bounds referring to the lambda's parameters (dotty's `etaExpand`).
-    pub fn eta_expand(&mut self, t: TypeId) -> Option<TypeId> {
-        self.constructor_arity(t)?;
-        let Some(Meaning::Class(c)) = self.named(t).map(|n| n.meaning) else { return None };
-        let params = self.u.type_params(c);
-        let binder = Binder(FileId(ETA), t.0);
-        let refs: Vec<TypeId> =
-            (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
-        let mut lambda_params = Vec::new();
-        for &p in &params {
-            let info = self.u.info(p);
-            let bounds = self.u.map_type(info, &mut |u, x| match u.class_param(x) {
-                Some((owner, i)) if owner == c => refs.get(i).copied(),
-                _ => None,
-            });
-            lambda_params.push((self.u.symbol(p).name.clone(), bounds));
-        }
-        let result = self.u.intern_type(Type::Applied(t, refs));
-        Some(self.u.intern_type(Type::Lambda { binder, params: lambda_params, result }))
     }
 
     /// `(A, B, …)` for tuple class `c` applied to `args` as `A *: B *: … *: EmptyTuple`.

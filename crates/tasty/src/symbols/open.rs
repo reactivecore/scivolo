@@ -60,6 +60,7 @@ impl Universe {
             javalib_sources: false,
             jdk_jars: 0..0,
             resolving: 0,
+            merging_bases: Default::default(),
             builtins: Builtins::PENDING,
             binders: 0,
             lambda_variances: FxHashMap::default(),
