@@ -180,6 +180,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
                         let tpt = self.i.tpd.items(args)[0];
                         self.i.tpd.get_mut(tpt).span = span.end_pos();
                     }
+                    self.arg_span.insert(p, self.i.tpd.span(cast));
                     cast
                 }
                 None => arg,
