@@ -91,7 +91,8 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             Some(Tree::If { cond, thenp: branches[0], elsep: branches[1], inline })
         }
         Tree::WhileDo { cond, .. } => {
-            map_children(l, t, &mut |l, c| typed(l, c, if c == cond { Some(&boolean) } else { None }))?;
+            let pt = |c| if c == cond { &boolean } else { &Erased::Unit };
+            map_children(l, t, &mut |l, c| typed(l, c, Some(pt(c))))?;
             None
         }
         Tree::Return { expr, from } => {

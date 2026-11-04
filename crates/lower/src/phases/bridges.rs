@@ -12,7 +12,7 @@ use crate::symbols::{has, is_static_module};
 use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
-use tasty::tags::{CASEaccessor, FIELDaccessor, LAZY, OBJECT, PARAMsetter, PRIVATE};
+use tasty::tags::{CASEaccessor, ERASED, FIELDaccessor, INLINE, LAZY, OBJECT, PARAMsetter, PRIVATE};
 use tasty::{Erased, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -143,9 +143,11 @@ fn matching_now(l: &mut Lower, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
     (nullary(&ca) && nullary(&cb)) || methods && l.u.info_matches(site, a, b)
 }
 
-/// Whether `s` is a non-private method or value a class can override.
+/// Whether `s` is a non-private method or value a class can override, not dropped by erasure.
 fn is_member(l: &Lower, s: SymbolId) -> bool {
-    matches!(l.u.symbol(s).kind, Kind::Def | Kind::Val) && !has(l.u, s, PRIVATE) && !l.u.is_constructor(s)
+    matches!(l.u.symbol(s).kind, Kind::Def | Kind::Val)
+        && ![PRIVATE, INLINE, ERASED].iter().any(|&f| has(l.u, s, f))
+        && !l.u.is_constructor(s)
 }
 
 /// Whether method `m` has no body: one of the unit's in `deferred`, or the library's.

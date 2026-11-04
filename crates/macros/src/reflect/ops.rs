@@ -1,7 +1,9 @@
 //! The `quotes.reflect` operations by name: the kinds of their arguments, the `Host` method that
 //! runs each and its result.
 
-use super::decode::{Args, Bits, Decode, Expr, Name, Num, OptSym, OptTree, Rest, Sym, Tree, Ty, TyShape};
+use super::decode::{
+    Args, Bits, Decode, Expr, Name, Num, OptSym, OptTree, Rest, Sym, Tree, Ty, TyShape, Units,
+};
 use super::encode::Encode;
 use super::{Answer, Fallible, UNKNOWN};
 use crate::host::Host;
@@ -13,7 +15,7 @@ macro_rules! ops {
     ($($op:literal => $method:ident($($arg:ident: $kind:ty),*) -> $ret:ty;)*) => {
         impl Host {
             /// Runs `quotes.reflect` operation `op` on `args` and `text`.
-            pub fn run_reflect(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
+            pub fn run_reflect(&mut self, op: &str, args: &[i32], text: &[u16]) -> Answer {
                 let mut args = Args::new(args, text);
                 let mut out = (Vec::new(), None);
                 match op {
@@ -192,8 +194,8 @@ ops! {
     "isErasedFunctionType" => is_erased_function_type(t: Ty) -> bool;
     // constants
     "constant" => constant(t: Tree) -> Fallible<Reflected>;
-    "literal" => literal(kind: Num, bits: Bits, text: Name) -> Fallible<TNodeId>;
-    "constantTypeOf" => constant_type_of(kind: Num, bits: Bits, text: Name) -> Fallible<TypeId>;
+    "literal" => literal(kind: Num, bits: Bits, text: Units) -> Fallible<TNodeId>;
+    "constantTypeOf" => constant_type_of(kind: Num, bits: Bits, text: Units) -> Fallible<TypeId>;
     // symbols
     "companionModule" => companion_module(s: OptSym) -> Option<SymbolId>;
     "declaredMethod" => declared_method(s: OptSym, name: Name) -> Vec<SymbolId>;

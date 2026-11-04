@@ -125,7 +125,7 @@ slower meanwhile:
    cyclic references in `Api.scala`). Their `tests/aot` programs pass on our NIR. Open: the
    remaining differences, mostly quote type sharing in macro files, from compiling file by file.
 4. **Lowering and inlining gaps** ([research 42](docs/research/42-lowering-leftovers-after-1029.md)):
-   the 2 lowering refusals in `tests/run`.
+   done; `tests/run` has no lowering refusals left.
 5. **Scala Native's library through the own frontend** (#168,
    [research 36](docs/research/36-compiling-the-native-stdlib.md), ADR 0042, 0043, 0046): `just
    lib-compile MODULE` lowers each file and compares its NIR with Scala Native's 3.9.0 build of

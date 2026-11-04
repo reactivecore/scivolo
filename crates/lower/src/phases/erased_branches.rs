@@ -101,6 +101,7 @@ pub fn typed_branches(
         }
         if let Some(lub) = lub {
             l.tpd.get_mut(t).tpe = Some(lub);
+            l.boxed_types.insert(t);
         }
     }
     Ok(out)

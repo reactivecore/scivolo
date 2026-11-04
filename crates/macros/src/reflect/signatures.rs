@@ -16,7 +16,7 @@ impl Host {
         let mut t = self.u.info(s);
         let method = matches!(self.u.types().get(t), Type::Poly { .. } | Type::Method { .. });
         if self.u.symbol(s).kind != Kind::Def || !method {
-            return (Vec::new(), Some(String::new()));
+            return (Vec::new(), Some(Vec::new()));
         }
         let (mut numbers, mut names) = (Vec::new(), Vec::new());
         loop {
@@ -40,7 +40,7 @@ impl Host {
             _ => self.sig_name(t),
         };
         names.push(result);
-        (numbers, Some(names.join("\0")))
+        (numbers, Some(names.join("\0").encode_utf16().collect()))
     }
 
     /// The name of the erasure of `t` in a signature (dotty's `sigName`): a class by its full
