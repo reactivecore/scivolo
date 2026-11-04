@@ -41,9 +41,10 @@ fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>, depth: u32) -> TNodeId {
         let expansion = drop(l, expansion, call, inner);
         if stats.is_empty() {
             l.inlined_spans.insert(expansion, l.tpd.span(t));
-            if let Some(&own) = l.own_spans.get(&t) {
-                l.own_spans.insert(expansion, own);
-            }
+            match l.own_spans.get(&t).copied() {
+                Some(own) => l.own_spans.insert(expansion, own),
+                None => l.own_spans.remove(&expansion),
+            };
             return expansion;
         }
         let stats = l.tpd.list(&stats);
@@ -70,9 +71,9 @@ fn reposition(l: &mut Lower, t: TNodeId, at: Span) {
 }
 
 /// The span `t` had in another source before `drop_inlined` gave it the span of an inline call,
-/// kept by the definitions later phases make of `t`; else its span.
+/// kept by the definitions later phases make of `t`; else its span before erasure.
 pub fn own_span(l: &Lower, t: TNodeId) -> Span {
-    l.own_spans.get(&t).copied().unwrap_or_else(|| l.tpd.span(t))
+    l.own_spans.get(&t).copied().unwrap_or_else(|| span_before_erasure(l, t))
 }
 
 /// Makes the spans of inline calls given to trees from another source plain spans, as erasure

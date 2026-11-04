@@ -230,8 +230,6 @@ that file alone. Differences from both (2026-11-04):
   `this`) and an implicit-scope companion through its class's prefix are different objects;
   ours tells references apart by symbol, name and `this` only. The quote reads back as the same
   trees.
-- **Inline expansion position** (fastparse `package$`): one position of `LogOpsStr`'s expansion
-  is the definition's (`29:67`) where dotty's is the call's (`296:108`). Open.
 
 Against the whole-module build alone, sourcecode `Macros$`, mainargs `Macros$` and pprint
 `package` differ (case 1: types shared across files, static forwarders of members a package
