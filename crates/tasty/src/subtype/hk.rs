@@ -89,7 +89,7 @@ impl Cmp<'_> {
         let Type::Var(v) = *self.u.types().get(var) else { return false };
         let class_bounds = self.class_symbols(self.vars.bounds(v).1);
         for base in self.u.linearization(class) {
-            if class_bounds.iter().any(|&c| self.u.derives_from(base, c))
+            if (class_bounds.is_empty() || class_bounds.iter().any(|&c| self.u.derives_from(base, c)))
                 && let Some(base_type) = self.u.base_type(widened, base)
                 && self.unify_constructor(var, args, base_type, true)
             {
@@ -97,28 +97,6 @@ impl Cmp<'_> {
             }
         }
         false
-    }
-
-    /// The least set of classes `t` is below (dotty's `classSymbols`).
-    fn class_symbols(&mut self, t: TypeId) -> Vec<SymbolId> {
-        match *self.u.types().get(t) {
-            Type::And(x, y) => {
-                let mut cs = self.class_symbols(x);
-                let ys = self.class_symbols(y);
-                cs.extend(ys.into_iter().filter(|c| !cs.contains(c)).collect::<Vec<_>>());
-                cs
-            }
-            Type::Or(x, y, _) => {
-                let ys = self.class_symbols(y);
-                self.class_symbols(x).into_iter().filter(|c| ys.contains(c)).collect()
-            }
-            Type::Lambda { result: hi, .. } | Type::Bounds(_, hi) => self.class_symbols(hi),
-            Type::Var(v) => match self.vars.instance(v) {
-                Some(i) => self.class_symbols(i),
-                None => self.class_symbols(self.vars.bounds(v).1),
-            },
-            _ => self.u.class_symbol(t).into_iter().collect(),
-        }
     }
 
     /// `v[args] <: b` for variable constructor `v` without instance: `v` below the constructor
