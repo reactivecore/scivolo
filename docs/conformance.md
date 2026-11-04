@@ -220,6 +220,27 @@ Results (2026-11-04):
   typer and leaves the NIR unchanged, is not run (#168). Quotes under capture checking, whose
   TASTy would keep the annotations, are refused.
 
+### com-lihaoyi libraries from source
+
+`just lib-source NAME` compiles each file of a library on its own and compares its NIR with
+scala-cli's build of the whole module and, for the files that differ, with scala-cli's build of
+that file alone. Differences from both (2026-11-04):
+
+- **Quote type sharing** (fastparse `MacroInlineImpls$`, `MacroRepImpls$`, upickle-implicits
+  `macros$package$`; case 1): a quote string writes a type it wrote before as a `SHAREDtype`
+  where dotty writes it again, or the reverse. dotty shares types by object identity: a class
+  reference read from TASTy (by name), one from a JDK class file (by symbol through the package's
+  `this`) and an implicit-scope companion through its class's prefix are different objects;
+  ours tells references apart by symbol, name and `this` only. The quote reads back as the same
+  trees.
+- **Inline expansion position** (fastparse `package$`): one position of `LogOpsStr`'s expansion
+  is the definition's (`29:67`) where dotty's is the call's (`296:108`). Open.
+
+Against the whole-module build alone, sourcecode `Macros$`, mainargs `Macros$` and pprint
+`package` differ (case 1: types shared across files, static forwarders of members a package
+object inherits); compiled alone, dotty gives ours, mainargs' up to quote positions. upickle's
+own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `Api.scala`).
+
 ## M5: scala/scala `test/junit`
 
 ```sh
