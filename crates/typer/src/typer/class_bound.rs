@@ -8,9 +8,9 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The intersection of local class `c`'s parents refined by each member narrowing an
-    /// inherited one, or by any member if a parent is a `Selectable`; `None` for a polymorphic
-    /// class, or a refinement referring to `c` or to one of the local symbols being expanded,
-    /// `visiting`.
+    /// inherited one, or by any member if a parent is a `Selectable`, closed over `c`; `None`
+    /// for a polymorphic class, or a refinement referring to one of the local symbols being
+    /// expanded, `visiting`.
     pub fn local_class_bound(&mut self, c: SymbolId, visiting: &[SymbolId]) -> Option<TypeId> {
         if !self.u.type_params(c).is_empty() {
             return None;
@@ -34,12 +34,27 @@ impl Typer<'_> {
             let info = if is_type { self.type_info(d) } else { self.term_info(d) };
             let avoided = Avoided { visiting, ..Avoided::new(&missing, &[]) };
             let info = self.avoid_at(info, 1, avoided)?.hi();
-            if self.refers_to(info, &[c]) {
-                return None;
-            }
             bound = self.u.intern_type(Type::Refined(bound, name, info));
         }
-        Some(bound)
+        Some(self.closed_over(c, bound))
+    }
+
+    /// `t` with references to class `c` and its `this` replaced by the `this` of a recursive type
+    /// around it, `t` itself if it has none (dotty's `RecType.closeOver`).
+    fn closed_over(&mut self, c: SymbolId, t: TypeId) -> TypeId {
+        let binder = self.syms.fresh_binder();
+        let rec_this = self.u.intern_type(Type::RecThis(binder));
+        let mut found = false;
+        let closed = self.u.map_type(t, &mut |u, part| {
+            let ours = match *u.types().get(part) {
+                Type::Sym(_, s) => s == c,
+                Type::This(x) => u.class_symbol(x) == Some(c),
+                _ => false,
+            };
+            found |= ours;
+            ours.then_some(rec_this)
+        });
+        if found { self.u.intern_type(Type::Rec(binder, closed)) } else { t }
     }
 
     /// Whether member `d` of class `c` narrows the member of `parent` it overrides, or overrides

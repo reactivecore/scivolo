@@ -107,6 +107,7 @@ impl Typer<'_> {
         let stable = match *self.u.types().get(pre) {
             Type::Sym(_, s) => !self.u.is_type_symbol(s),
             Type::This(_) | Type::TermRef(..) => true,
+            Type::Refined(..) => name.is_type && matches!(self.tpd.tree(qual), T::RefinedTypeTree { .. }),
             _ => false,
         };
         let text = self.text(name.name).to_owned();
@@ -116,6 +117,29 @@ impl Typer<'_> {
         let tpe = self.u.intern_type(Type::TypeRef(pre, text));
         let span = self.ast.span(id);
         Some(self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), None))
+    }
+
+    /// Projection `qual#name` of refined type tree `qual`, of type `pre`, whose refinement makes
+    /// `name` an alias: that alias (dotty's `lookupRefined`); `None` otherwise.
+    pub fn refined_projection(
+        &mut self,
+        id: NodeId,
+        qual: TNodeId,
+        pre: TypeId,
+        name: TName,
+    ) -> Option<TNodeId> {
+        if !name.is_type || !matches!(self.tpd.tree(qual), T::RefinedTypeTree { .. }) {
+            return None;
+        }
+        let text = self.text(name.name).to_owned();
+        let info = self.u.refinement_named(pre, &text)?;
+        let Type::Alias(alias) = *self.u.types().get(info) else { return None };
+        let sym = match *self.u.types().get(alias) {
+            Type::Sym(_, s) => Some(s),
+            _ => None,
+        };
+        let span = self.ast.span(id);
+        Some(self.tpd.node(T::Select { qualifier: qual, name }, span, Some(alias), sym))
     }
 
     /// Whether `t` is a refinement of `Mirror` or one of its subtraits, whose type members
