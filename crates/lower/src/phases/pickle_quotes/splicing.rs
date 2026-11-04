@@ -15,12 +15,14 @@ use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The captured references of a splice's content: by first use, the original reference, which
-/// is the hole's argument, and the `Expr` parameter standing for it.
+/// is the hole's argument, and the `Expr` parameter standing for it; the first type tree whose
+/// reference to a type of the quote is not translated.
 #[derive(Default)]
 pub struct Captures {
     pub args: Vec<TNodeId>,
     pub params: Vec<SymbolId>,
     of: Vec<SymbolId>,
+    pub untranslated: Option<TNodeId>,
 }
 
 /// The definitions of a quote and the references of one of its splices to them, with the

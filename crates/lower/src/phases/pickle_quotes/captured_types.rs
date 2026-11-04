@@ -7,6 +7,7 @@
 use super::splicing::Splicer;
 use super::type_quotes::TypeQuote;
 use crate::Lower;
+use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 use typer::tpd::{TNodeId, Tree};
@@ -32,16 +33,22 @@ impl Splicer<'_> {
                 self.retyped += 1;
                 true
             }
-            Tree::TypeTree { .. } => {
-                if level >= 1
-                    && let Type::Sym(None, s) = *l.u.types().get(l.tpd.tpe(t))
-                    && self.defined.contains(&s)
-                    && is_abstract(l.u, s)
-                {
-                    self.tag(l, s);
+            Tree::TypeTree { .. } if level >= 1 => {
+                let tpe = l.tpd.tpe(t);
+                let exact = match *l.u.types().get(tpe) {
+                    Type::Sym(None, s) => Some(s),
+                    _ => None,
+                };
+                match exact {
+                    Some(s) if self.defined.contains(&s) && is_abstract(l.u, s) => self.tag(l, s),
+                    _ if refers_to(l.u, self.defined, tpe) => {
+                        self.captures.untranslated.get_or_insert(t);
+                    }
+                    _ => {}
                 }
                 true
             }
+            Tree::TypeTree { .. } => true,
             _ => false,
         }
     }
@@ -103,6 +110,22 @@ impl Splicer<'_> {
             l.tpd.set_quote_tags(quote, tags);
         }
     }
+}
+
+/// Whether a part of `t`, aliases followed, refers to one of the definitions `defined`.
+fn refers_to(u: &mut Universe, defined: &FxHashSet<SymbolId>, t: TypeId) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, x| match *u.types().get(x) {
+        Type::Sym(_, s) if defined.contains(&s) => {
+            match u.referenced_alias(x) {
+                Some(a) => found |= refers_to(u, defined, a),
+                None => found = true,
+            }
+            Some(x)
+        }
+        _ => None,
+    });
+    found
 }
 
 /// Whether `s` is a type or type parameter that is not an alias.

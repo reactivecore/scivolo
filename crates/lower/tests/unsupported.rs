@@ -13,6 +13,11 @@ const CASES: &[(&str, &str)] = &[
         "captured reference in a quote",
     ),
     (
+        "import scala.quoted.*\nobject Q { def g(x: Expr[Int])(using Quotes): Expr[Int] = x\n\
+         def f(using Quotes): Expr[Int] = '{ def m[T](x: T): Int = ${ g('{ val l = List(x); l.size }) }; 1 } }",
+        "inferred types referring to a type of an outer quote",
+    ),
+    (
         "import scala.quoted.*\nobject Q { def f(x: Expr[Int])(using Quotes): Expr[Expr[Int]] = '{ '{ 1 } } }",
         "nested quotes",
     ),
