@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 use super::Typer;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
@@ -19,6 +20,17 @@ impl Typer<'_> {
             T::Select { qualifier, .. } => stable(self, tree) && self.is_stable_path(qualifier),
             _ => false,
         }
+    }
+
+    /// Whether `tree` in a capture set of `ctx` is a reference to a term other than a variable, a
+    /// method or an inline parameter (dotty's `checkStable` `captureSetException`).
+    pub fn is_capability(&mut self, tree: TNodeId, ctx: Ctx) -> bool {
+        let Some(s) = self.tpd.sym(tree).filter(|_| ctx.mode.is(Mode::IN_CAPTURE_SET)) else { return false };
+        let sym = self.u.symbol(s);
+        sym.kind.is_term()
+            && sym.kind != Kind::Def
+            && !sym.flags.has(tasty::tags::MUTABLE)
+            && !(sym.kind == Kind::Param && sym.flags.has(tasty::tags::INLINE))
     }
 
     /// `t` widened while it is a by-name type or a reference to an unstable term (dotty's
