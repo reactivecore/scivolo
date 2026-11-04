@@ -10,6 +10,7 @@ mod atoms_lub;
 mod binders;
 mod curried;
 mod either;
+mod eta;
 mod first;
 mod fourth;
 mod glb;

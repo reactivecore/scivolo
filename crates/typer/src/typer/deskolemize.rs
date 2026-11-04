@@ -99,6 +99,16 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
     })
 }
 
+/// `t` with each skolem replaced by its type (as dotty's `TreePickler` writes it); `None` unless
+/// that is also `t` approximated covariantly.
+pub fn skolems_widened(u: &mut Universe, t: TypeId) -> Option<TypeId> {
+    let widened = u.map_type(t, &mut |u, x| match *u.types().get(x) {
+        Type::Skolem(_, info) => Some(info),
+        _ => None,
+    });
+    (deskolemized(u, t, 1)? == widened).then_some(widened)
+}
+
 /// Whether `t` has a skolem in it.
 pub fn has_skolem(u: &mut Universe, t: TypeId) -> bool {
     let mut found = false;

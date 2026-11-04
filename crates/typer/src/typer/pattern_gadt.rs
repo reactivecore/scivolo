@@ -88,7 +88,11 @@ impl Typer<'_> {
     fn refines_invariantly(&mut self, pat: TypeId, sel: TypeId) -> bool {
         let sel = self.dealiased(sel);
         if let Type::Or(a, b, _) = *self.u.types().get(sel) {
-            return self.refines_invariantly(pat, a) || self.refines_invariantly(pat, b);
+            return match (self.is_null_type(a), self.is_null_type(b)) {
+                (true, _) => self.refines_invariantly(pat, b),
+                (_, true) => self.refines_invariantly(pat, a),
+                _ => self.refines_invariantly(pat, a) && self.refines_invariantly(pat, b),
+            };
         }
         let widened = self.u.widen(sel);
         if has_wildcard(self.u, widened) {
@@ -103,10 +107,11 @@ impl Typer<'_> {
         self.u.variances(base).iter().all(|&v| v == 0)
     }
 
-    /// Class application `sel` with its arguments at variant parameters replaced by `?`
-    /// (dotty's `widenVariantParams`); `None` if `sel` has a wildcard argument or no invariant
-    /// parameter.
+    /// Class application `sel` with its arguments at variant parameters replaced by `?`, which
+    /// `constrainSimplePatternType` leaves unconstrained, its `Null` parts dropped; `None` if `sel` has a wildcard
+    /// argument or no invariant parameter.
     fn without_variant_args(&mut self, sel: TypeId) -> Option<TypeId> {
+        let sel = self.strip_null(sel);
         let sel = self.dealiased(sel);
         let sel = self.u.widen(sel);
         if has_wildcard(self.u, sel) {

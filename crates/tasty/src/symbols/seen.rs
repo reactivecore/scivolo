@@ -40,7 +40,9 @@ impl Universe {
                     _ => u.this_seen_from(prefix, owner, this_cls.unwrap_or(c), MAX_DEPTH)?,
                 };
                 let seen = u.base_type(prefix, c)?;
-                let arg = *u.applied(seen)?.1.get(i)?;
+                let Some(arg) = u.base_arg(seen, c, i) else {
+                    return matches!(u.types().get(seen), Type::Or(..)).then_some(x);
+                };
                 if !matches!(u.types().get(arg), Type::Bounds(..)) {
                     return Some(arg);
                 }
@@ -121,8 +123,29 @@ impl Universe {
         let class = self.symbol(p).owner.filter(|&c| self.symbol(c).kind == Kind::Class)?;
         let index = self.type_params(class).iter().position(|&q| q == p)?;
         let widened = self.widen(prefix);
-        let (_, args) = self.base_type(widened, class).and_then(|b| self.applied(b))?;
-        args.get(index).copied()
+        let base = self.base_type(widened, class)?;
+        self.base_arg(base, class, index)
+    }
+
+    /// The `i`th argument of base type `base` of class `c`; of an intersection or union, its
+    /// parts' arguments joined where `c`'s `i`th parameter is variant and they are no wildcards
+    /// (dotty's `argForParam`), else the first part's of an intersection and `None` of a union.
+    fn base_arg(&mut self, base: TypeId, c: SymbolId, i: usize) -> Option<TypeId> {
+        let (a, b, and) = match *self.types().get(base) {
+            Type::And(a, b) => (a, b, true),
+            Type::Or(a, b, _) => (a, b, false),
+            _ => return self.applied(base)?.1.get(i).copied(),
+        };
+        let x = self.base_arg(a, c, i);
+        let variance = self.variances(c).get(i).copied().unwrap_or(0);
+        let wildcard = |u: &Self, t: TypeId| matches!(u.types().get(t), Type::Bounds(..));
+        match (x, self.base_arg(b, c, i)) {
+            (Some(x), Some(y)) if x == y => Some(x),
+            (Some(x), Some(y)) if variance != 0 && !wildcard(self, x) && !wildcard(self, y) => {
+                Some(if and == (variance > 0) { self.glb(x, y) } else { self.lub(x, y) })
+            }
+            _ => x.filter(|_| and),
+        }
     }
 
     /// The type of member `m` of `prefix`; a joint member of an intersection, its joint type.

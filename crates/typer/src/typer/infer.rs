@@ -178,7 +178,7 @@ impl Typer<'_> {
                 let info = self.u.info(s);
                 if super::deskolemize::has_skolem(self.u, info) {
                     let bind = matches!(self.tpd.tree(id), T::Bind { .. });
-                    match super::deskolemize::deskolemized(self.u, info, 1).filter(|_| bind) {
+                    match super::deskolemize::skolems_widened(self.u, info).filter(|_| bind) {
                         Some(info) => self.u.set_info(s, info),
                         None => return Err("skolem in the type of a definition"),
                     }
