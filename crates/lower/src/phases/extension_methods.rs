@@ -12,14 +12,17 @@ use super::value_classes::{extension, has_extension};
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
-use syntax::ast::Span;
-use tasty::{Flags, Kind, SymbolId, Type};
+use syntax::ast::{Span, TName};
+use tasty::{Flags, Kind, SymbolId};
 use typer::RETAINED_BODY;
 use typer::tpd::{TNodeId, Tree};
 
 /// The definitions of a forwarder and its extension method, and the span of the moved body
 /// unless it is a match.
 pub type Moved = (TNodeId, TNodeId, Option<Span>);
+
+/// A value class and the name of its self, if it names it.
+type Owner = (SymbolId, Option<TName>);
 
 /// Moves the method bodies of the value classes among `classes` to their companions.
 pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<Vec<Moved>> {
@@ -30,7 +33,11 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<Vec<Moved>> {
             continue;
         }
         let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-        let Tree::Template { body, .. } = *l.tpd.tree(template) else { continue };
+        let Tree::Template { body, self_, .. } = *l.tpd.tree(template) else { continue };
+        let self_name = self_.and_then(|s| match *l.tpd.tree(s) {
+            Tree::ValDef { name, .. } => Some(name),
+            _ => None,
+        });
         let mut defs = Vec::new();
         for stat in l.tpd.items(body).to_vec() {
             let Some(m) = l.tpd.sym(stat).filter(|_| matches!(l.tpd.tree(stat), Tree::DefDef { .. })) else {
@@ -46,7 +53,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<Vec<Moved>> {
             if let Some(retained) = name.strip_suffix(RETAINED_BODY) {
                 l.u.rename(ext, &format!("{retained}$extension"));
             }
-            let def = move_body(l, class, stat, ext);
+            let def = move_body(l, (class, self_name), stat, ext);
             let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(def) else { unreachable!("a method") };
             let matched = matches!(l.tpd.tree(rhs), Tree::Match { .. });
             moved.push((stat, def, (!matched).then(|| span_before_erasure(l, rhs))));
@@ -107,10 +114,11 @@ fn append(l: &mut Lower, td: TNodeId, defs: &[TNodeId]) {
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
 }
 
-/// The definition of extension method `ext` of method definition `def` of value class `class`
+/// The definition of extension method `ext` of method definition `def` of value class `owner`
 /// with `def`'s value parameters and body; `def` gets fresh parameters and forwards to `ext`
 /// (`FullParameterization`'s `fullyParameterizedDef`).
-fn move_body(l: &mut Lower, class: SymbolId, def: TNodeId, ext: SymbolId) -> TNodeId {
+fn move_body(l: &mut Lower, owner: Owner, def: TNodeId, ext: SymbolId) -> TNodeId {
+    let class = owner.0;
     let m = l.tpd.sym(def).expect("a method definition's symbol");
     let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(def) else { unreachable!("a method") };
     let rhs = rhs.expect("a method with a body");
@@ -135,7 +143,7 @@ fn move_body(l: &mut Lower, class: SymbolId, def: TNodeId, ext: SymbolId) -> TNo
         kept.push(l.tpd.list(&defs));
         forwarded.push(fresh);
     }
-    rewire_body(l, class, m, ext, this, rhs);
+    rewire_body(l, owner, m, ext, this, rhs);
     for &clause in &ext_clauses[1..] {
         for p in l.tpd.items(clause).to_vec().into_iter().filter_map(|p| l.tpd.sym(p)) {
             l.u.set_owner(p, ext);
@@ -162,20 +170,28 @@ fn fresh_param(l: &mut Lower, p: SymbolId, m: SymbolId) -> SymbolId {
     fresh
 }
 
-/// Makes body `rhs` of method `m` of value class `class` the body of its extension method `ext`:
-/// `this` and the members of `class` reached through it as `$this`, the definitions and returns
-/// of `m` those of `ext`.
-fn rewire_body(l: &mut Lower, class: SymbolId, m: SymbolId, ext: SymbolId, this: SymbolId, rhs: TNodeId) {
+/// Makes body `rhs` of method `m` of value class `class`, whose self is named `self_name`, the
+/// body of its extension method `ext`: `this`, the self and the members of `class` reached
+/// through them as `$this`, the definitions and returns of `m` those of `ext`.
+fn rewire_body(
+    l: &mut Lower,
+    (class, self_name): Owner,
+    m: SymbolId,
+    ext: SymbolId,
+    this: SymbolId,
+    rhs: TNodeId,
+) {
     let module_class = l.u.symbol(ext).owner.expect("an extension method's class");
     for t in subtrees(l.tpd, rhs) {
         let span = l.tpd.span(t);
         let sym = l.tpd.sym(t);
         let rewired = sym.filter(|&s| l.u.symbol(s).owner == Some(class) && has_extension(l, s));
-        let this_of_class = match l.tpd.tree(t) {
-            Tree::This { .. } => sym == Some(class),
-            &Tree::Ident { name } => !name.is_type && is_self_ref(l, t, class),
-            _ => false,
-        };
+        let this_of_class = sym == Some(class)
+            && match *l.tpd.tree(t) {
+                Tree::This { .. } => true,
+                Tree::Ident { name } => Some(name) == self_name,
+                _ => false,
+            };
         match (l.tpd.tree(t), rewired) {
             (Tree::This { .. } | Tree::Ident { .. }, _) if this_of_class => {
                 let this_ref = l.ident(this, span);
@@ -216,13 +232,6 @@ fn rewired_call(l: &mut Lower, module: SymbolId, m: SymbolId, qualifier: TNodeId
     let tpe = l.u.result_type(l.u.strip_poly(info));
     let span = l.tpd.span(qualifier);
     l.apply(fun, &[qualifier], tpe, span)
-}
-
-/// Whether `t` refers to the self of `class`.
-fn is_self_ref(l: &mut Lower, t: TNodeId, class: SymbolId) -> bool {
-    let Some(tpe) = l.tpd.get(t).tpe else { return false };
-    let Type::This(c) = *l.u.types().get(tpe) else { return false };
-    l.u.class_symbol(c) == Some(class)
 }
 
 /// Whether `s` is a term member of `class`.
