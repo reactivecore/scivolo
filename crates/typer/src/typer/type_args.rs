@@ -28,8 +28,9 @@ impl Typer<'_> {
             if !class_tycon && self.u.class_symbol(a) == Some(self.u.builtins().any_kind) {
                 return Some("AnyKind argument of a type alias or abstract type");
             }
-            let n = self.type_arity(a);
-            let wildcard = matches!(self.u.types().get(a), Type::Bounds(..));
+            let hi = if let Type::Bounds(_, hi) = *self.u.types().get(a) { Some(hi) } else { None };
+            let n = self.type_arity(hi.unwrap_or(a));
+            let wildcard = hi.is_some() && n == 0;
             let class =
                 matches!(*self.u.types().get(a), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class);
             let param_arity = self.param_arity(tycon, i);
@@ -153,17 +154,11 @@ impl Typer<'_> {
         }
         let p = *self.u.type_params(c).get(i)?;
         if self.syms.completions.get(&p).is_some_and(|c| !matches!(c, Completion::Done)) {
-            return self.param_tree_arity(c, i);
+            return self.lambda_tree_arity(self.class_param_tree(c, i)?);
         }
         let info = self.u.info(p);
         let (_, hi, arity) = self.bounds_of(info);
         (self.u.class_symbol(hi) != Some(self.u.builtins().any_kind)).then_some(arity)
-    }
-
-    /// The number of type parameters of the `i`th type parameter tree of script class `c`'s
-    /// primary constructor; `None` if it has none.
-    fn param_tree_arity(&self, c: SymbolId, i: usize) -> Option<usize> {
-        self.lambda_tree_arity(self.class_param_tree(c, i)?)
     }
 
     /// The `i`th type parameter tree of script class `c`'s primary constructor.

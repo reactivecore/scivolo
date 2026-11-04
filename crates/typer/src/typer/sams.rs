@@ -122,7 +122,7 @@ impl Typer<'_> {
                     && self.occurrences(result, p, v, seen)
             }
             Type::Bounds(lo, hi) => self.occurrences(lo, p, -v, seen) && self.occurrences(hi, p, v, seen),
-            Type::ByName(r) => self.occurrences(r, p, v, seen),
+            Type::ByName(r) | Type::Flexible(r) => self.occurrences(r, p, v, seen),
             Type::And(a, b) | Type::Or(a, b, _) => {
                 self.occurrences(a, p, v, seen) && self.occurrences(b, p, v, seen)
             }

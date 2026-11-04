@@ -5,7 +5,7 @@
 use super::Cmp;
 use super::refs::Meaning;
 use crate::types::{Type, TypeId};
-use crate::{ANY, NOTHING};
+use crate::{ANY, Kind, NOTHING};
 
 impl Cmp<'_> {
     /// `a <: tycon[args]`.
@@ -74,7 +74,7 @@ impl Cmp<'_> {
                     Some(t) => tycon1 = t,
                     None => {
                         let same = tycon1 == tycon2 || !self.frozen() && self.recur(tycon1, tycon2);
-                        return same && self.sub_args(&args1, args2, variances);
+                        return same && self.sub_args(&args1, args2, variances, &[]);
                     }
                 },
                 Type::Annotated(inner, _) => tycon1 = inner,
@@ -85,9 +85,13 @@ impl Cmp<'_> {
                         (None, None) => n1.same_unresolved(&n2),
                         _ => false,
                     };
-                    return same && self.sub_args(&args1, args2, variances);
+                    let tparams = match n2.sym {
+                        Some(s) if self.u.symbol(s).kind == Kind::Class => self.u.type_params(s),
+                        _ => Vec::new(),
+                    };
+                    return same && self.sub_args(&args1, args2, variances, &tparams);
                 }
-                Type::Param(..) => return tycon1 == tycon2 && self.sub_args(&args1, args2, variances),
+                Type::Param(..) => return tycon1 == tycon2 && self.sub_args(&args1, args2, variances, &[]),
                 _ => return false,
             }
         }
@@ -131,55 +135,6 @@ impl Cmp<'_> {
             }
             Type::Applied(..) => self.compare_curried1(a, b, tycon, args),
             _ => false,
-        }
-    }
-
-    /// Whether each of `args1` conforms to the argument of `args2` at its place, by the
-    /// variance of the parameter there.
-    fn sub_args(&mut self, args1: &[TypeId], args2: &[TypeId], variances: &[i8]) -> bool {
-        args1.len() == args2.len()
-            && args1
-                .iter()
-                .zip(args2)
-                .enumerate()
-                .all(|(i, (&x, &y))| self.sub_arg(x, y, variances.get(i).copied().unwrap_or(0)))
-    }
-
-    fn sub_arg(&mut self, x: TypeId, y: TypeId, variance: i8) -> bool {
-        match (self.written_bounds(x), self.written_bounds(y)) {
-            (_, Some((lo2, hi2))) => match self.written_bounds(x) {
-                Some((lo1, hi1)) => self.recur(lo2, lo1) && self.recur(hi1, hi2),
-                None => self.recur(lo2, x) && self.recur(x, hi2),
-            },
-            (Some((lo1, hi1)), None) => match variance {
-                1 => self.recur(hi1, y),
-                -1 => self.recur(y, lo1),
-                _ => false,
-            },
-            (None, None) => match variance {
-                1 => self.recur(x, y),
-                -1 => self.recur(y, x),
-                _ => self.recur(y, x) && self.recur(x, y),
-            },
-        }
-    }
-
-    /// The bounds of a `?` argument, annotated or not; a `Wildcard` compares as a type.
-    fn written_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
-        match *self.u.types().get(t) {
-            Type::Bounds(lo, hi) => Some((lo, hi)),
-            Type::Annotated(b, _) => self.written_bounds(b),
-            _ => None,
-        }
-    }
-
-    /// The bounds of a wildcard argument, annotated or not.
-    pub fn arg_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
-        match *self.u.types().get(t) {
-            Type::Bounds(lo, hi) => Some((lo, hi)),
-            Type::Wildcard(None) => Some((NOTHING, ANY)),
-            Type::Wildcard(Some(b)) | Type::Annotated(b, _) => self.arg_bounds(b),
-            _ => None,
         }
     }
 

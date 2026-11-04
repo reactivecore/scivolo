@@ -144,14 +144,17 @@ impl Cmp<'_> {
         unified
     }
 
-    /// How many type parameters type constructor `t` takes: a type lambda's, or those of a class
-    /// referred to without arguments.
+    /// How many type parameters type constructor `t` takes: a type lambda's, those of a class
+    /// referred to without arguments, or those of an abstract type's upper bound.
     pub fn constructor_arity(&mut self, t: TypeId) -> Option<usize> {
         if let Type::Lambda { params, .. } = self.u.types().get(t) {
             return Some(params.len());
         }
-        let Some(Meaning::Class(c)) = self.named(t).map(|n| n.meaning) else { return None };
-        let n = self.u.type_params(c).len();
+        let n = match self.named(t).map(|n| n.meaning) {
+            Some(Meaning::Class(c)) => self.u.type_params(c).len(),
+            Some(Meaning::Abstract(_, hi)) => self.constructor_arity(hi).unwrap_or(0),
+            _ => 0,
+        };
         (n > 0).then_some(n)
     }
 

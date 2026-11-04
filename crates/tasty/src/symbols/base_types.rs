@@ -22,15 +22,17 @@ impl Universe {
         let (tycon, args) = match self.types().get(t).clone() {
             Type::Applied(tycon, args) => (tycon, args),
             Type::And(a, b) => {
-                return self
-                    .base_type_within(a, base, depth)
-                    .or_else(|| self.base_type_within(b, base, depth));
+                return match (self.base_type_within(a, base, depth), self.base_type_within(b, base, depth)) {
+                    (Some(x), Some(y)) if x != y => Some(self.glb(x, y)),
+                    (x, y) => x.or(y),
+                };
             }
             Type::Or(a, b, _) if self.is_bottom_ref(a) => return self.base_type_within(b, base, depth),
             Type::Or(a, b, _) if self.is_bottom_ref(b) => return self.base_type_within(a, base, depth),
             Type::Or(a, b, _) => {
                 let x = self.base_type_within(a, base, depth)?;
-                return (self.base_type_within(b, base, depth)? == x).then_some(x);
+                let y = self.base_type_within(b, base, depth)?;
+                return Some(if x == y { x } else { self.lub(x, y) });
             }
             Type::This(u)
             | Type::Super(_, u)
