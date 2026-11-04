@@ -123,6 +123,9 @@ impl Typer<'_> {
             }
             converted = true;
         };
+        if let Some(projection) = self.refined_projection(id, qual, qual_tpe, name) {
+            return projection;
+        }
         if syms.is_empty() && name.is_type && !widened {
             let refined = self.refined_select(id, qual, qual_tpe, name);
             return refined.unwrap_or_else(|| self.member_not_found(id, qual, name, ctx));

@@ -107,6 +107,7 @@ impl Typer<'_> {
         let stable = match *self.u.types().get(pre) {
             Type::Sym(_, s) => !self.u.is_type_symbol(s),
             Type::This(_) | Type::TermRef(..) => true,
+            Type::Refined(..) => name.is_type && matches!(self.tpd.tree(qual), T::RefinedTypeTree { .. }),
             _ => false,
         };
         let text = self.text(name.name).to_owned();

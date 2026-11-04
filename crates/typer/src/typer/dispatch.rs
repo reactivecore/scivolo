@@ -79,6 +79,9 @@ impl Typer<'_> {
             | Tree::SingletonTypeTree { .. }
             | Tree::TypeBoundsTree { .. }
             | Tree::DerivedTypeTree { .. } => self.typed_type(id, ctx),
+            Tree::RefinedTypeTree { refinements, .. } if !self.ast.items(refinements).is_empty() => {
+                self.typed_type(id, ctx)
+            }
             Tree::ValDef { .. } => self.typed_val_def(id, ctx),
             Tree::DefDef { .. } => self.typed_def_def(id, ctx),
             Tree::TypeDef { rhs, .. } if matches!(self.ast.tree(rhs), Tree::Template { .. }) => {

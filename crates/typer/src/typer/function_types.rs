@@ -77,6 +77,14 @@ impl Typer<'_> {
         contextual: bool,
     ) -> Result<(Option<Parts>, Option<super::sams::SamParent>), TNodeId> {
         let Pt::Type(p) = pt else { return Ok((None, None)) };
+        let z = self.zonk(p);
+        let p = match *self.u.types().get(z) {
+            Type::Or(..) | Type::And(..) | Type::Flexible(_) => match self.function_type_in(z) {
+                Some(f) => f,
+                None => return Ok((None, None)),
+            },
+            _ => p,
+        };
         if contextual {
             return Ok((self.context_function_parts(p).filter(|(params, _)| params.len() == n), None));
         }

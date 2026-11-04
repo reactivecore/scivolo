@@ -12,11 +12,15 @@ use syntax::ast::{List, NodeId, Tree};
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
-    /// Function value `(params) => body` against the expected type `pt`.
+    /// Function value `(params) => body` against the expected type `pt`, a pattern-matching
+    /// lambda of a tuple pattern as a function of several parameters if `pt` takes them.
     pub fn typed_function(&mut self, id: NodeId, args: List, body: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let params = self.ast.items(args).to_vec();
-        let n = params.len();
         let pt = self.instantiated_pt(id, (&params, body), pt);
+        if let Some((args, body)) = self.untupled_case(&params, body, pt) {
+            return self.typed_function(id, args, body, pt, ctx);
+        }
+        let n = params.len();
         if let Some(untupled) = self.untupled_function(id, args, body, pt, ctx) {
             return untupled;
         }
