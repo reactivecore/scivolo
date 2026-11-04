@@ -8,6 +8,7 @@ mod args;
 mod atoms;
 mod atoms_lub;
 mod binders;
+mod class_symbols;
 mod curried;
 mod either;
 mod eta;

@@ -86,8 +86,11 @@ impl Cmp<'_> {
             return true;
         }
         let Some(class) = self.u.class_symbol(widened) else { return false };
+        let Type::Var(v) = *self.u.types().get(var) else { return false };
+        let class_bounds = self.class_symbols(self.vars.bounds(v).1);
         for base in self.u.linearization(class) {
-            if let Some(base_type) = self.u.base_type(widened, base)
+            if (class_bounds.is_empty() || class_bounds.iter().any(|&c| self.u.derives_from(base, c)))
+                && let Some(base_type) = self.u.base_type(widened, base)
                 && self.unify_constructor(var, args, base_type, true)
             {
                 return true;
