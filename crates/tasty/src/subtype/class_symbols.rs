@@ -39,6 +39,8 @@ impl Cmp<'_> {
             | Type::Annotated(inner, _)
             | Type::Flexible(inner)
             | Type::Alias(inner)
+            | Type::Refined(inner, ..)
+            | Type::Rec(_, inner)
             | Type::Bounds(_, inner)
             | Type::Lambda { result: inner, .. } => return self.class_symbols_within(inner, depth),
             Type::Sym(_, s) => s,
