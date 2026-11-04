@@ -8,6 +8,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use syntax::ast::flags as f;
+use syntax::config::Features;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -47,6 +48,20 @@ impl Typer<'_> {
             return Err("object of a Java class used as a value");
         }
         Ok(())
+    }
+
+    /// The package object of package `sym` used as a value, if `packageObjectValues` makes it
+    /// the value (dotty's `checkValue`).
+    pub fn package_object_value(&mut self, sym: SymbolId, ctx: Ctx) -> Option<SymbolId> {
+        if self.u.symbol(sym).kind != tasty::Kind::Package
+            || !self.feature_enabled(Features::PACKAGE_OBJECT_VALUES, "experimental.packageObjectValues", ctx)
+        {
+            return None;
+        }
+        let objects = self.package_members(sym, "package");
+        objects
+            .into_iter()
+            .find(|&s| !self.u.is_type_symbol(s) && self.u.symbol(s).flags.has(tasty::tags::OBJECT))
     }
 
     /// Whether `sym` is accessible through `prefix` from `ctx` and not kept `Local` from it
