@@ -9,7 +9,9 @@ org.scala-lang and org.scala-native); each `.scala` file of the sources is compi
 `scivolo-aot -d` against the TASTy of those jars into tmp/srclib/LIBRARY/MODULE/out/FILE/. Each
 NIR file written is compared, as lib-compile.py compares them, with two oracles: the published
 jar's (`published`) and the sources compiled by scala-cli with Scala 3.9.0 and Scala Native 0.5.12
-against the published jar, for the sources it lacks (`scala-cli`). MODULE/MODULE.jar is the
+against the published jar, for the sources it lacks (`scala-cli`). A NIR file that differs from
+`scala-cli` is compared again with its source compiled alone by scala-cli (`scala-cli-file`).
+MODULE/MODULE.jar is the
 published jar with our NIR in place of its own; each test program tests/aot/TEST, its `//> using dep` lines blanked, is built against those jars and
 the other dependencies, and its output compared with its `.check`.
 
@@ -64,16 +66,16 @@ def fetch(coordinate):
     return published, sources, [j for j in deps if j != published]
 
 
-def scala_cli(src, work, deps):
-    """The NIR directory of `src` compiled by scala-cli, or None with its error printed."""
-    out = work / "scala-cli"
+def scala_cli(src, root, out, deps):
+    """The NIR directory `out` of `src` (a file or a directory under `root`) compiled by scala-cli, or None
+    with its error printed."""
     jars = [a for j in deps for a in ("--extra-jars", str(j))]
     r = subprocess.run(["scala-cli", "--power", "compile", "--quiet", "--server=false", "--native", "--native-version",
-                        NATIVE, "--scala", SCALA, "--scalac-option", "-sourceroot", "--scalac-option", str(src),
-                        *jars, "--workspace", str(work / "scala-cli-work"), "-d", str(out), str(src)],
+                        NATIVE, "--scala", SCALA, "--scalac-option", "-sourceroot", "--scalac-option", str(root),
+                        *jars, "--workspace", str(out.with_name(out.name + "-work")), "-d", str(out), str(src)],
                        capture_output=True, text=True, errors="replace")
     if r.returncode != 0:
-        print(f"  scala-cli failed: {r.stderr.strip()[-300:]}")
+        print(f"  scala-cli failed on {src.relative_to(root.parent)}: {r.stderr.strip()[-300:]}")
         return None
     return out
 
@@ -96,17 +98,36 @@ def compile_files(work, jars, src):
     return results, outs
 
 
-def compare_with(name, oracle, outs, work):
-    """The rows of cmp.tsv against NIR directory `oracle`, and the summary line."""
-    rows, counts = [], collections.Counter()
+def compare_with(name, oracle, out, paths, work):
+    """The rows of cmp.tsv for the NIR files `paths` under `out` against NIR directory `oracle`."""
+    rows = []
+    for path in paths:
+        state, lines, reordered = lib.compare(out / path, oracle / path, work / "diffs" / name / f"{path}.diff")
+        rows.append([name, path, state, lines, int(reordered)])
+    return rows
+
+
+def summary(name, rows):
+    counts = collections.Counter(r[2] for r in rows)
+    return (f"  vs {name}: nir {counts['same']} same, {counts['differ']} differ, {counts['var-order']} var-order, "
+            f"{counts['quote-pos']} quote-pos, {counts['missing']} missing")
+
+
+def nir_files(out):
+    return [str(p.relative_to(out)) for p in sorted(out.rglob("*.nir"))]
+
+
+def compare_per_file(src, outs, joint, work, jars):
+    """The rows of cmp.tsv against `scala-cli-file`, each source compiled alone by scala-cli, for the NIR
+    files in `joint` (the rows against `scala-cli`) that differ."""
+    differ = {r[1] for r in joint if r[2] == "differ"}
+    rows = []
     for out in outs:
-        for p in sorted(out.rglob("*.nir")):
-            path = str(p.relative_to(out))
-            state, lines, reordered = lib.compare(p, oracle / path, work / "diffs" / name / f"{path}.diff")
-            counts[state] += 1
-            rows.append([name, path, state, lines, int(reordered)])
-    return rows, (f"  vs {name}: nir {counts['same']} same, {counts['differ']} differ, "
-                  f"{counts['var-order']} var-order, {counts['quote-pos']} quote-pos, {counts['missing']} missing")
+        paths = [p for p in nir_files(out) if p in differ]
+        rel = out.relative_to(work / "out")
+        if paths and (nir := scala_cli(src / f"{rel}.scala", src, work / "scala-cli-file" / rel, jars)):
+            rows += compare_with("scala-cli-file", nir, out, paths, work)
+    return rows
 
 
 def write_jar(path, published, outs):
@@ -156,13 +177,19 @@ def build_module(coordinate, work):
     for r in results:
         if r[1] != "ok":
             print(f"  {r[0]}: {r[1]} {r[2]}")
-    oracles = {"published": theirs, "scala-cli": scala_cli(src, work, [published, *deps])}
+    oracles = {"published": theirs, "scala-cli": scala_cli(src, src, work / "scala-cli", [published, *deps])}
     cmp = []
     for oracle, nir in oracles.items():
         if nir:
-            rows, line = compare_with(oracle, nir, outs, work)
+            rows = [r for out in outs for r in compare_with(oracle, nir, out, nir_files(out), work)]
             cmp += rows
-            print(f"{line} (of {sum(1 for _ in nir.rglob('*.nir'))} in {nir.relative_to(ROOT)})")
+            print(f"{summary(oracle, rows)} (of {sum(1 for _ in nir.rglob('*.nir'))} in {nir.relative_to(ROOT)})")
+    if oracles["scala-cli"]:
+        rows = compare_per_file(src, outs, [r for r in cmp if r[0] == "scala-cli"], work, [published, *deps])
+        cmp += rows
+        matched = sum(r[2] in ("same", "var-order", "quote-pos") for r in rows)
+        both = sum(r[0] == "scala-cli" and r[2] == "differ" for r in cmp) - matched
+        print(f"{summary('scala-cli-file', rows)} (the differing files compiled alone); {both} differ from both")
     lib.write_tsv(work / "cmp.tsv", cmp)
     ours = work / f"{work.name}.jar"
     write_jar(ours, published, outs)

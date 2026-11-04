@@ -36,8 +36,15 @@ pub fn local_name(u: &Universe, s: SymbolId) -> Name {
 }
 
 /// Name `name` as a default getter's or a unique name, the name it is derived from also one
-/// unless that is dotty's synthetic parameter `x$N`, a simple name.
+/// unless that is dotty's synthetic parameter `x$N`, a simple name; `$N$` the unique name of
+/// nothing (dotty's `UniqueName.mkString`).
 fn derived_name(name: &str) -> Option<Name> {
+    if let Some(n) = name.strip_prefix('$').and_then(|n| n.strip_suffix('$'))
+        && let Ok(num) = n.parse::<u32>()
+        && !n.starts_with(['0', '+'])
+    {
+        return Some(Name::Unique { under: utf8(""), sep: "$".to_string(), num });
+    }
     let digits = name.trim_end_matches(|c: char| c.is_ascii_digit());
     let num: u32 = name[digits.len()..].parse().ok().filter(|_| !name[digits.len()..].starts_with('0'))?;
     if let Some(method) = digits.strip_suffix("$default$")

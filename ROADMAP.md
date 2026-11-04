@@ -120,10 +120,11 @@ slower meanwhile:
 3. **com-lihaoyi toolkit** (#216, [research 31](docs/research/31-lihaoyi-macros.md)): `just
    lib-source NAME` compiles every file of fansi 0.5.1, geny 1.1.1, sourcecode 0.4.4, pprint
    0.9.6, fastparse 3.1.1, mainargs 0.7.8, upickle 4.4.3 (with upickle-core, upickle-implicits,
-   ujson and upack) and os-lib 0.11.9-M8; 1,772 of 1,786 NIR files are the same as scala-cli's
+   ujson and upack) and os-lib 0.11.9-M8; 1,776 of 1,786 NIR files are the same as scala-cli's
    (3 differ only in var order; upickle's own 35 have no scala-cli oracle, as Scala 3.9 reports
-   cyclic references in `Api.scala`). Their `tests/aot` programs pass on our NIR. Open: the
-   remaining differences, mostly quote type sharing in macro files, from compiling file by file.
+   cyclic references in `Api.scala`); 4 differ also from scala-cli compiling the file alone
+   (docs/conformance.md). Their `tests/aot` programs pass on our NIR. Open: fastparse's inline
+   expansion position.
 4. **Lowering and inlining gaps** ([research 42](docs/research/42-lowering-leftovers-after-1029.md)):
    done; `tests/run` has no lowering refusals left.
 5. **Scala Native's library through the own frontend** (#168,

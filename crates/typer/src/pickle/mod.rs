@@ -8,6 +8,7 @@ mod defs;
 mod names;
 mod positions;
 mod refs;
+mod selects;
 mod sharing;
 mod templates;
 mod trees;

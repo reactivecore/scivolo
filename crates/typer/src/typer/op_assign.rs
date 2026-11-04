@@ -78,11 +78,6 @@ impl Typer<'_> {
         self.typed_ahead(lhs, typed_lhs, ctx);
         let clean = self.unsupported == unsupported && !self.diags.has_errors();
         let has_member = if clean { self.has_member(typed_lhs, &text, ctx) } else { Ok(true) };
-        let pure_prefix = match *self.tpd.tree(typed_lhs) {
-            T::Ident { .. } => true,
-            T::Select { qualifier, .. } => self.is_pure_path(qualifier),
-            _ => false,
-        };
         match has_member {
             Ok(true) => return None,
             Err(what) => return Some(self.unsupported(id, what)),
@@ -93,22 +88,8 @@ impl Typer<'_> {
             Ok(lifted) => lifted,
             Err(what) => return Some(self.unsupported(id, what)),
         };
-        if !defs.is_empty() || !pure_prefix {
-            let assign = self.lifted_op_assign(id, lifted, op_text(&text), args, ctx);
-            return Some(self.wrap_defs(defs, assign));
-        }
-        let span = self.ast.span(id);
-        let lhs_span = self.ast.span(lhs);
-        let op = TName { name: self.name(op_text(&text)), is_type: false };
-        let select = self.ast.node(Tree::Select { qualifier: lhs, name: op });
-        self.ast.with_span(select, Span::synthetic(lhs_span.start(), lhs_span.end()));
-        let last = *self.ast.items(args).last().expect("an argument");
-        let rhs = self.ast.node(Tree::Apply { fun: select, args });
-        let span = Span::synthetic(span.start(), self.ast.span(last).end());
-        self.ast.with_span(rhs, span);
-        let assign = self.ast.node(Tree::Assign { lhs, rhs });
-        self.ast.with_span(assign, span);
-        Some(self.typed_assign(assign, (lhs, rhs), Pt::Any, ctx))
+        let assign = self.lifted_op_assign(id, lifted, op_text(&text), args, ctx);
+        Some(self.wrap_defs(defs, assign))
     }
 
     /// Assignment target `lhs` with the prefix of its selection and the arguments of its call
