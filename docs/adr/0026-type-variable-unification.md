@@ -1,6 +1,6 @@
 # ADR 0026 — Type variables that bound each other are unified, in implicit searches only across the outermost one
 
-Status: accepted · Date: 2026-10-15
+Status: accepted · Date: 2026-10-15 · Amended 2026-11-04 by ADR 0088
 
 ## Context
 dotty unifies two type variables once each bounds the other (`ConstraintHandling.addLess`,

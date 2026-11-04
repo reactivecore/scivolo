@@ -50,9 +50,7 @@ impl Typer<'_> {
         let mut found = Vec::new();
         let mut linked_any = false;
         for &c in group {
-            if matches!(self.syms.completions.get(&c.sym), Some(Completion::Completing(_))) {
-                return Err("implicit candidate whose definition is being completed");
-            }
+            self.complete_candidate(c)?;
             let (result, clean, linked) = self.speculatively(|t| attempt(t, c));
             if !clean {
                 return Err("implicit candidate outside the subset");
@@ -87,6 +85,7 @@ impl Typer<'_> {
         let Some(best) = (!unpruned).then(|| self.most_specific(group, ctx)).flatten() else {
             return Ok(BestFirst::Skipped);
         };
+        self.complete_candidate(best)?;
         let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
         let dictionary = self.history.snapshot();
         let result = self.tried(best, (pt, by_name), at, ctx, (depth, false));
@@ -119,9 +118,7 @@ impl Typer<'_> {
     ) -> Result<Option<TNodeId>, &'static str> {
         let mut nested_failure = false;
         for &c in group {
-            if matches!(self.syms.completions.get(&c.sym), Some(Completion::Completing(_))) {
-                return Err("implicit candidate whose definition is being completed");
-            }
+            self.complete_candidate(c)?;
             let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
             let dictionary = self.history.snapshot();
             let result = self.tried(c, (pt, by_name), at, ctx, (depth, false));
@@ -167,6 +164,16 @@ impl Typer<'_> {
             types.push(tpe?);
         }
         Ok(types.windows(2).all(|w| w[0] == w[1]))
+    }
+
+    /// Completes the definition of candidate `c` outside any attempt on it (dotty's
+    /// `completeInCreationContext`); `Err` if it is being completed.
+    fn complete_candidate(&mut self, c: Candidate) -> Result<(), &'static str> {
+        if matches!(self.syms.completions.get(&c.sym), Some(Completion::Completing(_))) {
+            return Err("implicit candidate whose definition is being completed");
+        }
+        self.complete(c.sym);
+        Ok(())
     }
 
     /// The result of `f` run with the constraint, the recorded fallback and the dictionary

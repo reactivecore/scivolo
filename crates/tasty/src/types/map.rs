@@ -6,7 +6,7 @@ use crate::Universe;
 impl Universe {
     /// `t` with every part for which `f` gives a replacement replaced, outermost parts first;
     /// the other parts are rebuilt from their mapped children, an application whose constructor
-    /// became a type lambda beta-reduced.
+    /// became a type lambda beta-reduced, one whose constructor became `Nothing` `Nothing`.
     pub fn map_type(&mut self, t: TypeId, f: &mut dyn FnMut(&mut Self, TypeId) -> Option<TypeId>) -> TypeId {
         if let Some(r) = f(self, t) {
             return r;
@@ -27,6 +27,9 @@ impl Universe {
             }
             Type::Applied(c, args) => {
                 let mapped = m(self, c);
+                if mapped != c && mapped == crate::NOTHING {
+                    return mapped;
+                }
                 let applied = Type::Applied(mapped, args.into_iter().map(|a| m(self, a)).collect());
                 let applied = self.intern_type(applied);
                 let lambda = matches!(self.types().get(mapped), Type::Lambda { .. });

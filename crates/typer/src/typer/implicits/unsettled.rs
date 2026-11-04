@@ -33,24 +33,6 @@ impl Typer<'_> {
         unbounded.then_some("implicit search for a type with a higher-kinded type variable")
     }
 
-    /// Whether `t` applies an uninstantiated type variable of id `from` or later whose bounds
-    /// differ.
-    pub fn has_open_constructor(&mut self, t: TypeId, from: usize) -> bool {
-        let mut tycons = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Applied(c, _) = *u.types().get(part) {
-                tycons.push(c);
-            }
-            None
-        });
-        tycons.into_iter().any(|c| {
-            let c = self.zonk(c);
-            let Type::Var(v) = *self.u.types().get(c) else { return false };
-            let (lo, hi) = self.constraint.bounds(v);
-            v.0 as usize >= from && self.constraint.is_pending(v) && lo != hi
-        })
-    }
-
     /// What the search looks for in place of `t` (dotty's `wildApprox`): the upper bound of an
     /// uninstantiated type variable bounded from above only; that bound applied to the arguments
     /// of such a variable applied, if it is a class taking as many; an intersection with such

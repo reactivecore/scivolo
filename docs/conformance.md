@@ -190,16 +190,16 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
 
-Results (2026-11-03):
+Results (2026-11-04):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1447 |
+| passed | 1449 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
 | lowering refused | 2 |
-| typer refused | 57 |
+| typer refused | 55 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -209,9 +209,8 @@ Results (2026-11-03):
 
 - **Lowering refused:** an inline method not erased; branches of erased types other than
   classes and arrays.
-- **Typer refused:** mostly adaptations (8), members not found (4), implicit candidates with
-  undetermined type variables (3, #123), GADT constraints (3), inline methods of objects with
-  opaque types (3), `$scope` (3) and structural refinements of existing members (3).
+- **Typer refused:** mostly adaptations (8), members not found (5), GADT constraints (3), inline
+  methods of objects with opaque types (3), `$scope` (3) and structural refinements of existing members (3).
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
   libraries compiled before 3.4, which dotty accepts) and checks no other `future` rule.
