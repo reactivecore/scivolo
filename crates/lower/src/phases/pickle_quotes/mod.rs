@@ -6,8 +6,10 @@
 //! `Type.of[T](quotes)` an `unpickleTypeV2[T](pickled, tags)`.
 
 mod avoid;
+mod bound;
 mod cancelled;
 mod captured_apps;
+mod captured_types;
 mod class_bound;
 mod heal;
 mod holes;
