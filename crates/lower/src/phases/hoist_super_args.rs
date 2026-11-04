@@ -139,8 +139,8 @@ fn needs_hoist(l: &mut Lower, arg: TNodeId) -> bool {
 }
 
 /// Hoists argument `arg` of the superclass constructor call of `h` into a method taking the
-/// constructor's parameters and `lifted`, defined at the constructor if it has value or type
-/// parameters, else at the argument; the call of it at `span`.
+/// constructor's parameters and `lifted`, spanning the constructor's point and the argument
+/// if the constructor has value or type parameters, else the argument; the call of it at `span`.
 fn hoist(l: &mut Lower, h: &mut Hoister, arg: TNodeId, lifted: &[SymbolId], span: Span) -> TNodeId {
     let (class, constr) = (h.class, h.constr);
     if lifted.iter().any(|&s| l.u.symbol(s).kind == Kind::Def) {
@@ -202,7 +202,11 @@ fn hoist(l: &mut Lower, h: &mut Hoister, arg: TNodeId, lifted: &[SymbolId], span
     let param_defs: Vec<TNodeId> = params.iter().map(|&p| l.param_def(p, ctor_at)).collect();
     let tpt = l.type_tree(result, at);
     let none = params.is_empty() && l.u.type_params(class).is_empty();
-    let def = l.method_def(m, &param_defs, tpt, arg, if none { at } else { ctor_at });
+    let def_at = match none || !ctor_at.exists() {
+        true => at.to_synthetic(),
+        false => Span::at(ctor_at.point()).union(at).to_synthetic(),
+    };
+    let def = l.method_def(m, &param_defs, tpt, arg, def_at);
     h.defs.push(def);
     call
 }
