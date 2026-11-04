@@ -83,14 +83,19 @@ impl Typer<'_> {
         self.def_clauses(tree).iter().map(|clause| self.enter_clause(sym, clause, ctx)).collect()
     }
 
-    /// Enters the leading type parameters of constructor `ctor` if it is not completed yet,
-    /// without its other parameters (dotty's `indexConstructor`).
+    /// Enters the leading type parameters of constructor `ctor` in its completion context if it
+    /// is not completed yet, without its other parameters (dotty's `indexConstructor`).
     pub fn enter_leading_type_params(&mut self, ctor: SymbolId) {
         let Some(&Completion::Pending { tree, ctx }) = self.syms.completions.get(&ctor) else { return };
         let Some(first) = self.def_clauses(tree).into_iter().next() else { return };
         if first.first().is_some_and(|&p| matches!(self.ast.tree(p), Tree::TypeDef { .. })) {
+            let outer = self.u.set_comparison_owner(Some(ctx.owner));
+            let nulls = self.null_mode(ctx);
+            let outer_nulls = self.u.set_null_mode(nulls);
             let mctx = self.method_ctx(ctor, ctx);
             self.enter_clause(ctor, &first, mctx);
+            self.u.set_comparison_owner(outer);
+            self.u.set_null_mode(outer_nulls);
         }
     }
 

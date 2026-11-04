@@ -139,7 +139,9 @@ impl Typer<'_> {
             return sym;
         }
         self.complete(sym);
-        if let Some(crate::symbols::Completion::Completing(_)) = self.syms.completions.get(&sym) {
+        if let Some(crate::symbols::Completion::Completing(_)) = self.syms.completions.get(&sym)
+            && self.u.parents(sym).is_empty()
+        {
             self.object_parents_assumed.push(sym);
         }
         let first = self.u.parents(sym).first().copied();
