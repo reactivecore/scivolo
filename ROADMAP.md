@@ -65,7 +65,7 @@ inlining (ADR 0006).
 
 Exit criterion (met): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`, 2026-11-04): 1,457 of 1,711 pass; 49 stop at the typer, 32 fail in
+(`just dotty-lower-report`, 2026-11-04): 1,464 of 1,711 pass; 42 stop at the typer, 32 fail in
 the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -112,7 +112,7 @@ libraries work. dotty's `tests/run-macros`: 307 of 321 pass
 
 Compatibility first, in order of the tests it unblocks; startup comes last and must not get
 slower meanwhile:
-1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 49 typer
+1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 42 typer
    refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 682 in
    `tests/pos`; implicit candidates with undetermined type variables (#123).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the 14 failing
