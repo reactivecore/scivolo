@@ -139,8 +139,8 @@ impl Typer<'_> {
         Some(approx::derived(self.u, &[mapped], &[], v, &mut |u, p| u.intern_type(make(p[0]))))
     }
 
-    /// Uninstantiated type variable `t` replaced by the bound it would be instantiated to if
-    /// avoiding changes that bound (dotty's `avoid` of a `TypeVar`).
+    /// Uninstantiated type variable `t` replaced by its instance type if avoiding changes that
+    /// type (dotty's `avoid` of a `TypeVar`).
     fn avoid_var(&mut self, t: TypeId, var: tasty::VarId, v: i8, a: Avoided) -> Option<Approx> {
         if let Some(inst) = self.constraint.instance(var) {
             return self.avoid_at(inst, v, a);
@@ -149,8 +149,11 @@ impl Typer<'_> {
             return Some(Approx::Exact(t));
         }
         let (lo, hi) = self.constraint.bounds(var);
-        let bound = if v > 0 || v == 0 && lo != NOTHING { lo } else { hi };
-        let bound = self.zonk(bound);
+        let from_below = v > 0 || v == 0 && lo != NOTHING;
+        let bound = match self.instance_type(var, from_below) {
+            Ok(inst) => inst,
+            Err(_) => self.zonk(if from_below { lo } else { hi }),
+        };
         let mapped = self.avoid_at(bound, v, Avoided { in_var_bound: true, ..a })?;
         Some(if mapped == Approx::Exact(bound) { Approx::Exact(t) } else { mapped })
     }
