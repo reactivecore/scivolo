@@ -37,7 +37,7 @@ impl Typer<'_> {
     }
 
     /// Reports implicit or given object `cls`, defined by `tree`, whose class parent `parent`
-    /// has its type arguments inferred (dotty's `missingType`).
+    /// has its type arguments or tracked parameters inferred (dotty's `missingType`).
     fn check_inferred_parent(&mut self, cls: SymbolId, tree: NodeId, parent: NodeId) {
         let implicit = |s: SymbolId, u: &tasty::Universe| {
             let flags = u.symbol(s).flags;
@@ -60,7 +60,12 @@ impl Typer<'_> {
             let tpt = self.parent_tpt(p);
             let typed = self.typed_type(tpt, ctx);
             let mut tpe = self.tpd.tpe(typed);
-            if matches!(self.ast.tree(p), Tree::Apply { .. }) && self.type_arity(tpe) > 0 {
+            let dealiased = self.u.dealias(tpe);
+            let dependent = self
+                .u
+                .class_symbol(dealiased)
+                .is_some_and(|c| self.u.symbol(c).flags.has(tasty::tags::TRACKED));
+            if matches!(self.ast.tree(p), Tree::Apply { .. }) && (self.type_arity(tpe) > 0 || dependent) {
                 self.check_inferred_parent(cls, tree, p);
                 let call = self.typed(p, super::Pt::Any, ctx);
                 self.typed_ahead(p, call, ctx);
