@@ -60,7 +60,7 @@ impl Typer<'_> {
         };
         match (self.function_type_in(a), self.function_type_in(b)) {
             (Some(f), None) | (None, Some(f)) => Some(f),
-            (Some(f), Some(g)) if f == g => Some(f),
+            (Some(f), Some(g)) if and && f == g => Some(f),
             (Some(f), Some(g)) if and => Some(self.u.intern_type(Type::And(f, g))),
             _ => None,
         }

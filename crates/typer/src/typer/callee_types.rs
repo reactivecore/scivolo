@@ -84,7 +84,7 @@ impl Typer<'_> {
     }
 
     /// The info of the single method path `fun` refers to, its qualifier typed in `ctx` and
-    /// spliced, and the method if known; a structural method's from its refinement.
+    /// spliced, its type arguments typed ahead, and the method if known; a structural method's from its refinement.
     fn callee_method(&mut self, fun: NodeId, ctx: Ctx) -> Option<(TypeId, Option<SymbolId>)> {
         if let Some(&typed) = self.splices.get(&fun) {
             let tpe = self.tpd.tpe(typed);
@@ -160,6 +160,7 @@ impl Typer<'_> {
                 let mut targs = Vec::new();
                 for a in args {
                     let typed = self.typed_type(a, ctx);
+                    self.typed_ahead(a, typed, ctx);
                     targs.push(self.tpd.tpe(typed));
                 }
                 let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
