@@ -26,7 +26,7 @@ impl Typer<'_> {
                 let lifted = self.lift_app(defs, fun, complex, ctx)?;
                 let tpe = self.tpd.tpe(fun);
                 let info = self.method_info(tpe).unwrap_or(tpe);
-                let Type::Method { params, .. } = self.u.types().get(info).clone() else {
+                let Type::Method { params, binder, result, .. } = self.u.types().get(info).clone() else {
                     return Err("lifting of a call of a function value");
                 };
                 let args = self.tpd.items(args).to_vec();
@@ -36,7 +36,13 @@ impl Typer<'_> {
                 if lifted == fun && lifted_args == args {
                     return Ok(f);
                 }
+                let method = self.tpd.sym(fun);
                 let tpe = match lifted == fun {
+                    true if self.mentions_params(result, binder, method) => {
+                        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+                        let types: Vec<TypeId> = lifted_args.iter().map(|&a| self.tpd.tpe(a)).collect();
+                        self.applied_result(result, (binder, &names), method, &types)
+                    }
                     true => self.tpd.tpe(f),
                     false => self.result_of(lifted).ok_or("lifting of a call of a function value")?,
                 };
@@ -92,5 +98,25 @@ impl Typer<'_> {
             T::Ident { .. } => Ok(self.lift(defs, f, "", complex, ctx)),
             _ => Err("lifting of another function tree"),
         }
+    }
+
+    /// The `n` formal parameter types of lifted call `f`, by-name and repeated parameters as
+    /// their underlying and element types, if its method type has as many parameters (dotty's
+    /// `methType` from `liftedFunType`).
+    pub fn lifted_formals(&mut self, f: TNodeId, n: usize) -> Option<Vec<TypeId>> {
+        let tpe = self.tpd.tpe(f);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
+        let last = params.len().checked_sub(1)?;
+        let formals: Vec<TypeId> = (params.iter().enumerate())
+            .map(|(i, &(_, p))| {
+                let p = if i == last { self.repeated_param_elem(p).unwrap_or(p) } else { p };
+                match *self.u.types().get(p) {
+                    Type::ByName(r) => r,
+                    _ => p,
+                }
+            })
+            .collect();
+        (formals.len() == n).then_some(formals)
     }
 }

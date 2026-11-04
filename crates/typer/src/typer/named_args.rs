@@ -133,9 +133,15 @@ impl Typer<'_> {
         let at = self.tpd.span(f).start_pos();
         let mut defs = Vec::new();
         let lifted_fun = aligned.contains(&None);
+        let mut lifted_formals = None;
         if lifted_fun {
+            let before = self.tpd.tpe(f);
             f = self.lift_app(&mut defs, f, true, ctx)?;
+            if self.tpd.tpe(f) != before {
+                lifted_formals = self.lifted_formals(f, formals.len());
+            }
         }
+        let formals = lifted_formals.as_deref().unwrap_or(formals);
         let mut typed = Vec::new();
         let mut safe = true;
         for (i, slot) in aligned.iter().enumerate() {

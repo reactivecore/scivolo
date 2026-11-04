@@ -135,7 +135,7 @@ impl Typer<'_> {
     }
 
     /// Result `t` of a method of parameters `params` applied to the typed arguments `args`, if
-    /// there is one argument per parameter and no class is selected from a parameter.
+    /// there is one argument per parameter.
     pub fn dependent_result(
         &mut self,
         t: TypeId,
@@ -146,21 +146,6 @@ impl Typer<'_> {
         let types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         if types.len() != params.len() {
-            return None;
-        }
-        let mut inner_class = false;
-        self.u.map_type(t, &mut |u, part| {
-            let (pre, s) = match *u.types().get(part) {
-                Type::Sym(Some(pre), s) => (pre, Some(s)),
-                Type::TypeRef(pre, _) => (pre, u.resolve_ref(part)),
-                _ => return None,
-            };
-            if mentions_clause_params(u, pre, (binder, &names), method) {
-                inner_class |= s.is_some_and(|s| u.symbol(s).kind == Kind::Class);
-            }
-            None
-        });
-        if inner_class {
             return None;
         }
         for &a in &types {
