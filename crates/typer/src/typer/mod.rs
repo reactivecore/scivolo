@@ -307,6 +307,8 @@ pub struct Typer<'a> {
     pub extension_receivers: rustc_hash::FxHashSet<NodeId>,
     /// The `new`s of parent calls (dotty's `noCheckNews`).
     pub parent_news: rustc_hash::FxHashSet<NodeId>,
+    /// The traits whose class parent was taken as `Object` while their parents were completed.
+    pub object_parents_assumed: Vec<SymbolId>,
     /// The imports of the unit, root imports first, by `Level::Import` index.
     pub imports: Vec<imports::ImportEntry>,
     /// The level each import tree opens.
@@ -435,6 +437,7 @@ impl<'a> Typer<'a> {
             splice_owners: FxHashMap::default(),
             extension_receivers: Default::default(),
             parent_news: Default::default(),
+            object_parents_assumed: Vec::new(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
             package_levels: FxHashMap::default(),

@@ -5,6 +5,7 @@
 //! Methods' parameters: their symbols, entered clause by clause before their types are typed.
 
 use crate::ctx::{Ctx, Level};
+use crate::symbols::Completion;
 use crate::typer::Typer;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
@@ -79,33 +80,44 @@ impl Typer<'_> {
 
     /// The parameter symbols of method definition `tree`, entered in `ctx`, by clause.
     pub fn enter_params(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) -> Vec<Vec<SymbolId>> {
-        let mut out = Vec::new();
-        for clause in self.def_clauses(tree) {
-            let mut syms = Vec::new();
-            let mut fresh = Vec::new();
-            for &p in &clause {
-                let param = match self.syms.by_tree.get(&p) {
-                    Some(&s) => s,
-                    None => {
-                        let s = self.define_param(sym, p);
-                        fresh.push((s, p));
-                        s
-                    }
-                };
-                let name = self.u.symbol(param).name.clone();
-                self.levels.enter(ctx.level, &name, param);
-                syms.push(param);
-            }
-            let entered = !fresh.is_empty();
-            for (s, p) in fresh {
-                self.param_info(s, p, ctx);
-            }
-            if entered {
-                self.check_deprecated_names(&syms);
-            }
-            out.push(syms);
+        self.def_clauses(tree).iter().map(|clause| self.enter_clause(sym, clause, ctx)).collect()
+    }
+
+    /// Enters the leading type parameters of constructor `ctor` if it is not completed yet,
+    /// without its other parameters (dotty's `indexConstructor`).
+    pub fn enter_leading_type_params(&mut self, ctor: SymbolId) {
+        let Some(&Completion::Pending { tree, ctx }) = self.syms.completions.get(&ctor) else { return };
+        let Some(first) = self.def_clauses(tree).into_iter().next() else { return };
+        if first.first().is_some_and(|&p| matches!(self.ast.tree(p), Tree::TypeDef { .. })) {
+            let mctx = self.method_ctx(ctor, ctx);
+            self.enter_clause(ctor, &first, mctx);
         }
-        out
+    }
+
+    fn enter_clause(&mut self, sym: SymbolId, clause: &[NodeId], ctx: Ctx) -> Vec<SymbolId> {
+        let mut syms = Vec::new();
+        let mut fresh = Vec::new();
+        for &p in clause {
+            let param = match self.syms.by_tree.get(&p) {
+                Some(&s) => s,
+                None => {
+                    let s = self.define_param(sym, p);
+                    fresh.push((s, p));
+                    s
+                }
+            };
+            let name = self.u.symbol(param).name.clone();
+            self.levels.enter(ctx.level, &name, param);
+            syms.push(param);
+        }
+        let entered = !fresh.is_empty();
+        for (s, p) in fresh {
+            self.param_info(s, p, ctx);
+        }
+        if entered {
+            self.check_deprecated_names(&syms);
+        }
+        syms
     }
 
     /// The symbol of parameter `p` of `method`.
