@@ -6,7 +6,8 @@ use crate::Universe;
 impl Universe {
     /// `t` with every part for which `f` gives a replacement replaced, outermost parts first;
     /// the other parts are rebuilt from their mapped children, an application whose constructor
-    /// became a type lambda beta-reduced, one whose constructor became `Nothing` `Nothing`.
+    /// became a type lambda beta-reduced, one whose constructor became `Nothing` `Nothing`, a union
+    /// or intersection of one type twice that type mapped.
     pub fn map_type(&mut self, t: TypeId, f: &mut dyn FnMut(&mut Self, TypeId) -> Option<TypeId>) -> TypeId {
         if let Some(r) = f(self, t) {
             return r;
@@ -37,8 +38,16 @@ impl Universe {
             }
             Type::Alias(a) => Type::Alias(m(self, a)),
             Type::Bounds(lo, hi) => Type::Bounds(m(self, lo), m(self, hi)),
-            Type::And(a, b) => Type::And(m(self, a), m(self, b)),
-            Type::Or(a, b, soft) => Type::Or(m(self, a), m(self, b), soft),
+            Type::And(a, b) | Type::Or(a, b, _) => {
+                let (x, y) = (m(self, a), m(self, b));
+                if a == b && x != a {
+                    return x;
+                }
+                match self.types().get(t).clone() {
+                    Type::Or(_, _, soft) => Type::Or(x, y, soft),
+                    _ => Type::And(x, y),
+                }
+            }
             Type::Annotated(a, annot) => Type::Annotated(m(self, a), annot),
             Type::Flexible(hi) => {
                 let hi = m(self, hi);

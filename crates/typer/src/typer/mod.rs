@@ -218,6 +218,7 @@ mod tries;
 mod try_capabilities;
 mod try_handlers;
 mod tuple_xxl;
+mod tupled_cases;
 pub(crate) mod type_apply;
 mod type_args;
 mod type_arity;

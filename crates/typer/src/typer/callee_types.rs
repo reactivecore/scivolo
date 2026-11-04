@@ -6,7 +6,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether the callee's parameter type may give a parameter of expected type `formal` its
@@ -61,7 +61,7 @@ impl Typer<'_> {
             }
             index.push(i);
         }
-        let method = self.callee_method(fun, ctx)?;
+        let (method, _) = self.callee_method(fun, ctx)?;
         let formals = self.u.method(method)?.param_types();
         let mut types = Vec::new();
         for i in index {
@@ -84,11 +84,11 @@ impl Typer<'_> {
     }
 
     /// The info of the single method path `fun` refers to, its qualifier typed in `ctx` and
-    /// spliced; a structural method's from its refinement.
-    fn callee_method(&mut self, fun: NodeId, ctx: Ctx) -> Option<TypeId> {
+    /// spliced, and the method if known; a structural method's from its refinement.
+    fn callee_method(&mut self, fun: NodeId, ctx: Ctx) -> Option<(TypeId, Option<SymbolId>)> {
         if let Some(&typed) = self.splices.get(&fun) {
             let tpe = self.tpd.tpe(typed);
-            return Some(self.method_info(tpe).unwrap_or(tpe));
+            return Some((self.method_info(tpe).unwrap_or(tpe), None));
         }
         match *self.ast.tree(fun) {
             Tree::Ident { name } if !name.is_type => {
@@ -96,10 +96,11 @@ impl Typer<'_> {
                 let found = self.find_ref(&text, false, ctx).ok()??;
                 let [s] = found.syms[..] else { return None };
                 self.complete(s);
-                Some(match found.prefix {
+                let info = match found.prefix {
                     Some(prefix) => self.u.member_info(prefix, s),
                     None => self.u.info(s),
-                })
+                };
+                Some((info, Some(s)))
             }
             Tree::Select { qualifier, name } if self.text(name.name) == "<init>" => {
                 let Tree::New { tpt } = *self.ast.tree(qualifier) else { return None };
@@ -117,7 +118,7 @@ impl Typer<'_> {
                     Some(prefix) => self.ref_type(Some(prefix), c),
                     None => crate::defn::type_ref(self.u, c),
                 };
-                Some(self.u.member_info(class, init))
+                Some((self.u.member_info(class, init), Some(init)))
             }
             Tree::Select { qualifier, name } if !name.is_type && self.is_path_tree(qualifier) => {
                 let text = self.text(name.name).to_owned();
@@ -134,18 +135,35 @@ impl Typer<'_> {
                 match syms[..] {
                     [s] => {
                         self.complete(s);
-                        Some(self.u.member_info(tpe, s))
+                        Some((self.u.member_info(tpe, s), Some(s)))
                     }
-                    [] => self.u.term_refinement_named(tpe, &text),
+                    [] => Some((self.u.term_refinement_named(tpe, &text)?, None)),
                     _ => None,
                 }
             }
             Tree::Apply { fun, .. } => {
-                let method = self.callee_method(fun, ctx)?;
+                let (method, _) = self.callee_method(fun, ctx)?;
                 match *self.u.types().get(method) {
-                    Type::Method { result, implicit: false, .. } => Some(result),
+                    Type::Method { result, implicit: false, .. } => Some((result, None)),
                     _ => None,
                 }
+            }
+            Tree::TypeApply { fun, args } => {
+                let (method, sym) = self.callee_method(fun, ctx)?;
+                let Type::Poly { binder, params, result } = self.u.types().get(method).clone() else {
+                    return None;
+                };
+                let args = self.ast.items(args).to_vec();
+                if args.len() != params.len() {
+                    return None;
+                }
+                let mut targs = Vec::new();
+                for a in args {
+                    let typed = self.typed_type(a, ctx);
+                    targs.push(self.tpd.tpe(typed));
+                }
+                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                Some((self.instantiate_poly(result, binder, &names, &targs, sym), None))
             }
             _ => None,
         }

@@ -24,14 +24,14 @@ impl Typer<'_> {
     pub fn instantiated_pt(&mut self, id: NodeId, (params, body): (&[NodeId], NodeId), pt: Pt) -> Pt {
         let Pt::Type(p) = pt else { return pt };
         let t = self.zonk(p);
-        if !matches!(self.u.types().get(t), Type::Var(_))
-            || !params.iter().any(|&q| self.is_untyped_param(q))
-            || self.may_infer_from_callee(params, body)
-        {
+        if !params.iter().any(|&q| self.is_untyped_param(q)) || self.may_infer_from_callee(params, body) {
             return pt;
         }
-        match self.fully_defined(t) {
-            Ok(t) => Pt::Type(t),
+        let direct = matches!(self.u.types().get(t), Type::Var(_));
+        let Some(var) = (if direct { Some(t) } else { self.instantiatable_var(t) }) else { return pt };
+        match self.fully_defined(var) {
+            Ok(v) if direct => Pt::Type(v),
+            Ok(_) => Pt::Type(self.zonk(t)),
             Err(what) => {
                 self.unsupported(id, what);
                 pt
