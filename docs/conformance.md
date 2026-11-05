@@ -215,7 +215,7 @@ Results (2026-11-05):
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** mostly members not found (4), `$scope` (3), adaptations (2) and
+- **Typer refused:** mostly members not found (5), `$scope` (3), adaptations (2) and
   transparent inline extractors (2).
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
