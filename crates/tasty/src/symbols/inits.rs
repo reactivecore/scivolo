@@ -16,8 +16,8 @@ impl Universe {
     /// lazy or abstract values, types and classes; a class that also calls no parent
     /// constructor with arguments. Classes without TASTy (`Any`, `Object`, a script's) have none
     /// unless `set_inits` recorded some. While the Scala library is built, a class of a Scala 2
-    /// library TASTy file initializes as its source does (`TreeInfo.defKind`): also a concrete
-    /// method or a class does.
+    /// library TASTy file initializes as its source does (`TreeInfo.defKind`): also a lazy value,
+    /// a concrete method or a class does.
     pub fn no_inits(&self, c: SymbolId) -> bool {
         let Some((file, typedef)) = self.symbol(c).tree else { return !self.with_inits.contains(&c) };
         let (ast, names) = self.file(file);
@@ -45,13 +45,14 @@ impl Universe {
 }
 
 /// Whether statement `s` of a template body runs code when an instance is made: a concrete,
-/// value neither lazy nor an object's, or an expression; if `scala2`, also a concrete method
-/// other than the constructor, or a class.
+/// value neither lazy nor an object's, or an expression; if `scala2`, also a lazy value, a
+/// concrete method other than the constructor, or a class.
 fn initializes(ast: &Ast, names: &[String], s: NodeId, scala2: bool) -> bool {
     match ast.tag(s) {
         VALDEF => match view(ast, s) {
             View::ValDef { rhs, mods, .. } => {
-                rhs.is_some() && !mods.iter().any(|&m| matches!(ast.tag(m), LAZY | OBJECT))
+                let lazy = |m: &NodeId| ast.tag(*m) == LAZY && !scala2;
+                rhs.is_some() && !mods.iter().any(|m| ast.tag(*m) == OBJECT || lazy(m))
             }
             _ => true,
         },

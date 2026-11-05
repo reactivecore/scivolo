@@ -15,13 +15,15 @@ one scalalib file at a time against the published `scala-library` TASTy, where t
 - A run builds the Scala library when a unit replaces a top-level TASTy class of package `scala`
   outside `scala.scalanative` (the namer's `unenter_classpath_members`).
 - In such a run, a class of a TASTy file with the Scala 2 library attribute (written for the
-  files importing ``language.`2.13` ``) initializes by `defKind`'s Scala 2 rule: a concrete
-  method other than the constructor, or a class, is initialization.
-- Function classes get no `$init$` call and closures of them stay closures (dotty's
-  `Mixin.superCallOpt` and `ExpandSAMs` exempt `isFunctionClass`).
+  files importing ``language.`2.13` ``) initializes by `defKind`'s Scala 2 rule: a lazy value,
+  a concrete method other than the constructor, or a class, is initialization.
+- Function classes get no `$init$` call (dotty's `Mixin.superCallOpt` exempts
+  `isFunctionClass`) and closures of them stay closures (`ExpandSAMs` leaves function literals).
 
 ## Consequences
 - Other runs, user programs and the other Scala Native libraries among them, keep
-  `TreeUnpickler`'s answer.
+  `TreeUnpickler`'s answer. auxlib replaces only Java classes of the library and is no such run.
+- A program replacing a class of the library counts as building it; the traits that then
+  initialize have an empty `$init$`, which the published scalalib defines.
 - A library trait that now initializes gets its trait fields and super accessors as a unit trait
   does, and its SAM closures become classes, as in Scala Native's build.
