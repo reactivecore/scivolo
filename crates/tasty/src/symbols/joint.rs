@@ -136,39 +136,8 @@ impl Universe {
         }
     }
 
-    /// The result types `a` and `b` of members `sa` and `sb`, `sb`'s type parameters, symbols or
-    /// those of its leading polymorphic clause, replaced by `sa`'s.
-    pub fn aligned_results(
-        &mut self,
-        (sa, a): (SymbolId, TypeId),
-        (sb, b): (SymbolId, TypeId),
-    ) -> (TypeId, TypeId) {
-        let (mut ra, mut rb) = (self.result_type(a), self.result_type(b));
-        let mut own = None;
-        if let (Type::Poly { binder, params, .. }, Type::Poly { binder: b2, params: p2, .. }) =
-            (self.types().get(a).clone(), self.types().get(b).clone())
-            && params.len() == p2.len()
-        {
-            rb = self.with_binder(rb, (b2, &p2), binder);
-            own = Some(binder);
-        }
-        let (ta, tb) = (self.type_params(sa), self.type_params(sb));
-        if ta.len() == tb.len() && ta != tb {
-            let mut to_a = |u: &mut Self, t: TypeId| {
-                let i = match *u.types().get(t) {
-                    Type::Sym(None, s) => tb.iter().position(|&p| p == s)?,
-                    Type::Param(b, i) if Some(b) == own => i as usize,
-                    _ => return None,
-                };
-                ta.get(i).map(|&p| u.intern_type(Type::Sym(None, p)))
-            };
-            (ra, rb) = (self.map_type(ra, &mut to_a), self.map_type(rb, &mut to_a));
-        }
-        (ra, rb)
-    }
-
     /// `t` with the parameters of `binder`, named as `params`, replaced by those of `to`.
-    fn with_binder(
+    pub fn with_binder(
         &mut self,
         t: TypeId,
         (binder, params): (Binder, &[(String, TypeId)]),
