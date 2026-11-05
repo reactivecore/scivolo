@@ -21,6 +21,17 @@ pub fn compile_sources(
     cfg: Config,
     macros: Option<&mut dyn Macros>,
 ) -> Result<(Vec<NirFile>, Diagnostics), Refusal> {
+    compile_units(u, files, cfg, macros, crate::codegen::unit)
+}
+
+/// `compile_sources` with `generate` in place of NIR generation.
+pub fn compile_units<R>(
+    u: &mut Universe,
+    files: &[SourceFile],
+    cfg: Config,
+    macros: Option<&mut dyn Macros>,
+    generate: impl FnOnce(&mut crate::Lower, typer::tpd::TNodeId) -> crate::Result<R>,
+) -> Result<(R, Diagnostics), Refusal> {
     let sources = Sources::new(files).map_err(refused)?;
     let (mut names, mut ast) = (Names::default(), Ast::default());
     // Temporary until #115 (fresh names per file): the typer and the lowering count on from the
@@ -61,11 +72,11 @@ pub fn compile_sources(
     };
     let located = Sources::new(files).map_err(refused)?;
     let sources = (sources, cfg.explicit_nulls);
-    let files = crate::lower_sources(u, &mut typed.tpd, typed.root, (&mut names, &mut fresh), sources)
+    let out = crate::lower_trees(u, &mut typed.tpd, typed.root, (&mut names, &mut fresh), sources, generate)
         .map_err(|e| {
             refused(format!("the lowering does not support {}{}", e.what, at_point(&located, e.at)))
         })?;
-    Ok((files, typed.diags))
+    Ok((out, typed.diags))
 }
 
 fn refused(what: String) -> Refusal {

@@ -1,0 +1,25 @@
+[package]
+name = "scivolo-jvm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "jvmgen"
+
+[[bin]]
+name = "scivolo-jvm"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+classfile.workspace = true
+lower.workspace = true
+syntax.workspace = true
+tasty.workspace = true
+typer.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,175 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
+//! Field accesses and calls with their receivers (dotty's `genLoadQualifier`, `genApply`,
+//! `genCallMethod`).
+
+use super::callee::Receiver;
+use super::method::Body;
+use super::{Gen, class_internal, descriptor, is_static_member, method_descriptor, method_name, unsupported};
+use classfile::{FieldOp, Invoke};
+use lower::Result;
+use syntax::ast::Span;
+use tasty::SymbolId;
+use tasty::tags::{PRIVATE, STATIC};
+use typer::tpd::{List, TNodeId, Tree};
+
+impl Gen<'_, '_> {
+    /// Loads field `f` of `qualifier`, or of the class `prefix` of an identifier without one, or
+    /// stores `value` into it; returns the slots loaded.
+    pub fn field(
+        &mut self,
+        b: &mut Body,
+        f: SymbolId,
+        (qualifier, prefix): (Option<TNodeId>, Option<SymbolId>),
+        value: Option<TNodeId>,
+    ) -> Result<i32> {
+        let owner = self.l.u.symbol(f).owner.expect("a field's owner");
+        let info = self.l.u.info(f);
+        let desc = descriptor(&self.l.u.erase(info));
+        let instance = self.receiver(b, f, qualifier, prefix)?;
+        let op = match (instance, value) {
+            (true, None) => FieldOp::GetField,
+            (false, None) => FieldOp::GetStatic,
+            (true, Some(_)) => FieldOp::PutField,
+            (false, Some(_)) => FieldOp::PutStatic,
+        };
+        if let Some(v) = value {
+            self.expr(b, v)?;
+        }
+        let (owner, name) = (self.class_name(owner), tasty::encode(&self.l.u.symbol(f).name));
+        b.code.field(op, b.pool, &owner, &name, &desc);
+        Ok(if value.is_some() { 0 } else { classfile::value_slots(&desc) })
+    }
+
+    /// Loads the receiver of instance member `m` selected from `qualifier`, or of an identifier
+    /// without one whose prefix is `this` of or object class `prefix`; returns whether `m` is an
+    /// instance member. The qualifier of a static member must be an object or `this`, whose load
+    /// is elided. Fails for a member of a javalib object standing for the JDK's static members,
+    /// and for a static member of an object.
+    fn receiver(
+        &mut self,
+        b: &mut Body,
+        m: SymbolId,
+        qualifier: Option<TNodeId>,
+        prefix: Option<SymbolId>,
+    ) -> Result<bool> {
+        let static_ = is_static_member(self.l.u, m);
+        let owner = self.l.u.symbol(m).owner.expect("a member's owner");
+        let span = qualifier.map_or(Span::NONE, |q| self.l.tpd.span(q));
+        if lower::is_jdk_object(self.l.u, owner) {
+            return unsupported(span, "static members of JDK classes on the JVM");
+        }
+        if self.l.u.symbol(m).flags.has(STATIC) && self.l.u.is_module_class(owner) {
+            return unsupported(span, "static members of objects on the JVM");
+        }
+        match qualifier {
+            Some(q) if static_ => {
+                let pure = matches!(self.l.tpd.tree(q), Tree::This { .. })
+                    || self.l.tpd.sym(q).is_some_and(|s| self.l.u.is_module(s));
+                if !pure {
+                    return unsupported(self.l.tpd.span(q), "a static member of a qualifier with effects");
+                }
+            }
+            Some(q) => _ = self.expr(b, q)?,
+            None if static_ => {}
+            None => match prefix {
+                Some(c) if self.l.u.is_module_class(c) => _ = self.load_module(b, c, span)?,
+                Some(c) if b.this_class.as_deref() == Some(&self.class_name(c)) => _ = self.load_this(b),
+                _ => return unsupported(span, "a member of an enclosing instance on the JVM"),
+            },
+        }
+        Ok(!static_)
+    }
+
+    /// Calls `fun` with `args`: a constructor of a new instance, a superclass method or a method
+    /// of a receiver; returns the slots of the result.
+    pub fn apply(&mut self, b: &mut Body, fun: TNodeId, args: List) -> Result<i32> {
+        let span = self.l.tpd.span(fun);
+        let Some(m) = self.l.tpd.sym(fun) else { return unsupported(span, "a call of a function value") };
+        let arg_list = self.l.tpd.items(args).to_vec();
+        if let Some(slots) = self.boxing(b, m, &arg_list)? {
+            return Ok(slots);
+        }
+        let owner = self.l.u.symbol(m).owner.expect("a method's owner");
+        self.check_call(m, owner, span)?;
+        let desc = method_descriptor(self.l.u, m);
+        let mut owner_name = self.class_name(owner);
+        let qualifier = match *self.l.tpd.tree(fun) {
+            Tree::Select { qualifier, .. } => Some(qualifier),
+            Tree::Ident { .. } => None,
+            _ => return unsupported(span, "a call of this form"),
+        };
+        let prefix = if qualifier.is_none() { self.ident_prefix(fun) } else { None };
+        let mut result = classfile::method_slots(&desc).1;
+        let mut name = method_name(self.l.u, m);
+        let (mut call_desc, mut interface) = (desc.clone(), false);
+        let super_receiver = self.super_receiver(qualifier, m, owner);
+        let kind = match qualifier.map(|q| self.l.tpd.tree(q).clone()) {
+            Some(Tree::New { tpt }) => {
+                owner_name = class_internal(&self.l.u.erase(self.l.tpd.tpe(tpt)));
+                b.code.new_object(b.pool, &owner_name);
+                b.code.dup();
+                result = 1;
+                Invoke::Special
+            }
+            Some(Tree::Super { .. }) if self.l.u.is_trait(super_receiver) => {
+                if !self.l.u.is_trait(owner) || self.is_java_class(owner) {
+                    return unsupported(
+                        span,
+                        "a super call of a Java or class method via a trait on the JVM",
+                    );
+                }
+                owner_name = self.class_name(owner);
+                self.load_this(b);
+                call_desc = format!("(L{};{}", self.class_name(owner), &desc[1..]);
+                if name != "$init$" {
+                    name.push('$');
+                }
+                interface = true;
+                Invoke::Static
+            }
+            Some(Tree::Super { .. }) => {
+                owner_name = self.class_name(super_receiver);
+                self.load_this(b);
+                Invoke::Special
+            }
+            _ if !self.receiver(b, m, qualifier, prefix)? => Invoke::Static,
+            _ if self.l.u.symbol(m).flags.has(PRIVATE) || self.l.u.is_constructor(m) => Invoke::Special,
+            _ => {
+                let receiver = match qualifier {
+                    Some(q) => self.receiver_class(q, m),
+                    None => prefix.map(Receiver::Class),
+                };
+                let receiver = receiver.unwrap_or(Receiver::Class(owner));
+                let kind;
+                (kind, owner_name) = match receiver {
+                    Receiver::Class(c) if self.l.u.is_trait(c) => (Invoke::Interface, self.class_name(c)),
+                    Receiver::Class(c) => (Invoke::Virtual, self.class_name(c)),
+                    Receiver::Array(name) => (Invoke::Virtual, name),
+                };
+                kind
+            }
+        };
+        let (params, _) = classfile::split_method(&desc);
+        if arg_list.len() != params.len() {
+            return unsupported(span, "arguments other than the descriptor's on the JVM");
+        }
+        for (a, param) in arg_list.into_iter().zip(params) {
+            if self.expr(b, a)? != classfile::value_slots(param) {
+                return unsupported(self.l.tpd.span(a), "an argument of another JVM type");
+            }
+        }
+        let interface = interface || kind == Invoke::Interface;
+        b.code.invoke_in(kind, interface, b.pool, (&owner_name, &name, &call_desc));
+        Ok(result)
+    }
+
+    /// The class named in the descriptor of `m` if `qualifier` is a `super`; else `owner`.
+    fn super_receiver(&mut self, qualifier: Option<TNodeId>, m: SymbolId, owner: SymbolId) -> SymbolId {
+        let qualifier = qualifier.filter(|&q| matches!(self.l.tpd.tree(q), Tree::Super { .. }));
+        match qualifier.and_then(|q| self.receiver_class(q, m)) {
+            Some(Receiver::Class(c)) => c,
+            _ => owner,
+        }
+    }
+}

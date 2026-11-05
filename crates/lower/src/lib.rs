@@ -11,18 +11,20 @@ mod phases;
 mod symbols;
 mod units;
 
+pub use codegen::names::{mapped as jdk_class_name, unmapped as jdk_class_source_name};
 pub use compile::{Refusal, compile, compile_with, lower};
 use definitions::Definitions;
 pub use options::Options;
 pub use output::NirFile;
 use rustc_hash::{FxHashMap, FxHashSet};
+pub use symbols::is_jdk_object;
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::Sources;
 use tasty::{SymbolId, Universe};
 use typer::inlining::Lent;
 use typer::tpd::{TNodeId, Tpd};
-pub use units::{compile_sources, position};
+pub use units::{compile_sources, compile_units, position};
 
 /// A construct the lowering does not support yet.
 #[derive(Debug)]
@@ -173,16 +175,28 @@ pub fn lower_sources(
     (names, fresh): (&mut Names, &mut FreshNames),
     (sources, explicit_nulls): (Sources, bool),
 ) -> Result<Vec<NirFile>> {
+    lower_trees(u, tpd, root, (names, fresh), (sources, explicit_nulls), codegen::unit)
+}
+
+/// Runs the phases over typed unit `root`, then `generate` over the lowered trees.
+pub fn lower_trees<R>(
+    u: &mut Universe,
+    tpd: &mut Tpd,
+    root: TNodeId,
+    (names, fresh): (&mut Names, &mut FreshNames),
+    (sources, explicit_nulls): (Sources, bool),
+    generate: impl FnOnce(&mut Lower, TNodeId) -> Result<R>,
+) -> Result<R> {
     let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
     l.explicit_nulls = explicit_nulls;
-    let files = codegen::annotations::check_annotations(&mut l, root)
+    let out = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
-        .and_then(|()| codegen::unit(&mut l, root));
+        .and_then(|()| generate(&mut l, root));
     phases::recache_given_aliases(&mut l);
     l.u.elide_opaques(false);
     match std::mem::take(&mut l.u.reductions_exhausted) {
         true => unsupported(Span::NONE, "match type reduction over the reduction budget"),
-        false => files,
+        false => out,
     }
 }
 
@@ -273,5 +287,10 @@ impl<'a> Lower<'a> {
             moved_classes: Vec::new(),
             explicit_nulls: false,
         })
+    }
+
+    /// Whether `while` loop `t` has no condition (dotty's `WhileDo(EmptyTree, _)`).
+    pub fn is_endless_loop(&self, t: TNodeId) -> bool {
+        self.endless_loops.contains(&t)
     }
 }
