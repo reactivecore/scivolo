@@ -68,6 +68,9 @@ colors (fansi).
   phase 4.
 - **tasty-query** ([scalacenter/tasty-query](https://github.com/scalacenter/tasty-query)): the
   model of symbols and types loaded lazily from TASTy (phase 3).
+- **ASM** ([asm.ow2.io](https://asm.ow2.io/)), BSD-3-Clause: stack map frames by a dataflow over
+  the bytecode with verifier types, and unreachable code replaced by `nop`s and `athrow`
+  (`MethodWriter.computeAllFrames`, `Frame`), behind `crates/classfile/src/frames/`.
 
 - **Cranelift** ([cranelift.dev](https://cranelift.dev/)), Apache-2.0 with LLVM exception: the
   code generator of `scivolo-aot` (`crates/aot`), used as a library

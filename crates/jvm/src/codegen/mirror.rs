@@ -40,7 +40,7 @@ impl Gen<'_, '_> {
             }
             code.invoke(Invoke::Virtual, &mut cf.pool, module_name, &method, &desc);
             code.ret(result);
-            cf.method(ACC_PUBLIC | ACC_STATIC, &method, &desc, Some(code));
+            cf.method(ACC_PUBLIC | ACC_STATIC, &method, &desc, Some(code), &mut |_, _| None);
         }
         let source = self.source_name(td);
         cf.source_file(&source);

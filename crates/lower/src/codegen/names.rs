@@ -37,6 +37,11 @@ pub fn mapped(name: &str) -> String {
     name.to_owned()
 }
 
+/// The binary class name that Scala Native defines as `name`: the inverse of `mapped`.
+pub fn unmapped(name: &str) -> &str {
+    MAPPED.iter().find(|(_, to)| *to == name).map_or(name, |(from, _)| from)
+}
+
 impl Gen<'_, '_> {
     pub fn type_name(&mut self, c: SymbolId) -> GlobalId {
         let d = &self.l.defs;

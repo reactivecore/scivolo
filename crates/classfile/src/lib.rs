@@ -1,14 +1,16 @@
 //! JVM class files (JVMS §4): a class with its constant pool, fields, methods and their code.
 
 mod code;
+mod frames;
 mod pool;
 mod writer;
 
 pub use code::{Code, FieldOp, Invoke, Label, method_slots, split_method, value_slots};
+pub use frames::Lub;
 pub use pool::{Pool, Ref};
 
-/// Java 5's class file version, which needs no stack map frames.
-pub const MAJOR_VERSION: u16 = 49;
+/// Java 17's class file version, dotty's default target.
+pub const MAJOR_VERSION: u16 = 61;
 
 pub const ACC_PUBLIC: u16 = 0x0001;
 pub const ACC_PRIVATE: u16 = 0x0002;
@@ -35,6 +37,8 @@ struct Member {
 
 pub struct ClassFile {
     pub pool: Pool,
+    /// The class's internal name.
+    name: String,
     access: u16,
     this: u16,
     superclass: u16,
@@ -55,6 +59,7 @@ impl ClassFile {
         let interfaces = interfaces.iter().map(|i| pool.class(i)).collect();
         ClassFile {
             pool,
+            name: name.to_owned(),
             access,
             this,
             superclass,
@@ -71,20 +76,45 @@ impl ClassFile {
         self.fields.push(member);
     }
 
-    /// A method, abstract or native without `code`.
-    pub fn method(&mut self, access: u16, name: &str, descriptor: &str, code: Option<Code>) {
+    /// A method, abstract or native without `code`; `lub` gives the common superclass of two
+    /// classes for its stack map frames.
+    pub fn method(&mut self, access: u16, name: &str, descriptor: &str, code: Option<Code>, lub: &mut Lub) {
         let mut member = self.member(access, name, descriptor);
-        if let Some(code) = code {
-            if code.bytes.len() > usize::from(u16::MAX) {
-                self.error = Some(format!("method {name} over 65,535 bytes of code"));
-            }
-            if let Some(e) = code.problem() {
+        if let Some(mut code) = code {
+            let frames = self.frames(&mut code, access, name, descriptor, lub).unwrap_or_else(|e| {
                 self.error = Some(format!("method {name}: {e}"));
+                None
+            });
+            let mut attrs = Vec::new();
+            if let Some(bytes) = frames {
+                attrs.push(Attribute { name: self.pool.utf8("StackMapTable"), bytes });
             }
-            let name = self.pool.utf8("Code");
-            member.attributes.push(Attribute { name, bytes: writer::code(&code) });
+            let bytes = writer::code(&code, &attrs).unwrap_or_else(|e| {
+                self.error = Some(format!("method {name}: {e}"));
+                Vec::new()
+            });
+            member.attributes.push(Attribute { name: self.pool.utf8("Code"), bytes });
         }
         self.methods.push(member);
+    }
+
+    /// Checks `code`; the body of its `StackMapTable`, none if it needs none.
+    fn frames(
+        &mut self,
+        code: &mut Code,
+        access: u16,
+        name: &str,
+        descriptor: &str,
+        lub: &mut Lub,
+    ) -> Result<Option<Vec<u8>>, String> {
+        if code.bytes.len() > usize::from(u16::MAX) {
+            return Err("over 65,535 bytes of code".into());
+        }
+        if let Some(e) = code.problem() {
+            return Err(e);
+        }
+        let m = frames::Method { class: &self.name, is_static: access & ACC_STATIC != 0, name, descriptor };
+        frames::stack_map(code, &mut self.pool, &m, lub)
     }
 
     /// The `SourceFile` attribute.

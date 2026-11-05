@@ -77,7 +77,7 @@ impl Gen<'_, '_> {
         b.result = result.to_owned();
         self.method_body(&mut b, rhs, result)?;
         let code = b.code;
-        cf.method(flags, &name, &desc, Some(code));
+        cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
         Ok(())
     }
 

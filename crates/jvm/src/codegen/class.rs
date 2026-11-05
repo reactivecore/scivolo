@@ -60,7 +60,7 @@ impl Gen<'_, '_> {
             }
             b.code.ret("V");
             let code = b.code;
-            cf.method(ACC_PUBLIC | ACC_STATIC, "<clinit>", "()V", Some(code));
+            cf.method(ACC_PUBLIC | ACC_STATIC, "<clinit>", "()V", Some(code), &mut |a, b| self.jvm_lub(a, b));
         }
         if let Some(signature) = self.class_signature(sym) {
             cf.signature(&signature);
@@ -135,7 +135,7 @@ impl Gen<'_, '_> {
         self.stat(&mut b, expr)?;
         b.code.ret("V");
         let code = b.code;
-        cf.method(flags, "<init>", &desc, Some(code));
+        cf.method(flags, "<init>", &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
         Ok(stats[split..].to_vec())
     }
 

@@ -10,6 +10,7 @@ mod cond;
 mod control;
 mod literals;
 mod locals;
+mod lub;
 mod method;
 mod mirror;
 mod prims;

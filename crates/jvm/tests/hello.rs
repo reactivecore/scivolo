@@ -52,6 +52,11 @@ fn loops_run_on_the_jvm() {
 }
 
 #[test]
+fn frames_run_on_the_jvm() {
+    runs_on_the_jvm("frames", "Frames");
+}
+
+#[test]
 fn primitive_operations_are_refused() {
     let source = root().join("tmp/jvm-test/refused.scala");
     std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");

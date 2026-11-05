@@ -11,7 +11,7 @@ mod phases;
 mod symbols;
 mod units;
 
-pub use codegen::names::mapped as jdk_class_name;
+pub use codegen::names::{mapped as jdk_class_name, unmapped as jdk_class_source_name};
 pub use compile::{Refusal, compile, compile_with, lower};
 use definitions::Definitions;
 pub use options::Options;

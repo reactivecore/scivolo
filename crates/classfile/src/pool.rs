@@ -102,6 +102,46 @@ impl Pool {
         })
     }
 
+    fn entry(&self, i: u16) -> Option<&Entry> {
+        self.entries.get(usize::from(i).checked_sub(1)?)
+    }
+
+    fn text(&self, i: u16) -> String {
+        let Some(Entry::Utf8(s)) = self.entry(i) else { return String::new() };
+        String::from_utf16_lossy(s)
+    }
+
+    /// The internal name of `Class` entry `i`.
+    pub fn class_name(&self, i: u16) -> String {
+        let Some(&Entry::Class(n)) = self.entry(i) else { return String::new() };
+        self.text(n)
+    }
+
+    /// The class, name and descriptor of member reference `i`.
+    pub fn member_parts(&self, i: u16) -> (String, String, String) {
+        let parts = match self.entry(i) {
+            Some(&(Entry::Fieldref(c, nt) | Entry::Methodref(c, nt) | Entry::InterfaceMethodref(c, nt))) => {
+                self.entry(nt).map(|e| (c, e))
+            }
+            _ => None,
+        };
+        let Some((c, &Entry::NameAndType(n, d))) = parts else { return Default::default() };
+        (self.class_name(c), self.text(n), self.text(d))
+    }
+
+    /// The descriptor of the value `ldc` of entry `i` pushes, `V` for none.
+    pub fn constant_descriptor(&self, i: u16) -> &'static str {
+        match self.entry(i) {
+            Some(Entry::Integer(_)) => "I",
+            Some(Entry::Float(_)) => "F",
+            Some(Entry::Long(_)) => "J",
+            Some(Entry::Double(_)) => "D",
+            Some(Entry::String(_)) => "Ljava/lang/String;",
+            Some(Entry::Class(_)) => "Ljava/lang/Class;",
+            _ => "V",
+        }
+    }
+
     /// The `constant_pool_count` and the entries, or `None` past 65,534 entries.
     pub fn write(&self, out: &mut Vec<u8>) -> Option<()> {
         let count = u16::try_from(self.entries.len() + 1).ok().filter(|&c| c < u16::MAX)?;
