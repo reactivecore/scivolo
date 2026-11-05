@@ -1,9 +1,9 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PureStats.scala
 //! dotty's `PureStats` for anonymous instances and unit blocks: a statement `{ class C; new
-//! C(args) }` of a block, `C` initializing nothing and `args` pure, or `{ paths; () }` is dropped.
+//! C(args) }` of a block, `C` initializing nothing and `args` pure, is dropped, and `{ paths; () }`
+//! is replaced by its paths.
 
-use super::first_transform::is_pure;
 use super::module_purity::is_pure_value;
 use super::walk::subtrees;
 use crate::Lower;
@@ -32,26 +32,29 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Vec<TNodeId> {
     dropped
 }
 
-/// Drops the statements `{ paths; () }` of the blocks in erased class `td`.
+/// Replaces each statement `{ paths; () }` of the blocks in erased class `td` by its paths.
 pub fn unit_blocks(l: &mut Lower, td: TNodeId) {
     for t in subtrees(l.tpd, td) {
         let Tree::Block { stats, expr } = *l.tpd.tree(t) else { continue };
         let items = l.tpd.items(stats).to_vec();
-        let kept: Vec<TNodeId> = items.iter().copied().filter(|&s| !is_pure_unit_block(l, s)).collect();
-        if kept.len() < items.len() {
-            let stats = l.tpd.list(&kept);
-            l.tpd.get_mut(t).tree = Tree::Block { stats, expr };
+        if !items.iter().any(|&s| unit_block_paths(l, s).is_some()) {
+            continue;
         }
+        let flat: Vec<TNodeId> =
+            items.iter().flat_map(|&s| unit_block_paths(l, s).unwrap_or_else(|| vec![s])).collect();
+        let stats = l.tpd.list(&flat);
+        l.tpd.get_mut(t).tree = Tree::Block { stats, expr };
     }
 }
 
-/// Whether `t` is `{ paths; () }`, pure paths before a literal.
-fn is_pure_unit_block(l: &Lower, t: TNodeId) -> bool {
-    let Tree::Block { stats, expr } = *l.tpd.tree(t) else { return false };
+/// The paths of `t` if it is `{ paths; () }`, paths before a literal.
+fn unit_block_paths(l: &Lower, t: TNodeId) -> Option<Vec<TNodeId>> {
+    let Tree::Block { stats, expr } = *l.tpd.tree(t) else { return None };
     let paths = l.tpd.items(stats);
-    !paths.is_empty()
-        && paths.iter().all(|&s| is_pure(l, s))
-        && matches!(l.tpd.tree(expr), Tree::Literal { .. })
+    let path =
+        |s: &TNodeId| matches!(l.tpd.tree(*s), Tree::Ident { .. } | Tree::Select { .. } | Tree::This { .. });
+    let literal = matches!(l.tpd.tree(expr), Tree::Literal { .. });
+    (!paths.is_empty() && paths.iter().all(path) && literal).then(|| paths.to_vec())
 }
 
 /// Whether `t` is `{ class C; new C(args) }` with a stable constructor and pure arguments.

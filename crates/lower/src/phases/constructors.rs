@@ -115,7 +115,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Some(&first) = l.tpd.items(parents).first() else {
         return unsupported(span, "a class without a superclass");
     };
-    if !tasty::PRIMITIVE_VALUE_CLASSES.contains(&l.u.full_name(class).as_str()) {
+    let full_name = l.u.full_name(class);
+    if full_name == "scala.AnyVal" {
+        stats.push(object_init_call(l, class, Span::at(span.point()))?);
+    } else if !tasty::PRIMITIVE_VALUE_CLASSES.contains(&full_name.as_str()) {
         stats.push(super_call(l, class, first)?);
     }
     stats.extend(eager.into_iter().chain(inits));
@@ -184,9 +187,6 @@ fn super_call(l: &mut Lower, class: SymbolId, parent: TNodeId) -> Result<TNodeId
         return Ok(l.tpd.node(Tree::Block { stats, expr: call }, span, Some(unit), None));
     }
     let Tree::Apply { mut fun, args } = *l.tpd.tree(parent) else {
-        if l.u.full_name(class) == "scala.AnyVal" {
-            return object_init_call(l, class, span);
-        }
         return unsupported(span, "a superclass without a constructor call");
     };
     let mut args = l.tpd.items(args).to_vec();

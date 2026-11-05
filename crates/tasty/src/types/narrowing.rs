@@ -18,15 +18,20 @@ impl Universe {
                 Type::Poly { binder: b2, params: q, result: s },
             ) if p.len() == q.len() => {
                 let own = self.type_params(m);
-                let s = self.map_type(s, &mut |u, t| {
-                    let i = match *u.types().get(t) {
-                        Type::Param(b, i) if b == b2 => i,
-                        Type::Sym(None, x) => own.iter().position(|&o| o == x)? as u32,
-                        _ => return None,
-                    };
-                    Some(u.intern_type(Type::Param(binder, i)))
-                });
-                (self.method_narrows(r, s), refined)
+                let ours = |u: &mut Self, t| {
+                    u.map_type(t, &mut |u, t| {
+                        let i = match *u.types().get(t) {
+                            Type::Param(b, i) if b == b2 => i,
+                            Type::Sym(None, x) => own.iter().position(|&o| o == x)? as u32,
+                            _ => return None,
+                        };
+                        Some(u.intern_type(Type::Param(binder, i)))
+                    })
+                };
+                let s = ours(self, s);
+                let bounds: Vec<TypeId> = q.iter().map(|&(_, b)| ours(self, b)).collect();
+                let same_bounds = p.iter().zip(bounds).all(|(&(_, a), b)| self.same_bounds(a, b));
+                (same_bounds && self.method_narrows(r, s), refined)
             }
             (Type::ByName(r), Type::ByName(s)) => (self.is_subtype(r, s), refined),
             (Type::Method { .. } | Type::Poly { .. }, _) => return None,
@@ -44,9 +49,20 @@ impl Universe {
         else {
             return false;
         };
-        let same = |u: &mut Self, x: TypeId, y: TypeId| x == y || u.is_subtype(x, y) && u.is_subtype(y, x);
         p.len() == q.len()
-            && p.iter().zip(&q).all(|((_, x), (_, y))| same(self, *x, *y))
+            && p.iter().zip(&q).all(|((_, x), (_, y))| self.is_same(*x, *y))
             && self.is_subtype(r, s)
+    }
+
+    /// Whether type parameter bounds `a` and `b` are the same.
+    fn same_bounds(&mut self, a: TypeId, b: TypeId) -> bool {
+        match (self.types().get(a).clone(), self.types().get(b).clone()) {
+            (Type::Bounds(l1, h1), Type::Bounds(l2, h2)) => self.is_same(l1, l2) && self.is_same(h1, h2),
+            _ => self.is_same(a, b),
+        }
+    }
+
+    fn is_same(&mut self, x: TypeId, y: TypeId) -> bool {
+        x == y || self.is_subtype(x, y) && self.is_subtype(y, x)
     }
 }
