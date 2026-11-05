@@ -44,6 +44,7 @@ impl Typer<'_> {
     /// `t` with each GADT-constrained type replaced by its upper bound where it occurs
     /// covariantly, by its lower bound where contravariantly, not inside the bounds.
     fn approximate_gadt(&mut self, t: TypeId, variance: i8, ctx: Ctx) -> TypeId {
+        let t = self.u.dealias(t);
         match self.u.types().get(t).clone() {
             Type::Sym(None, s) if variance != 0 && self.is_gadt_symbol(s, ctx) => self.gadt_bound(s, variance),
             Type::Applied(tycon, args) => {

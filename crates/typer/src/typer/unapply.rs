@@ -239,7 +239,7 @@ impl Typer<'_> {
         let mut gadt = Vec::new();
         if !unconstrained && !self.constrain_pattern(arg_type, sel)? {
             self.constraint.rollback(mark);
-            match self.gadt_vars(arg_type, sel, ctx)? {
+            match self.gadt_vars((arg_type, vars), sel, ctx)? {
                 Some(narrowed) => gadt = narrowed,
                 None => {
                     self.constraint.rollback(mark);

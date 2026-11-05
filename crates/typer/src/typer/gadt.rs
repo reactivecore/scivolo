@@ -114,10 +114,12 @@ impl Typer<'_> {
     }
 
     /// Whether pattern type `pat` conforms to `sel` with `sel`'s narrowable type parameters
-    /// as type variables of their bounds, constraining them; those parameters and variables.
+    /// as type variables of their bounds, constraining them; those parameters and variables. A
+    /// variable that variables from id `from` on were made one with is instantiated to the first
+    /// of their parameters, as dotty's comparison constrains a pattern's type variables first.
     pub fn gadt_vars(
         &mut self,
-        pat: TypeId,
+        (pat, from): (TypeId, usize),
         sel: TypeId,
         ctx: Ctx,
     ) -> Result<Option<Vec<(SymbolId, TypeId)>>, &'static str> {
@@ -125,6 +127,7 @@ impl Typer<'_> {
         if syms.is_empty() {
             return Ok(None);
         }
+        let first = self.constraint.count();
         let vars: Vec<TypeId> = syms.iter().map(|_| self.constraint.fresh(self.u)).collect();
         let subst = |u: &mut tasty::Universe, t: TypeId| {
             u.map_type(t, &mut |u, x| match *u.types().get(x) {
@@ -144,9 +147,17 @@ impl Typer<'_> {
             return Ok(None);
         }
         let reps: Vec<TypeId> = vars.iter().map(|&v| self.zonk(v)).collect();
+        let pattern_reps: Vec<TypeId> = (from..first)
+            .map(|i| {
+                let v = self.u.intern_type(Type::Var(tasty::VarId(i as u32)));
+                self.zonk(v)
+            })
+            .collect();
         for (i, &r) in reps.iter().enumerate() {
             let Type::Var(p) = *self.u.types().get(r) else { continue };
-            let shared = r != vars[i] || reps.iter().filter(|&&x| x == r).count() > 1;
+            let shared = r != vars[i]
+                || reps.iter().filter(|&&x| x == r).count() > 1
+                || pattern_reps.iter().any(|&x| x == r);
             if shared && self.constraint.instance(p).is_none() {
                 let sym = self.u.intern_type(Type::Sym(None, syms[i]));
                 self.constraint.instantiate(p, sym);
