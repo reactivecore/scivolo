@@ -14,7 +14,7 @@ impl super::Universe {
         if self.javalib_sources {
             return true;
         }
-        let jar = self.same_run_jar.and_then(|_| self.library.jar_of(&self.files[file.0 as usize].path));
-        jar.is_some() && jar == self.same_run_jar
+        let path = &self.files[file.0 as usize].path;
+        self.same_run_jar.is_some_and(|jar| self.library.jar_of(path) == Some(jar))
     }
 }
