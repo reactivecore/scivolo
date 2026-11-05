@@ -141,7 +141,7 @@ impl Universe {
 
     /// `t` with its type parameters replaced by their upper bounds, given the bounds of the
     /// parameters of each polymorphic type; within `t`, only those bounded by a class or a type
-    /// lambda, whose application is reduced.
+    /// lambda, whose application is reduced until its constructor is no such parameter.
     pub fn upper_bound(&mut self, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
         let bound =
             |b: Binder, i: u32| bounds.iter().find(|(binder, _)| *binder == b)?.1.get(i as usize).copied();
@@ -151,13 +151,19 @@ impl Universe {
                 let Type::Bounds(_, hi) = *u.types().get(bounds) else { return None };
                 (!u.is_generic(bounds)).then_some(hi)
             }
-            Type::Applied(tycon, args) => {
-                let Type::Param(b, i) = *u.types().get(tycon) else { return None };
-                let Type::Bounds(_, hi) = *u.types().get(bound(b, i)?) else { return None };
-                let Type::Lambda { binder, params, result } = u.types().get(hi).clone() else { return None };
-                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
-                let applied = u.subst(result, binder, &names, &args);
-                Some(u.upper_bound(applied, bounds))
+            Type::Applied(..) => {
+                let (mut applied, mut seen) = (x, Vec::new());
+                while let Type::Applied(tycon, args) = u.types().get(applied).clone()
+                    && let Type::Param(b, i) = *u.types().get(tycon)
+                    && !seen.contains(&(b, i))
+                    && let Type::Bounds(_, hi) = *u.types().get(bound(b, i)?)
+                    && let Type::Lambda { binder, params, result } = u.types().get(hi).clone()
+                {
+                    seen.push((b, i));
+                    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                    applied = u.subst(result, binder, &names, &args);
+                }
+                (applied != x).then_some(applied)
             }
             _ => None,
         });
