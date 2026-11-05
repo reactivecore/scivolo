@@ -60,14 +60,11 @@ pub fn compile_sources(
         Err(Fallback::Errors(diags)) => return Err(refusal("type errors", &diags, &sources)),
     };
     let located = Sources::new(files).map_err(refused)?;
-    let files = crate::lower_sources(
-        u,
-        &mut typed.tpd,
-        typed.root,
-        (&mut names, &mut fresh),
-        (sources, cfg.explicit_nulls),
-    )
-    .map_err(|e| refused(format!("the lowering does not support {}{}", e.what, at_point(&located, e.at))))?;
+    let sources = (sources, cfg.explicit_nulls);
+    let files = crate::lower_sources(u, &mut typed.tpd, typed.root, (&mut names, &mut fresh), sources)
+        .map_err(|e| {
+            refused(format!("the lowering does not support {}{}", e.what, at_point(&located, e.at)))
+        })?;
     Ok((files, typed.diags))
 }
 

@@ -8,7 +8,7 @@
 
 use super::captures::dependencies;
 use super::lift_names::{Named, Pending, name_all};
-use super::lift_order::{class_path, class_stats};
+use super::lift_order::{append_in_order, class_path, class_stats};
 use super::lifted::{Method, lift, methods};
 use super::proxy_names::name_late;
 use super::walk::children;
@@ -91,10 +91,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
             placed.push((td, [&path[..], &[stat]].concat(), def));
         }
     }
-    placed.sort_by(|a, b| a.1.cmp(&b.1));
-    for (td, _, def) in placed {
-        super::outer_traits::append(l, td, &[def]);
-    }
+    append_in_order(l, placed);
     name_late(l, &mut pending, &deferred);
     Ok(())
 }

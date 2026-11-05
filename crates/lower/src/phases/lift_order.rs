@@ -35,3 +35,12 @@ pub fn class_path(l: &mut Lower, mut td: TNodeId, classes: &[TNodeId]) -> Vec<us
     path.reverse();
     path
 }
+
+/// Appends each lifted method of `placed` to its class definition, ordered by the path of the
+/// statement it comes from (`class_path` and the statement's index), stably.
+pub fn append_in_order(l: &mut Lower, mut placed: Vec<(TNodeId, Vec<usize>, TNodeId)>) {
+    placed.sort_by(|a, b| a.1.cmp(&b.1));
+    for (td, _, def) in placed {
+        super::outer_traits::append(l, td, &[def]);
+    }
+}
