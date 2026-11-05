@@ -61,6 +61,7 @@ impl Universe {
             opaque_lifts: 0,
             javalib_sources: false,
             jdk_jars: 0..0,
+            same_run_jar: None,
             resolving: 0,
             merging_bases: Default::default(),
             builtins: Builtins::PENDING,

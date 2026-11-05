@@ -37,6 +37,7 @@ mod packages;
 mod predicates;
 mod resolve;
 mod runtime_stubs;
+mod same_run;
 mod seen;
 mod selves;
 mod symbol;
@@ -124,6 +125,8 @@ pub struct Universe {
     javalib_sources: bool,
     /// The indices of the jars whose classes stand for the JDK's.
     jdk_jars: std::ops::Range<usize>,
+    /// The jar whose classes are compiled in the same run as the sources, if one is.
+    same_run_jar: Option<usize>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     /// The intersections and unions whose base types `base_type` is merging, with the base class.

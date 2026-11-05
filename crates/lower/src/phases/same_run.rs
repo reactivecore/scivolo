@@ -6,7 +6,7 @@
 #![allow(non_upper_case_globals)]
 
 use super::bridges;
-use super::mixin::{is_jdk, with_java_param_names};
+use super::mixin::{forwarded, is_jdk, mixins, with_java_param_names};
 use crate::Lower;
 use crate::definitions::symbol;
 use crate::symbols::has;
@@ -14,11 +14,11 @@ use rustc_hash::FxHashSet;
 use tasty::tags::*;
 use tasty::{Ast, Kind, NodeId, SymbolId};
 
-/// The bridges of class `class` read from TASTy, each with the member it calls, made on first use
-/// when javalib's sources are compiled; its private members its file refers to from another
-/// class become public under their expanded names.
+/// The bridges and mixin forwarders of class `class` read from TASTy and compiled in the same
+/// run, each with the symbol whose span it has, made on first use; its private members its file
+/// refers to from another class become public under their expanded names.
 pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
-    if !l.u.javalib_sources() || l.u.symbol(class).tree.is_none() || l.u.is_trait(class) {
+    if !l.u.is_same_run(class) || l.u.is_trait(class) {
         return Vec::new();
     }
     if let Some(made) = l.library_bridges.get(&class) {
@@ -52,9 +52,29 @@ pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
         let sym = l.u.define(s);
         l.u.set_info(sym, info);
         l.bridges.insert(sym);
-        made.push((sym, member));
+        let at = if l.u.symbol(member).owner == Some(class) { member } else { class };
+        made.push((sym, at));
     }
+    made.extend(mixin_forwarders(l, class));
     l.library_bridges.insert(class, made.clone());
+    made
+}
+
+/// The mixin forwarders dotty's `Mixin` gives library class `class`, each with `class`, whose
+/// span it has.
+fn mixin_forwarders(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
+    let mut made = Vec::new();
+    for mixin in mixins(l, class) {
+        for meth in forwarded(l, class, mixin) {
+            let flags = l.u.symbol(meth).flags;
+            let mut s = symbol(&l.u.symbol(meth).name.clone(), Kind::Def, class, flags);
+            s.target = l.u.symbol(meth).target.clone();
+            let info = l.u.info(meth);
+            let sym = l.u.define(s);
+            l.u.set_info(sym, info);
+            made.push((sym, class));
+        }
+    }
     made
 }
 
