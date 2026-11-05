@@ -24,6 +24,8 @@ package java.lang {
     @static val TYPE: Class[Byte] = null
     @static final val MIN_VALUE: scala.Byte = -128
     @static final val MAX_VALUE: scala.Byte = 127
+    @static final val SIZE = 8
+    @static final val BYTES = 1
     @static def toUnsignedInt(x: scala.Byte): Int = 0
   }
 
@@ -37,6 +39,8 @@ package java.lang {
     @static val TYPE: Class[Short] = null
     @static final val MIN_VALUE: scala.Short = -32768
     @static final val MAX_VALUE: scala.Short = 32767
+    @static final val SIZE = 16
+    @static final val BYTES = 2
   }
 
   final class Character extends java.io.Serializable
@@ -87,6 +91,30 @@ package java.lang {
     @static final val OTHER_SYMBOL: scala.Byte = 28
     @static final val INITIAL_QUOTE_PUNCTUATION: scala.Byte = 29
     @static final val FINAL_QUOTE_PUNCTUATION: scala.Byte = 30
+    @static final val DIRECTIONALITY_UNDEFINED: scala.Byte = -1
+    @static final val DIRECTIONALITY_LEFT_TO_RIGHT: scala.Byte = 0
+    @static final val DIRECTIONALITY_RIGHT_TO_LEFT: scala.Byte = 1
+    @static final val DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC: scala.Byte = 2
+    @static final val DIRECTIONALITY_EUROPEAN_NUMBER: scala.Byte = 3
+    @static final val DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR: scala.Byte = 4
+    @static final val DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR: scala.Byte = 5
+    @static final val DIRECTIONALITY_ARABIC_NUMBER: scala.Byte = 6
+    @static final val DIRECTIONALITY_COMMON_NUMBER_SEPARATOR: scala.Byte = 7
+    @static final val DIRECTIONALITY_NONSPACING_MARK: scala.Byte = 8
+    @static final val DIRECTIONALITY_BOUNDARY_NEUTRAL: scala.Byte = 9
+    @static final val DIRECTIONALITY_PARAGRAPH_SEPARATOR: scala.Byte = 10
+    @static final val DIRECTIONALITY_SEGMENT_SEPARATOR: scala.Byte = 11
+    @static final val DIRECTIONALITY_WHITESPACE: scala.Byte = 12
+    @static final val DIRECTIONALITY_OTHER_NEUTRALS: scala.Byte = 13
+    @static final val DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING: scala.Byte = 14
+    @static final val DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE: scala.Byte = 15
+    @static final val DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING: scala.Byte = 16
+    @static final val DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE: scala.Byte = 17
+    @static final val DIRECTIONALITY_POP_DIRECTIONAL_FORMAT: scala.Byte = 18
+    @static final val DIRECTIONALITY_LEFT_TO_RIGHT_ISOLATE: scala.Byte = 19
+    @static final val DIRECTIONALITY_RIGHT_TO_LEFT_ISOLATE: scala.Byte = 20
+    @static final val DIRECTIONALITY_FIRST_STRONG_ISOLATE: scala.Byte = 21
+    @static final val DIRECTIONALITY_POP_DIRECTIONAL_ISOLATE: scala.Byte = 22
     @static def charCount(codePoint: Int): Int = 0
     @static def isLowerCase(ch: Char): scala.Boolean = false
     @static def isLowerCase(codePoint: Int): scala.Boolean = false
@@ -118,6 +146,10 @@ package java.lang {
   }
   object Integer {
     @static val TYPE: Class[Integer] = null
+    @static final val MIN_VALUE = -2147483648
+    @static final val MAX_VALUE = 2147483647
+    @static final val SIZE = 32
+    @static final val BYTES = 4
     @static def toHexString(i: Int): String = null
     @static def compare(x: Int, y: Int): Int = 0
     @static def compareUnsigned(x: Int, y: Int): Int = 0
@@ -137,6 +169,10 @@ package java.lang {
   }
   object Long {
     @static val TYPE: Class[Long] = null
+    @static final val MIN_VALUE = -9223372036854775808L
+    @static final val MAX_VALUE = 9223372036854775807L
+    @static final val SIZE = 64
+    @static final val BYTES = 8
     @static def toHexString(i: scala.Long): String = null
     def hashCode(value: scala.Long): Int = 0
     @static def compare(x: scala.Long, y: scala.Long): Int = 0
@@ -154,7 +190,20 @@ package java.lang {
     def floatValue(): scala.Float = 0f
     def doubleValue(): scala.Double = 0d
   }
-  object Float { @static val TYPE: Class[Float] = null }
+  object Float {
+    @static val TYPE: Class[Float] = null
+    @static final val POSITIVE_INFINITY = 1.0f / 0.0f
+    @static final val NEGATIVE_INFINITY = -1.0f / 0.0f
+    @static final val NaN = 0.0f / 0.0f
+    @static final val MAX_VALUE = 3.4028235E38f
+    @static final val MIN_NORMAL = 1.1754944E-38f
+    @static final val MIN_VALUE = 1.4E-45f
+    @static final val SIZE = 32
+    @static final val PRECISION = 24
+    @static final val MAX_EXPONENT = 127
+    @static final val MIN_EXPONENT = -126
+    @static final val BYTES = 4
+  }
 
   final class Double extends Number {
     def intValue(): Int = 0
@@ -162,7 +211,20 @@ package java.lang {
     def floatValue(): scala.Float = 0f
     def doubleValue(): scala.Double = 0d
   }
-  object Double { @static val TYPE: Class[Double] = null }
+  object Double {
+    @static val TYPE: Class[Double] = null
+    @static final val POSITIVE_INFINITY = 1.0d / 0.0d
+    @static final val NEGATIVE_INFINITY = -1.0d / 0.0d
+    @static final val NaN = 0.0d / 0.0d
+    @static final val MAX_VALUE = 1.7976931348623157E308d
+    @static final val MIN_NORMAL = 2.2250738585072014E-308d
+    @static final val MIN_VALUE = 4.9E-324d
+    @static final val SIZE = 64
+    @static final val PRECISION = 53
+    @static final val MAX_EXPONENT = 1023
+    @static final val MIN_EXPONENT = -1022
+    @static final val BYTES = 8
+  }
 
   final class Void
   object Void { @static val TYPE: Class[Void] = null }
