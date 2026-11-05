@@ -123,6 +123,15 @@ impl Typer<'_> {
         sel: TypeId,
         ctx: Ctx,
     ) -> Result<Option<Vec<(SymbolId, TypeId)>>, &'static str> {
+        if let Type::Sym(None, s) = *self.u.types().get(sel)
+            && let Some((_, hi)) = self.u.gadt_bounds(s)
+        {
+            let mark = self.constraint.mark();
+            if self.constrain_pattern(pat, hi)? {
+                return Ok(Some(Vec::new()));
+            }
+            self.constraint.rollback(mark);
+        }
         let syms = self.gadt_symbols(sel, ctx);
         if syms.is_empty() {
             return Ok(None);
