@@ -9,17 +9,33 @@ impl Cmp<'_> {
     /// Whether `a` has a member `name` that conforms to refinement info `info`: a refinement of
     /// `a` itself, else a member of its class.
     pub fn has_matching_member(&mut self, a: TypeId, name: &str, info: TypeId) -> bool {
-        let mut t = self.u.widen(a);
+        let t = self.u.widen(a);
+        self.has_matching_member_in(a, t, name, info)
+    }
+
+    /// `has_matching_member` of `a` found in `t`, `a`'s widened type or a part of its
+    /// intersection.
+    fn has_matching_member_in(&mut self, a: TypeId, mut t: TypeId, name: &str, info: TypeId) -> bool {
         loop {
             match self.u.types().get(t).clone() {
                 Type::Refined(_, n, have) if n == name => return self.info_conforms(have, info),
                 Type::Refined(parent, ..) | Type::Annotated(parent, _) | Type::Rec(_, parent) => t = parent,
+                Type::And(l, r) => {
+                    return self.has_matching_member_in(a, l, name, info)
+                        || self.has_matching_member_in(a, r, name, info);
+                }
                 _ => break,
             }
         }
         let Some(class) = self.u.class_symbol(t) else { return false };
         let members = self.u.member(class, name);
-        let site = if self.is_stable(a) { a } else { t };
+        let site = match self.is_stable(a) {
+            true => a,
+            false => {
+                let w = self.u.widen(a);
+                if matches!(self.u.types().get(w), Type::And(..)) { w } else { t }
+            }
+        };
         members.into_iter().any(|m| {
             let have = self.u.member_info(site, m);
             self.info_conforms(have, info)
