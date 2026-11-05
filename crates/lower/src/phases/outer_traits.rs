@@ -122,11 +122,10 @@ pub fn add_outer(l: &mut Lower, td: TNodeId, trait_: SymbolId) {
     append(l, td, &[def]);
 }
 
-/// The point after the body of class definition `td`, where dotty's copied template places the
-/// members it adds.
+/// The point after the parents and statements of class definition `td`, where dotty's copied
+/// template places the members it adds.
 fn end_span(l: &Lower, td: TNodeId) -> Span {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    Span::at(l.tpd.span(template).end().max(l.tpd.span(td).point()))
+    Span::at(l.template_end(td).unwrap_or(0).max(l.tpd.span(td).point()))
 }
 
 /// Appends `defs` to the body of class definition `td`.

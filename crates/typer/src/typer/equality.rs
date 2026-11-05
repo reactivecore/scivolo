@@ -57,6 +57,7 @@ impl Typer<'_> {
         if self.u.is_subtype(pt, tpe) {
             return Ok(());
         }
+        self.narrow_by_type_pattern(tpe, pt, ctx);
         let span = self.tpd.span(pat);
         self.check_comparable(tpe, pt, span, false, ctx)
     }

@@ -20,8 +20,12 @@ package java.io {
 }
 
 package java.lang.reflect {
-  final class Field extends AccessibleObject { def get(obj: Object): Object = null }
+  final class Field extends AccessibleObject {
+    def get(obj: Object): Object = null
+    override def setAccessible(flag: scala.Boolean): Unit = ()
+  }
   final class Method extends Executable {
+    override def setAccessible(flag: scala.Boolean): Unit = ()
     def getName(): String = null
     def getParameterTypes(): scala.Array[Class[?]] = null
   }
