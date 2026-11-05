@@ -251,7 +251,10 @@ and `Ordering$TupleNOrdering` (N = 2…9, open, not accepted) differ from Scala 
 the whole module in `(a, b).hashCode()`: the build calls `Any.hashCode`, `(Object) => int`, since a
 case class's synthetic members do not exist yet while a class of the same run is typed; ours reads
 `Tuple2` from TASTy and calls `Tuple2.hashCode`, `(Tuple2) => int`, as Scala Native does for a user
-program.
+program. Also open, not accepted, in a user program: a value of type `Array[Nothing]` is
+`array[nothing]` in Scala Native's NIR, ours `as[array[@java.lang.Object]]` of it; and
+`this.asInstanceOf[S]` returned from a method of a trait with self type `S` casts at the type
+argument's position in Scala Native's NIR, at `this` in ours.
 
 ## M5: scala/scala `test/junit`
 
