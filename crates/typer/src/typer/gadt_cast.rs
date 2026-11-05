@@ -8,7 +8,30 @@ use super::Typer;
 use super::stability::is_stable_path;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, Universe};
+
+/// Whether `t` is stable (dotty's `isStable`), `annot` marking a type `@uncheckedStable`.
+fn is_stable(u: &mut Universe, t: TypeId, annot: TypeId) -> bool {
+    match *u.types().get(t) {
+        Type::Annotated(p, a) => a == annot || is_stable(u, p, annot),
+        Type::And(a, b) => {
+            is_stable(u, a, annot) && is_concrete(u, b) || is_stable(u, b, annot) && is_concrete(u, a)
+        }
+        _ => is_stable_path(u, t),
+    }
+}
+
+/// Whether `t` is a class type or made of them (`isConcrete` of dotty's `realizability`).
+fn is_concrete(u: &mut Universe, t: TypeId) -> bool {
+    let t = u.dealias(t);
+    match *u.types().get(t) {
+        Type::Sym(_, s) => u.is_class(s),
+        Type::Applied(tycon, _) => is_concrete(u, tycon),
+        Type::And(a, b) | Type::Or(a, b, _) => is_concrete(u, a) && is_concrete(u, b),
+        Type::Annotated(a, _) => is_concrete(u, a),
+        _ => false,
+    }
+}
 
 impl Typer<'_> {
     /// `tree.$asInstanceOf$[target]`: `pt`, or for a singleton the singleton and its widened type
@@ -30,11 +53,7 @@ impl Typer<'_> {
             false => self.u.intern_type(Type::And(conj, pt)),
         };
         let annot = self.u.class_ref("scala.annotation.unchecked.uncheckedStable");
-        let stable = |u: &mut tasty::Universe, t: TypeId| match *u.types().get(t) {
-            Type::Annotated(p, a) => a == annot || is_stable_path(u, p),
-            _ => is_stable_path(u, t),
-        };
-        let target = match stable(self.u, tpe) && !stable(self.u, conj) {
+        let target = match is_stable(self.u, tpe, annot) && !is_stable(self.u, conj, annot) {
             true => self.u.intern_type(Type::Annotated(conj, annot)),
             false => conj,
         };
@@ -77,19 +96,15 @@ impl Typer<'_> {
     /// `s`'s upper bound for `variance` 1, its lower bound for -1; a top upper bound a GADT
     /// bound of a type whose lower bound is `s`.
     fn gadt_bound(&mut self, s: SymbolId, variance: i8) -> TypeId {
-        let info = self.u.info(s);
-        let Type::Bounds(lo, hi) = *self.u.types().get(info) else { return info };
+        let own = self.u.intern_type(Type::Sym(None, s));
+        let Some((lo, hi)) = self.current_bounds(s) else { return own };
         if variance < 0 {
             return lo;
         }
         if hi != tasty::ANY {
             return hi;
         }
-        let own = self.u.intern_type(Type::Sym(None, s));
-        let above = self.gadt_narrowed().into_iter().find(|&n| {
-            let info = self.u.info(n);
-            matches!(*self.u.types().get(info), Type::Bounds(l, _) if l == own)
-        });
+        let above = self.gadt_narrowed().into_iter().find(|&n| self.u.gadt_bounds(n).is_some_and(|(l, _)| l == own));
         above.map_or(hi, |n| self.u.intern_type(Type::Sym(None, n)))
     }
 }

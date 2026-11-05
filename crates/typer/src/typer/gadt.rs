@@ -11,8 +11,8 @@ use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 /// The type parameters narrowed by the patterns of the cases being typed.
 #[derive(Default)]
 pub struct Gadt {
-    /// Each narrowed symbol with its info before, innermost last.
-    saved: Vec<(SymbolId, TypeId)>,
+    /// Each narrowed symbol with its GADT bounds before, innermost last.
+    saved: Vec<(SymbolId, Option<(TypeId, TypeId)>)>,
     /// The pattern-bound types of the cases being typed.
     bound: Vec<SymbolId>,
     /// How many cases are being typed.
@@ -27,9 +27,9 @@ impl Typer<'_> {
         let result = f(self);
         self.gadt.cases -= 1;
         self.gadt.bound.truncate(bound);
-        let narrowed: Vec<(SymbolId, TypeId)> = self.gadt.saved.drain(mark..).rev().collect();
-        for (s, info) in narrowed {
-            self.u.set_info(s, info);
+        let narrowed: Vec<_> = self.gadt.saved.drain(mark..).rev().collect();
+        for (s, bounds) in narrowed {
+            self.u.set_gadt_bounds(s, bounds);
         }
         result
     }
@@ -136,8 +136,7 @@ impl Typer<'_> {
             })
         };
         for (&s, &v) in syms.iter().zip(&vars) {
-            let info = self.u.info(s);
-            if let Type::Bounds(lo, hi) = *self.u.types().get(info) {
+            if let Some((lo, hi)) = self.current_bounds(s) {
                 let (lo, hi) = (subst(self.u, lo), subst(self.u, hi));
                 self.constraint.declare(self.u, v, lo, hi);
             }
@@ -187,18 +186,28 @@ impl Typer<'_> {
             if [lo, hi].iter().any(|&t| self.has_type_var(t)) {
                 return Err("GADT bound of an undetermined type");
             }
-            let old = self.u.info(s);
-            let Type::Bounds(old_lo, old_hi) = *self.u.types().get(old) else { continue };
+            let Some((old_lo, old_hi)) = self.current_bounds(s) else { continue };
             let own = self.u.intern_type(Type::Sym(None, s));
             let lo = if lo == own { old_lo } else { lo };
             let hi = if hi == own { old_hi } else { hi };
-            let info = self.u.intern_type(Type::Bounds(lo, hi));
-            if info != old {
+            if (lo, hi) != (old_lo, old_hi) {
+                let old = self.u.set_gadt_bounds(s, Some((lo, hi)));
                 self.gadt.saved.push((s, old));
-                self.u.set_info(s, info);
             }
         }
         Ok(())
+    }
+
+    /// The bounds of type `s`: its GADT bounds, else its declared ones.
+    pub fn current_bounds(&mut self, s: SymbolId) -> Option<(TypeId, TypeId)> {
+        if let Some(b) = self.u.gadt_bounds(s) {
+            return Some(b);
+        }
+        let info = self.u.info(s);
+        match *self.u.types().get(info) {
+            Type::Bounds(lo, hi) => Some((lo, hi)),
+            _ => None,
+        }
     }
 
     /// The bounds of the GADT variables `vars`, zonked.
@@ -235,14 +244,11 @@ impl Typer<'_> {
     /// Whether `a` conforms to `b` without the GADT bounds, frozen.
     pub fn conforms_without_gadt(&mut self, a: TypeId, b: TypeId) -> bool {
         let (a, b) = (self.zonk(a), self.zonk(b));
-        let saved = self.gadt.saved.clone();
-        let current: Vec<(SymbolId, TypeId)> = saved.iter().map(|&(s, _)| (s, self.u.info(s))).collect();
-        for &(s, info) in saved.iter().rev() {
-            self.u.set_info(s, info);
-        }
+        let narrowed = self.gadt_narrowed();
+        let current: Vec<_> = narrowed.iter().map(|&s| (s, self.u.set_gadt_bounds(s, None))).collect();
         let ok = self.u.is_subtype(a, b);
-        for (s, info) in current {
-            self.u.set_info(s, info);
+        for (s, bounds) in current {
+            self.u.set_gadt_bounds(s, bounds);
         }
         ok
     }

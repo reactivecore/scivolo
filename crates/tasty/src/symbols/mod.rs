@@ -82,6 +82,8 @@ pub struct Universe {
     infos: FxHashMap<SymbolId, TypeId>,
     /// The type under explicit nulls of each symbol whose type was asked for in that mode.
     nullified_infos: FxHashMap<SymbolId, TypeId>,
+    /// The GADT bounds of type parameters (dotty's `GadtConstraint`), compared frozen.
+    gadt_bounds: FxHashMap<SymbolId, (TypeId, TypeId)>,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// Per class and base class, whether the class's parents give the base different types.
