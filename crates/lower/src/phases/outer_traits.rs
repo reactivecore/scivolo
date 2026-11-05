@@ -36,6 +36,7 @@ pub fn outer_class(l: &Lower, c: SymbolId) -> Option<SymbolId> {
 /// `TreeInfo.bodyKind`).
 pub fn is_pure_interface(u: &Universe, t: SymbolId) -> bool {
     let concrete = |s: SymbolId| match u.symbol(s).tree.is_some() {
+        _ if u.symbol(s).name.starts_with("<local ") => false,
         true => u.body(s).is_some(),
         false => !u.is_deferred(s),
     };

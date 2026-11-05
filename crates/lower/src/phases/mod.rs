@@ -73,6 +73,7 @@ mod leading_params;
 mod let_over_apply;
 mod library_traits;
 mod lift_names;
+mod lift_order;
 mod lifted;
 mod lifted_calls;
 pub(crate) mod literals;
