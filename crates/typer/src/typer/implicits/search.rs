@@ -181,11 +181,10 @@ impl Typer<'_> {
         if applied != tree {
             self.interpolate(applied, Pt::Type(pt), from)?;
         }
-        let tree = applied;
         let tree = match (method, direct) {
-            (true, _) => self.eta_expanded_implicit(tree, pt, ctx)?,
-            (false, false) => self.context_applied_implicit(tree, pt, ctx)?,
-            (false, true) => tree,
+            (true, _) => self.eta_expanded_implicit(applied, pt, ctx)?,
+            (false, false) => self.context_applied_implicit(applied, pt, ctx)?,
+            (false, true) => applied,
         };
         let tree = self.inlined_transparent(tree, Pt::Type(pt), ctx).unwrap_or(tree);
         self.record_inline_call(tree, ctx);
