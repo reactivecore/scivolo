@@ -15,9 +15,14 @@ use typer::inlining::{Quoted, Reports};
 use typer::tpd::{TNodeId, Tpd};
 use typer::unpickle::QuotePattern;
 
-/// A term hole of a quote: its placeholder, index, arguments (an expression `Ok`, a type `Err`)
-/// and filling expression.
-type Hole = (TNodeId, u32, Vec<Result<u32, u32>>, Option<u32>);
+/// A term hole of a quote.
+struct Hole {
+    placeholder: TNodeId,
+    index: u32,
+    /// An expression `Ok`, a type `Err`.
+    args: Vec<Result<u32, u32>>,
+    filled: Option<u32>,
+}
 
 /// A quote unpickled for the macro: its tree, spliced types and term holes.
 struct Unpickled {
@@ -151,7 +156,7 @@ impl Host {
             Expr::Quote(q) => q.holes.as_slice(),
             Expr::Tree(_) => &[],
         });
-        holes.map(|&(node, _, _, filled)| (node, filled.and_then(|e| self.tree(e).ok()))).collect()
+        holes.map(|h| (h.placeholder, h.filled.and_then(|e| self.tree(e).ok()))).collect()
     }
 
     /// The spliced type symbols of the quotes with the types they stand for.
@@ -181,7 +186,7 @@ impl Host {
             Expr::Tree(t) => Ok(Quoted::Tree(*t)),
             Expr::Quote(q) => {
                 let holes: Option<Vec<_>> =
-                    q.holes.iter().map(|&(h, _, _, filled)| Some((h, filled?))).collect();
+                    q.holes.iter().map(|h| Some((h.placeholder, h.filled?))).collect();
                 let holes = holes.ok_or("a quote whose hole the macro left open")?;
                 Ok(Quoted::Quote { root: q.root, spliced: q.spliced.clone(), holes })
             }
