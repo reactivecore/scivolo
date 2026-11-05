@@ -24,7 +24,7 @@ class Impl extends Base[Int, List] {
 
 class Mixed extends Impl with Ops[Int, List]
 
-@main def staticLocal(): Unit = {
+@main def staticlocal(): Unit = {
   def twice(x: Int): Int = x * 2
   println(new Tree[String]().build(4).sum)
   println(twice(21))
