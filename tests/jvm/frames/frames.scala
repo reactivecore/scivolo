@@ -9,6 +9,13 @@ object Frames {
     r
   }
 
+  def entry(c: Boolean): AnyRef = {
+    val e =
+      if c then new java.util.AbstractMap.SimpleEntry[String, String]("a", "b")
+      else new java.util.AbstractMap.SimpleImmutableEntry[String, String]("c", "d")
+    e
+  }
+
   def sums(n: Int): Double = {
     var total = 0L
     var d = 0.5
@@ -32,6 +39,7 @@ object Frames {
     println(ref(1, args))
     println(ref(-1, args) eq null)
     println(ref(0, args) eq null)
+    println(entry(false))
     println(sums(5))
   }
 }

@@ -48,8 +48,28 @@ impl Gen<'_, '_> {
         let binary = lower::jdk_class_source_name(&binary);
         let (package, name) = binary.rsplit_once('.').unwrap_or(("", binary));
         let package = self.l.u.package(package)?;
-        let decls = self.l.u.decl(package, name).ok()?;
-        let class = decls.into_iter().find(|&s| self.l.u.is_class(s))?;
-        (self.class_name(class) == internal).then_some(class)
+        self.member_class_named(package, name, internal)
+    }
+
+    /// The class of internal name `internal` declared in `owner` as `rest`, nested classes
+    /// separated by `$` and object classes ending in it.
+    fn member_class_named(&mut self, owner: SymbolId, rest: &str, internal: &str) -> Option<SymbolId> {
+        let ends = rest.match_indices('$').map(|(i, _)| i).chain([rest.len()]);
+        for end in ends.collect::<Vec<_>>() {
+            let names = [(rest.get(..=end), end + 1), (Some(&rest[..end]), end + 1)];
+            for (name, next) in names.into_iter().filter_map(|(n, next)| Some((n?, next))) {
+                for c in self.l.u.decl(owner, name).unwrap_or_default() {
+                    let found = match rest.get(next..).filter(|r| !r.is_empty()) {
+                        _ if !self.l.u.is_class(c) => None,
+                        Some(inner) => self.member_class_named(c, inner, internal),
+                        None => (self.class_name(c) == internal).then_some(c),
+                    };
+                    if found.is_some() {
+                        return found;
+                    }
+                }
+            }
+        }
+        None
     }
 }

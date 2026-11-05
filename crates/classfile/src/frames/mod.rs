@@ -28,6 +28,9 @@ pub fn stack_map(
     lub: &mut Lub,
 ) -> Result<Option<Vec<u8>>, String> {
     let bytes = &code.bytes;
+    if bytes.is_empty() {
+        return Err("no code".into());
+    }
     let (mut starts, mut targets, mut at) = (BTreeSet::from([0]), BTreeSet::new(), 0);
     while at < bytes.len() {
         let next = at + length(bytes, at);
