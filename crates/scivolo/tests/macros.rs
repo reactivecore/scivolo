@@ -87,6 +87,8 @@ inline def thrice(inline x: Int): Int = ${ twiceImpl('{ x + x / 2 }) }
   val n = 4
   println(plusOneTwice(n))
   println(wrapped(\"w\"))
+  println(shownInQuote)
+  println(loneSurrogates)
 ";
 
 fn root() -> PathBuf {
@@ -142,6 +144,8 @@ fn macros_expand_in_a_script() {
     let env = [("SCIVOLO_FRONTEND", "strict"), ("SCIVOLO_CACHE", cache.to_str().unwrap())];
     let out = scivolo(&[file.to_str().unwrap()], "", &env);
     let stdout = String::from_utf8_lossy(&out.stdout);
-    let expected = "12\n2\nList(id, name)\n2\n3\n3\n42\nHello, Bob!\n(1.5,1.5)\nList(a, b)\n2\n10\nList(w)\n";
+    let expected = "12\n2\nList(id, name)\n2\n3\n3\n42\nHello, Bob!\n(1.5,1.5)\nList(a, b)\n2\n10\nList(w)\nscala.collection.immutable.List[T]1\n\
+        \"a<d800>\\n\" \u{1b}[32m'<dc00>'\u{1b}[0m Literal(StringConstant(\"a<d800>\n\")) \
+        Literal(CharConstant('<dc00>')) ConstantType(CharConstant('<dc00>'))\n";
     assert_eq!(stdout, expected, "{}", String::from_utf8_lossy(&out.stderr));
 }
