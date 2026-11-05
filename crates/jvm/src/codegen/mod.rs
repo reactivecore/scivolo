@@ -3,6 +3,7 @@
 //! Class files from the lowered trees: a port of dotty's `GenBCode`.
 
 mod access;
+mod callee;
 mod class;
 mod method;
 mod mirror;
@@ -77,9 +78,26 @@ fn descriptor(e: &Erased) -> String {
 /// The internal name of a class or array type of erased type `e`, as `ldc` and `new` take it.
 fn class_internal(e: &Erased) -> String {
     match e {
-        Erased::Class(name) => internal(name),
+        Erased::Class(name) | Erased::Value(name, _) => internal(name),
+        Erased::Nothing => "scala/runtime/Nothing$".into(),
+        Erased::Null => "scala/runtime/Null$".into(),
         e => descriptor(e),
     }
+}
+
+/// The class whose `TYPE` field holds the class of primitive erased type `e`.
+fn primitive_box(e: &Erased) -> Option<&'static str> {
+    let Erased::Prim(c) = e else { return (*e == Erased::Unit).then_some("java/lang/Void") };
+    Some(match c {
+        'z' => "java/lang/Boolean",
+        'c' => "java/lang/Character",
+        'b' => "java/lang/Byte",
+        's' => "java/lang/Short",
+        'i' => "java/lang/Integer",
+        'j' => "java/lang/Long",
+        'f' => "java/lang/Float",
+        _ => "java/lang/Double",
+    })
 }
 
 /// The method descriptor of method `m`; `V` as the result of a constructor.

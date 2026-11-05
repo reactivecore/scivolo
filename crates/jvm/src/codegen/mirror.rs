@@ -6,8 +6,9 @@
 use super::{ClassBytes, Gen, method_descriptor, method_name, unsupported};
 use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ClassFile, Code, FieldOp, Invoke};
 use lower::Result;
-use tasty::SymbolId;
-use tasty::tags::{MACRO, PRIVATE, PROTECTED, STATIC};
+use syntax::ast::Span;
+use tasty::tags::{MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 impl Gen<'_, '_> {
@@ -48,11 +49,32 @@ impl Gen<'_, '_> {
         Ok(())
     }
 
-    /// Whether the mirror class of `module` forwards to method `m`: neither a constructor, nor
-    /// non-public, nor static, nor a macro, nor an expanded name.
+    /// Fails for top-level object class `module` if dotty gives it static forwarders this backend
+    /// does not generate yet: those of methods `module` inherits, or, with a `companion` class,
+    /// those in that class.
+    pub fn check_forwarders(&mut self, module: SymbolId, companion: bool, span: Span) -> Result<()> {
+        let plain =
+            ["java.lang.Object", "scala.Any", "scala.AnyRef", "scala.Matchable", "java.io.Serializable"];
+        for c in self.l.u.linearization(module) {
+            if (c == module && !companion) || plain.contains(&self.l.u.full_name(c).as_str()) {
+                continue;
+            }
+            let decls = self.l.u.decls(c).unwrap_or_default();
+            let concrete = |m| self.l.u.symbol(m).kind == Kind::Def && !self.l.u.is_deferred(m);
+            if decls.into_iter().any(|m| concrete(m) && self.has_forwarder(m, c)) {
+                let what = if companion { "in a companion class" } else { "of inherited methods" };
+                return unsupported(span, format!("static forwarders {what} on the JVM"));
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether the mirror class of `module` forwards to method `m` of `module`: neither a
+    /// constructor, nor non-public, nor static, nor a macro, nor an expanded name.
     fn has_forwarder(&self, m: SymbolId, module: SymbolId) -> bool {
         let s = self.l.u.symbol(m);
-        let excluded = [PRIVATE, PROTECTED, STATIC, MACRO].iter().any(|&f| s.flags.has(f));
+        let excluded = [PRIVATE, PROTECTED, PRIVATEqualified, PROTECTEDqualified, STATIC, MACRO];
+        let excluded = excluded.iter().any(|&f| s.flags.has(f));
         !excluded && !self.l.u.is_constructor(m) && s.owner == Some(module) && !s.name.contains("$$")
     }
 }
