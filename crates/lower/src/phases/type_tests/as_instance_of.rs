@@ -126,7 +126,6 @@ fn weaker_bounds(l: &mut Lower, (prefix, class, p): (TypeId, SymbolId, SymbolId)
     l.u.is_subtype(p_hi, q_hi) && l.u.is_subtype(q_lo, p_lo)
 }
 
-/// The erasure of class `C` if `expr` is `C.this`, whatever its self type.
 /// Whether `from` is a universal trait (one not deriving from `AnyRef`) and `to` is `Object`.
 fn universal_to_object(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
     let (Erased::Class(f), Erased::Class(t)) = (from, to) else { return false };
@@ -135,6 +134,7 @@ fn universal_to_object(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
     l.u.is_trait(f) && !l.u.derives_from(f, object)
 }
 
+/// The erasure of class `C` if `expr` is `C.this`, whatever its self type.
 fn this_class(l: &mut Lower, expr: TNodeId) -> Option<Erased> {
     let (Tree::This { .. }, Some(c)) = (l.tpd.tree(expr), l.tpd.sym(expr)) else { return None };
     let tpe = type_ref(l.u, c);

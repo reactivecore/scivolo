@@ -39,10 +39,6 @@ SPECIALIZED = [
                                      "AbstractPartialFunction", "NonLocalReturnControl"]),
     "scala/util/Sorting", "scala/util/hashing/MurmurHash3",
 ]
-# The NIR files that differ only as the oracle's whole-run build makes them (docs/conformance.md),
-# with their number of differing lines: `(a, b).hashCode()` calls `Any.hashCode`, as the case
-# class members of a class of the same run do not exist when it is typed.
-WHOLE_RUN = {f"scala/math/{c}$Tuple{n}{c}.nir": 2 for c in ["Equiv", "Ordering"] for n in range(2, 10)}
 
 
 def specialized(nir_path):
@@ -95,7 +91,9 @@ def libs(jars):
         if not (LIBS / jar.name).exists() and jar.name != LIBRARY:
             (LIBS / jar.name).symlink_to(jar.resolve())
     if not (LIBS / LIBRARY).exists():
-        with zipfile.ZipFile(jars / LIBRARY) as lib, zipfile.ZipFile(LIBS / LIBRARY, "w") as out:
+        part = LIBS / f"{LIBRARY}.part"
+        with zipfile.ZipFile(jars / LIBRARY) as lib, zipfile.ZipFile(part, "w") as out:
             for n in lib.namelist():
                 out.writestr(n, lazyvals.read_bytes() if n == "scala/runtime/LazyVals.tasty" else lib.read(n))
+        part.rename(LIBS / LIBRARY)
     return LIBS
