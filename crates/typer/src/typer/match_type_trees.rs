@@ -38,8 +38,10 @@ impl Typer<'_> {
             if bound.is_some_and(|b| !self.u.is_subtype(body, b)) {
                 return self.unsupported(c, "match type case body outside the bound");
             }
-            let avoided = self.avoid_captures(body, &captures, 1);
-            lub = self.u.lub(lub, avoided);
+            if lub != ANY {
+                let avoided = self.avoid_captures(body, &captures, 1);
+                lub = if self.is_provisional_type(body) { ANY } else { self.u.lub(lub, avoided) };
+            }
             case_types.push(case);
         }
         let bound = bound.unwrap_or(lub);

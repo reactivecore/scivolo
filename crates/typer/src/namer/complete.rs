@@ -19,6 +19,10 @@ impl Typer<'_> {
                 let error = self.u.intern_type(Type::Error);
                 return self.u.set_info(sym, error);
             }
+            Some(&Completion::Completing(tree)) if self.syms.checking.contains(&sym) => {
+                self.unsupported(tree, "cyclic reference");
+                return;
+            }
             _ if self.syms.incomplete.contains(&sym) => {
                 return self.unsupported_at(Span::NONE, "definition left incomplete by a failed unit");
             }

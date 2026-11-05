@@ -4,6 +4,7 @@
 //! refer to itself (dotty's `typeDefSig` dummy info).
 
 use crate::ctx::Ctx;
+use crate::symbols::Completion;
 use crate::typer::Typer;
 use syntax::ast::{NodeId, Tree};
 use tasty::{ANY, NOTHING, SymbolId, Type, TypeId};
@@ -16,7 +17,7 @@ impl Typer<'_> {
         let Some(tparams) = self.type_def_params(tree) else { return };
         let info = self.abstract_info(&tparams, ANY);
         self.u.set_info(sym, info);
-        if !self.is_provisional(tree) {
+        if !self.is_match_alias(tree) {
             return;
         }
         let upper = self.provisional_bound(tree, &tparams, ctx.with_owner(sym));
@@ -78,10 +79,29 @@ impl Typer<'_> {
         if failed { ANY } else { tpe }
     }
 
-    /// Whether definition `tree` is a match type alias, which has a provisional info while it
-    /// completes.
-    pub fn is_provisional(&self, tree: NodeId) -> bool {
+    /// Whether definition `tree` is a match type alias.
+    pub fn is_match_alias(&self, tree: NodeId) -> bool {
         self.match_alias_params(tree).is_some()
+    }
+
+    /// Whether `t` refers to a type definition being completed, or to a local one not completed
+    /// yet (dotty's `isProvisional`).
+    pub fn is_provisional_type(&mut self, t: TypeId) -> bool {
+        let mut refs = Vec::new();
+        self.u.map_type(t, &mut |u, part| {
+            if let Type::Sym(_, s) = *u.types().get(part)
+                && u.is_type_symbol(s)
+                && !u.is_class(s)
+            {
+                refs.push(s);
+            }
+            None
+        });
+        refs.into_iter().any(|s| match self.syms.completions.get(&s) {
+            Some(Completion::Completing(_)) => true,
+            Some(Completion::Pending { .. }) => !self.u.is_static_symbol(s),
+            _ => false,
+        })
     }
 
     /// The type parameters of definition `tree` if it is a match type alias.

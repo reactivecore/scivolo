@@ -34,7 +34,10 @@ impl Typer<'_> {
             Some(alias) => self.u.intern_type(Type::Alias(alias)),
             None => info,
         };
-        if self.check_info(&mut c, info).is_err() {
+        self.syms.checking.push(sym);
+        let r = self.check_info(&mut c, info);
+        self.syms.checking.pop();
+        if r.is_err() {
             self.unsupported(tree, "cyclic type reference");
             let error = self.u.intern_type(Type::Error);
             self.u.set_info(sym, error);
@@ -43,16 +46,16 @@ impl Typer<'_> {
 
     fn check_info(&mut self, c: &mut NonCyclic, info: TypeId) -> Result<(), Cycle> {
         match *self.u.types().get(info) {
-            Type::Lambda { result, .. } if matches!(self.u.types().get(result), Type::Bounds(..)) => {
+            Type::Lambda { result, .. }
+                if matches!(self.u.types().get(result), Type::Bounds(..) | Type::Alias(_)) =>
+            {
                 self.check_info(c, result)
             }
             Type::Lambda { result, .. } => {
                 let alias = self.u.intern_type(Type::Alias(result));
                 self.check_info(c, alias)
             }
-            Type::Alias(a) if matches!(self.u.types().get(a), Type::Match { .. }) => {
-                self.at_variance(c, 0, |t, c| t.check_upper(c, a))
-            }
+            Type::Alias(a) if self.is_match(a) => self.at_variance(c, 0, |t, c| t.check_upper(c, a)),
             Type::Bounds(lo, hi) => {
                 self.at_variance(c, -1, |t, c| t.check_part(c, lo))?;
                 self.check_upper(c, hi)
@@ -62,6 +65,15 @@ impl Typer<'_> {
                 self.check_upper(c, a)
             }
             _ => Ok(()),
+        }
+    }
+
+    /// Whether `t` is a match type, or a type lambda over one (dotty's `isMatch`).
+    fn is_match(&self, t: TypeId) -> bool {
+        match *self.u.types().get(t) {
+            Type::Match { .. } => true,
+            Type::Lambda { result, .. } => self.is_match(result),
+            _ => false,
         }
     }
 
@@ -195,7 +207,7 @@ impl Typer<'_> {
         if c.locked.contains(&t) || s == c.sym {
             return Err(Cycle);
         }
-        if self.u.symbol(s).kind == Kind::Class {
+        if self.u.symbol(s).kind == Kind::Class || self.syms.checking.contains(&s) {
             return Ok(());
         }
         c.locked.push(t);
