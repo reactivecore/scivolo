@@ -17,7 +17,10 @@ needed GADT reasoning (#41).
   pattern type with the selector whose narrowable parameters are type variables of their
   bounds. A pattern variable made one with such a variable takes the first parameter's place.
 - The bounds live beside the infos (`Universe::gadt_bounds`), restored when the case ends, and
-  the comparer reads them frozen after the declared bounds.
+  the comparer reads them frozen after the declared bounds. A definition typed ahead from a
+  case it is not in is typed without that case's bounds, as dotty's completer context.
+- A pattern whose narrowing contradicts the current bounds stays refused; dotty types its case
+  without the narrowing.
 - Out of the subset, refused as before: a selector with a refinement, a singleton, a
   higher-kinded parameter or an abstract type constructor applied; a pattern alternative that
   narrows; a typed pattern binding type variables (`case e: Pair[a, b]`) and the cases of an

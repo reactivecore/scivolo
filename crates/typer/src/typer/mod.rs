@@ -90,6 +90,7 @@ mod forward_refs;
 mod function_types;
 mod future_infix;
 mod gadt;
+mod gadt_cases;
 mod gadt_cast;
 mod gadt_narrow;
 mod generic_arrays;
@@ -375,7 +376,7 @@ pub struct Typer<'a> {
     pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving_finalize::Problem>)>>,
     /// The types typed patterns bind whose bounds the selector gave.
     pub known_pattern_types: FxHashSet<SymbolId>,
-    pub gadt: gadt::Gadt,
+    pub gadt: gadt_cases::Gadt,
     /// The type lambdas of derived instances' types, by the instances that own their parameters.
     pub derived_lambdas: FxHashMap<NodeId, NodeId>,
     /// The pending dynamic calls, by their placeholder trees.

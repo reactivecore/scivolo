@@ -26,7 +26,9 @@ fn is_concrete(u: &mut Universe, t: TypeId) -> bool {
     let t = u.dealias(t);
     match *u.types().get(t) {
         Type::Sym(_, s) => u.is_class(s),
+        Type::TypeRef(..) => u.resolve_ref(t).is_some_and(|s| u.is_class(s)),
         Type::Applied(tycon, _) => is_concrete(u, tycon),
+        Type::Lambda { result, .. } => is_concrete(u, result),
         Type::And(a, b) | Type::Or(a, b, _) => is_concrete(u, a) && is_concrete(u, b),
         Type::Annotated(a, _) => is_concrete(u, a),
         _ => false,
@@ -48,7 +50,7 @@ impl Typer<'_> {
         let widened = self.u.widen(underlying);
         let approx = self.approximate_gadt(widened, 1, ctx);
         let conj = self.u.intern_type(Type::And(tpe, approx));
-        let conj = match self.conforms(approx, pt) && self.conforms_without_gadt(approx, pt) {
+        let conj = match self.conforms_without_gadt(approx, pt) {
             true => conj,
             false => self.u.intern_type(Type::And(conj, pt)),
         };
@@ -60,7 +62,8 @@ impl Typer<'_> {
         self.type_cast(tree, target)
     }
 
-    /// `tree` cast to `pt` if it conforms to it only by GADT bounds (dotty's `gadtAdaptBranch`).
+    /// `tree` cast to `pt` if it conforms to it only by GADT bounds (dotty's `gadtAdaptBranch`);
+    /// type variables constrained by the comparison without them first.
     pub fn gadt_adapted(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(tree);
         match self.gadt_narrowing() && !self.conforms_without_gadt(tpe, pt) && self.conforms(tpe, pt) {

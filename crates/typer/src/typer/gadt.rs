@@ -1,52 +1,18 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/GadtConstraint.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! GADT bounds: the bounds a case's pattern gives the type parameters of enclosing methods and
-//! classes, in force while the case is typed.
+//! The type parameters a case's pattern may narrow and their current bounds.
 
 use super::Typer;
 use crate::ctx::Ctx;
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 
-/// The type parameters narrowed by the patterns of the cases being typed.
-#[derive(Default)]
-pub struct Gadt {
-    /// Each narrowed symbol with its GADT bounds before, innermost last.
-    saved: Vec<(SymbolId, Option<(TypeId, TypeId)>)>,
-    /// The pattern-bound types of the cases being typed.
-    bound: Vec<SymbolId>,
-    /// How many cases are being typed.
-    cases: u32,
-}
-
 impl Typer<'_> {
-    /// `f` as the typing of a case: the bounds its pattern narrows restored after; none narrowed
-    /// unless `narrowing`.
-    pub fn in_gadt_case<R>(&mut self, narrowing: bool, f: impl FnOnce(&mut Self) -> R) -> R {
-        let (mark, bound) = (self.gadt.saved.len(), self.gadt.bound.len());
-        let cases = self.gadt.cases;
-        self.gadt.cases = if narrowing { cases + 1 } else { 0 };
-        let result = f(self);
-        self.gadt.cases = cases;
-        self.gadt.bound.truncate(bound);
-        let narrowed: Vec<_> = self.gadt.saved.drain(mark..).rev().collect();
-        for (s, bounds) in narrowed {
-            self.u.set_gadt_bounds(s, bounds);
-        }
-        result
-    }
-
     /// Adds pattern-bound types `syms` to the GADT-constrained types of the case being typed.
     pub fn gadt_bind(&mut self, syms: &[SymbolId]) {
         if self.gadt.cases > 0 {
             self.gadt.bound.extend(syms);
         }
-    }
-
-    /// Narrows `s` to `bounds` while the case is typed.
-    pub fn set_gadt_bounds(&mut self, s: SymbolId, (lo, hi): (TypeId, TypeId)) {
-        let old = self.u.set_gadt_bounds(s, Some((lo, hi)));
-        self.gadt.saved.push((s, old));
     }
 
     /// Whether `s` is a GADT-constrained type: a type parameter of a method enclosing `ctx`'s
@@ -152,27 +118,5 @@ impl Typer<'_> {
             None
         });
         found
-    }
-
-    /// Whether `a` conforms to `b` without the GADT bounds, frozen.
-    pub fn conforms_without_gadt(&mut self, a: TypeId, b: TypeId) -> bool {
-        let (a, b) = (self.zonk(a), self.zonk(b));
-        let narrowed = self.gadt_narrowed();
-        let current: Vec<_> = narrowed.iter().map(|&s| (s, self.u.set_gadt_bounds(s, None))).collect();
-        let ok = self.u.is_subtype(a, b);
-        for (s, bounds) in current {
-            self.u.set_gadt_bounds(s, bounds);
-        }
-        ok
-    }
-
-    /// Whether GADT bounds are in force.
-    pub fn gadt_narrowing(&self) -> bool {
-        !self.gadt.saved.is_empty()
-    }
-
-    /// The types GADT bounds narrow.
-    pub fn gadt_narrowed(&self) -> Vec<SymbolId> {
-        self.gadt.saved.iter().map(|&(s, _)| s).collect()
     }
 }

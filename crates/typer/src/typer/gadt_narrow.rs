@@ -59,6 +59,10 @@ impl Typer<'_> {
             if let Some((lo, hi)) = self.current_bounds(s) {
                 let (lo, hi) = (subst(self.u, lo), subst(self.u, hi));
                 self.constraint.declare(self.u, v, lo, hi);
+                let (lo_open, hi_open) = (self.has_abstract_type(lo), self.has_abstract_type(hi));
+                if !((lo_open || self.conforms(lo, v)) && (hi_open || self.conforms(v, hi))) {
+                    return Ok(None);
+                }
             }
         }
         let sel = subst(self.u, sel);
@@ -152,5 +156,26 @@ impl Typer<'_> {
             None
         });
         found
+    }
+
+    /// Whether `t` refers to an abstract type.
+    fn has_abstract_type(&mut self, t: TypeId) -> bool {
+        let mut parts = Vec::new();
+        self.u.map_type(t, &mut |u, p| {
+            if matches!(u.types().get(p), Type::Sym(..) | Type::TypeRef(..)) {
+                parts.push(p);
+            }
+            None
+        });
+        parts.into_iter().any(|p| {
+            let s = match *self.u.types().get(p) {
+                Type::Sym(_, s) => Some(s),
+                _ => self.u.resolve_ref(p),
+            };
+            s.is_some_and(|s| {
+                let info = self.u.info(s);
+                self.u.is_type_symbol(s) && matches!(self.u.types().get(info), Type::Bounds(..))
+            })
+        })
     }
 }

@@ -121,6 +121,7 @@ impl Typer<'_> {
             return self.unsupported(id, "case");
         };
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
+        self.gadt_case_level(level);
         let cctx = Ctx { level, mode: ctx.mode.without(Mode::INLINE_CASE), ..ctx };
         let pat = self.typed(pat, Pt::Type(selector), cctx.with_mode(ctx.mode.with(Mode::PATTERN)));
         self.check_duplicate_binds(pat, &mut Vec::new());
