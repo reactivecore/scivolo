@@ -1,13 +1,19 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/ast/Desugar.scala
+//   compiler/src/dotty/tools/dotc/core/Definitions.scala
 //! A class definition as the class with accessors and synthetic members, its companion
 //! object, its implicit wrapper and an enum's lookup methods (the second half of dotty's
 //! `classDef`).
 
-use super::Desugar;
 use super::class_parts::ClassParts;
+use super::{Desugar, Owner};
 use crate::ast::flags;
 use crate::ast::{NodeId, TName, Tree};
+
+/// The classes of package `scala` whose `getClass` definitions are dropped (dotty's
+/// `hasProblematicGetClass`).
+const HAS_PROBLEMATIC_GET_CLASS: [&str; 10] =
+    ["AnyVal", "Byte", "Short", "Char", "Int", "Long", "Float", "Double", "Unit", "Boolean"];
 
 impl Desugar<'_> {
     /// The expansion of class definition `cdef`.
@@ -84,7 +90,13 @@ impl Desugar<'_> {
             }
             body.push(self.ast.with_mods(d, m));
         }
-        body.extend_from_slice(&c.body);
+        let problematic = self.owner == Owner::Package
+            && self.package == "scala"
+            && HAS_PROBLEMATIC_GET_CLASS.contains(&self.text(c.name));
+        body.extend(c.body.iter().copied().filter(|&s| {
+            !(problematic
+                && matches!(*self.ast.tree(s), Tree::DefDef { name, .. } if self.text(name) == "getClass"))
+        }));
         body.extend(case_meths);
         if c.mods.flags.is_all_of(flags::GIVEN.or(flags::INLINE).or(flags::TRANSPARENT)) {
             self.error(c.cdef, "inline given instances cannot be transparent");

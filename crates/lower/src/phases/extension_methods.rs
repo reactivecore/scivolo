@@ -181,7 +181,6 @@ fn rewire_body(
     this: SymbolId,
     rhs: TNodeId,
 ) {
-    let module_class = l.u.symbol(ext).owner.expect("an extension method's class");
     for t in subtrees(l.tpd, rhs) {
         let span = l.tpd.span(t);
         let sym = l.tpd.sym(t);
@@ -198,12 +197,12 @@ fn rewire_body(
                 l.copy_node(t, this_ref);
             }
             (&Tree::Select { qualifier, .. }, Some(method)) => {
-                let call = rewired_call(l, module_class, method, qualifier);
+                let call = rewired_call(l, method, qualifier);
                 l.copy_node(t, call);
             }
             (Tree::Ident { .. }, Some(method)) => {
                 let qualifier = l.ident(this, Span::NONE);
-                let call = rewired_call(l, module_class, method, qualifier);
+                let call = rewired_call(l, method, qualifier);
                 l.copy_node(t, call);
             }
             (&Tree::Ident { name }, None) if sym.is_some_and(|s| is_member(l, class, s)) => {
@@ -222,12 +221,11 @@ fn rewire_body(
     }
 }
 
-/// `M.this.ext(qualifier)` for the extension method `ext` of method `m` in object class `module`
-/// (`FullParameterization`'s `rewireCall`).
-fn rewired_call(l: &mut Lower, module: SymbolId, m: SymbolId, qualifier: TNodeId) -> TNodeId {
+/// `ext(qualifier)` for the extension method `ext` of method `m` (`FullParameterization`'s
+/// `rewireCall`).
+fn rewired_call(l: &mut Lower, m: SymbolId, qualifier: TNodeId) -> TNodeId {
     let ext = extension(l, m).expect("the extension method of a value class method");
-    let this = l.this(module, Span::NONE);
-    let fun = l.select(this, ext, Span::NONE);
+    let fun = l.ident(ext, Span::NONE);
     let info = l.u.info(ext);
     let tpe = l.u.result_type(l.u.strip_poly(info));
     let span = l.tpd.span(qualifier);
