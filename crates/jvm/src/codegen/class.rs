@@ -42,6 +42,9 @@ impl Gen<'_, '_> {
                     let flags = java_flags(self.l.u, s) | if mutable { 0 } else { ACC_FINAL };
                     cf.field(flags, &tasty::encode(&name), &desc);
                 }
+                Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => {
+                    return unsupported(self.l.tpd.span(stat), "nested classes on the JVM");
+                }
                 Tree::TypeDef { .. } | Tree::Import { .. } => {}
                 _ => return unsupported(self.l.tpd.span(stat), "statements in a class body"),
             }
@@ -67,8 +70,14 @@ impl Gen<'_, '_> {
         let bytes = cf.bytes().or_else(|e| unsupported(self.l.tpd.span(td), e))?;
         self.out.push(ClassBytes { name: name.clone(), bytes });
         let top = self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.symbol(o).kind == tasty::Kind::Package);
+        let span = self.l.tpd.span(td);
         if module && top && self.l.u.companion_class(sym).is_none() {
+            self.check_forwarders(sym, false, span)?;
             self.gen_mirror_class(td, sym, &name)?;
+        }
+        let companion = self.l.u.companion_module(sym).and_then(|m| self.l.u.module_class(m));
+        if let Some(companion) = companion.filter(|_| !module && top) {
+            self.check_forwarders(companion, true, span)?;
         }
         Ok(())
     }
@@ -117,7 +126,9 @@ impl Gen<'_, '_> {
         let stats = self.l.tpd.items(stats).to_vec();
         let split = stats.iter().position(|&s| self.is_super_call(s)).map_or(0, |i| i + 1);
         let (desc, flags) = (method_descriptor(self.l.u, sym), java_flags(self.l.u, sym));
+        let class = self.l.u.symbol(sym).owner.expect("a constructor's class");
         let mut b = Body::new(&mut cf.pool, None, 1);
+        b.this_class = Some(self.class_name(class));
         for &t in &stats[..split] {
             self.stat(&mut b, t)?;
         }

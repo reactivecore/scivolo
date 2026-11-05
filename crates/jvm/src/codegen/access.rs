@@ -3,12 +3,14 @@
 //! Field accesses and calls with their receivers (dotty's `genLoadQualifier`, `genApply`,
 //! `genCallMethod`).
 
+use super::callee::Receiver;
 use super::method::Body;
 use super::{Gen, class_internal, descriptor, is_static_member, method_descriptor, method_name, unsupported};
 use classfile::{FieldOp, Invoke};
 use lower::Result;
+use syntax::ast::Span;
 use tasty::SymbolId;
-use tasty::tags::PRIVATE;
+use tasty::tags::{PRIVATE, STATIC};
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -40,10 +42,18 @@ impl Gen<'_, '_> {
 
     /// Loads the receiver of instance member `m` selected from `qualifier`, or of an identifier
     /// without one; returns whether `m` is an instance member. The qualifier of a static member
-    /// must be an object or `this`, whose load is elided.
+    /// must be an object or `this`, whose load is elided. Fails for a member of a javalib object
+    /// standing for the JDK's static members, and for a static member of an object.
     fn receiver(&mut self, b: &mut Body, m: SymbolId, qualifier: Option<TNodeId>) -> Result<bool> {
         let static_ = is_static_member(self.l.u, m);
         let owner = self.l.u.symbol(m).owner.expect("a member's owner");
+        let span = qualifier.map_or(Span::NONE, |q| self.l.tpd.span(q));
+        if lower::is_jdk_object(self.l.u, owner) {
+            return unsupported(span, "static members of JDK classes on the JVM");
+        }
+        if self.l.u.symbol(m).flags.has(STATIC) && self.l.u.is_module_class(owner) {
+            return unsupported(span, "static members of objects on the JVM");
+        }
         match qualifier {
             Some(q) if static_ => {
                 let pure = matches!(self.l.tpd.tree(q), Tree::This { .. })
@@ -54,7 +64,7 @@ impl Gen<'_, '_> {
             }
             Some(q) => _ = self.expr(b, q)?,
             None if static_ => {}
-            None if self.l.u.is_module_class(owner) => _ = self.load_module(b, owner),
+            None if self.l.u.is_module_class(owner) => _ = self.load_module(b, owner, span)?,
             None => _ = self.load_this(b),
         }
         Ok(!static_)
@@ -69,43 +79,56 @@ impl Gen<'_, '_> {
         if let Some(slots) = self.boxing(b, m, &arg_list)? {
             return Ok(slots);
         }
-        let desc = method_descriptor(self.l.u, m);
         let owner = self.l.u.symbol(m).owner.expect("a method's owner");
-        let (owner_name, name) = (self.l.u.binary_name(owner), self.l.u.symbol(m).name.as_str());
-        let universal = ["scala.Any", "scala.AnyRef", "java.lang.Object"].contains(&owner_name.as_str());
-        let primitive = (universal && matches!(name, "==" | "!=" | "##" | "eq" | "ne" | "synchronized"))
-            || (owner_name == "java.lang.String" && name == "+")
-            || self.l.u.symbol(owner).kind == tasty::Kind::Package;
-        if primitive {
-            return unsupported(span, format!("`{name}` of `{owner_name}` on the JVM"));
-        }
+        self.check_call(m, owner, span)?;
+        let desc = method_descriptor(self.l.u, m);
         let mut owner_name = self.class_name(owner);
         let qualifier = match *self.l.tpd.tree(fun) {
             Tree::Select { qualifier, .. } => Some(qualifier),
             Tree::Ident { .. } => None,
             _ => return unsupported(span, "a call of this form"),
         };
-        let (mut kind, mut result) = (Invoke::Virtual, classfile::method_slots(&desc).1);
-        match qualifier.map(|q| self.l.tpd.tree(q).clone()) {
+        let mut result = classfile::method_slots(&desc).1;
+        let kind = match qualifier.map(|q| self.l.tpd.tree(q).clone()) {
             Some(Tree::New { tpt }) => {
                 owner_name = class_internal(&self.l.u.erase(self.l.tpd.tpe(tpt)));
                 b.code.new_object(b.pool, &owner_name);
                 b.code.dup();
-                (kind, result) = (Invoke::Special, 1);
+                result = 1;
+                Invoke::Special
+            }
+            Some(Tree::Super { .. }) if self.l.u.is_trait(owner) => {
+                return unsupported(span, "a super call of a trait method");
             }
             Some(Tree::Super { .. }) => {
+                if let Some(Receiver::Class(c)) = qualifier.and_then(|q| self.receiver_class(q, m)) {
+                    owner_name = self.class_name(c);
+                }
                 self.load_this(b);
-                kind = Invoke::Special;
+                Invoke::Special
             }
-            _ if !self.receiver(b, m, qualifier)? => kind = Invoke::Static,
-            _ if self.l.u.symbol(m).flags.has(PRIVATE) || self.l.u.is_constructor(m) => {
-                kind = Invoke::Special
+            _ if !self.receiver(b, m, qualifier)? => Invoke::Static,
+            _ if self.l.u.symbol(m).flags.has(PRIVATE) || self.l.u.is_constructor(m) => Invoke::Special,
+            _ => {
+                let receiver =
+                    qualifier.and_then(|q| self.receiver_class(q, m)).unwrap_or(Receiver::Class(owner));
+                let kind;
+                (kind, owner_name) = match receiver {
+                    Receiver::Class(c) if self.l.u.is_trait(c) => (Invoke::Interface, self.class_name(c)),
+                    Receiver::Class(c) => (Invoke::Virtual, self.class_name(c)),
+                    Receiver::Array(name) => (Invoke::Virtual, name),
+                };
+                kind
             }
-            _ if self.l.u.is_trait(owner) => kind = Invoke::Interface,
-            _ => {}
+        };
+        let (params, _) = classfile::split_method(&desc);
+        if arg_list.len() != params.len() {
+            return unsupported(span, "arguments other than the descriptor's on the JVM");
         }
-        for a in self.l.tpd.items(args).to_vec() {
-            self.expr(b, a)?;
+        for (a, param) in arg_list.into_iter().zip(params) {
+            if self.expr(b, a)? != classfile::value_slots(param) {
+                return unsupported(self.l.tpd.span(a), "an argument of another JVM type");
+            }
         }
         let name = method_name(self.l.u, m);
         b.code.invoke(kind, b.pool, &owner_name, &name, &desc);

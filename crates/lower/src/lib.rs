@@ -17,6 +17,7 @@ use definitions::Definitions;
 pub use options::Options;
 pub use output::NirFile;
 use rustc_hash::{FxHashMap, FxHashSet};
+pub use symbols::is_jdk_object;
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::Sources;
