@@ -41,6 +41,15 @@ impl Typer<'_> {
         self.type_cast(tree, target)
     }
 
+    /// `tree` cast to `pt` if it conforms to it only by GADT bounds (dotty's `gadtAdaptBranch`).
+    pub fn gadt_adapted(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> TNodeId {
+        let tpe = self.tpd.tpe(tree);
+        match self.gadt_narrowing() && !self.conforms_without_gadt(tpe, pt) && self.conforms(tpe, pt) {
+            true => self.gadt_cast(tree, pt, ctx),
+            false => tree,
+        }
+    }
+
     /// `t` with each GADT-constrained type replaced by its upper bound where it occurs
     /// covariantly, by its lower bound where contravariantly, not inside the bounds.
     fn approximate_gadt(&mut self, t: TypeId, variance: i8, ctx: Ctx) -> TypeId {

@@ -136,7 +136,10 @@ impl Typer<'_> {
         }
         let arg_tpe = self.tpd.tpe(tree);
         let arg = if self.conforms(arg_tpe, param) {
-            tree
+            match self.gadt_narrowing() && !self.conforms_without_gadt(arg_tpe, param) {
+                true => self.gadt_cast(tree, param, ctx),
+                false => tree,
+            }
         } else if let Some(c) = self.captured_wildcards(arg_tpe).filter(|&c| self.conforms(c, param)) {
             self.cast_to_captured(tree, c)?
         } else if widen && self.widens_to(arg_tpe, param) {
