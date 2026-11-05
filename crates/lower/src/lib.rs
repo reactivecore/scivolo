@@ -11,6 +11,7 @@ mod phases;
 mod symbols;
 mod units;
 
+pub use codegen::names::mapped as jdk_class_name;
 pub use compile::{Refusal, compile, compile_with, lower};
 use definitions::Definitions;
 pub use options::Options;
@@ -22,7 +23,7 @@ use syntax::source::Sources;
 use tasty::{SymbolId, Universe};
 use typer::inlining::Lent;
 use typer::tpd::{TNodeId, Tpd};
-pub use units::{compile_sources, position};
+pub use units::{compile_sources, compile_units, position};
 
 /// A construct the lowering does not support yet.
 #[derive(Debug)]
@@ -166,14 +167,26 @@ pub fn lower_sources(
     (names, fresh): (&mut Names, &mut FreshNames),
     sources: Sources,
 ) -> Result<Vec<NirFile>> {
+    lower_trees(u, tpd, root, (names, fresh), sources, codegen::unit)
+}
+
+/// Runs the phases over typed unit `root`, then `generate` over the lowered trees.
+pub fn lower_trees<R>(
+    u: &mut Universe,
+    tpd: &mut Tpd,
+    root: TNodeId,
+    (names, fresh): (&mut Names, &mut FreshNames),
+    sources: Sources,
+    generate: impl FnOnce(&mut Lower, TNodeId) -> Result<R>,
+) -> Result<R> {
     let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
-    let files = codegen::annotations::check_annotations(&mut l, root)
+    let out = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
-        .and_then(|()| codegen::unit(&mut l, root));
+        .and_then(|()| generate(&mut l, root));
     l.u.elide_opaques(false);
     match std::mem::take(&mut l.u.reductions_exhausted) {
         true => unsupported(Span::NONE, "match type reduction over the reduction budget"),
-        false => files,
+        false => out,
     }
 }
 

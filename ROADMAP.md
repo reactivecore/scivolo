@@ -105,8 +105,10 @@ libraries work. dotty's `tests/run-macros`: 307 of 321 pass
 - **Third-party libraries** (done): `--dep` loads `_native0.5_3` jars as NIR plus TASTy, fetched
   by Coursier.
 - **AOT for libraries.** Compile hot stdlib NIR ahead of time, callable from interpreted code.
-- **JVM bytecode frontend (optional).** Needs `invokedynamic`/LambdaMetafactory and JDK
-  natives, and runs into the JDK's licence. Low priority.
+- **JVM bytecode backend (optional, started, #142,
+  [ADR 0101](docs/adr/0101-jvm-backend-crates.md), [research 46](docs/research/46-jvm-backend.md)):**
+  `scivolo-jvm` writes class files from the lowered trees; objects with calls and fields run
+  on `java` (`just jvm-run`, `just jvm-check` against scala-cli).
 
 ## Next
 

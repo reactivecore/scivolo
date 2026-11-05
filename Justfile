@@ -504,6 +504,32 @@ lower-run file main="": release (lower file)
     m="{{ main }}"; [ -z "$m" ] && m=$(basename {{ file }} .scala); \
     SCIVOLO_TIMEOUT=${SCIVOLO_TIMEOUT:-60} target/release/scivolo --cp tmp/lowered/$(basename {{ file }} .scala) $m
 
+# Compile a Scala file with scala-cli (Scala 3.9.0, JVM) into tmp/jvm/<file name>/ref.
+jvm-fixture file:
+    n=$(basename {{ file }} .scala); rm -rf tmp/jvm/$n/ref; \
+    scala-cli --power compile -S 3.9.0 --server=false --quiet --workspace tmp/jvm/$n/ws -d tmp/jvm/$n/ref {{ file }}
+
+# Compile a Scala file with scivolo-jvm into tmp/jvm/<file name>/out.
+jvm-build file:
+    cargo build -q --release -p scivolo-jvm
+    n=$(basename {{ file }} .scala); rm -rf tmp/jvm/$n/out; target/release/scivolo-jvm -d tmp/jvm/$n/out {{ file }}
+
+# Compare the class files of jvm-build with jvm-fixture's through javap; fails on a difference.
+jvm-check file: (jvm-fixture file) (jvm-build file)
+    python3 scripts/jvm-check.py tmp/jvm/$(basename {{ file }} .scala)/ref tmp/jvm/$(basename {{ file }} .scala)/out
+
+# Compile a Scala file with scivolo-jvm and run its `main` (default: the file name capitalized) on
+# `java -Xverify:all`; compare its output with the `.check` file beside it, if any.
+jvm-run file main="": (jvm-build file)
+    #!/usr/bin/env bash
+    set -euo pipefail
+    n=$(basename {{ file }} .scala); m="{{ main }}"
+    [ -z "$m" ] && m=$(echo "$n" | awk '{ print toupper(substr($0, 1, 1)) substr($0, 2) }')
+    out=$(java -Xverify:all -cp tmp/jvm/$n/out:ref/libs/scala-library-3.9.0.jar "$m")
+    echo "$out"
+    check={{ without_extension(file) }}.check
+    if [ -f "$check" ]; then diff <(echo "$out") "$check"; fi
+
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release
     scripts/sn-run.sh {{ filters }}
