@@ -20,7 +20,8 @@ needed GADT reasoning (#41).
   the comparer reads them frozen after the declared bounds.
 - Out of the subset, refused as before: a selector with a refinement, a singleton, a
   higher-kinded parameter or an abstract type constructor applied; a pattern alternative that
-  narrows; a typed pattern binding type variables (`case e: Pair[a, b]`) narrows nothing.
+  narrows; a typed pattern binding type variables (`case e: Pair[a, b]`) and the cases of an
+  inline match narrow nothing; pattern-bound types are not narrowed by nested patterns' infos.
 - Casts follow `insertGadtCast`: adapted trees, `if` branches, implicit arguments and
   arguments of implicit conversions.
 
