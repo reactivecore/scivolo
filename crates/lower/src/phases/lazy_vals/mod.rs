@@ -80,6 +80,10 @@ pub fn transform(
         let field_tpt = l.type_tree(object, Span::NONE);
         let field_span = if l.mixed_in.contains(&accessor) { Span::NONE } else { span };
         stats.push(l.build().val_def(lazy.field, field_tpt, None, field_span));
+        let selected = l.getter_rhs.get(&accessor).copied().filter(|_| l.static_selects.contains(&rhs));
+        if let Some(r) = selected {
+            l.tpd.get_mut(rhs).span = r;
+        }
         let rhs_span = l.tpd.span(rhs);
         let at = if rhs_span.exists() { rhs_span.with_point(rhs_span.start()) } else { span };
         let body = accessor_body(l, &lazy, info, defs);
@@ -87,7 +91,11 @@ pub fn transform(
         node.tree = Tree::DefDef { name, paramss, tpt, rhs: Some(body) };
         node.span = Span::NONE;
         stats.push(l.with_span(stat, at));
-        stats.push(init_method(l, &lazy, rhs, info, defs));
+        let init = init_method(l, &lazy, rhs, info, defs);
+        if selected.is_some() {
+            reselect(l, init, rhs);
+        }
+        stats.push(init);
         let field = LazyField { class, field: lazy.field, accessor, span };
         match l.mixed_in.contains(&accessor) {
             true => mixed_in.push(field),
@@ -98,6 +106,18 @@ pub fn transform(
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
+}
+
+/// Gives static object reference `r` in `$lzyINIT` method `init` the span that copying its parent
+/// gives it (`SelectStatic` after `LazyVals`).
+fn reselect(l: &mut Lower, init: TNodeId, r: TNodeId) {
+    let parent = super::walk::subtrees(l.tpd, init)
+        .into_iter()
+        .find(|&p| super::walk::children(l.tpd, p).contains(&r));
+    if let Some(p) = parent {
+        l.tpd.get_mut(r).span = Span::NONE;
+        l.recopy(p);
+    }
 }
 
 /// The `$lzyINIT` method and the field of a lazy value of a class, the field entered into the

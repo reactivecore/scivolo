@@ -55,6 +55,7 @@ impl Typer<'_> {
         };
         let (a, b) = (self.tpd.tpe(thenp), self.tpd.tpe(elsep));
         let tpe = self.u.lub_in(a, b, &mut self.constraint);
+        let (thenp, elsep) = (self.gadt_adapted(thenp, tpe, ctx), self.gadt_adapted(elsep, tpe, ctx));
         self.tpd.node(T::If { cond, thenp, elsep, inline }, span, Some(tpe), None)
     }
 

@@ -149,7 +149,10 @@ impl Typer<'_> {
                 return dynamic;
             }
         }
-        if let Err(what) = self.check_reference(sym, Some(qual_tpe), ctx) {
+        if let Err(what) = self
+            .check_reference(sym, Some(qual_tpe), ctx)
+            .and_then(|()| self.check_erased_reference(sym, pt, ctx))
+        {
             return self.unsupported(id, what);
         }
         if self.jdk_redeclares(sym, qual_tpe) {

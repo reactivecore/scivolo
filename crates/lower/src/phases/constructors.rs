@@ -115,12 +115,14 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Some(&first) = l.tpd.items(parents).first() else {
         return unsupported(span, "a class without a superclass");
     };
-    stats.push(super_call(l, class, first)?);
+    if !tasty::PRIMITIVE_VALUE_CLASSES.contains(&l.u.full_name(class).as_str()) {
+        stats.push(super_call(l, class, first)?);
+    }
     stats.extend(eager.into_iter().chain(inits));
     let dropped_outer = matches!(outer, Some((None, _))).then_some(template_span);
     let spans = stats.iter().map(|&s| l.tpd.span(s)).chain(dropped_outer);
     let block_span = spans.filter(|s| s.exists()).reduce(|a, b| a.union(b));
-    let block_span = block_span.map_or(span, |s| s.with_point(s.start()));
+    let block_span = block_span.map_or(l.tpd.span(constr), |s| s.with_point(s.start()));
     let at = block_span.start_pos();
     if let Some((_, param)) = outer {
         let test_at = if null_test_at > 0 { Span::at(template_span.end()) } else { at };

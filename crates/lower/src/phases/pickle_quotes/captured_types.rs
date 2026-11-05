@@ -87,6 +87,7 @@ impl Splicer<'_> {
             self.walk(l, (q.body, Span::NONE), 1, owner);
             return;
         }
+        l.spliced_type_quotes.insert(q.of);
         let outer = self.quote.replace(q.of);
         for s in found {
             self.tag(l, s);

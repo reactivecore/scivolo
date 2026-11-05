@@ -17,6 +17,13 @@ package java.lang.ref {
 }
 
 package java.lang.reflect {
+  class AccessibleObject {
+    def setAccessible(flag: scala.Boolean): Unit = ()
+    final def trySetAccessible(): scala.Boolean = false
+    def isAccessible(): scala.Boolean = false
+    final def canAccess(obj: Object): scala.Boolean = false
+  }
+
   final class Array
   object Array {
     @static def newInstance(componentType: Class[?], length: Int): Object = null

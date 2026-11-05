@@ -65,7 +65,7 @@ inlining (ADR 0006).
 
 Exit criterion (met): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`, 2026-11-04): 1,464 of 1,711 pass; 42 stop at the typer, 32 fail in
+(`just dotty-lower-report`, 2026-11-05): 1,476 of 1,711 pass; 30 stop at the typer, 32 fail in
 the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -76,8 +76,8 @@ the VM.
    bridges; 99.8% of the library's signatures match Scala Native's mangled names.
 3. **Typer for the scripting subset** (`crates/typer`): inference, overloads, implicits and
    givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`.
-   `just typer-report` (2026-11-04): tests/pos 2,195 typed as dotty, 208 differ (31 only in
-   warnings), 622 refused. Unsupported
+   `just typer-report` (2026-11-05): tests/pos 2,224 typed as dotty, 212 differ (32 only in
+   warnings), 589 refused. Unsupported
    input is refused, never compiled silently wrong.
 4. **Lowering** (`crates/lower`): dotty's phases from FirstTransform to Constructors and
    nscplugin's NIR generation; every lowered test program matches Scala Native's NIR byte for
@@ -94,7 +94,7 @@ typer's trees. Macro libraries compile from source, their quotes pickled to TAST
 ([research 43](docs/research/43-pickle-quotes.md)). Typed-hole quote patterns and a
 `quotes.reflect` subset work; the rest of `Quotes` is refused by name. Macro annotations expand
 in the inlining (ADR 0039). Circe 0.14.10's `derives Codec.AsObject` and the com-lihaoyi
-libraries work. dotty's `tests/run-macros`: 307 of 321 pass
+libraries work. dotty's `tests/run-macros`: 308 of 321 pass
 (`just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
@@ -112,10 +112,10 @@ libraries work. dotty's `tests/run-macros`: 307 of 321 pass
 
 Compatibility first, in order of the tests it unblocks; startup comes last and must not get
 slower meanwhile:
-1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 42 typer
-   refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 622 in
+1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 30 typer
+   refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 589 in
    `tests/pos`; implicit candidates with undetermined type variables (#123).
-2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the 14 failing
+2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the 13 failing
    `tests/run-macros`.
 3. **com-lihaoyi toolkit** (#216, [research 31](docs/research/31-lihaoyi-macros.md)): `just
    lib-source NAME` compiles every file of fansi 0.5.1, geny 1.1.1, sourcecode 0.4.4, pprint
@@ -140,7 +140,7 @@ slower meanwhile:
    | clib | 21 of 21 | 114 | | 1 |
    | posixlib | 67 of 67 | 270 | | |
    | windowslib | 34 | 130 | | |
-   | scalalib | 617 of 649 | 3,066 | 5 | 733 |
+   | scalalib | 622 of 649 | 3,643 | 12 | 166 |
 
    scalalib is compared with `just lib-oracle`'s build of it. clib and posixlib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
    `unsafe/package{,$}` in nativelib differ only as a joint compilation with

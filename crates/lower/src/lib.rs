@@ -98,6 +98,9 @@ pub struct Lower<'a> {
     local_classes: FxHashMap<SymbolId, SymbolId>,
     /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
     endless_loops: FxHashSet<TNodeId>,
+    /// The type quotes `Splicing` gave the tags of types of their quote, pickled even when
+    /// one tag's type.
+    spliced_type_quotes: FxHashSet<TNodeId>,
     /// The accessors `Mixin` made in classes for the values of their traits, without a position.
     mixed_in: FxHashSet<SymbolId>,
     /// The specialized `apply` methods `SpecializeFunctions` made, without a position.
@@ -109,6 +112,8 @@ pub struct Lower<'a> {
     forwarded: FxHashMap<SymbolId, SymbolId>,
     /// The span of each getter's right-hand side as `Getters` made it, its point at its start.
     getter_rhs: FxHashMap<SymbolId, Span>,
+    /// The given aliases `UncacheGivenAliases` made methods, lazy values again once lowered.
+    uncached_givens: Vec<SymbolId>,
     /// The field, unless dropped, and constructor parameter of each class holding its enclosing
     /// instance.
     outers: FxHashMap<SymbolId, (Option<SymbolId>, SymbolId)>,
@@ -155,21 +160,25 @@ pub struct Lower<'a> {
     /// The object classes `FirstTransform` moved after their companion classes, with their spans
     /// and the end of that class.
     moved_classes: Vec<(SymbolId, Span, syntax::source::Offset)>,
+    /// `-Yexplicit-nulls`.
+    explicit_nulls: bool,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
-/// `sources`.
+/// `sources`, typed under `-Yexplicit-nulls` if `explicit_nulls`.
 pub fn lower_sources(
     u: &mut Universe,
     tpd: &mut Tpd,
     root: TNodeId,
     (names, fresh): (&mut Names, &mut FreshNames),
-    sources: Sources,
+    (sources, explicit_nulls): (Sources, bool),
 ) -> Result<Vec<NirFile>> {
     let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
+    l.explicit_nulls = explicit_nulls;
     let files = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
         .and_then(|()| codegen::unit(&mut l, root));
+    phases::recache_given_aliases(&mut l);
     l.u.elide_opaques(false);
     match std::mem::take(&mut l.u.reductions_exhausted) {
         true => unsupported(Span::NONE, "match type reduction over the reduction budget"),
@@ -223,6 +232,7 @@ impl<'a> Lower<'a> {
             local_objects: FxHashMap::default(),
             local_lazy_accessors: FxHashSet::default(),
             endless_loops: FxHashSet::default(),
+            spliced_type_quotes: FxHashSet::default(),
             proxies: Vec::new(),
             captured_fields: FxHashMap::default(),
             captured_params: FxHashMap::default(),
@@ -240,6 +250,7 @@ impl<'a> Lower<'a> {
             mixed_in_lazy_names: FxHashMap::default(),
             forwarded: FxHashMap::default(),
             getter_rhs: FxHashMap::default(),
+            uncached_givens: Vec::new(),
             outers: FxHashMap::default(),
             outer_accessors: FxHashMap::default(),
             coords: FxHashMap::default(),
@@ -260,6 +271,7 @@ impl<'a> Lower<'a> {
             tail_vars: FxHashMap::default(),
             tail_locals: FxHashSet::default(),
             moved_classes: Vec::new(),
+            explicit_nulls: false,
         })
     }
 }

@@ -59,7 +59,7 @@ fn reduced(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
         })
         .collect();
     let own_param = l.tpd.sym(f).is_some_and(|s| l.u.symbol(s).owner == Some(meth));
-    let getter = l.tpd.sym(f).is_some_and(|s| has_getter(l, s));
+    let getter = l.tpd.sym(f).is_some_and(|s| has_getter(l, s) && !is_underlying(l, s));
     if params != args || params.contains(&None) || own_param || getter || !is_pure(l, f) {
         return None;
     }
@@ -84,6 +84,11 @@ fn has_getter(l: &Lower, s: SymbolId) -> bool {
     }
     let field = has(l.u, s, PRIVATE) && has(l.u, s, LOCAL) && !has(l.u, s, LAZY) && !l.u.is_trait(owner);
     !field
+}
+
+/// Whether `s` is the underlying value of a value class, which erasure reads as the value itself.
+fn is_underlying(l: &mut Lower, s: SymbolId) -> bool {
+    l.u.symbol(s).owner.is_some_and(|c| l.u.underlying(c) == Some(s))
 }
 
 /// The erased `FunctionN` class of `f`'s type, a by-name parameter's `Function0`; `None` if not a

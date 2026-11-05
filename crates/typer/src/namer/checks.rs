@@ -66,7 +66,8 @@ impl Typer<'_> {
             "lazy method"
         } else if !is_type && flags.is(f::TRANSPARENT) && !flags.is(f::INLINE) {
             "transparent without inline"
-        } else if self.doubly_defined(tree, name, kind, ctx) {
+        } else if !self.is_scala2_macro_in_scala3(owner, flags) && self.doubly_defined(tree, name, kind, ctx)
+        {
             "double definition"
         } else if self.u.symbol(owner).kind == Kind::Package && self.has_package(owner, name) {
             "definition named like a package"

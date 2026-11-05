@@ -36,7 +36,14 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
             let name = u.symbol(s).name.clone();
             let member = u.symbol(s).kind == Kind::Type;
             if let Some(refined) = prefix.filter(|_| member).and_then(|p| refined_meaning(u, p, &name)) {
-                return refined;
+                let info = u.info(s);
+                return match (refined, u.types().get(info).clone()) {
+                    (Meaning::Abstract(lo, hi), Type::Bounds(lo2, hi2)) => {
+                        let (lo2, hi2) = (seen(u, lo2), seen(u, hi2));
+                        Meaning::Abstract(u.lub(lo, lo2), u.glb(hi, hi2))
+                    }
+                    (refined, _) => refined,
+                };
             }
             if let Some(arg) = prefix.filter(|_| !member).and_then(|p| class_param_arg(u, s, p)) {
                 return arg;

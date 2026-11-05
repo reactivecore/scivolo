@@ -103,7 +103,7 @@ impl Typer<'_> {
         }
         let erasure_mark = self.erasure_diags.items.len();
         let linked = self.link_constructor_params(sym, id);
-        let mut rhs = rhs.map(|r| self.typed(r, Pt::Type(result), mctx));
+        let mut rhs = rhs.map(|r| self.typed_def_rhs((id, sym), r, result, mctx));
         self.unlink_constructor_params(linked);
         if let Some(r) = rhs
             && self.u.symbol(sym).name == "<init>"

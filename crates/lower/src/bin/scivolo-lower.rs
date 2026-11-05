@@ -27,6 +27,9 @@ struct Cli {
     /// The sources are javalib's: javalib's classes are Scala classes, not the JDK's.
     #[arg(long)]
     javalib: bool,
+    /// The sources are Scala's library's: its classes are compiled in the same run.
+    #[arg(long, conflicts_with = "javalib")]
+    scalalib: bool,
     /// Macro calls run in a VM over the library's NIR, also without `--cp`.
     #[arg(long)]
     macros: bool,
@@ -53,6 +56,7 @@ fn main() {
         tasty,
         jdk_tasty,
         javalib,
+        scalalib,
         macros,
         sourceroot,
         position_root,
@@ -68,9 +72,13 @@ fn main() {
         false => ([&jdk_tasty[..], &jars].concat(), 0..jdk_tasty.len()),
     };
     let mut u = Universe::open(&all).expect("opening the library");
+    let scala_library = jdk.end;
     u.set_jdk_jars(jdk);
     if javalib {
         u.set_javalib_sources();
+    }
+    if scalalib {
+        u.set_same_run_jar(scala_library);
     }
     let sources: Vec<SourceFile> = files
         .iter()

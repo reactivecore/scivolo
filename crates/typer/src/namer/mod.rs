@@ -128,6 +128,9 @@ impl Typer<'_> {
             self.unenter_classpath_members(ctx.owner, &text);
         }
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
+        if self.is_scala2_macro_in_scala3(ctx.owner, written) {
+            self.u.unenter(sym);
+        }
         if kind == Kind::Class && self.scala2 {
             self.u.set_scala2(sym);
         }
@@ -163,13 +166,19 @@ impl Typer<'_> {
 
     /// Removes the TASTy members and the Scala library's Java classes of package `package` that a
     /// unit's member `name` replaces: those of that name and of its companion's (dotty's
-    /// `isDefinedInCurrentRun`), not the JDK classes a name Scala Native gives them stands for.
+    /// `isDefinedInCurrentRun`), not the JDK classes a name Scala Native gives them stands for;
+    /// replacing a TASTy one of package `scala` but not `scala.scalanative` marks the run as
+    /// building the Scala library.
     fn unenter_classpath_members(&mut self, package: SymbolId, name: &str) {
         let base = name.strip_suffix('$').unwrap_or(name);
         for n in [base.to_owned(), format!("{base}$")] {
             for d in self.u.decl(package, &n).unwrap_or_default() {
-                let classpath = self.u.symbol(d).tree.is_some() || self.u.is_library_java_stub(d);
-                if classpath && self.u.symbol(d).name == n {
+                let tasty = self.u.symbol(d).tree.is_some();
+                if (tasty || self.u.is_library_java_stub(d)) && self.u.symbol(d).name == n {
+                    let full = self.u.full_name(d);
+                    if tasty && full.starts_with("scala.") && !full.starts_with("scala.scalanative.") {
+                        self.u.set_builds_scala_library();
+                    }
                     self.u.unenter(d);
                 }
             }

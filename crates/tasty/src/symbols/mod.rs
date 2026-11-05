@@ -13,6 +13,7 @@ mod define;
 mod enter;
 mod entries;
 mod function_classes;
+mod gadt_bounds;
 mod higher_kinds;
 mod impure_functions;
 mod info;
@@ -37,6 +38,7 @@ mod packages;
 mod predicates;
 mod resolve;
 mod runtime_stubs;
+mod same_run;
 mod seen;
 mod selves;
 mod symbol;
@@ -82,6 +84,8 @@ pub struct Universe {
     infos: FxHashMap<SymbolId, TypeId>,
     /// The type under explicit nulls of each symbol whose type was asked for in that mode.
     nullified_infos: FxHashMap<SymbolId, TypeId>,
+    /// The GADT bounds of type parameters (dotty's `GadtConstraint`), compared frozen.
+    gadt_bounds: FxHashMap<SymbolId, (TypeId, TypeId)>,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// Per class and base class, whether the class's parents give the base different types.
@@ -90,6 +94,8 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
+    /// Whether a unit replaces classes of the Scala library.
+    builds_scala_library: bool,
     /// The classes defined outside TASTy in a unit that behaves as the Scala 2 library.
     scala2_classes: FxHashSet<SymbolId>,
     /// The Java classes of the Scala library entered without TASTy, their objects and objects'
@@ -122,6 +128,8 @@ pub struct Universe {
     javalib_sources: bool,
     /// The indices of the jars whose classes stand for the JDK's.
     jdk_jars: std::ops::Range<usize>,
+    /// The jar whose classes are compiled in the same run as the sources, if one is.
+    same_run_jar: Option<usize>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     /// The intersections and unions whose base types `base_type` is merging, with the base class.

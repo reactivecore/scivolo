@@ -1,7 +1,7 @@
-//! Whether dotty types a tree with the expected type the typer adapts it to, and reports a
-//! mismatch there with no retry: the trees from the unit's root down to it are definitions,
+//! Whether dotty types a tree with the expected type the typer adapts it to and reports a mismatch
+//! with no retry: the trees from the unit's or `typeChecks` code's root down to it are definitions,
 //! right-hand sides, blocks, branches, closure bodies, local assignments, or arguments of a method
-//! that is neither overloaded nor polymorphic and whose qualifier no view may convert.
+//! neither overloaded nor polymorphic whose qualifier no view may convert.
 
 use super::Typer;
 use crate::ctx::Ctx;
@@ -13,11 +13,10 @@ impl Typer<'_> {
     /// Whether the tree at `span`, typed in `ctx`, is where dotty types it with the same expected
     /// type and reports a mismatch; the trees at `span` lie on one path.
     pub fn certain_context(&mut self, span: Span, ctx: Ctx) -> bool {
-        let mut path = Vec::new();
+        let Some((root, path)) = self.mismatch_path(span) else { return false };
         self.u.symbol(ctx.owner).name != "<init>"
-            && node_path(self.ast, self.unit, span, &mut path)
             && path.iter().filter(|&&n| has_span(self.ast, n, span)).count()
-                == count_spans(self.ast, self.unit, span)
+                == count_spans(self.ast, root, span)
             && path.windows(2).all(|w| self.certain_edge(w[0], w[1], ctx))
     }
 
@@ -179,7 +178,7 @@ impl Typer<'_> {
 
 /// Whether a tree from the start to the end of `span` is `from` or under it; the trees from `from`
 /// to the innermost such tree pushed onto `path` if so.
-fn node_path(ast: &Ast, from: NodeId, span: Span, path: &mut Vec<NodeId>) -> bool {
+pub fn node_path(ast: &Ast, from: NodeId, span: Span, path: &mut Vec<NodeId>) -> bool {
     path.push(from);
     let here = has_span(ast, from, span);
     let found = ast.child_nodes(from).into_iter().any(|n| node_path(ast, n, span, path));

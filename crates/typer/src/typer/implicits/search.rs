@@ -196,6 +196,7 @@ impl Typer<'_> {
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
             return Err("not an implicit value");
         }
-        if self.conforms(t, pt) { Ok(tree) } else { Err("implicit of another type") }
+        let fits = self.conforms(t, pt);
+        fits.then(|| self.gadt_adapted(tree, pt, ctx)).ok_or("implicit of another type")
     }
 }

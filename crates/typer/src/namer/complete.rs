@@ -24,6 +24,10 @@ impl Typer<'_> {
             }
             _ => return,
         };
+        self.outside_gadt_cases(ctx.level, |t| t.complete_pending(sym, tree, ctx));
+    }
+
+    fn complete_pending(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) {
         self.syms.completions.insert(sym, Completion::Completing(tree));
         let reported = self.diags.items.len();
         self.set_provisional_info(sym, tree, ctx);

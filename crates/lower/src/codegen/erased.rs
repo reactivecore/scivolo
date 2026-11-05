@@ -4,12 +4,13 @@
 
 use super::Gen;
 use super::names::mapped;
+use crate::definitions::boxed_class;
 use crate::phases::casts::class_named;
 use crate::symbols::{is_java_static, jdk_api_owner};
 use crate::{Result, unsupported};
 use nir::{Type, TypeId, Val, ValId};
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId};
+use tasty::{Erased, PRIMITIVE_VALUE_CLASSES, SymbolId};
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
@@ -97,6 +98,18 @@ impl Gen<'_, '_> {
         self.ty(Type::Ref { name, exact: false, nullable: true })
     }
 
+    /// The type of `this` in the methods of class `c`: the box of a primitive value class.
+    pub fn this_ref(&mut self, c: SymbolId) -> TypeId {
+        if !PRIMITIVE_VALUE_CLASSES.contains(&self.l.u.full_name(c).as_str()) {
+            return self.class_ref(c);
+        }
+        let boxed = match self.l.u.erase_symbol(c) {
+            Erased::Prim(p) => boxed_class(p).expect("a primitive's box"),
+            _ => "scala.runtime.BoxedUnit",
+        };
+        self.erased(&Erased::Class(boxed.into()))
+    }
+
     pub fn param_types(&mut self, m: SymbolId) -> Vec<TypeId> {
         let (params, _) = self.l.u.erased_method(m);
         params.iter().map(|p| self.erased(p)).collect()
@@ -116,6 +129,10 @@ impl Gen<'_, '_> {
             let receiver = match self.l.u.full_name(owner).as_str() {
                 "scala.scalanative.runtime.RawPtr" => self.ty(Type::Ptr),
                 "scala.scalanative.runtime.RawSize" => self.ty(Type::Size),
+                full if PRIMITIVE_VALUE_CLASSES.contains(&full) => {
+                    let e = self.l.u.erase_symbol(owner);
+                    self.erased(&e)
+                }
                 _ => self.class_ref(owner),
             };
             args.push(receiver);

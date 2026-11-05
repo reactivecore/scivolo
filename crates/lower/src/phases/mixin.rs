@@ -97,11 +97,18 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
-/// The traits `class` mixes in, from the last one linearized to the first.
+/// The traits `class` mixes in, those before its superclass in its linearization, from the last
+/// one linearized to the first (dotty's `directlyInheritedTraits`).
 pub fn mixins(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     let linearization = erased_linearization(l, class);
-    let mut out: Vec<SymbolId> =
-        linearization[1..].iter().copied().take_while(|&b| l.u.is_trait(b)).collect();
+    let first_parent = l.u.parents(class).first().and_then(|&p| l.u.class_symbol(p));
+    let superclass = first_parent.filter(|&c| !l.u.is_trait(c));
+    let mut out: Vec<SymbolId> = linearization[1..]
+        .iter()
+        .copied()
+        .take_while(|&b| Some(b) != superclass && (superclass.is_some() || l.u.is_trait(b)))
+        .filter(|&b| l.u.is_trait(b))
+        .collect();
     out.reverse();
     out
 }
