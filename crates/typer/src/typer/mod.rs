@@ -152,6 +152,7 @@ mod null_loops;
 pub(crate) mod nullables;
 mod op_assign;
 mod opaque_paths;
+mod overload_applies;
 mod overload_errors;
 mod overloaded_extractors;
 mod overloads;
