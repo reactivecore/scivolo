@@ -72,9 +72,6 @@ impl Typer<'_> {
         if params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some()) {
             return Err("method value with a repeated parameter");
         }
-        if self.tpd.sym(tree).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION)) {
-            return Err("extension method reference");
-        }
         let last = match self.u.types().get(result) {
             Type::Method { implicit, .. } => *implicit,
             _ => true,
