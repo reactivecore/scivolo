@@ -140,7 +140,6 @@ impl TreePickler<'_> {
         }
     }
 
-    /// A term hole: its index, type and arguments.
     /// Shares type tree `tpt` of `(_: T)` with its placeholder parameter's `expr`, one tree in
     /// dotty's parser: the parts healing did not make a `TypeTree`.
     fn share_placeholder_tpt(&mut self, expr: TNodeId, tpt: TNodeId) {
@@ -175,6 +174,7 @@ impl TreePickler<'_> {
             || self.tpd.children(t).into_iter().any(|c| self.has_type_tree(c))
     }
 
+    /// A term hole: its index, type and arguments.
     fn hole(&mut self, id: TNodeId, index: u32, args: &[TNodeId]) -> Result<(), Refusal> {
         let tpe = self.tpd.get(id).tpe.ok_or("a hole without a type")?;
         self.with_length(HOLE, &mut |p| {

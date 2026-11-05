@@ -223,3 +223,4 @@ interpsplices
 erasedjoins
 quoteholes
 quotelambdas
+scala2macros

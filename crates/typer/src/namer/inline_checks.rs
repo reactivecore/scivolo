@@ -8,7 +8,7 @@ impl Typer<'_> {
     /// Whether a definition with the dotty flags `flags` of its modifiers in `owner` is a Scala 2
     /// macro its owner's scope does not hold (dotty's `isScala2MacroInScala3`).
     pub fn is_scala2_macro_in_scala3(&self, owner: SymbolId, flags: FlagSet) -> bool {
-        flags.is(f::MACRO) && self.u.full_name(owner) != "scala.StringContext"
+        flags.is(f::MACRO) && !flags.is(f::INLINE) && self.u.full_name(owner) != "scala.StringContext"
     }
 
     /// What about a definition of `kind` with `flags` in `owner` is outside the subset as far as
