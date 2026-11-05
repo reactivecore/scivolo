@@ -10,6 +10,7 @@
 use super::Translator;
 use super::plan::{Plan, PlanId, Test};
 use crate::phases::case_members::case_accessors;
+use crate::phases::type_tests::not_null::is_not_null;
 use crate::symbols::has;
 use crate::{Result, unsupported};
 use syntax::ast::Span;
@@ -60,7 +61,7 @@ impl Translator<'_, '_> {
             self.unapply_plan(scrutinee, unapp, &args, on_success)?
         };
         let not_null = matches!(erased, tasty::Erased::Prim(_) | tasty::Erased::Nothing)
-            || crate::phases::type_tests::is_not_null(self.l, info);
+            || is_not_null(self.l, info, self.l.explicit_nulls);
         if not_null || self.non_null.contains(&scrutinee) {
             return Ok(plan);
         }

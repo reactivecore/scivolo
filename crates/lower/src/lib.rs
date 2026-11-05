@@ -157,18 +157,21 @@ pub struct Lower<'a> {
     /// The object classes `FirstTransform` moved after their companion classes, with their spans
     /// and the end of that class.
     moved_classes: Vec<(SymbolId, Span, syntax::source::Offset)>,
+    /// `-Yexplicit-nulls`.
+    explicit_nulls: bool,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
-/// `sources`.
+/// `sources`, typed under `-Yexplicit-nulls` if `explicit_nulls`.
 pub fn lower_sources(
     u: &mut Universe,
     tpd: &mut Tpd,
     root: TNodeId,
     (names, fresh): (&mut Names, &mut FreshNames),
-    sources: Sources,
+    (sources, explicit_nulls): (Sources, bool),
 ) -> Result<Vec<NirFile>> {
     let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
+    l.explicit_nulls = explicit_nulls;
     let files = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
         .and_then(|()| codegen::unit(&mut l, root));
@@ -264,6 +267,7 @@ impl<'a> Lower<'a> {
             tail_vars: FxHashMap::default(),
             tail_locals: FxHashSet::default(),
             moved_classes: Vec::new(),
+            explicit_nulls: false,
         })
     }
 }

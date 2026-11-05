@@ -42,7 +42,9 @@ pub fn is_pure_interface(u: &Universe, t: SymbolId) -> bool {
     u.no_inits(t)
         && u.symbol(t).decls.iter().all(|&d| match u.symbol(d).kind {
             Kind::Class => false,
-            k if k.is_term() => u.is_constructor(d) || !concrete(d),
+            k if k.is_term() => {
+                u.is_constructor(d) || u.symbol(d).name.starts_with("<local ") || !concrete(d)
+            }
             _ => true,
         })
 }
