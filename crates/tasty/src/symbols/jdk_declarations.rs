@@ -111,9 +111,11 @@ impl Universe {
     }
 
     /// Type `t` of a member of file `file` with its repeated parameters `Seq[T] @Repeated` made
-    /// Java varargs, `Array[T] @Repeated`, if the file holds JDK declarations.
+    /// Java varargs, `Array[T] @Repeated`, if the file holds JDK declarations or is a JDK jar's.
     pub fn with_declared_varargs(&mut self, file: FileId, t: TypeId) -> TypeId {
-        if !self.files[file.0 as usize].path.starts_with(JDK_DECLARATIONS) {
+        let path = &self.files[file.0 as usize].path;
+        let jdk_jar = self.library.jar_of(path).is_some_and(|j| self.jdk_jars.contains(&j));
+        if !path.starts_with(JDK_DECLARATIONS) && !jdk_jar {
             return t;
         }
         self.map_type(t, &mut |u, part| {

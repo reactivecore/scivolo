@@ -9,5 +9,8 @@ object jdkconstants {
     println(java.lang.Character.DIRECTIONALITY_WHITESPACE)
     println(java.lang.Double.PRECISION)
     println(java.lang.Math.TAU)
+    println(Math.E)
+    println(StrictMath.PI)
+    println(java.lang.Long.MIN_VALUE)
   }
 }

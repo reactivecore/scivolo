@@ -1,5 +1,5 @@
 // The JDK classes and annotations Scala Native's library sources use and javalib does not define,
-// and nativelib's Java class, for `just lib-compile`: only the members those sources use, Java's static members `@static`.
+// and nativelib's and scala-library's Java classes, for `just lib-compile`: only the members those sources use, Java's static members `@static`.
 import scala.annotation.static
 
 package java.lang {
@@ -19,25 +19,65 @@ package java.lang {
 package java.lang.invoke {
   final class MethodHandles
   object MethodHandles {
-    final class Lookup { def revealDirect(target: MethodHandle): MethodHandleInfo = null }
+    final class Lookup {
+      def lookupClass(): Class[?] = null
+      def revealDirect(target: MethodHandle): MethodHandleInfo = null
+    }
     @static def constant(tpe: Class[?], value: Object): MethodHandle = null
   }
   abstract class MethodHandle {
     final def asType(newType: MethodType): MethodHandle = this
     def bindTo(x: Object): MethodHandle = this
+    def invokeWithArguments(arguments: Object*): Object = null
+    def invokeWithArguments(arguments: java.util.List[?]): Object = null
   }
   trait MethodHandleInfo {
     def getName(): String
     def getMethodType(): MethodType
   }
+  object MethodHandleInfo {
+    @static final val REF_invokeStatic = 6
+    @static final val REF_newInvokeSpecial = 8
+  }
   final class MethodType {
     def parameterArray(): Array[Class[?]] = null
     def toMethodDescriptorString(): String = null
+    def parameterCount(): Int = 0
+    def insertParameterTypes(num: Int, ptypesToInsert: Class[?]*): MethodType = this
+    def dropParameterTypes(start: Int, end: Int): MethodType = this
+    def changeReturnType(nrtype: Class[?]): MethodType = this
   }
-  abstract class CallSite
-  class ConstantCallSite(target: MethodHandle) extends CallSite
-  final class SerializedLambda
+  object MethodType {
+    @static def fromMethodDescriptorString(descriptor: String, loader: ClassLoader): MethodType = null
+  }
+  abstract class CallSite { def getTarget(): MethodHandle }
+  class ConstantCallSite(target: MethodHandle) extends CallSite { final def getTarget(): MethodHandle = target }
+  final class LambdaMetafactory
+  object LambdaMetafactory {
+    @static final val FLAG_SERIALIZABLE = 1
+    @static def altMetafactory(caller: MethodHandles.Lookup, interfaceMethodName: String, factoryType: MethodType,
+        args: Object*): CallSite = null
+  }
+  final class SerializedLambda {
+    def getFunctionalInterfaceClass(): String = null
+    def getFunctionalInterfaceMethodName(): String = null
+    def getFunctionalInterfaceMethodSignature(): String = null
+    def getImplClass(): String = null
+    def getImplMethodName(): String = null
+    def getImplMethodSignature(): String = null
+    def getImplMethodKind(): Int = 0
+    final def getInstantiatedMethodType(): String = null
+    def getCapturedArgCount(): Int = 0
+    def getCapturedArg(i: Int): Object = null
+  }
   abstract class VarHandle
+}
+
+package scala.runtime {
+  final class MethodHandleConstants
+  object MethodHandleConstants {
+    @static val LAMBDA_DESERIALIZE_DESERIALIZE_LAMBDA: java.lang.invoke.MethodHandle = null
+  }
 }
 
 package java.lang.reflect {
