@@ -65,7 +65,7 @@ inlining (ADR 0006).
 
 Exit criterion (met): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`, 2026-11-04): 1,464 of 1,711 pass; 42 stop at the typer, 32 fail in
+(`just dotty-lower-report`, 2026-11-05): 1,472 of 1,711 pass; 34 stop at the typer, 32 fail in
 the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
