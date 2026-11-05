@@ -105,6 +105,17 @@ impl Typer<'_> {
         case: Option<TypeId>,
         ctx: Ctx,
     ) -> TNodeId {
+        self.in_gadt_case(|t| t.typed_case_under_gadt(id, (sel, selector), pt, case, ctx))
+    }
+
+    fn typed_case_under_gadt(
+        &mut self,
+        id: NodeId,
+        (sel, selector): (Option<TNodeId>, TypeId),
+        pt: Pt,
+        case: Option<TypeId>,
+        ctx: Ctx,
+    ) -> TNodeId {
         let Tree::CaseDef { pat, guard, body } = *self.ast.tree(id) else {
             return self.unsupported(id, "case");
         };

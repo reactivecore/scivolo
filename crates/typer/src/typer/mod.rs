@@ -89,6 +89,8 @@ mod find_ref;
 mod forward_refs;
 mod function_types;
 mod future_infix;
+mod gadt;
+mod gadt_cast;
 mod generic_arrays;
 mod harmonize;
 mod ident_hint;
@@ -371,6 +373,7 @@ pub struct Typer<'a> {
     pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving_finalize::Problem>)>>,
     /// The types typed patterns bind whose bounds the selector gave.
     pub known_pattern_types: FxHashSet<SymbolId>,
+    pub gadt: gadt::Gadt,
     /// The type lambdas of derived instances' types, by the instances that own their parameters.
     pub derived_lambdas: FxHashMap<NodeId, NodeId>,
     /// The pending dynamic calls, by their placeholder trees.
@@ -472,6 +475,7 @@ impl<'a> Typer<'a> {
             exports: FxHashMap::default(),
             derived_instances: FxHashMap::default(),
             known_pattern_types: FxHashSet::default(),
+            gadt: Default::default(),
             derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
             structural_selects: FxHashSet::default(),
