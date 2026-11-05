@@ -251,6 +251,7 @@ impl Typer<'_> {
         }
         let bound = self.maximize_type(arg_type, (vars, &gadt), unapp, ctx)?;
         self.narrow_gadt(&gadt)?;
+        self.gadt_bind(&bound);
         self.add_binders(unapp, &bound);
         Ok(self.zonk(arg_type))
     }

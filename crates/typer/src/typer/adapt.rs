@@ -98,7 +98,7 @@ impl Typer<'_> {
                 return self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(pt), None);
             }
             if self.gadt_narrowing() && !self.conforms_without_gadt(tpe, pt) {
-                return self.gadt_cast(tree, pt);
+                return self.gadt_cast(tree, pt, ctx);
             }
             return tree;
         }
