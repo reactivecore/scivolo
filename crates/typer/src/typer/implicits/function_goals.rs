@@ -52,7 +52,12 @@ impl Typer<'_> {
     }
 
     /// `tree`, a value of a context function type, applied to its implicit arguments for `pt`.
-    pub fn context_applied_implicit(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
+    pub fn context_applied_implicit(
+        &mut self,
+        tree: TNodeId,
+        pt: TypeId,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
         self.typed_as_implicit(|t| match t.context_function_applied(tree, Pt::Type(pt), ctx) {
             Some(Ok(applied)) => applied,
             Some(Err(what)) => t.unsupported_tree(t.tpd.span(tree), what),
@@ -63,7 +68,12 @@ impl Typer<'_> {
     /// Candidate reference `tree` as an argument of context function type `pt`: a context
     /// closure around it typed with its parameters in scope (dotty's `typedImplicit` of a context
     /// function goal).
-    pub fn contextual_implicit(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
+    pub fn contextual_implicit(
+        &mut self,
+        tree: TNodeId,
+        pt: TypeId,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
         let splice = self.ast.node(syntax::ast::Tree::TypeTree);
         self.ast.with_span(splice, self.tpd.span(tree));
         self.splices.insert(splice, tree);
@@ -73,7 +83,10 @@ impl Typer<'_> {
     }
 
     /// The tree `typing` gives; a misfit if it reports an error or fails by a misfit.
-    fn typed_as_implicit(&mut self, typing: impl FnOnce(&mut Self) -> TNodeId) -> Result<TNodeId, &'static str> {
+    fn typed_as_implicit(
+        &mut self,
+        typing: impl FnOnce(&mut Self) -> TNodeId,
+    ) -> Result<TNodeId, &'static str> {
         let (outer, diags) = (self.unsupported.take(), self.diags.items.len());
         let adapted = typing(self);
         let inner = std::mem::replace(&mut self.unsupported, outer);

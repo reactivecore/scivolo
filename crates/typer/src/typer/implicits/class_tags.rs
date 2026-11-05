@@ -98,6 +98,16 @@ impl Typer<'_> {
         Ok(Some(self.build().apply(fun, &[literal], result, at)))
     }
 
+    /// The type arguments of `t` if it refers to class `name`.
+    pub fn class_args(&mut self, t: TypeId, name: &str) -> Option<Vec<TypeId>> {
+        let (tycon, args) = match self.u.types().get(t).clone() {
+            Type::Applied(tycon, args) => (tycon, args),
+            _ => (t, Vec::new()),
+        };
+        let class = self.u.class_symbol(tycon)?;
+        (self.u.full_name(class) == name).then_some(args)
+    }
+
     /// The type argument of a class tag (dotty's `instArg`): an intersection or union of equal
     /// sides reduced to one; an uninstantiated type variable instantiated to its lower bound, else
     /// its upper bound, if that bound has no type variable on top, else fully defined; `None` for

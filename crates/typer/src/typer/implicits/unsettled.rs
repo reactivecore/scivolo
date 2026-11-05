@@ -15,11 +15,24 @@ impl Typer<'_> {
     }
 
     /// What about the type variables of expected type `t` is outside the subset: a union with
-    /// one, or one without lower bound applied as a type constructor.
+    /// one, or one without bounds applied as a type constructor.
     pub fn unsettled(&mut self, t: TypeId) -> Option<&'static str> {
         if self.has_open_union(t) {
             return Some("implicit search for a union with type variables");
         }
+        let unbounded = self.constructor_vars(t).into_iter().any(|v| {
+            let (lo, hi) = self.constraint.bounds(v);
+            let hi = match *self.u.types().get(hi) {
+                Type::Lambda { result, .. } => result,
+                _ => hi,
+            };
+            lo == tasty::NOTHING && self.is_exactly_any(hi)
+        });
+        unbounded.then_some("implicit search for a type with an unbounded higher-kinded type variable")
+    }
+
+    /// The uninstantiated type variables of `t` applied as type constructors.
+    pub fn constructor_vars(&mut self, t: TypeId) -> Vec<tasty::VarId> {
         let mut constructors = Vec::new();
         self.u.map_type(t, &mut |u, part| {
             if let Type::Applied(c, _) = *u.types().get(part)
@@ -29,8 +42,14 @@ impl Typer<'_> {
             }
             None
         });
-        let unbounded = constructors.into_iter().any(|v| self.constraint.bounds(v).0 == tasty::NOTHING);
-        unbounded.then_some("implicit search for a type with a higher-kinded type variable")
+        constructors
+    }
+
+    /// Whether one of `vars` is still uninstantiated without lower bound, so that it would be
+    /// minimized to `Nothing`, which an application of it keeps in dotty and drops here.
+    pub fn any_open_constructor(&mut self, vars: &[tasty::VarId]) -> bool {
+        vars.iter()
+            .any(|&v| self.constraint.instance(v).is_none() && self.constraint.bounds(v).0 == tasty::NOTHING)
     }
 
     /// What the search looks for in place of `t` (dotty's `wildApprox`): the upper bound of an

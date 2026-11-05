@@ -49,6 +49,7 @@ impl Typer<'_> {
     ) -> Result<TNodeId, &'static str> {
         let outermost = self.history.open.is_empty();
         self.constraint.enter_search();
+        let constructors = self.constructor_vars(pt);
         let found = match self.var_upper_bound(pt) {
             Some(hi) => self.arg_search(hi, at, ctx, depth).and_then(|t| {
                 let tpe = self.tpd.tpe(t);
@@ -57,6 +58,9 @@ impl Typer<'_> {
             None => self.arg_search(pt, at, ctx, depth),
         };
         self.constraint.leave_search();
+        if found.is_ok() && self.any_open_constructor(&constructors) {
+            return Err("higher-kinded type variable left without lower bound by an implicit search");
+        }
         if outermost { self.emitted(found, at, ctx) } else { found }
     }
 
@@ -138,16 +142,6 @@ impl Typer<'_> {
             Some(tree) => Ok(tree),
             None => Err("no implicit argument"),
         }
-    }
-
-    /// The type arguments of `t` if it refers to class `name`.
-    pub fn class_args(&mut self, t: TypeId, name: &str) -> Option<Vec<TypeId>> {
-        let (tycon, args) = match self.u.types().get(t).clone() {
-            Type::Applied(tycon, args) => (tycon, args),
-            _ => (t, Vec::new()),
-        };
-        let class = self.u.class_symbol(tycon)?;
-        (self.u.full_name(class) == name).then_some(args)
     }
 
     /// Candidate `c`, an implicit that may fit, as an argument of type `pt`: referenced, applied
