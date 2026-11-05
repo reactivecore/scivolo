@@ -4,6 +4,8 @@
 import scala.annotation.static
 
 package java.lang {
+  abstract class ClassLoader { def loadClass(name: String): Class[?] = null }
+
   final class System
   object System { @static def console(): java.io.Console = null }
 }
@@ -67,6 +69,61 @@ package java.util {
     @static def copyOf(original: Array[scala.Float], newLength: Int): Array[scala.Float] = original
     @static def copyOf(original: Array[scala.Double], newLength: Int): Array[scala.Double] = original
     @static def copyOf(original: Array[scala.Boolean], newLength: Int): Array[scala.Boolean] = original
+  }
+}
+
+package java.util {
+  class Properties extends Hashtable[Object, Object] {
+    override def size(): Int = 0
+    override def isEmpty(): scala.Boolean = true
+    override def keys(): Enumeration[Object] = null
+    override def elements(): Enumeration[Object] = null
+    override def contains(value: Object): scala.Boolean = false
+    override def containsValue(value: Object): scala.Boolean = false
+    override def containsKey(key: Object): scala.Boolean = false
+    override def get(key: Object): Object = null
+    override def put(key: Object, value: Object): Object = null
+    override def remove(key: Object): Object = null
+    override def putAll(t: Map[? <: Object, ? <: Object]): Unit = ()
+    override def clear(): Unit = ()
+    override def toString(): String = null
+    override def keySet(): Set[Object] = null
+    override def values(): Collection[Object] = null
+    override def entrySet(): Set[Map.Entry[Object, Object]] = null
+    override def equals(o: Any): scala.Boolean = false
+    override def hashCode(): Int = 0
+    override def getOrDefault(key: Object, defaultValue: Object): Object = null
+    override def forEach(action: function.BiConsumer[? >: Object, ? >: Object]): Unit = ()
+    override def replaceAll(f: function.BiFunction[? >: Object, ? >: Object, ? <: Object]): Unit = ()
+    override def putIfAbsent(key: Object, value: Object): Object = null
+    override def remove(key: Object, value: Object): scala.Boolean = false
+    override def replace(key: Object, oldValue: Object, newValue: Object): scala.Boolean = false
+    override def replace(key: Object, value: Object): Object = null
+    override def computeIfAbsent(key: Object, mappingFunction: function.Function[? >: Object, ? <: Object]): Object = null
+    override def computeIfPresent(key: Object, remappingFunction: function.BiFunction[? >: Object, ? >: Object, ? <: Object]): Object =
+      null
+    override def compute(key: Object, remappingFunction: function.BiFunction[? >: Object, ? >: Object, ? <: Object]): Object = null
+    override def merge(key: Object, value: Object, remappingFunction: function.BiFunction[? >: Object, ? >: Object, ? <: Object]): Object =
+      null
+    override def clone(): Object = null
+  }
+}
+
+package java.util.stream {
+  trait IntStream extends BaseStream[Integer, IntStream] {
+    def sequential(): IntStream
+    def parallel(): IntStream
+    def iterator(): java.util.PrimitiveIterator.OfInt
+  }
+  trait LongStream extends BaseStream[java.lang.Long, LongStream] {
+    def sequential(): LongStream
+    def parallel(): LongStream
+    def iterator(): java.util.PrimitiveIterator.OfLong
+  }
+  trait DoubleStream extends BaseStream[java.lang.Double, DoubleStream] {
+    def sequential(): DoubleStream
+    def parallel(): DoubleStream
+    def iterator(): java.util.PrimitiveIterator.OfDouble
   }
 }
 

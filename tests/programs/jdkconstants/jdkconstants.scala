@@ -9,5 +9,7 @@ object jdkconstants {
     println(java.lang.Character.DIRECTIONALITY_WHITESPACE)
     println(java.lang.Double.MAX_EXPONENT)
     println(java.lang.Math.E)
+    println(StrictMath.PI)
+    println(java.lang.Long.MIN_VALUE)
   }
 }
