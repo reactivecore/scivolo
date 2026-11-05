@@ -13,7 +13,11 @@ impl Cmp<'_> {
     pub fn fourth_try(&mut self, a: TypeId, b: TypeId) -> bool {
         match self.u.types().get(a).clone() {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(a).map(|n| n.meaning) {
-                Some(Meaning::Abstract(_, hi)) => self.recur(hi, b) || self.lifted_left(a, b),
+                Some(Meaning::Abstract(_, hi)) => {
+                    self.recur(hi, b)
+                        || self.gadt_bounds(a).is_some_and(|(_, ghi)| self.recur_frozen(ghi, b))
+                        || self.lifted_left(a, b)
+                }
                 Some(Meaning::Class(c)) if c == self.u.builtins().nothing => self.is_value_type(b),
                 Some(Meaning::Class(c)) if c == self.u.builtins().null => self.nullable(b),
                 Some(Meaning::Term(_)) => self.below_singleton(a, b),
@@ -33,6 +37,14 @@ impl Cmp<'_> {
             Type::And(x, y) => self.and_below(a, b, x, y),
             Type::Lambda { binder, params, result } => self.lambda_below(binder, params.len(), result, b),
             _ => false,
+        }
+    }
+
+    /// The GADT bounds of type parameter `t`, if it has some.
+    pub fn gadt_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
+        match *self.u.types().get(t) {
+            Type::Sym(None, s) => self.u.gadt_bounds(s),
+            _ => None,
         }
     }
 

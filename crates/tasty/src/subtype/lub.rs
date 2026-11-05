@@ -110,7 +110,7 @@ impl Cmp<'_> {
     pub fn or_type(&mut self, a: TypeId, b: TypeId, soft: bool) -> TypeId {
         match (self.u.types().get(a), self.u.types().get(b)) {
             (&Type::Annotated(x, _), _) => self.lub_as(x, b, soft),
-            (_, &Type::Annotated(y, _)) => self.lub_as(a, y, soft),
+            (_, &Type::Annotated(y, _)) => self.lub_as(y, a, soft),
             (&Type::ByName(x), &Type::ByName(y)) => {
                 let either = self.lub_as(x, y, soft);
                 self.u.intern_type(Type::ByName(either))
