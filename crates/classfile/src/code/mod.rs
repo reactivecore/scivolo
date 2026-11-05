@@ -1,5 +1,13 @@
 //! A method's bytecode, with the stack depth and locals it needs.
 
+mod descriptors;
+mod jumps;
+mod ops;
+
+use descriptors::{kind, slots};
+pub use descriptors::{method_slots, split_method, value_slots};
+pub use jumps::Label;
+
 use crate::pool::{Pool, Ref};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -23,16 +31,49 @@ pub struct Code {
     stack: i32,
     pub max_stack: u16,
     pub max_locals: u16,
+    /// The offset of each label, once placed.
+    labels: Vec<Option<usize>>,
+    /// The jumps to labels not yet placed: the jump's offset and its label.
+    fixups: Vec<(usize, Label)>,
+    /// Why the code cannot be written, e.g. a jump over 32 KiB.
+    error: Option<String>,
+    live: bool,
 }
 
 impl Code {
     /// The code of a method whose parameters, `this` included, take `params` slots.
     pub fn new(params: u16) -> Code {
-        Code { bytes: Vec::new(), stack: 0, max_stack: 0, max_locals: params }
+        Code {
+            bytes: Vec::new(),
+            stack: 0,
+            max_stack: 0,
+            max_locals: params,
+            labels: Vec::new(),
+            fixups: Vec::new(),
+            error: None,
+            live: true,
+        }
+    }
+
+    /// The stack depth at the current offset, in slots.
+    pub fn stack(&self) -> i32 {
+        self.stack
+    }
+
+    /// Sets the stack depth, at a label reached only by jumps or after code that does not
+    /// fall through.
+    pub fn set_stack(&mut self, slots: i32) {
+        self.stack = slots;
+    }
+
+    /// Whether the code after the last instruction is reached by falling through it.
+    pub fn live(&self) -> bool {
+        self.live
     }
 
     /// Appends `opcode` and its operand bytes; the stack changes by `delta` slots.
     fn op(&mut self, opcode: u8, operands: &[u8], delta: i32) {
+        self.live = !matches!(opcode, 0xa7 | 0xac..=0xb1 | 0xbf);
         self.bytes.push(opcode);
         self.bytes.extend_from_slice(operands);
         self.stack += delta;
@@ -139,50 +180,4 @@ impl Code {
         };
         self.op(opcode, &[], delta);
     }
-}
-
-/// The offset of the instruction for a value of descriptor `desc` from the `int` one in the
-/// load and store families: `i l f d a`.
-fn kind(desc: &str) -> u8 {
-    match desc.as_bytes()[0] {
-        b'J' => 1,
-        b'F' => 2,
-        b'D' => 3,
-        b'L' | b'[' => 4,
-        _ => 0,
-    }
-}
-
-/// The slots a value of the descriptor starting with `first` takes.
-fn slots(first: u8) -> i32 {
-    match first {
-        b'V' => 0,
-        b'J' | b'D' => 2,
-        _ => 1,
-    }
-}
-
-/// The slots a value of field descriptor `desc` takes, 0 for `V`.
-pub fn value_slots(desc: &str) -> i32 {
-    slots(desc.as_bytes()[0])
-}
-
-/// The parameter descriptors and the result descriptor of method descriptor `d`.
-pub fn split_method(d: &str) -> (Vec<&str>, &str) {
-    let (b, mut params, mut i) = (d.as_bytes(), Vec::new(), 1);
-    while i < b.len() && b[i] != b')' {
-        let start = i;
-        while b[i] == b'[' {
-            i += 1;
-        }
-        i += if b[i] == b'L' { d[i..].find(';').map_or(1, |e| e + 1) } else { 1 };
-        params.push(&d[start..i]);
-    }
-    (params, d.get(i + 1..).unwrap_or("V"))
-}
-
-/// The slots of the parameters and of the result of method descriptor `d`.
-pub fn method_slots(d: &str) -> (i32, i32) {
-    let (params, result) = split_method(d);
-    (params.into_iter().map(value_slots).sum(), value_slots(result))
 }

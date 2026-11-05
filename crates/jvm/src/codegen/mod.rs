@@ -3,9 +3,15 @@
 //! Class files from the lowered trees: a port of dotty's `GenBCode`.
 
 mod access;
+mod arrays;
 mod class;
+mod cond;
+mod control;
+mod literals;
+mod locals;
 mod method;
 mod mirror;
+mod prims;
 
 use lower::{Lower, Result, Unsupported, jdk_class_name};
 use syntax::ast::Span;

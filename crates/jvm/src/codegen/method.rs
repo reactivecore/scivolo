@@ -4,9 +4,8 @@
 //! `genLoad`), straight-line code only.
 
 use super::{Gen, class_internal, java_flags, method_descriptor, method_name, unsupported};
-use classfile::{ACC_STATIC, ClassFile, Code, FieldOp, Pool};
+use classfile::{ACC_STATIC, ClassFile, Code, FieldOp, Label, Pool};
 use lower::Result;
-use syntax::ast::constant::Constant;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
@@ -18,21 +17,37 @@ pub struct Body<'p> {
     this_class: Option<String>,
     /// The object whose `MODULE$` stands for `this` in its `<clinit>`.
     module: Option<String>,
-    locals: Vec<(SymbolId, u16, String)>,
+    /// The parameters and locals: symbol, slot and descriptor.
+    pub locals: Vec<(SymbolId, u16, String)>,
+    /// The enclosing labeled blocks: label, end and the slots of the value.
+    pub labels: Vec<(SymbolId, Label, i32)>,
+    /// The method and the descriptor of its result.
+    pub method: Option<SymbolId>,
+    pub result: String,
 }
 
 impl<'p> Body<'p> {
     /// A static method's body if `module` is given (an object's `<clinit>`), else that of a method
     /// whose parameters start at slot `first`.
     pub fn new(pool: &'p mut Pool, module: Option<&str>, first: u16) -> Body<'p> {
-        let code = Code::new(first);
-        Body { code, pool, this_class: None, module: module.map(str::to_owned), locals: Vec::new() }
+        Body {
+            code: Code::new(first),
+            pool,
+            this_class: None,
+            module: module.map(str::to_owned),
+            locals: Vec::new(),
+            labels: Vec::new(),
+            method: None,
+            result: "V".into(),
+        }
     }
 
-    fn bind(&mut self, s: SymbolId, desc: String) {
+    /// A slot for local `s` of descriptor `desc`.
+    pub fn bind(&mut self, s: SymbolId, desc: String) -> u16 {
         let slot = self.code.max_locals;
         self.code.max_locals += classfile::value_slots(&desc) as u16;
         self.locals.push((s, slot, desc));
+        slot
     }
 }
 
@@ -47,17 +62,15 @@ impl Gen<'_, '_> {
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(dd), "abstract methods") };
         let mut b = Body::new(&mut cf.pool, None, u16::from(!static_));
         b.this_class = this_class;
+        b.method = Some(sym);
         let params = self.l.tpd.clause_items(paramss).iter().flat_map(|&c| self.l.tpd.items(c));
         let params = params.filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. }));
         let (param_descs, result) = classfile::split_method(&desc);
         for (&p, param) in params.zip(param_descs) {
             b.bind(self.l.tpd.sym(p).expect("a parameter's symbol"), param.to_owned());
         }
-        match result {
-            "V" => self.stat(&mut b, rhs)?,
-            _ => _ = self.expr(&mut b, rhs)?,
-        }
-        b.code.ret(result);
+        b.result = result.to_owned();
+        self.method_body(&mut b, rhs, result)?;
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code));
         Ok(())
@@ -65,12 +78,7 @@ impl Gen<'_, '_> {
 
     /// Generates `t` and drops its value.
     pub fn stat(&mut self, b: &mut Body, t: TNodeId) -> Result<()> {
-        match self.expr(b, t)? {
-            0 => {}
-            1 => b.code.pop(),
-            _ => return unsupported(self.l.tpd.span(t), "a discarded long or double"),
-        }
-        Ok(())
+        self.expr_as(b, t, 0)
     }
 
     /// Generates `t`; returns the stack slots its value takes.
@@ -78,16 +86,7 @@ impl Gen<'_, '_> {
         let span = self.l.tpd.span(t);
         let sym = self.l.tpd.sym(t);
         Ok(match self.l.tpd.tree(t).clone() {
-            Tree::Literal { value: Constant::Unit } => 0,
-            Tree::Literal { value: Constant::Null } => {
-                b.code.aconst_null();
-                1
-            }
-            Tree::Literal { value: Constant::String(s) } => {
-                let index = b.pool.string(&s);
-                b.code.ldc(index);
-                1
-            }
+            Tree::Literal { value } => self.literal(b, &value),
             Tree::ClassLiteral { tpe } => {
                 let e = self.l.u.erase(tpe);
                 let index = b.pool.class(&class_internal(&e));
@@ -120,9 +119,25 @@ impl Gen<'_, '_> {
             }
             Tree::Assign { lhs, rhs } => match (self.l.tpd.tree(lhs), self.l.tpd.sym(lhs)) {
                 (&Tree::Select { qualifier, .. }, Some(f)) => self.field(b, f, qualifier, Some(rhs))?,
-                _ => return unsupported(span, "assignments to locals"),
+                _ => match self.assign_local(b, lhs, rhs)? {
+                    Some(slots) => slots,
+                    None => return unsupported(span, "an assignment to a variable of another method"),
+                },
             },
-            Tree::Apply { fun, args } => self.apply(b, fun, args)?,
+            Tree::ValDef { rhs, .. } => self.gen_val_def(b, t, rhs)?,
+            Tree::If { cond, thenp, elsep, .. } => self.gen_if(b, t, cond, thenp, elsep)?,
+            Tree::WhileDo { cond, body } => self.gen_while(b, cond, body)?,
+            Tree::Labeled { expr } => self.gen_labeled(b, t, expr)?,
+            Tree::Return { expr, from } => self.gen_return(b, t, expr, from)?,
+            Tree::SeqLiteral { elems, .. } => self.array_literal(b, t, elems)?,
+            Tree::TypeApply { fun, args } => self.type_test(b, t, fun, args)?,
+            Tree::Apply { fun, args } => match self.primitive(b, t)? {
+                Some(slots) => slots,
+                None => match self.array_op(b, t, fun, args)? {
+                    Some(slots) => slots,
+                    None => self.apply(b, fun, args)?,
+                },
+            },
             tree => return unsupported(span, format!("{} on the JVM", typer::tpd::print::class_name(&tree))),
         })
     }

@@ -4,8 +4,11 @@ mod code;
 mod pool;
 mod writer;
 
-pub use code::{Code, FieldOp, Invoke, method_slots, split_method, value_slots};
+pub use code::{Code, FieldOp, Invoke, Label, method_slots, split_method, value_slots};
 pub use pool::{Pool, Ref};
+
+/// Java 5's class file version, which needs no stack map frames.
+pub const MAJOR_VERSION: u16 = 49;
 
 pub const ACC_PUBLIC: u16 = 0x0001;
 pub const ACC_PRIVATE: u16 = 0x0002;
@@ -16,9 +19,6 @@ pub const ACC_SUPER: u16 = 0x0020;
 pub const ACC_INTERFACE: u16 = 0x0200;
 pub const ACC_ABSTRACT: u16 = 0x0400;
 pub const ACC_SYNTHETIC: u16 = 0x1000;
-
-/// Java 17's class file version.
-pub const MAJOR_VERSION: u16 = 61;
 
 /// An attribute: its name and its bytes.
 struct Attribute {
@@ -77,6 +77,9 @@ impl ClassFile {
         if let Some(code) = code {
             if code.bytes.len() > usize::from(u16::MAX) {
                 self.error = Some(format!("method {name} over 65,535 bytes of code"));
+            }
+            if let Some(e) = code.problem() {
+                self.error = Some(format!("method {name}: {e}"));
             }
             let name = self.pool.utf8("Code");
             member.attributes.push(Attribute { name, bytes: writer::code(&code) });

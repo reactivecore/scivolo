@@ -6,6 +6,11 @@ use rustc_hash::FxHashMap;
 enum Entry {
     Utf8(Box<[u16]>),
     Integer(i32),
+    Float(u32),
+    Long(i64),
+    Double(u64),
+    /// The unusable slot after a long or double.
+    Gap,
     Class(u16),
     String(u16),
     Fieldref(u16, u16),
@@ -45,6 +50,29 @@ impl Pool {
 
     pub fn integer(&mut self, v: i32) -> u16 {
         self.add(Entry::Integer(v))
+    }
+
+    pub fn float(&mut self, v: f32) -> u16 {
+        self.add(Entry::Float(v.to_bits()))
+    }
+
+    /// A long constant, which takes two slots.
+    pub fn long(&mut self, v: i64) -> u16 {
+        self.add_wide(Entry::Long(v))
+    }
+
+    /// A double constant, which takes two slots.
+    pub fn double(&mut self, v: f64) -> u16 {
+        self.add_wide(Entry::Double(v.to_bits()))
+    }
+
+    fn add_wide(&mut self, e: Entry) -> u16 {
+        if let Some(&i) = self.index.get(&e) {
+            return i;
+        }
+        let i = self.add(e);
+        self.entries.push(Entry::Gap);
+        i
     }
 
     /// The class of internal name `name`, e.g. `java/lang/Object` or `[I`.
@@ -92,6 +120,22 @@ impl Pool {
                     out.extend(v.to_be_bytes());
                     continue;
                 }
+                Entry::Float(v) => {
+                    out.push(4);
+                    out.extend(v.to_be_bytes());
+                    continue;
+                }
+                Entry::Long(v) => {
+                    out.push(5);
+                    out.extend(v.to_be_bytes());
+                    continue;
+                }
+                Entry::Double(v) => {
+                    out.push(6);
+                    out.extend(v.to_be_bytes());
+                    continue;
+                }
+                Entry::Gap => continue,
                 Entry::Class(n) => (7, n, None),
                 Entry::String(s) => (8, s, None),
                 Entry::Fieldref(c, nt) => (9, c, Some(nt)),

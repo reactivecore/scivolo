@@ -65,8 +65,20 @@ impl Gen<'_, '_> {
     pub fn apply(&mut self, b: &mut Body, fun: TNodeId, args: List) -> Result<i32> {
         let span = self.l.tpd.span(fun);
         let Some(m) = self.l.tpd.sym(fun) else { return unsupported(span, "a call of a function value") };
+        let arg_list = self.l.tpd.items(args).to_vec();
+        if let Some(slots) = self.boxing(b, m, &arg_list)? {
+            return Ok(slots);
+        }
         let desc = method_descriptor(self.l.u, m);
         let owner = self.l.u.symbol(m).owner.expect("a method's owner");
+        let (owner_name, name) = (self.l.u.binary_name(owner), self.l.u.symbol(m).name.as_str());
+        let universal = ["scala.Any", "scala.AnyRef", "java.lang.Object"].contains(&owner_name.as_str());
+        let primitive = (universal && matches!(name, "==" | "!=" | "##" | "eq" | "ne" | "synchronized"))
+            || (owner_name == "java.lang.String" && name == "+")
+            || self.l.u.symbol(owner).kind == tasty::Kind::Package;
+        if primitive {
+            return unsupported(span, format!("`{name}` of `{owner_name}` on the JVM"));
+        }
         let mut owner_name = self.class_name(owner);
         let qualifier = match *self.l.tpd.tree(fun) {
             Tree::Select { qualifier, .. } => Some(qualifier),
