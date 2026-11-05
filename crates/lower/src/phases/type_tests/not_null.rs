@@ -37,7 +37,7 @@ fn not_null(l: &mut Lower, t: TypeId, explicit: bool, depth: u32) -> bool {
             _ => next(l, tycon),
         },
         Type::TypeRef(..) | Type::Sym(..) if let Some(s) = type_symbol(l, t) => match l.u.symbol(s).kind {
-            Kind::Class => !nullable_class(l, s, explicit),
+            Kind::Class => !nullable_class(l, s, explicit) && s != l.u.builtins().nothing,
             Kind::Type | Kind::TypeParam => {
                 let info = l.u.info(s);
                 next(l, info)
