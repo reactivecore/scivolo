@@ -51,11 +51,11 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
 [docs/conformance.md](docs/conformance.md) and [ROADMAP.md](ROADMAP.md).
 
 - **VM:** 11,336 of Scala Native's 11,360 unit tests pass (NIR compiled by Scala Native).
-- **Own frontend:** 1,472 of dotty's 1,711 `tests/run` pass through parser, typer, lowering
+- **Own frontend:** 1,476 of dotty's 1,711 `tests/run` pass through parser, typer, lowering
   and VM.
-- **Macros:** 307 of dotty's 321 `tests/run-macros` pass.
+- **Macros:** 308 of dotty's 321 `tests/run-macros` pass.
 - **Scala Native's library through the own frontend:** javalib 601 of 601 files, auxlib 15 of
-  15, nativelib 103 of 103, clib, posixlib and windowslib complete; scalalib 618 of 649.
+  15, nativelib 103 of 103, clib, posixlib and windowslib complete; scalalib 622 of 649.
 - **com-lihaoyi libraries from source:** fastparse, mainargs, upickle, ujson, pprint, os-lib,
   geny, fansi and sourcecode compile through the own frontend, every file, macros included;
   1,777 of their 1,786 NIR files are the same as scala-cli's.

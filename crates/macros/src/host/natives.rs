@@ -17,7 +17,7 @@ impl vm::QuoteHost for Host {
             .into_iter()
             .map(|h| {
                 let args = h.args.into_iter().map(|a| self.add_hole_arg(a)).collect();
-                (h.node, h.index, args, None)
+                super::Hole { placeholder: h.node, index: h.index, args, filled: None }
             })
             .collect();
         self.exprs.push(Expr::Quote(Unpickled { root, spliced, holes }));
@@ -40,8 +40,8 @@ impl vm::QuoteHost for Host {
 
     fn hole(&self, quote: u32, hole: u32) -> Option<vm::Hole> {
         let Some(Expr::Quote(q)) = self.exprs.get(quote as usize) else { return None };
-        let (_, index, args, _) = q.holes.get(hole as usize)?;
-        Some((*index, args.clone()))
+        let h = q.holes.get(hole as usize)?;
+        Some((h.index, h.args.clone()))
     }
 
     fn fill_hole(&mut self, quote: u32, hole: u32, expr: u32) -> Result<(), &'static str> {
@@ -50,7 +50,7 @@ impl vm::QuoteHost for Host {
             && let Some(h) = q.holes.get_mut(hole as usize)
             && known
         {
-            h.3 = Some(expr);
+            h.filled = Some(expr);
             return Ok(());
         }
         Err("a quote hole filled with an unknown expression")
