@@ -149,6 +149,29 @@ fn flow_typed_variables_in_by_name_arguments() {
 }
 
 #[test]
+fn overloads_ambiguous_with_an_apply_of_a_result() {
+    let Some(mut u) = universe() else { return };
+    let mut units = Units::default();
+    let refused = Err("unsupported overloaded method whose result has an apply method".to_owned());
+    let unit = |i: usize, apply: &str, empty: &str, arg: &str| {
+        format!(
+            "object A{i} {{ trait T[K] {{ {apply} }}; class M[K] extends T[K]; object M {{ {empty}; def empty(o: Any): String = \"\" }}; val v = M.empty({arg}) }}"
+        )
+    };
+    let ambiguous = [
+        ("def apply(k: Int) = 1", "def empty: M[Int] = new M", "5"),
+        ("def apply(ks: List[K]) = 1", "def empty[K]: M[K] = new M", "List(1)"),
+        ("def apply(k: K) = 1", "def empty[K <: Int]: M[K] = new M", "1"),
+    ];
+    for (i, (apply, empty, arg)) in ambiguous.iter().enumerate() {
+        assert_eq!(type_unit(&mut u, &mut units, "a.scala", &unit(i, apply, empty, arg)), refused, "{empty}");
+    }
+    let picked = unit(3, "def apply(k: K) = 1", "def empty[K]: M[K] = new M", "1");
+    assert_eq!(type_unit(&mut u, &mut units, "a.scala", &picked), Ok(()));
+    assert_eq!(member_type(&mut u, "A3", "v"), "Predef.String");
+}
+
+#[test]
 fn unit_after_a_failed_one() {
     let Some(mut u) = universe() else { return };
     let mut units = Units::default();

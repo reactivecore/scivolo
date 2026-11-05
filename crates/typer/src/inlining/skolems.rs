@@ -7,12 +7,13 @@
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
+use crate::typer::seen_from::normalized;
 use crate::typer::stability::is_stable_path;
 use syntax::ast::{Span, TName};
 use tasty::{Binder, SymbolId, Type, TypeId, Universe};
 
 /// The skolem standing for each argument, of types `args`, in type `actual` of an application:
-/// the one of the argument's widened type, checked by substituting them for parameters `params`
+/// the one of the argument's widened type, normalized or not, checked by substituting them for parameters `params`
 /// of binder `binder` in the method's result type `result`, as `applied_result` does; `None` if
 /// that does not give a type equivalent to `actual`.
 pub fn call_skolems(
@@ -31,10 +32,11 @@ pub fn call_skolems(
     let mut chosen = Vec::new();
     for &a in args {
         let w = u.widen(a);
+        let n = normalized(u, w);
         let found: Vec<TypeId> = skolems
             .iter()
             .copied()
-            .filter(|&s| matches!(*u.types().get(s), Type::Skolem(_, i) if i == w))
+            .filter(|&s| matches!(*u.types().get(s), Type::Skolem(_, i) if i == w || i == n))
             .collect();
         chosen.push(match found[..] {
             [s] if !is_stable_path(u, a) => Some(s),
