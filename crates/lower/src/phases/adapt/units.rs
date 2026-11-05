@@ -30,7 +30,8 @@ pub fn discarded(l: &mut Lower, t: TNodeId) -> TNodeId {
 }
 
 /// Whether evaluating erased tree `t` has no effect (dotty's `isPureExpr` after `Getters`): a
-/// literal, `this`, an object, or a parameter or immutable value of a method.
+/// literal, `this`, an object, a parameter or immutable value of a method, or an immutable field
+/// without a getter.
 fn is_pure(l: &Lower, t: TNodeId) -> bool {
     let local = |s| {
         let sym = l.u.symbol(s);
@@ -39,11 +40,12 @@ fn is_pure(l: &Lower, t: TNodeId) -> bool {
             sym.kind == Kind::Param || sym.kind == Kind::Val && !has(l.u, s, LAZY) && !has(l.u, s, MUTABLE);
         value && in_method
     };
+    let field = |s| l.fields.get(&s) == Some(&s) && !has(l.u, s, MUTABLE) && !has(l.u, s, LAZY);
     match *l.tpd.tree(t) {
         Tree::Literal { .. } | Tree::ClassLiteral { .. } | Tree::This { .. } => true,
-        Tree::Ident { .. } => l.tpd.sym(t).is_some_and(|s| l.u.is_module(s) || local(s)),
+        Tree::Ident { .. } => l.tpd.sym(t).is_some_and(|s| l.u.is_module(s) || local(s) || field(s)),
         Tree::Select { qualifier, .. } => {
-            l.tpd.sym(t).is_some_and(|s| l.u.is_module(s)) && is_pure(l, qualifier)
+            l.tpd.sym(t).is_some_and(|s| l.u.is_module(s) || field(s)) && is_pure(l, qualifier)
         }
         _ => false,
     }

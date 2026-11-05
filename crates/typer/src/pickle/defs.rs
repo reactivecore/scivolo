@@ -143,7 +143,10 @@ impl TreePickler<'_> {
             self.buf.register_tree(param.index() as u32);
             let sym = self.tpd.sym(param).ok_or("a parameter without a symbol")?;
             match self.tpd.tree(param).clone() {
-                T::ValDef { tpt, .. } => self.def(PARAM, sym, None, tpt, None)?,
+                T::ValDef { tpt, .. } => {
+                    self.param_tpts.insert(sym, tpt);
+                    self.def(PARAM, sym, None, tpt, None)?
+                }
                 T::TypeDef { rhs, .. } => self.def(TYPEPARAM, sym, None, rhs, None)?,
                 _ => return Err("a parameter of another kind"),
             }

@@ -128,6 +128,9 @@ impl Typer<'_> {
             self.unenter_classpath_members(ctx.owner, &text);
         }
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
+        if self.is_scala2_macro_in_scala3(ctx.owner, written) {
+            self.u.unenter(sym);
+        }
         if kind == Kind::Class && self.scala2 {
             self.u.set_scala2(sym);
         }

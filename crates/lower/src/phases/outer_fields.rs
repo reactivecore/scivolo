@@ -78,9 +78,7 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
     }
     let Some(field) = l.outers[&class].0 else { return Ok(()) };
     let name_at = l.tpd.span(td).point();
-    let spans = l.tpd.items(parents).iter().chain(&stats).map(|&s| l.tpd.span(s));
-    let end = spans.filter(|s| anonymous && s.exists()).map(|s| s.end()).max();
-    let at = Span::at(end.unwrap_or(l.tpd.span(template).end()).max(name_at));
+    let at = Span::at(l.template_end(td).unwrap_or(l.tpd.span(template).end()).max(name_at));
     let mut stats = stats;
     stats.push(field_def(l, field, Span::at(name_at)));
     if with_accessor {

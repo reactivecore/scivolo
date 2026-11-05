@@ -43,6 +43,7 @@ pub fn pickle(l: &mut Lower, t: TNodeId, q: TypeQuote, owner: SymbolId) -> Resul
     let tags = l.tpd.quote_tags(q.of).to_vec();
     let used = heal(l, q.body, &tags)?;
     if let &[tag] = &used[..]
+        && !l.spliced_type_quotes.contains(&q.of)
         && l.tpd.tpe(q.body) == l.u.intern_type(Type::TypeRef(tag, UNDERLYING.into()))
     {
         let tag = tag_ref(l, tag, l.tpd.span(t)).or_else(|()| unsupported(span, TAG_PATH))?;

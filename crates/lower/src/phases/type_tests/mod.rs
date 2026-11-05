@@ -7,6 +7,7 @@
 
 mod as_instance_of;
 mod combined;
+pub(super) mod not_null;
 mod runtime_tests;
 pub(super) mod singletons;
 
@@ -126,7 +127,7 @@ fn is_instance_of(
         if found.is_some() {
             return unsupported(span, "type tests of primitive values");
         }
-        if is_not_null(l, expr_tpe) {
+        if not_null::is_not_null(l, expr_tpe, false) {
             return Ok(constant(l, expr, true));
         }
         let null = l.null_literal(Span::NONE);
@@ -155,24 +156,6 @@ fn is_instance_of(
     let args = l.tpd.list(&[tpt]);
     let boolean = l.u.class_ref("scala.Boolean");
     Ok(l.tpd.node(Tree::TypeApply { fun, args }, span, Some(boolean), Some(l.defs.is_instance_of)))
-}
-
-/// Whether a value of type `tpe` is never null: a constant other than `null` or of a value class
-/// type (dotty's `isNotNull`).
-pub fn is_not_null(l: &mut Lower, tpe: tasty::TypeId) -> bool {
-    let widened = l.u.widen(tpe);
-    if l.u.value_class(widened).is_some() {
-        return true;
-    }
-    let tpe = match *l.u.types().get(tpe) {
-        Type::Sym(_, s) if l.u.symbol(s).kind == tasty::Kind::Val => l.u.info(s),
-        _ => tpe,
-    };
-    match *l.u.types().get(tpe) {
-        Type::Constant(tag, _) => tag != tasty::tags::NULLconst,
-        Type::Str(_) => true,
-        _ => false,
-    }
 }
 
 /// Boolean `value`, after `expr` unless it is a literal or a pure path (dotty's `constant`).

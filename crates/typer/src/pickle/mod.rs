@@ -51,6 +51,8 @@ pub struct TreePickler<'a> {
     shared: FxHashMap<TNodeId, TNodeId>,
     /// The references to a self pickled as `C.this`, the class name after their tag.
     self_refs: FxHashSet<TNodeId>,
+    /// The type tree of each parameter pickled.
+    param_tpts: FxHashMap<SymbolId, TNodeId>,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -97,6 +99,7 @@ fn pickle(
         forward: FxHashMap::default(),
         shared: FxHashMap::default(),
         self_refs: FxHashSet::default(),
+        param_tpts: FxHashMap::default(),
     };
     p.tree(root)?;
     if !p.forward.is_empty() {
