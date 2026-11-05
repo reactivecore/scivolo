@@ -140,15 +140,24 @@ impl Universe {
     }
 
     /// `t` with its type parameters replaced by their upper bounds, given the bounds of the
-    /// parameters of each polymorphic type; within `t`, only those bounded by a class.
+    /// parameters of each polymorphic type; within `t`, only those bounded by a class or a type
+    /// lambda, whose application is reduced.
     pub fn upper_bound(&mut self, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
         let bound =
             |b: Binder, i: u32| bounds.iter().find(|(binder, _)| *binder == b)?.1.get(i as usize).copied();
-        let mut t = self.map_type(t, &mut |u, x| match *u.types().get(x) {
+        let mut t = self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
             Type::Param(b, i) => {
                 let bounds = bound(b, i)?;
                 let Type::Bounds(_, hi) = *u.types().get(bounds) else { return None };
                 (!u.is_generic(bounds)).then_some(hi)
+            }
+            Type::Applied(tycon, args) => {
+                let Type::Param(b, i) = *u.types().get(tycon) else { return None };
+                let Type::Bounds(_, hi) = *u.types().get(bound(b, i)?) else { return None };
+                let Type::Lambda { binder, params, result } = u.types().get(hi).clone() else { return None };
+                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                let applied = u.subst(result, binder, &names, &args);
+                Some(u.upper_bound(applied, bounds))
             }
             _ => None,
         });
