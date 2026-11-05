@@ -15,7 +15,8 @@ pub struct Parts {
 
 impl Typer<'_> {
     /// Adds to `parts` the classes of the parts of `t` and the abstract and opaque types among
-    /// them: of the references in `t` dealiased, of the types of its term references, and of the
+    /// them: of the references in `t` dealiased, of the types of its term references, of the
+    /// bounds of its type parameters, and of the
     /// prefixes of its class, abstract type and term references; never of packages or package
     /// objects.
     pub fn collect_parts(&mut self, t: TypeId, seen: &mut Vec<TypeId>, parts: &mut Parts) {
@@ -61,6 +62,10 @@ impl Typer<'_> {
             parts.classes.push(c);
         }
         let param = self.u.symbol(sym).kind == Kind::TypeParam;
+        if param {
+            let info = self.u.info(sym);
+            self.collect_parts(info, seen, parts);
+        }
         let alias = self.u.alias_of(sym).is_some();
         if self.u.symbol(sym).kind == Kind::Type && !alias && !parts.anchors.contains(&(sym, prefix)) {
             parts.anchors.push((sym, prefix));

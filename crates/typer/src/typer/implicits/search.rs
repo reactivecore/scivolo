@@ -171,10 +171,8 @@ impl Typer<'_> {
         };
         let stripped = self.strip_implicit(info);
         let method = matches!(self.u.types().get(stripped), Type::Method { .. });
-        match self.implicit_value_type(info, c.sym, pt) {
-            Some(value) if self.conforms(value, pt) => {}
-            _ => return Err("implicit of another type"),
-        }
+        let contextual = self.context_function_parts(pt).is_some();
+        let direct = self.implicit_fit(info, c.sym, pt).ok_or("implicit of another type")?;
         if shallow {
             return Ok(tree);
         }
@@ -182,12 +180,19 @@ impl Typer<'_> {
             return Err("implicit search too costly");
         }
         self.implicit_budget -= 1;
+        if contextual {
+            return self.contextual_implicit(tree, pt, ctx);
+        }
         let applied = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
         if applied != tree {
             self.interpolate(applied, Pt::Type(pt), from)?;
         }
         let tree = applied;
-        let tree = if method { self.eta_expanded_implicit(tree, pt, ctx)? } else { tree };
+        let tree = match (method, direct) {
+            (true, _) => self.eta_expanded_implicit(tree, pt, ctx)?,
+            (false, false) => self.context_applied_implicit(tree, pt, ctx)?,
+            (false, true) => tree,
+        };
         let tree = self.inlined_transparent(tree, Pt::Type(pt), ctx).unwrap_or(tree);
         self.record_inline_call(tree, ctx);
         self.record_implicit_type_quote(tree, ctx);
