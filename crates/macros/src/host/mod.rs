@@ -16,11 +16,11 @@ use typer::tpd::{TNodeId, Tpd};
 use typer::unpickle::QuotePattern;
 
 /// A quote unpickled for the macro: its tree, spliced types and term holes (placeholder, index,
-/// arguments' and filling expressions).
+/// arguments, an expression `Ok` and a type `Err`, and filling expression).
 struct Unpickled {
     root: TNodeId,
     spliced: Vec<(SymbolId, TypeId)>,
-    holes: Vec<(TNodeId, u32, Vec<u32>, Option<u32>)>,
+    holes: Vec<(TNodeId, u32, Vec<Result<u32, u32>>, Option<u32>)>,
 }
 
 enum Expr {
@@ -115,6 +115,14 @@ impl Host {
     pub fn add_type(&mut self, t: TypeId) -> u32 {
         self.types.push(t);
         self.types.len() as u32 - 1
+    }
+
+    /// Quote hole argument `a`: a type tree's type `Err`, else an expression `Ok`.
+    pub fn add_hole_arg(&mut self, a: TNodeId) -> Result<u32, u32> {
+        match self.tpd.is_type_tree(a) {
+            true => Err(self.add_type(self.tpd.tpe(a))),
+            false => Ok(self.add_tree(a)),
+        }
     }
 
     /// The tree of expression `expr`, a quote's with its holes open.
