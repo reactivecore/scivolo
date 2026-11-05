@@ -39,27 +39,29 @@ impl Universe {
     }
 
     /// The class of side `t` of a union, erased to class `name`: of the side `glb_side` picks of an
-    /// intersection, the common base of a union's sides, else the class named `name`.
+    /// intersection, the common base of the sides of a union without a class, else the class
+    /// named `name`.
     fn lub_class(&mut self, t: TypeId, name: &str) -> Option<SymbolId> {
         let mut widened = self.widen(t);
         while let Type::And(x, y) = *self.types().get(widened) {
             widened = self.glb_side(x, y);
         }
-        let side = |u: &mut Self, s: TypeId| match u.erase(s) {
-            Erased::Class(n) => u.lub_class(s, &n),
-            _ => None,
-        };
-        let named = |u: &mut Self, c: SymbolId| {
+        let erases_to = |u: &mut Self, c: SymbolId, name: &str| {
             let t = u.intern_type(Type::Sym(None, c));
             matches!(u.erase(t), Erased::Class(n) if n == name)
         };
-        let found = match *self.types().get(widened) {
-            Type::Or(x, y, _) => match (side(self, x), side(self, y)) {
+        let side = |u: &mut Self, s: TypeId| match u.erase(s) {
+            Erased::Class(n) => u.lub_class(s, &n).filter(|&c| erases_to(u, c, &n)),
+            _ => None,
+        };
+        let named = |u: &mut Self, c: SymbolId| erases_to(u, c, name);
+        let found = match (self.erased_class(widened), self.types().get(widened).clone()) {
+            (None, Type::Or(x, y, _)) => match (side(self, x), side(self, y)) {
                 (Some(cx), Some(cy)) => self.common_base(cx, cy),
                 (cx, cy) => cx.or(cy),
             }
             .filter(|&c| named(self, c)),
-            _ => self.erased_class(widened),
+            (found, _) => found,
         };
         found.or_else(|| {
             let r = self.class_ref(name);
