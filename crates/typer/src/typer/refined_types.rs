@@ -108,6 +108,7 @@ impl Typer<'_> {
             Type::Sym(_, s) => !self.u.is_type_symbol(s),
             Type::This(_) | Type::TermRef(..) => true,
             Type::Refined(..) => name.is_type && matches!(self.tpd.tree(qual), T::RefinedTypeTree { .. }),
+            Type::Applied(..) => name.is_type && matches!(self.tpd.tree(qual), T::AppliedTypeTree { .. }),
             _ => false,
         };
         let text = self.text(name.name).to_owned();
@@ -147,6 +148,12 @@ impl Typer<'_> {
         let terms: Vec<_> = members.into_iter().filter(|&m| self.u.symbol(m).kind.is_term()).collect();
         if terms.iter().any(|&m| self.u.symbol(m).target.is_some()) {
             return Err("structural refinement of a member with a target name");
+        }
+        let poly = matches!(self.u.types().get(refined), Type::Refined(_, _, i) if matches!(self.u.types().get(*i), Type::Poly { .. }));
+        let poly_function = name == "apply"
+            && self.u.class_symbol(parent).is_some_and(|c| self.u.full_name(c) == "scala.PolyFunction");
+        if terms.is_empty() && poly && !poly_function {
+            return Err("polymorphic refinement without a parent member");
         }
         if terms.is_empty() || self.u.is_subtype(parent, refined) {
             return Ok(());

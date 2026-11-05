@@ -1,6 +1,6 @@
 //! What the lowering asks of symbols (dotty's `SymDenotations` predicates).
 
-use tasty::tags::{EXTENSION, FINAL, IMPLICIT, LAZY, PRIVATE, STATIC};
+use tasty::tags::{ERASED, EXTENSION, FINAL, IMPLICIT, LAZY, PRIVATE, STATIC};
 use tasty::{Kind, SymbolId, Universe};
 
 pub fn has(u: &Universe, s: SymbolId, tag: u8) -> bool {
@@ -9,6 +9,19 @@ pub fn has(u: &Universe, s: SymbolId, tag: u8) -> bool {
 
 pub fn is_private(u: &Universe, s: SymbolId) -> bool {
     has(u, s, PRIVATE)
+}
+
+/// Whether term `s` is erased: flagged so, or `erasedValue` of `scala.compiletime` or
+/// `unsafeErasedValue` of `scala.caps` (dotty's `isErased`).
+pub fn is_erased(u: &Universe, s: SymbolId) -> bool {
+    let sym = u.symbol(s);
+    if !sym.kind.is_term() {
+        return false;
+    }
+    let full = u.full_name(s);
+    has(u, s, ERASED)
+        || matches!(sym.name.as_str(), "erasedValue" | "unsafeErasedValue")
+            && (full.starts_with("scala.compiletime.") || full.starts_with("scala.caps."))
 }
 
 /// Whether `tpe` is the type of a single value or an object's class, which `null` does not

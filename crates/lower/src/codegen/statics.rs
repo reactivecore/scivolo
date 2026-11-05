@@ -105,6 +105,7 @@ impl Gen<'_, '_> {
                 || is_extern(self.l.u, m)
                 || deferred
                 || excluded.iter().any(|&f| has(self.l.u, m, f))
+                || crate::symbols::is_erased(self.l.u, m)
                 || self.l.lifted_from.contains_key(&m)
                 || jdk && !self.l.u.javalib_sources() && has(self.l.u, m, PRIVATEqualified)
                 || self.is_java_field_or_setter(m)

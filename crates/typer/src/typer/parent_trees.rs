@@ -93,13 +93,16 @@ impl Typer<'_> {
     }
 
     /// `new P()` for parent type tree `parent` of class `cls`, typed in `ctx`, if `cls` is not a
-    /// trait and `P` is a class, or a trait taking parameters that the superclass of `cls` does
+    /// trait or `AnyVal` and `P` is a class, or a trait taking parameters that the superclass of `cls` does
     /// not extend (dotty's `ensureConstrCall`).
     fn ensure_constr_call(&mut self, cls: SymbolId, parent: TNodeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(parent);
         let Some(psym) = self.u.class_symbol(tpe) else { return parent };
         let called_trait = |t: &mut Self| t.trait_takes_params(psym) && !t.super_derives_from(cls, psym);
-        if self.u.is_trait(cls) || self.u.is_trait(psym) && !called_trait(self) {
+        if self.u.is_trait(cls)
+            || self.u.is_trait(psym) && !called_trait(self)
+            || self.u.full_name(cls) == "scala.AnyVal"
+        {
             return parent;
         }
         let span = self.tpd.span(parent);

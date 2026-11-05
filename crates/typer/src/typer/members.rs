@@ -81,9 +81,11 @@ impl Typer<'_> {
                     self.members_within(info, name, within)
                 }
             },
-            Type::Alias(a) | Type::Bounds(_, a) | Type::Refined(a, ..) | Type::Rec(_, a) => {
-                self.members_within(a, name, within)
-            }
+            Type::Alias(a)
+            | Type::Bounds(_, a)
+            | Type::Refined(a, ..)
+            | Type::Rec(_, a)
+            | Type::Annotated(a, _) => self.members_within(a, name, within),
             Type::Applied(..) | Type::TypeRef(..) if self.u.dealias(t) != t => {
                 let dealiased = self.u.dealias(t);
                 self.members_within(dealiased, name, within)

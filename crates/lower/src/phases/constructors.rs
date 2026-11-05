@@ -115,7 +115,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Some(&first) = l.tpd.items(parents).first() else {
         return unsupported(span, "a class without a superclass");
     };
-    if !tasty::PRIMITIVE_VALUE_CLASSES.contains(&l.u.full_name(class).as_str()) {
+    let full_name = l.u.full_name(class);
+    if full_name == "scala.AnyVal" {
+        stats.push(object_init_call(l, class, Span::at(span.point()))?);
+    } else if !tasty::PRIMITIVE_VALUE_CLASSES.contains(&full_name.as_str()) {
         stats.push(super_call(l, class, first)?);
     }
     stats.extend(eager.into_iter().chain(inits));
@@ -205,4 +208,15 @@ fn super_call(l: &mut Lower, class: SymbolId, parent: TNodeId) -> Result<TNodeId
     let fun = l.select(sup, ctor, span);
     let unit = l.u.intern_type(tasty::Type::Constant(tasty::tags::UNITconst, 0));
     Ok(l.apply(fun, &args, unit, span))
+}
+
+/// `super.<init>()` of `Object` for `class`, whose parent `Any` erases to it.
+fn object_init_call(l: &mut Lower, class: SymbolId, span: Span) -> Result<TNodeId> {
+    let object = l.defs.object;
+    let ctor = super::lazy_trees::method(l, object, "<init>", span)?;
+    let object_type = crate::definitions::type_ref(l.u, object);
+    let sup = l.super_(class, object_type, span);
+    let fun = l.select(sup, ctor, span);
+    let unit = l.u.intern_type(tasty::Type::Constant(tasty::tags::UNITconst, 0));
+    Ok(l.apply(fun, &[], unit, span))
 }
