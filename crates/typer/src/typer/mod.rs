@@ -91,6 +91,7 @@ mod function_types;
 mod future_infix;
 mod gadt;
 mod gadt_cast;
+mod gadt_narrow;
 mod generic_arrays;
 mod harmonize;
 mod ident_hint;
