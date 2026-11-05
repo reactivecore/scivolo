@@ -113,10 +113,13 @@ impl Gen<'_, '_> {
                 Invoke::Special
             }
             Some(Tree::Super { .. }) if self.l.u.is_trait(super_receiver) => {
-                if self.l.u.binary_name(owner).starts_with("java.") {
-                    return unsupported(span, "a super call of a Java interface method on the JVM");
+                if !self.l.u.is_trait(owner) || self.is_java_class(owner) {
+                    return unsupported(
+                        span,
+                        "a super call of a Java or class method via a trait on the JVM",
+                    );
                 }
-                owner_name = self.class_name(super_receiver);
+                owner_name = self.class_name(owner);
                 self.load_this(b);
                 call_desc = format!("(L{};{}", self.class_name(owner), &desc[1..]);
                 if name != "$init$" {

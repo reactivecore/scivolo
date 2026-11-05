@@ -29,4 +29,13 @@ impl Gen<'_, '_> {
         let flags = (flags & !classfile::ACC_ABSTRACT) | ACC_STATIC;
         cf.method(flags, &format!("{name}$"), &static_desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
     }
+
+    /// Whether `c` is a Java class: of a JDK package or jar, or a Java class of the Scala library.
+    pub fn is_java_class(&self, c: SymbolId) -> bool {
+        let name = self.l.u.binary_name(c);
+        name.starts_with("java.")
+            || name.starts_with("javax.")
+            || self.l.u.is_from_jdk_jars(c)
+            || self.l.u.is_library_java_stub(c)
+    }
 }
