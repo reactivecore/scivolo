@@ -45,8 +45,7 @@ impl Typer<'_> {
         constructors
     }
 
-    /// Whether one of `vars` is still uninstantiated without lower bound, so that it would be
-    /// minimized to `Nothing`, which an application of it keeps in dotty and drops here.
+    /// Whether one of `vars` is still uninstantiated without lower bound.
     pub fn any_open_constructor(&mut self, vars: &[tasty::VarId]) -> bool {
         vars.iter()
             .any(|&v| self.constraint.instance(v).is_none() && self.constraint.bounds(v).0 == tasty::NOTHING)
