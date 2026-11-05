@@ -4,6 +4,7 @@
 mod decode;
 mod flexible;
 mod map;
+mod narrowing;
 mod parts;
 mod refinements;
 mod show;

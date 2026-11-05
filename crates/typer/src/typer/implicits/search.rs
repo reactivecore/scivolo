@@ -49,6 +49,7 @@ impl Typer<'_> {
     ) -> Result<TNodeId, &'static str> {
         let outermost = self.history.open.is_empty();
         self.constraint.enter_search();
+        let constructors = self.constructor_vars(pt);
         let found = match self.var_upper_bound(pt) {
             Some(hi) => self.arg_search(hi, at, ctx, depth).and_then(|t| {
                 let tpe = self.tpd.tpe(t);
@@ -57,6 +58,9 @@ impl Typer<'_> {
             None => self.arg_search(pt, at, ctx, depth),
         };
         self.constraint.leave_search();
+        if found.is_ok() && self.any_open_constructor(&constructors) {
+            return Err("higher-kinded type variable left without lower bound by an implicit search");
+        }
         if outermost { self.emitted(found, at, ctx) } else { found }
     }
 
@@ -140,16 +144,6 @@ impl Typer<'_> {
         }
     }
 
-    /// The type arguments of `t` if it refers to class `name`.
-    pub fn class_args(&mut self, t: TypeId, name: &str) -> Option<Vec<TypeId>> {
-        let (tycon, args) = match self.u.types().get(t).clone() {
-            Type::Applied(tycon, args) => (tycon, args),
-            _ => (t, Vec::new()),
-        };
-        let class = self.u.class_symbol(tycon)?;
-        (self.u.full_name(class) == name).then_some(args)
-    }
-
     /// Candidate `c`, an implicit that may fit, as an argument of type `pt`: referenced, applied
     /// to type variables and to its own implicit arguments, eta-expanded if it is a method and
     /// `pt` a function type. If `shallow`, the reference once its type fits.
@@ -171,10 +165,8 @@ impl Typer<'_> {
         };
         let stripped = self.strip_implicit(info);
         let method = matches!(self.u.types().get(stripped), Type::Method { .. });
-        match self.implicit_value_type(info, c.sym, pt) {
-            Some(value) if self.conforms(value, pt) => {}
-            _ => return Err("implicit of another type"),
-        }
+        let contextual = self.context_function_parts(pt).is_some();
+        let direct = self.implicit_fit(info, c.sym, pt).ok_or("implicit of another type")?;
         if shallow {
             return Ok(tree);
         }
@@ -182,12 +174,18 @@ impl Typer<'_> {
             return Err("implicit search too costly");
         }
         self.implicit_budget -= 1;
+        if contextual {
+            return self.contextual_implicit(tree, pt, ctx);
+        }
         let applied = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
         if applied != tree {
             self.interpolate(applied, Pt::Type(pt), from)?;
         }
-        let tree = applied;
-        let tree = if method { self.eta_expanded_implicit(tree, pt, ctx)? } else { tree };
+        let tree = match (method, direct) {
+            (true, _) => self.eta_expanded_implicit(applied, pt, ctx)?,
+            (false, false) => self.context_applied_implicit(applied, pt, ctx)?,
+            (false, true) => applied,
+        };
         let tree = self.inlined_transparent(tree, Pt::Type(pt), ctx).unwrap_or(tree);
         self.record_inline_call(tree, ctx);
         self.record_implicit_type_quote(tree, ctx);

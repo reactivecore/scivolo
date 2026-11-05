@@ -59,6 +59,8 @@ pub struct Definitions {
     pub and: SymbolId,
     /// `scala.runtime.BoxedUnit.UNIT`, a Java static field.
     pub boxed_unit_unit: SymbolId,
+    /// The library's `BoxedUnit.UNIT` if it is a method.
+    pub boxed_unit_method: Option<SymbolId>,
     /// dotty's `<special-ops>.throw`.
     pub throw: SymbolId,
     primitives: [Option<Primitive>; 8],
@@ -101,6 +103,9 @@ impl Definitions {
             object_clone: member(u, b.object, "clone", Kind::Def)?,
             and: member(u, boolean, "&&", Kind::Def)?,
             boxed_unit_unit: defined::boxed_unit_unit(u, runtime),
+            boxed_unit_method: member(u, runtime, "BoxedUnit$", Kind::Class)
+                .and_then(|statics| member(u, statics, "UNIT", Kind::Def))
+                .ok(),
             throw: patmat::throw(u)?,
             primitives: [None; 8],
             equality: None,
@@ -116,6 +121,11 @@ impl Definitions {
             scala_run_time: None,
             array_clone: None,
         })
+    }
+
+    /// Whether `s` is `BoxedUnit.UNIT` (dotty's `BoxedUnit_UNIT`).
+    pub fn is_boxed_unit(&self, s: SymbolId) -> bool {
+        s == self.boxed_unit_unit || Some(s) == self.boxed_unit_method
     }
 }
 

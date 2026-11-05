@@ -229,7 +229,7 @@ fn deferred_def(l: &mut Lower, acc: SymbolId, info: TypeId, span: Span) -> TNode
 
 /// New type parameters of method `acc` for those of its type `info`, and the result of `info`
 /// referring to them.
-fn type_params(l: &mut Lower, acc: SymbolId, info: TypeId) -> (Vec<SymbolId>, TypeId) {
+pub fn type_params(l: &mut Lower, acc: SymbolId, info: TypeId) -> (Vec<SymbolId>, TypeId) {
     let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
         return (Vec::new(), info);
     };

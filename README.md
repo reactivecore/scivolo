@@ -55,7 +55,7 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
   and VM.
 - **Macros:** 308 of dotty's 321 `tests/run-macros` pass.
 - **Scala Native's library through the own frontend:** javalib 601 of 601 files, auxlib 15 of
-  15, nativelib 103 of 103, clib, posixlib and windowslib complete; scalalib 622 of 649.
+  15, nativelib 103 of 103, clib, posixlib and windowslib complete; scalalib 637 of 649.
 - **com-lihaoyi libraries from source:** fastparse, mainargs, upickle, ujson, pprint, os-lib,
   geny, fansi and sourcecode compile through the own frontend, every file, macros included;
   1,777 of their 1,786 NIR files are the same as scala-cli's.
@@ -209,7 +209,7 @@ Outside the crates:
 | `libs/javalib-tasty-0.5.12.jar` | TASTy of Scala Native's javalib, which the published jar lacks | `just javalib-tasty` |
 | `libs/jdk-stubs.jar` | TASTy of the JDK classes javalib's sources use, and the JDK's declarations nativelib's see (`libs/jdk-stubs`), for `just lib-compile` | `just jdk-stubs` |
 | `libs/jdk-declarations.jar` | TASTy of `JdkDeclarations.scala`, the JDK's declarations every other compile types javalib's classes from (ADR 0072) | `just jdk-stubs` |
-| `libs/jdk-stubs/JdkConstants.scala` | The JDK's constants of javalib's classes (ADR 0072) | `python3 scripts/jdk_constants.py` |
+| `libs/jdk-stubs/JdkConstants.scala`, `JdkClassConstants.scala` | The JDK's constants of javalib's classes and of the `java.lang` classes it lacks (ADR 0072) | `python3 scripts/jdk_constants.py` |
 | `tests/programs/*/` | NIR and `.check` output of each test program, compiled by Scala Native 0.5.12: the byte oracle | `just program-update NAME` |
 | `overlay/nir` | NIR of `overlay/src`, compiled by Scala Native's compiler | `just overlay` |
 | `tests/macros/lib/macros.jar`, `crates/*/tests/**` jars, `.nir`, `.tasty` | Test fixtures compiled by dotty or Scala Native | `just macro-fixture`, `just inline-fixture` |

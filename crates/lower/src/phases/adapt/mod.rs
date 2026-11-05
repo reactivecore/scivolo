@@ -68,7 +68,7 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
         Tree::Block { expr, .. } => erased_type(l, expr),
         Tree::If { .. } | Tree::Try { .. } if l.boxed_types.contains(&t) => l.u.erase_boxed(l.tpd.tpe(t)),
         Tree::Typed { tpt, .. } => ascription_type(l, tpt),
-        Tree::Ident { .. } | Tree::Select { .. } if sym == Some(l.defs.boxed_unit_unit) => {
+        Tree::Ident { .. } | Tree::Select { .. } if sym.is_some_and(|s| l.defs.is_boxed_unit(s)) => {
             Erased::Class("scala.runtime.BoxedUnit".into())
         }
         Tree::Ident { .. } | Tree::Select { .. } => match sym {

@@ -25,6 +25,7 @@ impl Typer<'_> {
                 pctx
             }
         };
+        self.complete_top_level_class(&stat_ids);
         let mut typed = self.typed_stats(&stat_ids, pctx);
         self.typed_annotations();
         let proxies = self.main_proxies(&typed, pctx);

@@ -586,7 +586,7 @@ javalib-tasty:
 # Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs as dotty's pickler writes
 # it (scala-cli) but that of JdkMemberDeclarations.scala and JdkConstants.scala, and
 # libs/jdk-declarations.jar, that of JdkDeclarations.scala, JdkMemberDeclarations.scala and
-# JdkConstants.scala under jdk-declarations/ and that of JdkClasses.scala.
+# JdkConstants.scala under jdk-declarations/ and that of JdkClasses.scala and JdkClassConstants.scala.
 jdk-stubs:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -602,7 +602,7 @@ jdk-stubs:
         | zip -q -X {{ justfile_directory() }}/libs/jdk-stubs.jar -@)
     mkdir -p tmp/jdk-stubs/decl/jdk-declarations
     (cd tmp/jdk-stubs/out && grep -rlE --include='*.tasty' 'Jdk((Member)?Declarations|Constants).scala' . | cpio -pdm ../decl/jdk-declarations 2> /dev/null)
-    (cd tmp/jdk-stubs/out && grep -rl --include='*.tasty' JdkClasses.scala . | cpio -pdm ../decl 2> /dev/null)
+    (cd tmp/jdk-stubs/out && grep -rlE --include='*.tasty' 'JdkClass(es|Constants).scala' . | cpio -pdm ../decl 2> /dev/null)
     rm -f libs/jdk-declarations.jar
     (cd tmp/jdk-stubs/decl && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-declarations.jar -@)
 

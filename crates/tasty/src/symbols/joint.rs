@@ -62,7 +62,7 @@ impl Universe {
             if self.joint_members[&m].iter().any(|&(s, _)| s == t) {
                 return Some(t);
             }
-            t = match *self.types().get(t) {
+            t = match self.types().get(t).clone() {
                 Type::And(a, b) => return self.joint_site(a, m).or_else(|| self.joint_site(b, m)),
                 Type::This(c) => {
                     let c = self.class_symbol(c)?;
@@ -70,6 +70,11 @@ impl Universe {
                     self.self_type(c)
                 }
                 Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Rec(_, p) | Type::Bounds(_, p) => p,
+                Type::Applied(tycon, args) if self.dealias(t) == t => {
+                    let hi = self.abstract_upper(tycon)?;
+                    let applied = self.intern_type(Type::Applied(hi, args));
+                    self.beta_reduced(applied)
+                }
                 _ => match self.widen_once(t) {
                     Some(w) => w,
                     None => match self.dealias(t) {
@@ -136,34 +141,8 @@ impl Universe {
         }
     }
 
-    /// The result types `a` and `b` of members `sa` and `sb`, `sb`'s type parameters, symbols or
-    /// those of its leading polymorphic clause, replaced by `sa`'s.
-    pub fn aligned_results(
-        &mut self,
-        (sa, a): (SymbolId, TypeId),
-        (sb, b): (SymbolId, TypeId),
-    ) -> (TypeId, TypeId) {
-        let (ra, mut rb) = (self.result_type(a), self.result_type(b));
-        if let (Type::Poly { binder, params, .. }, Type::Poly { binder: b2, params: p2, .. }) =
-            (self.types().get(a).clone(), self.types().get(b).clone())
-            && params.len() == p2.len()
-        {
-            rb = self.with_binder(rb, (b2, &p2), binder);
-        }
-        let (ta, tb) = (self.type_params(sa), self.type_params(sb));
-        if ta.len() == tb.len() && ta != tb {
-            rb = self.map_type(rb, &mut |u, t| match *u.types().get(t) {
-                Type::Sym(None, s) => {
-                    tb.iter().position(|&p| p == s).map(|i| u.intern_type(Type::Sym(None, ta[i])))
-                }
-                _ => None,
-            });
-        }
-        (ra, rb)
-    }
-
     /// `t` with the parameters of `binder`, named as `params`, replaced by those of `to`.
-    fn with_binder(
+    pub fn with_binder(
         &mut self,
         t: TypeId,
         (binder, params): (Binder, &[(String, TypeId)]),
@@ -187,8 +166,7 @@ impl Universe {
     }
 }
 
-/// The names of `a`'s parameters, a synthetic one where `b`'s differs (dotty's
-/// `mergeParamNames`).
+/// The names of `a`'s parameters, a synthetic one where `b`'s differs (dotty's `mergeParamNames`).
 fn merged_names(a: &[(String, TypeId)], b: &[(String, TypeId)], synthetic: &str) -> Vec<String> {
     a.iter()
         .zip(b)

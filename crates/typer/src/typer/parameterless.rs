@@ -114,14 +114,20 @@ impl Typer<'_> {
                 values.extend(fun.filter(|&f| self.u.is_subtype(tpe, f)).map(|_| s));
                 continue;
             }
-            let formals = match self.param_types(s, prefix, false) {
-                Some((formals, false)) => formals,
-                Some((formals, true)) if formals.len() != args.len() => continue,
-                _ => return Err("overloaded reference against a function type"),
+            let before = self.constraint.attempt();
+            let fits = match self.param_types(s, prefix, true) {
+                Some((formals, false)) => {
+                    formals.len() == args.len()
+                        && args.iter().zip(&formals).all(|(&a, &f)| self.conforms(a, f))
+                }
+                Some((formals, true)) if formals.len() != args.len() => false,
+                _ => {
+                    self.constraint.abandon(before);
+                    return Err("overloaded reference against a function type");
+                }
             };
-            if formals.len() == args.len()
-                && args.iter().zip(&formals).all(|(&a, &f)| self.u.is_subtype(a, f))
-            {
+            self.constraint.abandon(before);
+            if fits {
                 fitting.push(s);
             }
         }

@@ -85,8 +85,8 @@ impl Gen<'_, '_> {
     pub fn class_interfaces(&mut self, c: tasty::SymbolId) -> Vec<nir::GlobalId> {
         let parents = self.l.u.parents(c);
         let classes: Vec<_> = parents.into_iter().filter_map(|p| self.l.u.class_symbol(p)).collect();
-        let pure = |s| self.l.u.full_name(s) == "scala.caps.Pure";
-        let traits: Vec<_> = classes.into_iter().filter(|&s| self.l.u.is_trait(s) && !pure(s)).collect();
+        let erased = |s| matches!(self.l.u.full_name(s).as_str(), "scala.caps.Pure" | "scala.Matchable");
+        let traits: Vec<_> = classes.into_iter().filter(|&s| self.l.u.is_trait(s) && !erased(s)).collect();
         erased_classes(self.l, traits).into_iter().map(|t| self.type_name(t)).collect()
     }
 

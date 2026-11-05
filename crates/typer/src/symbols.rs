@@ -31,6 +31,8 @@ pub enum Completion {
 pub struct Syms {
     pub flags: FxHashMap<SymbolId, FlagSet>,
     pub completions: FxHashMap<SymbolId, Completion>,
+    /// The type definitions whose infos are being checked for cycles (dotty's `NoCompleter`).
+    pub checking: Vec<SymbolId>,
     /// The span of the `@main` annotation of each method that has one; the universe keeps the
     /// classes of all annotations.
     pub main_annotations: FxHashMap<SymbolId, Span>,

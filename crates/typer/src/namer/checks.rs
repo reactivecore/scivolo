@@ -94,35 +94,6 @@ impl Typer<'_> {
         }
     }
 
-    /// Checks that the bounds or alias `info` of type `sym` do not lead back to `sym` other than
-    /// through a class's type arguments (dotty's `checkNonCyclic`).
-    pub fn check_non_cyclic(&mut self, sym: SymbolId, info: tasty::TypeId, tree: NodeId) {
-        if self.reaches(info, sym, 0) {
-            self.unsupported(tree, "cyclic type reference");
-        }
-    }
-
-    fn reaches(&mut self, t: tasty::TypeId, target: SymbolId, depth: u32) -> bool {
-        use tasty::Type;
-        if depth > 32 {
-            return true;
-        }
-        let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
-            Type::Sym(_, s) if s == target => true,
-            Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::TypeParam | Kind::Type) => {
-                self.complete(s);
-                let info = self.u.info(s);
-                self.reaches(info, target, depth + 1)
-            }
-            Type::Bounds(a, b) | Type::And(a, b) | Type::Or(a, b, _) => {
-                self.reaches(a, target, depth + 1) || self.reaches(b, target, depth + 1)
-            }
-            Type::Alias(a) | Type::Applied(a, _) => self.reaches(a, target, depth + 1),
-            _ => false,
-        }
-    }
-
     /// Whether `owner` is a class that may declare abstract members: not an object.
     fn is_class_owner(&self, owner: SymbolId) -> bool {
         let s = self.u.symbol(owner);

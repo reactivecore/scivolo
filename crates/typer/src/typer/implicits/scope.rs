@@ -31,7 +31,9 @@ impl Typer<'_> {
     pub fn implicit_scope_of(&mut self, t: TypeId) -> Result<ImplicitScope, &'static str> {
         let t = self.zonk(t);
         let mut parts = Parts::default();
-        self.collect_parts(t, &mut Vec::new(), &mut parts);
+        let mut seen = Vec::new();
+        self.collect_parts(t, &mut seen, &mut parts);
+        self.collect_parent_args(&mut seen, &mut parts);
         let mut out = ImplicitScope::default();
         for (c, prefix) in parts.classes {
             let class_ref = match prefix {
