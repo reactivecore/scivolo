@@ -63,6 +63,7 @@ impl Typer<'_> {
         self.untuple_unless_unary(proto, &methods)?;
         let n = self.protos[proto].args.len();
         let mut fitting = Vec::new();
+        let mut applies = Vec::new();
         for s in methods {
             let info = self.u.info(s);
             let Some((_, ps)) = self.u.param_clauses(info).into_iter().next() else {
@@ -76,7 +77,7 @@ impl Typer<'_> {
                     if let Some((_, aps)) = self.u.param_clauses(apply_info).into_iter().next()
                         && self.size_fits(apply, &aps, n)
                     {
-                        return Err("overloaded method whose result has an apply method");
+                        applies.push(apply);
                     }
                 }
                 continue;
@@ -98,11 +99,44 @@ impl Typer<'_> {
                 fitting.push(s);
             }
         }
-        match fitting.as_slice() {
+        let chosen = match fitting.as_slice() {
             [s] => Ok(*s),
-            [] => Err("no alternative with that many arguments"),
+            [] if applies.is_empty() => Err("no alternative with that many arguments"),
+            [] => Err("overloaded method whose result has an apply method"),
             _ => self.resolve_overloaded(&fitting, prefix, proto),
+        }?;
+        if !applies.is_empty() && !self.wins_over_applies(chosen, &applies, prefix, proto) {
+            return Err("overloaded method whose result has an apply method");
         }
+        Ok(chosen)
+    }
+
+    /// Whether method `m`, a member of `prefix`, applies to the arguments of `proto` and is
+    /// better than the `apply` members `applies` of other alternatives' results by its owner: a
+    /// module whose companion class derives from theirs (dotty's `compareOwner`).
+    fn wins_over_applies(
+        &mut self,
+        m: SymbolId,
+        applies: &[SymbolId],
+        prefix: Option<TypeId>,
+        proto: usize,
+    ) -> bool {
+        let Some(owner) = self.u.symbol(m).owner else { return false };
+        let class = match self.u.is_module_class(owner) {
+            true => self.u.companion_class(owner),
+            false => None,
+        };
+        for &a in applies {
+            let Some(a_owner) = self.u.symbol(a).owner else { return false };
+            let derives = |t: &mut Self, c: SymbolId| c != a_owner && t.u.derives_from(c, a_owner);
+            let better = derives(self, owner) || class.is_some_and(|c| derives(self, c));
+            if !better || self.u.derives_from(a_owner, owner) {
+                return false;
+            }
+        }
+        let Ok(arg_types) = self.proto_arg_types(proto, &[m], prefix) else { return false };
+        let ctx = self.protos[proto].ctx;
+        self.applicable_to_proto(m, prefix, (proto, &arg_types), false, ctx) == Some(true)
     }
 
     /// Whether method `s` of first-clause parameter types `ps` may take `n` arguments, missing
