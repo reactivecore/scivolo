@@ -40,6 +40,7 @@ impl Universe {
             types: Types::default(),
             infos: FxHashMap::default(),
             nullified_infos: FxHashMap::default(),
+            gadt_bounds: Default::default(),
             parents: FxHashMap::default(),
             linearizations: FxHashMap::default(),
             disagreeing_bases: FxHashMap::default(),

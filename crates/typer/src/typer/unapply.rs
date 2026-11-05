@@ -236,13 +236,22 @@ impl Typer<'_> {
         if unconstrained && variances.values().any(|&v| v == 0) {
             return Err("invariant type arguments of a pattern of an open class");
         }
+        let mut gadt = Vec::new();
         if !unconstrained && !self.constrain_pattern(arg_type, sel)? {
             self.constraint.rollback(mark);
-            if self.has_abstract_arg(sel) {
-                return Err("pattern constraining type parameters (GADT)");
+            match self.gadt_vars((arg_type, vars), sel, ctx)? {
+                Some(narrowed) => gadt = narrowed,
+                None => {
+                    self.constraint.rollback(mark);
+                    if self.has_abstract_arg(sel) {
+                        return Err("pattern constraining type parameters (GADT)");
+                    }
+                }
             }
         }
-        let bound = self.maximize_type(arg_type, vars, unapp, ctx)?;
+        let bound = self.maximize_type(arg_type, (vars, &gadt), unapp, ctx)?;
+        self.narrow_gadt(&gadt)?;
+        self.gadt_bind(&bound);
         self.add_binders(unapp, &bound);
         Ok(self.zonk(arg_type))
     }
