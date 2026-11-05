@@ -70,6 +70,24 @@ impl Typer<'_> {
         }
     }
 
+    /// Adds to `parts` the parts of the type arguments of the parents of its classes and of
+    /// their base classes (dotty's `iscopeRefs` of a class's parents).
+    pub fn collect_parent_args(&mut self, seen: &mut Vec<TypeId>, parts: &mut Parts) {
+        let mut i = 0;
+        while let Some(&(c, _)) = parts.classes.get(i) {
+            for base in self.u.linearization(c) {
+                for parent in self.u.parents(base) {
+                    if let Type::Applied(_, args) = self.u.types().get(parent).clone() {
+                        for arg in args {
+                            self.collect_parts(arg, seen, parts);
+                        }
+                    }
+                }
+            }
+            i += 1;
+        }
+    }
+
     /// The symbol reference `t` refers to.
     pub fn referenced(&mut self, t: TypeId) -> Option<SymbolId> {
         match self.u.types().get(t).clone() {
