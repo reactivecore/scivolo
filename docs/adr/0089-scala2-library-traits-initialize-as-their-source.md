@@ -12,15 +12,16 @@ one scalalib file at a time against the published `scala-library` TASTy, where t
 `NoInits`. A user program compiled by dotty against the same TASTy calls none of them.
 
 ## Decision
-- A run builds the Scala 2 library when a unit replaces a top-level class of a TASTy file with
-  the Scala 2 library attribute (the namer's `unenter_classpath_members`).
-- In such a run, a class of a Scala 2 library TASTy file whose names include `2.13` (the
-  ``language.`2.13` `` import) initializes by `defKind`'s Scala 2 rule: a concrete method other
-  than the constructor, or a class, is initialization.
-- Function classes get no `$init$` call and keep their closures (dotty's `Mixin.superCallOpt`
-  and `ExpandSAMs` exempt `isFunctionClass`).
+- A run builds the Scala library when a unit replaces a top-level TASTy class of package `scala`
+  outside `scala.scalanative` (the namer's `unenter_classpath_members`).
+- In such a run, a class of a TASTy file with the Scala 2 library attribute (written for the
+  files importing ``language.`2.13` ``) initializes by `defKind`'s Scala 2 rule: a concrete
+  method other than the constructor, or a class, is initialization.
+- Function classes get no `$init$` call and closures of them stay closures (dotty's
+  `Mixin.superCallOpt` and `ExpandSAMs` exempt `isFunctionClass`).
 
 ## Consequences
-- Other runs, user programs among them, keep `TreeUnpickler`'s answer.
-- A library trait that now initializes gets its mixin forwarders and super accessors as a unit
-  trait does, and its SAM closures are expanded to classes, as in Scala Native's build.
+- Other runs, user programs and the other Scala Native libraries among them, keep
+  `TreeUnpickler`'s answer.
+- A library trait that now initializes gets its trait fields and super accessors as a unit trait
+  does, and its SAM closures become classes, as in Scala Native's build.
