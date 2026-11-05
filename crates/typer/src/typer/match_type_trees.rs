@@ -18,6 +18,7 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> TNodeId {
         let bound = bound.map(|b| self.typed_type(b, ctx)).map(|b| self.tpd.tpe(b));
+        bound.inspect(|&b| self.complete_type_members(b));
         let selector = self.typed_type(selector, ctx);
         let scrutinee = self.tpd.tpe(selector);
         if self.type_arity(scrutinee) > 0 {
@@ -38,8 +39,10 @@ impl Typer<'_> {
             if bound.is_some_and(|b| !self.u.is_subtype(body, b)) {
                 return self.unsupported(c, "match type case body outside the bound");
             }
-            let avoided = self.avoid_captures(body, &captures, 1);
-            lub = self.u.lub(lub, avoided);
+            if lub != ANY {
+                let avoided = self.avoid_captures(body, &captures, 1);
+                lub = if self.is_provisional_type(body) { ANY } else { self.u.lub(lub, avoided) };
+            }
             case_types.push(case);
         }
         let bound = bound.unwrap_or(lub);

@@ -73,7 +73,7 @@ impl Typer<'_> {
         };
         let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return None };
         match *self.ast.tree(rhs) {
-            _ if self.is_provisional(tree) => None,
+            _ if self.is_match_alias(tree) => None,
             Tree::LambdaTypeTree { tparams, .. } => Some(self.ast.items(tparams).len()),
             _ => Some(0),
         }

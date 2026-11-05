@@ -6,9 +6,9 @@ use syntax::ast::{NodeId, TName};
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Projection `id`, `qual#name`, of type alias `sym` of `alias`: the alias with the aliases
-    /// of its owner it refers to expanded, dealiased, its class its symbol; refused if it refers
-    /// to `this` or to another member of `sym`'s owner.
+    /// Projection `id`, `qual#name`, of type alias `sym` of `alias`: the alias seen from `qual`
+    /// with the aliases of its owner it refers to expanded, dealiased, its class its symbol;
+    /// refused if it refers to `this` or to another member of `sym`'s owner.
     pub fn alias_projection(
         &mut self,
         id: NodeId,
@@ -17,7 +17,18 @@ impl Typer<'_> {
         alias: TypeId,
     ) -> TNodeId {
         let owner = self.u.symbol(sym).owner;
-        let Some(alias) = self.expand_owner_aliases(alias, owner) else {
+        let seen = match self.refers_to_this(alias) {
+            true => alias,
+            false => {
+                let pre = self.tpd.tpe(qual);
+                let info = self.u.member_info(pre, sym);
+                match *self.u.types().get(info) {
+                    Type::Alias(a) => a,
+                    _ => alias,
+                }
+            }
+        };
+        let Some(alias) = self.expand_owner_aliases(seen, owner) else {
             return self.unsupported(id, "projection of a type alias referring to its owner");
         };
         let tpe = self.u.dealias(alias);
@@ -27,6 +38,20 @@ impl Typer<'_> {
         };
         let span = self.ast.span(id);
         self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), class)
+    }
+
+    /// Whether `t` refers to the `this` of a class other than to select a type parameter.
+    fn refers_to_this(&mut self, t: TypeId) -> bool {
+        let mut this = false;
+        self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
+            Type::Sym(Some(_), s) if u.symbol(s).kind == tasty::Kind::TypeParam => Some(part),
+            Type::This(c) => {
+                this |= !matches!(u.types().get(c), Type::Package(_));
+                None
+            }
+            _ => None,
+        });
+        this
     }
 
     /// `t` with each type alias of class `owner` it refers to replaced by its alias; `None` if it

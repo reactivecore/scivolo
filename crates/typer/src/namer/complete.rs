@@ -14,10 +14,14 @@ impl Typer<'_> {
     pub fn complete(&mut self, sym: SymbolId) {
         let (tree, ctx) = match self.syms.completions.get(&sym) {
             Some(&Completion::Pending { tree, ctx }) => (tree, ctx),
-            Some(&Completion::Completing(tree)) if !self.is_class_def(tree) && !self.is_provisional(tree) => {
+            Some(&Completion::Completing(tree)) if !matches!(self.ast.tree(tree), Tree::TypeDef { .. }) => {
                 self.unsupported(tree, "cyclic reference");
                 let error = self.u.intern_type(Type::Error);
                 return self.u.set_info(sym, error);
+            }
+            Some(&Completion::Completing(tree)) if self.syms.checking.contains(&sym) => {
+                self.unsupported(tree, "cyclic reference");
+                return;
             }
             _ if self.syms.incomplete.contains(&sym) => {
                 return self.unsupported_at(Span::NONE, "definition left incomplete by a failed unit");
@@ -80,8 +84,14 @@ impl Typer<'_> {
         self.history.open = open;
     }
 
-    fn is_class_def(&self, tree: NodeId) -> bool {
-        matches!(*self.ast.tree(tree), Tree::TypeDef { rhs, .. } if matches!(self.ast.tree(rhs), Tree::Template { .. }))
+    /// Completes the class of the top-level definitions among package statements `stats`.
+    pub fn complete_top_level_class(&mut self, stats: &[NodeId]) {
+        let classes = stats.iter().filter_map(|s| self.syms.by_tree.get(s).copied());
+        let top =
+            classes.into_iter().find(|&c| self.u.is_class(c) && self.u.symbol(c).name.ends_with("$package$"));
+        if let Some(c) = top {
+            self.complete(c);
+        }
     }
 
     /// The type of value type tree `tpt`, typed ahead in `ctx`.

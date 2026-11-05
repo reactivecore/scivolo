@@ -23,6 +23,7 @@ mod inheritance;
 mod inherited;
 mod inline_checks;
 mod module_vals;
+mod non_cyclic;
 mod params;
 mod provisional;
 mod split_companions;
