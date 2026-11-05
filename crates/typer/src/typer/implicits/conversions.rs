@@ -136,7 +136,7 @@ impl Typer<'_> {
         }
         let arg_tpe = self.tpd.tpe(tree);
         let arg = if self.conforms(arg_tpe, param) {
-            tree
+            self.gadt_adapted(tree, param, ctx)
         } else if let Some(c) = self.captured_wildcards(arg_tpe).filter(|&c| self.conforms(c, param)) {
             self.cast_to_captured(tree, c)?
         } else if widen && self.widens_to(arg_tpe, param) {

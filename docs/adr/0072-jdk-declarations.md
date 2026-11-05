@@ -34,3 +34,7 @@ JDK's declarations, as whole classes in place of javalib's (`--jdk-tasty libs/jd
 - A JDK member typed differently by javalib is fixed by declaring it in `JdkDeclarations.scala`
   with its overloads (checked with `javap`), then `just jdk-stubs`.
 - A javalib member the JDK lacks is hidden only if a declaration shares its name.
+- The JDK's constants (`static final` fields with a `ConstantValue`) are declared as constants:
+  `scripts/jdk_constants.py` generates `JdkConstants.scala` from `javap -constants` for the
+  classes the other files do not declare and lists the constants those lack. Like
+  `JdkMemberDeclarations.scala`, it stays out of `libs/jdk-stubs.jar`.
