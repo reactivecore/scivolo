@@ -67,8 +67,9 @@ pub fn compile_with(
         }
         Err(Fallback::Errors(diags)) => return Err(Refusal { what: "type errors".into(), diags }),
     };
+    let sources = (Sources::one(source), cfg.explicit_nulls);
     let files =
-        crate::lower(u, &mut typed.tpd, typed.root, p.s.names, &mut p.fresh, source).map_err(|e| {
+        lower_sources(u, &mut typed.tpd, typed.root, (p.s.names, &mut p.fresh), sources).map_err(|e| {
             Refusal::new(format!("the lowering does not support {}{}", e.what, at_point(source, e.at)))
         })?;
     Ok((files, typed.diags))
@@ -83,7 +84,7 @@ fn at_point(source: &SourceFile, at: Span) -> String {
     format!(" at {}:{}", source.offset_to_line(point) + 1, source.column(point) + 1)
 }
 
-/// The NIR files of typed unit `root`, one per top-level name.
+/// The NIR files of typed unit `root`, one per top-level name, typed without explicit nulls.
 pub fn lower(
     u: &mut Universe,
     tpd: &mut Tpd,
@@ -92,5 +93,5 @@ pub fn lower(
     fresh: &mut FreshNames,
     source: &SourceFile,
 ) -> crate::Result<Vec<NirFile>> {
-    lower_sources(u, tpd, root, (names, fresh), Sources::one(source))
+    lower_sources(u, tpd, root, (names, fresh), (Sources::one(source), false))
 }

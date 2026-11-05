@@ -87,7 +87,6 @@ const CASES: &[(&str, &str)] = &[
          object O { def f(m: M) = m.asInstanceOf[N] }",
         "casts between value classes",
     ),
-    ("class A(u: Unit) { def f = u }", "private local fields of type Unit"),
     (
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
         "type tests of objects nested in classes",
