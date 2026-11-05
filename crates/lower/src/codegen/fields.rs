@@ -73,7 +73,7 @@ impl Gen<'_, '_> {
         };
         let attrs = self.field_attrs(f, c, attrs);
         let info = self.l.u.info(f);
-        let ty = self.gen_type(info);
+        let ty = self.value_type(info);
         let rhs = self.val(Val::Zero(ty));
         let name = self.field_name(f);
         self.defns.push(Defn { name, attrs, pos, kind: DefnKind::Var { ty, rhs } });
@@ -100,7 +100,7 @@ impl Gen<'_, '_> {
         if has(self.l.u, f, STATIC) {
             return self.gen_apply_static(f, None, &[], self.l.tpd.span(t));
         }
-        let ty = self.gen_type(self.l.tpd.tpe(t));
+        let ty = self.value_type(self.l.tpd.tpe(t));
         let obj = self.field_owner(f, qual, self.l.tpd.span(t))?;
         let owner = self.l.u.symbol(f).owner.expect("a field's class");
         if self.is_struct(owner) {
@@ -209,7 +209,7 @@ impl Gen<'_, '_> {
         }
         let saved = self.at_span(span);
         let obj = self.field_owner(f, qualifier, span)?;
-        let ty = self.gen_type(self.l.tpd.tpe(lhs));
+        let ty = self.value_type(self.l.tpd.tpe(lhs));
         let value = self.gen_expr(rhs)?;
         self.check_conforms(value, ty, span)?;
         let name = self.field_name(f);
