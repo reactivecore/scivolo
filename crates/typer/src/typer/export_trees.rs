@@ -77,7 +77,7 @@ impl Typer<'_> {
             let refs: Vec<TypeId> = syms.iter().map(|&s| self.u.intern_type(Type::Sym(None, s))).collect();
             tpe = self.u.subst(result, binder, &names, &refs);
             let (defs, args) = self.forwarder_params(&syms, poly, at, path_clauses > 0, path_span);
-            let applied = if path_clauses > 0 { self.applied_path_type(fun, &refs) } else { tpe };
+            let applied = if path_clauses > 0 || poly { self.applied_path_type(fun, &refs) } else { tpe };
             let span = if path_clauses > 0 { path_span.to_synthetic() } else { at };
             fun = match poly {
                 true => self.build().type_apply(fun, &args, applied, span),
