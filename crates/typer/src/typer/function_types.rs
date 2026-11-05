@@ -77,9 +77,9 @@ impl Typer<'_> {
         contextual: bool,
     ) -> Result<(Option<Parts>, Option<super::sams::SamParent>), TNodeId> {
         let Pt::Type(p) = pt else { return Ok((None, None)) };
-        let z = self.zonk(p);
-        let p = match *self.u.types().get(z) {
-            Type::Or(..) | Type::And(..) | Type::Flexible(_) => match self.function_type_in(z) {
+        let p = self.var_upper(p);
+        let p = match *self.u.types().get(p) {
+            Type::Or(..) | Type::And(..) | Type::Flexible(_) => match self.function_type_in(p) {
                 Some(f) => f,
                 None => return Ok((None, None)),
             },

@@ -23,7 +23,7 @@ impl Typer<'_> {
         let info = self.method_info(tpe).unwrap_or(tpe);
         let params = self.u.method(info)?.param_types();
         if let Pt::Type(p) = pt
-            && let Some(n) = self.function_arity(p)
+            && let Some(n) = self.function_arity_below(p)
         {
             return Some(if !self.is_fully_defined(p) && self.is_fully_defined(info) { 0 } else { n });
         }
@@ -35,6 +35,12 @@ impl Typer<'_> {
     /// N if `t` is a `FunctionN` type.
     fn function_arity(&mut self, t: TypeId) -> Option<usize> {
         (0..=22).find(|&n| self.function_parts(t, n).is_some())
+    }
+
+    /// N if `t`, or the upper bound of the type variable it is, is a `FunctionN` type.
+    fn function_arity_below(&mut self, t: TypeId) -> Option<usize> {
+        let t = self.var_upper(t);
+        self.function_arity(t)
     }
 
     /// Whether `tree` refers to a constructor.
@@ -73,7 +79,11 @@ impl Typer<'_> {
             Type::Method { implicit, .. } => *implicit,
             _ => true,
         };
-        let (function, unannotated) = match pt {
+        let below = match pt {
+            Pt::Type(p) => Pt::Type(self.var_upper(p)),
+            _ => pt,
+        };
+        let (function, unannotated) = match below {
             Pt::Type(p)
                 if self.function_parts(p, params.len()).is_some()
                     || self.dependent_function_parts(p, params.len(), false).is_some() =>
