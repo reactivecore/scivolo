@@ -33,6 +33,14 @@ impl Gen<'_, '_> {
                 Tree::DefDef { .. } if stat == constr && module => {
                     clinit_stats = self.gen_module_constructor(&mut cf, stat, s)?;
                 }
+                Tree::DefDef { rhs, .. } if stat == constr && self.l.u.is_trait(sym) => {
+                    if rhs.is_some() {
+                        return unsupported(self.l.tpd.span(stat), "trait constructors on the JVM");
+                    }
+                }
+                Tree::DefDef { .. } if self.l.u.symbol(s).name == "$init$" => {
+                    return unsupported(self.l.tpd.span(stat), "trait initializers on the JVM");
+                }
                 Tree::DefDef { .. } => self.gen_method(&mut cf, stat, s)?,
                 Tree::ValDef { .. } => {
                     let info = self.l.u.info(s);
@@ -96,15 +104,18 @@ impl Gen<'_, '_> {
         (superclass, interfaces)
     }
 
-    /// The generic signature of class `c` without type parameters and with one parent that takes
-    /// no type arguments (dotty's `superSig`); none for other classes.
+    /// The generic signature of class `c` without type parameters whose parents take no type
+    /// arguments (dotty's `superSig`); none for other classes.
     fn class_signature(&mut self, c: SymbolId) -> Option<String> {
-        let [parent] = self.l.u.parents(c)[..] else { return None };
-        let plain =
-            self.l.u.type_params(c).is_empty() && !matches!(self.l.u.types().get(parent), Type::Applied(..));
-        let class = self.l.u.class_symbol(parent).filter(|_| plain)?;
-        let object = if self.l.u.is_trait(class) { "Ljava/lang/Object;" } else { "" };
-        Some(format!("{object}L{};", self.class_name(class)))
+        let parents = self.l.u.parents(c);
+        let applied = parents.iter().any(|&p| matches!(self.l.u.types().get(p), Type::Applied(..)));
+        if !self.l.u.type_params(c).is_empty() || applied || parents.is_empty() {
+            return None;
+        }
+        let classes = parents.iter().map(|&p| self.l.u.class_symbol(p)).collect::<Option<Vec<_>>>()?;
+        let object = if self.l.u.is_trait(classes[0]) { "Ljava/lang/Object;" } else { "" };
+        let parents: String = classes.iter().map(|&p| format!("L{};", self.class_name(p))).collect();
+        Some(format!("{object}{parents}"))
     }
 
     pub fn class_name(&self, c: SymbolId) -> String {

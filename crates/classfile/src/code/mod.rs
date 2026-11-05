@@ -129,10 +129,21 @@ impl Code {
     }
 
     pub fn invoke(&mut self, kind: Invoke, pool: &mut Pool, owner: &str, name: &str, descriptor: &str) {
+        self.invoke_in(kind, kind == Invoke::Interface, pool, (owner, name, descriptor));
+    }
+
+    /// An `invoke` of a method of `owner`, an interface if `interface`.
+    pub fn invoke_in(
+        &mut self,
+        kind: Invoke,
+        interface: bool,
+        pool: &mut Pool,
+        (owner, name, descriptor): (&str, &str, &str),
+    ) {
         let (params, result) = method_slots(descriptor);
         let receiver = i32::from(kind != Invoke::Static);
         let delta = result - params - receiver;
-        let r = if kind == Invoke::Interface { Ref::InterfaceMethod } else { Ref::Method };
+        let r = if interface { Ref::InterfaceMethod } else { Ref::Method };
         let index = pool.member(r, owner, name, descriptor).to_be_bytes();
         match kind {
             Invoke::Virtual => self.op(0xb6, &index, delta),

@@ -14,6 +14,7 @@ mod lub;
 mod method;
 mod mirror;
 mod prims;
+mod traits;
 
 use lower::{Lower, Result, Unsupported, jdk_class_name};
 use syntax::ast::Span;

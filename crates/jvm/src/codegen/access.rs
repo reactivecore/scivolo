@@ -14,18 +14,19 @@ use tasty::tags::{PRIVATE, STATIC};
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
-    /// Loads field `f` of `qualifier`, or stores `value` into it; returns the slots loaded.
+    /// Loads field `f` of `qualifier`, or of the class `prefix` of an identifier without one, or
+    /// stores `value` into it; returns the slots loaded.
     pub fn field(
         &mut self,
         b: &mut Body,
         f: SymbolId,
-        qualifier: TNodeId,
+        (qualifier, prefix): (Option<TNodeId>, Option<SymbolId>),
         value: Option<TNodeId>,
     ) -> Result<i32> {
         let owner = self.l.u.symbol(f).owner.expect("a field's owner");
         let info = self.l.u.info(f);
         let desc = descriptor(&self.l.u.erase(info));
-        let instance = self.receiver(b, f, Some(qualifier), None)?;
+        let instance = self.receiver(b, f, qualifier, prefix)?;
         let op = match (instance, value) {
             (true, None) => FieldOp::GetField,
             (false, None) => FieldOp::GetStatic,
@@ -100,6 +101,9 @@ impl Gen<'_, '_> {
         };
         let prefix = if qualifier.is_none() { self.ident_prefix(fun) } else { None };
         let mut result = classfile::method_slots(&desc).1;
+        let mut name = method_name(self.l.u, m);
+        let (mut call_desc, mut interface) = (desc.clone(), false);
+        let super_receiver = self.super_receiver(qualifier, m, owner);
         let kind = match qualifier.map(|q| self.l.tpd.tree(q).clone()) {
             Some(Tree::New { tpt }) => {
                 owner_name = class_internal(&self.l.u.erase(self.l.tpd.tpe(tpt)));
@@ -108,13 +112,21 @@ impl Gen<'_, '_> {
                 result = 1;
                 Invoke::Special
             }
-            Some(Tree::Super { .. }) if self.l.u.is_trait(owner) => {
-                return unsupported(span, "a super call of a trait method");
+            Some(Tree::Super { .. }) if self.l.u.is_trait(super_receiver) => {
+                if self.l.u.binary_name(owner).starts_with("java.") {
+                    return unsupported(span, "a super call of a Java interface method on the JVM");
+                }
+                owner_name = self.class_name(super_receiver);
+                self.load_this(b);
+                call_desc = format!("(L{};{}", self.class_name(owner), &desc[1..]);
+                if name != "$init$" {
+                    name.push('$');
+                }
+                interface = true;
+                Invoke::Static
             }
             Some(Tree::Super { .. }) => {
-                if let Some(Receiver::Class(c)) = qualifier.and_then(|q| self.receiver_class(q, m)) {
-                    owner_name = self.class_name(c);
-                }
+                owner_name = self.class_name(super_receiver);
                 self.load_this(b);
                 Invoke::Special
             }
@@ -144,8 +156,17 @@ impl Gen<'_, '_> {
                 return unsupported(self.l.tpd.span(a), "an argument of another JVM type");
             }
         }
-        let name = method_name(self.l.u, m);
-        b.code.invoke(kind, b.pool, &owner_name, &name, &desc);
+        let interface = interface || kind == Invoke::Interface;
+        b.code.invoke_in(kind, interface, b.pool, (&owner_name, &name, &call_desc));
         Ok(result)
+    }
+
+    /// The class named in the descriptor of `m` if `qualifier` is a `super`; else `owner`.
+    fn super_receiver(&mut self, qualifier: Option<TNodeId>, m: SymbolId, owner: SymbolId) -> SymbolId {
+        let qualifier = qualifier.filter(|&q| matches!(self.l.tpd.tree(q), Tree::Super { .. }));
+        match qualifier.and_then(|q| self.receiver_class(q, m)) {
+            Some(Receiver::Class(c)) => c,
+            _ => owner,
+        }
     }
 }

@@ -1,10 +1,9 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
-//! Method bodies: loads of literals, locals, `this` and objects (dotty's `genMethod` and
-//! `genLoad`).
+//! Method bodies: loads of literals, locals, fields and objects (dotty's `genMethod`, `genLoad`).
 
 use super::{Gen, class_internal, java_flags, method_descriptor, method_name, primitive_box, unsupported};
-use classfile::{ACC_STATIC, ClassFile, Code, FieldOp, Label, Pool};
+use classfile::{ACC_ABSTRACT, ACC_FINAL, ACC_STATIC, ClassFile, Code, FieldOp, Label, Pool};
 use lower::Result;
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -60,7 +59,11 @@ impl Gen<'_, '_> {
         let owner = self.l.u.symbol(sym).owner.expect("a method's owner");
         let this_class = (!static_).then(|| self.class_name(owner));
         let name = method_name(self.l.u, sym);
-        let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(dd), "abstract methods") };
+        let Some(rhs) = rhs else {
+            let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;
+            cf.method(flags, &name, &desc, None, &mut |a, b| self.jvm_lub(a, b));
+            return Ok(());
+        };
         let mut b = Body::new(&mut cf.pool, None, u16::from(!static_));
         b.this_class = this_class;
         b.method = Some(sym);
@@ -78,6 +81,7 @@ impl Gen<'_, '_> {
         self.method_body(&mut b, rhs, result)?;
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
+        self.trait_forwarder(cf, sym, flags, &desc);
         Ok(())
     }
 
@@ -127,10 +131,20 @@ impl Gen<'_, '_> {
                 classfile::value_slots(&desc)
             }
             Tree::Select { qualifier, .. } if let Some(f) = sym.filter(|&s| !self.is_method(s)) => {
-                self.field(b, f, qualifier, None)?
+                self.field(b, f, (Some(qualifier), None), None)?
+            }
+            Tree::Ident { .. } if let Some(f) = sym.filter(|&s| self.is_class_field(s)) => {
+                let prefix = self.ident_prefix(t);
+                self.field(b, f, (None, prefix), None)?
             }
             Tree::Assign { lhs, rhs } => match (self.l.tpd.tree(lhs), self.l.tpd.sym(lhs)) {
-                (&Tree::Select { qualifier, .. }, Some(f)) => self.field(b, f, qualifier, Some(rhs))?,
+                (&Tree::Select { qualifier, .. }, Some(f)) => {
+                    self.field(b, f, (Some(qualifier), None), Some(rhs))?
+                }
+                (&Tree::Ident { .. }, Some(f)) if self.is_class_field(f) => {
+                    let prefix = self.ident_prefix(lhs);
+                    self.field(b, f, (None, prefix), Some(rhs))?
+                }
                 _ => match self.assign_local(b, lhs, rhs)? {
                     Some(slots) => slots,
                     None => return unsupported(span, "an assignment to a variable of another method"),
@@ -180,5 +194,9 @@ impl Gen<'_, '_> {
 
     fn is_method(&self, s: SymbolId) -> bool {
         self.l.u.symbol(s).kind == tasty::Kind::Def
+    }
+
+    fn is_class_field(&self, s: SymbolId) -> bool {
+        !self.is_method(s) && self.l.u.symbol(s).owner.is_some_and(|o| self.l.u.is_class(o))
     }
 }
