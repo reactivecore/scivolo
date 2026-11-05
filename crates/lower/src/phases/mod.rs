@@ -140,6 +140,7 @@ mod trait_params;
 mod tree_copy;
 mod tuple_optimizations;
 mod type_tests;
+mod uncache_given_aliases;
 mod uninitialized_defs;
 mod value_classes;
 mod value_members;
