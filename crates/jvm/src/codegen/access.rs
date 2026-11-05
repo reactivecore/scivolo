@@ -25,7 +25,7 @@ impl Gen<'_, '_> {
         let owner = self.l.u.symbol(f).owner.expect("a field's owner");
         let info = self.l.u.info(f);
         let desc = descriptor(&self.l.u.erase(info));
-        let instance = self.receiver(b, f, Some(qualifier))?;
+        let instance = self.receiver(b, f, Some(qualifier), None)?;
         let op = match (instance, value) {
             (true, None) => FieldOp::GetField,
             (false, None) => FieldOp::GetStatic,
@@ -41,10 +41,17 @@ impl Gen<'_, '_> {
     }
 
     /// Loads the receiver of instance member `m` selected from `qualifier`, or of an identifier
-    /// without one; returns whether `m` is an instance member. The qualifier of a static member
-    /// must be an object or `this`, whose load is elided. Fails for a member of a javalib object
-    /// standing for the JDK's static members, and for a static member of an object.
-    fn receiver(&mut self, b: &mut Body, m: SymbolId, qualifier: Option<TNodeId>) -> Result<bool> {
+    /// without one whose prefix is `this` of or object class `prefix`; returns whether `m` is an
+    /// instance member. The qualifier of a static member must be an object or `this`, whose load
+    /// is elided. Fails for a member of a javalib object standing for the JDK's static members,
+    /// and for a static member of an object.
+    fn receiver(
+        &mut self,
+        b: &mut Body,
+        m: SymbolId,
+        qualifier: Option<TNodeId>,
+        prefix: Option<SymbolId>,
+    ) -> Result<bool> {
         let static_ = is_static_member(self.l.u, m);
         let owner = self.l.u.symbol(m).owner.expect("a member's owner");
         let span = qualifier.map_or(Span::NONE, |q| self.l.tpd.span(q));
@@ -64,8 +71,11 @@ impl Gen<'_, '_> {
             }
             Some(q) => _ = self.expr(b, q)?,
             None if static_ => {}
-            None if self.l.u.is_module_class(owner) => _ = self.load_module(b, owner, span)?,
-            None => _ = self.load_this(b),
+            None => match prefix {
+                Some(c) if self.l.u.is_module_class(c) => _ = self.load_module(b, c, span)?,
+                Some(c) if b.this_class.as_deref() == Some(&self.class_name(c)) => _ = self.load_this(b),
+                _ => return unsupported(span, "a member of an enclosing instance on the JVM"),
+            },
         }
         Ok(!static_)
     }
@@ -88,6 +98,7 @@ impl Gen<'_, '_> {
             Tree::Ident { .. } => None,
             _ => return unsupported(span, "a call of this form"),
         };
+        let prefix = if qualifier.is_none() { self.ident_prefix(fun) } else { None };
         let mut result = classfile::method_slots(&desc).1;
         let kind = match qualifier.map(|q| self.l.tpd.tree(q).clone()) {
             Some(Tree::New { tpt }) => {
@@ -107,11 +118,14 @@ impl Gen<'_, '_> {
                 self.load_this(b);
                 Invoke::Special
             }
-            _ if !self.receiver(b, m, qualifier)? => Invoke::Static,
+            _ if !self.receiver(b, m, qualifier, prefix)? => Invoke::Static,
             _ if self.l.u.symbol(m).flags.has(PRIVATE) || self.l.u.is_constructor(m) => Invoke::Special,
             _ => {
-                let receiver =
-                    qualifier.and_then(|q| self.receiver_class(q, m)).unwrap_or(Receiver::Class(owner));
+                let receiver = match qualifier {
+                    Some(q) => self.receiver_class(q, m),
+                    None => prefix.map(Receiver::Class),
+                };
+                let receiver = receiver.unwrap_or(Receiver::Class(owner));
                 let kind;
                 (kind, owner_name) = match receiver {
                     Receiver::Class(c) if self.l.u.is_trait(c) => (Invoke::Interface, self.class_name(c)),

@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! Method bodies: loads of literals, locals, `this` and objects (dotty's `genMethod` and
-//! `genLoad`), straight-line code only.
+//! `genLoad`).
 
 use super::{Gen, class_internal, java_flags, method_descriptor, method_name, primitive_box, unsupported};
 use classfile::{ACC_STATIC, ClassFile, Code, FieldOp, Label, Pool};
@@ -138,7 +138,7 @@ impl Gen<'_, '_> {
             },
             Tree::ValDef { rhs, .. } => self.gen_val_def(b, t, rhs)?,
             Tree::If { cond, thenp, elsep, .. } => self.gen_if(b, t, cond, thenp, elsep)?,
-            Tree::WhileDo { cond, body } => self.gen_while(b, cond, body)?,
+            Tree::WhileDo { cond, body } => self.gen_while(b, t, cond, body)?,
             Tree::Labeled { expr } => self.gen_labeled(b, t, expr)?,
             Tree::Return { expr, from } => self.gen_return(b, t, expr, from)?,
             Tree::SeqLiteral { elems, .. } => self.array_literal(b, t, elems)?,

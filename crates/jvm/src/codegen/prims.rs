@@ -123,7 +123,8 @@ impl Gen<'_, '_> {
                     ">>>" => 0x7c,
                     "&" => 0x7e,
                     "|" => 0x80,
-                    _ => 0x82,
+                    "^" => 0x82,
+                    _ => return unsupported(self.l.tpd.span(t), format!("the primitive operation {name}")),
                 };
                 if opk == 'L' || base >= 0x78 && matches!(opk, 'F' | 'D') {
                     return unsupported(self.l.tpd.span(t), "bit operations on floats");

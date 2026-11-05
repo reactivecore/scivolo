@@ -1,5 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
+//   compiler/src/dotty/tools/backend/jvm/BCodeSkelBuilder.scala
 //! Local definitions and assignments to locals (dotty's `genStat`).
 
 use super::method::Body;
@@ -44,8 +45,8 @@ impl Gen<'_, '_> {
         let info = self.l.u.info(sym);
         let desc = descriptor(&self.l.u.erase(info));
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(t), "a local without a value") };
-        self.expr_as(b, rhs, classfile::value_slots(&desc))?;
         let slot = b.bind(sym, desc.clone());
+        self.expr_as(b, rhs, classfile::value_slots(&desc))?;
         b.code.store(&desc, slot);
         Ok(0)
     }
@@ -58,7 +59,8 @@ impl Gen<'_, '_> {
         let desc = desc.clone();
         if let Some((name, receiver, args)) = self.primitive_call(rhs)
             && let [arg] = args[..]
-            && let Tree::Literal { value: Constant::Int(c) } = *self.l.tpd.tree(arg)
+            && let Tree::Literal { value } = self.l.tpd.tree(arg)
+            && let Some(c) = int_like(value)
             && self.l.tpd.sym(receiver) == sym
             && matches!(name.as_str(), "+" | "-")
             && desc == "I"
@@ -70,4 +72,15 @@ impl Gen<'_, '_> {
         b.code.store(&desc, slot);
         Ok(Some(0))
     }
+}
+
+/// The value of an int-sized literal.
+fn int_like(value: &Constant) -> Option<i32> {
+    Some(match *value {
+        Constant::Int(v) => v,
+        Constant::Char(v) => i32::from(v),
+        Constant::Short(v) => i32::from(v),
+        Constant::Byte(v) => i32::from(v),
+        _ => return None,
+    })
 }

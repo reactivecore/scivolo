@@ -52,5 +52,9 @@ object Loops {
     }
     println(k)
     if k > 100 then println("big") else println("small")
+    while { k += 300; k < 1000 } do ()
+    println(k max 7)
+    val s: String = if k > 0 then null else "s"
+    println(if (s eq null) || ({ val t = k; t < 0 } && k > 0) then 1 else 2)
   }
 }

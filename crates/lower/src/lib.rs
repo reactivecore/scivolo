@@ -276,4 +276,9 @@ impl<'a> Lower<'a> {
             moved_classes: Vec::new(),
         })
     }
+
+    /// Whether `while` loop `t` has no condition (dotty's `WhileDo(EmptyTree, _)`).
+    pub fn is_endless_loop(&self, t: TNodeId) -> bool {
+        self.endless_loops.contains(&t)
+    }
 }

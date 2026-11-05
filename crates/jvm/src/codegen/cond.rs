@@ -6,8 +6,9 @@ use super::method::Body;
 use super::{Gen, unsupported};
 use classfile::Label;
 use lower::Result;
+use syntax::ast::constant::Constant;
 use tasty::Erased;
-use typer::tpd::TNodeId;
+use typer::tpd::{TNodeId, Tree};
 
 /// A comparison, in the order of the `ifeq` family of opcodes.
 #[derive(Clone, Copy, PartialEq)]
@@ -66,6 +67,20 @@ impl Gen<'_, '_> {
                     if mixed || kind == 'L' && !matches!(test, Test::Eq | Test::Ne) {
                         return unsupported(self.l.tpd.span(t), "an ordering of references");
                     }
+                    let is_null =
+                        |g: &Self, x| matches!(g.l.tpd.tree(x), Tree::Literal { value: Constant::Null });
+                    let non_null = match (is_null(self, receiver), is_null(self, right)) {
+                        (true, _) => Some(right),
+                        (_, true) => Some(receiver),
+                        _ => None,
+                    };
+                    if kind == 'L'
+                        && let Some(x) = non_null
+                    {
+                        self.expr(b, x)?;
+                        jump_zero(b, true, test, success, failure, fall);
+                        return Ok(());
+                    }
                     self.operand(b, receiver, kind)?;
                     self.operand(b, right, kind)?;
                     jump_compare(b, kind, test, success, failure, fall, false);
@@ -74,8 +89,25 @@ impl Gen<'_, '_> {
                 _ => {}
             }
         }
+        match *self.l.tpd.tree(t) {
+            Tree::Block { stats, expr } => {
+                for s in self.l.tpd.items(stats).to_vec() {
+                    self.stat(b, s)?;
+                }
+                return self.cond(b, expr, success, failure, fall);
+            }
+            Tree::If { cond, thenp, elsep, .. } => {
+                let (inner_success, inner_failure) = (b.code.new_label(), b.code.new_label());
+                self.cond(b, cond, inner_success, inner_failure, inner_success)?;
+                b.code.place(inner_success);
+                self.cond(b, thenp, success, failure, inner_failure)?;
+                b.code.place(inner_failure);
+                return self.cond(b, elsep, success, failure, fall);
+            }
+            _ => {}
+        }
         self.expr(b, t)?;
-        jump_zero(b, Test::Ne, success, failure, fall);
+        jump_zero(b, false, Test::Ne, success, failure, fall);
         Ok(())
     }
 }
@@ -114,12 +146,16 @@ fn jump_compare(
     }
 }
 
-/// The jump on comparing an int with zero.
-fn jump_zero(b: &mut Body, test: Test, success: Label, failure: Label, fall: Label) {
+/// The jump on comparing an int with zero, or a reference (`Eq` or `Ne` only) with null.
+fn jump_zero(b: &mut Body, reference: bool, test: Test, success: Label, failure: Label, fall: Label) {
     if fall == success {
-        return jump_zero(b, test.negate(), failure, success, fall);
+        return jump_zero(b, reference, test.negate(), failure, success, fall);
     }
-    b.code.jump(0x99 + test as u8, success);
+    let opcode = match reference {
+        true => 0xc6 + u8::from(test == Test::Ne),
+        false => 0x99 + test as u8,
+    };
+    b.code.jump(opcode, success);
     if fall != failure {
         b.code.jump(0xa7, failure);
     }

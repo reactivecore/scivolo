@@ -7,7 +7,7 @@ use super::{Gen, descriptor, unsupported};
 use lower::Result;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
-use tasty::{Erased, SymbolId};
+use tasty::{Erased, SymbolId, Type};
 use typer::tpd::TNodeId;
 
 /// The class or array type a virtual call names.
@@ -52,6 +52,22 @@ impl Gen<'_, '_> {
             return unsupported(span, "inline call not expanded");
         }
         Ok(())
+    }
+
+    /// The class of `this` or of the static object that identifier `id`'s prefix stands for
+    /// (dotty's `desugarIdent`).
+    pub fn ident_prefix(&mut self, id: TNodeId) -> Option<SymbolId> {
+        let p = match *self.l.u.types().get(self.l.tpd.tpe(id)) {
+            Type::Sym(Some(p), _) | Type::TermRef(p, _) => p,
+            _ => return None,
+        };
+        match *self.l.u.types().get(p) {
+            Type::This(c) => self.l.u.class_symbol(c),
+            Type::Sym(_, s) if self.l.u.is_module(s) && self.l.u.is_static_symbol(s) => {
+                self.l.u.module_class(s)
+            }
+            _ => None,
+        }
     }
 
     /// The class a virtual call of `m` on `qualifier` names: the qualifier's class, `Object` or

@@ -88,12 +88,11 @@ impl Gen<'_, '_> {
         Ok(slots)
     }
 
-    /// `while cond do body`; an infinite loop's labeled body jumps to the loop's start.
-    pub fn gen_while(&mut self, b: &mut Body, cond: TNodeId, body: TNodeId) -> Result<i32> {
+    /// `while cond do body` `t`; an endless loop's labeled body jumps to the loop's start.
+    pub fn gen_while(&mut self, b: &mut Body, t: TNodeId, cond: TNodeId, body: TNodeId) -> Result<i32> {
         let top = b.code.new_label();
         b.code.place(top);
-        let infinite = matches!(self.l.tpd.tree(cond), Tree::Literal { value: Constant::Boolean(true) });
-        if infinite {
+        if self.l.is_endless_loop(t) {
             match (self.l.tpd.tree(body).clone(), self.l.tpd.sym(body)) {
                 (Tree::Labeled { expr }, Some(label)) => {
                     b.labels.push((label, top, 0));
@@ -108,6 +107,11 @@ impl Gen<'_, '_> {
             return Ok(0);
         }
         let (enter, exit) = (b.code.new_label(), b.code.new_label());
+        if is_unit(self.l.tpd.tree(body)) {
+            self.cond(b, cond, top, exit, exit)?;
+            b.code.place(exit);
+            return Ok(0);
+        }
         self.cond(b, cond, enter, exit, enter)?;
         b.code.place(enter);
         self.expr_as(b, body, 0)?;

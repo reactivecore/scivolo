@@ -71,10 +71,19 @@ impl Code {
         }
     }
 
-    /// `iinc` of int local `slot` by `by`, or `None` past one-byte operands.
+    /// `iinc` of int local `slot` by `by`, `wide` past one-byte operands; `None` past two-byte
+    /// increments.
     pub fn iinc(&mut self, slot: u16, by: i32) -> Option<()> {
-        let (slot, by) = (u8::try_from(slot).ok()?, i8::try_from(by).ok()?);
-        self.op(0x84, &[slot, by as u8], 0);
+        let by = i16::try_from(by).ok()?;
+        match (u8::try_from(slot), i8::try_from(by)) {
+            (Ok(slot), Ok(by)) => self.op(0x84, &[slot, by as u8], 0),
+            _ => {
+                let [s0, s1] = slot.to_be_bytes();
+                let [b0, b1] = by.to_be_bytes();
+                self.bytes.push(0xc4);
+                self.op(0x84, &[s0, s1, b0, b1], 0);
+            }
+        }
         Some(())
     }
 
