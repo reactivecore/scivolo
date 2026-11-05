@@ -74,19 +74,26 @@ impl Typer<'_> {
     fn approximate_gadt(&mut self, t: TypeId, variance: i8, ctx: Ctx) -> TypeId {
         let t = self.u.dealias(t);
         match self.u.types().get(t).clone() {
-            Type::Sym(None, s) if variance != 0 && self.is_gadt_symbol(s, ctx) => self.gadt_bound(s, variance),
+            Type::Sym(None, s) if variance != 0 && self.is_gadt_symbol(s, ctx) => {
+                self.gadt_bound(s, variance)
+            }
             Type::Applied(tycon, args) => {
                 let variances = self.u.tycon_variances(tycon, args.len());
-                let args =
-                    args.iter().zip(variances).map(|(&a, v)| self.approximate_gadt(a, variance * v, ctx)).collect();
+                let args = args
+                    .iter()
+                    .zip(variances)
+                    .map(|(&a, v)| self.approximate_gadt(a, variance * v, ctx))
+                    .collect();
                 self.u.intern_type(Type::Applied(tycon, args))
             }
             Type::And(a, b) => {
-                let (a, b) = (self.approximate_gadt(a, variance, ctx), self.approximate_gadt(b, variance, ctx));
+                let (a, b) =
+                    (self.approximate_gadt(a, variance, ctx), self.approximate_gadt(b, variance, ctx));
                 self.u.intern_type(Type::And(a, b))
             }
             Type::Or(a, b, soft) => {
-                let (a, b) = (self.approximate_gadt(a, variance, ctx), self.approximate_gadt(b, variance, ctx));
+                let (a, b) =
+                    (self.approximate_gadt(a, variance, ctx), self.approximate_gadt(b, variance, ctx));
                 self.u.intern_type(Type::Or(a, b, soft))
             }
             _ => t,
@@ -104,7 +111,8 @@ impl Typer<'_> {
         if hi != tasty::ANY {
             return hi;
         }
-        let above = self.gadt_narrowed().into_iter().find(|&n| self.u.gadt_bounds(n).is_some_and(|(l, _)| l == own));
+        let above =
+            self.gadt_narrowed().into_iter().find(|&n| self.u.gadt_bounds(n).is_some_and(|(l, _)| l == own));
         above.map_or(hi, |n| self.u.intern_type(Type::Sym(None, n)))
     }
 }

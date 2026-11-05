@@ -165,6 +165,7 @@ mod parents;
 mod passing_accessors;
 mod passing_defs;
 mod paths;
+mod pattern_alternatives;
 mod pattern_args;
 mod pattern_bounds;
 mod pattern_gadt;

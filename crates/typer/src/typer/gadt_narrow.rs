@@ -74,9 +74,8 @@ impl Typer<'_> {
             .collect();
         for (i, &r) in reps.iter().enumerate() {
             let Type::Var(p) = *self.u.types().get(r) else { continue };
-            let shared = r != vars[i]
-                || reps.iter().filter(|&&x| x == r).count() > 1
-                || pattern_reps.iter().any(|&x| x == r);
+            let shared =
+                r != vars[i] || reps.iter().filter(|&&x| x == r).count() > 1 || pattern_reps.contains(&r);
             if shared && self.constraint.instance(p).is_none() {
                 let sym = self.u.intern_type(Type::Sym(None, syms[i]));
                 self.constraint.instantiate(p, sym);
@@ -91,7 +90,8 @@ impl Typer<'_> {
         let mut bounds = Vec::new();
         for &(s, v) in vars {
             let Type::Var(id) = *self.u.types().get(v) else { continue };
-            let (lo, hi) = self.constraint.instance(id).map_or_else(|| self.constraint.bounds(id), |t| (t, t));
+            let (lo, hi) =
+                self.constraint.instance(id).map_or_else(|| self.constraint.bounds(id), |t| (t, t));
             bounds.push((s, lo, hi));
         }
         for &(s, v) in vars {

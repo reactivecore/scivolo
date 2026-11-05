@@ -13,6 +13,7 @@ mod define;
 mod enter;
 mod entries;
 mod function_classes;
+mod gadt_bounds;
 mod higher_kinds;
 mod impure_functions;
 mod info;
