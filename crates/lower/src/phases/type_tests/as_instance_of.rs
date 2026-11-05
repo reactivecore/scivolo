@@ -76,7 +76,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
             throw_class_cast(l, expr)
         }
         _ if upcast => l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None),
-        _ if erased_expr != found && conforms_to_class_file(l, &found, &to) => {
+        _ if !span.is_synthetic() && erased_expr != found && conforms_to_class_file(l, &found, &to) => {
             l.tpd.get_mut(t).span = l.tpd.span(expr);
             t
         }
