@@ -157,7 +157,10 @@ fn move_body(l: &mut Lower, owner: Owner, def: TNodeId, ext: SymbolId) -> TNodeI
     let ext_tpt = l.type_tree(l.tpd.tpe(tpt), l.tpd.span(tpt));
     let tree = Tree::DefDef { name: ext_name, paramss: ext_paramss, tpt: ext_tpt, rhs: Some(rhs) };
     let info = l.u.info(ext);
-    l.tpd.node(tree, span, Some(info), Some(ext))
+    let body = span_before_erasure(l, rhs);
+    let own = !span.is_in_other_source() && !body.is_in_other_source();
+    let ext_span = if own { Span::at(span.point()).union(body).to_synthetic() } else { span };
+    l.tpd.node(tree, ext_span, Some(info), Some(ext))
 }
 
 /// A parameter of method `m` like `p`.
