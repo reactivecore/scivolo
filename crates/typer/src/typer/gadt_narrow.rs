@@ -86,7 +86,7 @@ impl Typer<'_> {
     }
 
     /// Gives each symbol of `vars` its variable's bounds, which must be known, while the case is
-    /// typed, a pattern-bound type as its info; the variables instantiated to their symbols.
+    /// typed; the variables instantiated to their symbols.
     pub fn narrow_gadt(&mut self, vars: &[(SymbolId, TypeId)]) -> Result<(), &'static str> {
         let mut bounds = Vec::new();
         for &(s, v) in vars {

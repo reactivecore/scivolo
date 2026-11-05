@@ -41,16 +41,10 @@ impl Typer<'_> {
         }
     }
 
-    /// Narrows `s` to `bounds` while the case is typed; a pattern-bound type gets them as its
-    /// info (dotty's `indexPattern`).
+    /// Narrows `s` to `bounds` while the case is typed.
     pub fn set_gadt_bounds(&mut self, s: SymbolId, (lo, hi): (TypeId, TypeId)) {
-        if self.gadt.bound.contains(&s) {
-            let info = self.u.intern_type(Type::Bounds(lo, hi));
-            self.u.set_info(s, info);
-        } else {
-            let old = self.u.set_gadt_bounds(s, Some((lo, hi)));
-            self.gadt.saved.push((s, old));
-        }
+        let old = self.u.set_gadt_bounds(s, Some((lo, hi)));
+        self.gadt.saved.push((s, old));
     }
 
     /// Whether `s` is a GADT-constrained type: a type parameter of a method enclosing `ctx`'s
