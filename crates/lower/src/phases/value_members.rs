@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/SyntheticMembers.scala
-//! The members dotty's `SyntheticMembers` gives value classes, each unless the class has one:
-//! `hashCode` (`valueHashCodeBody`) and `equals` of the underlying value.
+//! The members dotty's `SyntheticMembers` gives value classes, each unless the class has one or
+//! is the Scala 2 library's: `hashCode` (`valueHashCodeBody`) and `equals` of the underlying value.
 
 use super::case_members::existing_def;
 use crate::definitions::CaseClasses;
@@ -20,8 +20,9 @@ pub fn value_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<T
     let can_equal = existing_def(l, class, cc.can_equal);
     let focus = Span::new(span.point(), span.point(), span.point());
     let mut out = Vec::new();
+    let scala2 = l.u.compiles_scala_library();
     for sym in [cc.hash_code, cc.any_equals] {
-        if existing_def(l, class, sym).is_some() {
+        if existing_def(l, class, sym).is_some_and(|e| !scala2 || l.u.symbol(e).owner == Some(class)) {
             continue;
         }
         let flags = Flags::default().with(SYNTHETIC).with(OVERRIDE);

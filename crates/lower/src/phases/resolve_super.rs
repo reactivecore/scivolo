@@ -9,7 +9,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, PRIVATE};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds to class definition `td` the implementations of the super accessors of the traits its
@@ -59,12 +59,30 @@ fn implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: Span) -> 
     let flags = l.u.symbol(acc).flags;
     let this = l.u.this_type(class);
     let info = l.u.member_info(this, acc);
-    let (_, def) = l.method_like(class, acc, flags, info, span, |l, args, result| {
+    let (sym, def) = l.method_like(class, acc, flags, info, span, |l, args, result| {
         let sup = l.super_mix(class, owner, span);
         let fun = l.select(sup, target, span);
         l.apply(fun, args, result, span)
     })?;
+    own_type_params(l, sym, acc);
     Ok(def)
+}
+
+/// New type parameters of `sym` for those of its type, in which references to those of `acc`
+/// become references to them.
+fn own_type_params(l: &mut Lower, sym: SymbolId, acc: SymbolId) {
+    let info = l.u.info(sym);
+    let (fresh, _) = super::super_accessors::type_params(l, sym, info);
+    let old = l.u.type_params(acc);
+    if old.len() != fresh.len() {
+        return;
+    }
+    let refs: Vec<TypeId> = fresh.iter().map(|&t| l.u.intern_type(Type::Sym(None, t))).collect();
+    let info = l.u.map_type(info, &mut |u, t| match *u.types().get(t) {
+        Type::Sym(_, s) => old.iter().position(|&p| p == s).map(|i| refs[i]),
+        _ => None,
+    });
+    l.u.set_info(sym, info);
 }
 
 /// The member name and mix of super accessor name `name` of `acc`: `m` and an empty mix for
@@ -97,6 +115,7 @@ fn library_implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: S
         l.u.set_target(sym, t);
     }
     l.u.set_info(sym, info);
+    own_type_params(l, sym, acc);
     Ok(l.forwarding_def(sym, span, |l, args, result| {
         let sup = l.super_mix(class, owner, span);
         let fun = l.select(sup, target, span);
