@@ -37,6 +37,9 @@ impl Typer<'_> {
                 continue;
             }
             let var = self.u.intern_type(Type::Var(v));
+            if gadt.iter().any(|&(_, g)| g == var) {
+                continue;
+            }
             if variance != 0 && !gadt_bounds.iter().any(|&b| self.refers_to_type(b, var)) {
                 self.instantiate_var(v, variance == -1)?;
                 continue;

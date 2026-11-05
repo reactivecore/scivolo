@@ -167,22 +167,26 @@ impl Typer<'_> {
     }
 
     /// Gives each symbol of `vars` its variable's bounds, which must be known, while the case is
-    /// typed; the variables instantiated to their upper bounds.
+    /// typed; the variables instantiated to their symbols.
     pub fn narrow_gadt(&mut self, vars: &[(SymbolId, TypeId)]) -> Result<(), &'static str> {
         let mut bounds = Vec::new();
         for &(s, v) in vars {
             let Type::Var(id) = *self.u.types().get(v) else { continue };
             let (lo, hi) = self.constraint.instance(id).map_or_else(|| self.constraint.bounds(id), |t| (t, t));
+            bounds.push((s, lo, hi));
+        }
+        for &(s, v) in vars {
+            let Type::Var(id) = *self.u.types().get(v) else { continue };
+            if self.constraint.instance(id).is_none() {
+                let sym = self.u.intern_type(Type::Sym(None, s));
+                self.constraint.instantiate(id, sym);
+            }
+        }
+        for (s, lo, hi) in bounds {
             let (lo, hi) = (self.zonk(lo), self.zonk(hi));
             if [lo, hi].iter().any(|&t| self.has_type_var(t)) {
                 return Err("GADT bound of an undetermined type");
             }
-            if self.constraint.instance(id).is_none() {
-                self.constraint.instantiate(id, hi);
-            }
-            bounds.push((s, lo, hi));
-        }
-        for (s, lo, hi) in bounds {
             let old = self.u.info(s);
             let Type::Bounds(old_lo, old_hi) = *self.u.types().get(old) else { continue };
             let own = self.u.intern_type(Type::Sym(None, s));
