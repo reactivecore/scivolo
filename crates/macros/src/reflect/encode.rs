@@ -3,6 +3,7 @@
 use super::Fallible;
 use super::decode::Expr;
 use crate::host::Host;
+use crate::show_code::printed::Printed;
 use tasty::{SymbolId, TypeId};
 use typer::tpd::TNodeId;
 use vm::Reflected;
@@ -56,6 +57,13 @@ impl Encode for u64 {
 impl Encode for String {
     fn put(self, _: &mut Host, out: &mut Reflected) -> Fallible<()> {
         out.1 = Some(self.encode_utf16().collect());
+        Ok(())
+    }
+}
+
+impl Encode for Printed {
+    fn put(self, _: &mut Host, out: &mut Reflected) -> Fallible<()> {
+        out.1 = Some(self.into_utf16());
         Ok(())
     }
 }

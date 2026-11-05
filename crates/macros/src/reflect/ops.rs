@@ -7,6 +7,7 @@ use super::decode::{
 use super::encode::Encode;
 use super::{Answer, Fallible, UNKNOWN};
 use crate::host::Host;
+use crate::show_code::printed::Printed;
 use tasty::{SymbolId, TypeId};
 use typer::tpd::TNodeId;
 use vm::Reflected;
@@ -114,7 +115,7 @@ ops! {
     "showType" => show_type(t: Ty) -> Fallible<String>;
     "showTypeAnsi" => show_type_ansi(t: Ty) -> Fallible<String>;
     "showTypeShort" => show_type_short(t: Ty) -> Fallible<String>;
-    "showTypeStructure" => show_type_structure(t: Ty) -> Fallible<String>;
+    "showTypeStructure" => show_type_structure(t: Ty) -> Fallible<Printed>;
     "typeString" => type_string(t: Ty) -> Fallible<String>;
     "typeName" => type_name(t: Ty) -> Fallible<String>;
     "appliedTo" => applied_to(tycon: Ty, targs: Rest<Ty>) -> TypeId;
@@ -139,9 +140,9 @@ ops! {
     // trees
     "treeKind" => tree_kind(t: Tree) -> i32;
     "tree" => shape(t: Tree) -> Answer;
-    "showTree" => show_tree(t: Tree) -> Fallible<String>;
-    "showTreeAnsi" => show_tree_ansi(t: Tree) -> Fallible<String>;
-    "showStructure" => show_structure(t: Tree) -> Fallible<String>;
+    "showTree" => show_tree(t: Tree) -> Fallible<Printed>;
+    "showTreeAnsi" => show_tree_ansi(t: Tree) -> Fallible<Printed>;
+    "showStructure" => show_structure(t: Tree) -> Fallible<Printed>;
     "treeSymbol" => tree_symbol(t: Tree) -> Fallible<Option<SymbolId>>;
     "changeOwner" => change_owner(t: Expr, owner: Sym) -> Expr;
     "if" => if_(trees: Rest<Tree>) -> Fallible<TNodeId>;

@@ -85,6 +85,22 @@ object Macros:
         '{ List.empty[t] }.asTerm.tpe.asType match
           case '[u] => '{ Option.empty[u] }
 
+  inline def shownInQuote: String = ${ shownInQuoteImpl }
+  def shownInQuoteImpl(using Quotes): Expr[String] =
+    '{
+      def f[T](x: T): String = ${ Expr(Type.show[List[T]]) } + x
+      f[Int](1)
+    }
+
+  inline def loneSurrogates: String = ${ loneSurrogatesImpl }
+  def loneSurrogatesImpl(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val s = Literal(StringConstant("a" + 0xd800.toChar + "\n"))
+    val c = Literal(CharConstant(0xdc00.toChar))
+    val shown = Seq(s.show, c.show(using Printer.TreeAnsiCode), s.show(using Printer.TreeStructure),
+      c.show(using Printer.TreeStructure), ConstantType(CharConstant(0xdc00.toChar)).show(using Printer.TypeReprStructure))
+    Expr(shown.mkString(" ").map(ch => if ch >= 0xd800 && ch < 0xe000 then f"<${ch.toInt}%x>" else ch.toString).mkString)
+
 object Source:
   inline def line: Int = ${ lineImpl }
   def lineImpl(using Quotes): Expr[Int] = Expr(quotes.reflect.Position.ofMacroExpansion.startLine + 1)

@@ -4,6 +4,7 @@
 
 use super::Fallible;
 use crate::host::Host;
+use crate::show_code::printed::Printed;
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
 
@@ -20,7 +21,7 @@ impl Host {
         self.u.show_source(t, false, false)
     }
 
-    pub fn show_type_structure(&mut self, t: TypeId) -> Fallible<String> {
+    pub fn show_type_structure(&mut self, t: TypeId) -> Fallible<Printed> {
         self.type_structure(t)
     }
 

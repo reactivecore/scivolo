@@ -5,6 +5,7 @@
 //! Constants of `Printer.TreeCode` (dotty's `printConstant`), the structure printers and
 //! `TypeRepr.toString`.
 
+use super::printed::Printed;
 use super::{Code, REFUSED, Shown};
 use syntax::ast::constant::Constant as C;
 use tasty::{Const, escape};
@@ -21,29 +22,32 @@ impl Code<'_> {
             C::Long(n) => format!("{n}L"),
             C::Float(x) => format!("{}f", java_decimal(*x as f64, format!("{x:?}")).ok_or(REFUSED)?),
             C::Double(x) => java_decimal(*x, format!("{x:?}")).ok_or(REFUSED)?,
-            &C::Char(u) => {
-                let mut s = String::from("'");
-                escape(&mut s, char::from_u32(u as u32).ok_or(REFUSED)?);
-                s.push('\'');
-                s
-            }
-            C::String(units) => {
-                let mut s = String::from("\"");
-                for c in char::decode_utf16(units.iter().copied()) {
-                    escape(&mut s, c.map_err(|_| REFUSED)?);
-                }
-                s.push('"');
-                s
-            }
+            &C::Char(u) => return self.quoted_literal('\'', &[u]),
+            C::String(units) => return self.quoted_literal('"', units),
         };
         self.literal(&text);
         Ok(())
     }
+
+    /// UTF-16 `units` escaped between `quote`s as a literal, lone surrogates as they are
+    /// (dotty's `Chars.escapedString`).
+    fn quoted_literal(&mut self, quote: char, units: &[u16]) -> Shown {
+        let mut text = Printed::default();
+        text.push(quote);
+        text.push_units(units, escape);
+        text.push(quote);
+        let before = self.out.len();
+        self.literal(&text);
+        let start = before + self.out[before..].find(text.as_str()).unwrap_or(0);
+        self.out.take_lone(start, text);
+        Ok(())
+    }
 }
 
-/// Constant `c` as `Printer.TreeStructure` shows it (dotty's `Extractors.visitConstant`).
-pub fn constant_structure(c: &C) -> Result<String, &'static str> {
-    Ok(match c {
+/// Constant `c` as `Printer.TreeStructure` shows it (dotty's `Extractors.visitConstant`),
+/// appended to `out`.
+pub fn constant_structure(c: &C, out: &mut Printed) -> Result<(), &'static str> {
+    let text = match c {
         C::Unit => "UnitConstant()".to_owned(),
         C::Null => "NullConstant()".to_owned(),
         C::Boolean(b) => format!("BooleanConstant({b})"),
@@ -55,11 +59,19 @@ pub fn constant_structure(c: &C) -> Result<String, &'static str> {
             format!("FloatConstant({}f)", java_decimal(*x as f64, format!("{x:?}")).ok_or(REFUSED)?)
         }
         C::Double(x) => format!("DoubleConstant({}d)", java_decimal(*x, format!("{x:?}")).ok_or(REFUSED)?),
-        &C::Char(u) => format!("CharConstant('{}')", char::from_u32(u as u32).ok_or(REFUSED)?),
-        C::String(units) => {
-            format!("StringConstant(\"{}\")", String::from_utf16(units).map_err(|_| REFUSED)?)
-        }
-    })
+        &C::Char(u) => return raw(out, "CharConstant('", &[u], "')"),
+        C::String(units) => return raw(out, "StringConstant(\"", units, "\")"),
+    };
+    out.push_str(&text);
+    Ok(())
+}
+
+/// UTF-16 `units` unescaped between `open` and `close`.
+fn raw(out: &mut Printed, open: &str, units: &[u16], close: &str) -> Result<(), &'static str> {
+    out.push_str(open);
+    out.push_units(units, |s, c| s.push(c));
+    out.push_str(close);
+    Ok(())
 }
 
 /// The value of the constant of `tag` and `bits` as dotty's `Constant.toString` shows it.
@@ -93,17 +105,25 @@ pub fn java_decimal(x: f64, shortest: String) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{C, constant_structure, constant_value};
+    use super::{C, Printed, constant_structure, constant_value};
     use tasty::tags::CHARconst;
 
+    fn structure(c: &C) -> Vec<u16> {
+        let mut out = Printed::default();
+        constant_structure(c, &mut out).unwrap();
+        out.into_utf16()
+    }
+
     #[test]
-    fn lone_surrogates_are_refused() {
-        assert!(constant_structure(&C::Char(0xd800)).is_err());
-        assert!(constant_structure(&C::String(vec![0x61, 0xdc00].into())).is_err());
+    fn lone_surrogates_print_as_they_are() {
+        let utf16 = |s: &str| s.encode_utf16().collect::<Vec<_>>();
+        let mut char_constant = utf16("CharConstant('");
+        char_constant.extend([0xd800, 0x27, 0x29]);
+        assert_eq!(structure(&C::Char(0xd800)), char_constant);
+        let mut string_constant = utf16("StringConstant(\"a");
+        string_constant.extend([0xdc00, 0x22, 0x29]);
+        assert_eq!(structure(&C::String(vec![0x61, 0xdc00].into())), string_constant);
+        assert_eq!(structure(&C::String(vec![0xd83d, 0xde00].into())), utf16("StringConstant(\"😀\")"));
         assert!(constant_value(CHARconst, 0xd800).is_none());
-        assert_eq!(
-            constant_structure(&C::String(vec![0xd83d, 0xde00].into())).unwrap(),
-            "StringConstant(\"😀\")"
-        );
     }
 }

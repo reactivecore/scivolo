@@ -150,14 +150,7 @@ impl Unpickler<'_> {
         let k = self.kids(id);
         let index = self.ast().node(id).a as u32;
         let tpe = self.ty(k[0]);
-        let mut args = Vec::new();
-        for &a in &k[1..] {
-            let arg = self.term(a)?;
-            if matches!(self.tpd.tree(arg), T::TypeTree { .. }) {
-                return Err("a quote hole with a type argument");
-            }
-            args.push(arg);
-        }
+        let args = k[1..].iter().map(|&a| self.term(a)).collect::<Result<_, _>>()?;
         let name = TName { name: self.names.intern("<hole>"), is_type: false };
         let node = self.bare(T::Ident { name }, Some(tpe), None);
         self.holes.as_mut().ok_or("a hole outside a quote")?.push(QuoteHole { node, index, args });

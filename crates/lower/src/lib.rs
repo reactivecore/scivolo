@@ -98,6 +98,9 @@ pub struct Lower<'a> {
     local_classes: FxHashMap<SymbolId, SymbolId>,
     /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
     endless_loops: FxHashSet<TNodeId>,
+    /// The type quotes `Splicing` gave the tags of types of their quote, pickled even when
+    /// one tag's type.
+    spliced_type_quotes: FxHashSet<TNodeId>,
     /// The accessors `Mixin` made in classes for the values of their traits, without a position.
     mixed_in: FxHashSet<SymbolId>,
     /// The specialized `apply` methods `SpecializeFunctions` made, without a position.
@@ -226,6 +229,7 @@ impl<'a> Lower<'a> {
             local_objects: FxHashMap::default(),
             local_lazy_accessors: FxHashSet::default(),
             endless_loops: FxHashSet::default(),
+            spliced_type_quotes: FxHashSet::default(),
             proxies: Vec::new(),
             captured_fields: FxHashMap::default(),
             captured_params: FxHashMap::default(),
