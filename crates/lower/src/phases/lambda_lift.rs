@@ -8,6 +8,7 @@
 
 use super::captures::dependencies;
 use super::lift_names::{Named, Pending, name_all};
+use super::lift_order::{class_path, class_stats};
 use super::lifted::{Method, lift, methods};
 use super::proxy_names::name_late;
 use super::walk::children;
@@ -50,6 +51,8 @@ struct Lifting {
     class: SymbolId,
     functions: Vec<Function>,
     methods: Vec<Method>,
+    /// The index among the class's statements of the one each function is in.
+    stat_of: Vec<usize>,
 }
 
 /// Lifts the lambdas and local methods of class definitions `classes` into methods of their
@@ -70,17 +73,27 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
     for caller in &pending.callers {
         super::class_calls::calls_from_class(l, caller, &callers, &lifted)?;
     }
-    let mut deferred = Vec::new();
+    let (mut deferred, mut placed) = (Vec::new(), Vec::new());
     for c in liftings {
         let (lifted, adapted) = lift(l, (c.td, c.class), &c.functions, &c.methods)?;
         deferred.extend(adapted);
+        let path = class_path(l, c.td, classes);
+        let mut stat = 0;
         for def in lifted {
-            let owner = l.tpd.sym(def).and_then(|s| l.u.symbol(s).owner);
+            let sym = l.tpd.sym(def);
+            let owner = sym.and_then(|s| l.u.symbol(s).owner);
             let Some(&td) = classes.iter().find(|&&td| l.tpd.sym(td) == owner) else {
                 return unsupported(l.tpd.span(def), "lifting into a class of another unit");
             };
-            super::outer_traits::append(l, td, &[def]);
+            if let Some(i) = c.methods.iter().position(|m| Some(m.sym) == sym) {
+                stat = c.stat_of[i];
+            }
+            placed.push((td, [&path[..], &[stat]].concat(), def));
         }
+    }
+    placed.sort_by(|a, b| a.1.cmp(&b.1));
+    for (td, _, def) in placed {
+        super::outer_traits::append(l, td, &[def]);
     }
     name_late(l, &mut pending, &deferred);
     Ok(())
@@ -90,18 +103,18 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
 fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifting>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { parents, body, .. } = *l.tpd.tree(template) else { return Ok(None) };
-    let mut stats = super::trait_params::trait_args(l, parents);
+    let Tree::Template { parents, .. } = *l.tpd.tree(template) else { return Ok(None) };
     let mut in_args = Vec::new();
-    for &a in &stats {
+    for a in super::trait_params::trait_args(l, parents) {
         collect(l, a, None, &mut in_args);
     }
     if !in_args.is_empty() && l.local_classes.contains_key(&class) {
         return unsupported(l.tpd.span(td), "lambdas in trait arguments of local classes");
     }
-    stats.extend_from_slice(l.tpd.items(body));
+    let stats = class_stats(l, td);
     let (mut functions, mut roots, mut in_static) = (Vec::new(), Vec::new(), Vec::new());
-    for &stat in &stats {
+    let mut stat_of = Vec::new();
+    for (i, &stat) in stats.iter().enumerate() {
         let method = matches!((l.tpd.tree(stat), l.tpd.sym(stat)),
             (Tree::DefDef { .. }, Some(s)) if !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY));
         let first = functions.len();
@@ -115,6 +128,7 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
         };
         roots.push(root);
         collect(l, root, None, &mut functions);
+        stat_of.resize(functions.len(), i);
         if in_static.last() == Some(&first) {
             in_static.extend(first + 1..functions.len());
         }
@@ -140,7 +154,7 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
     }
     super::narrowed::check(l, class, &mut functions)?;
     let methods = methods(l, class, &functions)?;
-    Ok(Some(Lifting { td, class, functions, methods }))
+    Ok(Some(Lifting { td, class, functions, methods, stat_of }))
 }
 
 /// The lambdas and local methods under `t` in pre-order, `parent` the one they are in.
