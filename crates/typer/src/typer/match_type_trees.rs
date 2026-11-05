@@ -18,6 +18,7 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> TNodeId {
         let bound = bound.map(|b| self.typed_type(b, ctx)).map(|b| self.tpd.tpe(b));
+        bound.inspect(|&b| self.complete_type_members(b));
         let selector = self.typed_type(selector, ctx);
         let scrutinee = self.tpd.tpe(selector);
         if self.type_arity(scrutinee) > 0 {
