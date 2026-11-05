@@ -125,6 +125,7 @@ impl Typer<'_> {
         };
         let spreads = repeated.is_some()
             && aligned.is_none()
+            && arg_ids.iter().skip(params.len()).any(|&a| self.is_sequence_arg(a))
             && self.feature_enabled(Features::MULTI_SPREADS, "experimental.multiSpreads", ctx);
         let spread_at = |t: &Self, i: usize, a: NodeId| spreads && i >= params.len() && t.is_sequence_arg(a);
         let misplaced = (arg_ids.iter().enumerate())

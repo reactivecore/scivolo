@@ -143,6 +143,14 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       class: the accessor's target name `tn$super$Q` is a `SimpleName`, so neither case matches
       (`MatchError`).
     - Fix: decompose the target name's string. Frontend: compiles it, calling `Q`'s `tn`.
+12. **`multiSpreads` crash on nested spreads and in inline expansions** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/PostTyper.scala:473,774`, `flattenSpreads`).
+    - `f(f(1, xs*), xs*)`: the outer literal is flattened without transforming its elements, so
+      the inner `<special-ops>.spread` reaches the backend (`SI-5604` assertion).
+    - `inline def g(inline ys: List[Int]) = f(0, ys*, 9)` called as `g(next())`: the lifted
+      `ev$N` is owned by the enclosing class, and `LambdaLift` finds no proxy for it.
+    - Fix: transform the elements; lift with the owner of the expansion. Frontend: compiles both,
+      evaluating each spread once, in order.
 
 ## M4: dotty `tests/run`
 

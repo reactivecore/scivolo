@@ -77,7 +77,8 @@ impl Typer<'_> {
         contextual: bool,
     ) -> Result<(Option<Parts>, Option<super::sams::SamParent>), TNodeId> {
         let Pt::Type(p) = pt else { return Ok((None, None)) };
-        let p = self.var_upper(p);
+        let z = self.zonk(p);
+        let p = self.var_upper(z);
         let p = match *self.u.types().get(p) {
             Type::Or(..) | Type::And(..) | Type::Flexible(_) => match self.function_type_in(p) {
                 Some(f) => f,
@@ -90,6 +91,9 @@ impl Typer<'_> {
         }
         if let Some(parts) = self.function_parts(p, n) {
             return Ok((Some(parts), None));
+        }
+        if matches!(self.u.types().get(z), Type::Var(_)) {
+            return Ok((None, None));
         }
         if self.has_proto_wildcard(p) && !self.is_partial_function(p) {
             return Err(

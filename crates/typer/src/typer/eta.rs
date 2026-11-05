@@ -80,17 +80,17 @@ impl Typer<'_> {
             _ => true,
         };
         let below = match pt {
-            Pt::Type(p) => Pt::Type(self.var_upper(p)),
-            _ => pt,
+            Pt::Type(p) => Some(self.var_upper(p)),
+            _ => None,
         };
-        let (function, unannotated) = match below {
-            Pt::Type(p)
+        let (function, unannotated) = match (pt, below) {
+            (_, Some(p))
                 if self.function_parts(p, params.len()).is_some()
                     || self.dependent_function_parts(p, params.len(), false).is_some() =>
             {
                 (true, None)
             }
-            Pt::Type(p) => self.sam_method_value(p, params.len())?,
+            (Pt::Type(p), _) => self.sam_method_value(p, params.len())?,
             _ => (false, None),
         };
         let inferred = last && params.len() == xarity && function;
