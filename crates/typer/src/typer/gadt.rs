@@ -207,6 +207,22 @@ impl Typer<'_> {
         Ok(())
     }
 
+    /// Narrows the GADT bounds by type pattern `pat` against `sel` where it does not conform to
+    /// `sel` otherwise (dotty's `constrainPatternType` in `typedTyped`).
+    pub fn narrow_by_type_pattern(&mut self, pat: TypeId, sel: TypeId, ctx: Ctx) {
+        let mark = self.constraint.mark();
+        if self.constrain_pattern(pat, sel).unwrap_or(true) {
+            self.constraint.rollback(mark);
+            return;
+        }
+        self.constraint.rollback(mark);
+        let from = self.constraint.count();
+        match self.gadt_vars((pat, from), sel, ctx) {
+            Ok(Some(vars)) if self.narrow_gadt(&vars).is_ok() => {}
+            _ => self.constraint.rollback(mark),
+        }
+    }
+
     /// The bounds of type `s`: its GADT bounds, else its declared ones.
     pub fn current_bounds(&mut self, s: SymbolId) -> Option<(TypeId, TypeId)> {
         if let Some(b) = self.u.gadt_bounds(s) {

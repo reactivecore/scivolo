@@ -5,18 +5,22 @@
 
 use super::dependent_results::has_wildcard;
 use super::{Pt, Typer};
+use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// The type of pattern type tree `tpt` against `pt`, the types it binds bounded by what the
     /// pattern conforming to the selector requires of them, those then known.
-    pub fn bounded_pattern_type(&mut self, tpt: TNodeId, pattern: bool, pt: Pt) -> TypeId {
+    pub fn bounded_pattern_type(&mut self, tpt: TNodeId, pattern: bool, pt: Pt, ctx: Ctx) -> TypeId {
         let tpe = self.tpd.tpe(tpt);
         let Pt::Type(sel) = pt else { return tpe };
         let mut bound = Vec::new();
         self.pattern_types(tpt, &mut bound, false);
         let syms: Vec<SymbolId> = bound.into_iter().map(|(s, _)| s).collect();
+        if pattern && syms.is_empty() {
+            self.narrow_by_type_pattern(tpe, sel, ctx);
+        }
         if pattern
             && !syms.is_empty()
             && (self.only_against_wildcards(tpe, sel, &syms) || self.has_unapplied_bases(sel))
