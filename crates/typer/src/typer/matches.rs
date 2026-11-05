@@ -105,7 +105,8 @@ impl Typer<'_> {
         case: Option<TypeId>,
         ctx: Ctx,
     ) -> TNodeId {
-        self.in_gadt_case(|t| t.typed_case_under_gadt(id, (sel, selector), pt, case, ctx))
+        let narrowing = !ctx.mode.is(Mode::INLINE_CASE);
+        self.in_gadt_case(narrowing, |t| t.typed_case_under_gadt(id, (sel, selector), pt, case, ctx))
     }
 
     fn typed_case_under_gadt(
@@ -121,11 +122,7 @@ impl Typer<'_> {
         };
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
         let cctx = Ctx { level, mode: ctx.mode.without(Mode::INLINE_CASE), ..ctx };
-        let narrowed = self.gadt_narrowed().len();
         let pat = self.typed(pat, Pt::Type(selector), cctx.with_mode(ctx.mode.with(Mode::PATTERN)));
-        if ctx.mode.is(Mode::INLINE_CASE) && self.gadt_narrowed().len() != narrowed {
-            return self.unsupported(id, "GADT bounds in an inline match");
-        }
         self.check_duplicate_binds(pat, &mut Vec::new());
         let body_pt = case.map(|c| self.dependent_case_body_pt(pat, c));
         let pt = match body_pt {
