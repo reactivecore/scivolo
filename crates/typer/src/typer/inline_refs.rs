@@ -3,7 +3,7 @@
 //! References that inlining makes outside the subset: calls the typer or the `inlining` phase
 //! would expand or reject, and references from inline bodies that need inline accessors.
 
-use super::Typer;
+use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use tasty::SymbolId;
 use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
@@ -30,8 +30,7 @@ const TYPE_CHECKS: [&str; 2] = [
 
 impl Typer<'_> {
     /// Checks a reference to `sym` from `ctx`: not to a macro or an inline `scala.compiletime`
-    /// operation, nor to `erasedValue` outside an inline method, nor from an inline body to a
-    /// member that needs an inline accessor.
+    /// operation.
     pub fn check_inline_reference(&mut self, sym: SymbolId, ctx: Ctx) -> Result<(), &'static str> {
         let flags = self.u.symbol(sym).flags;
         if flags.has(INLINE) && flags.has(MACRO) && self.macros.is_none() {
@@ -50,10 +49,19 @@ impl Typer<'_> {
         {
             return Err("scala.compiletime operation");
         }
-        if crate::inlining::is_erased_value(self.u, sym) && self.enclosing_inline(ctx.owner).is_none() {
-            return Err("reference to an erased definition");
-        }
         Ok(())
+    }
+
+    /// Checks a reference to `sym` against `pt` from `ctx`: not to `erasedValue` outside an
+    /// inline method unless a value of an erased class is expected.
+    pub fn check_erased_reference(&mut self, sym: SymbolId, pt: Pt, ctx: Ctx) -> Result<(), &'static str> {
+        if !crate::inlining::is_erased_value(self.u, sym) || self.enclosing_inline(ctx.owner).is_some() {
+            return Ok(());
+        }
+        match pt {
+            Pt::Type(t) if self.derives_erased_class(t) => Ok(()),
+            _ => Err("reference to an erased definition"),
+        }
     }
 
     /// Whether a reference to `sym` from `ctx` needs an inline accessor.

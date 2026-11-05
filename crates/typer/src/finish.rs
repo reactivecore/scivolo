@@ -24,6 +24,10 @@ impl Units {
             typer.unsupported_at(Span::NONE, what);
         }
         typer.renumber_uniques();
+        let clean = typer.unsupported.is_none() && !typer.diags.has_errors();
+        if !self.typer_only && !typer.spread_ctxs.is_empty() && clean {
+            typer.flatten_spreads(typed);
+        }
         if !self.typer_only && typer.unsupported.is_none() && !typer.diags.has_errors() {
             let lent = (&mut *typer.u, &mut typer.tpd, &mut *typer.names, &mut *typer.fresh);
             if let Err((at, what)) = self.synthetic_members.map_or(Ok(()), |add| add(lent, typed)) {

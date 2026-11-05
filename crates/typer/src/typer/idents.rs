@@ -98,7 +98,10 @@ impl Typer<'_> {
             }
             Err(what) => return self.unchosen(id, what, pt),
         };
-        if let Err(what) = self.check_reference(sym, found.prefix, ctx) {
+        if let Err(what) = self
+            .check_reference(sym, found.prefix, ctx)
+            .and_then(|()| self.check_erased_reference(sym, pt, ctx))
+        {
             return self.unsupported(id, what);
         }
         if self.is_staging_method(sym) {

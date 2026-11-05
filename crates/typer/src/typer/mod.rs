@@ -203,6 +203,7 @@ mod small_tuples;
 mod source_splices;
 mod splice_patterns;
 mod spliced_args;
+mod spreads;
 pub(crate) mod stability;
 mod stats;
 mod structural;
@@ -358,6 +359,8 @@ pub struct Typer<'a> {
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
+    /// The context of each sequence literal with spreads.
+    pub spread_ctxs: FxHashMap<TNodeId, Ctx>,
     pub accessors: inline_accessors::Accessors,
     /// The implicit members of the unit's package objects in each package, once asked for.
     pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
@@ -463,6 +466,7 @@ impl<'a> Typer<'a> {
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
+            spread_ctxs: FxHashMap::default(),
             accessors: Default::default(),
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
