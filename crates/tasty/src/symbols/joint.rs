@@ -62,7 +62,7 @@ impl Universe {
             if self.joint_members[&m].iter().any(|&(s, _)| s == t) {
                 return Some(t);
             }
-            t = match *self.types().get(t) {
+            t = match self.types().get(t).clone() {
                 Type::And(a, b) => return self.joint_site(a, m).or_else(|| self.joint_site(b, m)),
                 Type::This(c) => {
                     let c = self.class_symbol(c)?;
@@ -70,6 +70,11 @@ impl Universe {
                     self.self_type(c)
                 }
                 Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Rec(_, p) | Type::Bounds(_, p) => p,
+                Type::Applied(tycon, args) if self.dealias(t) == t => {
+                    let hi = self.abstract_upper(tycon)?;
+                    let applied = self.intern_type(Type::Applied(hi, args));
+                    self.beta_reduced(applied)
+                }
                 _ => match self.widen_once(t) {
                     Some(w) => w,
                     None => match self.dealias(t) {
