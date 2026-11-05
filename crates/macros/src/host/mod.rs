@@ -15,12 +15,15 @@ use typer::inlining::{Quoted, Reports};
 use typer::tpd::{TNodeId, Tpd};
 use typer::unpickle::QuotePattern;
 
-/// A quote unpickled for the macro: its tree, spliced types and term holes (placeholder, index,
-/// arguments, an expression `Ok` and a type `Err`, and filling expression).
+/// A term hole of a quote: its placeholder, index, arguments (an expression `Ok`, a type `Err`)
+/// and filling expression.
+type Hole = (TNodeId, u32, Vec<Result<u32, u32>>, Option<u32>);
+
+/// A quote unpickled for the macro: its tree, spliced types and term holes.
 struct Unpickled {
     root: TNodeId,
     spliced: Vec<(SymbolId, TypeId)>,
-    holes: Vec<(TNodeId, u32, Vec<Result<u32, u32>>, Option<u32>)>,
+    holes: Vec<Hole>,
 }
 
 enum Expr {

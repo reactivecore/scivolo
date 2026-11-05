@@ -58,10 +58,10 @@ mod tests {
     #[test]
     fn lone_surrogates_keep_their_place() {
         let mut u = Printed::default();
-        u.push_str("a");
+        u.push('a');
         u.push_units(&[0x62, 0xd800, 0xd83d, 0xde00, 0xdc00], |s, c| s.push(c));
         let mut v = Printed::default();
-        v.push_str("<");
+        v.push('<');
         v.push_str(&u);
         v.take_lone(1, u);
         assert_eq!(v.into_utf16(), [0x3c, 0x61, 0x62, 0xd800, 0xd83d, 0xde00, 0xdc00]);

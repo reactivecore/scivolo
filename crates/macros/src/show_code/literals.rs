@@ -22,8 +22,8 @@ impl Code<'_> {
             C::Long(n) => format!("{n}L"),
             C::Float(x) => format!("{}f", java_decimal(*x as f64, format!("{x:?}")).ok_or(REFUSED)?),
             C::Double(x) => java_decimal(*x, format!("{x:?}")).ok_or(REFUSED)?,
-            &C::Char(u) => return Ok(self.quoted_literal('\'', &[u])),
-            C::String(units) => return Ok(self.quoted_literal('"', units)),
+            &C::Char(u) => return self.quoted_literal('\'', &[u]),
+            C::String(units) => return self.quoted_literal('"', units),
         };
         self.literal(&text);
         Ok(())
@@ -31,7 +31,7 @@ impl Code<'_> {
 
     /// UTF-16 `units` escaped between `quote`s as a literal, lone surrogates as they are
     /// (dotty's `Chars.escapedString`).
-    fn quoted_literal(&mut self, quote: char, units: &[u16]) {
+    fn quoted_literal(&mut self, quote: char, units: &[u16]) -> Shown {
         let mut text = Printed::default();
         text.push(quote);
         text.push_units(units, escape);
@@ -40,6 +40,7 @@ impl Code<'_> {
         self.literal(&text);
         let start = before + self.out[before..].find(text.as_str()).unwrap_or(0);
         self.out.take_lone(start, text);
+        Ok(())
     }
 }
 
@@ -58,18 +59,19 @@ pub fn constant_structure(c: &C, out: &mut Printed) -> Result<(), &'static str> 
             format!("FloatConstant({}f)", java_decimal(*x as f64, format!("{x:?}")).ok_or(REFUSED)?)
         }
         C::Double(x) => format!("DoubleConstant({}d)", java_decimal(*x, format!("{x:?}")).ok_or(REFUSED)?),
-        &C::Char(u) => return Ok(raw(out, "CharConstant('", &[u], "')")),
-        C::String(units) => return Ok(raw(out, "StringConstant(\"", units, "\")")),
+        &C::Char(u) => return raw(out, "CharConstant('", &[u], "')"),
+        C::String(units) => return raw(out, "StringConstant(\"", units, "\")"),
     };
     out.push_str(&text);
     Ok(())
 }
 
 /// UTF-16 `units` unescaped between `open` and `close`.
-fn raw(out: &mut Printed, open: &str, units: &[u16], close: &str) {
+fn raw(out: &mut Printed, open: &str, units: &[u16], close: &str) -> Result<(), &'static str> {
     out.push_str(open);
     out.push_units(units, |s, c| s.push(c));
     out.push_str(close);
+    Ok(())
 }
 
 /// The value of the constant of `tag` and `bits` as dotty's `Constant.toString` shows it.
