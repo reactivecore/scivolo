@@ -34,7 +34,22 @@ abstract class Compound:
 
 class Impl extends Compound
 
+class Sequenced:
+  given before: Sequenced = after
+  given after: Sequenced = this
+  given chained: Sequenced = after
+  inline def myself: this.type = this
+  given inlined: Sequenced = myself
+  var single: Registry.fallback.type = Registry.fallback
+  given ofVar: Ctx = single
+
+class Imported extends Holder("i"):
+  import Registry.global as other2
+  given viaImport: Ctx = other2
+
 object Statics:
+  val r: Registry.type = Registry
+  lazy val viaVal = r.fallback
   lazy val obj: Registry.fallback.type = Registry.fallback
   lazy val any: Any = Registry.fallback
   lazy val inferred = Registry.fallback
@@ -55,3 +70,6 @@ object Statics:
   println(Statics.obj.name + (Statics.any == Registry.fallback) + Statics.inferred.name)
   println(Statics.canEqualCtx eq Statics.canEqualCtx)
   println(Statics.me eq Statics)
+  val o = Sequenced()
+  println(List(o.before, o.after, o.chained, o.inlined).forall(_ eq o) && (o.ofVar eq Registry.fallback))
+  println(Imported().viaImport.name + Statics.viaVal.name)

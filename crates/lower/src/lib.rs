@@ -109,6 +109,8 @@ pub struct Lower<'a> {
     forwarded: FxHashMap<SymbolId, SymbolId>,
     /// The span of each getter's right-hand side as `Getters` made it, its point at its start.
     getter_rhs: FxHashMap<SymbolId, Span>,
+    /// The given aliases `UncacheGivenAliases` made methods, lazy values again once lowered.
+    uncached_givens: Vec<SymbolId>,
     /// The field, unless dropped, and constructor parameter of each class holding its enclosing
     /// instance.
     outers: FxHashMap<SymbolId, (Option<SymbolId>, SymbolId)>,
@@ -170,6 +172,7 @@ pub fn lower_sources(
     let files = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
         .and_then(|()| codegen::unit(&mut l, root));
+    phases::recache_given_aliases(&mut l);
     l.u.elide_opaques(false);
     match std::mem::take(&mut l.u.reductions_exhausted) {
         true => unsupported(Span::NONE, "match type reduction over the reduction budget"),
@@ -240,6 +243,7 @@ impl<'a> Lower<'a> {
             mixed_in_lazy_names: FxHashMap::default(),
             forwarded: FxHashMap::default(),
             getter_rhs: FxHashMap::default(),
+            uncached_givens: Vec::new(),
             outers: FxHashMap::default(),
             outer_accessors: FxHashMap::default(),
             coords: FxHashMap::default(),

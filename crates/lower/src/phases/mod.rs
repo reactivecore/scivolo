@@ -149,3 +149,4 @@ mod vc_elide;
 pub(crate) mod walk;
 
 pub use pipeline::run;
+pub use uncache_given_aliases::restore as recache_given_aliases;

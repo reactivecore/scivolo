@@ -80,8 +80,7 @@ pub fn transform(
         let field_tpt = l.type_tree(object, Span::NONE);
         let field_span = if l.mixed_in.contains(&accessor) { Span::NONE } else { span };
         stats.push(l.build().val_def(lazy.field, field_tpt, None, field_span));
-        let static_ref = matches!(l.tpd.tree(rhs), Tree::Ident { .. }) && l.static_selects.contains(&rhs);
-        let selected = l.getter_rhs.get(&accessor).copied().filter(|_| static_ref);
+        let selected = l.getter_rhs.get(&accessor).copied().filter(|_| l.static_selects.contains(&rhs));
         if let Some(r) = selected {
             l.tpd.get_mut(rhs).span = r;
         }
