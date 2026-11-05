@@ -45,6 +45,7 @@ impl Universe {
             disagreeing_bases: FxHashMap::default(),
             deferred: Default::default(),
             with_inits: Default::default(),
+            builds_scala_library: false,
             scala2_classes: Default::default(),
             java_stubs: Default::default(),
             self_types: Default::default(),

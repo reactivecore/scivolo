@@ -7,6 +7,7 @@
 //! `Memoize` makes store fields.
 
 use super::accessor_names::{accessor_name, trait_setter_name};
+use super::function_classes::function_class_arity;
 use super::getters::{is_abstract_var_setter, is_const_final, is_param_accessor, is_setter};
 use super::library_traits::define_setter;
 use super::mixin::has_body;
@@ -118,7 +119,7 @@ pub fn mixed_in(
         }
     }
     let at = if span.exists() { Span::at(span.point()) } else { span };
-    if !l.u.no_inits(mixin) {
+    if !l.u.no_inits(mixin) && function_class_arity(l, mixin).is_none() {
         let init = l.u.decl(mixin, "<init>").unwrap_or_default();
         let init = init.into_iter().next().expect("a trait constructor");
         let at = if call_span.exists() { Span::at(call_span.start()) } else { at };
