@@ -29,16 +29,18 @@ impl Typer<'_> {
             self.check_in_inline_context("inline match", self.ast.span(id), ctx);
         }
         let sel = self.typed(selector, Pt::Any, ctx);
-        if self.tpd.sym(sel).is_some_and(|s| self.syms.repeated_params.contains_key(&s)) {
-            return self.unsupported(id, "match on a repeated parameter");
-        }
+        let repeated = self.tpd.sym(sel).and_then(|s| self.syms.repeated_params.get(&s).copied());
         let sel_tpe = self.tpd.tpe(sel);
         let sel_tpe = match self.fully_defined_as(sel_tpe, true) {
             Ok(t) => t,
             Err(what) => return self.unsupported(id, what),
         };
         let constant = matches!(self.u.types().get(sel_tpe), Type::Constant(..) | Type::Str(_));
-        let sel_tpe = if constant { sel_tpe } else { self.widened_selector(sel_tpe) };
+        let sel_tpe = match repeated {
+            Some(annotated) => annotated,
+            None if constant => sel_tpe,
+            None => self.widened_selector(sel_tpe),
+        };
         let case_pt = match pt {
             Pt::Fun(_) | Pt::PolyFun(_) => Pt::Any,
             pt => pt,

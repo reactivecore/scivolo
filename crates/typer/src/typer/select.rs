@@ -197,6 +197,19 @@ impl Typer<'_> {
     }
 
     fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {
+        {
+            let t = self.tpd.tpe(qual);
+            let w = self.u.widen(t);
+            let c = self.u.class_symbol(w);
+            eprintln!(
+                "DBG mnf {} w {} c {:?} decls {:?} tree {:?}",
+                self.u.show(t),
+                self.u.show(w),
+                c.map(|c| self.u.full_name(c)),
+                c.map(|c| self.u.symbol(c).decls.len()),
+                c.map(|c| self.u.symbol(c).tree.is_some())
+            );
+        }
         self.not_a_member(id, qual, name, ctx).unwrap_or_else(|| self.unsupported(id, "member not found"))
     }
 }

@@ -35,6 +35,13 @@ impl Universe {
                 return self.merged_bases(t, base, (x, y), false);
             }
             Type::This(u)
+                if let Some(c) = self.class_symbol(u)
+                    && !self.derives_from(c, base)
+                    && let Some(given) = self.given_self_type(c) =>
+            {
+                return self.base_type_within(given, base, depth);
+            }
+            Type::This(u)
             | Type::Super(_, u)
             | Type::Annotated(u, _)
             | Type::Flexible(u)

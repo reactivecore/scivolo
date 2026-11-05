@@ -15,6 +15,9 @@ impl Gen<'_, '_> {
     pub fn gen_expr(&mut self, t: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
         match *self.l.tpd.tree(t) {
+            Tree::Apply { fun, .. } if self.l.tpd.sym(fun).is_some_and(|s| self.l.defs.is_boxed_unit(s)) => {
+                Ok(self.val(Val::Unit))
+            }
             Tree::Apply { fun, args } => self.gen_apply(t, fun, args),
             Tree::Block { stats, expr } => {
                 let pos = self.pos_or(span, self.m.pos);
@@ -72,7 +75,7 @@ impl Gen<'_, '_> {
         let span = self.l.tpd.span(t);
         let Some(sym) = self.l.tpd.sym(t) else { return unsupported(span, "an identifier without a symbol") };
         let saved = self.at_span(span);
-        let value = if sym == self.l.defs.boxed_unit_unit {
+        let value = if self.l.defs.is_boxed_unit(sym) {
             self.val(Val::Unit)
         } else if self.l.u.is_module(sym) && is_static(self.l.u, sym) {
             self.gen_module(sym)
@@ -117,7 +120,7 @@ impl Gen<'_, '_> {
             false => span,
         };
         let saved = self.at_span(span);
-        let v = if sym == self.l.defs.boxed_unit_unit {
+        let v = if self.l.defs.is_boxed_unit(sym) {
             self.val(Val::Unit)
         } else if self.l.u.is_module(sym) && !accessor {
             self.gen_module(sym)

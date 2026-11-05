@@ -32,7 +32,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
 /// Refuses the references to `compiletime.uninitialized` under `root` that `transform` left.
 pub fn refuse_others(l: &Lower, root: TNodeId) -> Result<()> {
     for t in super::walk::subtrees(l.tpd, root) {
-        if l.tpd.sym(t).is_some_and(|s| is_uninitialized(l, s)) {
+        let reference = matches!(l.tpd.tree(t), Tree::Ident { .. } | Tree::Select { .. });
+        if reference && l.tpd.sym(t).is_some_and(|s| is_uninitialized(l, s)) {
             return unsupported(l.tpd.span(t), "`uninitialized` other than as a variable field's value");
         }
     }

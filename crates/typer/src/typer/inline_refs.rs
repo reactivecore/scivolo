@@ -58,6 +58,10 @@ impl Typer<'_> {
         if !crate::inlining::is_erased_value(self.u, sym) || self.enclosing_inline(ctx.owner).is_some() {
             return Ok(());
         }
+        let mut owners = std::iter::successors(Some(ctx.owner), |&o| self.u.symbol(o).owner);
+        if owners.any(|o| crate::inlining::is_erased_value(self.u, o)) {
+            return Ok(());
+        }
         match pt {
             Pt::Type(t) if self.derives_erased_class(t) => Ok(()),
             _ => Err("reference to an erased definition"),

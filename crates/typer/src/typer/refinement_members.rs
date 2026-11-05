@@ -74,7 +74,24 @@ impl Typer<'_> {
         let mut mctx = Ctx { owner: sym, ..ctx };
         let mut clause_trees = Vec::new();
         let mut clause_params = Vec::new();
-        for clause in clauses.map(|c| self.ast.clause_items(c).to_vec()).unwrap_or_default() {
+        let mut value_clauses = clauses.map(|c| self.ast.clause_items(c).to_vec()).unwrap_or_default();
+        let mut tparams = Vec::new();
+        if let Some(&first) = value_clauses.first()
+            && self
+                .ast
+                .items(first)
+                .first()
+                .is_some_and(|&p| matches!(self.ast.tree(p), Tree::TypeDef { .. }))
+        {
+            let (syms, lctx) =
+                self.poly_type_params(first, sym, mctx).map_err(|_| "polymorphic structural refinement")?;
+            mctx = Ctx { owner: sym, ..lctx };
+            let items = self.ast.items(first).to_vec();
+            clause_trees.push(items.into_iter().map(|p| self.typed_type_def(p, mctx)).collect());
+            tparams = syms;
+            value_clauses.remove(0);
+        }
+        for clause in value_clauses {
             let (mut trees, mut params, mut kind) = (Vec::new(), Vec::new(), (false, false));
             for p in self.ast.items(clause).to_vec() {
                 let Tree::ValDef { name, tpt, mods, .. } = *self.ast.tree(p) else {
@@ -114,7 +131,9 @@ impl Typer<'_> {
             return Err("structural refinement of an unsupported type");
         }
         match clauses {
-            Some(_) if clause_params.is_empty() => info = self.u.intern_type(Type::ByName(info)),
+            Some(_) if clause_params.is_empty() && tparams.is_empty() => {
+                info = self.u.intern_type(Type::ByName(info))
+            }
             _ => {
                 for (params, (implicit, contextual)) in clause_params.into_iter().rev() {
                     let binder = self.u.fresh_binder();
@@ -122,6 +141,18 @@ impl Typer<'_> {
                     info = self.u.intern_type(method);
                 }
             }
+        }
+        if !tparams.is_empty() {
+            let binder = self.syms.fresh_binder();
+            let params: Vec<(String, TypeId)> = tparams
+                .iter()
+                .map(|&p| {
+                    let bounds = self.u.info(p);
+                    (self.u.symbol(p).name.clone(), self.param_refs(bounds, &tparams, binder))
+                })
+                .collect();
+            let result = self.param_refs(info, &tparams, binder);
+            info = self.u.intern_type(Type::Poly { binder, params, result });
         }
         self.u.set_info(sym, info);
         let span = self.ast.span(r);

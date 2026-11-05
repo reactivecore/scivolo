@@ -93,6 +93,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         tuple_optimizations::transform(l, td);
         let_over_apply::transform(l, td);
         erasure::transform(l, td)?;
+        pure_stats::unit_blocks(l, td);
         bridges::transform(l, td, &deferred)?;
     }
     eval_once::renumber(l, root);

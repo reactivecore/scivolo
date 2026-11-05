@@ -1,8 +1,9 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PureStats.scala
-//! dotty's `PureStats` for anonymous instances: a statement `{ class C; new C(args) }` of a block,
-//! `C` initializing nothing and `args` pure, is dropped.
+//! dotty's `PureStats` for anonymous instances and unit blocks: a statement `{ class C; new
+//! C(args) }` of a block, `C` initializing nothing and `args` pure, or `{ paths; () }` is dropped.
 
+use super::first_transform::is_pure;
 use super::module_purity::is_pure_value;
 use super::walk::subtrees;
 use crate::Lower;
@@ -29,6 +30,28 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Vec<TNodeId> {
         l.tpd.get_mut(t).tree = Tree::Block { stats, expr };
     }
     dropped
+}
+
+/// Drops the statements `{ paths; () }` of the blocks in erased class `td`.
+pub fn unit_blocks(l: &mut Lower, td: TNodeId) {
+    for t in subtrees(l.tpd, td) {
+        let Tree::Block { stats, expr } = *l.tpd.tree(t) else { continue };
+        let items = l.tpd.items(stats).to_vec();
+        let kept: Vec<TNodeId> = items.iter().copied().filter(|&s| !is_pure_unit_block(l, s)).collect();
+        if kept.len() < items.len() {
+            let stats = l.tpd.list(&kept);
+            l.tpd.get_mut(t).tree = Tree::Block { stats, expr };
+        }
+    }
+}
+
+/// Whether `t` is `{ paths; () }`, pure paths before a literal.
+fn is_pure_unit_block(l: &Lower, t: TNodeId) -> bool {
+    let Tree::Block { stats, expr } = *l.tpd.tree(t) else { return false };
+    let paths = l.tpd.items(stats);
+    !paths.is_empty()
+        && paths.iter().all(|&s| is_pure(l, s))
+        && matches!(l.tpd.tree(expr), Tree::Literal { .. })
 }
 
 /// Whether `t` is `{ class C; new C(args) }` with a stable constructor and pure arguments.

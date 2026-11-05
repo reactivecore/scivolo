@@ -13,7 +13,7 @@ use tasty::{Erased, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
-/// `expr` then `()` for `Unit`, a conversion or a cast of the boxed value from a primitive or `Unit`,
+/// `expr` then `()` for `Unit` and a source cast to `BoxedUnit`, a conversion or a cast of the boxed value from a primitive or `Unit`,
 /// unboxing from a reference or `null` to a primitive, a `ClassCastException` for `Nothing`,
 /// an ascription if `expr`'s erasure conforms to `target`'s, else `t`; casts from or to value classes as `value_cast`.
 pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TNodeId> {
@@ -47,12 +47,9 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
             }
             None => return refused(),
         },
-        (found, Erased::Unit) if *found != Erased::Unit => {
-            let span = l.tpd.span(expr);
-            let unit = l.unit_literal(Span::NONE);
-            let block = l.block(&[expr], unit, Span::NONE);
-            let block = l.positioned(block);
-            l.with_span(block, span)
+        (found, Erased::Unit) if *found != Erased::Unit => unit_after(l, expr),
+        (_, Erased::Class(c)) if c == "scala.runtime.BoxedUnit" && !upcast && !span.is_synthetic() => {
+            unit_after(l, expr)
         }
         (Erased::Prim(a), Erased::Prim(b)) => match primitive_conversion(l, expr, widened, *a, *b) {
             Some(converted) => converted,
@@ -172,6 +169,15 @@ fn value_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<
             t
         }
     })
+}
+
+/// `{ expr; () }` at `expr`'s span.
+fn unit_after(l: &mut Lower, expr: TNodeId) -> TNodeId {
+    let span = l.tpd.span(expr);
+    let unit = l.unit_literal(Span::NONE);
+    let block = l.block(&[expr], unit, Span::NONE);
+    let block = l.positioned(block);
+    l.with_span(block, span)
 }
 
 /// Cast `t` of primitive `expr` of erased letter `c` made a cast of `expr` boxed.
