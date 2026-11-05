@@ -19,7 +19,8 @@ JDK's declarations, as whole classes in place of javalib's (`--jdk-tasty libs/jd
   their classes, objects and type parameters are javalib's symbols; each member they declare
   replaces javalib's members of its name in that class, so a name lists all the JDK's overloads
   of its class. Constructors, synthetic members and classes javalib lacks are not entered.
-- A declared repeated parameter `T*` is Java varargs, `Array[T] @Repeated`.
+- A declared repeated parameter `T*` is Java varargs, `Array[T] @Repeated`, as is one of a JDK
+  jar's (`--jdk-tasty`, e.g. `libs/jdk-stubs.jar`).
 - `libs/jdk-stubs/JdkClasses.scala` holds JDK classes javalib lacks that library sources import
   (`java.io.SequenceInputStream`); their TASTy is in `libs/jdk-declarations.jar` in the package
   table, without NIR, so a use fails to link, as in Scala Native.
@@ -37,4 +38,6 @@ JDK's declarations, as whole classes in place of javalib's (`--jdk-tasty libs/jd
 - The JDK's constants (`static final` fields with a `ConstantValue`) are declared as constants:
   `scripts/jdk_constants.py` generates `JdkConstants.scala` from `javap -constants` for the
   classes the other files do not declare and lists the constants those lack. Like
-  `JdkMemberDeclarations.scala`, it stays out of `libs/jdk-stubs.jar`.
+  `JdkMemberDeclarations.scala`, it stays out of `libs/jdk-stubs.jar`. The constants of the
+  `java.lang` classes javalib lacks (`StrictMath.PI`) go into `JdkClassConstants.scala`, beside
+  `JdkClasses.scala`'s classes.

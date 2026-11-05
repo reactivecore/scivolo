@@ -9,7 +9,10 @@ use super::super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, Type, TypeId, TypeVars};
+
+/// How many type variables instantiating the argument of a class tag passes at most.
+const MAX_INSTANTIATIONS: u32 = 8;
 
 impl Typer<'_> {
     pub fn synthesized_class_tag(
@@ -19,7 +22,7 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<Option<TNodeId>, &'static str> {
-        let arg = self.class_tag_arg(arg)?;
+        let Some(arg) = self.class_tag_arg(arg)? else { return Ok(None) };
         let dealiased = self.u.dealias(arg);
         if let Some(&[elem]) = self.class_args(dealiased, "scala.Array").as_deref() {
             let class_tag = self.resolve_full_name("scala.reflect.ClassTag", true).ok_or("ClassTag")?;
@@ -95,27 +98,58 @@ impl Typer<'_> {
         Ok(Some(self.build().apply(fun, &[literal], result, at)))
     }
 
-    /// The type argument of a class tag fully defined, an intersection or union of equal sides
-    /// reduced to one; `Err` if a type variable in it has no lower bound.
-    fn class_tag_arg(&mut self, arg: TypeId) -> Result<TypeId, &'static str> {
-        let arg = self.zonk(arg);
-        let mut unbounded = false;
-        self.u.map_type(arg, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part) {
-                unbounded |= tasty::TypeVars::bounds(&self.constraint, v).0 == tasty::NOTHING;
-            }
-            None
-        });
-        if unbounded {
-            return Err("class tag of an undetermined type");
-        }
-        let mut arg = self.fully_defined_as(arg, true)?;
-        loop {
+    /// The type arguments of `t` if it refers to class `name`.
+    pub fn class_args(&mut self, t: TypeId, name: &str) -> Option<Vec<TypeId>> {
+        let (tycon, args) = match self.u.types().get(t).clone() {
+            Type::Applied(tycon, args) => (tycon, args),
+            _ => (t, Vec::new()),
+        };
+        let class = self.u.class_symbol(tycon)?;
+        (self.u.full_name(class) == name).then_some(args)
+    }
+
+    /// The type argument of a class tag (dotty's `instArg`): an intersection or union of equal
+    /// sides reduced to one; an uninstantiated type variable instantiated to its lower bound, else
+    /// its upper bound, if that bound has no type variable on top, else fully defined; `None` for
+    /// one without bounds or that cannot be fully defined.
+    fn class_tag_arg(&mut self, arg: TypeId) -> Result<Option<TypeId>, &'static str> {
+        for _ in 0..MAX_INSTANTIATIONS {
+            let arg = self.zonk(arg);
             let dealiased = self.u.dealias(arg);
-            match *self.u.types().get(dealiased) {
-                Type::And(a, b) | Type::Or(a, b, _) if a == b => arg = a,
-                _ => return Ok(arg),
+            let tpe = self.u.types().get(dealiased).clone();
+            let v = match tpe {
+                Type::And(a, b) | Type::Or(a, b, _) if a == b => return self.class_tag_arg(a),
+                Type::And(..) | Type::Or(..) if !self.open_vars(dealiased).is_empty() => {
+                    return Err("class tag of an intersection or union with a type variable");
+                }
+                Type::Var(v) => v,
+                _ => return Ok(Some(arg)),
+            };
+            let (lo, hi) = self.constraint.bounds(v);
+            let nothing = self.u.builtins().nothing;
+            let (bound, from_below) = match lo != tasty::NOTHING && self.u.class_symbol(lo) != Some(nothing) {
+                true => (lo, true),
+                false if !self.is_exactly_any(hi) => (hi, false),
+                false => return Ok(None),
+            };
+            if self.is_ground(bound) {
+                self.instantiate_var(v, from_below)?;
+            } else if self.fully_defined_as(arg, true).is_err() {
+                return Ok(None);
             }
+        }
+        Err("class tag of an undetermined type")
+    }
+
+    /// Whether `t` is no uninstantiated type variable, nor an intersection or union with one
+    /// (dotty's `isGroundConstr`).
+    fn is_ground(&mut self, t: TypeId) -> bool {
+        let t = self.zonk(t);
+        let t = self.u.dealias(t);
+        match *self.u.types().get(t) {
+            Type::Var(_) => false,
+            Type::And(a, b) | Type::Or(a, b, _) => self.is_ground(a) && self.is_ground(b),
+            _ => true,
         }
     }
 }

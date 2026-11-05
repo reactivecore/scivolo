@@ -15,9 +15,9 @@ pub struct Parts {
 
 impl Typer<'_> {
     /// Adds to `parts` the classes of the parts of `t` and the abstract and opaque types among
-    /// them: of the references in `t` dealiased, of the types of its term references, and of the
-    /// prefixes of its class, abstract type and term references; never of packages or package
-    /// objects.
+    /// them: of the references in `t` dealiased, of the types of its term references, of the
+    /// bounds of its type parameters, and of the prefixes of its class, abstract type and term
+    /// references; never of packages or package objects.
     pub fn collect_parts(&mut self, t: TypeId, seen: &mut Vec<TypeId>, parts: &mut Parts) {
         if seen.contains(&t) {
             return;
@@ -61,12 +61,60 @@ impl Typer<'_> {
             parts.classes.push(c);
         }
         let param = self.u.symbol(sym).kind == Kind::TypeParam;
+        if param {
+            let info = self.u.info(sym);
+            self.collect_parts(info, seen, parts);
+        }
         let alias = self.u.alias_of(sym).is_some();
         if self.u.symbol(sym).kind == Kind::Type && !alias && !parts.anchors.contains(&(sym, prefix)) {
             parts.anchors.push((sym, prefix));
         }
         if let Some(p) = prefix.filter(|_| !param && !alias) {
             self.collect_parts(p, seen, parts);
+        }
+    }
+
+    /// Adds to `parts` the parts of the type arguments of the parents of its classes and of
+    /// their base classes, as seen from the classes' prefixes (dotty's `iscopeRefs` of a class's
+    /// parents); none for a class of an instance without its prefix.
+    pub fn collect_parent_args(&mut self, seen: &mut Vec<TypeId>, parts: &mut Parts) {
+        let mut done = Vec::new();
+        let mut i = 0;
+        while let Some(&class) = parts.classes.get(i) {
+            let mut pending = vec![class];
+            while let Some((c, prefix)) = pending.pop() {
+                let owner = self.u.symbol(c).owner.filter(|&o| self.u.is_class(o));
+                let instance = owner.is_some_and(|o| !self.u.is_module_class(o));
+                if done.contains(&(c, prefix)) || prefix.is_none() && instance {
+                    continue;
+                }
+                done.push((c, prefix));
+                for parent in self.u.parents(c) {
+                    let parent = match (prefix, owner) {
+                        (Some(p), Some(o)) => self.u.as_seen_from(parent, p, o),
+                        _ => parent,
+                    };
+                    let tycon = match self.u.types().get(parent).clone() {
+                        Type::Applied(tycon, args) => {
+                            for arg in args {
+                                self.collect_parts(arg, seen, parts);
+                            }
+                            tycon
+                        }
+                        _ => parent,
+                    };
+                    let tycon = self.u.dealias(tycon);
+                    let p = match *self.u.types().get(tycon) {
+                        Type::Sym(p, _) => p,
+                        Type::TypeRef(p, _) => Some(p),
+                        _ => continue,
+                    };
+                    if let Some(s) = self.referenced(tycon).filter(|&s| self.u.is_class(s)) {
+                        pending.push((s, p));
+                    }
+                }
+            }
+            i += 1;
         }
     }
 

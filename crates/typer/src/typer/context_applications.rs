@@ -35,6 +35,7 @@ impl Typer<'_> {
         if meth.is_some_and(|m| self.u.symbol(m).flags.has(tasty::tags::EXTENSION)) {
             return Some(Err("context function result of an extension method"));
         }
+        let tree = self.inlined_transparent(tree, Pt::Any, ctx).unwrap_or(tree);
         Some(self.with_apply(tree, Pt::Any, ctx).map(|apply| self.adapt(apply, pt, ctx)))
     }
 

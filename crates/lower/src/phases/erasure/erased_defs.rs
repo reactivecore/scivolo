@@ -162,23 +162,14 @@ fn refuse_erased_refs(l: &mut Lower, root: TNodeId) -> Result<()> {
     Ok(())
 }
 
-/// Whether term `s` is erased: flagged so, or `erasedValue` of `scala.compiletime` or
-/// `unsafeErasedValue` of `scala.caps` (dotty's `isErased`).
 fn is_erased_sym(l: &Lower, s: SymbolId) -> bool {
-    let sym = l.u.symbol(s);
-    if !sym.kind.is_term() {
-        return false;
-    }
-    let full = l.u.full_name(s);
-    has(l.u, s, ERASED)
-        || matches!(sym.name.as_str(), "erasedValue" | "unsafeErasedValue")
-            && (full.starts_with("scala.compiletime.") || full.starts_with("scala.caps."))
+    crate::symbols::is_erased(l.u, s)
 }
 
 /// Whether `stat` defines an inline or erased method or value (an erased value's getter too).
 fn is_effectively_erased(l: &Lower, stat: TNodeId) -> bool {
     matches!(l.tpd.tree(stat), Tree::DefDef { .. } | Tree::ValDef { .. })
-        && l.tpd.sym(stat).is_some_and(|s| has(l.u, s, INLINE) || has(l.u, s, ERASED))
+        && l.tpd.sym(stat).is_some_and(|s| has(l.u, s, INLINE) || is_erased_sym(l, s))
 }
 
 /// Whether `stat` defines an erased value or parameter.

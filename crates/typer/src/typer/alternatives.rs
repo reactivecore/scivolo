@@ -63,6 +63,7 @@ impl Typer<'_> {
         self.untuple_unless_unary(proto, &methods)?;
         let n = self.protos[proto].args.len();
         let mut fitting = Vec::new();
+        let mut applies = Vec::new();
         for s in methods {
             let info = self.u.info(s);
             let Some((_, ps)) = self.u.param_clauses(info).into_iter().next() else {
@@ -76,7 +77,7 @@ impl Typer<'_> {
                     if let Some((_, aps)) = self.u.param_clauses(apply_info).into_iter().next()
                         && self.size_fits(apply, &aps, n)
                     {
-                        return Err("overloaded method whose result has an apply method");
+                        applies.push((apply, value, info));
                     }
                 }
                 continue;
@@ -98,11 +99,16 @@ impl Typer<'_> {
                 fitting.push(s);
             }
         }
-        match fitting.as_slice() {
+        let chosen = match fitting.as_slice() {
             [s] => Ok(*s),
-            [] => Err("no alternative with that many arguments"),
+            [] if applies.is_empty() => Err("no alternative with that many arguments"),
+            [] => Err("overloaded method whose result has an apply method"),
             _ => self.resolve_overloaded(&fitting, prefix, proto),
+        }?;
+        if !applies.is_empty() && !self.wins_over_applies(chosen, &applies, prefix, proto) {
+            return Err("overloaded method whose result has an apply method");
         }
+        Ok(chosen)
     }
 
     /// Whether method `s` of first-clause parameter types `ps` may take `n` arguments, missing

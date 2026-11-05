@@ -147,7 +147,7 @@ impl Typer<'_> {
             Some(Ok(parts)) => parts,
             None => (f, Vec::new(), Vec::new()),
         };
-        let plain = lifted.is_empty() && aligned.is_none() && repeated.is_none();
+        let plain = lifted.is_empty() && repeated.is_none();
         let result = match lifted.is_empty() {
             true => result,
             false => match self.lifted_result(f, meth) {

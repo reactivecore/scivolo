@@ -2,7 +2,7 @@
 ref/scala-native/project/Settings.scala `commonScalalibSettings`): the `.scala` files of
 scala-library's sources jar, patched with `git apply` and overridden by the files of
 ref/scala-native-scalalib/scalalib/overrides-3, in tmp/lib/scalalib/src; beside it, the TASTy of
-the JDK classes they use that javalib does not define."""
+the JDK classes they use that javalib does not define, and the library jars they are lowered against."""
 import shutil
 import subprocess
 import sys
@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent
 OVERRIDES = ROOT / "ref/scala-native-scalalib/scalalib/overrides-3"
 SRC = ROOT / "tmp/lib/scalalib/src"
 JDK_ONLY = ROOT / "tmp/lib/scalalib/jdk-only.jar"
+LIBS = ROOT / "tmp/lib/scalalib/libs"
+LIBRARY = "scala-library-3.9.0.jar"
 # auxlib's TASTy (the classes Scala's library defines in Java), which `just lib-oracle` builds.
 AUXLIB = ROOT / "tmp/lib/sn/jars/auxlib_native0.5_3-0.5.12.jar"
 OPTIONS = ["--scalalib", "--jdk-tasty", str(JDK_ONLY), "--jdk-tasty", str(AUXLIB),
@@ -70,3 +72,28 @@ def sources(libs):
             sys.exit(f"{patch.relative_to(ROOT)} does not apply: {r.stderr.strip()}")
     (SRC / ".done").touch()
     return SRC
+
+
+def libs(jars):
+    """LIBS, the jars of directory `jars` with Scala's library's `LazyVals` TASTy replaced by
+    that of SRC's patched source (whose `Waiting` declares `countDown` and `await`), compiled
+    once by scala-cli: no published jar holds that TASTy."""
+    lazyvals = LIBS / "lazyvals/scala/runtime/LazyVals.tasty"
+    LIBS.mkdir(parents=True, exist_ok=True)
+    if not lazyvals.exists():
+        cmd = ["scala-cli", "--power", "compile", "--server=false", "--offline", "-S", "3.9.0", "-O", "-experimental",
+               "--jar", str(jars / "nativelib_native0.5_3-0.5.12.jar"), "--compile-output", str(LIBS / "lazyvals"),
+               str(SRC / "scala/runtime/LazyVals.scala")]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0 or not lazyvals.exists():
+            sys.exit(f"compiling LazyVals.scala failed: {r.stderr.strip()}")
+    for jar in jars.glob("*.jar"):
+        if not (LIBS / jar.name).exists() and jar.name != LIBRARY:
+            (LIBS / jar.name).symlink_to(jar.resolve())
+    if not (LIBS / LIBRARY).exists():
+        part = LIBS / f"{LIBRARY}.part"
+        with zipfile.ZipFile(jars / LIBRARY) as lib, zipfile.ZipFile(part, "w") as out:
+            for n in lib.namelist():
+                out.writestr(n, lazyvals.read_bytes() if n == "scala/runtime/LazyVals.tasty" else lib.read(n))
+        part.rename(LIBS / LIBRARY)
+    return LIBS

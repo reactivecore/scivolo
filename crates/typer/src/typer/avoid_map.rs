@@ -24,6 +24,13 @@ impl Typer<'_> {
                 self.avoid_select(t, pre, p, s, v, a)
             }
             Type::This(_) | Type::Sym(..) => exact(t),
+            Type::Applied(tycon, _)
+                if self.u.referenced(tycon).is_some_and(|s| a.locals.contains(&s))
+                    && self.u.dealias(t) != t =>
+            {
+                let dealiased = self.u.dealias(t);
+                m(self, dealiased, v)
+            }
             Type::Applied(tycon, args) => {
                 let c = m(self, tycon, v)?;
                 let variances = self.u.tycon_variances(tycon, args.len());

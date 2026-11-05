@@ -31,7 +31,7 @@ enum Callee {
 /// `roots`, local classes lifted into `class` if `in_class`, those of `pending` using values where
 /// they were defined and passed them where created.
 pub fn dependencies(
-    l: &Lower,
+    l: &mut Lower,
     functions: &mut [Function],
     class: SymbolId,
     roots: &[TNodeId],
@@ -65,9 +65,7 @@ pub fn dependencies(
                 functions[i].this |= in_class
             }
             (&Tree::New { tpt }, _) => {
-                let tpe = l.tpd.tpe(tpt);
-                let tycon = if let Type::Applied(t, _) = l.u.types().get(tpe) { *t } else { tpe };
-                let created = if let Type::Sym(_, c) = *l.u.types().get(tycon) { Some(c) } else { None };
+                let created = l.u.class_symbol(l.tpd.tpe(tpt));
                 match created.and_then(|c| l.u.symbol(c).owner) {
                     Some(o) if o == class => functions[i].this = true,
                     Some(o)

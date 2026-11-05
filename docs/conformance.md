@@ -215,7 +215,7 @@ Results (2026-11-05):
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** mostly members not found (4), `$scope` (3), adaptations (2) and
+- **Typer refused:** mostly members not found (5), `$scope` (3), adaptations (2) and
   transparent inline extractors (2).
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
@@ -244,6 +244,17 @@ Against the whole-module build alone, sourcecode `Macros$`, mainargs `Macros$` a
 `package` differ (case 1: types shared across files, static forwarders of members a package
 object inherits); compiled alone, dotty gives ours, mainargs' up to quote positions. upickle's
 own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `Api.scala`).
+
+`just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
+library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). `Equiv$TupleNEquiv`
+and `Ordering$TupleNOrdering` (N = 2…9, open, not accepted) differ from Scala Native's build of
+the whole module in `(a, b).hashCode()`: the build calls `Any.hashCode`, `(Object) => int`, since a
+case class's synthetic members do not exist yet while a class of the same run is typed; ours reads
+`Tuple2` from TASTy and calls `Tuple2.hashCode`, `(Tuple2) => int`, as Scala Native does for a user
+program. Also open, not accepted, in a user program: a value of type `Array[Nothing]` is
+`array[nothing]` in Scala Native's NIR, ours `as[array[@java.lang.Object]]` of it; and
+`this.asInstanceOf[S]` returned from a method of a trait with self type `S` casts at the type
+argument's position in Scala Native's NIR, at `this` in ours.
 
 ## M5: scala/scala `test/junit`
 

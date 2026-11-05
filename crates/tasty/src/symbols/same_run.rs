@@ -7,6 +7,11 @@ impl super::Universe {
         self.same_run_jar = Some(jar);
     }
 
+    /// Whether the sources are Scala's library (dotty's `-Ycompile-scala2-library`).
+    pub fn compiles_scala_library(&self) -> bool {
+        self.same_run_jar.is_some()
+    }
+
     /// Whether symbol `s` from TASTy is compiled in the same run as the sources: any when
     /// javalib's sources are compiled, else one of the jar `set_same_run_jar` names.
     pub fn is_same_run(&self, s: crate::SymbolId) -> bool {

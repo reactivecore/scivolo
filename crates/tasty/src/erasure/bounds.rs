@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
-//! Erasure of intersections and unions (dotty's `erasedGlb` and `erasedLub`).
+//! Erasure of intersections (dotty's `erasedGlb`).
 
-use super::{Erased, OBJECT, object};
+use super::{Erased, OBJECT};
 use crate::tags::TRAIT;
 use crate::types::{Type, TypeId};
 use crate::{SymbolId, Universe};
@@ -19,7 +19,7 @@ impl Universe {
 
     /// The side of `a & b` it erases as: the other side if one is `caps.Pure`, else the side first
     /// in dotty's `compareErasedGlb`.
-    fn glb_side(&mut self, a: TypeId, b: TypeId) -> TypeId {
+    pub fn glb_side(&mut self, a: TypeId, b: TypeId) -> TypeId {
         let pure = |u: &mut Self, t| {
             let t = u.dealias(t);
             u.class_symbol(t).is_some_and(|c| u.full_name(c) == "scala.caps.Pure")
@@ -90,67 +90,6 @@ impl Universe {
         self.class_symbol(r).or(class)
     }
 
-    /// The erasure of `a | b`: the other side for `Nothing`; `Object` beside a value class; the
-    /// other side for `Null` beside a reference, `BoxedUnit` beside `Unit`; one side if both erase
-    /// alike; an array of the joined elements; the closest common base class of the erased sides;
-    /// else `Object`.
-    pub fn erase_or(&mut self, a: TypeId, b: TypeId) -> Erased {
-        let (ea, eb) = (self.erase(a), self.erase(b));
-        if matches!((&ea, &eb), (Erased::Unit, Erased::Null) | (Erased::Null, Erased::Unit)) {
-            return Erased::Class("scala.runtime.BoxedUnit".into());
-        }
-        let nothing = ea == Erased::Nothing || eb == Erased::Nothing;
-        if !nothing && (self.is_value_class(a) || self.is_value_class(b)) {
-            return object();
-        }
-        if let (Erased::Class(na), Erased::Class(nb)) = (&ea, &eb)
-            && ea != eb
-        {
-            let class = |u: &mut Self, t: TypeId, name: &str| {
-                let mut widened = u.widen(t);
-                while let Type::And(x, y) = *u.types().get(widened) {
-                    widened = u.glb_side(x, y);
-                }
-                u.erased_class(widened).or_else(|| {
-                    let r = u.class_ref(name);
-                    u.class_symbol(r)
-                })
-            };
-            let (Some(ca), Some(cb)) = (class(self, a, na), class(self, b, nb)) else {
-                return object();
-            };
-            return match self.common_base(ca, cb) {
-                Some(base) => {
-                    let base = self.intern_type(Type::Sym(None, base));
-                    self.erase(base)
-                }
-                None => object(),
-            };
-        }
-        lub(ea, eb)
-    }
-
-    /// The common base of `a` and `b` in dotty's `erasedLub`: of the bases of `a` but `Pure` that
-    /// `b` derives from, up to and including the first trait, the last one no other of them
-    /// derives from.
-    fn common_base(&mut self, a: SymbolId, b: SymbolId) -> Option<SymbolId> {
-        let mut candidates = Vec::new();
-        for base in self.linearization(a) {
-            if self.full_name(base) != "scala.caps.Pure" && self.derives_from(b, base) {
-                candidates.push(base);
-                if self.symbol(base).flags.has(TRAIT) {
-                    break;
-                }
-            }
-        }
-        let minimal = |u: &mut Self, c: SymbolId| {
-            u.full_name(c) != "scala.*:" && candidates.iter().all(|&x| x == c || !u.derives_from(x, c))
-        };
-        let base = candidates.iter().copied().rfind(|&c| minimal(self, c))?;
-        let full = self.full_name(base);
-        (!matches!(full.as_str(), "scala.Any" | "scala.AnyVal")).then_some(base)
-    }
-
     /// The class `t` erases to: its class, a value class unwrapped to its underlying type's.
     pub fn erased_class(&mut self, t: TypeId) -> Option<SymbolId> {
         let mut c = self.class_symbol(t)?;
@@ -162,7 +101,8 @@ impl Universe {
         None
     }
 
-    fn is_value_class(&mut self, t: TypeId) -> bool {
+    /// Whether `t` widens to a value class.
+    pub fn is_value_class(&mut self, t: TypeId) -> bool {
         let t = self.widen(t);
         self.class_symbol(t).is_some_and(|c| self.underlying(c).is_some())
     }
@@ -171,23 +111,6 @@ impl Universe {
     fn array_element(&mut self, t: TypeId) -> Option<TypeId> {
         let (tycon, arg) = self.applied(t).map(|(c, args)| (c, args.first().copied()))?;
         (self.class_name(tycon).as_deref() == Some("scala.Array")).then_some(arg)?
-    }
-}
-
-fn is_reference(e: &Erased) -> bool {
-    matches!(e, Erased::Class(_) | Erased::Array(_) | Erased::Null | Erased::Nothing)
-}
-
-fn lub(a: Erased, b: Erased) -> Erased {
-    match (a, b) {
-        (Erased::Nothing, x) | (x, Erased::Nothing) => x,
-        (Erased::Null, x) | (x, Erased::Null) if is_reference(&x) => x,
-        (x, y) if x == y => x,
-        (Erased::Array(x), Erased::Array(y)) => match (*x, *y) {
-            (Erased::Prim(_), _) | (_, Erased::Prim(_)) => object(),
-            (x, y) => Erased::Array(Box::new(lub(x, y))),
-        },
-        _ => object(),
     }
 }
 
