@@ -82,6 +82,7 @@ impl Typer<'_> {
             metas.extend(self.u.class_symbol(meta));
             tpe = inner;
         }
+        let tpe = self.dealiased(tpe);
         Some((self.u.class_symbol(tpe)?, metas))
     }
 

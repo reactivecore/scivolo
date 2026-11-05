@@ -134,7 +134,7 @@ slower meanwhile:
 
    | Module | Files lowered | NIR same | var-order | differ |
    |---|---:|---:|---:|---:|
-   | javalib | 599 of 601 | 3,367 | 78 | 1 |
+   | javalib | 601 of 601 | 3,413 | 82 | 1 |
    | nativelib | 103 of 103 | 707 | 9 | 3 |
    | auxlib | 15 of 15 | 80 | | 5 |
    | clib | 21 of 21 | 114 | | 1 |
