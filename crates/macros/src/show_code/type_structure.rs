@@ -3,6 +3,7 @@
 //! Types as `Printer.TypeReprStructure` shows them (dotty's `Extractors.visitType`).
 
 use super::literals::constant_structure;
+use super::printed::Printed;
 use crate::host::Host;
 use syntax::ast::constant::Constant as C;
 use tasty::{Const, Kind, SymbolId, Type, TypeId, constant};
@@ -16,13 +17,13 @@ fn package_this(name: &str) -> String {
 
 impl Host {
     /// Type `t` as `Printer.TypeReprStructure` shows it.
-    pub fn type_structure(&mut self, t: TypeId) -> Result<String, &'static str> {
-        let mut out = String::new();
+    pub fn type_structure(&mut self, t: TypeId) -> Result<Printed, &'static str> {
+        let mut out = Printed::default();
         self.visit_type(t, &mut out)?;
         Ok(out)
     }
 
-    fn visit_type(&mut self, t: TypeId, out: &mut String) -> Result<(), &'static str> {
+    fn visit_type(&mut self, t: TypeId, out: &mut Printed) -> Result<(), &'static str> {
         match self.u.types().get(t).clone() {
             Type::Constant(tag, bits) => {
                 let c = match constant(tag, bits).ok_or(STRUCTURE)? {
@@ -38,11 +39,14 @@ impl Host {
                     Const::Double(x) => C::Double(x),
                     Const::Str(_) => return Err(STRUCTURE),
                 };
-                out.push_str(&format!("ConstantType({})", constant_structure(&c)?));
+                out.push_str("ConstantType(");
+                constant_structure(&c, out)?;
+                out.push(')');
             }
             Type::Str(s) => {
-                let c = C::String(s.encode_utf16().collect());
-                out.push_str(&format!("ConstantType({})", constant_structure(&c)?));
+                out.push_str("ConstantType(");
+                constant_structure(&C::String(s.encode_utf16().collect()), out)?;
+                out.push(')');
             }
             Type::Sym(prefix, s) => {
                 let sym = self.u.symbol(s);
@@ -110,7 +114,7 @@ impl Host {
 
     /// The `TermRef` of package `p` (dotty's `p.termRef`, whose prefix is the owner's `this`); the
     /// root's as the empty package's `this`.
-    fn package_ref(&mut self, p: SymbolId, out: &mut String) -> Result<(), &'static str> {
+    fn package_ref(&mut self, p: SymbolId, out: &mut Printed) -> Result<(), &'static str> {
         if p == self.u.root() {
             out.push_str(&package_this("<empty>"));
             return Ok(());
@@ -146,7 +150,7 @@ impl Host {
         term: bool,
         prefix: TypeId,
         name: &str,
-        out: &mut String,
+        out: &mut Printed,
     ) -> Result<(), &'static str> {
         out.push_str(if term { "TermRef(" } else { "TypeRef(" });
         self.visit_type(prefix, out)?;
@@ -157,7 +161,7 @@ impl Host {
     /// `what(` the types `types`, then the list `list`, `)`.
     fn node(
         &mut self,
-        out: &mut String,
+        out: &mut Printed,
         what: &str,
         types: &[TypeId],
         list: Option<&[TypeId]>,
@@ -178,7 +182,7 @@ impl Host {
 
     fn lambda(
         &mut self,
-        out: &mut String,
+        out: &mut Printed,
         what: &str,
         params: &[(String, TypeId)],
         result: TypeId,
@@ -196,7 +200,7 @@ impl Host {
         Ok(())
     }
 
-    fn type_list(&mut self, types: &[TypeId], out: &mut String) -> Result<(), &'static str> {
+    fn type_list(&mut self, types: &[TypeId], out: &mut Printed) -> Result<(), &'static str> {
         if types.is_empty() {
             out.push_str("Nil");
             return Ok(());

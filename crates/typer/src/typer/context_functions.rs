@@ -106,15 +106,22 @@ impl Typer<'_> {
         t
     }
 
-    /// The context function type `t` is, a type variable's upper bound, dealiased, with its
-    /// parameter types (dotty's `asContextFunctionType`); `Err` for one the subset leaves out.
-    fn as_context_function(&mut self, t: TypeId) -> Result<Option<(TypeId, Vec<TypeId>)>, &'static str> {
+    /// `t`, or the upper bound of the uninstantiated type variable it is, transitively (dotty's
+    /// `underlyingApplied`, and `decomposeProtoFunction` for a `TypeParamRef`).
+    pub fn var_upper(&mut self, t: TypeId) -> TypeId {
         let mut t = self.zonk(t);
         for _ in 0..MAX_NESTING {
             let Type::Var(v) = *self.u.types().get(t) else { break };
             t = self.constraint.bounds(v).1;
             t = self.zonk(t);
         }
+        t
+    }
+
+    /// The context function type `t` is, a type variable's upper bound, dealiased, with its
+    /// parameter types (dotty's `asContextFunctionType`); `Err` for one the subset leaves out.
+    fn as_context_function(&mut self, t: TypeId) -> Result<Option<(TypeId, Vec<TypeId>)>, &'static str> {
+        let t = self.var_upper(t);
         let d = self.u.dealias(t);
         if let Some((params, _)) = self.context_function_parts(d) {
             return Ok(Some((d, params)));

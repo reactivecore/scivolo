@@ -15,6 +15,7 @@ mod literals;
 mod local_names;
 mod modifiers;
 mod parents;
+pub(crate) mod printed;
 mod references;
 mod structure;
 mod type_string;
@@ -22,6 +23,7 @@ mod type_structure;
 mod types;
 
 use crate::host::Host;
+use printed::Printed;
 use std::collections::HashMap;
 use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
@@ -33,12 +35,12 @@ const REFUSED: &str = "Printer.TreeCode of a tree the frontend does not print";
 impl Host {
     /// Tree `t` as `Printer.TreeCode` shows it, `Printer.TreeAnsiCode` if `ansi`, or
     /// `Printer.TreeStructure` if `structure`.
-    pub fn show_code(&mut self, t: TNodeId, structure: bool, ansi: bool) -> Result<String, &'static str> {
+    pub fn show_code(&mut self, t: TNodeId, structure: bool, ansi: bool) -> Result<Printed, &'static str> {
         let fills = self.hole_fills().into_iter().filter_map(|(h, f)| Some((h, f?))).collect();
         let spliced = self.spliced_types();
         let mut p = Code {
             h: self,
-            out: String::new(),
+            out: Printed::default(),
             ansi,
             indent: 0,
             names: HashMap::new(),
@@ -56,7 +58,7 @@ impl Host {
 
 struct Code<'h> {
     h: &'h mut Host,
-    out: String,
+    out: Printed,
     ansi: bool,
     indent: usize,
     /// The names local symbols print as, unique within the tree.

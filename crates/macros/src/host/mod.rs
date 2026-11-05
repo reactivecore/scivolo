@@ -15,12 +15,20 @@ use typer::inlining::{Quoted, Reports};
 use typer::tpd::{TNodeId, Tpd};
 use typer::unpickle::QuotePattern;
 
-/// A quote unpickled for the macro: its tree, spliced types and term holes (placeholder, index,
-/// arguments' and filling expressions).
+/// A term hole of a quote.
+struct Hole {
+    placeholder: TNodeId,
+    index: u32,
+    /// An expression `Ok`, a type `Err`.
+    args: Vec<Result<u32, u32>>,
+    filled: Option<u32>,
+}
+
+/// A quote unpickled for the macro: its tree, spliced types and term holes.
 struct Unpickled {
     root: TNodeId,
     spliced: Vec<(SymbolId, TypeId)>,
-    holes: Vec<(TNodeId, u32, Vec<u32>, Option<u32>)>,
+    holes: Vec<Hole>,
 }
 
 enum Expr {
@@ -117,6 +125,14 @@ impl Host {
         self.types.len() as u32 - 1
     }
 
+    /// Quote hole argument `a`: a type tree's type `Err`, else an expression `Ok`.
+    pub fn add_hole_arg(&mut self, a: TNodeId) -> Result<u32, u32> {
+        match self.tpd.is_type_tree(a) {
+            true => Err(self.add_type(self.tpd.tpe(a))),
+            false => Ok(self.add_tree(a)),
+        }
+    }
+
     /// The tree of expression `expr`, a quote's with its holes open.
     pub fn tree(&self, expr: u32) -> Result<TNodeId, &'static str> {
         match self.exprs.get(expr as usize).ok_or("an Expr the frontend did not make")? {
@@ -140,7 +156,7 @@ impl Host {
             Expr::Quote(q) => q.holes.as_slice(),
             Expr::Tree(_) => &[],
         });
-        holes.map(|&(node, _, _, filled)| (node, filled.and_then(|e| self.tree(e).ok()))).collect()
+        holes.map(|h| (h.placeholder, h.filled.and_then(|e| self.tree(e).ok()))).collect()
     }
 
     /// The spliced type symbols of the quotes with the types they stand for.
@@ -170,7 +186,7 @@ impl Host {
             Expr::Tree(t) => Ok(Quoted::Tree(*t)),
             Expr::Quote(q) => {
                 let holes: Option<Vec<_>> =
-                    q.holes.iter().map(|&(h, _, _, filled)| Some((h, filled?))).collect();
+                    q.holes.iter().map(|h| Some((h.placeholder, h.filled?))).collect();
                 let holes = holes.ok_or("a quote whose hole the macro left open")?;
                 Ok(Quoted::Quote { root: q.root, spliced: q.spliced.clone(), holes })
             }

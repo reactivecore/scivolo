@@ -1,5 +1,4 @@
-//! Symbols defined outside TASTy (a script's), what completes them (infos, parents, flags),
-//! and binders for the types made with them.
+//! Symbols defined outside TASTy (a script's), what completes them, binders for their types.
 
 use super::{FileId, Flags, Kind, Symbol, SymbolId, Universe};
 use crate::Erased;
@@ -71,8 +70,7 @@ impl Universe {
         }
     }
 
-    /// Sets the declared type `info` returns for `sym`; replacing a different info drops the
-    /// resolved references.
+    /// Sets the declared type of `sym`; replacing a different info drops the resolved references.
     pub fn set_info(&mut self, sym: SymbolId, info: TypeId) {
         self.nullified_infos.remove(&sym);
         if self.infos.insert(sym, info).is_some_and(|old| old != info) {
@@ -101,8 +99,13 @@ impl Universe {
         }
     }
 
-    /// Makes the right-hand sides of opaque types defined outside TASTy seen through every
-    /// prefix if `elided`, else through their owner's `this` only.
+    /// Sets the kind of `sym`, a term defined outside TASTy; drops the resolved references.
+    pub fn set_kind(&mut self, sym: SymbolId, kind: Kind) {
+        self.symbols[sym.0 as usize].kind = kind;
+        self.changed();
+    }
+
+    /// Makes opaque types defined outside TASTy seen through every prefix if `elided`, else from `this`.
     pub fn elide_opaques(&mut self, elided: bool) {
         if std::mem::replace(&mut self.opaques_elided, elided) != elided {
             self.changed();
@@ -155,14 +158,13 @@ impl Universe {
         }
     }
 
-    /// Makes `owner` the owner of `sym`, a local symbol defined outside TASTy: no longer a
-    /// declaration of its former owner.
+    /// Makes `owner` the owner of `sym`, a local symbol defined outside TASTy, out of its declarations.
     pub fn set_owner(&mut self, sym: SymbolId, owner: SymbolId) {
         self.unenter(sym);
         self.symbols[sym.0 as usize].owner = Some(owner);
     }
 
-    /// Enters `sym`, a symbol defined outside TASTy, into the declarations of its owner.
+    /// Enters `sym`, a symbol defined outside TASTy, into its owner's declarations.
     pub fn enter(&mut self, sym: SymbolId) {
         if let Some(owner) = self.symbol(sym).owner {
             self.symbols[owner.0 as usize].decls.push(sym);

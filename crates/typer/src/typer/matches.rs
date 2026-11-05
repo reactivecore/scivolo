@@ -105,10 +105,23 @@ impl Typer<'_> {
         case: Option<TypeId>,
         ctx: Ctx,
     ) -> TNodeId {
+        let narrowing = !ctx.mode.is(Mode::INLINE_CASE);
+        self.in_gadt_case(narrowing, |t| t.typed_case_under_gadt(id, (sel, selector), pt, case, ctx))
+    }
+
+    fn typed_case_under_gadt(
+        &mut self,
+        id: NodeId,
+        (sel, selector): (Option<TNodeId>, TypeId),
+        pt: Pt,
+        case: Option<TypeId>,
+        ctx: Ctx,
+    ) -> TNodeId {
         let Tree::CaseDef { pat, guard, body } = *self.ast.tree(id) else {
             return self.unsupported(id, "case");
         };
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
+        self.gadt_case_level(level);
         let cctx = Ctx { level, mode: ctx.mode.without(Mode::INLINE_CASE), ..ctx };
         let pat = self.typed(pat, Pt::Type(selector), cctx.with_mode(ctx.mode.with(Mode::PATTERN)));
         self.check_duplicate_binds(pat, &mut Vec::new());
@@ -163,28 +176,5 @@ impl Typer<'_> {
         } else {
             seen.push(name);
         }
-    }
-
-    /// Pattern `p1 | p2 | ...` against a value of type `pt` (dotty's `typedAlternative`).
-    pub fn typed_alternative(&mut self, id: NodeId, trees: List, pt: Pt, ctx: Ctx) -> TNodeId {
-        let ids = self.ast.items(trees).to_vec();
-        let typed: Vec<TNodeId> = ids.iter().map(|&t| self.typed(t, pt, ctx)).collect();
-        if typed.iter().any(|&t| self.binds_variable(t)) {
-            return self.unsupported(id, "variable in an alternative");
-        }
-        let tpe = typed.iter().fold(NOTHING, |acc, &t| {
-            let t = self.tpd.tpe(t);
-            self.u.lub(acc, t)
-        });
-        let trees = self.tpd.list(&typed);
-        let span = self.ast.span(id);
-        self.tpd.node(T::Alternative { trees }, span, Some(tpe), None)
-    }
-
-    /// Whether pattern `t` or a pattern inside it binds a variable, a wildcard type argument's
-    /// type aside.
-    fn binds_variable(&self, t: TNodeId) -> bool {
-        matches!(self.tpd.tree(t), T::Bind { name, .. } if !name.is_type || !self.tpd.span(t).is_synthetic())
-            || self.tpd.children(t).into_iter().any(|c| self.binds_variable(c))
     }
 }

@@ -143,6 +143,14 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       class: the accessor's target name `tn$super$Q` is a `SimpleName`, so neither case matches
       (`MatchError`).
     - Fix: decompose the target name's string. Frontend: compiles it, calling `Q`'s `tn`.
+12. **`multiSpreads` crash on nested spreads and in inline expansions** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/PostTyper.scala:473,774`, `flattenSpreads`).
+    - `f(f(1, xs*), xs*)`: the outer literal is flattened without transforming its elements, so
+      the inner `<special-ops>.spread` reaches the backend (`SI-5604` assertion).
+    - `inline def g(inline ys: List[Int]) = f(0, ys*, 9)` called as `g(next())`: the lifted
+      `ev$N` is owned by the enclosing class, and `LambdaLift` finds no proxy for it.
+    - Fix: transform the elements; lift with the owner of the expansion. Frontend: compiles both,
+      evaluating each spread once, in order.
 
 ## M4: dotty `tests/run`
 
@@ -190,16 +198,16 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
 
-Results (2026-11-04):
+Results (2026-11-05):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1464 |
+| passed | 1476 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
 | lowering refused | 0 |
-| typer refused | 42 |
+| typer refused | 30 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -207,7 +215,8 @@ Results (2026-11-04):
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** mostly adaptations (8), members not found (5), GADT constraints (3) and `$scope` (3).
+- **Typer refused:** mostly members not found (4), `$scope` (3), adaptations (2) and
+  transparent inline extractors (2).
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
   libraries compiled before 3.4, which dotty accepts) and checks no other `future` rule.

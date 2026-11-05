@@ -89,6 +89,10 @@ mod find_ref;
 mod forward_refs;
 mod function_types;
 mod future_infix;
+mod gadt;
+mod gadt_cases;
+mod gadt_cast;
+mod gadt_narrow;
 mod generic_arrays;
 mod harmonize;
 mod ident_hint;
@@ -162,6 +166,7 @@ mod parents;
 mod passing_accessors;
 mod passing_defs;
 mod paths;
+mod pattern_alternatives;
 mod pattern_args;
 mod pattern_bounds;
 mod pattern_gadt;
@@ -192,6 +197,7 @@ mod right_assoc;
 mod sam_closures;
 mod sam_method_values;
 mod sams;
+mod scala2_macros;
 mod scope_bindings;
 pub(crate) mod seen_from;
 mod select;
@@ -203,6 +209,7 @@ mod small_tuples;
 mod source_splices;
 mod splice_patterns;
 mod spliced_args;
+mod spreads;
 pub(crate) mod stability;
 mod stats;
 mod structural;
@@ -358,6 +365,8 @@ pub struct Typer<'a> {
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
+    /// The context of each sequence literal with spreads.
+    pub spread_ctxs: FxHashMap<TNodeId, Ctx>,
     pub accessors: inline_accessors::Accessors,
     /// The implicit members of the unit's package objects in each package, once asked for.
     pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
@@ -368,6 +377,7 @@ pub struct Typer<'a> {
     pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving_finalize::Problem>)>>,
     /// The types typed patterns bind whose bounds the selector gave.
     pub known_pattern_types: FxHashSet<SymbolId>,
+    pub gadt: gadt_cases::Gadt,
     /// The type lambdas of derived instances' types, by the instances that own their parameters.
     pub derived_lambdas: FxHashMap<NodeId, NodeId>,
     /// The pending dynamic calls, by their placeholder trees.
@@ -463,11 +473,13 @@ impl<'a> Typer<'a> {
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
+            spread_ctxs: FxHashMap::default(),
             accessors: Default::default(),
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
             derived_instances: FxHashMap::default(),
             known_pattern_types: FxHashSet::default(),
+            gadt: Default::default(),
             derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
             structural_selects: FxHashSet::default(),

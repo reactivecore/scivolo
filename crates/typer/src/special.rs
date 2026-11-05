@@ -28,6 +28,24 @@ pub fn special(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flags:
     })
 }
 
+/// dotty's `<special-ops>.spread[T](x$0: Any): T`, defined if no one has.
+pub fn spread_method(u: &mut Universe) -> SymbolId {
+    let ops = u.enter_package("<special-ops>");
+    if let Some(s) = entered(u, ops, "spread", Kind::Def) {
+        return s;
+    }
+    let (poly, method) = (u.fresh_binder(), u.fresh_binder());
+    let param = u.intern_type(Type::Param(poly, 0));
+    let params = vec![("x$0".into(), tasty::ANY)];
+    let result = Type::Method { binder: method, params, result: param, implicit: false, contextual: false };
+    let result = u.intern_type(result);
+    let bounds = u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY));
+    let info = u.intern_type(Type::Poly { binder: poly, params: vec![("T".into(), bounds)], result });
+    let spread = special(u, ops, "spread", Kind::Def, Flags::default());
+    u.set_info(spread, info);
+    spread
+}
+
 /// dotty's `<special-ops>.throw(x: Throwable): Nothing`, defined if no one has.
 pub fn throw_method(u: &mut Universe) -> SymbolId {
     let ops = u.enter_package("<special-ops>");

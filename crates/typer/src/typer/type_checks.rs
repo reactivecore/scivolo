@@ -81,6 +81,15 @@ impl Typer<'_> {
         }
     }
 
+    /// The root of the code of `typeChecks` or of the unit with a tree from the start to the end of
+    /// `span` under it, and the trees from it down to the innermost such tree.
+    pub fn mismatch_path(&self, span: syntax::ast::Span) -> Option<(NodeId, Vec<NodeId>)> {
+        let mut path = Vec::new();
+        let mut roots = self.checked_code.map(|(r, _)| r).into_iter().chain([self.unit]);
+        let root = roots.find(|&r| super::mismatch_context::node_path(self.ast, r, span, &mut path))?;
+        Some((root, path))
+    }
+
     /// `MissingIdent` for identifier `id` named `name` of the code of `typeChecks`, outside a
     /// pattern, if no binding of all levels of `ctx` has its name; `None` otherwise.
     pub fn unbound_in_checked_code(&mut self, id: NodeId, name: TName, ctx: Ctx) -> Option<TNodeId> {

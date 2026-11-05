@@ -176,8 +176,6 @@ impl Code<'_> {
     }
 
     fn structure_constant(&mut self, c: &C) -> Shown {
-        let text = super::literals::constant_structure(c)?;
-        self.push(&text);
-        Ok(())
+        super::literals::constant_structure(c, &mut self.out)
     }
 }

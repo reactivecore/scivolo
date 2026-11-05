@@ -56,7 +56,10 @@ impl TreePickler<'_> {
                 self.byte(NEW);
                 self.tree(tpt)
             }
-            T::Typed { expr, tpt } => self.node(TYPED, &[expr, tpt], &[]),
+            T::Typed { expr, tpt } => {
+                self.share_placeholder_tpt(expr, tpt);
+                self.node(TYPED, &[expr, tpt], &[])
+            }
             T::NamedArg { name, arg } => {
                 self.byte(NAMEDARG);
                 self.name(&self.tree_name(name, None));
@@ -135,6 +138,40 @@ impl TreePickler<'_> {
             Type::TermRef(..) | Type::Package(_) | Type::PackageName(_) => true,
             _ => false,
         }
+    }
+
+    /// Shares type tree `tpt` of `(_: T)` with its placeholder parameter's `expr`, one tree in
+    /// dotty's parser: the parts healing did not make a `TypeTree`.
+    fn share_placeholder_tpt(&mut self, expr: TNodeId, tpt: TNodeId) {
+        let Some(p) = self.tpd.sym(expr).filter(|_| matches!(self.tpd.tree(expr), T::Ident { .. })) else {
+            return;
+        };
+        if let Some(&param_tpt) = self.param_tpts.get(&p)
+            && self.u.symbol(p).flags.has(SYNTHETIC)
+            && self.tpd.span(param_tpt) == self.tpd.span(tpt)
+        {
+            self.share_unhealed(param_tpt, tpt);
+        }
+    }
+
+    /// Shares `copy` with `first`, two typings of one type tree, or else their children, as far
+    /// as healing did not make them `TypeTree`s.
+    fn share_unhealed(&mut self, first: TNodeId, copy: TNodeId) {
+        if !self.has_type_tree(first) && !self.has_type_tree(copy) {
+            self.shared.insert(copy, first);
+            return;
+        }
+        let (a, b) = (self.tpd.children(first), self.tpd.children(copy));
+        if a.len() == b.len() {
+            for (f, c) in a.into_iter().zip(b) {
+                self.share_unhealed(f, c);
+            }
+        }
+    }
+
+    fn has_type_tree(&self, t: TNodeId) -> bool {
+        matches!(self.tpd.tree(t), T::TypeTree { .. })
+            || self.tpd.children(t).into_iter().any(|c| self.has_type_tree(c))
     }
 
     /// A term hole: its index, type and arguments.

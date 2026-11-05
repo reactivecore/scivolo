@@ -146,11 +146,11 @@ impl Gen<'_, '_> {
         fields.into_iter().any(|f| is_java_field(self.l.u, f))
     }
 
-    /// The position nscplugin gives the forwarder of member `m` of another of javalib's sources
-    /// when javalib's are compiled: the point of its definition as an offset in the unit's
-    /// source of `module_class`.
+    /// The position nscplugin gives the forwarder of member `m` of a library class compiled in
+    /// the same run: the point of its definition as an offset in the unit's source of
+    /// `module_class`.
     fn library_pos(&mut self, m: SymbolId, module_class: SymbolId) -> Option<PosId> {
-        if !self.l.u.javalib_sources() {
+        if !self.l.u.is_same_run(m) {
             return None;
         }
         let point = self.l.u.pickled_point(m)?;

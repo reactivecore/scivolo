@@ -77,6 +77,15 @@ impl Lower<'_> {
         span.exists().then(|| span.end_pos().to_synthetic())
     }
 
+    /// The end of the constructor, parents and statements of class definition `td` in its own
+    /// source, as a copy of its template gives a member added last.
+    pub fn template_end(&self, td: TNodeId) -> Option<Offset> {
+        let t = self.tpd.class_template(td)?;
+        let stats = self.tpd.items(t.parents).iter().chain(self.tpd.items(t.body)).copied();
+        let spans = [t.constr].into_iter().chain(stats).map(|s| self.tpd.span(s).without_inlined_call());
+        spans.filter(|s| s.exists() && !s.is_in_other_source()).map(|s| s.end()).max()
+    }
+
     /// The union of `start` and the spans of `t`'s children, assigning spans to those without.
     fn envelope(&mut self, t: TNodeId, start: Span) -> Span {
         let parts = children(self.tpd, t);

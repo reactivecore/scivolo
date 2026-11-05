@@ -8,6 +8,7 @@ use super::decode::Expr;
 use super::tree_kinds::Kind;
 use super::{Answer, Fallible};
 use crate::host::Host;
+use crate::show_code::printed::Printed;
 use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Tree as T};
 
@@ -16,15 +17,15 @@ impl Host {
         self.kind(t) as i32
     }
 
-    pub fn show_tree(&mut self, t: TNodeId) -> Fallible<String> {
+    pub fn show_tree(&mut self, t: TNodeId) -> Fallible<Printed> {
         self.show_code(t, false, false)
     }
 
-    pub fn show_tree_ansi(&mut self, t: TNodeId) -> Fallible<String> {
+    pub fn show_tree_ansi(&mut self, t: TNodeId) -> Fallible<Printed> {
         self.show_code(t, false, true)
     }
 
-    pub fn show_structure(&mut self, t: TNodeId) -> Fallible<String> {
+    pub fn show_structure(&mut self, t: TNodeId) -> Fallible<Printed> {
         self.show_code(t, true, false)
     }
 

@@ -5,6 +5,7 @@
 
 use super::Gen;
 use crate::phases::adapt::from_start;
+use crate::phases::function_classes::function_class_arity;
 use crate::phases::sam::abstract_methods;
 use crate::symbols::is_java_static;
 use crate::{Result, unsupported};
@@ -32,7 +33,8 @@ impl Gen<'_, '_> {
             return unsupported(span, "closures of a type that is not a class");
         };
         let bases = self.l.u.linearization(function);
-        if bases.iter().any(|&b| self.l.u.is_trait(b) && !self.l.u.no_inits(b)) {
+        let of_function = bases.iter().any(|&b| function_class_arity(self.l, b).is_some());
+        if !of_function && bases.iter().any(|&b| self.l.u.is_trait(b) && !self.l.u.no_inits(b)) {
             return unsupported(span, "closures of traits with initialization");
         }
         let sams = abstract_methods(self.l, function);

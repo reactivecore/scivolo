@@ -6,6 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Attrs, List, NodeId, Tree};
+use syntax::config::Features;
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
@@ -122,7 +123,13 @@ impl Typer<'_> {
             Ok(dependent) => dependent,
             Err(what) => return self.unsupported(id, what),
         };
-        let misplaced = arg_ids.iter().any(|&a| self.is_sequence_arg(a) && Some(a) != seq_arg);
+        let spreads = repeated.is_some()
+            && aligned.is_none()
+            && arg_ids.iter().skip(params.len()).any(|&a| self.is_sequence_arg(a))
+            && self.feature_enabled(Features::MULTI_SPREADS, "experimental.multiSpreads", ctx);
+        let spread_at = |t: &Self, i: usize, a: NodeId| spreads && i >= params.len() && t.is_sequence_arg(a);
+        let misplaced = (arg_ids.iter().enumerate())
+            .any(|(i, &a)| self.is_sequence_arg(a) && Some(a) != seq_arg && !spread_at(self, i, a));
         if misplaced {
             return self.unsupported(id, "sequence argument");
         }
@@ -158,6 +165,14 @@ impl Typer<'_> {
                 formal = self.dependent_formal(formal, clause, &typed_args);
             }
             let pre = pretyped.as_ref().and_then(|typed| typed[i]);
+            if spread_at(self, i, a) {
+                if pre.is_some() {
+                    return self.unsupported(id, "spread argument of an overload");
+                }
+                let spread = self.spread_arg(a, formal, ctx);
+                typed_args.push(spread);
+                continue;
+            }
             let by_name =
                 params.get(i).is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
             let arg_ctx = if by_name { self.retract_mutables(ctx) } else { ctx };
@@ -197,10 +212,11 @@ impl Typer<'_> {
                     let before = typed_args.last().copied().unwrap_or(f);
                     let at = self.tpd.span(before).end_pos();
                     let arg = self.seq_literal(&elems, elem, at);
-                    if let T::Typed { expr, .. } = *self.tpd.tree(arg)
-                        && by_name_repeated
-                    {
-                        self.type_seq_literal(expr);
+                    if let T::Typed { expr, .. } = *self.tpd.tree(arg) {
+                        if by_name_repeated {
+                            self.type_seq_literal(expr);
+                        }
+                        self.note_spreads(expr, ctx);
                     }
                     arg
                 }

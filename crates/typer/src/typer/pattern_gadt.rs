@@ -5,18 +5,22 @@
 
 use super::dependent_results::has_wildcard;
 use super::{Pt, Typer};
+use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// The type of pattern type tree `tpt` against `pt`, the types it binds bounded by what the
     /// pattern conforming to the selector requires of them, those then known.
-    pub fn bounded_pattern_type(&mut self, tpt: TNodeId, pattern: bool, pt: Pt) -> TypeId {
+    pub fn bounded_pattern_type(&mut self, tpt: TNodeId, pattern: bool, pt: Pt, ctx: Ctx) -> TypeId {
         let tpe = self.tpd.tpe(tpt);
         let Pt::Type(sel) = pt else { return tpe };
         let mut bound = Vec::new();
         self.pattern_types(tpt, &mut bound, false);
         let syms: Vec<SymbolId> = bound.into_iter().map(|(s, _)| s).collect();
+        if pattern && syms.is_empty() {
+            self.narrow_by_type_pattern(tpe, sel, ctx);
+        }
         if pattern
             && !syms.is_empty()
             && (self.only_against_wildcards(tpe, sel, &syms) || self.has_unapplied_bases(sel))
@@ -85,7 +89,7 @@ impl Typer<'_> {
     /// base class: `sel` without wildcard arguments, and `pat`'s class final or a case class, or
     /// that base class's parameters invariant (dotty's `assumeInvariantRefinement`, the variant
     /// arguments otherwise left unconstrained).
-    fn refines_invariantly(&mut self, pat: TypeId, sel: TypeId) -> bool {
+    pub fn refines_invariantly(&mut self, pat: TypeId, sel: TypeId) -> bool {
         let sel = self.dealiased(sel);
         if let Type::Or(a, b, _) = *self.u.types().get(sel) {
             return match (self.is_null_type(a), self.is_null_type(b)) {
@@ -110,7 +114,7 @@ impl Typer<'_> {
     /// Class application `sel` with its arguments at variant parameters replaced by `?`, which
     /// `constrainSimplePatternType` leaves unconstrained, its `Null` parts dropped; `None` if `sel` has a wildcard
     /// argument or no invariant parameter.
-    fn without_variant_args(&mut self, sel: TypeId) -> Option<TypeId> {
+    pub fn without_variant_args(&mut self, sel: TypeId) -> Option<TypeId> {
         let sel = self.strip_null(sel);
         let sel = self.dealiased(sel);
         let sel = self.u.widen(sel);

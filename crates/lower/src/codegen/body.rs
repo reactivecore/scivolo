@@ -92,7 +92,7 @@ impl Gen<'_, '_> {
         }
         if !is_java_static(self.l.u, sym) {
             let class = self.class.expect("a method's class");
-            let ty = self.class_ref(class);
+            let ty = self.this_ref(class);
             let id = self.fresh_named("this");
             self.m.this = Some(self.val(Val::Local(id, ty)));
             params.insert(0, Param { id, ty });

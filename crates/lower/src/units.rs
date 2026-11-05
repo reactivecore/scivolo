@@ -71,6 +71,7 @@ pub fn compile_units<R>(
         Err(Fallback::Errors(diags)) => return Err(refusal("type errors", &diags, &sources)),
     };
     let located = Sources::new(files).map_err(refused)?;
+    let sources = (sources, cfg.explicit_nulls);
     let out = crate::lower_trees(u, &mut typed.tpd, typed.root, (&mut names, &mut fresh), sources, generate)
         .map_err(|e| {
             refused(format!("the lowering does not support {}{}", e.what, at_point(&located, e.at)))

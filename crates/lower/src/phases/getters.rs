@@ -6,7 +6,7 @@
 
 use crate::definitions::symbol;
 use crate::symbols::{has, is_static_module};
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{
@@ -32,7 +32,6 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         if !owner.is_some_and(|o| l.u.is_class(o)) || has(l.u, sym, ERASED) {
             continue;
         }
-        let span = l.tpd.span(stat);
         let in_trait = owner.is_some_and(|o| l.u.is_trait(o));
         let in_value_class = owner.is_some_and(|o| l.u.underlying(o).is_some());
         if l.u.is_module(sym) {
@@ -79,9 +78,6 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             continue;
         }
         if private_local {
-            if super::memoize::bottom(l, sym).is_some() {
-                return unsupported(span, "private local fields of type Unit, Null or Nothing");
-            }
             l.fields.insert(sym, sym);
             continue;
         }
