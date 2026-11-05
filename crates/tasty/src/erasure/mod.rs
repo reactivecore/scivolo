@@ -16,6 +16,7 @@ mod scala2;
 mod signatures;
 mod special;
 mod symbols;
+mod upper_bounds;
 mod value;
 
 use crate::symbols::{defined_name, encode, module_class_name, module_name};
