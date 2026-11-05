@@ -115,12 +115,12 @@ def run(cmd, timeout, env=None):
     return "refused", next((l for l in r.stderr.splitlines() if l.strip()), "").replace("\t", " ")[:200], ""
 
 
-def one(module, root, files):
-    """The rows of results.tsv and of cmp.tsv of each of source files `files`, lowered as one unit;
-    a NIR file counts for the file of its first position."""
+def one(module, root, files, env):
+    """The rows of results.tsv and of cmp.tsv of each of source files `files`, lowered as one unit
+    with environment `env`; a NIR file counts for the file of its first position."""
     shown = [f"{root.name}/{f.relative_to(root)}" for f in files]
     out = WORK / module / "out" / root.name / str(files[0].relative_to(root)).removesuffix(".scala")
-    state, reason, stdout = run(lower_cmd(module, root, files, out), TIMEOUT * len(files), ENV)
+    state, reason, stdout = run(lower_cmd(module, root, files, out), TIMEOUT * len(files), env)
     if state != "ok":
         return [([s, state, reason, 0, 0, 0, 0, 0], []) for s in shown]
     theirs, by_file = oracle(module), {s: (collections.Counter(), []) for s in shown}
@@ -157,8 +157,12 @@ def compile_module(module, filter_):
     if not keep:
         shutil.rmtree(work / "diffs", ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)
+    todo = units(module, filter_)
+    env = ENV
+    if module == "scalalib" and ENV:
+        env = ENV | {"SCIVOLO_LIBS": str(scalalib_sources.libs(ORACLE_JARS))}
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
-        done = [row for rows in pool.map(lambda t: one(module, *t), units(module, filter_)) for row in rows]
+        done = [row for rows in pool.map(lambda t: one(module, *t, env), todo) for row in rows]
     rows = {r[0]: r + ["0"] * (8 - len(r)) for r in read_tsv(work / "results.tsv")} if keep else {}
     rows |= {r[0]: r for r, _ in done}
     write_tsv(work / "results.tsv", sorted(rows.values()))

@@ -10,6 +10,7 @@ mod compactify;
 mod constructors;
 mod erased_params;
 mod generic;
+mod lub;
 mod mangle;
 mod poly_functions;
 mod scala2;

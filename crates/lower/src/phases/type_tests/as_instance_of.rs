@@ -32,7 +32,9 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     }
     let refused = || unsupported(span, "casts between primitive values or to references");
     let erased_expr = this_class(l, expr).unwrap_or_else(|| found.clone());
-    let upcast = conforms_to_class_file(l, &erased_expr, &to) && !to_raw_generic(l, &erased_expr, &to);
+    let upcast = conforms_to_class_file(l, &erased_expr, &to)
+        && !to_raw_generic(l, &erased_expr, &to)
+        && !universal_to_object(l, &erased_expr, &to);
     if !upcast && conforms(l, &erased_expr, &to) {
         l.explicit_casts.insert(t);
     }
@@ -74,6 +76,10 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
             throw_class_cast(l, expr)
         }
         _ if upcast => l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None),
+        _ if !span.is_synthetic() && erased_expr != found && conforms_to_class_file(l, &found, &to) => {
+            l.tpd.get_mut(t).span = l.tpd.span(expr);
+            t
+        }
         _ => t,
     })
 }
@@ -118,6 +124,14 @@ fn weaker_bounds(l: &mut Lower, (prefix, class, p): (TypeId, SymbolId, SymbolId)
     let (p_lo, p_hi) = (l.u.as_seen_from(p_lo, prefix, class), l.u.as_seen_from(p_hi, prefix, class));
     let (q_lo, q_hi) = bounds(l, q);
     l.u.is_subtype(p_hi, q_hi) && l.u.is_subtype(q_lo, p_lo)
+}
+
+/// Whether `from` is a universal trait (one not deriving from `AnyRef`) and `to` is `Object`.
+fn universal_to_object(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
+    let (Erased::Class(f), Erased::Class(t)) = (from, to) else { return false };
+    let Some(f) = class_named(l, f).filter(|_| t == "java.lang.Object") else { return false };
+    let object = l.defs.object;
+    l.u.is_trait(f) && !l.u.derives_from(f, object)
 }
 
 /// The erasure of class `C` if `expr` is `C.this`, whatever its self type.

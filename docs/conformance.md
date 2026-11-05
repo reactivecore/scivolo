@@ -245,6 +245,17 @@ Against the whole-module build alone, sourcecode `Macros$`, mainargs `Macros$` a
 object inherits); compiled alone, dotty gives ours, mainargs' up to quote positions. upickle's
 own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `Api.scala`).
 
+`just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
+library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). `Equiv$TupleNEquiv`
+and `Ordering$TupleNOrdering` (N = 2…9, open, not accepted) differ from Scala Native's build of
+the whole module in `(a, b).hashCode()`: the build calls `Any.hashCode`, `(Object) => int`, since a
+case class's synthetic members do not exist yet while a class of the same run is typed; ours reads
+`Tuple2` from TASTy and calls `Tuple2.hashCode`, `(Tuple2) => int`, as Scala Native does for a user
+program. Also open, not accepted, in a user program: a value of type `Array[Nothing]` is
+`array[nothing]` in Scala Native's NIR, ours `as[array[@java.lang.Object]]` of it; and
+`this.asInstanceOf[S]` returned from a method of a trait with self type `S` casts at the type
+argument's position in Scala Native's NIR, at `this` in ours.
+
 ## M5: scala/scala `test/junit`
 
 ```sh
