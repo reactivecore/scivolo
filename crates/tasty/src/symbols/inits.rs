@@ -15,18 +15,21 @@ impl Universe {
     /// Whether class `c` has no initialization code: a trait whose body defines only methods,
     /// lazy or abstract values, types and classes; a class that also calls no parent
     /// constructor with arguments. Classes without TASTy (`Any`, `Object`, a script's) have none
-    /// unless `set_inits` recorded some.
+    /// unless `set_inits` recorded some. While the Scala library is built, a class of a Scala 2
+    /// library TASTy file initializes as its source does (`TreeInfo.defKind`): also a concrete
+    /// method or a class does.
     pub fn no_inits(&self, c: SymbolId) -> bool {
         let Some((file, typedef)) = self.symbol(c).tree else { return !self.with_inits.contains(&c) };
-        let (ast, _) = self.file(file);
+        let (ast, names) = self.file(file);
         let Some(&template) = ast.kids(typedef).first() else { return true };
         if ast.tag(template) != TEMPLATE {
             return true;
         }
+        let scala2 = self.builds_scala_library && self.files[file.0 as usize].scala2;
         let kids = ast.kids(template);
         let body =
             kids.iter().position(|&k| matches!(ast.tag(k), DEFDEF | SPLITCLAUSE)).unwrap_or(kids.len());
-        let body_ok = kids[body..].iter().all(|&s| !initializes(ast, s));
+        let body_ok = kids[body..].iter().all(|&s| !initializes(ast, names, s, scala2));
         if self.symbol(c).flags.has(TRAIT) {
             return body_ok;
         }
@@ -34,11 +37,17 @@ impl Universe {
             kids[..body].iter().map(|&k| ast.deref(k)).filter(|&k| !matches!(ast.tag(k), TYPEPARAM | PARAM));
         body_ok && parents.into_iter().all(|p| !calls_with_arguments(ast, p))
     }
+
+    /// Records that a unit replaces a class of the Scala library.
+    pub fn set_builds_scala_library(&mut self) {
+        self.builds_scala_library = true;
+    }
 }
 
 /// Whether statement `s` of a template body runs code when an instance is made: a concrete,
-/// value neither lazy nor an object's, or an expression.
-fn initializes(ast: &Ast, s: NodeId) -> bool {
+/// value neither lazy nor an object's, or an expression; if `scala2`, also a concrete method
+/// other than the constructor, or a class.
+fn initializes(ast: &Ast, names: &[String], s: NodeId, scala2: bool) -> bool {
     match ast.tag(s) {
         VALDEF => match view(ast, s) {
             View::ValDef { rhs, mods, .. } => {
@@ -46,6 +55,11 @@ fn initializes(ast: &Ast, s: NodeId) -> bool {
             }
             _ => true,
         },
+        DEFDEF if scala2 => match view(ast, s) {
+            View::DefDef { name, parts } => parts.body.len() > 1 && names[name.0 as usize] != "<init>",
+            _ => true,
+        },
+        TYPEDEF if scala2 => matches!(view(ast, s), View::TypeDef { is_class: true, .. }),
         DEFDEF | TYPEDEF | TYPEPARAM | PARAM | IMPORT | EXPORT | SPLITCLAUSE => false,
         _ => true,
     }
