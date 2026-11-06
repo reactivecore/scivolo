@@ -14,9 +14,10 @@ use rustc_hash::FxHashSet;
 use tasty::tags::*;
 use tasty::{Ast, Flags, Kind, NodeId, SymbolId};
 
-/// The bridges and mixin forwarders of class `class` read from TASTy and compiled in the same
-/// run, each with the symbol whose span it has, made on first use; its private members its file
-/// refers to from another class become public under their expanded names.
+/// The hoisted superclass arguments, and of a class the bridges and mixin forwarders, of class or
+/// trait `class` read from TASTy and compiled in the same run, each with the symbol whose span it
+/// has, made on first use; its private members its file refers to from another class become
+/// public under their expanded names.
 pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
     if !l.u.is_same_run(class) {
         return Vec::new();
@@ -27,7 +28,7 @@ pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
     for s in referenced_privates(l, class) {
         super::accessor_names::ensure_not_private(l, s);
     }
-    let mut made = Vec::new();
+    let mut made = super::library_super_args::hoisted(l, class);
     if l.u.is_trait(class) {
         l.library_bridges.insert(class, made.clone());
         return made;

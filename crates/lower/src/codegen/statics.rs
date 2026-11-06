@@ -92,8 +92,7 @@ impl Gen<'_, '_> {
         for m in members {
             let excluded = [PROTECTED, STATIC, PRIVATE, MACRO, INLINE, PROTECTEDqualified];
             let library = self.l.u.symbol(m).tree.is_some();
-            let owner = self.l.u.symbol(m).owner.map(|o| self.l.u.full_name(o)).unwrap_or_default();
-            let jdk = owner.starts_with("java.") || owner.starts_with("javax.");
+            let jdk = self.l.u.symbol(m).owner.is_some_and(|o| is_jdk(self.l, o));
             let param = self.l.u.symbol(m).kind == Kind::Param;
             let value = self.l.u.symbol(m).kind == Kind::Val || param;
             let method = self.l.u.symbol(m).kind == Kind::Def || has(self.l.u, m, FIELDaccessor);
@@ -111,7 +110,7 @@ impl Gen<'_, '_> {
             allowed.insert(m);
         }
         let mut out = Vec::new();
-        for m in forwarded_members::members(self.l, module_class, &|_, m| allowed.contains(&m)) {
+        for m in forwarded_members::members(self.l, module_class, &|m| allowed.contains(&m)) {
             if forwarded_members::is_deferred(self.l, m) {
                 continue;
             }
@@ -123,10 +122,7 @@ impl Gen<'_, '_> {
             let pos = match self.l.coords.get(&at) {
                 Some(&span) if span.exists() => self.pos_or(span, self.no_pos),
                 Some(_) => self.sym_pos(module_class, module_class),
-                None => match self.library_pos(at, module_class) {
-                    Some(pos) => pos,
-                    None => self.sym_pos(at, module_class),
-                },
+                None => self.library_pos(at, module_class).unwrap_or_else(|| self.sym_pos(at, module_class)),
             };
             out.push(self.forwarder(m, module_class, name, pos));
         }

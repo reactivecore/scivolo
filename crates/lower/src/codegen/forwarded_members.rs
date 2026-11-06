@@ -16,7 +16,7 @@ type Signature = (String, (Vec<Erased>, Erased));
 /// ones of their signature (`computeMembersNamed`); of those inherited from different parents with
 /// one signature, the one `mergeSingleDenot` picks: not a bridge, concrete, from the base first in
 /// the linearization of `class`.
-pub fn members(l: &mut Lower, class: SymbolId, keep: &dyn Fn(&mut Lower, SymbolId) -> bool) -> Vec<SymbolId> {
+pub fn members(l: &mut Lower, class: SymbolId, keep: &dyn Fn(SymbolId) -> bool) -> Vec<SymbolId> {
     let mut cache = FxHashMap::default();
     let all = collect(l, class, keep, &mut cache);
     let order = l.u.linearization(class);
@@ -37,13 +37,13 @@ pub fn members(l: &mut Lower, class: SymbolId, keep: &dyn Fn(&mut Lower, SymbolI
 fn collect(
     l: &mut Lower,
     c: SymbolId,
-    keep: &dyn Fn(&mut Lower, SymbolId) -> bool,
+    keep: &dyn Fn(SymbolId) -> bool,
     cache: &mut FxHashMap<SymbolId, Vec<SymbolId>>,
 ) -> Vec<SymbolId> {
     if let Some(found) = cache.get(&c) {
         return found.clone();
     }
-    let own: Vec<SymbolId> = l.u.decls(c).unwrap_or_default().into_iter().filter(|&m| keep(l, m)).collect();
+    let own: Vec<SymbolId> = l.u.decls(c).unwrap_or_default().into_iter().filter(|&m| keep(m)).collect();
     let own_sigs: Vec<Signature> = own.iter().map(|&m| signature(l, m)).collect();
     let parents: Vec<SymbolId> = l.u.parents(c).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
     let mut found = own;
