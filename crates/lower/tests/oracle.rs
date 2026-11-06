@@ -61,7 +61,8 @@ fn lowers_as_scala_native(jars: &[PathBuf], dir: &Path, program: &str) {
     let mut u = Universe::open(jars).unwrap();
     let file = format!("{program}.scala");
     let text = std::fs::read_to_string(dir.join(&file)).unwrap();
-    let files = lower::compile(&mut u, &SourceFile::new(file, text), &[]).unwrap();
+    let options = lower::directives::directives(&text, "3.9.0").unwrap().options;
+    let files = lower::compile(&mut u, &SourceFile::new(file, text.clone()), &options).unwrap();
     let mut ours: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
     ours.sort_unstable();
     let mut theirs = nir_names(dir, "");

@@ -69,7 +69,7 @@ pub fn is_platform_sam(l: &mut Lower, c: SymbolId) -> bool {
     let bases = l.u.linearization(c);
     let (object, any) = (l.defs.object, l.u.builtins().any);
     let superclass = bases[1..].iter().copied().find(|&b| !l.u.is_trait(b)).unwrap_or(object);
-    if superclass != object && superclass != any {
+    if superclass != object {
         return false;
     }
     let parents: Vec<SymbolId> = l.u.parents(c).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();

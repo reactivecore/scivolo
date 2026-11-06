@@ -42,15 +42,17 @@ impl Inlining<'_> {
 
 impl Purity<'_> {
     /// Whether neither class `c` nor any of its base classes runs code when an instance is made;
-    /// never for a `java.*` or `javax.*` class other than `Object`, not an interface.
+    /// never for a `java.*` or `javax.*` class other than `Object`, not an interface; always for
+    /// `Some` and the tuple classes.
     pub fn is_no_inits_class(&mut self, c: SymbolId) -> bool {
         let bases = self.u.linearization(c);
-        bases.iter().all(|&b| {
-            let name = self.u.full_name(b);
-            let java = (name.starts_with("java.") || name.starts_with("javax."))
-                && name != "java.lang.Object"
-                && !self.u.symbol(b).flags.has(TRAIT);
-            !java && !self.with_inits.contains(&b) && self.u.no_inits(b)
-        })
+        self.u.is_assured_no_inits(c)
+            || bases.iter().all(|&b| {
+                let name = self.u.full_name(b);
+                let java = (name.starts_with("java.") || name.starts_with("javax."))
+                    && name != "java.lang.Object"
+                    && !self.u.symbol(b).flags.has(TRAIT);
+                !java && !self.with_inits.contains(&b) && self.u.no_inits(b)
+            })
     }
 }
