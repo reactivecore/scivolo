@@ -86,7 +86,8 @@ impl Typer<'_> {
         }
         let own = self.pattern_type((sel, arg_type), vars, unapp, ctx)?;
         let sel = self.zonk(sel);
-        let tested = self.stripped(own) != self.stripped(sel);
+        let normal_own = self.normalized(own);
+        let tested = self.stripped(normal_own) != self.stripped(sel);
         let result = self.applied_unapply_result(unapp, result, (binder, param), own);
         let (result, implicits) = self.unapply_implicits(unapp, result, own, ctx)?;
         let result = self.simplified(result);
