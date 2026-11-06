@@ -35,16 +35,27 @@ impl Typer<'_> {
 
     /// Adds the implicit members of `class` selected from path `prefix`, and `prefix`, to `out`.
     pub fn add_members(&mut self, class: SymbolId, prefix: TypeId, out: &mut ImplicitScope) {
+        let key = self.static_form(prefix);
         for sym in self.implicit_members(class, false) {
-            let candidate = Candidate { sym, prefix: Some(prefix) };
-            if !out.implicits.contains(&candidate) {
-                out.implicits.push(candidate);
+            let seen = out.implicits.iter().any(|c| c.sym == sym && c.prefix.map(|p| self.static_form(p)) == Some(key));
+            if !seen {
+                out.implicits.push(Candidate { sym, prefix: Some(prefix) });
             }
         }
-        if let Type::Sym(p, sym) = *self.u.types().get(prefix)
+        if let Type::Sym(p, sym) = *self.u.types().get(key)
             && !out.containers.contains(&Candidate { sym, prefix: p })
         {
             out.containers.push(Candidate { sym, prefix: p });
+        }
+    }
+
+    /// Reference `t` to a member of a package through the package, as `type_ref` refers to it.
+    fn static_form(&mut self, t: TypeId) -> TypeId {
+        match *self.u.types().get(t) {
+            Type::Sym(Some(p), s) if matches!(self.u.types().get(p), Type::Package(_)) => {
+                crate::defn::type_ref(self.u, s)
+            }
+            _ => t,
         }
     }
 

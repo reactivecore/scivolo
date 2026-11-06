@@ -57,10 +57,11 @@ pub fn extract(l: &mut Lower, body: TNodeId, owner: SymbolId) -> Result<Holes> {
         if let Some(t) = captures.untranslated {
             return unsupported(l.tpd.span(t), "inferred types referring to a type of an outer quote");
         }
-        let start = l.tpd.span(content).start_pos();
+        let mut at = l.tpd.span(content).start_pos();
         for &a in &captures.args {
-            if !l.tpd.span(a).exists() {
-                l.tpd.get_mut(a).span = start;
+            match l.tpd.span(a) {
+                s if s.exists() => at = s.end_pos(),
+                _ => l.tpd.get_mut(a).span = at,
             }
         }
         if let Some(&c) =
