@@ -97,6 +97,16 @@ fn lazyvals_run_on_the_jvm() {
 }
 
 #[test]
+fn statics_run_on_the_jvm() {
+    runs_on_the_jvm("statics", "Statics");
+}
+
+#[test]
+fn javaenums_run_on_the_jvm() {
+    runs_on_the_jvm("javaenums", "Javaenums");
+}
+
+#[test]
 fn a_try_on_a_stack_is_refused() {
     let source = root().join("tmp/jvm-test/refused.scala");
     std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");

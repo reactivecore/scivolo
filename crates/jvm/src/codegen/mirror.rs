@@ -4,7 +4,9 @@
 //! class (dotty's `genMirrorClass`, `addForwarders`, `addForwarder`).
 
 use super::{ClassBytes, Gen, method_descriptor, method_name, unsupported};
-use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ClassFile, Code, FieldOp, Invoke};
+use classfile::{
+    ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ClassFile, Code, FieldOp, Invoke,
+};
 use lower::Result;
 use std::collections::HashSet;
 use tasty::tags::{FIELDaccessor, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC};

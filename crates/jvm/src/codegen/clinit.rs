@@ -1,18 +1,60 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/LazyVals.scala
-//! The `VarHandle`s of lazy values (dotty's `transformMemberDefThreadSafeNew`): their
-//! initialization in `<clinit>` and the compare-and-set through them.
+//   compiler/src/dotty/tools/backend/jvm/BCodeSkelBuilder.scala
+//! A class's `<clinit>`: the `VarHandle`s of its lazy values (dotty's
+//! `transformMemberDefThreadSafeNew`), its static values, an object's `MODULE$` and the statements
+//! of its constructor (dotty's `genPlainClass`); the compare-and-set through those handles.
 
 use super::body::Body;
 use super::{Gen, unsupported};
-use classfile::{FieldOp, Invoke};
+use classfile::{ACC_PRIVATE, ACC_PUBLIC, ACC_STATIC, ClassFile, FieldOp, Invoke};
 use lower::Result;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
 const VAR_HANDLE: &str = "Ljava/lang/invoke/VarHandle;";
 
+/// What a class's `<clinit>` runs, in this order.
+#[derive(Default)]
+pub struct StaticInit {
+    /// The `VarHandle` fields of lazy values.
+    pub handles: Vec<SymbolId>,
+    /// The body of the `<clinit>` `MoveStatics` made, storing the static values.
+    pub statics: Option<TNodeId>,
+    /// The object whose `MODULE$` is created, then the statements of its constructor.
+    pub module: Option<String>,
+    pub stats: Vec<TNodeId>,
+}
+
 impl Gen<'_, '_> {
+    /// The `<clinit>` of class `class` running `init`, if it runs anything; private where dotty
+    /// takes `MoveStatics`'s.
+    pub fn gen_clinit(&mut self, cf: &mut ClassFile, class: &str, init: &StaticInit) -> Result<()> {
+        let moved = !init.handles.is_empty() || init.statics.is_some();
+        if !moved && init.module.is_none() {
+            return Ok(());
+        }
+        let mut b = Body::new(&mut cf.pool, init.module.as_deref(), 0);
+        self.init_var_handles(&mut b, class, &init.handles);
+        if let Some(t) = init.statics {
+            self.stat(&mut b, t)?;
+        }
+        if init.module.is_some() {
+            b.code.new_object(b.pool, class);
+            b.code.dup();
+            b.code.invoke(Invoke::Special, b.pool, class, "<init>", "()V");
+            b.code.field(FieldOp::PutStatic, b.pool, class, "MODULE$", &format!("L{class};"));
+        }
+        for &t in &init.stats {
+            self.stat(&mut b, t)?;
+        }
+        b.code.ret("V");
+        let code = b.code;
+        let access = if moved { ACC_PRIVATE } else { ACC_PUBLIC };
+        cf.method(access | ACC_STATIC, "<clinit>", "()V", Some(code), &mut |a, b| self.jvm_lub(a, b));
+        Ok(())
+    }
+
     /// `handle = MethodHandles.lookup().findVarHandle(classOf[C], "x$lzyN", classOf[Object])` for
     /// each of `handles`, static fields of class `class`.
     pub fn init_var_handles(&mut self, b: &mut Body, class: &str, handles: &[SymbolId]) {

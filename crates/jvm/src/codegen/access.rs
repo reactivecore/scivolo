@@ -45,7 +45,7 @@ impl Gen<'_, '_> {
     /// without one whose prefix is `this` of or object class `prefix`; returns whether `m` is an
     /// instance member. The qualifier of a static member must be an object or `this`, whose load
     /// is elided, as that of a member of an object standing for a JDK class's static members.
-    /// Fails for a static member of an object. A value `m` that is `called` is its getter's call.
+    /// A value `m` that is `called` is its getter's call.
     pub fn receiver(
         &mut self,
         b: &mut Body,
@@ -58,9 +58,6 @@ impl Gen<'_, '_> {
         let jdk = lower::is_jdk_object(self.l.u, owner);
         let static_ = jdk || (is_static_member(self.l.u, m) && !getter);
         let span = qualifier.map_or(Span::NONE, |q| self.l.tpd.span(q));
-        if self.l.u.is_module_class(owner) && self.l.u.is_annotated(m, "scala.annotation.static") {
-            return unsupported(span, "static members of objects on the JVM");
-        }
         match qualifier {
             Some(q) if static_ => {
                 let pure = matches!(self.l.tpd.tree(q), Tree::This { .. })
@@ -128,10 +125,10 @@ impl Gen<'_, '_> {
                 Invoke::Special
             }
             Some(Tree::Super { .. }) if self.l.u.is_trait(super_receiver) => {
-                if !self.l.u.is_trait(owner) || self.is_java_class(owner) {
+                if !self.l.u.is_trait(owner) || self.is_java_class(owner) || self.l.u.is_constructor(m) {
                     return unsupported(
                         span,
-                        "a super call of a Java or class method via a trait on the JVM",
+                        "a super call of a Java or class method or a constructor via a trait on the JVM",
                     );
                 }
                 owner_name = self.class_name(owner);

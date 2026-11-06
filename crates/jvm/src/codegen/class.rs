@@ -4,8 +4,9 @@
 //! `<clinit>` (dotty's `genPlainClass`).
 
 use super::body::Body;
+use super::clinit::StaticInit;
 use super::{ClassBytes, Gen, internal, is_static_module, java_flags, method_descriptor, unsupported};
-use classfile::{ACC_FINAL, ACC_PRIVATE, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile, FieldOp, Invoke};
+use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile};
 use lower::Result;
 use tasty::tags::MUTABLE;
 use tasty::{SymbolId, Type};
@@ -26,13 +27,15 @@ impl Gen<'_, '_> {
         if module {
             cf.field(ACC_PUBLIC | ACC_STATIC | ACC_FINAL, "MODULE$", &module_desc);
         }
-        let (mut clinit_stats, mut handles) = (Vec::new(), Vec::new());
+        let mut init = StaticInit { module: module.then(|| name.clone()), ..StaticInit::default() };
+        let mut nested = Vec::new();
         for stat in std::iter::once(constr).chain(self.l.tpd.items(body).to_vec()) {
             let Some(s) = self.l.tpd.sym(stat) else { continue };
             match self.l.tpd.tree(stat) {
                 Tree::DefDef { .. } if stat == constr && module => {
-                    clinit_stats = self.gen_module_constructor(&mut cf, stat, s)?;
+                    init.stats = self.gen_module_constructor(&mut cf, stat, s)?;
                 }
+                &Tree::DefDef { rhs, .. } if self.l.u.symbol(s).name == "<clinit>" => init.statics = rhs,
                 Tree::DefDef { rhs, .. } if stat == constr && self.l.u.is_trait(sym) => {
                     if rhs.is_some() {
                         return unsupported(self.l.tpd.span(stat), "trait constructors on the JVM");
@@ -51,33 +54,15 @@ impl Gen<'_, '_> {
                     let flags = java_flags(self.l.u, s) | if mutable { volatile } else { ACC_FINAL };
                     cf.field(flags, &tasty::encode(&name), &desc);
                     if self.l.var_handle_field(s).is_some() {
-                        handles.push(s);
+                        init.handles.push(s);
                     }
                 }
-                Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => {
-                    return unsupported(self.l.tpd.span(stat), "nested classes on the JVM");
-                }
+                Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => nested.push(stat),
                 Tree::TypeDef { .. } | Tree::Import { .. } => {}
                 _ => return unsupported(self.l.tpd.span(stat), "statements in a class body"),
             }
         }
-        if module || !handles.is_empty() {
-            let mut b = Body::new(&mut cf.pool, module.then_some(name.as_str()), 0);
-            self.init_var_handles(&mut b, &name, &handles);
-            if module {
-                b.code.new_object(b.pool, &name);
-                b.code.dup();
-                b.code.invoke(Invoke::Special, b.pool, &name, "<init>", "()V");
-                b.code.field(FieldOp::PutStatic, b.pool, &name, "MODULE$", &module_desc);
-            }
-            for &t in &clinit_stats {
-                self.stat(&mut b, t)?;
-            }
-            b.code.ret("V");
-            let code = b.code;
-            let access = if handles.is_empty() { ACC_PUBLIC } else { ACC_PRIVATE };
-            cf.method(access | ACC_STATIC, "<clinit>", "()V", Some(code), &mut |a, b| self.jvm_lub(a, b));
-        }
+        self.gen_clinit(&mut cf, &name, &init)?;
         self.deserialize_lambda(&mut cf);
         let top = self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.symbol(o).kind == tasty::Kind::Package);
         let companion = self.l.u.companion_module(sym).and_then(|m| self.l.u.module_class(m));
@@ -94,7 +79,7 @@ impl Gen<'_, '_> {
         if module && top && self.l.u.companion_class(sym).is_none() {
             self.gen_mirror_class(td, sym, &name)?;
         }
-        Ok(())
+        nested.into_iter().try_for_each(|n| self.gen_class(n))
     }
 
     /// The superclass and interfaces of class `c`, as internal names; no interface another parent
@@ -111,9 +96,16 @@ impl Gen<'_, '_> {
             classes.iter().chain(&traits).any(|&(o, _)| o != t && u.derives_from(o, t))
         };
         let traits: Vec<_> = traits.iter().filter(|p| !inherited(self.l.u, p.0)).cloned().collect();
-        let superclass = classes.first().map_or_else(|| "java/lang/Object".into(), |p| p.1.clone());
-        let mut interfaces: Vec<String> =
-            traits.into_iter().map(|p| p.1).filter(|i| i != "java/lang/Object").collect();
+        let superclass = match classes.first() {
+            Some(p) if !self.l.u.is_trait(c) => p.1.clone(),
+            _ => "java/lang/Object".into(),
+        };
+        let mut interfaces: Vec<String> = Vec::new();
+        for (_, i) in traits {
+            if i != "java/lang/Object" && !interfaces.contains(&i) {
+                interfaces.push(i);
+            }
+        }
         let serializable = "java/io/Serializable";
         if self.l.u.is_module_class(c) && !interfaces.iter().any(|i| i == serializable) {
             interfaces.push(serializable.into());

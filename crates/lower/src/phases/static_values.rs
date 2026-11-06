@@ -8,7 +8,7 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::{LAZY, MUTABLE, STATIC, SYNTHETIC};
+use tasty::tags::{LAZY, MUTABLE, PRIVATE, STATIC, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree};
 
@@ -22,11 +22,15 @@ pub fn transform(
     (stats, body): (&[TNodeId], &[TNodeId]),
 ) -> Result<Vec<TNodeId>> {
     let mut inits = Vec::new();
+    let jvm = l.backend == crate::Backend::Jvm;
     for &stat in stats {
         let Tree::ValDef { name, tpt, rhs } = *l.tpd.tree(stat) else { continue };
         let Some(s) = l.tpd.sym(stat) else { continue };
         if has(l.u, s, LAZY) || l.u.is_module(s) {
             return unsupported(l.tpd.span(stat), "@static lazy values");
+        }
+        if jvm && has(l.u, s, MUTABLE) {
+            return unsupported(l.tpd.span(stat), "@static variables on the JVM");
         }
         let Some(rhs) = rhs else { return unsupported(l.tpd.span(stat), "@static values without a value") };
         super::static_members::check_needs_no_this(l, rhs)?;
@@ -50,6 +54,11 @@ pub fn transform(
         moved.push(def);
     }
     let at = l.tpd.span(inits[0].1);
+    if jvm {
+        moved.extend(stats.iter().copied().filter(|&s| matches!(l.tpd.tree(s), Tree::ValDef { .. })));
+        moved.push(clinit(l, class, source, &inits, at));
+        return Ok(moved);
+    }
     let first = offsets_start(l, target)?;
     let at = match first.filter(|f| f.exists() && f.start() < at.start()) {
         Some(f) => Span::at(f.start()),
@@ -130,7 +139,10 @@ fn clinit(
     inits: &[(SymbolId, TNodeId)],
     span: Span,
 ) -> TNodeId {
-    let flags = Flags::default().with(STATIC);
+    let mut flags = Flags::default().with(STATIC);
+    if l.backend == crate::Backend::Jvm {
+        flags = flags.with(PRIVATE);
+    }
     let sym = l.u.define(symbol("<clinit>", Kind::Def, class, flags));
     let unit = l.u.class_ref("scala.Unit");
     let binder = l.u.fresh_binder();

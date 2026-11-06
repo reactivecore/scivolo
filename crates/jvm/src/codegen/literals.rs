@@ -44,7 +44,7 @@ impl Gen<'_, '_> {
         match primitive_box(&e) {
             Some(class) => b.code.field(FieldOp::GetStatic, b.pool, class, "TYPE", "Ljava/lang/Class;"),
             None => {
-                let index = b.pool.class(&class_internal(&e));
+                let index = b.pool.class(&class_internal(&self.l.u.erase_boxed(tpe)));
                 b.code.ldc(index);
             }
         }
