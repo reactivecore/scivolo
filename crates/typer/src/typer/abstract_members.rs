@@ -69,6 +69,7 @@ impl Typer<'_> {
                     || self.is_concrete(d)
                     || expanded && self.is_made(d)
                     || self.is_var_setter(base, d)
+                    || self.is_deferred_given(d)
                 {
                     continue;
                 }

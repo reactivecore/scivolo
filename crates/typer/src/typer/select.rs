@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Selections `qual.name` (dotty's `typedSelect`).
 
+use super::gadt_cast::GADT_HEALED_VIEW;
 use super::implicits::conversions::{Goal, Viewed};
 use super::opaque_paths::OPAQUE_THROUGH_OBJECT;
 use super::qualifier_views::QualifierView;
@@ -9,15 +10,12 @@ use super::source_splices::STAGING_REFERENCE;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{NodeId, TName};
+use syntax::ast::{NodeId, TName, Tree as S};
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
-        let path = matches!(
-            self.ast.tree(qualifier),
-            syntax::ast::Tree::Ident { .. } | syntax::ast::Tree::Select { .. }
-        );
+        let path = matches!(self.ast.tree(qualifier), S::Ident { .. } | S::Select { .. });
         let text = self.text(name.name).to_owned();
         let mode = if path { Mode::QUALIFIER } else { Mode::NONE };
         let mode = if text == "apply" && !name.is_type { mode.with(Mode::APPLY_QUALIFIER) } else { mode };
@@ -28,7 +26,8 @@ impl Typer<'_> {
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));
         }
-        let (mut converted, mut widened, mut tupled, mut defined) = (false, false, false, false);
+        let (mut converted, mut widened, mut tupled, mut defined, mut healed) =
+            (false, false, false, false, false);
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.instantiated_selected(qual_tpe);
@@ -105,6 +104,11 @@ impl Typer<'_> {
                 return self.extension_select(id, qual, name, pt, ctx);
             }
             match self.viewed(qual, Goal::Member(&text), ctx) {
+                Ok(None) if !healed && self.gadt_narrowing() => {
+                    (qual, healed) = (self.gadt_healed(qual, ctx).unwrap_or(qual), true);
+                    continue;
+                }
+                Ok(Some(Viewed::Converted(_))) if healed => return self.unsupported(id, GADT_HEALED_VIEW),
                 Ok(Some(Viewed::Converted(q))) => qual = q,
                 Ok(Some(Viewed::Extension(c))) => {
                     return self.implicit_extension_select(id, qual, c, name, pt, ctx);
@@ -181,9 +185,7 @@ impl Typer<'_> {
         if text == "deferred" && self.u.full_name(sym).starts_with("scala.compiletime.") {
             return self.unsupported(id, "deferred given");
         }
-        if self.is_staging_method(sym)
-            && !matches!(self.ast.tree(qualifier), syntax::ast::Tree::TypedSplice { .. })
-        {
+        if self.is_staging_method(sym) && !matches!(self.ast.tree(qualifier), S::TypedSplice { .. }) {
             return self.unsupported(id, STAGING_REFERENCE);
         }
         let tpe = self.ref_type(Some(qual_tpe), sym);
@@ -194,9 +196,5 @@ impl Typer<'_> {
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);
         select
-    }
-
-    fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {
-        self.not_a_member(id, qual, name, ctx).unwrap_or_else(|| self.unsupported(id, "member not found"))
     }
 }

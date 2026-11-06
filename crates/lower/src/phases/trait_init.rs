@@ -100,7 +100,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// `this.x_=(rhs)`, or `this.T$_setter_$x_=(rhs)` for a `val`, for getter `getter` of trait `class`,
-/// `rhs` at the definition's `span`, kept by the one `SelectStatic` made after positioning the call.
+/// `rhs` at the definition's `span`, kept by the one `SelectStatic` made after positioning the call
+/// and by `new Array` (dotty's `newArray`, whose span its cast takes).
 fn set(l: &mut Lower, class: tasty::SymbolId, getter: tasty::SymbolId, rhs: TNodeId, span: Span) -> TNodeId {
     let name = l.u.symbol(getter).name.clone();
     let var_setter =
@@ -116,7 +117,7 @@ fn set(l: &mut Lower, class: tasty::SymbolId, getter: tasty::SymbolId, rhs: TNod
     let own = std::mem::replace(&mut l.tpd.get_mut(rhs).span, span);
     let call = l.apply(fun, &[rhs], unit, Span::NONE);
     l.positioned(call);
-    if l.static_selects.contains(&rhs) {
+    if l.static_selects.contains(&rhs) || super::casts::is_new_array(l, rhs) {
         l.tpd.get_mut(rhs).span = own;
     }
     call

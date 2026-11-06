@@ -57,6 +57,7 @@ mod context_functions;
 mod control;
 mod default_args;
 mod default_params;
+mod deferred_givens;
 mod define_further;
 mod defs;
 mod dependent_function_types;
@@ -93,6 +94,8 @@ mod gadt;
 mod gadt_cases;
 mod gadt_cast;
 mod gadt_narrow;
+mod gadt_typed_pattern;
+mod gadt_upcast;
 mod generic_arrays;
 mod harmonize;
 mod ident_hint;
@@ -250,6 +253,7 @@ mod unapply_targs;
 mod unchecked_tests;
 pub(crate) mod unique_names;
 mod unknown_params;
+mod unresolved_terms;
 mod unsafe_nulls;
 mod untupled;
 mod variance_aliases;
@@ -361,7 +365,7 @@ pub struct Typer<'a> {
     /// The code of `typeChecks` being typed, and the number of diagnostics at its first construct
     /// outside the subset.
     pub checked_code: Option<(NodeId, Option<usize>)>,
-    /// The errors inline expansions reported, with their spans.
+    /// The errors inline expansions and checks with dotty's messages reported, with their spans.
     pub expansion_errors: Vec<(Span, String)>,
     /// How many constructs outside the subset were reported.
     reports: u32,

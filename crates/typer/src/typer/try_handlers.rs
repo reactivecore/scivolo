@@ -44,6 +44,7 @@ impl Typer<'_> {
         let partial =
             self.u.class_symbol(widened).is_some_and(|c| self.u.full_name(c) == "scala.PartialFunction");
         let handler = self.spliced(typed);
+        self.splice_owners.insert(handler, ctx.owner);
         let rhs = if partial {
             let tmp = TName { name: self.fresh.unique(self.names), is_type: false };
             self.meet_uniques(whole, &[tmp.name]);

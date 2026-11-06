@@ -51,6 +51,9 @@ impl Reducer<'_, '_> {
     }
 
     fn unusable_ref_in(&self, t: TNodeId) -> Option<TNodeId> {
+        if self.i.tpd.is_type_tree(t) {
+            return None;
+        }
         if matches!(self.i.tpd.tree(t), T::Ident { .. })
             && self.i.tpd.sym(t).is_some_and(|s| self.unusable.contains(&s))
         {

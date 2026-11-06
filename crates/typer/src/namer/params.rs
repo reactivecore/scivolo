@@ -33,6 +33,7 @@ impl Typer<'_> {
     /// `@ErasedParam` if it is erased, inside a by-name type (dotty's `adaptParamInfo`).
     pub fn method_param_type(&mut self, p: SymbolId) -> tasty::TypeId {
         let mut t = self.param_type(p);
+        t = self.reveal_into(t);
         let flags = self.syms.flags.get(&p).copied().unwrap_or_default();
         for (flag, annot) in [(f::INLINE, "InlineParam"), (f::ERASED, "ErasedParam")] {
             if flags.is(flag) {
@@ -160,6 +161,7 @@ impl Typer<'_> {
         let info = match *self.ast.tree(p) {
             Tree::ValDef { tpt, .. } => {
                 let info = self.value_type_ahead(tpt, ctx.with_owner(s));
+                let info = self.suppress_into(info);
                 let repeated = self.repeated_elem(info).is_some();
                 match *self.u.types().get(info) {
                     Type::Annotated(seq, _) if repeated => {

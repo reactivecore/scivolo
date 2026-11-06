@@ -46,6 +46,11 @@ impl Translator<'_, '_> {
         Some(SeqMembers { apply, drop, to_seq, length, int_length })
     }
 
+    /// Method `name` of `tpe` taking one `Int` (dotty's `matchingMember` of `Seq`'s method).
+    pub fn seq_method(&mut self, tpe: TypeId, name: &str) -> Option<SymbolId> {
+        self.seq_member(tpe, name, |_, _| true).map(|(m, _)| m)
+    }
+
     /// The first method `name` of `tpe`'s class or its bases, taking one `Int` or, for `toSeq`
     /// and `length`, without a parameter list, whose result as seen from `tpe` satisfies `fits`;
     /// with that result.

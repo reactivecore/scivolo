@@ -60,6 +60,9 @@ impl Typer<'_> {
                 return self.proxy_ident(id, name, pt, ctx);
             }
             Ok(None) => {
+                if let Some(t) = self.unresolved_term(id, name, ctx) {
+                    return t;
+                }
                 return match self.not_found(id, name, ctx) {
                     Some(error) => error,
                     None => match self.unbound_in_checked_code(id, name, ctx) {
