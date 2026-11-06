@@ -360,7 +360,7 @@ pub struct Typer<'a> {
     /// The code of `typeChecks` being typed, and the number of diagnostics at its first construct
     /// outside the subset.
     pub checked_code: Option<(NodeId, Option<usize>)>,
-    /// The errors inline expansions reported, with their spans.
+    /// The errors inline expansions and checks with dotty's messages reported, with their spans.
     pub expansion_errors: Vec<(Span, String)>,
     /// How many constructs outside the subset were reported.
     reports: u32,

@@ -103,12 +103,12 @@ impl Typer<'_> {
                 return Err("class not conforming to a parent's self type");
             }
             if !own_module && !self.u.is_subtype(own, s) {
-                let (own_s, s) = (self.show_type(own), self.show_type(s));
+                let (own_s, s) = (self.u.show_user(own), self.u.show_user(s));
                 let (c, p) = (self.described(cls), self.described(pc));
                 let msg = format!(
                     "illegal inheritance: self type {own_s} of {c} does not conform to self type {s}\nof parent {p}"
                 );
-                self.error_at(at, msg);
+                crate::inlining::Host::error(self, at, msg);
             }
         }
         Ok(())
