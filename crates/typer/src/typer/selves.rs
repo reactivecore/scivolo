@@ -103,6 +103,9 @@ impl Typer<'_> {
                 return Err("class not conforming to a parent's self type");
             }
             if !own_module && !self.u.is_subtype(own, s) {
+                if self.u.symbol(cls).name == "$anon" || module.is_some() {
+                    return Err("anonymous class or object not conforming to a parent's self type");
+                }
                 let (own_s, s) = (self.u.show_user(own), self.u.show_user(s));
                 let (c, p) = (self.described(cls), self.described(pc));
                 let msg = format!(
