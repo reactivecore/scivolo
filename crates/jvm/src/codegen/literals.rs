@@ -2,9 +2,9 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! Literals and the primitives' `box` and `unbox` (dotty's `genConstant`, `genApply` of a box).
 
-use super::method::Body;
-use super::{Gen, unsupported};
-use classfile::Invoke;
+use super::body::Body;
+use super::{Gen, class_internal, primitive_box, unsupported};
+use classfile::{FieldOp, Invoke};
 use lower::Result;
 use syntax::ast::constant::Constant;
 use tasty::Erased;
@@ -38,11 +38,35 @@ impl Gen<'_, '_> {
         1
     }
 
+    /// `classOf[T]` of type `tpe`: a primitive's `TYPE` field, else an `ldc` of the class.
+    pub fn class_literal(&mut self, b: &mut Body, tpe: tasty::TypeId) -> i32 {
+        let e = self.l.u.erase(tpe);
+        match primitive_box(&e) {
+            Some(class) => b.code.field(FieldOp::GetStatic, b.pool, class, "TYPE", "Ljava/lang/Class;"),
+            None => {
+                let index = b.pool.class(&class_internal(&self.l.u.erase_boxed(tpe)));
+                b.code.ldc(index);
+            }
+        }
+        1
+    }
+
     /// A call of a primitive's `box` or `unbox` with `args`, through `BoxesRunTime`; `None` for
     /// another method.
     pub fn boxing(&mut self, b: &mut Body, m: tasty::SymbolId, args: &[TNodeId]) -> Result<Option<i32>> {
         let (unbox, boxed) = (self.l.unboxed_by(m), self.l.is_box(m));
         let ([arg], true) = (args, boxed || unbox.is_some()) else { return Ok(None) };
+        if boxed && self.l.u.erase(self.l.tpd.tpe(*arg)) == Erased::Unit {
+            self.expr_as(b, *arg, 0)?;
+            b.code.field(
+                FieldOp::GetStatic,
+                b.pool,
+                "scala/runtime/BoxedUnit",
+                "UNIT",
+                "Lscala/runtime/BoxedUnit;",
+            );
+            return Ok(Some(1));
+        }
         self.expr(b, *arg)?;
         let letter = match unbox {
             Some(p) => p.letter,

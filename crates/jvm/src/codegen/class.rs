@@ -3,12 +3,13 @@
 //! A class's skeleton: flags, parents, fields, methods, and an object's `MODULE$` and
 //! `<clinit>` (dotty's `genPlainClass`).
 
-use super::method::Body;
+use super::body::Body;
+use super::clinit::StaticInit;
 use super::{ClassBytes, Gen, internal, is_static_module, java_flags, method_descriptor, unsupported};
-use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ClassFile, FieldOp, Invoke};
+use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile, Last};
 use lower::Result;
+use tasty::SymbolId;
 use tasty::tags::MUTABLE;
-use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree};
 
 impl Gen<'_, '_> {
@@ -17,105 +18,108 @@ impl Gen<'_, '_> {
         let Some(Template { constr, body, .. }) = self.l.tpd.class_template(td) else {
             return unsupported(self.l.tpd.span(td), "a type definition that is not a class");
         };
+        self.check_annotations(sym, self.l.tpd.span(td))?;
         let name = internal(&self.l.u.binary_name(sym));
         let (superclass, interfaces) = self.parents(sym);
         let interfaces: Vec<&str> = interfaces.iter().map(String::as_str).collect();
-        let mut cf = ClassFile::new(java_flags(self.l.u, sym), &name, &superclass, &interfaces);
+        let mut cf = ClassFile::new(java_flags(self.l, sym), &name, &superclass, &interfaces);
         let module = is_static_module(self.l.u, sym);
         let module_desc = format!("L{name};");
         if module {
             cf.field(ACC_PUBLIC | ACC_STATIC | ACC_FINAL, "MODULE$", &module_desc);
         }
-        let mut clinit_stats = Vec::new();
+        let module_name = module.then(|| name.clone());
+        let mut init = StaticInit { module: module_name, constr: Some(constr), ..StaticInit::default() };
+        let mut nested = Vec::new();
         for stat in std::iter::once(constr).chain(self.l.tpd.items(body).to_vec()) {
             let Some(s) = self.l.tpd.sym(stat) else { continue };
             match self.l.tpd.tree(stat) {
                 Tree::DefDef { .. } if stat == constr && module => {
-                    clinit_stats = self.gen_module_constructor(&mut cf, stat, s)?;
+                    init.stats = self.gen_module_constructor(&mut cf, stat, s)?;
                 }
-                Tree::DefDef { rhs, .. } if stat == constr && self.l.u.is_trait(sym) => {
-                    if rhs.is_some() {
-                        return unsupported(self.l.tpd.span(stat), "trait constructors on the JVM");
-                    }
-                }
+                &Tree::DefDef { rhs, .. } if self.l.u.symbol(s).name == "<clinit>" => init.statics = rhs,
+                Tree::DefDef { rhs: None, .. } if stat == constr && self.l.u.is_trait(sym) => {}
                 Tree::DefDef { .. } if self.l.u.symbol(s).name == "$init$" => {
                     return unsupported(self.l.tpd.span(stat), "trait initializers on the JVM");
                 }
-                Tree::DefDef { .. } => self.gen_method(&mut cf, stat, s)?,
+                Tree::DefDef { .. } => self.gen_method(&mut cf, (td, stat), s)?,
                 Tree::ValDef { .. } => {
+                    self.check_annotations(s, self.l.tpd.span(stat))?;
                     let info = self.l.u.info(s);
                     let desc = super::descriptor(&self.l.u.erase(info));
                     let name = self.l.u.symbol(s).name.clone();
                     let mutable = self.l.u.symbol(s).flags.has(MUTABLE);
-                    let flags = java_flags(self.l.u, s) | if mutable { 0 } else { ACC_FINAL };
+                    let volatile = if self.l.var_handle(s).is_some() { ACC_VOLATILE } else { 0 };
+                    let flags = java_flags(self.l, s) | if mutable { volatile } else { ACC_FINAL };
                     cf.field(flags, &tasty::encode(&name), &desc);
+                    if let Some(sig) = self.generic_signature(s, &desc) {
+                        cf.member_signature(Last::Field, &sig);
+                    }
+                    if self.l.u.is_annotated(s, "scala.deprecated") {
+                        cf.member_deprecated(Last::Field);
+                    }
+                    if self.l.var_handle_field(s).is_some() {
+                        init.handles.push(s);
+                    }
                 }
-                Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => {
-                    return unsupported(self.l.tpd.span(stat), "nested classes on the JVM");
-                }
+                Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => nested.push(stat),
                 Tree::TypeDef { .. } | Tree::Import { .. } => {}
                 _ => return unsupported(self.l.tpd.span(stat), "statements in a class body"),
             }
         }
-        if module {
-            let mut b = Body::new(&mut cf.pool, Some(&name), 0);
-            b.code.new_object(b.pool, &name);
-            b.code.dup();
-            b.code.invoke(Invoke::Special, b.pool, &name, "<init>", "()V");
-            b.code.field(FieldOp::PutStatic, b.pool, &name, "MODULE$", &module_desc);
-            for &t in &clinit_stats {
-                self.stat(&mut b, t)?;
-            }
-            b.code.ret("V");
-            let code = b.code;
-            cf.method(ACC_PUBLIC | ACC_STATIC, "<clinit>", "()V", Some(code), &mut |a, b| self.jvm_lub(a, b));
+        self.gen_clinit(&mut cf, &name, &init)?;
+        self.deserialize_lambda(&mut cf);
+        let top = self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.symbol(o).kind == tasty::Kind::Package);
+        let companion = self.l.u.companion_module(sym).and_then(|m| self.l.u.module_class(m));
+        if let Some(companion) = companion.filter(|&c| !module && is_static_module(self.l.u, c)) {
+            self.add_forwarders(&mut cf, companion, Some(sym));
         }
-        if let Some(signature) = self.class_signature(sym) {
-            cf.signature(&signature);
+        let signature = super::signatures::class(self.l.u, sym);
+        cf.signature(&signature);
+        if self.l.u.is_annotated(sym, "scala.deprecated") {
+            cf.deprecated();
         }
         let source = self.source_name(td);
         cf.source_file(&source);
+        let declared: Vec<SymbolId> = nested.iter().filter_map(|&n| self.l.tpd.sym(n)).collect();
+        self.nested_attributes(&mut cf, sym, &declared);
         let bytes = cf.bytes().or_else(|e| unsupported(self.l.tpd.span(td), e))?;
         self.out.push(ClassBytes { name: name.clone(), bytes });
-        let top = self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.symbol(o).kind == tasty::Kind::Package);
-        let span = self.l.tpd.span(td);
         if module && top && self.l.u.companion_class(sym).is_none() {
-            self.check_forwarders(sym, false, span)?;
-            self.gen_mirror_class(td, sym, &name)?;
+            self.gen_mirror_class(td, sym, &name, &declared)?;
         }
-        let companion = self.l.u.companion_module(sym).and_then(|m| self.l.u.module_class(m));
-        if let Some(companion) = companion.filter(|_| !module && top) {
-            self.check_forwarders(companion, true, span)?;
-        }
-        Ok(())
+        nested.into_iter().try_for_each(|n| self.gen_class(n))
     }
 
-    /// The superclass and interfaces of class `c`, as internal names.
+    /// The superclass and interfaces of class `c`, as internal names; no interface another parent
+    /// inherits.
     fn parents(&mut self, c: SymbolId) -> (String, Vec<String>) {
-        let classes: Vec<SymbolId> =
-            self.l.u.parents(c).into_iter().filter_map(|p| self.l.u.class_symbol(p)).collect();
-        let (traits, classes): (Vec<_>, Vec<_>) = classes.into_iter().partition(|&s| self.l.u.is_trait(s));
-        let superclass = classes.first().map_or_else(|| "java/lang/Object".into(), |&s| self.class_name(s));
-        let mut interfaces: Vec<String> = traits.into_iter().map(|t| self.class_name(t)).collect();
+        let mut classes = Vec::new();
+        for p in self.l.u.parents(c) {
+            if let Some(s) = self.l.u.class_symbol(p) {
+                classes.push((s, super::class_internal(&self.l.u.erase(p))));
+            }
+        }
+        let (traits, classes): (Vec<_>, Vec<_>) = classes.into_iter().partition(|p| self.l.u.is_trait(p.0));
+        let inherited = |u: &mut tasty::Universe, t| {
+            classes.iter().chain(&traits).any(|&(o, _)| o != t && u.derives_from(o, t))
+        };
+        let traits: Vec<_> = traits.iter().filter(|p| !inherited(self.l.u, p.0)).cloned().collect();
+        let superclass = match classes.first() {
+            Some(p) if !self.l.u.is_trait(c) => p.1.clone(),
+            _ => "java/lang/Object".into(),
+        };
+        let mut interfaces: Vec<String> = Vec::new();
+        for (_, i) in traits {
+            if i != "java/lang/Object" && !interfaces.contains(&i) {
+                interfaces.push(i);
+            }
+        }
         let serializable = "java/io/Serializable";
         if self.l.u.is_module_class(c) && !interfaces.iter().any(|i| i == serializable) {
             interfaces.push(serializable.into());
         }
         (superclass, interfaces)
-    }
-
-    /// The generic signature of class `c` without type parameters whose parents take no type
-    /// arguments (dotty's `superSig`); none for other classes.
-    fn class_signature(&mut self, c: SymbolId) -> Option<String> {
-        let parents = self.l.u.parents(c);
-        let applied = parents.iter().any(|&p| matches!(self.l.u.types().get(p), Type::Applied(..)));
-        if !self.l.u.type_params(c).is_empty() || applied || parents.is_empty() {
-            return None;
-        }
-        let classes = parents.iter().map(|&p| self.l.u.class_symbol(p)).collect::<Option<Vec<_>>>()?;
-        let object = if self.l.u.is_trait(classes[0]) { "Ljava/lang/Object;" } else { "" };
-        let parents: String = classes.iter().map(|&p| format!("L{};", self.class_name(p))).collect();
-        Some(format!("{object}{parents}"))
     }
 
     pub fn class_name(&self, c: SymbolId) -> String {
@@ -136,7 +140,7 @@ impl Gen<'_, '_> {
         };
         let stats = self.l.tpd.items(stats).to_vec();
         let split = stats.iter().position(|&s| self.is_super_call(s)).map_or(0, |i| i + 1);
-        let (desc, flags) = (method_descriptor(self.l.u, sym), java_flags(self.l.u, sym));
+        let (desc, flags) = (method_descriptor(self.l.u, sym), java_flags(self.l, sym));
         let class = self.l.u.symbol(sym).owner.expect("a constructor's class");
         let mut b = Body::new(&mut cf.pool, None, 1);
         b.this_class = Some(self.class_name(class));

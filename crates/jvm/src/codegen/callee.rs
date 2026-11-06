@@ -3,12 +3,13 @@
 //! What the JVM backend can call, and the class a call names (dotty's `genApply` and
 //! `genCallMethod`).
 
+use super::body::Body;
 use super::{Gen, descriptor, unsupported};
 use lower::Result;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
 use tasty::{Erased, SymbolId, Type};
-use typer::tpd::TNodeId;
+use typer::tpd::{List, TNodeId};
 
 /// The class or array type a virtual call names.
 pub enum Receiver {
@@ -19,6 +20,19 @@ pub enum Receiver {
 /// `Object`'s methods a trait may override.
 const OBJECT_METHODS: [&str; 5] = ["equals", "hashCode", "toString", "clone", "finalize"];
 
+/// After a call returning `Nothing$` an `athrow`, after one returning `Null$` a `null` in place
+/// of its value (dotty's `adapt`).
+pub fn adapt_phantom(b: &mut Body, result: &str) {
+    match result {
+        "Lscala/runtime/Nothing$;" => b.code.insn(0xbf),
+        "Lscala/runtime/Null$;" => {
+            b.code.pop();
+            b.code.aconst_null();
+        }
+        _ => {}
+    }
+}
+
 /// Whether binary class name `name` is a primitive value class or its companion's class.
 fn is_primitive(name: &str) -> bool {
     let prims = ["Boolean", "Char", "Byte", "Short", "Int", "Long", "Float", "Double", "Unit"];
@@ -27,6 +41,35 @@ fn is_primitive(name: &str) -> bool {
 }
 
 impl Gen<'_, '_> {
+    /// Call `t` of `fun` with `args`: a primitive operation, an array operation, a string
+    /// concatenation, `throw`, a hash, or a call of a method.
+    pub fn gen_apply(&mut self, b: &mut Body, t: TNodeId, fun: TNodeId, args: List) -> Result<i32> {
+        if let Some(slots) = self.primitive(b, t)? {
+            return Ok(slots);
+        }
+        if let Some(slots) = self.array_op(b, t, fun, args)? {
+            return Ok(slots);
+        }
+        if self.is_concat(t) {
+            return self.concat(b, t);
+        }
+        let m = self.l.tpd.sym(fun);
+        let s = m.map(|m| self.l.u.symbol(m));
+        let special = s.and_then(|s| s.owner).is_some_and(|o| self.l.u.symbol(o).name == "<special-ops>");
+        if special
+            && s.is_some_and(|s| s.name == "throw")
+            && let &[e] = self.l.tpd.items(args)
+        {
+            self.expr(b, e)?;
+            b.code.insn(0xbf);
+            return Ok(0);
+        }
+        if let Some(slots) = self.hash(b, t)? {
+            return Ok(slots);
+        }
+        self.apply(b, fun, args)
+    }
+
     /// Fails for method `m` of class `owner` that the backend cannot call yet: the primitive
     /// operations, array operations and `throw` dotty generates inline that `primitive`,
     /// `array_op` and `boxing` leave, and unexpanded inline methods.
@@ -72,7 +115,8 @@ impl Gen<'_, '_> {
 
     /// The class a virtual call of `m` on `qualifier` names: the qualifier's class, `Object` or
     /// the array type for an array, `m`'s trait for a trait method overriding one of `Object`;
-    /// none where the qualifier's type erases to no class of its own.
+    /// none where the qualifier's type erases to no class of its own or to one not deriving from
+    /// `m`'s owner, as a by-name parameter's.
     pub fn receiver_class(&mut self, qualifier: TNodeId, m: SymbolId) -> Option<Receiver> {
         let owner = self.l.u.symbol(m).owner?;
         let t = self.l.tpd.tpe(qualifier);
@@ -84,6 +128,9 @@ impl Gen<'_, '_> {
             Erased::Array(_) => Some(Receiver::Array("java/lang/Object".into())),
             Erased::Class(name) => {
                 let c = self.l.u.class_symbol(t).filter(|&c| self.l.u.binary_name(c) == name)?;
+                if !self.l.u.derives_from(c, owner) {
+                    return None;
+                }
                 let object_method = OBJECT_METHODS.contains(&self.l.u.symbol(m).name.as_str());
                 let trait_override = c != owner && self.l.u.is_trait(c) && self.l.u.is_trait(owner);
                 Some(Receiver::Class(if trait_override && object_method { owner } else { c }))

@@ -4,8 +4,8 @@
 //! Operations of the primitive classes and conversions (dotty's `genPrimitiveOp`,
 //! `genArithmeticOp`, `genConversion`, `emitT2T`).
 
+use super::body::Body;
 use super::cond::{Test, kind};
-use super::method::Body;
 use super::{Gen, unsupported};
 use lower::Result;
 use syntax::ast::constant::Constant;
@@ -24,7 +24,7 @@ const PRIMITIVES: [&str; 8] = [
 
 impl Gen<'_, '_> {
     /// The name, receiver and arguments of `t` if it calls an operation of a primitive class, or
-    /// `eq`/`ne` of `AnyRef`.
+    /// `eq`, `ne`, `==` or `!=` of `Any`.
     pub fn primitive_call(&mut self, t: TNodeId) -> Option<(String, TNodeId, Vec<TNodeId>)> {
         let Tree::Apply { fun, args } = *self.l.tpd.tree(t) else { return None };
         let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else { return None };
@@ -32,15 +32,10 @@ impl Gen<'_, '_> {
         let owner = self.l.u.binary_name(self.l.u.symbol(m).owner?);
         let name = self.l.u.symbol(m).name.clone();
         let reference = matches!(owner.as_str(), "scala.Any" | "scala.AnyRef" | "java.lang.Object")
-            && matches!(name.as_str(), "eq" | "ne");
+            && matches!(name.as_str(), "eq" | "ne" | "==" | "!=");
         if !PRIMITIVES.contains(&owner.as_str()) && !reference {
             return None;
         }
-        let name = match name.as_str() {
-            "eq" => "==".into(),
-            "ne" => "!=".into(),
-            _ => name,
-        };
         Some((name, qualifier, self.l.tpd.items(args).to_vec()))
     }
 
@@ -130,9 +125,13 @@ impl Gen<'_, '_> {
                     return unsupported(self.l.tpd.span(t), "bit operations on floats");
                 }
                 b.code.insn(base + k(opk as u8));
+                self.line(b, t);
                 convert(b, opk as u8, to);
             }
             _ => return unsupported(self.l.tpd.span(t), format!("the primitive operation {name}")),
+        }
+        if name.starts_with("unary_") && name != "unary_!" {
+            self.line(b, t);
         }
         Ok(Some(classfile::value_slots(&result)))
     }

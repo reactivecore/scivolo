@@ -2,10 +2,12 @@
 
 mod descriptors;
 mod jumps;
+mod lines;
 mod ops;
 
 use descriptors::{kind, slots};
 pub use descriptors::{method_slots, split_method, value_slots};
+use jumps::Fixup;
 pub use jumps::Label;
 
 use crate::pool::{Pool, Ref};
@@ -33,11 +35,18 @@ pub struct Code {
     pub max_locals: u16,
     /// The offset of each label, once placed.
     labels: Vec<Option<usize>>,
-    /// The jumps to labels not yet placed: the jump's offset and its label.
-    fixups: Vec<(usize, Label)>,
+    /// The jumps to labels not yet placed.
+    fixups: Vec<Fixup>,
+    /// The protected ranges: start, end, handler and the class index of the exception, 0 for any.
+    handlers: Vec<(Label, Label, Label, u16)>,
+    /// The exception table: start, end, handler and class index, set with the frames.
+    pub exceptions: Vec<[u16; 4]>,
     /// Why the code cannot be written, e.g. a jump over 32 KiB.
     error: Option<String>,
     live: bool,
+    /// The `LineNumberTable`: offsets and their source lines.
+    lines: Vec<(u16, u16)>,
+    last_line: u16,
 }
 
 impl Code {
@@ -50,8 +59,12 @@ impl Code {
             max_locals: params,
             labels: Vec::new(),
             fixups: Vec::new(),
+            handlers: Vec::new(),
+            exceptions: Vec::new(),
             error: None,
             live: true,
+            lines: Vec::new(),
+            last_line: 0,
         }
     }
 
@@ -73,7 +86,7 @@ impl Code {
 
     /// Appends `opcode` and its operand bytes; the stack changes by `delta` slots.
     fn op(&mut self, opcode: u8, operands: &[u8], delta: i32) {
-        self.live = !matches!(opcode, 0xa7 | 0xac..=0xb1 | 0xbf);
+        self.live = !matches!(opcode, 0xa7 | 0xaa..=0xb1 | 0xbf);
         self.bytes.push(opcode);
         self.bytes.extend_from_slice(operands);
         self.stack += delta;
@@ -177,18 +190,5 @@ impl Code {
 
     pub fn aconst_null(&mut self) {
         self.op(0x01, &[], 1);
-    }
-
-    /// The return of a value of descriptor `result`, `V` for none.
-    pub fn ret(&mut self, result: &str) {
-        let (opcode, delta) = match result.as_bytes()[0] {
-            b'V' => (0xb1, 0),
-            b'L' | b'[' => (0xb0, -1),
-            b'J' => (0xad, -2),
-            b'F' => (0xae, -1),
-            b'D' => (0xaf, -2),
-            _ => (0xac, -1),
-        };
-        self.op(opcode, &[], delta);
     }
 }

@@ -171,6 +171,7 @@ pub fn forwarder(l: &mut Lower, class: SymbolId, member: SymbolId, rhs: Option<T
         l.u.set_target(sym, &target);
     }
     l.mixed_in.insert(sym);
+    l.mixed_from.insert(sym, member);
     l.u.copy_annotations(member, sym, "scala.annotation.tailrec");
     let info = l.u.info(member);
     l.u.set_info(sym, info);

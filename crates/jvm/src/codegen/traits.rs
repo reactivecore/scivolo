@@ -7,18 +7,28 @@ use classfile::{ACC_PRIVATE, ACC_STATIC, ClassFile, Code, Invoke};
 use tasty::SymbolId;
 
 impl Gen<'_, '_> {
-    /// Adds `m$` to trait `cf` for method `m` of access `flags` and descriptor `desc` if `m` is
-    /// a concrete instance method that is not private.
-    pub fn trait_forwarder(&mut self, cf: &mut ClassFile, m: SymbolId, flags: u16, desc: &str) {
+    /// Adds `m$` to trait `cf` for method `m` of access `flags`, descriptor `desc` and parameters
+    /// `params` if `m` is a concrete instance method that is not private; its code is of the
+    /// trait's source line `line`.
+    pub fn trait_forwarder(
+        &mut self,
+        cf: &mut ClassFile,
+        (m, flags): (SymbolId, u16),
+        (desc, params): (&str, &[SymbolId]),
+        line: Option<u16>,
+    ) {
         let owner = self.l.u.symbol(m).owner.expect("a method's owner");
         if !self.l.u.is_trait(owner) || flags & (ACC_PRIVATE | ACC_STATIC) != 0 {
             return;
         }
         let (trait_name, name) = (self.class_name(owner), method_name(self.l.u, m));
-        let (params, result) = classfile::split_method(desc);
+        let (descs, result) = classfile::split_method(desc);
         let mut code = Code::new(1);
+        if let Some(line) = line {
+            code.line(line);
+        }
         code.load("L", 0);
-        for p in params {
+        for p in descs {
             let slot = code.max_locals;
             code.max_locals += classfile::value_slots(p) as u16;
             code.load(p, slot);
@@ -28,6 +38,7 @@ impl Gen<'_, '_> {
         let static_desc = format!("(L{trait_name};{}", &desc[1..]);
         let flags = (flags & !classfile::ACC_ABSTRACT) | ACC_STATIC;
         cf.method(flags, &format!("{name}$"), &static_desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
+        self.method_attributes(cf, m, &static_desc, params, (true, true));
     }
 
     /// Whether `c` is a Java class: of a JDK package or jar, or a Java class of the Scala library.

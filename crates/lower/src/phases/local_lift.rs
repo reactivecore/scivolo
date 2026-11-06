@@ -74,6 +74,7 @@ fn enclosing(l: &Lower, root: TNodeId, t: TNodeId) -> (Option<SymbolId>, Option<
 /// and no longer an object's.
 pub fn name_class(l: &mut Lower, class: SymbolId, outer: SymbolId) {
     let class_name = l.u.symbol(class).name.clone();
+    l.local_names.insert(class, class_name.clone());
     let (base, module) = match tasty::module_name(&class_name) {
         Some(m) if l.u.is_module_class(class) => (m, "$"),
         _ => (class_name.as_str(), ""),

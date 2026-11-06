@@ -519,13 +519,13 @@ jvm-check file: (jvm-fixture file) (jvm-build file)
     python3 scripts/jvm-check.py tmp/jvm/$(basename {{ file }} .scala)/ref tmp/jvm/$(basename {{ file }} .scala)/out
 
 # Compile a Scala file with scivolo-jvm and run its `main` (default: the file name capitalized) on
-# `java -Xverify:all`; compare its output with the `.check` file beside it, if any.
+# `java -Xverify:all` in the en-US locale; compare its output with the `.check` file beside it, if any.
 jvm-run file main="": (jvm-build file)
     #!/usr/bin/env bash
     set -euo pipefail
     n=$(basename {{ file }} .scala); m="{{ main }}"
     [ -z "$m" ] && m=$(echo "$n" | awk '{ print toupper(substr($0, 1, 1)) substr($0, 2) }')
-    out=$(java -Xverify:all -cp tmp/jvm/$n/out:ref/libs/scala-library-3.9.0.jar "$m")
+    out=$(java -Xverify:all -Duser.language=en -Duser.country=US -cp tmp/jvm/$n/out:ref/libs/scala-library-3.9.0.jar "$m")
     echo "$out"
     check={{ without_extension(file) }}.check
     if [ -f "$check" ]; then diff <(echo "$out") "$check"; fi

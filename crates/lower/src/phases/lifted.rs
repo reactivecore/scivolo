@@ -13,7 +13,7 @@ use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result};
 use rustc_hash::FxHashMap;
-use tasty::tags::{PRIVATE, STATIC};
+use tasty::tags::{FINAL, PRIVATE, STATIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -157,6 +157,7 @@ pub fn define(
 ) -> Method {
     let flags = Flags::default().with(PRIVATE);
     let flags = if this { flags } else { flags.with(STATIC) };
+    let flags = if l.u.is_trait(class) { flags } else { flags.with(FINAL) };
     let sym = l.u.define(symbol(name, Kind::Def, class, flags));
     let mut proxies = Vec::new();
     for &s in captured {

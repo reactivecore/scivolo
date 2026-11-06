@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! Conditional jumps (dotty's `genCond`, `genCJUMP`, `genCZJUMP`).
 
-use super::method::Body;
+use super::body::Body;
 use super::{Gen, unsupported};
 use classfile::Label;
 use lower::Result;
@@ -24,8 +24,8 @@ pub enum Test {
 impl Test {
     pub fn of(name: &str) -> Option<Test> {
         Some(match name {
-            "==" => Test::Eq,
-            "!=" => Test::Ne,
+            "==" | "eq" => Test::Eq,
+            "!=" | "ne" => Test::Ne,
             "<" => Test::Lt,
             ">=" => Test::Ge,
             ">" => Test::Gt,
@@ -66,6 +66,13 @@ impl Gen<'_, '_> {
                     let mixed = kind == 'L' && (self.kind_of(receiver) != 'L' || self.kind_of(right) != 'L');
                     if mixed || kind == 'L' && !matches!(test, Test::Eq | Test::Ne) {
                         return unsupported(self.l.tpd.span(t), "an ordering of references");
+                    }
+                    if kind == 'L' && matches!(op, "==" | "!=") {
+                        let labels = match test {
+                            Test::Eq => [success, failure, fall],
+                            _ => [failure, success, fall],
+                        };
+                        return self.eq_eq(b, (receiver, right), labels);
                     }
                     let is_null =
                         |g: &Self, x| matches!(g.l.tpd.tree(x), Tree::Literal { value: Constant::Null });
@@ -147,7 +154,7 @@ fn jump_compare(
 }
 
 /// The jump on comparing an int with zero, or a reference (`Eq` or `Ne` only) with null.
-fn jump_zero(b: &mut Body, reference: bool, test: Test, success: Label, failure: Label, fall: Label) {
+pub fn jump_zero(b: &mut Body, reference: bool, test: Test, success: Label, failure: Label, fall: Label) {
     if fall == success {
         return jump_zero(b, reference, test.negate(), failure, success, fall);
     }

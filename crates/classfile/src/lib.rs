@@ -1,13 +1,19 @@
 //! JVM class files (JVMS §4): a class with its constant pool, fields, methods and their code.
 
+mod attributes;
 mod code;
 mod frames;
 mod pool;
+mod references;
 mod writer;
 
+pub use attributes::{InnerClass, Last};
 pub use code::{Code, FieldOp, Invoke, Label, method_slots, split_method, value_slots};
 pub use frames::Lub;
-pub use pool::{Pool, Ref};
+pub use pool::{
+    Constant, Handle, Pool, REF_INVOKE_INTERFACE, REF_INVOKE_SPECIAL, REF_INVOKE_STATIC, REF_INVOKE_VIRTUAL,
+    Ref,
+};
 
 /// Java 17's class file version, dotty's default target.
 pub const MAJOR_VERSION: u16 = 61;
@@ -20,7 +26,10 @@ pub const ACC_FINAL: u16 = 0x0010;
 pub const ACC_SUPER: u16 = 0x0020;
 pub const ACC_INTERFACE: u16 = 0x0200;
 pub const ACC_ABSTRACT: u16 = 0x0400;
+pub const ACC_BRIDGE: u16 = 0x0040;
+pub const ACC_VOLATILE: u16 = 0x0040;
 pub const ACC_SYNTHETIC: u16 = 0x1000;
+pub const ACC_ENUM: u16 = 0x4000;
 
 /// An attribute: its name and its bytes.
 struct Attribute {
@@ -86,6 +95,9 @@ impl ClassFile {
                 None
             });
             let mut attrs = Vec::new();
+            if let Some(bytes) = code.line_table() {
+                attrs.push(Attribute { name: self.pool.utf8("LineNumberTable"), bytes });
+            }
             if let Some(bytes) = frames {
                 attrs.push(Attribute { name: self.pool.utf8("StackMapTable"), bytes });
             }
@@ -115,23 +127,6 @@ impl ClassFile {
         }
         let m = frames::Method { class: &self.name, is_static: access & ACC_STATIC != 0, name, descriptor };
         frames::stack_map(code, &mut self.pool, &m, lub)
-    }
-
-    /// The `SourceFile` attribute.
-    pub fn source_file(&mut self, file: &str) {
-        self.utf8_attribute("SourceFile", file);
-    }
-
-    /// The class's generic `Signature` attribute.
-    pub fn signature(&mut self, signature: &str) {
-        self.utf8_attribute("Signature", signature);
-    }
-
-    /// Attribute `name` holding the index of `value`.
-    fn utf8_attribute(&mut self, name: &str, value: &str) {
-        let name = self.pool.utf8(name);
-        let bytes = self.pool.utf8(value).to_be_bytes().to_vec();
-        self.attributes.push(Attribute { name, bytes });
     }
 
     fn member(&mut self, access: u16, name: &str, descriptor: &str) -> Member {
