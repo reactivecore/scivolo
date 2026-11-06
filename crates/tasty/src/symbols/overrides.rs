@@ -52,7 +52,6 @@ impl Universe {
             if rx != ry {
                 return false;
             }
-            let (x, y) = (self.java_object_as_any(x), self.java_object_as_any(y));
             let (x, y) = (self.normalize(x), self.normalize(y));
             let rename =
                 |u: &mut Universe, t, own: &[SymbolId], binders: &[(Binder, usize)], methods: &Clauses| {
@@ -75,14 +74,6 @@ impl Universe {
             let y = rename(self, y, &tb, &pb, &mb);
             let (x, y) = (self.param_paths_named(x, &ma), self.param_paths_named(y, &ma));
             x == y || self.is_same_type_in(x, y, &mut crate::subtype::NoVars)
-        })
-    }
-
-    /// `t` with `<FromJavaObject>` made `Any`, the type it is the same as before erasure.
-    fn java_object_as_any(&mut self, t: TypeId) -> TypeId {
-        let fjo = self.builtins().from_java_object;
-        self.map_type(t, &mut |u, x| {
-            matches!(*u.types().get(x), Type::Sym(_, s) if s == fjo).then_some(crate::ANY)
         })
     }
 
