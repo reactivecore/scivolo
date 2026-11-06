@@ -105,6 +105,7 @@ impl Universe {
             | Type::Flexible(u)
             | Type::Refined(u, _, _)
             | Type::Rec(_, u)
+            | Type::Alias(u)
             | Type::Bounds(_, u) => self.holder(u),
             Type::Applied(c, _) => self.holder(c),
             Type::And(a, b) => match (self.holder(a), self.holder(b)) {
