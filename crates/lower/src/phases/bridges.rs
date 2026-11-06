@@ -70,7 +70,8 @@ pub fn differ(l: &mut Lower, member: SymbolId, other: SymbolId) -> bool {
 /// `OverridingPairs.Cursor` yields them for `Bridges`: candidates by name, concrete ones before
 /// deferred ones, each from `class` to its last base class but javalib's own in declaration
 /// order; a member once
-/// overridden overrides nothing; pairs the superclass has too are left out.
+/// overridden overrides nothing; pairs the superclass has too are left out, but those of two JDK
+/// classes.
 pub fn overriding_pairs(
     l: &mut Lower,
     class: SymbolId,
@@ -110,8 +111,11 @@ pub fn overriding_pairs(
             }
             visited.insert(overridden);
             let in_superclass = |o: Option<SymbolId>| o.is_some_and(|o| inherited.contains(&o));
+            let java_class =
+                |l: &Lower, o: Option<SymbolId>| o.is_some_and(|o| is_jdk(l, o) && !l.u.is_trait(o));
             let handled = in_superclass(owners.0)
                 && in_superclass(owners.1)
+                && !(java_class(l, owners.0) && java_class(l, owners.1))
                 && super_site.is_some_and(|s| matching(l, s, overriding, overridden));
             if !handled {
                 pairs.push((overriding, overridden));
