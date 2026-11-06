@@ -154,7 +154,7 @@ fn move_body(l: &mut Lower, owner: Owner, def: TNodeId, ext: SymbolId) -> TNodeI
     l.tpd.get_mut(def).tree = Tree::DefDef { name, paramss: kept, tpt, rhs: Some(call) };
     let ext_name = l.build().term_name(ext);
     let ext_paramss = l.tpd.clauses(&ext_clauses);
-    let ext_tpt = l.type_tree(l.tpd.tpe(tpt), l.tpd.span(tpt));
+    let ext_tpt = l.type_tree(l.tpd.tpe(tpt), Span::NONE);
     let tree = Tree::DefDef { name: ext_name, paramss: ext_paramss, tpt: ext_tpt, rhs: Some(rhs) };
     let info = l.u.info(ext);
     let body = span_before_erasure(l, rhs);

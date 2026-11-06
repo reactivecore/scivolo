@@ -88,7 +88,7 @@ fn own_type_params(l: &mut Lower, sym: SymbolId, acc: SymbolId) {
 /// The member name and mix of super accessor name `name` of `acc`: `m` and an empty mix for
 /// `super$m`, `m` and `Q` for `m$super$Q`, each also with the prefix `T$$` of the accessor's
 /// trait `T` (dotty's `decomposeSuperName`).
-fn decompose<'a>(l: &Lower, acc: SymbolId, name: &'a str) -> Option<(&'a str, &'a str)> {
+pub fn decompose<'a>(l: &Lower, acc: SymbolId, name: &'a str) -> Option<(&'a str, &'a str)> {
     let owner = l.u.symbol(acc).owner?;
     let prefix = format!("{}$$", l.u.expanded_prefix(owner));
     let unexpanded = name.strip_prefix(prefix.as_str()).unwrap_or(name);

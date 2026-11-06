@@ -159,21 +159,21 @@ impl Typer<'_> {
         let tpe = match *self.u.types().get(tpe) {
             _ if self.is_static_owner(owner) => crate::defn::type_ref(self.u, class),
             Type::Sym(prefix, _) if is_module => self.ref_type(prefix, class),
+            Type::This(_) => crate::defn::type_ref(self.u, class),
             _ if self.is_static_owner(module_class) => crate::defn::type_ref(self.u, class),
             _ => return None,
         };
         let span = self.tpd.span(f);
-        let tpt = match *self.tpd.tree(f) {
-            T::Ident { name } => {
-                let name = TName { is_type: true, ..name };
-                self.tpd.node(T::Ident { name }, span, Some(tpe), Some(class))
-            }
-            T::Select { qualifier, name } => {
-                let name = TName { is_type: true, ..name };
-                self.tpd.node(T::Select { qualifier, name }, span, Some(tpe), Some(class))
+        let tree = match *self.tpd.tree(f) {
+            T::Ident { name } => T::Ident { name: TName { is_type: true, ..name } },
+            T::Select { qualifier, name } => T::Select { qualifier, name: TName { is_type: true, ..name } },
+            T::This { .. } => {
+                let name = self.name(&self.u.symbol(class).name.clone());
+                T::Ident { name: TName { name, is_type: true } }
             }
             _ => return None,
         };
+        let tpt = self.tpd.node(tree, span, Some(tpe), Some(class));
         Some(self.proxy_new(tpt, pt, ctx))
     }
 

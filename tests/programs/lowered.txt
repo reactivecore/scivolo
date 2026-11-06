@@ -224,3 +224,8 @@ erasedjoins
 quoteholes
 quotelambdas
 scala2macros
+typershapes
+samforwarders
+positionsnames
+tailcaptures
+quoteshapes

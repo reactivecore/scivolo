@@ -22,13 +22,12 @@ impl Typer<'_> {
         class
     }
 
-    /// Type refinement `r` of right-hand side `rhs`, a member of `class`, its info from
-    /// `type_def_info`; `Err` with the tree of a refusal.
-    pub fn type_refinement(&mut self, class: SymbolId, r: NodeId, ctx: Ctx) -> Result<Refinement, TNodeId> {
-        let Tree::TypeDef { name, rhs, mods } = *self.ast.tree(r) else { unreachable!("a type refinement") };
+    /// Type refinement `r` of right-hand side `rhs`, its symbol entered by `refinement_scope`, its
+    /// info from `type_def_info`; `Err` with the tree of a refusal.
+    pub fn type_refinement(&mut self, r: NodeId, ctx: Ctx) -> Result<Refinement, TNodeId> {
+        let Tree::TypeDef { name, rhs, .. } = *self.ast.tree(r) else { unreachable!("a type refinement") };
         let text = self.text(name.name).to_owned();
-        let flags = self.ast.modifiers(mods).flags.to_type_flags();
-        let sym = self.syms.define(self.u, &text, Kind::Type, class, flags);
+        let sym = self.syms.by_tree[&r];
         let mctx = Ctx { owner: sym, ..ctx };
         let info = self.type_def_info(rhs, mctx);
         let info = match *self.u.types().get(info) {
@@ -36,6 +35,9 @@ impl Typer<'_> {
             Type::Lambda { .. } => self.u.intern_type(Type::Alias(info)),
             _ => info,
         };
+        if self.aliases_itself(sym, info) {
+            return Err(self.unsupported(r, "refinement alias referring to itself"));
+        }
         if let Type::Bounds(lo, hi) = *self.u.types().get(info)
             && !self.u.is_subtype(lo, hi)
         {

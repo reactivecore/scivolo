@@ -131,10 +131,12 @@ pub fn prefix(
 ) -> String {
     match l.u.symbol(f.sym).owner {
         Some(o) if l.u.is_constructor(o) && l.u.symbol(o).owner == Some(class) => "$init$$".to_owned(),
-        Some(o) if l.u.symbol(o).kind == Kind::Def => match functions.iter().position(|x| x.sym == o) {
-            Some(p) => format!("{}$", l.u.symbol(methods[p].sym).name),
-            None => format!("{}$", l.u.symbol(o).name),
-        },
+        Some(o) if l.u.symbol(o).kind == Kind::Def || has(l.u, o, LAZY) => {
+            match functions.iter().position(|x| x.sym == o) {
+                Some(p) => format!("{}$", l.u.symbol(methods[p].sym).name),
+                None => format!("{}$", l.u.symbol(o).name),
+            }
+        }
         Some(o) if f.ctor && in_field(l, o, class) => "$init$$".to_owned(),
         _ => String::new(),
     }

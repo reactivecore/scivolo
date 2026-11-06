@@ -127,16 +127,18 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<Vec<TNodeId>, &'static str> {
         let mut out = Vec::new();
+        let mut wildcards = 0;
         for (i, (&a, t)) in args.iter().zip(types).enumerate() {
             if i >= leading && matches!(self.u.types().get(t), Type::Bounds(..)) {
                 return Err("sequence extractor of a wildcard element type");
             }
             out.push(if !self.is_seq_wildcard(a) {
                 self.typed(a, Pt::Type(t), ctx)
-            } else if i + 1 == args.len() && i >= leading {
+            } else if i >= leading && wildcards == 0 {
+                wildcards += 1;
                 self.seq_wildcard(a, t, ctx)?
             } else {
-                return Err("sequence wildcard before the last pattern");
+                return Err("sequence wildcard before the sequence or after another");
             });
         }
         Ok(out)

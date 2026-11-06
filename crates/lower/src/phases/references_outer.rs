@@ -99,7 +99,7 @@ fn is_outer_sym(l: &Lower, class: SymbolId, s: SymbolId) -> bool {
 fn is_outer_ref(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
     match *l.u.types().get(tpe) {
         Type::This(c) => l.u.class_symbol(c).is_some_and(|c| is_outer_sym(l, class, c)),
-        Type::Sym(_, s) if !l.u.symbol(s).kind.is_term() => false,
+        Type::Sym(_, s) if !l.u.symbol(s).kind.is_term() || is_static(l.u, s) => false,
         Type::Sym(Some(pre), s) if !matches!(l.u.types().get(pre), Type::NoPrefix) => {
             !is_static(l.u, s) && is_outer_ref(l, class, pre)
         }

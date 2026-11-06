@@ -106,7 +106,7 @@ impl Typer<'_> {
         if self.u.is_module(s) {
             let no_inits = self.u.module_class(s).is_some_and(|c| {
                 let bases = self.u.linearization(c);
-                bases.iter().all(|&b| self.is_no_inits(b))
+                self.u.is_assured_no_inits(c) || bases.iter().all(|&b| self.is_no_inits(b))
             });
             return if no_inits { PURE_PATH } else { IDEMPOTENT_PATH };
         }
@@ -151,7 +151,7 @@ impl Typer<'_> {
             self.u.symbol(c).kind == Kind::Class
                 && flags.has(tasty::tags::CASE)
                 && !flags.has(tasty::tags::TRAIT)
-                && self.is_no_inits(c)
+                && (self.is_no_inits(c) || self.u.is_assured_no_inits(c))
         })
     }
 

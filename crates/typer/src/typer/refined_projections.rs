@@ -39,6 +39,15 @@ impl Typer<'_> {
                 _ => self.lookup_refined(p, name),
             },
             Type::Annotated(p, _) => self.lookup_refined(p, name),
+            Type::Rec(binder, p) => {
+                let candidate = self.lookup_refined(p, name)?;
+                let mut refers = false;
+                self.u.map_type(candidate, &mut |u, x| {
+                    refers |= *u.types().get(x) == Type::RecThis(binder);
+                    None
+                });
+                (!refers).then_some(candidate)
+            }
             Type::TypeRef(..) | Type::Sym(..) if self.u.dealias(t) != t => {
                 let d = self.u.dealias(t);
                 self.lookup_refined(d, name)

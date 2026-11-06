@@ -63,7 +63,7 @@ pub fn is_pure_value(l: &Lower, t: TNodeId) -> bool {
 }
 
 /// Whether path `t` refers to or selects through an object whose creation runs code.
-fn creates_impure_module(l: &Lower, t: TNodeId) -> bool {
+pub fn creates_impure_module(l: &Lower, t: TNodeId) -> bool {
     let impure = l.tpd.sym(t).is_some_and(|s| l.impure_modules.contains(&s));
     match *l.tpd.tree(t) {
         Tree::Ident { .. } => impure,
@@ -75,5 +75,5 @@ fn creates_impure_module(l: &Lower, t: TNodeId) -> bool {
 /// Whether the class of object `module` and all its base classes initialize nothing.
 fn is_no_inits_real_class(l: &mut Lower, module: SymbolId) -> bool {
     let Some(class) = l.u.module_class(module) else { return true };
-    l.u.linearization(class).into_iter().all(|b| l.u.no_inits(b))
+    l.u.is_assured_no_inits(class) || l.u.linearization(class).into_iter().all(|b| l.u.no_inits(b))
 }

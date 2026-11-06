@@ -170,7 +170,8 @@ pub struct Lower<'a> {
     /// The variables `TailRec` named for members before `LambdaLift`, by parameter, and by
     /// method for the receiver.
     tail_vars: FxHashMap<SymbolId, SymbolId>,
-    /// The variables `TailRec` made in local methods, which `LambdaLift` passes by value.
+    /// The variables `TailRec` made in local methods or named for members, which `LambdaLift`
+    /// passes by value.
     tail_locals: FxHashSet<SymbolId>,
     /// The object classes `FirstTransform` moved after their companion classes, with their spans
     /// and the end of that class.

@@ -83,7 +83,7 @@ fn is_stable_member(l: &mut Lower, s: SymbolId) -> bool {
 }
 
 fn is_no_inits_real_class(l: &mut Lower, c: SymbolId) -> bool {
-    !has(l.u, c, TRAIT) && l.u.no_inits(c)
+    !has(l.u, c, TRAIT) && (l.u.no_inits(c) || l.u.is_assured_no_inits(c))
 }
 
 /// The method function part `fun` refers to.

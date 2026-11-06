@@ -129,7 +129,7 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
                 if !local || !matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) {
                     continue;
                 }
-                if has(l.u, s, MUTABLE) {
+                if has(l.u, s, MUTABLE) && !l.tail_locals.contains(&s) {
                     return unsupported(span, "local classes capturing variables");
                 }
                 let refs = if in_method { &mut free.in_methods } else { &mut free.values };

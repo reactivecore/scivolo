@@ -70,6 +70,38 @@ pub fn mentions_clause_params(
     found
 }
 
+/// Whether `t` selects a type member on a parameter of the clause of binder `binder` and
+/// parameter names `names` of method `method` whose type `formals` gives an alias for it not
+/// referring to that type (a false dependency of dotty's `TermLambda.resultType`).
+pub fn has_false_dependency(
+    u: &mut Universe,
+    t: TypeId,
+    clause: (Binder, &[String]),
+    method: Option<SymbolId>,
+    formals: &[TypeId],
+) -> bool {
+    let mut selections = Vec::new();
+    u.map_type(t, &mut |u, part| {
+        let (pre, name) = match u.types().get(part).clone() {
+            Type::TypeRef(pre, name) => (pre, name),
+            Type::Sym(Some(pre), s) if u.symbol(s).kind == Kind::Type => (pre, u.symbol(s).name.clone()),
+            _ => return None,
+        };
+        selections.extend(clause_param(u, pre, clause, method).and_then(|i| Some((*formals.get(i)?, name))));
+        None
+    });
+    selections.into_iter().any(|(formal, name)| {
+        let Some(info) = u.refinement_named(formal, &name) else { return false };
+        let Type::Alias(alias) = *u.types().get(info) else { return false };
+        let mut recursive = false;
+        u.map_type(alias, &mut |_, part| {
+            recursive |= part == formal;
+            None
+        });
+        !recursive
+    })
+}
+
 /// `t` with each parameter `param` numbers replaced by its replacement, a type member of a
 /// replaced prefix selected again as a member of the new prefix.
 fn substituted(

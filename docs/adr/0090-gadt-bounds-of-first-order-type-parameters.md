@@ -1,6 +1,6 @@
 # ADR 0090 — GADT bounds of first-order type parameters only
 
-Status: accepted · Date: 2026-11-05
+Status: accepted, scope amended by ADR 0092 · Date: 2026-11-05
 
 ## Context
 dotty narrows the bounds of type parameters by a case's pattern (`constrainPatternType` in

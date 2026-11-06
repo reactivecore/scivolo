@@ -101,9 +101,10 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether `sym` is a member of object `scala.quoted.runtime.Expr`.
+    /// Whether `sym` is a member of object `scala.quoted.runtime.Expr` other than its constructor.
     pub fn is_staging_method(&self, sym: SymbolId) -> bool {
-        self.u.symbol(sym).owner.is_some_and(|o| self.u.full_name(o) == RUNTIME_EXPR)
+        self.u.symbol(sym).name != "<init>"
+            && self.u.symbol(sym).owner.is_some_and(|o| self.u.full_name(o) == RUNTIME_EXPR)
     }
 
     /// Reports macro `def`'s body `rhs` unless it is a splice (dotty's `checkInlineMethod`).

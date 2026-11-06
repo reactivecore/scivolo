@@ -49,7 +49,8 @@ pub fn is_idempotent(l: &mut Lower, t: TNodeId) -> bool {
             let Tree::New { tpt } = *l.tpd.tree(qualifier) else { return is_stable_path(l, t) };
             let class = l.u.class_symbol(l.tpd.tpe(tpt));
             let args = l.tpd.items(args).to_vec();
-            class.is_some_and(|c| l.u.no_inits(c)) && args.into_iter().all(|a| is_idempotent(l, a))
+            class.is_some_and(|c| l.u.no_inits(c) || l.u.is_assured_no_inits(c))
+                && args.into_iter().all(|a| is_idempotent(l, a))
         }
         _ => is_stable_path(l, t),
     }

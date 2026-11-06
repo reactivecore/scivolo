@@ -53,8 +53,8 @@ pub fn name_vars(l: &mut Lower, root: TNodeId, owner: SymbolId) {
 }
 
 /// Makes method `m` of `class` defined by `stat` a loop if it calls itself in tail position; if
-/// `dry`, only names the variables it would make, which `rewrite` takes later; the variables
-/// made.
+/// `dry`, only names the variables it would make, which `rewrite` takes later, and makes the
+/// methods nested in `m` read them; the variables made.
 fn rewrite(l: &mut Lower, stat: TNodeId, class: SymbolId, m: SymbolId, dry: bool) -> Vec<SymbolId> {
     let Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) } = l.tpd.tree(stat).clone() else {
         return Vec::new();
@@ -74,6 +74,10 @@ fn rewrite(l: &mut Lower, stat: TNodeId, class: SymbolId, m: SymbolId, dry: bool
     if dry {
         l.tail_vars.extend(calls.vars.iter().copied());
         l.tail_vars.extend(calls.this_var.map(|v| (m, v)));
+        l.tail_locals.extend(calls.vars.iter().map(|&(_, v)| v).chain(calls.this_var));
+        for def in nested_defs(l, rhs) {
+            substitute(l, def, &calls);
+        }
         return Vec::new();
     }
     let Some(label) = calls.label else { return Vec::new() };
@@ -154,6 +158,18 @@ impl TailCalls {
 pub fn fresh(l: &mut Lower, base: &str) -> String {
     let name = l.fresh.next(l.names, base);
     l.names.text(name).to_owned()
+}
+
+/// The outermost method definitions under `t`.
+fn nested_defs(l: &Lower, t: TNodeId) -> Vec<TNodeId> {
+    let (mut out, mut todo): (_, Vec<_>) = (Vec::new(), children(l.tpd, t).into_iter().collect());
+    while let Some(c) = todo.pop() {
+        match l.tpd.tree(c) {
+            Tree::DefDef { .. } => out.push(c),
+            _ => todo.extend(children(l.tpd, c)),
+        }
+    }
+    out
 }
 
 /// Makes the references under `t` to the rewritten parameters, and to `this` but under `super`,

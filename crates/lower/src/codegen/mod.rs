@@ -33,6 +33,7 @@ mod extern_varargs;
 mod externs;
 mod fields;
 mod finally;
+mod forwarded_members;
 pub(crate) mod funcptr;
 mod interface_bridges;
 pub(crate) mod intrinsics;

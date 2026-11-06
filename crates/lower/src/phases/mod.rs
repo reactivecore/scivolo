@@ -72,6 +72,7 @@ pub(crate) mod lazy_vals;
 mod lazy_value_classes;
 mod leading_params;
 mod let_over_apply;
+mod library_super_args;
 mod library_traits;
 mod lift_names;
 mod lift_order;

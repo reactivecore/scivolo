@@ -211,16 +211,16 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
 
-Results (2026-11-05):
+Results (2026-11-06):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1476 |
+| passed | 1485 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
 | lowering refused | 0 |
-| typer refused | 30 |
+| typer refused | 21 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -228,8 +228,9 @@ Results (2026-11-05):
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** mostly members not found (5), `$scope` (3), adaptations (2) and
-  transparent inline extractors (2).
+- **Typer refused:** mostly members not found (3; two of them `Runtime.totalMemory`, which
+  Scala Native's javalib lacks and dotty types against the JDK), transparent inline extractors
+  (2) and adaptations (2).
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
   libraries compiled before 3.4, which dotty accepts) and checks no other `future` rule.
@@ -264,8 +265,9 @@ and `Ordering$TupleNOrdering` (N = 2…9, open, not accepted) differ from Scala 
 the whole module in `(a, b).hashCode()`: the build calls `Any.hashCode`, `(Object) => int`, since a
 case class's synthetic members do not exist yet while a class of the same run is typed; ours reads
 `Tuple2` from TASTy and calls `Tuple2.hashCode`, `(Tuple2) => int`, as Scala Native does for a user
-program. Also open, not accepted, in a user program: a value of type `Array[Nothing]` is
-`array[nothing]` in Scala Native's NIR, ours `as[array[@java.lang.Object]]` of it; and
+program. Also open, not accepted, in a user program: a value of type `Array[Nothing]` or
+`Array[Null]` is `array[nothing]` or `array[null]` in Scala Native's NIR, ours
+`as[array[@java.lang.Object]]` of it; and
 `this.asInstanceOf[S]` returned from a method of a trait with self type `S` casts at the type
 argument's position in Scala Native's NIR, at `this` in ours.
 

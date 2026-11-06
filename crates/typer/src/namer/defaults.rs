@@ -42,6 +42,7 @@ impl Typer<'_> {
         let [(m, params)] = &with_defaults[..] else { return None };
         let &param = params.get(index.checked_sub(1)?)?;
         let info = self.u.info(param);
+        let info = self.reveal_into(info);
         let exact = self.with_getter_type_params(info, *m, getter);
         let approx = value_params_approximated(self.u, exact, *m);
         let pt = if approx != exact && self.is_context_function_type(approx) { exact } else { approx };
