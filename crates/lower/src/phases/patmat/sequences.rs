@@ -3,8 +3,9 @@
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Plans of sequence patterns (dotty's `unapplySeqPlan`, `matchElemsPlan`,
 //! `unapplyProductSeqPlan`): a length test, the elements selected by `apply(i)` matched against
-//! the element patterns, a vararg pattern matched against `drop(n)`, or `toSeq` if it comes first;
-//! the product selectors before a sequence matched first.
+//! the element patterns, a vararg pattern matched against `drop(n)`, or `toSeq` if it comes first,
+//! less the `takeRight(m)` the patterns after it match; the product selectors before a sequence
+//! matched first.
 
 use super::Translator;
 use super::plan::{Plan, PlanId, Test};
@@ -68,9 +69,7 @@ impl Translator<'_, '_> {
         };
         let (leading, rest) = args.split_at(i);
         let arg = self.var_arg(rest[0]).expect("a vararg pattern");
-        if rest.len() > 1 {
-            return unsupported(self.l.tpd.span(rest[1]), "element patterns after a vararg pattern");
-        }
+        let trailing = &rest[1..];
         let members = self.members_of(seq);
         let value = self.l.ident(seq, Span::NONE);
         let remaining = if leading.is_empty() {
@@ -79,10 +78,38 @@ impl Translator<'_, '_> {
             let n = self.l.int_literal(leading.len() as i32);
             self.call_member(value, members.drop, &[n])
         };
-        let match_remaining =
-            self.let_abstract(remaining, None, |t, rest| t.pattern_plan(rest, arg, on_success))?;
-        let len = leading.len() as i32;
+        let match_remaining = self.let_abstract(remaining, None, |t, rest| match trailing {
+            [] => t.pattern_plan(rest, arg, on_success),
+            _ => t.match_trailing_plan(rest, arg, trailing, on_success),
+        })?;
+        let len = (leading.len() + trailing.len()) as i32;
         self.match_elems_plan(seq, leading, Test::Length { len, exact: false }, match_remaining)
+    }
+
+    /// The plan matching `rest.dropRight(n)` against vararg pattern `arg`, then
+    /// `rest.takeRight(n)` against the `n` patterns `trailing`.
+    fn match_trailing_plan(
+        &mut self,
+        rest: SymbolId,
+        arg: TNodeId,
+        trailing: &[TNodeId],
+        on_success: PlanId,
+    ) -> Result<PlanId> {
+        let tpe = self.l.u.info(rest);
+        let (Some(drop_right), Some(take_right)) = (self.seq_method(tpe, "dropRight"), self.seq_method(tpe, "takeRight"))
+        else {
+            return unsupported(self.l.tpd.span(trailing[0]), "element patterns after a vararg pattern");
+        };
+        let n = trailing.len() as i32;
+        let (value, count) = (self.l.ident(rest, Span::NONE), self.l.int_literal(n));
+        let init = self.call_member(value, drop_right, &[count]);
+        self.let_abstract(init, None, |t, init| {
+            let (value, count) = (t.l.ident(rest, Span::NONE), t.l.int_literal(n));
+            let last = t.call_member(value, take_right, &[count]);
+            let length = Test::Length { len: 0, exact: false };
+            let match_last = t.let_abstract(last, None, |t, last| t.match_elems_plan(last, trailing, length, on_success))?;
+            t.pattern_plan(init, arg, match_last)
+        })
     }
 
     /// The plan testing the length of `seq`, then matching `seq(0)`… against `args`.
