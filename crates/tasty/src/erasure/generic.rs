@@ -22,9 +22,11 @@ impl Universe {
         match self.types().get(t).clone() {
             Type::Param(..) | Type::Local(..) => true,
             Type::Bounds(_, hi) => self.holder(hi) == Holder::None,
-            Type::Annotated(u, _) | Type::Flexible(u) | Type::Refined(u, _, _) | Type::Rec(_, u) => {
-                self.is_generic(u)
-            }
+            Type::Annotated(u, _)
+            | Type::Flexible(u)
+            | Type::Refined(u, _, _)
+            | Type::Rec(_, u)
+            | Type::Alias(u) => self.is_generic(u),
             Type::And(a, b) => self.is_generic(a) && self.is_generic(b),
             Type::Or(a, b, _) => self.is_generic(a) || self.is_generic(b),
             Type::Match { cases, .. } => {
