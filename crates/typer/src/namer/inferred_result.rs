@@ -57,7 +57,7 @@ impl Typer<'_> {
             self.unsupported(rhs, "wildcard in the inferred type of a default");
         }
         let widened = self.widen_rhs(sym, tpe);
-        let widened = self.simplified_inferred(widened);
+        let widened = self.simplified_inferred_as(widened, raw_default.is_some());
         if self.keeps_rhs_type(sym)
             && matches!(self.u.types().get(widened), Type::Constant(..) | Type::Str(_))
         {
