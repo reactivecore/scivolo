@@ -13,15 +13,21 @@ use rustc_hash::FxHashSet;
 const MAX_ALIASES: u32 = 64;
 
 impl Universe {
-    /// The parent types of class `c`, in declaration order.
+    /// The parent types of class `c`, in declaration order; `BoxedUnit`'s without
+    /// `java.io.Serializable` (dotty's `adjustForBoxedUnit`).
     pub fn parents(&mut self, c: SymbolId) -> Vec<TypeId> {
         if let Some(p) = self.parents.get(&c) {
             return p.clone();
         }
-        let parents = match self.symbol(c).tree {
+        let mut parents = match self.symbol(c).tree {
             Some((file, id)) if self.symbol(c).kind == Kind::Class => self.decode_parents(file, id),
             _ => Vec::new(),
         };
+        if self.full_name(c) == "scala.runtime.BoxedUnit" {
+            parents.retain(|&p| {
+                self.class_symbol(p).is_none_or(|p| self.full_name(p) != "java.io.Serializable")
+            });
+        }
         self.parents.insert(c, parents.clone());
         parents
     }
