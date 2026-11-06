@@ -13,7 +13,8 @@ fn compile(name: &str, source: &Path) -> (PathBuf, Output) {
     (out, run.expect("running scivolo-jvm"))
 }
 
-/// Compiles tests/jvm/`name` and runs it on `java -Xverify:all` when that is on the PATH.
+/// Compiles tests/jvm/`name` and runs it on `java -Xverify:all` in the en-US locale when that is
+/// on the PATH.
 fn runs_on_the_jvm(name: &str, main: &str) {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
@@ -24,8 +25,13 @@ fn runs_on_the_jvm(name: &str, main: &str) {
     assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
     let classpath =
         format!("{}:{}", out.display(), root().join("ref/libs/scala-library-3.9.0.jar").display());
-    let run =
-        Command::new("java").args(["-Xverify:all", "-cp", &classpath, main]).output().expect("running java");
+    let locale = ["-Duser.language=en", "-Duser.country=US"];
+    let run = Command::new("java")
+        .args(["-Xverify:all"])
+        .args(locale)
+        .args(["-cp", &classpath, main])
+        .output()
+        .expect("running java");
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
     let check = std::fs::read_to_string(dir.join(format!("{name}.check"))).expect("a .check file");
     assert_eq!(String::from_utf8_lossy(&run.stdout), check);
@@ -107,12 +113,28 @@ fn javaenums_run_on_the_jvm() {
 }
 
 #[test]
-fn a_try_on_a_stack_is_refused() {
-    let source = root().join("tmp/jvm-test/refused.scala");
+fn jdkstatics_run_on_the_jvm() {
+    runs_on_the_jvm("jdkstatics", "Jdkstatics");
+}
+
+/// Compiles `code` as tmp/jvm-test/`name`.scala and expects a refusal containing `message`.
+fn refuses(name: &str, code: &str, message: &str) {
+    let source = root().join(format!("tmp/jvm-test/{name}.scala"));
     std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
-    let code = "object R { def f(s: String): Int = 1 + (try s.length catch { case _: Exception => 0 }) }";
     std::fs::write(&source, code).expect("writing");
-    let (_, compiled) = compile("refused", &source);
+    let (_, compiled) = compile(name, &source);
     assert!(!compiled.status.success());
-    assert!(String::from_utf8_lossy(&compiled.stderr).contains("where values are on the stack"));
+    assert!(String::from_utf8_lossy(&compiled.stderr).contains(message));
+}
+
+#[test]
+fn a_try_on_a_stack_is_refused() {
+    let code = "object R { def f(s: String): Int = 1 + (try s.length catch { case _: Exception => 0 }) }";
+    refuses("refused", code, "where values are on the stack");
+}
+
+#[test]
+fn a_javalib_value_the_jdk_lacks_is_refused() {
+    let code = "object R { def f = java.lang.ProcessBuilder.nullFile }";
+    refuses("refusedjdk", code, "a javalib member the JDK class lacks as a static field");
 }

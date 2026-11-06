@@ -115,7 +115,8 @@ impl Gen<'_, '_> {
 
     /// The class a virtual call of `m` on `qualifier` names: the qualifier's class, `Object` or
     /// the array type for an array, `m`'s trait for a trait method overriding one of `Object`;
-    /// none where the qualifier's type erases to no class of its own.
+    /// none where the qualifier's type erases to no class of its own or to one not deriving from
+    /// `m`'s owner, as a by-name parameter's.
     pub fn receiver_class(&mut self, qualifier: TNodeId, m: SymbolId) -> Option<Receiver> {
         let owner = self.l.u.symbol(m).owner?;
         let t = self.l.tpd.tpe(qualifier);

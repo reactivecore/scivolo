@@ -180,6 +180,6 @@ impl Gen<'_, '_> {
     }
 }
 
-pub fn is_unit(t: &Tree) -> bool {
+fn is_unit(t: &Tree) -> bool {
     matches!(t, Tree::Literal { value: Constant::Unit })
 }
