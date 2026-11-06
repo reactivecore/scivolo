@@ -250,6 +250,7 @@ mod unapply_targs;
 mod unchecked_tests;
 pub(crate) mod unique_names;
 mod unknown_params;
+mod unresolved_terms;
 mod unsafe_nulls;
 mod untupled;
 mod variance_aliases;

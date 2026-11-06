@@ -59,14 +59,10 @@ impl Typer<'_> {
             Ok(None) if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) && !name.is_type => {
                 return self.proxy_ident(id, name, pt, ctx);
             }
-            Ok(None) if text == "$scope" && !name.is_type => {
-                let Some(top) = self.resolve_full_name("scala.xml.TopScope", false) else {
-                    return self.unsupported(id, "unresolved name $scope");
-                };
-                let span = self.ast.span(id);
-                return self.build().static_ident(top, span);
-            }
             Ok(None) => {
+                if let Some(t) = self.unresolved_term(id, name, ctx) {
+                    return t;
+                }
                 return match self.not_found(id, name, ctx) {
                     Some(error) => error,
                     None => match self.unbound_in_checked_code(id, name, ctx) {

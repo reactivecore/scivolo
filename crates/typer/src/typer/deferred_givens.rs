@@ -45,20 +45,21 @@ impl Typer<'_> {
         if self.u.is_trait(cls) {
             return Ok(Vec::new());
         }
-        let class = crate::defn::type_ref(self.u, cls);
-        let this = self.u.intern_type(Type::This(class));
         let parents = self.u.parents(cls);
         let superclass =
             parents.first().and_then(|&p| self.u.class_symbol(p)).filter(|&s| !self.u.is_trait(s));
         let inherited = superclass.map(|s| self.u.linearization(s)).unwrap_or_default();
-        let mut impls = Vec::new();
-        for base in self.u.linearization(cls).into_iter().skip(1).filter(|b| !inherited.contains(b)) {
+        let (mut impls, mut done) = (Vec::new(), Vec::new());
+        let bases = self.u.linearization(cls);
+        for &base in bases.iter().skip(1).filter(|b| !inherited.contains(b)) {
             for dcl in self.u.decls(base).unwrap_or_default() {
                 let name = self.u.symbol(dcl).name.clone();
-                if !self.is_deferred_given(dcl) || self.u.resolve(this, &name, false) != Some(dcl) {
+                if !self.is_deferred_given(dcl) || done.contains(&name) || self.has_value_named(&bases, &name)
+                {
                     continue;
                 }
-                impls.push(self.deferred_given_impl(cls, dcl, (ctx, cctx), span)?);
+                done.push(name);
+                impls.extend(self.deferred_given_impl(cls, dcl, (ctx, cctx), span)?);
             }
         }
         Ok(impls)
@@ -70,7 +71,7 @@ impl Typer<'_> {
         dcl: SymbolId,
         (ctx, cctx): (Ctx, Ctx),
         span: Span,
-    ) -> Result<TNodeId, &'static str> {
+    ) -> Result<Option<TNodeId>, &'static str> {
         let class = crate::defn::type_ref(self.u, cls);
         let this = self.u.intern_type(Type::This(class));
         let owner = self.u.symbol(dcl).owner.ok_or("deferred given")?;
@@ -85,15 +86,45 @@ impl Typer<'_> {
         let search = Ctx { level, owner: cls, ..ctx };
         let at = span.start_pos().to_synthetic();
         let rhs = self.implicit_arg(target, at, search, 0)?;
-        self.anchor_params(rhs, &ids, cls, cctx);
         let name = self.u.symbol(dcl).name.clone();
+        if self.is_member_ref(rhs, cls, &name) {
+            let (d, o) = (self.u.symbol(dcl).name.clone(), self.described(owner));
+            let msg = format!(
+                "Inferred implementation of the deferred given instance {d} in {o} is self-recursive.\nAn implementing given needs to be written explicitly."
+            );
+            self.error_at(span, msg);
+            return Ok(None);
+        }
+        self.anchor_params(rhs, &ids, cls, cctx);
         let flags = self.syms.flags.get(&dcl).ok_or("deferred given of a library trait")?;
         let flags = flags.and_not(f::HAS_DEFAULT.or(f::DEFERRED)).or(f::FINAL).or(f::OVERRIDE);
         let sym = self.syms.define(self.u, &name, Kind::Val, cls, flags);
         self.u.set_info(sym, target);
         let tpt = self.type_tree(target, at, false);
         let name = TName { name: self.name(&name), is_type: false };
-        Ok(self.tpd.node(T::ValDef { name, tpt, rhs: Some(rhs) }, at, None, Some(sym)))
+        Ok(Some(self.tpd.node(T::ValDef { name, tpt, rhs: Some(rhs) }, at, None, Some(sym))))
+    }
+
+    /// Whether one of `bases` declares a concrete value `name`.
+    fn has_value_named(&mut self, bases: &[SymbolId], name: &str) -> bool {
+        bases.iter().any(|&b| {
+            let decls = self.u.decl(b, name).unwrap_or_default();
+            decls.into_iter().any(|m| self.u.symbol(m).kind == Kind::Val && !self.u.is_deferred(m))
+        })
+    }
+
+    /// Whether `t`'s type refers to a value named `name` through a prefix of class `cls`.
+    fn is_member_ref(&mut self, t: TNodeId, cls: SymbolId, name: &str) -> bool {
+        let tpe = self.tpd.tpe(t);
+        let Type::Sym(Some(prefix), s) = *self.u.types().get(tpe) else { return false };
+        let prefix_class = match *self.u.types().get(prefix) {
+            Type::This(c) => self.u.class_symbol(c),
+            _ => {
+                let widened = self.u.widen(prefix);
+                self.u.class_symbol(widened)
+            }
+        };
+        prefix_class == Some(cls) && self.u.symbol(s).name == name && self.u.symbol(s).kind != Kind::Def
     }
 
     /// `tree` with its references to the parameter accessors `ids` of class `cls` as selections
