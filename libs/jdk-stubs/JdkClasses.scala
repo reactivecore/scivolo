@@ -34,6 +34,7 @@ package java.lang.reflect {
 package java.net {
   final class URL(spec: String) {
     final def openStream(): java.io.InputStream = null
+    override def toString(): String = null
   }
 }
 

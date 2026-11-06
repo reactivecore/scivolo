@@ -113,10 +113,13 @@ pub fn is_static_module(u: &Universe, s: SymbolId) -> bool {
     u.is_module_class(s) && is_static(u, s)
 }
 
-/// The javalib classes that JDK classes extend and the JDK does not, each with the JDK class
-/// and the members of it in the JDK API that javalib defines only there.
-const JAVALIB_ONLY_MEMBERS: [(&str, &str, &[&str]); 1] =
-    [("scala.scalanative.runtime.Throwable", "java.lang.Throwable", &["setStackTrace"])];
+/// The javalib classes that declare members of the JDK API the JDK declares in another class:
+/// classes JDK classes extend and the JDK does not, or overrides the JDK lacks; each with that
+/// JDK class and the members.
+const JAVALIB_ONLY_MEMBERS: [(&str, &str, &[&str]); 2] = [
+    ("scala.scalanative.runtime.Throwable", "java.lang.Throwable", &["setStackTrace"]),
+    ("java.lang.ref.WeakReference", "java.lang.ref.Reference", &["get"]),
+];
 
 /// The JDK class whose member `m` is in the JDK API, if javalib defines it in a class of its own
 /// the JDK class extends, as Scala Native, compiling against the JDK API, refers to it.
@@ -126,6 +129,8 @@ pub fn jdk_api_owner(u: &Universe, m: SymbolId) -> Option<&'static str> {
     if !JAVALIB_ONLY_MEMBERS.iter().any(|e| named(&e)) {
         return None;
     }
-    let owner = u.full_name(s.owner?);
-    JAVALIB_ONLY_MEMBERS.iter().find(|e| named(e) && e.0 == owner).map(|&(_, jdk, _)| jdk)
+    let class = s.owner?;
+    let owner = u.full_name(class);
+    let read = !owner.starts_with("java.") || u.may_be_java(class);
+    JAVALIB_ONLY_MEMBERS.iter().find(|e| named(e) && e.0 == owner && read).map(|&(_, jdk, _)| jdk)
 }
