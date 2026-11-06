@@ -125,9 +125,13 @@ impl Gen<'_, '_> {
                     return unsupported(self.l.tpd.span(t), "bit operations on floats");
                 }
                 b.code.insn(base + k(opk as u8));
+                self.line(b, t);
                 convert(b, opk as u8, to);
             }
             _ => return unsupported(self.l.tpd.span(t), format!("the primitive operation {name}")),
+        }
+        if name.starts_with("unary_") && name != "unary_!" {
+            self.line(b, t);
         }
         Ok(Some(classfile::value_slots(&result)))
     }

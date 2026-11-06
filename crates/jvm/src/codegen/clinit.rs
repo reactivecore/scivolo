@@ -24,6 +24,8 @@ pub struct StaticInit {
     /// The object whose `MODULE$` is created, then the statements of its constructor.
     pub module: Option<String>,
     pub stats: Vec<TNodeId>,
+    /// The class's constructor, whose line the code starts at.
+    pub constr: Option<TNodeId>,
 }
 
 impl Gen<'_, '_> {
@@ -35,6 +37,9 @@ impl Gen<'_, '_> {
             return Ok(());
         }
         let mut b = Body::new(&mut cf.pool, init.module.as_deref(), 0);
+        if let Some(constr) = init.constr {
+            self.line(&mut b, constr);
+        }
         self.init_var_handles(&mut b, class, &init.handles);
         if let Some(t) = init.statics {
             self.stat(&mut b, t)?;

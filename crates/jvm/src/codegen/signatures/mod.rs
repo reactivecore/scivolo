@@ -3,10 +3,11 @@
 //! Generic signatures of classes, methods and fields (JVMS §4.7.9.1).
 
 mod classes;
-mod erasure;
+mod needed;
 mod refs;
 
 pub use classes::class;
+pub use needed::erases_to;
 
 use super::descriptor;
 use tasty::{Binder, Erased, Kind, SymbolId, Type, TypeId, Universe};
@@ -32,6 +33,9 @@ struct Sig<'u> {
 /// The generic signature of method or field `sym` of type `info` and descriptor `desc`; none if
 /// it equals `desc`.
 pub fn member(u: &mut Universe, sym: SymbolId, info: TypeId, desc: &str) -> Option<String> {
+    if !needed::may_need(u, info) {
+        return None;
+    }
     let method = desc.starts_with('(');
     let mut s = Sig::new(u, sym);
     s.field = !method;
@@ -43,8 +47,7 @@ pub fn member(u: &mut Universe, sym: SymbolId, info: TypeId, desc: &str) -> Opti
         }
         _ => s.jsig(info, true, Boxing::Unbox),
     }
-    let erases = s.constructor || erasure::erases_to(&s.out, desc);
-    (!s.out.is_empty() && s.out != desc && erases).then_some(s.out)
+    (!s.out.is_empty() && s.out != desc).then_some(s.out)
 }
 
 impl<'u> Sig<'u> {

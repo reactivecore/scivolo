@@ -15,13 +15,13 @@ use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
     /// Loads field `f` of `qualifier`, or of the class `prefix` of an identifier without one, or
-    /// stores `value` into it; returns the slots loaded.
+    /// stores the right-hand side of assignment `value` into it; returns the slots loaded.
     pub fn field(
         &mut self,
         b: &mut Body,
         f: SymbolId,
         (qualifier, prefix): (Option<TNodeId>, Option<SymbolId>),
-        value: Option<TNodeId>,
+        value: Option<(TNodeId, TNodeId)>,
     ) -> Result<i32> {
         let owner = self.l.u.symbol(f).owner.expect("a field's owner");
         let info = self.l.u.info(f);
@@ -33,8 +33,9 @@ impl Gen<'_, '_> {
             (true, Some(_)) => FieldOp::PutField,
             (false, Some(_)) => FieldOp::PutStatic,
         };
-        if let Some(v) = value {
+        if let Some((v, assign)) = value {
             self.expr(b, v)?;
+            self.line(b, assign);
         }
         let (owner, name) = (self.member_owner(owner).0, tasty::encode(&self.l.u.symbol(f).name));
         b.code.field(op, b.pool, &owner, &name, &desc);

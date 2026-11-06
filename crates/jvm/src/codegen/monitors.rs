@@ -23,12 +23,13 @@ impl Gen<'_, '_> {
             && owner.is_some_and(|o| self.l.u.binary_name(o) == "java.lang.Object")
     }
 
-    /// `receiver.synchronized(body)` leaving a value of descriptor `result`, none if dropped.
+    /// `receiver.synchronized(body)` of call `t` leaving a value of descriptor `result`, none if
+    /// dropped.
     pub fn gen_synchronized(
         &mut self,
         b: &mut Body,
-        fun: TNodeId,
-        args: List,
+        t: TNodeId,
+        (fun, args): (TNodeId, List),
         result: Option<String>,
     ) -> Result<i32> {
         let sel = match *self.l.tpd.tree(fun) {
@@ -80,6 +81,7 @@ impl Gen<'_, '_> {
         }
         b.code.place(post);
         b.code.set_stack(depth + slots);
+        self.line(b, t);
         Ok(slots)
     }
 }

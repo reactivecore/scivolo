@@ -53,13 +53,12 @@ impl Gen<'_, '_> {
             code.ret(result);
             let flags = ACC_PUBLIC | ACC_STATIC | if synthetic { ACC_SYNTHETIC } else { 0 };
             cf.method(flags, &method, &desc, Some(code), &mut |_, _| None);
-            let accessor = self.l.u.symbol(m).kind == Kind::Val || method.ends_with("_$eq");
             let target = self.l.mixed_in_from(m).unwrap_or(m);
             let this = self.l.u.this_type(module);
             let info = self.l.u.member_info(this, target);
-            if !(accessor && target != m)
-                && self.l.u.erased_method_type(info) == self.l.u.erased_method(target)
+            if !self.l.is_mixin_accessor(m)
                 && let Some(sig) = super::signatures::member(self.l.u, target, info, &desc)
+                && super::signatures::erases_to(&sig, &desc)
             {
                 cf.member_signature(Last::Method, &sig);
             }

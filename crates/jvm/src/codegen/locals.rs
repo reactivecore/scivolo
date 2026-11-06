@@ -51,9 +51,14 @@ impl Gen<'_, '_> {
         Ok(0)
     }
 
-    /// Assignment `lhs = rhs` to a local, `iinc` for `x = x + c` and `x = x - c` of an int; `None`
-    /// if `lhs` is not a local of this method.
-    pub fn assign_local(&mut self, b: &mut Body, lhs: TNodeId, rhs: TNodeId) -> Result<Option<i32>> {
+    /// Assignment `t` of `lhs = rhs` to a local, `iinc` for `x = x + c` and `x = x - c` of an int;
+    /// `None` if `lhs` is not a local of this method.
+    pub fn assign_local(
+        &mut self,
+        b: &mut Body,
+        t: TNodeId,
+        (lhs, rhs): (TNodeId, TNodeId),
+    ) -> Result<Option<i32>> {
         let sym = self.l.tpd.sym(lhs);
         let Some(&(_, slot, ref desc)) = b.locals.iter().find(|l| Some(l.0) == sym) else { return Ok(None) };
         let desc = desc.clone();
@@ -69,6 +74,7 @@ impl Gen<'_, '_> {
             return Ok(Some(0));
         }
         self.expr_as(b, rhs, classfile::value_slots(&desc))?;
+        self.line(b, t);
         b.code.store(&desc, slot);
         Ok(Some(0))
     }

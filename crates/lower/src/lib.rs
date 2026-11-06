@@ -336,6 +336,11 @@ impl<'a> Lower<'a> {
         self.mixed_from.get(&m).or_else(|| self.forwarded.get(&m)).copied()
     }
 
+    /// Whether `m` is an accessor `Mixin` made for a trait value, not a forwarder.
+    pub fn is_mixin_accessor(&self, m: SymbolId) -> bool {
+        self.mixed_from.contains_key(&m)
+    }
+
     /// The name of `s`, of a lifted local class the one before lifting.
     pub fn original_name(&self, s: SymbolId) -> &str {
         self.local_names.get(&s).unwrap_or(&self.u.symbol(s).name)

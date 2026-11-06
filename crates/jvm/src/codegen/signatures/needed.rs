@@ -1,6 +1,42 @@
-//! Whether a generic signature erases to a descriptor, type variables matching any type.
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala
+//! Whether a member may need a generic signature, and whether one erases to a descriptor.
 
-/// Whether method or field signature `sig` erases to descriptor `desc`.
+use tasty::{Kind, Type, TypeId, Universe};
+
+/// Whether `t` names more than `Any`, `AnyRef`, `String` and primitive classes (dotty's
+/// `mayNeedSignature`).
+pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
+    const PLAIN: [&str; 12] = [
+        "scala.Any",
+        "java.lang.Object",
+        "java.lang.String",
+        "scala.Unit",
+        "scala.Boolean",
+        "scala.Byte",
+        "scala.Short",
+        "scala.Char",
+        "scala.Int",
+        "scala.Long",
+        "scala.Float",
+        "scala.Double",
+    ];
+    let t = u.dealias(t);
+    let class = match u.types().get(t).clone() {
+        Type::ByName(r) => return may_need(u, r),
+        Type::Method { params, result, .. } => {
+            return may_need(u, result) || params.into_iter().any(|(_, p)| may_need(u, p));
+        }
+        Type::Sym(_, s) => Some(s),
+        Type::TypeRef(..) => u.resolve_ref(t),
+        _ => None,
+    };
+    let class = class.filter(|&c| u.symbol(c).kind == Kind::Class);
+    class.is_none_or(|c| !PLAIN.contains(&u.full_name(c).as_str()))
+}
+
+/// Whether method or field signature `sig` erases to descriptor `desc`, type variables matching
+/// any type.
 pub fn erases_to(sig: &str, desc: &str) -> bool {
     let (sig, desc) = (types(sig), types(desc));
     sig.len() == desc.len() && sig.iter().zip(&desc).all(|(s, d)| s == d || s.ends_with('?'))

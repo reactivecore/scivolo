@@ -28,7 +28,8 @@ impl Gen<'_, '_> {
         if module {
             cf.field(ACC_PUBLIC | ACC_STATIC | ACC_FINAL, "MODULE$", &module_desc);
         }
-        let mut init = StaticInit { module: module.then(|| name.clone()), ..StaticInit::default() };
+        let module_name = module.then(|| name.clone());
+        let mut init = StaticInit { module: module_name, constr: Some(constr), ..StaticInit::default() };
         let mut nested = Vec::new();
         for stat in std::iter::once(constr).chain(self.l.tpd.items(body).to_vec()) {
             let Some(s) = self.l.tpd.sym(stat) else { continue };
@@ -41,7 +42,7 @@ impl Gen<'_, '_> {
                 Tree::DefDef { .. } if self.l.u.symbol(s).name == "$init$" => {
                     return unsupported(self.l.tpd.span(stat), "trait initializers on the JVM");
                 }
-                Tree::DefDef { .. } => self.gen_method(&mut cf, stat, s)?,
+                Tree::DefDef { .. } => self.gen_method(&mut cf, (td, stat), s)?,
                 Tree::ValDef { .. } => {
                     self.check_annotations(s, self.l.tpd.span(stat))?;
                     let info = self.l.u.info(s);
@@ -51,8 +52,7 @@ impl Gen<'_, '_> {
                     let volatile = if self.l.var_handle(s).is_some() { ACC_VOLATILE } else { 0 };
                     let flags = java_flags(self.l, s) | if mutable { volatile } else { ACC_FINAL };
                     cf.field(flags, &tasty::encode(&name), &desc);
-                    let seen = self.seen_from_owner(s);
-                    if let Some(sig) = super::signatures::member(self.l.u, s, seen, &desc) {
+                    if let Some(sig) = self.generic_signature(s, &desc) {
                         cf.member_signature(Last::Field, &sig);
                     }
                     if self.l.u.is_annotated(s, "scala.deprecated") {

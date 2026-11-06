@@ -13,7 +13,13 @@ use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
-    pub fn gen_method(&mut self, cf: &mut ClassFile, dd: TNodeId, sym: SymbolId) -> Result<()> {
+    /// Adds method `sym` defined by `dd` in the class `class_def` defines to `cf`.
+    pub fn gen_method(
+        &mut self,
+        cf: &mut ClassFile,
+        (class_def, dd): (TNodeId, TNodeId),
+        sym: SymbolId,
+    ) -> Result<()> {
         let Tree::DefDef { paramss, rhs, .. } = *self.l.tpd.tree(dd) else { unreachable!("a method") };
         self.check_annotations(sym, self.l.tpd.span(dd))?;
         let (mut desc, mut flags) = (method_descriptor(self.l.u, sym), java_flags(self.l, sym));
@@ -37,7 +43,8 @@ impl Gen<'_, '_> {
             params.filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. })).copied().collect();
         let param_syms: Vec<SymbolId> =
             params.iter().map(|&p| self.l.tpd.sym(p).expect("a parameter's symbol")).collect();
-        let mixed_setter = self.l.mixed_in_from(sym).is_some() && name.ends_with("_$eq");
+        let mixed_setter =
+            self.l.mixed_in_from(sym).is_some() && name.ends_with("_$eq") && !name.contains("$_setter_$");
         let erased = flags & ACC_BRIDGE != 0 || trait_init || self.l.is_lifted(sym) || mixed_setter;
         let Some(rhs) = rhs else {
             let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;
@@ -63,7 +70,8 @@ impl Gen<'_, '_> {
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
         self.method_attributes(cf, sym, &desc, &param_syms, (erased, trait_init));
-        self.trait_forwarder(cf, sym, flags, &desc, &param_syms);
+        let line = self.line_of(class_def);
+        self.trait_forwarder(cf, (sym, flags), (&desc, &param_syms), line);
         Ok(())
     }
 
@@ -73,7 +81,7 @@ impl Gen<'_, '_> {
         if let Tree::Apply { fun, args } = *self.l.tpd.tree(t)
             && self.is_synchronized(fun)
         {
-            self.gen_synchronized(b, fun, args, None)?;
+            self.gen_synchronized(b, t, (fun, args), None)?;
             return Ok(());
         }
         self.expr_as(b, t, 0)
@@ -120,13 +128,13 @@ impl Gen<'_, '_> {
             }
             Tree::Assign { lhs, rhs } => match (self.l.tpd.tree(lhs), self.l.tpd.sym(lhs)) {
                 (&Tree::Select { qualifier, .. }, Some(f)) => {
-                    self.field(b, f, (Some(qualifier), None), Some(rhs))?
+                    self.field(b, f, (Some(qualifier), None), Some((rhs, t)))?
                 }
                 (&Tree::Ident { .. }, Some(f)) if self.is_class_field(f) => {
                     let prefix = self.ident_prefix(lhs);
-                    self.field(b, f, (None, prefix), Some(rhs))?
+                    self.field(b, f, (None, prefix), Some((rhs, t)))?
                 }
-                _ => match self.assign_local(b, lhs, rhs)? {
+                _ => match self.assign_local(b, t, (lhs, rhs))? {
                     Some(slots) => slots,
                     None => return unsupported(span, "an assignment to a variable of another method"),
                 },
@@ -142,7 +150,7 @@ impl Gen<'_, '_> {
             Tree::Try { expr, cases, finalizer } => self.gen_try(b, t, expr, cases, finalizer)?,
             Tree::Apply { fun, args } if self.is_synchronized(fun) => {
                 let desc = self.desc_of(t);
-                self.gen_synchronized(b, fun, args, Some(desc))?
+                self.gen_synchronized(b, t, (fun, args), Some(desc))?
             }
             Tree::SeqLiteral { elems, .. } => self.array_literal(b, t, elems)?,
             Tree::TypeApply { fun, args } => self.type_test(b, t, fun, args)?,

@@ -8,7 +8,7 @@ use super::{Gen, unsupported};
 use classfile::{ACC_FINAL, ACC_SYNTHETIC, ClassFile, Last};
 use lower::Result;
 use syntax::ast::Span;
-use tasty::tags::ARTIFACT;
+use tasty::tags::{ARTIFACT, PRIVATE};
 use tasty::{SymbolId, TypeId};
 use typer::tpd::TNodeId;
 
@@ -23,11 +23,8 @@ impl Gen<'_, '_> {
         params: &[SymbolId],
         (erased, this_param): (bool, bool),
     ) {
-        if !erased {
-            let info = self.seen_from_owner(sym);
-            if let Some(sig) = super::signatures::member(self.l.u, sym, info, desc) {
-                cf.member_signature(Last::Method, &sig);
-            }
+        if !erased && let Some(sig) = self.generic_signature(sym, desc) {
+            cf.member_signature(Last::Method, &sig);
         }
         if self.l.u.is_annotated(sym, "scala.deprecated") {
             cf.member_deprecated(Last::Method);
@@ -58,6 +55,19 @@ impl Gen<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    /// The generic signature of member `sym` of descriptor `desc` (dotty's `getGenericSignature`
+    /// with `Mixin`'s `mixinGenericInfos`): none for an accessor of a private trait value, nor for
+    /// a mixin forwarder whose signature does not erase to `desc`.
+    pub fn generic_signature(&mut self, sym: SymbolId, desc: &str) -> Option<String> {
+        let info = self.seen_from_owner(sym);
+        if self.mixed_origin(sym).is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) {
+            return None;
+        }
+        let sig = super::signatures::member(self.l.u, sym, info, desc)?;
+        let forwarder = self.l.mixed_in_from(sym).is_some() && !self.l.is_mixin_accessor(sym);
+        (!forwarder || super::signatures::erases_to(&sig, desc)).then_some(sig)
     }
 
     /// The type of member `sym` seen from its class (dotty's `memberInfo` of the owner's
@@ -96,10 +106,17 @@ impl Gen<'_, '_> {
 
     /// Marks the code from here as of the source line of `t` (dotty's `lineNumber`).
     pub fn line(&mut self, b: &mut Body, t: TNodeId) {
-        let span = self.l.tpd.span(t);
-        if span.exists() {
-            let (file, at) = self.l.sources.locate(span.point());
-            b.code.line(u16::try_from(file.offset_to_line(at) + 1).unwrap_or(u16::MAX));
+        if let Some(line) = self.line_of(t) {
+            b.code.line(line);
         }
+    }
+
+    /// The source line of `t`, if it has a position.
+    pub fn line_of(&self, t: TNodeId) -> Option<u16> {
+        let span = self.l.tpd.span(t);
+        span.exists().then(|| {
+            let (file, at) = self.l.sources.locate(span.point());
+            u16::try_from(file.offset_to_line(at) + 1).unwrap_or(u16::MAX)
+        })
     }
 }
