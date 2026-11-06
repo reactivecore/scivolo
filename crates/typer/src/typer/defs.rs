@@ -22,13 +22,9 @@ impl Typer<'_> {
             None => self.typed_tpt(tpt, info, rhs_ctx),
         };
         let pt = info.map_or(Pt::Any, Pt::Type);
-        let deferred = sym.is_some_and(|s| self.is_deferred_given(s));
-        if let Some(r) = rhs.filter(|_| deferred)
-            && !self.is_compiletime_deferred(r, rhs_ctx)
-        {
-            return self.unsupported(r, "deferred given of another deferred");
-        }
-        let rhs = rhs.filter(|_| !deferred);
+        let Some(rhs) = self.non_deferred_rhs(sym, rhs, rhs_ctx) else {
+            return self.unsupported(id, "deferred given of another deferred");
+        };
         let rhs = rhs.map(|r| match *self.ast.tree(r) {
             Tree::Ident { name } if self.text(name.name) == "_" => self.default_initializer(id, r, sym, info),
             _ => self.typed(r, pt, rhs_ctx),

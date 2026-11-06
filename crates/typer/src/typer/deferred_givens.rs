@@ -20,22 +20,40 @@ impl Typer<'_> {
             let param = flags.is_one_of(f::TERM_PARAM.or(f::PARAM_ACCESSOR));
             return if param { f::EMPTY } else { f::DEFERRED };
         };
-        let deferred = matches!(*self.ast.tree(rhs), Tree::Ident { name } | Tree::Select { name, .. } if self.text(name.name) == "deferred");
-        match deferred && flags.is(f::GIVEN) && self.u.is_trait(ctx.owner) {
+        let name = match *self.ast.tree(rhs) {
+            Tree::Ident { name } | Tree::Select { name, .. } => Some(self.text(name.name)),
+            _ => None,
+        };
+        match name == Some("deferred") && flags.is(f::GIVEN) && self.u.is_trait(ctx.owner) {
             true => f::DEFERRED_GIVEN_FLAGS,
             false => f::EMPTY,
         }
     }
 
+    /// Right-hand side `rhs` of value `sym` in `ctx`, none for a deferred given; `None` if `rhs`
+    /// of a deferred given is not `scala.compiletime.deferred`.
+    pub fn non_deferred_rhs(
+        &mut self,
+        sym: Option<SymbolId>,
+        rhs: Option<NodeId>,
+        ctx: Ctx,
+    ) -> Option<Option<NodeId>> {
+        let Some(r) = rhs.filter(|_| sym.is_some_and(|s| self.is_deferred_given(s))) else {
+            return Some(rhs);
+        };
+        self.is_compiletime_deferred(r, ctx).then_some(None)
+    }
+
     /// Whether `rhs` in `ctx` refers to `scala.compiletime.deferred`, by its name or as a member
     /// of `compiletime` or `scala.compiletime`.
-    pub fn is_compiletime_deferred(&mut self, rhs: NodeId, ctx: Ctx) -> bool {
+    fn is_compiletime_deferred(&mut self, rhs: NodeId, ctx: Ctx) -> bool {
         let (name, prefix) = match *self.ast.tree(rhs) {
             Tree::Ident { name } => (name, "scala.compiletime."),
             Tree::Select { qualifier, .. } => match *self.ast.tree(qualifier) {
                 Tree::Ident { name } => (name, "scala.compiletime"),
                 Tree::Select { qualifier: q, name } if self.text(name.name) == "compiletime" => {
-                    return matches!(*self.ast.tree(q), Tree::Ident { name } if self.text(name.name) == "scala");
+                    let Tree::Ident { name } = *self.ast.tree(q) else { return false };
+                    return self.text(name.name) == "scala";
                 }
                 _ => return false,
             },

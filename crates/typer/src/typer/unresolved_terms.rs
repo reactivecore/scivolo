@@ -1,12 +1,14 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Identifiers of terms no binding defines that dotty's `typedIdent` still types: `$scope` of
-//! XML literals as `scala.xml.TopScope`; a context bound companion, refused.
+//! XML literals as `scala.xml.TopScope`; a context bound companion (`experimental.modularity`),
+//! refused.
 
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, TName};
+use syntax::config::Features;
 use tasty::Kind;
 
 impl Typer<'_> {
@@ -23,6 +25,9 @@ impl Typer<'_> {
             };
             let span = self.ast.span(id);
             return Some(self.build().static_ident(top, span));
+        }
+        if !self.feature_enabled(Features::MODULARITY, "experimental.modularity", ctx) {
+            return None;
         }
         let found = self.find_ref(&text, true, ctx).ok().flatten()?;
         let abstract_type =
