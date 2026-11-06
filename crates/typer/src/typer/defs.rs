@@ -22,6 +22,7 @@ impl Typer<'_> {
             None => self.typed_tpt(tpt, info, rhs_ctx),
         };
         let pt = info.map_or(Pt::Any, Pt::Type);
+        let rhs = rhs.filter(|_| !sym.is_some_and(|s| self.is_deferred_given(s)));
         let rhs = rhs.map(|r| match *self.ast.tree(r) {
             Tree::Ident { name } if self.text(name.name) == "_" => self.default_initializer(id, r, sym, info),
             _ => self.typed(r, pt, rhs_ctx),

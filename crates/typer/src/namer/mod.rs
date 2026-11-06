@@ -84,7 +84,12 @@ impl Typer<'_> {
             Tree::ValDef { name, mods, rhs, .. } => {
                 let m = self.ast.modifiers(mods).flags;
                 let deferred = rhs.is_none() && !m.is_one_of(f::TERM_PARAM.or(f::PARAM_ACCESSOR));
-                (name, mods, Kind::Val, if deferred { f::DEFERRED } else { f::EMPTY })
+                let extra = match deferred {
+                    true => f::DEFERRED,
+                    false if self.is_deferred_given_rhs(rhs, m, ctx) => f::DEFERRED_GIVEN_FLAGS,
+                    false => f::EMPTY,
+                };
+                (name, mods, Kind::Val, extra)
             }
             Tree::DefDef { name, mods, rhs, .. } => {
                 let constructor = self.text(name.name) == "<init>";
@@ -116,6 +121,9 @@ impl Typer<'_> {
             self.unsupported(tree, "qualifier of private or protected not an enclosing class");
         }
         let mut flags = if kind.is_term() { written.to_term_flags() } else { written.to_type_flags() };
+        if extra == f::DEFERRED_GIVEN_FLAGS {
+            flags = flags.and_not(f::FINAL);
+        }
         if flags.is(f::PRIVATE) && text != "<init>" && !flags.is(f::PARAM) && !flags.is(f::PARAM_ACCESSOR) {
             flags = flags.or(f::LOCAL);
         }

@@ -58,6 +58,7 @@ mod control;
 mod default_args;
 mod default_params;
 mod define_further;
+mod deferred_givens;
 mod defs;
 mod dependent_function_types;
 mod dependent_functions;
