@@ -70,7 +70,7 @@ impl Typer<'_> {
             {
                 return self.unsupported(r, "new higher-kinded refinement with variances");
             }
-            let (text, info, tree) = match self.type_refinement(class, r, ctx) {
+            let (text, info, tree) = match self.type_refinement(r, ctx) {
                 Ok(refinement) => refinement,
                 Err(refused) => return refused,
             };

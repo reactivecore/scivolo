@@ -45,6 +45,17 @@ impl Typer<'_> {
         (parent, Ctx { level, ..ctx })
     }
 
+    /// Whether `info` of refinement member `sym` is an alias referring to `sym`.
+    pub fn aliases_itself(&mut self, sym: SymbolId, info: TypeId) -> bool {
+        let Type::Alias(a) = *self.u.types().get(info) else { return false };
+        let mut cyclic = false;
+        self.u.map_type(a, &mut |u, x| {
+            cyclic |= matches!(*u.types().get(x), Type::Sym(_, s) if s == sym);
+            None
+        });
+        cyclic
+    }
+
     /// `t` with `this` of refinement class `class` and its members replaced by the `this` of a
     /// recursive type around it and members selected on that, `t` itself if it has none.
     pub fn closed_refinement(&mut self, class: SymbolId, t: TypeId) -> TypeId {

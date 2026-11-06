@@ -46,6 +46,7 @@ impl Universe {
             | Type::Annotated(u, _)
             | Type::Flexible(u)
             | Type::Refined(u, _, _)
+            | Type::Rec(_, u)
             | Type::Alias(u)
             | Type::Bounds(_, u)
             | Type::Skolem(_, u) => {

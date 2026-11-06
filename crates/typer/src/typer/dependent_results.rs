@@ -7,10 +7,10 @@
 
 use super::Typer;
 use super::dependent_params::{
-    applied_result, mentions_clause_params, mentions_params, mentions_params_except,
+    applied_result, has_false_dependency, mentions_clause_params, mentions_params, mentions_params_except,
 };
 use crate::tpd::TNodeId;
-use tasty::{Binder, Kind, SymbolId, Type, TypeId};
+use tasty::{Binder, Kind, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// Whether parameter type `p` is by-name or refers to a parameter it does not bind.
@@ -135,7 +135,7 @@ impl Typer<'_> {
     }
 
     /// Result `t` of a method of parameters `params` applied to the typed arguments `args`, if
-    /// there is one argument per parameter.
+    /// there is one argument per parameter and `t` has no false dependency on them.
     pub fn dependent_result(
         &mut self,
         t: TypeId,
@@ -145,7 +145,9 @@ impl Typer<'_> {
     ) -> Option<TypeId> {
         let types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        if types.len() != params.len() {
+        let formals: Vec<TypeId> = params.iter().map(|&(_, p)| self.zonked_upper(p)).collect();
+        if types.len() != params.len() || has_false_dependency(self.u, t, (binder, &names), method, &formals)
+        {
             return None;
         }
         for &a in &types {
@@ -157,6 +159,17 @@ impl Typer<'_> {
         let result = applied_result(self.u, t, (binder, &names), method, &types);
         self.complete_type_members(result);
         Some(result)
+    }
+
+    /// `t` zonked, an uninstantiated type variable as its upper bound, a type member a
+    /// refinement of its prefix aliases as the alias.
+    fn zonked_upper(&mut self, t: TypeId) -> TypeId {
+        let mut t = self.zonk(t);
+        if let Type::Var(v) = *self.u.types().get(t) {
+            let (_, hi) = self.constraint.bounds(v);
+            t = self.zonk(hi);
+        }
+        self.u.refinement_dealiased(t)
     }
 
     /// Completes the type members `t` selects.

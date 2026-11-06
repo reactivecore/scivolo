@@ -19,6 +19,19 @@ impl Universe {
         self.refinement_named(prefix, &name)
     }
 
+    /// `t`, a type member a refinement of its prefix aliases replaced by the alias, repeatedly.
+    pub fn refinement_dealiased(&mut self, mut t: TypeId) -> TypeId {
+        for _ in 0..MAX_STEPS {
+            let Type::Sym(Some(pre), s) = *self.types().get(t) else { break };
+            let Some(info) = self.refinement_info(pre, s) else { break };
+            match *self.types().get(info) {
+                Type::Alias(alias) if alias != t => t = alias,
+                _ => break,
+            }
+        }
+        t
+    }
+
     /// `t` with the `this` of each recursive type of `binders` replaced by `by` (dotty's
     /// `substRecThis`).
     pub fn rec_this_replaced(&mut self, t: TypeId, binders: &[Binder], by: TypeId) -> TypeId {

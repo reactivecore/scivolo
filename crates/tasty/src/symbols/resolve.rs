@@ -81,7 +81,13 @@ impl Universe {
             }
             Kind::Type | Kind::TypeParam => {
                 let t = self.intern_type(Type::Sym(None, s));
-                self.class_symbol(t)
+                match self.class_symbol(t) {
+                    None if self.symbol(s).kind == Kind::Type => match self.dealias(t) {
+                        d if matches!(self.types.get(d), Type::Rec(..)) => self.prefix_owner(d),
+                        _ => None,
+                    },
+                    found => found,
+                }
             }
         }
     }
