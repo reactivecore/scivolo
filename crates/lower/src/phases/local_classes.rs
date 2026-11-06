@@ -43,7 +43,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         let mut free = free_values(l, td, class, outer)?;
         free.values = values.iter().copied().filter(|&v| !member || !within(l, v, class)).collect();
         free.in_methods = deps.of(class).to_vec();
-        if free.values.iter().any(|&v| has(l.u, v, MUTABLE)) {
+        if free.values.iter().any(|&v| has(l.u, v, MUTABLE) && !l.tail_locals.contains(&v)) {
             return unsupported(l.tpd.span(td), "local classes capturing variables");
         }
         if l.u.is_trait(class) {
