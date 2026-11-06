@@ -52,7 +52,7 @@ pub fn typed_switch(l: &mut Lower, selector: TNodeId, cases: List) -> Result<Tre
 /// The branches of conditional or `try` `t`, typed against `pt` if a reference is expected or `t`
 /// is of type `Nothing`, else against the erasure of `t`'s type; `t` then of the erased lub of
 /// their classes if they were typed against a reference, `Object` if without `pt` a branch was of
-/// a primitive type or `Unit`; of `pt` if it was of type `Nothing` and a branch is not.
+/// type `Unit` and another of a class but `BoxedUnit`; of `pt` if it was of type `Nothing` and a branch is not.
 pub fn typed_branches(
     l: &mut Lower,
     t: TNodeId,
@@ -66,8 +66,11 @@ pub fn typed_branches(
         Some(p) => p.clone(),
         None => own,
     };
-    let primitive = |e: &Erased| matches!(e, Erased::Unit | Erased::Prim(_));
-    let unboxed = pt.is_none() && branches.iter().any(|&b| primitive(&erased_type(l, b)));
+    let before: Vec<Erased> = branches.iter().map(|&b| erased_type(l, b)).collect();
+    let boxed_unit = Erased::Class("scala.runtime.BoxedUnit".into());
+    let unboxed = pt.is_none()
+        && before.contains(&Erased::Unit)
+        && before.iter().any(|e| matches!(e, Erased::Class(_) | Erased::Array(_)) && *e != boxed_unit);
     let mut out = Vec::new();
     for &b in branches {
         out.push(typed(l, b, Some(&expected))?);
