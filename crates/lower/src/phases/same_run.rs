@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/Bridges.scala
 //   compiler/src/dotty/tools/dotc/transform/ExpandPrivate.scala
-//! What dotty's `Bridges` and `ExpandPrivate` give a library class javalib's build compiles in
-//! the same run as the unit: its bridges and the expanded names of its private members.
+//! What dotty's phases after pickling give a library class compiled in the same run as the unit:
+//! its bridges, mixin forwarders, hoisted superclass arguments and expanded private names.
 #![allow(non_upper_case_globals)]
 
 use super::bridges;
