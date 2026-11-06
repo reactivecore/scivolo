@@ -87,7 +87,7 @@ impl Typer<'_> {
         let cls = self.syms.by_tree[&id];
         self.complete(cls);
         self.ensure_self(cls);
-        if let Err(what) = self.check_parent_selves(cls) {
+        if let Err(what) = self.check_parent_selves(cls, self.ast.span(id)) {
             return self.unsupported(id, what);
         }
         if self.defines_enum_ordinal(cls) {

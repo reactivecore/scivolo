@@ -63,7 +63,7 @@ impl Typer<'_> {
     }
 
     /// `sym` as dotty's messages name it: its kind and name.
-    fn described(&self, sym: SymbolId) -> String {
+    pub fn described(&self, sym: SymbolId) -> String {
         let s = self.u.symbol(sym);
         let flags = self.flags_of(sym);
         let kind = match s.kind {
