@@ -228,3 +228,4 @@ typershapes
 samforwarders
 positionsnames
 tailcaptures
+quoteshapes

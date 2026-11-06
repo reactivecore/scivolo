@@ -19,17 +19,19 @@ pub struct Gadt {
     pub bound: Vec<SymbolId>,
     /// How many cases are being typed.
     pub cases: u32,
+    /// Whether the innermost case being typed is one of an inline match.
+    pub inline: bool,
 }
 
 impl Typer<'_> {
-    /// `f` as the typing of a case: the bounds its pattern narrows restored after; none narrowed
-    /// unless `narrowing`.
-    pub fn in_gadt_case<R>(&mut self, narrowing: bool, f: impl FnOnce(&mut Self) -> R) -> R {
+    /// `f` as the typing of a case, of an inline match if `inline`: the bounds its pattern
+    /// narrows restored after.
+    pub fn in_gadt_case<R>(&mut self, inline: bool, f: impl FnOnce(&mut Self) -> R) -> R {
         let (mark, bound, open) = (self.gadt.saved.len(), self.gadt.bound.len(), self.gadt.open.len());
-        let cases = self.gadt.cases;
-        self.gadt.cases = if narrowing { cases + 1 } else { 0 };
+        let (cases, outer) = (self.gadt.cases, self.gadt.inline);
+        (self.gadt.cases, self.gadt.inline) = (cases + 1, inline);
         let result = f(self);
-        self.gadt.cases = cases;
+        (self.gadt.cases, self.gadt.inline) = (cases, outer);
         self.gadt.bound.truncate(bound);
         self.gadt.open.truncate(open);
         let narrowed: Vec<_> = self.gadt.saved.drain(mark..).rev().collect();

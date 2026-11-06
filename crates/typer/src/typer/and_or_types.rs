@@ -20,7 +20,7 @@ impl Typer<'_> {
                 self.syms.define(self.u, name, Kind::Type, self.defn.scala, syntax::ast::flags::SYNTHETIC);
             let binder = self.u.fresh_binder();
             let bounds = self.u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY));
-            let params = vec![("A".to_owned(), bounds), ("B".to_owned(), bounds)];
+            let params = vec![("X0".to_owned(), bounds), ("X1".to_owned(), bounds)];
             let (a, b) =
                 (self.u.intern_type(Type::Param(binder, 0)), self.u.intern_type(Type::Param(binder, 1)));
             let result = self.u.intern_type(if and { Type::And(a, b) } else { Type::Or(a, b, false) });

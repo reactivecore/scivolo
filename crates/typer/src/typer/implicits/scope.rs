@@ -45,9 +45,11 @@ impl Typer<'_> {
                     true => prefix,
                     false => self.base_prefix(class_ref, base),
                 };
-                let term_path = prefix.filter(
-                    |&p| matches!(*self.u.types().get(p), Type::Sym(_, s) if self.u.symbol(s).kind.is_term()),
-                );
+                let term_path = prefix.filter(|&p| match *self.u.types().get(p) {
+                    Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
+                    Type::Package(_) => true,
+                    _ => false,
+                });
                 let (module, module_ref) = match self.companion_module(base) {
                     Some(module) => match term_path.filter(|_| base == c) {
                         Some(p) => (module, self.u.intern_type(Type::Sym(Some(p), module))),
