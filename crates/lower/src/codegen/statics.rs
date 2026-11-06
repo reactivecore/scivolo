@@ -4,11 +4,13 @@
 //! mirror classes (nscplugin's `genStaticMethodForwarders` and `genMirrorClass`).
 
 use super::Gen;
+use super::forwarded_members;
 use super::method::Method;
 use crate::phases::getters::is_setter;
 use crate::symbols::{has, is_extern, is_java_field, is_static, is_static_module, jdk_api_owner};
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, Param, PosId, Type, Val};
+use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{
     FIELDaccessor, INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC,
@@ -81,29 +83,23 @@ impl Gen<'_, '_> {
             if plain.contains(&b) || self.l.u.symbol(b).name == "Matchable" {
                 continue;
             }
+            crate::phases::same_run::enter_specialized(self.l, b);
             bridged.extend(crate::phases::same_run::bridges(self.l, b));
             let decls = self.l.u.decls(b).unwrap_or_default();
             members
                 .extend(decls.into_iter().filter(|&m| !behind_jdk || jdk_api_owner(self.l.u, m).is_some()));
         }
-        let mut seen = Vec::new();
-        let mut out = Vec::new();
+        let mut allowed = FxHashSet::default();
         for m in members {
             let excluded = [PROTECTED, STATIC, PRIVATE, MACRO, INLINE, PROTECTEDqualified];
             let library = self.l.u.symbol(m).tree.is_some();
-            let owner = self.l.u.symbol(m).owner.map(|o| self.l.u.full_name(o)).unwrap_or_default();
-            let jdk = owner.starts_with("java.") || owner.starts_with("javax.");
+            let jdk = self.l.u.symbol(m).owner.is_some_and(|o| is_jdk(self.l, o));
             let param = self.l.u.symbol(m).kind == Kind::Param;
             let value = self.l.u.symbol(m).kind == Kind::Val || param;
             let method = self.l.u.symbol(m).kind == Kind::Def || has(self.l.u, m, FIELDaccessor);
-            let deferred = match library {
-                true => !param && self.l.u.body(m).is_none(),
-                false => self.l.u.is_deferred(m),
-            };
             if !(method || library && value)
                 || self.l.u.is_constructor(m)
                 || is_extern(self.l.u, m)
-                || deferred
                 || excluded.iter().any(|&f| has(self.l.u, m, f))
                 || crate::symbols::is_erased(self.l.u, m)
                 || self.l.lifted_from.contains_key(&m)
@@ -112,11 +108,13 @@ impl Gen<'_, '_> {
             {
                 continue;
             }
-            let signature = (self.l.u.symbol(m).name.clone(), self.l.u.erased_method(m));
-            if seen.contains(&signature) {
+            allowed.insert(m);
+        }
+        let mut out = Vec::new();
+        for m in forwarded_members::members(self.l, module_class, &|m| allowed.contains(&m)) {
+            if forwarded_members::is_deferred(self.l, m) {
                 continue;
             }
-            seen.push(signature);
             let name = self.static_member_name(m, Some(module_class));
             if existing.contains(&name) {
                 return unsupported(Span::NONE, "a static method beside the forwarder of the same name");
@@ -125,10 +123,7 @@ impl Gen<'_, '_> {
             let pos = match self.l.coords.get(&at) {
                 Some(&span) if span.exists() => self.pos_or(span, self.no_pos),
                 Some(_) => self.sym_pos(module_class, module_class),
-                None => match self.library_pos(at, module_class) {
-                    Some(pos) => pos,
-                    None => self.sym_pos(at, module_class),
-                },
+                None => self.library_pos(at, module_class).unwrap_or_else(|| self.sym_pos(at, module_class)),
             };
             out.push(self.forwarder(m, module_class, name, pos));
         }

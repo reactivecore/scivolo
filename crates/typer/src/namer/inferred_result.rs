@@ -57,7 +57,7 @@ impl Typer<'_> {
             self.unsupported(rhs, "wildcard in the inferred type of a default");
         }
         let widened = self.widen_rhs(sym, tpe);
-        let widened = self.simplified_inferred(widened);
+        let widened = self.simplified_inferred_as(widened, raw_default.is_some());
         if self.keeps_rhs_type(sym)
             && matches!(self.u.types().get(widened), Type::Constant(..) | Type::Str(_))
         {
@@ -69,7 +69,11 @@ impl Typer<'_> {
             widened
         });
         let defined = self.fully_defined_rhs(widened, rhs);
-        let widened = if defined == widened { defined } else { self.simplified_inferred(defined) };
+        let widened = if defined == widened {
+            defined
+        } else {
+            self.simplified_inferred_as(defined, raw_default.is_some())
+        };
         deskolemized(self.u, widened, 1).unwrap_or_else(|| {
             self.unsupported(rhs, "skolem in an inferred type");
             widened
