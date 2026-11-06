@@ -54,14 +54,15 @@ fn count(n: usize) -> Result<[u8; 2], String> {
     u16::try_from(n).map(u16::to_be_bytes).map_err(|_| format!("{n} items in a table of at most 65,535"))
 }
 
-/// The `Code` attribute's bytes, without exception table, with the attributes `attrs`.
+/// The `Code` attribute's bytes with the attributes `attrs`.
 pub fn code(c: &Code, attrs: &[Attribute]) -> Result<Vec<u8>, String> {
     let mut out = Vec::with_capacity(c.bytes.len() + 12);
     out.extend(c.max_stack.to_be_bytes());
     out.extend(c.max_locals.to_be_bytes());
     out.extend((c.bytes.len() as u32).to_be_bytes());
     out.extend(&c.bytes);
-    out.extend(0_u16.to_be_bytes());
+    out.extend(count(c.exceptions.len())?);
+    out.extend(c.exceptions.iter().flatten().flat_map(|v| v.to_be_bytes()));
     attributes(&mut out, attrs)?;
     Ok(out)
 }

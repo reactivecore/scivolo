@@ -2,56 +2,13 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! Method bodies: loads of literals, locals, fields and objects (dotty's `genMethod`, `genLoad`).
 
+use super::body::Body;
 use super::{Gen, java_flags, method_descriptor, method_name, unsupported};
-use classfile::{
-    ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_STATIC, ACC_SYNTHETIC, ClassFile, Code, FieldOp, Label, Pool,
-};
+use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_STATIC, ACC_SYNTHETIC, ClassFile, FieldOp};
 use lower::Result;
 use syntax::ast::Span;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
-
-/// The code of the method being generated and the slots of its parameters and locals.
-pub struct Body<'p> {
-    pub code: Code,
-    pub pool: &'p mut Pool,
-    /// The class whose `this` is slot 0, none in a static method.
-    pub this_class: Option<String>,
-    /// The object whose `MODULE$` stands for `this` in its `<clinit>`.
-    module: Option<String>,
-    /// The parameters and locals: symbol, slot and descriptor.
-    pub locals: Vec<(SymbolId, u16, String)>,
-    /// The enclosing labeled blocks: label, end and the slots of the value.
-    pub labels: Vec<(SymbolId, Label, i32)>,
-    /// The method and the descriptor of its result.
-    pub method: Option<SymbolId>,
-    pub result: String,
-}
-
-impl<'p> Body<'p> {
-    /// A static method's body if `module` is given (an object's `<clinit>`), else that of a method
-    /// whose parameters start at slot `first`.
-    pub fn new(pool: &'p mut Pool, module: Option<&str>, first: u16) -> Body<'p> {
-        Body {
-            code: Code::new(first),
-            pool,
-            this_class: None,
-            module: module.map(str::to_owned),
-            locals: Vec::new(),
-            labels: Vec::new(),
-            method: None,
-            result: "V".into(),
-        }
-    }
-
-    /// A slot for local `s` of descriptor `desc`.
-    pub fn bind(&mut self, s: SymbolId, desc: String) -> u16 {
-        let slot = self.code.max_locals;
-        self.code.max_locals += classfile::value_slots(&desc) as u16;
-        self.locals.push((s, slot, desc));
-        slot
-    }
-}
 
 impl Gen<'_, '_> {
     pub fn gen_method(&mut self, cf: &mut ClassFile, dd: TNodeId, sym: SymbolId) -> Result<()> {
@@ -92,6 +49,12 @@ impl Gen<'_, '_> {
 
     /// Generates `t` and drops its value.
     pub fn stat(&mut self, b: &mut Body, t: TNodeId) -> Result<()> {
+        if let Tree::Apply { fun, args } = *self.l.tpd.tree(t)
+            && self.is_synchronized(fun)
+        {
+            self.gen_synchronized(b, fun, args, None)?;
+            return Ok(());
+        }
         self.expr_as(b, t, 0)
     }
 
@@ -151,6 +114,14 @@ impl Gen<'_, '_> {
             Tree::WhileDo { cond, body } => self.gen_while(b, t, cond, body)?,
             Tree::Labeled { expr } => self.gen_labeled(b, t, expr)?,
             Tree::Return { expr, from } => self.gen_return(b, t, expr, from)?,
+            Tree::Match { selector: Some(selector), cases, .. } => {
+                self.gen_match(b, t, selector, cases, None)?
+            }
+            Tree::Try { expr, cases, finalizer } => self.gen_try(b, t, expr, cases, finalizer)?,
+            Tree::Apply { fun, args } if self.is_synchronized(fun) => {
+                let desc = self.desc_of(t);
+                self.gen_synchronized(b, fun, args, Some(desc))?
+            }
             Tree::SeqLiteral { elems, .. } => self.array_literal(b, t, elems)?,
             Tree::TypeApply { fun, args } => self.type_test(b, t, fun, args)?,
             Tree::Apply { fun, args } => self.gen_apply(b, t, fun, args)?,

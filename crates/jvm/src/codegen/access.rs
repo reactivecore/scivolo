@@ -3,8 +3,8 @@
 //! Field accesses and calls with their receivers (dotty's `genLoadQualifier`, `genApply`,
 //! `genCallMethod`).
 
-use super::callee::Receiver;
-use super::method::Body;
+use super::body::Body;
+use super::callee::{Receiver, adapt_phantom};
 use super::{Gen, class_internal, descriptor, is_static_member, method_descriptor, method_name, unsupported};
 use classfile::{FieldOp, Invoke};
 use lower::Result;
@@ -36,7 +36,7 @@ impl Gen<'_, '_> {
         if let Some(v) = value {
             self.expr(b, v)?;
         }
-        let (owner, name) = (self.class_name(owner), tasty::encode(&self.l.u.symbol(f).name));
+        let (owner, name) = (self.member_owner(owner).0, tasty::encode(&self.l.u.symbol(f).name));
         b.code.field(op, b.pool, &owner, &name, &desc);
         Ok(if value.is_some() { 0 } else { classfile::value_slots(&desc) })
     }
@@ -44,8 +44,8 @@ impl Gen<'_, '_> {
     /// Loads the receiver of instance member `m` selected from `qualifier`, or of an identifier
     /// without one whose prefix is `this` of or object class `prefix`; returns whether `m` is an
     /// instance member. The qualifier of a static member must be an object or `this`, whose load
-    /// is elided. Fails for a member of a javalib object standing for the JDK's static members,
-    /// and for a static member of an object. A value `m` that is `called` is its getter's call.
+    /// is elided, as that of a member of an object standing for a JDK class's static members.
+    /// Fails for a static member of an object. A value `m` that is `called` is its getter's call.
     pub fn receiver(
         &mut self,
         b: &mut Body,
@@ -54,12 +54,10 @@ impl Gen<'_, '_> {
         prefix: Option<SymbolId>,
     ) -> Result<bool> {
         let getter = called && self.l.u.symbol(m).kind == tasty::Kind::Val;
-        let static_ = is_static_member(self.l.u, m) && !getter;
         let owner = self.l.u.symbol(m).owner.expect("a member's owner");
+        let jdk = lower::is_jdk_object(self.l.u, owner);
+        let static_ = jdk || (is_static_member(self.l.u, m) && !getter);
         let span = qualifier.map_or(Span::NONE, |q| self.l.tpd.span(q));
-        if lower::is_jdk_object(self.l.u, owner) {
-            return unsupported(span, "static members of JDK classes on the JVM");
-        }
         if self.l.u.is_module_class(owner) && self.l.u.is_annotated(m, "scala.annotation.static") {
             return unsupported(span, "static members of objects on the JVM");
         }
@@ -95,14 +93,20 @@ impl Gen<'_, '_> {
             return Ok(slots);
         }
         let owner = self.l.u.symbol(m).owner.expect("a method's owner");
-        self.check_call(m, owner, span)?;
-        let desc = method_descriptor(self.l.u, m);
-        let mut owner_name = self.class_name(owner);
         let qualifier = match *self.l.tpd.tree(fun) {
             Tree::Select { qualifier, .. } => Some(qualifier),
             Tree::Ident { .. } => None,
             _ => return unsupported(span, "a call of this form"),
         };
+        let info = self.l.u.info(m);
+        let parameterless =
+            self.l.u.symbol(m).kind == tasty::Kind::Val || self.l.u.param_clauses(info).is_empty();
+        if lower::is_jdk_object(self.l.u, owner) && parameterless {
+            return self.field(b, m, (qualifier, None), None);
+        }
+        self.check_call(m, owner, span)?;
+        let desc = method_descriptor(self.l.u, m);
+        let (mut owner_name, jdk_interface) = self.member_owner(owner);
         let prefix = if qualifier.is_none() { self.ident_prefix(fun) } else { None };
         let mut result = classfile::method_slots(&desc).1;
         let mut name = method_name(self.l.u, m);
@@ -110,7 +114,11 @@ impl Gen<'_, '_> {
         let super_receiver = self.super_receiver(qualifier, m, owner);
         let kind = match qualifier.map(|q| self.l.tpd.tree(q).clone()) {
             Some(Tree::New { tpt }) => {
-                owner_name = class_internal(&self.l.u.erase(self.l.tpd.tpe(tpt)));
+                let tpe = self.l.tpd.tpe(tpt);
+                owner_name = match self.l.u.class_symbol(tpe) {
+                    Some(c) => self.class_name(c),
+                    None => class_internal(&self.l.u.erase(tpe)),
+                };
                 b.code.new_object(b.pool, &owner_name);
                 b.code.dup();
                 result = 1;
@@ -164,8 +172,9 @@ impl Gen<'_, '_> {
             }
         }
         let in_trait = self.l.u.is_trait(owner) && owner_name == self.class_name(owner);
-        let interface = interface || kind == Invoke::Interface || in_trait;
+        let interface = interface || kind == Invoke::Interface || in_trait || jdk_interface;
         b.code.invoke_in(kind, interface, b.pool, (&owner_name, &name, &call_desc));
+        adapt_phantom(b, classfile::split_method(&call_desc).1);
         Ok(result)
     }
 

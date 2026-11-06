@@ -3,7 +3,7 @@
 //! What the JVM backend can call, and the class a call names (dotty's `genApply` and
 //! `genCallMethod`).
 
-use super::method::Body;
+use super::body::Body;
 use super::{Gen, descriptor, unsupported};
 use lower::Result;
 use syntax::ast::Span;
@@ -19,6 +19,19 @@ pub enum Receiver {
 
 /// `Object`'s methods a trait may override.
 const OBJECT_METHODS: [&str; 5] = ["equals", "hashCode", "toString", "clone", "finalize"];
+
+/// After a call returning `Nothing$` an `athrow`, after one returning `Null$` a `null` in place
+/// of its value (dotty's `adapt`).
+pub fn adapt_phantom(b: &mut Body, result: &str) {
+    match result {
+        "Lscala/runtime/Nothing$;" => b.code.insn(0xbf),
+        "Lscala/runtime/Null$;" => {
+            b.code.pop();
+            b.code.aconst_null();
+        }
+        _ => {}
+    }
+}
 
 /// Whether binary class name `name` is a primitive value class or its companion's class.
 fn is_primitive(name: &str) -> bool {
@@ -114,6 +127,9 @@ impl Gen<'_, '_> {
             Erased::Array(_) => Some(Receiver::Array("java/lang/Object".into())),
             Erased::Class(name) => {
                 let c = self.l.u.class_symbol(t).filter(|&c| self.l.u.binary_name(c) == name)?;
+                if !self.l.u.derives_from(c, owner) {
+                    return None;
+                }
                 let object_method = OBJECT_METHODS.contains(&self.l.u.symbol(m).name.as_str());
                 let trait_override = c != owner && self.l.u.is_trait(c) && self.l.u.is_trait(owner);
                 Some(Receiver::Class(if trait_override && object_method { owner } else { c }))

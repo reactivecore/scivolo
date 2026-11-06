@@ -3,7 +3,7 @@
 //! A class's skeleton: flags, parents, fields, methods, and an object's `MODULE$` and
 //! `<clinit>` (dotty's `genPlainClass`).
 
-use super::method::Body;
+use super::body::Body;
 use super::{ClassBytes, Gen, internal, is_static_module, java_flags, method_descriptor, unsupported};
 use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ClassFile, FieldOp, Invoke};
 use lower::Result;
@@ -70,7 +70,7 @@ impl Gen<'_, '_> {
             let code = b.code;
             cf.method(ACC_PUBLIC | ACC_STATIC, "<clinit>", "()V", Some(code), &mut |a, b| self.jvm_lub(a, b));
         }
-        self.deserialize_lambda(&mut cf).or_else(|e| unsupported(self.l.tpd.span(td), e))?;
+        self.deserialize_lambda(&mut cf);
         if let Some(signature) = self.class_signature(sym) {
             cf.signature(&signature);
         }
@@ -91,16 +91,21 @@ impl Gen<'_, '_> {
         Ok(())
     }
 
-    /// The superclass and interfaces of class `c`, as internal names.
+    /// The superclass and interfaces of class `c`, as internal names; no interface another parent
+    /// inherits.
     fn parents(&mut self, c: SymbolId) -> (String, Vec<String>) {
         let mut classes = Vec::new();
         for p in self.l.u.parents(c) {
             if let Some(s) = self.l.u.class_symbol(p) {
-                classes.push((self.l.u.is_trait(s), super::class_internal(&self.l.u.erase(p))));
+                classes.push((s, super::class_internal(&self.l.u.erase(p))));
             }
         }
-        let (traits, classes): (Vec<_>, Vec<_>) = classes.into_iter().partition(|p| p.0);
-        let superclass = classes.into_iter().next().map_or_else(|| "java/lang/Object".into(), |p| p.1);
+        let (traits, classes): (Vec<_>, Vec<_>) = classes.into_iter().partition(|p| self.l.u.is_trait(p.0));
+        let inherited = |u: &mut tasty::Universe, t| {
+            classes.iter().chain(&traits).any(|&(o, _)| o != t && u.derives_from(o, t))
+        };
+        let traits: Vec<_> = traits.iter().filter(|p| !inherited(self.l.u, p.0)).cloned().collect();
+        let superclass = classes.first().map_or_else(|| "java/lang/Object".into(), |p| p.1.clone());
         let mut interfaces: Vec<String> =
             traits.into_iter().map(|p| p.1).filter(|i| i != "java/lang/Object").collect();
         let serializable = "java/io/Serializable";
@@ -126,6 +131,17 @@ impl Gen<'_, '_> {
 
     pub fn class_name(&self, c: SymbolId) -> String {
         internal(&self.l.u.binary_name(c))
+    }
+
+    /// The class declaring the members of class `owner` in class files: the JDK class an object
+    /// standing for its static members names, then whether that is an interface.
+    pub fn member_owner(&mut self, owner: SymbolId) -> (String, bool) {
+        if !lower::is_jdk_object(self.l.u, owner) {
+            return (self.class_name(owner), false);
+        }
+        let binary = self.l.u.binary_name(owner);
+        let interface = self.l.u.companion_class(owner).is_some_and(|c| self.l.u.is_trait(c));
+        (internal(binary.strip_suffix('$').unwrap_or(&binary)), interface)
     }
 
     /// The constructor of a static object up to its superclass constructor call; returns the

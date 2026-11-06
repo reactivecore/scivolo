@@ -3,7 +3,7 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeSkelBuilder.scala
 //! Local definitions and assignments to locals (dotty's `genStat`).
 
-use super::method::Body;
+use super::body::Body;
 use super::{Gen, descriptor, unsupported};
 use lower::Result;
 use syntax::ast::constant::Constant;
@@ -45,7 +45,7 @@ impl Gen<'_, '_> {
         let info = self.l.u.info(sym);
         let desc = descriptor(&self.l.u.erase(info));
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(t), "a local without a value") };
-        let slot = b.bind(sym, desc.clone());
+        let slot = b.local(sym, desc.clone());
         self.expr_as(b, rhs, classfile::value_slots(&desc))?;
         b.code.store(&desc, slot);
         Ok(0)
@@ -75,7 +75,7 @@ impl Gen<'_, '_> {
 }
 
 /// The value of an int-sized literal.
-fn int_like(value: &Constant) -> Option<i32> {
+pub fn int_like(value: &Constant) -> Option<i32> {
     Some(match *value {
         Constant::Int(v) => v,
         Constant::Char(v) => i32::from(v),

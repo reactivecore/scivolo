@@ -4,8 +4,8 @@
 //! Universal equality and hashes of references (dotty's `genEqEqPrimitive`, `InterceptedMethods`'s
 //! `poundPoundValue`).
 
+use super::body::Body;
 use super::cond::{Test, jump_zero};
-use super::method::Body;
 use super::{Gen, unsupported};
 use classfile::{Invoke, Label};
 use lower::Result;

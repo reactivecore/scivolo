@@ -6,9 +6,11 @@ use crate::pool::{Constant, Handle, Pool};
 
 impl Code {
     /// Operand-free instruction `opcode` of the arithmetic, conversion, comparison, array element,
-    /// `dup`/`pop` and `iconst` families.
+    /// `dup`/`pop` and `iconst` families, `nop` and the monitor instructions.
     pub fn insn(&mut self, opcode: u8) {
         let delta = match opcode {
+            0x00 => 0,
+            0xc2 | 0xc3 => -1,
             0x01..=0x08 | 0x0b..=0x0d => 1,
             0x09 | 0x0a | 0x0e | 0x0f => 2,
             0x2f | 0x31 => 0,
@@ -139,6 +141,19 @@ impl Code {
         let [i0, i1] = pool.invoke_dynamic(name, descriptor, bootstrap, args).to_be_bytes();
         let (params, result) = method_slots(descriptor);
         self.op(0xba, &[i0, i1, 0, 0], result - params);
+    }
+
+    /// The return of a value of descriptor `result`, `V` for none.
+    pub fn ret(&mut self, result: &str) {
+        let (opcode, delta) = match result.as_bytes()[0] {
+            b'V' => (0xb1, 0),
+            b'L' | b'[' => (0xb0, -1),
+            b'J' => (0xad, -2),
+            b'F' => (0xae, -1),
+            b'D' => (0xaf, -2),
+            _ => (0xac, -1),
+        };
+        self.op(opcode, &[], delta);
     }
 
     /// Drops a value of descriptor `desc`.

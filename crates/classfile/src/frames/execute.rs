@@ -5,26 +5,6 @@ use crate::{Pool, method_slots, split_method, value_slots};
 
 const KINDS: [VType; 4] = [VType::Int, VType::Long, VType::Float, VType::Double];
 
-/// The length of the instruction at `at`.
-pub fn length(code: &[u8], at: usize) -> usize {
-    match code[at] {
-        0x10 | 0x12 | 0x15..=0x19 | 0x36..=0x3a | 0xbc => 2,
-        0x11 | 0x13 | 0x14 | 0x84 | 0x99..=0xa7 | 0xb2..=0xb8 | 0xbb | 0xbd | 0xc0 | 0xc1 | 0xc6 | 0xc7 => 3,
-        0xb9 | 0xba => 5,
-        0xc4 if code[at + 1] == 0x84 => 6,
-        0xc4 => 4,
-        _ => 1,
-    }
-}
-
-/// The target of the jump at `at`, if it is one.
-pub fn target(code: &[u8], at: usize) -> Option<usize> {
-    matches!(code[at], 0x99..=0xa7 | 0xc6 | 0xc7).then(|| {
-        let offset = i16::from_be_bytes([code[at + 1], code[at + 2]]);
-        (at as i64 + i64::from(offset)) as usize
-    })
-}
-
 fn u16_at(code: &[u8], i: usize) -> u16 {
     u16::from_be_bytes([code[i], code[i + 1]])
 }
@@ -79,7 +59,7 @@ pub fn execute(f: &mut Frame, code: &[u8], at: usize, pool: &Pool, this: &str) -
             f.pop(if op < 0x7e { 1 + size(&t) } else { 2 * size(&t) })?;
             f.push(t);
         }
-        0x84 | 0xa7 | 0xac..=0xb1 | 0xbf => {}
+        0x00 | 0x84 | 0xa7 | 0xac..=0xb1 | 0xbf => {}
         0x85..=0x90 => {
             let from = usize::from(op - 0x85) / 3;
             let mut to: Vec<VType> = KINDS.to_vec();
@@ -95,7 +75,7 @@ pub fn execute(f: &mut Frame, code: &[u8], at: usize, pool: &Pool, this: &str) -
             })?;
             f.push(VType::Int);
         }
-        0x99..=0x9e | 0xc6 | 0xc7 => drop(f.pop(1)?),
+        0x99..=0x9e | 0xaa | 0xab | 0xc2 | 0xc3 | 0xc6 | 0xc7 => drop(f.pop(1)?),
         0x9f..=0xa6 => drop(f.pop(2)?),
         0xb2..=0xb5 => {
             let (_, _, d) = pool.member_parts(u16_at(code, at + 1));

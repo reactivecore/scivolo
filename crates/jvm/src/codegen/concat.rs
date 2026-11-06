@@ -4,8 +4,8 @@
 //! String concatenation as `invokedynamic` of `StringConcatFactory.makeConcatWithConstants`
 //! (dotty's `genStringConcat`, `liftStringConcat`, `genIndyStringConcat`).
 
+use super::body::Body;
 use super::closures::BOOTSTRAP;
-use super::method::Body;
 use super::{Gen, descriptor};
 use classfile::{Constant, Handle, Invoke};
 use lower::Result;

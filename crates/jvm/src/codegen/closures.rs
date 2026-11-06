@@ -3,7 +3,7 @@
 //! Closures as `invokedynamic` of `LambdaMetafactory` (dotty's `genLoad` of a `Closure`,
 //! `genInvokeDynamicLambda`).
 
-use super::method::Body;
+use super::body::Body;
 use super::{Gen, is_static_member, method_descriptor, method_name, unsupported};
 use classfile::{Constant, Handle};
 use lower::Result;

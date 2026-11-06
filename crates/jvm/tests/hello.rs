@@ -77,11 +77,27 @@ fn concatenations_run_on_the_jvm() {
 }
 
 #[test]
-fn primitive_operations_are_refused() {
+fn trycatch_runs_on_the_jvm() {
+    runs_on_the_jvm("trycatch", "Trycatch");
+}
+
+#[test]
+fn matches_run_on_the_jvm() {
+    runs_on_the_jvm("matches", "Matches");
+}
+
+#[test]
+fn manylambdas_run_on_the_jvm() {
+    runs_on_the_jvm("manylambdas", "Manylambdas");
+}
+
+#[test]
+fn a_try_on_a_stack_is_refused() {
     let source = root().join("tmp/jvm-test/refused.scala");
     std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
-    std::fs::write(&source, "object R { def f(a: AnyRef): Int = a.synchronized(1) }").expect("writing");
+    let code = "object R { def f(s: String): Int = 1 + (try s.length catch { case _: Exception => 0 }) }";
+    std::fs::write(&source, code).expect("writing");
     let (_, compiled) = compile("refused", &source);
     assert!(!compiled.status.success());
-    assert!(String::from_utf8_lossy(&compiled.stderr).contains("primitive operation synchronized"));
+    assert!(String::from_utf8_lossy(&compiled.stderr).contains("where values are on the stack"));
 }

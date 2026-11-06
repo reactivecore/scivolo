@@ -4,8 +4,8 @@
 //! Operations of the primitive classes and conversions (dotty's `genPrimitiveOp`,
 //! `genArithmeticOp`, `genConversion`, `emitT2T`).
 
+use super::body::Body;
 use super::cond::{Test, kind};
-use super::method::Body;
 use super::{Gen, unsupported};
 use lower::Result;
 use syntax::ast::constant::Constant;

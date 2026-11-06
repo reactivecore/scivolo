@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! Arrays and casts (dotty's `genArrayOp`, `genArrayValue`, `genTypeApply`).
 
-use super::method::Body;
+use super::body::Body;
 use super::{Gen, class_internal, descriptor, unsupported};
 use lower::Result;
 use typer::tpd::{List, TNodeId, Tree};

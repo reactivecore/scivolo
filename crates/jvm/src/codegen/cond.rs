@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! Conditional jumps (dotty's `genCond`, `genCJUMP`, `genCZJUMP`).
 
-use super::method::Body;
+use super::body::Body;
 use super::{Gen, unsupported};
 use classfile::Label;
 use lower::Result;

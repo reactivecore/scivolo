@@ -4,6 +4,7 @@
 
 mod access;
 mod arrays;
+mod body;
 mod callee;
 mod class;
 mod closures;
@@ -17,8 +18,11 @@ mod locals;
 mod lub;
 mod method;
 mod mirror;
+mod monitors;
 mod prims;
+mod switches;
 mod traits;
+mod tries;
 
 use lower::{Lower, Result, Unsupported, jdk_class_name};
 use syntax::ast::Span;

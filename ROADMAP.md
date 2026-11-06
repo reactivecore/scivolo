@@ -108,8 +108,10 @@ libraries work. dotty's `tests/run-macros`: 308 of 321 pass
 - **JVM bytecode backend (optional, started, #142,
   [ADR 0101](docs/adr/0101-jvm-backend-crates.md), [research 46](docs/research/46-jvm-backend.md)):**
   `scivolo-jvm` writes class files from the lowered trees; objects with calls, fields,
-  primitive arithmetic, locals, branches, loops, boxing and arrays run on `java -Xverify:all`
-  (`just jvm-run`, `just jvm-check` against scala-cli), as class version 61 with stack map frames.
+  primitive arithmetic, locals, branches, loops, boxing and arrays, classes, traits, lambdas,
+  `try`/`finally`, `synchronized` and switches run on `java -Xverify:all` (`just jvm-run`,
+  `just jvm-check` against scala-cli), as class version 61 with stack map frames; 121 of the 309
+  `tests/programs` run with their `.check` output.
 
 ## Next
 

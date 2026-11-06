@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! Literals and the primitives' `box` and `unbox` (dotty's `genConstant`, `genApply` of a box).
 
-use super::method::Body;
+use super::body::Body;
 use super::{Gen, class_internal, primitive_box, unsupported};
 use classfile::{FieldOp, Invoke};
 use lower::Result;
@@ -56,6 +56,17 @@ impl Gen<'_, '_> {
     pub fn boxing(&mut self, b: &mut Body, m: tasty::SymbolId, args: &[TNodeId]) -> Result<Option<i32>> {
         let (unbox, boxed) = (self.l.unboxed_by(m), self.l.is_box(m));
         let ([arg], true) = (args, boxed || unbox.is_some()) else { return Ok(None) };
+        if boxed && self.l.u.erase(self.l.tpd.tpe(*arg)) == Erased::Unit {
+            self.expr_as(b, *arg, 0)?;
+            b.code.field(
+                FieldOp::GetStatic,
+                b.pool,
+                "scala/runtime/BoxedUnit",
+                "UNIT",
+                "Lscala/runtime/BoxedUnit;",
+            );
+            return Ok(Some(1));
+        }
         self.expr(b, *arg)?;
         let letter = match unbox {
             Some(p) => p.letter,
