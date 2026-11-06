@@ -22,9 +22,11 @@ impl Typer<'_> {
     /// `t` with its covariant occurrences of `T @$into` as `into[T]`.
     pub fn reveal_into(&mut self, t: TypeId) -> TypeId {
         let Some((into, silent)) = self.into_symbols() else { return t };
+        let Some(module) = self.resolve_full_name("scala.Conversion", false) else { return t };
+        let module = crate::defn::type_ref(self.u, module);
+        let tycon = self.u.intern_type(Type::Sym(Some(module), into));
         self.map_into(t, 1, &mut |u, t| match u.types().get(t).clone() {
             Type::Annotated(arg, a) if u.class_symbol(a) == Some(silent) => {
-                let tycon = crate::defn::type_ref(u, into);
                 Some(u.intern_type(Type::Applied(tycon, vec![arg])))
             }
             _ => None,
