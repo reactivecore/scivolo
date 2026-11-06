@@ -6,9 +6,9 @@
 #![allow(non_upper_case_globals)]
 
 use super::bridges;
-use super::mixin::{forwarded, is_jdk, mixins, with_java_param_names};
+use super::mixin::{forwarded, function_arity, is_jdk, mixins, with_java_param_names};
 use crate::Lower;
-use crate::definitions::symbol;
+use crate::definitions::{specialized_applies, symbol};
 use crate::symbols::has;
 use rustc_hash::FxHashSet;
 use tasty::tags::*;
@@ -65,6 +65,9 @@ pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
 fn mixin_forwarders(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
     let mut made = Vec::new();
     for mixin in mixins(l, class) {
+        if let Some(arity) = function_arity(l, mixin) {
+            specialized_applies(l.u, arity).ok();
+        }
         for meth in forwarded(l, class, mixin) {
             let flags = l.u.symbol(meth).flags;
             let mut s = symbol(&l.u.symbol(meth).name.clone(), Kind::Def, class, flags);

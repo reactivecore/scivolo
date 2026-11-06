@@ -63,7 +63,7 @@ pub fn is_pure_value(l: &Lower, t: TNodeId) -> bool {
 }
 
 /// Whether path `t` refers to or selects through an object whose creation runs code.
-fn creates_impure_module(l: &Lower, t: TNodeId) -> bool {
+pub fn creates_impure_module(l: &Lower, t: TNodeId) -> bool {
     let impure = l.tpd.sym(t).is_some_and(|s| l.impure_modules.contains(&s));
     match *l.tpd.tree(t) {
         Tree::Ident { .. } => impure,

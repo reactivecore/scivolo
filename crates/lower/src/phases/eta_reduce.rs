@@ -8,6 +8,7 @@
 use super::by_name::is_by_name_param;
 use super::casts::conforms;
 use super::first_transform::is_pure;
+use super::module_purity::creates_impure_module;
 use super::walk::subtrees;
 use crate::Lower;
 use crate::symbols::has;
@@ -60,7 +61,8 @@ fn reduced(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
         .collect();
     let own_param = l.tpd.sym(f).is_some_and(|s| l.u.symbol(s).owner == Some(meth));
     let getter = l.tpd.sym(f).is_some_and(|s| has_getter(l, s) && !is_underlying(l, s));
-    if params != args || params.contains(&None) || own_param || getter || !is_pure(l, f) {
+    let pure = is_pure(l, f) && !creates_impure_module(l, f);
+    if params != args || params.contains(&None) || own_param || getter || !pure {
         return None;
     }
     let boxed = params.iter().flatten().any(|&p| {
