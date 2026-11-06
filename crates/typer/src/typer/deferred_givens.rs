@@ -27,6 +27,25 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether `rhs` in `ctx` refers to `scala.compiletime.deferred`, by its name or as a member
+    /// of `compiletime` or `scala.compiletime`.
+    pub fn is_compiletime_deferred(&mut self, rhs: NodeId, ctx: Ctx) -> bool {
+        let (name, prefix) = match *self.ast.tree(rhs) {
+            Tree::Ident { name } => (name, "scala.compiletime."),
+            Tree::Select { qualifier, .. } => match *self.ast.tree(qualifier) {
+                Tree::Ident { name } => (name, "scala.compiletime"),
+                Tree::Select { qualifier: q, name } if self.text(name.name) == "compiletime" => {
+                    return matches!(*self.ast.tree(q), Tree::Ident { name } if self.text(name.name) == "scala");
+                }
+                _ => return false,
+            },
+            _ => return false,
+        };
+        let text = self.text(name.name).to_owned();
+        let Ok(Some(found)) = self.find_ref(&text, false, ctx) else { return false };
+        found.syms.iter().any(|&s| self.u.full_name(s).starts_with(prefix))
+    }
+
     /// Whether `s` is a deferred given, not a parameter.
     pub fn is_deferred_given(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
