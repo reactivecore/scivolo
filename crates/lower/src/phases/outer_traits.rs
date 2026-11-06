@@ -94,14 +94,14 @@ pub fn add_outer(l: &mut Lower, td: TNodeId, trait_: SymbolId) {
     let accessor = outer_accessor(l, trait_);
     l.u.set_deferred(accessor, true);
     let Template { body, parents, .. } = l.tpd.class_template(td).expect("a trait definition");
-    let stats: Vec<TNodeId> = l.tpd.items(body).iter().chain(l.tpd.items(parents)).copied().collect();
-    let stats: Vec<TNodeId> =
-        stats.into_iter().filter(|&s| !matches!(l.tpd.tree(s), Tree::TypeDef { .. })).collect();
+    let stats = l.tpd.items(body).iter().chain(l.tpd.items(parents)).copied();
+    let stats: Vec<TNodeId> = stats.filter(|&s| !matches!(l.tpd.tree(s), Tree::TypeDef { .. })).collect();
     for stat in stats {
-        for t in terms(l, stat, false) {
+        let all = terms(l, stat, false);
+        for &t in &all {
             let t = outer_prefix(l, t, trait_).unwrap_or(t);
             let Some(chain) = outer_this(l, t, trait_) else { continue };
-            let span = l.tpd.span(t);
+            let span = l.after_siblings_among(&all, t).unwrap_or(l.tpd.span(t));
             let mut read = l.this(trait_, span);
             let mut from = trait_;
             for c in chain {
