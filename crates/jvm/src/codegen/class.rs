@@ -6,10 +6,10 @@
 use super::body::Body;
 use super::clinit::StaticInit;
 use super::{ClassBytes, Gen, internal, is_static_module, java_flags, method_descriptor, unsupported};
-use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile};
+use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile, Last};
 use lower::Result;
+use tasty::SymbolId;
 use tasty::tags::MUTABLE;
-use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree};
 
 impl Gen<'_, '_> {
@@ -18,6 +18,7 @@ impl Gen<'_, '_> {
         let Some(Template { constr, body, .. }) = self.l.tpd.class_template(td) else {
             return unsupported(self.l.tpd.span(td), "a type definition that is not a class");
         };
+        self.check_annotations(sym, self.l.tpd.span(td))?;
         let name = internal(&self.l.u.binary_name(sym));
         let (superclass, interfaces) = self.parents(sym);
         let interfaces: Vec<&str> = interfaces.iter().map(String::as_str).collect();
@@ -42,6 +43,7 @@ impl Gen<'_, '_> {
                 }
                 Tree::DefDef { .. } => self.gen_method(&mut cf, stat, s)?,
                 Tree::ValDef { .. } => {
+                    self.check_annotations(s, self.l.tpd.span(stat))?;
                     let info = self.l.u.info(s);
                     let desc = super::descriptor(&self.l.u.erase(info));
                     let name = self.l.u.symbol(s).name.clone();
@@ -49,6 +51,13 @@ impl Gen<'_, '_> {
                     let volatile = if self.l.var_handle(s).is_some() { ACC_VOLATILE } else { 0 };
                     let flags = java_flags(self.l, s) | if mutable { volatile } else { ACC_FINAL };
                     cf.field(flags, &tasty::encode(&name), &desc);
+                    let seen = self.seen_from_owner(s);
+                    if let Some(sig) = super::signatures::member(self.l.u, s, seen, &desc) {
+                        cf.member_signature(Last::Field, &sig);
+                    }
+                    if self.l.u.is_annotated(s, "scala.deprecated") {
+                        cf.member_deprecated(Last::Field);
+                    }
                     if self.l.var_handle_field(s).is_some() {
                         init.handles.push(s);
                     }
@@ -65,15 +74,19 @@ impl Gen<'_, '_> {
         if let Some(companion) = companion.filter(|&c| !module && is_static_module(self.l.u, c)) {
             self.add_forwarders(&mut cf, companion, Some(sym));
         }
-        if let Some(signature) = self.class_signature(sym) {
-            cf.signature(&signature);
+        let signature = super::signatures::class(self.l.u, sym);
+        cf.signature(&signature);
+        if self.l.u.is_annotated(sym, "scala.deprecated") {
+            cf.deprecated();
         }
         let source = self.source_name(td);
         cf.source_file(&source);
+        let declared: Vec<SymbolId> = nested.iter().filter_map(|&n| self.l.tpd.sym(n)).collect();
+        self.nested_attributes(&mut cf, sym, &declared);
         let bytes = cf.bytes().or_else(|e| unsupported(self.l.tpd.span(td), e))?;
         self.out.push(ClassBytes { name: name.clone(), bytes });
         if module && top && self.l.u.companion_class(sym).is_none() {
-            self.gen_mirror_class(td, sym, &name)?;
+            self.gen_mirror_class(td, sym, &name, &declared)?;
         }
         nested.into_iter().try_for_each(|n| self.gen_class(n))
     }
@@ -107,20 +120,6 @@ impl Gen<'_, '_> {
             interfaces.push(serializable.into());
         }
         (superclass, interfaces)
-    }
-
-    /// The generic signature of class `c` without type parameters whose parents take no type
-    /// arguments (dotty's `superSig`); none for other classes.
-    fn class_signature(&mut self, c: SymbolId) -> Option<String> {
-        let parents = self.l.u.parents(c);
-        let applied = parents.iter().any(|&p| matches!(self.l.u.types().get(p), Type::Applied(..)));
-        if !self.l.u.type_params(c).is_empty() || applied || parents.is_empty() {
-            return None;
-        }
-        let classes = parents.iter().map(|&p| self.l.u.class_symbol(p)).collect::<Option<Vec<_>>>()?;
-        let object = if self.l.u.is_trait(classes[0]) { "Ljava/lang/Object;" } else { "" };
-        let parents: String = classes.iter().map(|&p| format!("L{};", self.class_name(p))).collect();
-        Some(format!("{object}{parents}"))
     }
 
     pub fn class_name(&self, c: SymbolId) -> String {

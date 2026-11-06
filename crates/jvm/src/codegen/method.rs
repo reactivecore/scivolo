@@ -15,6 +15,7 @@ use typer::tpd::{TNodeId, Tree};
 impl Gen<'_, '_> {
     pub fn gen_method(&mut self, cf: &mut ClassFile, dd: TNodeId, sym: SymbolId) -> Result<()> {
         let Tree::DefDef { paramss, rhs, .. } = *self.l.tpd.tree(dd) else { unreachable!("a method") };
+        self.check_annotations(sym, self.l.tpd.span(dd))?;
         let (mut desc, mut flags) = (method_descriptor(self.l.u, sym), java_flags(self.l, sym));
         if self.l.is_bridge(sym) {
             flags = (flags & !ACC_FINAL) | ACC_BRIDGE | ACC_SYNTHETIC;
@@ -28,17 +29,25 @@ impl Gen<'_, '_> {
         let static_ = flags & ACC_STATIC != 0;
         let this_class = (!static_ || trait_init).then(|| self.class_name(owner));
         let name = method_name(self.l.u, sym);
+        if name.contains("$anonfun") {
+            flags |= ACC_SYNTHETIC;
+        }
+        let params = self.l.tpd.clause_items(paramss).iter().flat_map(|&c| self.l.tpd.items(c));
+        let params: Vec<TNodeId> =
+            params.filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. })).copied().collect();
+        let param_syms: Vec<SymbolId> =
+            params.iter().map(|&p| self.l.tpd.sym(p).expect("a parameter's symbol")).collect();
+        let mixed_setter = self.l.mixed_in_from(sym).is_some() && name.ends_with("_$eq");
+        let erased = flags & ACC_BRIDGE != 0 || trait_init || self.l.is_lifted(sym) || mixed_setter;
         let Some(rhs) = rhs else {
             let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;
             cf.method(flags, &name, &desc, None, &mut |a, b| self.jvm_lub(a, b));
+            self.method_attributes(cf, sym, &desc, &param_syms, (erased, false));
             return Ok(());
         };
         let mut b = Body::new(&mut cf.pool, None, u16::from(!static_ || trait_init));
         b.this_class = this_class;
         b.method = Some(sym);
-        let params = self.l.tpd.clause_items(paramss).iter().flat_map(|&c| self.l.tpd.items(c));
-        let params: Vec<TNodeId> =
-            params.filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. })).copied().collect();
         let (mut param_descs, result) = classfile::split_method(&desc);
         if trait_init {
             param_descs.remove(0);
@@ -53,12 +62,14 @@ impl Gen<'_, '_> {
         self.method_body(&mut b, rhs, result)?;
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
-        self.trait_forwarder(cf, sym, flags, &desc);
+        self.method_attributes(cf, sym, &desc, &param_syms, (erased, trait_init));
+        self.trait_forwarder(cf, sym, flags, &desc, &param_syms);
         Ok(())
     }
 
     /// Generates `t` and drops its value.
     pub fn stat(&mut self, b: &mut Body, t: TNodeId) -> Result<()> {
+        self.line(b, t);
         if let Tree::Apply { fun, args } = *self.l.tpd.tree(t)
             && self.is_synchronized(fun)
         {
@@ -70,6 +81,7 @@ impl Gen<'_, '_> {
 
     /// Generates `t`; returns the stack slots its value takes.
     pub fn expr(&mut self, b: &mut Body, t: TNodeId) -> Result<i32> {
+        self.line(b, t);
         let span = self.l.tpd.span(t);
         let sym = self.l.tpd.sym(t);
         Ok(match self.l.tpd.tree(t).clone() {

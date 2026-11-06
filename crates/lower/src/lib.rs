@@ -107,6 +107,8 @@ pub struct Lower<'a> {
     static_selects: FxHashSet<TNodeId>,
     /// The local classes lifted out of blocks, each with its owner before.
     local_classes: FxHashMap<SymbolId, SymbolId>,
+    /// The local classes renamed when lifted, each with its name before.
+    local_names: FxHashMap<SymbolId, String>,
     /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
     endless_loops: FxHashSet<TNodeId>,
     /// The type quotes `Splicing` gave the tags of types of their quote, pickled even when
@@ -114,6 +116,8 @@ pub struct Lower<'a> {
     spliced_type_quotes: FxHashSet<TNodeId>,
     /// The accessors `Mixin` made in classes for the values of their traits, without a position.
     mixed_in: FxHashSet<SymbolId>,
+    /// Those accessors, each with the trait member it copies.
+    mixed_from: FxHashMap<SymbolId, SymbolId>,
     /// The specialized `apply` methods `SpecializeFunctions` made, without a position.
     specialized: FxHashSet<SymbolId>,
     /// The names of the field and `$lzyINIT` method of each lazy value a class gets from a trait
@@ -269,11 +273,13 @@ impl<'a> Lower<'a> {
             trait_forwards: FxHashMap::default(),
             applied_references: FxHashSet::default(),
             local_classes: FxHashMap::default(),
+            local_names: FxHashMap::default(),
             explicit_casts: FxHashSet::default(),
             null_casts: FxHashSet::default(),
             boxed_types: FxHashSet::default(),
             static_selects: FxHashSet::default(),
             mixed_in: FxHashSet::default(),
+            mixed_from: FxHashMap::default(),
             specialized: FxHashSet::default(),
             mixed_in_lazy_names: FxHashMap::default(),
             forwarded: FxHashMap::default(),
@@ -318,6 +324,21 @@ impl<'a> Lower<'a> {
     /// Whether `LambdaLift` lifted method `m` out of a term.
     pub fn is_lifted(&self, m: SymbolId) -> bool {
         self.lifted_from.contains_key(&m)
+    }
+
+    /// The owner of `s`, of a lifted local class the one before lifting.
+    pub fn original_owner(&self, s: SymbolId) -> Option<SymbolId> {
+        self.local_classes.get(&s).copied().or(self.u.symbol(s).owner)
+    }
+
+    /// The trait member that mixin accessor or forwarder `m` copies or calls.
+    pub fn mixed_in_from(&self, m: SymbolId) -> Option<SymbolId> {
+        self.mixed_from.get(&m).or_else(|| self.forwarded.get(&m)).copied()
+    }
+
+    /// The name of `s`, of a lifted local class the one before lifting.
+    pub fn original_name(&self, s: SymbolId) -> &str {
+        self.local_names.get(&s).unwrap_or(&self.u.symbol(s).name)
     }
 
     /// The `VarHandle` field of lazy value field `field` on the JVM.

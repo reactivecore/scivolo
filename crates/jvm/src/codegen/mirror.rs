@@ -5,7 +5,7 @@
 
 use super::{ClassBytes, Gen, method_descriptor, method_name, unsupported};
 use classfile::{
-    ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ClassFile, Code, FieldOp, Invoke,
+    ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ClassFile, Code, FieldOp, Invoke, Last,
 };
 use lower::Result;
 use std::collections::HashSet;
@@ -14,12 +14,20 @@ use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
-    pub fn gen_mirror_class(&mut self, td: TNodeId, module: SymbolId, module_name: &str) -> Result<()> {
+    /// The mirror class of top-level object class `module`, which declares classes `declared`.
+    pub fn gen_mirror_class(
+        &mut self,
+        td: TNodeId,
+        module: SymbolId,
+        module_name: &str,
+        declared: &[SymbolId],
+    ) -> Result<()> {
         let name = module_name.strip_suffix('$').unwrap_or(module_name);
         let mut cf = ClassFile::new(ACC_PUBLIC | ACC_FINAL | ACC_SUPER, name, "java/lang/Object", &[]);
         self.add_forwarders(&mut cf, module, None);
         let source = self.source_name(td);
         cf.source_file(&source);
+        self.nested_attributes(&mut cf, module, declared);
         let bytes = cf.bytes().or_else(|e| unsupported(self.l.tpd.span(td), e))?;
         self.out.push(ClassBytes { name: name.to_owned(), bytes });
         Ok(())
@@ -31,8 +39,8 @@ impl Gen<'_, '_> {
         let module_name = self.class_name(module);
         let module_desc = format!("L{module_name};");
         let mut methods = self.forwarded(module, companion);
-        methods.sort();
-        for (method, desc, synthetic) in methods {
+        methods.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+        for (method, desc, synthetic, m) in methods {
             let mut code = Code::new(0);
             code.field(FieldOp::GetStatic, &mut cf.pool, &module_name, "MODULE$", &module_desc);
             let (params, result) = classfile::split_method(&desc);
@@ -45,12 +53,26 @@ impl Gen<'_, '_> {
             code.ret(result);
             let flags = ACC_PUBLIC | ACC_STATIC | if synthetic { ACC_SYNTHETIC } else { 0 };
             cf.method(flags, &method, &desc, Some(code), &mut |_, _| None);
+            let accessor = self.l.u.symbol(m).kind == Kind::Val || method.ends_with("_$eq");
+            let target = self.l.mixed_in_from(m).unwrap_or(m);
+            let this = self.l.u.this_type(module);
+            let info = self.l.u.member_info(this, target);
+            if !(accessor && target != m)
+                && self.l.u.erased_method_type(info) == self.l.u.erased_method(target)
+                && let Some(sig) = super::signatures::member(self.l.u, target, info, &desc)
+            {
+                cf.member_signature(Last::Method, &sig);
+            }
         }
     }
 
     /// The names and descriptors of the methods of `module` forwarded to, each with whether its
     /// forwarder is synthetic: the members dotty's `addForwarders` takes.
-    fn forwarded(&mut self, module: SymbolId, companion: Option<SymbolId>) -> Vec<(String, String, bool)> {
+    fn forwarded(
+        &mut self,
+        module: SymbolId,
+        companion: Option<SymbolId>,
+    ) -> Vec<(String, String, bool, SymbolId)> {
         let mut conflicting = HashSet::new();
         for c in companion.map(|c| self.l.u.linearization(c)).unwrap_or_default() {
             for m in self.l.u.decls(c).unwrap_or_default() {
@@ -80,7 +102,7 @@ impl Gen<'_, '_> {
                 }
                 if !conflicting.contains(&self.l.u.symbol(m).name) {
                     let synthetic = self.l.is_bridge(m) || name.contains("$_setter_$");
-                    out.push((name, desc, synthetic));
+                    out.push((name, desc, synthetic, m));
                 }
             }
         }

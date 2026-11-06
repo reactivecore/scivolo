@@ -18,15 +18,19 @@ mod jdk_statics;
 mod literals;
 mod locals;
 mod lub;
+mod members;
 mod method;
 mod mirror;
 mod monitors;
+mod nested;
 mod prims;
+mod signatures;
 mod switches;
 mod traits;
 mod tries;
 
 use lower::{Lower, Result, Unsupported, jdk_class_name};
+use std::collections::HashMap;
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, ARTIFACT, ENUM, FIELDaccessor, FINAL, MUTABLE, PRIVATE, STATIC, TRAIT};
 use tasty::{Erased, SymbolId, Universe};
@@ -43,11 +47,14 @@ pub struct Gen<'l, 'a> {
     out: Vec<ClassBytes>,
     /// The targets of the serializable lambdas of the class being generated.
     lambdas: Vec<classfile::Handle>,
+    /// Classes by internal name: the unit's, and those `InnerClasses` looked up.
+    classes: HashMap<String, Option<SymbolId>>,
 }
 
 /// The class files of lowered unit `root`.
 pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<ClassBytes>> {
-    let mut g = Gen { l, out: Vec::new(), lambdas: Vec::new() };
+    let mut g = Gen { l, out: Vec::new(), lambdas: Vec::new(), classes: HashMap::new() };
+    g.collect_classes(root);
     let mut todo = vec![root];
     while let Some(t) = todo.pop() {
         match *g.l.tpd.tree(t) {
@@ -176,7 +183,8 @@ fn java_flags(l: &Lower, s: SymbolId) -> u16 {
     flags |= if abstract_ { ACC_ABSTRACT } else { 0 };
     flags |= if has(TRAIT) { ACC_INTERFACE } else { 0 };
     flags |= if is_static_member(l, s) && !class { ACC_STATIC } else { 0 };
-    flags |= if has(ARTIFACT) { ACC_SYNTHETIC } else { 0 };
+    let outer = !class && (u.symbol(s).name == "$outer" || u.symbol(s).name.ends_with("$$$outer"));
+    flags |= if has(ARTIFACT) || outer { ACC_SYNTHETIC } else { 0 };
     flags |= if has(ENUM) { ACC_ENUM } else { 0 };
     flags | if class && !has(TRAIT) { ACC_SUPER } else { 0 }
 }

@@ -10,7 +10,7 @@ pub use dynamic::{
 use rustc_hash::FxHashMap;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-enum Entry {
+pub enum Entry {
     Utf8(Box<[u16]>),
     Integer(i32),
     Float(u32),
@@ -120,7 +120,16 @@ impl Pool {
         self.entries.get(usize::from(i).checked_sub(1)?)
     }
 
-    fn text(&self, i: u16) -> String {
+    pub fn entries(&self) -> &[Entry] {
+        &self.entries
+    }
+
+    /// The index of `Utf8` entry `s`, if the pool has it.
+    pub fn find_utf8(&self, s: &str) -> Option<u16> {
+        self.index.get(&Entry::Utf8(s.encode_utf16().collect())).copied()
+    }
+
+    pub fn text(&self, i: u16) -> String {
         let Some(Entry::Utf8(s)) = self.entry(i) else { return String::new() };
         String::from_utf16_lossy(s)
     }

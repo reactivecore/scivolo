@@ -2,6 +2,7 @@
 
 mod descriptors;
 mod jumps;
+mod lines;
 mod ops;
 
 use descriptors::{kind, slots};
@@ -43,6 +44,9 @@ pub struct Code {
     /// Why the code cannot be written, e.g. a jump over 32 KiB.
     error: Option<String>,
     live: bool,
+    /// The `LineNumberTable`: offsets and their source lines.
+    lines: Vec<(u16, u16)>,
+    last_line: u16,
 }
 
 impl Code {
@@ -59,6 +63,8 @@ impl Code {
             exceptions: Vec::new(),
             error: None,
             live: true,
+            lines: Vec::new(),
+            last_line: 0,
         }
     }
 

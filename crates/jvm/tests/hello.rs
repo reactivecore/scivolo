@@ -117,6 +117,11 @@ fn jdkstatics_run_on_the_jvm() {
     runs_on_the_jvm("jdkstatics", "Jdkstatics");
 }
 
+#[test]
+fn attributes_run_on_the_jvm() {
+    runs_on_the_jvm("attributes", "Attributes");
+}
+
 /// Compiles `code` as tmp/jvm-test/`name`.scala and expects a refusal containing `message`.
 fn refuses(name: &str, code: &str, message: &str) {
     let source = root().join(format!("tmp/jvm-test/{name}.scala"));
@@ -131,6 +136,12 @@ fn refuses(name: &str, code: &str, message: &str) {
 fn a_try_on_a_stack_is_refused() {
     let code = "object R { def f(s: String): Int = 1 + (try s.length catch { case _: Exception => 0 }) }";
     refuses("refused", code, "where values are on the stack");
+}
+
+#[test]
+fn throws_is_refused() {
+    let code = "object R { @throws[java.io.IOException] def f(): Int = 1 }";
+    refuses("refusedthrows", code, "@throws");
 }
 
 #[test]
