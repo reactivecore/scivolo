@@ -35,6 +35,9 @@ JDK's declarations, as whole classes in place of javalib's (`--jdk-tasty libs/jd
 - A JDK member typed differently by javalib is fixed by declaring it in `JdkDeclarations.scala`
   with its overloads (checked with `javap`), then `just jdk-stubs`.
 - A javalib member the JDK lacks is hidden only if a declaration shares its name.
+- A method javalib declares in a class whose JDK class inherits it is called on the JDK's
+  declaring superclass (`WeakReference.get` on `Reference`): `scripts/jdk_inherited.py` lists
+  them by name from javalib's NIR and JDK 21's classes.
 - The JDK's constants (`static final` fields with a `ConstantValue`) are declared as constants:
   `scripts/jdk_constants.py` generates `JdkConstants.scala` from `javap -constants` for the
   classes the other files do not declare and lists the constants those lack. Like
