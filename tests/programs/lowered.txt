@@ -226,3 +226,4 @@ quotelambdas
 scala2macros
 typershapes
 samforwarders
+quoteshapes
