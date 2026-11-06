@@ -30,6 +30,23 @@ impl Typer<'_> {
         });
         as_args(self.u, result, &is_param) == Some(total)
     }
+
+    /// Alias `t` applied to wildcards and reduced, with its refinements of a wildcard bounded by it.
+    pub fn bounded_refinements(&mut self, t: TypeId) -> TypeId {
+        let t = self.u.dealias(t);
+        bounded(self.u, t)
+    }
+}
+
+fn bounded(u: &mut Universe, t: TypeId) -> TypeId {
+    u.map_type(t, &mut |u, part| {
+        let Type::Refined(parent, ref name, info) = *u.types().get(part) else { return None };
+        let Type::Alias(b) = *u.types().get(info) else { return None };
+        let Type::Bounds(..) = u.types().get(b) else { return None };
+        let name = name.clone();
+        let parent = bounded(u, parent);
+        Some(u.intern_type(Type::Refined(parent, name, b)))
+    })
 }
 
 /// How many of the parts `is_param` accepts occur in `t` as arguments of applied types, through
@@ -48,6 +65,10 @@ fn as_args(u: &Universe, t: TypeId, is_param: &dyn Fn(&Universe, TypeId) -> bool
         }
         Type::And(a, b) | Type::Or(a, b, _) => Some(as_args(u, a, is_param)? + as_args(u, b, is_param)?),
         Type::Annotated(a, _) => as_args(u, a, is_param),
+        Type::Refined(parent, _, info) => {
+            let n = as_args(u, parent, is_param)?;
+            Some(n + usize::from(matches!(*u.types().get(info), Type::Alias(a) if is_param(u, a))))
+        }
         _ => Some(0),
     }
 }
