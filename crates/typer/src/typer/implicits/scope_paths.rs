@@ -37,8 +37,9 @@ impl Typer<'_> {
     pub fn add_members(&mut self, class: SymbolId, prefix: TypeId, out: &mut ImplicitScope) {
         let key = self.static_form(prefix);
         for sym in self.implicit_members(class, false) {
-            let seen = out.implicits.iter().any(|c| c.sym == sym && c.prefix.map(|p| self.static_form(p)) == Some(key));
-            if !seen {
+            let same =
+                |t: &mut Self, c: &Candidate| c.sym == sym && c.prefix.map(|p| t.static_form(p)) == Some(key);
+            if !out.implicits.iter().any(|c| same(self, c)) {
                 out.implicits.push(Candidate { sym, prefix: Some(prefix) });
             }
         }
