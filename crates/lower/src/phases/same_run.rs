@@ -12,13 +12,13 @@ use crate::definitions::{specialized_applies, symbol};
 use crate::symbols::has;
 use rustc_hash::FxHashSet;
 use tasty::tags::*;
-use tasty::{Ast, Kind, NodeId, SymbolId};
+use tasty::{Ast, Flags, Kind, NodeId, SymbolId};
 
 /// The bridges and mixin forwarders of class `class` read from TASTy and compiled in the same
 /// run, each with the symbol whose span it has, made on first use; its private members its file
 /// refers to from another class become public under their expanded names.
 pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
-    if !l.u.is_same_run(class) || l.u.is_trait(class) {
+    if !l.u.is_same_run(class) {
         return Vec::new();
     }
     if let Some(made) = l.library_bridges.get(&class) {
@@ -28,6 +28,10 @@ pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
         super::accessor_names::ensure_not_private(l, s);
     }
     let mut made = Vec::new();
+    if l.u.is_trait(class) {
+        l.library_bridges.insert(class, made.clone());
+        return made;
+    }
     let none = FxHashSet::default();
     let mut erasures = Vec::new();
     for (member, other) in bridges::overriding_pairs(l, class, &none) {
@@ -60,8 +64,8 @@ pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
     made
 }
 
-/// The mixin forwarders dotty's `Mixin` gives library class `class`, each with `class`, whose
-/// span it has.
+/// The mixin forwarders and super accessor implementations dotty's `Mixin` and `ResolveSuper` give
+/// library class `class`, each with `class`, whose span it has.
 fn mixin_forwarders(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
     let mut made = Vec::new();
     for mixin in mixins(l, class) {
@@ -73,6 +77,22 @@ fn mixin_forwarders(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)>
             let mut s = symbol(&l.u.symbol(meth).name.clone(), Kind::Def, class, flags);
             s.target = l.u.symbol(meth).target.clone();
             let info = l.u.info(meth);
+            let sym = l.u.define(s);
+            l.u.set_info(sym, info);
+            made.push((sym, class));
+        }
+        if l.u.symbol(mixin).tree.is_none() {
+            continue;
+        }
+        for acc in l.u.decls(mixin).unwrap_or_default() {
+            let name = l.u.symbol(acc).name.clone();
+            if !has(l.u, acc, ARTIFACT) || super::resolve_super::decompose(l, acc, &name).is_none() {
+                continue;
+            }
+            let mut s = symbol(&name, Kind::Def, class, Flags::default().with(ARTIFACT));
+            s.target = l.u.symbol(acc).target.clone();
+            let this = l.u.this_type(class);
+            let info = l.u.member_info(this, acc);
             let sym = l.u.define(s);
             l.u.set_info(sym, info);
             made.push((sym, class));
