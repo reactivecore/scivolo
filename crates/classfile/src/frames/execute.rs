@@ -10,7 +10,7 @@ pub fn length(code: &[u8], at: usize) -> usize {
     match code[at] {
         0x10 | 0x12 | 0x15..=0x19 | 0x36..=0x3a | 0xbc => 2,
         0x11 | 0x13 | 0x14 | 0x84 | 0x99..=0xa7 | 0xb2..=0xb8 | 0xbb | 0xbd | 0xc0 | 0xc1 | 0xc6 | 0xc7 => 3,
-        0xb9 => 5,
+        0xb9 | 0xba => 5,
         0xc4 if code[at + 1] == 0x84 => 6,
         0xc4 => 4,
         _ => 1,
@@ -111,6 +111,11 @@ pub fn execute(f: &mut Frame, code: &[u8], at: usize, pool: &Pool, this: &str) -
             }
         }
         0xb6..=0xb9 => invoke(f, code, at, pool, this)?,
+        0xba => {
+            let (_, _, d) = pool.member_parts(u16_at(code, at + 1));
+            f.pop(method_slots(&d).0 as usize)?;
+            f.push_desc(split_method(&d).1);
+        }
         0xbb => f.push(VType::Uninit(at as u16)),
         0xbc => {
             f.pop(1)?;

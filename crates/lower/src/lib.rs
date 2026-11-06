@@ -16,6 +16,8 @@ pub use compile::{Refusal, compile, compile_with, lower};
 use definitions::Definitions;
 pub use options::Options;
 pub use output::NirFile;
+pub use phases::adapt::erased_type;
+pub use phases::sam::abstract_methods;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use symbols::is_jdk_object;
 use syntax::ast::Span;
@@ -292,5 +294,10 @@ impl<'a> Lower<'a> {
     /// Whether `while` loop `t` has no condition (dotty's `WhileDo(EmptyTree, _)`).
     pub fn is_endless_loop(&self, t: TNodeId) -> bool {
         self.endless_loops.contains(&t)
+    }
+
+    /// Whether `m` is a bridge `Bridges` made or a lambda's `$adapted` method.
+    pub fn is_bridge(&self, m: SymbolId) -> bool {
+        self.bridges.contains(&m)
     }
 }

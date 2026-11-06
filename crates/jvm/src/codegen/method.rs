@@ -2,8 +2,10 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! Method bodies: loads of literals, locals, fields and objects (dotty's `genMethod`, `genLoad`).
 
-use super::{Gen, class_internal, java_flags, method_descriptor, method_name, primitive_box, unsupported};
-use classfile::{ACC_ABSTRACT, ACC_FINAL, ACC_STATIC, ClassFile, Code, FieldOp, Label, Pool};
+use super::{Gen, java_flags, method_descriptor, method_name, unsupported};
+use classfile::{
+    ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_STATIC, ACC_SYNTHETIC, ClassFile, Code, FieldOp, Label, Pool,
+};
 use lower::Result;
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -54,7 +56,10 @@ impl<'p> Body<'p> {
 impl Gen<'_, '_> {
     pub fn gen_method(&mut self, cf: &mut ClassFile, dd: TNodeId, sym: SymbolId) -> Result<()> {
         let Tree::DefDef { paramss, rhs, .. } = *self.l.tpd.tree(dd) else { unreachable!("a method") };
-        let (desc, flags) = (method_descriptor(self.l.u, sym), java_flags(self.l.u, sym));
+        let (desc, mut flags) = (method_descriptor(self.l.u, sym), java_flags(self.l.u, sym));
+        if self.l.is_bridge(sym) {
+            flags = (flags & !ACC_FINAL) | ACC_BRIDGE | ACC_SYNTHETIC;
+        }
         let static_ = flags & ACC_STATIC != 0;
         let owner = self.l.u.symbol(sym).owner.expect("a method's owner");
         let this_class = (!static_).then(|| self.class_name(owner));
@@ -96,25 +101,16 @@ impl Gen<'_, '_> {
         let sym = self.l.tpd.sym(t);
         Ok(match self.l.tpd.tree(t).clone() {
             Tree::Literal { value } => self.literal(b, &value),
-            Tree::ClassLiteral { tpe } => {
-                let e = self.l.u.erase(tpe);
-                match primitive_box(&e) {
-                    Some(class) => {
-                        b.code.field(FieldOp::GetStatic, b.pool, class, "TYPE", "Ljava/lang/Class;")
-                    }
-                    None => {
-                        let index = b.pool.class(&class_internal(&e));
-                        b.code.ldc(index);
-                    }
-                }
-                1
-            }
+            Tree::ClassLiteral { tpe } => self.class_literal(b, tpe),
             Tree::Typed { expr, .. } => self.expr(b, expr)?,
             Tree::Block { stats, expr } => {
                 for s in self.l.tpd.items(stats).to_vec() {
                     self.stat(b, s)?;
                 }
                 self.expr(b, expr)?
+            }
+            Tree::This { .. } if let Some(c) = sym.filter(|&c| self.l.u.is_module_class(c)) => {
+                self.load_module(b, c, span)?
             }
             Tree::This { .. } => self.load_this(b),
             Tree::Ident { .. } | Tree::Select { .. }
@@ -157,13 +153,8 @@ impl Gen<'_, '_> {
             Tree::Return { expr, from } => self.gen_return(b, t, expr, from)?,
             Tree::SeqLiteral { elems, .. } => self.array_literal(b, t, elems)?,
             Tree::TypeApply { fun, args } => self.type_test(b, t, fun, args)?,
-            Tree::Apply { fun, args } => match self.primitive(b, t)? {
-                Some(slots) => slots,
-                None => match self.array_op(b, t, fun, args)? {
-                    Some(slots) => slots,
-                    None => self.apply(b, fun, args)?,
-                },
-            },
+            Tree::Apply { fun, args } => self.gen_apply(b, t, fun, args)?,
+            Tree::Closure { env, meth, tpt } => self.closure(b, t, env, meth, tpt)?,
             tree => return unsupported(span, format!("{} on the JVM", typer::tpd::print::class_name(&tree))),
         })
     }

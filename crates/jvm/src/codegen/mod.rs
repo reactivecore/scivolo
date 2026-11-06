@@ -6,8 +6,12 @@ mod access;
 mod arrays;
 mod callee;
 mod class;
+mod closures;
+mod concat;
 mod cond;
 mod control;
+mod deserialize;
+mod equality;
 mod literals;
 mod locals;
 mod lub;
@@ -31,11 +35,13 @@ pub struct ClassBytes {
 pub struct Gen<'l, 'a> {
     l: &'l mut Lower<'a>,
     out: Vec<ClassBytes>,
+    /// The targets of the serializable lambdas of the class being generated.
+    lambdas: Vec<classfile::Handle>,
 }
 
 /// The class files of lowered unit `root`.
 pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<ClassBytes>> {
-    let mut g = Gen { l, out: Vec::new() };
+    let mut g = Gen { l, out: Vec::new(), lambdas: Vec::new() };
     let mut todo = vec![root];
     while let Some(t) = todo.pop() {
         match *g.l.tpd.tree(t) {
@@ -148,7 +154,7 @@ fn java_flags(u: &Universe, s: SymbolId) -> u16 {
                 && u.symbol(o).owner.is_some_and(|p| u.symbol(p).kind == tasty::Kind::Package)
         });
     let private = !class && (has(PRIVATE) || top_module_constructor);
-    let abstract_ = has(ABSTRACT) || has(TRAIT);
+    let abstract_ = (class && has(ABSTRACT)) || has(TRAIT);
     let in_trait = owner.is_some_and(|o| u.is_trait(o));
     let final_ =
         (has(FINAL) || u.is_module_class(s)) && !constructor && !has(MUTABLE) && !in_trait && !abstract_;

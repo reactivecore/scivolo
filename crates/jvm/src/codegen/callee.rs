@@ -3,12 +3,13 @@
 //! What the JVM backend can call, and the class a call names (dotty's `genApply` and
 //! `genCallMethod`).
 
+use super::method::Body;
 use super::{Gen, descriptor, unsupported};
 use lower::Result;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
 use tasty::{Erased, SymbolId, Type};
-use typer::tpd::TNodeId;
+use typer::tpd::{List, TNodeId};
 
 /// The class or array type a virtual call names.
 pub enum Receiver {
@@ -27,6 +28,35 @@ fn is_primitive(name: &str) -> bool {
 }
 
 impl Gen<'_, '_> {
+    /// Call `t` of `fun` with `args`: a primitive operation, an array operation, a string
+    /// concatenation, `throw`, a hash, or a call of a method.
+    pub fn gen_apply(&mut self, b: &mut Body, t: TNodeId, fun: TNodeId, args: List) -> Result<i32> {
+        if let Some(slots) = self.primitive(b, t)? {
+            return Ok(slots);
+        }
+        if let Some(slots) = self.array_op(b, t, fun, args)? {
+            return Ok(slots);
+        }
+        if self.is_concat(t) {
+            return self.concat(b, t);
+        }
+        let m = self.l.tpd.sym(fun);
+        let s = m.map(|m| self.l.u.symbol(m));
+        let special = s.and_then(|s| s.owner).is_some_and(|o| self.l.u.symbol(o).name == "<special-ops>");
+        if special
+            && s.is_some_and(|s| s.name == "throw")
+            && let &[e] = self.l.tpd.items(args)
+        {
+            self.expr(b, e)?;
+            b.code.insn(0xbf);
+            return Ok(0);
+        }
+        if let Some(slots) = self.hash(b, t)? {
+            return Ok(slots);
+        }
+        self.apply(b, fun, args)
+    }
+
     /// Fails for method `m` of class `owner` that the backend cannot call yet: the primitive
     /// operations, array operations and `throw` dotty generates inline that `primitive`,
     /// `array_op` and `boxing` leave, and unexpanded inline methods.

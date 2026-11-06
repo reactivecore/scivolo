@@ -22,7 +22,7 @@ impl Gen<'_, '_> {
         let got = self.expr(b, t)?;
         match got - slots {
             0 => {}
-            _ if !b.code.live() => {}
+            d if !b.code.live() => b.code.set_stack(b.code.stack() - d),
             1 if slots == 0 => b.code.insn(0x57),
             2 if slots == 0 => b.code.insn(0x58),
             _ => return unsupported(self.l.tpd.span(t), "a value of another size than its context's"),

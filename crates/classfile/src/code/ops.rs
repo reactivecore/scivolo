@@ -1,8 +1,8 @@
 //! Constants, operand-free instructions (arithmetic, conversions, comparisons, array elements)
 //! and arrays.
 
-use super::{Code, slots};
-use crate::pool::Pool;
+use super::{Code, method_slots, slots};
+use crate::pool::{Constant, Handle, Pool};
 
 impl Code {
     /// Operand-free instruction `opcode` of the arithmetic, conversion, comparison, array element,
@@ -125,6 +125,20 @@ impl Code {
     pub fn instance_of(&mut self, pool: &mut Pool, class: &str) {
         let index = pool.class(class);
         self.op(0xc1, &index.to_be_bytes(), 0);
+    }
+
+    /// `invokedynamic` of call site `name` of type `descriptor` that `bootstrap` links with
+    /// arguments `args`.
+    pub fn invoke_dynamic(
+        &mut self,
+        pool: &mut Pool,
+        (name, descriptor): (&str, &str),
+        bootstrap: &Handle,
+        args: &[Constant],
+    ) {
+        let [i0, i1] = pool.invoke_dynamic(name, descriptor, bootstrap, args).to_be_bytes();
+        let (params, result) = method_slots(descriptor);
+        self.op(0xba, &[i0, i1, 0, 0], result - params);
     }
 
     /// Drops a value of descriptor `desc`.

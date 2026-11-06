@@ -10,7 +10,7 @@ use classfile::{FieldOp, Invoke};
 use lower::Result;
 use syntax::ast::Span;
 use tasty::SymbolId;
-use tasty::tags::{PRIVATE, STATIC};
+use tasty::tags::PRIVATE;
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -26,7 +26,7 @@ impl Gen<'_, '_> {
         let owner = self.l.u.symbol(f).owner.expect("a field's owner");
         let info = self.l.u.info(f);
         let desc = descriptor(&self.l.u.erase(info));
-        let instance = self.receiver(b, f, qualifier, prefix)?;
+        let instance = self.receiver(b, (f, false), qualifier, prefix)?;
         let op = match (instance, value) {
             (true, None) => FieldOp::GetField,
             (false, None) => FieldOp::GetStatic,
@@ -45,27 +45,28 @@ impl Gen<'_, '_> {
     /// without one whose prefix is `this` of or object class `prefix`; returns whether `m` is an
     /// instance member. The qualifier of a static member must be an object or `this`, whose load
     /// is elided. Fails for a member of a javalib object standing for the JDK's static members,
-    /// and for a static member of an object.
-    fn receiver(
+    /// and for a static member of an object. A value `m` that is `called` is its getter's call.
+    pub fn receiver(
         &mut self,
         b: &mut Body,
-        m: SymbolId,
+        (m, called): (SymbolId, bool),
         qualifier: Option<TNodeId>,
         prefix: Option<SymbolId>,
     ) -> Result<bool> {
-        let static_ = is_static_member(self.l.u, m);
+        let getter = called && self.l.u.symbol(m).kind == tasty::Kind::Val;
+        let static_ = is_static_member(self.l.u, m) && !getter;
         let owner = self.l.u.symbol(m).owner.expect("a member's owner");
         let span = qualifier.map_or(Span::NONE, |q| self.l.tpd.span(q));
         if lower::is_jdk_object(self.l.u, owner) {
             return unsupported(span, "static members of JDK classes on the JVM");
         }
-        if self.l.u.symbol(m).flags.has(STATIC) && self.l.u.is_module_class(owner) {
+        if self.l.u.is_module_class(owner) && self.l.u.is_annotated(m, "scala.annotation.static") {
             return unsupported(span, "static members of objects on the JVM");
         }
         match qualifier {
             Some(q) if static_ => {
                 let pure = matches!(self.l.tpd.tree(q), Tree::This { .. })
-                    || self.l.tpd.sym(q).is_some_and(|s| self.l.u.is_module(s));
+                    || self.l.tpd.sym(q).is_some_and(|s| self.l.u.is_module(s) || self.l.u.is_class(s));
                 if !pure {
                     return unsupported(self.l.tpd.span(q), "a static member of a qualifier with effects");
                 }
@@ -83,7 +84,10 @@ impl Gen<'_, '_> {
 
     /// Calls `fun` with `args`: a constructor of a new instance, a superclass method or a method
     /// of a receiver; returns the slots of the result.
-    pub fn apply(&mut self, b: &mut Body, fun: TNodeId, args: List) -> Result<i32> {
+    pub fn apply(&mut self, b: &mut Body, mut fun: TNodeId, args: List) -> Result<i32> {
+        while let Tree::TypeApply { fun: f, .. } = *self.l.tpd.tree(fun) {
+            fun = f;
+        }
         let span = self.l.tpd.span(fun);
         let Some(m) = self.l.tpd.sym(fun) else { return unsupported(span, "a call of a function value") };
         let arg_list = self.l.tpd.items(args).to_vec();
@@ -133,7 +137,7 @@ impl Gen<'_, '_> {
                 self.load_this(b);
                 Invoke::Special
             }
-            _ if !self.receiver(b, m, qualifier, prefix)? => Invoke::Static,
+            _ if !self.receiver(b, (m, true), qualifier, prefix)? => Invoke::Static,
             _ if self.l.u.symbol(m).flags.has(PRIVATE) || self.l.u.is_constructor(m) => Invoke::Special,
             _ => {
                 let receiver = match qualifier {
@@ -159,7 +163,8 @@ impl Gen<'_, '_> {
                 return unsupported(self.l.tpd.span(a), "an argument of another JVM type");
             }
         }
-        let interface = interface || kind == Invoke::Interface;
+        let in_trait = self.l.u.is_trait(owner) && owner_name == self.class_name(owner);
+        let interface = interface || kind == Invoke::Interface || in_trait;
         b.code.invoke_in(kind, interface, b.pool, (&owner_name, &name, &call_desc));
         Ok(result)
     }

@@ -70,6 +70,7 @@ impl Gen<'_, '_> {
             let code = b.code;
             cf.method(ACC_PUBLIC | ACC_STATIC, "<clinit>", "()V", Some(code), &mut |a, b| self.jvm_lub(a, b));
         }
+        self.deserialize_lambda(&mut cf).or_else(|e| unsupported(self.l.tpd.span(td), e))?;
         if let Some(signature) = self.class_signature(sym) {
             cf.signature(&signature);
         }
@@ -92,11 +93,15 @@ impl Gen<'_, '_> {
 
     /// The superclass and interfaces of class `c`, as internal names.
     fn parents(&mut self, c: SymbolId) -> (String, Vec<String>) {
-        let classes: Vec<SymbolId> =
-            self.l.u.parents(c).into_iter().filter_map(|p| self.l.u.class_symbol(p)).collect();
-        let (traits, classes): (Vec<_>, Vec<_>) = classes.into_iter().partition(|&s| self.l.u.is_trait(s));
-        let superclass = classes.first().map_or_else(|| "java/lang/Object".into(), |&s| self.class_name(s));
-        let mut interfaces: Vec<String> = traits.into_iter().map(|t| self.class_name(t)).collect();
+        let mut classes = Vec::new();
+        for p in self.l.u.parents(c) {
+            if let Some(s) = self.l.u.class_symbol(p) {
+                classes.push((self.l.u.is_trait(s), super::class_internal(&self.l.u.erase(p))));
+            }
+        }
+        let (traits, classes): (Vec<_>, Vec<_>) = classes.into_iter().partition(|p| p.0);
+        let superclass = classes.into_iter().next().map_or_else(|| "java/lang/Object".into(), |p| p.1);
+        let mut interfaces: Vec<String> = traits.into_iter().map(|p| p.1).collect();
         let serializable = "java/io/Serializable";
         if self.l.u.is_module_class(c) && !interfaces.iter().any(|i| i == serializable) {
             interfaces.push(serializable.into());

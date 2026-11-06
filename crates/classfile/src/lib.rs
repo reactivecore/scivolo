@@ -7,7 +7,10 @@ mod writer;
 
 pub use code::{Code, FieldOp, Invoke, Label, method_slots, split_method, value_slots};
 pub use frames::Lub;
-pub use pool::{Pool, Ref};
+pub use pool::{
+    Constant, Handle, Pool, REF_INVOKE_INTERFACE, REF_INVOKE_SPECIAL, REF_INVOKE_STATIC, REF_INVOKE_VIRTUAL,
+    Ref,
+};
 
 /// Java 17's class file version, dotty's default target.
 pub const MAJOR_VERSION: u16 = 61;
@@ -20,6 +23,7 @@ pub const ACC_FINAL: u16 = 0x0010;
 pub const ACC_SUPER: u16 = 0x0020;
 pub const ACC_INTERFACE: u16 = 0x0200;
 pub const ACC_ABSTRACT: u16 = 0x0400;
+pub const ACC_BRIDGE: u16 = 0x0040;
 pub const ACC_SYNTHETIC: u16 = 0x1000;
 
 /// An attribute: its name and its bytes.

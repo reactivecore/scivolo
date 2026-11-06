@@ -24,7 +24,9 @@ impl ClassFile {
                 member(&mut out, m)?;
             }
         }
-        attributes(&mut out, &self.attributes)?;
+        let bootstraps = self.pool.bootstrap_methods().map(|(name, bytes)| Attribute { name, bytes });
+        let attrs: Vec<&Attribute> = self.attributes.iter().chain(&bootstraps).collect();
+        attributes(&mut out, attrs)?;
         Ok(out)
     }
 }
@@ -36,7 +38,8 @@ fn member(out: &mut Vec<u8>, m: &Member) -> Result<(), String> {
     attributes(out, &m.attributes)
 }
 
-fn attributes(out: &mut Vec<u8>, attrs: &[Attribute]) -> Result<(), String> {
+fn attributes<'a>(out: &mut Vec<u8>, attrs: impl IntoIterator<Item = &'a Attribute>) -> Result<(), String> {
+    let attrs: Vec<&Attribute> = attrs.into_iter().collect();
     out.extend(count(attrs.len())?);
     for a in attrs {
         out.extend(a.name.to_be_bytes());

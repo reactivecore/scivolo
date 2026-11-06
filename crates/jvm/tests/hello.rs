@@ -67,11 +67,21 @@ fn traits_run_on_the_jvm() {
 }
 
 #[test]
+fn closures_run_on_the_jvm() {
+    runs_on_the_jvm("closures", "Closures");
+}
+
+#[test]
+fn concatenations_run_on_the_jvm() {
+    runs_on_the_jvm("concat", "Concat");
+}
+
+#[test]
 fn primitive_operations_are_refused() {
     let source = root().join("tmp/jvm-test/refused.scala");
     std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
-    std::fs::write(&source, "object R { def f(a: String, b: String): Boolean = a == b }").expect("writing");
+    std::fs::write(&source, "object R { def f(a: AnyRef): Int = a.synchronized(1) }").expect("writing");
     let (_, compiled) = compile("refused", &source);
     assert!(!compiled.status.success());
-    assert!(String::from_utf8_lossy(&compiled.stderr).contains("primitive operation =="));
+    assert!(String::from_utf8_lossy(&compiled.stderr).contains("primitive operation synchronized"));
 }
