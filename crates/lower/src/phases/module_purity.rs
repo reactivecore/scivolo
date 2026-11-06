@@ -75,5 +75,5 @@ fn creates_impure_module(l: &Lower, t: TNodeId) -> bool {
 /// Whether the class of object `module` and all its base classes initialize nothing.
 fn is_no_inits_real_class(l: &mut Lower, module: SymbolId) -> bool {
     let Some(class) = l.u.module_class(module) else { return true };
-    l.u.linearization(class).into_iter().all(|b| l.u.no_inits(b))
+    l.u.is_assured_no_inits(class) || l.u.linearization(class).into_iter().all(|b| l.u.no_inits(b))
 }

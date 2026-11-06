@@ -38,6 +38,15 @@ impl Universe {
         body_ok && parents.into_iter().all(|p| !calls_with_arguments(ast, p))
     }
 
+    /// Whether class `c` is `Some`, one of `Tuple1` to `Tuple22`, or the module class of one,
+    /// which initialize nothing whatever `no_inits` says (dotty's `isAssuredNoInits`).
+    pub fn is_assured_no_inits(&self, c: SymbolId) -> bool {
+        let name = self.full_name(c);
+        let name = name.strip_suffix('$').unwrap_or(&name);
+        let tuple = name.strip_prefix("scala.Tuple").and_then(|n| n.parse::<u8>().ok());
+        name == "scala.Some" || tuple.is_some_and(|n| (1..=22).contains(&n))
+    }
+
     /// Records that a unit replaces a class of the Scala library.
     pub fn set_builds_scala_library(&mut self) {
         self.builds_scala_library = true;
