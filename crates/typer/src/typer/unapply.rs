@@ -3,11 +3,10 @@
 //! Extractor patterns `C(p1, ..., pn)` (dotty's `typedUnApply`): `C.unapply` applied to the
 //! matched value, its result's product selectors or `get` the expected types of the patterns.
 
-use super::implicits::conversions::Goal;
 use super::{Pt, Typer};
-use crate::ctx::{Ctx, Mode};
+use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{List, NodeId, Span, TName, Tree};
+use syntax::ast::{List, NodeId, Tree};
 use tasty::{Type, TypeId, TypeVars};
 
 impl Typer<'_> {
@@ -86,8 +85,8 @@ impl Typer<'_> {
         }
         let own = self.pattern_type((sel, arg_type), vars, unapp, ctx)?;
         let sel = self.zonk(sel);
-        let normal_own = self.normalized(own);
-        let tested = self.stripped(normal_own) != self.stripped(sel);
+        let (normal_own, normal_sel) = (self.normalized(own), self.normalized(sel));
+        let tested = self.stripped(normal_own) != self.stripped(normal_sel);
         let result = self.applied_unapply_result(unapp, result, (binder, param), own);
         let (result, implicits) = self.unapply_implicits(unapp, result, own, ctx)?;
         let result = self.simplified(result);
@@ -119,69 +118,6 @@ impl Typer<'_> {
             return Ok(tree);
         }
         self.type_tested_unapply(id, tree, own, sel, ctx)
-    }
-
-    /// `qual.unapply` for extractor `qual`, typed as an expression, a member or an extension
-    /// method, or `qual.unapplySeq` if it has neither, an overloaded one applied to a value of
-    /// scrutinee type `sel` (dotty's `trySelectUnapply`); whether it is `unapplySeq`.
-    pub fn unapply_fun(
-        &mut self,
-        qual: NodeId,
-        sel: TypeId,
-        ctx: Ctx,
-    ) -> Result<(TNodeId, bool), &'static str> {
-        let unsupported = self.unsupported.clone();
-        let ctx = ctx.with_mode(Mode::NONE);
-        let ident = matches!(self.ast.tree(qual), Tree::Ident { .. });
-        let typed = self.typed(qual, Pt::Any, if ident { ctx.with_mode(Mode::EXTRACTOR) } else { ctx });
-        let tpe = self.tpd.tpe(typed);
-        let tpe = self.widen_if_unstable(tpe);
-        let member = self.members_found(tpe, "unapply", false).is_some();
-        let extension = !member && self.extension_visible("unapply", ctx);
-        let seq_found = !member
-            && (self.members_found(tpe, "unapplySeq", false).is_some()
-                || self.extension_visible("unapplySeq", ctx));
-        if extension && seq_found {
-            return Err("extension method");
-        }
-        if seq_found && !extension && self.view_may_supply_unapply(typed, ctx) {
-            return Err("unapply of an implicit view beside unapplySeq");
-        }
-        let seq = !extension && seq_found;
-        let span = self.ast.span(qual);
-        let splice = self.ast.node(Tree::TypeTree);
-        self.ast.with_span(splice, span);
-        self.splices.insert(splice, typed);
-        let name = TName { name: self.name(if seq { "unapplySeq" } else { "unapply" }), is_type: false };
-        let select = self.ast.node(Tree::Select { qualifier: splice, name });
-        self.ast.with_span(select, Span::synthetic(span.start(), span.end()));
-        let pt = self.scrutinee_proto(tpe, self.text(name.name).to_owned(), sel, ctx);
-        let unapp = self.typed_select(select, splice, name, pt, ctx);
-        if self.unsupported != unsupported {
-            return Err("extractor outside the subset");
-        }
-        let chosen = self.tpd.sym(self.tpd.meth_part(unapp)).map(|s| self.u.symbol(s).name.as_str());
-        if chosen != Some(self.text(name.name)) {
-            return Err("not an extractor");
-        }
-        Ok((unapp, seq))
-    }
-
-    /// Whether an implicit conversion or an extension method of an implicit value may give `qual`
-    /// a member `unapply`.
-    fn view_may_supply_unapply(&mut self, qual: TNodeId, ctx: Ctx) -> bool {
-        let reported = self.diags.items.len();
-        let (found, clean, _) = self.speculatively(|t| t.viewed(qual, Goal::Member("unapply"), ctx));
-        self.retract_diags(reported);
-        match found {
-            Ok(None) if clean => false,
-            Ok(Some(_)) => true,
-            _ => {
-                let site = self.u.widen(self.tpd.tpe(qual));
-                let q = self.u.class_symbol(site);
-                q.is_none_or(|q| self.may_view_to((q, site), "unapply", ctx) != Some(false))
-            }
-        }
     }
 
     /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type.
