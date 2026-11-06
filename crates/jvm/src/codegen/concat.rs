@@ -57,6 +57,7 @@ impl Gen<'_, '_> {
             if let Tree::Apply { fun, args } = *self.l.tpd.tree(*o)
                 && let (Some(m), &[value]) = (self.l.tpd.sym(fun), self.l.tpd.items(args))
                 && self.l.is_box(m)
+                && lower::erased_type(self.l, value) != tasty::Erased::Unit
             {
                 *o = value;
             }

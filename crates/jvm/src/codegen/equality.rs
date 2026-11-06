@@ -26,23 +26,11 @@ impl Gen<'_, '_> {
         labels: [Label; 3],
     ) -> Result<()> {
         let [success, failure, fall] = labels;
-        let eq = self.l.equality()?;
+        self.l.equality()?;
         if self.must_use_any_comparator(left, right) {
-            let number =
-                |g: &mut Self, t| g.erased_class(t).is_some_and(|c| g.l.u.derives_from(c, eq.number));
-            let character =
-                |g: &mut Self, t| g.erased_class(t).is_some_and(|c| g.l.u.derives_from(c, eq.character));
-            let (name, desc) = match () {
-                _ if !number(self, left) => ("equals", OBJECTS.1),
-                _ if number(self, right) => ("equalsNumNum", "(Ljava/lang/Number;Ljava/lang/Number;)Z"),
-                _ if character(self, right) => {
-                    ("equalsNumChar", "(Ljava/lang/Number;Ljava/lang/Character;)Z")
-                }
-                _ => ("equalsNumObject", "(Ljava/lang/Number;Ljava/lang/Object;)Z"),
-            };
             self.expr(b, left)?;
             self.expr(b, right)?;
-            b.code.invoke(Invoke::Static, b.pool, "scala/runtime/BoxesRunTime", name, desc);
+            b.code.invoke(Invoke::Static, b.pool, "scala/runtime/BoxesRunTime", "equals", OBJECTS.1);
         } else if is_null(self, left) || is_null(self, right) {
             self.expr(b, if is_null(self, left) { right } else { left })?;
             jump_zero(b, true, Test::Eq, success, failure, fall);

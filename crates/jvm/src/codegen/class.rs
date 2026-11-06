@@ -101,7 +101,8 @@ impl Gen<'_, '_> {
         }
         let (traits, classes): (Vec<_>, Vec<_>) = classes.into_iter().partition(|p| p.0);
         let superclass = classes.into_iter().next().map_or_else(|| "java/lang/Object".into(), |p| p.1);
-        let mut interfaces: Vec<String> = traits.into_iter().map(|p| p.1).collect();
+        let mut interfaces: Vec<String> =
+            traits.into_iter().map(|p| p.1).filter(|i| i != "java/lang/Object").collect();
         let serializable = "java/io/Serializable";
         if self.l.u.is_module_class(c) && !interfaces.iter().any(|i| i == serializable) {
             interfaces.push(serializable.into());

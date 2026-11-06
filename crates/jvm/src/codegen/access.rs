@@ -169,9 +169,17 @@ impl Gen<'_, '_> {
         Ok(result)
     }
 
-    /// The class named in the descriptor of `m` if `qualifier` is a `super`; else `owner`.
+    /// The class named in the descriptor of `m` if `qualifier` is a `super`, else `owner`; also
+    /// `owner` for a trait's `m` called on a `super` without mixin (dotty's `adaptIfSuper`).
     fn super_receiver(&mut self, qualifier: Option<TNodeId>, m: SymbolId, owner: SymbolId) -> SymbolId {
-        let qualifier = qualifier.filter(|&q| matches!(self.l.tpd.tree(q), Tree::Super { .. }));
+        let qualifier = qualifier.filter(|&q| match *self.l.tpd.tree(q) {
+            Tree::Super { mix, .. } => {
+                let unmixed =
+                    matches!(*self.l.tpd.tree(mix), Tree::Ident { name } if self.l.names.text(name.name).is_empty());
+                !(unmixed && self.l.u.is_trait(owner))
+            }
+            _ => false,
+        });
         match qualifier.and_then(|q| self.receiver_class(q, m)) {
             Some(Receiver::Class(c)) => c,
             _ => owner,

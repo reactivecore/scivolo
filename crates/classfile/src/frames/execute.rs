@@ -110,12 +110,7 @@ pub fn execute(f: &mut Frame, code: &[u8], at: usize, pool: &Pool, this: &str) -
                 _ => drop(f.pop(slots + 1)?),
             }
         }
-        0xb6..=0xb9 => invoke(f, code, at, pool, this)?,
-        0xba => {
-            let (_, _, d) = pool.member_parts(u16_at(code, at + 1));
-            f.pop(method_slots(&d).0 as usize)?;
-            f.push_desc(split_method(&d).1);
-        }
+        0xb6..=0xba => invoke(f, code, at, pool, this)?,
         0xbb => f.push(VType::Uninit(at as u16)),
         0xbc => {
             f.pop(1)?;
@@ -184,7 +179,7 @@ fn store(f: &mut Frame, kind: u8, slot: u16) -> Result<(), String> {
 fn invoke(f: &mut Frame, code: &[u8], at: usize, pool: &Pool, this: &str) -> Result<(), String> {
     let (_, name, d) = pool.member_parts(u16_at(code, at + 1));
     f.pop(method_slots(&d).0 as usize)?;
-    if code[at] != 0xb8 {
+    if !matches!(code[at], 0xb8 | 0xba) {
         let receiver = f.pop(1)?;
         if name == "<init>" {
             let class = match receiver {
