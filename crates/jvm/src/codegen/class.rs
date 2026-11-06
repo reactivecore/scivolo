@@ -36,11 +36,7 @@ impl Gen<'_, '_> {
                     init.stats = self.gen_module_constructor(&mut cf, stat, s)?;
                 }
                 &Tree::DefDef { rhs, .. } if self.l.u.symbol(s).name == "<clinit>" => init.statics = rhs,
-                Tree::DefDef { rhs, .. } if stat == constr && self.l.u.is_trait(sym) => {
-                    if rhs.is_some() {
-                        return unsupported(self.l.tpd.span(stat), "trait constructors on the JVM");
-                    }
-                }
+                Tree::DefDef { rhs: None, .. } if stat == constr && self.l.u.is_trait(sym) => {}
                 Tree::DefDef { .. } if self.l.u.symbol(s).name == "$init$" => {
                     return unsupported(self.l.tpd.span(stat), "trait initializers on the JVM");
                 }

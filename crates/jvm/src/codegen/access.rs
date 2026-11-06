@@ -128,10 +128,10 @@ impl Gen<'_, '_> {
                 Invoke::Special
             }
             Some(Tree::Super { .. }) if self.l.u.is_trait(super_receiver) => {
-                if !self.l.u.is_trait(owner) || self.is_java_class(owner) || self.l.u.is_constructor(m) {
+                if !self.l.u.is_trait(owner) || self.is_java_class(owner) {
                     return unsupported(
                         span,
-                        "a super call of a Java or class method or a constructor via a trait on the JVM",
+                        "a super call of a Java or class method via a trait on the JVM",
                     );
                 }
                 owner_name = self.class_name(owner);

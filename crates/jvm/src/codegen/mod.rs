@@ -131,6 +131,7 @@ fn method_descriptor(u: &mut Universe, m: SymbolId) -> String {
 /// The name of method `m` in class files.
 fn method_name(u: &Universe, m: SymbolId) -> String {
     match u.is_constructor(m) {
+        true if u.symbol(m).owner.is_some_and(|o| u.is_trait(o)) => "$init$".into(),
         true => "<init>".into(),
         false => tasty::encode(&u.symbol(m).name),
     }

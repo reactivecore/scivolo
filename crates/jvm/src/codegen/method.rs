@@ -4,7 +4,9 @@
 
 use super::body::Body;
 use super::{Gen, java_flags, method_descriptor, method_name, unsupported};
-use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_STATIC, ACC_SYNTHETIC, ClassFile, FieldOp};
+use classfile::{
+    ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile, FieldOp,
+};
 use lower::Result;
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -13,26 +15,34 @@ use typer::tpd::{TNodeId, Tree};
 impl Gen<'_, '_> {
     pub fn gen_method(&mut self, cf: &mut ClassFile, dd: TNodeId, sym: SymbolId) -> Result<()> {
         let Tree::DefDef { paramss, rhs, .. } = *self.l.tpd.tree(dd) else { unreachable!("a method") };
-        let (desc, mut flags) = (method_descriptor(self.l.u, sym), java_flags(self.l.u, sym));
+        let (mut desc, mut flags) = (method_descriptor(self.l.u, sym), java_flags(self.l.u, sym));
         if self.l.is_bridge(sym) {
             flags = (flags & !ACC_FINAL) | ACC_BRIDGE | ACC_SYNTHETIC;
         }
-        let static_ = flags & ACC_STATIC != 0;
         let owner = self.l.u.symbol(sym).owner.expect("a method's owner");
-        let this_class = (!static_).then(|| self.class_name(owner));
+        let trait_init = self.l.u.is_constructor(sym) && self.l.u.is_trait(owner);
+        if trait_init {
+            desc = format!("(L{};{}", self.class_name(owner), &desc[1..]);
+            flags = ACC_PUBLIC | ACC_STATIC;
+        }
+        let static_ = flags & ACC_STATIC != 0;
+        let this_class = (!static_ || trait_init).then(|| self.class_name(owner));
         let name = method_name(self.l.u, sym);
         let Some(rhs) = rhs else {
             let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;
             cf.method(flags, &name, &desc, None, &mut |a, b| self.jvm_lub(a, b));
             return Ok(());
         };
-        let mut b = Body::new(&mut cf.pool, None, u16::from(!static_));
+        let mut b = Body::new(&mut cf.pool, None, u16::from(!static_ || trait_init));
         b.this_class = this_class;
         b.method = Some(sym);
         let params = self.l.tpd.clause_items(paramss).iter().flat_map(|&c| self.l.tpd.items(c));
         let params: Vec<TNodeId> =
             params.filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. })).copied().collect();
-        let (param_descs, result) = classfile::split_method(&desc);
+        let (mut param_descs, result) = classfile::split_method(&desc);
+        if trait_init {
+            param_descs.remove(0);
+        }
         if params.len() != param_descs.len() {
             return unsupported(self.l.tpd.span(dd), "parameters other than the descriptor's on the JVM");
         }
