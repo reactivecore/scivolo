@@ -28,7 +28,8 @@ impl Typer<'_> {
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));
         }
-        let (mut converted, mut widened, mut tupled, mut defined) = (false, false, false, false);
+        let (mut converted, mut widened, mut tupled, mut defined, mut healed) =
+            (false, false, false, false, false);
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.instantiated_selected(qual_tpe);
@@ -105,6 +106,11 @@ impl Typer<'_> {
                 return self.extension_select(id, qual, name, pt, ctx);
             }
             match self.viewed(qual, Goal::Member(&text), ctx) {
+                Ok(None) | Err(_) if !healed && self.gadt_narrowing() => {
+                    healed = true;
+                    qual = self.gadt_healed(qual, ctx).unwrap_or(qual);
+                    continue;
+                }
                 Ok(Some(Viewed::Converted(q))) => qual = q,
                 Ok(Some(Viewed::Extension(c))) => {
                     return self.implicit_extension_select(id, qual, c, name, pt, ctx);
@@ -194,9 +200,5 @@ impl Typer<'_> {
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);
         select
-    }
-
-    fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {
-        self.not_a_member(id, qual, name, ctx).unwrap_or_else(|| self.unsupported(id, "member not found"))
     }
 }

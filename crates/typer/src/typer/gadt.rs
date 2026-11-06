@@ -5,7 +5,19 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
+use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe};
+
+/// The type `t` refers to plainly or seen from `this` of its owner.
+pub fn plain_type_ref(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
+    match *u.types().get(t) {
+        Type::Sym(None, s) => Some(s),
+        Type::Sym(Some(p), s) => match *u.types().get(p) {
+            Type::This(c) => (u.class_symbol(c) == u.symbol(s).owner).then_some(s),
+            _ => None,
+        },
+        _ => None,
+    }
+}
 
 impl Typer<'_> {
     /// Adds pattern-bound types `syms` to the GADT-constrained types of the case being typed.
@@ -25,8 +37,15 @@ impl Typer<'_> {
         let Some(of) = self.u.symbol(s).owner.filter(|_| self.u.symbol(s).kind == Kind::TypeParam) else {
             return false;
         };
+        let host = self.u.symbol(of).owner.filter(|&h| {
+            self.u.symbol(of).kind == Kind::Def
+                && !matches!(self.u.symbol(h).kind, Kind::Class | Kind::Package)
+        });
         let (mut owner, mut in_method) = (Some(ctx.owner), false);
         while let Some(o) = owner {
+            if host == Some(o) {
+                return true;
+            }
             match self.u.symbol(o).kind {
                 Kind::Def => in_method = true,
                 Kind::Class if in_method => {}
@@ -64,8 +83,7 @@ impl Typer<'_> {
         match self.u.types().get(t).clone() {
             Type::Sym(_, s) if self.u.symbol(s).kind == Kind::TypeParam || self.gadt.bound.contains(&s) => {
                 let info = self.u.info(s);
-                let Type::Bounds(_, hi) = *self.u.types().get(info) else { return false };
-                if matches!(self.u.types().get(hi), Type::Lambda { .. }) {
+                if !matches!(self.u.types().get(info), Type::Bounds(..)) {
                     return false;
                 }
                 if !params.contains(&s) {
@@ -82,9 +100,24 @@ impl Typer<'_> {
                 self.first_order_params(a, params) && self.first_order_params(b, params)
             }
             Type::Annotated(a, _) | Type::Alias(a) => self.first_order_params(a, params),
-            Type::TypeRef(..) | Type::This(_) | Type::Package(_) => true,
+            Type::Lambda { result, .. } => self.first_order_params(result, params),
+            Type::TypeRef(..) | Type::This(_) | Type::Package(_) | Type::Param(..) => true,
             _ => false,
         }
+    }
+
+    /// A reference to type `s`, a class's type parameter seen from `this`.
+    pub fn gadt_ref(&mut self, s: SymbolId) -> TypeId {
+        let class = self
+            .u
+            .symbol(s)
+            .owner
+            .filter(|&o| self.u.symbol(s).kind == Kind::TypeParam && self.u.is_class(o));
+        let prefix = class.map(|c| {
+            let class = self.u.intern_type(Type::Sym(None, c));
+            self.u.intern_type(Type::This(class))
+        });
+        self.u.intern_type(Type::Sym(prefix, s))
     }
 
     /// The bounds of type `s`: its GADT bounds, else its declared ones.

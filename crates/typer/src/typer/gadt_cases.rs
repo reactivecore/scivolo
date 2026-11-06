@@ -22,12 +22,11 @@ pub struct Gadt {
 }
 
 impl Typer<'_> {
-    /// `f` as the typing of a case: the bounds its pattern narrows restored after; none narrowed
-    /// unless `narrowing`.
-    pub fn in_gadt_case<R>(&mut self, narrowing: bool, f: impl FnOnce(&mut Self) -> R) -> R {
+    /// `f` as the typing of a case: the bounds its pattern narrows restored after.
+    pub fn in_gadt_case<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
         let (mark, bound, open) = (self.gadt.saved.len(), self.gadt.bound.len(), self.gadt.open.len());
         let cases = self.gadt.cases;
-        self.gadt.cases = if narrowing { cases + 1 } else { 0 };
+        self.gadt.cases = cases + 1;
         let result = f(self);
         self.gadt.cases = cases;
         self.gadt.bound.truncate(bound);

@@ -107,8 +107,7 @@ impl Typer<'_> {
         case: Option<TypeId>,
         ctx: Ctx,
     ) -> TNodeId {
-        let narrowing = !ctx.mode.is(Mode::INLINE_CASE);
-        self.in_gadt_case(narrowing, |t| t.typed_case_under_gadt(id, (sel, selector), pt, case, ctx))
+        self.in_gadt_case(|t| t.typed_case_under_gadt(id, (sel, selector), pt, case, ctx))
     }
 
     fn typed_case_under_gadt(

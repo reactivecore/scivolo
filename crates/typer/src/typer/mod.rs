@@ -93,6 +93,8 @@ mod gadt;
 mod gadt_cases;
 mod gadt_cast;
 mod gadt_narrow;
+mod gadt_typed_pattern;
+mod gadt_upcast;
 mod generic_arrays;
 mod harmonize;
 mod ident_hint;

@@ -5,6 +5,7 @@
 //! (dotty's `constrainPatternType` in `GadtConstraintInference` mode, `narrowGADTBounds`).
 
 use super::Typer;
+use super::gadt::plain_type_ref;
 use crate::ctx::Ctx;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
@@ -28,19 +29,22 @@ impl Typer<'_> {
             }
             self.constraint.rollback(mark);
         }
-        let class_type = |u: &mut tasty::Universe, t: TypeId| match *u.types().get(t) {
-            Type::Applied(tycon, _) => u.class_symbol(tycon).is_some_and(|c| u.is_class(c)),
-            Type::Sym(_, c) => u.is_class(c),
-            _ => false,
-        };
-        let pat_type = self.u.dealias(pat);
-        let pat_type = self.u.widen(pat_type);
+        fn class_type(u: &mut tasty::Universe, t: TypeId) -> bool {
+            let t = u.dealias(t);
+            match *u.types().get(t) {
+                Type::Applied(tycon, _) => u.class_symbol(tycon).is_some_and(|c| u.is_class(c)),
+                Type::Sym(_, c) => u.is_class(c),
+                Type::Or(a, b, _) => class_type(u, a) && class_type(u, b),
+                _ => false,
+            }
+        }
+        let sel = self.this_widened(sel);
         let core = match *self.u.types().get(sel) {
             Type::Annotated(t, _) => t,
             _ => sel,
         };
         let core = self.u.dealias(core);
-        if !class_type(self.u, core) || matches!(self.u.types().get(pat_type), Type::Or(..)) {
+        if !class_type(self.u, core) {
             return Ok(None);
         }
         let syms = self.gadt_symbols(sel, ctx);
@@ -50,9 +54,9 @@ impl Typer<'_> {
         let first = self.constraint.count();
         let vars: Vec<TypeId> = syms.iter().map(|_| self.constraint.fresh(self.u)).collect();
         let subst = |u: &mut tasty::Universe, t: TypeId| {
-            u.map_type(t, &mut |u, x| match *u.types().get(x) {
-                Type::Sym(None, s) => syms.iter().position(|&b| b == s).map(|i| vars[i]),
-                _ => None,
+            u.map_type(t, &mut |u, x| {
+                let s = plain_type_ref(u, x)?;
+                syms.iter().position(|&b| b == s).map(|i| vars[i])
             })
         };
         for (&s, &v) in syms.iter().zip(&vars) {
@@ -81,7 +85,7 @@ impl Typer<'_> {
             let shared =
                 r != vars[i] || reps.iter().filter(|&&x| x == r).count() > 1 || pattern_reps.contains(&r);
             if shared && self.constraint.instance(p).is_none() {
-                let sym = self.u.intern_type(Type::Sym(None, syms[i]));
+                let sym = self.gadt_ref(syms[i]);
                 self.constraint.instantiate(p, sym);
             }
         }
@@ -93,28 +97,33 @@ impl Typer<'_> {
     pub fn narrow_gadt(&mut self, vars: &[(SymbolId, TypeId)]) -> Result<(), &'static str> {
         let mut bounds = Vec::new();
         for &(s, v) in vars {
-            let Type::Var(id) = *self.u.types().get(v) else { continue };
-            let (lo, hi) =
-                self.constraint.instance(id).map_or_else(|| self.constraint.bounds(id), |t| (t, t));
+            let Type::Var(mut id) = *self.u.types().get(v) else { continue };
+            let (lo, hi) = loop {
+                match self.constraint.instance(id).map(|t| (t, self.u.types().get(t).clone())) {
+                    Some((_, Type::Var(next))) => id = next,
+                    Some((t, _)) if plain_type_ref(self.u, t) != Some(s) => break (t, t),
+                    _ => break self.constraint.bounds(id),
+                }
+            };
             bounds.push((s, lo, hi));
         }
         for &(s, v) in vars {
             let Type::Var(id) = *self.u.types().get(v) else { continue };
             if self.constraint.instance(id).is_none() {
-                let sym = self.u.intern_type(Type::Sym(None, s));
+                let sym = self.gadt_ref(s);
                 self.constraint.instantiate(id, sym);
             }
         }
         let mut narrowed = Vec::new();
         for (s, lo, hi) in bounds {
             let (lo, hi) = (self.zonk(lo), self.zonk(hi));
+            let (lo, hi) = (self.u.dealias(lo), self.u.dealias(hi));
             if [lo, hi].iter().any(|&t| self.has_type_var(t)) {
                 return Err("GADT bound of an undetermined type");
             }
             let Some((old_lo, old_hi)) = self.current_bounds(s) else { continue };
-            let own = self.u.intern_type(Type::Sym(None, s));
-            let lo = if lo == own { old_lo } else { lo };
-            let hi = if hi == own { old_hi } else { hi };
+            let lo = if plain_type_ref(self.u, lo) == Some(s) { old_lo } else { lo };
+            let hi = if plain_type_ref(self.u, hi) == Some(s) { old_hi } else { hi };
             if (lo, hi) != (old_lo, old_hi) {
                 narrowed.push((s, lo, hi));
             }
@@ -129,12 +138,13 @@ impl Typer<'_> {
     /// `sel` otherwise (dotty's `constrainPatternType` in `typedTyped`).
     pub fn narrow_by_type_pattern(&mut self, pat: TypeId, sel: TypeId, ctx: Ctx) {
         let mark = self.constraint.mark();
-        if self.constrain_pattern(pat, sel).unwrap_or(true) {
+        if self.constrain_pattern(pat, sel) == Ok(true) {
             self.constraint.rollback(mark);
             return;
         }
         self.constraint.rollback(mark);
-        let sel = match self.refines_invariantly(pat, sel) {
+        let sel = self.this_widened(sel);
+        let sel = match self.is_singleton(pat) || self.refines_invariantly(pat, sel) {
             true => sel,
             false => match self.without_variant_args(sel) {
                 Some(widened) => widened,
@@ -148,8 +158,17 @@ impl Typer<'_> {
         }
     }
 
+    /// `this` of a class widened to the class applied to its type parameters, else `t`.
+    fn this_widened(&mut self, t: TypeId) -> TypeId {
+        let Type::This(c) = *self.u.types().get(t) else { return t };
+        match self.u.class_symbol(c) {
+            Some(class) if !self.u.type_params(class).is_empty() => self.u.this_type(class),
+            _ => t,
+        }
+    }
+
     /// Whether `t` refers to a type variable.
-    fn has_type_var(&mut self, t: TypeId) -> bool {
+    pub fn has_type_var(&mut self, t: TypeId) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |u, p| {
             found |= matches!(u.types().get(p), Type::Var(_));

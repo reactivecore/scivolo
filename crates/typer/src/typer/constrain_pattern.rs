@@ -10,19 +10,34 @@ use tasty::{SymbolId, Type, TypeId, TypeVars, VarId};
 impl Typer<'_> {
     /// Whether pattern type `pat` conforms to `sel`, constraining type variables; for a union
     /// `sel`, by each operand separately, keeping the weaker of two constraints or neither if
-    /// they are incomparable.
+    /// they are incomparable; a union `pat` that does not conform likewise by each operand.
     pub fn constrain_pattern(&mut self, pat: TypeId, sel: TypeId) -> Result<bool, &'static str> {
         let dealiased = self.dealiased(sel);
-        let Type::Or(a, b, _) = *self.u.types().get(dealiased) else { return Ok(self.conforms(pat, sel)) };
+        if let Type::Or(a, b, _) = *self.u.types().get(dealiased) {
+            return self.constrain_either((pat, a), (pat, b));
+        }
+        if self.conforms(pat, sel) {
+            return Ok(true);
+        }
+        let dealiased = self.dealiased(pat);
+        match *self.u.types().get(dealiased) {
+            Type::Or(a, b, _) => self.constrain_either((a, sel), (b, sel)),
+            _ => Ok(self.constrain_upcast(pat, sel)),
+        }
+    }
+
+    /// Whether one of the pairs of pattern and selector types constrains, keeping the weaker of
+    /// two constraints or neither if they are incomparable (dotty's `either`).
+    fn constrain_either(&mut self, l: (TypeId, TypeId), r: (TypeId, TypeId)) -> Result<bool, &'static str> {
         let mark = self.constraint.mark();
-        if !self.constrain_operand(pat, a)? {
+        if !self.constrain_operand(l.0, l.1)? {
             self.constraint.rollback(mark);
-            return self.constrain_operand(pat, b);
+            return self.constrain_operand(r.0, r.1);
         }
         let left = self.constraint.changes_since(mark);
         let left_bounds = self.var_bounds(&left.vars);
         self.constraint.rollback(mark);
-        if !self.constrain_operand(pat, b)? {
+        if !self.constrain_operand(r.0, r.1)? {
             self.constraint.rollback(mark);
             self.constraint.redo(left);
             return Ok(true);
@@ -61,7 +76,7 @@ impl Typer<'_> {
     }
 
     /// dotty's `classesMayBeCompatible`.
-    fn classes_may_be_compatible(&mut self, p: SymbolId, s: SymbolId) -> bool {
+    pub fn classes_may_be_compatible(&mut self, p: SymbolId, s: SymbolId) -> bool {
         let flags = |t: &mut Self, c: SymbolId| t.u.symbol(c).flags;
         let (pf, sf) = (flags(self, p), flags(self, s));
         if pf.has(tasty::tags::FINAL) {
