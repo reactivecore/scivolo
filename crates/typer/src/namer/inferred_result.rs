@@ -69,7 +69,11 @@ impl Typer<'_> {
             widened
         });
         let defined = self.fully_defined_rhs(widened, rhs);
-        let widened = if defined == widened { defined } else { self.simplified_inferred(defined) };
+        let widened = if defined == widened {
+            defined
+        } else {
+            self.simplified_inferred_as(defined, raw_default.is_some())
+        };
         deskolemized(self.u, widened, 1).unwrap_or_else(|| {
             self.unsupported(rhs, "skolem in an inferred type");
             widened

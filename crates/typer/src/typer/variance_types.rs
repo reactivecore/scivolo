@@ -84,16 +84,9 @@ impl Typer<'_> {
             }
             (Type::TypeRef(p, _) | Type::TermRef(p, _), _) => go(self, p, v.max(0)),
             (Type::Applied(tycon, args), _) => {
-                let alias = self.u.referenced(tycon).and_then(|s| self.u.alias_of(s));
-                if alias.is_some_and(|a| !matches!(self.u.types().get(a), Type::Match { .. })) {
-                    let d = self.u.dealias(t);
-                    if d != t {
-                        return go(self, d, v);
-                    }
-                }
                 let variances = match (self.u.types().get(tycon).clone(), checked) {
                     (Type::Param(b, i), Checked::Definition(base)) => self.poly_param_variances(base, b, i),
-                    _ => self.u.constructor_variances(tycon),
+                    _ => self.tycon_variances(tycon),
                 };
                 go(self, tycon, v).or_else(|| {
                     args.iter().enumerate().find_map(|(i, &a)| {

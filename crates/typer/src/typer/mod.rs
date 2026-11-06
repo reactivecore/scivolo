@@ -250,6 +250,7 @@ pub(crate) mod unique_names;
 mod unknown_params;
 mod unsafe_nulls;
 mod untupled;
+mod variance_aliases;
 mod variance_checks;
 mod variance_lambdas;
 mod variance_messages;
@@ -375,6 +376,9 @@ pub struct Typer<'a> {
     /// The private variables assigned other than through their owner's `this` (dotty's
     /// `AssignedNonLocally`).
     pub assigned_non_locally: FxHashSet<SymbolId>,
+    /// The variances of the parameters of each alias's type lambda, once asked for; all +1 while
+    /// they are computed.
+    pub alias_variances: FxHashMap<tasty::Binder, Vec<i8>>,
     pub accessors: inline_accessors::Accessors,
     /// The implicit members of the unit's package objects in each package, once asked for.
     pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
@@ -483,6 +487,7 @@ impl<'a> Typer<'a> {
             inline_ctxs: FxHashMap::default(),
             spread_ctxs: FxHashMap::default(),
             assigned_non_locally: FxHashSet::default(),
+            alias_variances: FxHashMap::default(),
             accessors: Default::default(),
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),

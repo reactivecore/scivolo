@@ -12,15 +12,14 @@ impl Typer<'_> {
     /// variances occur only at those (dotty's `checkLambda`).
     pub fn check_lambda_variances(&mut self, t: TNodeId, errors: &mut Vec<(Span, String)>) {
         let (Some(sym), T::TypeDef { rhs, .. }) = (self.tpd.sym(t), self.tpd.tree(t).clone()) else { return };
-        if !matches!(self.tpd.tree(rhs), T::LambdaTypeTree { .. }) {
-            return;
-        }
+        let T::LambdaTypeTree { tparams, .. } = *self.tpd.tree(rhs) else { return };
         let info = self.u.info(sym);
-        let tops = match *self.u.types().get(info) {
+        let mut tops = match *self.u.types().get(info) {
             Type::Alias(a) => vec![a],
             Type::Bounds(lo, hi) => vec![lo, hi],
             _ => vec![info],
         };
+        tops.extend(self.u.opaque_alias(sym));
         for top in tops {
             let Type::Lambda { binder, params, result } = self.u.types().get(top).clone() else { continue };
             let Some(variances) = self.u.declared_variances(binder) else { continue };
@@ -32,11 +31,17 @@ impl Typer<'_> {
             if let Some(Misplaced::Lambda(i, v)) =
                 parts.into_iter().find_map(|p| self.misplaced(checked, p, 1, 0))
             {
-                let shown = self.u.show_user(top);
-                let shown = shown.split_once("=>> ").map_or(shown.as_str(), |(_, r)| r);
+                let named = self.u.map_type(result, &mut |u, part| match *u.types().get(part) {
+                    Type::Param(b, k) if b == binder => {
+                        Some(u.intern_type(Type::Local(b, params[k as usize].0.clone())))
+                    }
+                    _ => None,
+                });
+                let shown = self.u.show_user(named);
                 let (own, at, name) = (label(of_sign(variances[i])), label(v), &params[i].0);
                 let msg = format!("{own} type parameter {name} occurs in {at} position in {shown}");
-                errors.push((self.tpd.span(t), msg));
+                let tparam = self.tpd.items(tparams).get(i).copied();
+                errors.push((self.tpd.span(tparam.unwrap_or(t)), msg));
                 return;
             }
         }

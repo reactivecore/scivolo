@@ -22,6 +22,8 @@ const CASES: &[(&str, bool)] = &[
         true,
     ),
     ("type F[+X] = X => Int", true),
+    ("object O { type K[X] = Int; class C[-A] { def g: List[K[A]] = Nil } }", true),
+    ("object O { type Fn[X] = X => Int; class C[+A] { def f(k: Fn[A]): Int = 0 } }", false),
     ("class C[+A](a: A) { private var c: A = a; private def put(x: A) = c = x; def get: A = c }", false),
     ("class C[+A] { def lower[B >: A](b: B): List[B] = Nil; def fold[B](f: A => B): B = ??? }", false),
     ("class C[+A] { def f(x: A @annotation.unchecked.uncheckedVariance) = (); type T <: A }", false),

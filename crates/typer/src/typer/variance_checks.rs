@@ -85,9 +85,9 @@ impl Typer<'_> {
         let kind = self.u.symbol(sym).kind;
         let variance = if flags.is(f::MUTABLE) && kind != Kind::Def && !local { 0 } else { 1 };
         let checked = Checked::Definition(sym);
+        let unchecked = if kind == Kind::Class { self.unchecked_parents(t) } else { Vec::new() };
         let found = match kind {
             Kind::Class => {
-                let unchecked = self.unchecked_parents(t);
                 let parents = self.u.parents(sym).into_iter().filter(|p| !unchecked.contains(p));
                 parents.collect::<Vec<_>>().into_iter().find_map(|p| self.misplaced(checked, p, 1, 0))
             }
@@ -101,7 +101,7 @@ impl Typer<'_> {
             }
         };
         let Some(Misplaced::Class(tvar, required)) = found else { return };
-        let msg = self.variance_message(sym, tvar, required);
+        let msg = self.variance_message(sym, tvar, required, &unchecked);
         errors.push((self.tpd.span(t), msg));
     }
 

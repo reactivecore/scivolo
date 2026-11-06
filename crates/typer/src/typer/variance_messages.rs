@@ -5,19 +5,29 @@
 use super::Typer;
 use super::variance_types::{declared, label};
 use syntax::ast::flags as f;
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 const ENUM_EXAMPLE: &str = "See an example at https://docs.scala-lang.org/scala3/reference/enums/adts.html#parameter-variance-of-enums";
 
 impl Typer<'_> {
     /// The error for type parameter `tvar` occurring in the type of `sym` where variance
-    /// `required` is.
-    pub fn variance_message(&mut self, sym: SymbolId, tvar: SymbolId, required: u8) -> String {
+    /// `required` is; of a class, `unchecked` are its parents annotated `@uncheckedVariance`.
+    pub fn variance_message(
+        &mut self,
+        sym: SymbolId,
+        tvar: SymbolId,
+        required: u8,
+        unchecked: &[TypeId],
+    ) -> String {
         let info = self.u.info(sym);
         let shown = match self.u.symbol(sym).kind {
             Kind::Class => {
-                let parents: Vec<String> =
-                    self.u.parents(sym).into_iter().map(|p| self.u.show_user(p)).collect();
+                let parents: Vec<String> = (self.u.parents(sym).into_iter())
+                    .map(|p| match unchecked.contains(&p) {
+                        true => format!("{} @uncheckedVariance", self.u.show_user(p)),
+                        false => self.u.show_user(p),
+                    })
+                    .collect();
                 format!("{} {{...}}", parents.join(" with "))
             }
             Kind::Def if !matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) => {
