@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PickleQuotes.scala
 //   compiler/src/dotty/tools/dotc/transform/Splicing.scala
-//! The term holes of a quote: its splices without captured references, and the `termHoles`
-//! lambda calling their contents.
+//   compiler/src/dotty/tools/dotc/ast/Positioned.scala
+//! A quote's term holes: its splices without captured references, and the `termHoles` lambda.
 
 use super::{QUOTE, SPLICE, bound, splicing, staged};
 use crate::definitions::symbol;
@@ -57,13 +57,7 @@ pub fn extract(l: &mut Lower, body: TNodeId, owner: SymbolId) -> Result<Holes> {
         if let Some(t) = captures.untranslated {
             return unsupported(l.tpd.span(t), "inferred types referring to a type of an outer quote");
         }
-        let mut at = l.tpd.span(content).start_pos();
-        for &a in &captures.args {
-            match l.tpd.span(a) {
-                s if s.exists() => at = s.end_pos(),
-                _ => l.tpd.get_mut(a).span = at,
-            }
-        }
+        place_args(l, &captures.args, content);
         if let Some(&c) =
             subtrees(l.tpd, content).iter().find(|&&c| l.tpd.sym(c).is_some_and(|s| defined.contains(&s)))
         {
@@ -79,6 +73,21 @@ pub fn extract(l: &mut Lower, body: TNodeId, owner: SymbolId) -> Result<Holes> {
         holes.contents.push((content, captures.params));
     }
     Ok(holes)
+}
+
+/// Spans each argument without a span at the end of the spans before it, the first ones at the
+/// start of all spans and `content`'s (dotty's `Positioned.envelope` of a `Hole`).
+fn place_args(l: &mut Lower, args: &[TNodeId], content: TNodeId) {
+    let own = |s: Span| s.exists() && !s.is_in_other_source();
+    let spans = args.iter().chain([&content]).map(|&a| l.tpd.span(a)).filter(|&s| own(s));
+    let Some(mut covered) = spans.reduce(Span::union).map(Span::start_pos) else { return };
+    for &a in args {
+        match l.tpd.span(a) {
+            s if own(s) => covered = covered.union(s),
+            s if s.exists() => {}
+            _ => l.tpd.get_mut(a).span = covered.end_pos(),
+        }
+    }
 }
 
 /// Whether `s` is a term or type local to a method or value, not a member.
