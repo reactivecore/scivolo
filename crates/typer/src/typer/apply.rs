@@ -253,7 +253,12 @@ impl Typer<'_> {
         match self.converted_new_generic_array(widened).and_then(|t| self.lifted_partial(t, &lifted, pt)) {
             Ok(tree) => {
                 let tree = self.wrap_defs(lifted, tree);
-                self.wrap_defs(outer, tree)
+                let hoisted = !outer.is_empty();
+                let tree = self.wrap_defs(outer, tree);
+                if hoisted {
+                    self.tpd.get_mut(tree).span = self.ast.span(id);
+                }
+                tree
             }
             Err(what) => self.unsupported(id, what),
         }
