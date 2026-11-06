@@ -83,6 +83,7 @@ impl Gen<'_, '_> {
             if plain.contains(&b) || self.l.u.symbol(b).name == "Matchable" {
                 continue;
             }
+            crate::phases::same_run::enter_specialized(self.l, b);
             bridged.extend(crate::phases::same_run::bridges(self.l, b));
             let decls = self.l.u.decls(b).unwrap_or_default();
             members

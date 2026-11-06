@@ -70,9 +70,7 @@ pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
 fn mixin_forwarders(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
     let mut made = Vec::new();
     for mixin in mixins(l, class) {
-        if let Some(arity) = function_arity(l, mixin) {
-            specialized_applies(l.u, arity).ok();
-        }
+        enter_specialized(l, mixin);
         for meth in forwarded(l, class, mixin) {
             let flags = l.u.symbol(meth).flags;
             let mut s = symbol(&l.u.symbol(meth).name.clone(), Kind::Def, class, flags);
@@ -100,6 +98,13 @@ fn mixin_forwarders(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)>
         }
     }
     made
+}
+
+/// Enters the specialized `apply` methods of `class` if it is `scala.FunctionN` with them.
+pub fn enter_specialized(l: &mut Lower, class: SymbolId) {
+    if let Some(arity) = function_arity(l, class) {
+        specialized_applies(l.u, arity).ok();
+    }
 }
 
 /// The private term members of `class` that its TASTy file refers to from another class.

@@ -6,13 +6,13 @@
 use crate::Lower;
 use crate::definitions::symbol;
 use tasty::tags::{
-    APPLY, BLOCK, DEFDEF, LAMBDA, PARAM, SPLITCLAUSE, SYNTHETIC, TEMPLATE, TYPEAPPLY, TYPEPARAM,
+    APPLY, BLOCK, DEFDEF, LAMBDA, NEW, PARAM, SPLITCLAUSE, SYNTHETIC, TEMPLATE, TYPEAPPLY, TYPEPARAM,
 };
-use tasty::{Ast, Flags, Kind, NodeId, SymbolId, Type};
+use tasty::{Ast, Flags, Kind, NodeId, SymbolId};
 
-/// `C$superArg$N(params)` in `class` for the `N`th argument defining a method member class `C`
-/// passes to its superclass constructor, `params` those of the constructor of `C`, its result
-/// the function class of that argument, a lambda; none for `C` if one is not a lambda. Each comes
+/// `C$superArg$N` in `class` for the `N`th argument defining a method member class `C` passes to
+/// its superclass constructor, of the type of the constructor of `C` with the function class of
+/// that argument, a lambda, as its result; none for `C` if one is not a lambda. Each comes
 /// with that constructor, whose span it has.
 pub fn hoisted(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
     let mut out = Vec::new();
@@ -32,16 +32,12 @@ pub fn hoisted(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
         let Some(arities) = arities.into_iter().collect::<Option<Vec<usize>>>() else { continue };
         let Some(&ctor) = l.u.decl(c, "<init>").unwrap_or_default().first() else { continue };
         let ctor_info = l.u.info(ctor);
-        let params = l.u.method(ctor_info).map(|m| m.params.to_vec()).unwrap_or_default();
         let name = l.u.symbol(c).name.clone();
         for (i, arity) in arities.into_iter().enumerate() {
             let flags = Flags::default().with(SYNTHETIC);
             let m = l.u.define(symbol(&format!("{name}$superArg${}", i + 1), Kind::Def, class, flags));
             let result = l.u.class_ref(&format!("scala.Function{arity}"));
-            let binder = l.u.fresh_binder();
-            let method =
-                Type::Method { binder, params: params.clone(), result, implicit: false, contextual: false };
-            let info = l.u.intern_type(method);
+            let info = super::context_results::with_result(l, ctor_info, result);
             l.u.set_info(m, info);
             super::accessor_names::ensure_not_private(l, m);
             out.push((m, ctor));
@@ -64,7 +60,8 @@ fn first_parent(ast: &Ast, typedef: NodeId) -> Option<NodeId> {
 }
 
 /// Collects into `arities`, in order, for each argument of call `t` that defines a method or a
-/// class (dotty's `needsHoist`), its parameter count if a lambda.
+/// class (dotty's `needsHoist`), its parameter count if a lambda; `None` also for an argument
+/// that creates an instance.
 fn lambda_args(ast: &Ast, t: NodeId, arities: &mut Vec<Option<usize>>) {
     match ast.tag(t) {
         APPLY => {
@@ -72,8 +69,10 @@ fn lambda_args(ast: &Ast, t: NodeId, arities: &mut Vec<Option<usize>>) {
             lambda_args(ast, kids[0], arities);
             for &a in &kids[1..] {
                 let a = ast.deref(a);
-                if defines(ast, a) {
+                if contains(ast, a, &[DEFDEF, TEMPLATE]) {
                     arities.push(lambda_arity(ast, a));
+                } else if contains(ast, a, &[NEW]) {
+                    arities.push(None);
                 }
             }
         }
@@ -82,9 +81,9 @@ fn lambda_args(ast: &Ast, t: NodeId, arities: &mut Vec<Option<usize>>) {
     }
 }
 
-/// Whether `t` has a method or class definition in it.
-fn defines(ast: &Ast, t: NodeId) -> bool {
-    matches!(ast.tag(t), DEFDEF | TEMPLATE) || ast.kids(t).iter().any(|&k| defines(ast, k))
+/// Whether `t` has a node of one of `tags` in it.
+fn contains(ast: &Ast, t: NodeId, tags: &[u8]) -> bool {
+    tags.contains(&ast.tag(t)) || ast.kids(t).iter().any(|&k| contains(ast, k, tags))
 }
 
 /// The parameter count of `t` if it is a lambda of a function type: a block of a method and a
