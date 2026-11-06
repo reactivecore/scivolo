@@ -9,7 +9,7 @@ use tasty::{SymbolId, Type, TypeId};
 impl Typer<'_> {
     /// `t` with its covariant occurrences of `into[T]` as `T @$into`.
     pub fn suppress_into(&mut self, t: TypeId) -> TypeId {
-        let Some((into, silent)) = self.into_symbols() else { return t };
+        let Some((into, silent)) = self.conversion_into() else { return t };
         self.map_into(t, 1, &mut |u, t| match u.types().get(t).clone() {
             Type::Applied(c, args) if args.len() == 1 && u.referenced(c) == Some(into) => {
                 let annot = crate::defn::type_ref(u, silent);
@@ -21,7 +21,7 @@ impl Typer<'_> {
 
     /// `t` with its covariant occurrences of `T @$into` as `into[T]`.
     pub fn reveal_into(&mut self, t: TypeId) -> TypeId {
-        let Some((into, silent)) = self.into_symbols() else { return t };
+        let Some((into, silent)) = self.conversion_into() else { return t };
         let Some(module) = self.resolve_full_name("scala.Conversion", false) else { return t };
         let module = crate::defn::type_ref(self.u, module);
         let tycon = self.u.intern_type(Type::Sym(Some(module), into));
@@ -34,7 +34,7 @@ impl Typer<'_> {
     }
 
     /// `scala.Conversion.into` and `scala.annotation.internal.$into`.
-    fn into_symbols(&mut self) -> Option<(SymbolId, SymbolId)> {
+    fn conversion_into(&mut self) -> Option<(SymbolId, SymbolId)> {
         let into = self.resolve_full_name("scala.Conversion$.into", true)?;
         Some((into, self.resolve_full_name("scala.annotation.internal.$into", true)?))
     }

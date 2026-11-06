@@ -83,13 +83,7 @@ impl Typer<'_> {
         let (name, mods, kind, extra) = match *self.ast.tree(tree) {
             Tree::ValDef { name, mods, rhs, .. } => {
                 let m = self.ast.modifiers(mods).flags;
-                let deferred = rhs.is_none() && !m.is_one_of(f::TERM_PARAM.or(f::PARAM_ACCESSOR));
-                let extra = match deferred {
-                    true => f::DEFERRED,
-                    false if self.is_deferred_given_rhs(rhs, m, ctx) => f::DEFERRED_GIVEN_FLAGS,
-                    false => f::EMPTY,
-                };
-                (name, mods, Kind::Val, extra)
+                (name, mods, Kind::Val, self.val_deferred_flags(rhs, m, ctx))
             }
             Tree::DefDef { name, mods, rhs, .. } => {
                 let constructor = self.text(name.name) == "<init>";

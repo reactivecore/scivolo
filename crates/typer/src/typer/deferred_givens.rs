@@ -13,11 +13,18 @@ use tasty::tags::{GIVEN, HASDEFAULT};
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
-    /// Whether `rhs` of a value definition with flags `flags` in `ctx` is `deferred` of a given
-    /// in a trait.
-    pub fn is_deferred_given_rhs(&self, rhs: Option<NodeId>, flags: FlagSet, ctx: Ctx) -> bool {
-        let named = |t: &Tree| matches!(*t, Tree::Ident { name } | Tree::Select { name, .. } if self.text(name.name) == "deferred");
-        flags.is(f::GIVEN) && self.u.is_trait(ctx.owner) && rhs.is_some_and(|r| named(self.ast.tree(r)))
+    /// The flags a value definition with flags `flags` and right-hand side `rhs` in `ctx` adds:
+    /// `DEFERRED` without `rhs`, those of a deferred given for `deferred` of a given in a trait.
+    pub fn val_deferred_flags(&self, rhs: Option<NodeId>, flags: FlagSet, ctx: Ctx) -> FlagSet {
+        let Some(rhs) = rhs else {
+            let param = flags.is_one_of(f::TERM_PARAM.or(f::PARAM_ACCESSOR));
+            return if param { f::EMPTY } else { f::DEFERRED };
+        };
+        let deferred = matches!(*self.ast.tree(rhs), Tree::Ident { name } | Tree::Select { name, .. } if self.text(name.name) == "deferred");
+        match deferred && flags.is(f::GIVEN) && self.u.is_trait(ctx.owner) {
+            true => f::DEFERRED_GIVEN_FLAGS,
+            false => f::EMPTY,
+        }
     }
 
     /// Whether `s` is a deferred given, not a parameter.
@@ -28,14 +35,21 @@ impl Typer<'_> {
 
     /// The definitions implementing the deferred givens class `cls` inherits and its superclass
     /// does not, searched in `ctx`, outside the class, and the class's given parameters.
-    pub fn deferred_given_impls(&mut self, cls: SymbolId, ctx: Ctx, cctx: Ctx, span: Span) -> Result<Vec<TNodeId>, &'static str> {
+    pub fn deferred_given_impls(
+        &mut self,
+        cls: SymbolId,
+        ctx: Ctx,
+        cctx: Ctx,
+        span: Span,
+    ) -> Result<Vec<TNodeId>, &'static str> {
         if self.u.is_trait(cls) {
             return Ok(Vec::new());
         }
         let class = crate::defn::type_ref(self.u, cls);
         let this = self.u.intern_type(Type::This(class));
         let parents = self.u.parents(cls);
-        let superclass = parents.first().and_then(|&p| self.u.class_symbol(p)).filter(|&s| !self.u.is_trait(s));
+        let superclass =
+            parents.first().and_then(|&p| self.u.class_symbol(p)).filter(|&s| !self.u.is_trait(s));
         let inherited = superclass.map(|s| self.u.linearization(s)).unwrap_or_default();
         let mut impls = Vec::new();
         for base in self.u.linearization(cls).into_iter().skip(1).filter(|b| !inherited.contains(b)) {
@@ -50,7 +64,13 @@ impl Typer<'_> {
         Ok(impls)
     }
 
-    fn deferred_given_impl(&mut self, cls: SymbolId, dcl: SymbolId, (ctx, cctx): (Ctx, Ctx), span: Span) -> Result<TNodeId, &'static str> {
+    fn deferred_given_impl(
+        &mut self,
+        cls: SymbolId,
+        dcl: SymbolId,
+        (ctx, cctx): (Ctx, Ctx),
+        span: Span,
+    ) -> Result<TNodeId, &'static str> {
         let class = crate::defn::type_ref(self.u, cls);
         let this = self.u.intern_type(Type::This(class));
         let owner = self.u.symbol(dcl).owner.ok_or("deferred given")?;

@@ -119,11 +119,7 @@ impl Typer<'_> {
         let expr = self.typed(expr, pt, ctx);
         let expr_tpe = self.tpd.tpe(expr);
         let null = self.resolve_full_name("scala.Null", true);
-        if self
-                .u
-                .class_symbol(expr_tpe)
-                .is_some_and(|c| Some(c) == null || c == self.u.builtins().nothing)
-        {
+        if self.u.class_symbol(expr_tpe).is_some_and(|c| Some(c) == null || c == self.u.builtins().nothing) {
             return self.unsupported(a, "sequence argument of a bottom type");
         }
         let widened = self.u.widen(expr_tpe);

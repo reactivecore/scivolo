@@ -96,7 +96,8 @@ impl Translator<'_, '_> {
         on_success: PlanId,
     ) -> Result<PlanId> {
         let tpe = self.l.u.info(rest);
-        let (Some(drop_right), Some(take_right)) = (self.seq_method(tpe, "dropRight"), self.seq_method(tpe, "takeRight"))
+        let (Some(drop_right), Some(take_right)) =
+            (self.seq_method(tpe, "dropRight"), self.seq_method(tpe, "takeRight"))
         else {
             return unsupported(self.l.tpd.span(trailing[0]), "element patterns after a vararg pattern");
         };
@@ -107,7 +108,8 @@ impl Translator<'_, '_> {
             let (value, count) = (t.l.ident(rest, Span::NONE), t.l.int_literal(n));
             let last = t.call_member(value, take_right, &[count]);
             let length = Test::Length { len: 0, exact: false };
-            let match_last = t.let_abstract(last, None, |t, last| t.match_elems_plan(last, trailing, length, on_success))?;
+            let match_last =
+                t.let_abstract(last, None, |t, last| t.match_elems_plan(last, trailing, length, on_success))?;
             t.pattern_plan(init, arg, match_last)
         })
     }
