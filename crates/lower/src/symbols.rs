@@ -1,5 +1,7 @@
 //! What the lowering asks of symbols (dotty's `SymDenotations` predicates).
 
+mod jdk_inherited;
+
 use tasty::tags::{ERASED, EXTENSION, FINAL, IMPLICIT, LAZY, PRIVATE, STATIC};
 use tasty::{Kind, SymbolId, Universe};
 
@@ -119,13 +121,17 @@ const JAVALIB_ONLY_MEMBERS: [(&str, &str, &[&str]); 1] =
     [("scala.scalanative.runtime.Throwable", "java.lang.Throwable", &["setStackTrace"])];
 
 /// The JDK class whose member `m` is in the JDK API, if javalib defines it in a class of its own
-/// the JDK class extends, as Scala Native, compiling against the JDK API, refers to it.
+/// the JDK class extends, or in a JDK class that inherits it in the JDK, as Scala Native,
+/// compiling against the JDK API, refers to it.
 pub fn jdk_api_owner(u: &Universe, m: SymbolId) -> Option<&'static str> {
     let s = u.symbol(m);
-    let named = |&&(_, _, ms): &&(&str, &str, &[&str])| ms.contains(&s.name.as_str());
-    if !JAVALIB_ONLY_MEMBERS.iter().any(|e| named(&e)) {
-        return None;
+    let class = s.owner?;
+    let owner = u.full_name(class);
+    let name = s.name.as_str();
+    if owner.starts_with("java") {
+        let found =
+            jdk_inherited::INHERITED.binary_search_by(|&(c, n, _)| (c, n).cmp(&(owner.as_str(), name)));
+        return found.ok().filter(|_| u.may_be_java(class)).map(|i| jdk_inherited::INHERITED[i].2);
     }
-    let owner = u.full_name(s.owner?);
-    JAVALIB_ONLY_MEMBERS.iter().find(|e| named(e) && e.0 == owner).map(|&(_, jdk, _)| jdk)
+    JAVALIB_ONLY_MEMBERS.iter().find(|e| e.0 == owner && e.2.contains(&name)).map(|&(_, jdk, _)| jdk)
 }

@@ -70,6 +70,8 @@ package java.util {
     @static def copyOf(original: Array[scala.Double], newLength: Int): Array[scala.Double] = original
     @static def copyOf(original: Array[scala.Boolean], newLength: Int): Array[scala.Boolean] = original
   }
+
+  trait Enumeration[E] { def asIterator(): Iterator[E] = null }
 }
 
 package java.util {
@@ -128,6 +130,8 @@ package java.util.stream {
 }
 
 package java.util.concurrent {
+  import java.util.function.Function as JFunction
+
   trait ExecutorService extends Executor {
     def submit[T](task: Callable[T]): Future[T]
     def submit[T](task: Runnable, result: T): Future[T]
@@ -136,6 +140,20 @@ package java.util.concurrent {
     def invokeAll[T](tasks: java.util.Collection[? <: Callable[T]], timeout: Long, unit: TimeUnit): java.util.List[Future[T]]
     def invokeAny[T](tasks: java.util.Collection[? <: Callable[T]]): T
     def invokeAny[T](tasks: java.util.Collection[? <: Callable[T]], timeout: Long, unit: TimeUnit): T
+  }
+  trait CompletionStage[T <: Object] {
+    def applyToEither[U <: Object](other: CompletionStage[? <: T], fn: JFunction[? >: T, U]): CompletionStage[U]
+    def applyToEitherAsync[U <: Object](other: CompletionStage[? <: T], fn: JFunction[? >: T, U]): CompletionStage[U]
+    def applyToEitherAsync[U <: Object](other: CompletionStage[? <: T], fn: JFunction[? >: T, U], executor: Executor):
+      CompletionStage[U]
+  }
+  abstract class CompletableFuture[T <: Object] extends Future[T] with CompletionStage[T] {
+    override def applyToEither[U <: Object](other: CompletionStage[? <: T], fn: JFunction[? >: T, U]): CompletableFuture[U] =
+      null
+    override def applyToEitherAsync[U <: Object](other: CompletionStage[? <: T], fn: JFunction[? >: T, U]):
+      CompletableFuture[U] = null
+    override def applyToEitherAsync[U <: Object](other: CompletionStage[? <: T], fn: JFunction[? >: T, U], executor: Executor):
+      CompletableFuture[U] = null
   }
 }
 

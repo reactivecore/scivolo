@@ -135,6 +135,9 @@ fn retained(
         stats.iter().enumerate().map(|(i, &s)| (s, None, i)).collect();
     todo.extend(trait_args.iter().map(|&a| (a, None, 0)));
     while let Some((t, method, at)) = todo.pop() {
+        if l.tpd.is_type_tree(t) {
+            continue;
+        }
         let inner = match l.tpd.tree(t) {
             Tree::DefDef { .. } | Tree::TypeDef { .. } => l.tpd.sym(t),
             Tree::ValDef { .. } if l.tpd.sym(t).is_some_and(|s| has(l.u, s, LAZY)) => l.tpd.sym(t),

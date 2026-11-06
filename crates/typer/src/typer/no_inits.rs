@@ -58,11 +58,13 @@ impl Typer<'_> {
     }
 
     /// Makes the constructor `constr` of class `cls` stable if `cls` is a trait that initializes
-    /// nothing, or a class none of whose base classes does or is still being completed (dotty's
-    /// `setStableConstructor`).
+    /// nothing, `Some`, a tuple class, or a class none of whose base classes does or is still being
+    /// completed (dotty's `setStableConstructor`).
     pub fn set_stable_constructor(&mut self, cls: SymbolId, constr: NodeId) {
         let stable = if self.u.symbol(cls).flags.has(tasty::tags::TRAIT) {
             self.is_no_inits(cls)
+        } else if self.u.is_assured_no_inits(cls) {
+            true
         } else {
             let bases = self.u.linearization(cls);
             bases.iter().all(|&b| {

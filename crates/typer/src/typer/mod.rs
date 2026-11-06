@@ -243,6 +243,7 @@ mod type_reductions;
 mod type_tests;
 mod type_trees;
 mod unapply;
+mod unapply_fun;
 mod unapply_implicits;
 mod unapply_results;
 mod unapply_seq;
