@@ -21,16 +21,16 @@ pub fn compile_sources(
     cfg: Config,
     macros: Option<&mut dyn Macros>,
 ) -> Result<(Vec<NirFile>, Diagnostics), Refusal> {
-    compile_units(u, files, cfg, macros, crate::codegen::unit)
+    compile_units(u, files, cfg, macros, (crate::Backend::Native, crate::codegen::unit))
 }
 
-/// `compile_sources` with `generate` in place of NIR generation.
+/// `compile_sources` with the phases for `backend` and `generate` in place of NIR generation.
 pub fn compile_units<R>(
     u: &mut Universe,
     files: &[SourceFile],
     cfg: Config,
     macros: Option<&mut dyn Macros>,
-    generate: impl FnOnce(&mut crate::Lower, typer::tpd::TNodeId) -> crate::Result<R>,
+    generate: (crate::Backend, impl FnOnce(&mut crate::Lower, typer::tpd::TNodeId) -> crate::Result<R>),
 ) -> Result<(R, Diagnostics), Refusal> {
     let sources = Sources::new(files).map_err(refused)?;
     let (mut names, mut ast) = (Names::default(), Ast::default());

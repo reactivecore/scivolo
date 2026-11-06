@@ -13,6 +13,7 @@ mod cond;
 mod control;
 mod deserialize;
 mod equality;
+mod lazy_handles;
 mod literals;
 mod locals;
 mod lub;
@@ -139,11 +140,14 @@ fn is_static_module(u: &Universe, s: SymbolId) -> bool {
     u.is_module_class(s) && u.is_static_symbol(s)
 }
 
-/// Whether `s` is a static member: one of a static object's fields, or a Java static member.
+/// Whether `s` is a static member: one of a static object's fields but a lazy value's field or
+/// flag, or a Java static member.
 fn is_static_member(u: &Universe, s: SymbolId) -> bool {
     let sym = u.symbol(s);
     let field = sym.kind == tasty::Kind::Val && !sym.flags.has(FIELDaccessor) && !u.is_module(s);
-    sym.flags.has(STATIC) || (field && sym.owner.is_some_and(|o| is_static_module(u, o)))
+    let base = sym.name.trim_end_matches(|c: char| c.is_ascii_digit());
+    let lazy = base.len() < sym.name.len() && (base.ends_with("$lzy") || base.ends_with("bitmap$"));
+    sym.flags.has(STATIC) || (field && !lazy && sym.owner.is_some_and(|o| is_static_module(u, o)))
 }
 
 /// The access flags of member or class `s` (dotty's `javaFlags`).

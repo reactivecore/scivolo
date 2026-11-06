@@ -19,7 +19,7 @@ pub use output::NirFile;
 pub use phases::adapt::erased_type;
 pub use phases::sam::abstract_methods;
 use rustc_hash::{FxHashMap, FxHashSet};
-pub use symbols::is_jdk_object;
+pub use symbols::{is_erased, is_jdk_object};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::Sources;
@@ -36,6 +36,13 @@ pub struct Unsupported {
 }
 
 pub type Result<T> = std::result::Result<T, Unsupported>;
+
+/// The target of the lowered trees, for the phases whose output differs per backend.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Backend {
+    Native,
+    Jvm,
+}
 
 fn unsupported<T>(at: Span, what: impl Into<String>) -> Result<T> {
     Err(Unsupported { at, what: what.into() })
@@ -166,6 +173,9 @@ pub struct Lower<'a> {
     moved_classes: Vec<(SymbolId, Span, syntax::source::Offset)>,
     /// `-Yexplicit-nulls`.
     explicit_nulls: bool,
+    pub backend: Backend,
+    /// The static `VarHandle` field of each lazy value's field on the JVM.
+    var_handles: FxHashMap<SymbolId, SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
@@ -177,20 +187,22 @@ pub fn lower_sources(
     (names, fresh): (&mut Names, &mut FreshNames),
     (sources, explicit_nulls): (Sources, bool),
 ) -> Result<Vec<NirFile>> {
-    lower_trees(u, tpd, root, (names, fresh), (sources, explicit_nulls), codegen::unit)
+    let generate = (Backend::Native, codegen::unit);
+    lower_trees(u, tpd, root, (names, fresh), (sources, explicit_nulls), generate)
 }
 
-/// Runs the phases over typed unit `root`, then `generate` over the lowered trees.
+/// Runs the phases for `backend` over typed unit `root`, then `generate` over the lowered trees.
 pub fn lower_trees<R>(
     u: &mut Universe,
     tpd: &mut Tpd,
     root: TNodeId,
     (names, fresh): (&mut Names, &mut FreshNames),
     (sources, explicit_nulls): (Sources, bool),
-    generate: impl FnOnce(&mut Lower, TNodeId) -> Result<R>,
+    (backend, generate): (Backend, impl FnOnce(&mut Lower, TNodeId) -> Result<R>),
 ) -> Result<R> {
     let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
     l.explicit_nulls = explicit_nulls;
+    l.backend = backend;
     let out = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
         .and_then(|()| generate(&mut l, root));
@@ -288,6 +300,8 @@ impl<'a> Lower<'a> {
             tail_locals: FxHashSet::default(),
             moved_classes: Vec::new(),
             explicit_nulls: false,
+            backend: Backend::Native,
+            var_handles: FxHashMap::default(),
         })
     }
 
@@ -299,5 +313,25 @@ impl<'a> Lower<'a> {
     /// Whether `m` is a bridge `Bridges` made or a lambda's `$adapted` method.
     pub fn is_bridge(&self, m: SymbolId) -> bool {
         self.bridges.contains(&m)
+    }
+
+    /// Whether `LambdaLift` lifted method `m` out of a term.
+    pub fn is_lifted(&self, m: SymbolId) -> bool {
+        self.lifted_from.contains_key(&m)
+    }
+
+    /// The `VarHandle` field of lazy value field `field` on the JVM.
+    pub fn var_handle(&self, field: SymbolId) -> Option<SymbolId> {
+        self.var_handles.get(&field).copied()
+    }
+
+    /// The field whose `VarHandle` is static field `handle`.
+    pub fn var_handle_field(&self, handle: SymbolId) -> Option<SymbolId> {
+        self.var_handles.iter().find(|&(_, &h)| h == handle).map(|(&f, _)| f)
+    }
+
+    /// Whether `m` is Scala Native's `LazyVals.objCAS`, a `VarHandle.compareAndSet` on the JVM.
+    pub fn is_obj_cas(&mut self, m: SymbolId) -> bool {
+        self.lazy_vals().is_ok_and(|d| d.obj_cas == m)
     }
 }

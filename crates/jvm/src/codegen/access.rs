@@ -89,6 +89,9 @@ impl Gen<'_, '_> {
         let span = self.l.tpd.span(fun);
         let Some(m) = self.l.tpd.sym(fun) else { return unsupported(span, "a call of a function value") };
         let arg_list = self.l.tpd.items(args).to_vec();
+        if self.l.is_obj_cas(m) {
+            return self.var_handle_cas(b, &arg_list);
+        }
         if let Some(slots) = self.boxing(b, m, &arg_list)? {
             return Ok(slots);
         }

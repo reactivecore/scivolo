@@ -5,7 +5,7 @@
 
 use super::body::Body;
 use super::{ClassBytes, Gen, internal, is_static_module, java_flags, method_descriptor, unsupported};
-use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ClassFile, FieldOp, Invoke};
+use classfile::{ACC_FINAL, ACC_PRIVATE, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile, FieldOp, Invoke};
 use lower::Result;
 use tasty::tags::MUTABLE;
 use tasty::{SymbolId, Type};
@@ -26,7 +26,7 @@ impl Gen<'_, '_> {
         if module {
             cf.field(ACC_PUBLIC | ACC_STATIC | ACC_FINAL, "MODULE$", &module_desc);
         }
-        let mut clinit_stats = Vec::new();
+        let (mut clinit_stats, mut handles) = (Vec::new(), Vec::new());
         for stat in std::iter::once(constr).chain(self.l.tpd.items(body).to_vec()) {
             let Some(s) = self.l.tpd.sym(stat) else { continue };
             match self.l.tpd.tree(stat) {
@@ -47,8 +47,12 @@ impl Gen<'_, '_> {
                     let desc = super::descriptor(&self.l.u.erase(info));
                     let name = self.l.u.symbol(s).name.clone();
                     let mutable = self.l.u.symbol(s).flags.has(MUTABLE);
-                    let flags = java_flags(self.l.u, s) | if mutable { 0 } else { ACC_FINAL };
+                    let volatile = if self.l.var_handle(s).is_some() { ACC_VOLATILE } else { 0 };
+                    let flags = java_flags(self.l.u, s) | if mutable { volatile } else { ACC_FINAL };
                     cf.field(flags, &tasty::encode(&name), &desc);
+                    if self.l.var_handle_field(s).is_some() {
+                        handles.push(s);
+                    }
                 }
                 Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => {
                     return unsupported(self.l.tpd.span(stat), "nested classes on the JVM");
@@ -57,20 +61,29 @@ impl Gen<'_, '_> {
                 _ => return unsupported(self.l.tpd.span(stat), "statements in a class body"),
             }
         }
-        if module {
-            let mut b = Body::new(&mut cf.pool, Some(&name), 0);
-            b.code.new_object(b.pool, &name);
-            b.code.dup();
-            b.code.invoke(Invoke::Special, b.pool, &name, "<init>", "()V");
-            b.code.field(FieldOp::PutStatic, b.pool, &name, "MODULE$", &module_desc);
+        if module || !handles.is_empty() {
+            let mut b = Body::new(&mut cf.pool, module.then_some(name.as_str()), 0);
+            self.init_var_handles(&mut b, &name, &handles);
+            if module {
+                b.code.new_object(b.pool, &name);
+                b.code.dup();
+                b.code.invoke(Invoke::Special, b.pool, &name, "<init>", "()V");
+                b.code.field(FieldOp::PutStatic, b.pool, &name, "MODULE$", &module_desc);
+            }
             for &t in &clinit_stats {
                 self.stat(&mut b, t)?;
             }
             b.code.ret("V");
             let code = b.code;
-            cf.method(ACC_PUBLIC | ACC_STATIC, "<clinit>", "()V", Some(code), &mut |a, b| self.jvm_lub(a, b));
+            let access = if handles.is_empty() { ACC_PUBLIC } else { ACC_PRIVATE };
+            cf.method(access | ACC_STATIC, "<clinit>", "()V", Some(code), &mut |a, b| self.jvm_lub(a, b));
         }
         self.deserialize_lambda(&mut cf);
+        let top = self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.symbol(o).kind == tasty::Kind::Package);
+        let companion = self.l.u.companion_module(sym).and_then(|m| self.l.u.module_class(m));
+        if let Some(companion) = companion.filter(|&c| !module && is_static_module(self.l.u, c)) {
+            self.add_forwarders(&mut cf, companion, Some(sym));
+        }
         if let Some(signature) = self.class_signature(sym) {
             cf.signature(&signature);
         }
@@ -78,15 +91,8 @@ impl Gen<'_, '_> {
         cf.source_file(&source);
         let bytes = cf.bytes().or_else(|e| unsupported(self.l.tpd.span(td), e))?;
         self.out.push(ClassBytes { name: name.clone(), bytes });
-        let top = self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.symbol(o).kind == tasty::Kind::Package);
-        let span = self.l.tpd.span(td);
         if module && top && self.l.u.companion_class(sym).is_none() {
-            self.check_forwarders(sym, false, span)?;
             self.gen_mirror_class(td, sym, &name)?;
-        }
-        let companion = self.l.u.companion_module(sym).and_then(|m| self.l.u.module_class(m));
-        if let Some(companion) = companion.filter(|_| !module && top) {
-            self.check_forwarders(companion, true, span)?;
         }
         Ok(())
     }
