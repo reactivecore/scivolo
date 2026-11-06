@@ -3,7 +3,7 @@
 //! The type members refinements give a path's type (dotty's `goRefined`, `lookupRefined`), and
 //! types without their refinements.
 
-use super::{Type, TypeId};
+use super::{Binder, Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
 
 /// How many steps finding a refinement takes at most.
@@ -19,16 +19,28 @@ impl Universe {
         self.refinement_named(prefix, &name)
     }
 
+    /// `t` with the `this` of each recursive type of `binders` replaced by `by` (dotty's
+    /// `substRecThis`).
+    pub fn rec_this_replaced(&mut self, t: TypeId, binders: &[Binder], by: TypeId) -> TypeId {
+        let this: Vec<TypeId> = binders.iter().map(|&b| self.intern_type(Type::RecThis(b))).collect();
+        self.map_type(t, &mut |_, x| this.contains(&x).then_some(by))
+    }
+
     /// The info a refinement of `prefix`'s widened type gives type member `name`, a member
     /// that need not have a symbol: its bounds or alias.
     pub fn refinement_named(&mut self, prefix: TypeId, name: &str) -> Option<TypeId> {
         let mut t = self.widen(prefix);
+        let mut recs = Vec::new();
         for _ in 0..MAX_STEPS {
             match self.types().get(t).clone() {
                 Type::Refined(_, n, info)
                     if n == name && matches!(self.types().get(info), Type::Alias(_) | Type::Bounds(..)) =>
                 {
-                    return Some(info);
+                    return Some(self.rec_this_replaced(info, &recs, prefix));
+                }
+                Type::Rec(b, p) => {
+                    recs.push(b);
+                    t = p;
                 }
                 Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Flexible(p) => t = p,
                 Type::And(a, b) => {
@@ -146,14 +158,19 @@ impl Universe {
     /// The info a refinement of `prefix`'s widened type gives term member `name`.
     pub fn term_refinement_named(&mut self, prefix: TypeId, name: &str) -> Option<TypeId> {
         let mut t = self.widen(prefix);
+        let mut recs = Vec::new();
         for _ in 0..MAX_STEPS {
             match self.types().get(t).clone() {
                 Type::Refined(_, n, info)
                     if n == name && !matches!(self.types().get(info), Type::Alias(_) | Type::Bounds(..)) =>
                 {
-                    return Some(info);
+                    return Some(self.rec_this_replaced(info, &recs, prefix));
                 }
-                Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Flexible(p) | Type::Rec(_, p) => t = p,
+                Type::Rec(b, p) => {
+                    recs.push(b);
+                    t = p;
+                }
+                Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Flexible(p) => t = p,
                 _ => match self.dealias(t) {
                     d if d != t => t = d,
                     _ => return None,

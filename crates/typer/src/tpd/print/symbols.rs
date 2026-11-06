@@ -9,7 +9,7 @@ use tasty::{Kind, SymbolId, Universe};
 /// dotty's `fullName`: owners joined by `.`, each term owner between `s` and its enclosing class
 /// as a `_$` before the name, the root and the empty package left out; the module class of `<:<`
 /// as dotty gives it, `$:$$`; a context function parameter `contextual$N` as an empty name; the
-/// owners of evidence `evidence$N` with `$` for `<` and `>`.
+/// owners of evidence `evidence$N` and wildcard parameters `_$N` with `$` for `<` and `>`.
 pub fn full_name(u: &Universe, s: SymbolId) -> String {
     let name = &u.symbol(s).name;
     let digits = |n: &str| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit());
@@ -34,7 +34,8 @@ pub fn full_name(u: &Universe, s: SymbolId) -> String {
         Some(e) if e != u.root() => format!("{}.", full_name(u, e)),
         _ => String::new(),
     };
-    let prefix = match name.strip_prefix("evidence$").is_some_and(digits) {
+    let derived = ["evidence$", "_$"].iter().any(|k| name.strip_prefix(k).is_some_and(digits));
+    let prefix = match derived {
         true => prefix.replace(['<', '>'], "$"),
         false => prefix,
     };

@@ -15,7 +15,8 @@ impl Typer<'_> {
         pt: Pt,
         ctx: Ctx,
     ) -> Option<Result<TNodeId, &'static str>> {
-        let type_tree = self.tpd.sym(tree).is_some_and(|s| self.u.is_type_symbol(s));
+        let type_tree = self.tpd.sym(tree).is_some_and(|s| self.u.is_type_symbol(s))
+            || matches!(self.tpd.tree(tree), T::Select { name, .. } if name.is_type);
         if ctx.mode.is(Mode::PATTERN)
             || ctx.mode.is(Mode::ASSIGNMENT_LHS)
             || type_tree

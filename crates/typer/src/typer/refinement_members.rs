@@ -27,8 +27,13 @@ impl Typer<'_> {
     pub fn type_refinement(&mut self, class: SymbolId, r: NodeId, ctx: Ctx) -> Result<Refinement, TNodeId> {
         let Tree::TypeDef { name, rhs, mods } = *self.ast.tree(r) else { unreachable!("a type refinement") };
         let text = self.text(name.name).to_owned();
-        let flags = self.ast.modifiers(mods).flags.to_type_flags();
-        let sym = self.syms.define(self.u, &text, Kind::Type, class, flags);
+        let sym = match self.syms.by_tree.get(&r) {
+            Some(&sym) => sym,
+            None => {
+                let flags = self.ast.modifiers(mods).flags.to_type_flags();
+                self.syms.define(self.u, &text, Kind::Type, class, flags)
+            }
+        };
         let mctx = Ctx { owner: sym, ..ctx };
         let info = self.type_def_info(rhs, mctx);
         let info = match *self.u.types().get(info) {
@@ -36,6 +41,16 @@ impl Typer<'_> {
             Type::Lambda { .. } => self.u.intern_type(Type::Alias(info)),
             _ => info,
         };
+        if let Type::Alias(a) = *self.u.types().get(info) {
+            let mut cyclic = false;
+            self.u.map_type(a, &mut |u, x| {
+                cyclic |= matches!(*u.types().get(x), Type::Sym(_, s) if s == sym);
+                None
+            });
+            if cyclic {
+                return Err(self.unsupported(r, "refinement alias referring to itself"));
+            }
+        }
         if let Type::Bounds(lo, hi) = *self.u.types().get(info)
             && !self.u.is_subtype(lo, hi)
         {

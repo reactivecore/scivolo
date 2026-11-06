@@ -35,11 +35,12 @@ impl Typer<'_> {
                 self.type_tree(object, at, false)
             }
         };
-        let mut tpe = self.tpd.tpe(parent);
+        let tpe = self.tpd.tpe(parent);
         if self.type_arity(tpe) > 0 {
             return self.unsupported(id, "refinement of a type constructor");
         }
         let class = self.refinement_class(ctx);
+        let (mut tpe, ctx) = self.refinement_scope(class, tpe, &items, ctx);
         let mut members = Vec::new();
         for &r in &items {
             let Tree::TypeDef { name, rhs, .. } = *self.ast.tree(r) else {
@@ -59,9 +60,6 @@ impl Typer<'_> {
             if matches!(self.ast.tree(rhs), Tree::Template { .. }) {
                 return self.unsupported(r, "higher-kinded refinement");
             }
-            if self.refers_to_refinement(rhs, &items, tpe) {
-                return self.unsupported(r, "refinement referring to the refined type's members");
-            }
             let text = self.text(name.name).to_owned();
             if self.refines_class(tpe, &text) {
                 return self.unsupported(r, "refinement of a class member");
@@ -79,26 +77,13 @@ impl Typer<'_> {
             tpe = self.u.intern_type(Type::Refined(tpe, text, info));
             members.push(tree);
         }
-        let refinements = self.tpd.list(&members);
-        self.tpd.node(T::RefinedTypeTree { tpt: parent, refinements }, span, Some(tpe), None)
-    }
-
-    /// Whether `rhs` contains an unqualified `this` or an identifier naming one of `items` or a
-    /// non-private member of `parent`.
-    fn refers_to_refinement(&mut self, rhs: NodeId, items: &[NodeId], parent: TypeId) -> bool {
-        if self.ast.exists_subtree(rhs, &|ast, n| matches!(ast.tree(n), Tree::This { qual: None })) {
-            return true;
+        let mut seen = Vec::new();
+        for &m in &members {
+            self.check_refinement_refs(m, class, &mut seen);
         }
-        let idents = self.ast.subtrees(rhs, &|ast, n| matches!(ast.tree(n), Tree::Ident { .. }));
-        idents.into_iter().any(|n| {
-            let Tree::Ident { name } = *self.ast.tree(n) else { return false };
-            let text = self.text(name.name).to_owned();
-            let sibling = items.iter().any(
-                |&i| matches!(*self.ast.tree(i), Tree::TypeDef { name: d, .. } if self.text(d.name) == text),
-            );
-            let members = self.type_members(parent, &text);
-            sibling || members.into_iter().any(|m| !self.u.symbol(m).flags.has(tasty::tags::PRIVATE))
-        })
+        let refinements = self.tpd.list(&members);
+        let tpe = self.closed_refinement(class, tpe);
+        self.tpd.node(T::RefinedTypeTree { tpt: parent, refinements }, span, Some(tpe), None)
     }
 
     /// `qual.name` for a type member only a refinement of `qual`'s path type `pre` has (one of
@@ -107,7 +92,9 @@ impl Typer<'_> {
         let stable = match *self.u.types().get(pre) {
             Type::Sym(_, s) => !self.u.is_type_symbol(s),
             Type::This(_) | Type::TermRef(..) => true,
-            Type::Refined(..) => name.is_type && matches!(self.tpd.tree(qual), T::RefinedTypeTree { .. }),
+            Type::Refined(..) | Type::Rec(..) => {
+                name.is_type && matches!(self.tpd.tree(qual), T::RefinedTypeTree { .. })
+            }
             Type::Applied(..) => name.is_type && matches!(self.tpd.tree(qual), T::AppliedTypeTree { .. }),
             _ => false,
         };

@@ -190,6 +190,7 @@ mod quote_type_bindings;
 mod refined_projections;
 mod refined_types;
 mod refinement_members;
+mod refinement_scope;
 mod refutable_warnings;
 mod repeated;
 mod report;

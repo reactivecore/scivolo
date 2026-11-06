@@ -16,15 +16,28 @@ impl Cmp<'_> {
     /// `has_matching_member` of `a` found in `t`, `a`'s widened type or a part of its
     /// intersection.
     fn has_matching_member_in(&mut self, a: TypeId, mut t: TypeId, name: &str, info: TypeId) -> bool {
+        let mut recs = Vec::new();
         loop {
             match self.u.types().get(t).clone() {
-                Type::Refined(_, n, have) if n == name => return self.info_conforms(have, info),
-                Type::Refined(parent, ..) | Type::Annotated(parent, _) | Type::Rec(_, parent) => t = parent,
+                Type::Refined(_, n, have) if n == name => {
+                    let have = self.u.rec_this_replaced(have, &recs, a);
+                    return self.info_conforms(have, info);
+                }
+                Type::Rec(b, parent) => {
+                    recs.push(b);
+                    t = parent;
+                }
+                Type::Refined(parent, ..) | Type::Annotated(parent, _) => t = parent,
                 Type::And(l, r) => {
                     return self.has_matching_member_in(a, l, name, info)
                         || self.has_matching_member_in(a, r, name, info);
                 }
-                _ => break,
+                _ => match self.u.dealias(t) {
+                    d if d != t && matches!(self.u.types().get(d), Type::Rec(..) | Type::Refined(..)) => {
+                        t = d
+                    }
+                    _ => break,
+                },
             }
         }
         let Some(class) = self.u.class_symbol(t) else { return false };
