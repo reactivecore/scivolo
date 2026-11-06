@@ -395,24 +395,16 @@ fn no_false_errors_behind_unsupported_constructs() {
             "named self of an object not static",
         ),
         (
-            "trait B\ntrait A { self: B => }\nclass C extends A\n",
-            "class not conforming to a parent's self type",
-        ),
-        (
             "trait B\ntrait A { self: B => }\nobject M:\n  val a = new A {}\n",
-            "class not conforming to a parent's self type",
+            "anonymous class or object not conforming to a parent's self type",
         ),
         (
-            "trait B\ntrait A { self: B => }\ntrait A2 extends A\nobject O extends A2 with B\n",
-            "class not conforming to a parent's self type",
+            "trait B\ntrait A { self: B => }\nobject O extends A\n",
+            "anonymous class or object not conforming to a parent's self type",
         ),
         (
             "trait B\nclass A { self: B => }\nobject M:\n  val a = new A()\n",
             "new of a class not conforming to its self type",
-        ),
-        (
-            "trait A[T] { self: T => }\nclass C extends A[String]\n",
-            "class not conforming to a parent's self type",
         ),
         (
             "object M:\n  type F[X]\n  def f(x: Any) = x match\n    case y: F[Int] => y\n",
@@ -467,6 +459,17 @@ fn no_false_errors_behind_unsupported_constructs() {
         assert_eq!(errors_first(text), Err(format!("unsupported {what}")), "{text}");
     }
     assert_eq!(errors_first("object M:\n  val x = y\n"), Err("type errors [\"Not found: y\"]".into()));
+    let selfless = "trait B\ntrait A { self: B => }\nclass C extends A\n";
+    let illegal =
+        "illegal inheritance: self type C of class C does not conform to self type B\\nof parent trait A";
+    assert_eq!(errors_first(selfless), Err(format!("type errors [\"{illegal}\"]")));
+    let trait_ = "trait B\ntrait A { self: B => }\ntrait A2 extends A\nobject O extends A2 with B\n";
+    let illegal =
+        "illegal inheritance: self type A2 of trait A2 does not conform to self type B\\nof parent trait A";
+    assert_eq!(errors_first(trait_), Err(format!("type errors [\"{illegal}\"]")));
+    let generic = "trait A[T] { self: T => }\nclass C extends A[String]\n";
+    let illegal = "illegal inheritance: self type C of class C does not conform to self type String\\nof parent trait A";
+    assert_eq!(errors_first(generic), Err(format!("type errors [\"{illegal}\"]")));
     let many = "class Term[T]\nobject M:\n  val t: Term[Int, Kind] = ???\n";
     let too_many = "Too many type arguments for Term[T]\\nexpected: [T]\\nactual:   [Int, Kind]";
     assert_eq!(errors_first(many), Err(format!("type errors [\"{too_many}\"]")));

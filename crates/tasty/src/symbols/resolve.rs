@@ -55,7 +55,11 @@ impl Universe {
     fn prefix_owner(&mut self, prefix: TypeId) -> Option<SymbolId> {
         match *self.types.get(prefix) {
             Type::Package(p) => Some(p),
-            Type::This(c) | Type::Super(_, c) | Type::Refined(c, ..) => self.prefix_owner(c),
+            Type::This(c)
+            | Type::Super(_, c)
+            | Type::Refined(c, ..)
+            | Type::Skolem(_, c)
+            | Type::Rec(_, c) => self.prefix_owner(c),
             Type::Sym(_, s) => self.symbol_owner(s),
             Type::TermRef(..) => {
                 let term = self.resolve_ref(prefix)?;
@@ -77,7 +81,13 @@ impl Universe {
             }
             Kind::Type | Kind::TypeParam => {
                 let t = self.intern_type(Type::Sym(None, s));
-                self.class_symbol(t)
+                match self.class_symbol(t) {
+                    None if self.symbol(s).kind == Kind::Type => match self.dealias(t) {
+                        d if matches!(self.types.get(d), Type::Rec(..)) => self.prefix_owner(d),
+                        _ => None,
+                    },
+                    found => found,
+                }
             }
         }
     }

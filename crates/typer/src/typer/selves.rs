@@ -10,7 +10,7 @@ use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
-use syntax::ast::{NodeId, Tree};
+use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -76,9 +76,10 @@ impl Typer<'_> {
         Ctx { owner, ..cctx }
     }
 
-    /// Refuses class `cls` if its self type does not conform to a parent's given self type seen
-    /// from `cls`, or that type still mentions the parent's `this` or type members.
-    pub fn check_parent_selves(&mut self, cls: SymbolId) -> Result<(), &'static str> {
+    /// Reports an error at `at` if the self type of class `cls` does not conform to a parent's
+    /// given self type seen from `cls`; refuses the class if that type still mentions the
+    /// parent's `this` or type members (dotty's `checkSelfAgainstParents`).
+    pub fn check_parent_selves(&mut self, cls: SymbolId, at: Span) -> Result<(), &'static str> {
         let own = self.u.self_type(cls);
         let class = crate::defn::type_ref(self.u, cls);
         let this = self.u.intern_type(Type::This(class));
@@ -98,8 +99,19 @@ impl Typer<'_> {
             });
             let module = self.u.is_module_class(cls).then(|| self.u.source_module(cls)).flatten();
             let own_module = matches!(*self.u.types().get(s), Type::Sym(_, m) if Some(m) == module);
-            if own_parts || !own_module && !self.u.is_subtype(own, s) {
+            if own_parts {
                 return Err("class not conforming to a parent's self type");
+            }
+            if !own_module && !self.u.is_subtype(own, s) {
+                if self.u.symbol(cls).name == "$anon" || module.is_some() {
+                    return Err("anonymous class or object not conforming to a parent's self type");
+                }
+                let (own_s, s) = (self.u.show_user(own), self.u.show_user(s));
+                let (c, p) = (self.described(cls), self.described(pc));
+                let msg = format!(
+                    "illegal inheritance: self type {own_s} of {c} does not conform to self type {s}\nof parent {p}"
+                );
+                crate::inlining::Host::error(self, at, msg);
             }
         }
         Ok(())

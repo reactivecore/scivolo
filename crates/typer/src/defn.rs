@@ -112,7 +112,12 @@ pub fn package_ref(u: &Universe, t: TypeId) -> TypeId {
 /// `typeRef`/`termRef`); a local symbol, owned by a term, and a member of a package have no
 /// prefix.
 pub fn type_ref(u: &mut Universe, s: SymbolId) -> TypeId {
-    let class_owner = |o: SymbolId| u.symbol(o).kind != Kind::Package && !u.symbol(o).kind.is_term();
+    let class = u.symbol(s).kind == Kind::Class;
+    let class_owner = |o: SymbolId| match u.symbol(o).kind {
+        Kind::Class => true,
+        Kind::Type | Kind::TypeParam => !class,
+        _ => false,
+    };
     let prefix = u.symbol(s).owner.filter(|&o| class_owner(o)).map(|o| owner_prefix(u, o));
     u.intern_type(Type::Sym(prefix, s))
 }

@@ -10,8 +10,8 @@ const MAX_ALIASES: u32 = 64;
 
 impl Universe {
     /// `t` with references resolved to their symbols, prefixes of classes and type parameters
-    /// dropped, aliases (an abstract type's in its prefix) and applied type lambdas expanded and
-    /// reduced, annotations removed and `ImpureX` read as `X`.
+    /// dropped, aliases (an abstract type's in its prefix, but `<FromJavaObject>`) and applied type
+    /// lambdas expanded and reduced, annotations removed and `ImpureX` read as `X`.
     pub fn normalize(&mut self, t: TypeId) -> TypeId {
         self.normalize_within(t, MAX_ALIASES)
     }
@@ -56,6 +56,9 @@ impl Universe {
                 };
                 match u.symbol(s).kind {
                     Kind::Class | Kind::TypeParam => Some(u.intern_type(Type::Sym(None, s))),
+                    Kind::Type if s == u.builtins().from_java_object => {
+                        Some(u.intern_type(Type::Sym(None, s)))
+                    }
                     Kind::Type => {
                         let a = match u.alias(s) {
                             Some(a) => a,

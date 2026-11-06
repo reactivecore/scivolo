@@ -50,7 +50,7 @@ impl Typer<'_> {
             problem
         } else if kind == Kind::Type && flags.is_all_of(f::PRIVATE.or(f::OPAQUE)) {
             "illegal combination of modifiers"
-        } else if flags.is_all_of(f::DEFERRED_GIVEN_FLAGS) {
+        } else if flags.is_all_of(f::DEFERRED_GIVEN_FLAGS) && !self.u.is_trait(owner) {
             "deferred given"
         } else if flags.is(f::TRAIT) && flags.is_one_of(f::FINAL.or(f::OPEN)) {
             "final or open trait"

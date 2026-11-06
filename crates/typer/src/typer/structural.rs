@@ -26,6 +26,17 @@ impl Typer<'_> {
             return None;
         }
         let info = self.u.term_refinement_named(pre, &text)?;
+        let mut recursive = false;
+        self.u.map_type(info, &mut |_, part| {
+            recursive |= part == pre;
+            None
+        });
+        if recursive
+            && matches!(self.u.types().get(pre), Type::TermRef(..))
+            && self.u.resolve_ref(pre).is_none()
+        {
+            return Some(self.unsupported(id, "structural member referring to a structural prefix"));
+        }
         let method = match self.u.types().get(info) {
             Type::Poly { .. } => return Some(self.unsupported(id, "polymorphic structural method")),
             Type::Method { .. } => true,

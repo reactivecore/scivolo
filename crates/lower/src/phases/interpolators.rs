@@ -8,6 +8,7 @@ use super::walk::{walk_class_up, without_type_args};
 use super::{format_interpolator, standard_interpolator};
 use crate::{Lower, Result, unsupported};
 use std::ops::ControlFlow;
+use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
@@ -158,9 +159,10 @@ fn concat(l: &mut Lower, parts: &[TNodeId], args: &[TNodeId]) -> TNodeId {
     result
 }
 
-/// `left + right` at the span of `right`.
+/// `left + right` at the span of `right`, `left.+` at the span of `left`.
 fn append(l: &mut Lower, left: TNodeId, plus: SymbolId, right: TNodeId, tpe: TypeId) -> TNodeId {
     let span = super::drop_inlined::span_before_erasure(l, right);
-    let fun = l.select(left, plus, span);
+    let fun = l.select(left, plus, Span::NONE);
+    let fun = l.positioned(fun);
     l.apply(fun, &[right], tpe, span)
 }

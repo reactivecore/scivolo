@@ -39,10 +39,12 @@ impl Cmp<'_> {
                 },
                 Some(Meaning::Abstract(lo, hi)) => {
                     let lower = self.apply(lo, args);
-                    match lo == hi {
+                    let declared = match lo == hi {
                         true => self.recur(a, lower),
                         false => self.either(|s| s.fourth_try(a, b), |s| s.recur(a, lower)),
-                    }
+                    };
+                    declared
+                        || self.gadt_applied(tycon, args, false).is_some_and(|glo| self.recur_frozen(a, glo))
                 }
                 Some(Meaning::Class(c)) => match self.nested_pairs(c, args) {
                     Some(pairs) => self.try_base_type(a, b, c) || self.recur(a, pairs),
@@ -122,6 +124,7 @@ impl Cmp<'_> {
                 Some(Meaning::Abstract(_, hi)) => {
                     let upper = self.apply(hi, args);
                     upper != a && self.recur(upper, b)
+                        || self.gadt_applied(tycon, args, true).is_some_and(|ghi| self.recur_frozen(ghi, b))
                 }
                 _ => false,
             },
@@ -136,6 +139,14 @@ impl Cmp<'_> {
             Type::Applied(..) => self.compare_curried1(a, b, tycon, args),
             _ => false,
         }
+    }
+
+    /// Abstract type constructor `tycon`'s GADT upper bound if `upper`, else its lower bound
+    /// unless `Nothing`, applied to `args`.
+    fn gadt_applied(&mut self, tycon: TypeId, args: &[TypeId], upper: bool) -> Option<TypeId> {
+        let (lo, hi) = self.gadt_bounds(tycon)?;
+        let bound = if upper { hi } else { lo };
+        (bound != NOTHING && bound != tycon).then(|| self.apply(bound, args))
     }
 
     /// The variances of the `n` type parameters of `tycon`, +1, -1 or 0; invariant where unknown.

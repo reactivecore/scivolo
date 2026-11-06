@@ -72,7 +72,7 @@ impl Typer<'_> {
         self.check_module_owner(cls, rhs);
         let no_inits = self.has_no_inits(&t.parents, &t.body);
         self.syms.no_inits.insert(cls, no_inits);
-        if !no_inits && !self.u.symbol(cls).flags.has(tasty::tags::TRAIT) {
+        if !no_inits {
             self.u.set_inits(cls);
         }
         self.set_stable_constructor(cls, t.constr);
@@ -87,7 +87,7 @@ impl Typer<'_> {
         let cls = self.syms.by_tree[&id];
         self.complete(cls);
         self.ensure_self(cls);
-        if let Err(what) = self.check_parent_selves(cls) {
+        if let Err(what) = self.check_parent_selves(cls, self.ast.span(id)) {
             return self.unsupported(id, what);
         }
         if self.defines_enum_ordinal(cls) {
@@ -120,7 +120,11 @@ impl Typer<'_> {
             false => self.typed_self(s, cctx),
         });
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
-        let body = self.with_inline_members(cls, body, cctx);
+        let mut body = self.with_inline_members(cls, body, cctx);
+        match self.deferred_given_impls(cls, ctx, cctx, self.ast.span(id)) {
+            Ok(impls) => body.extend(impls),
+            Err(what) => return self.unsupported(id, what),
+        }
         self.check_derived_value_class(id, cls, &parents, &t.body);
         self.check_overrides(cls, self.ast.span(id));
         self.check_base_types(cls, name_span);

@@ -17,6 +17,8 @@ one scalalib file at a time against the published `scala-library` TASTy, where t
 - In such a run, a class of a TASTy file with the Scala 2 library attribute (written for the
   files importing ``language.`2.13` ``) initializes by `defKind`'s Scala 2 rule: a lazy value,
   a concrete method other than the constructor, or a class, is initialization.
+- `Some`, `Tuple1` to `Tuple22` and their objects initialize nothing in any run, wherever dotty
+  asks `isNoInitsRealClass` (dotty's `isAssuredNoInits`).
 - Function classes get no `$init$` call (dotty's `Mixin.superCallOpt` exempts
   `isFunctionClass`) and closures of them stay closures (`ExpandSAMs` leaves function literals).
 

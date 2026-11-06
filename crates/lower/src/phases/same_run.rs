@@ -1,24 +1,25 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/Bridges.scala
 //   compiler/src/dotty/tools/dotc/transform/ExpandPrivate.scala
-//! What dotty's `Bridges` and `ExpandPrivate` give a library class javalib's build compiles in
-//! the same run as the unit: its bridges and the expanded names of its private members.
+//! What dotty's phases after pickling give a library class compiled in the same run as the unit:
+//! its bridges, mixin forwarders, hoisted superclass arguments and expanded private names.
 #![allow(non_upper_case_globals)]
 
 use super::bridges;
-use super::mixin::{forwarded, is_jdk, mixins, with_java_param_names};
+use super::mixin::{forwarded, function_arity, is_jdk, mixins, with_java_param_names};
 use crate::Lower;
-use crate::definitions::symbol;
+use crate::definitions::{specialized_applies, symbol};
 use crate::symbols::has;
 use rustc_hash::FxHashSet;
 use tasty::tags::*;
-use tasty::{Ast, Kind, NodeId, SymbolId};
+use tasty::{Ast, Flags, Kind, NodeId, SymbolId};
 
-/// The bridges and mixin forwarders of class `class` read from TASTy and compiled in the same
-/// run, each with the symbol whose span it has, made on first use; its private members its file
-/// refers to from another class become public under their expanded names.
+/// The hoisted superclass arguments, and of a class the bridges and mixin forwarders, of class or
+/// trait `class` read from TASTy and compiled in the same run, each with the symbol whose span it
+/// has, made on first use; its private members its file refers to from another class become
+/// public under their expanded names.
 pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
-    if !l.u.is_same_run(class) || l.u.is_trait(class) {
+    if !l.u.is_same_run(class) {
         return Vec::new();
     }
     if let Some(made) = l.library_bridges.get(&class) {
@@ -27,7 +28,11 @@ pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
     for s in referenced_privates(l, class) {
         super::accessor_names::ensure_not_private(l, s);
     }
-    let mut made = Vec::new();
+    let mut made = super::library_super_args::hoisted(l, class);
+    if l.u.is_trait(class) {
+        l.library_bridges.insert(class, made.clone());
+        return made;
+    }
     let none = FxHashSet::default();
     let mut erasures = Vec::new();
     for (member, other) in bridges::overriding_pairs(l, class, &none) {
@@ -60,11 +65,12 @@ pub fn bridges(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
     made
 }
 
-/// The mixin forwarders dotty's `Mixin` gives library class `class`, each with `class`, whose
-/// span it has.
+/// The mixin forwarders and super accessor implementations dotty's `Mixin` and `ResolveSuper` give
+/// library class `class`, each with `class`, whose span it has.
 fn mixin_forwarders(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
     let mut made = Vec::new();
     for mixin in mixins(l, class) {
+        enter_specialized(l, mixin);
         for meth in forwarded(l, class, mixin) {
             let flags = l.u.symbol(meth).flags;
             let mut s = symbol(&l.u.symbol(meth).name.clone(), Kind::Def, class, flags);
@@ -74,8 +80,31 @@ fn mixin_forwarders(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)>
             l.u.set_info(sym, info);
             made.push((sym, class));
         }
+        if l.u.symbol(mixin).tree.is_none() {
+            continue;
+        }
+        for acc in l.u.decls(mixin).unwrap_or_default() {
+            let name = l.u.symbol(acc).name.clone();
+            if !has(l.u, acc, ARTIFACT) || super::resolve_super::decompose(l, acc, &name).is_none() {
+                continue;
+            }
+            let mut s = symbol(&name, Kind::Def, class, Flags::default().with(ARTIFACT));
+            s.target = l.u.symbol(acc).target.clone();
+            let this = l.u.this_type(class);
+            let info = l.u.member_info(this, acc);
+            let sym = l.u.define(s);
+            l.u.set_info(sym, info);
+            made.push((sym, class));
+        }
     }
     made
+}
+
+/// Enters the specialized `apply` methods of `class` if it is `scala.FunctionN` with them.
+pub fn enter_specialized(l: &mut Lower, class: SymbolId) {
+    if let Some(arity) = function_arity(l, class) {
+        specialized_applies(l.u, arity).ok();
+    }
 }
 
 /// The private term members of `class` that its TASTy file refers to from another class.

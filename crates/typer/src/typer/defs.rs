@@ -22,6 +22,9 @@ impl Typer<'_> {
             None => self.typed_tpt(tpt, info, rhs_ctx),
         };
         let pt = info.map_or(Pt::Any, Pt::Type);
+        let Some(rhs) = self.non_deferred_rhs(sym, rhs, rhs_ctx) else {
+            return self.unsupported(id, "deferred given of another deferred");
+        };
         let rhs = rhs.map(|r| match *self.ast.tree(r) {
             Tree::Ident { name } if self.text(name.name) == "_" => self.default_initializer(id, r, sym, info),
             _ => self.typed(r, pt, rhs_ctx),
