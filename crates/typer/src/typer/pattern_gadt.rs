@@ -70,7 +70,14 @@ impl Typer<'_> {
             });
             found
         };
-        if !ok || bounds.iter().any(|&(lo, hi)| open(self, lo) || open(self, hi)) {
+        if !ok {
+            if let Err(what) = self.narrow_by_binding_pattern(tpe, sel, &syms, ctx) {
+                let span = self.tpd.span(tpt);
+                self.unsupported_at(span, what);
+            }
+            return tpe;
+        }
+        if bounds.iter().any(|&(lo, hi)| open(self, lo) || open(self, hi)) {
             return tpe;
         }
         for (&s, (lo, hi)) in syms.iter().zip(bounds) {

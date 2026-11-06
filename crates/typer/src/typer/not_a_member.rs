@@ -17,6 +17,11 @@ const SPECIAL_SITES: [&str; 5] =
     ["scala.Dynamic", "scala.Selectable", "scala.Tuple", "scala.Nothing", "scala.Null"];
 
 impl Typer<'_> {
+    /// `not_a_member`, else refused as a missing member.
+    pub fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {
+        self.not_a_member(id, qual, name, ctx).unwrap_or_else(|| self.unsupported(id, "member not found"))
+    }
+
     /// `NotAMember` for selection `id` of `name` from term `qual` in `ctx`, whose type has no
     /// such member, an error tree; `None` where dotty may still find, convert or
     /// extend it, words the message otherwise, or types trees that typing skips after the error.

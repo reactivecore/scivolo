@@ -52,6 +52,7 @@ impl TailCalls {
                 }
             }
             Tree::Apply { .. } => self.apply(l, t, tail),
+            Tree::Select { .. } if tail && l.tpd.sym(t) == Some(self.method) => self.apply(l, t, tail),
             Tree::Select { qualifier, .. } => self.walk(l, qualifier, false),
             Tree::Block { stats, expr } => {
                 for s in l.tpd.items(stats).to_vec() {

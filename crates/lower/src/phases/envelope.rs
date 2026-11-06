@@ -77,6 +77,12 @@ impl Lower<'_> {
         span.exists().then(|| span.end_pos().to_synthetic())
     }
 
+    /// `after_siblings` of `t` in the one of `trees` it is a child of.
+    pub fn after_siblings_among(&self, trees: &[TNodeId], t: TNodeId) -> Option<Span> {
+        let parent = trees.iter().find(|&&p| children(self.tpd, p).into_iter().any(|c| c == t))?;
+        self.after_siblings(*parent, t)
+    }
+
     /// The end of the constructor, parents and statements of class definition `td` in its own
     /// source, as a copy of its template gives a member added last.
     pub fn template_end(&self, td: TNodeId) -> Option<Offset> {
