@@ -21,7 +21,7 @@ impl Gen<'_, '_> {
         let name = internal(&self.l.u.binary_name(sym));
         let (superclass, interfaces) = self.parents(sym);
         let interfaces: Vec<&str> = interfaces.iter().map(String::as_str).collect();
-        let mut cf = ClassFile::new(java_flags(self.l.u, sym), &name, &superclass, &interfaces);
+        let mut cf = ClassFile::new(java_flags(self.l, sym), &name, &superclass, &interfaces);
         let module = is_static_module(self.l.u, sym);
         let module_desc = format!("L{name};");
         if module {
@@ -47,7 +47,7 @@ impl Gen<'_, '_> {
                     let name = self.l.u.symbol(s).name.clone();
                     let mutable = self.l.u.symbol(s).flags.has(MUTABLE);
                     let volatile = if self.l.var_handle(s).is_some() { ACC_VOLATILE } else { 0 };
-                    let flags = java_flags(self.l.u, s) | if mutable { volatile } else { ACC_FINAL };
+                    let flags = java_flags(self.l, s) | if mutable { volatile } else { ACC_FINAL };
                     cf.field(flags, &tasty::encode(&name), &desc);
                     if self.l.var_handle_field(s).is_some() {
                         init.handles.push(s);
@@ -141,7 +141,7 @@ impl Gen<'_, '_> {
         };
         let stats = self.l.tpd.items(stats).to_vec();
         let split = stats.iter().position(|&s| self.is_super_call(s)).map_or(0, |i| i + 1);
-        let (desc, flags) = (method_descriptor(self.l.u, sym), java_flags(self.l.u, sym));
+        let (desc, flags) = (method_descriptor(self.l.u, sym), java_flags(self.l, sym));
         let class = self.l.u.symbol(sym).owner.expect("a constructor's class");
         let mut b = Body::new(&mut cf.pool, None, 1);
         b.this_class = Some(self.class_name(class));

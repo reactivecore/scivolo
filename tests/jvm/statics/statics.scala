@@ -14,6 +14,12 @@ object Shape {
   @static def describe(s: String): String = "shape " + s
 }
 
+object Named {
+  val x$lzy1: Int = 11
+  var bitmap$0: Int = 12
+  lazy val sum: Int = x$lzy1 + bitmap$0
+}
+
 object Statics {
   def main(args: Array[String]): Unit = {
     println("main")
@@ -21,5 +27,6 @@ object Statics {
     println(Counter.twice(Counter.start))
     println(Counter.plain)
     println(Shape.describe(Shape.sides))
+    println(Named.sum)
   }
 }

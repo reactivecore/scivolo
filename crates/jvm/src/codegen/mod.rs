@@ -28,7 +28,7 @@ mod tries;
 
 use lower::{Lower, Result, Unsupported, jdk_class_name};
 use syntax::ast::Span;
-use tasty::tags::{ABSTRACT, ARTIFACT, FIELDaccessor, FINAL, MUTABLE, PRIVATE, STATIC, TRAIT};
+use tasty::tags::{ABSTRACT, ARTIFACT, ENUM, FIELDaccessor, FINAL, MUTABLE, PRIVATE, STATIC, TRAIT};
 use tasty::{Erased, SymbolId, Universe};
 use typer::tpd::{TNodeId, Tree};
 
@@ -144,17 +144,17 @@ fn is_static_module(u: &Universe, s: SymbolId) -> bool {
 
 /// Whether `s` is a static member: one of a static object's fields but a lazy value's field or
 /// flag, or a Java static member.
-fn is_static_member(u: &Universe, s: SymbolId) -> bool {
-    let sym = u.symbol(s);
-    let field = sym.kind == tasty::Kind::Val && !sym.flags.has(FIELDaccessor) && !u.is_module(s);
-    let base = sym.name.trim_end_matches(|c: char| c.is_ascii_digit());
-    let lazy = base.len() < sym.name.len() && (base.ends_with("$lzy") || base.ends_with("bitmap$"));
-    sym.flags.has(STATIC) || (field && !lazy && sym.owner.is_some_and(|o| is_static_module(u, o)))
+fn is_static_member(l: &Lower, s: SymbolId) -> bool {
+    let sym = l.u.symbol(s);
+    let field = sym.kind == tasty::Kind::Val && !sym.flags.has(FIELDaccessor) && !l.u.is_module(s);
+    let field = field && !l.is_lazy_storage(s);
+    sym.flags.has(STATIC) || (field && sym.owner.is_some_and(|o| is_static_module(l.u, o)))
 }
 
 /// The access flags of member or class `s` (dotty's `javaFlags`).
-fn java_flags(u: &Universe, s: SymbolId) -> u16 {
+fn java_flags(l: &Lower, s: SymbolId) -> u16 {
     use classfile::*;
+    let u: &Universe = l.u;
     let (class, constructor) = (u.is_class(s), u.is_constructor(s));
     let owner = u.symbol(s).owner;
     let has = |tag| u.symbol(s).flags.has(tag);
@@ -166,13 +166,17 @@ fn java_flags(u: &Universe, s: SymbolId) -> u16 {
     let private = !class && (has(PRIVATE) || top_module_constructor);
     let abstract_ = (class && has(ABSTRACT)) || has(TRAIT);
     let in_trait = owner.is_some_and(|o| u.is_trait(o));
-    let final_ =
-        (has(FINAL) || u.is_module_class(s)) && !constructor && !has(MUTABLE) && !in_trait && !abstract_;
+    let final_ = (has(FINAL) || u.is_module_class(s) || u.is_module(s))
+        && !constructor
+        && !has(MUTABLE)
+        && !in_trait
+        && !abstract_;
     let mut flags = if private { ACC_PRIVATE } else { ACC_PUBLIC };
     flags |= if final_ { ACC_FINAL } else { 0 };
     flags |= if abstract_ { ACC_ABSTRACT } else { 0 };
     flags |= if has(TRAIT) { ACC_INTERFACE } else { 0 };
-    flags |= if is_static_member(u, s) && !class { ACC_STATIC } else { 0 };
+    flags |= if is_static_member(l, s) && !class { ACC_STATIC } else { 0 };
     flags |= if has(ARTIFACT) { ACC_SYNTHETIC } else { 0 };
+    flags |= if has(ENUM) { ACC_ENUM } else { 0 };
     flags | if class && !has(TRAIT) { ACC_SUPER } else { 0 }
 }

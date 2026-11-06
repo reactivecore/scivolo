@@ -31,7 +31,8 @@ pub fn add(l: &mut Lower, td: TNodeId, classes: &[TNodeId]) -> Result<()> {
     let (mut defs, mut stores, mut resets) = (Vec::new(), Vec::new(), Vec::new());
     for v in values {
         let name = l.u.symbol(v).name.clone();
-        let f = l.u.define(symbol(&name, Kind::Val, class, Flags::default().with(STATIC).with(MUTABLE)));
+        let flags = Flags::default().with(STATIC).with(MUTABLE).with(ENUM);
+        let f = l.u.define(symbol(&name, Kind::Val, class, flags));
         let info = l.u.info(v);
         let tpe = l.u.widen(info);
         l.u.set_info(f, tpe);

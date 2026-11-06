@@ -56,7 +56,7 @@ impl Gen<'_, '_> {
         let getter = called && self.l.u.symbol(m).kind == tasty::Kind::Val;
         let owner = self.l.u.symbol(m).owner.expect("a member's owner");
         let jdk = lower::is_jdk_object(self.l.u, owner);
-        let static_ = jdk || (is_static_member(self.l.u, m) && !getter);
+        let static_ = jdk || (is_static_member(self.l, m) && !getter);
         let span = qualifier.map_or(Span::NONE, |q| self.l.tpd.span(q));
         if jdk && !called && !self.jdk_static_field(m, span)? {
             return unsupported(span, "a JDK static method as a field");

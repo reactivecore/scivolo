@@ -15,7 +15,7 @@ use typer::tpd::{TNodeId, Tree};
 impl Gen<'_, '_> {
     pub fn gen_method(&mut self, cf: &mut ClassFile, dd: TNodeId, sym: SymbolId) -> Result<()> {
         let Tree::DefDef { paramss, rhs, .. } = *self.l.tpd.tree(dd) else { unreachable!("a method") };
-        let (mut desc, mut flags) = (method_descriptor(self.l.u, sym), java_flags(self.l.u, sym));
+        let (mut desc, mut flags) = (method_descriptor(self.l.u, sym), java_flags(self.l, sym));
         if self.l.is_bridge(sym) {
             flags = (flags & !ACC_FINAL) | ACC_BRIDGE | ACC_SYNTHETIC;
         }

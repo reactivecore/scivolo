@@ -16,5 +16,6 @@ object Javaenums {
     println(Color.Blue.compareTo(Color.Red))
     println(Planet.Earth.mass)
     println(Planet.values.map(_.name).mkString(","))
+    println(java.util.EnumSet.of(Color.Blue, Color.Red))
   }
 }

@@ -39,7 +39,7 @@ impl Gen<'_, '_> {
             return unsupported(span, "closures of a type without a single abstract method");
         };
         let owner = self.l.u.symbol(target).owner.expect("a method's owner");
-        let static_ = is_static_member(self.l.u, target);
+        let static_ = is_static_member(self.l, target);
         if !static_ {
             let (qualifier, prefix) = match *self.l.tpd.tree(meth) {
                 Tree::Select { qualifier, .. } => (Some(qualifier), None),

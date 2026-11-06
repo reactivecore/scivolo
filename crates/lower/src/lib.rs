@@ -330,6 +330,15 @@ impl<'a> Lower<'a> {
         self.var_handles.iter().find(|&(_, &h)| h == handle).map(|(&f, _)| f)
     }
 
+    /// Whether `s` is the field `x$lzyN` or the flag `xbitmap$N` of a lazy value.
+    pub fn is_lazy_storage(&self, s: SymbolId) -> bool {
+        let sym = self.u.symbol(s);
+        let base = sym.name.trim_end_matches(|c: char| c.is_ascii_digit());
+        let flag =
+            sym.flags.has(tasty::tags::SYNTHETIC) && base.len() < sym.name.len() && base.ends_with("bitmap$");
+        flag || self.lazy_members.values().any(|m| m.field == s)
+    }
+
     /// Whether `m` is Scala Native's `LazyVals.objCAS`, a `VarHandle.compareAndSet` on the JVM.
     pub fn is_obj_cas(&mut self, m: SymbolId) -> bool {
         self.lazy_vals().is_ok_and(|d| d.obj_cas == m)
