@@ -151,6 +151,19 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       `ev$N` is owned by the enclosing class, and `LambdaLift` finds no proxy for it.
     - Fix: transform the elements; lift with the owner of the expansion. Frontend: compiles both,
       evaluating each spread once, in order.
+13. **Early returns from different stack heights within a `finally` fail verification** (dotty
+    3.9.0, `compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala:636`, `genReturn`).
+    - `try g2(1, if c == 1 then return 5 else 2) + g3(1, 2, if c == 2 then return 6 else 3)
+      finally log()`: both returns jump to the cleanup with the arguments loaded so far still on
+      the stack, so its frame has two heights (`VerifyError`).
+    - Fix: drop the stack before the jump, as `genAdaptAndSendToDest` does for labels. JVM
+      backend: refuses the method.
+14. **`break` out of `synchronized` leaves the monitor held** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/DropBreaks.scala`).
+    - `boundary { lock.synchronized { if c then break(1); 2 } }`: the break becomes a labeled
+      return that skips `monitorexit` (`IllegalMonitorStateException`); across a `try` it stays
+      an exception.
+    - Fix: keep the exception across `synchronized` as across `try`. Frontend: breaks throw.
 
 ## M4: dotty `tests/run`
 

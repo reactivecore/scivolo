@@ -58,7 +58,10 @@ impl Gen<'_, '_> {
         let jdk = lower::is_jdk_object(self.l.u, owner);
         let static_ = jdk || (is_static_member(self.l.u, m) && !getter);
         let span = qualifier.map_or(Span::NONE, |q| self.l.tpd.span(q));
-        if self.l.u.is_module_class(owner) && self.l.u.is_annotated(m, "scala.annotation.static") {
+        if jdk && !called && !self.jdk_static_field(m, span)? {
+            return unsupported(span, "a JDK static method as a field");
+        }
+        if !jdk && self.l.u.is_module_class(owner) && self.l.u.is_annotated(m, "scala.annotation.static") {
             return unsupported(span, "static members of objects on the JVM");
         }
         match qualifier {
@@ -101,7 +104,7 @@ impl Gen<'_, '_> {
         let info = self.l.u.info(m);
         let parameterless =
             self.l.u.symbol(m).kind == tasty::Kind::Val || self.l.u.param_clauses(info).is_empty();
-        if lower::is_jdk_object(self.l.u, owner) && parameterless {
+        if lower::is_jdk_object(self.l.u, owner) && parameterless && self.jdk_static_field(m, span)? {
             return self.field(b, m, (qualifier, None), None);
         }
         self.check_call(m, owner, span)?;

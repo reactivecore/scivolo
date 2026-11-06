@@ -13,6 +13,7 @@ mod cond;
 mod control;
 mod deserialize;
 mod equality;
+mod jdk_statics;
 mod literals;
 mod locals;
 mod lub;

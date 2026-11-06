@@ -133,17 +133,6 @@ impl Gen<'_, '_> {
         internal(&self.l.u.binary_name(c))
     }
 
-    /// The class declaring the members of class `owner` in class files: the JDK class an object
-    /// standing for its static members names, then whether that is an interface.
-    pub fn member_owner(&mut self, owner: SymbolId) -> (String, bool) {
-        if !lower::is_jdk_object(self.l.u, owner) {
-            return (self.class_name(owner), false);
-        }
-        let binary = self.l.u.binary_name(owner);
-        let interface = self.l.u.companion_class(owner).is_some_and(|c| self.l.u.is_trait(c));
-        (internal(binary.strip_suffix('$').unwrap_or(&binary)), interface)
-    }
-
     /// The constructor of a static object up to its superclass constructor call; returns the
     /// statements after it, which go to `<clinit>`.
     fn gen_module_constructor(
