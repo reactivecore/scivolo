@@ -127,6 +127,7 @@ impl Typer<'_> {
             return self.unsupported(id, "assignment to a non-variable");
         };
         self.complete(var);
+        self.note_assignment(var, lhs);
         let info = match self.tpd.get(lhs).tpe {
             Some(t) if matches!(self.u.types().get(t), Type::Sym(Some(_), _)) => self.u.widen(t),
             _ => self.u.info(var),

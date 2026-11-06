@@ -24,6 +24,9 @@ impl Units {
             typer.unsupported_at(Span::NONE, what);
         }
         typer.renumber_uniques();
+        if typer.unsupported.is_none() && !typer.diags.has_errors() {
+            typer.check_variances(typed);
+        }
         let clean = typer.unsupported.is_none() && !typer.diags.has_errors();
         if !self.typer_only && !typer.spread_ctxs.is_empty() && clean {
             typer.flatten_spreads(typed);
