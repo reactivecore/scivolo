@@ -13,7 +13,8 @@ impl Typer<'_> {
     /// Whether pattern type `pat` conforms to `sel` with `sel`'s narrowable type parameters
     /// as type variables of their bounds, constraining them; those parameters and variables. A
     /// variable that variables from id `from` on were made one with is instantiated to the first
-    /// of their parameters, as dotty's comparison constrains a pattern's type variables first.
+    /// of their parameters, which takes its instance as bounds, as dotty's comparison constrains a
+    /// pattern's type variables first.
     pub fn gadt_vars(
         &mut self,
         (pat, from): (TypeId, usize),
@@ -73,23 +74,45 @@ impl Typer<'_> {
         if !self.constrain_pattern(pat, sel)? {
             return Ok(None);
         }
-        let reps: Vec<TypeId> = vars.iter().map(|&v| self.zonk(v)).collect();
+        let reps: Vec<TypeId> = vars.iter().map(|&v| self.var_root(v)).collect();
         let pattern_reps: Vec<TypeId> = (from..first)
             .map(|i| {
                 let v = self.u.intern_type(Type::Var(tasty::VarId(i as u32)));
-                self.zonk(v)
+                self.var_root(v)
             })
             .collect();
+        let mut narrowed: Vec<(SymbolId, TypeId)> = syms.into_iter().zip(vars.iter().copied()).collect();
         for (i, &r) in reps.iter().enumerate() {
             let Type::Var(p) = *self.u.types().get(r) else { continue };
             let shared =
                 r != vars[i] || reps.iter().filter(|&&x| x == r).count() > 1 || pattern_reps.contains(&r);
-            if shared && self.constraint.instance(p).is_none() {
-                let sym = self.gadt_ref(syms[i]);
-                self.constraint.instantiate(p, sym);
+            if !shared || reps[..i].contains(&r) {
+                continue;
             }
+            if let Some(t) = self.constraint.instance(p) {
+                if !pattern_reps.contains(&r) {
+                    continue;
+                }
+                let fixed = self.constraint.fresh(self.u);
+                let Type::Var(f) = *self.u.types().get(fixed) else { unreachable!("a fresh variable") };
+                self.constraint.instantiate(f, t);
+                narrowed[i].1 = fixed;
+            }
+            let sym = self.gadt_ref(narrowed[i].0);
+            self.constraint.instantiate(p, sym);
         }
-        Ok(Some(syms.into_iter().zip(vars).collect()))
+        Ok(Some(narrowed))
+    }
+
+    /// The variable `t` was made one with, or `t`.
+    fn var_root(&mut self, mut t: TypeId) -> TypeId {
+        while let Type::Var(id) = *self.u.types().get(t)
+            && let Some(next) = self.constraint.instance(id)
+            && matches!(self.u.types().get(next), Type::Var(_))
+        {
+            t = next;
+        }
+        t
     }
 
     /// Gives each symbol of `vars` its variable's bounds, which must be known, while the case is
@@ -132,39 +155,6 @@ impl Typer<'_> {
             self.set_gadt_bounds(s, (lo, hi));
         }
         Ok(())
-    }
-
-    /// Narrows the GADT bounds by type pattern `pat` against `sel` where it does not conform to
-    /// `sel` otherwise (dotty's `constrainPatternType` in `typedTyped`).
-    pub fn narrow_by_type_pattern(&mut self, pat: TypeId, sel: TypeId, ctx: Ctx) {
-        let mark = self.constraint.mark();
-        if self.constrain_pattern(pat, sel) == Ok(true) {
-            self.constraint.rollback(mark);
-            return;
-        }
-        self.constraint.rollback(mark);
-        let sel = self.this_widened(sel);
-        let sel = match self.is_singleton(pat) || self.refines_invariantly(pat, sel) {
-            true => sel,
-            false => match self.without_variant_args(sel) {
-                Some(widened) => widened,
-                None => return,
-            },
-        };
-        let from = self.constraint.count();
-        match self.gadt_vars((pat, from), sel, ctx) {
-            Ok(Some(vars)) if self.narrow_gadt(&vars).is_ok() => {}
-            _ => self.constraint.rollback(mark),
-        }
-    }
-
-    /// `this` of a class widened to the class applied to its type parameters, else `t`.
-    fn this_widened(&mut self, t: TypeId) -> TypeId {
-        let Type::This(c) = *self.u.types().get(t) else { return t };
-        match self.u.class_symbol(c) {
-            Some(class) if !self.u.type_params(class).is_empty() => self.u.this_type(class),
-            _ => t,
-        }
     }
 
     /// Whether `t` refers to a type variable.

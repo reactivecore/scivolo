@@ -71,7 +71,10 @@ impl Typer<'_> {
             found
         };
         if !ok {
-            self.narrow_by_binding_pattern(tpe, sel, &syms, ctx);
+            if let Err(what) = self.narrow_by_binding_pattern(tpe, sel, &syms, ctx) {
+                let span = self.tpd.span(tpt);
+                self.unsupported_at(span, what);
+            }
             return tpe;
         }
         if bounds.iter().any(|&(lo, hi)| open(self, lo) || open(self, hi)) {
