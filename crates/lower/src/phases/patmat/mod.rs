@@ -17,6 +17,7 @@ mod switch;
 mod try_catch;
 mod types;
 
+use super::extension_methods::Moved;
 use super::walk::children;
 use crate::definitions::{Patmat, symbol};
 use crate::{Lower, Result};
@@ -27,11 +28,13 @@ use tasty::tags::{INLINE, LAZY};
 use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{MatchKind, TNodeId, Tree};
 
-/// Compiles the matches in unit `root` in the order of its trees, inner matches first; those
-/// outside methods with their variables owned by the constructor.
-pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
+/// Compiles the matches in unit `root` in the order of its trees, inner matches first, those of
+/// an extension method of `moved` at its forwarder; those outside methods with their variables
+/// owned by the constructor.
+pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId, moved: &[Moved]) -> Result<()> {
     let mut matches = Vec::new();
     let mut case_bodies = FxHashSet::default();
+    let extensions: FxHashSet<TNodeId> = moved.iter().map(|m| m.1).collect();
     let mut todo = vec![(root, owner, false)];
     while let Some((t, owner, visited)) = todo.pop() {
         if visited {
@@ -59,7 +62,12 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
             _ => owner,
         };
         todo.push((t, owner, true));
-        todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, inner, false)));
+        let kids = children(l.tpd, t).into_iter().filter(|c| !extensions.contains(c));
+        todo.extend(kids.rev().map(|c| (c, inner, false)));
+        if let Some(&(_, ext, _)) = moved.iter().find(|m| m.0 == t) {
+            let sym = l.tpd.sym(ext).unwrap_or(owner);
+            todo.extend(children(l.tpd, ext).into_iter().rev().map(|c| (c, sym, false)));
+        }
     }
     for (m, owner) in matches {
         let defs = l.patmat()?;

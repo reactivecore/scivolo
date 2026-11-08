@@ -6,7 +6,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::{NodeId, Span};
 use syntax::names::Name;
-use tasty::SymbolId;
+use tasty::{Kind, SymbolId};
 
 /// The `$N$` names met, in order, with their files, and the symbols defined with them.
 #[derive(Clone, Default)]
@@ -41,6 +41,22 @@ impl Typer<'_> {
             self.meet_uniques(span, &[name]);
             let file = self.file_of(span);
             self.syms.uniques.syms.push((sym, file));
+        }
+    }
+
+    /// Completes the member classes of `cls` in order if its given self type derives from it, as
+    /// dotty's `classExistsOnSelf` does by looking each up in the self type.
+    pub fn complete_classes_on_self(&mut self, cls: SymbolId) {
+        let Some(self_type) = self.u.given_self_type(cls) else { return };
+        let widened = self.u.widen(self_type);
+        let Some(own) = self.u.class_symbol(widened) else { return };
+        if own == cls || !self.u.derives_from(own, cls) {
+            return;
+        }
+        for d in self.u.decls(cls).unwrap_or_default() {
+            if self.u.symbol(d).kind == Kind::Class {
+                self.complete(d);
+            }
         }
     }
 
