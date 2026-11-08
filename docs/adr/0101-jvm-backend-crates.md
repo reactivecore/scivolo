@@ -1,6 +1,6 @@
 # ADR 0101 — A JVM backend in its own crates, behind a `Backend` switch
 
-Status: accepted · Date: 2026-11-05
+Status: accepted · Date: 2026-11-05 · Its JDK consequence done by ADR 0106 and 0107
 
 ## Context
 The roadmap lists JVM bytecode as optional (Phase 5). Research 46 shows that everything up to

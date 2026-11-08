@@ -13,7 +13,7 @@ attributions.
 
 Apache-2.0. The compiler, scala3-repl and tasty-core, translated to Rust in `crates/syntax`,
 `crates/typer`, `crates/tasty`, `crates/lower`, `crates/repl`, `crates/macros` and
-`crates/vm`; `overlay/src/scala/quoted/runtime/impl` follows `QuotesImpl`.
+`crates/vm`; its JVM backend in `crates/jvm` and `crates/classfile`; `overlay/src/scala/quoted/runtime/impl` follows `QuotesImpl`.
 
 ### [Scala Native](https://github.com/scala-native/scala-native) 0.5.12
 

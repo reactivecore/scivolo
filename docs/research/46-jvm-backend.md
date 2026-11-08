@@ -136,6 +136,7 @@ proxies, `SyntheticMembers` (`writeReplace`, `L/phases/synthetic.rs:60`).
 ## 7. Staged plan
 
 Each step is one MR of ≤ ~500 LOC with its gates; acceptance named per step.
+Status: steps 1–11 are done (the stdlib of step 11 not); step 12 is open.
 
 1. **Class file writer and `Hello`** (ADR 0101: the JVM backend's crates and the `Backend`
    switch; roadmap row). `crates/classfile/src/{lib.rs, pool.rs, code.rs, writer.rs}`: constant

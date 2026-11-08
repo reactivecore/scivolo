@@ -3,7 +3,7 @@
 Goal: run Scala 3.9.0 scripts with no JVM, **≤ 50 ms end to end after an
 edit** (stretch goal: 20 ms, which is python3's startup). Coverage should
 equal the Scala Native subset and be proven with the suites Scala Native
-passes. Precompiled libraries must be usable. JVM bytecode is optional.
+passes. Precompiled libraries must be usable. A JVM bytecode backend shares the frontend.
 
 Evidence for every number below is in `docs/research/` and `spikes/*/README.md`.
 The architectural decision is [ADR 0001](docs/adr/0001-nir-shaped-execution-ir.md); the
@@ -105,16 +105,20 @@ libraries work. dotty's `tests/run-macros`: 308 of 321 pass
 - **Third-party libraries** (done): `--dep` loads `_native0.5_3` jars as NIR plus TASTy, fetched
   by Coursier.
 - **AOT for libraries.** Compile hot stdlib NIR ahead of time, callable from interpreted code.
-- **JVM bytecode backend (optional, started, #142,
-  [ADR 0101](docs/adr/0101-jvm-backend-crates.md), [research 46](docs/research/46-jvm-backend.md)):**
-  `scivolo-jvm` writes class files from the lowered trees; objects with calls, fields,
-  primitive arithmetic, locals, branches, loops, boxing and arrays, classes, traits, lambdas,
-  `try`/`finally`, `synchronized`, switches and JDK statics run on `java -Xverify:all`
-  (`just jvm-run`, `just jvm-check` against scala-cli), as class version 61 with stack map
-  frames; 125 of the 308 `tests/programs` run with their `.check` output (en-US locale). Each
-  top-level class gets its TASTy and `TASTY` attribute
-  ([ADR 0105](docs/adr/0105-jvm-tasty-from-the-typer.md)), `-d x.jar` writes a jar, and
-  scala-cli compiles against it.
+- **JVM bytecode backend** (done in its first scope, [ADR 0101](docs/adr/0101-jvm-backend-crates.md),
+  [research 46](docs/research/46-jvm-backend.md)): `scivolo-jvm` writes class version 61 with
+  stack map frames, TASTy per top-level class
+  ([ADR 0105](docs/adr/0105-jvm-tasty-from-the-typer.md)) and jars scala-cli compiles against;
+  JDK classes javalib lacks come from the JDK's class files (ADR 0106, 0107). dotty's `tests/run`
+  on the JVM: 1,523 of 1,709 pass (`just dotty-jvm-report`, docs/conformance.md). Open:
+  - JDK members of classes javalib has without them (most of the 87 typer refusals, e.g.
+    reflection), and what ADR 0107 does not enter (nested and annotation classes);
+  - the linkage errors, crashes and JVM refusals listed in docs/conformance.md;
+  - TASTy as dotty's: type sharing, positions, the trees ADR 0105 refuses;
+  - JVM jars on the classpath (`--dep`, scalac's class files) through the class file reader;
+  - the standard library as a target; NIR generation out of `crates/lower` into `crates/nirgen`.
+
+  Compile targets are tracked as issues labelled `compile-target`.
 
 ## Next
 
