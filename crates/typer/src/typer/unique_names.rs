@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! The `$N$` names of desugaring and typing numbered per file in the order the typer meets them,
 //! as dotty's desugaring takes them from the counter of `UniqueName` while it types.
 
