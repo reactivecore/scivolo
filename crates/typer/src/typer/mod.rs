@@ -56,6 +56,7 @@ mod context_bounds;
 mod context_functions;
 mod control;
 mod default_args;
+mod default_getter_companions;
 mod default_params;
 mod deferred_givens;
 mod define_further;

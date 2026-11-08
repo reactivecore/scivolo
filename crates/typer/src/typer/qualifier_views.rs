@@ -130,7 +130,7 @@ impl Typer<'_> {
     }
 
     /// Whether a member `name` of `q` applies to arguments of types `args`.
-    pub fn member_applies(&mut self, q: TNodeId, name: &str, args: &[TypeId], ctx: Ctx) -> bool {
+    fn member_applies(&mut self, q: TNodeId, name: &str, args: &[TypeId], ctx: Ctx) -> bool {
         let tpe = self.tpd.tpe(q);
         let members = self.type_members(tpe, name);
         let (applies, _, _) = self.speculatively(|t| {

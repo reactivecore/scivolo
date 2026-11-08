@@ -78,6 +78,7 @@ impl Typer<'_> {
             }
             if let Goal::Call(name, proto) = goal
                 && found.len() > 1
+                && self.most_specific(&found, ctx).is_none()
             {
                 found = self.applying(found, tree, (name, proto), ctx);
             }

@@ -31,9 +31,10 @@ impl<'a> Goal<'a> {
 }
 
 impl Typer<'_> {
-    /// The conversions of `found` whose result's member `name` applies to the arguments of
-    /// `proto` and fits its expected result; `found` if the arguments are not literals or paths,
-    /// or no conversion is left.
+    /// The conversions of ambiguous `found` whose result's member `name` applies to the
+    /// arguments of `proto` and fits its expected result (dotty's `deepenProto` after an
+    /// ambiguous search); `found` if the arguments are not literals or paths, or that is unknown
+    /// for a conversion.
     pub fn applying(
         &mut self,
         found: Vec<Candidate>,
@@ -50,15 +51,17 @@ impl Typer<'_> {
         let mut applying = Vec::new();
         for &c in &found {
             let (fits, clean, _) = self.speculatively(|t| {
-                let Ok(q) = t.try_conversion(c, (tree, false), Goal::Member(name), ctx) else { return false };
+                let q = t.try_conversion(c, (tree, false), Goal::Member(name), ctx).ok()?;
                 t.member_fits(q, name, &args, result, ctx)
             });
             self.retract_diags(reported);
-            if fits && clean {
-                applying.push(c);
+            match fits {
+                None => return found,
+                Some(true) if clean => applying.push(c),
+                Some(_) => {}
             }
         }
-        if applying.is_empty() { found } else { applying }
+        applying
     }
 
     /// The types of the arguments of `proto` if all are literals or paths and none is a method,
@@ -87,26 +90,39 @@ impl Typer<'_> {
         types.filter(|_| !diagnosed)
     }
 
-    /// Whether a member `name` of `q` surely applies to arguments of types `args`, its result
-    /// conforming to `pt` if it is a method of one clause.
-    fn member_fits(&mut self, q: TNodeId, name: &str, args: &[TypeId], pt: Option<TypeId>, ctx: Ctx) -> bool {
+    /// Whether a member `name` of `q` applies to arguments of types `args`, its result
+    /// conforming to `pt` if it is a method of one clause; `None` if that is unknown.
+    fn member_fits(
+        &mut self,
+        q: TNodeId,
+        name: &str,
+        args: &[TypeId],
+        pt: Option<TypeId>,
+        ctx: Ctx,
+    ) -> Option<bool> {
         let tpe = self.tpd.tpe(q);
+        let mut known = true;
         for m in self.type_members(tpe, name) {
-            if self.applicable(m, Some(tpe), args, true, ctx) != Some(true) {
-                continue;
+            match self.applicable(m, Some(tpe), args, true, ctx) {
+                Some(true) => {}
+                Some(false) => continue,
+                None => {
+                    known = false;
+                    continue;
+                }
             }
             let t = self.ref_type(Some(tpe), m);
             let info = self.method_info(t).unwrap_or(t);
-            let Some(pt) = pt else { return true };
+            let Some(pt) = pt else { return Some(true) };
             match self.u.types().get(info).clone() {
                 Type::Method { result, .. } if !matches!(self.u.types().get(result), Type::Method { .. }) => {
                     if self.conforms(result, pt) {
-                        return true;
+                        return Some(true);
                     }
                 }
-                _ => return true,
+                _ => return Some(true),
             }
         }
-        false
+        known.then_some(false)
     }
 }

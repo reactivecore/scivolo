@@ -15,8 +15,8 @@ const AMBIGUOUS: &str = "ambiguous extension methods of implicit values";
 
 impl Typer<'_> {
     /// The one candidate of `group` with an extension method named as `goal`'s member that takes
-    /// `tree`, of several those whose method's result fits `goal`'s expected type, if any, else the
-    /// most specific one; `Err` if none is.
+    /// `tree`, else the most specific one, else the one whose method's result fits `goal`'s
+    /// expected type (dotty's `deepenProto` after an ambiguous search); `Err` if none is.
     pub fn extension_container(
         &mut self,
         group: &[Candidate],
@@ -25,19 +25,7 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<Option<Candidate>, &'static str> {
         let Some(name) = goal.member() else { return Ok(None) };
-        let mut found = self.fitting(group, |t, c| t.try_extension(c, tree, name, ctx))?;
-        if let Goal::Typed(_, pt) = goal
-            && found.len() > 1
-        {
-            let typed: Vec<Candidate> = found
-                .iter()
-                .copied()
-                .filter(|&c| self.extension_result_fits(c, tree, name, pt, ctx))
-                .collect();
-            if !typed.is_empty() {
-                found = typed;
-            }
-        }
+        let found = self.fitting(group, |t, c| t.try_extension(c, tree, name, ctx))?;
         match found[..] {
             [] => Ok(None),
             [c] => Ok(Some(c)),
@@ -46,7 +34,18 @@ impl Typer<'_> {
                 None => {
                     let at = self.tpd.span(tree).start_pos();
                     let (best, _, _) = self.speculatively(|t| t.by_extension_methods(&found, name, at, ctx));
-                    best.map(Some).ok_or(AMBIGUOUS)
+                    if let Some(c) = best {
+                        return Ok(Some(c));
+                    }
+                    let Goal::Typed(_, pt) = goal else { return Err(AMBIGUOUS) };
+                    let typed: Vec<Candidate> = found
+                        .into_iter()
+                        .filter(|&c| self.extension_result_fits(c, tree, name, pt, ctx))
+                        .collect();
+                    match typed[..] {
+                        [c] => Ok(Some(c)),
+                        _ => Err(AMBIGUOUS),
+                    }
                 }
             },
         }

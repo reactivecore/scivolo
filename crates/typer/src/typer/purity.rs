@@ -14,6 +14,13 @@ const PURE: u8 = 2 | IDEMPOTENT;
 const IDEMPOTENT_PATH: u8 = 4 | IDEMPOTENT;
 const PURE_PATH: u8 = 4 | PURE;
 const IMPURE: u8 = 0;
+/// The methods whose type application is pure.
+const PURE_TYPE_APPLIES: [&str; 4] = [
+    "scala.Predef$.classOf",
+    "scala.quoted.Type$.of",
+    "scala.caps.internal$.erasedValue",
+    "scala.caps.unsafe$.unsafeErasedValue",
+];
 
 impl Typer<'_> {
     /// Whether evaluating `tree` has no effect.
@@ -51,17 +58,23 @@ impl Typer<'_> {
             T::Ident { .. } => self.ref_purity(tree),
             T::Select { qualifier, .. } => self.ref_purity(tree) & self.expr_purity(qualifier),
             T::TypeApply { fun, .. } if self.is_method_typed(tree) => self.expr_purity(fun),
-            T::TypeApply { fun, .. } => match *self.tpd.tree(fun) {
-                T::Select { qualifier, .. }
-                    if self
-                        .tpd
-                        .sym(fun)
-                        .is_some_and(|s| self.u.full_name(s) == "scala.Any.$asInstanceOf$") =>
-                {
-                    self.expr_purity(qualifier) & PURE
+            T::TypeApply { fun, .. } => {
+                let name = self.tpd.sym(fun).map(|s| self.u.full_name(s));
+                let qualifier = match *self.tpd.tree(fun) {
+                    T::Select { qualifier, .. } => Some(qualifier),
+                    _ => None,
+                };
+                match (name.as_deref(), qualifier) {
+                    (Some("scala.Any.$asInstanceOf$"), Some(q)) => self.expr_purity(q) & PURE,
+                    (Some("scala.compiletime.package$package$.erasedValue"), _)
+                        if self.has_constant_type(tree) =>
+                    {
+                        PURE
+                    }
+                    (Some(n), _) if PURE_TYPE_APPLIES.contains(&n) => PURE,
+                    _ => IMPURE,
                 }
-                _ => IMPURE,
-            },
+            }
             T::Apply { fun, args } => {
                 let args = self.tpd.items(args).to_vec();
                 let factor = args.into_iter().fold(self.expr_purity(fun), |p, a| p & self.expr_purity(a));
