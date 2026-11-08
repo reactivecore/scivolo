@@ -56,11 +56,9 @@ impl Typer<'_> {
 
     /// `'{ body }`, a term quote.
     pub fn typed_quote(&mut self, id: NodeId, body: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
-        if self.features.capture_checking() && self.has_capture_syntax(body) {
-            return self.unsupported(
-                id,
-                "quote with capture sets, annotations or function types under capture checking",
-            );
+        if self.features.capture_checking() && self.has_capture_syntax() {
+            let what = "quote in a file with capture sets, annotations or function types under capture checking";
+            return self.unsupported(id, what);
         }
         if ctx.mode.is(Mode::PATTERN) {
             return self.typed_quote_pattern(id, body, pt, ctx);
@@ -80,6 +78,9 @@ impl Typer<'_> {
         {
             self.record_quote_tags(applied, body, ctx);
             if self.features.capture_checking() {
+                if self.refers_to_capturing(body) {
+                    return self.unsupported(id, "quote referring to capturing types under capture checking");
+                }
                 self.mark_inferred(body);
             }
         }

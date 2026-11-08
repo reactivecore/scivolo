@@ -70,6 +70,9 @@ impl Typer<'_> {
         if ctx.staging == 0 {
             self.record_pattern_givens(pattern, body, &bindings, ctx);
             if self.features.capture_checking() {
+                if self.refers_to_capturing(body) {
+                    return self.unsupported(id, "quote referring to capturing types under capture checking");
+                }
                 self.mark_inferred(body);
             }
         }
