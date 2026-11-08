@@ -69,6 +69,9 @@ impl Typer<'_> {
         let pattern = self.tpd.node(T::QuotePattern { bindings: list, body, quotes }, span, Some(tpe), None);
         if ctx.staging == 0 {
             self.record_pattern_givens(pattern, body, &bindings, ctx);
+            if self.features.capture_checking() {
+                self.mark_inferred(body);
+            }
         }
         pattern
     }
