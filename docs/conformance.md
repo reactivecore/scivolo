@@ -263,26 +263,28 @@ Results (2026-11-08):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1496 |
+| passed | 1365 |
 | wrong output | 0 |
 | verify error | 0 |
 | linkage error | 4 |
-| crashed | 4 |
+| crashed | 1 |
 | timeout | 0 |
-| jvm refused | 20 |
+| jvm refused | 31 |
 | lowering refused | 2 |
-| typer refused | 92 |
+| typer refused | 215 |
 | frontend crashed | 0 |
 | skipped | 91 |
 | **total** | **1709** |
 
-- **Typer refused:** mostly members not found (61): reflection and other JDK members of classes
-  javalib has without them (`Class.getDeclaredFields`).
-- **JVM refused:** `try` with values on the stack (7), super calls of class methods through a
-  trait (4), constructor calls on an initialized object (4), `@throws` (2).
+- **Typer refused:** TASTy pickling (123: synthetic members of generic case classes and enums 64,
+  type lambda bounds 24, unknown classes in signatures 19), members not found (61): reflection and
+  other JDK members of classes javalib has without them (`Class.getDeclaredFields`).
+- **JVM refused:** super accessors the TASTy lacks (11), `try` with values on the stack (7), super
+  calls of class methods through a trait (4), constructor calls on an initialized object (4),
+  `@throws` (2).
 - **Linkage errors and crashes:** a missing lambda `$adapted` method (`context-functions`), a
-  missing bridge (`i18315`, `i23245b`), arrays of value classes (`Meter`, `MeterCaseClass`),
-  `ClassTag` of a `*:` tuple (`i22345`), `IArray[Unit]`'s erasure (`IArrayOps`).
+  missing bridge (`i18315`, `i23245b`), `ClassTag` of a `*:` tuple (`i22345`), `IArray[Unit]`'s
+  erasure (`IArrayOps`).
 
 ### com-lihaoyi libraries from source
 
