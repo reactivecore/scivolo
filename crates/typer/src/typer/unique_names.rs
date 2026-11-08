@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! The `$N$` names of desugaring and typing numbered per file in the order the typer meets them,
 //! as dotty's desugaring takes them from the counter of `UniqueName` while it types.
 
@@ -6,7 +8,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::{NodeId, Span};
 use syntax::names::Name;
-use tasty::SymbolId;
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// The `$N$` names met, in order, with their files, and the symbols defined with them.
 #[derive(Clone, Default)]
@@ -42,6 +44,38 @@ impl Typer<'_> {
             let file = self.file_of(span);
             self.syms.uniques.syms.push((sym, file));
         }
+    }
+
+    /// Completes the member classes of `cls` in order if its given self type has them as members,
+    /// as dotty's `classExistsOnSelf` does by looking each up in the self type.
+    pub fn complete_classes_on_self(&mut self, cls: SymbolId) {
+        let Some(self_type) = self.u.given_self_type(cls) else { return };
+        if self.u.class_symbol(self_type) == Some(cls) || !self.has_members_of(self_type, cls) {
+            return;
+        }
+        for d in self.u.decls(cls).unwrap_or_default() {
+            if self.u.symbol(d).kind == Kind::Class {
+                self.complete(d);
+            }
+        }
+    }
+
+    /// Whether type `t` derives from class `cls`, or one part of it if an intersection.
+    fn has_members_of(&mut self, t: TypeId, cls: SymbolId) -> bool {
+        let t = self.u.widen(t);
+        if let Type::Sym(_, s) = *self.u.types().get(t) {
+            self.complete(s);
+        }
+        let dealiased = self.u.dealias_step(t);
+        if dealiased != t {
+            return self.has_members_of(dealiased, cls);
+        }
+        if let Type::And(a, b) = *self.u.types().get(t) {
+            return self.has_members_of(a, cls) || self.has_members_of(b, cls);
+        }
+        let Some(own) = self.u.class_symbol(t) else { return false };
+        self.complete(own);
+        self.u.derives_from(own, cls)
     }
 
     /// Meets `names`, made by the typer at `span`.
