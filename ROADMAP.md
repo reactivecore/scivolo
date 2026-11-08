@@ -140,7 +140,7 @@ slower meanwhile:
    | clib | 21 of 21 | 114 | | 1 |
    | posixlib | 67 of 67 | 270 | | |
    | windowslib | 34 | 130 | | |
-   | scalalib | 640 of 649 | 4,169 | 17 | 52 |
+   | scalalib | 640 of 649 | 4,204 | 17 | 17 |
 
    scalalib is compared with `just lib-oracle`'s build of it. clib and posixlib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
    `unsafe/package{,$}` in nativelib differ only as a joint compilation with
