@@ -166,10 +166,7 @@ impl Typer<'_> {
             }
             let pre = pretyped.as_ref().and_then(|typed| typed[i]);
             if spread_at(self, i, a) {
-                if pre.is_some() {
-                    return self.unsupported(id, "spread argument of an overload");
-                }
-                let spread = self.spread_arg(a, formal, ctx);
+                let spread = self.spread_arg(a, pre, formal, ctx);
                 typed_args.push(spread);
                 continue;
             }

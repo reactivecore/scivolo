@@ -62,9 +62,6 @@ impl Typer<'_> {
             return Ok(None);
         }
         let accessors = self.case_accessors(cls);
-        if accessors.iter().any(|&a| self.is_unrolled(a)) {
-            return Err("Mirror of a case class with @unroll parameters");
-        }
         let labels: Vec<String> = accessors.iter().map(|&a| self.u.symbol(a).name.clone()).collect();
         let site = match *self.u.types().get(formal.mirrored) {
             Type::Lambda { result, .. } => result,
@@ -170,11 +167,6 @@ impl Typer<'_> {
             matches!(t.u.symbol(d).kind, Kind::Val | Kind::Param) && t.u.symbol(d).flags.has(CASEaccessor)
         };
         decls.into_iter().filter(|&d| accessor(self, d)).collect()
-    }
-
-    /// Whether `s` is annotated `@unroll`.
-    fn is_unrolled(&self, s: SymbolId) -> bool {
-        self.u.annotations(s).iter().any(|&a| self.u.full_name(a) == "scala.annotation.unroll")
     }
 
     /// Whether `owner` is `class` or owned by it, transitively.

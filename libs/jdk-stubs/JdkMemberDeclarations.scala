@@ -6,6 +6,12 @@ import scala.annotation.static
 package java.lang {
   abstract class ClassLoader { def loadClass(name: String): Class[?] = null }
 
+  class Runtime private () {
+    def totalMemory(): scala.Long = 0L
+    def maxMemory(): scala.Long = 0L
+    def freeMemory(): scala.Long = 0L
+  }
+
   final class System
   object System { @static def console(): java.io.Console = null }
 }
