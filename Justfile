@@ -249,14 +249,15 @@ lib-jar module: fetch-libs fetch-scala-native
     python3 scripts/lib-jar.py '{{ module }}'
 
 # `sn-report 1800` with lib-jar's jars of `modules` in place of the published ones (tests built by
-# `sn-build all`), their library image in tmp/cache-ours; compare with a plain `sn-report 1800`.
+# `sn-build all`), their library image in tmp/cache-ours, the report in tmp/sn-report-ours;
+# compare with a plain `sn-report 1800`'s in tmp/sn-report.
 lib-jar-report +modules: fetch-libs fetch-scala-native release
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     rm -rf tmp/libs-ours && mkdir -p tmp/libs-ours
     ln -s '{{ SCIVOLO_LIBS }}'/*.jar tmp/libs-ours/
-    for m in {{ modules }}; do python3 scripts/lib-jar.py $m || exit 1; ln -sf ../lib/$m/${m}_native0.5_3-0.5.12.jar tmp/libs-ours/; done
+    for m in {{ modules }}; do python3 scripts/lib-jar.py $m || exit 1; ln -sf "$PWD"/tmp/lib/$m/${m}_native0.5_3-*.jar tmp/libs-ours/; done
     SCIVOLO_LIBS='{{ justfile_directory() }}/tmp/libs-ours' SCIVOLO_CACHE='{{ justfile_directory() }}/tmp/cache-ours' \
-        SCIVOLO_TIMEOUT=1800 scripts/sn-report.sh
+        SCIVOLO_REPORT='{{ justfile_directory() }}/tmp/sn-report-ours' SCIVOLO_TIMEOUT=1800 scripts/sn-report.sh
 
 # Compile Maven library `name` (sourcecode, geny, ujson, fansi, pprint, upickle, mainargs,
 # fastparse, os-lib) from its modules' `-sources.jar` files file by file with `scivolo-aot -d`,

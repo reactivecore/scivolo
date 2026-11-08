@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Runs the JUnit tests built by `scripts/sn-tests.sh all` in groups and prints a Markdown table
-# of passed, failed and skipped tests per group, also to tmp/sn-report/report.md; per-group
-# output lands in tmp/sn-report/. SCIVOLO_TIMEOUT (default 60 s) bounds each group. Exits 1 if
-# a group did not complete or passed no test.
+# of passed, failed and skipped tests per group, also to report.md in SCIVOLO_REPORT (default
+# tmp/sn-report), where the per-group output lands too. SCIVOLO_TIMEOUT (default 60 s) bounds
+# each group. Exits 1 if a group did not complete or passed no test.
 set -uo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
-out=$root/tmp/sn-report
+out=${SCIVOLO_REPORT:-$root/tmp/sn-report}
 mkdir -p "$out"
 groups=(
   "language:scala.:-org.scalanative:-scala.scalanative"

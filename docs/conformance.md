@@ -40,6 +40,12 @@ where their resource files are.
 Counts are test methods, from macOS. Linux fails the same tests. It skips four more: the
 read-only-file cases, because the CI container runs as root.
 
+With the scalalib jar `just lib-jar scalalib` builds in place of the published one
+(`just lib-jar-report scalalib`), every test passes, fails and skips as above. That jar holds
+our NIR of the files the frontend lowers (the scalalib row of ROADMAP's Next 5), the published
+NIR of the classes Scala Native takes from Scala 2.13, and Scala Native's build's NIR of the
+files the frontend refuses.
+
 A feature the VM lacks throws `java.lang.InternalError("scivolo: unsupported: …")`, a missing class
 `NoClassDefFoundError`, a missing C function `UnsatisfiedLinkError`, so one gap fails a test
 instead of the run.
