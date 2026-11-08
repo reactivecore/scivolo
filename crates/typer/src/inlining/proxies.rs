@@ -37,7 +37,7 @@ impl Expansion<'_, '_> {
             }
             arg_tpe = seq;
         }
-        if let Err(what) = i.check_gadt_arg(arg) {
+        if let Err(what) = i.check_gadt_arg(arg, skolem.is_some()) {
             return Err(self.err(what));
         }
         let by_name = matches!(i.u.types().get(formal), Type::ByName(_));

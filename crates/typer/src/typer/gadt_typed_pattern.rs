@@ -107,6 +107,12 @@ impl Typer<'_> {
                 return Err("type bound by a typed pattern through parameters made one");
             }
             let params: Vec<SymbolId> = narrowed.iter().map(|&(p, _)| p).collect();
+            let poly_param = |t: &mut Self, r: SymbolId| {
+                params.contains(&r) && t.u.symbol(r).owner.is_some_and(|o| t.is_poly_apply_owner(o))
+            };
+            if lo == hi && plain_type_ref(self.u, lo).is_some_and(|r| poly_param(self, r)) {
+                return Err("type bound by a typed pattern made one with a polymorphic function's parameter");
+            }
             let (lo, hi) = self.ordered_bound_type(s, (lo, hi), &params);
             let Some((old_lo, old_hi)) = self.current_bounds(s) else { continue };
             let lo = match (self.u.is_subtype(old_lo, lo), self.u.is_subtype(lo, old_lo)) {

@@ -34,7 +34,9 @@ GADT bounds as infos (`indexPattern`).
   (`avoidPatBoundType`).
 
 ## Consequences
-- Refused still: a singleton cast by GADT bounds as an inline argument (dotty types the
-  expansion by the singleton); a GADT approximation inside an inferred type argument
-  (`i4075-gadt`); a typed pattern's bound type made one with several parameters (dotty
-  bounds it by each compared type).
+- Refused still: an inline argument cast by GADT bounds that is a singleton (dotty types the
+  expansion by the singleton) or that the call's type refers to by a skolem; a GADT
+  approximation inside an inferred type argument (`i4075-gadt`); a typed pattern's bound type
+  made one with a polymorphic function value's parameter (dotty keeps the bound type as the
+  representative) or with
+  several (dotty bounds it by each compared type).
