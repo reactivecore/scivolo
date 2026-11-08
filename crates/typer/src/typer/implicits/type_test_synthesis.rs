@@ -6,7 +6,7 @@
 
 use super::super::{Pt, Typer};
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{SymbolId, TypeId};
@@ -41,7 +41,7 @@ impl Typer<'_> {
             return Ok(Some(self.typed(tree, Pt::Type(pt), ctx)));
         }
         let symbol = self.u.class_symbol(to).map(|c| self.u.full_name(c));
-        if symbol.is_some_and(|n| NO_TEST.contains(&n.as_str())) || !self.is_testable_type(to) {
+        if symbol.is_some_and(|n| NO_TEST.contains(&n.as_str())) {
             return Ok(None);
         }
         let s = TName { name: self.name("s"), is_type: false };
@@ -70,7 +70,35 @@ impl Typer<'_> {
         let body = self.ast_node(Tree::If { cond, thenp, elsep, inline: false }, at);
         let args = self.ast.list(&[param]);
         let function = self.ast_node(Tree::Function { args, body, mods: None, wildcard: false }, at);
-        Ok(Some(self.typed(function, Pt::Type(pt), ctx)))
+        let typed = self.typed(function, Pt::Type(pt), ctx);
+        self.as_built(typed);
+        Ok(Some(typed))
+    }
+
+    /// Typed closure `tree` of a type test with the trees and flags of dotty's `tpd`: the type
+    /// arguments of `Some.apply` and `asInstanceOf` as type trees, the target type inferred, the
+    /// closure method no artifact.
+    fn as_built(&mut self, tree: TNodeId) {
+        let T::Block { stats, expr } = *self.tpd.tree(tree) else { return };
+        if let T::Closure { tpt: Some(tpt), .. } = *self.tpd.tree(expr) {
+            self.tpd.get_mut(tpt).tree = T::TypeTree { inferred: true };
+        }
+        let Some(&def) = self.tpd.items(stats).first() else { return };
+        if let Some(meth) = self.tpd.sym(def) {
+            let flags = self.u.symbol(meth).flags.without(tasty::tags::ARTIFACT);
+            self.u.set_flags(meth, flags);
+        }
+        let T::DefDef { rhs: Some(rhs), .. } = *self.tpd.tree(def) else { return };
+        let T::If { thenp, .. } = *self.tpd.tree(rhs) else { return };
+        let T::Apply { fun, args } = *self.tpd.tree(thenp) else { return };
+        let cast = self.tpd.items(args).first().copied();
+        for f in [Some(fun), cast].into_iter().flatten() {
+            if let T::TypeApply { args, .. } = *self.tpd.tree(f) {
+                for &a in self.tpd.items(args).to_vec().iter() {
+                    self.tpd.get_mut(a).tree = T::TypeTree { inferred: false };
+                }
+            }
+        }
     }
 
     fn ast_node(&mut self, tree: Tree, at: Span) -> NodeId {

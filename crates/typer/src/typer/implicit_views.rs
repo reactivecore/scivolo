@@ -17,7 +17,7 @@ impl Typer<'_> {
     pub fn may_view(&mut self, m: SymbolId, q: SymbolId, goal: Goal) -> bool {
         let sym = self.u.symbol(m);
         if sym.flags.has(EXTENSION) {
-            return matches!(goal, Goal::Member(name) if sym.name == name);
+            return goal.member().is_some_and(|name| sym.name == name);
         }
         if !(sym.flags.has(IMPLICIT) || sym.flags.has(GIVEN)) || !matches!(sym.kind, Kind::Val | Kind::Def) {
             return false;
@@ -33,7 +33,9 @@ impl Typer<'_> {
             let result = self.strip_implicit(result);
             return self.may_accept(param, q, matches!(goal, Goal::Conform(_)))
                 && match goal {
-                    Goal::Member(name) => self.may_have(result, param, name),
+                    Goal::Member(name) | Goal::Call(name, _) | Goal::Typed(name, _) => {
+                        self.may_have(result, param, name)
+                    }
                     Goal::Conform(to) => self.may_conform(result, param, to),
                 };
         }
@@ -44,7 +46,7 @@ impl Typer<'_> {
             value = t;
         }
         let Some(c) = self.u.class_symbol(value) else { return true };
-        if let Goal::Member(name) = goal
+        if let Some(name) = goal.member()
             && self.class_members(c, name).iter().any(|&e| self.u.symbol(e).flags.has(EXTENSION))
         {
             return true;

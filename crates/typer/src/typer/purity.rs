@@ -1,8 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! How far evaluating a tree has effects (dotty's `exprPurity`, `statPurity`, `refPurity`), and
-//! the warnings about pure expressions in statement position (`checkStatementPurity`).
+//! How far evaluating a tree has effects (dotty's `exprPurity`, `statPurity`, `refPurity`).
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
@@ -15,6 +14,13 @@ const PURE: u8 = 2 | IDEMPOTENT;
 const IDEMPOTENT_PATH: u8 = 4 | IDEMPOTENT;
 const PURE_PATH: u8 = 4 | PURE;
 const IMPURE: u8 = 0;
+/// The methods whose type application is pure.
+const PURE_TYPE_APPLIES: [&str; 4] = [
+    "scala.Predef$.classOf",
+    "scala.quoted.Type$.of",
+    "scala.caps.internal$.erasedValue",
+    "scala.caps.unsafe$.unsafeErasedValue",
+];
 
 impl Typer<'_> {
     /// Whether evaluating `tree` has no effect.
@@ -52,6 +58,23 @@ impl Typer<'_> {
             T::Ident { .. } => self.ref_purity(tree),
             T::Select { qualifier, .. } => self.ref_purity(tree) & self.expr_purity(qualifier),
             T::TypeApply { fun, .. } if self.is_method_typed(tree) => self.expr_purity(fun),
+            T::TypeApply { fun, .. } => {
+                let name = self.tpd.sym(fun).map(|s| self.u.full_name(s));
+                let qualifier = match *self.tpd.tree(fun) {
+                    T::Select { qualifier, .. } => Some(qualifier),
+                    _ => None,
+                };
+                match (name.as_deref(), qualifier) {
+                    (Some("scala.Any.$asInstanceOf$"), Some(q)) => self.expr_purity(q) & PURE,
+                    (Some("scala.compiletime.package$package$.erasedValue"), _)
+                        if self.has_constant_type(tree) =>
+                    {
+                        PURE
+                    }
+                    (Some(n), _) if PURE_TYPE_APPLIES.contains(&n) => PURE,
+                    _ => IMPURE,
+                }
+            }
             T::Apply { fun, args } => {
                 let args = self.tpd.items(args).to_vec();
                 let factor = args.into_iter().fold(self.expr_purity(fun), |p, a| p & self.expr_purity(a));
@@ -166,30 +189,6 @@ impl Typer<'_> {
             T::Ident { .. } | T::Select { .. } => self.tpd.sym(fun),
             T::TypeApply { fun, .. } => self.callee(fun),
             _ => None,
-        }
-    }
-
-    /// Warns about pure statement `tree`, at `parens` if it was parenthesized.
-    pub fn check_statement_purity(&mut self, tree: TNodeId, parens: Option<u32>) {
-        let callee = self.tpd.meth_part(tree);
-        let constr_call = self.tpd.sym(callee).is_some_and(|s| self.u.symbol(s).name == "<init>")
-            && matches!(*self.tpd.tree(callee), T::Select { qualifier, .. }
-                if matches!(self.tpd.tree(qualifier), T::This { .. } | T::Super { .. }));
-        if self.is_pure_expr(tree) && !constr_call {
-            let at = parens.unwrap_or_else(|| self.tpd.span(tree).point());
-            self.diags.warning(at, "A pure expression does nothing in statement position");
-        }
-    }
-
-    /// Warns about pure expression `tree` whose value is discarded for an expected `Unit`.
-    pub fn check_unit_purity(&mut self, tree: TNodeId) {
-        if self.is_pure_expr(tree) {
-            let tpe = self.tpd.tpe(tree);
-            let widened = self.u.widen(tpe);
-            let shown = self.plain_text(widened).unwrap_or_else(|| self.show_type(widened));
-            let msg = format!("Discarded non-Unit value of type {shown}. Add `: Unit` to discard silently.");
-            let at = self.tpd.span(tree).point();
-            self.diags.warning(at, msg);
         }
     }
 }

@@ -73,7 +73,7 @@ impl Typer<'_> {
     /// Type `info` of method `meth` without its leading implicit clauses, references to their
     /// parameters made wildcards bounded by their types, and the number of clauses stripped
     /// (dotty's `stripImplicit` with `resultTypeApprox`).
-    fn strip_implicit_clauses(&mut self, info: TypeId, meth: SymbolId) -> (TypeId, usize) {
+    pub fn strip_implicit_clauses(&mut self, info: TypeId, meth: SymbolId) -> (TypeId, usize) {
         match self.u.types().get(info).clone() {
             Type::Method { binder, params, result, implicit: true, .. } => {
                 let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();

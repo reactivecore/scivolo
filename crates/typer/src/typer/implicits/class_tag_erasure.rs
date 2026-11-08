@@ -14,6 +14,14 @@ impl Typer<'_> {
     /// Whether every instance of `t` erases alike (dotty's `hasStableErasure`).
     pub fn has_stable_erasure(&mut self, t: TypeId) -> bool {
         let t = self.translucent(t);
+        if let Type::Applied(tycon, args) = self.u.types().get(t).clone()
+            && self.referenced(tycon).is_some_and(|s| self.u.symbol(s).kind != Kind::Class)
+        {
+            return self
+                .u
+                .expand_upper(tycon, &args)
+                .is_some_and(|hi| hi != t && self.has_stable_erasure(hi));
+        }
         match *self.u.types().get(t) {
             Type::And(a, b) | Type::Or(a, b, _) => self.has_stable_erasure(a) && self.has_stable_erasure(b),
             Type::Applied(inner, _)

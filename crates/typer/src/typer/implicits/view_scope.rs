@@ -20,7 +20,7 @@ impl Typer<'_> {
         if let Goal::Conform(pt) = goal {
             scope.extend(self.implicit_scope(pt)?);
         }
-        if let Goal::Member(name) = goal
+        if let Some(name) = goal.member()
             && scope.iter().any(|c| {
                 let s = self.u.symbol(c.sym);
                 s.name == name && s.flags.has(tasty::tags::EXTENSION)
