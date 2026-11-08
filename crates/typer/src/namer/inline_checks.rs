@@ -37,7 +37,7 @@ impl Typer<'_> {
         }
         Some(if nested && kind != Kind::Val {
             "inline definition nested in an inline method"
-        } else if flags.is_one_of(f::MUTABLE.or(f::PARAM_ACCESSOR).or(f::TERM_PARAM)) {
+        } else if flags.is_one_of(f::PARAM_ACCESSOR.or(f::TERM_PARAM)) || kind != Kind::Def && flags.is(f::MUTABLE) {
             "inline variable or class parameter"
         } else if kind != Kind::Def && kind != Kind::Val {
             "inline definition"
