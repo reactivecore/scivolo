@@ -5,7 +5,7 @@
 
 use super::Typer;
 use crate::tpd::TNodeId;
-use tasty::{SymbolId, Type};
+use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// Whether reference `tree` to a method with an empty parameter list may be called without
@@ -34,7 +34,8 @@ impl Typer<'_> {
     }
 
     /// Whether reference `tree` applied to `()` drops the empty arguments: it overrides a method
-    /// with an empty parameter list (the 0th strategy of dotty's `tryInsertApplyOrImplicit`).
+    /// with an empty parameter list (the 0th strategy of dotty's `tryInsertApplyOrImplicit`), or
+    /// is a parameterless method of a class of the JDK jars, a Java method with an empty one.
     pub fn drops_empty_args(&mut self, tree: TNodeId) -> bool {
         let tpe = self.tpd.tpe(tree);
         let info = self.method_info(tpe).unwrap_or(tpe);
@@ -43,6 +44,9 @@ impl Typer<'_> {
         }
         let Some(s) = self.tpd.sym(tree) else { return false };
         let Some(owner) = self.u.symbol(s).owner else { return false };
+        if self.u.symbol(s).kind == Kind::Def && self.u.is_from_jdk_jars(owner) {
+            return true;
+        }
         self.overridden_members(s, owner).into_iter().any(|m| {
             let info = self.u.info(m);
             matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty())
