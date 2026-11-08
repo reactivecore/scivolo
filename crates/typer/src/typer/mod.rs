@@ -140,6 +140,7 @@ mod mismatch_text;
 mod name_clashes;
 mod named_args;
 mod named_overloads;
+mod named_tuple_from;
 mod named_tuple_trees;
 mod named_tuple_types;
 mod named_tuples;
