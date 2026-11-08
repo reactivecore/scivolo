@@ -23,6 +23,9 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<Option<TNodeId>, &'static str> {
+        if depth == 0 && ctx.mode.is(crate::ctx::Mode::NO_SYNTHESIS) {
+            return Ok(None);
+        }
         if let Some(mirror) = self.synthesized_mirror(pt, at, ctx)? {
             return Ok(Some(mirror));
         }

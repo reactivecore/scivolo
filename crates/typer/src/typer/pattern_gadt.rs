@@ -95,7 +95,7 @@ impl Typer<'_> {
     /// Whether pattern type `pat` against `sel` constrains every type argument of their common
     /// base class: `sel` without wildcard arguments, and `pat`'s class final or a case class, or
     /// that base class's parameters invariant (dotty's `assumeInvariantRefinement`, the variant
-    /// arguments otherwise left unconstrained).
+    /// arguments otherwise left unconstrained); never for an opaque type seen from outside.
     pub fn refines_invariantly(&mut self, pat: TypeId, sel: TypeId) -> bool {
         let sel = self.dealiased(sel);
         if let Type::Or(a, b, _) = *self.u.types().get(sel) {
@@ -106,7 +106,7 @@ impl Typer<'_> {
             };
         }
         let widened = self.u.widen(sel);
-        if has_wildcard(self.u, widened) {
+        if has_wildcard(self.u, widened) || self.is_opaque_ref(pat) || self.is_opaque_ref(widened) {
             return false;
         }
         let (Some(p), Some(s)) = (self.u.class_symbol(pat), self.u.class_symbol(sel)) else { return false };
@@ -118,7 +118,7 @@ impl Typer<'_> {
         self.u.variances(base).iter().all(|&v| v == 0)
     }
 
-    /// Class application `sel` with its arguments at variant parameters replaced by `?`, which
+    /// Class or opaque type application `sel` with its arguments at variant parameters replaced by `?`, which
     /// `constrainSimplePatternType` leaves unconstrained, its `Null` parts dropped; `None` if `sel` has a wildcard
     /// argument or no invariant parameter.
     pub fn without_variant_args(&mut self, sel: TypeId) -> Option<TypeId> {
@@ -129,7 +129,10 @@ impl Typer<'_> {
             return None;
         }
         let Type::Applied(tycon, args) = self.u.types().get(sel).clone() else { return None };
-        let class = self.u.class_symbol(tycon)?;
+        let class = match self.is_opaque_ref(tycon) {
+            true => self.referenced(tycon)?,
+            false => self.u.class_symbol(tycon)?,
+        };
         let variances = self.u.variances(class);
         if variances.len() != args.len() || variances.iter().all(|&v| v != 0) {
             return None;

@@ -2,6 +2,7 @@
 //! as dotty keeps them.
 
 use super::Typer;
+use tasty::tags::{FINAL, OBJECT};
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
@@ -14,14 +15,22 @@ impl Typer<'_> {
             || args.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)))
     }
 
-    /// Whether `t` is a match type that refers to no type parameter, parameter or abstract type
-    /// and does not reduce.
+    /// Whether `t` is a match type that refers to no type parameter, parameter or abstract type,
+    /// takes no `this` of a class that may be extended, and does not reduce.
     pub fn is_ground_match(&mut self, t: TypeId) -> bool {
         let dealiased = self.u.dealias(t);
         if !matches!(self.u.types().get(dealiased), Type::Match { .. }) || self.u.try_normalize(t).is_some() {
             return false;
         }
-        !self.refers_to_abstract(t, false)
+        let args = self.u.applied(t).map(|(_, args)| args.to_vec()).unwrap_or_default();
+        let open_this = args.into_iter().any(|a| match *self.u.types().get(a) {
+            Type::This(c) => self.u.class_symbol(c).is_some_and(|c| {
+                let flags = self.u.symbol(c).flags;
+                !flags.has(OBJECT) && !flags.has(FINAL)
+            }),
+            _ => false,
+        });
+        !open_this && !self.refers_to_abstract(t, false)
     }
 
     /// Whether `t` refers to a type parameter, a parameter or an abstract type, or a value if

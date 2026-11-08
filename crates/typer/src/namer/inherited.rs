@@ -15,10 +15,7 @@ impl Typer<'_> {
     pub fn inherited_result(&mut self, sym: SymbolId) -> Option<TypeId> {
         let cls = self.u.symbol(sym).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class)?;
         let name = self.u.symbol(sym).name.clone();
-        let decls = self.u.symbol(sym).decls.clone();
-        let tparams: Vec<SymbolId> =
-            decls.into_iter().filter(|&d| self.u.symbol(d).kind == Kind::TypeParam).collect();
-        let own_params = self.value_params(sym);
+        let own_params = self.clauses(sym);
         let class = crate::defn::type_ref(self.u, cls);
         let site = self.u.intern_type(Type::This(class));
         let bases: Vec<SymbolId> = self.u.linearization(cls).into_iter().skip(1).collect();
@@ -34,7 +31,7 @@ impl Typer<'_> {
                 {
                     continue;
                 }
-                let Some(res) = self.matching_result(site, m, &tparams, &own_params) else { continue };
+                let Some(res) = self.matching_result(site, m, &own_params) else { continue };
                 let res = self.rebound(res, site, cls);
                 self.complete_type_members(res);
                 result = Some(match result {
@@ -81,62 +78,66 @@ impl Typer<'_> {
         })
     }
 
-    /// The parameters of each value clause of script method `sym`, an empty clause `()` among
-    /// them, or none for a value.
-    fn value_params(&mut self, sym: SymbolId) -> Vec<Vec<SymbolId>> {
+    /// The parameter clauses of script method `sym`, each with whether it is a type clause, an
+    /// empty clause `()` among them, or none for a value; one value clause per clause it recorded
+    /// for a method without a definition.
+    fn clauses(&mut self, sym: SymbolId) -> Vec<(bool, Vec<SymbolId>)> {
         let clauses = self.syms.param_clauses.get(&sym).cloned().unwrap_or_default();
-        let Some(&tree) = self.syms.def_trees.get(&sym) else { return clauses };
+        let Some(&tree) = self.syms.def_trees.get(&sym) else {
+            return clauses.into_iter().map(|c| (false, c)).collect();
+        };
+        let decls = self.u.symbol(sym).decls.clone();
+        let mut types = decls.into_iter().filter(|&d| self.u.symbol(d).kind == Kind::TypeParam);
         let mut values = clauses.into_iter();
         let mut out = Vec::new();
         for clause in self.def_clauses(tree) {
             match clause.first() {
-                None => out.push(Vec::new()),
-                Some(&p) if matches!(self.ast.tree(p), Tree::TypeDef { .. }) => {}
-                Some(_) => {
-                    out.push(values.next().unwrap_or_default());
+                None => out.push((false, Vec::new())),
+                Some(&p) if matches!(self.ast.tree(p), Tree::TypeDef { .. }) => {
+                    out.push((true, types.by_ref().take(clause.len()).collect()));
                 }
+                Some(_) => out.push((false, values.next().unwrap_or_default())),
             }
         }
         out
     }
 
-    /// The result type of member `m` as seen from `site` if it has as many type parameters as
-    /// `tparams`, instantiated to them, and its value parameters have the types of `params`, clause
-    /// by clause, `Any` matching a Java method's `Object`; its parameters replaced by `params`.
+    /// The result type of member `m` as seen from `site` if its clauses take as many type
+    /// parameters as those of `clauses`, instantiated to them, and value parameters of their types,
+    /// `Any` matching a Java method's `Object`; its parameters replaced by those of `clauses`.
     fn matching_result(
         &mut self,
         site: TypeId,
         m: SymbolId,
-        tparams: &[SymbolId],
-        params: &[Vec<SymbolId>],
+        clauses: &[(bool, Vec<SymbolId>)],
     ) -> Option<TypeId> {
         self.complete(m);
         let java = self.is_java_member(m);
         let mut t = self.u.member_info(site, m);
-        if !tparams.is_empty() {
-            let Type::Poly { binder, params: ps, result } = self.u.types().get(t).clone() else {
-                return None;
-            };
-            if ps.len() != tparams.len() {
-                return None;
-            }
-            let args: Vec<TypeId> = tparams.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
-            let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
-            t = self.u.subst(result, binder, &names, &args);
-            let theirs: Vec<SymbolId> = self
-                .u
-                .symbol(m)
-                .decls
-                .iter()
-                .copied()
-                .filter(|&d| self.u.symbol(d).kind == Kind::TypeParam)
-                .collect();
-            t = self.subst_syms(t, &theirs, &args);
-        }
         t = self.u.map_type(t, &mut |u, x| Some(u.beta_reduced(x)).filter(|&r| r != x));
-        let theirs: Vec<SymbolId> = self.value_params(m).concat();
-        let mut refs = Vec::new();
-        for clause in params {
+        let decls = self.u.symbol(m).decls.clone();
+        let their_types: Vec<SymbolId> =
+            decls.into_iter().filter(|&d| self.u.symbol(d).kind == Kind::TypeParam).collect();
+        let their_values: Vec<SymbolId> =
+            self.clauses(m).into_iter().filter(|c| !c.0).flat_map(|c| c.1).collect();
+        let (mut targs, mut refs) = (Vec::new(), Vec::new());
+        for (types, clause) in clauses {
+            if *types {
+                let Type::Poly { binder, params: ps, result } = self.u.types().get(t).clone() else {
+                    return None;
+                };
+                if ps.len() != clause.len() {
+                    return None;
+                }
+                let start = targs.len();
+                targs.extend(clause.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))));
+                let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
+                t = self.u.subst(result, binder, &names, &targs[start..]);
+                let n = targs.len().min(their_types.len());
+                t = self.subst_syms(t, &their_types[..n], &targs[..n]);
+                t = self.u.map_type(t, &mut |u, x| Some(u.beta_reduced(x)).filter(|&r| r != x));
+                continue;
+            }
             let Type::Method { binder, params: ps, result, .. } = self.u.types().get(t).clone() else {
                 return None;
             };
@@ -157,7 +158,8 @@ impl Typer<'_> {
             refs.extend(clause.iter().map(|&p| self.ref_type(None, p)));
             t = self.u.subst(result, binder, &names, &refs[start..]);
         }
-        t = self.subst_syms(t, &theirs, &refs);
+        t = self.subst_syms(t, &their_types, &targs);
+        t = self.subst_syms(t, &their_values, &refs);
         match self.u.types().get(t) {
             Type::Method { .. } | Type::Poly { .. } => None,
             Type::ByName(r) => Some(*r),

@@ -3,7 +3,8 @@
 //   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! Synthesized `ClassTag[T]` (dotty's `synthesizedClassTag`): `ClassTag[E].wrap` for an array
 //! `T = Array[E]`; `ClassTag.Unit`, `ClassTag.Any` or `ClassTag.AnyVal`; else
-//! `ClassTag.apply[T](classOf[C])` for the class `C` that `T` erases to.
+//! `ClassTag.apply[T](classOf[C])` for the class `C` that `T` erases to, an opaque type seen
+//! from outside among them.
 
 use super::super::Typer;
 use crate::ctx::Ctx;
@@ -24,7 +25,11 @@ impl Typer<'_> {
     ) -> Result<Option<TNodeId>, &'static str> {
         let Some(arg) = self.class_tag_arg(arg)? else { return Ok(None) };
         let dealiased = self.u.dealias(arg);
-        if let Some(&[elem]) = self.class_args(dealiased, "scala.Array").as_deref() {
+        let array_elem = match self.is_opaque_ref(dealiased) {
+            true => None,
+            false => self.class_args(dealiased, "scala.Array"),
+        };
+        if let Some(&[elem]) = array_elem.as_deref() {
             let class_tag = self.resolve_full_name("scala.reflect.ClassTag", true).ok_or("ClassTag")?;
             let elem_tag = crate::defn::applied(self.u, class_tag, vec![elem]);
             let elem_tag = self.implicit_arg(elem_tag, at, ctx, depth + 1)?;

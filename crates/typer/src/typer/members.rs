@@ -50,6 +50,10 @@ impl Typer<'_> {
                 self.u.class_symbol(c).map_or_else(Vec::new, |c| self.super_members(c, name))
             }
             Type::Super(_, p) | Type::Skolem(_, p) => self.members_within(p, name, within),
+            Type::TermRef(p, _) if self.referenced(t).is_some() => {
+                let sym = self.referenced(t).map(|s| self.u.intern_type(Type::Sym(Some(p), s)));
+                self.members_within(sym.unwrap_or(t), name, within)
+            }
             Type::Constant(..) | Type::Str(_) | Type::TermRef(..) => {
                 let widened = self.u.widen(t);
                 self.members_within(widened, name, within)

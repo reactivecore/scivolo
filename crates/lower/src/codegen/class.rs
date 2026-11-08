@@ -3,7 +3,7 @@
 //! Classes, modules and traits with their methods (nscplugin's `genClass` and `genMethods`).
 
 use super::Gen;
-use crate::phases::function_classes::erased_classes;
+use crate::phases::function_classes::{erased_classes, erased_parent};
 use crate::symbols::is_static_module;
 use crate::{Result, unsupported};
 use nir::{Attr, Defn, DefnKind};
@@ -87,6 +87,7 @@ impl Gen<'_, '_> {
         let classes: Vec<_> = parents.into_iter().filter_map(|p| self.l.u.class_symbol(p)).collect();
         let erased = |s| matches!(self.l.u.full_name(s).as_str(), "scala.caps.Pure" | "scala.Matchable");
         let traits: Vec<_> = classes.into_iter().filter(|&s| self.l.u.is_trait(s) && !erased(s)).collect();
+        let traits = traits.into_iter().map(|t| erased_parent(self.l, t)).collect();
         erased_classes(self.l, traits).into_iter().map(|t| self.type_name(t)).collect()
     }
 

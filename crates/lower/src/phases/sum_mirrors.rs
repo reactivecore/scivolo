@@ -4,6 +4,7 @@
 //! Sum mirrors of the companions of sealed classes other than enums (dotty's `isGenericSum` and
 //! `ordinalBody`): `def ordinal(x$0: S): Int = x$0 match { case _: C1 => 0; ... }`.
 
+use super::casts::class_named;
 use super::mirror_prefixes::{child_prefix, class_prefix};
 use super::mirrors::{has_mirror_method, is_generic_product};
 use super::walk::class_defs;
@@ -18,7 +19,7 @@ use typer::tpd::{TNodeId, Tree};
 
 /// The children of sealed class `sealed` in unit `root` in the order of their definitions:
 /// classes, and objects by their values; of an enum, its cases; of the library, those its TASTy
-/// names.
+/// names; of `*:`, `Tuple1` to `Tuple22` (dotty's `adjustForTuple` makes them its children).
 fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
     if has(l.u, sealed, ENUM) {
         return typer::sealed::enum_cases(l.u, sealed);
@@ -29,6 +30,9 @@ fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
             _ => l.u.resolve_ref(t),
         };
         return types.into_iter().filter_map(|t| referenced(l, t)).collect();
+    }
+    if l.u.full_name(sealed) == "scala.*:" {
+        return (1..=22).filter_map(|n| class_named(l, &format!("scala.Tuple{n}"))).collect();
     }
     let classes: Vec<(u32, SymbolId)> = class_defs(l.tpd, root)
         .into_iter()

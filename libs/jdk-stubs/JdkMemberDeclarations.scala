@@ -147,6 +147,12 @@ package java.util.concurrent {
     def invokeAny[T](tasks: java.util.Collection[? <: Callable[T]]): T
     def invokeAny[T](tasks: java.util.Collection[? <: Callable[T]], timeout: Long, unit: TimeUnit): T
   }
+  trait ScheduledExecutorService extends ExecutorService {
+    def schedule(command: Runnable, delay: Long, unit: TimeUnit): ScheduledFuture[?]
+    def schedule[V](callable: Callable[V], delay: Long, unit: TimeUnit): ScheduledFuture[V]
+    def scheduleAtFixedRate(command: Runnable, initialDelay: Long, period: Long, unit: TimeUnit): ScheduledFuture[?]
+    def scheduleWithFixedDelay(command: Runnable, initialDelay: Long, delay: Long, unit: TimeUnit): ScheduledFuture[?]
+  }
   trait CompletionStage[T <: Object] {
     def applyToEither[U <: Object](other: CompletionStage[? <: T], fn: JFunction[? >: T, U]): CompletionStage[U]
     def applyToEitherAsync[U <: Object](other: CompletionStage[? <: T], fn: JFunction[? >: T, U]): CompletionStage[U]
