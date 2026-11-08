@@ -13,7 +13,7 @@ attributions.
 
 Apache-2.0. The compiler, scala3-repl and tasty-core, translated to Rust in `crates/syntax`,
 `crates/typer`, `crates/tasty`, `crates/lower`, `crates/repl`, `crates/macros` and
-`crates/vm`; `overlay/src/scala/quoted/runtime/impl` follows `QuotesImpl`.
+`crates/vm`; its JVM backend in `crates/jvm` and `crates/classfile`; `overlay/src/scala/quoted/runtime/impl` follows `QuotesImpl`.
 
 ### [Scala Native](https://github.com/scala-native/scala-native) 0.5.12
 
@@ -68,6 +68,12 @@ colors (fansi).
   phase 4.
 - **tasty-query** ([scalacenter/tasty-query](https://github.com/scalacenter/tasty-query)): the
   model of symbols and types loaded lazily from TASTy (phase 3).
+- **ASM** ([asm.ow2.io](https://asm.ow2.io/)), BSD-3-Clause: stack map frames by a dataflow over
+  the bytecode with verifier types, and unreachable code replaced by `nop`s and `athrow`
+  (`MethodWriter.computeAllFrames`, `Frame`), behind `crates/classfile/src/frames/`.
+- **OpenJDK's jimage** ([openjdk/jdk](https://github.com/openjdk/jdk)): the layout of the
+  run-time image `lib/modules` (`BasicImageReader`, `ImageLocation`), read by
+  `crates/classfile/src/read/jimage.rs` ([ADR 0106](docs/adr/0106-jvm-jdk-classes-from-jimage-or-ct-sym.md)).
 
 - **Cranelift** ([cranelift.dev](https://cranelift.dev/)), Apache-2.0 with LLVM exception: the
   code generator of `scivolo-aot` (`crates/aot`), used as a library

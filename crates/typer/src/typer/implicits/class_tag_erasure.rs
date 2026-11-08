@@ -56,11 +56,14 @@ impl Typer<'_> {
     }
 
     /// A reference to the class `t` erases to, `t` seen through opaque types and with generic
-    /// tuples normalized: a value class itself, else the class among those of the sides of `t`,
+    /// tuples normalized: an array or a value class itself, else the class among those of the sides of `t`,
     /// their base classes and `Object` that erases as `t` does.
     pub fn erased_class_type(&mut self, t: TypeId) -> Option<TypeId> {
         let t = self.translucent(t);
         let t = self.normalized_tuple_type(t);
+        if self.class_args(t, "scala.Array").is_some() {
+            return Some(t);
+        }
         let mut classes = Vec::new();
         self.side_classes(t, &mut classes);
         if let [c] = classes[..]

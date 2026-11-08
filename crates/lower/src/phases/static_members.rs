@@ -67,6 +67,12 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         if (moved.contains(&s) || static_value) && matches!(l.tpd.tree(t), Tree::Select { .. }) {
             let span = l.tpd.span(t);
             l.tpd.get_mut(t).span = span.with_point(span.start());
+            if l.backend == crate::Backend::Jvm {
+                let tpe = l.tpd.tpe(t);
+                let r = l.ident(s, span);
+                l.tpd.get_mut(r).tpe = Some(tpe);
+                l.copy_node(t, r);
+            }
         } else if !moved.contains(&s)
             && l.u.symbol(s).tree.is_none()
             && is_static(l, s)

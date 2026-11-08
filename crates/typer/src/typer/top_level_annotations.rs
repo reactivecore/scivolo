@@ -23,7 +23,8 @@ const NOT_VIRAL: [&str; 4] = ["captureChecking", "separationChecking", "safe", "
 #[derive(Default)]
 struct TopLevel {
     defs: Vec<SymbolId>,
-    classes: Vec<SymbolId>,
+    /// Each class with the span of its definition.
+    classes: Vec<(SymbolId, Span)>,
     imports: Vec<String>,
 }
 
@@ -49,12 +50,12 @@ impl Typer<'_> {
         if let Some(why) = why {
             for &s in &top.defs {
                 if !self.is_experimental(s) {
-                    self.prepend_annotation(s, EXPERIMENTAL, &why);
+                    self.prepend_annotation(s, EXPERIMENTAL, &why, Span::NONE);
                 }
             }
         }
-        for s in top.classes {
-            self.prepend_annotation(s, SOURCE_FILE, path);
+        for (s, at) in top.classes {
+            self.prepend_annotation(s, SOURCE_FILE, path, at);
         }
     }
 
@@ -73,7 +74,7 @@ impl Typer<'_> {
                 let Some(s) = self.tpd.sym(t) else { return };
                 let owner = self.u.symbol(s).owner;
                 if self.u.is_class(s) && owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Package) {
-                    top.classes.push(s);
+                    top.classes.push((s, self.tpd.span(t)));
                 }
                 match self.tpd.class_template(t) {
                     Some(template) if self.u.is_package_object(s) => {
@@ -143,21 +144,22 @@ impl Typer<'_> {
         })
     }
 
-    /// Puts `new class(text)` first among the annotations of `s` (dotty's `addAnnotation`).
-    fn prepend_annotation(&mut self, s: SymbolId, class: &str, text: &str) {
+    /// Puts `new class(text)` of span `span` first among the annotations of `s`, its parts at the
+    /// start of `span` (dotty's `addAnnotation`).
+    fn prepend_annotation(&mut self, s: SymbolId, class: &str, text: &str, span: Span) {
         let Some((pkg, name)) = class.rsplit_once('.') else { return };
         let Some(package) = self.u.package(pkg) else { return };
         let classes = self.u.decl(package, name).unwrap_or_default();
         let Some(cls) = classes.into_iter().find(|&c| self.u.is_class(c)) else { return };
         let ctors = self.u.decl(cls, "<init>").unwrap_or_default();
         let Some(ctor) = ctors.into_iter().find(|&c| self.u.erased_method(c).0.len() == 1) else { return };
-        let at = Span::NONE;
+        let at = if span.exists() { span.start_pos() } else { span };
         let tpe = type_ref(self.u, cls);
         let tpt = self.type_tree(tpe, at, false);
         let new = self.tpd.node(T::New { tpt }, at, Some(tpe), None);
         let select = self.build().select(new, ctor, at);
         let arg = self.build().literal(Constant::String(text.encode_utf16().collect()), at);
-        let annot = self.build().apply(select, &[arg], tpe, at);
+        let annot = self.build().apply(select, &[arg], tpe, span);
         self.syms.annotations.entry(s).or_default().insert(0, annot);
     }
 }

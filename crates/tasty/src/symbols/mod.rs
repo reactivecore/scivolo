@@ -9,6 +9,7 @@ mod bodies;
 mod builtin;
 mod children;
 mod classes;
+mod classfiles;
 mod companions;
 mod define;
 mod enter;
@@ -104,6 +105,12 @@ pub struct Universe {
     /// The Java classes of the Scala library entered without TASTy, their objects and objects'
     /// classes.
     java_stubs: FxHashSet<SymbolId>,
+    /// The JDK whose class files give the JDK classes the library lacks, if one is used.
+    jdk: Option<classfile::Jdk>,
+    /// The classes, objects and objects' classes entered from the JDK's class files.
+    classfile_classes: FxHashSet<SymbolId>,
+    /// The descriptor of each method entered from them.
+    classfile_descriptors: FxHashMap<SymbolId, String>,
     /// The given self type of each class whose self type was asked for or set.
     self_types: FxHashMap<SymbolId, Option<TypeId>>,
     /// The annotation classes of the symbols defined outside TASTy.

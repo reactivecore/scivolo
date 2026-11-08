@@ -58,16 +58,15 @@ pub fn is_generic_sum(l: &mut Lower, root: TNodeId, s: SymbolId) -> bool {
         })
 }
 
-/// `def ordinal(x$0: E): Int = x$0.ordinal` for enum `enum_class` (dotty's `ordinalBody`); none if
-/// `class` has one.
+/// `def ordinal(x$0: P): Int = x$0.ordinal` for enum `enum_class`, `P` the type `param` (dotty's
+/// `ordinalBody`); none if `class` has one.
 pub fn enum_ordinal(
     l: &mut Lower,
     class: SymbolId,
-    enum_class: SymbolId,
+    (enum_class, param): (SymbolId, TypeId),
     focus: Span,
 ) -> Result<Option<TNodeId>> {
     let cc = l.case_classes()?;
-    let param = type_ref(l.u, enum_class);
     let int = l.u.class_ref("scala.Int");
     let binder = l.u.fresh_binder();
     let params = vec![("x$0".into(), param)];

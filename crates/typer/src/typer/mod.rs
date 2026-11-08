@@ -36,6 +36,7 @@ mod captured_paths;
 mod case_companion;
 mod case_lambdas;
 mod case_nulls;
+mod child_annotations;
 mod clashing_synthetics;
 mod class_bound;
 mod class_members;

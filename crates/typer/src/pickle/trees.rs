@@ -36,8 +36,8 @@ impl TreePickler<'_> {
                 self.byte(THROW);
                 self.tree(self.tpd.items(args)[0])
             }
-            T::Apply { fun, args } => self.node(APPLY, &[fun], &[args]),
-            T::TypeApply { fun, args } => self.node(TYPEAPPLY, &[fun], &[args]),
+            T::Apply { fun, args } => self.apply_(fun, args),
+            T::TypeApply { fun, args } => self.type_apply(fun, args),
             T::Literal { value } => {
                 let t = typed()?;
                 match self.u.types().get(t) {
@@ -81,6 +81,8 @@ impl TreePickler<'_> {
             T::UnApply { fun, implicits, patterns } => self.unapply(id, fun, implicits, patterns),
             T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } => self.definition(id),
             T::Template { .. } => self.template(id),
+            T::PackageDef { pid, stats } => self.package(pid, stats),
+            T::Import { expr, selectors, export } => self.import(expr, selectors, export),
             T::This { qual } => self.this(qual, typed()?),
             T::LambdaTypeTree { tparams, body } => {
                 let tparams = self.tpd.items(tparams).to_vec();
@@ -105,11 +107,7 @@ impl TreePickler<'_> {
             }),
             T::WhileDo { cond, body } => self.node(WHILE, &[cond, body], &[]),
             T::SeqLiteral { elems, elemtpt } => self.node(REPEATED, &[elemtpt], &[elems]),
-            T::Inlined { call, bindings, expansion } => {
-                self.pre_register(self.tpd.items(bindings));
-                let call: Vec<TNodeId> = call.into_iter().collect();
-                self.node(INLINED, &[&[expansion][..], &call].concat(), &[bindings])
-            }
+            T::Inlined { call, bindings, expansion } => self.inlined(call, bindings, expansion),
             T::TypeTree { .. } => {
                 self.type_tree = Some(id);
                 let pickled = self.ty(typed()?, false);
@@ -125,12 +123,16 @@ impl TreePickler<'_> {
                 self.byte(BYNAMEtpt);
                 self.tree(result)
             }
+            T::Super { qual, mix } => self.super_(qual, mix, typed()?),
+            T::Return { expr, from } => self.return_(expr, from),
+            T::Annotated { arg, annot } => self.annotated_tree(arg, annot),
+            T::RefinedTypeTree { tpt, refinements } => self.refined_tree(tpt, refinements),
             _ => Err("a tree outside the subset pickled"),
         }
     }
 
     /// A tree of tag `tag` and a length, its children `trees` and the items of `lists`.
-    fn node(&mut self, tag: u8, trees: &[TNodeId], lists: &[List]) -> Result<(), Refusal> {
+    pub fn node(&mut self, tag: u8, trees: &[TNodeId], lists: &[List]) -> Result<(), Refusal> {
         let items = lists.iter().flat_map(|&l| self.tpd.items(l));
         let all: Vec<TNodeId> = trees.iter().chain(items).copied().collect();
         self.with_length(tag, &mut |p| all.iter().try_for_each(|&t| p.tree(t)))

@@ -34,8 +34,12 @@ impl Universe {
 
     /// Whether class `c` is read from the JDK's class files in Scala Native's build: one javalib
     /// defines under another name, one of the JDK jars', or, in the build of a library other
-    /// than javalib that JDK jars stand for, any of a JDK package.
+    /// than javalib that JDK jars stand for, any of a JDK package; or one entered from a JDK
+    /// class file.
     fn is_jdk_class(&self, c: SymbolId) -> bool {
+        if self.is_from_classfile(c) {
+            return true;
+        }
         let name = self.full_name(c);
         let name = name.strip_suffix('$').unwrap_or(&name);
         let jdk_package = name.starts_with("java.") || name.starts_with("javax.");

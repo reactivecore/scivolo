@@ -107,7 +107,7 @@ impl TreePickler<'_> {
         self.with_length(tag, &mut |p| {
             p.name(&local_name(p.u, sym));
             if let Some(paramss) = paramss {
-                p.paramss(paramss)?;
+                p.paramss(sym, paramss)?;
             }
             p.tree(tpt)?;
             if let Some(rhs) = rhs {
@@ -118,9 +118,10 @@ impl TreePickler<'_> {
     }
 
     /// The parameter clauses `paramss` of a method (dotty's `pickleParamss`).
-    fn paramss(&mut self, paramss: Clauses) -> Result<(), Refusal> {
+    fn paramss(&mut self, method: SymbolId, paramss: Clauses) -> Result<(), Refusal> {
         let clauses: Vec<Vec<TNodeId>> =
             self.tpd.clause_items(paramss).iter().map(|&c| self.tpd.items(c).to_vec()).collect();
+        self.method_params(method, &clauses);
         let is_type = |p: &Self, c: &[TNodeId]| matches!(p.tpd.tree(c[0]), T::TypeDef { .. });
         for (i, clause) in clauses.iter().enumerate() {
             if clause.is_empty() {
@@ -157,22 +158,21 @@ impl TreePickler<'_> {
     /// The modifiers of `sym` (dotty's `pickleModifiers`), without annotations.
     fn modifiers(&mut self, sym: SymbolId) -> Result<(), Refusal> {
         let s = self.u.symbol(sym);
-        let flags = s.flags;
+        let (flags, term, setter) = (s.flags, s.kind.is_term(), s.name.ends_with("_="));
         if flags.has(PRIVATEqualified) || flags.has(PROTECTEDqualified) {
             return Err("a qualified private or protected definition");
         }
-        let classes = self.u.annotations(sym).to_vec();
-        let trees = self.tpd.annotations(sym);
+        let trees = self.annotation_trees(sym);
+        let classes: Vec<SymbolId> = match self.file {
+            Some(_) => trees.iter().filter_map(|&t| self.u.class_symbol(self.tpd.tpe(t))).collect(),
+            None => self.u.annotations(sym).to_vec(),
+        };
         if classes.len() != trees.len() {
             return Err("an annotated definition");
         }
-        let term = s.kind.is_term();
-        let flags = match term && !s.name.ends_with("_=") {
-            true => flags.without(PARAMsetter),
-            false => flags,
-        };
-        self.flags(flags, term);
-        for (class, &annot) in classes.into_iter().zip(trees) {
+        let flags = self.access_qualifier(sym, flags)?;
+        self.flags(if term && !setter { flags.without(PARAMsetter) } else { flags }, term);
+        for (class, annot) in classes.into_iter().zip(trees) {
             let class = type_ref(self.u, class);
             self.with_length(ANNOTATION, &mut |p| {
                 p.ty(class, false)?;
@@ -190,7 +190,7 @@ impl TreePickler<'_> {
                 self.byte(ABSTRACT);
                 self.byte(OVERRIDE);
             }
-            if flags.has(tag) {
+            if flags.has(tag) && !(tag == OVERRIDE && term && flags.has(ABSTRACT)) {
                 self.byte(tag);
             }
         }

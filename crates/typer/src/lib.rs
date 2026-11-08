@@ -25,6 +25,7 @@ use crate::inlining::Macros;
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
+use syntax::source::SourceFile;
 use tasty::Universe;
 use tpd::{TNodeId, Tpd};
 
@@ -40,11 +41,12 @@ pub enum Fallback {
     Errors(Diagnostics),
 }
 
-/// A typed unit: its trees and warnings.
+/// A typed unit: its trees, warnings and the TASTy of its top-level classes if asked for.
 pub struct Typed {
     pub tpd: Tpd,
     pub root: TNodeId,
     pub diags: Diagnostics,
+    pub pickles: Vec<pickle::Pickled>,
 }
 
 /// Types the desugared unit `root` of `ast`, parsed with options `cfg`, defining its symbols in
@@ -71,6 +73,9 @@ pub struct Units {
     pub source_names: Vec<String>,
     /// What adds the synthetic members of a unit's classes before its inline calls expand.
     pub synthetic_members: Option<SyntheticMembers>,
+    /// The next unit's source files, each at its offset among the sources, if the TASTy of its
+    /// top-level classes is pickled before its inline calls expand.
+    pub tasty_sources: Option<Vec<(SourceFile, syntax::source::Offset)>>,
 }
 
 impl Units {

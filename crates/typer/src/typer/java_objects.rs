@@ -21,4 +21,14 @@ impl Typer<'_> {
         let java = method.is_some_and(|m| !self.u.is_entered_object_member(m) && self.is_java_member(m));
         if is_object && java { ANY } else { p }
     }
+
+    /// `FromJavaObject` for element type `elem` of a repeated parameter of `method` that
+    /// `from_java_object` makes `Any`, `elem` otherwise (dotty's element type of the arguments).
+    pub fn java_object_elem(&mut self, method: Option<SymbolId>, elem: TypeId) -> TypeId {
+        if self.from_java_object(method, elem) != ANY {
+            return elem;
+        }
+        let from_java_object = self.u.builtins().from_java_object;
+        self.u.intern_type(Type::Sym(None, from_java_object))
+    }
 }

@@ -89,6 +89,9 @@ impl Universe {
         if let Some(e) = self.erased_memo(def, semi) {
             return e.clone();
         }
+        if let Some(e) = self.classfile_erasure(def) {
+            return e;
+        }
         let generation = self.generation();
         let scala2 = self.erased_as_scala2(def);
         let previous = self.set_scala2_erasure(scala2);

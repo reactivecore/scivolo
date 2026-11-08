@@ -42,7 +42,8 @@ pub fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId, defs: LazyVals) -
     let null_value = l.ident(defs.null_value, Span::NONE);
     let is_null = eq(l, read, null_value);
     let null = l.null_literal(Span::NONE);
-    if erased != Erased::Null {
+    let reference = matches!(erased, Erased::Class(_) | Erased::Array(_)) && !is_singleton(l.u, info);
+    if erased != Erased::Null && (l.backend == crate::Backend::Native || !reference) {
         l.tpd.get_mut(null).tpe = Some(object);
     }
     let null = conform(l, null, &erased, info);

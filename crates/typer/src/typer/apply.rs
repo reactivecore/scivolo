@@ -208,6 +208,7 @@ impl Typer<'_> {
                     }
                     let before = typed_args.last().copied().unwrap_or(f);
                     let at = self.tpd.span(before).end_pos();
+                    let elem = self.java_object_elem(meth, elem);
                     let arg = self.seq_literal(&elems, elem, at);
                     if let T::Typed { expr, .. } = *self.tpd.tree(arg) {
                         if by_name_repeated {

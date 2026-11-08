@@ -1,10 +1,12 @@
 # Scivolo
 
-A Scala 3.9 interpreter and native compiler for scripts, written in Rust, with no JVM.
+A Scala 3.9 interpreter and compiler for scripts, written in Rust, with no JVM.
 
 - Runs `.scala` and `.sc` scripts, a REPL, and builds native executables.
 - Executes Scala Native's NIR with Scala Native's precompiled libraries and C runtime.
 - Has its own frontend: dotty's parser, typer and lowering phases, ported to Rust.
+- Has a second backend, `scivolo-jvm`: class files, TASTy and jars for the JVM, from the same
+  frontend.
 
 ## Status of the project
 
@@ -21,12 +23,9 @@ A Scala 3.9 interpreter and native compiler for scripts, written in Rust, with n
   mechanical translation of the Scala 3 compiler (dotty) and of Scala Native's compiler plugin
   and runtime. Their designs and algorithms are kept; Scivolo changes the language and the
   execution model.
-- **How translated code is marked:**
-  - each file with translated code starts with a license notice naming its upstream files
-    (`// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:`);
-  - patched Scala Native C files start with `// Changed for Scivolo` and mark their lines;
-  - [NOTICE](NOTICE) carries the upstream attributions, [acknowledges.md](acknowledges.md)
-    the projects, designs and ideas used.
+- **Translated code is marked:** each such file starts with a license notice naming its upstream
+  files; [NOTICE](NOTICE) carries the upstream attributions, [acknowledges.md](acknowledges.md)
+  the projects, designs and ideas used.
 
 ## Why
 
@@ -60,12 +59,13 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
   geny, fansi and sourcecode compile through the own frontend, every file, macros included;
   1,777 of their 1,786 NIR files are the same as scala-cli's.
 - **Native executables:** 218 of 226 test programs, built from source.
+- **JVM backend:** 1,523 of dotty's 1,709 `tests/run` pass on `java -Xverify:all`.
 - **Startup:** hello 7.5 ms from the heap snapshot; `moderate.scala` 48 ms edit-then-run
   (scala-cli: 360–520 ms, python3 startup: 18 ms).
 
 Features:
 
-- [x] NIR interpreter with Scala Native's libraries, Immix GC, exceptions with stack traces
+- [x] NIR interpreter with Scala Native's libraries, garbage collector and stack traces
 - [x] Java threads as green threads
 - [x] Own frontend for the scripting subset; scala-cli as the fallback for the rest
 - [x] Scripts with `//> using` directives, dependencies from Maven via Coursier
@@ -75,6 +75,7 @@ Features:
 - [x] The com-lihaoyi toolkit (fastparse, mainargs, upickle, pprint, os-lib) in scripts and
       compiled from source
 - [x] Startup from a heap snapshot
+- [x] JVM backend: class files, TASTy and jars; JDK classes read from the JDK's class files
 - [ ] Typer: the rest of Scala 3 (match types in part; GADTs, capture checking)
 - [ ] Macros: the rest of `Quotes`
 - [ ] OS threads
@@ -89,7 +90,7 @@ Features:
 ## Usage
 
 Needs Rust 1.97+, `just`, a C compiler; optional: Coursier (`--dep`), scala-cli (fallback
-frontend).
+frontend), a JDK 17+ (`scivolo-jvm`).
 
 ```sh
 just fetch-libs                 # once: Scala Native's library jars into ref/libs
@@ -136,68 +137,72 @@ scivolo-aot --cp DIR -o app Main       # from NIR files in DIR, main class Main
 ./hello
 ```
 
+### JVM class files
+
+```sh
+cargo build --release -p scivolo-jvm
+scivolo-jvm -d out hello.scala                          # class and TASTy files into out/
+scivolo-jvm -d app.jar --main-class Main app.scala      # a jar with its manifest
+scivolo-jvm --cp lib.jar -d out app.scala               # against a jar's TASTy
+java -cp out:ref/libs/scala-library-3.9.0.jar Hello
+```
+
+- Runs on Java 17+; reads the JDK classes it needs from the installed JDK.
+- Conformance and checks on the JVM: [docs/conformance.md](docs/conformance.md).
+
 ## How it works
 
 ```mermaid
 flowchart LR
-  src[script.scala] --> syntax[syntax: scanner, parser, desugar]
-  syntax --> typer[typer: types, implicits, inlining]
-  typer -->|macro calls| macros[macros: run in the VM]
-  macros --> typer
-  typer --> lower[lower: dotty's phases, NIR generation]
-  lower --> nir[(NIR files)]
-  libs[(Scala Native libraries: NIR + TASTy)] --> image[library image]
-  image -->|TASTy| typer
-  image -->|NIR| vm
-  nir --> vm[vm: interpreter] --> out[output]
-  nir --> aot[aot: Cranelift] --> exe[native executable]
-  libs -->|NIR| aot
-  rt[snrt: Scala Native's C runtime] --> vm
-  rt --> exe
+  src[script.scala] --> front[parse, type, lower]
+  libs[(Scala Native libraries)] --> front
+  jdk[(JDK class files)] --> front
+  front --> nir[(NIR)]
+  nir --> vm[VM: interpreter] --> out[output]
+  nir --> aot[AOT: Cranelift] --> exe[native executable]
+  libs --> vm
+  libs --> aot
+  front --> jvm[JVM generator] --> jar[(class files, TASTy, jar)]
 ```
 
-1. **Parse:** dotty's `Scanners`, `Parsers` and `Desugar` produce untyped trees.
-2. **Type:** dotty's typing algorithms for the scripting subset, with symbols and types read
-   lazily from the libraries' TASTy. Inlining and macro expansion run inside the typer.
-3. **Lower:** dotty's phases after the typer, in dotty's order: FirstTransform, ExpandSAMs,
-   ProtectedAccessors, ExtensionMethods, Getters, PatternMatcher, CapturedVars, ElimOpaque,
-   ExplicitOuter, Erasure, LambdaLift, ElimRepeated, ResolveSuper, TailRec, Mixin, LazyVals,
-   Memoize, Constructors (`crates/lower/src/phases/pipeline.rs` has the full order). Then
-   Scala Native's NIR generation (nscplugin's `GenNIR`).
-4. **Interpret:** the VM lowers each method on its first call to closure-compiled SSA. Objects
-   use Scala Native's layout; the C runtime and Immix GC come from Scala Native, called through
-   FFI. Library NIR is read lazily from a memory-mapped library image.
-5. **Compile:** `scivolo-aot` translates the reachable NIR to Cranelift IR and links it with
-   Scala Native's C runtime into an executable.
+1. **Parse:** a port of dotty's parser turns the source into syntax trees.
+2. **Type:** a port of dotty's typer checks the program against the libraries' TASTy; inline
+   methods and macros expand here, macros run in the VM.
+3. **Lower:** dotty's later phases simplify the typed trees, then Scala Native's code generator
+   turns them into NIR.
+4. **Interpret:** the VM runs the NIR with Scala Native's libraries, C runtime and garbage
+   collector.
+5. **Compile:** `scivolo-aot` compiles the NIR with Cranelift into a native executable.
+6. **JVM:** `scivolo-jvm` turns the same lowered trees into class files, TASTy and jars.
 
-Decisions are in [docs/adr/](docs/adr/), research reports in [docs/research/](docs/research/).
+Decisions are in [docs/adr/](docs/adr/), research in [docs/research/](docs/research/).
 
 ## Crates
 
-The package in `crates/<dir>` is `scivolo-<dir>` (`crates/scivolo` is `scivolo`); a library
-keeps the short name (`use vm::…`).
+The package in `crates/<dir>` is `scivolo-<dir>` (`crates/scivolo` is `scivolo`).
 
 | Dir | Purpose |
 |---|---|
-| `scivolo` | The CLI: runs scripts and NIR programs, starts the REPL, caches compiled scripts. |
-| `aot` | `scivolo-aot`: compiles sources or NIR into a native executable with Cranelift. |
-| `syntax` | Port of dotty's scanner, parser and desugaring: untyped trees. |
-| `typer` | Port of dotty's typer for the scripting subset: typed trees, implicits, inlining. |
-| `tasty` | Reads TASTy files; models the libraries' symbols and types, subtyping and erasure. |
-| `lower` | Ports of dotty's post-typer phases and of Scala Native's NIR generation. |
-| `macros` | Runs macro implementations in the VM and unpickles their quotes into typed trees. |
-| `repl` | A REPL after dotty's: each input becomes a wrapper object run in one VM. |
-| `vm` | The NIR interpreter: lowering to closures, heap, dispatch, green threads, FFI. |
-| `nir` | Reader and writer of Scala Native 0.5 NIR. |
-| `libs` | Locates the library jars (`SCIVOLO_LIBS` or the Coursier cache) and fetches dependencies. |
-| `libimage` | The memory-mapped library image of NIR and TASTy, and the upkeep of its cache. |
-| `snrt` | Builds Scala Native's C runtime from `native/`: a shared library and a static archive. |
-| `nir-dump` | Prints NIR files as Scala Native's printer does; a development tool. |
+| `scivolo` | The CLI: runs scripts, starts the REPL. |
+| `aot` | `scivolo-aot`: builds native executables. |
+| `syntax` | Parser. |
+| `typer` | Typer. |
+| `tasty` | Reads the libraries' TASTy. |
+| `lower` | Lowering to NIR. |
+| `macros` | Runs macros in the VM. |
+| `repl` | The REPL. |
+| `vm` | The NIR interpreter. |
+| `nir` | Reads and writes NIR. |
+| `jvm` | `scivolo-jvm`: the JVM backend. |
+| `classfile` | Reads and writes class files. |
+| `libs` | Finds the library jars and fetches dependencies. |
+| `libimage` | The cached image of the libraries. |
+| `snrt` | Builds Scala Native's C runtime. |
+| `nir-dump` | Prints NIR files; a development tool. |
 
 Outside the crates:
 
-- `overlay/src`: Scala sources that replace or add library members (javalib fixes, the REPL's
-  value printer), compiled to `overlay/nir` ([ADR 0009](docs/adr/0009-library-overlay.md)).
+- `overlay/src`: Scala sources that fix or add library members.
 - `native/`: Scala Native's C runtime sources.
 - `tests/`: test programs, REPL transcripts, AOT programs; `spikes/`: throwaway experiments.
 
@@ -207,11 +212,10 @@ Outside the crates:
 |---|---|---|
 | `native/` | Scala Native 0.5.12's C runtime (nativelib, javalib, posixlib, clib), copied; patched files marked | by hand, checked by `just native-stale` |
 | `libs/javalib-tasty-0.5.12.jar` | TASTy of Scala Native's javalib, which the published jar lacks | `just javalib-tasty` |
-| `libs/jdk-stubs.jar` | TASTy of the JDK classes javalib's sources use, and the JDK's declarations nativelib's see (`libs/jdk-stubs`), for `just lib-compile` | `just jdk-stubs` |
-| `libs/jdk-declarations.jar` | TASTy of `JdkDeclarations.scala`, the JDK's declarations every other compile types javalib's classes from (ADR 0072) | `just jdk-stubs` |
-| `libs/jdk-stubs/JdkConstants.scala`, `JdkClassConstants.scala` | The JDK's constants of javalib's classes and of the `java.lang` classes it lacks (ADR 0072) | `python3 scripts/jdk_constants.py` |
-| `tests/programs/*/` | NIR and `.check` output of each test program, compiled by Scala Native 0.5.12: the byte oracle | `just program-update NAME` |
-| `overlay/nir` | NIR of `overlay/src`, compiled by Scala Native's compiler | `just overlay` |
+| `libs/jdk-stubs.jar`, `libs/jdk-declarations.jar` | TASTy of the JDK declarations the libraries use | `just jdk-stubs` |
+| `libs/jdk-stubs/JdkConstants.scala`, `JdkClassConstants.scala` | The JDK's constants | `python3 scripts/jdk_constants.py` |
+| `tests/programs/*/` | NIR and expected output of each test program, compiled by Scala Native | `just program-update NAME` |
+| `overlay/nir` | NIR of `overlay/src`, compiled by Scala Native | `just overlay` |
 | `tests/macros/lib/macros.jar`, `crates/*/tests/**` jars, `.nir`, `.tasty` | Test fixtures compiled by dotty or Scala Native | `just macro-fixture`, `just inline-fixture` |
 
 The library jars themselves are not checked in: `just fetch-libs` downloads them from Maven

@@ -3,6 +3,7 @@
 //   compiler/src/dotty/tools/dotc/ast/tpd.scala
 
 use super::case_members::case_accessors;
+use super::constructor_instance::{instantiated_constructor, repeated_elem};
 use super::lift_names::fresh;
 use super::mirror_prefixes::new_seen_from;
 use super::mirrors::has_mirror_method;
@@ -13,26 +14,25 @@ use tasty::tags::SYNTHETIC;
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
-/// `def fromProduct(x$0: Product): C = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C(a$1, ...) }`
-/// (dotty's `fromProductBody`), of an anonymous mirror cast to its `MirroredMonoType` `mono`, a
-/// generic `C` applied to its type parameters' upper bounds; none if `class` has one. From the
-/// first `@unroll` parameter on, an element is `if arity > i then x$0.productElement(i) else
-/// C.<init>$default$(i+1)`, after `val arity = x$0.productArity`.
+/// `def fromProduct(x$0: Product): M = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C[Ts](a$1, ...) }`
+/// (dotty's `fromProductBody`), `M` the `MirroredMonoType` `mono`, a generic `C` applied to its
+/// type parameters' upper bounds; none if `class` has one. From the first `@unroll` parameter
+/// on, an element is `if arity > i then x$0.productElement(i) else C.<init>$default$(i+1)`, after
+/// `val arity = x$0.productArity`.
 pub fn from_product(
     l: &mut Lower,
     class: SymbolId,
     case_class: SymbolId,
-    mono: Option<TypeId>,
+    mono: TypeId,
     focus: Span,
 ) -> Result<Option<TNodeId>> {
     let cc = l.case_classes()?;
     let product = type_ref(l.u, cc.product);
-    let result = type_ref(l.u, case_class);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_type(Type::Method {
         binder,
         params: vec![("x$0".into(), product)],
-        result,
+        result: mono,
         implicit: false,
         contextual: false,
     });
@@ -41,6 +41,9 @@ pub fn from_product(
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
     }
+    let ctor = l.u.decl(case_class, "<init>").unwrap_or_default();
+    let ctor = ctor.into_iter().next().expect("a case class constructor");
+    let (created_type, param_types) = instantiated_constructor(l, case_class, ctor);
     let flags = Flags::default().with(SYNTHETIC);
     let mut locals = Vec::new();
     let accessors = case_accessors(l, case_class);
@@ -60,8 +63,15 @@ pub fn from_product(
             defs.push(def);
             arity = Some(binding);
         }
-        for (i, accessor) in accessors.iter().copied().enumerate() {
-            let tpe = l.u.info(accessor);
+        for (i, (&accessor, param)) in accessors.iter().zip(param_types).enumerate() {
+            let repeated = repeated_elem(l, param);
+            let tpe = match repeated {
+                Some(elem) => {
+                    let seq = l.u.class_ref("scala.collection.immutable.Seq");
+                    l.u.intern_type(Type::Applied(seq, vec![elem]))
+                }
+                None => param,
+            };
             let product_ref = l.copy_ident(args[0]);
             let index = l.int_literal(i as i32);
             let mut element = l.call(product_ref, cc.product_element, &[index]);
@@ -76,33 +86,27 @@ pub fn from_product(
                 element = l.tpd.node(branch, Span::NONE, Some(tasty::ANY), None);
                 element = l.positioned(element);
             }
-            let rhs = l.ensure_conforms(element, tpe);
+            let rhs = l.type_cast_unless_conforms(element, tpe);
             let name = l.u.symbol(accessor).name.clone();
             let name = fresh(l, &name);
             let (def, binding) = val_def(l, class, &name, tpe, rhs);
             locals.push(binding);
             defs.push(def);
-            refs.push(l.ident(binding, Span::NONE));
+            let arg = l.ident(binding, Span::NONE);
+            refs.push(match repeated {
+                Some(_) => {
+                    let tpt = l.type_tree(param, Span::NONE);
+                    l.tpd.node(Tree::Typed { expr: arg, tpt }, Span::NONE, Some(param), None)
+                }
+                None => arg,
+            });
         }
-        let new = new_seen_from(l, case_class, mono);
-        let ctor = l.u.decl(case_class, "<init>").unwrap_or_default();
-        let ctor = ctor.into_iter().next().expect("a case class constructor");
+        let new = new_seen_from(l, case_class, Some(mono));
         let created = l.call(new, ctor, &refs);
-        let params = l.u.type_params(case_class);
-        let tpe = match mono.filter(|_| !params.is_empty()) {
-            Some(_) => {
-                let his = params.iter().map(|&p| typer::sealed::upper_bound(l.u, p)).collect();
-                crate::definitions::applied(l.u, case_class, his)
-            }
-            None => result,
-        };
-        l.tpd.get_mut(created).tpe = Some(tpe);
+        l.tpd.get_mut(created).tpe = Some(created_type);
         let block = l.block(&defs, created, Span::NONE);
         let block = l.positioned(block);
-        match mono {
-            Some(m) => l.ensure_conforms(block, m),
-            None => block,
-        }
+        l.type_cast_unless_conforms(block, mono)
     })?;
     for local in locals {
         l.u.set_owner(local, method);
@@ -155,22 +159,27 @@ fn unrolled_getters(
 }
 
 impl Lower<'_> {
-    /// `t`, cast to `tpe` unless its type conforms (dotty's `ensureConforms`).
+    /// `t`, cast to `tpe` unless its type conforms.
     pub fn ensure_conforms(&mut self, t: TNodeId, tpe: TypeId) -> TNodeId {
+        self.cast_unless_conforms(t, tpe, self.defs.as_instance_of)
+    }
+
+    /// `t`, cast to `tpe` with `$asInstanceOf$` unless its type conforms (dotty's
+    /// `ensureConforms` before erasure).
+    pub fn type_cast_unless_conforms(&mut self, t: TNodeId, tpe: TypeId) -> TNodeId {
+        self.cast_unless_conforms(t, tpe, self.defs.type_cast)
+    }
+
+    fn cast_unless_conforms(&mut self, t: TNodeId, tpe: TypeId, cast: SymbolId) -> TNodeId {
         let from = self.tpd.tpe(t);
         if self.u.is_subtype(from, tpe) {
             return t;
         }
-        let fun = self.select(t, self.defs.as_instance_of, Span::NONE);
+        let fun = self.select(t, cast, Span::NONE);
         let fun = self.positioned(fun);
         let tpt = self.type_tree(tpe, Span::NONE);
         let args = self.tpd.list(&[tpt]);
-        let cast = self.tpd.node(
-            Tree::TypeApply { fun, args },
-            Span::NONE,
-            Some(tpe),
-            Some(self.defs.as_instance_of),
-        );
+        let cast = self.tpd.node(Tree::TypeApply { fun, args }, Span::NONE, Some(tpe), Some(cast));
         self.positioned(cast)
     }
 }

@@ -45,7 +45,7 @@ mod linktime_defs;
 mod literal;
 mod method;
 mod modules;
-mod names;
+pub(crate) mod names;
 mod numeric;
 mod ops;
 mod positions;

@@ -1,6 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/CompleteJavaEnums.scala
-//! Enums extending `java.lang.Enum` (dotty's `CompleteJavaEnums` without the static forwarders):
+//! Enums extending `java.lang.Enum` (dotty's `CompleteJavaEnums`, its static forwarders on the
+//! JVM only, `java_enum_forwarders.rs`):
 //! the enum class's constructor takes `_$name` and `_$ordinal` and passes them to `java.lang.Enum`'s;
 //! the class of each value passes its name and ordinal.
 
@@ -25,6 +26,9 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<()
         let class = l.tpd.sym(td).expect("a class definition's symbol");
         if has(l.u, class, ENUM) && !l.u.is_module_class(class) && derives_from_java_enum(l, class) {
             complete_enum_class(l, td)?;
+            if l.backend == crate::Backend::Jvm {
+                super::java_enum_forwarders::add(l, td, classes)?;
+            }
         }
     }
     for &td in classes {

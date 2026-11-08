@@ -11,18 +11,22 @@ mod phases;
 mod symbols;
 mod units;
 
+pub use codegen::names::{mapped as jdk_class_name, unmapped as jdk_class_source_name};
 pub use compile::{Refusal, compile, compile_with, lower};
 use definitions::Definitions;
 pub use options::Options;
 pub use output::NirFile;
+pub use phases::adapt::erased_type;
+pub use phases::sam::abstract_methods;
 use rustc_hash::{FxHashMap, FxHashSet};
+pub use symbols::{is_erased, is_jdk_object};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::Sources;
 use tasty::{SymbolId, Universe};
 use typer::inlining::Lent;
 use typer::tpd::{TNodeId, Tpd};
-pub use units::{compile_sources, position};
+pub use units::{compile_sources, compile_units, position};
 
 /// A construct the lowering does not support yet.
 #[derive(Debug)]
@@ -32,6 +36,13 @@ pub struct Unsupported {
 }
 
 pub type Result<T> = std::result::Result<T, Unsupported>;
+
+/// The target of the lowered trees, for the phases whose output differs per backend.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Backend {
+    Native,
+    Jvm,
+}
 
 fn unsupported<T>(at: Span, what: impl Into<String>) -> Result<T> {
     Err(Unsupported { at, what: what.into() })
@@ -96,6 +107,8 @@ pub struct Lower<'a> {
     static_selects: FxHashSet<TNodeId>,
     /// The local classes lifted out of blocks, each with its owner before.
     local_classes: FxHashMap<SymbolId, SymbolId>,
+    /// The local classes renamed when lifted, each with its name before.
+    local_names: FxHashMap<SymbolId, String>,
     /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
     endless_loops: FxHashSet<TNodeId>,
     /// The type quotes `Splicing` gave the tags of types of their quote, pickled even when
@@ -103,6 +116,8 @@ pub struct Lower<'a> {
     spliced_type_quotes: FxHashSet<TNodeId>,
     /// The accessors `Mixin` made in classes for the values of their traits, without a position.
     mixed_in: FxHashSet<SymbolId>,
+    /// Those accessors, each with the trait member it copies.
+    mixed_from: FxHashMap<SymbolId, SymbolId>,
     /// The specialized `apply` methods `SpecializeFunctions` made, without a position.
     specialized: FxHashSet<SymbolId>,
     /// The names of the field and `$lzyINIT` method of each lazy value a class gets from a trait
@@ -163,6 +178,9 @@ pub struct Lower<'a> {
     moved_classes: Vec<(SymbolId, Span, syntax::source::Offset)>,
     /// `-Yexplicit-nulls`.
     explicit_nulls: bool,
+    pub backend: Backend,
+    /// The static `VarHandle` field of each lazy value's field on the JVM.
+    var_handles: FxHashMap<SymbolId, SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
@@ -174,16 +192,30 @@ pub fn lower_sources(
     (names, fresh): (&mut Names, &mut FreshNames),
     (sources, explicit_nulls): (Sources, bool),
 ) -> Result<Vec<NirFile>> {
+    let generate = (Backend::Native, codegen::unit);
+    lower_trees(u, tpd, root, (names, fresh), (sources, explicit_nulls), generate)
+}
+
+/// Runs the phases for `backend` over typed unit `root`, then `generate` over the lowered trees.
+pub fn lower_trees<R>(
+    u: &mut Universe,
+    tpd: &mut Tpd,
+    root: TNodeId,
+    (names, fresh): (&mut Names, &mut FreshNames),
+    (sources, explicit_nulls): (Sources, bool),
+    (backend, generate): (Backend, impl FnOnce(&mut Lower, TNodeId) -> Result<R>),
+) -> Result<R> {
     let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
     l.explicit_nulls = explicit_nulls;
-    let files = codegen::annotations::check_annotations(&mut l, root)
+    l.backend = backend;
+    let out = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
-        .and_then(|()| codegen::unit(&mut l, root));
+        .and_then(|()| generate(&mut l, root));
     phases::recache_given_aliases(&mut l);
     l.u.elide_opaques(false);
     match std::mem::take(&mut l.u.reductions_exhausted) {
         true => unsupported(Span::NONE, "match type reduction over the reduction budget"),
-        false => files,
+        false => out,
     }
 }
 
@@ -242,11 +274,13 @@ impl<'a> Lower<'a> {
             trait_forwards: FxHashMap::default(),
             applied_references: FxHashSet::default(),
             local_classes: FxHashMap::default(),
+            local_names: FxHashMap::default(),
             explicit_casts: FxHashSet::default(),
             null_casts: FxHashSet::default(),
             boxed_types: FxHashSet::default(),
             static_selects: FxHashSet::default(),
             mixed_in: FxHashSet::default(),
+            mixed_from: FxHashMap::default(),
             specialized: FxHashSet::default(),
             mixed_in_lazy_names: FxHashMap::default(),
             forwarded: FxHashMap::default(),
@@ -273,6 +307,78 @@ impl<'a> Lower<'a> {
             tail_locals: FxHashSet::default(),
             moved_classes: Vec::new(),
             explicit_nulls: false,
+            backend: Backend::Native,
+            var_handles: FxHashMap::default(),
         })
+    }
+
+    /// Whether `while` loop `t` has no condition (dotty's `WhileDo(EmptyTree, _)`).
+    pub fn is_endless_loop(&self, t: TNodeId) -> bool {
+        self.endless_loops.contains(&t)
+    }
+
+    /// Whether `m` is a bridge `Bridges` made or a lambda's `$adapted` method.
+    pub fn is_bridge(&self, m: SymbolId) -> bool {
+        self.bridges.contains(&m)
+    }
+
+    /// Whether `LambdaLift` lifted method `m` out of a term.
+    pub fn is_lifted(&self, m: SymbolId) -> bool {
+        self.lifted_from.contains_key(&m)
+    }
+
+    /// The accessors `SuperAccessors` made in the unit.
+    pub fn super_accessors(&self) -> impl Iterator<Item = SymbolId> + '_ {
+        self.super_accessors.keys().copied()
+    }
+
+    /// The owner of `s`, of a lifted local class the one before lifting.
+    pub fn original_owner(&self, s: SymbolId) -> Option<SymbolId> {
+        self.local_classes.get(&s).copied().or(self.u.symbol(s).owner)
+    }
+
+    /// The trait member that mixin accessor or forwarder `m` copies or calls.
+    pub fn mixed_in_from(&self, m: SymbolId) -> Option<SymbolId> {
+        self.mixed_from.get(&m).or_else(|| self.forwarded.get(&m)).copied()
+    }
+
+    /// Whether `m` is an accessor `Mixin` made for a trait value, not a forwarder.
+    pub fn is_mixin_accessor(&self, m: SymbolId) -> bool {
+        self.mixed_from.contains_key(&m)
+    }
+
+    /// The name of `s`, of a lifted local class the one before lifting.
+    pub fn original_name(&self, s: SymbolId) -> &str {
+        self.local_names.get(&s).unwrap_or(&self.u.symbol(s).name)
+    }
+
+    /// The `VarHandle` field of lazy value field `field` on the JVM.
+    pub fn var_handle(&self, field: SymbolId) -> Option<SymbolId> {
+        self.var_handles.get(&field).copied()
+    }
+
+    /// The field whose `VarHandle` is static field `handle`.
+    pub fn var_handle_field(&self, handle: SymbolId) -> Option<SymbolId> {
+        self.var_handles.iter().find(|&(_, &h)| h == handle).map(|(&f, _)| f)
+    }
+
+    /// The getter `Memoize` made field `field` for, or the accessor of the lazy value it holds.
+    pub fn field_getter(&self, field: SymbolId) -> Option<SymbolId> {
+        let getter = self.fields.get(&field).copied().filter(|&g| g != field);
+        getter.or_else(|| self.lazy_members.iter().find(|(_, m)| m.field == field).map(|(&a, _)| a))
+    }
+
+    /// Whether `s` is the field `x$lzyN` or the flag `xbitmap$N` of a lazy value.
+    pub fn is_lazy_storage(&self, s: SymbolId) -> bool {
+        let sym = self.u.symbol(s);
+        let base = sym.name.trim_end_matches(|c: char| c.is_ascii_digit());
+        let flag =
+            sym.flags.has(tasty::tags::SYNTHETIC) && base.len() < sym.name.len() && base.ends_with("bitmap$");
+        flag || self.lazy_members.values().any(|m| m.field == s)
+    }
+
+    /// Whether `m` is Scala Native's `LazyVals.objCAS`, a `VarHandle.compareAndSet` on the JVM.
+    pub fn is_obj_cas(&mut self, m: SymbolId) -> bool {
+        self.lazy_vals().is_ok_and(|d| d.obj_cas == m)
     }
 }

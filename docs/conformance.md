@@ -158,6 +158,38 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       `ev$N` is owned by the enclosing class, and `LambdaLift` finds no proxy for it.
     - Fix: transform the elements; lift with the owner of the expansion. Frontend: compiles both,
       evaluating each spread once, in order.
+13. **Early returns from different stack heights within a `finally` fail verification** (dotty
+    3.9.0, `compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala:636`, `genReturn`).
+    - `try g2(1, if c == 1 then return 5 else 2) + g3(1, 2, if c == 2 then return 6 else 3)
+      finally log()`: both returns jump to the cleanup with the arguments loaded so far still on
+      the stack, so its frame has two heights (`VerifyError`).
+    - Fix: drop the stack before the jump, as `genAdaptAndSendToDest` does for labels. JVM
+      backend: refuses the method.
+14. **`break` out of `synchronized` leaves the monitor held** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/DropBreaks.scala`).
+    - `boundary { lock.synchronized { if c then break(1); 2 } }`: the break becomes a labeled
+      return that skips `monitorexit` (`IllegalMonitorStateException`); across a `try` it stays
+      an exception.
+    - Fix: keep the exception across `synchronized` as across `try`. Frontend: breaks throw.
+15. **`TastyPrinter` reads the payload of a constant as a Nat** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/core/tasty/TastyPrinter.scala:197`, `printTree`).
+    - `INTconst`, `LONGconst`, `DOUBLEconst` carry a LongInt; `printNat` fails on a negative or
+      large one (`Expected a 31-bit nat`), so a file with `1.0` or a case class's `hashCode`
+      seed does not print.
+    - Fix: `readLongInt` for those tags. `just jvm-tasty`: compares files without such
+      constants only.
+16. **`fromProduct` of an F-bounded case class throws** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/SyntheticMembers.scala`, `fromProductBody`).
+    - `case class Node[T <: Ordered[T]](value: T)`: instantiating `T` from above falls back to
+      its lower bound, `Nothing`, so `value$1.$asInstanceOf$[Nothing]` throws
+      `ClassCastException: Cannot cast to scala.Nothing`.
+    - Fix: instantiate it to its bound with itself a wildcard (`Ordered[?]`). VM and JVM: as
+      dotty.
+17. **`+=` on another object's `@static var` crashes the backend** (dotty 3.9.0).
+    - `object Counter { @static var a: Int = 1 }` with `Counter.a += 5` elsewhere: `AssertionError:
+      an unexpected type representation reached the compiler backend … NoType`;
+      `Counter.a = Counter.a + 5` compiles.
+    - JVM: compiles it as the assignment.
 
 ## M4: dotty `tests/run`
 
@@ -239,6 +271,47 @@ Results (2026-11-08):
   dropped annotations would be in the quote's inferred types, a quote is refused in a file that
   writes a capture set, an annotation, a function or a by-name type, and a quote that refers to
   a member whose type has a `retains` annotation (e.g. `List(1).view`).
+
+### On the JVM
+
+```sh
+just dotty-jvm-report   # scivolo-jvm, then java -Xverify:all; jvm-report.md and jvm-results.tsv under tmp/dotty
+just jvm-run FILE       # one file on java -Xverify:all against its .check
+just jvm-check FILE     # its class files against scala-cli's, through javap
+```
+
+`scivolo-jvm` writes class version 61 (Java 17) with stack map frames; its output is semantically
+equivalent to scalac 3.9.0's, not byte-identical, and scala-cli compiles against the jars it writes.
+
+Each test is compiled by `scivolo-jvm` (#142) and its `Test.main` called through reflection, as
+dotty's test runner calls it, on `java -Xverify:all`; its output is compared with dotty's `.check`
+file. Earlier compilation groups are compiled by scala-cli for the JVM. Skipped as in the VM's
+report, but for APIs Scala Native's javalib lacks. Failures are grouped by the refusal or the first
+exception line.
+
+Results (2026-11-08):
+
+| Outcome | Tests |
+|---|---:|
+| passed | 1523 |
+| wrong output | 0 |
+| verify error | 0 |
+| linkage error | 3 |
+| crashed | 1 |
+| timeout | 0 |
+| jvm refused | 4 |
+| lowering refused | 0 |
+| typer refused | 87 |
+| frontend crashed | 0 |
+| skipped | 91 |
+| **total** | **1709** |
+
+- **Typer refused:** members not found (58): reflection and other JDK members of classes javalib
+  has without them (`Class.getDeclaredFields`); TASTy pickling (4).
+- **JVM refused:** a box of a value that is not primitive (1), a protected member's super accessor
+  the TASTy lacks (1), a jump over 32 KiB (1), a `LazyVals` lub of a long class name (1).
+- **Linkage errors and crashes:** a missing lambda `$adapted` method (`context-functions`), a
+  missing bridge (`i18315`, `i23245b`), `ClassTag` of a `*:` tuple (`i22345`).
 
 ### com-lihaoyi libraries from source
 
