@@ -123,6 +123,7 @@ mod lift_app;
 mod linter;
 mod literals;
 mod mapped_alternatives;
+mod match_type_captures;
 mod match_type_trees;
 mod matchable_cast;
 mod matches;
