@@ -20,6 +20,11 @@ class Bounded[T <: Comparable[T] & java.io.Serializable](val t: T)
 class Old:
   @deprecated("gone", "1.0")
   def gone: Int = 1
+  @throws[java.io.IOException]
+  @throws(classOf[IllegalStateException])
+  def risky(): Int = 2
+  @throws[java.io.IOException]
+  def generic[T](t: T): T = t
 
 object Attributes:
   val names: List[String] = List("a", "b")

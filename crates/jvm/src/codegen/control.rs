@@ -27,6 +27,7 @@ impl Gen<'_, '_> {
             1 if slots == 0 => b.code.insn(0x57),
             2 if slots == 0 => b.code.insn(0x58),
             -1 if got == 0 => {
+                b.push("L");
                 let unit = "scala/runtime/BoxedUnit";
                 b.code.field(classfile::FieldOp::GetStatic, b.pool, unit, "UNIT", &format!("L{unit};"));
             }
@@ -36,6 +37,7 @@ impl Gen<'_, '_> {
             }
             _ => return unsupported(self.l.tpd.span(t), "a value of another size than its context's"),
         }
+        b.forget(depth + slots);
         Ok(())
     }
 

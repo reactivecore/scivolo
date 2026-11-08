@@ -143,18 +143,6 @@ fn refuses(name: &str, code: &str, message: &str) {
 }
 
 #[test]
-fn a_try_on_a_stack_is_refused() {
-    let code = "object R { def f(s: String): Int = 1 + (try s.length catch { case _: Exception => 0 }) }";
-    refuses("refused", code, "where values are on the stack");
-}
-
-#[test]
-fn throws_is_refused() {
-    let code = "object R { @throws[java.io.IOException] def f(): Int = 1 }";
-    refuses("refusedthrows", code, "@throws");
-}
-
-#[test]
 fn a_definition_the_tasty_pickler_lacks_is_refused() {
     let code = "import scala.annotation.targetName\n\
         trait A { @targetName(\"g\") def f(): Int = 1 }\n\

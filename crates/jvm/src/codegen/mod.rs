@@ -26,6 +26,7 @@ mod monitors;
 mod nested;
 mod prims;
 mod signatures;
+mod stash;
 mod switches;
 mod traits;
 mod tries;

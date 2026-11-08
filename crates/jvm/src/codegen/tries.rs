@@ -4,7 +4,7 @@
 //! out (dotty's `genLoadTry`, `pendingCleanups`).
 
 use super::body::Body;
-use super::{Gen, class_internal, descriptor, unsupported};
+use super::{Gen, class_internal, descriptor, stash, unsupported};
 use classfile::{Label, value_slots};
 use lower::Result;
 use tasty::SymbolId;
@@ -33,10 +33,11 @@ impl Gen<'_, '_> {
         let slots = value_slots(&desc);
         let catches = self.l.tpd.items(cases).to_vec().into_iter().map(|c| self.catch_case(c));
         let catches = catches.collect::<Result<Vec<Catch>>>()?;
+        let stash = match b.code.stack() > 0 && !catches.is_empty() {
+            true => Some(self.stash(b, self.l.tpd.span(t))?),
+            false => None,
+        };
         let depth = b.code.stack();
-        if depth > 0 && !catches.is_empty() {
-            return unsupported(self.l.tpd.span(t), "a `try` with handlers where values are on the stack");
-        }
         let guard = slots > 0 && finalizer.is_some_and(|f| self.contains_try(f));
         let tmp = guard.then(|| b.temp(&desc));
         let cleanup = finalizer.map(|_| b.code.new_label());
@@ -97,6 +98,9 @@ impl Gen<'_, '_> {
             if let Some(tmp) = tmp {
                 b.code.load(&desc, tmp);
             }
+        }
+        if let Some(s) = stash {
+            stash::unstash(b, s, &desc, tmp);
         }
         Ok(slots)
     }

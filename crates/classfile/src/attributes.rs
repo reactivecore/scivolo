@@ -79,6 +79,15 @@ impl ClassFile {
         self.member_attribute(Last::Method, "MethodParameters", bytes);
     }
 
+    /// The `Exceptions` attribute of the last method: the internal names of the classes it throws.
+    pub fn exceptions(&mut self, classes: &[String]) {
+        let mut bytes = (classes.len() as u16).to_be_bytes().to_vec();
+        for c in classes {
+            bytes.extend(self.pool.class(c).to_be_bytes());
+        }
+        self.member_attribute(Last::Method, "Exceptions", bytes);
+    }
+
     fn member_attribute(&mut self, last: Last, name: &str, bytes: Vec<u8>) {
         let name = self.pool.utf8(name);
         let members = match last {

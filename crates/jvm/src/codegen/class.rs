@@ -20,7 +20,8 @@ impl Gen<'_, '_> {
         };
         self.check_annotations(sym, self.l.tpd.span(td))?;
         let name = internal(&self.l.u.binary_name(sym));
-        let (superclass, interfaces) = self.parents(sym);
+        let targets = self.super_call_targets(body);
+        let (superclass, interfaces) = self.parents(sym, &targets);
         let interfaces: Vec<&str> = interfaces.iter().map(String::as_str).collect();
         let mut cf = ClassFile::new(java_flags(self.l, sym), &name, &superclass, &interfaces);
         let module = is_static_module(self.l.u, sym);
@@ -96,9 +97,9 @@ impl Gen<'_, '_> {
         nested.into_iter().try_for_each(|n| self.gen_class(n))
     }
 
-    /// The superclass and interfaces of class `c`, as internal names; no interface another parent
-    /// inherits.
-    fn parents(&mut self, c: SymbolId) -> (String, Vec<String>) {
+    /// The superclass and interfaces of class `c`, as internal names: no interface another parent
+    /// inherits but super call targets `targets`, which are added.
+    fn parents(&mut self, c: SymbolId, targets: &[String]) -> (String, Vec<String>) {
         let mut classes = Vec::new();
         for p in self.l.u.parents(c) {
             if let Some(s) = self.l.u.class_symbol(p) {
@@ -109,13 +110,14 @@ impl Gen<'_, '_> {
         let inherited = |u: &mut tasty::Universe, t| {
             classes.iter().chain(&traits).any(|&(o, _)| o != t && u.derives_from(o, t))
         };
-        let traits: Vec<_> = traits.iter().filter(|p| !inherited(self.l.u, p.0)).cloned().collect();
+        let traits: Vec<_> =
+            traits.iter().filter(|p| !inherited(self.l.u, p.0) || targets.contains(&p.1)).cloned().collect();
         let superclass = match classes.first() {
             Some(p) if !self.l.u.is_trait(c) => p.1.clone(),
             _ => "java/lang/Object".into(),
         };
         let mut interfaces: Vec<String> = Vec::new();
-        for (_, i) in traits {
+        for i in traits.into_iter().map(|t| t.1).chain(targets.iter().cloned()) {
             if i != "java/lang/Object" && !interfaces.contains(&i) {
                 interfaces.push(i);
             }
@@ -159,8 +161,13 @@ impl Gen<'_, '_> {
         Ok(stats[split..].to_vec())
     }
 
-    /// Whether `t` calls a superclass constructor (dotty's `isSuperConstrCall`).
+    /// Whether `t` calls a superclass constructor, last in a block of its lifted arguments (dotty's
+    /// `splitAtSuper`).
     fn is_super_call(&self, t: TNodeId) -> bool {
+        let t = match *self.l.tpd.tree(t) {
+            Tree::Block { expr, .. } => expr,
+            _ => t,
+        };
         let Tree::Apply { fun, .. } = *self.l.tpd.tree(t) else { return false };
         let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else { return false };
         matches!(self.l.tpd.tree(qualifier), Tree::Super { .. })

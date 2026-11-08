@@ -23,7 +23,17 @@ impl Gen<'_, '_> {
         params: &[SymbolId],
         (erased, this_param): (bool, bool),
     ) {
-        if !erased && let Some(sig) = self.generic_signature(sym, desc) {
+        let thrown = self.thrown(sym);
+        if !thrown.is_empty() {
+            let classes: Vec<String> =
+                thrown.iter().map(|&t| super::class_internal(&self.l.u.erase(t))).collect();
+            cf.exceptions(&classes);
+        }
+        if !erased && let Some(mut sig) = self.generic_signature(sym, desc) {
+            for t in thrown {
+                sig.push('^');
+                sig.push_str(&super::descriptor(&self.l.u.erase(t)));
+            }
             cf.member_signature(Last::Method, &sig);
         }
         if self.l.u.is_annotated(sym, "scala.deprecated") {
@@ -43,9 +53,30 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// Refuses `@throws` and Java annotations a class file would keep on `sym`, defined at `at`.
+    /// The exception types of the `@throws` annotations of method `sym`, last first (dotty's
+    /// `ThrownException` over `annotations`).
+    fn thrown(&mut self, sym: SymbolId) -> Vec<TypeId> {
+        let mut out = Vec::new();
+        for annot in self.l.tpd.annotations(sym).to_vec().into_iter().rev() {
+            let tpe = self.l.tpd.tpe(annot);
+            if self.l.u.class_symbol(tpe).is_none_or(|c| self.l.u.full_name(c) != "scala.throws") {
+                continue;
+            }
+            if let tasty::Type::Applied(_, args) = self.l.u.types().get(tpe)
+                && let [t] = args[..]
+                && !out.contains(&t)
+            {
+                out.push(t);
+            }
+        }
+        out
+    }
+
+    /// Refuses Java annotations a class file would keep on `sym`, defined at `at`, and `@throws`
+    /// on a symbol other than a method of the unit.
     pub fn check_annotations(&mut self, sym: SymbolId, at: Span) -> Result<()> {
-        if self.l.u.is_annotated(sym, "scala.throws") {
+        let method = self.l.u.symbol(sym).kind == tasty::Kind::Def;
+        if self.l.u.is_annotated(sym, "scala.throws") && !(method && !self.thrown(sym).is_empty()) {
             return unsupported(at, "@throws (the Exceptions attribute) on the JVM");
         }
         let source_only = ["java.lang.Override", "java.lang.SuppressWarnings"];

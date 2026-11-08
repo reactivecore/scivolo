@@ -5,6 +5,7 @@ object Counter {
   println("Counter object")
   @static val start: Int = { println("start"); 10 }
   @static def twice(n: Int): Int = n * 2
+  @static var count: Int = 1
   val plain = 3
 }
 
@@ -25,6 +26,8 @@ object Statics {
     println("main")
     println(Counter.start)
     println(Counter.twice(Counter.start))
+    Counter.count = Counter.count + 4
+    println(Counter.count)
     println(Counter.plain)
     println(Shape.describe(Shape.sides))
     println(Named.sum)

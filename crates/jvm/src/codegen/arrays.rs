@@ -65,10 +65,13 @@ impl Gen<'_, '_> {
         };
         let elems = self.l.tpd.items(elems).to_vec();
         let length = i32::try_from(elems.len()).unwrap_or(i32::MAX);
+        b.push("L");
         b.code.int(b.pool, length);
         b.code.new_array(b.pool, &elem);
         for (i, e) in elems.into_iter().enumerate() {
+            b.push("L");
             b.code.insn(0x59);
+            b.push("I");
             b.code.int(b.pool, i as i32);
             self.expr_as(b, e, classfile::value_slots(&elem))?;
             b.code.element(&elem, true);

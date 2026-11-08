@@ -5,6 +5,7 @@
 
 use super::body::Body;
 use super::{Gen, descriptor, unsupported};
+use classfile::FieldOp;
 use lower::Result;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
@@ -154,5 +155,31 @@ impl Gen<'_, '_> {
             }
             _ => None,
         }
+    }
+
+    pub fn load_this(&mut self, b: &mut Body) -> i32 {
+        b.push("L");
+        match (&b.this_class, &b.module) {
+            (_, Some(module)) => {
+                let module = module.clone();
+                b.code.field(FieldOp::GetStatic, b.pool, &module, "MODULE$", &format!("L{module};"));
+            }
+            _ => b.code.load("L", 0),
+        }
+        1
+    }
+
+    /// Loads object class `class`: `this` in its own instance methods (dotty's `genLoadModule`).
+    pub fn load_module(&mut self, b: &mut Body, class: SymbolId, span: Span) -> Result<i32> {
+        if lower::is_jdk_object(self.l.u, class) {
+            return unsupported(span, "objects standing for JDK classes on the JVM");
+        }
+        let name = self.class_name(class);
+        b.push("L");
+        match b.this_class.as_deref() == Some(&name) {
+            true => b.code.load("L", 0),
+            false => b.code.field(FieldOp::GetStatic, b.pool, &name, "MODULE$", &format!("L{name};")),
+        }
+        Ok(1)
     }
 }
