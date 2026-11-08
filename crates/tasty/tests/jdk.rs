@@ -45,6 +45,20 @@ fn class(u: &mut Universe, pkg: &str, name: &str) -> SymbolId {
 }
 
 #[test]
+fn tasty_versions_before_3_4() {
+    let Some(mut u) = with_javalib() else { return };
+    let uint = class(&mut u, "scala.scalanative.unsigned", "UInt");
+    let string = class(&mut u, "java.lang", "String");
+    let list = class(&mut u, "scala.collection.immutable", "List");
+    let max = u.decl(uint, "max").unwrap()[0];
+    let split = u.decl(string, "split").unwrap()[0];
+    let contains = u.member(list, "contains")[0];
+    assert!(u.compiled_before_3_4(max));
+    assert!(!u.compiled_before_3_4(split));
+    assert!(!u.compiled_before_3_4(contains));
+}
+
+#[test]
 fn jdk_classes_under_their_jdk_names() {
     let Some(mut u) = with_javalib() else { return };
     let string = class(&mut u, "java.lang", "String");

@@ -112,6 +112,8 @@ pub struct Config {
     pub warnings: Warnings,
     /// `-Yexplicit-nulls`.
     pub explicit_nulls: bool,
+    /// The REPL compiles the unit (dotty's `Mode.Interactive`).
+    pub interactive: bool,
 }
 
 impl Default for Config {
@@ -128,6 +130,7 @@ impl Default for Config {
             kind_projector: KindProjector::Disabled,
             warnings: Warnings::default(),
             explicit_nulls: false,
+            interactive: false,
         }
     }
 }
