@@ -74,11 +74,7 @@ impl Typer<'_> {
             _ => return None,
         };
         let using = match *self.tpd.tree(tree) {
-            T::Apply { fun, .. } => {
-                let t = self.tpd.tpe(fun);
-                let info = self.method_info(t).unwrap_or(t);
-                matches!(self.u.types().get(info), Type::Method { implicit: true, .. })
-            }
+            T::Apply { fun, .. } => matches!(self.tpd.tree(fun), T::Apply { .. }),
             _ => false,
         };
         let node = self.ast.node(node);
