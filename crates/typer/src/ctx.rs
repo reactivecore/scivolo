@@ -46,6 +46,9 @@ impl Mode {
     /// The reference of a singleton type, where a context function value stays unapplied
     /// (dotty's `SingletonTypeProto`).
     pub const SINGLETON_REF: Mode = Mode(16384);
+    /// An implicit search that synthesizes no argument at its top (dotty's `inferImplicit`
+    /// outside `inferImplicitArg`).
+    pub const NO_SYNTHESIS: Mode = Mode(32768);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

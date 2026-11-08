@@ -47,7 +47,7 @@ impl Typer<'_> {
         for (class_name, args) in TAGS.into_iter().zip([vec![p, tpe], vec![tpe]]) {
             let Some(class) = self.resolve_full_name(class_name, true) else { continue };
             let wanted = crate::defn::applied(self.u, class, args);
-            match self.implicit_arg(wanted, at, ctx.with_mode(Mode::NONE), 0) {
+            match self.implicit_arg(wanted, at, ctx.with_mode(Mode::NO_SYNTHESIS), 0) {
                 Ok(tag) => {
                     found = Some(tag);
                     break;
