@@ -22,9 +22,7 @@ impl Translator<'_, '_> {
         let tpe = self.l.tpd.tpe(tree);
         let widened = self.l.u.widen(tpe);
         let Type::Sym(_, s) = *self.l.u.types().get(widened) else { return None };
-        let owner = self.l.u.symbol(s).owner;
-        let local = owner.is_some_and(|o| !self.l.u.is_class(o));
-        (self.l.u.symbol(s).kind == Kind::Type && local && has(self.l.u, s, CASE)).then_some(tasty::ANY)
+        (self.l.u.symbol(s).kind == Kind::Type && has(self.l.u, s, CASE)).then_some(tasty::ANY)
     }
 
     /// `pat` with `x @ (p: T)` made `(x @ p): T`, repeatedly (dotty's `swapBind`).

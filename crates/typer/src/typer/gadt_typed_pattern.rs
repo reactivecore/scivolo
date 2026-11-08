@@ -108,7 +108,7 @@ impl Typer<'_> {
             }
             let params: Vec<SymbolId> = narrowed.iter().map(|&(p, _)| p).collect();
             let poly_param = |t: &mut Self, r: SymbolId| {
-                params.contains(&r) && t.u.symbol(r).owner.is_some_and(|o| t.is_poly_apply_owner(o))
+                params.contains(&r) && t.u.symbol(r).owner.is_some_and(|o| t.poly_owners.contains(&o))
             };
             if lo == hi && plain_type_ref(self.u, lo).is_some_and(|r| poly_param(self, r)) {
                 return Err("type bound by a typed pattern made one with a polymorphic function's parameter");

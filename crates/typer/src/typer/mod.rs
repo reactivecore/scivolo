@@ -409,6 +409,8 @@ pub struct Typer<'a> {
     /// The functions of polymorphic function values, whose results may refer to their
     /// parameters, with the binder and parameter names of an expected `apply` whose result does.
     pub poly_closures: FxHashMap<NodeId, Option<(tasty::Binder, Vec<String>)>>,
+    /// The owners `poly_apply_owner` made.
+    pub poly_owners: FxHashSet<SymbolId>,
     /// The parameters of context closures named after an expected `apply`'s, not in scope.
     pub hidden_params: FxHashSet<NodeId>,
     /// The classes with macro annotations, their `this` types and spans, checked for unimplemented
@@ -507,6 +509,7 @@ impl<'a> Typer<'a> {
             structural_selects: FxHashSet::default(),
             dynamic_lhs: None,
             poly_closures: FxHashMap::default(),
+            poly_owners: FxHashSet::default(),
             hidden_params: FxHashSet::default(),
             macro_annotated: Vec::new(),
             quote_pattern: None,

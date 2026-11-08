@@ -175,17 +175,8 @@ impl Typer<'_> {
     pub fn poly_apply_owner(&mut self, ctx: Ctx) -> SymbolId {
         let owner = self.syms.define(self.u, "apply", Kind::Def, ctx.owner, f::METHOD.or(f::SYNTHETIC));
         self.u.unenter(owner);
+        self.poly_owners.insert(owner);
         owner
-    }
-
-    /// Whether `s` is an owner `poly_apply_owner` made.
-    pub fn is_poly_apply_owner(&mut self, s: SymbolId) -> bool {
-        let sym = self.u.symbol(s);
-        let local = sym.owner.is_some_and(|o| !self.u.is_class(o));
-        sym.kind == Kind::Def
-            && sym.name == "apply"
-            && local
-            && self.syms.flags.get(&s).is_some_and(|flags| flags.is(f::SYNTHETIC))
     }
 
     /// `body` without enclosing parentheses or empty blocks (dotty's `normalizePolyFunction`).

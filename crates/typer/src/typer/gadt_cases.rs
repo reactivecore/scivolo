@@ -83,7 +83,7 @@ impl Typer<'_> {
         for i in first..self.gadt.bound.len() {
             let s = self.gadt.bound[i];
             let Some((lo, hi)) = self.u.gadt_bounds(s) else { continue };
-            let info = self.u.intern_type(if lo == hi { Type::Alias(lo) } else { Type::Bounds(lo, hi) });
+            let info = self.u.intern_type(Type::Bounds(lo, hi));
             self.u.set_info(s, info);
         }
     }

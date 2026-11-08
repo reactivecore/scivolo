@@ -38,7 +38,7 @@ impl Typer<'_> {
         let Some(of) = self.u.symbol(s).owner.filter(|_| self.u.symbol(s).kind == Kind::TypeParam) else {
             return false;
         };
-        let poly = self.is_poly_apply_owner(of).then(|| self.u.symbol(of).owner);
+        let poly = self.poly_owners.contains(&of).then(|| self.u.symbol(of).owner);
         let (mut owner, mut in_method) = (Some(ctx.owner), false);
         while let Some(o) = owner {
             match self.u.symbol(o).kind {
