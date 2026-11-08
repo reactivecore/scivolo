@@ -128,7 +128,7 @@ impl Typer<'_> {
             return self.unsupported(s, "method reference in statement position");
         }
         if !definition && !self.warn_on_interesting_result(typed) {
-            let at = self.ast.parens_span(s).unwrap_or_else(|| self.ast.span(s)).point();
+            let at = self.ast.parens_span(s).unwrap_or_else(|| self.ast.span(s));
             self.check_statement_purity(typed, at);
         }
         typed

@@ -9,7 +9,7 @@ use syntax::ast::constant::Constant;
 
 impl Typer<'_> {
     /// Warns at `at` about pure statement `tree`, unless it is an inline call expanding to `()`.
-    pub fn check_statement_purity(&mut self, tree: TNodeId, at: u32) {
+    pub fn check_statement_purity(&mut self, tree: TNodeId, at: syntax::ast::Span) {
         let callee = self.tpd.meth_part(tree);
         let constr_call = self.tpd.sym(callee).is_some_and(|s| self.u.symbol(s).name == "<init>")
             && matches!(*self.tpd.tree(callee), T::Select { qualifier, .. }
@@ -18,7 +18,8 @@ impl Typer<'_> {
             if self.tpd.items(bindings).is_empty()
                 && matches!(self.tpd.tree(expansion), T::Literal { value: Constant::Unit }));
         if self.is_pure_expr(tree) && !constr_call && !unit_inline {
-            self.diags.warning(at, "A pure expression does nothing in statement position");
+            let msg = "A pure expression does nothing in statement position";
+            self.diags.warning_at(at.start(), at.end(), at.point(), msg);
         }
     }
 
