@@ -106,6 +106,8 @@ impl Typer<'_> {
             if self.refers_to(lo, &made_one) || self.refers_to(hi, &made_one) {
                 return Err("type bound by a typed pattern through parameters made one");
             }
+            let params: Vec<SymbolId> = narrowed.iter().map(|&(p, _)| p).collect();
+            let (lo, hi) = self.ordered_bound_type(s, (lo, hi), &params);
             let Some((old_lo, old_hi)) = self.current_bounds(s) else { continue };
             let lo = match (self.u.is_subtype(old_lo, lo), self.u.is_subtype(lo, old_lo)) {
                 (true, _) => lo,

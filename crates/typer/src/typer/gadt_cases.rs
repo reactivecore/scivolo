@@ -6,7 +6,7 @@
 
 use super::Typer;
 use crate::ctx::LevelId;
-use tasty::{SymbolId, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 /// The type parameters narrowed by the patterns of the cases being typed.
 #[derive(Default)]
@@ -75,6 +75,17 @@ impl Typer<'_> {
             l = self.levels.outer(i);
         }
         false
+    }
+
+    /// Gives the pattern-bound types from the `first`th on their GADT bounds as infos (dotty's
+    /// `indexPattern`).
+    pub fn index_gadt_binds(&mut self, first: usize) {
+        for i in first..self.gadt.bound.len() {
+            let s = self.gadt.bound[i];
+            let Some((lo, hi)) = self.u.gadt_bounds(s) else { continue };
+            let info = self.u.intern_type(if lo == hi { Type::Alias(lo) } else { Type::Bounds(lo, hi) });
+            self.u.set_info(s, info);
+        }
     }
 
     /// Narrows `s` to `bounds` while the case is typed.

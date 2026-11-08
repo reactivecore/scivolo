@@ -85,6 +85,37 @@ impl Typer<'_> {
         params.into_iter().filter(|&s| self.is_gadt_symbol(s, ctx)).collect()
     }
 
+    /// `syms` with the narrowable type parameters of pattern type `pat`, of its base type at class
+    /// `base`, and those the bounds of each refer to, transitively (dotty's GADT constraint
+    /// relating its symbols).
+    pub fn gadt_related(
+        &mut self,
+        mut syms: Vec<SymbolId>,
+        pat: TypeId,
+        base: Option<SymbolId>,
+        ctx: Ctx,
+    ) -> Vec<SymbolId> {
+        let mut todo = self.gadt_symbols(pat, ctx);
+        if let Some(b) = base.and_then(|c| self.u.base_type(pat, c)) {
+            todo.extend(self.gadt_symbols(b, ctx));
+        }
+        let mut i = 0;
+        while i < syms.len() || !todo.is_empty() {
+            if let Some(s) = todo.pop() {
+                if !syms.contains(&s) {
+                    syms.push(s);
+                }
+                continue;
+            }
+            if let Some((lo, hi)) = self.current_bounds(syms[i]) {
+                todo.extend(self.gadt_symbols(lo, ctx));
+                todo.extend(self.gadt_symbols(hi, ctx));
+            }
+            i += 1;
+        }
+        syms
+    }
+
     /// Adds the type parameters `t` refers to outside prefixes to `params`; false if `t` has a
     /// refinement, a singleton, a class's higher-kinded type parameter or an abstract type
     /// constructor applied.

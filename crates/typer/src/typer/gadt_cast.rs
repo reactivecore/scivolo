@@ -8,7 +8,7 @@ use super::Typer;
 use super::gadt::{has_tuple_class, plain_type_ref};
 use super::stability::is_stable_path;
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use tasty::{SymbolId, Type, TypeId, Universe};
 
 pub const GADT_HEALED_VIEW: &str = "implicit conversion of a GADT-approximated qualifier";
@@ -84,6 +84,18 @@ impl Typer<'_> {
         }
     }
 
+    /// `gadt_adapted` of a block's expression, as dotty adapts it while typing the block.
+    pub fn gadt_adapted_in(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> TNodeId {
+        let T::Block { stats, expr } = *self.tpd.tree(tree) else { return self.gadt_adapted(tree, pt, ctx) };
+        match self.gadt_adapted_in(expr, pt, ctx) {
+            adapted if adapted == expr => self.gadt_adapted(tree, pt, ctx),
+            adapted => {
+                let span = self.tpd.span(tree);
+                self.build().block(stats, adapted, span)
+            }
+        }
+    }
+
     /// Qualifier `qual` cast to its widened type approximated by the GADT bounds if that differs
     /// (dotty's `tryGadt` in `typedSelect`).
     pub fn gadt_healed(&mut self, qual: TNodeId, ctx: Ctx) -> Option<TNodeId> {
@@ -153,14 +165,24 @@ impl Typer<'_> {
     /// `s`'s upper bound for `variance` 1, its lower bound for -1; for the upper bound, a
     /// GADT-narrowed type whose lower bound is `s` if it conforms to that bound (dotty's
     /// `fullUpperBound`).
-    fn gadt_bound(&mut self, s: SymbolId, variance: i8) -> TypeId {
+    fn gadt_bound(&mut self, mut s: SymbolId, variance: i8) -> TypeId {
+        let mut seen = vec![s];
+        while let Some((lo, hi)) = self.u.gadt_bounds(s)
+            && lo == hi
+            && let Some(r) = plain_type_ref(self.u, hi).filter(|r| !seen.contains(r))
+        {
+            seen.push(r);
+            s = r;
+        }
         let own = self.gadt_ref(s);
         let Some((lo, hi)) = self.current_bounds(s) else { return own };
         if variance < 0 {
             return lo;
         }
-        let above =
-            self.gadt_narrowed().into_iter().find(|&n| self.u.gadt_bounds(n).is_some_and(|(l, _)| l == own));
+        let above = self
+            .gadt_narrowed()
+            .into_iter()
+            .find(|&n| !seen.contains(&n) && self.u.gadt_bounds(n).is_some_and(|(l, _)| l == own));
         let above = above.map(|n| self.gadt_ref(n));
         match above {
             Some(a) if is_top(self.u, hi) || self.u.is_subtype(a, hi) => a,
