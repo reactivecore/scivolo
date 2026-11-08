@@ -34,6 +34,10 @@ impl Universe {
                 None => self.erase(tycon),
             },
             None => match self.expand(tycon, args).or_else(|| self.expand_opaque(tycon, args)) {
+                Some(t) if self.referenced(tycon).is_some_and(|s| self.symbol(s).flags.has(crate::tags::OPAQUE)) => {
+                    let t = self.without_array_wildcard(t);
+                    self.erase(t)
+                }
                 Some(t) => self.erase(t),
                 None => self.erase(tycon),
             },
@@ -49,6 +53,20 @@ impl Universe {
         Some(self.subst(result, binder, &names, args))
     }
 
+    /// `Array[Unit]` for `t = Array[? <: Unit]`, else `t`: the right-hand side of an opaque type
+    /// erases as dotty's `IArray[Unit]` to `BoxedUnit[]`.
+    fn without_array_wildcard(&mut self, t: TypeId) -> TypeId {
+        let Type::Applied(tycon, args) = self.types().get(t).clone() else { return t };
+        if self.class_name(tycon).as_deref() != Some("scala.Array") || args.len() != 1 {
+            return t;
+        }
+        let Type::Bounds(_, hi) = *self.types().get(args[0]) else { return t };
+        match self.class_name(hi).as_deref() {
+            Some("scala.Unit") => self.intern_type(Type::Applied(tycon, vec![hi])),
+            _ => t,
+        }
+    }
+
     /// The argument of `tycon[args]`, a value class whose underlying value has the type of one of
     /// its type parameters, for that parameter (dotty's `eraseDerivedValueClass`).
     fn generic_underlying(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
@@ -60,13 +78,16 @@ impl Universe {
         args.get(i).copied()
     }
 
-    /// `Array[elem]`: `Object` for a generic element, else an array of the erased element
-    /// (`BoxedUnit` for `Unit`, in Scala 2 `Object` for `Nothing` and `Null`).
+    /// `Array[elem]`: `Object` for a generic element or a wildcard bounded by `Unit`, else an
+    /// array of the erased element (`BoxedUnit` for `Unit`, in Scala 2 `Object` for `Nothing` and
+    /// `Null`).
     fn erase_array(&mut self, elem: TypeId) -> Erased {
+        let wildcard = matches!(self.types().get(elem), Type::Bounds(..));
         if self.is_generic(elem) {
             return object();
         }
         Erased::Array(Box::new(match self.erase_boxed(elem) {
+            Erased::Unit if wildcard => return object(),
             Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
             Erased::Nothing | Erased::Null if self.scala2_erasure() => object(),
             e => e,
