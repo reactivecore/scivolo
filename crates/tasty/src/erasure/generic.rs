@@ -107,7 +107,13 @@ impl Universe {
             | Type::Rec(_, u)
             | Type::Alias(u)
             | Type::Bounds(_, u) => self.holder(u),
-            Type::Applied(c, _) => self.holder(c),
+            Type::Applied(c, _) => {
+                let args = self.applied(t).map(|(_, a)| a.to_vec()).unwrap_or_default();
+                match self.expand(c, &args).or_else(|| self.expand_opaque(c, &args)) {
+                    Some(expanded) => self.holder(expanded),
+                    None => self.holder(c),
+                }
+            }
             Type::And(a, b) => match (self.holder(a), self.holder(b)) {
                 (x, y) if x == y => x,
                 (Holder::None, y) => y,
