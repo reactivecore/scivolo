@@ -274,7 +274,7 @@ fn transparent_inline_refusals() {
         (
             "object B { transparent inline def unapply(x: Int): Option[Int] = Some(x) }
              object C { def f(x: Int) = x match { case B(y) => y } }",
-            "transparent inline extractor",
+            "",
         ),
         (
             "object D { abstract class K { type T; val t: T }; class L extends K { type T = Int; val t = 1 }

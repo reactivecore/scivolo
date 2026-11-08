@@ -134,9 +134,13 @@ fn unrolled(l: &mut Lower, class: SymbolId, accessors: &[SymbolId]) -> Result<(V
         let name = format!("<init>$default${}", n + 1);
         let getter = l.u.decl(class, &name).unwrap_or_default().into_iter().next();
         let info = getter.map(|g| l.u.info(g));
-        let plain = info.is_some_and(|i| !matches!(l.u.types().get(i), Type::Poly { .. } | Type::Method { .. }));
+        let plain =
+            info.is_some_and(|i| !matches!(l.u.types().get(i), Type::Poly { .. } | Type::Method { .. }));
         let Some(g) = getter.filter(|_| plain) else {
-            return unsupported(Span::NONE, "fromProduct of @unroll parameters without plain default getters");
+            return unsupported(
+                Span::NONE,
+                "fromProduct of @unroll parameters without plain default getters",
+            );
         };
         getters.push(g);
     }

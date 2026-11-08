@@ -5,11 +5,11 @@
 //! call `fun(s)` expanded.
 
 use super::{Inlining, Unsupported};
+use crate::ctx::Ctx;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{Span, TName};
-use crate::ctx::Ctx;
 use rustc_hash::{FxHashMap, FxHashSet};
+use syntax::ast::{Span, TName};
 use tasty::tags::{FINAL, GIVEN, IMPLICIT, INLINE, SYNTHETIC, TRANSPARENT};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
@@ -59,11 +59,14 @@ impl Inlining<'_> {
             for (param_name, param_type) in clause {
                 let param = self.synthetic(&param_name, Kind::Param, unapply, flags);
                 self.u.set_info(param, param_type);
-                let (arg_name, arg_type) = (self.term_name(param), self.u.intern_type(Type::Sym(None, param)));
+                let (arg_name, arg_type) =
+                    (self.term_name(param), self.u.intern_type(Type::Sym(None, param)));
                 args.push(self.tpd.node(T::Ident { name: arg_name }, at, Some(arg_type), Some(param)));
                 syms.push((param, param_type));
             }
-            let Type::Method { result: r, .. } = *self.u.types().get(call_type) else { unreachable!("a clause") };
+            let Type::Method { result: r, .. } = *self.u.types().get(call_type) else {
+                unreachable!("a clause")
+            };
             call_type = r;
             let args = self.tpd.list(&args);
             call = self.tpd.node(T::Apply { fun: call, args }, span, Some(call_type), None);
@@ -130,7 +133,8 @@ impl Inlining<'_> {
 
     /// Method type `info` with its innermost result `result`.
     fn with_result(&mut self, info: TypeId, result: TypeId) -> TypeId {
-        let Type::Method { binder, params, result: r, implicit, contextual } = self.u.types().get(info).clone()
+        let Type::Method { binder, params, result: r, implicit, contextual } =
+            self.u.types().get(info).clone()
         else {
             return result;
         };

@@ -198,16 +198,16 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
 
-Results (2026-11-06):
+Results (2026-11-08):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1485 |
+| passed | 1494 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
 | lowering refused | 0 |
-| typer refused | 21 |
+| typer refused | 12 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -215,9 +215,11 @@ Results (2026-11-06):
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** mostly members not found (3; two of them `Runtime.totalMemory`, which
-  Scala Native's javalib lacks and dotty types against the JDK), transparent inline extractors
-  (2) and adaptations (2).
+- **Typer refused:** one each, mostly `experimental.modularity` (`tracked` parameters, context
+  bounds of `Self` types), `typeCheckErrors` of a non-constant, implicit search with local
+  implicits of an inline body, constructor proxies of exported classes. `Runtime.totalMemory`,
+  `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
+  0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
   libraries compiled before 3.4, which dotty accepts) and checks no other `future` rule.
