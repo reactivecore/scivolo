@@ -263,25 +263,24 @@ Results (2026-11-08):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1365 |
+| passed | 1494 |
 | wrong output | 0 |
 | verify error | 0 |
 | linkage error | 4 |
 | crashed | 1 |
 | timeout | 0 |
-| jvm refused | 31 |
+| jvm refused | 21 |
 | lowering refused | 2 |
-| typer refused | 215 |
+| typer refused | 96 |
 | frontend crashed | 0 |
 | skipped | 91 |
 | **total** | **1709** |
 
-- **Typer refused:** TASTy pickling (123: synthetic members of generic case classes and enums 64,
-  type lambda bounds 24, unknown classes in signatures 19), members not found (61): reflection and
-  other JDK members of classes javalib has without them (`Class.getDeclaredFields`).
-- **JVM refused:** super accessors the TASTy lacks (11), `try` with values on the stack (7), super
-  calls of class methods through a trait (4), constructor calls on an initialized object (4),
-  `@throws` (2).
+- **Typer refused:** members not found (61): reflection and other JDK members of classes javalib
+  has without them (`Class.getDeclaredFields`); TASTy pickling (4).
+- **JVM refused:** `try` with values on the stack (7), super calls of class methods through a
+  trait (4), constructor calls on an initialized object (4), `@throws` (2), a protected member's
+  super accessor the TASTy lacks (1).
 - **Linkage errors and crashes:** a missing lambda `$adapted` method (`context-functions`), a
   missing bridge (`i18315`, `i23245b`), `ClassTag` of a `*:` tuple (`i22345`), `IArray[Unit]`'s
   erasure (`IArrayOps`).
