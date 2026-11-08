@@ -26,10 +26,11 @@ pub struct FileAttributes {
     pub explicit_nulls: bool,
 }
 
-/// A top-level class and the TASTy of it and its companion.
+/// A top-level class, the TASTy of it and its companion, and the super accessors it declares.
 pub struct Pickled {
     pub class: SymbolId,
     pub tasty: Vec<u8>,
+    pub super_accessors: super::Accessors,
 }
 
 /// What pickling a file's top-level class knows besides the trees.
@@ -62,11 +63,11 @@ pub fn pickle_file(
     for class in classes {
         let Some(sliced) = slice(u, tpd, root, class) else { continue };
         let file = File { attributes, annotations, root_class: class };
-        let tasty = pickle((u, &*tpd, names), sliced, &[], Some(source), Some(&file))?;
+        let (tasty, super_accessors) = pickle((u, &*tpd, names), sliced, &[], Some(source), Some(&file))?;
         let parsed = tasty::Tasty::parse(&tasty).ok();
         let trees = parsed.as_ref().and_then(|t| tasty::Ast::parse(t.section("ASTs")?.bytes).ok());
         trees.ok_or("trees whose TASTy does not read back")?;
-        out.push(Pickled { class, tasty });
+        out.push(Pickled { class, tasty, super_accessors });
     }
     Ok(out)
 }

@@ -327,6 +327,11 @@ impl<'a> Lower<'a> {
         self.lifted_from.contains_key(&m)
     }
 
+    /// The accessors `SuperAccessors` made in the unit.
+    pub fn super_accessors(&self) -> impl Iterator<Item = SymbolId> + '_ {
+        self.super_accessors.keys().copied()
+    }
+
     /// The owner of `s`, of a lifted local class the one before lifting.
     pub fn original_owner(&self, s: SymbolId) -> Option<SymbolId> {
         self.local_classes.get(&s).copied().or(self.u.symbol(s).owner)

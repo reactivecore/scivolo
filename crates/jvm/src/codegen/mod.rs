@@ -54,6 +54,7 @@ pub struct Gen<'l, 'a> {
 
 /// The class files of lowered unit `root`, `pickles` the TASTy of its top-level classes.
 pub fn unit(l: &mut Lower, root: TNodeId, pickles: Vec<Pickled>) -> Result<Vec<ClassBytes>> {
+    class_bytes::check_super_accessors(l, &pickles)?;
     let tasty = pickles.into_iter().map(|p| (p.class, p.tasty)).collect();
     let (out, lambdas, classes, jdk) = (Vec::new(), Vec::new(), HashMap::new(), classfile::Jdk::default());
     let mut g = Gen { l, out, lambdas, classes, tasty, jdk };

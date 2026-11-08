@@ -16,5 +16,7 @@ object User {
     println(buffer)
     println(Shapes.firstPositive(Array(-1, 0, 4)))
     println(Shapes.unit.area)
+    val marks = summon[scala.deriving.Mirror.SumOf[Mark]]
+    println((marks.ordinal(Blank), marks.ordinal(Dot(1)), Color.valueOf("Blue").ordinal))
   }
 }

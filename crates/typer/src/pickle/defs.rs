@@ -190,7 +190,7 @@ impl TreePickler<'_> {
                 self.byte(ABSTRACT);
                 self.byte(OVERRIDE);
             }
-            if flags.has(tag) {
+            if flags.has(tag) && !(tag == OVERRIDE && term && flags.has(ABSTRACT)) {
                 self.byte(tag);
             }
         }

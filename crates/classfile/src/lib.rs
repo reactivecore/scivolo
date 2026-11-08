@@ -90,14 +90,6 @@ impl ClassFile {
         }
     }
 
-    /// Whether the class declares method `name` of `descriptor` with all of flags `access`.
-    pub fn declares(&self, access: u16, name: &str, descriptor: &str) -> bool {
-        let (Some(n), Some(d)) = (self.pool.find_utf8(name), self.pool.find_utf8(descriptor)) else {
-            return false;
-        };
-        self.methods.iter().any(|m| m.name == n && m.descriptor == d && m.access & access == access)
-    }
-
     pub fn field(&mut self, access: u16, name: &str, descriptor: &str) {
         let member = self.member(access, name, descriptor);
         self.fields.push(member);

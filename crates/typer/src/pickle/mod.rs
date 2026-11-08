@@ -14,6 +14,7 @@ mod refs;
 mod selects;
 mod sharing;
 mod signed_names;
+mod super_accessors;
 mod templates;
 mod trees;
 mod types;
@@ -22,13 +23,14 @@ mod unit;
 pub use positions::QuoteSource;
 pub use unit::{FileAttributes, Pickled, pickle_file};
 
+use super_accessors::Accessors;
 use unit::File;
 
 use crate::tpd::{TNodeId, Tpd};
 use crate::unpickle::QuoteHole;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::names::Names;
-use tasty::write::{Addr, Pickler, TreeBuffer};
+use tasty::write::{Addr, Name, Pickler, TreeBuffer};
 use tasty::{Binder, SymbolId, TypeId, Universe};
 
 /// Why a tree is outside the subset pickled.
@@ -68,6 +70,11 @@ pub struct TreePickler<'a> {
     method_binders: FxHashMap<Binder, Vec<SymbolId>>,
     /// The binders of the method types and type lambdas being pickled.
     open: Vec<Binder>,
+    /// The super accessor each super call of a trait selects instead.
+    super_calls: FxHashMap<TNodeId, SymbolId>,
+    /// The name of each super accessor, and the class and name of those pickled.
+    accessor_names: FxHashMap<SymbolId, Name>,
+    accessors: Accessors,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -76,7 +83,7 @@ pub fn pickle_quote(
     root: TNodeId,
     holes: &[QuoteHole],
 ) -> Result<Vec<u8>, Refusal> {
-    pickle(cx, root, holes, None, None)
+    pickle(cx, root, holes, None, None).map(|(bytes, _)| bytes)
 }
 
 /// The TASTy of quote `root` of `source`, `holes` its term holes, with positions.
@@ -86,18 +93,18 @@ pub fn pickle_positioned_quote(
     holes: &[QuoteHole],
     source: &QuoteSource,
 ) -> Result<Vec<u8>, Refusal> {
-    pickle(cx, root, holes, Some(source), None)
+    pickle(cx, root, holes, Some(source), None).map(|(bytes, _)| bytes)
 }
 
 /// The TASTy of `root`: its trees, positions if `source` is given, and the comments and
-/// attributes of a file if `file` is.
+/// attributes of a file if `file` is; and the super accessors pickled, each its class and name.
 fn pickle<'a>(
     (u, tpd, names): (&'a mut Universe, &'a Tpd, &'a Names),
     root: TNodeId,
     holes: &[QuoteHole],
     source: Option<&QuoteSource>,
     file: Option<&'a File<'a>>,
-) -> Result<Vec<u8>, Refusal> {
+) -> Result<(Vec<u8>, Accessors), Refusal> {
     let mut pickler = Pickler::default();
     let section = pickler.new_section("ASTs");
     let holes = holes.iter().map(|h| (h.node, (h.index, h.args.clone()))).collect();
@@ -122,6 +129,9 @@ fn pickle<'a>(
         call_traces: FxHashSet::default(),
         method_binders: FxHashMap::default(),
         open: Vec::new(),
+        super_calls: FxHashMap::default(),
+        accessor_names: FxHashMap::default(),
+        accessors: Vec::new(),
     };
     p.tree(root)?;
     if !p.forward.is_empty() {
@@ -136,7 +146,7 @@ fn pickle<'a>(
     if let (Some(file), Some(source)) = (file, source) {
         p.file_sections(&file.attributes, &source.path);
     }
-    Ok(p.pickler.assemble())
+    Ok((p.pickler.assemble(), p.accessors))
 }
 
 impl TreePickler<'_> {

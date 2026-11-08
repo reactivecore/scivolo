@@ -6,7 +6,7 @@
 use super::names::sym_name;
 use super::{Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::tags::{IDENTtpt, PARAMsetter, QUALTHIS, SELFDEF, SUPER, TEMPLATE};
+use tasty::tags::{CASE, ENUM, IDENTtpt, PARAMsetter, QUALTHIS, SELFDEF, SUPER, TEMPLATE};
 use tasty::write::Name;
 use tasty::{Kind, Type, TypeId};
 
@@ -21,6 +21,11 @@ impl TreePickler<'_> {
         if !matches!(self.defs.get(&sym), Some(Some(_))) {
             self.register_def(sym);
         }
+        let flags = self.u.symbol(sym).flags;
+        let synthetic = self.u.is_class(sym) && (flags.has(CASE) || flags.has(ENUM));
+        if self.file.is_some() && synthetic && !self.u.type_params(sym).is_empty() {
+            return Err("the synthetic members of a generic case class or enum");
+        }
         let (params, rest): (Vec<TNodeId>, Vec<TNodeId>) =
             self.tpd.items(body).iter().partition(|&&s| self.is_class_param(s));
         let mut classes = Vec::new();
@@ -32,6 +37,10 @@ impl TreePickler<'_> {
             !again
         });
         let stats: Vec<TNodeId> = std::iter::once(constr).chain(rest).collect();
+        let accessors = match self.file.is_some() && self.u.is_trait(sym) {
+            true => self.trait_super_accessors(sym, &stats)?,
+            false => Vec::new(),
+        };
         self.with_length(TEMPLATE, &mut |p| {
             p.params(&params)?;
             parents.iter().try_for_each(|&t| p.tree(t))?;
@@ -39,7 +48,9 @@ impl TreePickler<'_> {
                 p.self_def(s)?;
             }
             p.pre_register(&stats);
-            stats.iter().try_for_each(|&t| p.tree(t))
+            p.tree(constr)?;
+            accessors.iter().try_for_each(|&a| p.super_accessor_def(a))?;
+            stats[1..].iter().try_for_each(|&t| p.tree(t))
         })
     }
 

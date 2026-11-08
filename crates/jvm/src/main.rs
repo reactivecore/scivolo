@@ -18,8 +18,7 @@ struct Cli {
     /// The directory to write the class files to, or a jar if it ends in `.jar`.
     #[arg(short)]
     d: PathBuf,
-    /// The jar manifest's `Main-Class` (dotty's `-Xmain-class`); by default the one class with
-    /// a `main` method, if there is one.
+    /// The jar manifest's `Main-Class` (dotty's `-Xmain-class`).
     #[arg(long)]
     main_class: Option<String>,
     /// The Scala files.
@@ -55,12 +54,6 @@ fn main() {
     };
     let entries = entries(&classes);
     if out.extension().is_some_and(|e| e == "jar") {
-        let mains: Vec<&ClassBytes> = classes.iter().filter(|c| c.main).collect();
-        let found = match mains[..] {
-            [c] => Some(c.name.replace('/', ".")),
-            _ => None,
-        };
-        let main_class = main_class.or(found);
         jvmgen::jar::write(&out, &entries, main_class.as_deref())
             .unwrap_or_else(|e| fail(&format!("writing {out:?}: {e}")));
         return;

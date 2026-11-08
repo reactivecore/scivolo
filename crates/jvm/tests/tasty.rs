@@ -16,7 +16,11 @@ fn geo_jar() -> PathBuf {
     std::fs::create_dir_all(&out).expect("tmp/jvm-test/tastylib");
     let jar = out.join("geo.jar");
     let source = root().join("tests/jvm/tastylib/tastylib.scala");
-    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm")).arg("-d").arg(&jar).arg(source).output();
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--main-class", "geo.Shapes", "-d"])
+        .arg(&jar)
+        .arg(source)
+        .output();
     let run = run.expect("running scivolo-jvm");
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
     jar

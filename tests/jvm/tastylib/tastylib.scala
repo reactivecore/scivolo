@@ -26,6 +26,14 @@ class Cell[A](var value: A) {
   def into(buffer: ArrayBuffer[A]): Unit = buffer.addOne(value)
 }
 
+enum Color {
+  case Red, Green, Blue
+}
+
+sealed trait Mark
+case class Dot(x: Int) extends Mark
+case object Blank extends Mark
+
 object Shapes {
   val unit: Shape = Rect.square(1.0)
   def total(shapes: List[Shape]): Double = shapes.map(_.area).sum

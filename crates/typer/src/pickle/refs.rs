@@ -84,7 +84,9 @@ impl TreePickler<'_> {
         let Some(c) = self.u.class_symbol(class) else { return Prefix::Type(p) };
         let module = match self.u.is_java_statics(c) {
             true => self.u.source_module(c),
-            false if self.u.symbol(s).flags.has(STATIC) => self.u.companion_module(c),
+            false if self.u.symbol(s).flags.has(STATIC) && !self.u.is_module_class(c) => {
+                self.u.companion_module(c)
+            }
             false => return Prefix::Type(p),
         };
         match module {

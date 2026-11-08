@@ -83,8 +83,9 @@ impl Units {
                 return Err("a file without its source");
             };
             let source = QuoteSource::of(file.tasty_path().to_owned(), file, *base);
+            let annotations = typer.with_child_annotations(f)?;
             let cx = (&mut *typer.u, &mut typer.tpd, &*typer.names);
-            out.extend(pickle_file(cx, f, &source, (attributes, &typer.syms.annotations))?);
+            out.extend(pickle_file(cx, f, &source, (attributes, &annotations))?);
         }
         Ok(())
     }
