@@ -5,14 +5,13 @@
 //! `insertGadtCast`, `approximateGADT`).
 
 use super::Typer;
-use super::gadt::{has_tuple_class, plain_type_ref};
+use super::gadt::plain_type_ref;
 use super::stability::is_stable_path;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{SymbolId, Type, TypeId, Universe};
 
 pub const GADT_HEALED_VIEW: &str = "implicit conversion of a GADT-approximated qualifier";
-const GADT_TUPLE: &str = "GADT approximation to a tuple class";
 
 /// Whether `t` is stable (dotty's `isStable`), `annot` marking a type `@uncheckedStable`.
 fn is_stable(u: &mut Universe, t: TypeId, annot: TypeId) -> bool {
@@ -57,10 +56,6 @@ impl Typer<'_> {
         }
         let widened = self.u.widen(underlying);
         let approx = self.approximate_gadt(widened, 1, ctx);
-        if approx != widened && has_tuple_class(self.u, approx) {
-            let span = self.tpd.span(tree);
-            return self.unsupported_tree(span, GADT_TUPLE);
-        }
         let conj = self.u.intern_type(Type::And(tpe, approx));
         let conj = match self.conforms_without_gadt(approx, pt) {
             true => conj,
@@ -84,9 +79,13 @@ impl Typer<'_> {
         }
     }
 
-    /// `gadt_adapted` of a block's expression, as dotty adapts it while typing the block.
+    /// `gadt_adapted` of a block's expression, as dotty adapts it while typing the block; of a
+    /// closure as a whole.
     pub fn gadt_adapted_in(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> TNodeId {
         let T::Block { stats, expr } = *self.tpd.tree(tree) else { return self.gadt_adapted(tree, pt, ctx) };
+        if matches!(self.tpd.tree(expr), T::Closure { .. }) {
+            return self.gadt_adapted(tree, pt, ctx);
+        }
         match self.gadt_adapted_in(expr, pt, ctx) {
             adapted if adapted == expr => self.gadt_adapted(tree, pt, ctx),
             adapted => {
@@ -105,11 +104,6 @@ impl Typer<'_> {
         let widened = self.tpd.tpe(qual);
         let widened = self.u.widen(widened);
         let approx = self.approximate_gadt(widened, 1, ctx);
-        if approx != widened && has_tuple_class(self.u, approx) {
-            let span = self.tpd.span(qual);
-            self.unsupported_at(span, GADT_TUPLE);
-            return None;
-        }
         (approx != widened).then(|| self.type_cast(qual, approx))
     }
 

@@ -153,6 +153,7 @@ impl Typer<'_> {
             let Some((old_lo, old_hi)) = self.current_bounds(s) else { continue };
             let lo = if plain_type_ref(self.u, lo) == Some(s) { old_lo } else { lo };
             let hi = if plain_type_ref(self.u, hi) == Some(s) { old_hi } else { hi };
+            let hi = if hi == old_hi { hi } else { self.gadt_upper_pairs(hi) };
             if (lo, hi) != (old_lo, old_hi) {
                 narrowed.push((s, lo, hi));
             }

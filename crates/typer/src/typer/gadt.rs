@@ -19,22 +19,6 @@ pub fn plain_type_ref(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
     }
 }
 
-/// Whether `t` has a part applying a class `scala.TupleN`, which dotty's GADT bounds hold as
-/// `*:` pairs.
-pub fn has_tuple_class(u: &mut Universe, t: TypeId) -> bool {
-    let mut parts = Vec::new();
-    u.map_type(t, &mut |_, p| {
-        parts.push(p);
-        None
-    });
-    parts.into_iter().any(|p| {
-        u.class_symbol(p).is_some_and(|c| {
-            let name = u.full_name(c);
-            name.strip_prefix("scala.Tuple").is_some_and(|n| n.parse::<u8>().is_ok())
-        })
-    })
-}
-
 impl Typer<'_> {
     /// Adds pattern-bound types `syms` to the GADT-constrained types of the case being typed.
     pub fn gadt_bind(&mut self, syms: &[SymbolId]) {
