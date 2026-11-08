@@ -74,7 +74,7 @@ pub fn classify(name: &str, text: &str, names: &mut Names, fresh: &mut FreshName
 
 /// The statements of `source`, syntax errors or not, with fresh names from `fresh`.
 pub fn parse(source: SourceFile, names: &mut Names, fresh: &mut FreshNames) -> Parsed {
-    let mut p = Parser::new(&source, names, Config::default());
+    let mut p = Parser::new(&source, names, Config { interactive: true, ..Config::default() });
     p.fresh = std::mem::take(fresh);
     let stats = p.parse_stats();
     *fresh = std::mem::take(&mut p.fresh);

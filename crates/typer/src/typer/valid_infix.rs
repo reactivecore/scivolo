@@ -15,18 +15,15 @@ impl Typer<'_> {
     /// backquoted, that `meth` does not declare `infix` is a warning, and under `-source future`
     /// an error; whether it is one.
     pub fn is_invalid_infix(&mut self, id: NodeId, fun: NodeId, meth: Option<SymbolId>) -> bool {
-        if !self.ast.attrs(id).contains(Attrs::WAS_TYPED_INFIX) {
+        let attrs = self.ast.attrs(id);
+        if !attrs.contains(Attrs::WAS_TYPED_INFIX) || attrs.contains(Attrs::INFIX_BLOCK_RIGHT) {
             return false;
         }
-        let (&Tree::Select { name, .. }, Tree::Apply { args, .. }) = (self.ast.tree(fun), self.ast.tree(id))
-        else {
-            return false;
-        };
+        let &Tree::Select { name, .. } = self.ast.tree(fun) else { return false };
         let text = self.text(name.name).to_owned();
         let span = self.ast.span(fun);
         let backquoted = (span.end() - span.point()) as usize != text.len();
-        let block_arg = matches!(self.ast.items(*args), [a] if matches!(self.ast.tree(*a), Tree::Block { .. } | Tree::Match { .. }));
-        if backquoted || block_arg || !self.is_undeclared_alphanumeric(&text, meth) {
+        if backquoted || !self.is_undeclared_alphanumeric(&text, meth) {
             return false;
         }
         let op = Span::new(span.point(), span.end(), span.point());
@@ -56,23 +53,23 @@ impl Typer<'_> {
         if self.source_future || self.scala2 {
             return self.source_future;
         }
+        let rewrite = self.rewrite_notice("The latter", "3.4-migration");
         let msg = format!(
             "Alphanumeric {kind} {name} is not declared infix; it should not be used as infix operator.\n\
-             Instead, use {alternative} or backticked identifier `{name}`.\n\
-             The latter can be rewritten automatically under -rewrite -source 3.4-migration."
+             Instead, use {alternative} or backticked identifier `{name}`.{rewrite}"
         );
         self.warning_at(op, msg);
         false
     }
 
     fn is_undeclared_alphanumeric(&mut self, name: &str, sym: Option<SymbolId>) -> bool {
-        let declared = sym.is_some_and(|m| {
-            let owner = self.u.symbol(m).owner;
-            self.is_declared_infix(m)
-                || owner.is_some_and(|o| self.u.is_scala2(o))
-                || self.u.compiled_before_3_4(m)
-        });
-        !is_operator_name(name) && !declared
+        !is_operator_name(name)
+            && !sym.is_some_and(|m| {
+                let owner = self.u.symbol(m).owner;
+                self.is_declared_infix(m)
+                    || owner.is_some_and(|o| self.u.is_scala2(o))
+                    || self.u.compiled_before_3_4(m)
+            })
     }
 
     /// dotty's `isDeclaredInfix`: `infix`, or the extractor of an `infix` case class.
