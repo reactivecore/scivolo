@@ -72,6 +72,7 @@ impl Typer<'_> {
                             .and_then(|p| self.u.refinement_info(p, s))
                             .or_else(|| super::seen_from::class_param_arg(self.u, t))
                             .or_else(|| self.u.opaque_underlying(s, prefix))
+                            .or_else(|| prefix.and_then(|p| self.u.overriding_alias(p, s)))
                             .unwrap_or_else(|| self.u.info(s)),
                     };
                     let info = match *self.u.types().get(info) {
@@ -107,10 +108,11 @@ impl Typer<'_> {
                 }
                 self.and_members(t, (ma, mb), ctx)
             }
-            Type::Or(..) => match self.u.join(t) {
+            Type::Or(a, b, _) => match self.u.join(t) {
                 Some(j) if !matches!(self.u.types().get(j), Type::Or(..)) => {
                     self.members_within(j, name, within)
                 }
+                _ if self.u.dealias(a) == self.u.dealias(b) => self.members_within(a, name, within),
                 _ => Vec::new(),
             },
             _ => match self.abstract_applied_upper(t) {

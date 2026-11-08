@@ -5,7 +5,7 @@
 //! `ensureFirstIsClass`, `adjustForBoxedUnit`).
 
 use super::Typer;
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::defn::type_ref;
 use syntax::ast::{NodeId, Tree};
 use tasty::{SymbolId, Type, TypeId};
@@ -58,7 +58,7 @@ impl Typer<'_> {
         let mut types = Vec::new();
         for &p in parents {
             let tpt = self.parent_tpt(p);
-            let typed = self.typed_type(tpt, ctx);
+            let typed = self.typed_type(tpt, ctx.with_mode(ctx.mode.with(Mode::PARENT_TYPE)));
             let mut tpe = self.tpd.tpe(typed);
             let dealiased = self.u.dealias(tpe);
             let dependent = self

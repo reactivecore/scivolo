@@ -23,8 +23,9 @@ impl Typer<'_> {
             return tree;
         }
         let span = self.tpd.span(tree);
-        let type_member = matches!(*self.u.types().get(tpe),
-            Type::Sym(_, s) if self.u.is_type_symbol(s) && !self.u.is_class(s));
+        let parent = ctx.mode.is(Mode::PARENT_TYPE);
+        let type_member = matches!(*self.u.types().get(tpe), Type::Sym(_, s) if self.u.is_type_symbol(s)
+            && (!self.u.is_class(s) || parent && self.is_pending_plain_class(s)));
         let info = if type_member { None } else { self.method_info(tpe) };
         let method = info.or(Some(tpe)).map(|i| self.u.types().get(i).clone());
         if let Some(Type::Poly { .. }) = method {
