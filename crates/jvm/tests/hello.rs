@@ -139,7 +139,8 @@ fn refuses(name: &str, code: &str, message: &str) {
     std::fs::write(&source, code).expect("writing");
     let (_, compiled) = compile(name, &source);
     assert!(!compiled.status.success());
-    assert!(String::from_utf8_lossy(&compiled.stderr).contains(message));
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    assert!(stderr.contains(message), "{stderr}");
 }
 
 #[test]

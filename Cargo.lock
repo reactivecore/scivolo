@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-classfile"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "rustc-hash",
  "zip",
@@ -672,7 +672,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-jvm"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "scivolo-classfile",
