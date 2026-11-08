@@ -276,7 +276,12 @@ Results (2026-11-08):
 
 ```sh
 just dotty-jvm-report   # scivolo-jvm, then java -Xverify:all; jvm-report.md and jvm-results.tsv under tmp/dotty
+just jvm-run FILE       # one file on java -Xverify:all against its .check
+just jvm-check FILE     # its class files against scala-cli's, through javap
 ```
+
+`scivolo-jvm` writes class version 61 (Java 17) with stack map frames; its output is semantically
+equivalent to scalac 3.9.0's, not byte-identical, and scala-cli compiles against the jars it writes.
 
 Each test is compiled by `scivolo-jvm` (#142) and its `Test.main` called through reflection, as
 dotty's test runner calls it, on `java -Xverify:all`; its output is compared with dotty's `.check`
