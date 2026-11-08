@@ -50,7 +50,7 @@ impl Typer<'_> {
         let arg_ids = self.protos[proto].args.clone();
         let method = self.tpd.sym(f);
         let infix_meth = self.tpd.sym(self.tpd.meth_part(f));
-        if self.is_invalid_future_infix(id, fun, infix_meth) {
+        if self.is_invalid_infix(id, fun, infix_meth) {
             return self.unsupported(id, "alphanumeric infix operator under -source future");
         }
         if method.is_some_and(|m| self.u.full_name(m) == "scala.compiletime.package$package$.summonFrom") {
@@ -166,10 +166,7 @@ impl Typer<'_> {
             }
             let pre = pretyped.as_ref().and_then(|typed| typed[i]);
             if spread_at(self, i, a) {
-                if pre.is_some() {
-                    return self.unsupported(id, "spread argument of an overload");
-                }
-                let spread = self.spread_arg(a, formal, ctx);
+                let spread = self.spread_arg(a, pre, formal, ctx);
                 typed_args.push(spread);
                 continue;
             }

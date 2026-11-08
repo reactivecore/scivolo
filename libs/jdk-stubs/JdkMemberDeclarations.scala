@@ -6,6 +6,12 @@ import scala.annotation.static
 package java.lang {
   abstract class ClassLoader { def loadClass(name: String): Class[?] = null }
 
+  class Runtime private () {
+    def totalMemory(): scala.Long = 0L
+    def maxMemory(): scala.Long = 0L
+    def freeMemory(): scala.Long = 0L
+  }
+
   final class System
   object System { @static def console(): java.io.Console = null }
 }
@@ -140,6 +146,12 @@ package java.util.concurrent {
     def invokeAll[T](tasks: java.util.Collection[? <: Callable[T]], timeout: Long, unit: TimeUnit): java.util.List[Future[T]]
     def invokeAny[T](tasks: java.util.Collection[? <: Callable[T]]): T
     def invokeAny[T](tasks: java.util.Collection[? <: Callable[T]], timeout: Long, unit: TimeUnit): T
+  }
+  trait ScheduledExecutorService extends ExecutorService {
+    def schedule(command: Runnable, delay: Long, unit: TimeUnit): ScheduledFuture[?]
+    def schedule[V](callable: Callable[V], delay: Long, unit: TimeUnit): ScheduledFuture[V]
+    def scheduleAtFixedRate(command: Runnable, initialDelay: Long, period: Long, unit: TimeUnit): ScheduledFuture[?]
+    def scheduleWithFixedDelay(command: Runnable, initialDelay: Long, delay: Long, unit: TimeUnit): ScheduledFuture[?]
   }
   trait CompletionStage[T <: Object] {
     def applyToEither[U <: Object](other: CompletionStage[? <: T], fn: JFunction[? >: T, U]): CompletionStage[U]

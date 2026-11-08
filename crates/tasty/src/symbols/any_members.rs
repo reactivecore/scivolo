@@ -6,7 +6,7 @@
 
 use super::builtin::synthetic;
 use super::{Kind, SymbolId, Universe};
-use crate::tags::{ARTIFACT, FINAL, PROTECTED};
+use crate::tags::{ARTIFACT, FINAL, INFIX, PROTECTED};
 use crate::types::{Type, TypeId};
 use crate::{ANY, NOTHING};
 
@@ -73,8 +73,8 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
         .filter(|&d| HIDDEN.contains(&u.symbol(d).name.as_str()))
         .collect();
     hidden.into_iter().for_each(|d| u.unenter(d));
-    method(u, object, "eq", &[("x$0", object_type)], boolean, &[FINAL]);
-    method(u, object, "ne", &[("x$0", object_type)], boolean, &[FINAL]);
+    method(u, object, "eq", &[("x$0", object_type)], boolean, &[FINAL, INFIX]);
+    method(u, object, "ne", &[("x$0", object_type)], boolean, &[FINAL, INFIX]);
     poly(u, object, "synchronized", any_bounds, |u, x0| {
         let t = u.types.intern(x0.clone());
         let binder = u.fresh_binder();

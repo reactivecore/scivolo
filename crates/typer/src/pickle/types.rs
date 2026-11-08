@@ -5,10 +5,9 @@
 use super::names::{param_name, qualified};
 use super::sharing::BY_NAME;
 use super::{Refusal, TreePickler};
-use crate::tpd::TNodeId;
 use tasty::tags::*;
 use tasty::write::{Addr, Name};
-use tasty::{Binder, SymbolId, Type, TypeId};
+use tasty::{Binder, Type, TypeId};
 
 impl TreePickler<'_> {
     fn types(&mut self, ts: &[TypeId], rich: bool) -> Result<(), Refusal> {
@@ -106,6 +105,12 @@ impl TreePickler<'_> {
                 let mods = if contextual { Some(GIVEN) } else { implicit.then_some(IMPLICIT) };
                 self.methodic(METHODtype, (binder, at), &params, result, mods)
             }
+            Type::Annotated(underlying, class) if self.is_inferred_mark(class) => {
+                self.with_length(ANNOTATEDtype, &mut |p| {
+                    p.ty(underlying, rich)?;
+                    p.new_annotation(class)
+                })
+            }
             Type::Param(binder, i) => self.param(binder, i),
             Type::Local(def, name) => {
                 let (binder, i) = self
@@ -144,20 +149,6 @@ impl TreePickler<'_> {
         });
         self.open.pop();
         pickled
-    }
-
-    /// Records the parameters of method `m` of clauses `clauses` by the binders of its type.
-    pub fn method_params(&mut self, m: SymbolId, clauses: &[Vec<TNodeId>]) {
-        let mut t = self.u.info(m);
-        for clause in clauses {
-            let (Type::Poly { binder, result, .. } | Type::Method { binder, result, .. }) =
-                *self.u.types().get(t)
-            else {
-                return;
-            };
-            self.method_binders.insert(binder, clause.iter().filter_map(|&p| self.tpd.sym(p)).collect());
-            t = result;
-        }
     }
 
     /// A reference to parameter `i` of the method or type lambda `binder`, outside the type of

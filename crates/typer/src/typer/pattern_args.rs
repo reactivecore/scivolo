@@ -119,7 +119,8 @@ impl Typer<'_> {
             self.ast.with_span(tuple, span);
             tuple
         } else {
-            self.tuple_apply(&values, span.start_pos(), span)
+            let at = values.first().map_or(span, |&v| self.ast.span(v)).start_pos();
+            self.tuple_apply(&values, at, span)
         };
         self.typed(app, pt, ctx)
     }

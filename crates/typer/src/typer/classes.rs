@@ -119,6 +119,7 @@ impl Typer<'_> {
             true => self.typed(s, Pt::Any, ctx),
             false => self.typed_self(s, cctx),
         });
+        self.complete_classes_on_self(cls);
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
         let mut body = self.with_inline_members(cls, body, cctx);
         match self.deferred_given_impls(cls, ctx, cctx, self.ast.span(id)) {

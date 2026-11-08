@@ -13,13 +13,13 @@ impl Universe {
     /// `this` of `owner`, of its base classes and of its enclosing classes replaced by `prefix`
     /// or the prefix `prefix` gives them, the type parameters of `owner` by the arguments
     /// `prefix` gives them, one a wildcard by the parameter selected on `prefix` (dotty's
-    /// `argForParam`).
+    /// `argForParam`), a type member a refinement of `prefix` aliases the alias.
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
         let prefix = match *self.types().get(prefix) {
             Type::Super(this, _) => this,
             _ => prefix,
         };
-        self.map_type(t, &mut |u, x| match *u.types().get(x) {
+        let seen = self.map_type(t, &mut |u, x| match *u.types().get(x) {
             Type::Sym(Some(_), s) if u.is_static_symbol(s) && !u.sees_opaques(s) => Some(x),
             Type::This(c) => {
                 let c = u.class_symbol(c)?;
@@ -49,7 +49,8 @@ impl Universe {
                 }
                 Some(u.intern_type(Type::Sym(Some(prefix), param)))
             }
-        })
+        });
+        self.refined_selects(seen, prefix)
     }
 
     /// Whether `t` is a stable path to a value: a skolem, or a reference to an immutable value or

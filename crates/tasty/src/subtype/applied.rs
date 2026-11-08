@@ -43,8 +43,7 @@ impl Cmp<'_> {
                         true => self.recur(a, lower),
                         false => self.either(|s| s.fourth_try(a, b), |s| s.recur(a, lower)),
                     };
-                    declared
-                        || self.gadt_applied(tycon, args, false).is_some_and(|glo| self.recur_frozen(a, glo))
+                    declared || self.gadt_applied(tycon, args, false).is_some_and(|glo| self.recur(a, glo))
                 }
                 Some(Meaning::Class(c)) => match self.nested_pairs(c, args) {
                     Some(pairs) => self.try_base_type(a, b, c) || self.recur(a, pairs),
@@ -124,7 +123,7 @@ impl Cmp<'_> {
                 Some(Meaning::Abstract(_, hi)) => {
                     let upper = self.apply(hi, args);
                     upper != a && self.recur(upper, b)
-                        || self.gadt_applied(tycon, args, true).is_some_and(|ghi| self.recur_frozen(ghi, b))
+                        || self.gadt_applied(tycon, args, true).is_some_and(|ghi| self.recur(ghi, b))
                 }
                 _ => false,
             },

@@ -4,7 +4,7 @@
 //! type parameters of any kind.
 
 use super::Typer;
-use syntax::ast::Tree;
+use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -18,6 +18,7 @@ impl Typer<'_> {
         let Some(depth) = depth.checked_sub(1) else { return 0 };
         match self.u.types().get(t).clone() {
             Type::Sym(pre, s) => match self.u.symbol(s).kind {
+                Kind::Class if self.is_pending_plain_class(s) => 0,
                 Kind::Class => {
                     if matches!(
                         self.syms.completions.get(&s),
@@ -63,6 +64,26 @@ impl Typer<'_> {
     pub fn is_completing_type(&mut self, t: TypeId) -> bool {
         matches!(*self.u.types().get(t), Type::Sym(_, s) if self.u.is_type_symbol(s)
             && matches!(self.syms.completions.get(&s), Some(crate::symbols::Completion::Completing(_))))
+    }
+
+    /// Whether `s` is a class without type parameters not completed yet.
+    pub fn is_pending_plain_class(&self, s: SymbolId) -> bool {
+        match self.syms.completions.get(&s) {
+            Some(&crate::symbols::Completion::Pending { tree, .. }) => self.pending_class_arity(tree) == 0,
+            _ => false,
+        }
+    }
+
+    /// How many type parameters the class that `tree` defines declares (dotty's
+    /// `completerTypeParams`).
+    fn pending_class_arity(&self, tree: NodeId) -> usize {
+        let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return 0 };
+        let Tree::Template { body, .. } = *self.ast.tree(rhs) else { return 0 };
+        let is_param = |&&s: &&NodeId| match *self.ast.tree(s) {
+            Tree::TypeDef { mods, .. } => self.ast.modifiers(mods).flags.is(syntax::ast::flags::TYPE_PARAM),
+            _ => false,
+        };
+        self.ast.items(body).iter().take_while(is_param).count()
     }
 
     /// How many type parameters type member `s` declares while its info is completed and is not

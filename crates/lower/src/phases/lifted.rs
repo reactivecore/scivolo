@@ -159,6 +159,7 @@ pub fn define(
     let flags = if this { flags } else { flags.with(STATIC) };
     let flags = if l.u.is_trait(class) { flags } else { flags.with(FINAL) };
     let sym = l.u.define(symbol(name, Kind::Def, class, flags));
+    l.u.set_lifted(sym);
     let mut proxies = Vec::new();
     for &s in captured {
         let name = l.u.symbol(s).name.clone();

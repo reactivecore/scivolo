@@ -74,21 +74,27 @@ fn raw(out: &mut Printed, open: &str, units: &[u16], close: &str) -> Result<(), 
     Ok(())
 }
 
-/// The value of the constant of `tag` and `bits` as dotty's `Constant.toString` shows it.
-pub fn constant_value(tag: u8, bits: i64) -> Option<String> {
-    Some(match tasty::constant(tag, bits)? {
+/// The value of the constant of `tag` and `bits` as dotty's `Constant.toString` shows it,
+/// appended to `out`.
+pub fn constant_value(tag: u8, bits: i64, out: &mut Printed) -> Option<()> {
+    let text = match tasty::constant(tag, bits)? {
         Const::Unit => "()".to_owned(),
         Const::Bool(b) => b.to_string(),
         Const::Null => "null".to_owned(),
         Const::Byte(n) => n.to_string(),
         Const::Short(n) => n.to_string(),
-        Const::Char(_) => char::from_u32(bits as u32)?.to_string(),
+        Const::Char(_) => {
+            out.push_units(&[u16::try_from(bits).ok()?], |s, c| s.push(c));
+            return Some(());
+        }
         Const::Int(n) => n.to_string(),
         Const::Long(n) => n.to_string(),
         Const::Float(x) => java_decimal(x as f64, format!("{x:?}"))?,
         Const::Double(x) => java_decimal(x, format!("{x:?}"))?,
         Const::Str(_) => return None,
-    })
+    };
+    out.push_str(&text);
+    Some(())
 }
 
 /// `x`, whose shortest decimal is `shortest`, as Java's `toString` writes it, for the values
@@ -124,6 +130,8 @@ mod tests {
         string_constant.extend([0xdc00, 0x22, 0x29]);
         assert_eq!(structure(&C::String(vec![0x61, 0xdc00].into())), string_constant);
         assert_eq!(structure(&C::String(vec![0xd83d, 0xde00].into())), utf16("StringConstant(\"😀\")"));
-        assert!(constant_value(CHARconst, 0xd800).is_none());
+        let mut value = Printed::default();
+        constant_value(CHARconst, 0xd800, &mut value).unwrap();
+        assert_eq!(value.into_utf16(), [0xd800]);
     }
 }
