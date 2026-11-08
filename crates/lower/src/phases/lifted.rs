@@ -158,6 +158,7 @@ pub fn define(
     let flags = Flags::default().with(PRIVATE);
     let flags = if this { flags } else { flags.with(STATIC) };
     let sym = l.u.define(symbol(name, Kind::Def, class, flags));
+    l.u.set_lifted(sym);
     let mut proxies = Vec::new();
     for &s in captured {
         let name = l.u.symbol(s).name.clone();

@@ -49,6 +49,17 @@ impl super::Universe {
         self.javalib_sources = true;
     }
 
+    /// Makes the compile see the JDK 17 API: javalib's members that JDK 17 lacks are left out
+    /// where only the JDK API's are seen (ADR 0095).
+    pub fn set_jdk_17_view(&mut self) {
+        self.jdk_17_view = true;
+    }
+
+    /// Whether the compile sees the JDK 17 API.
+    pub fn jdk_17_view(&self) -> bool {
+        self.jdk_17_view
+    }
+
     /// Makes the classes of the jars `jars` (indices) stand for the JDK's: Java classes when
     /// javalib's sources are compiled, their values Java fields.
     pub fn set_jdk_jars(&mut self, jars: std::ops::Range<usize>) {

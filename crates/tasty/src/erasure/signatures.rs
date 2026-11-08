@@ -84,10 +84,11 @@ impl Universe {
         Some((sig, result))
     }
 
-    /// Whether method `s` is erased as Scala 2 erases: not inline, of a Scala 2 class.
+    /// Whether method `s` is erased as Scala 2 erases: not inline, of a Scala 2 class, not lifted
+    /// out of a term.
     pub fn erased_as_scala2(&self, s: SymbolId) -> bool {
         let owner = self.symbol(s).owner;
         let in_scala2_class = owner.is_some_and(|o| self.symbol(o).kind == Kind::Class && self.is_scala2(o));
-        in_scala2_class && !self.symbol(s).flags.has(INLINE)
+        in_scala2_class && !self.symbol(s).flags.has(INLINE) && !self.is_lifted(s)
     }
 }

@@ -30,6 +30,9 @@ struct Cli {
     /// The sources are Scala's library's: its classes are compiled in the same run.
     #[arg(long, conflicts_with = "javalib")]
     scalalib: bool,
+    /// The sources see the JDK 17 API: no forwarders to javalib's methods JDK 17 lacks.
+    #[arg(long, conflicts_with = "javalib")]
+    jdk_17: bool,
     /// Macro calls run in a VM over the library's NIR, also without `--cp`.
     #[arg(long)]
     macros: bool,
@@ -57,6 +60,7 @@ fn main() {
         jdk_tasty,
         javalib,
         scalalib,
+        jdk_17,
         macros,
         sourceroot,
         position_root,
@@ -79,6 +83,9 @@ fn main() {
     }
     if scalalib {
         u.set_same_run_jar(scala_library);
+    }
+    if jdk_17 {
+        u.set_jdk_17_view();
     }
     let sources: Vec<SourceFile> = files
         .iter()

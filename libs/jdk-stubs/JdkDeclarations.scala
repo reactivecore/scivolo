@@ -248,6 +248,8 @@ package java.lang {
     override def appendCodePoint(codePoint: Int): StringBuilder = this
     override def indexOf(str: String): Int = 0
     override def indexOf(str: String, fromIndex: Int): Int = 0
+    override def lastIndexOf(str: String): Int = 0
+    override def lastIndexOf(str: String, fromIndex: Int): Int = 0
     override def toString(): String = null
   }
 
