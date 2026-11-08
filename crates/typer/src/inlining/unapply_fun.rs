@@ -8,7 +8,9 @@ use super::{Inlining, Unsupported};
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
-use tasty::tags::{FINAL, INLINE, SYNTHETIC};
+use crate::ctx::Ctx;
+use rustc_hash::{FxHashMap, FxHashSet};
+use tasty::tags::{FINAL, GIVEN, IMPLICIT, INLINE, SYNTHETIC, TRANSPARENT};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
@@ -16,7 +18,8 @@ impl Inlining<'_> {
     /// inline method.
     pub fn inlined_unapply_fun(&mut self, fun: TNodeId, owner: SymbolId) -> Result<TNodeId, Unsupported> {
         let Some(meth) = self.method_part(fun).and_then(|f| self.tpd.sym(f)) else { return Ok(fun) };
-        if self.transparent_only || !self.u.symbol(meth).flags.has(INLINE) {
+        let flags = self.u.symbol(meth).flags;
+        if !flags.has(INLINE) || self.transparent_only != flags.has(TRANSPARENT) {
             return Ok(fun);
         }
         let span = self.tpd.span(fun);
@@ -27,9 +30,6 @@ impl Inlining<'_> {
         let [(ref param_name, param_type)] = params[..] else {
             return Err((span, "inline extractor of several parameters"));
         };
-        if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
-            return Err((span, "inline extractor with implicit parameters"));
-        }
         let object = self.u.builtins().object;
         let cls = self.synthetic("$anon", Kind::Class, owner, Flags::default().with(FINAL).with(SYNTHETIC));
         let object_type = type_ref(self.u, object);
@@ -40,23 +40,45 @@ impl Inlining<'_> {
         self.u.set_info(ctor, ctor_info);
         let name = self.u.symbol(meth).name.clone();
         let unapply = self.synthetic(&name, Kind::Def, cls, Flags::default().with(SYNTHETIC));
-        self.u.set_info(unapply, info);
-        let param = self.synthetic(param_name, Kind::Param, unapply, Flags::default());
-        self.u.set_info(param, param_type);
         self.change_owner(fun, owner, unapply);
-        let (arg_name, arg_type) = (self.term_name(param), self.u.intern_type(Type::Sym(None, param)));
-        let at = Span::at(span.end());
-        let arg = self.tpd.node(T::Ident { name: arg_name }, at, Some(arg_type), Some(param));
-        let args = self.tpd.list(&[arg]);
-        let call = self.tpd.node(T::Apply { fun, args }, span, Some(result), None);
+        let mut clauses = vec![(vec![(param_name.clone(), param_type)], Flags::default())];
+        let mut result = result;
+        while let Type::Method { params, result: r, implicit: true, contextual, .. } =
+            self.u.types().get(result).clone()
+        {
+            clauses.push((params, Flags::default().with(if contextual { GIVEN } else { IMPLICIT })));
+            result = r;
+        }
+        if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+            return Err((span, "inline extractor with more parameters"));
+        }
+        let (mut call, mut call_type, mut vparams) = (fun, info, Vec::new());
+        for (clause, flags) in clauses {
+            let (mut args, mut defs) = (Vec::new(), Vec::new());
+            for (param_name, param_type) in clause {
+                let param = self.synthetic(&param_name, Kind::Param, unapply, flags);
+                self.u.set_info(param, param_type);
+                let (arg_name, arg_type) = (self.term_name(param), self.u.intern_type(Type::Sym(None, param)));
+                let at = Span::at(span.end());
+                args.push(self.tpd.node(T::Ident { name: arg_name }, at, Some(arg_type), Some(param)));
+                defs.push(self.param_def(param, param_type, span));
+            }
+            let Type::Method { result: r, .. } = *self.u.types().get(call_type) else { unreachable!("a clause") };
+            call_type = r;
+            let args = self.tpd.list(&args);
+            call = self.tpd.node(T::Apply { fun: call, args }, span, Some(call_type), None);
+            vparams.push(defs);
+        }
         self.host.copied_call(fun, call);
         let body = match self.inline_method(call)? {
             Some(def) => self.inline_call(call, def, unapply)?,
             None => call,
         };
-        let vparam = self.param_def(param, param_type, span);
-        let unapply_def = self.method_def(unapply, &[vparam], (result, Some(body)), span);
-        let constr = self.method_def(ctor, &[], (cls_type, None), span);
+        let result = if self.transparent_only { self.u.widen(self.tpd.tpe(body)) } else { result };
+        let info = self.with_result(info, result);
+        self.u.set_info(unapply, info);
+        let unapply_def = self.method_def(unapply, &vparams, (result, Some(body)), span);
+        let constr = self.method_def(ctor, &[Vec::new()], (cls_type, None), span);
         let object_ctor = self.u.decl(object, "<init>").ok().and_then(|d| d.first().copied());
         let object_ctor = object_ctor.ok_or((span, "Object without a constructor"))?;
         let super_call = self.new_call(object_type, object_ctor, span);
@@ -73,6 +95,19 @@ impl Inlining<'_> {
         Ok(self.tpd.node(T::Select { qualifier: block, name }, span, Some(tpe), Some(unapply)))
     }
 
+    /// `inlined_unapply_fun` of `fun`, which applies a transparent inline method, in `ctx` while
+    /// typing, its result type the expansion's; `bodies` and `with_inits` as `inline_transparent`
+    /// takes them.
+    pub fn transparent_unapply_fun(
+        &mut self,
+        (bodies, with_inits): (FxHashMap<SymbolId, TNodeId>, FxHashSet<SymbolId>),
+        fun: TNodeId,
+        ctx: Ctx,
+    ) -> Result<TNodeId, Unsupported> {
+        (self.bodies, self.with_inits, self.ctx) = (bodies, with_inits, Some(ctx));
+        self.inlined_unapply_fun(fun, ctx.owner)
+    }
+
     fn synthetic(&mut self, name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> SymbolId {
         self.u.define(Symbol {
             name: name.to_owned(),
@@ -85,6 +120,16 @@ impl Inlining<'_> {
             decls: Vec::new(),
             tree: None,
         })
+    }
+
+    /// Method type `info` with its innermost result `result`.
+    fn with_result(&mut self, info: TypeId, result: TypeId) -> TypeId {
+        let Type::Method { binder, params, result: r, implicit, contextual } = self.u.types().get(info).clone()
+        else {
+            return result;
+        };
+        let result = self.with_result(r, result);
+        self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
     }
 
     fn nullary(&mut self, result: TypeId) -> TypeId {
@@ -107,13 +152,13 @@ impl Inlining<'_> {
     fn method_def(
         &mut self,
         s: SymbolId,
-        params: &[TNodeId],
+        params: &[Vec<TNodeId>],
         (result, rhs): (TypeId, Option<TNodeId>),
         span: Span,
     ) -> TNodeId {
         let name = self.term_name(s);
-        let clause = self.tpd.list(params);
-        let paramss = self.tpd.clauses(&[clause]);
+        let clauses: Vec<_> = params.iter().map(|p| self.tpd.list(p)).collect();
+        let paramss = self.tpd.clauses(&clauses);
         let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(result), None);
         self.tpd.node(T::DefDef { name, paramss, tpt, rhs }, span, None, Some(s))
     }

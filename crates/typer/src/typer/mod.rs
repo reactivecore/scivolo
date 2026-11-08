@@ -250,6 +250,7 @@ mod unapply_implicits;
 mod unapply_results;
 mod unapply_seq;
 mod unapply_targs;
+mod unapply_transparent;
 mod unchecked_tests;
 pub(crate) mod unique_names;
 mod unknown_params;

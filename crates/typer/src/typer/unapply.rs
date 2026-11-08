@@ -60,9 +60,6 @@ impl Typer<'_> {
             let span = self.tpd.span(qualifier);
             self.tpd.get_mut(qualifier).span = span.to_synthetic();
         }
-        if self.tpd.sym(self.tpd.meth_part(unapp)).is_some_and(|s| self.is_transparent_inline(s)) {
-            return Err("transparent inline extractor");
-        }
         if !seq && arg_ids.iter().any(|&a| self.is_seq_wildcard(a)) {
             return Err("sequence wildcard of an extractor without unapplySeq");
         }
@@ -72,6 +69,7 @@ impl Typer<'_> {
             None => self.with_type_vars(unapp)?,
         };
         let unapp = self.leading_implicits_applied(unapp, ctx)?;
+        let unapp = self.transparent_unapply(unapp, ctx)?;
         let fun_tpe = self.tpd.tpe(unapp);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
         let Type::Method { binder, params, result, implicit: false, .. } = self.u.types().get(info).clone()
