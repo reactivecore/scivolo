@@ -40,11 +40,11 @@ impl Gen<'_, '_> {
 
     /// `classOf[T]` of type `tpe`: a primitive's `TYPE` field, else an `ldc` of the class.
     pub fn class_literal(&mut self, b: &mut Body, tpe: tasty::TypeId) -> i32 {
-        let e = self.l.u.erase(tpe);
+        let e = self.l.u.erase_boxed(tpe);
         match primitive_box(&e) {
             Some(class) => b.code.field(FieldOp::GetStatic, b.pool, class, "TYPE", "Ljava/lang/Class;"),
             None => {
-                let index = b.pool.class(&class_internal(&self.l.u.erase_boxed(tpe)));
+                let index = b.pool.class(&class_internal(&e));
                 b.code.ldc(index);
             }
         }

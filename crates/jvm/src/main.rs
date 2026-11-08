@@ -48,7 +48,9 @@ fn main() {
     let Options { config, .. } = Options::checked(&options)
         .unwrap_or_else(|o| fail(&format!("the typer does not support option `{o}`")));
     let in_backend = std::cell::Cell::new(false);
-    let generate = |l: &mut lower::Lower, root| jvmgen::unit(l, root).inspect_err(|_| in_backend.set(true));
+    let generate = |l: &mut lower::Lower, root, pickles| {
+        jvmgen::unit(l, root, pickles).inspect_err(|_| in_backend.set(true))
+    };
     let classes = match lower::compile_units(&mut u, &sources, config, None, (lower::Backend::Jvm, generate))
     {
         Ok((classes, _)) => classes,

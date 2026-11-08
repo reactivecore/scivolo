@@ -25,5 +25,9 @@ object Objects {
     println(classOf[Int])
     println(classOf[Unit])
     println(classOf[Array[String]])
+    println(classOf[Meter])
+    println(Array(Meter(1.5), Meter(2.5)).map(_.d).toList)
   }
 }
+
+class Meter(val d: Double) extends AnyVal

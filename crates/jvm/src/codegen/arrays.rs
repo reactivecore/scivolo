@@ -101,7 +101,10 @@ impl Gen<'_, '_> {
         }
         match self.l.u.symbol(m).name.as_str() {
             "isInstanceOf" => b.code.instance_of(b.pool, &class_internal(&tested)),
-            "asInstanceOf" => b.code.checkcast(b.pool, &class_internal(&tested)),
+            "asInstanceOf" => {
+                b.code.checkcast(b.pool, &class_internal(&tested));
+                super::callee::adapt_phantom(b, &to);
+            }
             _ => return unsupported(span, "type applications without a call"),
         }
         Ok(1)

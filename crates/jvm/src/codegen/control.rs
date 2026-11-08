@@ -30,7 +30,10 @@ impl Gen<'_, '_> {
                 let unit = "scala/runtime/BoxedUnit";
                 b.code.field(classfile::FieldOp::GetStatic, b.pool, unit, "UNIT", &format!("L{unit};"));
             }
-            _ if self.desc_of(t) == "Lscala/runtime/Nothing$;" => b.code.set_stack(depth + slots),
+            _ if got == 1 && self.desc_of(t) == "Lscala/runtime/Nothing$;" => {
+                b.code.insn(0xbf);
+                b.code.set_stack(depth + slots);
+            }
             _ => return unsupported(self.l.tpd.span(t), "a value of another size than its context's"),
         }
         Ok(())
