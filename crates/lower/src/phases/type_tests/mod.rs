@@ -5,7 +5,7 @@
 //! `T`'s erased class, a value class itself, the box class for a primitive; casts in
 //! `as_instance_of.rs`.
 
-mod as_instance_of;
+pub(super) mod as_instance_of;
 mod combined;
 pub(super) mod not_null;
 mod runtime_tests;

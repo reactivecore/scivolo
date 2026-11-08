@@ -53,7 +53,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
         (_, Erased::Class(c)) if c == "scala.runtime.BoxedUnit" && !upcast && !span.is_synthetic() => {
             unit_after(l, expr)
         }
-        (Erased::Prim(a), Erased::Prim(b)) => match primitive_conversion(l, expr, widened, *a, *b) {
+        (Erased::Prim(a), Erased::Prim(b)) => match primitive_conversion(l, expr, *a, *b) {
             Some(converted) => converted,
             None => return refused(),
         },
@@ -212,10 +212,11 @@ fn recast(l: &mut Lower, t: TNodeId, expr: TNodeId, boxed: TNodeId) -> TNodeId {
     t
 }
 
-/// `expr.toX` for primitive `expr` of type `tpe` and erased letter `from`, converted to primitive
-/// `to`, if `expr`'s class has that method (dotty's `primitiveConversion`).
-fn primitive_conversion(l: &mut Lower, expr: TNodeId, tpe: TypeId, from: char, to: char) -> Option<TNodeId> {
-    let class = l.class_of(tpe)?;
+/// `expr.toX` for primitive `expr` of erased letter `from`, converted to primitive `to`, if the
+/// class of `from` has that method (dotty's `primitiveConversion`).
+pub fn primitive_conversion(l: &mut Lower, expr: TNodeId, from: char, to: char) -> Option<TNodeId> {
+    let class = l.u.class_ref(&crate::definitions::primitive_class_name(from)?);
+    let class = l.u.class_symbol(class)?;
     let target = crate::definitions::primitive_class_name(to)?;
     let simple = target.rsplit('.').next()?;
     let method = l.u.decl(class, &format!("to{simple}")).ok()?.into_iter().next()?;
