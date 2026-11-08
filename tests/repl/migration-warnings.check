@@ -1,0 +1,34 @@
+scala> "a" concat "b"
+1 warning found
+-- Warning: --------------------------------------------------------------------
+1 |"a" concat "b"
+  |    ^^^^^^
+  |Alphanumeric method concat is not declared infix; it should not be used as infix operator.
+  |Instead, use method syntax .concat(...) or backticked identifier `concat`.
+val res0: String = "ab"
+
+scala> 1 max 2
+val res1: Int = 2
+
+scala> class C { def add(x: Int) = x; def add(x: String) = x }
+// defined class C
+
+scala> new C add 1
+1 warning found
+-- Warning: --------------------------------------------------------------------
+1 |new C add 1
+  |      ^^^
+  |Alphanumeric method add is not declared infix; it should not be used as infix operator.
+  |Instead, use method syntax .add(...) or backticked identifier `add`.
+val res2: Int = 1
+
+scala> val Some(x) = Option(1)
+1 warning found
+-- Warning: --------------------------------------------------------------------
+1 |val Some(x) = Option(1)
+  |              ^^^^^^^^^
+  |pattern's type Some[Int] is more specialized than the right hand side expression's type Option[Int]
+  |
+  |If the narrowing is intentional, this can be communicated by adding `.runtimeChecked` after the expression,
+  |which may result in a MatchError at runtime.
+val x: Int = 1

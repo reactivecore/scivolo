@@ -105,7 +105,11 @@ fn read_header<'a>(cur: &mut Cursor<'a>) -> Result<Header<'a>> {
     Ok(Header { major, minor, experimental, tooling, uuid })
 }
 
-impl Header<'_> {
+impl<'a> Header<'a> {
+    pub fn parse(bytes: &'a [u8]) -> Result<Self> {
+        read_header(&mut Cursor::new(bytes))
+    }
+
     pub fn uuid_string(&self) -> String {
         let hex: String = self.uuid.iter().map(|b| format!("{b:02x}")).collect();
         format!("{}-{}-{}-{}-{}", &hex[..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..])
