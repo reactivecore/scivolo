@@ -4,7 +4,7 @@
 //! Operations of the primitive classes and conversions (dotty's `genPrimitiveOp`,
 //! `genArithmeticOp`, `genConversion`, `emitT2T`).
 
-use super::body::Body;
+use super::body::{Body, Operand};
 use super::cond::{Test, kind};
 use super::{Gen, unsupported};
 use lower::Result;
@@ -46,7 +46,7 @@ impl Gen<'_, '_> {
     }
 
     pub fn kind_of(&mut self, t: TNodeId) -> char {
-        kind(&self.l.u.erase(self.l.tpd.tpe(t)))
+        kind(&lower::erased_type(self.l, t))
     }
 
     /// Loads `t` converted to kind `to`.
@@ -66,6 +66,9 @@ impl Gen<'_, '_> {
     /// Call `t` of a primitive operation; `None` for another call.
     pub fn primitive(&mut self, b: &mut Body, t: TNodeId) -> Result<Option<i32>> {
         let Some((name, receiver, args)) = self.primitive_call(t) else { return Ok(None) };
+        if self.is_concat(t) {
+            return Ok(None);
+        }
         let result = self.desc_of(t);
         let to = result.as_bytes()[0];
         let k = |c: u8| u8::from(c == b'J') + 2 * u8::from(c == b'F') + 3 * u8::from(c == b'D');
@@ -172,6 +175,8 @@ pub fn convert(b: &mut Body, from: u8, to: u8) {
         let index =
             [[0, 0x85, 0x86, 0x87], [0x88, 0, 0x89, 0x8a], [0x8b, 0x8c, 0, 0x8d], [0x8e, 0x8f, 0x90, 0]];
         b.code.insn(index[i][j]);
+        let slots = 1 + i32::from(matches!(t, b'J' | b'D'));
+        b.operand(b.code.stack() - slots, slots, Operand::Desc(["I", "J", "F", "D"][j]));
     }
     let narrow = match to {
         b'B' if from != b'B' => 0x91,

@@ -75,6 +75,9 @@ impl Gen<'_, '_> {
             None => match prefix {
                 Some(c) if self.l.u.is_module_class(c) => _ = self.load_module(b, c, span)?,
                 Some(c) if b.this_class.as_deref() == Some(&self.class_name(c)) => _ = self.load_this(b),
+                Some(c) if (b.this_class.is_some() || b.module.is_some()) && self.in_subclass_of(b, c) => {
+                    _ = self.load_this(b)
+                }
                 _ => return unsupported(span, "a member of an enclosing instance on the JVM"),
             },
         }
@@ -102,10 +105,7 @@ impl Gen<'_, '_> {
             Tree::Ident { .. } => None,
             _ => return unsupported(span, "a call of this form"),
         };
-        let info = self.l.u.info(m);
-        let parameterless =
-            self.l.u.symbol(m).kind == tasty::Kind::Val || self.l.u.param_clauses(info).is_empty();
-        if lower::is_jdk_object(self.l.u, owner) && parameterless && self.jdk_static_field(m, span)? {
+        if lower::is_jdk_object(self.l.u, owner) && self.jdk_static_field(m, span)? {
             return self.field(b, m, (qualifier, None), None);
         }
         self.check_call(m, owner, span)?;
@@ -123,9 +123,16 @@ impl Gen<'_, '_> {
                     Some(c) => self.class_name(c),
                     None => class_internal(&self.l.u.erase(tpe)),
                 };
+                b.push("L");
                 b.code.new_object(b.pool, &owner_name);
+                b.push("L");
                 b.code.dup();
                 result = 1;
+                Invoke::Special
+            }
+            Some(Tree::Super { .. }) if self.java_super_target(fun).is_some() => {
+                (owner_name, interface) = (self.class_name(super_receiver), true);
+                self.load_this(b);
                 Invoke::Special
             }
             Some(Tree::Super { .. }) if self.l.u.is_trait(super_receiver) => {
@@ -180,22 +187,5 @@ impl Gen<'_, '_> {
         b.code.invoke_in(kind, interface, b.pool, (&owner_name, &name, &call_desc));
         adapt_phantom(b, classfile::split_method(&call_desc).1);
         Ok(result)
-    }
-
-    /// The class named in the descriptor of `m` if `qualifier` is a `super`, else `owner`; also
-    /// `owner` for a trait's `m` called on a `super` without mixin (dotty's `adaptIfSuper`).
-    fn super_receiver(&mut self, qualifier: Option<TNodeId>, m: SymbolId, owner: SymbolId) -> SymbolId {
-        let qualifier = qualifier.filter(|&q| match *self.l.tpd.tree(q) {
-            Tree::Super { mix, .. } => {
-                let unmixed =
-                    matches!(*self.l.tpd.tree(mix), Tree::Ident { name } if self.l.names.text(name.name).is_empty());
-                !(unmixed && self.l.u.is_trait(owner))
-            }
-            _ => false,
-        });
-        match qualifier.and_then(|q| self.receiver_class(q, m)) {
-            Some(Receiver::Class(c)) => c,
-            _ => owner,
-        }
     }
 }

@@ -2,12 +2,13 @@
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //! Types (dotty's `pickleType`, `pickleNewType`, `pickleMethodic`, `pickleConstant`).
 
-use super::names::qualified;
+use super::names::{param_name, qualified};
 use super::sharing::BY_NAME;
 use super::{Refusal, TreePickler};
+use crate::tpd::TNodeId;
 use tasty::tags::*;
 use tasty::write::{Addr, Name};
-use tasty::{Binder, Type, TypeId};
+use tasty::{Binder, SymbolId, Type, TypeId};
 
 impl TreePickler<'_> {
     fn types(&mut self, ts: &[TypeId], rich: bool) -> Result<(), Refusal> {
@@ -69,13 +70,22 @@ impl TreePickler<'_> {
                 self.byte(RECtype);
                 self.ty(parent, false)
             }
-            Type::Alias(hi) | Type::Bounds(_, hi)
-                if matches!(self.u.types().get(hi), Type::Lambda { .. }) =>
-            {
-                Err("bounds of a type lambda, whose variances are not known")
+            Type::Alias(alias) => {
+                let variances = self.variances(alias, false)?;
+                self.with_length(TYPEBOUNDS, &mut |p| {
+                    p.ty(alias, rich)?;
+                    p.write_variances(&variances);
+                    Ok(())
+                })
             }
-            Type::Alias(alias) => self.with_length(TYPEBOUNDS, &mut |p| p.ty(alias, rich)),
-            Type::Bounds(lo, hi) => self.with_length(TYPEBOUNDS, &mut |p| p.types(&[lo, hi], rich)),
+            Type::Bounds(lo, hi) => {
+                let variances = self.variances(hi, true)?;
+                self.with_length(TYPEBOUNDS, &mut |p| {
+                    p.types(&[lo, hi], rich)?;
+                    p.write_variances(&variances);
+                    Ok(())
+                })
+            }
             Type::And(a, b) => self.with_length(ANDtype, &mut |p| p.types(&[a, b], rich)),
             Type::Or(a, b, _) => self.with_length(ORtype, &mut |p| p.types(&[a, b], rich)),
             Type::ByName(result) => {
@@ -107,6 +117,7 @@ impl TreePickler<'_> {
                     .ok_or("a parameter reference outside its binder")?;
                 self.param(binder, i as u32)
             }
+            Type::Annotated(parent, annot) => self.annotated(parent, annot),
             _ => Err("a type outside the subset pickled"),
         }
     }
@@ -121,19 +132,41 @@ impl TreePickler<'_> {
     ) -> Result<(), Refusal> {
         self.binders.insert(binder, at);
         self.params.insert(binder, params.iter().map(|(n, _)| n.clone()).collect());
-        self.with_length(tag, &mut |p| {
+        self.open.push(binder);
+        let pickled = self.with_length(tag, &mut |p| {
             p.ty(result, true)?;
             for (name, t) in params {
                 p.ty(*t, false)?;
-                p.name(&Name::utf8(name));
+                p.name(&param_name(name));
             }
             modifier.into_iter().for_each(|m| p.byte(m));
             Ok(())
-        })
+        });
+        self.open.pop();
+        pickled
     }
 
-    /// A reference to parameter `i` of the method or type lambda `binder`.
+    /// Records the parameters of method `m` of clauses `clauses` by the binders of its type.
+    pub fn method_params(&mut self, m: SymbolId, clauses: &[Vec<TNodeId>]) {
+        let mut t = self.u.info(m);
+        for clause in clauses {
+            let (Type::Poly { binder, result, .. } | Type::Method { binder, result, .. }) =
+                *self.u.types().get(t)
+            else {
+                return;
+            };
+            self.method_binders.insert(binder, clause.iter().filter_map(|&p| self.tpd.sym(p)).collect());
+            t = result;
+        }
+    }
+
+    /// A reference to parameter `i` of the method or type lambda `binder`, outside the type of
+    /// a method of a file the parameter's definition.
     fn param(&mut self, binder: Binder, i: u32) -> Result<(), Refusal> {
+        let defined = self.method_binders.get(&binder).and_then(|ps| ps.get(i as usize)).copied();
+        if let Some(s) = defined.filter(|_| self.file.is_some() && !self.open.contains(&binder)) {
+            return self.direct_ref(s);
+        }
         let at = *self.binders.get(&binder).ok_or("a parameter reference outside its binder")?;
         self.with_length(PARAMtype, &mut |p| {
             p.buf.write_ref(at);

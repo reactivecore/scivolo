@@ -43,9 +43,40 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// Refuses `@throws` and Java annotations a class file would keep on `sym`, defined at `at`.
+    /// Adds to the method of `cf` added last the `Exceptions` attribute of method `sym`, if it has
+    /// `@throws` annotations (dotty's `getExceptions`).
+    pub fn exceptions(&mut self, cf: &mut ClassFile, sym: SymbolId) {
+        let thrown = self.thrown(sym);
+        if !thrown.is_empty() {
+            let classes: Vec<String> =
+                thrown.iter().map(|&t| super::class_internal(&self.l.u.erase(t))).collect();
+            cf.exceptions(&classes);
+        }
+    }
+
+    /// The exception types of the `@throws` annotations of method `sym`, last first (dotty's
+    /// `ThrownException` over `annotations`).
+    pub fn thrown(&mut self, sym: SymbolId) -> Vec<TypeId> {
+        let mut out = Vec::new();
+        for annot in self.l.tpd.annotations(sym).to_vec().into_iter().rev() {
+            let tpe = self.l.tpd.tpe(annot);
+            if self.l.u.class_symbol(tpe).is_none_or(|c| self.l.u.full_name(c) != "scala.throws") {
+                continue;
+            }
+            if let tasty::Type::Applied(_, args) = self.l.u.types().get(tpe)
+                && let [t] = args[..]
+            {
+                out.push(t);
+            }
+        }
+        out
+    }
+
+    /// Refuses Java annotations a class file would keep on `sym`, defined at `at`, and `@throws`
+    /// on a symbol other than a method of the unit.
     pub fn check_annotations(&mut self, sym: SymbolId, at: Span) -> Result<()> {
-        if self.l.u.is_annotated(sym, "scala.throws") {
+        let method = self.l.u.symbol(sym).kind == tasty::Kind::Def;
+        if self.l.u.is_annotated(sym, "scala.throws") && !(method && !self.thrown(sym).is_empty()) {
             return unsupported(at, "@throws (the Exceptions attribute) on the JVM");
         }
         let source_only = ["java.lang.Override", "java.lang.SuppressWarnings"];
@@ -57,6 +88,15 @@ impl Gen<'_, '_> {
         Ok(())
     }
 
+    /// `ACC_TRANSIENT` and `ACC_VOLATILE` of field `field` annotated `@transient` and `@volatile`,
+    /// or of its getter.
+    pub fn annotated_field_flags(&mut self, field: SymbolId) -> u16 {
+        let holders = [Some(field), self.l.field_getter(field)];
+        let mut annotated = |full| holders.into_iter().flatten().any(|s| self.l.u.is_annotated(s, full));
+        let transient = if annotated("scala.transient") { classfile::ACC_TRANSIENT } else { 0 };
+        transient | if annotated("scala.volatile") { classfile::ACC_VOLATILE } else { 0 }
+    }
+
     /// The generic signature of member `sym` of descriptor `desc` (dotty's `getGenericSignature`
     /// with `Mixin`'s `mixinGenericInfos`): none for an accessor of a private trait value, nor for
     /// a mixin forwarder whose signature does not erase to `desc`.
@@ -65,7 +105,8 @@ impl Gen<'_, '_> {
         if self.mixed_origin(sym).is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) {
             return None;
         }
-        let sig = super::signatures::member(self.l.u, sym, info, desc)?;
+        let thrown = self.thrown(sym);
+        let sig = super::signatures::member(self.l.u, sym, info, desc, &thrown)?;
         let forwarder = self.l.mixed_in_from(sym).is_some() && !self.l.is_mixin_accessor(sym);
         (!forwarder || super::signatures::erases_to(&sig, desc)).then_some(sig)
     }

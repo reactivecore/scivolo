@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "libc",
@@ -642,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-aot"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "cranelift-codegen",
@@ -664,14 +664,15 @@ dependencies = [
 
 [[package]]
 name = "scivolo-classfile"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "rustc-hash",
+ "zip",
 ]
 
 [[package]]
 name = "scivolo-jvm"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "scivolo-classfile",
@@ -679,11 +680,12 @@ dependencies = [
  "scivolo-syntax",
  "scivolo-tasty",
  "scivolo-typer",
+ "zip",
 ]
 
 [[package]]
 name = "scivolo-libimage"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "libc",
  "rustc-hash",
@@ -692,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-libs"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "scivolo-libimage",
  "scivolo-tasty",
@@ -701,7 +703,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-lower"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "rustc-hash",
@@ -716,7 +718,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-macros"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "scivolo-libs",
  "scivolo-syntax",
@@ -727,14 +729,14 @@ dependencies = [
 
 [[package]]
 name = "scivolo-nir"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "rustc-hash",
 ]
 
 [[package]]
 name = "scivolo-nir-dump"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "rustc-hash",
@@ -744,7 +746,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-repl"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "libc",
  "scivolo-libimage",
@@ -759,11 +761,11 @@ dependencies = [
 
 [[package]]
 name = "scivolo-snrt"
-version = "0.1.5"
+version = "0.1.6"
 
 [[package]]
 name = "scivolo-syntax"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "hashbrown 0.17.1",
@@ -773,10 +775,11 @@ dependencies = [
 
 [[package]]
 name = "scivolo-tasty"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "md-5",
  "rustc-hash",
+ "scivolo-classfile",
  "scivolo-libimage",
  "scivolo-nir",
  "zip",
@@ -784,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-typer"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "rustc-hash",
@@ -794,7 +797,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-vm"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "corosensei",
  "libc",
@@ -1068,14 +1071,15 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "zip"
-version = "9.2.1"
+version = "9.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "848dad21639597378c3be94c59fd4de683f0f6d8a5387575896e1245737d4f37"
+checksum = "3cec733c9820347a592f6375c3c0089b479ba0a0b1cbf3dd1958b02959b7c033"
 dependencies = [
  "crc32fast",
  "flate2",
  "getrandom",
  "indexmap",
+ "libc",
  "memchr",
  "nix",
  "typed-path",

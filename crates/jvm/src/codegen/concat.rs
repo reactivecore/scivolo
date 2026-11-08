@@ -4,7 +4,7 @@
 //! String concatenation as `invokedynamic` of `StringConcatFactory.makeConcatWithConstants`
 //! (dotty's `genStringConcat`, `liftStringConcat`, `genIndyStringConcat`).
 
-use super::body::Body;
+use super::body::{Body, Operand};
 use super::closures::BOOTSTRAP;
 use super::{Gen, descriptor};
 use classfile::{Constant, Handle, Invoke};
@@ -19,12 +19,18 @@ const TAG_ARG: u16 = 1;
 const TAG_CONST: u16 = 2;
 
 impl Gen<'_, '_> {
-    /// Whether `t` calls `String.+`.
+    /// Whether `t` calls `String.+` or a number's `+` of a `String` (dotty's `CONCAT`).
     pub fn is_concat(&mut self, t: TNodeId) -> bool {
         let Tree::Apply { fun, .. } = *self.l.tpd.tree(t) else { return false };
         let Some(m) = self.l.tpd.sym(fun) else { return false };
-        let owner = self.l.u.symbol(m).owner;
-        self.l.u.symbol(m).name == "+" && owner.is_some_and(|o| self.l.u.binary_name(o) == "java.lang.String")
+        let Some(owner) = self.l.u.symbol(m).owner.map(|o| self.l.u.binary_name(o)) else { return false };
+        if self.l.u.symbol(m).name != "+" {
+            return false;
+        }
+        let numbers = ["Byte", "Short", "Char", "Int", "Long", "Float", "Double"];
+        let number = owner.strip_prefix("scala.").is_some_and(|n| numbers.contains(&n));
+        let string = tasty::Erased::Class("java.lang.String".into());
+        owner == "java.lang.String" || number && self.l.u.erased_method(m).0.first() == Some(&string)
     }
 
     /// The operands of the chain of `String.+` calls `t`, from left to right.
@@ -69,6 +75,7 @@ impl Gen<'_, '_> {
             let size = classfile::value_slots(&desc);
             if slots + size >= MAX_SLOTS {
                 concat_call(b, &recipe, &types, &constants);
+                b.operand(b.code.stack() - 1, 1, Operand::Desc("L"));
                 concats += 1;
                 slots = 0;
                 (recipe, types, constants) = (Vec::new(), String::new(), Vec::new());

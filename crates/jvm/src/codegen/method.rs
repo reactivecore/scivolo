@@ -2,13 +2,10 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! Method bodies: loads of literals, locals, fields and objects (dotty's `genMethod`, `genLoad`).
 
-use super::body::Body;
+use super::body::{Body, Operand};
 use super::{Gen, java_flags, method_descriptor, method_name, unsupported};
-use classfile::{
-    ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile, FieldOp,
-};
+use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile};
 use lower::Result;
-use syntax::ast::Span;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
@@ -49,6 +46,7 @@ impl Gen<'_, '_> {
         let Some(rhs) = rhs else {
             let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;
             cf.method(flags, &name, &desc, None, &mut |a, b| self.jvm_lub(a, b));
+            self.exceptions(cf, sym);
             self.method_attributes(cf, sym, &desc, &param_syms, (erased, false));
             return Ok(());
         };
@@ -69,6 +67,7 @@ impl Gen<'_, '_> {
         self.method_body(&mut b, rhs, result)?;
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
+        self.exceptions(cf, sym);
         self.method_attributes(cf, sym, &desc, &param_syms, (erased, trait_init));
         let line = self.line_of(class_def);
         self.trait_forwarder(cf, (sym, flags), (&desc, &param_syms), line);
@@ -89,6 +88,13 @@ impl Gen<'_, '_> {
 
     /// Generates `t`; returns the stack slots its value takes.
     pub fn expr(&mut self, b: &mut Body, t: TNodeId) -> Result<i32> {
+        let at = b.code.stack();
+        let slots = self.value(b, t)?;
+        b.operand(at, slots, Operand::Of(t));
+        Ok(slots)
+    }
+
+    fn value(&mut self, b: &mut Body, t: TNodeId) -> Result<i32> {
         self.line(b, t);
         let span = self.l.tpd.span(t);
         let sym = self.l.tpd.sym(t);
@@ -107,6 +113,12 @@ impl Gen<'_, '_> {
             }
             Tree::This { .. } => self.load_this(b),
             Tree::Ident { .. } | Tree::Select { .. }
+                if sym.is_some_and(|s| self.l.u.is_module(s) && !self.l.u.is_static_symbol(s)) =>
+            {
+                let no_args = self.l.tpd.list(&[]);
+                self.apply(b, t, no_args)?
+            }
+            Tree::Ident { .. } | Tree::Select { .. }
                 if let Some(s) = sym.filter(|&s| self.l.u.is_module(s)) =>
             {
                 let class = self.l.u.module_class(s).expect("an object's class");
@@ -117,6 +129,7 @@ impl Gen<'_, '_> {
             {
                 let desc = desc.clone();
                 b.code.load(&desc, slot);
+                super::callee::adapt_phantom(b, &desc);
                 classfile::value_slots(&desc)
             }
             Tree::Select { qualifier, .. } if let Some(f) = sym.filter(|&s| !self.is_method(s)) => {
@@ -158,30 +171,6 @@ impl Gen<'_, '_> {
             Tree::Closure { env, meth, tpt } => self.closure(b, t, env, meth, tpt)?,
             tree => return unsupported(span, format!("{} on the JVM", typer::tpd::print::class_name(&tree))),
         })
-    }
-
-    pub fn load_this(&mut self, b: &mut Body) -> i32 {
-        match (&b.this_class, &b.module) {
-            (_, Some(module)) => {
-                let module = module.clone();
-                b.code.field(FieldOp::GetStatic, b.pool, &module, "MODULE$", &format!("L{module};"));
-            }
-            _ => b.code.load("L", 0),
-        }
-        1
-    }
-
-    /// Loads object class `class`: `this` in its own instance methods (dotty's `genLoadModule`).
-    pub fn load_module(&mut self, b: &mut Body, class: SymbolId, span: Span) -> Result<i32> {
-        if lower::is_jdk_object(self.l.u, class) {
-            return unsupported(span, "objects standing for JDK classes on the JVM");
-        }
-        let name = self.class_name(class);
-        match b.this_class.as_deref() == Some(&name) {
-            true => b.code.load("L", 0),
-            false => b.code.field(FieldOp::GetStatic, b.pool, &name, "MODULE$", &format!("L{name};")),
-        }
-        Ok(1)
     }
 
     fn is_method(&self, s: SymbolId) -> bool {

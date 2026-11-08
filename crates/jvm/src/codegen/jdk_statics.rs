@@ -1,350 +1,10 @@
-//! The JDK classes' static members that javalib's objects stand for (ADR 0103).
+//! The JDK classes' static members that javalib's objects stand for (ADR 0103, 0106).
 
-use super::{Gen, descriptor, internal, unsupported};
+use super::{Gen, descriptor, internal, method_descriptor, unsupported};
+use classfile::{ACC_INTERFACE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC};
 use lower::Result;
 use syntax::ast::Span;
 use tasty::SymbolId;
-
-/// The public static fields of the JDK 17 classes javalib has objects for: class, name and
-/// descriptor.
-const FIELDS: &[(&str, &str, &str)] = &[
-    ("java/io/File", "separatorChar", "C"),
-    ("java/io/File", "separator", "Ljava/lang/String;"),
-    ("java/io/File", "pathSeparatorChar", "C"),
-    ("java/io/File", "pathSeparator", "Ljava/lang/String;"),
-    ("java/io/FileDescriptor", "in", "Ljava/io/FileDescriptor;"),
-    ("java/io/FileDescriptor", "out", "Ljava/io/FileDescriptor;"),
-    ("java/io/FileDescriptor", "err", "Ljava/io/FileDescriptor;"),
-    ("java/lang/Boolean", "TRUE", "Ljava/lang/Boolean;"),
-    ("java/lang/Boolean", "FALSE", "Ljava/lang/Boolean;"),
-    ("java/lang/Boolean", "TYPE", "Ljava/lang/Class;"),
-    ("java/lang/Byte", "MIN_VALUE", "B"),
-    ("java/lang/Byte", "MAX_VALUE", "B"),
-    ("java/lang/Byte", "TYPE", "Ljava/lang/Class;"),
-    ("java/lang/Byte", "SIZE", "I"),
-    ("java/lang/Byte", "BYTES", "I"),
-    ("java/lang/Character", "MIN_RADIX", "I"),
-    ("java/lang/Character", "MAX_RADIX", "I"),
-    ("java/lang/Character", "MIN_VALUE", "C"),
-    ("java/lang/Character", "MAX_VALUE", "C"),
-    ("java/lang/Character", "TYPE", "Ljava/lang/Class;"),
-    ("java/lang/Character", "UNASSIGNED", "B"),
-    ("java/lang/Character", "UPPERCASE_LETTER", "B"),
-    ("java/lang/Character", "LOWERCASE_LETTER", "B"),
-    ("java/lang/Character", "TITLECASE_LETTER", "B"),
-    ("java/lang/Character", "MODIFIER_LETTER", "B"),
-    ("java/lang/Character", "OTHER_LETTER", "B"),
-    ("java/lang/Character", "NON_SPACING_MARK", "B"),
-    ("java/lang/Character", "ENCLOSING_MARK", "B"),
-    ("java/lang/Character", "COMBINING_SPACING_MARK", "B"),
-    ("java/lang/Character", "DECIMAL_DIGIT_NUMBER", "B"),
-    ("java/lang/Character", "LETTER_NUMBER", "B"),
-    ("java/lang/Character", "OTHER_NUMBER", "B"),
-    ("java/lang/Character", "SPACE_SEPARATOR", "B"),
-    ("java/lang/Character", "LINE_SEPARATOR", "B"),
-    ("java/lang/Character", "PARAGRAPH_SEPARATOR", "B"),
-    ("java/lang/Character", "CONTROL", "B"),
-    ("java/lang/Character", "FORMAT", "B"),
-    ("java/lang/Character", "PRIVATE_USE", "B"),
-    ("java/lang/Character", "SURROGATE", "B"),
-    ("java/lang/Character", "DASH_PUNCTUATION", "B"),
-    ("java/lang/Character", "START_PUNCTUATION", "B"),
-    ("java/lang/Character", "END_PUNCTUATION", "B"),
-    ("java/lang/Character", "CONNECTOR_PUNCTUATION", "B"),
-    ("java/lang/Character", "OTHER_PUNCTUATION", "B"),
-    ("java/lang/Character", "MATH_SYMBOL", "B"),
-    ("java/lang/Character", "CURRENCY_SYMBOL", "B"),
-    ("java/lang/Character", "MODIFIER_SYMBOL", "B"),
-    ("java/lang/Character", "OTHER_SYMBOL", "B"),
-    ("java/lang/Character", "INITIAL_QUOTE_PUNCTUATION", "B"),
-    ("java/lang/Character", "FINAL_QUOTE_PUNCTUATION", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_UNDEFINED", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_LEFT_TO_RIGHT", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_RIGHT_TO_LEFT", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_EUROPEAN_NUMBER", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_ARABIC_NUMBER", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_COMMON_NUMBER_SEPARATOR", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_NONSPACING_MARK", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_BOUNDARY_NEUTRAL", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_PARAGRAPH_SEPARATOR", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_SEGMENT_SEPARATOR", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_WHITESPACE", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_OTHER_NEUTRALS", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_POP_DIRECTIONAL_FORMAT", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_LEFT_TO_RIGHT_ISOLATE", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_RIGHT_TO_LEFT_ISOLATE", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_FIRST_STRONG_ISOLATE", "B"),
-    ("java/lang/Character", "DIRECTIONALITY_POP_DIRECTIONAL_ISOLATE", "B"),
-    ("java/lang/Character", "MIN_HIGH_SURROGATE", "C"),
-    ("java/lang/Character", "MAX_HIGH_SURROGATE", "C"),
-    ("java/lang/Character", "MIN_LOW_SURROGATE", "C"),
-    ("java/lang/Character", "MAX_LOW_SURROGATE", "C"),
-    ("java/lang/Character", "MIN_SURROGATE", "C"),
-    ("java/lang/Character", "MAX_SURROGATE", "C"),
-    ("java/lang/Character", "MIN_SUPPLEMENTARY_CODE_POINT", "I"),
-    ("java/lang/Character", "MIN_CODE_POINT", "I"),
-    ("java/lang/Character", "MAX_CODE_POINT", "I"),
-    ("java/lang/Character", "SIZE", "I"),
-    ("java/lang/Character", "BYTES", "I"),
-    ("java/lang/Double", "POSITIVE_INFINITY", "D"),
-    ("java/lang/Double", "NEGATIVE_INFINITY", "D"),
-    ("java/lang/Double", "NaN", "D"),
-    ("java/lang/Double", "MAX_VALUE", "D"),
-    ("java/lang/Double", "MIN_NORMAL", "D"),
-    ("java/lang/Double", "MIN_VALUE", "D"),
-    ("java/lang/Double", "SIZE", "I"),
-    ("java/lang/Double", "MAX_EXPONENT", "I"),
-    ("java/lang/Double", "MIN_EXPONENT", "I"),
-    ("java/lang/Double", "BYTES", "I"),
-    ("java/lang/Double", "TYPE", "Ljava/lang/Class;"),
-    ("java/lang/Float", "POSITIVE_INFINITY", "F"),
-    ("java/lang/Float", "NEGATIVE_INFINITY", "F"),
-    ("java/lang/Float", "NaN", "F"),
-    ("java/lang/Float", "MAX_VALUE", "F"),
-    ("java/lang/Float", "MIN_NORMAL", "F"),
-    ("java/lang/Float", "MIN_VALUE", "F"),
-    ("java/lang/Float", "SIZE", "I"),
-    ("java/lang/Float", "MAX_EXPONENT", "I"),
-    ("java/lang/Float", "MIN_EXPONENT", "I"),
-    ("java/lang/Float", "BYTES", "I"),
-    ("java/lang/Float", "TYPE", "Ljava/lang/Class;"),
-    ("java/lang/Integer", "MIN_VALUE", "I"),
-    ("java/lang/Integer", "MAX_VALUE", "I"),
-    ("java/lang/Integer", "TYPE", "Ljava/lang/Class;"),
-    ("java/lang/Integer", "SIZE", "I"),
-    ("java/lang/Integer", "BYTES", "I"),
-    ("java/lang/Long", "MIN_VALUE", "J"),
-    ("java/lang/Long", "MAX_VALUE", "J"),
-    ("java/lang/Long", "TYPE", "Ljava/lang/Class;"),
-    ("java/lang/Long", "SIZE", "I"),
-    ("java/lang/Long", "BYTES", "I"),
-    ("java/lang/Math", "E", "D"),
-    ("java/lang/Math", "PI", "D"),
-    ("java/lang/Short", "MIN_VALUE", "S"),
-    ("java/lang/Short", "MAX_VALUE", "S"),
-    ("java/lang/Short", "TYPE", "Ljava/lang/Class;"),
-    ("java/lang/Short", "SIZE", "I"),
-    ("java/lang/Short", "BYTES", "I"),
-    ("java/lang/String", "CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;"),
-    ("java/lang/System", "in", "Ljava/io/InputStream;"),
-    ("java/lang/System", "out", "Ljava/io/PrintStream;"),
-    ("java/lang/System", "err", "Ljava/io/PrintStream;"),
-    ("java/lang/Thread", "MIN_PRIORITY", "I"),
-    ("java/lang/Thread", "NORM_PRIORITY", "I"),
-    ("java/lang/Thread", "MAX_PRIORITY", "I"),
-    ("java/lang/Void", "TYPE", "Ljava/lang/Class;"),
-    ("java/lang/annotation/RetentionPolicy", "SOURCE", "Ljava/lang/annotation/RetentionPolicy;"),
-    ("java/lang/annotation/RetentionPolicy", "CLASS", "Ljava/lang/annotation/RetentionPolicy;"),
-    ("java/lang/annotation/RetentionPolicy", "RUNTIME", "Ljava/lang/annotation/RetentionPolicy;"),
-    ("java/lang/management/ManagementFactory", "CLASS_LOADING_MXBEAN_NAME", "Ljava/lang/String;"),
-    ("java/lang/management/ManagementFactory", "COMPILATION_MXBEAN_NAME", "Ljava/lang/String;"),
-    ("java/lang/management/ManagementFactory", "MEMORY_MXBEAN_NAME", "Ljava/lang/String;"),
-    ("java/lang/management/ManagementFactory", "OPERATING_SYSTEM_MXBEAN_NAME", "Ljava/lang/String;"),
-    ("java/lang/management/ManagementFactory", "RUNTIME_MXBEAN_NAME", "Ljava/lang/String;"),
-    ("java/lang/management/ManagementFactory", "THREAD_MXBEAN_NAME", "Ljava/lang/String;"),
-    ("java/lang/management/ManagementFactory", "GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE", "Ljava/lang/String;"),
-    ("java/lang/management/ManagementFactory", "MEMORY_MANAGER_MXBEAN_DOMAIN_TYPE", "Ljava/lang/String;"),
-    ("java/lang/management/ManagementFactory", "MEMORY_POOL_MXBEAN_DOMAIN_TYPE", "Ljava/lang/String;"),
-    ("java/math/BigDecimal", "ZERO", "Ljava/math/BigDecimal;"),
-    ("java/math/BigDecimal", "ONE", "Ljava/math/BigDecimal;"),
-    ("java/math/BigDecimal", "TEN", "Ljava/math/BigDecimal;"),
-    ("java/math/BigDecimal", "ROUND_UP", "I"),
-    ("java/math/BigDecimal", "ROUND_DOWN", "I"),
-    ("java/math/BigDecimal", "ROUND_CEILING", "I"),
-    ("java/math/BigDecimal", "ROUND_FLOOR", "I"),
-    ("java/math/BigDecimal", "ROUND_HALF_UP", "I"),
-    ("java/math/BigDecimal", "ROUND_HALF_DOWN", "I"),
-    ("java/math/BigDecimal", "ROUND_HALF_EVEN", "I"),
-    ("java/math/BigDecimal", "ROUND_UNNECESSARY", "I"),
-    ("java/math/BigInteger", "ZERO", "Ljava/math/BigInteger;"),
-    ("java/math/BigInteger", "ONE", "Ljava/math/BigInteger;"),
-    ("java/math/BigInteger", "TWO", "Ljava/math/BigInteger;"),
-    ("java/math/BigInteger", "TEN", "Ljava/math/BigInteger;"),
-    ("java/math/MathContext", "UNLIMITED", "Ljava/math/MathContext;"),
-    ("java/math/MathContext", "DECIMAL32", "Ljava/math/MathContext;"),
-    ("java/math/MathContext", "DECIMAL64", "Ljava/math/MathContext;"),
-    ("java/math/MathContext", "DECIMAL128", "Ljava/math/MathContext;"),
-    ("java/math/RoundingMode", "UP", "Ljava/math/RoundingMode;"),
-    ("java/math/RoundingMode", "DOWN", "Ljava/math/RoundingMode;"),
-    ("java/math/RoundingMode", "CEILING", "Ljava/math/RoundingMode;"),
-    ("java/math/RoundingMode", "FLOOR", "Ljava/math/RoundingMode;"),
-    ("java/math/RoundingMode", "HALF_UP", "Ljava/math/RoundingMode;"),
-    ("java/math/RoundingMode", "HALF_DOWN", "Ljava/math/RoundingMode;"),
-    ("java/math/RoundingMode", "HALF_EVEN", "Ljava/math/RoundingMode;"),
-    ("java/math/RoundingMode", "UNNECESSARY", "Ljava/math/RoundingMode;"),
-    ("java/net/SocketOptions", "TCP_NODELAY", "I"),
-    ("java/net/SocketOptions", "SO_BINDADDR", "I"),
-    ("java/net/SocketOptions", "SO_REUSEADDR", "I"),
-    ("java/net/SocketOptions", "SO_REUSEPORT", "I"),
-    ("java/net/SocketOptions", "SO_BROADCAST", "I"),
-    ("java/net/SocketOptions", "IP_MULTICAST_IF", "I"),
-    ("java/net/SocketOptions", "IP_MULTICAST_IF2", "I"),
-    ("java/net/SocketOptions", "IP_MULTICAST_LOOP", "I"),
-    ("java/net/SocketOptions", "IP_TOS", "I"),
-    ("java/net/SocketOptions", "SO_LINGER", "I"),
-    ("java/net/SocketOptions", "SO_TIMEOUT", "I"),
-    ("java/net/SocketOptions", "SO_SNDBUF", "I"),
-    ("java/net/SocketOptions", "SO_RCVBUF", "I"),
-    ("java/net/SocketOptions", "SO_KEEPALIVE", "I"),
-    ("java/net/SocketOptions", "SO_OOBINLINE", "I"),
-    ("java/net/StandardSocketOptions", "SO_BROADCAST", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "SO_KEEPALIVE", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "SO_SNDBUF", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "SO_RCVBUF", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "SO_REUSEADDR", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "SO_REUSEPORT", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "SO_LINGER", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "IP_TOS", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "IP_MULTICAST_IF", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "IP_MULTICAST_TTL", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "IP_MULTICAST_LOOP", "Ljava/net/SocketOption;"),
-    ("java/net/StandardSocketOptions", "TCP_NODELAY", "Ljava/net/SocketOption;"),
-    ("java/nio/ByteOrder", "BIG_ENDIAN", "Ljava/nio/ByteOrder;"),
-    ("java/nio/ByteOrder", "LITTLE_ENDIAN", "Ljava/nio/ByteOrder;"),
-    ("java/nio/charset/CoderResult", "UNDERFLOW", "Ljava/nio/charset/CoderResult;"),
-    ("java/nio/charset/CoderResult", "OVERFLOW", "Ljava/nio/charset/CoderResult;"),
-    ("java/nio/charset/CodingErrorAction", "IGNORE", "Ljava/nio/charset/CodingErrorAction;"),
-    ("java/nio/charset/CodingErrorAction", "REPLACE", "Ljava/nio/charset/CodingErrorAction;"),
-    ("java/nio/charset/CodingErrorAction", "REPORT", "Ljava/nio/charset/CodingErrorAction;"),
-    ("java/nio/charset/StandardCharsets", "US_ASCII", "Ljava/nio/charset/Charset;"),
-    ("java/nio/charset/StandardCharsets", "ISO_8859_1", "Ljava/nio/charset/Charset;"),
-    ("java/nio/charset/StandardCharsets", "UTF_8", "Ljava/nio/charset/Charset;"),
-    ("java/nio/charset/StandardCharsets", "UTF_16BE", "Ljava/nio/charset/Charset;"),
-    ("java/nio/charset/StandardCharsets", "UTF_16LE", "Ljava/nio/charset/Charset;"),
-    ("java/nio/charset/StandardCharsets", "UTF_16", "Ljava/nio/charset/Charset;"),
-    ("java/nio/file/AccessMode", "READ", "Ljava/nio/file/AccessMode;"),
-    ("java/nio/file/AccessMode", "WRITE", "Ljava/nio/file/AccessMode;"),
-    ("java/nio/file/AccessMode", "EXECUTE", "Ljava/nio/file/AccessMode;"),
-    ("java/nio/file/FileVisitOption", "FOLLOW_LINKS", "Ljava/nio/file/FileVisitOption;"),
-    ("java/nio/file/FileVisitResult", "CONTINUE", "Ljava/nio/file/FileVisitResult;"),
-    ("java/nio/file/FileVisitResult", "TERMINATE", "Ljava/nio/file/FileVisitResult;"),
-    ("java/nio/file/FileVisitResult", "SKIP_SUBTREE", "Ljava/nio/file/FileVisitResult;"),
-    ("java/nio/file/FileVisitResult", "SKIP_SIBLINGS", "Ljava/nio/file/FileVisitResult;"),
-    ("java/nio/file/LinkOption", "NOFOLLOW_LINKS", "Ljava/nio/file/LinkOption;"),
-    ("java/nio/file/StandardCopyOption", "REPLACE_EXISTING", "Ljava/nio/file/StandardCopyOption;"),
-    ("java/nio/file/StandardCopyOption", "COPY_ATTRIBUTES", "Ljava/nio/file/StandardCopyOption;"),
-    ("java/nio/file/StandardCopyOption", "ATOMIC_MOVE", "Ljava/nio/file/StandardCopyOption;"),
-    ("java/nio/file/StandardOpenOption", "READ", "Ljava/nio/file/StandardOpenOption;"),
-    ("java/nio/file/StandardOpenOption", "WRITE", "Ljava/nio/file/StandardOpenOption;"),
-    ("java/nio/file/StandardOpenOption", "APPEND", "Ljava/nio/file/StandardOpenOption;"),
-    ("java/nio/file/StandardOpenOption", "TRUNCATE_EXISTING", "Ljava/nio/file/StandardOpenOption;"),
-    ("java/nio/file/StandardOpenOption", "CREATE", "Ljava/nio/file/StandardOpenOption;"),
-    ("java/nio/file/StandardOpenOption", "CREATE_NEW", "Ljava/nio/file/StandardOpenOption;"),
-    ("java/nio/file/StandardOpenOption", "DELETE_ON_CLOSE", "Ljava/nio/file/StandardOpenOption;"),
-    ("java/nio/file/StandardOpenOption", "SPARSE", "Ljava/nio/file/StandardOpenOption;"),
-    ("java/nio/file/StandardOpenOption", "SYNC", "Ljava/nio/file/StandardOpenOption;"),
-    ("java/nio/file/StandardOpenOption", "DSYNC", "Ljava/nio/file/StandardOpenOption;"),
-    ("java/nio/file/StandardWatchEventKinds", "OVERFLOW", "Ljava/nio/file/WatchEvent$Kind;"),
-    ("java/nio/file/StandardWatchEventKinds", "ENTRY_CREATE", "Ljava/nio/file/WatchEvent$Kind;"),
-    ("java/nio/file/StandardWatchEventKinds", "ENTRY_DELETE", "Ljava/nio/file/WatchEvent$Kind;"),
-    ("java/nio/file/StandardWatchEventKinds", "ENTRY_MODIFY", "Ljava/nio/file/WatchEvent$Kind;"),
-    (
-        "java/nio/file/attribute/PosixFilePermission",
-        "OWNER_READ",
-        "Ljava/nio/file/attribute/PosixFilePermission;",
-    ),
-    (
-        "java/nio/file/attribute/PosixFilePermission",
-        "OWNER_WRITE",
-        "Ljava/nio/file/attribute/PosixFilePermission;",
-    ),
-    (
-        "java/nio/file/attribute/PosixFilePermission",
-        "OWNER_EXECUTE",
-        "Ljava/nio/file/attribute/PosixFilePermission;",
-    ),
-    (
-        "java/nio/file/attribute/PosixFilePermission",
-        "GROUP_READ",
-        "Ljava/nio/file/attribute/PosixFilePermission;",
-    ),
-    (
-        "java/nio/file/attribute/PosixFilePermission",
-        "GROUP_WRITE",
-        "Ljava/nio/file/attribute/PosixFilePermission;",
-    ),
-    (
-        "java/nio/file/attribute/PosixFilePermission",
-        "GROUP_EXECUTE",
-        "Ljava/nio/file/attribute/PosixFilePermission;",
-    ),
-    (
-        "java/nio/file/attribute/PosixFilePermission",
-        "OTHERS_READ",
-        "Ljava/nio/file/attribute/PosixFilePermission;",
-    ),
-    (
-        "java/nio/file/attribute/PosixFilePermission",
-        "OTHERS_WRITE",
-        "Ljava/nio/file/attribute/PosixFilePermission;",
-    ),
-    (
-        "java/nio/file/attribute/PosixFilePermission",
-        "OTHERS_EXECUTE",
-        "Ljava/nio/file/attribute/PosixFilePermission;",
-    ),
-    ("java/util/Collections", "EMPTY_SET", "Ljava/util/Set;"),
-    ("java/util/Collections", "EMPTY_LIST", "Ljava/util/List;"),
-    ("java/util/Collections", "EMPTY_MAP", "Ljava/util/Map;"),
-    ("java/util/FormattableFlags", "LEFT_JUSTIFY", "I"),
-    ("java/util/FormattableFlags", "UPPERCASE", "I"),
-    ("java/util/FormattableFlags", "ALTERNATE", "I"),
-    ("java/util/Spliterator", "ORDERED", "I"),
-    ("java/util/Spliterator", "DISTINCT", "I"),
-    ("java/util/Spliterator", "SORTED", "I"),
-    ("java/util/Spliterator", "SIZED", "I"),
-    ("java/util/Spliterator", "NONNULL", "I"),
-    ("java/util/Spliterator", "IMMUTABLE", "I"),
-    ("java/util/Spliterator", "CONCURRENT", "I"),
-    ("java/util/Spliterator", "SUBSIZED", "I"),
-    (
-        "java/util/concurrent/ForkJoinPool",
-        "defaultForkJoinWorkerThreadFactory",
-        "Ljava/util/concurrent/ForkJoinPool$ForkJoinWorkerThreadFactory;",
-    ),
-    ("java/util/concurrent/TimeUnit", "NANOSECONDS", "Ljava/util/concurrent/TimeUnit;"),
-    ("java/util/concurrent/TimeUnit", "MICROSECONDS", "Ljava/util/concurrent/TimeUnit;"),
-    ("java/util/concurrent/TimeUnit", "MILLISECONDS", "Ljava/util/concurrent/TimeUnit;"),
-    ("java/util/concurrent/TimeUnit", "SECONDS", "Ljava/util/concurrent/TimeUnit;"),
-    ("java/util/concurrent/TimeUnit", "MINUTES", "Ljava/util/concurrent/TimeUnit;"),
-    ("java/util/concurrent/TimeUnit", "HOURS", "Ljava/util/concurrent/TimeUnit;"),
-    ("java/util/concurrent/TimeUnit", "DAYS", "Ljava/util/concurrent/TimeUnit;"),
-    ("java/util/jar/JarFile", "MANIFEST_NAME", "Ljava/lang/String;"),
-    ("java/util/regex/Pattern", "UNIX_LINES", "I"),
-    ("java/util/regex/Pattern", "CASE_INSENSITIVE", "I"),
-    ("java/util/regex/Pattern", "COMMENTS", "I"),
-    ("java/util/regex/Pattern", "MULTILINE", "I"),
-    ("java/util/regex/Pattern", "LITERAL", "I"),
-    ("java/util/regex/Pattern", "DOTALL", "I"),
-    ("java/util/regex/Pattern", "UNICODE_CASE", "I"),
-    ("java/util/regex/Pattern", "CANON_EQ", "I"),
-    ("java/util/regex/Pattern", "UNICODE_CHARACTER_CLASS", "I"),
-    ("java/util/zip/Deflater", "DEFLATED", "I"),
-    ("java/util/zip/Deflater", "NO_COMPRESSION", "I"),
-    ("java/util/zip/Deflater", "BEST_SPEED", "I"),
-    ("java/util/zip/Deflater", "BEST_COMPRESSION", "I"),
-    ("java/util/zip/Deflater", "DEFAULT_COMPRESSION", "I"),
-    ("java/util/zip/Deflater", "FILTERED", "I"),
-    ("java/util/zip/Deflater", "HUFFMAN_ONLY", "I"),
-    ("java/util/zip/Deflater", "DEFAULT_STRATEGY", "I"),
-    ("java/util/zip/Deflater", "NO_FLUSH", "I"),
-    ("java/util/zip/Deflater", "SYNC_FLUSH", "I"),
-    ("java/util/zip/Deflater", "FULL_FLUSH", "I"),
-    ("java/util/zip/GZIPInputStream", "GZIP_MAGIC", "I"),
-    ("java/util/zip/ZipEntry", "STORED", "I"),
-    ("java/util/zip/ZipEntry", "DEFLATED", "I"),
-    ("java/util/zip/ZipFile", "OPEN_READ", "I"),
-    ("java/util/zip/ZipFile", "OPEN_DELETE", "I"),
-    ("java/util/zip/ZipOutputStream", "STORED", "I"),
-    ("java/util/zip/ZipOutputStream", "DEFLATED", "I"),
-];
 
 impl Gen<'_, '_> {
     /// The class declaring the members of class `owner` in class files: the JDK class an object
@@ -358,10 +18,10 @@ impl Gen<'_, '_> {
         (internal(binary.strip_suffix('$').unwrap_or(&binary)), interface)
     }
 
-    /// Whether parameterless member `m` of an object standing for a JDK class is a static field:
-    /// a value of the JDK declarations (`@static`) or of a Java class entered from the library
-    /// jars, or one of javalib's that `FIELDS` lists; a javalib `def` not listed is a static
-    /// method. Fails for a javalib value not listed and for one listed with another descriptor.
+    /// Whether member `m` of an object standing for a JDK class is a static field: a value of the
+    /// JDK declarations (`@static`) or of a Java class entered from the library jars, or a
+    /// parameterless member the JDK's class file has as a static field of its type; else it is a
+    /// static method. Fails for a member the JDK's class files have as neither.
     pub fn jdk_static_field(&mut self, m: SymbolId, span: Span) -> Result<bool> {
         let value = self.l.u.symbol(m).kind == tasty::Kind::Val;
         let owner = self.l.u.symbol(m).owner.expect("a member's owner");
@@ -369,13 +29,42 @@ impl Gen<'_, '_> {
             return Ok(value);
         }
         let class = self.member_owner(owner).0;
+        let name = tasty::encode(&self.l.u.symbol(m).name);
         let info = self.l.u.info(m);
-        let desc = descriptor(&self.l.u.erase(info));
-        let name = self.l.u.symbol(m).name.as_str();
-        match FIELDS.iter().find(|f| f.0 == class && f.1 == name) {
-            Some(f) if f.2 == desc => Ok(true),
-            None if !value => Ok(false),
-            _ => unsupported(span, "a javalib member the JDK class lacks as a static field"),
+        if value || self.l.u.param_clauses(info).is_empty() {
+            let field = descriptor(&self.l.u.erase(info));
+            if self.jdk_static(&class, &name, &field, true) {
+                return Ok(true);
+            }
         }
+        let method = method_descriptor(self.l.u, m);
+        if !value && self.jdk_static(&class, &name, &method, false) {
+            return Ok(false);
+        }
+        if self.jdk.class(&class).is_none() {
+            return unsupported(span, format!("JDK class {class}, missing from the JDK's class files"));
+        }
+        unsupported(span, format!("javalib's {class}.{name}, a static member the JDK lacks"))
+    }
+
+    /// Whether JDK class `class` has public or protected static field or method `name` of
+    /// descriptor `desc`, found as the JVM resolves it (JVMS §5.4.3.2–5.4.3.4): a field in it or
+    /// a class or interface it derives from, a method in it or, for a class, a superclass.
+    fn jdk_static(&mut self, class: &str, name: &str, desc: &str, field: bool) -> bool {
+        let mut todo = vec![class.to_owned()];
+        while let Some(c) = todo.pop() {
+            let Some(info) = self.jdk.class(&c) else { continue };
+            let members = if field { &info.fields } else { &info.methods };
+            let is = |m: &&classfile::MemberInfo| m.name == name && m.descriptor == desc;
+            let visible = |m: &&classfile::MemberInfo| m.access & (ACC_PUBLIC | ACC_PROTECTED) != 0;
+            if members.iter().any(|m| is(&m) && visible(&m) && m.access & ACC_STATIC != 0) {
+                return true;
+            }
+            if field || info.access & ACC_INTERFACE == 0 {
+                todo.extend(info.superclass.clone());
+            }
+            todo.extend(info.interfaces.iter().filter(|_| field).cloned());
+        }
+        false
     }
 }

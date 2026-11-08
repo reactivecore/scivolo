@@ -42,7 +42,7 @@ impl Universe {
 
     /// `tycon[args]` with `tycon` an opaque type lambda defined outside TASTy: its right-hand
     /// side's body, arguments substituted.
-    fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+    pub fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         let alias = self.referenced(tycon).and_then(|s| self.opaque_alias(s))?;
         let Type::Lambda { binder, params, result } = self.types().get(alias).clone() else { return None };
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();

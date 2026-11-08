@@ -29,9 +29,6 @@ pub fn transform(
         if has(l.u, s, LAZY) || l.u.is_module(s) {
             return unsupported(l.tpd.span(stat), "@static lazy values");
         }
-        if jvm && has(l.u, s, MUTABLE) {
-            return unsupported(l.tpd.span(stat), "@static variables on the JVM");
-        }
         let Some(rhs) = rhs else { return unsupported(l.tpd.span(stat), "@static values without a value") };
         super::static_members::check_needs_no_this(l, rhs)?;
         let flags = l.u.symbol(s).flags.with(STATIC);
@@ -55,9 +52,11 @@ pub fn transform(
     }
     let at = l.tpd.span(inits[0].1);
     if jvm {
-        moved.extend(stats.iter().copied().filter(|&s| matches!(l.tpd.tree(s), Tree::ValDef { .. })));
-        moved.push(clinit(l, class, source, &inits, at));
-        return Ok(moved);
+        let mut fields: Vec<TNodeId> =
+            stats.iter().copied().filter(|&s| matches!(l.tpd.tree(s), Tree::ValDef { .. })).collect();
+        fields.push(clinit(l, class, source, &inits, Span::NONE));
+        fields.extend(moved);
+        return Ok(fields);
     }
     let first = offsets_start(l, target)?;
     let at = match first.filter(|f| f.exists() && f.start() < at.start()) {

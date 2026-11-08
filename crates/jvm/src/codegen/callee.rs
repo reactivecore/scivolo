@@ -5,11 +5,12 @@
 
 use super::body::Body;
 use super::{Gen, descriptor, unsupported};
+use classfile::FieldOp;
 use lower::Result;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
 use tasty::{Erased, SymbolId, Type};
-use typer::tpd::{List, TNodeId};
+use typer::tpd::{List, TNodeId, Tree};
 
 /// The class or array type a virtual call names.
 pub enum Receiver {
@@ -33,10 +34,9 @@ pub fn adapt_phantom(b: &mut Body, result: &str) {
     }
 }
 
-/// Whether binary class name `name` is a primitive value class or its companion's class.
+/// Whether binary class name `name` is a primitive value class.
 fn is_primitive(name: &str) -> bool {
     let prims = ["Boolean", "Char", "Byte", "Short", "Int", "Long", "Float", "Double", "Unit"];
-    let name = name.strip_suffix('$').unwrap_or(name);
     name.strip_prefix("scala.").is_some_and(|n| prims.contains(&n))
 }
 
@@ -113,21 +113,39 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// The class a virtual call of `m` on `qualifier` names: the qualifier's class, `Object` or
-    /// the array type for an array, `m`'s trait for a trait method overriding one of `Object`;
-    /// none where the qualifier's type erases to no class of its own or to one not deriving from
-    /// `m`'s owner, as a by-name parameter's.
+    /// Whether the class of the code being generated derives from class `c`.
+    pub fn in_subclass_of(&mut self, b: &Body, c: SymbolId) -> bool {
+        let named = b.this_class.as_ref().or(b.module.as_ref());
+        let class = b.method.and_then(|m| self.l.u.symbol(m).owner);
+        let class = class.or_else(|| named.and_then(|n| self.classes.get(n).copied().flatten()));
+        class.is_some_and(|o| self.l.u.is_class(o) && self.l.u.derives_from(o, c))
+    }
+
+    /// The class a virtual call of `m` on `qualifier` names: the qualifier's erased class (its
+    /// class for `super`), `Object` or the array type for an array, `m`'s trait for a trait method
+    /// overriding one of `Object`; none where the qualifier's type erases to no class of its own or
+    /// to one not deriving from `m`'s owner, as a by-name parameter's.
     pub fn receiver_class(&mut self, qualifier: TNodeId, m: SymbolId) -> Option<Receiver> {
         let owner = self.l.u.symbol(m).owner?;
         let t = self.l.tpd.tpe(qualifier);
         let t = self.l.u.widen(t);
-        match self.l.u.erase(t) {
+        let erased = match self.l.tpd.tree(qualifier) {
+            Tree::Super { .. } => self.l.u.erase(t),
+            _ => lower::erased_type(self.l, qualifier),
+        };
+        match erased {
             e @ Erased::Array(_) if self.l.u.symbol(m).name == "clone" => {
                 Some(Receiver::Array(descriptor(&e)))
             }
             Erased::Array(_) => Some(Receiver::Array("java/lang/Object".into())),
             Erased::Class(name) => {
-                let c = self.l.u.class_symbol(t).filter(|&c| self.l.u.binary_name(c) == name)?;
+                let c = self.l.u.class_symbol(t)?;
+                let c = match self.l.u.binary_name(c) == name {
+                    true => c,
+                    false => {
+                        self.l.u.linearization(c).into_iter().find(|&b| self.l.u.binary_name(b) == name)?
+                    }
+                };
                 if !self.l.u.derives_from(c, owner) {
                     return None;
                 }
@@ -137,5 +155,31 @@ impl Gen<'_, '_> {
             }
             _ => None,
         }
+    }
+
+    pub fn load_this(&mut self, b: &mut Body) -> i32 {
+        b.push("L");
+        match (&b.this_class, &b.module) {
+            (_, Some(module)) => {
+                let module = module.clone();
+                b.code.field(FieldOp::GetStatic, b.pool, &module, "MODULE$", &format!("L{module};"));
+            }
+            _ => b.code.load("L", 0),
+        }
+        1
+    }
+
+    /// Loads object class `class`: `this` in its own instance methods (dotty's `genLoadModule`).
+    pub fn load_module(&mut self, b: &mut Body, class: SymbolId, span: Span) -> Result<i32> {
+        if lower::is_jdk_object(self.l.u, class) {
+            return unsupported(span, "objects standing for JDK classes on the JVM");
+        }
+        let name = self.class_name(class);
+        b.push("L");
+        match b.this_class.as_deref() == Some(&name) {
+            true => b.code.load("L", 0),
+            false => b.code.field(FieldOp::GetStatic, b.pool, &name, "MODULE$", &format!("L{name};")),
+        }
+        Ok(1)
     }
 }

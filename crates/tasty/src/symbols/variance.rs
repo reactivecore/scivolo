@@ -77,7 +77,7 @@ impl Universe {
             return Some(v.clone());
         }
         let Binder(file, addr) = binder;
-        if file.0 as usize >= self.files.len() {
+        if !self.is_file_binder(binder) {
             return None;
         }
         let (ast, _) = self.file(file);
@@ -95,6 +95,11 @@ impl Universe {
             _ => return None,
         };
         (!declared.is_empty()).then_some(declared)
+    }
+
+    /// Whether `binder` is that of a type in a TASTy file.
+    pub fn is_file_binder(&self, binder: Binder) -> bool {
+        (binder.0.0 as usize) < self.files.len()
     }
 }
 

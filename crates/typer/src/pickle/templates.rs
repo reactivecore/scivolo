@@ -6,7 +6,7 @@
 use super::names::sym_name;
 use super::{Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::tags::{IDENTtpt, PARAMsetter, QUALTHIS, SELFDEF, TEMPLATE};
+use tasty::tags::{IDENTtpt, PARAMsetter, QUALTHIS, SELFDEF, SUPER, SYNTHETIC, TEMPLATE};
 use tasty::write::Name;
 use tasty::{Kind, Type, TypeId};
 
@@ -23,8 +23,23 @@ impl TreePickler<'_> {
         }
         let (params, rest): (Vec<TNodeId>, Vec<TNodeId>) =
             self.tpd.items(body).iter().partition(|&&s| self.is_class_param(s));
-        let parents = self.tpd.items(parents).to_vec();
+        let mut classes = Vec::new();
+        let mut parents = self.tpd.items(parents).to_vec();
+        parents.retain(|&p| {
+            let class = self.u.class_symbol(self.tpd.tpe(p));
+            let again = class.is_some() && classes.contains(&class);
+            classes.push(class);
+            !again
+        });
         let stats: Vec<TNodeId> = std::iter::once(constr).chain(rest).collect();
+        let class = match self.u.is_class(sym) {
+            true => Some(sym),
+            false => self.u.symbol(sym).owner,
+        };
+        let accessors = match class.filter(|_| self.file.is_some()) {
+            Some(class) => self.super_accessors(class, &stats)?,
+            None => Vec::new(),
+        };
         self.with_length(TEMPLATE, &mut |p| {
             p.params(&params)?;
             parents.iter().try_for_each(|&t| p.tree(t))?;
@@ -32,8 +47,19 @@ impl TreePickler<'_> {
                 p.self_def(s)?;
             }
             p.pre_register(&stats);
-            stats.iter().try_for_each(|&t| p.tree(t))
+            p.tree(constr)?;
+            let synthetic = stats[1..].iter().take_while(|&&s| p.is_synthetic_def(s)).count() + 1;
+            stats[1..synthetic].iter().try_for_each(|&t| p.tree(t))?;
+            accessors.iter().try_for_each(|&a| p.super_accessor_def(a))?;
+            stats[synthetic..].iter().try_for_each(|&t| p.tree(t))
         })
+    }
+
+    /// Whether statement `s` of a template is a synthetic method, as those dotty's
+    /// `SyntheticMembers` puts before the super accessors.
+    fn is_synthetic_def(&self, s: TNodeId) -> bool {
+        let synthetic = self.tpd.sym(s).is_some_and(|m| self.u.symbol(m).flags.has(SYNTHETIC));
+        synthetic && matches!(self.tpd.tree(s), T::DefDef { .. })
     }
 
     /// Whether statement `s` of a template is a type parameter or a parameter accessor other
@@ -76,6 +102,23 @@ impl TreePickler<'_> {
         self.byte(IDENTtpt);
         self.name(&name);
         self.ty(class, false)
+    }
+
+    /// `qual.super[mix]` of type `tpe`, `mix` empty if not written.
+    pub fn super_(&mut self, qual: TNodeId, mix: TNodeId, tpe: TypeId) -> Result<(), Refusal> {
+        let T::Ident { name } = *self.tpd.tree(mix) else { return Err("a super of another kind") };
+        let name = self.names.text(name.name).to_owned();
+        let Type::Super(_, mixin) = *self.u.types().get(tpe) else { return Err("a super of another type") };
+        self.with_length(SUPER, &mut |p| {
+            p.tree(qual)?;
+            if !name.is_empty() {
+                p.buf.register_tree(mix.index() as u32);
+                p.byte(IDENTtpt);
+                p.name(&Name::utf8(&name));
+                p.ty(mixin, false)?;
+            }
+            Ok(())
+        })
     }
 
     /// Shares the class of module val's `new Foo$()` `rhs` with its type `tpt`, one tree in

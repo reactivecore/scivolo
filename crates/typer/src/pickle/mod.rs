@@ -3,25 +3,36 @@
 //   compiler/src/dotty/tools/dotc/quoted/PickledQuotes.scala
 //! dotty's `TreePickler` and `PositionPickler` over typed trees, for the TASTy of quotes.
 
+mod annotated;
+mod applies;
 mod cases;
 mod defs;
 mod names;
+mod packages;
 mod positions;
 mod refs;
 mod selects;
 mod sharing;
 mod signed_names;
+mod super_accessor_defs;
+mod super_accessors;
 mod templates;
 mod trees;
 mod types;
+mod unit;
+mod variances;
 
 pub use positions::QuoteSource;
+pub use unit::{FileAttributes, Pickled, pickle_file};
+
+use super_accessors::Accessors;
+use unit::File;
 
 use crate::tpd::{TNodeId, Tpd};
 use crate::unpickle::QuoteHole;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::names::Names;
-use tasty::write::{Addr, Pickler, TreeBuffer};
+use tasty::write::{Addr, Name, Pickler, TreeBuffer};
 use tasty::{Binder, SymbolId, TypeId, Universe};
 
 /// Why a tree is outside the subset pickled.
@@ -53,6 +64,19 @@ pub struct TreePickler<'a> {
     self_refs: FxHashSet<TNodeId>,
     /// The type tree of each parameter pickled.
     param_tpts: FxHashMap<SymbolId, TNodeId>,
+    /// The file pickled, `None` for a quote.
+    file: Option<&'a File<'a>>,
+    /// The inline calls pickled as references to a class, without their parts.
+    call_traces: FxHashSet<TNodeId>,
+    /// The parameters of the methods pickled, by the binder of their method's type.
+    method_binders: FxHashMap<Binder, Vec<SymbolId>>,
+    /// The binders of the method types and type lambdas being pickled.
+    open: Vec<Binder>,
+    /// The super accessor each super call of a trait selects instead.
+    super_calls: FxHashMap<TNodeId, SymbolId>,
+    /// The name of each super accessor, and the class and name of those pickled.
+    accessor_names: FxHashMap<SymbolId, Name>,
+    accessors: Accessors,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -61,7 +85,7 @@ pub fn pickle_quote(
     root: TNodeId,
     holes: &[QuoteHole],
 ) -> Result<Vec<u8>, Refusal> {
-    pickle(cx, root, holes, None)
+    pickle(cx, root, holes, None, None).map(|(bytes, _)| bytes)
 }
 
 /// The TASTy of quote `root` of `source`, `holes` its term holes, with positions.
@@ -71,15 +95,18 @@ pub fn pickle_positioned_quote(
     holes: &[QuoteHole],
     source: &QuoteSource,
 ) -> Result<Vec<u8>, Refusal> {
-    pickle(cx, root, holes, Some(source))
+    pickle(cx, root, holes, Some(source), None).map(|(bytes, _)| bytes)
 }
 
-fn pickle(
-    (u, tpd, names): (&mut Universe, &Tpd, &Names),
+/// The TASTy of `root`: its trees, positions if `source` is given, and the comments and
+/// attributes of a file if `file` is; and the super accessors pickled, each its class and name.
+fn pickle<'a>(
+    (u, tpd, names): (&'a mut Universe, &'a Tpd, &'a Names),
     root: TNodeId,
     holes: &[QuoteHole],
     source: Option<&QuoteSource>,
-) -> Result<Vec<u8>, Refusal> {
+    file: Option<&'a File<'a>>,
+) -> Result<(Vec<u8>, Accessors), Refusal> {
     let mut pickler = Pickler::default();
     let section = pickler.new_section("ASTs");
     let holes = holes.iter().map(|h| (h.node, (h.index, h.args.clone()))).collect();
@@ -100,10 +127,17 @@ fn pickle(
         shared: FxHashMap::default(),
         self_refs: FxHashSet::default(),
         param_tpts: FxHashMap::default(),
+        file,
+        call_traces: FxHashSet::default(),
+        method_binders: FxHashMap::default(),
+        open: Vec::new(),
+        super_calls: FxHashMap::default(),
+        accessor_names: FxHashMap::default(),
+        accessors: Vec::new(),
     };
     p.tree(root)?;
     if !p.forward.is_empty() {
-        return Err("a reference to a local definition outside the quote");
+        return Err("a reference to a local definition outside the pickled trees");
     }
     p.buf.compactify();
     let bytes = std::mem::take(&mut p.buf.buf.bytes);
@@ -111,7 +145,10 @@ fn pickle(
     if let Some(source) = source {
         p.positions(root, source)?;
     }
-    Ok(p.pickler.assemble())
+    if let (Some(file), Some(source)) = (file, source) {
+        p.file_sections(&file.attributes, &source.path);
+    }
+    Ok((p.pickler.assemble(), p.accessors))
 }
 
 impl TreePickler<'_> {

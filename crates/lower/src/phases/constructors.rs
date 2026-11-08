@@ -144,9 +144,26 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let unit = l.unit_literal(block_span);
     let rhs = l.block(&stats, unit, block_span);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
+    avoid_field_clashes(l, &class_stats);
     let body = l.tpd.list(&class_stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
+}
+
+/// Renames each field of a getter named as another field of the class, `x`, to `x$field`
+/// (dotty's `checkNoFieldClashes`).
+fn avoid_field_clashes(l: &mut Lower, stats: &[TNodeId]) {
+    let fields = stats.iter().filter(|&&s| matches!(l.tpd.tree(s), Tree::ValDef { .. }));
+    let fields: Vec<SymbolId> = fields.filter_map(|&s| l.tpd.sym(s)).collect();
+    let of_getter = |l: &Lower, f: SymbolId| l.fields.get(&f).is_some_and(|&g| g != f);
+    let plain: Vec<String> =
+        fields.iter().filter(|&&f| !of_getter(l, f)).map(|&f| l.u.symbol(f).name.clone()).collect();
+    for f in fields {
+        if of_getter(l, f) && plain.contains(&l.u.symbol(f).name) {
+            let name = format!("{}$field", l.u.symbol(f).name);
+            l.u.rename(f, &name);
+        }
+    }
 }
 
 /// `if param eq null then throw new NullPointerException()`, at `span`.

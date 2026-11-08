@@ -4,6 +4,7 @@
 
 use classfile::{Code, Label, Pool};
 use tasty::SymbolId;
+use typer::tpd::TNodeId;
 
 /// Where the value of a tree goes (dotty's `LoadDestination`): on the stack, to a label, or
 /// returned from the method.
@@ -12,6 +13,13 @@ pub enum Dest {
     Fall,
     Jump(Label),
     Return,
+}
+
+/// A value on the stack: that of a tree, or one of a descriptor.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Operand {
+    Of(TNodeId),
+    Desc(&'static str),
 }
 
 /// The code of the method being generated and the slots of its parameters and locals.
@@ -35,6 +43,9 @@ pub struct Body<'p> {
     pub early_return: Option<u16>,
     /// Whether a `return` jumped to a cleanup not yet generated.
     pub emit_cleanup: bool,
+    /// The values known on the stack, bottom first: the depth each starts at, its slots and what
+    /// it is (dotty's `stack`).
+    pub operands: Vec<(i32, i32, Operand)>,
 }
 
 impl<'p> Body<'p> {
@@ -53,7 +64,40 @@ impl<'p> Body<'p> {
             cleanups: Vec::new(),
             early_return: None,
             emit_cleanup: false,
+            operands: Vec::new(),
         }
+    }
+
+    /// Records value `o` of `slots` slots starting at stack depth `at`, and forgets those recorded
+    /// at or above it.
+    pub fn operand(&mut self, at: i32, slots: i32, o: Operand) {
+        self.forget(at);
+        if slots > 0 && self.code.live() {
+            self.operands.push((at, slots, o));
+        }
+    }
+
+    /// Records a value of one slot and descriptor `desc` about to be pushed.
+    pub fn push(&mut self, desc: &'static str) {
+        self.operand(self.code.stack(), 1, Operand::Desc(desc));
+    }
+
+    /// Forgets the values recorded at stack depth `at` or above.
+    pub fn forget(&mut self, at: i32) {
+        let keep = self.operands.iter().take_while(|o| o.0 < at).count();
+        self.operands.truncate(keep);
+    }
+
+    /// The values on the stack, bottom first, if each is recorded.
+    pub fn known_operands(&self) -> Option<Vec<(i32, Operand)>> {
+        let mut at = 0;
+        let mut out = Vec::new();
+        for &(start, slots, tree) in self.operands.iter().take_while(|o| o.0 < self.code.stack()) {
+            (start == at).then_some(())?;
+            at += slots;
+            out.push((slots, tree));
+        }
+        (at == self.code.stack()).then_some(out)
     }
 
     /// A slot for local `s` of descriptor `desc`.

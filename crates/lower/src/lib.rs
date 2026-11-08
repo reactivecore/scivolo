@@ -327,6 +327,11 @@ impl<'a> Lower<'a> {
         self.lifted_from.contains_key(&m)
     }
 
+    /// The accessors `SuperAccessors` made in the unit.
+    pub fn super_accessors(&self) -> impl Iterator<Item = SymbolId> + '_ {
+        self.super_accessors.keys().copied()
+    }
+
     /// The owner of `s`, of a lifted local class the one before lifting.
     pub fn original_owner(&self, s: SymbolId) -> Option<SymbolId> {
         self.local_classes.get(&s).copied().or(self.u.symbol(s).owner)
@@ -355,6 +360,12 @@ impl<'a> Lower<'a> {
     /// The field whose `VarHandle` is static field `handle`.
     pub fn var_handle_field(&self, handle: SymbolId) -> Option<SymbolId> {
         self.var_handles.iter().find(|&(_, &h)| h == handle).map(|(&f, _)| f)
+    }
+
+    /// The getter `Memoize` made field `field` for, or the accessor of the lazy value it holds.
+    pub fn field_getter(&self, field: SymbolId) -> Option<SymbolId> {
+        let getter = self.fields.get(&field).copied().filter(|&g| g != field);
+        getter.or_else(|| self.lazy_members.iter().find(|(_, m)| m.field == field).map(|(&a, _)| a))
     }
 
     /// Whether `s` is the field `x$lzyN` or the flag `xbitmap$N` of a lazy value.

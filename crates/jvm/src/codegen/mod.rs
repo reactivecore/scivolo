@@ -7,6 +7,7 @@ mod arrays;
 mod body;
 mod callee;
 mod class;
+mod class_bytes;
 mod clinit;
 mod closures;
 mod concat;
@@ -25,22 +26,20 @@ mod monitors;
 mod nested;
 mod prims;
 mod signatures;
+mod stash;
 mod switches;
 mod traits;
 mod tries;
+
+pub use class_bytes::ClassBytes;
 
 use lower::{Lower, Result, Unsupported, jdk_class_name};
 use std::collections::HashMap;
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, ARTIFACT, ENUM, FIELDaccessor, FINAL, MUTABLE, PRIVATE, STATIC, TRAIT};
 use tasty::{Erased, SymbolId, Universe};
+use typer::pickle::Pickled;
 use typer::tpd::{TNodeId, Tree};
-
-/// A class file: the class's internal name and its bytes.
-pub struct ClassBytes {
-    pub name: String,
-    pub bytes: Vec<u8>,
-}
 
 pub struct Gen<'l, 'a> {
     l: &'l mut Lower<'a>,
@@ -49,11 +48,17 @@ pub struct Gen<'l, 'a> {
     lambdas: Vec<classfile::Handle>,
     /// Classes by internal name: the unit's, and those `InnerClasses` looked up.
     classes: HashMap<String, Option<SymbolId>>,
+    /// The TASTy of each top-level class not generated yet.
+    tasty: HashMap<SymbolId, Vec<u8>>,
+    jdk: classfile::Jdk,
 }
 
-/// The class files of lowered unit `root`.
-pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<ClassBytes>> {
-    let mut g = Gen { l, out: Vec::new(), lambdas: Vec::new(), classes: HashMap::new() };
+/// The class files of lowered unit `root`, `pickles` the TASTy of its top-level classes.
+pub fn unit(l: &mut Lower, root: TNodeId, pickles: Vec<Pickled>) -> Result<Vec<ClassBytes>> {
+    class_bytes::check_super_accessors(l, &pickles)?;
+    let tasty = pickles.into_iter().map(|p| (p.class, p.tasty)).collect();
+    let (out, lambdas, classes, jdk) = (Vec::new(), Vec::new(), HashMap::new(), classfile::Jdk::default());
+    let mut g = Gen { l, out, lambdas, classes, tasty, jdk };
     g.collect_classes(root);
     let mut todo = vec![root];
     while let Some(t) = todo.pop() {
@@ -64,6 +69,9 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<ClassBytes>> {
             }
             _ => {}
         }
+    }
+    if !g.tasty.is_empty() {
+        return unsupported(Span::NONE, "the TASTy of a class without a class file");
     }
     Ok(g.out)
 }
@@ -135,12 +143,13 @@ fn method_descriptor(u: &mut Universe, m: SymbolId) -> String {
     format!("({params}){}", descriptor(&result))
 }
 
-/// The name of method `m` in class files.
+/// The name of method `m` in class files: its `@targetName`, else its name.
 fn method_name(u: &Universe, m: SymbolId) -> String {
+    let sym = u.symbol(m);
     match u.is_constructor(m) {
-        true if u.symbol(m).owner.is_some_and(|o| u.is_trait(o)) => "$init$".into(),
+        true if sym.owner.is_some_and(|o| u.is_trait(o)) => "$init$".into(),
         true => "<init>".into(),
-        false => tasty::encode(&u.symbol(m).name),
+        false => tasty::encode(sym.target.as_deref().unwrap_or(&sym.name)),
     }
 }
 

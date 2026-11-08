@@ -122,6 +122,16 @@ fn attributes_run_on_the_jvm() {
     runs_on_the_jvm("attributes", "Attributes");
 }
 
+#[test]
+fn streams_run_on_the_jvm() {
+    runs_on_the_jvm("streams", "Streams");
+}
+
+#[test]
+fn jdk_classes_javalib_lacks_run_on_the_jvm() {
+    runs_on_the_jvm("jdkclasses", "Jdkclasses");
+}
+
 /// Compiles `code` as tmp/jvm-test/`name`.scala and expects a refusal containing `message`.
 fn refuses(name: &str, code: &str, message: &str) {
     let source = root().join(format!("tmp/jvm-test/{name}.scala"));
@@ -129,23 +139,36 @@ fn refuses(name: &str, code: &str, message: &str) {
     std::fs::write(&source, code).expect("writing");
     let (_, compiled) = compile(name, &source);
     assert!(!compiled.status.success());
-    assert!(String::from_utf8_lossy(&compiled.stderr).contains(message));
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    assert!(stderr.contains(message), "{stderr}");
 }
 
 #[test]
-fn a_try_on_a_stack_is_refused() {
-    let code = "object R { def f(s: String): Int = 1 + (try s.length catch { case _: Exception => 0 }) }";
-    refuses("refused", code, "where values are on the stack");
-}
-
-#[test]
-fn throws_is_refused() {
-    let code = "object R { @throws[java.io.IOException] def f(): Int = 1 }";
-    refuses("refusedthrows", code, "@throws");
+fn a_definition_the_tasty_pickler_lacks_is_refused() {
+    let code = "import scala.annotation.targetName\n\
+        trait A { @targetName(\"g\") def f(): Int = 1 }\n\
+        trait B extends A { @targetName(\"g\") override def f(): Int = super.f() + 1 }";
+    refuses("refusedtasty", code, "pickling a super call of a method with a target name into TASTy");
 }
 
 #[test]
 fn a_javalib_value_the_jdk_lacks_is_refused() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
     let code = "object R { def f = java.lang.ProcessBuilder.nullFile }";
-    refuses("refusedjdk", code, "a javalib member the JDK class lacks as a static field");
+    refuses("refusedjdk", code, "ProcessBuilder.nullFile, a static member the JDK lacks");
+}
+
+#[test]
+fn a_class_nested_in_a_jdk_class_javalib_lacks_is_refused() {
+    let code = "object R { def f = java.time.zone.ZoneOffsetTransitionRule.TimeDefinition.UTC }";
+    refuses("refusednested", code, "member not found");
+}
+
+#[test]
+fn a_signature_polymorphic_method_is_refused() {
+    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\") }";
+    refuses("refusedpolymorphic", code, "member not found");
 }

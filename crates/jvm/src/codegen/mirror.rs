@@ -14,13 +14,14 @@ use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
-    /// The mirror class of top-level object class `module`, which declares classes `declared`.
+    /// The mirror class of top-level object class `module` named `module_name`, which declares
+    /// classes `declared`, with the object's TASTy `tasty`.
     pub fn gen_mirror_class(
         &mut self,
         td: TNodeId,
-        module: SymbolId,
-        module_name: &str,
+        (module, module_name): (SymbolId, &str),
         declared: &[SymbolId],
+        tasty: Option<Vec<u8>>,
     ) -> Result<()> {
         let name = module_name.strip_suffix('$').unwrap_or(module_name);
         let mut cf = ClassFile::new(ACC_PUBLIC | ACC_FINAL | ACC_SUPER, name, "java/lang/Object", &[]);
@@ -28,8 +29,9 @@ impl Gen<'_, '_> {
         let source = self.source_name(td);
         cf.source_file(&source);
         self.nested_attributes(&mut cf, module, declared);
-        let bytes = cf.bytes().or_else(|e| unsupported(self.l.tpd.span(td), e))?;
-        self.out.push(ClassBytes { name: name.to_owned(), bytes });
+        let class = ClassBytes::new(name.to_owned(), &mut cf, tasty)
+            .or_else(|e| unsupported(self.l.tpd.span(td), e))?;
+        self.out.push(class);
         Ok(())
     }
 
@@ -56,8 +58,10 @@ impl Gen<'_, '_> {
             let target = self.l.mixed_in_from(m).unwrap_or(m);
             let this = self.l.u.this_type(module);
             let info = self.l.u.member_info(this, target);
+            self.exceptions(cf, m);
+            let thrown = self.thrown(m);
             if !self.l.is_mixin_accessor(m)
-                && let Some(sig) = super::signatures::member(self.l.u, target, info, &desc)
+                && let Some(sig) = super::signatures::member(self.l.u, target, info, &desc, &thrown)
                 && super::signatures::erases_to(&sig, &desc)
             {
                 cf.member_signature(Last::Method, &sig);
@@ -76,7 +80,7 @@ impl Gen<'_, '_> {
         for c in companion.map(|c| self.l.u.linearization(c)).unwrap_or_default() {
             for m in self.l.u.decls(c).unwrap_or_default() {
                 if self.l.u.symbol(m).kind.is_term() {
-                    conflicting.insert(self.l.u.symbol(m).name.clone());
+                    conflicting.insert(method_name(self.l.u, m));
                 }
             }
         }
@@ -99,7 +103,7 @@ impl Gen<'_, '_> {
                 if self.l.is_bridge(m) && !self.overrides_concrete(c, &name, &desc) {
                     continue;
                 }
-                if !conflicting.contains(&self.l.u.symbol(m).name) {
+                if !conflicting.contains(&name) {
                     let synthetic = self.l.is_bridge(m) || name.contains("$_setter_$");
                     out.push((name, desc, synthetic, m));
                 }

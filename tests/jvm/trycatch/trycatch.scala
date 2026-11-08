@@ -67,6 +67,8 @@ object Trycatch {
   }
 
   def main(args: Array[String]): Unit = {
+    println(Stash.stashed("4") + " " + Stash.stashed("x"))
+    println(s"${Stash.widened(2, "1.5")} ${Stash.widened(2, "x")}")
     println(s"${parse("12")} ${parse("x")}")
     println(guarded(0) + "; " + guarded(3))
     println(s"${early(4)} ${early(-1)}")
@@ -78,4 +80,16 @@ object Trycatch {
     println(s"${lockedReturn(7)} ${lockedReturn(1)}")
     println(log)
   }
+}
+
+object Stash {
+  class Pair(val a: Long, val b: String)
+
+  def stashed(s: String): String = {
+    val p = new Pair(7L, try s.toInt.toString catch { case _: NumberFormatException => "nan" })
+    val n = 1.5 + (try s.toDouble catch { case _: NumberFormatException => 0.0 } finally Trycatch.log += "s")
+    p.a.toString + p.b + Math.max(3L, try s.toLong catch { case _: Throwable => 9L }) + n
+  }
+
+  def widened(i: Int, s: String): Float = i + (try s.toFloat catch { case _: NumberFormatException => 0.5f })
 }

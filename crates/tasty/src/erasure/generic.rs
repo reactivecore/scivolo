@@ -100,14 +100,17 @@ impl Universe {
 
     /// The kind of array that can hold every value of type `t`.
     fn holder(&mut self, t: TypeId) -> Holder {
-        match *self.types().get(t) {
+        match self.types().get(t).clone() {
             Type::Annotated(u, _)
             | Type::Flexible(u)
             | Type::Refined(u, _, _)
             | Type::Rec(_, u)
             | Type::Alias(u)
             | Type::Bounds(_, u) => self.holder(u),
-            Type::Applied(c, _) => self.holder(c),
+            Type::Applied(c, args) => match self.expand(c, &args).or_else(|| self.expand_opaque(c, &args)) {
+                Some(u) => self.holder(u),
+                None => self.holder(c),
+            },
             Type::And(a, b) => match (self.holder(a), self.holder(b)) {
                 (x, y) if x == y => x,
                 (Holder::None, y) => y,

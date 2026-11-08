@@ -21,6 +21,7 @@ CLASS_ATTRIBUTES = {
     "SourceFile",
 }
 LINES = {"LineNumberTable"}
+UNCOMPARED = {"Scala3InlineInfo"}
 
 
 UNKNOWN = re.compile(r"^\s*\w+: length = \w+ \(unknown attribute\)")
@@ -50,8 +51,10 @@ def sections(lines, indent, keep):
     for l in lines:
         depth = len(l) - len(l.lstrip())
         if UNKNOWN.match(l):
-            if depth == indent and keep is not LINES:
-                out.append([l.strip().split(":")[0] + ": (unknown attribute)"])
+            name = l.strip().split(":")[0]
+            at_class = indent == 0 and depth == 2 and name not in UNCOMPARED
+            if (depth == indent or at_class) and keep is not LINES:
+                out.append([name + ": (unknown attribute)"])
             on = False
         elif depth == indent and l.strip():
             name = l.strip().split(":")[0]
@@ -122,6 +125,10 @@ def main(ref, out):
         diff = list(difflib.unified_diff(left, right, f"scalac/{name}", f"ours/{name}", lineterm=""))
         print("\n".join(diff) if diff else f"{name}: same")
         failed |= bool(diff)
+    for name in sorted({p.relative_to(d) for d in (ref, out) for p in d.rglob("*.tasty")}):
+        if not (ref / name).exists() or not (out / name).exists():
+            print(f"{name}: only in {'ours' if (out / name).exists() else 'scalac'}")
+            failed = True
     sys.exit(1 if failed else 0)
 
 

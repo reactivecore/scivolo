@@ -49,10 +49,10 @@ pub fn anon_mirror_support(
                     fresh(l, &name);
                 }
             }
-            (cc.mirror_product, from_product(l, class, linked, Some(mono), focus)?.into_iter().collect())
+            (cc.mirror_product, from_product(l, class, linked, mono, focus)?.into_iter().collect())
         }
         AnonMirror::Sum if has(l.u, linked, ENUM) => {
-            (cc.mirror_sum, enum_ordinal(l, class, linked, focus)?.into_iter().collect())
+            (cc.mirror_sum, enum_ordinal(l, class, (linked, mono), focus)?.into_iter().collect())
         }
         AnonMirror::Sum => {
             let ordinal = super::sum_mirrors::ordinal(l, root, (class, linked), mono, focus)?;

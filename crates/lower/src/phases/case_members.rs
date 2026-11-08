@@ -6,12 +6,12 @@
 //! `productArity`, `productPrefix`, `productElement`, `productElementName`.
 
 use super::value_members::hash_code_body as value_hash_code_body;
-use crate::definitions::{CaseClasses, type_ref};
+use crate::definitions::{CaseClasses, applied, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{CASE, CASEaccessor, OVERRIDE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{MatchKind, TNodeId, Tree};
 
 /// The synthetic members of case class or object `class`, at `span`'s point.
@@ -83,7 +83,7 @@ fn body(
             l.positioned(apply)
         }
         _ if sym == cc.can_equal => {
-            let tpe = type_ref(l.u, class);
+            let tpe = unchecked_applied_ref(l, class);
             l.is_instance(args[0], tpe)
         }
         _ if sym == cc.product_arity => l.int_literal(accessors.len() as i32),
@@ -139,6 +139,25 @@ fn index_match(l: &mut Lower, index: TNodeId, elems: Vec<TNodeId>, cc: CaseClass
         None,
     );
     l.positioned(m)
+}
+
+/// `class` applied to its type parameters (dotty's `appliedRef`).
+pub fn applied_ref(l: &mut Lower, class: SymbolId) -> TypeId {
+    let params = l.u.type_params(class);
+    match params.is_empty() {
+        true => type_ref(l.u, class),
+        false => {
+            let args = params.into_iter().map(|p| type_ref(l.u, p)).collect();
+            applied(l.u, class, args)
+        }
+    }
+}
+
+/// `class`'s `appliedRef @unchecked`.
+pub fn unchecked_applied_ref(l: &mut Lower, class: SymbolId) -> TypeId {
+    let tpe = applied_ref(l, class);
+    let unchecked = l.u.class_ref("scala.unchecked");
+    l.u.intern_type(Type::Annotated(tpe, unchecked))
 }
 
 /// The values the parameters of case class `class` define, in order (dotty's `caseAccessors`).

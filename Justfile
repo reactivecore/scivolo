@@ -313,6 +313,12 @@ dotty-lower-report filter="" dir="run": release
     cargo build -q --release -p scivolo-lower
     python3 scripts/dotty-lower.py '{{ filter }}' '{{ dir }}'
 
+# Compile the dotty tests (default: all) with scivolo-jvm and run them on `java -Xverify:all`;
+# jvm-report.md and jvm-results.tsv under tmp/dotty.
+dotty-jvm-report filter="":
+    cargo build -q --release -p scivolo-jvm
+    python3 scripts/dotty-tests.py jvm '{{ filter }}'
+
 # Link the dotty tests failing in the VM as Scala Native binaries and run them, for dotty-report.
 dotty-native filter="":
     python3 scripts/dotty-tests.py native {{ filter }}
@@ -517,6 +523,16 @@ jvm-build file:
 # Compare the class files of jvm-build with jvm-fixture's through javap; fails on a difference.
 jvm-check file: (jvm-fixture file) (jvm-build file)
     python3 scripts/jvm-check.py tmp/jvm/$(basename {{ file }} .scala)/ref tmp/jvm/$(basename {{ file }} .scala)/out
+
+# Read the TASTy files of jvm-build through dotty's TASTy inspector and print their trees.
+jvm-inspect file: (jvm-build file)
+    scala-cli run --server=false --quiet --workspace tmp/jvm/inspect scripts/tasty-inspect.scala -- \
+        $(find tmp/jvm/$(basename {{ file }} .scala)/out -name '*.tasty' | sort)
+
+# Compare the TASTy files of jvm-build with jvm-fixture's through dotty's TastyPrinter; fails on a
+# difference.
+jvm-tasty file: (jvm-fixture file) (jvm-build file)
+    python3 scripts/jvm-tasty.py tmp/jvm/$(basename {{ file }} .scala)/ref tmp/jvm/$(basename {{ file }} .scala)/out
 
 # Compile a Scala file with scivolo-jvm and run its `main` (default: the file name capitalized) on
 # `java -Xverify:all` in the en-US locale; compare its output with the `.check` file beside it, if any.

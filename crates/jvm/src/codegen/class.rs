@@ -20,7 +20,8 @@ impl Gen<'_, '_> {
         };
         self.check_annotations(sym, self.l.tpd.span(td))?;
         let name = internal(&self.l.u.binary_name(sym));
-        let (superclass, interfaces) = self.parents(sym);
+        let targets = self.super_call_targets(body);
+        let (superclass, interfaces) = self.parents(sym, &targets);
         let interfaces: Vec<&str> = interfaces.iter().map(String::as_str).collect();
         let mut cf = ClassFile::new(java_flags(self.l, sym), &name, &superclass, &interfaces);
         let module = is_static_module(self.l.u, sym);
@@ -51,6 +52,7 @@ impl Gen<'_, '_> {
                     let mutable = self.l.u.symbol(s).flags.has(MUTABLE);
                     let volatile = if self.l.var_handle(s).is_some() { ACC_VOLATILE } else { 0 };
                     let flags = java_flags(self.l, s) | if mutable { volatile } else { ACC_FINAL };
+                    let flags = flags | self.annotated_field_flags(s);
                     cf.field(flags, &tasty::encode(&name), &desc);
                     if let Some(sig) = self.generic_signature(s, &desc) {
                         cf.member_signature(Last::Field, &sig);
@@ -83,17 +85,21 @@ impl Gen<'_, '_> {
         cf.source_file(&source);
         let declared: Vec<SymbolId> = nested.iter().filter_map(|&n| self.l.tpd.sym(n)).collect();
         self.nested_attributes(&mut cf, sym, &declared);
-        let bytes = cf.bytes().or_else(|e| unsupported(self.l.tpd.span(td), e))?;
-        self.out.push(ClassBytes { name: name.clone(), bytes });
-        if module && top && self.l.u.companion_class(sym).is_none() {
-            self.gen_mirror_class(td, sym, &name, &declared)?;
+        let mirror = module && top && self.l.u.companion_class(sym).is_none();
+        let tasty = self.tasty.remove(&sym);
+        let (own, mirrored) = if mirror { (None, tasty) } else { (tasty, None) };
+        let class =
+            ClassBytes::new(name.clone(), &mut cf, own).or_else(|e| unsupported(self.l.tpd.span(td), e))?;
+        self.out.push(class);
+        if mirror {
+            self.gen_mirror_class(td, (sym, &name), &declared, mirrored)?;
         }
         nested.into_iter().try_for_each(|n| self.gen_class(n))
     }
 
-    /// The superclass and interfaces of class `c`, as internal names; no interface another parent
-    /// inherits.
-    fn parents(&mut self, c: SymbolId) -> (String, Vec<String>) {
+    /// The superclass and interfaces of class `c`, as internal names: no interface another parent
+    /// inherits but super call targets `targets`, which are added.
+    fn parents(&mut self, c: SymbolId, targets: &[String]) -> (String, Vec<String>) {
         let mut classes = Vec::new();
         for p in self.l.u.parents(c) {
             if let Some(s) = self.l.u.class_symbol(p) {
@@ -104,13 +110,14 @@ impl Gen<'_, '_> {
         let inherited = |u: &mut tasty::Universe, t| {
             classes.iter().chain(&traits).any(|&(o, _)| o != t && u.derives_from(o, t))
         };
-        let traits: Vec<_> = traits.iter().filter(|p| !inherited(self.l.u, p.0)).cloned().collect();
+        let traits: Vec<_> =
+            traits.iter().filter(|p| !inherited(self.l.u, p.0) || targets.contains(&p.1)).cloned().collect();
         let superclass = match classes.first() {
             Some(p) if !self.l.u.is_trait(c) => p.1.clone(),
             _ => "java/lang/Object".into(),
         };
         let mut interfaces: Vec<String> = Vec::new();
-        for (_, i) in traits {
+        for i in traits.into_iter().map(|t| t.1).chain(targets.iter().cloned()) {
             if i != "java/lang/Object" && !interfaces.contains(&i) {
                 interfaces.push(i);
             }
@@ -154,8 +161,13 @@ impl Gen<'_, '_> {
         Ok(stats[split..].to_vec())
     }
 
-    /// Whether `t` calls a superclass constructor (dotty's `isSuperConstrCall`).
+    /// Whether `t` calls a superclass constructor, last in a block of its lifted arguments (dotty's
+    /// `splitAtSuper`).
     fn is_super_call(&self, t: TNodeId) -> bool {
+        let t = match *self.l.tpd.tree(t) {
+            Tree::Block { expr, .. } => expr,
+            _ => t,
+        };
         let Tree::Apply { fun, .. } = *self.l.tpd.tree(t) else { return false };
         let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else { return false };
         matches!(self.l.tpd.tree(qualifier), Tree::Super { .. })

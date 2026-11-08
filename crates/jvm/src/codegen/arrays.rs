@@ -65,10 +65,13 @@ impl Gen<'_, '_> {
         };
         let elems = self.l.tpd.items(elems).to_vec();
         let length = i32::try_from(elems.len()).unwrap_or(i32::MAX);
+        b.push("L");
         b.code.int(b.pool, length);
         b.code.new_array(b.pool, &elem);
         for (i, e) in elems.into_iter().enumerate() {
+            b.push("L");
             b.code.insn(0x59);
+            b.push("I");
             b.code.int(b.pool, i as i32);
             self.expr_as(b, e, classfile::value_slots(&elem))?;
             b.code.element(&elem, true);
@@ -90,14 +93,21 @@ impl Gen<'_, '_> {
         let from = self.desc_of(qualifier);
         let to = descriptor(&tested);
         let reference = |d: &str| d.starts_with('L') || d.starts_with('[');
-        self.expr(b, qualifier)?;
-        let class_or_array = matches!(tested, tasty::Erased::Class(_) | tasty::Erased::Array(_));
-        if !reference(&from) || !reference(&to) || !class_or_array {
-            return unsupported(span, "type tests and casts of primitive values");
+        use tasty::Erased::{Array, Class, Nothing, Null};
+        let class_or_array = matches!(tested, Class(_) | Array(_) | Nothing | Null);
+        if !reference(&to) || !class_or_array {
+            return unsupported(span, "type tests and casts to primitive types");
+        }
+        match reference(&from) {
+            true => _ = self.expr(b, qualifier)?,
+            false => self.box_value(b, qualifier)?,
         }
         match self.l.u.symbol(m).name.as_str() {
             "isInstanceOf" => b.code.instance_of(b.pool, &class_internal(&tested)),
-            "asInstanceOf" => b.code.checkcast(b.pool, &class_internal(&tested)),
+            "asInstanceOf" => {
+                b.code.checkcast(b.pool, &class_internal(&tested));
+                super::callee::adapt_phantom(b, &to);
+            }
             _ => return unsupported(span, "type applications without a call"),
         }
         Ok(1)

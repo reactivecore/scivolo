@@ -3,7 +3,9 @@
 mod attributes;
 mod code;
 mod frames;
+mod modified_utf8;
 mod pool;
+mod read;
 mod references;
 mod writer;
 
@@ -14,6 +16,7 @@ pub use pool::{
     Constant, Handle, Pool, REF_INVOKE_INTERFACE, REF_INVOKE_SPECIAL, REF_INVOKE_STATIC, REF_INVOKE_VIRTUAL,
     Ref,
 };
+pub use read::{ClassInfo, ConstantValue, Jdk, MemberInfo, read};
 
 /// Java 17's class file version, dotty's default target.
 pub const MAJOR_VERSION: u16 = 61;
@@ -28,8 +31,13 @@ pub const ACC_INTERFACE: u16 = 0x0200;
 pub const ACC_ABSTRACT: u16 = 0x0400;
 pub const ACC_BRIDGE: u16 = 0x0040;
 pub const ACC_VOLATILE: u16 = 0x0040;
+pub const ACC_TRANSIENT: u16 = 0x0080;
+pub const ACC_VARARGS: u16 = 0x0080;
+pub const ACC_NATIVE: u16 = 0x0100;
 pub const ACC_SYNTHETIC: u16 = 0x1000;
+pub const ACC_ANNOTATION: u16 = 0x2000;
 pub const ACC_ENUM: u16 = 0x4000;
+pub const ACC_MODULE: u16 = 0x8000;
 
 /// An attribute: its name and its bytes.
 struct Attribute {
@@ -55,6 +63,8 @@ pub struct ClassFile {
     fields: Vec<Member>,
     methods: Vec<Member>,
     attributes: Vec<Attribute>,
+    /// The attributes the JVM does not define, written last.
+    custom: Vec<Attribute>,
     /// Why the class file cannot hold a method added.
     error: Option<String>,
 }
@@ -76,6 +86,7 @@ impl ClassFile {
             fields: Vec::new(),
             methods: Vec::new(),
             attributes: Vec::new(),
+            custom: Vec::new(),
             error: None,
         }
     }

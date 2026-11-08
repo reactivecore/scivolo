@@ -5,7 +5,7 @@
 use super::{Refusal, TreePickler};
 use tasty::tags::*;
 use tasty::write::Addr;
-use tasty::{SymbolId, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 /// The key byte of a reference by name, told from a reference to a symbol (dotty's designators).
 pub const BY_NAME: u8 = 0;
@@ -13,6 +13,9 @@ pub const BY_NAME: u8 = 0;
 impl TreePickler<'_> {
     /// Type `t`, a `SHAREDtype` if pickled before; `rich` admits method types.
     pub fn ty(&mut self, t: TypeId, rich: bool) -> Result<(), Refusal> {
+        if let Type::Skolem(_, info) = *self.u.types().get(t) {
+            return self.ty(info, rich);
+        }
         let at = self.buf.buf.current_addr();
         if !self.keying {
             let key = self.key(t, rich)?;
@@ -38,6 +41,13 @@ impl TreePickler<'_> {
         pickled?;
         self.keys.insert(t, scratch.buf.bytes.clone());
         Ok(scratch.buf.bytes)
+    }
+
+    /// Makes later occurrences of type `t` share the tree at the current address.
+    pub fn share_here(&mut self, t: TypeId) -> Result<(), Refusal> {
+        let key = self.key(t, false)?;
+        self.types.insert(key, self.buf.buf.current_addr());
+        Ok(())
     }
 
     /// The `this` of package `p`, a `SHAREDtype` if pickled before (dotty's `ThisType` case).
