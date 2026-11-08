@@ -156,16 +156,10 @@ fn throws_is_refused() {
 
 #[test]
 fn a_definition_the_tasty_pickler_lacks_is_refused() {
-    let code = "import scala.language.experimental.namedTypeArguments\n\
-        object R { def f[A, B](a: A, b: B) = a; def g = f[B = Int](1, 2) }";
-    refuses("refusedtasty", code, "pickling named type arguments into TASTy");
-}
-
-#[test]
-fn what_the_tasty_lacks_is_refused() {
-    let code = "object O { trait A { def f = 1 }; trait B extends A { override def f = super.f + 1 } }";
-    refuses("refusedsuperaccessor", code, "a super call in a trait that is not top-level");
-    refuses("refusedgenericcase", "case class Box[A](a: A)", "generic case class");
+    let code = "import scala.annotation.targetName\n\
+        trait A { @targetName(\"g\") def f(): Int = 1 }\n\
+        trait B extends A { @targetName(\"g\") override def f(): Int = super.f() + 1 }";
+    refuses("refusedtasty", code, "pickling a super call of a method with a target name into TASTy");
 }
 
 #[test]

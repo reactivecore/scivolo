@@ -34,14 +34,37 @@ impl TreePickler<'_> {
         })
     }
 
-    /// Type application `fun[args]`, in a file without named arguments, which dotty's trees
-    /// have by position.
+    /// Type application `fun[args]`, in a file named arguments and those inferred for the
+    /// parameters not named by position (dotty's `normalizeTypeArgs`).
     pub fn type_apply(&mut self, fun: TNodeId, args: List) -> Result<(), Refusal> {
-        let named = self.tpd.items(args).iter().any(|&a| matches!(self.tpd.tree(a), T::NamedArg { .. }));
-        if named && self.file.is_some() {
+        let is_named =
+            |p: &Self, l: List| p.tpd.items(l).iter().any(|&a| matches!(p.tpd.tree(a), T::NamedArg { .. }));
+        let (tycon, named, others) = match *self.tpd.tree(fun) {
+            T::TypeApply { fun: inner, args: named } if is_named(self, named) => (inner, named, Some(args)),
+            _ if is_named(self, args) => (fun, args, None),
+            _ => return self.node(TYPEAPPLY, &[fun], &[args]),
+        };
+        if self.file.is_none() {
             return Err("named type arguments");
         }
-        self.node(TYPEAPPLY, &[fun], &[args])
+        let info = self.u.widen(self.tpd.tpe(tycon));
+        let Type::Poly { params, .. } = self.u.types().get(info).clone() else {
+            return Err("named type arguments of a method that is not polymorphic");
+        };
+        let named = self.tpd.items(named).to_vec();
+        let mut others = others.map(|o| self.tpd.items(o).to_vec()).unwrap_or_default().into_iter();
+        let mut ordered = Vec::new();
+        for (name, _) in &params {
+            let given = named.iter().find_map(|&a| match *self.tpd.tree(a) {
+                T::NamedArg { name: n, arg } if self.names.text(n.name) == name => Some(arg),
+                _ => None,
+            });
+            ordered.push(given.or_else(|| others.next()).ok_or("named type arguments missing a parameter")?);
+        }
+        self.with_length(TYPEAPPLY, &mut |p| {
+            p.tree(tycon)?;
+            ordered.iter().try_for_each(|&a| p.tree(a))
+        })
     }
 
     /// The type arguments of `new C[Ts]` that the constructor selected by `fun` of generic class

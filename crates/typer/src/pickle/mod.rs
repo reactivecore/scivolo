@@ -14,11 +14,13 @@ mod refs;
 mod selects;
 mod sharing;
 mod signed_names;
+mod super_accessor_defs;
 mod super_accessors;
 mod templates;
 mod trees;
 mod types;
 mod unit;
+mod variances;
 
 pub use positions::QuoteSource;
 pub use unit::{FileAttributes, Pickled, pickle_file};

@@ -58,6 +58,15 @@ fn derived_name(name: &str) -> Option<Name> {
     Some(Name::Unique { under, sep: sep.to_string(), num })
 }
 
+/// The name of a lambda's or method type's parameter `name`, a wildcard's `_$N` a unique name
+/// (dotty's `WildcardParamName`).
+pub fn param_name(name: &str) -> Name {
+    match name.strip_prefix("_$").is_some_and(|n| n.parse::<u32>().is_ok()) {
+        true => derived_name(name).unwrap_or_else(|| Name::utf8(name)),
+        false => Name::utf8(name),
+    }
+}
+
 /// The full name of package `p` (dotty's `fullName`), the root package's `<empty>`.
 pub fn package_name(u: &Universe, p: SymbolId) -> Name {
     let name = if p == u.root() { "<empty>" } else { u.symbol(p).name.as_str() };

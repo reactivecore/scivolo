@@ -6,7 +6,7 @@
 use super::names::sym_name;
 use super::{Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::tags::{CASE, ENUM, IDENTtpt, PARAMsetter, QUALTHIS, SELFDEF, SUPER, TEMPLATE};
+use tasty::tags::{IDENTtpt, PARAMsetter, QUALTHIS, SELFDEF, SUPER, SYNTHETIC, TEMPLATE};
 use tasty::write::Name;
 use tasty::{Kind, Type, TypeId};
 
@@ -21,11 +21,6 @@ impl TreePickler<'_> {
         if !matches!(self.defs.get(&sym), Some(Some(_))) {
             self.register_def(sym);
         }
-        let flags = self.u.symbol(sym).flags;
-        let synthetic = self.u.is_class(sym) && (flags.has(CASE) || flags.has(ENUM));
-        if self.file.is_some() && synthetic && !self.u.type_params(sym).is_empty() {
-            return Err("the synthetic members of a generic case class or enum");
-        }
         let (params, rest): (Vec<TNodeId>, Vec<TNodeId>) =
             self.tpd.items(body).iter().partition(|&&s| self.is_class_param(s));
         let mut classes = Vec::new();
@@ -37,9 +32,13 @@ impl TreePickler<'_> {
             !again
         });
         let stats: Vec<TNodeId> = std::iter::once(constr).chain(rest).collect();
-        let accessors = match self.file.is_some() && self.u.is_trait(sym) {
-            true => self.trait_super_accessors(sym, &stats)?,
-            false => Vec::new(),
+        let class = match self.u.is_class(sym) {
+            true => Some(sym),
+            false => self.u.symbol(sym).owner,
+        };
+        let accessors = match class.filter(|_| self.file.is_some()) {
+            Some(class) => self.super_accessors(class, &stats)?,
+            None => Vec::new(),
         };
         self.with_length(TEMPLATE, &mut |p| {
             p.params(&params)?;
@@ -49,9 +48,18 @@ impl TreePickler<'_> {
             }
             p.pre_register(&stats);
             p.tree(constr)?;
+            let synthetic = stats[1..].iter().take_while(|&&s| p.is_synthetic_def(s)).count() + 1;
+            stats[1..synthetic].iter().try_for_each(|&t| p.tree(t))?;
             accessors.iter().try_for_each(|&a| p.super_accessor_def(a))?;
-            stats[1..].iter().try_for_each(|&t| p.tree(t))
+            stats[synthetic..].iter().try_for_each(|&t| p.tree(t))
         })
+    }
+
+    /// Whether statement `s` of a template is a synthetic method, as those dotty's
+    /// `SyntheticMembers` puts before the super accessors.
+    fn is_synthetic_def(&self, s: TNodeId) -> bool {
+        let synthetic = self.tpd.sym(s).is_some_and(|m| self.u.symbol(m).flags.has(SYNTHETIC));
+        synthetic && matches!(self.tpd.tree(s), T::DefDef { .. })
     }
 
     /// Whether statement `s` of a template is a type parameter or a parameter accessor other

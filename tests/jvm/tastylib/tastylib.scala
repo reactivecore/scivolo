@@ -34,6 +34,31 @@ sealed trait Mark
 case class Dot(x: Int) extends Mark
 case object Blank extends Mark
 
+case class Pair[A, B](first: A, second: B)
+
+enum Opt[+T] {
+  case Has(x: T)
+  case Empty
+}
+
+trait Functor[F[_]] {
+  def map[A, B](fa: F[A])(f: A => B): F[B]
+}
+
+object Functor {
+  given Functor[List] with {
+    def map[A, B](fa: List[A])(f: A => B): List[B] = fa.map(f)
+  }
+}
+
+object Codes {
+  case object Zero
+  def zero(): Zero.type = Zero
+  trait Twice extends Shape {
+    override def describe(): String = super.describe() * 2
+  }
+}
+
 object Shapes {
   val unit: Shape = Rect.square(1.0)
   def total(shapes: List[Shape]): Double = shapes.map(_.area).sum

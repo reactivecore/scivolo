@@ -138,7 +138,10 @@ impl TreePickler<'_> {
         if let Some(s) = self.u.resolve(prefix, name, is_type) {
             return self.sym_ref(Some(prefix), s);
         }
-        if !is_type {
+        let info = (!is_type).then(|| self.u.term_refinement_named(prefix, name));
+        if let Some(info) = info
+            && info.is_none_or(|i| matches!(self.u.types().get(i), Type::Method { .. } | Type::Poly { .. }))
+        {
             return Err("an unresolved term reference, its signature not known");
         }
         self.byte(if is_type { TYPEREF } else { TERMREF });

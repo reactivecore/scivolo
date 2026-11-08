@@ -6,6 +6,7 @@
 use super::names::package_name;
 use super::{Refusal, TreePickler};
 use crate::signatures::{params_sig, result_sig};
+use crate::tpd::print::symbols::full_name;
 use tasty::tags::OBJECT;
 use tasty::write::{Name, ParamSig};
 use tasty::{Kind, SymbolId, Universe};
@@ -16,8 +17,14 @@ fn sig_type_name(u: &mut Universe, full: &str) -> Result<Name, Refusal> {
     let base = full.trim_end_matches("[]");
     let arrays = &full[base.len()..];
     let (module, base) = match base.strip_suffix('$') {
-        Some(b) if is_module_class(u, base)? => (true, b),
-        _ => (false, base),
+        Some(b) => match is_module_class(u, base) {
+            Ok(module) => (module, if module { b } else { base }),
+            Err(why) => match nested_class(u, base).filter(|_| arrays.is_empty()) {
+                Some(c) => return Ok(class_sig_name(u, c)),
+                None => return Err(why),
+            },
+        },
+        None => (false, base),
     };
     let path = format!("{base}{arrays}");
     let parts: Vec<&str> = path.split('.').collect();
@@ -43,6 +50,33 @@ fn is_module_class(u: &mut Universe, full: &str) -> Result<bool, Refusal> {
     let class = decls.into_iter().find(|&s| u.symbol(s).kind == Kind::Class);
     let class = class.ok_or("a signature naming an unknown class")?;
     Ok(u.symbol(class).flags.has(OBJECT))
+}
+
+/// The class of full name `full` nested in a class of a package, if it is one.
+fn nested_class(u: &mut Universe, full: &str) -> Option<SymbolId> {
+    let dots: Vec<usize> = full.match_indices('.').map(|(i, _)| i + 1).collect();
+    let mut starts = dots.into_iter().rev().chain([0]);
+    let (pkg, rest) = starts.find_map(|i| Some((u.package(full[..i].trim_end_matches('.'))?, &full[i..])))?;
+    let ends = (1..=rest.len()).filter(|&i| i == rest.len() || matches!(rest.as_bytes()[i], b'.' | b'$'));
+    let ends: Vec<usize> = ends.chain((1..rest.len()).filter(|&i| rest.as_bytes()[i - 1] == b'$')).collect();
+    let mut todo: Vec<SymbolId> = Vec::new();
+    for i in ends {
+        let decls = u.decl(pkg, &rest[..i]).unwrap_or_default();
+        todo.extend(decls.into_iter().filter(|&c| u.is_class(c)));
+    }
+    while let Some(c) = todo.pop() {
+        let members = u.decls(c).unwrap_or_default();
+        for m in members.into_iter().filter(|&m| u.is_class(m)) {
+            let names = [full_name(u, m), u.binary_name(m)];
+            if names.iter().any(|n| n == full) {
+                return Some(m);
+            }
+            if names.iter().any(|n| full.starts_with(n.as_str())) {
+                todo.push(m);
+            }
+        }
+    }
+    None
 }
 
 /// The name of class `c` in a signature (dotty's `fullNameSeparated(QualifiedName)`): a `_$` for

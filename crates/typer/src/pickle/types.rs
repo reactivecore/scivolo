@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //! Types (dotty's `pickleType`, `pickleNewType`, `pickleMethodic`, `pickleConstant`).
 
-use super::names::qualified;
+use super::names::{param_name, qualified};
 use super::sharing::BY_NAME;
 use super::{Refusal, TreePickler};
 use crate::tpd::TNodeId;
@@ -70,13 +70,22 @@ impl TreePickler<'_> {
                 self.byte(RECtype);
                 self.ty(parent, false)
             }
-            Type::Alias(hi) | Type::Bounds(_, hi)
-                if matches!(self.u.types().get(hi), Type::Lambda { .. }) =>
-            {
-                Err("bounds of a type lambda, whose variances are not known")
+            Type::Alias(alias) => {
+                let variances = self.variances(alias, false)?;
+                self.with_length(TYPEBOUNDS, &mut |p| {
+                    p.ty(alias, rich)?;
+                    p.write_variances(&variances);
+                    Ok(())
+                })
             }
-            Type::Alias(alias) => self.with_length(TYPEBOUNDS, &mut |p| p.ty(alias, rich)),
-            Type::Bounds(lo, hi) => self.with_length(TYPEBOUNDS, &mut |p| p.types(&[lo, hi], rich)),
+            Type::Bounds(lo, hi) => {
+                let variances = self.variances(hi, true)?;
+                self.with_length(TYPEBOUNDS, &mut |p| {
+                    p.types(&[lo, hi], rich)?;
+                    p.write_variances(&variances);
+                    Ok(())
+                })
+            }
             Type::And(a, b) => self.with_length(ANDtype, &mut |p| p.types(&[a, b], rich)),
             Type::Or(a, b, _) => self.with_length(ORtype, &mut |p| p.types(&[a, b], rich)),
             Type::ByName(result) => {
@@ -128,7 +137,7 @@ impl TreePickler<'_> {
             p.ty(result, true)?;
             for (name, t) in params {
                 p.ty(*t, false)?;
-                p.name(&Name::utf8(name));
+                p.name(&param_name(name));
             }
             modifier.into_iter().for_each(|m| p.byte(m));
             Ok(())
