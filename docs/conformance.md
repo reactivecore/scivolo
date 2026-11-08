@@ -224,8 +224,10 @@ Results (2026-11-06):
 - **Capture checking:** typed as dotty's typer types it (`ImpureFunctionN`, `@retains` trees);
   types drop `@retains`, `@retainsCap` and `@retainsByName` as unpickled ones do (case 1: the
   annotations are not refining and erase away), and the capture checker, which runs after the
-  typer and leaves the NIR unchanged, is not run (#168). Quotes under capture checking, whose
-  TASTy would keep the annotations, are refused.
+  typer and leaves the NIR unchanged, is not run (#168). dotty pickles quotes before the capture
+  checker, so their TASTy is the typer's: ours as dotty's, with the inferred type arguments of
+  inline methods annotated `@caps.internal.inferred` (`PostTyper.markInferred`). A quote that
+  writes a capture set, an annotation, a function or a by-name type is refused.
 
 ### com-lihaoyi libraries from source
 
@@ -256,7 +258,10 @@ program. Also open, not accepted, in a user program: a value of type `Array[Noth
 `Array[Null]` is `array[nothing]` or `array[null]` in Scala Native's NIR, ours
 `as[array[@java.lang.Object]]` of it; and
 `this.asInstanceOf[S]` returned from a method of a trait with self type `S` casts at the type
-argument's position in Scala Native's NIR, at `this` in ours.
+argument's position in Scala Native's NIR, at `this` in ours. `ToExpr$ArrayOf*ToExpr$` (8),
+`ToExpr$BigIntToExpr$` and `ToExpr$MapToExpr` differ in quote type sharing (case 1, as in
+**Quote type sharing** above, types shared across the files of the whole-module build);
+scala-cli's build of `ToExpr.scala` alone has ours.
 
 ## M5: scala/scala `test/junit`
 

@@ -186,6 +186,7 @@ mod purity;
 mod qual_skolems;
 mod qualifier_views;
 mod qualifies;
+mod quote_inferred;
 mod quote_pattern_checks;
 mod quote_patterns;
 mod quote_tags;

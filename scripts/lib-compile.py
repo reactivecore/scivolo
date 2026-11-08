@@ -69,10 +69,25 @@ def jar_name(module):
     return f"{module}_native0.5_3-{'3.9.0%2B' if module == 'scalalib' else ''}{VERSION}.jar"
 
 
+def scalalib_root(root):
+    """A source root under which `root` is at Scala Native's `scalalib/target/scalaSources/3.9.0`."""
+    link = WORK / "scalalib/sourceroot/scalalib/target/scalaSources/3.9.0"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        link.symlink_to(root.resolve())
+    except FileExistsError:
+        pass
+    return WORK / "scalalib/sourceroot", link
+
+
 def lower_cmd(module, root, files, out):
     """The `scivolo-lower` command lowering `files` of source directory `root` into `out`, the
     checkout the source root as in Scala Native's build."""
-    roots = ["--sourceroot", str(root if module == "scalalib" else SN), "--position-root", str(root)]
+    sourceroot = SN
+    if module == "scalalib":
+        sourceroot, link = scalalib_root(root)
+        root, files = link, [link / f.relative_to(root) for f in files]
+    roots = ["--sourceroot", str(sourceroot), "--position-root", str(root)]
     return [str(LOWER), "--macros", *OPTIONS.get(module, []), *roots, *map(str, files), str(out)]
 
 
