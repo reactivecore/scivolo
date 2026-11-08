@@ -6,7 +6,6 @@
 use super::Typer;
 use super::irrefutable::{RUNTIME_CHECKED, Refutable, UNCHECKED};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::diag::rewrite_notice;
 use tasty::TypeId;
 
 impl Typer<'_> {
@@ -37,7 +36,7 @@ impl Typer<'_> {
             }
             Refutable::Unknown => return,
         };
-        let rewrite = rewrite_notice("This patch", "3.8-migration", "");
+        let rewrite = self.rewrite_notice("This patch", "3.8-migration");
         let text = format!(
             "{message}\n\nIf {usage} is intentional, this can be communicated by adding `.runtimeChecked` \
              after the expression,\nwhich may result in a MatchError at runtime.{rewrite}"

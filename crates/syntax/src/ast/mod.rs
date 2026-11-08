@@ -73,6 +73,8 @@ impl Attrs {
     pub const DERIVES_OF_CLASS: Attrs = Attrs(1 << 22);
     /// An applied type or an extractor pattern made of an infix operation.
     pub const INFIX_OP: Attrs = Attrs(1 << 23);
+    /// An infix operation whose right operand is a block or a match, not in parentheses.
+    pub const INFIX_BLOCK_RIGHT: Attrs = Attrs(1 << 24);
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

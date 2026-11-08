@@ -145,6 +145,9 @@ impl Desugar<'_> {
             _ => self.apply(select, &[arg]),
         };
         self.ast.add_attrs(apply, Attrs::WAS_TYPED_INFIX);
+        if matches!(self.ast.tree(right), Tree::Block { .. } | Tree::Match { .. }) {
+            self.ast.add_attrs(apply, Attrs::INFIX_BLOCK_RIGHT);
+        }
         apply
     }
 

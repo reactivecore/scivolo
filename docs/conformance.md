@@ -40,6 +40,13 @@ where their resource files are.
 Counts are test methods, from macOS. Linux fails the same tests. It skips four more: the
 read-only-file cases, because the CI container runs as root.
 
+With the scalalib jar `just lib-jar scalalib` builds in place of the published one
+(`just lib-jar-report scalalib`), every test passes, fails and skips as above. That jar holds
+our NIR of the files the frontend lowers (the scalalib row of ROADMAP's Next 5), the published
+NIR of the classes Scala Native takes from Scala 2.13, and Scala Native's build's NIR of the
+files the frontend refuses. It lacks 91 NIR files of the published jar: anonymous classes and
+lambdas that Scala Native's build of Scala 3.9.0 does not emit and no other class references.
+
 A feature the VM lacks throws `java.lang.InternalError("scivolo: unsupported: …")`, a missing class
 `NoClassDefFoundError`, a missing C function `UnsatisfiedLinkError`, so one gap fails a test
 instead of the run.
@@ -221,8 +228,8 @@ Results (2026-11-08):
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
-  alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
-  libraries compiled before 3.4, which dotty accepts) and checks no other `future` rule.
+  alphanumeric infix calls, types and extractor patterns not declared `infix`, which it warns
+  about otherwise, and checks no other `future` rule.
 - **Capture checking:** typed as dotty's typer types it (`ImpureFunctionN`, `@retains` trees);
   types drop `@retains`, `@retainsCap` and `@retainsByName` as unpickled ones do (case 1: the
   annotations are not refining and erase away), and the capture checker, which runs after the

@@ -17,7 +17,7 @@ impl Typer<'_> {
                     T::UnApply { fun, .. } => self.tpd.sym(self.tpd.meth_part(fun)),
                     _ => None,
                 };
-                if self.is_invalid_future_infix_op(id, fun, unapply) {
+                if self.is_invalid_infix_op(id, fun, unapply) {
                     return self.unsupported(id, "alphanumeric infix extractor under -source future");
                 }
                 tree
