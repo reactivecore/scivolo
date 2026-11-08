@@ -24,7 +24,8 @@ impl Typer<'_> {
         let simple = args.iter().all(|&a| {
             self.unknown_param_function(a).is_none() && !matches!(self.ast.tree(a), Tree::NamedArg { .. })
         });
-        if !simple || self.protos[proto].using {
+        if !simple || self.protos[proto].using || methods.iter().any(|&m| self.leading_implicit(m).is_some())
+        {
             return Err(VALUE_APPLY);
         }
         let vt = self.ref_type(prefix, value);
@@ -62,20 +63,27 @@ impl Typer<'_> {
     }
 
     /// Whether method `a` is as good as `b` (dotty's `isAsGood` of methods): `b` takes the
-    /// parameter types of `a`, both of the same owner.
+    /// parameter types of `a`, both of owners neither of which, nor of their companion classes
+    /// if modules, derives from the other (dotty's `compareOwner` 0).
     fn as_good(
         &mut self,
         (a, pa): (SymbolId, Option<TypeId>),
         (b, pb): (SymbolId, Option<TypeId>),
         ctx: crate::ctx::Ctx,
     ) -> Result<bool, &'static str> {
-        let (oa, ob) = (self.u.symbol(a).owner, self.u.symbol(b).owner);
-        let related = |t: &mut Self| match (oa, ob) {
-            (Some(x), Some(y)) => x == y || t.u.derives_from(x, y) || t.u.derives_from(y, x),
-            _ => false,
-        };
-        if related(self) && oa != ob {
+        let (Some(oa), Some(ob)) = (self.u.symbol(a).owner, self.u.symbol(b).owner) else {
             return Err(VALUE_APPLY);
+        };
+        if oa != ob {
+            let classes = |t: &mut Self, o: SymbolId| {
+                let companion = t.u.is_module_class(o).then(|| t.u.companion_class(o)).flatten();
+                [Some(o), companion].into_iter().flatten().collect::<Vec<_>>()
+            };
+            let (ca, cb) = (classes(self, oa), classes(self, ob));
+            if ca.iter().any(|&x| cb.iter().any(|&y| self.u.derives_from(x, y) || self.u.derives_from(y, x)))
+            {
+                return Err(VALUE_APPLY);
+            }
         }
         let Some((formals, false)) = self.param_types(a, pa, false) else { return Err(VALUE_APPLY) };
         self.applicable(b, pb, &formals, false, ctx).ok_or(VALUE_APPLY)
