@@ -97,14 +97,17 @@ impl Universe {
         if !matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) {
             return t;
         }
-        let info = match prefix {
-            Some(p) => self.member_info(p, s),
-            None => self.info(s),
+        let arg =
+            prefix.filter(|_| self.symbol(s).kind == Kind::TypeParam).and_then(|p| self.arg_for_param(p, s));
+        let info = match (arg, prefix) {
+            (Some(arg), _) => arg,
+            (None, Some(p)) => self.member_info(p, s),
+            (None, None) => self.info(s),
         };
         match *self.types().get(info) {
             Type::Bounds(_, hi) => hi,
             Type::Alias(a) => a,
-            _ => t,
+            _ => arg.unwrap_or(t),
         }
     }
 
