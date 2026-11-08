@@ -8,7 +8,7 @@
 use super::function_classes::{erased_classes, erased_linearization};
 use super::trait_fields::{mixed_in, trait_defs};
 use crate::definitions::specialized_applies;
-use crate::symbols::has;
+use crate::symbols::{beyond_jdk_view, has};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
@@ -128,7 +128,12 @@ pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolI
     let decls = l.u.decls(mixin).unwrap_or_default();
     decls
         .into_iter()
-        .filter(|&meth| has_body(l, meth) && !has(l.u, meth, INLINE) && needs_forwarder(l, class, meth))
+        .filter(|&meth| {
+            has_body(l, meth)
+                && !has(l.u, meth, INLINE)
+                && !beyond_jdk_view(l.u, meth)
+                && needs_forwarder(l, class, meth)
+        })
         .collect()
 }
 

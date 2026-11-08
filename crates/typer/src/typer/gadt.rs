@@ -19,22 +19,6 @@ pub fn plain_type_ref(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
     }
 }
 
-/// Whether `t` has a part applying a class `scala.TupleN`, which dotty's GADT bounds hold as
-/// `*:` pairs.
-pub fn has_tuple_class(u: &mut Universe, t: TypeId) -> bool {
-    let mut parts = Vec::new();
-    u.map_type(t, &mut |_, p| {
-        parts.push(p);
-        None
-    });
-    parts.into_iter().any(|p| {
-        u.class_symbol(p).is_some_and(|c| {
-            let name = u.full_name(c);
-            name.strip_prefix("scala.Tuple").is_some_and(|n| n.parse::<u8>().is_ok())
-        })
-    })
-}
-
 impl Typer<'_> {
     /// Adds pattern-bound types `syms` to the GADT-constrained types of the case being typed.
     pub fn gadt_bind(&mut self, syms: &[SymbolId]) {
@@ -44,8 +28,9 @@ impl Typer<'_> {
     }
 
     /// Whether `s` is a GADT-constrained type: a type parameter of a method enclosing `ctx`'s
-    /// owner or of a class enclosing one (dotty's `addToConstraint` in `typedDefDef`), or a
-    /// pattern-bound type of a case being typed.
+    /// owner, of a polymorphic function value's closure enclosing it, or of a class enclosing
+    /// one (dotty's `addToConstraint` in `typedDefDef`), or a pattern-bound type of a case
+    /// being typed.
     pub fn is_gadt_symbol(&mut self, s: SymbolId, ctx: Ctx) -> bool {
         if self.gadt.bound.contains(&s) {
             return true;
@@ -53,6 +38,7 @@ impl Typer<'_> {
         let Some(of) = self.u.symbol(s).owner.filter(|_| self.u.symbol(s).kind == Kind::TypeParam) else {
             return false;
         };
+        let poly = self.poly_owners.contains(&of).then(|| self.u.symbol(of).owner);
         let (mut owner, mut in_method) = (Some(ctx.owner), false);
         while let Some(o) = owner {
             match self.u.symbol(o).kind {
@@ -63,7 +49,7 @@ impl Typer<'_> {
                     continue;
                 }
             }
-            if o == of {
+            if o == of || poly.is_some_and(|p| self.u.symbol(o).owner == p) {
                 return true;
             }
             owner = self.u.symbol(o).owner;
@@ -83,6 +69,37 @@ impl Typer<'_> {
             return Vec::new();
         }
         params.into_iter().filter(|&s| self.is_gadt_symbol(s, ctx)).collect()
+    }
+
+    /// `syms` with the narrowable type parameters of pattern type `pat`, of its base type at class
+    /// `base`, and those the bounds of each refer to, transitively (dotty's GADT constraint
+    /// relating its symbols).
+    pub fn gadt_related(
+        &mut self,
+        mut syms: Vec<SymbolId>,
+        pat: TypeId,
+        base: Option<SymbolId>,
+        ctx: Ctx,
+    ) -> Vec<SymbolId> {
+        let mut todo = self.gadt_symbols(pat, ctx);
+        if let Some(b) = base.and_then(|c| self.u.base_type(pat, c)) {
+            todo.extend(self.gadt_symbols(b, ctx));
+        }
+        let mut i = 0;
+        while i < syms.len() || !todo.is_empty() {
+            if let Some(s) = todo.pop() {
+                if !syms.contains(&s) {
+                    syms.push(s);
+                }
+                continue;
+            }
+            if let Some((lo, hi)) = self.current_bounds(syms[i]) {
+                todo.extend(self.gadt_symbols(lo, ctx));
+                todo.extend(self.gadt_symbols(hi, ctx));
+            }
+            i += 1;
+        }
+        syms
     }
 
     /// Adds the type parameters `t` refers to outside prefixes to `params`; false if `t` has a

@@ -15,7 +15,8 @@ use typer::tpd::{TNodeId, Tree};
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
 /// `expr` then `()` for `Unit` and a source cast to `BoxedUnit`, a conversion or a cast of the boxed value from a primitive or `Unit`,
 /// unboxing from a reference or `null` to a primitive, a `ClassCastException` for `Nothing`,
-/// an ascription if `expr`'s erasure conforms to `target`'s, else `t`; casts from or to value classes as `value_cast`.
+/// an ascription if `expr`'s erasure conforms to `target`'s (of a cast at `expr` if only its self
+/// type's does), else `t`; casts from or to value classes as `value_cast`.
 pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TNodeId> {
     let target = l.tpd.tpe(tpt);
     let to = l.u.erase(target);
@@ -35,6 +36,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     let upcast = conforms_to_class_file(l, &erased_expr, &to)
         && !to_raw_generic(l, &erased_expr, &to)
         && !universal_to_object(l, &erased_expr, &to);
+    let made = l.explicit_casts.contains(&t);
     if !upcast && conforms(l, &erased_expr, &to) {
         l.explicit_casts.insert(t);
     }
@@ -53,7 +55,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
         (_, Erased::Class(c)) if c == "scala.runtime.BoxedUnit" && !upcast && !span.is_synthetic() => {
             unit_after(l, expr)
         }
-        (Erased::Prim(a), Erased::Prim(b)) => match primitive_conversion(l, expr, widened, *a, *b) {
+        (Erased::Prim(a), Erased::Prim(b)) => match primitive_conversion(l, expr, *a, *b) {
             Some(converted) => converted,
             None => return refused(),
         },
@@ -76,9 +78,14 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
             throw_class_cast(l, expr)
         }
         _ if upcast => l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None),
-        _ if !span.is_synthetic() && erased_expr != found && conforms_to_class_file(l, &found, &to) => {
-            l.tpd.get_mut(t).span = l.tpd.span(expr);
-            t
+        _ if !made
+            && !span.is_synthetic()
+            && erased_expr != found
+            && conforms_to_class_file(l, &found, &to) =>
+        {
+            let expr = crate::phases::casts::cast(l, expr, &to);
+            l.explicit_casts.insert(expr);
+            l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None)
         }
         _ => t,
     })
@@ -212,10 +219,11 @@ fn recast(l: &mut Lower, t: TNodeId, expr: TNodeId, boxed: TNodeId) -> TNodeId {
     t
 }
 
-/// `expr.toX` for primitive `expr` of type `tpe` and erased letter `from`, converted to primitive
-/// `to`, if `expr`'s class has that method (dotty's `primitiveConversion`).
-fn primitive_conversion(l: &mut Lower, expr: TNodeId, tpe: TypeId, from: char, to: char) -> Option<TNodeId> {
-    let class = l.class_of(tpe)?;
+/// `expr.toX` for primitive `expr` of erased letter `from`, converted to primitive `to`, if the
+/// class of `from` has that method (dotty's `primitiveConversion`).
+pub fn primitive_conversion(l: &mut Lower, expr: TNodeId, from: char, to: char) -> Option<TNodeId> {
+    let class = l.u.class_ref(&crate::definitions::primitive_class_name(from)?);
+    let class = l.u.class_symbol(class)?;
     let target = crate::definitions::primitive_class_name(to)?;
     let simple = target.rsplit('.').next()?;
     let method = l.u.decl(class, &format!("to{simple}")).ok()?.into_iter().next()?;

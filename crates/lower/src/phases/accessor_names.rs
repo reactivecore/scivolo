@@ -91,11 +91,21 @@ pub fn ensure_not_private(l: &mut Lower, s: SymbolId) {
         let own = &l.u.symbol(s).name;
         let own = match own.strip_prefix("$init$$") {
             Some(rest) if !filler.is_empty() && !l.u.is_trait(base) => format!("$lessinit$greater${rest}"),
-            _ => own.clone(),
+            _ => unique_unqualified(own),
         };
         let name = format!("{}{module}$${filler}{own}", l.u.expanded_prefix(base));
         l.u.rename(s, &name);
     }
     let flags = l.u.symbol(s).flags.without(PRIVATE).without(LOCAL);
     l.u.set_flags(s, flags);
+}
+
+/// `own` as the qualified part of an expanded name: a leading `$N$` loses its last `$`, as a
+/// unique name with a prefix ends in its number.
+fn unique_unqualified(own: &str) -> String {
+    let digits = own.strip_prefix('$').map_or(0, |r| r.bytes().take_while(u8::is_ascii_digit).count());
+    match own.get(1 + digits..) {
+        Some(rest) if digits > 0 && rest.starts_with('$') => format!("{}{}", &own[..1 + digits], &rest[1..]),
+        _ => own.to_owned(),
+    }
 }

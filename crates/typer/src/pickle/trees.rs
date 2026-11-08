@@ -108,7 +108,12 @@ impl TreePickler<'_> {
             T::WhileDo { cond, body } => self.node(WHILE, &[cond, body], &[]),
             T::SeqLiteral { elems, elemtpt } => self.node(REPEATED, &[elemtpt], &[elems]),
             T::Inlined { call, bindings, expansion } => self.inlined(call, bindings, expansion),
-            T::TypeTree { .. } => self.ty(typed()?, false),
+            T::TypeTree { .. } => {
+                self.type_tree = Some(id);
+                let pickled = self.ty(typed()?, false);
+                self.type_tree = None;
+                pickled
+            }
             T::SingletonTypeTree { reference } => {
                 self.byte(SINGLETONtpt);
                 self.tree(reference)

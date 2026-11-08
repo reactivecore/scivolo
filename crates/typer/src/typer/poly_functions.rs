@@ -17,9 +17,14 @@ impl Typer<'_> {
     /// `makePolyFunctionType`, typed as a refined type).
     pub fn typed_poly_function_type(&mut self, id: NodeId, targs: List, body: NodeId, ctx: Ctx) -> TNodeId {
         let body = self.normalized_poly_body(body);
-        let Tree::Function { args, body: result, mods: None, .. } = *self.ast.tree(body) else {
+        let Tree::Function { args, body: result, ref mods, .. } = *self.ast.tree(body) else {
             return self.unsupported(id, "polymorphic function type of another form");
         };
+        if let Some((m, erased)) = mods
+            && (self.ast.modifiers(*m).flags != f::IMPURE || erased.contains(&true))
+        {
+            return self.unsupported(id, "polymorphic function type of another form");
+        }
         let (targs, evidence) = self.poly_evidence(targs);
         if !evidence.is_empty() && !matches!(self.evidence_fit(&evidence, args), Fit::After) {
             return self.unsupported(id, "polymorphic function type with evidence among its parameters");
@@ -175,6 +180,7 @@ impl Typer<'_> {
     pub fn poly_apply_owner(&mut self, ctx: Ctx) -> SymbolId {
         let owner = self.syms.define(self.u, "apply", Kind::Def, ctx.owner, f::METHOD.or(f::SYNTHETIC));
         self.u.unenter(owner);
+        self.poly_owners.insert(owner);
         owner
     }
 

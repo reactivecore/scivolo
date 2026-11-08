@@ -29,11 +29,13 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// Qualifier `qualifier` of selection `sel` typed without an expected type, then adapted to the
-/// class the selected member is called on; `sel`'s member retargeted by `inherited_by_class` or
-/// `function_member`.
+/// class the selected member is called on; `sel`'s member retargeted by `inherited_by_class`,
+/// `function_member` or `before_synthesized`.
 fn typed_qualifier(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<TNodeId> {
     let retargeted = match l.tpd.sym(sel) {
-        Some(m) => calls::inherited_by_class(l, m).or_else(|| calls::function_member(l, m)),
+        Some(m) => (calls::inherited_by_class(l, m))
+            .or_else(|| calls::function_member(l, m))
+            .or_else(|| super::synthetic::before_synthesized(l, m)),
         None => poly_function_member(l, sel, qualifier),
     };
     if let Some(m) = retargeted {

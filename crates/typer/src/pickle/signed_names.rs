@@ -16,6 +16,13 @@ use tasty::{Kind, SymbolId, Universe};
 fn sig_type_name(u: &mut Universe, full: &str) -> Result<Name, Refusal> {
     let base = full.trim_end_matches("[]");
     let arrays = &full[base.len()..];
+    if let Some((pkg, name)) = base.rsplit_once('.')
+        && arrays.is_empty()
+        && let Some(p) = u.package(pkg)
+        && let Some(c) = member_class(u, p, name)
+    {
+        return Ok(class_sig_name(u, c));
+    }
     let (module, base) = match base.strip_suffix('$') {
         Some(b) => match is_module_class(u, base) {
             Ok(module) => (module, if module { b } else { base }),
@@ -40,6 +47,19 @@ fn sig_type_name(u: &mut Universe, full: &str) -> Result<Name, Refusal> {
     }
     let name = name.expect("a name");
     Ok(if module { Name::ObjectClass(Box::new(name)) } else { name })
+}
+
+/// The class a member of a class declared in `owner` that binary name `name` names, e.g.
+/// `Tuple$package$EmptyTuple$`.
+fn member_class(u: &mut Universe, owner: SymbolId, name: &str) -> Option<SymbolId> {
+    let class = |u: &mut Universe, o, n: &str| {
+        let decls = u.decl(o, n).ok()?;
+        decls.into_iter().find(|&s| u.symbol(s).kind == Kind::Class)
+    };
+    name.match_indices('$').map(|(k, _)| k + 1).filter(|&k| k > 1 && k < name.len()).find_map(|k| {
+        let outer = class(u, owner, &name[..k])?;
+        class(u, outer, &name[k..]).or_else(|| member_class(u, outer, &name[k..]))
+    })
 }
 
 /// Whether the class of full name `full`, which ends in `$`, is a module class.

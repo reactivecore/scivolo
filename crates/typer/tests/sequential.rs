@@ -274,7 +274,7 @@ fn transparent_inline_refusals() {
         (
             "object B { transparent inline def unapply(x: Int): Option[Int] = Some(x) }
              object C { def f(x: Int) = x match { case B(y) => y } }",
-            "transparent inline extractor",
+            "",
         ),
         (
             "object D { abstract class K { type T; val t: T }; class L extends K { type T = Int; val t = 1 }
@@ -583,11 +583,6 @@ fn constructs_diverging_from_dotty_are_refused() {
         (
             "class A(x: Int) { def this(s: String) = this(); def this() = this(0) }",
             "secondary constructor calling a later constructor",
-        ),
-        (
-            "trait Tag[T]; object Tag { implicit val ti: Tag[Int] = new Tag[Int] {}; implicit val tl: Tag[Long] = new Tag[Long] {} }
-             object Cr8 { def mx[T](x: T)(implicit t: Tag[T]): T = x; val o: Option[Long] = Some(mx(3)) }",
-            "adaptation",
         ),
         (
             "class O(x: Int) { def this(s: String) = this(this.hashCode) }",

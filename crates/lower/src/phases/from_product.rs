@@ -3,11 +3,12 @@
 //   compiler/src/dotty/tools/dotc/ast/tpd.scala
 
 use super::case_members::case_accessors;
+use super::constructor_instance::{instantiated_constructor, repeated_elem};
 use super::lift_names::fresh;
 use super::mirror_prefixes::new_seen_from;
 use super::mirrors::has_mirror_method;
 use crate::definitions::{symbol, type_ref};
-use crate::{Lower, Result};
+use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
@@ -15,7 +16,9 @@ use typer::tpd::{TNodeId, Tree};
 
 /// `def fromProduct(x$0: Product): M = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C[Ts](a$1, ...) }`
 /// (dotty's `fromProductBody`), `M` the `MirroredMonoType` `mono`, a generic `C` applied to its
-/// type parameters' upper bounds; none if `class` has one.
+/// type parameters' upper bounds; none if `class` has one. From the first `@unroll` parameter
+/// on, an element is `if arity > i then x$0.productElement(i) else C.<init>$default$(i+1)`, after
+/// `val arity = x$0.productArity`.
 pub fn from_product(
     l: &mut Lower,
     class: SymbolId,
@@ -43,11 +46,24 @@ pub fn from_product(
     let (created_type, param_types) = instantiated_constructor(l, case_class, ctor);
     let flags = Flags::default().with(SYNTHETIC);
     let mut locals = Vec::new();
+    let accessors = case_accessors(l, case_class);
+    let (module, getters) = unrolled_getters(l, case_class, &accessors)?;
+    let unrolled_from = accessors.len() - getters.len();
     let (method, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let mut defs = Vec::new();
         let mut refs = Vec::new();
-        let accessors = case_accessors(l, case_class);
-        for (i, (accessor, param)) in accessors.into_iter().zip(param_types).enumerate() {
+        let mut arity = None;
+        if !getters.is_empty() {
+            let product_ref = l.copy_ident(args[0]);
+            let rhs = l.select(product_ref, cc.product_arity, Span::NONE);
+            let rhs = l.positioned(rhs);
+            let int = l.u.widen(l.tpd.tpe(rhs));
+            let (def, binding) = val_def(l, class, "arity", int, rhs);
+            locals.push(binding);
+            defs.push(def);
+            arity = Some(binding);
+        }
+        for (i, (&accessor, param)) in accessors.iter().zip(param_types).enumerate() {
             let repeated = repeated_elem(l, param);
             let tpe = match repeated {
                 Some(elem) => {
@@ -56,24 +72,26 @@ pub fn from_product(
                 }
                 None => param,
             };
-            let name = l.u.symbol(accessor).name.clone();
-            let name = fresh(l, &name);
-            let binding = l.u.define(symbol(&name, Kind::Val, class, Flags::default().with(SYNTHETIC)));
-            l.u.set_info(binding, tpe);
-            locals.push(binding);
             let product_ref = l.copy_ident(args[0]);
             let index = l.int_literal(i as i32);
-            let element = l.call(product_ref, cc.product_element, &[index]);
+            let mut element = l.call(product_ref, cc.product_element, &[index]);
+            if let Some(arity) = arity.filter(|_| i >= unrolled_from) {
+                let (arity, index) = (l.ident(arity, Span::NONE), l.int_literal(i as i32));
+                let gt = l.operator(arity, ">", index).expect("`Int.>(Int)`");
+                let cond = l.call(arity, gt, &[index]);
+                let module = l.ident(module, Span::NONE);
+                let default = l.select(module, getters[i - unrolled_from], Span::NONE);
+                let elsep = l.positioned(default);
+                let branch = Tree::If { cond, thenp: element, elsep, inline: false };
+                element = l.tpd.node(branch, Span::NONE, Some(tasty::ANY), None);
+                element = l.positioned(element);
+            }
             let rhs = l.type_cast_unless_conforms(element, tpe);
-            let tpt = l.type_tree(tpe, Span::NONE);
-            let term = l.term_name(&name);
-            let def = l.tpd.node(
-                Tree::ValDef { name: term, tpt, rhs: Some(rhs) },
-                Span::NONE,
-                Some(tpe),
-                Some(binding),
-            );
-            defs.push(l.positioned(def));
+            let name = l.u.symbol(accessor).name.clone();
+            let name = fresh(l, &name);
+            let (def, binding) = val_def(l, class, &name, tpe, rhs);
+            locals.push(binding);
+            defs.push(def);
             let arg = l.ident(binding, Span::NONE);
             refs.push(match repeated {
                 Some(_) => {
@@ -97,61 +115,47 @@ pub fn from_product(
     Ok(Some(l.with_span(def, focus)))
 }
 
-/// The type `new C[Ts]` creates and the types of the parameters of constructor `ctor` of case
-/// class `c`, `Ts` the constructor's type parameters instantiated from above (dotty's
-/// `instantiate(fromBelow = false)`): each its upper bound, its lower bound if the upper one
-/// mentions it, the parameters before it instantiated.
-fn instantiated_constructor(l: &mut Lower, c: SymbolId, ctor: SymbolId) -> (TypeId, Vec<TypeId>) {
-    let accessors = case_accessors(l, c);
-    let info = l.u.info(ctor);
-    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
-        let types = accessors.into_iter().map(|a| l.u.info(a)).collect();
-        return (type_ref(l.u, c), types);
-    };
-    let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-    let mut his: Vec<TypeId> = Vec::new();
-    for (i, (_, bounds)) in params.iter().enumerate() {
-        let (lo, hi) = match *l.u.types().get(*bounds) {
-            Type::Bounds(lo, hi) => (lo, hi),
-            _ => (tasty::NOTHING, *bounds),
-        };
-        let hi = l.u.subst(hi, binder, &names[..i], &his);
-        let inst = match mentions_param(l, hi, binder, (&names[i], i)) {
-            true => l.u.subst(lo, binder, &names[..i], &his),
-            false => hi,
-        };
-        his.push(inst);
-    }
-    for i in (0..his.len()).rev() {
-        his[i] = l.u.subst(his[i], binder, &names, &his);
-    }
-    let method = l.u.subst(result, binder, &names, &his);
-    let types = match l.u.types().get(method).clone() {
-        Type::Method { params, .. } => params.into_iter().map(|(_, t)| t).collect(),
-        _ => accessors.into_iter().map(|a| l.u.info(a)).collect(),
-    };
-    (crate::definitions::applied(l.u, c, his), types)
+/// `val name: tpe = rhs`, its symbol owned by `class` until the caller moves it.
+fn val_def(l: &mut Lower, class: SymbolId, name: &str, tpe: TypeId, rhs: TNodeId) -> (TNodeId, SymbolId) {
+    let binding = l.u.define(symbol(name, Kind::Val, class, Flags::default().with(SYNTHETIC)));
+    l.u.set_info(binding, tpe);
+    let tpt = l.type_tree(tpe, Span::NONE);
+    let term = l.term_name(name);
+    let def =
+        l.tpd.node(Tree::ValDef { name: term, tpt, rhs: Some(rhs) }, Span::NONE, Some(tpe), Some(binding));
+    (l.positioned(def), binding)
 }
 
-/// Whether `t` mentions parameter `name`, the `index`th, of type lambda `binder`.
-fn mentions_param(l: &mut Lower, t: TypeId, binder: tasty::Binder, (name, index): (&str, usize)) -> bool {
-    let mut found = false;
-    l.u.map_type(t, &mut |u, x| {
-        found |= match u.types().get(x) {
-            Type::Local(b, n) => b.0 == binder.0 && n == name,
-            Type::Param(b, i) => *b == binder && *i as usize == index,
-            _ => false,
+/// The companion of `case_class` and the default getters of its case accessors `accessors` from
+/// the first `@unroll` one on; none without one.
+fn unrolled_getters(
+    l: &mut Lower,
+    case_class: SymbolId,
+    accessors: &[SymbolId],
+) -> Result<(SymbolId, Vec<SymbolId>)> {
+    let unroll = |l: &Lower, a: SymbolId| {
+        l.u.annotations(a).iter().any(|&c| l.u.full_name(c) == "scala.annotation.unroll")
+    };
+    let first = (0..accessors.len()).find(|&i| unroll(l, accessors[i]));
+    let module = l.u.companion_module(case_class);
+    let (Some(first), Some(module)) = (first, module) else { return Ok((case_class, Vec::new())) };
+    let class = l.u.module_class(module).unwrap_or(module);
+    let mut getters = Vec::new();
+    for n in first..accessors.len() {
+        let name = format!("<init>$default${}", n + 1);
+        let getter = l.u.decl(class, &name).unwrap_or_default().into_iter().next();
+        let info = getter.map(|g| l.u.info(g));
+        let plain =
+            info.is_some_and(|i| !matches!(l.u.types().get(i), Type::Poly { .. } | Type::Method { .. }));
+        let Some(g) = getter.filter(|_| plain) else {
+            return unsupported(
+                Span::NONE,
+                "fromProduct of @unroll parameters without plain default getters",
+            );
         };
-        None
-    });
-    found
-}
-
-/// The element type `T` of repeated parameter type `<repeated>[T]`.
-fn repeated_elem(l: &mut Lower, t: TypeId) -> Option<TypeId> {
-    let Type::Applied(c, args) = l.u.types().get(t).clone() else { return None };
-    let class = l.u.class_symbol(c)?;
-    (args.len() == 1 && l.u.full_name(class) == "scala.<repeated>").then(|| args[0])
+        getters.push(g);
+    }
+    Ok((module, getters))
 }
 
 impl Lower<'_> {

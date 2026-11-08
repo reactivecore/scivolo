@@ -65,7 +65,7 @@ impl Typer<'_> {
     }
 
     /// The owner of the method typed call `call` calls.
-    fn called_owner(&self, call: TNodeId) -> Option<SymbolId> {
+    pub fn called_owner(&self, call: TNodeId) -> Option<SymbolId> {
         self.u.symbol(self.tpd.sym(self.tpd.meth_part(call))?).owner
     }
 
@@ -99,6 +99,9 @@ impl Typer<'_> {
             kind && self.u.symbol(s).flags.has(tasty::tags::MUTABLE)
         });
         let Some(var) = var else {
+            if let Some(call) = self.extension_setter_call(id, (lhs, lhs_tree), rhs, ctx) {
+                return call;
+            }
             if let Tree::Select { qualifier, name } = *self.ast.tree(lhs_tree)
                 && matches!(self.ast.tree(qualifier), Tree::Ident { .. })
                 && !self.is_error(lhs)

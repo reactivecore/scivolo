@@ -131,7 +131,7 @@ impl Healer<'_> {
                 Some(u.intern_type(Type::TypeRef(tag, UNDERLYING.into())))
             }
             Type::Sym(..) | Type::TypeRef(..) => {
-                let aliased = u.referenced_alias(x).map(|a| self.healed(u, a));
+                let aliased = u.referenced_alias(x).filter(|&a| !u.is_match(a)).map(|a| self.healed(u, a));
                 if aliased.is_none()
                     && self.missing.is_none()
                     && let Some(defined) = self.defined

@@ -33,6 +33,19 @@ impl Typer<'_> {
             && !(sym.kind == Kind::Param && sym.flags.has(tasty::tags::INLINE))
     }
 
+    /// `t` widened and dealiased until neither changes it (dotty's `widenDealias`).
+    pub fn widen_dealias(&mut self, mut t: TypeId) -> TypeId {
+        for _ in 0..64 {
+            let widened = self.u.widen(t);
+            let next = self.u.dealias(widened);
+            if next == t {
+                break;
+            }
+            t = next;
+        }
+        t
+    }
+
     /// `t` widened while it is a by-name type or a reference to an unstable term (dotty's
     /// `widenIfUnstable`).
     pub fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {

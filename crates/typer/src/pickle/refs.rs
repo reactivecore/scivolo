@@ -4,6 +4,7 @@
 
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
+use crate::tpd::TNodeId;
 use tasty::tags::*;
 use tasty::write::Name;
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
@@ -108,6 +109,20 @@ impl TreePickler<'_> {
             self.ty(class, false)?;
         }
         Ok(flags.without(PROTECTED).without(PRIVATE))
+    }
+
+    /// Records the parameters of method `m` of clauses `clauses` by the binders of its type.
+    pub fn method_params(&mut self, m: SymbolId, clauses: &[Vec<TNodeId>]) {
+        let mut t = self.u.info(m);
+        for clause in clauses {
+            let (Type::Poly { binder, result, .. } | Type::Method { binder, result, .. }) =
+                *self.u.types().get(t)
+            else {
+                return;
+            };
+            self.method_binders.insert(binder, clause.iter().filter_map(|&p| self.tpd.sym(p)).collect());
+            t = result;
+        }
     }
 
     /// A reference without a prefix to a definition of the quote, by its address.

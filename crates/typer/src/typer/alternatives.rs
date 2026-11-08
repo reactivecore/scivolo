@@ -36,7 +36,7 @@ impl Typer<'_> {
             return self.parameterless_alternative(syms, prefix, pt);
         }
         let Pt::Fun(proto) = pt else { return Err("overloaded reference") };
-        let mut methods = Vec::new();
+        let (mut methods, mut values) = (Vec::new(), Vec::new());
         for &s in syms {
             self.complete(s);
             if self.u.symbol(s).kind == Kind::Def {
@@ -45,8 +45,17 @@ impl Typer<'_> {
             }
             let value = self.ref_type(prefix, s);
             if !self.type_members(value, "apply").is_empty() {
-                return Err("overloaded value with an apply method");
+                values.push(s);
             }
+        }
+        match values[..] {
+            [] => {}
+            [v] => {
+                if let Some(v) = self.applied_value(v, &methods, prefix, proto)? {
+                    return Ok(v);
+                }
+            }
+            _ => return Err("overloaded value with an apply method"),
         }
         if let [s] = methods[..] {
             return Ok(s);

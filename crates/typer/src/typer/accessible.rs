@@ -25,7 +25,8 @@ impl Typer<'_> {
             return false;
         }
         match prefix.map(|p| self.u.types().get(p)) {
-            None | Some(Type::This(_) | Type::Super(..)) => self.enclosing_sub_class(sym, ctx).is_some(),
+            Some(Type::This(_)) => true,
+            None | Some(Type::Super(..)) => self.enclosing_sub_class(sym, ctx).is_some(),
             Some(_) => self.is_protected_access_ok(sym, prefix, ctx),
         }
     }

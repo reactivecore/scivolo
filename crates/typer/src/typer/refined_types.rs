@@ -86,6 +86,34 @@ impl Typer<'_> {
         self.tpd.node(T::RefinedTypeTree { tpt: parent, refinements }, span, Some(tpe), None)
     }
 
+    /// The selection of type `name` from `qual` of type `pre` by a refinement: if `pre` has no
+    /// member `name` (`syms`) and was not `widened`, else a `NotAMember` error or a refusal; if
+    /// all of `syms` are private and inaccessible from `ctx`, if a refinement has it (dotty's
+    /// `findMember` excluding private members of the parent); `None` otherwise.
+    pub fn refined_member(
+        &mut self,
+        id: NodeId,
+        (qual, pre): (TNodeId, TypeId),
+        name: TName,
+        (syms, widened): (&[tasty::SymbolId], bool),
+        ctx: Ctx,
+    ) -> Option<TNodeId> {
+        if !name.is_type {
+            return None;
+        }
+        if syms.is_empty() {
+            let refined = (!widened).then(|| self.refined_select(id, qual, pre, name))?;
+            return Some(refined.unwrap_or_else(|| self.member_not_found(id, qual, name, ctx)));
+        }
+        let private = |t: &mut Self, s| {
+            t.u.symbol(s).flags.has(tasty::tags::PRIVATE) && !t.is_accessible_from(s, Some(pre), ctx)
+        };
+        if !syms.iter().all(|&s| private(self, s)) {
+            return None;
+        }
+        self.refined_select(id, qual, pre, name)
+    }
+
     /// `qual.name` for a type member only a refinement of `qual`'s path type `pre` has (one of
     /// a library's refined types: `MirroredElemTypes` of a `Mirror.Of[T]`); `None` otherwise.
     pub fn refined_select(&mut self, id: NodeId, qual: TNodeId, pre: TypeId, name: TName) -> Option<TNodeId> {
@@ -147,7 +175,8 @@ impl Typer<'_> {
         }
         let narrows = terms.into_iter().any(|m| {
             let seen = self.u.member_info(parent, m);
-            self.u.narrowing_refinement(refined, m, seen).is_some()
+            self.u.term_refinement_named(refined, name) == Some(seen)
+                || self.u.narrowing_refinement(refined, m, seen).is_some()
         });
         narrows.then_some(()).ok_or("structural refinement unlike its existing member")
     }

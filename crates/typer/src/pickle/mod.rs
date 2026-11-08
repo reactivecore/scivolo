@@ -77,6 +77,10 @@ pub struct TreePickler<'a> {
     /// The name of each super accessor, and the class and name of those pickled.
     accessor_names: FxHashMap<SymbolId, Name>,
     accessors: Accessors,
+    /// The type tree pickled now and the annotations its type has pickled: the tree ids of their
+    /// `Apply` and `New`, and the type tree.
+    type_tree: Option<TNodeId>,
+    annots: Vec<(u32, u32, TNodeId)>,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -134,6 +138,8 @@ fn pickle<'a>(
         super_calls: FxHashMap::default(),
         accessor_names: FxHashMap::default(),
         accessors: Vec::new(),
+        type_tree: None,
+        annots: Vec::new(),
     };
     p.tree(root)?;
     if !p.forward.is_empty() {

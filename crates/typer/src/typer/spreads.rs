@@ -17,9 +17,9 @@ const PRIMITIVE: [&str; 9] = ["Byte", "Short", "Char", "Int", "Long", "Float", "
 
 impl Typer<'_> {
     /// Sequence argument `a` among others passed to a repeated parameter of element type `elem`:
-    /// `spread[elem](xs)`.
-    pub fn spread_arg(&mut self, a: NodeId, elem: TypeId, ctx: Ctx) -> TNodeId {
-        let typed = self.sequence_arg(a, Some(elem), ctx);
+    /// `spread[elem](xs)`, of `pre` if overload resolution typed it.
+    pub fn spread_arg(&mut self, a: NodeId, pre: Option<TNodeId>, elem: TypeId, ctx: Ctx) -> TNodeId {
+        let typed = self.pretyped_sequence_arg(a, pre, elem, ctx);
         let T::Typed { expr, .. } = *self.tpd.tree(typed) else { return typed };
         let spread = crate::special::spread_method(self.u);
         let span = self.tpd.span(expr);

@@ -23,8 +23,9 @@ impl Typer<'_> {
             return tree;
         }
         let span = self.tpd.span(tree);
-        let type_member = matches!(*self.u.types().get(tpe),
-            Type::Sym(_, s) if self.u.is_type_symbol(s) && !self.u.is_class(s));
+        let parent = ctx.mode.is(Mode::PARENT_TYPE);
+        let type_member = matches!(*self.u.types().get(tpe), Type::Sym(_, s) if self.u.is_type_symbol(s)
+            && (!self.u.is_class(s) || parent && self.is_pending_plain_class(s)));
         let info = if type_member { None } else { self.method_info(tpe) };
         let method = info.or(Some(tpe)).map(|i| self.u.types().get(i).clone());
         if let Some(Type::Poly { .. }) = method {
@@ -99,7 +100,7 @@ impl Typer<'_> {
                 let tpt = self.type_tree(pt, span.end_pos(), true);
                 return self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(pt), None);
             }
-            return self.gadt_adapted(tree, pt, ctx);
+            return self.gadt_adapted_in(tree, pt, ctx);
         }
         if let Some(converted) = self.converted_constant(tree, pt) {
             return self.adapt(converted, Pt::Type(pt), ctx);
@@ -132,6 +133,9 @@ impl Typer<'_> {
         match self.converted(tree, Goal::Conform(pt), ctx) {
             Ok(Some(converted)) => converted,
             Ok(None) if self.defined_further(tpe, pt) => tree,
+            Ok(None) if let Some(defined) = self.defined_fail_bottom(pt) => {
+                self.adapt(tree, Pt::Type(defined), ctx)
+            }
             Ok(None) => self.type_mismatch(tree, pt, ctx).unwrap_or_else(|| {
                 self.unsupported_at(span, "adaptation");
                 tree

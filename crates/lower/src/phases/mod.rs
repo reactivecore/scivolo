@@ -24,6 +24,7 @@ pub(crate) mod casts;
 mod class_calls;
 mod closures;
 mod companion_order;
+mod constructor_instance;
 mod constructors;
 mod context_bridges;
 mod context_library;
