@@ -96,8 +96,9 @@ pub fn private_method(l: &mut Lower, class: SymbolId, name: &str) -> (SymbolId, 
     (sym, any_ref)
 }
 
-/// The member synthetic member `m` of a class compiled in the same run overrides: what dotty's
-/// typer selects before `SyntheticMembers` adds `m`.
+/// The member synthetic member `m` of a class compiled in the same run overrides, the first
+/// concrete one in linearization order, else the first: what dotty's typer selects before
+/// `SyntheticMembers` adds `m`.
 pub fn before_synthesized(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     const SYNTHESIZED: [&str; 9] = [
         "hashCode",
@@ -118,14 +119,18 @@ pub fn before_synthesized(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let name = s.name.clone();
     let site = l.u.intern_type(Type::Sym(None, owner));
     let site = l.u.intern_type(Type::This(site));
+    let mut deferred = None;
     for base in l.u.linearization(owner).into_iter().skip(1) {
         for other in l.u.decl(base, &name).unwrap_or_default() {
             if l.u.symbol(other).kind == Kind::Def && l.u.info_matches(site, m, other) {
-                return Some(other);
+                if !crate::codegen::forwarded_members::is_deferred(l, other) {
+                    return Some(other);
+                }
+                deferred = deferred.or(Some(other));
             }
         }
     }
-    None
+    deferred
 }
 
 /// Whether `class` has a member `name(): AnyRef`, `writeReplace` or `readResolve`.
