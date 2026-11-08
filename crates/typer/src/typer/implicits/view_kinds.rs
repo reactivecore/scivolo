@@ -54,7 +54,7 @@ impl Typer<'_> {
         }
         let to = match goal {
             Goal::Conform(pt) => pt,
-            Goal::Member(_) => self.u.intern_type(Type::Wildcard(None)),
+            Goal::Member(_) | Goal::Call(..) => self.u.intern_type(Type::Wildcard(None)),
         };
         let function = self.function_class(1).ok_or("Function1")?;
         let expected = self.u.intern_type(Type::Applied(function, vec![self.tpd.tpe(tree), to]));

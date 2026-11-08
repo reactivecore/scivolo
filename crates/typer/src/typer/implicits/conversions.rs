@@ -17,6 +17,8 @@ use tasty::{Binding, Type, TypeId};
 pub enum Goal<'a> {
     Conform(TypeId),
     Member(&'a str),
+    /// A member applied to the arguments of a `FunProto`, by its index in `Typer::protos`.
+    Call(&'a str, usize),
 }
 
 /// What a view search found: a converted tree, or an implicit value with the extension method a
@@ -56,7 +58,7 @@ impl Typer<'_> {
         }
         let contextual = self.contextual_implicits(ctx, &mut |t, c| {
             t.view_kind(c) != ViewKind::None
-                || matches!(goal, Goal::Member(name) if t.offers_extension(c, name).unwrap_or(false))
+                || goal.member().is_some_and(|name| t.offers_extension(c, name).unwrap_or(false))
         })?;
         let levels = contextual.len();
         let mut contextual = contextual.into_iter();
@@ -72,7 +74,12 @@ impl Typer<'_> {
                 widened = self.fitting(&group, |t, c| t.try_conversion(c, (tree, true), goal, ctx))?;
                 widened.retain(|c| !found.contains(c));
             }
-            if let Goal::Member(name) = goal {
+            if let Goal::Call(name, proto) = goal
+                && found.len() > 1
+            {
+                found = self.applying(found, tree, (name, proto), ctx);
+            }
+            if let Some(name) = goal.member() {
                 let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();
                 group.extend(extra);
                 if let Some(c) = self.extension_container(&group, tree, name, ctx)? {
@@ -166,12 +173,12 @@ impl Typer<'_> {
         let pt = match goal {
             Goal::Conform(pt) if self.conforms(result, pt) => Pt::Type(pt),
             Goal::Conform(_) => return Err("conversion to another type"),
-            Goal::Member(_) => Pt::Any,
+            Goal::Member(_) | Goal::Call(..) => Pt::Any,
         };
         self.interpolate(converted, pt, from)?;
         let result = self.zonk(result);
         self.tpd.get_mut(converted).tpe = Some(result);
-        if let Goal::Member(name) = goal
+        if let Some(name) = goal.member()
             && !self.type_members(result, name).iter().any(|&m| !self.u.symbol(m).flags.has(PRIVATE))
         {
             return Err("conversion to another type");

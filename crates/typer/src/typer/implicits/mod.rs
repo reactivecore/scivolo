@@ -5,6 +5,7 @@ mod alt_types;
 mod anon_mirrors;
 mod as_good;
 mod attempts;
+mod call_views;
 mod can_equal;
 mod candidates;
 mod capture;

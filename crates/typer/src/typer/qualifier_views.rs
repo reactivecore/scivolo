@@ -130,7 +130,7 @@ impl Typer<'_> {
     }
 
     /// Whether a member `name` of `q` applies to arguments of types `args`.
-    fn member_applies(&mut self, q: TNodeId, name: &str, args: &[TypeId], ctx: Ctx) -> bool {
+    pub fn member_applies(&mut self, q: TNodeId, name: &str, args: &[TypeId], ctx: Ctx) -> bool {
         let tpe = self.tpd.tpe(q);
         let members = self.type_members(tpe, name);
         let (applies, _, _) = self.speculatively(|t| {
@@ -167,7 +167,7 @@ impl Typer<'_> {
         self.try_conversion(c, (qual, false), Goal::Member(name), ctx).ok()
     }
 
-    fn is_plain_arg(&self, a: NodeId) -> bool {
+    pub fn is_plain_arg(&self, a: NodeId) -> bool {
         match *self.ast.tree(a) {
             Tree::Literal { .. } | Tree::Number { .. } | Tree::Ident { .. } => true,
             Tree::Select { qualifier, .. } => self.is_plain_arg(qualifier),
