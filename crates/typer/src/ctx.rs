@@ -179,4 +179,8 @@ impl Ctx {
     pub fn with_mode(self, mode: Mode) -> Ctx {
         Ctx { mode, ..self }
     }
+
+    pub fn adding(self, mode: Mode) -> Ctx {
+        Ctx { mode: self.mode.with(mode), ..self }
+    }
 }
