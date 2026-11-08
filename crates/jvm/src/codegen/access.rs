@@ -75,6 +75,9 @@ impl Gen<'_, '_> {
             None => match prefix {
                 Some(c) if self.l.u.is_module_class(c) => _ = self.load_module(b, c, span)?,
                 Some(c) if b.this_class.as_deref() == Some(&self.class_name(c)) => _ = self.load_this(b),
+                Some(c) if (b.this_class.is_some() || b.module.is_some()) && self.in_subclass_of(b, c) => {
+                    _ = self.load_this(b)
+                }
                 _ => return unsupported(span, "a member of an enclosing instance on the JVM"),
             },
         }

@@ -46,7 +46,7 @@ impl Gen<'_, '_> {
     }
 
     pub fn kind_of(&mut self, t: TNodeId) -> char {
-        kind(&self.l.u.erase(self.l.tpd.tpe(t)))
+        kind(&lower::erased_type(self.l, t))
     }
 
     /// Loads `t` converted to kind `to`.
@@ -66,6 +66,9 @@ impl Gen<'_, '_> {
     /// Call `t` of a primitive operation; `None` for another call.
     pub fn primitive(&mut self, b: &mut Body, t: TNodeId) -> Result<Option<i32>> {
         let Some((name, receiver, args)) = self.primitive_call(t) else { return Ok(None) };
+        if self.is_concat(t) {
+            return Ok(None);
+        }
         let result = self.desc_of(t);
         let to = result.as_bytes()[0];
         let k = |c: u8| u8::from(c == b'J') + 2 * u8::from(c == b'F') + 3 * u8::from(c == b'D');

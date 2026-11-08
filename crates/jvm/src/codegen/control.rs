@@ -16,15 +16,21 @@ impl Gen<'_, '_> {
         descriptor(&self.l.u.erase(tpe))
     }
 
-    /// Generates `t` leaving `slots` slots: a value dropped, none for a tree that does not
-    /// fall through.
+    /// Generates `t` leaving `slots` slots: a value dropped, a `BoxedUnit` for none, as many as
+    /// asked for a tree that does not fall through or is of type `Nothing`.
     pub fn expr_as(&mut self, b: &mut Body, t: TNodeId, slots: i32) -> Result<()> {
+        let depth = b.code.stack();
         let got = self.expr(b, t)?;
         match got - slots {
             0 => {}
-            d if !b.code.live() => b.code.set_stack(b.code.stack() - d),
+            _ if !b.code.live() => b.code.set_stack(depth + slots),
             1 if slots == 0 => b.code.insn(0x57),
             2 if slots == 0 => b.code.insn(0x58),
+            -1 if got == 0 => {
+                let unit = "scala/runtime/BoxedUnit";
+                b.code.field(classfile::FieldOp::GetStatic, b.pool, unit, "UNIT", &format!("L{unit};"));
+            }
+            _ if self.desc_of(t) == "Lscala/runtime/Nothing$;" => b.code.set_stack(depth + slots),
             _ => return unsupported(self.l.tpd.span(t), "a value of another size than its context's"),
         }
         Ok(())
@@ -105,6 +111,7 @@ impl Gen<'_, '_> {
         if is_unit(self.l.tpd.tree(elsep)) && slots == 0 {
             self.expr_as(b, thenp, slots)?;
             b.code.place(failure);
+            b.code.set_stack(depth);
             return Ok(0);
         }
         self.expr_to(b, thenp, slots, Dest::Jump(after))?;

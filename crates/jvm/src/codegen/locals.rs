@@ -39,11 +39,14 @@ impl Gen<'_, '_> {
         self.expr_ret(b, expr, result)
     }
 
-    /// Local definition `t` with value `rhs`.
+    /// Local definition `t` with value `rhs`, a `BoxedUnit` for a `Unit` local.
     pub fn gen_val_def(&mut self, b: &mut Body, t: TNodeId, rhs: Option<TNodeId>) -> Result<i32> {
         let sym = self.l.tpd.sym(t).expect("a local's symbol");
         let info = self.l.u.info(sym);
-        let desc = descriptor(&self.l.u.erase(info));
+        let desc = match self.l.u.erase(info) {
+            tasty::Erased::Unit => "Lscala/runtime/BoxedUnit;".to_owned(),
+            e => descriptor(&e),
+        };
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(t), "a local without a value") };
         let slot = b.local(sym, desc.clone());
         self.expr_as(b, rhs, classfile::value_slots(&desc))?;

@@ -17,13 +17,16 @@ impl Code {
         }
     }
 
-    /// The body of the `LineNumberTable` attribute, none without lines.
+    /// The body of the `LineNumberTable` attribute without marks after the last instruction, none
+    /// without lines.
     pub fn line_table(&self) -> Option<Vec<u8>> {
-        if self.lines.is_empty() {
+        let len = self.bytes.len();
+        let lines: Vec<_> = self.lines.iter().filter(|l| usize::from(l.0) < len).collect();
+        if lines.is_empty() {
             return None;
         }
-        let mut out = (self.lines.len() as u16).to_be_bytes().to_vec();
-        for &(pc, line) in &self.lines {
+        let mut out = (lines.len() as u16).to_be_bytes().to_vec();
+        for &&(pc, line) in &lines {
             out.extend(pc.to_be_bytes());
             out.extend(line.to_be_bytes());
         }

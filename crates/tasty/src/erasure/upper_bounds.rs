@@ -8,13 +8,14 @@ use crate::{Binder, Universe};
 
 impl Universe {
     /// `t` with its type parameters replaced by their upper bounds, given the bounds of the
-    /// parameters of each polymorphic type; within `t`, only those bounded by a class or a type
-    /// lambda, whose application is reduced until its constructor is no such parameter.
+    /// parameters of each polymorphic type; within `t` and those bounds, only those bounded by a
+    /// class or a type lambda, whose application is reduced until its constructor is no such
+    /// parameter.
     pub fn upper_bound(&mut self, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
         self.upper_bound_except(t, bounds, &[])
     }
 
-    /// `upper_bound` that does not reduce applications of the parameters in `reduced`.
+    /// `upper_bound` that does not replace the parameters in `reduced` nor reduce their applications.
     fn upper_bound_except(
         &mut self,
         t: TypeId,
@@ -24,10 +25,11 @@ impl Universe {
         let bound =
             |b: Binder, i: u32| bounds.iter().find(|(binder, _)| *binder == b)?.1.get(i as usize).copied();
         let mut t = self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
-            Type::Param(b, i) => {
-                let bounds = bound(b, i)?;
-                let Type::Bounds(_, hi) = *u.types().get(bounds) else { return None };
-                (!u.is_generic(bounds)).then_some(hi)
+            Type::Param(b, i) if !reduced.contains(&(b, i)) => {
+                let param_bounds = bound(b, i)?;
+                let Type::Bounds(_, hi) = *u.types().get(param_bounds) else { return None };
+                let seen = [reduced, &[(b, i)]].concat();
+                (!u.is_generic(param_bounds)).then(|| u.upper_bound_except(hi, bounds, &seen))
             }
             Type::Applied(..) => {
                 let (mut applied, mut seen) = (x, reduced.to_vec());

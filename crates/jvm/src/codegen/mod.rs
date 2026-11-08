@@ -137,12 +137,13 @@ fn method_descriptor(u: &mut Universe, m: SymbolId) -> String {
     format!("({params}){}", descriptor(&result))
 }
 
-/// The name of method `m` in class files.
+/// The name of method `m` in class files: its `@targetName`, else its name.
 fn method_name(u: &Universe, m: SymbolId) -> String {
+    let sym = u.symbol(m);
     match u.is_constructor(m) {
-        true if u.symbol(m).owner.is_some_and(|o| u.is_trait(o)) => "$init$".into(),
+        true if sym.owner.is_some_and(|o| u.is_trait(o)) => "$init$".into(),
         true => "<init>".into(),
-        false => tasty::encode(&u.symbol(m).name),
+        false => tasty::encode(sym.target.as_deref().unwrap_or(&sym.name)),
     }
 }
 

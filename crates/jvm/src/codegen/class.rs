@@ -51,6 +51,7 @@ impl Gen<'_, '_> {
                     let mutable = self.l.u.symbol(s).flags.has(MUTABLE);
                     let volatile = if self.l.var_handle(s).is_some() { ACC_VOLATILE } else { 0 };
                     let flags = java_flags(self.l, s) | if mutable { volatile } else { ACC_FINAL };
+                    let flags = flags | self.annotated_field_flags(s);
                     cf.field(flags, &tasty::encode(&name), &desc);
                     if let Some(sig) = self.generic_signature(s, &desc) {
                         cf.member_signature(Last::Field, &sig);

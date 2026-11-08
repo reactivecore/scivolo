@@ -90,10 +90,14 @@ impl Gen<'_, '_> {
         let from = self.desc_of(qualifier);
         let to = descriptor(&tested);
         let reference = |d: &str| d.starts_with('L') || d.starts_with('[');
-        self.expr(b, qualifier)?;
-        let class_or_array = matches!(tested, tasty::Erased::Class(_) | tasty::Erased::Array(_));
-        if !reference(&from) || !reference(&to) || !class_or_array {
-            return unsupported(span, "type tests and casts of primitive values");
+        use tasty::Erased::{Array, Class, Nothing, Null};
+        let class_or_array = matches!(tested, Class(_) | Array(_) | Nothing | Null);
+        if !reference(&to) || !class_or_array {
+            return unsupported(span, "type tests and casts to primitive types");
+        }
+        match reference(&from) {
+            true => _ = self.expr(b, qualifier)?,
+            false => self.box_value(b, qualifier)?,
         }
         match self.l.u.symbol(m).name.as_str() {
             "isInstanceOf" => b.code.instance_of(b.pool, &class_internal(&tested)),

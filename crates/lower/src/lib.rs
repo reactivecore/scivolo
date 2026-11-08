@@ -357,6 +357,12 @@ impl<'a> Lower<'a> {
         self.var_handles.iter().find(|&(_, &h)| h == handle).map(|(&f, _)| f)
     }
 
+    /// The getter `Memoize` made field `field` for, or the accessor of the lazy value it holds.
+    pub fn field_getter(&self, field: SymbolId) -> Option<SymbolId> {
+        let getter = self.fields.get(&field).copied().filter(|&g| g != field);
+        getter.or_else(|| self.lazy_members.iter().find(|(_, m)| m.field == field).map(|(&a, _)| a))
+    }
+
     /// Whether `s` is the field `x$lzyN` or the flag `xbitmap$N` of a lazy value.
     pub fn is_lazy_storage(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);

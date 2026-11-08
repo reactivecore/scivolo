@@ -31,6 +31,7 @@ pub const ACC_INTERFACE: u16 = 0x0200;
 pub const ACC_ABSTRACT: u16 = 0x0400;
 pub const ACC_BRIDGE: u16 = 0x0040;
 pub const ACC_VOLATILE: u16 = 0x0040;
+pub const ACC_TRANSIENT: u16 = 0x0080;
 pub const ACC_VARARGS: u16 = 0x0080;
 pub const ACC_NATIVE: u16 = 0x0100;
 pub const ACC_SYNTHETIC: u16 = 0x1000;

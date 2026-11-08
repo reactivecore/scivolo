@@ -163,8 +163,8 @@ pub fn has_extension(l: &mut Lower, m: SymbolId) -> bool {
 }
 
 /// The extension method `m$extension` of method `m` of a value class, in the companion object's
-/// class: of type `($this: C)` then `m`'s, inside `m`'s type parameters; entered once per method,
-/// so overloads get their own.
+/// class: of type `($this: C)` then `m`'s, inside `m`'s type parameters, with `m`'s `@targetName`;
+/// entered once per method, so overloads get their own.
 pub fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let class = l.u.symbol(m).owner?;
     let info = l.u.info(m);
@@ -179,6 +179,9 @@ pub fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
         false => Flags::default().with(FINAL),
     };
     let sym = l.u.define(symbol(&name, Kind::Def, module_class, flags));
+    if let Some(target) = l.u.symbol(m).target.clone() {
+        l.u.set_target(sym, &target);
+    }
     l.extensions.insert(m, sym);
     let this = type_ref(l.u, class);
     let binder = l.u.fresh_binder();

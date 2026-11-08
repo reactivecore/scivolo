@@ -76,7 +76,7 @@ impl Gen<'_, '_> {
         for c in companion.map(|c| self.l.u.linearization(c)).unwrap_or_default() {
             for m in self.l.u.decls(c).unwrap_or_default() {
                 if self.l.u.symbol(m).kind.is_term() {
-                    conflicting.insert(self.l.u.symbol(m).name.clone());
+                    conflicting.insert(method_name(self.l.u, m));
                 }
             }
         }
@@ -99,7 +99,7 @@ impl Gen<'_, '_> {
                 if self.l.is_bridge(m) && !self.overrides_concrete(c, &name, &desc) {
                     continue;
                 }
-                if !conflicting.contains(&self.l.u.symbol(m).name) {
+                if !conflicting.contains(&name) {
                     let synthetic = self.l.is_bridge(m) || name.contains("$_setter_$");
                     out.push((name, desc, synthetic, m));
                 }

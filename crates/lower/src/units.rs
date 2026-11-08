@@ -12,7 +12,8 @@ use tasty::Universe;
 use typer::Fallback;
 use typer::inlining::Macros;
 
-/// The NIR files and warnings of `files` under settings `cfg`, typed together so that each sees
+/// The NIR files and warnings of `files` under settings `cfg`, those of a single file's language
+/// imports added, typed together so that each sees
 /// the definitions of all, their macro calls expanded through `macros`, or why they take the JVM
 /// frontend; the warnings' offsets are those of `Sources::new(files)`.
 pub fn compile_sources(
@@ -28,7 +29,7 @@ pub fn compile_sources(
 pub fn compile_units<R>(
     u: &mut Universe,
     files: &[SourceFile],
-    cfg: Config,
+    mut cfg: Config,
     macros: Option<&mut dyn Macros>,
     generate: (crate::Backend, impl FnOnce(&mut crate::Lower, typer::tpd::TNodeId) -> crate::Result<R>),
 ) -> Result<(R, Diagnostics), Refusal> {
@@ -51,7 +52,9 @@ pub fn compile_units<R>(
             return Err(refusal(&what, &p.s.diags, &Sources::one(source)));
         }
         // Temporary until #115 (settings per file): a unit is typed with one `Config`.
-        if file_cfg != cfg {
+        if files.len() == 1 {
+            cfg = file_cfg;
+        } else if file_cfg != cfg {
             return Err(refused(format!("{}: language imports in a unit of several files", source.name)));
         }
         p.fresh.uniques.shift(base);

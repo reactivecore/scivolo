@@ -51,6 +51,41 @@ impl Gen<'_, '_> {
         1
     }
 
+    /// Loads `t`, of a value class's underlying type, a primitive type or `Unit`, boxed: in an
+    /// instance of the value class, through `BoxesRunTime`, or as `BoxedUnit.UNIT`.
+    pub fn box_value(&mut self, b: &mut Body, t: TNodeId) -> Result<()> {
+        let erased = lower::erased_type(self.l, t);
+        let class = match erased {
+            Erased::Value(ref name, _) => {
+                let tpe = self.l.u.class_ref(name);
+                self.l.u.value_class(tpe)
+            }
+            _ => None,
+        };
+        let Some(c) = class else {
+            let letter = match erased {
+                Erased::Prim(c) => c,
+                _ => {
+                    self.expr_as(b, t, 1)?;
+                    return Ok(());
+                }
+            };
+            self.expr(b, t)?;
+            let i = "zcbsijfd".find(letter).expect("a primitive letter");
+            let class = ["Boolean", "Character", "Byte", "Short", "Integer", "Long", "Float", "Double"][i];
+            let d = format!("({})Ljava/lang/{class};", &"ZCBSIJFD"[i..=i]);
+            b.code.invoke(Invoke::Static, b.pool, "scala/runtime/BoxesRunTime", &format!("boxTo{class}"), &d);
+            return Ok(());
+        };
+        let name = self.class_name(c);
+        b.code.new_object(b.pool, &name);
+        b.code.dup();
+        self.expr(b, t)?;
+        let desc = format!("({})V", self.desc_of(t));
+        b.code.invoke(Invoke::Special, b.pool, &name, "<init>", &desc);
+        Ok(())
+    }
+
     /// A call of a primitive's `box` or `unbox` with `args`, through `BoxesRunTime`; `None` for
     /// another method.
     pub fn boxing(&mut self, b: &mut Body, m: tasty::SymbolId, args: &[TNodeId]) -> Result<Option<i32>> {

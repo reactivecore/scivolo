@@ -107,6 +107,12 @@ impl Gen<'_, '_> {
             }
             Tree::This { .. } => self.load_this(b),
             Tree::Ident { .. } | Tree::Select { .. }
+                if sym.is_some_and(|s| self.l.u.is_module(s) && !self.l.u.is_static_symbol(s)) =>
+            {
+                let no_args = self.l.tpd.list(&[]);
+                self.apply(b, t, no_args)?
+            }
+            Tree::Ident { .. } | Tree::Select { .. }
                 if let Some(s) = sym.filter(|&s| self.l.u.is_module(s)) =>
             {
                 let class = self.l.u.module_class(s).expect("an object's class");
@@ -117,6 +123,7 @@ impl Gen<'_, '_> {
             {
                 let desc = desc.clone();
                 b.code.load(&desc, slot);
+                super::callee::adapt_phantom(b, &desc);
                 classfile::value_slots(&desc)
             }
             Tree::Select { qualifier, .. } if let Some(f) = sym.filter(|&s| !self.is_method(s)) => {

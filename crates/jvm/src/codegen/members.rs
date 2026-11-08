@@ -57,6 +57,15 @@ impl Gen<'_, '_> {
         Ok(())
     }
 
+    /// `ACC_TRANSIENT` and `ACC_VOLATILE` of field `field` annotated `@transient` and `@volatile`,
+    /// or of its getter.
+    pub fn annotated_field_flags(&mut self, field: SymbolId) -> u16 {
+        let holders = [Some(field), self.l.field_getter(field)];
+        let mut annotated = |full| holders.into_iter().flatten().any(|s| self.l.u.is_annotated(s, full));
+        let transient = if annotated("scala.transient") { classfile::ACC_TRANSIENT } else { 0 };
+        transient | if annotated("scala.volatile") { classfile::ACC_VOLATILE } else { 0 }
+    }
+
     /// The generic signature of member `sym` of descriptor `desc` (dotty's `getGenericSignature`
     /// with `Mixin`'s `mixinGenericInfos`): none for an accessor of a private trait value, nor for
     /// a mixin forwarder whose signature does not erase to `desc`.

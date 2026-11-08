@@ -77,6 +77,7 @@ impl Code {
     /// fall through.
     pub fn set_stack(&mut self, slots: i32) {
         self.stack = slots;
+        self.max_stack = self.max_stack.max(u16::try_from(slots).unwrap_or(0));
     }
 
     /// Whether the code after the last instruction is reached by falling through it.

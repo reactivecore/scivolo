@@ -93,14 +93,20 @@ impl Gen<'_, '_> {
     fn universe_hierarchy(&mut self, c: SymbolId, name: &str) -> Hierarchy {
         let parents: Vec<SymbolId> =
             self.l.u.parents(c).into_iter().filter_map(|p| self.l.u.class_symbol(p)).collect();
+        let tuple = |g: &mut Self, p| g.l.u.binary_name(p) == "scala.*:";
         let (traits, classes): (Vec<SymbolId>, Vec<SymbolId>) =
-            parents.into_iter().partition(|&p| self.l.u.is_trait(p));
+            parents.into_iter().partition(|&p| self.l.u.is_trait(p) || tuple(self, p));
         let superclass = classes.first().map(|&p| self.class_name(p));
         let superclass = superclass.map(|s| if s == "scala/AnyVal" { OBJECT.into() } else { s });
+        let interfaces = traits.into_iter().map(|t| match tuple(self, t) {
+            true => "scala/Product".to_owned(),
+            false => self.class_name(t),
+        });
+        let interfaces = interfaces.collect();
         Hierarchy {
             interface: self.l.u.is_trait(c),
             superclass: superclass.or_else(|| Some(OBJECT.into())).filter(|_| name != OBJECT),
-            interfaces: traits.into_iter().map(|t| self.class_name(t)).collect(),
+            interfaces,
         }
     }
 
@@ -114,13 +120,17 @@ impl Gen<'_, '_> {
     }
 
     /// The class of internal name `internal` declared in `owner` as `rest`, nested classes
-    /// separated by `$` and object classes ending in it.
+    /// separated by `$` and object classes ending in it, each name as declared or decoded.
     fn member_class_named(&mut self, owner: SymbolId, rest: &str, internal: &str) -> Option<SymbolId> {
         let ends = rest.match_indices('$').map(|(i, _)| i).chain([rest.len()]);
         for end in ends.collect::<Vec<_>>() {
             let names = [(rest.get(..=end), end + 1), (Some(&rest[..end]), end + 1)];
             for (name, next) in names.into_iter().filter_map(|(n, next)| Some((n?, next))) {
-                for c in self.l.u.decl(owner, name).unwrap_or_default() {
+                let mut found = self.l.u.decl(owner, name).unwrap_or_default();
+                if found.is_empty() {
+                    found = self.l.u.decl(owner, &tasty::decode(name)).unwrap_or_default();
+                }
+                for c in found {
                     let found = match rest.get(next..).filter(|r| !r.is_empty()) {
                         _ if !self.l.u.is_class(c) => None,
                         Some(inner) => self.member_class_named(c, inner, internal),

@@ -240,6 +240,43 @@ Results (2026-11-06):
   typer and leaves the NIR unchanged, is not run (#168). Quotes under capture checking, whose
   TASTy would keep the annotations, are refused.
 
+### On the JVM
+
+```sh
+just dotty-jvm-report   # scivolo-jvm, then java -Xverify:all; jvm-report.md and jvm-results.tsv under tmp/dotty
+```
+
+Each test is compiled by `scivolo-jvm` (#142) and its `Test.main` called through reflection, as
+dotty's test runner calls it, on `java -Xverify:all`; its output is compared with dotty's `.check`
+file. Earlier compilation groups are compiled by scala-cli for the JVM. Skipped as in the VM's
+report, but for APIs Scala Native's javalib lacks. Failures are grouped by the refusal or the first
+exception line.
+
+Results (2026-11-08):
+
+| Outcome | Tests |
+|---|---:|
+| passed | 1496 |
+| wrong output | 0 |
+| verify error | 0 |
+| linkage error | 4 |
+| crashed | 4 |
+| timeout | 0 |
+| jvm refused | 20 |
+| lowering refused | 2 |
+| typer refused | 92 |
+| frontend crashed | 0 |
+| skipped | 91 |
+| **total** | **1709** |
+
+- **Typer refused:** mostly members not found (61): reflection and other JDK members of classes
+  javalib has without them (`Class.getDeclaredFields`).
+- **JVM refused:** `try` with values on the stack (7), super calls of class methods through a
+  trait (4), constructor calls on an initialized object (4), `@throws` (2).
+- **Linkage errors and crashes:** a missing lambda `$adapted` method (`context-functions`), a
+  missing bridge (`i18315`, `i23245b`), arrays of value classes (`Meter`, `MeterCaseClass`),
+  `ClassTag` of a `*:` tuple (`i22345`), `IArray[Unit]`'s erasure (`IArrayOps`).
+
 ### com-lihaoyi libraries from source
 
 `just lib-source NAME` compiles each file of a library on its own and compares its NIR with
