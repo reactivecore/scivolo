@@ -55,7 +55,7 @@ impl Typer<'_> {
                 let alias = self.u.intern_type(Type::Alias(result));
                 self.check_info(c, alias)
             }
-            Type::Alias(a) if self.is_match(a) => self.at_variance(c, 0, |t, c| t.check_upper(c, a)),
+            Type::Alias(a) if self.u.is_match(a) => self.at_variance(c, 0, |t, c| t.check_upper(c, a)),
             Type::Bounds(lo, hi) => {
                 self.at_variance(c, -1, |t, c| t.check_part(c, lo))?;
                 self.check_upper(c, hi)
@@ -65,15 +65,6 @@ impl Typer<'_> {
                 self.check_upper(c, a)
             }
             _ => Ok(()),
-        }
-    }
-
-    /// Whether `t` is a match type, or a type lambda over one (dotty's `isMatch`).
-    fn is_match(&self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
-            Type::Match { .. } => true,
-            Type::Lambda { result, .. } => self.is_match(result),
-            _ => false,
         }
     }
 
