@@ -7,8 +7,8 @@ Lowers each of the module's Scala 3 source directories as one unit, as lib-compi
 file, and writes tmp/lib/MODULE/<the published jar's name>: that NIR, the resources under
 src/main/resources/scala-native verbatim, the published jar's TASTy and a manifest as sbt writes
 it. scalalib's files are lowered one by one, as lib-compile.py does; its jar takes the NIR of the
-classes Scala Native's build takes from Scala 2.13 from the published jar, and that of the files
-the frontend refuses from lib-compile's oracle (listed in tmp/lib/scalalib/jar-taken.txt).
+classes Scala Native's build takes from Scala 2.13 from the published jar, and that of the classes
+not lowered here (the refused files') from lib-compile's oracle (listed in tmp/lib/scalalib/jar-taken.txt).
 Compares the jar's own NIR with lib-compile's oracle (diffs under tmp/lib/MODULE/jar-diffs) and
 its other entries with the published jar's, and prints one summary line.
 """
@@ -56,6 +56,7 @@ def lower_scalalib(stage):
     """Lowers each scalalib file on its own into `stage` but the classes of SPECIALIZED; returns
     the files refused and the NIR files written by more than one file."""
     units = lib.units("scalalib", "")
+    lib.link_scalalib_root(units[0][0])
     env = lib.ENV | {"SCIVOLO_LIBS": str(scalalib_sources.libs(lib.ORACLE_JARS))}
 
     def one(unit):
@@ -137,18 +138,20 @@ def main(module):
     other = {n: d for n, d in items if not n.endswith((".nir", ".tasty"))}
     upstream = [n for n in published.namelist() if not n.endswith((".nir", ".tasty", ".class", "/"))]
     same = sum(1 for n in upstream if other.get(n) == published.read(n))
+    names = {n for n, _ in items}
+    dropped = sum(1 for n in published.namelist() if n.endswith(".nir") and n not in names)
     print(f"{jar.relative_to(lib.ROOT)}: nir {counts['same']} same, {counts['differ']} differ, "
           f"{counts['var-order']} var-order, {counts['quote-pos']} quote-pos, "
-          f"{counts['missing']} missing from the oracle, {only} only in the oracle ({theirs.relative_to(lib.ROOT)}); "
-          f"other entries {same} of {len(upstream)} as published")
+          f"{counts['missing']} missing from the oracle, {only} only in the oracle ({theirs.relative_to(lib.ROOT)}), "
+          f"{dropped} only in the published jar; other entries {same} of {len(upstream)} as published")
     if module == "scalalib":
         specialized = sum(1 for n in taken if scalalib_sources.specialized(n))
         lines = [*(f"refused {r}\n" for r in sorted(refused)), *(f"twice {p}\n" for p in sorted(twice)),
                  *(f"taken {n}\n" for n in taken)]
         (lib.WORK / module / "jar-taken.txt").write_text("".join(lines))
         print(f"  {len(refused)} files refused, {len(twice)} NIR files written twice; taken: {specialized} NIR "
-              f"files of Scala 2.13's classes from the published jar, {len(taken) - specialized} of refused files "
-              f"from the oracle")
+              f"files of Scala 2.13's classes from the published jar, {len(taken) - specialized} only in the "
+              f"oracle (not lowered here) from the oracle")
 
 
 if __name__ == "__main__":
