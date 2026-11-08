@@ -7,7 +7,7 @@ use super::lift_names::fresh;
 use super::mirror_prefixes::new_seen_from;
 use super::mirrors::has_mirror_method;
 use crate::definitions::{symbol, type_ref};
-use crate::{Lower, Result};
+use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
@@ -41,10 +41,12 @@ pub fn from_product(
     }
     let flags = Flags::default().with(SYNTHETIC);
     let mut locals = Vec::new();
+    let accessors = case_accessors(l, case_class);
+    let (starts, getters) = unrolled(l, class, &accessors)?;
     let (method, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let mut defs = Vec::new();
         let mut refs = Vec::new();
-        for (i, accessor) in case_accessors(l, case_class).into_iter().enumerate() {
+        for (i, accessor) in accessors.iter().copied().enumerate() {
             let name = l.u.symbol(accessor).name.clone();
             let name = fresh(l, &name);
             let binding = l.u.define(symbol(&name, Kind::Val, class, Flags::default().with(SYNTHETIC)));
@@ -80,7 +82,32 @@ pub fn from_product(
         };
         l.tpd.get_mut(created).tpe = Some(tpe);
         let block = l.block(&defs, created, Span::NONE);
-        let block = l.positioned(block);
+        let mut block = l.positioned(block);
+        for &k in starts.iter().rev() {
+            let mut elems = Vec::new();
+            for (i, &accessor) in accessors[..k].iter().enumerate() {
+                let (product_ref, index) = (l.copy_ident(args[0]), l.int_literal(i as i32));
+                let element = l.call(product_ref, cc.product_element, &[index]);
+                let accessor_type = l.u.info(accessor);
+                elems.push(l.ensure_conforms(element, accessor_type));
+            }
+            for &g in &getters[k - starts[0]..] {
+                let this = l.this(class, Span::NONE);
+                let getter = l.select(this, g, Span::NONE);
+                elems.push(l.positioned(getter));
+            }
+            let new = new_seen_from(l, case_class, mono);
+            let created = l.call(new, ctor, &elems);
+            l.tpd.get_mut(created).tpe = Some(tpe);
+            let product_ref = l.copy_ident(args[0]);
+            let arity = l.select(product_ref, cc.product_arity, Span::NONE);
+            let arity = l.positioned(arity);
+            let k = l.int_literal(k as i32);
+            let cond = l.equal(arity, k);
+            let branch = Tree::If { cond, thenp: created, elsep: block, inline: false };
+            block = l.tpd.node(branch, Span::NONE, Some(tpe), None);
+            block = l.positioned(block);
+        }
         match mono {
             Some(m) => l.ensure_conforms(block, m),
             None => block,
@@ -91,6 +118,29 @@ pub fn from_product(
     }
     l.tpd.get_mut(def).span = Span::NONE;
     Ok(Some(l.with_span(def, focus)))
+}
+
+/// The indices of the `@unroll` parameters among case accessors `accessors`, and the default
+/// getters in companion `class` of the parameters from the first of them on (dotty's
+/// `UnrollDefinitions.generateFromProduct`).
+fn unrolled(l: &mut Lower, class: SymbolId, accessors: &[SymbolId]) -> Result<(Vec<usize>, Vec<SymbolId>)> {
+    let unroll = |l: &Lower, a: SymbolId| {
+        l.u.annotations(a).iter().any(|&c| l.u.full_name(c) == "scala.annotation.unroll")
+    };
+    let starts: Vec<usize> = (0..accessors.len()).filter(|&i| unroll(l, accessors[i])).collect();
+    let Some(&first) = starts.first() else { return Ok((starts, Vec::new())) };
+    let mut getters = Vec::new();
+    for n in first..accessors.len() {
+        let name = format!("<init>$default${}", n + 1);
+        let getter = l.u.decl(class, &name).unwrap_or_default().into_iter().next();
+        let info = getter.map(|g| l.u.info(g));
+        let plain = info.is_some_and(|i| !matches!(l.u.types().get(i), Type::Poly { .. } | Type::Method { .. }));
+        let Some(g) = getter.filter(|_| plain) else {
+            return unsupported(Span::NONE, "fromProduct of @unroll parameters without plain default getters");
+        };
+        getters.push(g);
+    }
+    Ok((starts, getters))
 }
 
 impl Lower<'_> {

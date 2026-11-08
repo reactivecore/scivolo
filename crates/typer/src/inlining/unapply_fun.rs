@@ -52,44 +52,50 @@ impl Inlining<'_> {
         if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
             return Err((span, "inline extractor with more parameters"));
         }
-        let (mut call, mut call_type, mut vparams) = (fun, info, Vec::new());
+        let (mut call, mut call_type, mut params) = (fun, info, Vec::new());
+        let at = Span::at(span.end());
         for (clause, flags) in clauses {
-            let (mut args, mut defs) = (Vec::new(), Vec::new());
+            let (mut args, mut syms) = (Vec::new(), Vec::new());
             for (param_name, param_type) in clause {
                 let param = self.synthetic(&param_name, Kind::Param, unapply, flags);
                 self.u.set_info(param, param_type);
                 let (arg_name, arg_type) = (self.term_name(param), self.u.intern_type(Type::Sym(None, param)));
-                let at = Span::at(span.end());
                 args.push(self.tpd.node(T::Ident { name: arg_name }, at, Some(arg_type), Some(param)));
-                defs.push(self.param_def(param, param_type, span));
+                syms.push((param, param_type));
             }
             let Type::Method { result: r, .. } = *self.u.types().get(call_type) else { unreachable!("a clause") };
             call_type = r;
             let args = self.tpd.list(&args);
             call = self.tpd.node(T::Apply { fun: call, args }, span, Some(call_type), None);
-            vparams.push(defs);
+            params.push(syms);
         }
         self.host.copied_call(fun, call);
-        let body = match self.inline_method(call)? {
+        let def = self.inline_method(call)?;
+        let coord = def.map_or(span, |d| Span::at(self.tpd.span(d).point()));
+        let wide = coord.union(span).to_synthetic();
+        let body = match def {
             Some(def) => self.inline_call(call, def, unapply)?,
             None => call,
         };
         let result = if self.transparent_only { self.u.widen(self.tpd.tpe(body)) } else { result };
         let info = self.with_result(info, result);
         self.u.set_info(unapply, info);
-        let unapply_def = self.method_def(unapply, &vparams, (result, Some(body)), span);
-        let constr = self.method_def(ctor, &[Vec::new()], (cls_type, None), span);
+        let vparams: Vec<Vec<TNodeId>> =
+            params.iter().map(|c| c.iter().map(|&(p, t)| self.param_def(p, t, coord)).collect()).collect();
+        let unapply_def = self.method_def(unapply, &vparams, (result, Some(body)), coord);
+        self.tpd.get_mut(unapply_def).span = wide;
+        let constr = self.method_def(ctor, &[Vec::new()], (cls_type, None), coord);
         let object_ctor = self.u.decl(object, "<init>").ok().and_then(|d| d.first().copied());
         let object_ctor = object_ctor.ok_or((span, "Object without a constructor"))?;
-        let super_call = self.new_call(object_type, object_ctor, span);
+        let super_call = self.new_call(object_type, object_ctor, coord);
         let (parents, body) = (self.tpd.list(&[super_call]), self.tpd.list(&[unapply_def]));
         let template = T::Template { constr, parents, self_: None, body };
-        let template = self.tpd.node(template, span, None, Some(cls));
+        let template = self.tpd.node(template, wide, None, Some(cls));
         let cls_name = TName { name: self.names.intern("$anon"), is_type: true };
-        let class_def = self.tpd.node(T::TypeDef { name: cls_name, rhs: template }, span, None, Some(cls));
-        let new = self.new_call(cls_type, ctor, span);
+        let class_def = self.tpd.node(T::TypeDef { name: cls_name, rhs: template }, wide, None, Some(cls));
+        let new = self.new_call(cls_type, ctor, at);
         let stats = self.tpd.list(&[class_def]);
-        let block = self.tpd.node(T::Block { stats, expr: new }, span, Some(cls_type), None);
+        let block = self.tpd.node(T::Block { stats, expr: new }, wide, Some(cls_type), None);
         let tpe = self.u.intern_type(Type::Sym(Some(cls_type), unapply));
         let name = self.term_name(unapply);
         Ok(self.tpd.node(T::Select { qualifier: block, name }, span, Some(tpe), Some(unapply)))
