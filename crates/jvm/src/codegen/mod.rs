@@ -49,12 +49,14 @@ pub struct Gen<'l, 'a> {
     classes: HashMap<String, Option<SymbolId>>,
     /// The TASTy of each top-level class not generated yet.
     tasty: HashMap<SymbolId, Vec<u8>>,
+    jdk: classfile::Jdk,
 }
 
 /// The class files of lowered unit `root`, `pickles` the TASTy of its top-level classes.
 pub fn unit(l: &mut Lower, root: TNodeId, pickles: Vec<Pickled>) -> Result<Vec<ClassBytes>> {
     let tasty = pickles.into_iter().map(|p| (p.class, p.tasty)).collect();
-    let mut g = Gen { l, out: Vec::new(), lambdas: Vec::new(), classes: HashMap::new(), tasty };
+    let (out, lambdas, classes, jdk) = (Vec::new(), Vec::new(), HashMap::new(), classfile::Jdk::default());
+    let mut g = Gen { l, out, lambdas, classes, tasty, jdk };
     g.collect_classes(root);
     let mut todo = vec![root];
     while let Some(t) = todo.pop() {

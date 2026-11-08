@@ -103,7 +103,8 @@ impl Universe {
             return Ok(vec![super::function_classes::enter_class(self, (owner, object), n, contextual)]);
         }
         let objects = self.package_objects(owner)?;
-        Ok(objects.into_iter().flat_map(|o| self.named(o, name).to_vec()).collect())
+        let found: Vec<SymbolId> = objects.into_iter().flat_map(|o| self.named(o, name).to_vec()).collect();
+        Ok(if found.is_empty() { self.jdk_decl(owner, name) } else { found })
     }
 
     /// The classes of the package objects of package `pkg`, loading only their files.

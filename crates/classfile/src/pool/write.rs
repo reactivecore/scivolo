@@ -10,7 +10,7 @@ impl Pool {
         for e in &self.entries {
             let (tag, a, b) = match *e {
                 Entry::Utf8(ref s) => {
-                    let bytes = modified_utf8(s);
+                    let bytes = crate::modified_utf8::encode(s);
                     out.push(1);
                     out.extend(u16::try_from(bytes.len()).ok()?.to_be_bytes());
                     out.extend(bytes);
@@ -57,20 +57,4 @@ impl Pool {
         }
         Some(())
     }
-}
-
-/// `s` in the JVM's modified UTF-8: `\0` in two bytes, supplementary characters as two
-/// surrogates of three bytes each.
-fn modified_utf8(s: &[u16]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(s.len());
-    for &c in s {
-        match c {
-            0x01..=0x7f => out.push(c as u8),
-            0..=0x7ff => out.extend([0xc0 | (c >> 6) as u8, 0x80 | (c & 0x3f) as u8]),
-            _ => {
-                out.extend([0xe0 | (c >> 12) as u8, 0x80 | ((c >> 6) & 0x3f) as u8, 0x80 | (c & 0x3f) as u8])
-            }
-        }
-    }
-    out
 }

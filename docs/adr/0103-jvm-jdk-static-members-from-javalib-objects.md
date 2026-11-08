@@ -1,6 +1,6 @@
 # ADR 0103 — JDK static members on the JVM from javalib's objects
 
-Status: accepted · Date: 2026-11-06
+Status: accepted · Date: 2026-11-06 · The table's rule replaced by ADR 0106
 
 ## Context
 Until the class file reader exists (research 46 §7 step 10), the JVM backend sees a JDK class's

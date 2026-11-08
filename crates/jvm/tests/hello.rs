@@ -122,6 +122,16 @@ fn attributes_run_on_the_jvm() {
     runs_on_the_jvm("attributes", "Attributes");
 }
 
+#[test]
+fn streams_run_on_the_jvm() {
+    runs_on_the_jvm("streams", "Streams");
+}
+
+#[test]
+fn jdk_classes_javalib_lacks_run_on_the_jvm() {
+    runs_on_the_jvm("jdkclasses", "Jdkclasses");
+}
+
 /// Compiles `code` as tmp/jvm-test/`name`.scala and expects a refusal containing `message`.
 fn refuses(name: &str, code: &str, message: &str) {
     let source = root().join(format!("tmp/jvm-test/{name}.scala"));
@@ -154,5 +164,17 @@ fn a_definition_the_tasty_pickler_lacks_is_refused() {
 #[test]
 fn a_javalib_value_the_jdk_lacks_is_refused() {
     let code = "object R { def f = java.lang.ProcessBuilder.nullFile }";
-    refuses("refusedjdk", code, "a javalib member the JDK class lacks as a static field");
+    refuses("refusedjdk", code, "ProcessBuilder.nullFile, a static member the JDK lacks");
+}
+
+#[test]
+fn a_class_nested_in_a_jdk_class_javalib_lacks_is_refused() {
+    let code = "object R { def f = java.time.zone.ZoneOffsetTransitionRule.TimeDefinition.UTC }";
+    refuses("refusednested", code, "member not found");
+}
+
+#[test]
+fn a_signature_polymorphic_method_is_refused() {
+    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\") }";
+    refuses("refusedpolymorphic", code, "member not found");
 }

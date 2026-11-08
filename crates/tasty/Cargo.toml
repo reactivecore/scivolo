@@ -10,6 +10,7 @@ publish = false
 name = "tasty"
 
 [dependencies]
+classfile.workspace = true
 libimage.workspace = true
 md-5.workspace = true
 rustc-hash.workspace = true

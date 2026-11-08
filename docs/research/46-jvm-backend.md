@@ -114,7 +114,9 @@ proxies, `SyntheticMembers` (`writeReplace`, `L/phases/synthetic.rs:60`).
 3. Where the class files are: `jmods/java.base.jmod` etc. (zip with a 4-byte header, classes
    under `classes/`; present in the homebrew JDK 21 here), `lib/ct.sym` (zip of stripped
    `.sig` class files per release, what dotty's `-release` reads), or `lib/modules` (jimage, own
-   format with compressed resources). jmods first, ct.sym as the fallback; no jimage reader.
+   format, resources compressed only by `jlink --compress`). ct.sym lacks the JDK's own
+   release, Debian's headless JDK the jmods: `lib/modules` first, ct.sym as the fallback
+   (ADR 0106).
 
 ## 6. Testing oracle
 
