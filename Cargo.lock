@@ -667,6 +667,7 @@ name = "scivolo-classfile"
 version = "0.1.5"
 dependencies = [
  "rustc-hash",
+ "zip",
 ]
 
 [[package]]

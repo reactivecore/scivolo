@@ -122,6 +122,11 @@ fn attributes_run_on_the_jvm() {
     runs_on_the_jvm("attributes", "Attributes");
 }
 
+#[test]
+fn streams_run_on_the_jvm() {
+    runs_on_the_jvm("streams", "Streams");
+}
+
 /// Compiles `code` as tmp/jvm-test/`name`.scala and expects a refusal containing `message`.
 fn refuses(name: &str, code: &str, message: &str) {
     let source = root().join(format!("tmp/jvm-test/{name}.scala"));
@@ -147,5 +152,5 @@ fn throws_is_refused() {
 #[test]
 fn a_javalib_value_the_jdk_lacks_is_refused() {
     let code = "object R { def f = java.lang.ProcessBuilder.nullFile }";
-    refuses("refusedjdk", code, "a javalib member the JDK class lacks as a static field");
+    refuses("refusedjdk", code, "ProcessBuilder.nullFile, a static member the JDK lacks");
 }

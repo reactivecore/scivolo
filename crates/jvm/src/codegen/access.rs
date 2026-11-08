@@ -102,10 +102,7 @@ impl Gen<'_, '_> {
             Tree::Ident { .. } => None,
             _ => return unsupported(span, "a call of this form"),
         };
-        let info = self.l.u.info(m);
-        let parameterless =
-            self.l.u.symbol(m).kind == tasty::Kind::Val || self.l.u.param_clauses(info).is_empty();
-        if lower::is_jdk_object(self.l.u, owner) && parameterless && self.jdk_static_field(m, span)? {
+        if lower::is_jdk_object(self.l.u, owner) && self.jdk_static_field(m, span)? {
             return self.field(b, m, (qualifier, None), None);
         }
         self.check_call(m, owner, span)?;

@@ -11,6 +11,7 @@ name = "classfile"
 
 [dependencies]
 rustc-hash.workspace = true
+zip.workspace = true
 
 [lints]
 workspace = true

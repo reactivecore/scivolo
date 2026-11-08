@@ -49,11 +49,13 @@ pub struct Gen<'l, 'a> {
     lambdas: Vec<classfile::Handle>,
     /// Classes by internal name: the unit's, and those `InnerClasses` looked up.
     classes: HashMap<String, Option<SymbolId>>,
+    jdk: classfile::Jdk,
 }
 
 /// The class files of lowered unit `root`.
 pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<ClassBytes>> {
-    let mut g = Gen { l, out: Vec::new(), lambdas: Vec::new(), classes: HashMap::new() };
+    let (out, lambdas, classes, jdk) = (Vec::new(), Vec::new(), HashMap::new(), classfile::Jdk::default());
+    let mut g = Gen { l, out, lambdas, classes, jdk };
     g.collect_classes(root);
     let mut todo = vec![root];
     while let Some(t) = todo.pop() {
