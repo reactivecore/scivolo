@@ -38,6 +38,15 @@ pub fn erased_linearization(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     erased_classes(l, bases)
 }
 
+/// Parent class `c` as erasure leaves it: `scala.Product` for `scala.Tuple` and
+/// `scala.NonEmptyTuple` (dotty's `specialErasure` in `eraseParent`).
+pub fn erased_parent(l: &mut Lower, c: SymbolId) -> SymbolId {
+    match l.u.full_name(c).as_str() {
+        "scala.Tuple" | "scala.NonEmptyTuple" => class_named(l, "scala.Product").unwrap_or(c),
+        _ => c,
+    }
+}
+
 /// `classes` with the function classes replaced as erasure leaves them, of those replaced the
 /// first occurrences kept.
 pub fn erased_classes(l: &mut Lower, classes: Vec<SymbolId>) -> Vec<SymbolId> {

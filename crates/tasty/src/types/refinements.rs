@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/Types.scala
-//! The type members refinements give a path's type (dotty's `goRefined`, `lookupRefined`), and
-//! types without their refinements.
+//! The type members refinements give a path's type (dotty's `goRefined`), and types without
+//! their refinements.
 
 use super::{Binder, Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
@@ -17,19 +17,6 @@ impl Universe {
         }
         let name = self.symbol(s).name.clone();
         self.refinement_named(prefix, &name)
-    }
-
-    /// `t`, a type member a refinement of its prefix aliases replaced by the alias, repeatedly.
-    pub fn refinement_dealiased(&mut self, mut t: TypeId) -> TypeId {
-        for _ in 0..MAX_STEPS {
-            let Type::Sym(Some(pre), s) = *self.types().get(t) else { break };
-            let Some(info) = self.refinement_info(pre, s) else { break };
-            match *self.types().get(info) {
-                Type::Alias(alias) if alias != t => t = alias,
-                _ => break,
-            }
-        }
-        t
     }
 
     /// `t` with the `this` of each recursive type of `binders` replaced by `by` (dotty's
@@ -129,22 +116,6 @@ impl Universe {
             t = p;
         }
         (t, term)
-    }
-
-    /// `t` with its references to type members that refinements of `refined` alias replaced by
-    /// their aliases.
-    pub fn with_refined_aliases(&mut self, t: TypeId, refined: TypeId) -> TypeId {
-        if !matches!(self.types().get(refined), Type::Refined(..)) {
-            return t;
-        }
-        self.map_type(t, &mut |u, part| {
-            let Type::Sym(Some(_), s) = *u.types().get(part) else { return None };
-            let info = u.refinement_info(refined, s)?;
-            match *u.types().get(info) {
-                Type::Alias(a) => Some(a),
-                _ => None,
-            }
-        })
     }
 
     /// The method type a refinement of `prefix`'s widened type gives `apply` method `s` of a

@@ -56,6 +56,7 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
             None => l.u.class_ref(name),
         },
         Erased::Nothing => l.u.class_ref("scala.Nothing"),
+        Erased::Null => l.u.class_ref("scala.Null"),
         _ => l.u.class_ref("java.lang.Object"),
     }
 }
@@ -77,9 +78,11 @@ pub fn conforms(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
     match (from, to) {
         (_, Erased::Class(o)) if o == "java.lang.Object" => true,
         _ if from == to => true,
-        (Erased::Array(x), Erased::Array(y)) => {
-            matches!(**x, Erased::Class(_) | Erased::Array(_)) && conforms(l, x, y)
-        }
+        (Erased::Array(x), Erased::Array(y)) => match **x {
+            Erased::Nothing | Erased::Null => matches!(**y, Erased::Class(_) | Erased::Array(_)),
+            Erased::Class(_) | Erased::Array(_) => conforms(l, x, y),
+            _ => false,
+        },
         (Erased::Class(f), Erased::Class(t)) => match (class_named(l, f), class_named(l, t)) {
             (Some(f), Some(t)) => {
                 erased_derives(l, f, t) && (!l.u.is_trait(f) || erased_trait_derives(l, f, t))

@@ -13,9 +13,46 @@ const NAMED_TUPLE: &str = "scala.NamedTuple$.NamedTuple";
 const MAX_ELEMENTS: usize = 256;
 
 impl Typer<'_> {
-    /// Whether `t` widened is a named tuple (dotty's `isNamedTupleType`).
+    /// Whether `t` widened is a named tuple, or an abstract type, intersection or union of them
+    /// (dotty's `isNamedTupleType`).
     pub fn is_named_tuple_type(&mut self, t: TypeId) -> bool {
-        self.stripped_named_tuple(t).is_some()
+        let widened = self.u.widen(t);
+        self.named_tuple_names(widened).is_some()
+    }
+
+    /// The names type of named tuple `t` as dotty's `defn.NamedTuple.unapply` takes it apart.
+    fn named_tuple_names(&mut self, t: TypeId) -> Option<TypeId> {
+        if let Some((names, _)) = self.named_tuple_args(t) {
+            return Some(names);
+        }
+        match *self.u.types().get(t) {
+            Type::Or(a, b, _) => {
+                let left = self.named_tuple_names(a)?;
+                (self.named_tuple_names(b)? == left).then_some(left)
+            }
+            Type::And(a, b) => match (self.named_tuple_names(a), self.named_tuple_names(b)) {
+                (Some(left), Some(right)) => (left == right).then_some(left),
+                (left, right) => left.or(right),
+            },
+            _ => self.abstract_upper_bound(t).and_then(|hi| self.named_tuple_names(hi)),
+        }
+    }
+
+    /// The upper bound of abstract type `t`, `None` if `t` is none or its own bound.
+    fn abstract_upper_bound(&mut self, t: TypeId) -> Option<TypeId> {
+        let Type::Sym(pre, s) = *self.u.types().get(t) else { return None };
+        if !self.u.is_type_symbol(s) || self.u.symbol(s).kind == tasty::Kind::Class {
+            return None;
+        }
+        self.complete(s);
+        let hi = match pre.and_then(|p| self.u.arg_for_param(p, s)) {
+            Some(arg) => match *self.u.types().get(arg) {
+                Type::Bounds(_, hi) => hi,
+                _ => arg,
+            },
+            None => crate::sealed::upper_bound(self.u, s),
+        };
+        (hi != t).then_some(hi)
     }
 
     /// The values tuple of `t` widened if it is a named tuple (dotty's `stripNamedTuple`).
@@ -61,18 +98,10 @@ impl Typer<'_> {
         if let Some(parts) = self.named_tuple_parts(t) {
             return Some(parts);
         }
-        let tpe = self.u.types().get(t).clone();
-        match tpe {
-            Type::Sym(pre, s) if self.u.is_type_symbol(s) && self.u.symbol(s).kind != tasty::Kind::Class => {
-                self.complete(s);
-                let hi = match pre.and_then(|p| self.u.arg_for_param(p, s)) {
-                    Some(arg) => match *self.u.types().get(arg) {
-                        Type::Bounds(_, hi) => hi,
-                        _ => arg,
-                    },
-                    None => crate::sealed::upper_bound(self.u, s),
-                };
-                (hi != t).then(|| self.derived_named_tuple_parts(hi)).flatten()
+        match *self.u.types().get(t) {
+            Type::Sym(..) => {
+                let hi = self.abstract_upper_bound(t)?;
+                self.derived_named_tuple_parts(hi)
             }
             Type::And(a, b) => match (self.derived_named_tuple_parts(a), self.derived_named_tuple_parts(b)) {
                 (Some((names, left)), Some((other, right))) => (names == other).then(|| {
@@ -103,52 +132,6 @@ impl Typer<'_> {
         let names: Vec<TypeId> = names.iter().map(|n| self.u.intern_type(Type::Str(n.clone()))).collect();
         let names = self.values_type(&names)?;
         let values = self.values_type(values)?;
-        Some(self.u.intern_type(Type::Applied(nt, vec![names, values])))
-    }
-
-    /// `t` with each `NamedTuple.From[C]` of a case class `C` reduced to the named tuple of its
-    /// fields (dotty's `From` reduction).
-    pub fn with_case_fields(&mut self, mut t: TypeId) -> TypeId {
-        let Some(from) = self.resolve_full_name("scala.NamedTuple$.From", true) else { return t };
-        let mut applied = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Applied(tycon, ref args) = *u.types().get(part)
-                && let [arg] = args[..]
-            {
-                applied.push((part, tycon, arg));
-            }
-            None
-        });
-        for (part, tycon, arg) in applied {
-            if self.referenced(tycon) != Some(from) {
-                continue;
-            }
-            let Some(fields) = self.case_fields_tuple(arg) else { continue };
-            t = self.u.map_type(t, &mut |_, p| (p == part).then_some(fields));
-        }
-        t
-    }
-
-    /// The named tuple of the fields of case class type `c`; `c` widened if a named tuple.
-    fn case_fields_tuple(&mut self, c: TypeId) -> Option<TypeId> {
-        use tasty::tags::{CASE, CASEaccessor};
-        let widened = self.u.widen(c);
-        if self.named_tuple_args(widened).is_some() {
-            return Some(widened);
-        }
-        let class = self.u.class_symbol(c).filter(|&k| self.u.symbol(k).flags.has(CASE))?;
-        let decls = self.u.symbol(class).decls.clone();
-        let fields: Vec<_> = decls
-            .into_iter()
-            .filter(|&d| {
-                self.u.symbol(d).kind == tasty::Kind::Val && self.u.symbol(d).flags.has(CASEaccessor)
-            })
-            .collect();
-        let names: Vec<String> = fields.iter().map(|&f| self.u.symbol(f).name.clone()).collect();
-        let values: Vec<TypeId> = fields.iter().map(|&f| self.u.member_info(c, f)).collect();
-        let names: Vec<TypeId> = names.into_iter().map(|n| self.u.intern_type(Type::Str(n))).collect();
-        let nt = self.named_tuple_ref()?;
-        let (names, values) = (self.nested_pairs(&names).ok()?, self.nested_pairs(&values).ok()?);
         Some(self.u.intern_type(Type::Applied(nt, vec![names, values])))
     }
 

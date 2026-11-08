@@ -96,6 +96,12 @@ impl TreePickler<'_> {
                 let mods = if contextual { Some(GIVEN) } else { implicit.then_some(IMPLICIT) };
                 self.methodic(METHODtype, (binder, at), &params, result, mods)
             }
+            Type::Annotated(underlying, class) if self.is_inferred_mark(class) => {
+                self.with_length(ANNOTATEDtype, &mut |p| {
+                    p.ty(underlying, rich)?;
+                    p.new_annotation(class)
+                })
+            }
             Type::Param(binder, i) => self.param(binder, i),
             Type::Local(def, name) => {
                 let (binder, i) = self
@@ -129,6 +135,34 @@ impl TreePickler<'_> {
             }
             modifier.into_iter().for_each(|m| p.byte(m));
             Ok(())
+        })
+    }
+
+    fn is_inferred_mark(&mut self, class: TypeId) -> bool {
+        let class = self.u.class_symbol(class);
+        class.is_some_and(|c| self.u.full_name(c) == "scala.caps.internal$.inferred")
+    }
+
+    /// `new C()` of class type `class`, an annotation without arguments.
+    fn new_annotation(&mut self, class: TypeId) -> Result<(), Refusal> {
+        let c = self.u.class_symbol(class).ok_or("an annotation of no class")?;
+        let init = self.u.decl(c, "<init>").ok().and_then(|d| d.first().copied());
+        let init = init.ok_or("an annotation class without a constructor")?;
+        let ids = (u32::MAX - 2 * self.annots.len() as u32, u32::MAX - 2 * self.annots.len() as u32 - 1);
+        if let Some(tpt) = self.type_tree.filter(|_| !self.keying) {
+            self.annots.push((ids.0, ids.1, tpt));
+            self.buf.register_tree(ids.0);
+        }
+        self.with_length(APPLY, &mut |p| {
+            p.with_length(SELECTin, &mut |p| {
+                p.signed_name(init, true)?;
+                p.byte(NEW);
+                if p.type_tree.is_some() && !p.keying {
+                    p.buf.register_tree(ids.1);
+                }
+                p.ty(class, false)?;
+                p.ty(class, false)
+            })
         })
     }
 

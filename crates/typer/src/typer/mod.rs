@@ -85,15 +85,17 @@ mod eta;
 mod export_trees;
 mod extension_calls;
 mod extension_fallback;
+mod extension_setters;
 mod features;
 mod find_ref;
 mod forward_refs;
 mod function_types;
-mod future_infix;
 mod gadt;
 mod gadt_cases;
 mod gadt_cast;
 mod gadt_narrow;
+mod gadt_order;
+mod gadt_tuples;
 mod gadt_typed_pattern;
 mod gadt_upcast;
 mod generic_arrays;
@@ -123,6 +125,7 @@ mod lift_app;
 mod linter;
 mod literals;
 mod mapped_alternatives;
+mod match_type_captures;
 mod match_type_trees;
 mod matchable_cast;
 mod matches;
@@ -138,6 +141,7 @@ mod mismatch_text;
 mod name_clashes;
 mod named_args;
 mod named_overloads;
+mod named_tuple_from;
 mod named_tuple_trees;
 mod named_tuple_types;
 mod named_tuples;
@@ -157,6 +161,7 @@ mod op_assign;
 mod opaque_paths;
 mod overload_applies;
 mod overload_errors;
+mod overload_values;
 mod overloaded_extractors;
 mod overloads;
 mod override_kinds;
@@ -186,6 +191,7 @@ mod purity;
 mod qual_skolems;
 mod qualifier_views;
 mod qualifies;
+mod quote_inferred;
 mod quote_pattern_checks;
 mod quote_patterns;
 mod quote_tags;
@@ -250,12 +256,14 @@ mod unapply_implicits;
 mod unapply_results;
 mod unapply_seq;
 mod unapply_targs;
+mod unapply_transparent;
 mod unchecked_tests;
 pub(crate) mod unique_names;
 mod unknown_params;
 mod unresolved_terms;
 mod unsafe_nulls;
 mod untupled;
+mod valid_infix;
 mod variance_aliases;
 mod variance_checks;
 mod variance_lambdas;
@@ -319,6 +327,8 @@ pub struct Typer<'a> {
     pub source_future: bool,
     /// Whether the unit behaves as the Scala 2 library (`language.\`2.13\``).
     pub scala2: bool,
+    /// `Config::interactive`.
+    pub interactive: bool,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -407,6 +417,8 @@ pub struct Typer<'a> {
     /// The functions of polymorphic function values, whose results may refer to their
     /// parameters, with the binder and parameter names of an expected `apply` whose result does.
     pub poly_closures: FxHashMap<NodeId, Option<(tasty::Binder, Vec<String>)>>,
+    /// The owners `poly_apply_owner` made.
+    pub poly_owners: FxHashSet<SymbolId>,
     /// The parameters of context closures named after an expected `apply`'s, not in scope.
     pub hidden_params: FxHashSet<NodeId>,
     /// The classes with macro annotations, their `this` types and spans, checked for unimplemented
@@ -464,6 +476,7 @@ impl<'a> Typer<'a> {
             lints: cfg.warnings.lints,
             source_future: v.requires_new_syntax(),
             scala2: v.is_scala2(),
+            interactive: cfg.interactive,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
@@ -505,6 +518,7 @@ impl<'a> Typer<'a> {
             structural_selects: FxHashSet::default(),
             dynamic_lhs: None,
             poly_closures: FxHashMap::default(),
+            poly_owners: FxHashSet::default(),
             hidden_params: FxHashSet::default(),
             macro_annotated: Vec::new(),
             quote_pattern: None,

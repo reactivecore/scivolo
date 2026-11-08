@@ -17,6 +17,11 @@ impl Universe {
         }
     }
 
+    /// Whether any symbol has GADT bounds.
+    pub fn has_gadt_bounds(&self) -> bool {
+        !self.gadt_bounds.is_empty()
+    }
+
     /// The GADT bounds of `sym`, if it has some.
     pub fn gadt_bounds(&self, sym: SymbolId) -> Option<(TypeId, TypeId)> {
         self.gadt_bounds.get(&sym).copied()

@@ -124,7 +124,7 @@ impl Typer<'_> {
             return None;
         }
         let tpe = self.tpd.tpe(qual);
-        let widened = self.u.widen(tpe);
+        let widened = self.widen_dealias(tpe);
         let (names, values) = self.derived_named_tuple_parts(widened)?;
         let i = names.iter().position(|n| n == self.text(name.name))?;
         if names.iter().any(|n| n == "apply") {
@@ -150,7 +150,7 @@ impl Typer<'_> {
         let apply = self.ast.node(Tree::Apply { fun: extension, args });
         let qual_span = self.tpd.span(qual);
         self.ast.with_span(qualifier, qual_span.start_pos().to_synthetic());
-        self.ast.with_span(fun, qual_span);
+        self.ast.with_span(fun, qual_span.with_point(qual_span.start()));
         self.ast.with_span(extension, qual_span.to_synthetic());
         self.ast.with_span(index, qual_span.end_pos().to_synthetic());
         self.ast.with_span(apply, span);

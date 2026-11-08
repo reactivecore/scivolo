@@ -53,6 +53,10 @@ pub struct TreePickler<'a> {
     self_refs: FxHashSet<TNodeId>,
     /// The type tree of each parameter pickled.
     param_tpts: FxHashMap<SymbolId, TNodeId>,
+    /// The type tree pickled now and the annotations its type has pickled: the tree ids of their
+    /// `Apply` and `New`, and the type tree.
+    type_tree: Option<TNodeId>,
+    annots: Vec<(u32, u32, TNodeId)>,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -100,6 +104,8 @@ fn pickle(
         shared: FxHashMap::default(),
         self_refs: FxHashSet::default(),
         param_tpts: FxHashMap::default(),
+        type_tree: None,
+        annots: Vec::new(),
     };
     p.tree(root)?;
     if !p.forward.is_empty() {

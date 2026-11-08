@@ -69,11 +69,31 @@ def jar_name(module):
     return f"{module}_native0.5_3-{'3.9.0%2B' if module == 'scalalib' else ''}{VERSION}.jar"
 
 
+SCALALIB_SOURCEROOT = WORK / "scalalib/sourceroot"
+SCALALIB_LINK = SCALALIB_SOURCEROOT / "scalalib/target/scalaSources/3.9.0"
+
+
+def link_scalalib_root(root):
+    """Makes SCALALIB_LINK, Scala Native's `scalalib/target/scalaSources/3.9.0` under
+    SCALALIB_SOURCEROOT, a link to `root`."""
+    SCALALIB_LINK.parent.mkdir(parents=True, exist_ok=True)
+    if SCALALIB_LINK.is_symlink() and SCALALIB_LINK.resolve() == root.resolve():
+        return
+    SCALALIB_LINK.unlink(missing_ok=True)
+    SCALALIB_LINK.symlink_to(root.resolve())
+
+
 def lower_cmd(module, root, files, out):
     """The `scivolo-lower` command lowering `files` of source directory `root` into `out`, the
-    checkout the source root as in Scala Native's build."""
-    roots = ["--sourceroot", str(root if module == "scalalib" else SN), "--position-root", str(root)]
-    return [str(LOWER), "--macros", *OPTIONS.get(module, []), *roots, *map(str, files), str(out)]
+    checkout the source root as in Scala Native's build (scalalib's through SCALALIB_LINK), against
+    the JDK 17 API as that build but javalib's own (ADR 0095)."""
+    sourceroot = SN
+    if module == "scalalib":
+        sourceroot = SCALALIB_SOURCEROOT
+        root, files = SCALALIB_LINK, [SCALALIB_LINK / f.relative_to(root) for f in files]
+    roots = ["--sourceroot", str(sourceroot), "--position-root", str(root)]
+    jdk = [] if module == "javalib" else ["--jdk-17"]
+    return [str(LOWER), "--macros", *OPTIONS.get(module, []), *jdk, *roots, *map(str, files), str(out)]
 
 
 def oracle(module):
@@ -161,6 +181,8 @@ def compile_module(module, filter_):
     env = ENV
     if module == "scalalib" and ENV:
         env = ENV | {"SCIVOLO_LIBS": str(scalalib_sources.libs(ORACLE_JARS))}
+    if module == "scalalib":
+        link_scalalib_root(scalalib_sources.sources(LIBS))
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
         done = [row for rows in pool.map(lambda t: one(module, *t, env), todo) for row in rows]
     rows = {r[0]: r + ["0"] * (8 - len(r)) for r in read_tsv(work / "results.tsv")} if keep else {}

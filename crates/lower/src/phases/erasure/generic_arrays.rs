@@ -5,13 +5,12 @@
 
 use crate::phases::adapt::from_start;
 use crate::{Lower, Result, unsupported};
-use syntax::ast::Span;
 use tasty::Erased;
 use typer::tpd::{TNodeId, Tree};
 
 /// For selection `sel` of an `Array` member on a receiver erasing to `Object`: the reference to
-/// `ScalaRunTime`'s method for it, the object at the receiver's start; and the receiver, the
-/// method's first argument.
+/// `ScalaRunTime`'s method for it, a member of `ScalaRunTime.this` (dotty's `runtimeMethodRef`);
+/// and the receiver, the method's first argument.
 pub fn runtime_op(l: &mut Lower, sel: TNodeId) -> Result<Option<(TNodeId, TNodeId)>> {
     let Tree::Select { qualifier, .. } = *l.tpd.tree(sel) else { return Ok(None) };
     let Some(m) = l.tpd.sym(sel) else { return Ok(None) };
@@ -30,8 +29,7 @@ pub fn runtime_op(l: &mut Lower, sel: TNodeId) -> Result<Option<(TNodeId, TNodeI
     let Some(method) = found else {
         return unsupported(l.tpd.span(sel), format!("`ScalaRunTime.{name}` not found"));
     };
-    let module = l.ident(module, from_start(l.tpd.span(qualifier)));
-    Ok(Some((l.select(module, method, Span::NONE), qualifier)))
+    Ok(Some((l.ident(method, from_start(l.tpd.span(qualifier))), qualifier)))
 }
 
 /// Selection `t` of `length` or `clone` on a generic array made the call of `ScalaRunTime`'s

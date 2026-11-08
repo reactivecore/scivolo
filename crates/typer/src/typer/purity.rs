@@ -65,9 +65,9 @@ impl Typer<'_> {
                 }
             }
             T::Typed { expr, .. } => self.expr_purity(expr),
-            T::Block { stats, expr } => {
+            T::Block { stats, expr: last } | T::Inlined { bindings: stats, expansion: last, .. } => {
                 let stats = self.tpd.items(stats).to_vec();
-                stats.into_iter().fold(self.expr_purity(expr), |p, s| p & self.stat_purity(s))
+                stats.into_iter().fold(self.expr_purity(last), |p, s| p & self.stat_purity(s))
             }
             _ => IMPURE,
         }

@@ -5,7 +5,7 @@
 //! `ensureFirstIsClass`, `adjustForBoxedUnit`).
 
 use super::Typer;
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::defn::type_ref;
 use syntax::ast::{NodeId, Tree};
 use tasty::{SymbolId, Type, TypeId};
@@ -58,7 +58,7 @@ impl Typer<'_> {
         let mut types = Vec::new();
         for &p in parents {
             let tpt = self.parent_tpt(p);
-            let typed = self.typed_type(tpt, ctx);
+            let typed = self.typed_type(tpt, ctx.with_mode(ctx.mode.with(Mode::PARENT_TYPE)));
             let mut tpe = self.tpd.tpe(typed);
             let dealiased = self.u.dealias(tpe);
             let dependent = self
@@ -78,9 +78,14 @@ impl Typer<'_> {
                     }
                 };
             }
-            let trait_ctor = self.u.class_symbol(tpe).is_some_and(|c| self.u.is_trait(c));
-            if !matches!(self.ast.tree(p), Tree::Apply { .. }) && trait_ctor && self.type_arity(tpe) > 0 {
+            let direct = self.u.dealias(tpe) == tpe;
+            let class_ctor = self.u.class_symbol(tpe).is_some_and(|c| direct || self.u.is_trait(c));
+            if !matches!(self.ast.tree(p), Tree::Apply { .. }) && class_ctor && self.type_arity(tpe) > 0 {
                 let call = self.parent_new_call(typed, ctx);
+                if !self.u.class_symbol(tpe).is_some_and(|c| self.u.is_trait(c)) {
+                    let span = self.tpd.span(typed).to_synthetic();
+                    self.type_args_at(call, span);
+                }
                 self.typed_ahead(p, call, ctx);
                 let called = self.tpd.tpe(call);
                 tpe = self.fully_defined_as(called, true).unwrap_or_else(|what| {
