@@ -9,7 +9,8 @@ use crate::sealed;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// The classes of prefix `pre` if it is a singleton type (dotty's `ownerScope`).
+    /// The classes of prefix `pre` if it is a singleton type, those of both sides of an
+    /// intersection (dotty's `ownerScope` of `classSymbols`).
     pub fn owner_scope(&mut self, pre: Option<TypeId>) -> Vec<SymbolId> {
         let Some(p) = pre else { return Vec::new() };
         let singleton = match *self.u.types().get(p) {
@@ -17,8 +18,15 @@ impl Typer<'_> {
             Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
             _ => false,
         };
-        let widened = self.u.widen(p);
-        singleton.then(|| self.u.class_symbol(widened)).flatten().into_iter().collect()
+        let mut todo = if singleton { vec![self.u.widen(p)] } else { Vec::new() };
+        let mut classes = Vec::new();
+        while let Some(t) = todo.pop() {
+            match *self.u.types().get(t) {
+                Type::And(a, b) => todo.extend([b, a]),
+                _ => classes.extend(self.u.class_symbol(t)),
+            }
+        }
+        classes
     }
 
     /// Whether `owner` encloses `site`, is inherited by a class of `scope`, or is a package or an
