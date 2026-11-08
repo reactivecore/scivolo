@@ -23,6 +23,16 @@ impl Typer<'_> {
         if !self.is_accessible_from(sym, prefix, ctx) {
             return Err("inaccessible member");
         }
+        self.check_synthetic_reference(sym, prefix, ctx)
+    }
+
+    /// `check_reference` without the access check, for references dotty builds typed.
+    pub fn check_synthetic_reference(
+        &mut self,
+        sym: SymbolId,
+        prefix: Option<TypeId>,
+        ctx: Ctx,
+    ) -> Result<(), &'static str> {
         self.check_inline_reference(sym, ctx)?;
         self.check_self_members(sym, prefix)?;
         self.unset_local(sym, prefix)

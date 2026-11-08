@@ -78,9 +78,14 @@ impl Typer<'_> {
                     }
                 };
             }
-            let trait_ctor = self.u.class_symbol(tpe).is_some_and(|c| self.u.is_trait(c));
-            if !matches!(self.ast.tree(p), Tree::Apply { .. }) && trait_ctor && self.type_arity(tpe) > 0 {
+            let direct = self.u.dealias(tpe) == tpe;
+            let class_ctor = self.u.class_symbol(tpe).is_some_and(|c| direct || self.u.is_trait(c));
+            if !matches!(self.ast.tree(p), Tree::Apply { .. }) && class_ctor && self.type_arity(tpe) > 0 {
                 let call = self.parent_new_call(typed, ctx);
+                if !self.u.class_symbol(tpe).is_some_and(|c| self.u.is_trait(c)) {
+                    let span = self.tpd.span(typed).to_synthetic();
+                    self.type_args_at(call, span);
+                }
                 self.typed_ahead(p, call, ctx);
                 let called = self.tpd.tpe(call);
                 tpe = self.fully_defined_as(called, true).unwrap_or_else(|what| {

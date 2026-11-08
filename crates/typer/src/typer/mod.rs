@@ -159,6 +159,7 @@ mod op_assign;
 mod opaque_paths;
 mod overload_applies;
 mod overload_errors;
+mod overload_values;
 mod overloaded_extractors;
 mod overloads;
 mod override_kinds;

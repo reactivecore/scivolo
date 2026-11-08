@@ -34,7 +34,10 @@ impl Typer<'_> {
             match *self.tpd.tree(mref) {
                 T::Apply { fun, args } => {
                     let args = self.tpd.items(args).to_vec();
-                    leading = self.is_leading_ctor_clause(mref, fun, &args, method);
+                    let tpe = self.tpd.tpe(mref);
+                    leading = args.is_empty()
+                        && !matches!(self.tpd.tree(fun), T::Apply { .. })
+                        && matches!(self.u.types().get(tpe), Type::Method { implicit: true, .. });
                     clauses.push(Clause::Values(self.spliced_args(fun, &args)?));
                     mref = fun;
                 }
@@ -73,7 +76,7 @@ impl Typer<'_> {
             let site = self.tpd.tpe(receiver);
             let sym_name = getter_name.replace("$lessinit$greater", "<init>");
             let [getter] = self.type_members(site, &sym_name)[..] else { return Err("default getter") };
-            self.check_reference(getter, Some(site), ctx)?;
+            self.check_synthetic_reference(getter, Some(site), ctx)?;
             let tpe = self.ref_type(Some(site), getter);
             let name = TName { name: self.name(&getter_name), is_type: false };
             self.tpd.node(T::Select { qualifier: receiver, name }, span, Some(tpe), Some(getter))
@@ -97,7 +100,7 @@ impl Typer<'_> {
             let info = self.method_info(t).unwrap_or(t);
             let nullary =
                 matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty());
-            if std::mem::take(&mut leading) && !nullary {
+            if std::mem::take(&mut leading) && ctor && !nullary {
                 continue;
             }
             let Some(m) = self.u.method(info) else { return Err("default getter") };
@@ -146,22 +149,6 @@ impl Typer<'_> {
         }
         let tpe = self.ref_type(Some(module_prefix), module);
         Ok(self.build().ident(module, tpe, at))
-    }
-
-    /// Whether application `app` of `fun` to `args` is the empty clause inserted before the
-    /// implicit first clause of constructor `method` (dotty's `spliceMeth`).
-    fn is_leading_ctor_clause(
-        &mut self,
-        app: TNodeId,
-        fun: TNodeId,
-        args: &[TNodeId],
-        method: SymbolId,
-    ) -> bool {
-        let tpe = self.tpd.tpe(app);
-        args.is_empty()
-            && !matches!(self.tpd.tree(fun), T::Apply { .. })
-            && self.u.symbol(method).name == "<init>"
-            && matches!(self.u.types().get(tpe), Type::Method { implicit: true, .. })
     }
 
     /// The package and the object of package object class `c` (a unit's top-level definitions).

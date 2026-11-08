@@ -85,6 +85,9 @@ impl Typer<'_> {
             return call;
         }
         let tpt = self.typed_type(parent, ctx);
+        if matches!(self.tpd.tree(tpt), T::Apply { .. }) {
+            return tpt;
+        }
         if matches!(self.ast.tree(parent), Tree::TypedSplice { .. }) {
             let start = self.tpd.span(tpt).start_pos().to_synthetic();
             self.tpd.get_mut(tpt).span = start;
@@ -137,7 +140,7 @@ impl Typer<'_> {
     }
 
     /// Moves the inferred type arguments of constructor call `call` to `at`.
-    fn type_args_at(&mut self, call: TNodeId, at: Span) {
+    pub fn type_args_at(&mut self, call: TNodeId, at: Span) {
         let T::TypeApply { args, .. } = *self.tpd.tree(self.tpd.strip_apply(call)) else { return };
         for a in self.tpd.items(args).to_vec() {
             self.tpd.get_mut(a).span = at;
