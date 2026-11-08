@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use zip::ZipArchive;
 
 enum Source {
@@ -61,14 +62,25 @@ impl Jdk {
     }
 }
 
-/// The JDK's directory: that of `JAVA_HOME`'s `java`, else of the `java` on the `PATH`, links
-/// resolved.
+/// The JDK's directory: the `java.home` of `JAVA_HOME`'s `java`, else of the `java` on the
+/// `PATH` (a launcher stub such as macOS's `/usr/bin/java` reports the JDK it starts), else the
+/// directory above the `java` binary, links resolved.
 fn home() -> Option<PathBuf> {
     let java_home = std::env::var_os("JAVA_HOME").map(|h| PathBuf::from(h).join("bin"));
     let path = std::env::var_os("PATH").unwrap_or_default();
     let mut dirs = java_home.into_iter().chain(std::env::split_paths(&path));
     let java = dirs.find_map(|d| Some(d.join("java")).filter(|j| j.is_file()))?;
-    Some(java.canonicalize().ok()?.parent()?.parent()?.to_owned())
+    let beside = || Some(java.canonicalize().ok()?.parent()?.parent()?.to_owned());
+    let has_classes = |h: &PathBuf| ["lib/modules", "lib/ct.sym"].iter().any(|f| h.join(f).is_file());
+    reported_home(&java).or_else(beside).filter(has_classes)
+}
+
+/// The `java.home` property `java` reports.
+fn reported_home(java: &Path) -> Option<PathBuf> {
+    let out = Command::new(java).args(["-XshowSettings:properties", "-version"]).output().ok()?;
+    let text = String::from_utf8_lossy(&out.stderr);
+    let line = text.lines().find_map(|l| l.trim().strip_prefix("java.home = "))?;
+    Some(PathBuf::from(line))
 }
 
 fn open(home: &Path) -> Option<Source> {
@@ -145,7 +157,9 @@ mod tests {
     #[test]
     fn reads_jdk_classes_from_jimage_and_ct_sym() {
         let Some(home) = home() else { return eprintln!("no JDK found: skipped") };
-        let mut image = Jimage::open(&home.join("lib/modules")).expect("an uncompressed lib/modules");
+        let modules = home.join("lib/modules");
+        let mut image =
+            Jimage::open(&modules).unwrap_or_else(|| panic!("an uncompressed {}", modules.display()));
         assert!(image.bytes("java/util/HexFormat").is_some(), "JDK 17's HexFormat");
         let image = Some(Source::Jimage(image));
         for source in [image, ct_sym(&home)].into_iter().flatten() {
