@@ -15,7 +15,9 @@ use typer::tpd::{TNodeId, Tree};
 
 /// `def fromProduct(x$0: Product): C = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C(a$1, ...) }`
 /// (dotty's `fromProductBody`), of an anonymous mirror cast to its `MirroredMonoType` `mono`, a
-/// generic `C` applied to its type parameters' upper bounds; none if `class` has one.
+/// generic `C` applied to its type parameters' upper bounds; none if `class` has one. From the
+/// first `@unroll` parameter on, an element is `if arity > i then x$0.productElement(i) else
+/// C.<init>$default$(i+1)`, after `val arity = x$0.productArity`.
 pub fn from_product(
     l: &mut Lower,
     class: SymbolId,
@@ -42,30 +44,44 @@ pub fn from_product(
     let flags = Flags::default().with(SYNTHETIC);
     let mut locals = Vec::new();
     let accessors = case_accessors(l, case_class);
-    let (starts, getters) = unrolled(l, class, &accessors)?;
+    let (module, getters) = unrolled_getters(l, case_class, &accessors)?;
+    let unrolled_from = accessors.len() - getters.len();
     let (method, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let mut defs = Vec::new();
         let mut refs = Vec::new();
-        for (i, accessor) in accessors.iter().copied().enumerate() {
-            let name = l.u.symbol(accessor).name.clone();
-            let name = fresh(l, &name);
-            let binding = l.u.define(symbol(&name, Kind::Val, class, Flags::default().with(SYNTHETIC)));
-            let tpe = l.u.info(accessor);
-            l.u.set_info(binding, tpe);
+        let mut arity = None;
+        if !getters.is_empty() {
+            let product_ref = l.copy_ident(args[0]);
+            let rhs = l.select(product_ref, cc.product_arity, Span::NONE);
+            let rhs = l.positioned(rhs);
+            let int = l.u.widen(l.tpd.tpe(rhs));
+            let (def, binding) = val_def(l, class, "arity", int, rhs);
             locals.push(binding);
+            defs.push(def);
+            arity = Some(binding);
+        }
+        for (i, accessor) in accessors.iter().copied().enumerate() {
+            let tpe = l.u.info(accessor);
             let product_ref = l.copy_ident(args[0]);
             let index = l.int_literal(i as i32);
-            let element = l.call(product_ref, cc.product_element, &[index]);
+            let mut element = l.call(product_ref, cc.product_element, &[index]);
+            if let Some(arity) = arity.filter(|_| i >= unrolled_from) {
+                let (arity, index) = (l.ident(arity, Span::NONE), l.int_literal(i as i32));
+                let gt = l.operator(arity, ">", index).expect("`Int.>(Int)`");
+                let cond = l.call(arity, gt, &[index]);
+                let module = l.ident(module, Span::NONE);
+                let default = l.select(module, getters[i - unrolled_from], Span::NONE);
+                let elsep = l.positioned(default);
+                let branch = Tree::If { cond, thenp: element, elsep, inline: false };
+                element = l.tpd.node(branch, Span::NONE, Some(tasty::ANY), None);
+                element = l.positioned(element);
+            }
             let rhs = l.ensure_conforms(element, tpe);
-            let tpt = l.type_tree(tpe, Span::NONE);
-            let term = l.term_name(&name);
-            let def = l.tpd.node(
-                Tree::ValDef { name: term, tpt, rhs: Some(rhs) },
-                Span::NONE,
-                Some(tpe),
-                Some(binding),
-            );
-            defs.push(l.positioned(def));
+            let name = l.u.symbol(accessor).name.clone();
+            let name = fresh(l, &name);
+            let (def, binding) = val_def(l, class, &name, tpe, rhs);
+            locals.push(binding);
+            defs.push(def);
             refs.push(l.ident(binding, Span::NONE));
         }
         let new = new_seen_from(l, case_class, mono);
@@ -82,32 +98,7 @@ pub fn from_product(
         };
         l.tpd.get_mut(created).tpe = Some(tpe);
         let block = l.block(&defs, created, Span::NONE);
-        let mut block = l.positioned(block);
-        for &k in starts.iter().rev() {
-            let mut elems = Vec::new();
-            for (i, &accessor) in accessors[..k].iter().enumerate() {
-                let (product_ref, index) = (l.copy_ident(args[0]), l.int_literal(i as i32));
-                let element = l.call(product_ref, cc.product_element, &[index]);
-                let accessor_type = l.u.info(accessor);
-                elems.push(l.ensure_conforms(element, accessor_type));
-            }
-            for &g in &getters[k - starts[0]..] {
-                let this = l.this(class, Span::NONE);
-                let getter = l.select(this, g, Span::NONE);
-                elems.push(l.positioned(getter));
-            }
-            let new = new_seen_from(l, case_class, mono);
-            let created = l.call(new, ctor, &elems);
-            l.tpd.get_mut(created).tpe = Some(tpe);
-            let product_ref = l.copy_ident(args[0]);
-            let arity = l.select(product_ref, cc.product_arity, Span::NONE);
-            let arity = l.positioned(arity);
-            let k = l.int_literal(k as i32);
-            let cond = l.equal(arity, k);
-            let branch = Tree::If { cond, thenp: created, elsep: block, inline: false };
-            block = l.tpd.node(branch, Span::NONE, Some(tpe), None);
-            block = l.positioned(block);
-        }
+        let block = l.positioned(block);
         match mono {
             Some(m) => l.ensure_conforms(block, m),
             None => block,
@@ -120,15 +111,31 @@ pub fn from_product(
     Ok(Some(l.with_span(def, focus)))
 }
 
-/// The indices of the `@unroll` parameters among case accessors `accessors`, and the default
-/// getters in companion `class` of the parameters from the first of them on (dotty's
-/// `UnrollDefinitions.generateFromProduct`).
-fn unrolled(l: &mut Lower, class: SymbolId, accessors: &[SymbolId]) -> Result<(Vec<usize>, Vec<SymbolId>)> {
+/// `val name: tpe = rhs`, its symbol owned by `class` until the caller moves it.
+fn val_def(l: &mut Lower, class: SymbolId, name: &str, tpe: TypeId, rhs: TNodeId) -> (TNodeId, SymbolId) {
+    let binding = l.u.define(symbol(name, Kind::Val, class, Flags::default().with(SYNTHETIC)));
+    l.u.set_info(binding, tpe);
+    let tpt = l.type_tree(tpe, Span::NONE);
+    let term = l.term_name(name);
+    let def =
+        l.tpd.node(Tree::ValDef { name: term, tpt, rhs: Some(rhs) }, Span::NONE, Some(tpe), Some(binding));
+    (l.positioned(def), binding)
+}
+
+/// The companion of `case_class` and the default getters of its case accessors `accessors` from
+/// the first `@unroll` one on; none without one.
+fn unrolled_getters(
+    l: &mut Lower,
+    case_class: SymbolId,
+    accessors: &[SymbolId],
+) -> Result<(SymbolId, Vec<SymbolId>)> {
     let unroll = |l: &Lower, a: SymbolId| {
         l.u.annotations(a).iter().any(|&c| l.u.full_name(c) == "scala.annotation.unroll")
     };
-    let starts: Vec<usize> = (0..accessors.len()).filter(|&i| unroll(l, accessors[i])).collect();
-    let Some(&first) = starts.first() else { return Ok((starts, Vec::new())) };
+    let first = (0..accessors.len()).find(|&i| unroll(l, accessors[i]));
+    let module = l.u.companion_module(case_class);
+    let (Some(first), Some(module)) = (first, module) else { return Ok((case_class, Vec::new())) };
+    let class = l.u.module_class(module).unwrap_or(module);
     let mut getters = Vec::new();
     for n in first..accessors.len() {
         let name = format!("<init>$default${}", n + 1);
@@ -144,7 +151,7 @@ fn unrolled(l: &mut Lower, class: SymbolId, accessors: &[SymbolId]) -> Result<(V
         };
         getters.push(g);
     }
-    Ok((starts, getters))
+    Ok((module, getters))
 }
 
 impl Lower<'_> {

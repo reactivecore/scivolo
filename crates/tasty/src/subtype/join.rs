@@ -82,8 +82,8 @@ impl Universe {
     }
 
     /// `t` widened once unless it is a class type (dotty's `superType`): a singleton to its
-    /// type, an abstract type to its upper bound, an alias to its target, a match type to its
-    /// bound.
+    /// type, an abstract type to its upper bound, an alias to its target, an application of a
+    /// match type alias to the match type, a match type to its bound.
     fn super_type(&mut self, t: TypeId) -> TypeId {
         if self.is_class_ref(t) {
             return t;
@@ -94,11 +94,15 @@ impl Universe {
         if let Some(hi) = self.opaque_upper(t) {
             return hi;
         }
-        if matches!(self.types().get(t), Type::Applied(..) | Type::Match { .. }) {
-            let dealiased = self.dealias(t);
-            if let Type::Match { bound, .. } = *self.types().get(dealiased) {
-                return bound;
+        match *self.types().get(t) {
+            Type::Match { bound, .. } => return bound,
+            Type::Applied(..) => {
+                let dealiased = self.dealias(t);
+                if matches!(self.types().get(dealiased), Type::Match { .. }) {
+                    return dealiased;
+                }
             }
+            _ => {}
         }
         let Type::Sym(prefix, s) = *self.types().get(t) else { return t };
         if !matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) {
