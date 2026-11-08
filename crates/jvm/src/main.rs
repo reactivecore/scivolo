@@ -45,9 +45,12 @@ fn main() {
     let options: Vec<&str> = options.iter().map(String::as_str).collect();
     let Options { config, .. } = Options::checked(&options)
         .unwrap_or_else(|o| fail(&format!("the typer does not support option `{o}`")));
-    let generate = (lower::Backend::Jvm, jvmgen::unit);
-    let classes = match lower::compile_units(&mut u, &sources, config, None, generate) {
+    let in_backend = std::cell::Cell::new(false);
+    let generate = |l: &mut lower::Lower, root| jvmgen::unit(l, root).inspect_err(|_| in_backend.set(true));
+    let classes = match lower::compile_units(&mut u, &sources, config, None, (lower::Backend::Jvm, generate))
+    {
         Ok((classes, _)) => classes,
+        Err(e) if in_backend.get() => fail(&e.what.replacen("the lowering", "the JVM backend", 1)),
         Err(e) => fail(&e.what.replace("\n  ", " ")),
     };
     for c in classes {
