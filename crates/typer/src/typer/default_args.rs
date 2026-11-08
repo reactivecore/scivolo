@@ -187,16 +187,12 @@ impl Typer<'_> {
         Ok(self.ref_(prefix, module, tpe, at, ctx))
     }
 
-    /// The companion object of the synthetic given class that given method `method` wraps,
-    /// whose constructor's default getters it uses (dotty's `findDefaultGetter` of an implicit
-    /// wrapper).
+    /// The companion of the given class given method `method` wraps (dotty's `findDefaultGetter`
+    /// of an implicit wrapper).
     fn given_class_companion(&mut self, method: SymbolId) -> Option<SymbolId> {
-        if !self.u.symbol(method).flags.has(GIVEN) {
-            return None;
-        }
         let info = self.u.info(method);
         let result = self.final_result(info);
-        let class = self.u.class_symbol(result)?;
+        let class = self.u.class_symbol(result).filter(|_| self.u.symbol(method).flags.has(GIVEN))?;
         let flags = self.u.symbol(class).flags;
         (flags.has(GIVEN) && flags.has(SYNTHETIC)).then(|| self.u.companion_module(class)).flatten()
     }
