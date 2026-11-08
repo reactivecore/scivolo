@@ -55,6 +55,8 @@ pub struct ClassFile {
     fields: Vec<Member>,
     methods: Vec<Member>,
     attributes: Vec<Attribute>,
+    /// The attributes the JVM does not define, written last.
+    custom: Vec<Attribute>,
     /// Why the class file cannot hold a method added.
     error: Option<String>,
 }
@@ -76,8 +78,17 @@ impl ClassFile {
             fields: Vec::new(),
             methods: Vec::new(),
             attributes: Vec::new(),
+            custom: Vec::new(),
             error: None,
         }
+    }
+
+    /// Whether the class declares method `name` of `descriptor` with all of flags `access`.
+    pub fn declares(&self, access: u16, name: &str, descriptor: &str) -> bool {
+        let (Some(n), Some(d)) = (self.pool.find_utf8(name), self.pool.find_utf8(descriptor)) else {
+            return false;
+        };
+        self.methods.iter().any(|m| m.name == n && m.descriptor == d && m.access & access == access)
     }
 
     pub fn field(&mut self, access: u16, name: &str, descriptor: &str) {

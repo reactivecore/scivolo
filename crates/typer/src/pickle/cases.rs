@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
-//! Matches, `try` and patterns (dotty's `Match`, `CaseDef`, `Try`, `Bind`, `Alternative` and
-//! `UnApply` cases of `pickleTree`).
+//! Matches, `try`, `return` and patterns (dotty's `Match`, `CaseDef`, `Try`, `Return`, `Bind`,
+//! `Alternative` and `UnApply` cases of `pickleTree`).
 
 use super::names::local_name;
 use super::{Refusal, TreePickler};
@@ -32,6 +32,15 @@ impl TreePickler<'_> {
         let all: Vec<TNodeId> =
             [expr].into_iter().chain(self.tpd.items(cases).iter().copied()).chain(finalizer).collect();
         self.with_length(TRY, &mut |p| all.iter().try_for_each(|&t| p.tree(t)))
+    }
+
+    /// `return expr` from the method `from` names.
+    pub fn return_(&mut self, expr: TNodeId, from: TNodeId) -> Result<(), Refusal> {
+        let method = self.tpd.sym(from).ok_or("a return from no method")?;
+        self.with_length(RETURN, &mut |p| {
+            p.sym_addr(method);
+            p.tree(expr)
+        })
     }
 
     /// A pattern variable `id`: its name, type, pattern and modifiers but `case`.

@@ -83,10 +83,14 @@ impl Gen<'_, '_> {
         cf.source_file(&source);
         let declared: Vec<SymbolId> = nested.iter().filter_map(|&n| self.l.tpd.sym(n)).collect();
         self.nested_attributes(&mut cf, sym, &declared);
-        let bytes = cf.bytes().or_else(|e| unsupported(self.l.tpd.span(td), e))?;
-        self.out.push(ClassBytes { name: name.clone(), bytes });
-        if module && top && self.l.u.companion_class(sym).is_none() {
-            self.gen_mirror_class(td, sym, &name, &declared)?;
+        let mirror = module && top && self.l.u.companion_class(sym).is_none();
+        let tasty = self.tasty.remove(&sym);
+        let (own, mirrored) = if mirror { (None, tasty) } else { (tasty, None) };
+        let class =
+            ClassBytes::new(name.clone(), &mut cf, own).or_else(|e| unsupported(self.l.tpd.span(td), e))?;
+        self.out.push(class);
+        if mirror {
+            self.gen_mirror_class(td, (sym, &name), &declared, mirrored)?;
         }
         nested.into_iter().try_for_each(|n| self.gen_class(n))
     }

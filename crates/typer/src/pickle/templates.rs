@@ -6,7 +6,7 @@
 use super::names::sym_name;
 use super::{Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::tags::{IDENTtpt, PARAMsetter, QUALTHIS, SELFDEF, TEMPLATE};
+use tasty::tags::{IDENTtpt, PARAMsetter, QUALTHIS, SELFDEF, SUPER, TEMPLATE};
 use tasty::write::Name;
 use tasty::{Kind, Type, TypeId};
 
@@ -23,7 +23,14 @@ impl TreePickler<'_> {
         }
         let (params, rest): (Vec<TNodeId>, Vec<TNodeId>) =
             self.tpd.items(body).iter().partition(|&&s| self.is_class_param(s));
-        let parents = self.tpd.items(parents).to_vec();
+        let mut classes = Vec::new();
+        let mut parents = self.tpd.items(parents).to_vec();
+        parents.retain(|&p| {
+            let class = self.u.class_symbol(self.tpd.tpe(p));
+            let again = class.is_some() && classes.contains(&class);
+            classes.push(class);
+            !again
+        });
         let stats: Vec<TNodeId> = std::iter::once(constr).chain(rest).collect();
         self.with_length(TEMPLATE, &mut |p| {
             p.params(&params)?;
@@ -76,6 +83,23 @@ impl TreePickler<'_> {
         self.byte(IDENTtpt);
         self.name(&name);
         self.ty(class, false)
+    }
+
+    /// `qual.super[mix]` of type `tpe`, `mix` empty if not written.
+    pub fn super_(&mut self, qual: TNodeId, mix: TNodeId, tpe: TypeId) -> Result<(), Refusal> {
+        let T::Ident { name } = *self.tpd.tree(mix) else { return Err("a super of another kind") };
+        let name = self.names.text(name.name).to_owned();
+        let Type::Super(_, mixin) = *self.u.types().get(tpe) else { return Err("a super of another type") };
+        self.with_length(SUPER, &mut |p| {
+            p.tree(qual)?;
+            if !name.is_empty() {
+                p.buf.register_tree(mix.index() as u32);
+                p.byte(IDENTtpt);
+                p.name(&Name::utf8(&name));
+                p.ty(mixin, false)?;
+            }
+            Ok(())
+        })
     }
 
     /// Shares the class of module val's `new Foo$()` `rhs` with its type `tpt`, one tree in

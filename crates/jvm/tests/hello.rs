@@ -145,6 +145,13 @@ fn throws_is_refused() {
 }
 
 #[test]
+fn a_definition_the_tasty_pickler_lacks_is_refused() {
+    let code = "import scala.language.experimental.namedTypeArguments\n\
+        object R { def f[A, B](a: A, b: B) = a; def g = f[B = Int](1, 2) }";
+    refuses("refusedtasty", code, "pickling named type arguments into TASTy");
+}
+
+#[test]
 fn a_javalib_value_the_jdk_lacks_is_refused() {
     let code = "object R { def f = java.lang.ProcessBuilder.nullFile }";
     refuses("refusedjdk", code, "a javalib member the JDK class lacks as a static field");

@@ -3,6 +3,7 @@
 
 use crate::Typer;
 use crate::inlining::Lent;
+use crate::pickle::{FileAttributes, Pickled, QuoteSource, Refusal, pickle_file};
 use crate::tpd::TNodeId;
 use crate::{Fallback, Typed, Units};
 use syntax::ast::Span;
@@ -15,6 +16,7 @@ impl Units {
     /// Completes typed unit `typed` of source files `files`: its annotations, type variables,
     /// synthetic members and inline calls.
     pub fn finish(&mut self, mut typer: Typer, typed: TNodeId, files: &[TNodeId]) -> Result<Typed, Fallback> {
+        let mut pickles = Vec::new();
         typer.typed_annotations();
         if !self.typer_only {
             typer.top_level_annotations(files, &self.source_names);
@@ -35,6 +37,8 @@ impl Units {
             let lent = (&mut *typer.u, &mut typer.tpd, &mut *typer.names, &mut *typer.fresh);
             if let Err((at, what)) = self.synthetic_members.map_or(Ok(()), |add| add(lent, typed)) {
                 typer.unsupported_at(at, &what);
+            } else if let Err(what) = self.pickle_files(&mut typer, files, &mut pickles) {
+                typer.unsupported_at(Span::NONE, &format!("pickling {what} into TASTy"));
             } else if let Err((at, what)) = typer.with_inlining(false, |i| i.run(typed)) {
                 typer.unsupported_at(at, what);
             }
@@ -61,6 +65,27 @@ impl Units {
         if !self.typer_only {
             diags.items.append(&mut typer.erasure_diags.items);
         }
-        Ok(Typed { tpd: typer.tpd, root: typed, diags })
+        Ok(Typed { tpd: typer.tpd, root: typed, diags, pickles })
+    }
+
+    /// Pickles the top-level classes of typed source files `files` into `out` if `tasty_sources`
+    /// is set.
+    fn pickle_files(
+        &self,
+        typer: &mut Typer,
+        files: &[TNodeId],
+        out: &mut Vec<Pickled>,
+    ) -> Result<(), Refusal> {
+        let Some(sources) = &self.tasty_sources else { return Ok(()) };
+        let attributes = FileAttributes { scala2: typer.scala2, explicit_nulls: typer.explicit_nulls };
+        for &f in files {
+            let Some((file, base)) = sources.get(typer.file_of(typer.tpd.span(f))) else {
+                return Err("a file without its source");
+            };
+            let source = QuoteSource::of(file.tasty_path().to_owned(), file, *base);
+            let cx = (&mut *typer.u, &mut typer.tpd, &*typer.names);
+            out.extend(pickle_file(cx, f, &source, (attributes, &typer.syms.annotations))?);
+        }
+        Ok(())
     }
 }

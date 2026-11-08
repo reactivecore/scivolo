@@ -164,6 +164,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       return that skips `monitorexit` (`IllegalMonitorStateException`); across a `try` it stays
       an exception.
     - Fix: keep the exception across `synchronized` as across `try`. Frontend: breaks throw.
+15. **`TastyPrinter` reads the payload of a constant as a Nat** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/core/tasty/TastyPrinter.scala:197`, `printTree`).
+    - `INTconst`, `LONGconst`, `DOUBLEconst` carry a LongInt; `printNat` fails on a negative or
+      large one (`Expected a 31-bit nat`), so a file with `1.0` or a case class's `hashCode`
+      seed does not print.
+    - Fix: `readLongInt` for those tags. `just jvm-tasty`: compares files without such
+      constants only.
 
 ## M4: dotty `tests/run`
 
