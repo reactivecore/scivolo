@@ -1,6 +1,8 @@
-//! The class files of the JDK that `java` runs (ADR 0106): its jmods, else its `lib/ct.sym`.
+//! The class files of the JDK that `java` runs (ADR 0106): its `lib/modules`, else its
+//! `lib/ct.sym`.
 
 use super::ClassInfo;
+use super::jimage::Jimage;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
@@ -8,10 +10,12 @@ use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
 enum Source {
-    /// The jmods not yet opened, `java.base` first, and those opened.
-    Jmods { closed: Vec<PathBuf>, open: Vec<ZipArchive<File>> },
+    Jimage(Jimage),
     /// `lib/ct.sym` and its entry of each class of the latest release it holds.
-    CtSym { zip: ZipArchive<File>, entries: HashMap<String, String> },
+    CtSym {
+        zip: ZipArchive<File>,
+        entries: HashMap<String, String>,
+    },
 }
 
 /// The JDK's classes by internal name, the JDK found on the first lookup and each class read
@@ -45,16 +49,7 @@ fn home() -> Option<PathBuf> {
 }
 
 fn open(home: &Path) -> Option<Source> {
-    jmods(home).or_else(|| ct_sym(home))
-}
-
-fn jmods(home: &Path) -> Option<Source> {
-    let jmods = std::fs::read_dir(home.join("jmods")).into_iter().flatten().flatten();
-    let mut closed: Vec<PathBuf> =
-        jmods.map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "jmod")).collect();
-    closed.sort_by_key(|p| std::cmp::Reverse((!p.ends_with("java.base.jmod"), p.clone())));
-    let base = closed.last().is_some_and(|p| p.ends_with("java.base.jmod"));
-    base.then_some(Source::Jmods { closed, open: Vec::new() })
+    Jimage::open(&home.join("lib/modules")).map(Source::Jimage).or_else(|| ct_sym(home))
 }
 
 fn ct_sym(home: &Path) -> Option<Source> {
@@ -78,38 +73,20 @@ impl Source {
     /// The bytes of the class file of class `name`.
     fn bytes(&mut self, name: &str) -> Option<Vec<u8>> {
         match self {
-            Source::CtSym { zip, entries } => entry(zip, entries.get(name)?),
-            Source::Jmods { closed, open } => {
-                let entry_name = format!("classes/{name}.class");
-                if let Some(bytes) = open.iter_mut().find_map(|z| entry(z, &entry_name)) {
-                    return Some(bytes);
-                }
-                while let Some(path) = closed.pop() {
-                    let Some(mut z) = File::open(path).ok().and_then(|f| ZipArchive::new(f).ok()) else {
-                        continue;
-                    };
-                    let bytes = entry(&mut z, &entry_name);
-                    open.push(z);
-                    if bytes.is_some() {
-                        return bytes;
-                    }
-                }
-                None
+            Source::Jimage(image) => image.bytes(name),
+            Source::CtSym { zip, entries } => {
+                let mut file = zip.by_name(entries.get(name)?).ok()?;
+                let mut bytes = Vec::new();
+                file.read_to_end(&mut bytes).ok()?;
+                Some(bytes)
             }
         }
     }
 }
 
-fn entry(zip: &mut ZipArchive<File>, name: &str) -> Option<Vec<u8>> {
-    let mut file = zip.by_name(name).ok()?;
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes).ok()?;
-    Some(bytes)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{Jdk, ct_sym, home, jmods};
+    use super::{Jdk, Jimage, Source, ct_sym, home};
 
     fn reads_jdk_classes(mut jdk: Jdk) {
         let list = jdk.class("java/util/ArrayList").expect("ArrayList");
@@ -122,11 +99,12 @@ mod tests {
     }
 
     #[test]
-    fn reads_jdk_classes_from_jmods_and_ct_sym() {
+    fn reads_jdk_classes_from_jimage_and_ct_sym() {
         let Some(home) = home() else { return eprintln!("no JDK found: skipped") };
-        let sources: Vec<_> = [jmods(&home), ct_sym(&home)].into_iter().flatten().collect();
-        assert!(!sources.is_empty(), "neither jmods nor lib/ct.sym in {home:?}");
-        for source in sources {
+        let mut image = Jimage::open(&home.join("lib/modules")).expect("an uncompressed lib/modules");
+        assert!(image.bytes("java/util/HexFormat").is_some(), "JDK 17's HexFormat");
+        let image = Some(Source::Jimage(image));
+        for source in [image, ct_sym(&home)].into_iter().flatten() {
             reads_jdk_classes(Jdk { source: Some(Some(source)), classes: Default::default() });
         }
     }

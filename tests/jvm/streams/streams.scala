@@ -11,5 +11,6 @@ object Streams {
     val list: java.util.AbstractList[String] =
       if (args.length > 0) new java.util.ArrayList[String](words) else new java.util.LinkedList[String](words)
     println(list.size())
+    println(java.util.HexFormat.of().formatHex(Array[Byte](1, 127)))
   }
 }

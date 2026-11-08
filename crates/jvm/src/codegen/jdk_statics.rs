@@ -1,7 +1,7 @@
 //! The JDK classes' static members that javalib's objects stand for (ADR 0103, 0106).
 
 use super::{Gen, descriptor, internal, method_descriptor, unsupported};
-use classfile::ACC_STATIC;
+use classfile::{ACC_INTERFACE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC};
 use lower::Result;
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -47,18 +47,22 @@ impl Gen<'_, '_> {
         unsupported(span, format!("javalib's {class}.{name}, a static member the JDK lacks"))
     }
 
-    /// Whether JDK class `class` has static field or method `name` of descriptor `desc`, declared
-    /// in it or in a class or, for a field, an interface it derives from.
+    /// Whether JDK class `class` has public or protected static field or method `name` of
+    /// descriptor `desc`, found as the JVM resolves it (JVMS §5.4.3.2–5.4.3.4): a field in it or
+    /// a class or interface it derives from, a method in it or, for a class, a superclass.
     fn jdk_static(&mut self, class: &str, name: &str, desc: &str, field: bool) -> bool {
         let mut todo = vec![class.to_owned()];
         while let Some(c) = todo.pop() {
             let Some(info) = self.jdk.class(&c) else { continue };
             let members = if field { &info.fields } else { &info.methods };
             let is = |m: &&classfile::MemberInfo| m.name == name && m.descriptor == desc;
-            if members.iter().any(|m| is(&m) && m.access & ACC_STATIC != 0) {
+            let visible = |m: &&classfile::MemberInfo| m.access & (ACC_PUBLIC | ACC_PROTECTED) != 0;
+            if members.iter().any(|m| is(&m) && visible(&m) && m.access & ACC_STATIC != 0) {
                 return true;
             }
-            todo.extend(info.superclass.clone());
+            if field || info.access & ACC_INTERFACE == 0 {
+                todo.extend(info.superclass.clone());
+            }
             todo.extend(info.interfaces.iter().filter(|_| field).cloned());
         }
         false

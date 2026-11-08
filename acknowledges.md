@@ -71,6 +71,9 @@ colors (fansi).
 - **ASM** ([asm.ow2.io](https://asm.ow2.io/)), BSD-3-Clause: stack map frames by a dataflow over
   the bytecode with verifier types, and unreachable code replaced by `nop`s and `athrow`
   (`MethodWriter.computeAllFrames`, `Frame`), behind `crates/classfile/src/frames/`.
+- **OpenJDK's jimage** ([openjdk/jdk](https://github.com/openjdk/jdk)): the layout of the
+  run-time image `lib/modules` (`BasicImageReader`, `ImageLocation`), read by
+  `crates/classfile/src/read/jimage.rs` ([ADR 0106](docs/adr/0106-jvm-jdk-classes-from-jimage-or-ct-sym.md)).
 
 - **Cranelift** ([cranelift.dev](https://cranelift.dev/)), Apache-2.0 with LLVM exception: the
   code generator of `scivolo-aot` (`crates/aot`), used as a library

@@ -1,6 +1,7 @@
 //! Reading class files (JVMS §4.1): the class's names, flags and members, attributes skipped.
 
 mod jdk;
+mod jimage;
 
 pub use jdk::Jdk;
 
