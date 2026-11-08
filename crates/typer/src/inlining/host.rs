@@ -37,7 +37,7 @@ pub trait Host {
         qual_expr: (TypeId, TNodeId),
         selectors: Vec<ImportSelector>,
     ) -> Ctx;
-    /// Gives `copy` the context of call `original`, if it has one.
+    /// Gives `copy` the context of call or sequence literal with spreads `original`, if it has one.
     fn copied_call(&mut self, original: TNodeId, copy: TNodeId);
     /// For `search` `(pt, ignored)`, an implicit argument of type `pt` at `at` in `ctx`, its type
     /// variables instantiated, candidates `ignored` left out (dotty's `inferImplicitArg`);
