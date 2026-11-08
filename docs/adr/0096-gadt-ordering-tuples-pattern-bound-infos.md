@@ -5,9 +5,10 @@ Status: accepted · Date: 2026-11-08 · Amends: ADR 0090, ADR 0092
 ## Context
 ADR 0092 left these GADT shapes refused: bounds between parameters not propagated, a tuple
 class in a GADT approximation, a pattern-bound type unnarrowed by nested patterns, a variable
-pattern of a higher-kinded parameter. dotty's `GadtConstraint` keeps every narrowable symbol in
-one ordering constraint (`addLess`), records `T <: TupleN[..]` as `toNestedPairs`, and gives
-the binds of a case's pattern their GADT bounds as infos (`indexPattern`).
+pattern of a higher-kinded parameter, the type parameters of a polymorphic function value.
+dotty's `GadtConstraint` keeps every narrowable symbol in one ordering constraint (`addLess`),
+records `T <: TupleN[..]` as `toNestedPairs`, and gives the binds of a case's pattern their
+GADT bounds as infos (`indexPattern`).
 
 ## Decision
 - A pattern's narrowing compares with type variables for the selector's narrowable parameters,
@@ -24,12 +25,16 @@ the binds of a case's pattern their GADT bounds as infos (`indexPattern`).
 - After a case's pattern, its pattern-bound types take their GADT bounds as infos.
 - A variable pattern for a higher- or any-kinded class parameter takes that parameter's
   bounds (dotty's `tparamBounds` as the expected type of `patternVar`).
-- A block adapted to a type it conforms to only by GADT bounds casts its expression.
+- The type parameters of a polymorphic function value narrow inside its closure.
+- An extractor pattern that does not conform to a selector whose only abstract arguments are
+  opaque types is typed without narrowing, as no GADT bounds narrow an opaque type.
+- A block adapted to a type it conforms to only by GADT bounds casts its expression, a
+  closure block as a whole.
 - The pattern matcher binds an extractor's component of a pattern-bound type as `Any`
   (`avoidPatBoundType`).
 
 ## Consequences
-- Parameters made one keep the first as their representative, dotty one of its choosing:
-  a cast whose target names it differs (`gadt-complexEQ`) and stays refused only where it is
-  not reached.
-- A GADT approximation inside an inferred type argument is not done (`i4075-gadt`).
+- Refused still: a singleton cast by GADT bounds as an inline argument (dotty types the
+  expansion by the singleton); a GADT approximation inside an inferred type argument
+  (`i4075-gadt`); a typed pattern's bound type made one with several parameters (dotty
+  bounds it by each compared type).

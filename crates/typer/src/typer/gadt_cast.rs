@@ -156,8 +156,9 @@ impl Typer<'_> {
         }
     }
 
-    /// `s`'s upper bound for `variance` 1, its lower bound for -1; for the upper bound, a
-    /// GADT-narrowed type whose lower bound is `s` if it conforms to that bound (dotty's
+    /// The upper bound for `variance` 1, the lower bound for -1 of `s` or the last parameter it
+    /// was made one with, transitively; for the upper bound, a GADT-narrowed type outside those
+    /// whose lower bound is that parameter if it conforms to that bound (dotty's
     /// `fullUpperBound`).
     fn gadt_bound(&mut self, mut s: SymbolId, variance: i8) -> TypeId {
         let mut seen = vec![s];
