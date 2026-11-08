@@ -19,7 +19,7 @@ impl Typer<'_> {
     /// Pattern `id`, `expr: tpe` with type tree `tpt`, against `pt` as the extractor pattern
     /// `tag(expr)` of a given `TypeTest[pt, tpe]` or `ClassTag[tpe]`, no class tag for an opaque
     /// type, if `tpe`, its aliases followed up to a match-type alias, is or applies a type that is
-    /// not a class, and `pt` is not `Nothing`.
+    /// not a class.
     pub fn try_with_type_test(
         &mut self,
         id: NodeId,
@@ -30,9 +30,6 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<Option<TNodeId>, &'static str> {
         let Pt::Type(p) = pt else { return Ok(None) };
-        if self.u.class_symbol(p) == Some(self.u.builtins().nothing) {
-            return Ok(None);
-        }
         let dealiased = self.dealiased(tpe);
         let tycon = match *self.u.types().get(dealiased) {
             Type::Applied(tycon, _) => tycon,
