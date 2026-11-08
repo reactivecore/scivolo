@@ -71,9 +71,11 @@ def jar_name(module):
 
 def lower_cmd(module, root, files, out):
     """The `scivolo-lower` command lowering `files` of source directory `root` into `out`, the
-    checkout the source root as in Scala Native's build."""
+    checkout the source root as in Scala Native's build, against the JDK 17 API as that build but
+    javalib's own (ADR 0095)."""
     roots = ["--sourceroot", str(root if module == "scalalib" else SN), "--position-root", str(root)]
-    return [str(LOWER), "--macros", *OPTIONS.get(module, []), *roots, *map(str, files), str(out)]
+    jdk = [] if module == "javalib" else ["--jdk-17"]
+    return [str(LOWER), "--macros", *OPTIONS.get(module, []), *jdk, *roots, *map(str, files), str(out)]
 
 
 def oracle(module):

@@ -13,6 +13,7 @@ pub use polymorphic::{array_op, is_synchronized, qualify_synchronized, synchroni
 
 use super::casts::{cast, conforms, is_cast, is_new_array};
 use super::select_static::is_static_enum_value;
+use super::type_tests::as_instance_of::primitive_conversion;
 use crate::Lower;
 use crate::symbols::{has, is_java_field, is_java_static};
 use syntax::ast::Span;
@@ -87,15 +88,25 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
     }
 }
 
-/// The erasure of ascribed type `tpt`: `BoxedUnit` for an intersection or union erasing to `Unit`,
-/// a value class boxed if `tpt` is a boxed ascription's (dotty's `typedTyped`).
+/// The erasure of ascribed type `tpt`: `BoxedUnit` for a type erasing to `Unit` other than a
+/// reference to `Unit` itself, a value class boxed if `tpt` is a boxed ascription's (dotty's
+/// `typedTyped`).
 pub fn ascription_type(l: &mut Lower, tpt: TNodeId) -> Erased {
     let tpe = l.tpd.tpe(tpt);
     if l.boxed_types.contains(&tpt) {
         return l.u.erase_boxed(tpe);
     }
+    let mut t = tpe;
+    while let Type::Annotated(inner, _) = *l.u.types().get(t) {
+        t = inner;
+    }
+    let referred = match *l.u.types().get(t) {
+        Type::Sym(_, s) => Some(s),
+        Type::TypeRef(..) => l.u.resolve_ref(t),
+        _ => None,
+    };
     match l.u.erase_value(tpe) {
-        Erased::Unit if l.u.class_symbol(tpe).is_none() => Erased::Class("scala.runtime.BoxedUnit".into()),
+        Erased::Unit if referred != Some(l.defs.unit) => Erased::Class("scala.runtime.BoxedUnit".into()),
         e => e,
     }
 }
@@ -150,6 +161,10 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
             None => t,
         },
         (Erased::Unit, pt) if reference(pt) => boxed_unit(l, t),
+        (Erased::Prim(a), Erased::Prim(b)) if a != b => match primitive_conversion(l, t, *a, *b) {
+            Some(select) => applied_to_none(l, select),
+            None => t,
+        },
         (Erased::Class(_), Erased::Prim(c)) => match l.primitive(*c) {
             Some(p) => {
                 let (module, unbox_method) = (p.module, p.unbox_method);

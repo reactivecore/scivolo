@@ -14,9 +14,10 @@ impl Typer<'_> {
     /// Whether application `id` is a right-associative infix operation desugared to a call.
     pub fn is_right_assoc_call(&self, id: NodeId) -> bool {
         let Tree::Apply { fun, .. } = *self.ast.tree(id) else { return false };
-        let Tree::Select { name, .. } = *self.ast.tree(fun) else { return false };
+        let Tree::Select { qualifier, name } = *self.ast.tree(fun) else { return false };
         let text = self.text(name.name);
-        text.ends_with(':') && self.ast.span(fun).is_synthetic()
+        let span = self.ast.span(fun);
+        text.ends_with(':') && span.is_synthetic() && self.ast.span(qualifier).start() > span.start()
     }
 
     /// Call `tree` with its arguments lifted unless pure (dotty's `LiftImpure.liftArgs`), through
