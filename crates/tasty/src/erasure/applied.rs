@@ -42,7 +42,7 @@ impl Universe {
 
     /// `tycon[args]` with `tycon` an opaque type lambda defined outside TASTy: its right-hand
     /// side's body, arguments substituted.
-    fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+    pub fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         let alias = self.referenced(tycon).and_then(|s| self.opaque_alias(s))?;
         let Type::Lambda { binder, params, result } = self.types().get(alias).clone() else { return None };
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
@@ -60,16 +60,13 @@ impl Universe {
         args.get(i).copied()
     }
 
-    /// `Array[elem]`: `Object` for a generic element or a wildcard bounded by `Unit`, else an
-    /// array of the erased element (`BoxedUnit` for `Unit`, in Scala 2 `Object` for `Nothing` and
-    /// `Null`).
+    /// `Array[elem]`: `Object` for a generic element, else an array of the erased element
+    /// (`BoxedUnit` for `Unit`, in Scala 2 `Object` for `Nothing` and `Null`).
     fn erase_array(&mut self, elem: TypeId) -> Erased {
-        let wildcard = matches!(self.types().get(elem), Type::Bounds(..));
         if self.is_generic(elem) {
             return object();
         }
         Erased::Array(Box::new(match self.erase_boxed(elem) {
-            Erased::Unit if wildcard => return object(),
             Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
             Erased::Nothing | Erased::Null if self.scala2_erasure() => object(),
             e => e,
