@@ -6,6 +6,7 @@ mod flexible;
 mod map;
 mod narrowing;
 mod parts;
+mod refined_aliases;
 mod refinements;
 mod show;
 mod show_source;

@@ -1,6 +1,6 @@
 # ADR 0092 — GADT: higher-kinded parameters, typed patterns, upcasts, member healing
 
-Status: accepted · Date: 2026-11-06 · Amends: ADR 0090
+Status: accepted, amended by ADR 0096 · Date: 2026-11-06 · Amends: ADR 0090
 
 ## Context
 ADR 0090 narrowed first-order type parameters only and refused higher-kinded parameters,

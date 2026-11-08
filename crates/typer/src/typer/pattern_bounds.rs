@@ -40,7 +40,10 @@ impl Typer<'_> {
         let Some(name) = var else { return (self.typed_type(id, ctx), None) };
         let span = self.ast.span(id);
         let wild = TName { name: self.name("_"), is_type: false };
-        let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
+        let bounds = match self.lambda_sub_param_bounds(tycon, i) {
+            Ok(Some(bounds)) => bounds,
+            _ => self.u.intern_type(Type::Bounds(NOTHING, ANY)),
+        };
         let at = Span::synthetic(span.start(), span.start());
         (self.tpd.node(T::Ident { name: wild }, at, Some(bounds), None), Some((name, span)))
     }

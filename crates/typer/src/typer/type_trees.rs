@@ -98,6 +98,10 @@ impl Typer<'_> {
                     reduced = true;
                 }
                 let arg_types = self.pattern_bound_args(tycon, &mut typed_args, &vars, arg_types, ctx);
+                let and_or = match (and_or, self.u.types().get(tycon), &arg_types[..]) {
+                    (Some(_), &Type::Sym(_, s), &[a, b]) => self.and_or_applied(s, a, b),
+                    _ => None,
+                };
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
                 let tpe = if reduced { self.bounded_refinements(tpe) } else { tpe };
                 let from = self.tpd.sym(tpt).is_some_and(|s| self.u.symbol(s).name == "From");

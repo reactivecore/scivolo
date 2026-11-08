@@ -61,7 +61,8 @@ impl Universe {
     }
 
     /// `Array[elem]`: `Object` for a generic element or a wildcard bounded by `Unit`, else an
-    /// array of the erased element (`BoxedUnit` for `Unit`, `Object` for `Nothing` and `Null`).
+    /// array of the erased element (`BoxedUnit` for `Unit`, in Scala 2 `Object` for `Nothing` and
+    /// `Null`).
     fn erase_array(&mut self, elem: TypeId) -> Erased {
         let wildcard = matches!(self.types().get(elem), Type::Bounds(..));
         if self.is_generic(elem) {
@@ -70,7 +71,7 @@ impl Universe {
         Erased::Array(Box::new(match self.erase_boxed(elem) {
             Erased::Unit if wildcard => return object(),
             Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
-            Erased::Nothing | Erased::Null => object(),
+            Erased::Nothing | Erased::Null if self.scala2_erasure() => object(),
             e => e,
         }))
     }
