@@ -39,7 +39,7 @@ impl Typer<'_> {
              please use the following option:\n  \"-Wconf:msg=Implicit parameters should be provided with a \
              `using` clause:s\"\n"
         );
-        self.diags.warning(span.point(), msg);
+        self.diags.warning_at(span.start(), span.end(), span.point(), msg);
         Ok(())
     }
 }

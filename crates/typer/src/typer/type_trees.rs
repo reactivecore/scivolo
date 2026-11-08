@@ -124,7 +124,8 @@ impl Typer<'_> {
                     self.ast.with_span(singleton, self.ast.span(arg));
                     return self.typed_annotated_type(id, singleton, annot, ctx);
                 }
-                let reference = self.typed(reference, Pt::Any, ctx);
+                let ref_ctx = ctx.with_mode(ctx.mode.with(Mode::SINGLETON_REF));
+                let reference = self.typed(reference, Pt::Any, ref_ctx);
                 if !self.is_stable_path(reference) && !self.is_capability(reference, ctx) {
                     return self.unsupported(id, "singleton type of an unstable reference");
                 }

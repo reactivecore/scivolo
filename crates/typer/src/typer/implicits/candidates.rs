@@ -26,9 +26,26 @@ impl Typer<'_> {
     /// The implicit members of class `c` and its base classes, the private ones of `c` if
     /// `own_private`, those overridden in a class before them in the linearization left out.
     pub fn implicit_members(&mut self, c: SymbolId, own_private: bool) -> Vec<SymbolId> {
+        let lin = self.u.linearization(c);
+        self.implicit_members_of(c, lin, own_private)
+    }
+
+    /// The implicit members of `this` in class `c`: `implicit_members` with the private ones of
+    /// `c`, then those of the classes of its given self type.
+    pub fn this_implicit_members(&mut self, c: SymbolId) -> Vec<SymbolId> {
+        self.complete(c);
+        let mut lin = self.u.linearization(c);
+        for b in self.self_type_bases(c) {
+            if !lin.contains(&b) {
+                lin.push(b);
+            }
+        }
+        self.implicit_members_of(c, lin, true)
+    }
+
+    fn implicit_members_of(&mut self, c: SymbolId, lin: Vec<SymbolId>, own_private: bool) -> Vec<SymbolId> {
         self.complete(c);
         let site = crate::defn::type_ref(self.u, c);
-        let lin = self.u.linearization(c);
         let mut out = Vec::new();
         for (i, &base) in lin.iter().enumerate() {
             self.complete(base);

@@ -53,8 +53,13 @@ impl Typer<'_> {
         }
         let module = self.resolve_full_name("scala.reflect.ClassTag", false).ok_or("ClassTag")?;
         let module_tpe = crate::defn::type_ref(self.u, module);
-        let class = match self.u.types().get(dealiased) {
+        let class = match self.u.types().get(dealiased).clone() {
             Type::And(..) | Type::Or(..) => None,
+            Type::Applied(tycon, _)
+                if self.referenced(tycon).is_some_and(|s| self.u.symbol(s).kind != Kind::Class) =>
+            {
+                None
+            }
             _ => self.u.class_symbol(dealiased),
         };
         let b = self.u.builtins();

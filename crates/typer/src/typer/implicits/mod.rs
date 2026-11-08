@@ -19,6 +19,7 @@ mod dictionary;
 mod divergence;
 mod extension_containers;
 mod extension_views;
+mod false_deps;
 mod function_goals;
 mod history;
 mod manifests;

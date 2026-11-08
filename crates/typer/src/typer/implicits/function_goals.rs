@@ -12,11 +12,20 @@ use syntax::diag::Level;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Type `t` of implicit `sym` as a value compared with `pt`: its implicit clauses stripped, a
-    /// method as a function type if `pt` is a `FunctionN` type (dotty's `normalize`); `None` if
-    /// it stays a method.
+    /// Type `t` of implicit `sym` as a value compared with `pt`: its implicit clauses stripped,
+    /// references to their parameters made wildcards, a method as a function type if `pt` is a
+    /// `FunctionN` type (dotty's `normalize`); `None` if it stays a method.
     pub fn implicit_value_type(&mut self, t: TypeId, sym: SymbolId, pt: TypeId) -> Option<TypeId> {
-        let t = self.strip_implicit(t);
+        let t = match self.u.types().get(t).clone() {
+            Type::Method { binder, params, result, implicit: true, contextual } => {
+                let result = self.without_false_deps_in(result, (binder, &params), Some(sym));
+                let t =
+                    self.u.intern_type(Type::Method { binder, params, result, implicit: true, contextual });
+                let stripped = self.strip_implicit_clauses(t, sym).0;
+                wildcard_selections(self.u, stripped)
+            }
+            _ => t,
+        };
         let method = matches!(self.u.types().get(t), Type::Method { .. });
         let t = match method && self.is_function_type(pt) {
             true => self.proto_normalized((t, Some(sym)), pt, true, 8)?,
@@ -101,4 +110,16 @@ impl Typer<'_> {
         self.unsupported.get_or_insert((span, what));
         Err("implicit method as a function value")
     }
+}
+
+/// `t` with every selection from a wildcard made a wildcard (dotty's `derivedSelect` of a
+/// `WildcardType` prefix).
+fn wildcard_selections(u: &mut tasty::Universe, t: TypeId) -> TypeId {
+    u.map_type(t, &mut |u, x| {
+        let (Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::Sym(Some(p), _)) = *u.types().get(x) else {
+            return None;
+        };
+        let p = wildcard_selections(u, p);
+        matches!(u.types().get(p), Type::Wildcard(_)).then(|| u.intern_type(Type::Wildcard(None)))
+    })
 }

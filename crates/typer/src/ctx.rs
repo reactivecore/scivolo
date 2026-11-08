@@ -43,6 +43,9 @@ impl Mode {
     pub const QUOTED_PATTERN: Mode = Mode(2048 | 4096);
     /// The capture set of a `@retains` annotation.
     pub const IN_CAPTURE_SET: Mode = Mode(8192);
+    /// The reference of a singleton type, where a context function value stays unapplied
+    /// (dotty's `SingletonTypeProto`).
+    pub const SINGLETON_REF: Mode = Mode(16384);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

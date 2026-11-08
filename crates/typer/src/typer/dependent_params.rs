@@ -39,7 +39,7 @@ pub fn applied_result(
 
 /// The number of the parameter of the clause of binder `binder` and parameter names `names` of
 /// method `method` that `part` refers to.
-fn clause_param(
+pub fn clause_param(
     u: &Universe,
     part: TypeId,
     (binder, names): (Binder, &[String]),
