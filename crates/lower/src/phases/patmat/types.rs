@@ -11,11 +11,20 @@ use crate::phases::outer_tests::{OuterTest, outer_test};
 use crate::phases::type_tests::singletons::{is_instance, singleton};
 use crate::symbols::has;
 use syntax::ast::Span;
-use tasty::tags::{INLINE, MUTABLE, STABLE};
+use tasty::tags::{CASE, INLINE, MUTABLE, STABLE};
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
+    /// `Any` for a value `tree` of a pattern-bound type, else its own type (dotty's
+    /// `avoidPatBoundType`).
+    pub fn avoid_pat_bound_type(&mut self, tree: TNodeId) -> Option<TypeId> {
+        let tpe = self.l.tpd.tpe(tree);
+        let widened = self.l.u.widen(tpe);
+        let Type::Sym(_, s) = *self.l.u.types().get(widened) else { return None };
+        (self.l.u.symbol(s).kind == Kind::Type && has(self.l.u, s, CASE)).then_some(tasty::ANY)
+    }
+
     /// `pat` with `x @ (p: T)` made `(x @ p): T`, repeatedly (dotty's `swapBind`).
     pub fn swap_bind(&mut self, pat: TNodeId) -> TNodeId {
         let Tree::Bind { name, body } = *self.l.tpd.tree(pat) else { return pat };

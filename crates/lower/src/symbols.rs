@@ -1,5 +1,6 @@
 //! What the lowering asks of symbols (dotty's `SymDenotations` predicates).
 
+mod jdk_17_missing;
 mod jdk_inherited;
 
 use tasty::tags::{ERASED, EXTENSION, FINAL, IMPLICIT, LAZY, PRIVATE, STATIC};
@@ -134,4 +135,14 @@ pub fn jdk_api_owner(u: &Universe, m: SymbolId) -> Option<&'static str> {
         return found.ok().filter(|_| u.may_be_java(class)).map(|i| jdk_inherited::INHERITED[i].2);
     }
     JAVALIB_ONLY_MEMBERS.iter().find(|e| e.0 == owner && e.2.contains(&name)).map(|&(_, jdk, _)| jdk)
+}
+
+/// Whether the compile sees the JDK 17 API and member `m` of a javalib class is not in it.
+pub fn beyond_jdk_view(u: &Universe, m: SymbolId) -> bool {
+    let Some(class) = u.symbol(m).owner.filter(|&c| u.jdk_17_view() && u.may_be_java(c)) else {
+        return false;
+    };
+    let owner = u.full_name(class);
+    let name = u.symbol(m).name.as_str();
+    jdk_17_missing::MISSING.binary_search(&(owner.as_str(), name)).is_ok()
 }
