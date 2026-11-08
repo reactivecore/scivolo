@@ -28,8 +28,9 @@ impl Typer<'_> {
     }
 
     /// Whether `s` is a GADT-constrained type: a type parameter of a method enclosing `ctx`'s
-    /// owner or of a class enclosing one (dotty's `addToConstraint` in `typedDefDef`), or a
-    /// pattern-bound type of a case being typed.
+    /// owner, of a polymorphic function value's closure enclosing it, or of a class enclosing
+    /// one (dotty's `addToConstraint` in `typedDefDef`), or a pattern-bound type of a case
+    /// being typed.
     pub fn is_gadt_symbol(&mut self, s: SymbolId, ctx: Ctx) -> bool {
         if self.gadt.bound.contains(&s) {
             return true;
@@ -37,6 +38,7 @@ impl Typer<'_> {
         let Some(of) = self.u.symbol(s).owner.filter(|_| self.u.symbol(s).kind == Kind::TypeParam) else {
             return false;
         };
+        let poly = self.is_poly_apply_owner(of).then(|| self.u.symbol(of).owner);
         let (mut owner, mut in_method) = (Some(ctx.owner), false);
         while let Some(o) = owner {
             match self.u.symbol(o).kind {
@@ -47,7 +49,7 @@ impl Typer<'_> {
                     continue;
                 }
             }
-            if o == of {
+            if o == of || poly.is_some_and(|p| self.u.symbol(o).owner == p) {
                 return true;
             }
             owner = self.u.symbol(o).owner;
