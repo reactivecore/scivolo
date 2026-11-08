@@ -16,6 +16,7 @@ impl<'a> Goal<'a> {
     pub fn of_select(name: &'a str, pt: Pt) -> Goal<'a> {
         match pt {
             Pt::Fun(proto) => Goal::Call(name, proto),
+            Pt::Type(t) => Goal::Typed(name, t),
             _ => Goal::Member(name),
         }
     }
@@ -23,7 +24,7 @@ impl<'a> Goal<'a> {
     /// The member the converted tree must have.
     pub fn member(self) -> Option<&'a str> {
         match self {
-            Goal::Member(name) | Goal::Call(name, _) => Some(name),
+            Goal::Member(name) | Goal::Call(name, _) | Goal::Typed(name, _) => Some(name),
             Goal::Conform(_) => None,
         }
     }

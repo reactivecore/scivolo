@@ -19,6 +19,8 @@ pub enum Goal<'a> {
     Member(&'a str),
     /// A member applied to the arguments of a `FunProto`, by its index in `Typer::protos`.
     Call(&'a str, usize),
+    /// A member whose value is expected to conform to a type.
+    Typed(&'a str, TypeId),
 }
 
 /// What a view search found: a converted tree, or an implicit value with the extension method a
@@ -79,10 +81,10 @@ impl Typer<'_> {
             {
                 found = self.applying(found, tree, (name, proto), ctx);
             }
-            if let Some(name) = goal.member() {
+            if goal.member().is_some() {
                 let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();
                 group.extend(extra);
-                if let Some(c) = self.extension_container(&group, tree, name, ctx)? {
+                if let Some(c) = self.extension_container(&group, tree, goal, ctx)? {
                     found.retain(|&v| self.compare(v, c, ctx) != Some(-1));
                     widened.retain(|&v| self.compare(v, c, ctx) != Some(-1));
                     if found.is_empty() && widened.is_empty() {
@@ -173,7 +175,7 @@ impl Typer<'_> {
         let pt = match goal {
             Goal::Conform(pt) if self.conforms(result, pt) => Pt::Type(pt),
             Goal::Conform(_) => return Err("conversion to another type"),
-            Goal::Member(_) | Goal::Call(..) => Pt::Any,
+            Goal::Member(_) | Goal::Call(..) | Goal::Typed(..) => Pt::Any,
         };
         self.interpolate(converted, pt, from)?;
         let result = self.zonk(result);

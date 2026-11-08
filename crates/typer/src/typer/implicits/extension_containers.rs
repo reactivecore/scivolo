@@ -5,24 +5,39 @@
 
 use super::super::Typer;
 use super::candidates::Candidate;
+use super::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
-use tasty::SymbolId;
+use tasty::{SymbolId, Type, TypeId};
 
 const AMBIGUOUS: &str = "ambiguous extension methods of implicit values";
 
 impl Typer<'_> {
-    /// The one candidate of `group` with an extension method `name` that takes `tree`, if any,
-    /// else the most specific one; `Err` if none is.
+    /// The one candidate of `group` with an extension method named as `goal`'s member that takes
+    /// `tree`, of several those whose method's result fits `goal`'s expected type, if any, else the
+    /// most specific one; `Err` if none is.
     pub fn extension_container(
         &mut self,
         group: &[Candidate],
         tree: TNodeId,
-        name: &str,
+        goal: Goal,
         ctx: Ctx,
     ) -> Result<Option<Candidate>, &'static str> {
-        let found = self.fitting(group, |t, c| t.try_extension(c, tree, name, ctx))?;
+        let Some(name) = goal.member() else { return Ok(None) };
+        let mut found = self.fitting(group, |t, c| t.try_extension(c, tree, name, ctx))?;
+        if let Goal::Typed(_, pt) = goal
+            && found.len() > 1
+        {
+            let typed: Vec<Candidate> = found
+                .iter()
+                .copied()
+                .filter(|&c| self.extension_result_fits(c, tree, name, pt, ctx))
+                .collect();
+            if !typed.is_empty() {
+                found = typed;
+            }
+        }
         match found[..] {
             [] => Ok(None),
             [c] => Ok(Some(c)),
@@ -35,6 +50,34 @@ impl Typer<'_> {
                 }
             },
         }
+    }
+
+    /// Whether the extension methods `name` of container `c` are one taking no further clause
+    /// whose result conforms to `pt`, tried without changing the constraint.
+    fn extension_result_fits(
+        &mut self,
+        c: Candidate,
+        tree: TNodeId,
+        name: &str,
+        pt: TypeId,
+        ctx: Ctx,
+    ) -> bool {
+        let at = self.tpd.span(tree).start_pos();
+        let (fits, clean, _) = self.speculatively(|t| {
+            let Ok(container) = t.candidate_ref(c, at, ctx) else { return false };
+            let value = t.tpd.tpe(container);
+            let Ok(members) = t.extension_members(value, name) else { return false };
+            let [m] = members[..] else { return false };
+            let tpe = t.ref_type(Some(value), m);
+            let info = t.method_info(tpe).unwrap_or(tpe);
+            match t.u.types().get(info).clone() {
+                Type::Method { result, .. } if !matches!(t.u.types().get(result), Type::Method { .. }) => {
+                    t.conforms(result, pt)
+                }
+                _ => false,
+            }
+        });
+        fits && clean
     }
 
     /// The container of `found` whose extension method `name` ranks above the others' (dotty's
