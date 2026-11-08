@@ -106,6 +106,9 @@ impl TreePickler<'_> {
     /// The name of `s` in a reference: its local name if defined in the quote, else a default
     /// getter's if it is one.
     pub fn ref_name(&self, s: SymbolId) -> Name {
+        if let Some(name) = self.accessor_name(s) {
+            return name;
+        }
         match (self.is_defined_here(s), derived_name(&self.u.symbol(s).name)) {
             (true, _) => local_name(self.u, s),
             (false, Some(getter @ Name::DefaultGetter(..))) => getter,

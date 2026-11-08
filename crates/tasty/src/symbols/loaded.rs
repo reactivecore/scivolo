@@ -81,4 +81,25 @@ impl Loaded {
     pub fn is_decoded(&self) -> bool {
         self.decoded.get().is_some()
     }
+
+    /// The source path its `SOURCEFILE` attribute records.
+    pub fn source_path(&self) -> Option<String> {
+        let tasty = Tasty::parse(&self.bytes).ok()?;
+        let attributes = tasty.attributes().ok()?;
+        attributes.into_iter().find_map(|a| match a {
+            crate::Attribute::SourceFile(n) => match tasty.names.get(n)? {
+                crate::Name::Utf8(path) => Some((*path).to_owned()),
+                _ => None,
+            },
+            crate::Attribute::Flag(_) => None,
+        })
+    }
+}
+
+impl super::Universe {
+    /// The source path the TASTy file that defines `s` records, if it is a library's.
+    pub fn source_path(&self, s: super::SymbolId) -> Option<String> {
+        let (file, _) = self.symbol(s).tree?;
+        self.files[file.0 as usize].source_path()
+    }
 }

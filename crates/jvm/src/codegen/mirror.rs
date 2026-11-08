@@ -14,13 +14,14 @@ use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
-    /// The mirror class of top-level object class `module`, which declares classes `declared`.
+    /// The mirror class of top-level object class `module` named `module_name`, which declares
+    /// classes `declared`, with the object's TASTy `tasty`.
     pub fn gen_mirror_class(
         &mut self,
         td: TNodeId,
-        module: SymbolId,
-        module_name: &str,
+        (module, module_name): (SymbolId, &str),
         declared: &[SymbolId],
+        tasty: Option<Vec<u8>>,
     ) -> Result<()> {
         let name = module_name.strip_suffix('$').unwrap_or(module_name);
         let mut cf = ClassFile::new(ACC_PUBLIC | ACC_FINAL | ACC_SUPER, name, "java/lang/Object", &[]);
@@ -28,8 +29,9 @@ impl Gen<'_, '_> {
         let source = self.source_name(td);
         cf.source_file(&source);
         self.nested_attributes(&mut cf, module, declared);
-        let bytes = cf.bytes().or_else(|e| unsupported(self.l.tpd.span(td), e))?;
-        self.out.push(ClassBytes { name: name.to_owned(), bytes });
+        let class = ClassBytes::new(name.to_owned(), &mut cf, tasty)
+            .or_else(|e| unsupported(self.l.tpd.span(td), e))?;
+        self.out.push(class);
         Ok(())
     }
 

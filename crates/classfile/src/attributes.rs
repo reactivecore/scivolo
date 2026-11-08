@@ -89,6 +89,12 @@ impl ClassFile {
         member.attributes.push(Attribute { name, bytes });
     }
 
+    /// An attribute the JVM does not define, written after the others.
+    pub fn custom_attribute(&mut self, name: &str, bytes: Vec<u8>) {
+        let name = self.pool.utf8(name);
+        self.custom.push(Attribute { name, bytes });
+    }
+
     fn attribute(&mut self, name: &str, bytes: Vec<u8>) {
         let name = self.pool.utf8(name);
         self.attributes.push(Attribute { name, bytes });

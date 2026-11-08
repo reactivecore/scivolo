@@ -680,6 +680,7 @@ dependencies = [
  "scivolo-syntax",
  "scivolo-tasty",
  "scivolo-typer",
+ "zip",
 ]
 
 [[package]]

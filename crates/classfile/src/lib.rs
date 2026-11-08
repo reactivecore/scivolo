@@ -63,6 +63,8 @@ pub struct ClassFile {
     fields: Vec<Member>,
     methods: Vec<Member>,
     attributes: Vec<Attribute>,
+    /// The attributes the JVM does not define, written last.
+    custom: Vec<Attribute>,
     /// Why the class file cannot hold a method added.
     error: Option<String>,
 }
@@ -84,6 +86,7 @@ impl ClassFile {
             fields: Vec::new(),
             methods: Vec::new(),
             attributes: Vec::new(),
+            custom: Vec::new(),
             error: None,
         }
     }

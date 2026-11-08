@@ -111,7 +111,10 @@ libraries work. dotty's `tests/run-macros`: 308 of 321 pass
   primitive arithmetic, locals, branches, loops, boxing and arrays, classes, traits, lambdas,
   `try`/`finally`, `synchronized`, switches and JDK statics run on `java -Xverify:all`
   (`just jvm-run`, `just jvm-check` against scala-cli), as class version 61 with stack map
-  frames; 125 of the 308 `tests/programs` run with their `.check` output (en-US locale).
+  frames; 125 of the 308 `tests/programs` run with their `.check` output (en-US locale). Each
+  top-level class gets its TASTy and `TASTY` attribute
+  ([ADR 0105](docs/adr/0105-jvm-tasty-from-the-typer.md)), `-d x.jar` writes a jar, and
+  scala-cli compiles against it.
 
 ## Next
 

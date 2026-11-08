@@ -524,6 +524,16 @@ jvm-build file:
 jvm-check file: (jvm-fixture file) (jvm-build file)
     python3 scripts/jvm-check.py tmp/jvm/$(basename {{ file }} .scala)/ref tmp/jvm/$(basename {{ file }} .scala)/out
 
+# Read the TASTy files of jvm-build through dotty's TASTy inspector and print their trees.
+jvm-inspect file: (jvm-build file)
+    scala-cli run --server=false --quiet --workspace tmp/jvm/inspect scripts/tasty-inspect.scala -- \
+        $(find tmp/jvm/$(basename {{ file }} .scala)/out -name '*.tasty' | sort)
+
+# Compare the TASTy files of jvm-build with jvm-fixture's through dotty's TastyPrinter; fails on a
+# difference.
+jvm-tasty file: (jvm-fixture file) (jvm-build file)
+    python3 scripts/jvm-tasty.py tmp/jvm/$(basename {{ file }} .scala)/ref tmp/jvm/$(basename {{ file }} .scala)/out
+
 # Compile a Scala file with scivolo-jvm and run its `main` (default: the file name capitalized) on
 # `java -Xverify:all` in the en-US locale; compare its output with the `.check` file beside it, if any.
 jvm-run file main="": (jvm-build file)

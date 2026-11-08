@@ -52,6 +52,9 @@ impl TreePickler<'_> {
         name: TName,
         sym: Option<SymbolId>,
     ) -> Result<(), Refusal> {
+        if let Some(&acc) = self.super_calls.get(&id) {
+            return self.super_accessor_select(id, acc);
+        }
         let method = sym.filter(|&s| !name.is_type && result_sig(self.u, s).is_some());
         let Some(s) = method.filter(|_| !self.holes.contains_key(&qual)) else {
             self.byte(if name.is_type { SELECTtpt } else { SELECT });

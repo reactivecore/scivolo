@@ -155,6 +155,20 @@ fn throws_is_refused() {
 }
 
 #[test]
+fn a_definition_the_tasty_pickler_lacks_is_refused() {
+    let code = "import scala.language.experimental.namedTypeArguments\n\
+        object R { def f[A, B](a: A, b: B) = a; def g = f[B = Int](1, 2) }";
+    refuses("refusedtasty", code, "pickling named type arguments into TASTy");
+}
+
+#[test]
+fn what_the_tasty_lacks_is_refused() {
+    let code = "object O { trait A { def f = 1 }; trait B extends A { override def f = super.f + 1 } }";
+    refuses("refusedsuperaccessor", code, "a super call in a trait that is not top-level");
+    refuses("refusedgenericcase", "case class Box[A](a: A)", "generic case class");
+}
+
+#[test]
 fn a_javalib_value_the_jdk_lacks_is_refused() {
     let code = "object R { def f = java.lang.ProcessBuilder.nullFile }";
     refuses("refusedjdk", code, "ProcessBuilder.nullFile, a static member the JDK lacks");
