@@ -15,7 +15,8 @@ use typer::tpd::{TNodeId, Tree};
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
 /// `expr` then `()` for `Unit` and a source cast to `BoxedUnit`, a conversion or a cast of the boxed value from a primitive or `Unit`,
 /// unboxing from a reference or `null` to a primitive, a `ClassCastException` for `Nothing`,
-/// an ascription if `expr`'s erasure conforms to `target`'s, else `t`; casts from or to value classes as `value_cast`.
+/// an ascription if `expr`'s erasure conforms to `target`'s (of a cast at `expr` if only its self
+/// type's does), else `t`; casts from or to value classes as `value_cast`.
 pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TNodeId> {
     let target = l.tpd.tpe(tpt);
     let to = l.u.erase(target);
