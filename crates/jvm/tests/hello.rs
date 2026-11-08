@@ -153,6 +153,10 @@ fn a_definition_the_tasty_pickler_lacks_is_refused() {
 
 #[test]
 fn a_javalib_value_the_jdk_lacks_is_refused() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
     let code = "object R { def f = java.lang.ProcessBuilder.nullFile }";
     refuses("refusedjdk", code, "ProcessBuilder.nullFile, a static member the JDK lacks");
 }
