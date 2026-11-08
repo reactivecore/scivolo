@@ -51,7 +51,12 @@ impl Typer<'_> {
         }
         let with_implicits = !implicit.is_empty();
         if found.is_empty() {
-            found = implicit.into_iter().filter(|&(_, r)| self.result_fits(r, pt)).map(|(s, _)| s).collect();
+            let fitting: Vec<(SymbolId, TypeId)> =
+                implicit.into_iter().filter(|&(_, r)| self.result_fits(r, pt)).collect();
+            if let Some(best) = self.most_specific_result(&fitting) {
+                return Ok(best);
+            }
+            found = fitting.into_iter().map(|(s, _)| s).collect();
         }
         if let (Pt::Type(p), []) = (pt, &found[..])
             && let Some(sam) = (0..=22).find_map(|n| self.sam_shape(p, n).ok().flatten())
@@ -68,6 +73,27 @@ impl Typer<'_> {
             (_, [v]) if found.iter().all(|&m| m == *v || self.value_beats(*v, m)) => Ok(*v),
             _ => Err("overloaded reference"),
         }
+    }
+
+    /// The one of several methods `alts` with an implicit clause only whose result type, of
+    /// `alts` alongside, conforms to each other's and not they to it (dotty's `isAsSpecific`
+    /// of implicit methods), if all have the same owner.
+    fn most_specific_result(&mut self, alts: &[(SymbolId, TypeId)]) -> Option<SymbolId> {
+        let owner = self.u.symbol(alts.first()?.0).owner;
+        if alts.len() < 2 || alts.iter().any(|&(s, _)| self.u.symbol(s).owner != owner) {
+            return None;
+        }
+        let mut best = None;
+        for &(s, r) in alts {
+            let beats = alts
+                .iter()
+                .filter(|&&(o, _)| o != s)
+                .all(|&(_, ro)| self.u.is_subtype(r, ro) && !self.u.is_subtype(ro, r));
+            if beats {
+                best = Some(s);
+            }
+        }
+        best
     }
 
     /// Whether value `v` is more specific than `m`: `m` a method with an empty parameter list

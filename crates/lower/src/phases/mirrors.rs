@@ -51,17 +51,31 @@ pub fn mirror_support(
     if !is_enum && !product && !(has(l.u, linked, SEALED) && is_generic_sum(l, root, linked)) {
         return Ok(None);
     }
-    let mono = mono_type(l, class, linked, focus);
+    let sum = !is_enum && !product;
+    let mono = if sum { wildcard_applied(l, linked) } else { type_ref(l.u, linked) };
+    let mono_def = mono_type(l, class, mono, focus);
     let cc = l.case_classes()?;
     let (parent, method) = if is_enum {
         (cc.mirror_sum, enum_ordinal(l, class, linked, focus)?)
     } else if product {
         (cc.mirror_product, from_product(l, class, linked, None, focus)?)
     } else {
-        let param = type_ref(l.u, linked);
+        let param = mono;
         (cc.mirror_sum, super::sum_mirrors::ordinal(l, root, (class, linked), param, focus)?)
     };
-    Ok(Some((parent, mono.into_iter().chain(method).collect())))
+    Ok(Some((parent, mono_def.into_iter().chain(method).collect())))
+}
+
+/// Class `c` applied to a wildcard per type parameter, `C[?]` (dotty's eta-expanded
+/// `reachableRawTypeRef`).
+fn wildcard_applied(l: &mut Lower, c: SymbolId) -> TypeId {
+    let class = type_ref(l.u, c);
+    let n = l.u.type_params(c).len();
+    if n == 0 {
+        return class;
+    }
+    let wildcard = l.u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY));
+    l.u.intern_type(Type::Applied(class, vec![wildcard; n]))
 }
 
 /// Whether `class` has a concrete method `like`'s name of type `info` (dotty's `existingDef` in
@@ -81,15 +95,14 @@ pub fn is_generic_product(l: &mut Lower, c: SymbolId) -> bool {
     typer::sealed::is_product_shape(l.u, c, value_class)
 }
 
-/// `type MirroredMonoType = C` in object class `class` for its companion class `linked`, at
-/// `focus`, unless `class` has such an alias.
-fn mono_type(l: &mut Lower, class: SymbolId, linked: SymbolId, focus: Span) -> Option<TNodeId> {
+/// `type MirroredMonoType = linked` in object class `class`, at `focus`, unless `class` has
+/// such an alias.
+fn mono_type(l: &mut Lower, class: SymbolId, linked: TypeId, focus: Span) -> Option<TNodeId> {
     if l.u.member(class, "MirroredMonoType").into_iter().any(|m| l.u.alias_of(m).is_some()) {
         return None;
     }
     let alias = symbol("MirroredMonoType", Kind::Type, class, Flags::default().with(SYNTHETIC));
     let alias = l.u.define(alias);
-    let linked = type_ref(l.u, linked);
     let info = l.u.intern_type(Type::Alias(linked));
     l.u.set_info(alias, info);
     let rhs = l.type_tree(info, focus);

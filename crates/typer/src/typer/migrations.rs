@@ -5,7 +5,6 @@
 
 use super::Typer;
 use syntax::ast::{Attrs, NodeId};
-use syntax::diag::rewrite_notice;
 use tasty::TypeId;
 
 impl Typer<'_> {
@@ -33,7 +32,7 @@ impl Typer<'_> {
             return Ok(());
         };
         let parens = self.ast.attrs(id).contains(Attrs::PAREN_ARGS);
-        let rewrite = if parens { rewrite_notice("This code", "3.7-migration", "") } else { String::new() };
+        let rewrite = if parens { self.rewrite_notice("This code", "3.7-migration") } else { String::new() };
         let msg = format!(
             "Implicit parameters should be provided with a `using` clause.{rewrite}\nTo disable the warning, \
              please use the following option:\n  \"-Wconf:msg=Implicit parameters should be provided with a \

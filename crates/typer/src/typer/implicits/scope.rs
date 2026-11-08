@@ -90,9 +90,13 @@ impl Typer<'_> {
                 self.add_path(p, &mut out)?;
             }
             if let Some(m) = self.anchor_companion(s).filter(|&m| self.holds_implicits(m)) {
-                let path = prefix.filter(|&p| match *self.u.types().get(p) {
-                    Type::Sym(_, x) => self.u.symbol(x).kind.is_term(),
-                    _ => false,
+                let path = prefix.and_then(|p| match *self.u.types().get(p) {
+                    Type::Sym(_, x) => self.u.symbol(x).kind.is_term().then_some(p),
+                    Type::TermRef(pp, _) => {
+                        let x = self.referenced(p).filter(|&x| self.u.symbol(x).kind.is_term())?;
+                        Some(self.u.intern_type(Type::Sym(Some(pp), x)))
+                    }
+                    _ => None,
                 });
                 let (Some(p), Some(class)) = (path, self.u.module_class(m)) else {
                     return Err("implicit scope of an abstract or opaque type with a companion");

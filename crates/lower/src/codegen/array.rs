@@ -54,8 +54,7 @@ impl Gen<'_, '_> {
     }
 
     /// Call `app` of `fun` with `args` if it is `apply`, `update` or `length` of an array, or
-    /// `new Array[T](n)` (nscplugin's `genArrayOp`, `newArrayMethod`; an array of `Nothing` or `Null`
-    /// cast to its erased type, as dotty erases `Array[Nothing]`); `None` for another call.
+    /// `new Array[T](n)` (nscplugin's `genArrayOp`, `newArrayMethod`); `None` for another call.
     pub fn gen_array_op(&mut self, app: TNodeId, fun: TNodeId, args: &[TNodeId]) -> Result<Option<ValId>> {
         let span = self.l.tpd.span(app);
         let Some(sym) = self.l.tpd.sym(fun) else { return Ok(None) };
@@ -73,18 +72,7 @@ impl Gen<'_, '_> {
                     };
                     let length = self.gen_expr(*length)?;
                     let saved = self.at_span(span);
-                    let first = self.l.u.applied(self.l.tpd.tpe(app)).and_then(|(_, a)| a.first().copied());
-                    let erased = first.map(|e| self.l.u.erase(e));
-                    let bottom = erased.filter(|e| matches!(e, tasty::Erased::Nothing | tasty::Erased::Null));
-                    let v = match bottom {
-                        Some(e) => {
-                            let ty = self.erased(&e);
-                            let obj = self.emit(Op::Arrayalloc { ty, init: length, zone: None });
-                            let ty = self.ty(Type::Array { elem, nullable: true });
-                            self.emit(Op::As { ty, obj })
-                        }
-                        None => self.emit(Op::Arrayalloc { ty: elem, init: length, zone: None }),
-                    };
+                    let v = self.emit(Op::Arrayalloc { ty: elem, init: length, zone: None });
                     self.m.pos = saved;
                     return Ok(Some(v));
                 }

@@ -4,7 +4,7 @@
 //! `resolveOverloaded` with `applyMembers`, `compare`).
 
 use super::Typer;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether method `m`, a member of `prefix`, applies to the arguments of `proto` and is
@@ -60,23 +60,30 @@ impl Typer<'_> {
             Type::Poly { binder, params, .. } => Some((*binder, params.clone())),
             _ => None,
         };
+        let alt_param = |u: &mut tasty::Universe, x: TypeId| match *u.types().get(x) {
+            Type::Sym(None, s) if u.symbol(s).kind == Kind::TypeParam => {
+                u.symbol(s).owner.is_some_and(|o| u.info(o) == info).then(|| u.info(s))
+            }
+            _ => None,
+        };
         for (&p, &a) in pm.iter().zip(&pa) {
-            if let Type::Param(b, i) = *self.u.types().get(a)
-                && let Some((_, params)) = poly.as_ref().filter(|(pb, _)| *pb == b)
-            {
-                let Type::Bounds(_, hi) = *self.u.types().get(params[i as usize].1) else { return false };
+            let bounds = match *self.u.types().get(a) {
+                Type::Param(b, i) => poly.as_ref().filter(|(pb, _)| *pb == b).map(|(_, ps)| ps[i as usize].1),
+                _ => alt_param(self.u, a),
+            };
+            if let Some(bounds) = bounds {
+                let Type::Bounds(_, hi) = *self.u.types().get(bounds) else { return false };
                 if !self.is_exactly_any(hi) {
                     return false;
                 }
                 continue;
             }
             let mut mentions = false;
-            if let Some((binder, _)) = poly {
-                self.u.map_type(a, &mut |u, part| {
-                    mentions |= matches!(u.types().get(part), Type::Param(b, _) if *b == binder);
-                    None
-                });
-            }
+            self.u.map_type(a, &mut |u, part| {
+                mentions |= matches!(u.types().get(part), Type::Param(b, _) if poly.as_ref().is_some_and(|(pb, _)| pb == b))
+                    || alt_param(u, part).is_some();
+                None
+            });
             if mentions || !self.conforms_unlifted(p, a) {
                 return false;
             }

@@ -130,9 +130,8 @@ impl Typer<'_> {
         if let Some(projection) = self.refined_projection(id, qual, qual_tpe, name) {
             return projection;
         }
-        if syms.is_empty() && name.is_type && !widened {
-            let refined = self.refined_select(id, qual, qual_tpe, name);
-            return refined.unwrap_or_else(|| self.member_not_found(id, qual, name, ctx));
+        if let Some(refined) = self.refined_member(id, (qual, qual_tpe), name, (&syms, widened), ctx) {
+            return refined;
         }
         if syms.is_empty() {
             return self.unsupported(id, "member not found");

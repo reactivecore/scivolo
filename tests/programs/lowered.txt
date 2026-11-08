@@ -229,3 +229,5 @@ samforwarders
 positionsnames
 tailcaptures
 quoteshapes
+quotecc
+bottomarrays

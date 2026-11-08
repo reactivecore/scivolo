@@ -29,10 +29,15 @@ impl Typer<'_> {
     ) -> Result<TNodeId, &'static str> {
         let mut clauses = Vec::new();
         let mut mref = f;
+        let mut leading = false;
         loop {
             match *self.tpd.tree(mref) {
                 T::Apply { fun, args } => {
                     let args = self.tpd.items(args).to_vec();
+                    let tpe = self.tpd.tpe(mref);
+                    leading = args.is_empty()
+                        && !matches!(self.tpd.tree(fun), T::Apply { .. })
+                        && matches!(self.u.types().get(tpe), Type::Method { implicit: true, .. });
                     clauses.push(Clause::Values(self.spliced_args(fun, &args)?));
                     mref = fun;
                 }
@@ -63,7 +68,9 @@ impl Typer<'_> {
             self.build().ident(getter, tpe, span)
         } else {
             let receiver = match *self.tpd.tree(mref) {
-                T::Select { qualifier, .. } if ctor => self.companion_ref(qualifier, method, ctx)?,
+                T::Select { qualifier, .. } if ctor => {
+                    self.companion_ref(qualifier, method, span.start_pos(), ctx)?
+                }
                 T::Select { qualifier, .. } => self.copied_path(qualifier),
                 T::Ident { .. } => self.ident_receiver(mref, span.start_pos(), ctx)?,
                 _ => return Err("default argument"),
@@ -79,7 +86,7 @@ impl Typer<'_> {
                 receiver = self.build().ident(module, site, span);
             }
             let [getter] = self.type_members(site, &sym_name)[..] else { return Err("default getter") };
-            self.check_reference(getter, Some(site), ctx)?;
+            self.check_synthetic_reference(getter, Some(site), ctx)?;
             let tpe = self.ref_type(Some(site), getter);
             let name = TName { name: self.name(&getter_name), is_type: false };
             self.tpd.node(T::Select { qualifier: receiver, name }, span, Some(tpe), Some(getter))
@@ -101,6 +108,16 @@ impl Typer<'_> {
             };
             let t = self.tpd.tpe(getter);
             let info = self.method_info(t).unwrap_or(t);
+            let nullary =
+                matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty());
+            if std::mem::take(&mut leading) && ctor && !nullary {
+                if matches!(self.tpd.tree(getter), T::TypeApply { .. }) {
+                    return Err(
+                        "default getter of a constructor with type arguments and a leading implicit clause",
+                    );
+                }
+                continue;
+            }
             let Some(m) = self.u.method(info) else { return Err("default getter") };
             if m.params.len() != args.len() {
                 return Err("default getter of another clause shape");
@@ -158,11 +175,13 @@ impl Typer<'_> {
         Some((pkg, self.u.source_module(c)?))
     }
 
-    /// A reference to the companion object of the class constructor `ctor` creates in `new_tree`.
+    /// A reference at `at` to the companion object of the class constructor `ctor` creates in
+    /// `new_tree`.
     fn companion_ref(
         &mut self,
         new_tree: TNodeId,
         ctor: SymbolId,
+        at: syntax::ast::Span,
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
         let class = self.u.symbol(ctor).owner.ok_or("default argument")?;
@@ -183,7 +202,6 @@ impl Typer<'_> {
             _ => return Err("default argument of a class of another type"),
         };
         let tpe = self.ref_type(prefix, module);
-        let at = self.tpd.span(new_tree).start_pos();
         Ok(self.ref_(prefix, module, tpe, at, ctx))
     }
 

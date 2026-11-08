@@ -72,8 +72,11 @@ impl Inlining<'_> {
         retyped.map(Some)
     }
 
-    /// 1 if `t` quotes its argument, -1 if it splices it, else 0.
+    /// 1 if `t` quotes its argument or is a quote pattern, -1 if it splices it, else 0.
     pub fn staging_level(&self, t: TNodeId) -> i32 {
+        if let T::QuotePattern { .. } = self.tpd.tree(t) {
+            return 1;
+        }
         match (self.runtime_call(t, "quote"), self.runtime_call(t, "splice")) {
             (Some(_), _) => 1,
             (_, Some(_)) => -1,

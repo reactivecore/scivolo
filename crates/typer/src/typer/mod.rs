@@ -85,11 +85,11 @@ mod eta;
 mod export_trees;
 mod extension_calls;
 mod extension_fallback;
+mod extension_setters;
 mod features;
 mod find_ref;
 mod forward_refs;
 mod function_types;
-mod future_infix;
 mod gadt;
 mod gadt_cases;
 mod gadt_cast;
@@ -125,6 +125,7 @@ mod lift_app;
 mod linter;
 mod literals;
 mod mapped_alternatives;
+mod match_type_captures;
 mod match_type_trees;
 mod matchable_cast;
 mod matches;
@@ -140,6 +141,7 @@ mod mismatch_text;
 mod name_clashes;
 mod named_args;
 mod named_overloads;
+mod named_tuple_from;
 mod named_tuple_trees;
 mod named_tuple_types;
 mod named_tuples;
@@ -159,6 +161,7 @@ mod op_assign;
 mod opaque_paths;
 mod overload_applies;
 mod overload_errors;
+mod overload_values;
 mod overloaded_extractors;
 mod overloads;
 mod override_kinds;
@@ -189,6 +192,7 @@ mod purity_warnings;
 mod qual_skolems;
 mod qualifier_views;
 mod qualifies;
+mod quote_inferred;
 mod quote_pattern_checks;
 mod quote_patterns;
 mod quote_tags;
@@ -260,6 +264,7 @@ mod unknown_params;
 mod unresolved_terms;
 mod unsafe_nulls;
 mod untupled;
+mod valid_infix;
 mod variance_aliases;
 mod variance_checks;
 mod variance_lambdas;
@@ -323,6 +328,8 @@ pub struct Typer<'a> {
     pub source_future: bool,
     /// Whether the unit behaves as the Scala 2 library (`language.\`2.13\``).
     pub scala2: bool,
+    /// `Config::interactive`.
+    pub interactive: bool,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -470,6 +477,7 @@ impl<'a> Typer<'a> {
             lints: cfg.warnings.lints,
             source_future: v.requires_new_syntax(),
             scala2: v.is_scala2(),
+            interactive: cfg.interactive,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),

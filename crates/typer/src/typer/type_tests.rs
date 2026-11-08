@@ -10,14 +10,15 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, Tree};
+use tasty::tags::OPAQUE;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 const TAGS: [&str; 2] = ["scala.reflect.TypeTest", "scala.reflect.ClassTag"];
 
 impl Typer<'_> {
     /// Pattern `id`, `expr: tpe` with type tree `tpt`, against `pt` as the extractor pattern
-    /// `tag(expr)` of a given `TypeTest[pt, tpe]` or `ClassTag[tpe]` if `tpe`, its aliases
-    /// followed up to a match-type alias, is or applies a type that is not a class.
+    /// `tag(expr)` of a given `TypeTest[pt, tpe]` or `ClassTag[tpe]`, none synthesized, if `tpe`,
+    /// its aliases followed up to a match-type alias, is or applies a type that is not a class.
     pub fn try_with_type_test(
         &mut self,
         id: NodeId,
@@ -136,16 +137,26 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether a typed pattern can test for `t` by its erasure: an abstract type, a refinement of
-    /// a testable or such a type, or a union or intersection of such types and testable ones.
+    /// Whether a typed pattern can test for `t` by its erasure: an abstract type, an opaque type
+    /// seen from outside, a refinement of a testable or such a type, or a union or intersection of
+    /// such types and testable ones.
     pub fn is_erased_test_type(&mut self, t: TypeId) -> bool {
         let t = self.dealiased(t);
         let side = |s: &mut Self, x| s.is_erased_test_type(x) || s.is_testable_type(x);
         match *self.u.types().get(t) {
             Type::And(a, b) | Type::Or(a, b, _) => side(self, a) && side(self, b),
             Type::Refined(parent, ..) | Type::Rec(_, parent) => side(self, parent),
-            _ => self.is_abstract_type(t) && !has_wildcard(self.u, t),
+            _ => (self.is_abstract_type(t) || self.is_opaque_ref(t)) && !has_wildcard(self.u, t),
         }
+    }
+
+    /// Whether `t` refers to an opaque type, applied or not, that it does not see through.
+    pub fn is_opaque_ref(&mut self, t: TypeId) -> bool {
+        let tycon = match *self.u.types().get(t) {
+            Type::Applied(tycon, _) => tycon,
+            _ => t,
+        };
+        self.referenced(tycon).is_some_and(|s| self.u.symbol(s).flags.has(OPAQUE))
     }
 
     /// `x @ tag(e)` as `tag(x @ e)` if `body` is the extractor pattern of a type test.

@@ -31,6 +31,16 @@ impl Universe {
         Cmp::new(self, &mut NoVars).normal(t)
     }
 
+    /// Whether `t` is a match type, or a type lambda over one (dotty's `isMatch`).
+    pub fn is_match(&self, t: TypeId) -> bool {
+        match *self.types().get(t) {
+            Type::Match { .. } => true,
+            Type::Lambda { result, .. } => self.is_match(result),
+            Type::Annotated(t, _) => self.is_match(t),
+            _ => false,
+        }
+    }
+
     /// `t` normalized, if a normalization applies (dotty's `tryNormalize`).
     pub fn try_normalize(&mut self, t: TypeId) -> Option<TypeId> {
         Cmp::new(self, &mut NoVars).try_normalize(t)

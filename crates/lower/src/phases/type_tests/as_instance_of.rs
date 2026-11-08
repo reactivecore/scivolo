@@ -15,7 +15,8 @@ use typer::tpd::{TNodeId, Tree};
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
 /// `expr` then `()` for `Unit` and a source cast to `BoxedUnit`, a conversion or a cast of the boxed value from a primitive or `Unit`,
 /// unboxing from a reference or `null` to a primitive, a `ClassCastException` for `Nothing`,
-/// an ascription if `expr`'s erasure conforms to `target`'s, else `t`; casts from or to value classes as `value_cast`.
+/// an ascription if `expr`'s erasure conforms to `target`'s (of a cast at `expr` if only its self
+/// type's does), else `t`; casts from or to value classes as `value_cast`.
 pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TNodeId> {
     let target = l.tpd.tpe(tpt);
     let to = l.u.erase(target);
@@ -35,6 +36,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     let upcast = conforms_to_class_file(l, &erased_expr, &to)
         && !to_raw_generic(l, &erased_expr, &to)
         && !universal_to_object(l, &erased_expr, &to);
+    let made = l.explicit_casts.contains(&t);
     if !upcast && conforms(l, &erased_expr, &to) {
         l.explicit_casts.insert(t);
     }
@@ -76,9 +78,14 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
             throw_class_cast(l, expr)
         }
         _ if upcast => l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None),
-        _ if !span.is_synthetic() && erased_expr != found && conforms_to_class_file(l, &found, &to) => {
-            l.tpd.get_mut(t).span = l.tpd.span(expr);
-            t
+        _ if !made
+            && !span.is_synthetic()
+            && erased_expr != found
+            && conforms_to_class_file(l, &found, &to) =>
+        {
+            let expr = crate::phases::casts::cast(l, expr, &to);
+            l.explicit_casts.insert(expr);
+            l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None)
         }
         _ => t,
     })

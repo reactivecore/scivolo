@@ -85,6 +85,17 @@ impl TreePickler<'_> {
             let children = annots.into_iter().chain(own.iter().copied()).chain(hole_args).collect::<Vec<_>>();
             todo.extend(children.into_iter().rev().map(|c| (c, false)));
         }
+        for (apply, new, tpt) in self.annots.clone() {
+            let span = self.tpd.span(tpt);
+            let addrs = (self.buf.addr_of_tree(apply), self.buf.addr_of_tree(new));
+            if let (Some(apply), Some(new)) = addrs
+                && span.exists()
+            {
+                out.span(apply, source.tasty_span(span)?);
+                out.source(self.pickler.names.utf8(&source.path));
+                out.span(new, source.tasty_span(span.start_pos())?);
+            }
+        }
         self.pickler.set_section(section, out.buf.bytes);
         Ok(())
     }

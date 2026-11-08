@@ -25,7 +25,7 @@ impl Typer<'_> {
                     return self.typed_type(throws, ctx);
                 }
                 let tpt = self.typed_type(op, ctx);
-                if self.is_invalid_future_infix_op(id, op, self.tpd.sym(tpt)) {
+                if self.is_invalid_infix_op(id, op, self.tpd.sym(tpt)) {
                     return self.unsupported(id, "alphanumeric infix type under -source future");
                 }
                 let tycon = self.tpd.tpe(tpt);
