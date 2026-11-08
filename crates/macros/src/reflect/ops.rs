@@ -116,7 +116,7 @@ ops! {
     "showTypeAnsi" => show_type_ansi(t: Ty) -> Fallible<String>;
     "showTypeShort" => show_type_short(t: Ty) -> Fallible<String>;
     "showTypeStructure" => show_type_structure(t: Ty) -> Fallible<Printed>;
-    "typeString" => type_string(t: Ty) -> Fallible<String>;
+    "typeString" => type_string(t: Ty) -> Fallible<Printed>;
     "typeName" => type_name(t: Ty) -> Fallible<String>;
     "appliedTo" => applied_to(tycon: Ty, targs: Rest<Ty>) -> TypeId;
     "dealias" => dealias(t: Ty) -> TypeId;

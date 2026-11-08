@@ -3,7 +3,7 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName};
-use syntax::diag::Message;
+use syntax::diag::{Message, rewrite_notice};
 use tasty::Type;
 
 impl Typer<'_> {
@@ -51,6 +51,11 @@ impl Typer<'_> {
             true => self.diags.warning_at(span.start(), span.end(), span.point(), msg),
             false => self.diags.warning_unpositioned(msg),
         }
+    }
+
+    /// `diag::rewrite_notice` of `what` under `-source version`, empty in the REPL.
+    pub fn rewrite_notice(&self, what: &str, version: &str) -> String {
+        if self.interactive { String::new() } else { rewrite_notice(what, version, "") }
     }
 
     pub fn error_tree(&mut self, span: Span) -> TNodeId {

@@ -12,7 +12,6 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use syntax::diag::rewrite_notice;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -172,7 +171,7 @@ impl Typer<'_> {
         let msg = "The trailing ` _` for eta-expansion is unnecessary;\nthe compiler performs eta-expansion \
             automatically, so you can write the function value directly instead."
             .to_owned()
-            + &rewrite_notice("This construct", "3.4-migration", "");
+            + &self.rewrite_notice("This construct", "3.4-migration");
         self.diags.warning_at(span.start(), span.end(), span.point(), msg);
         res
     }

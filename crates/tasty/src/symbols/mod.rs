@@ -248,6 +248,13 @@ impl Universe {
         }
     }
 
+    /// Whether `s` comes from TASTy written before Scala 3.4 (dotty's
+    /// `methCompiledBeforeDeprecation`).
+    pub fn compiled_before_3_4(&self, s: SymbolId) -> bool {
+        let Some((file, _)) = self.symbol(s).tree else { return false };
+        crate::Header::parse(&self.files[file.0 as usize].bytes).is_ok_and(|h| h.minor < 4)
+    }
+
     /// Records that class `c`, defined outside TASTy, behaves as the Scala 2 library's.
     pub fn set_scala2(&mut self, c: SymbolId) {
         self.scala2_classes.insert(c);
