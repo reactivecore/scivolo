@@ -58,6 +58,11 @@ impl Jimage {
         })
     }
 
+    /// The internal names of the classes.
+    pub fn names(&self) -> Vec<String> {
+        self.classes.keys().cloned().collect()
+    }
+
     /// The bytes of the class file of class `name`.
     pub fn bytes(&mut self, name: &str) -> Option<Vec<u8>> {
         let &(offset, size) = self.classes.get(name)?;

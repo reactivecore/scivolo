@@ -28,6 +28,7 @@ fn main() {
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = [&typer::dump::library_jars(&libs)[..], &cp].concat();
     let mut u = Universe::open(&jars).unwrap_or_else(|e| fail(&format!("opening the library: {e:?}")));
+    u.set_jdk(classfile::Jdk::default());
     let mut options = Vec::new();
     let sources: Vec<SourceFile> = files
         .iter()

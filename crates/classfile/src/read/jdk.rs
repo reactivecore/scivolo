@@ -3,7 +3,7 @@
 
 use super::ClassInfo;
 use super::jimage::Jimage;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -24,17 +24,40 @@ enum Source {
 pub struct Jdk {
     source: Option<Option<Source>>,
     classes: HashMap<String, Option<ClassInfo>>,
+    packages: Option<HashSet<String>>,
 }
 
 impl Jdk {
     /// The JDK's class of internal name `name`, none if no JDK is found or it lacks the class.
     pub fn class(&mut self, name: &str) -> Option<&ClassInfo> {
         if !self.classes.contains_key(name) {
-            let source = self.source.get_or_insert_with(|| open(&home()?));
-            let info = source.as_mut().and_then(|s| s.bytes(name)).and_then(|b| super::read(&b).ok());
+            let info = self.source().and_then(|s| s.bytes(name)).and_then(|b| super::read(&b).ok());
             self.classes.insert(name.to_owned(), info);
         }
         self.classes[name].as_ref()
+    }
+
+    /// Whether the JDK has a class in package `pkg`, an internal name such as `java/time`.
+    pub fn has_package(&mut self, pkg: &str) -> bool {
+        if self.packages.is_none() {
+            let names = self.source().map_or_else(Vec::new, |s| s.names());
+            let mut packages = HashSet::new();
+            for name in names {
+                let mut pkg = name.as_str();
+                while let Some((outer, _)) = pkg.rsplit_once('/') {
+                    pkg = outer;
+                    if !packages.insert(pkg.to_owned()) {
+                        break;
+                    }
+                }
+            }
+            self.packages = Some(packages);
+        }
+        self.packages.as_ref().is_some_and(|p| p.contains(pkg))
+    }
+
+    fn source(&mut self) -> Option<&mut Source> {
+        self.source.get_or_insert_with(|| open(&home()?)).as_mut()
     }
 }
 
@@ -70,6 +93,14 @@ fn ct_sym(home: &Path) -> Option<Source> {
 }
 
 impl Source {
+    /// The internal names of the classes.
+    fn names(&self) -> Vec<String> {
+        match self {
+            Source::Jimage(image) => image.names(),
+            Source::CtSym { entries, .. } => entries.keys().cloned().collect(),
+        }
+    }
+
     /// The bytes of the class file of class `name`.
     fn bytes(&mut self, name: &str) -> Option<Vec<u8>> {
         match self {
@@ -96,6 +127,19 @@ mod tests {
         let date = jdk.class("java/sql/Date").expect("java.sql.Date");
         assert_eq!(date.superclass.as_deref(), Some("java/util/Date"));
         assert!(jdk.class("scala/Predef").is_none());
+        let date = jdk.class("java/time/LocalDate").expect("LocalDate");
+        let dates = date.methods.iter().find(|m| m.name == "datesUntil").expect("datesUntil");
+        assert_eq!(
+            dates.signature.as_deref(),
+            Some("(Ljava/time/LocalDate;)Ljava/util/stream/Stream<Ljava/time/LocalDate;>;")
+        );
+        let list = jdk.class("java/util/ArrayList").expect("ArrayList");
+        assert!(list.signature.as_deref().is_some_and(|s| s.starts_with("<E:Ljava/lang/Object;>")));
+        assert!(
+            jdk.has_package("java/time")
+                && jdk.has_package("java")
+                && !jdk.has_package("java/time/LocalDate")
+        );
     }
 
     #[test]
@@ -105,7 +149,7 @@ mod tests {
         assert!(image.bytes("java/util/HexFormat").is_some(), "JDK 17's HexFormat");
         let image = Some(Source::Jimage(image));
         for source in [image, ct_sym(&home)].into_iter().flatten() {
-            reads_jdk_classes(Jdk { source: Some(Some(source)), classes: Default::default() });
+            reads_jdk_classes(Jdk { source: Some(Some(source)), ..Default::default() });
         }
     }
 }

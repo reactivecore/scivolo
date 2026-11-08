@@ -778,6 +778,7 @@ version = "0.1.5"
 dependencies = [
  "md-5",
  "rustc-hash",
+ "scivolo-classfile",
  "scivolo-libimage",
  "scivolo-nir",
  "zip",

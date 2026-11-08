@@ -1,6 +1,6 @@
 # ADR 0106 — The JVM backend reads the JDK's classes from its run-time image or ct.sym
 
-Status: accepted · Date: 2026-11-08 · Amends ADR 0103
+Status: accepted · Date: 2026-11-08 · Amends ADR 0103 · Its last consequence done by ADR 0107
 
 ## Context
 Stack map frames need the JDK's class hierarchy, and a static member of javalib's object for a
