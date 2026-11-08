@@ -35,6 +35,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     let upcast = conforms_to_class_file(l, &erased_expr, &to)
         && !to_raw_generic(l, &erased_expr, &to)
         && !universal_to_object(l, &erased_expr, &to);
+    let made = l.explicit_casts.contains(&t);
     if !upcast && conforms(l, &erased_expr, &to) {
         l.explicit_casts.insert(t);
     }
@@ -76,9 +77,14 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
             throw_class_cast(l, expr)
         }
         _ if upcast => l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None),
-        _ if !span.is_synthetic() && erased_expr != found && conforms_to_class_file(l, &found, &to) => {
-            l.tpd.get_mut(t).span = l.tpd.span(expr);
-            t
+        _ if !made
+            && !span.is_synthetic()
+            && erased_expr != found
+            && conforms_to_class_file(l, &found, &to) =>
+        {
+            let expr = crate::phases::casts::cast(l, expr, &to);
+            l.explicit_casts.insert(expr);
+            l.tpd.node(Tree::Typed { expr, tpt }, span, Some(target), None)
         }
         _ => t,
     })
