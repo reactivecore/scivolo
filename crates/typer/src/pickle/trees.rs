@@ -110,7 +110,12 @@ impl TreePickler<'_> {
                 let call: Vec<TNodeId> = call.into_iter().collect();
                 self.node(INLINED, &[&[expansion][..], &call].concat(), &[bindings])
             }
-            T::TypeTree { .. } => self.ty(typed()?, false),
+            T::TypeTree { .. } => {
+                self.type_tree = Some(id);
+                let pickled = self.ty(typed()?, false);
+                self.type_tree = None;
+                pickled
+            }
             T::SingletonTypeTree { reference } => {
                 self.byte(SINGLETONtpt);
                 self.tree(reference)

@@ -226,8 +226,12 @@ Results (2026-11-08):
 - **Capture checking:** typed as dotty's typer types it (`ImpureFunctionN`, `@retains` trees);
   types drop `@retains`, `@retainsCap` and `@retainsByName` as unpickled ones do (case 1: the
   annotations are not refining and erase away), and the capture checker, which runs after the
-  typer and leaves the NIR unchanged, is not run (#168). Quotes under capture checking, whose
-  TASTy would keep the annotations, are refused.
+  typer and leaves the NIR unchanged, is not run (#168). dotty pickles quotes before the capture
+  checker, so their TASTy is the typer's: ours as dotty's, with the inferred type arguments of
+  inline methods annotated `@caps.internal.inferred` (`PostTyper.markInferred`). Since the
+  dropped annotations would be in the quote's inferred types, a quote is refused in a file that
+  writes a capture set, an annotation, a function or a by-name type, and a quote that refers to
+  a member whose type has a `retains` annotation (e.g. `List(1).view`).
 
 ### com-lihaoyi libraries from source
 
@@ -252,7 +256,11 @@ own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `A
 library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). As in Scala
 Native's build of the whole module, a selection of a synthetic member of a case class of Scala's
 library (`(a, b).hashCode()`) selects the member it overrides (`Any.hashCode`): those members do
-not exist yet while a class of the same run is typed.
+not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (8),
+`ToExpr$BigIntToExpr$` and `ToExpr$MapToExpr` differ in quote type sharing (case 1, as in
+**Quote type sharing** above, types shared across the files of the whole-module build);
+scala-cli's build of `ToExpr.scala` alone has the quotes of all 106 classes as ours, up to
+positions.
 
 ## M5: scala/scala `test/junit`
 
