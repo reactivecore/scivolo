@@ -171,6 +171,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       seed does not print.
     - Fix: `readLongInt` for those tags. `just jvm-tasty`: compares files without such
       constants only.
+16. **`fromProduct` of an F-bounded case class throws** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/SyntheticMembers.scala`, `fromProductBody`).
+    - `case class Node[T <: Ordered[T]](value: T)`: instantiating `T` from above falls back to
+      its lower bound, `Nothing`, so `value$1.$asInstanceOf$[Nothing]` throws
+      `ClassCastException: Cannot cast to scala.Nothing`.
+    - Fix: instantiate it to its bound with itself a wildcard (`Ordered[?]`). VM and JVM: as
+      dotty.
 
 ## M4: dotty `tests/run`
 

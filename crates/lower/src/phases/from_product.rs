@@ -98,8 +98,9 @@ pub fn from_product(
 }
 
 /// The type `new C[Ts]` creates and the types of the parameters of constructor `ctor` of case
-/// class `c`, `Ts` the upper bounds of `c`'s type parameters (dotty's constructor type variables
-/// instantiated from above).
+/// class `c`, `Ts` the constructor's type parameters instantiated from above (dotty's
+/// `instantiate(fromBelow = false)`): each its upper bound, its lower bound if the upper one
+/// mentions it, the parameters before it instantiated.
 fn instantiated_constructor(l: &mut Lower, c: SymbolId, ctor: SymbolId) -> (TypeId, Vec<TypeId>) {
     let accessors = case_accessors(l, c);
     let info = l.u.info(ctor);
@@ -108,14 +109,42 @@ fn instantiated_constructor(l: &mut Lower, c: SymbolId, ctor: SymbolId) -> (Type
         return (type_ref(l.u, c), types);
     };
     let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-    let his: Vec<TypeId> =
-        l.u.type_params(c).into_iter().map(|p| typer::sealed::upper_bound(l.u, p)).collect();
+    let mut his: Vec<TypeId> = Vec::new();
+    for (i, (_, bounds)) in params.iter().enumerate() {
+        let (lo, hi) = match *l.u.types().get(*bounds) {
+            Type::Bounds(lo, hi) => (lo, hi),
+            _ => (tasty::NOTHING, *bounds),
+        };
+        let hi = l.u.subst(hi, binder, &names[..i], &his);
+        let inst = match mentions_param(l, hi, binder, (&names[i], i)) {
+            true => l.u.subst(lo, binder, &names[..i], &his),
+            false => hi,
+        };
+        his.push(inst);
+    }
+    for i in (0..his.len()).rev() {
+        his[i] = l.u.subst(his[i], binder, &names, &his);
+    }
     let method = l.u.subst(result, binder, &names, &his);
     let types = match l.u.types().get(method).clone() {
         Type::Method { params, .. } => params.into_iter().map(|(_, t)| t).collect(),
         _ => accessors.into_iter().map(|a| l.u.info(a)).collect(),
     };
     (crate::definitions::applied(l.u, c, his), types)
+}
+
+/// Whether `t` mentions parameter `name`, the `index`th, of type lambda `binder`.
+fn mentions_param(l: &mut Lower, t: TypeId, binder: tasty::Binder, (name, index): (&str, usize)) -> bool {
+    let mut found = false;
+    l.u.map_type(t, &mut |u, x| {
+        found |= match u.types().get(x) {
+            Type::Local(b, n) => b.0 == binder.0 && n == name,
+            Type::Param(b, i) => *b == binder && *i as usize == index,
+            _ => false,
+        };
+        None
+    });
+    found
 }
 
 /// The element type `T` of repeated parameter type `<repeated>[T]`.

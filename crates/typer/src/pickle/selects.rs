@@ -62,7 +62,10 @@ impl TreePickler<'_> {
                 Some(s) => self.signed_name(s, true)?,
                 None => self.name(&self.tree_name(name, sym)),
             }
-            return self.qualifier(id, qual);
+            return match name.is_type {
+                true => self.tree(qual),
+                false => self.qualifier(id, qual),
+            };
         };
         let owner = self.u.symbol(s).owner.ok_or("a method without owner")?;
         let owner = type_ref(self.u, owner);
@@ -73,8 +76,8 @@ impl TreePickler<'_> {
         })
     }
 
-    /// Qualifier `qual` of selection `id`, a package selected the package object `id` is a member
-    /// of (dotty's `PostTyper.transformSelect`).
+    /// Qualifier `qual` of term selection `id`, a package selected the package object `id` is a
+    /// member of (dotty's `PostTyper.transformSelect`).
     fn qualifier(&mut self, id: TNodeId, qual: TNodeId) -> Result<(), Refusal> {
         let types = self.u.types();
         let object = match (

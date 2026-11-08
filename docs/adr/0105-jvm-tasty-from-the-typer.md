@@ -31,8 +31,7 @@ only inside the typer, between the synthetic members and inlining.
   (`pickledTypes`, an `EqHashMap`), we by its bytes, so the `SHAREDtype` choices differ where our
   synthetic trees build an equal type anew or dotty's are distinct instances.
 - Also open, not accepted: positions missing for the super accessors' definitions and the
-  annotation in an annotated type (`T @uncheckedVariance` of a default getter); a case class's
-  synthetic parent `scala.package.Serializable` for dotty's `_root_.scala.Serializable`.
+  annotation in an annotated type (`T @uncheckedVariance` of a default getter).
 - Refused still: the bounds of a type lambda whose declared variances the universe does not know
   (one read from a library's TASTy), a reference to a method a refinement declares, super calls of
-  methods with a target name or of polymorphic methods.
+  methods with a target name, implicit parameters or type parameters after a parameter list.
