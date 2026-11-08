@@ -13,9 +13,15 @@ const NAMED_TUPLE: &str = "scala.NamedTuple$.NamedTuple";
 const MAX_ELEMENTS: usize = 256;
 
 impl Typer<'_> {
-    /// Whether `t` widened is a named tuple (dotty's `isNamedTupleType`).
+    /// Whether `t` widened is a named tuple, or an abstract type, intersection or union of them
+    /// (dotty's `isNamedTupleType`).
     pub fn is_named_tuple_type(&mut self, t: TypeId) -> bool {
-        self.stripped_named_tuple(t).is_some()
+        let widened = self.u.widen(t);
+        if let Type::Or(a, b, _) = *self.u.types().get(widened) {
+            let names = |t: &mut Self, s| t.derived_named_tuple_parts(s).map(|(n, _)| n);
+            return names(self, a).is_some_and(|n| names(self, b) == Some(n));
+        }
+        self.stripped_named_tuple(t).is_some() || self.derived_named_tuple_parts(widened).is_some()
     }
 
     /// The values tuple of `t` widened if it is a named tuple (dotty's `stripNamedTuple`).
