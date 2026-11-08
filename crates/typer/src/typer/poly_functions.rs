@@ -180,6 +180,7 @@ impl Typer<'_> {
     pub fn poly_apply_owner(&mut self, ctx: Ctx) -> SymbolId {
         let owner = self.syms.define(self.u, "apply", Kind::Def, ctx.owner, f::METHOD.or(f::SYNTHETIC));
         self.u.unenter(owner);
+        self.poly_owners.insert(owner);
         owner
     }
 

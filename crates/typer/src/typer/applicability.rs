@@ -9,6 +9,7 @@ use super::Typer;
 use super::implicits::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::Tree as T;
+use syntax::config::Features;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -131,8 +132,10 @@ impl Typer<'_> {
         for (i, &a) in args.iter().enumerate() {
             let Some(a) = a else { continue };
             if let Some(e) = self.repeated_elem(a) {
-                let last = i == params.len() && i + 1 == args.len();
-                all &= last && elem.is_some_and(|p| self.conforms(e, p));
+                let placed = i == params.len() && i + 1 == args.len()
+                    || i >= params.len()
+                        && self.feature_enabled(Features::MULTI_SPREADS, "experimental.multiSpreads", ctx);
+                all &= placed && elem.is_some_and(|p| self.conforms(e, p));
                 continue;
             }
             let p = params.get(i).copied().or(elem)?;

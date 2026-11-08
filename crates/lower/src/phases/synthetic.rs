@@ -96,6 +96,43 @@ pub fn private_method(l: &mut Lower, class: SymbolId, name: &str) -> (SymbolId, 
     (sym, any_ref)
 }
 
+/// The member synthetic member `m` of a class compiled in the same run overrides, the first
+/// concrete one in linearization order, else the first: what dotty's typer selects before
+/// `SyntheticMembers` adds `m`.
+pub fn before_synthesized(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
+    const SYNTHESIZED: [&str; 9] = [
+        "hashCode",
+        "equals",
+        "toString",
+        "canEqual",
+        "productArity",
+        "productPrefix",
+        "productElement",
+        "productElementName",
+        "ordinal",
+    ];
+    let s = l.u.symbol(m);
+    let owner = s.owner.filter(|_| s.flags.has(SYNTHETIC) && SYNTHESIZED.contains(&s.name.as_str()))?;
+    if !l.u.compiles_scala_library() || !l.u.is_same_run(owner) {
+        return None;
+    }
+    let name = s.name.clone();
+    let site = l.u.intern_type(Type::Sym(None, owner));
+    let site = l.u.intern_type(Type::This(site));
+    let mut deferred = None;
+    for base in l.u.linearization(owner).into_iter().skip(1) {
+        for other in l.u.decl(base, &name).unwrap_or_default() {
+            if l.u.symbol(other).kind == Kind::Def && l.u.info_matches(site, m, other) {
+                if !crate::codegen::forwarded_members::is_deferred(l, other) {
+                    return Some(other);
+                }
+                deferred = deferred.or(Some(other));
+            }
+        }
+    }
+    deferred
+}
+
 /// Whether `class` has a member `name(): AnyRef`, `writeReplace` or `readResolve`.
 pub fn has_serialization_method(l: &mut Lower, class: SymbolId, name: &str) -> bool {
     let object = tasty::Erased::Class("java.lang.Object".into());

@@ -87,6 +87,9 @@ impl Host for Typer<'_> {
         if let Some(&ctx) = self.inline_ctxs.get(&original) {
             self.inline_ctxs.insert(copy, ctx);
         }
+        if let Some(&ctx) = self.spread_ctxs.get(&original) {
+            self.spread_ctxs.insert(copy, ctx);
+        }
     }
 
     fn summon(

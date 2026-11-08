@@ -130,9 +130,12 @@ impl Typer<'_> {
     ) -> Result<(), &'static str> {
         let at = self.tpd.span(tree).start_pos();
         let select = self.build().select(container, method, at);
-        let select = self.with_type_vars(select)?;
-        let tpe = self.tpd.tpe(select);
-        let info = self.method_info(tpe).unwrap_or(tpe);
+        let mut select = self.with_type_vars(select)?;
+        let mut info = self.method_info(self.tpd.tpe(select)).unwrap_or(self.tpd.tpe(select));
+        if matches!(self.u.types().get(info), Type::Poly { .. }) {
+            select = self.with_type_vars(select)?;
+            info = self.method_info(self.tpd.tpe(select)).unwrap_or(self.tpd.tpe(select));
+        }
         let Some(Binding { params, implicit: false, .. }) = self.u.method(info) else {
             return Err("extension method with a using clause before its receiver");
         };

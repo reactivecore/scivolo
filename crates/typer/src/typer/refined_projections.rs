@@ -21,38 +21,12 @@ impl Typer<'_> {
             return None;
         }
         let text = self.text(name.name).to_owned();
-        let alias = self.lookup_refined(pre, &text)?;
+        let alias = self.u.lookup_refined(pre, &text)?;
         let sym = match *self.u.types().get(alias) {
             Type::Sym(_, s) => Some(s),
             _ => None,
         };
         let span = self.ast.span(id);
         Some(self.tpd.node(T::Select { qualifier: qual, name }, span, Some(alias), sym))
-    }
-
-    /// The alias the outermost alias refinement of `name` in `t` gives it, through annotations
-    /// and type aliases (dotty's `lookupRefined`).
-    fn lookup_refined(&mut self, t: TypeId, name: &str) -> Option<TypeId> {
-        match self.u.types().get(t).clone() {
-            Type::Refined(p, n, info) => match *self.u.types().get(info) {
-                Type::Alias(alias) if n == name => Some(alias),
-                _ => self.lookup_refined(p, name),
-            },
-            Type::Annotated(p, _) => self.lookup_refined(p, name),
-            Type::Rec(binder, p) => {
-                let candidate = self.lookup_refined(p, name)?;
-                let mut refers = false;
-                self.u.map_type(candidate, &mut |u, x| {
-                    refers |= *u.types().get(x) == Type::RecThis(binder);
-                    None
-                });
-                (!refers).then_some(candidate)
-            }
-            Type::TypeRef(..) | Type::Sym(..) if self.u.dealias(t) != t => {
-                let d = self.u.dealias(t);
-                self.lookup_refined(d, name)
-            }
-            _ => None,
-        }
     }
 }

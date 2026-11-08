@@ -19,6 +19,7 @@ pub(crate) mod printed;
 mod references;
 mod structure;
 mod type_string;
+mod type_string_refs;
 mod type_structure;
 mod types;
 

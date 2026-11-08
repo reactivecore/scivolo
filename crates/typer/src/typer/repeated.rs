@@ -90,6 +90,21 @@ impl Typer<'_> {
         c
     }
 
+    /// `sequence_arg` of `a`, or `pre` if overload resolution typed it with elements of `elem`.
+    pub fn pretyped_sequence_arg(
+        &mut self,
+        a: syntax::ast::NodeId,
+        pre: Option<TNodeId>,
+        elem: TypeId,
+        ctx: crate::ctx::Ctx,
+    ) -> TNodeId {
+        let Some(pre) = pre else { return self.sequence_arg(a, Some(elem), ctx) };
+        match self.repeated_elem(self.tpd.tpe(pre)) {
+            Some(e) if self.conforms(e, elem) => pre,
+            _ => self.unsupported(a, "sequence argument of an overload"),
+        }
+    }
+
     /// Sequence argument `a`, `xs*`, passed to a repeated parameter of element type `elem`:
     /// `xs` typed as a `Seq[elem] | Array[? <: elem]`, without an expected type if no `elem`,
     /// ascribed `<repeated>[T]` with `T` its element type.

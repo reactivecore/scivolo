@@ -147,7 +147,8 @@ impl Typer<'_> {
         }
         let narrows = terms.into_iter().any(|m| {
             let seen = self.u.member_info(parent, m);
-            self.u.narrowing_refinement(refined, m, seen).is_some()
+            self.u.term_refinement_named(refined, name) == Some(seen)
+                || self.u.narrowing_refinement(refined, m, seen).is_some()
         });
         narrows.then_some(()).ok_or("structural refinement unlike its existing member")
     }

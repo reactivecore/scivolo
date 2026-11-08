@@ -111,7 +111,7 @@ impl Typer<'_> {
     }
 
     /// Whether `t` calls `scala.quoted.runtime.Expr.splice`.
-    fn is_splice(&self, t: TNodeId) -> bool {
+    pub fn is_splice(&self, t: TNodeId) -> bool {
         let T::Apply { fun, .. } = *self.tpd.tree(t) else { return false };
         let m = self.tpd.meth_part(fun);
         self.tpd.sym(m).is_some_and(|s| self.is_staging_method(s) && self.u.symbol(s).name == "splice")

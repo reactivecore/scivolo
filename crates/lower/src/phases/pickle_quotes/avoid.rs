@@ -125,6 +125,7 @@ fn avoided_ref(u: &mut Universe, t: TypeId, v: i8) -> Approx {
     let static_path = match (prefix.map(|p| u.types().get(p).clone()), s) {
         (None, Some(s)) => u.is_static_symbol(s),
         (Some(Type::Sym(_, t)), _) => u.symbol(t).kind.is_type() || u.is_static_symbol(t),
+        (Some(Type::This(_)), Some(s)) => u.is_static_symbol(s),
         _ => true,
     };
     if static_path {
