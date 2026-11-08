@@ -95,8 +95,7 @@ impl Universe {
     }
 
     /// The number of elements of tuple type `t` if it is known: a `*:` chain ending in the type of
-    /// object `EmptyTuple`, not its alias, or a `TupleN`, or a match type that reduces to one
-    /// (dotty's `tupleArity`).
+    /// object `EmptyTuple`, not its alias, or a `TupleN` (dotty's `tupleArity`).
     fn tuple_arity(&mut self, t: TypeId) -> Option<usize> {
         let module = match self.types().get(t).clone() {
             Type::Applied(c, a) if self.class_name(c).as_deref() == Some("scala.*:") && a.len() == 2 => {
@@ -110,9 +109,6 @@ impl Universe {
             Type::TermRef(p, n) => self.resolve(p, &n, false),
             _ => None,
         };
-        if let Some(r) = self.try_normalize(t) {
-            return self.tuple_arity(r);
-        }
         if let Some(s) = module.filter(|&s| self.is_module(s)) {
             let empty = self.symbol(s).name == "EmptyTuple" && self.full_name(s).starts_with("scala.");
             return empty.then_some(0);

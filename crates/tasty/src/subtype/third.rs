@@ -141,13 +141,10 @@ impl Cmp<'_> {
         self.recur(a, opened)
     }
 
-    /// `tycon[args]` expanded if `tycon` is a type alias other than a match alias (dotty's
-    /// `superType` of an applied alias).
+    /// `tycon[args]` expanded if `tycon` is a type alias (dotty's `superType` of an applied alias).
     fn applied_alias_expansion(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         match self.named(tycon)?.meaning {
-            super::refs::Meaning::Alias(_) => {
-                self.u.expand(tycon, args).filter(|&e| !matches!(self.u.types().get(e), Type::Match { .. }))
-            }
+            super::refs::Meaning::Alias(_) => self.u.expand(tycon, args),
             _ => None,
         }
     }
