@@ -85,6 +85,7 @@ mod eta;
 mod export_trees;
 mod extension_calls;
 mod extension_fallback;
+mod extension_setters;
 mod features;
 mod find_ref;
 mod forward_refs;
