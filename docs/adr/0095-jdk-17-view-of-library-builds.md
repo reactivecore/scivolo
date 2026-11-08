@@ -12,11 +12,13 @@ to `close()` that Scala Native's build lacks (`ExecutionContextImpl$$anon$4`, #2
 - `scivolo-lower --jdk-17` makes the compile see the JDK 17 API; `just lib-compile` and
   `just lib-jar` pass it for every module but javalib, whose own classes are Scala classes.
 - Under it, `mixin` makes no forwarder to a method of a javalib JDK class that JDK 17 lacks.
-- `scripts/jdk_17_view.py` generates the lacking members, by class and method name, as those
-  JDK 21 has and JDK 17 lacks of javalib's methods (`crates/lower/src/symbols/jdk_17_missing.rs`).
+- `scripts/jdk_17_view.py` generates the lacking members, by class and method name: javalib's
+  methods of a class JDK 17 or 21 has whose name JDK 17's class lacks
+  (`crates/lower/src/symbols/jdk_17_missing.rs`).
+- A member is matched by name; the script fails if javalib has an overload JDK 17 lacks of an
+  interface method name JDK 17 has.
 - User programs keep javalib's full API.
 
 ## Consequences
-- A member is matched by name: an overload a later JDK adds to a name JDK 17 has is still seen.
 - Typing still sees javalib's members and parents; a library source calling a member JDK 17
   lacks compiles where Scala Native's build would not.

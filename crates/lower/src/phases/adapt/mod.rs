@@ -10,6 +10,7 @@ mod units;
 mod value;
 
 pub use polymorphic::{array_op, is_synchronized, qualify_synchronized, synchronized_type};
+pub use units::ascription_type;
 
 use super::casts::{cast, conforms, is_cast, is_new_array};
 use super::select_static::is_static_enum_value;
@@ -85,29 +86,6 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
             _ => l.u.erase_value(l.tpd.tpe(t)),
         },
         _ => l.u.erase_value(l.tpd.tpe(t)),
-    }
-}
-
-/// The erasure of ascribed type `tpt`: `BoxedUnit` for a type erasing to `Unit` other than a
-/// reference to `Unit` itself, a value class boxed if `tpt` is a boxed ascription's (dotty's
-/// `typedTyped`).
-pub fn ascription_type(l: &mut Lower, tpt: TNodeId) -> Erased {
-    let tpe = l.tpd.tpe(tpt);
-    if l.boxed_types.contains(&tpt) {
-        return l.u.erase_boxed(tpe);
-    }
-    let mut t = tpe;
-    while let Type::Annotated(inner, _) = *l.u.types().get(t) {
-        t = inner;
-    }
-    let referred = match *l.u.types().get(t) {
-        Type::Sym(_, s) => Some(s),
-        Type::TypeRef(..) => l.u.resolve_ref(t),
-        _ => None,
-    };
-    match l.u.erase_value(tpe) {
-        Erased::Unit if referred != Some(l.defs.unit) => Erased::Class("scala.runtime.BoxedUnit".into()),
-        e => e,
     }
 }
 
