@@ -138,6 +138,9 @@ impl Typer<'_> {
             };
             return self.tried(winner, (pt, by_name), at, ctx, (depth, false));
         }
+        if depth == 0 && ctx.mode.is(Mode::NO_SYNTHESIS) {
+            return Err("no implicit argument");
+        }
         match self.synthesized(pt, at, ctx, depth)? {
             Some(tree) => Ok(tree),
             None => Err("no implicit argument"),

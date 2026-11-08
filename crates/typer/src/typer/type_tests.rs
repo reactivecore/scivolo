@@ -17,9 +17,8 @@ const TAGS: [&str; 2] = ["scala.reflect.TypeTest", "scala.reflect.ClassTag"];
 
 impl Typer<'_> {
     /// Pattern `id`, `expr: tpe` with type tree `tpt`, against `pt` as the extractor pattern
-    /// `tag(expr)` of a given `TypeTest[pt, tpe]` or `ClassTag[tpe]`, no class tag for an opaque
-    /// type, if `tpe`, its aliases followed up to a match-type alias, is or applies a type that is
-    /// not a class.
+    /// `tag(expr)` of a given `TypeTest[pt, tpe]` or `ClassTag[tpe]`, none synthesized, if `tpe`,
+    /// its aliases followed up to a match-type alias, is or applies a type that is not a class.
     pub fn try_with_type_test(
         &mut self,
         id: NodeId,
@@ -46,11 +45,10 @@ impl Typer<'_> {
         }
         let at = Span::at(self.ast.span(tpt).start());
         let mut found = None;
-        let tags = if self.is_opaque_ref(dealiased) { &TAGS[..1] } else { &TAGS[..] };
-        for (&class_name, args) in tags.iter().zip([vec![p, tpe], vec![tpe]]) {
+        for (class_name, args) in TAGS.into_iter().zip([vec![p, tpe], vec![tpe]]) {
             let Some(class) = self.resolve_full_name(class_name, true) else { continue };
             let wanted = crate::defn::applied(self.u, class, args);
-            match self.implicit_arg(wanted, at, ctx.with_mode(Mode::NONE), 0) {
+            match self.implicit_arg(wanted, at, ctx.with_mode(Mode::NO_SYNTHESIS), 0) {
                 Ok(tag) => {
                     found = Some(tag);
                     break;
