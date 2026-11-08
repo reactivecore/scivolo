@@ -75,7 +75,10 @@ impl Typer<'_> {
         if is_type || matches!(self.u.types().get(widened), Type::Method { .. } | Type::Poly { .. }) {
             return;
         }
-        let simplified = self.simplified(t);
+        let simplified = match self.tpd.tree(tree) {
+            T::Apply { .. } => self.simplified_inferred(t),
+            _ => self.simplified(t),
+        };
         self.tpd.get_mut(tree).tpe = Some(simplified);
     }
 
