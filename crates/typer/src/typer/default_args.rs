@@ -6,7 +6,7 @@ use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
-use tasty::tags::{OBJECT, SYNTHETIC};
+use tasty::tags::{GIVEN, OBJECT, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type};
 
 /// A clause a call applies: its value or type arguments.
@@ -53,7 +53,7 @@ impl Typer<'_> {
         } else {
             &sym.name
         };
-        let getter_name = format!("{base}$default${}", n + 1);
+        let mut getter_name = format!("{base}$default${}", n + 1);
         let local = matches!(*self.tpd.tree(mref), T::Ident { .. })
             && matches!(*self.u.types().get(self.tpd.tpe(mref)), Type::Sym(None, _));
         let mut getter = if local {
@@ -68,8 +68,16 @@ impl Typer<'_> {
                 T::Ident { .. } => self.ident_receiver(mref, span.start_pos(), ctx)?,
                 _ => return Err("default argument"),
             };
-            let site = self.tpd.tpe(receiver);
-            let sym_name = getter_name.replace("$lessinit$greater", "<init>");
+            let (mut receiver, mut site) = (receiver, self.tpd.tpe(receiver));
+            let mut sym_name = getter_name.replace("$lessinit$greater", "<init>");
+            if self.type_members(site, &sym_name).is_empty()
+                && let Some(module) = self.given_class_companion(method)
+            {
+                (site, sym_name) =
+                    (crate::defn::type_ref(self.u, module), format!("<init>$default${}", n + 1));
+                getter_name = sym_name.replace("<init>", "$lessinit$greater");
+                receiver = self.build().ident(module, site, span);
+            }
             let [getter] = self.type_members(site, &sym_name)[..] else { return Err("default getter") };
             self.check_reference(getter, Some(site), ctx)?;
             let tpe = self.ref_type(Some(site), getter);
@@ -177,5 +185,19 @@ impl Typer<'_> {
         let tpe = self.ref_type(prefix, module);
         let at = self.tpd.span(new_tree).start_pos();
         Ok(self.ref_(prefix, module, tpe, at, ctx))
+    }
+
+    /// The companion object of the synthetic given class that given method `method` wraps,
+    /// whose constructor's default getters it uses (dotty's `findDefaultGetter` of an implicit
+    /// wrapper).
+    fn given_class_companion(&mut self, method: SymbolId) -> Option<SymbolId> {
+        if !self.u.symbol(method).flags.has(GIVEN) {
+            return None;
+        }
+        let info = self.u.info(method);
+        let result = self.final_result(info);
+        let class = self.u.class_symbol(result)?;
+        let flags = self.u.symbol(class).flags;
+        (flags.has(GIVEN) && flags.has(SYNTHETIC)).then(|| self.u.companion_module(class)).flatten()
     }
 }
