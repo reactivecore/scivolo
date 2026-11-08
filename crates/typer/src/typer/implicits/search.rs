@@ -16,7 +16,7 @@ use tasty::{Type, TypeId};
 /// How deep implicit arguments of implicit arguments may nest.
 const MAX_DEPTH: u32 = 12;
 /// How many candidates one search may try, nested searches included.
-pub const MAX_TRIES: u32 = 400;
+pub const MAX_TRIES: u32 = 4000;
 /// The failure of a search that finds several candidates, none ranking above the others.
 pub const AMBIGUOUS: &str = "ambiguous implicit arguments";
 

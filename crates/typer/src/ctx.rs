@@ -48,6 +48,9 @@ impl Mode {
     pub const NO_SYNTHESIS: Mode = Mode(16384);
     /// The parent types of a class being completed.
     pub const PARENT_TYPE: Mode = Mode(32768);
+    /// The reference of a singleton type, where a context function value stays unapplied
+    /// (dotty's `SingletonTypeProto`).
+    pub const SINGLETON_REF: Mode = Mode(65536);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0
@@ -180,5 +183,9 @@ impl Ctx {
 
     pub fn with_mode(self, mode: Mode) -> Ctx {
         Ctx { mode, ..self }
+    }
+
+    pub fn adding(self, mode: Mode) -> Ctx {
+        Ctx { mode: self.mode.with(mode), ..self }
     }
 }

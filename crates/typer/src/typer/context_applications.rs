@@ -18,7 +18,7 @@ impl Typer<'_> {
         let type_tree = self.tpd.sym(tree).is_some_and(|s| self.u.is_type_symbol(s))
             || matches!(self.tpd.tree(tree), T::Select { name, .. } if name.is_type);
         if ctx.mode.is(Mode::PATTERN)
-            || ctx.mode.is(Mode::ASSIGNMENT_LHS)
+            || ctx.mode.is(Mode::ASSIGNMENT_LHS.with(Mode::SINGLETON_REF))
             || type_tree
             || self.is_closure_tree(tree)
         {

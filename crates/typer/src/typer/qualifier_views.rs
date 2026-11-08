@@ -167,7 +167,7 @@ impl Typer<'_> {
         self.try_conversion(c, (qual, false), Goal::Member(name), ctx).ok()
     }
 
-    fn is_plain_arg(&self, a: NodeId) -> bool {
+    pub fn is_plain_arg(&self, a: NodeId) -> bool {
         match *self.ast.tree(a) {
             Tree::Literal { .. } | Tree::Number { .. } | Tree::Ident { .. } => true,
             Tree::Select { qualifier, .. } => self.is_plain_arg(qualifier),

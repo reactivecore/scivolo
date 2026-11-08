@@ -58,7 +58,7 @@ impl Typer<'_> {
         } else {
             &sym.name
         };
-        let getter_name = format!("{base}$default${}", n + 1);
+        let mut getter_name = format!("{base}$default${}", n + 1);
         let local = matches!(*self.tpd.tree(mref), T::Ident { .. })
             && matches!(*self.u.types().get(self.tpd.tpe(mref)), Type::Sym(None, _));
         let mut getter = if local {
@@ -75,8 +75,16 @@ impl Typer<'_> {
                 T::Ident { .. } => self.ident_receiver(mref, span.start_pos(), ctx)?,
                 _ => return Err("default argument"),
             };
-            let site = self.tpd.tpe(receiver);
-            let sym_name = getter_name.replace("$lessinit$greater", "<init>");
+            let (mut receiver, mut site) = (receiver, self.tpd.tpe(receiver));
+            let mut sym_name = getter_name.replace("$lessinit$greater", "<init>");
+            if self.type_members(site, &sym_name).is_empty()
+                && let Some(module) = self.given_class_companion(method)
+            {
+                (site, sym_name) =
+                    (crate::defn::type_ref(self.u, module), format!("<init>$default${}", n + 1));
+                getter_name = sym_name.replace("<init>", "$lessinit$greater");
+                receiver = self.build().ident(module, site, span);
+            }
             let [getter] = self.type_members(site, &sym_name)[..] else { return Err("default getter") };
             self.check_synthetic_reference(getter, Some(site), ctx)?;
             let tpe = self.ref_type(Some(site), getter);
@@ -165,35 +173,5 @@ impl Typer<'_> {
         }
         let pkg = self.u.symbol(c).owner.filter(|&o| self.u.symbol(o).kind == Kind::Package)?;
         Some((pkg, self.u.source_module(c)?))
-    }
-
-    /// A reference at `at` to the companion object of the class constructor `ctor` creates in
-    /// `new_tree`.
-    fn companion_ref(
-        &mut self,
-        new_tree: TNodeId,
-        ctor: SymbolId,
-        at: syntax::ast::Span,
-        ctx: Ctx,
-    ) -> Result<TNodeId, &'static str> {
-        let class = self.u.symbol(ctor).owner.ok_or("default argument")?;
-        if self.u.symbol(class).owner.is_none() {
-            return Err("default argument");
-        }
-        let module = self.u.companion_module(class).ok_or("default argument without a companion")?;
-        let new_tpe = self.tpd.tpe(new_tree);
-        let new_tpe = self.u.dealias(new_tpe);
-        let class_tpe = self.u.base_type(new_tpe, class).ok_or("default argument")?;
-        let tycon = match *self.u.types().get(class_tpe) {
-            Type::Applied(t, _) => t,
-            _ => class_tpe,
-        };
-        let prefix = match *self.u.types().get(tycon) {
-            Type::Sym(prefix, _) => prefix,
-            Type::TypeRef(prefix, _) => Some(prefix),
-            _ => return Err("default argument of a class of another type"),
-        };
-        let tpe = self.ref_type(prefix, module);
-        Ok(self.ref_(prefix, module, tpe, at, ctx))
     }
 }

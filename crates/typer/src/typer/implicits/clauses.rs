@@ -86,6 +86,9 @@ impl Typer<'_> {
         }
         let args: Vec<TNodeId> = found.into_iter().flatten().collect();
         let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+        if self.without_false_deps_in(result, (binder, &params), meth) != result {
+            return Err("implicit method type with a false dependency");
+        }
         let result = self.applied_result(result, (binder, &names), meth, &arg_types);
         Ok(Some(self.build().apply(tree, &args, result, span)))
     }

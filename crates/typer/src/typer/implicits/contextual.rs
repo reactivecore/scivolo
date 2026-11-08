@@ -133,7 +133,7 @@ impl Typer<'_> {
             &Level::Members(owner) if self.u.symbol(owner).kind == Kind::Class => {
                 let this = crate::defn::type_ref(self.u, owner);
                 let prefix = Some(self.u.intern_type(Type::This(this)));
-                let members = self.implicit_members(owner, true);
+                let members = self.this_implicit_members(owner);
                 let cands = members
                     .into_iter()
                     .map(|sym| (Candidate { sym, prefix }, self.u.symbol(sym).name.clone()))
