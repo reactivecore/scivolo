@@ -19,6 +19,17 @@ trait UniqueImpl {
   }
 }
 
+trait Based
+
+trait Mixed { this: Mixed & Based =>
+  def pair2 = (5, 6)
+  def product = { val (u, w) = pair2; u * w }
+  class Inner {
+    val (p, q) = pair2
+    def sum = p + q
+  }
+}
+
 final class Zipped(private val colls: (List[Int], List[String])) extends AnyVal {
   def iterator: Iterator[(Int, String)] = colls._1.iterator.zip(colls._2.iterator).map { case (a, b) => (a, b) }
 }
@@ -29,7 +40,7 @@ object Zipped {
   }
 }
 
-object selfnames extends UniqueImpl {
+object selfnames extends UniqueImpl with Mixed with Based {
   def main(args: Array[String]): Unit = {
     val c = new Compound { def run() = 4 }
     println(c.attempt)
@@ -37,5 +48,6 @@ object selfnames extends UniqueImpl {
     println(new Dummy().sum)
     println(new Zipped((List(1, 2), List("a", "b"))).iterator.toList)
     println(new Zipped.Ops((1, 2)).swapped)
+    println(product + new Inner().sum)
   }
 }

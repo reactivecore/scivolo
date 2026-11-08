@@ -48,6 +48,10 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId, moved: &[Moved])
             matches.extend(try_catch::fallback(l, t, owner)?.map(|m| (m, owner)));
             continue;
         }
+        if let Some(&(_, ext, _)) = moved.iter().find(|m| m.0 == t) {
+            let sym = l.tpd.sym(ext).unwrap_or(owner);
+            todo.extend(children(l.tpd, ext).into_iter().rev().map(|c| (c, sym, false)));
+        }
         let inner = match *l.tpd.tree(t) {
             Tree::CaseDef { body, .. } => {
                 case_bodies.insert(body);
@@ -64,10 +68,6 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId, moved: &[Moved])
         todo.push((t, owner, true));
         let kids = children(l.tpd, t).into_iter().filter(|c| !extensions.contains(c));
         todo.extend(kids.rev().map(|c| (c, inner, false)));
-        if let Some(&(_, ext, _)) = moved.iter().find(|m| m.0 == t) {
-            let sym = l.tpd.sym(ext).unwrap_or(owner);
-            todo.extend(children(l.tpd, ext).into_iter().rev().map(|c| (c, sym, false)));
-        }
     }
     for (m, owner) in matches {
         let defs = l.patmat()?;
