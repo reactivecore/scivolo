@@ -46,6 +46,7 @@ impl Gen<'_, '_> {
         let Some(rhs) = rhs else {
             let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;
             cf.method(flags, &name, &desc, None, &mut |a, b| self.jvm_lub(a, b));
+            self.exceptions(cf, sym);
             self.method_attributes(cf, sym, &desc, &param_syms, (erased, false));
             return Ok(());
         };
@@ -66,6 +67,7 @@ impl Gen<'_, '_> {
         self.method_body(&mut b, rhs, result)?;
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
+        self.exceptions(cf, sym);
         self.method_attributes(cf, sym, &desc, &param_syms, (erased, trait_init));
         let line = self.line_of(class_def);
         self.trait_forwarder(cf, (sym, flags), (&desc, &param_syms), line);

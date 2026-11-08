@@ -24,7 +24,16 @@ class Old:
   @throws(classOf[IllegalStateException])
   def risky(): Int = 2
   @throws[java.io.IOException]
+  @throws[java.io.IOException]
   def generic[T](t: T): T = t
+
+class Thrower[E <: Exception]:
+  @throws[E]
+  def typed[T](t: T): T = t
+
+object Thrower:
+  @throws[java.io.IOException]
+  def mirrored[T](t: T): T = t
 
 object Attributes:
   val names: List[String] = List("a", "b")

@@ -4,7 +4,7 @@
 //! String concatenation as `invokedynamic` of `StringConcatFactory.makeConcatWithConstants`
 //! (dotty's `genStringConcat`, `liftStringConcat`, `genIndyStringConcat`).
 
-use super::body::Body;
+use super::body::{Body, Operand};
 use super::closures::BOOTSTRAP;
 use super::{Gen, descriptor};
 use classfile::{Constant, Handle, Invoke};
@@ -75,6 +75,7 @@ impl Gen<'_, '_> {
             let size = classfile::value_slots(&desc);
             if slots + size >= MAX_SLOTS {
                 concat_call(b, &recipe, &types, &constants);
+                b.operand(b.code.stack() - 1, 1, Operand::Desc("L"));
                 concats += 1;
                 slots = 0;
                 (recipe, types, constants) = (Vec::new(), String::new(), Vec::new());

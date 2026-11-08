@@ -23,17 +23,7 @@ impl Gen<'_, '_> {
         params: &[SymbolId],
         (erased, this_param): (bool, bool),
     ) {
-        let thrown = self.thrown(sym);
-        if !thrown.is_empty() {
-            let classes: Vec<String> =
-                thrown.iter().map(|&t| super::class_internal(&self.l.u.erase(t))).collect();
-            cf.exceptions(&classes);
-        }
-        if !erased && let Some(mut sig) = self.generic_signature(sym, desc) {
-            for t in thrown {
-                sig.push('^');
-                sig.push_str(&super::descriptor(&self.l.u.erase(t)));
-            }
+        if !erased && let Some(sig) = self.generic_signature(sym, desc) {
             cf.member_signature(Last::Method, &sig);
         }
         if self.l.u.is_annotated(sym, "scala.deprecated") {
@@ -53,9 +43,20 @@ impl Gen<'_, '_> {
         }
     }
 
+    /// Adds to the method of `cf` added last the `Exceptions` attribute of method `sym`, if it has
+    /// `@throws` annotations (dotty's `getExceptions`).
+    pub fn exceptions(&mut self, cf: &mut ClassFile, sym: SymbolId) {
+        let thrown = self.thrown(sym);
+        if !thrown.is_empty() {
+            let classes: Vec<String> =
+                thrown.iter().map(|&t| super::class_internal(&self.l.u.erase(t))).collect();
+            cf.exceptions(&classes);
+        }
+    }
+
     /// The exception types of the `@throws` annotations of method `sym`, last first (dotty's
     /// `ThrownException` over `annotations`).
-    fn thrown(&mut self, sym: SymbolId) -> Vec<TypeId> {
+    pub fn thrown(&mut self, sym: SymbolId) -> Vec<TypeId> {
         let mut out = Vec::new();
         for annot in self.l.tpd.annotations(sym).to_vec().into_iter().rev() {
             let tpe = self.l.tpd.tpe(annot);
@@ -64,7 +65,6 @@ impl Gen<'_, '_> {
             }
             if let tasty::Type::Applied(_, args) = self.l.u.types().get(tpe)
                 && let [t] = args[..]
-                && !out.contains(&t)
             {
                 out.push(t);
             }
@@ -105,7 +105,8 @@ impl Gen<'_, '_> {
         if self.mixed_origin(sym).is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) {
             return None;
         }
-        let sig = super::signatures::member(self.l.u, sym, info, desc)?;
+        let thrown = self.thrown(sym);
+        let sig = super::signatures::member(self.l.u, sym, info, desc, &thrown)?;
         let forwarder = self.l.mixed_in_from(sym).is_some() && !self.l.is_mixin_accessor(sym);
         (!forwarder || super::signatures::erases_to(&sig, desc)).then_some(sig)
     }

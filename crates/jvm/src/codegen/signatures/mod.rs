@@ -30,9 +30,15 @@ struct Sig<'u> {
     out: String,
 }
 
-/// The generic signature of method or field `sym` of type `info` and descriptor `desc`; none if
-/// it equals `desc`.
-pub fn member(u: &mut Universe, sym: SymbolId, info: TypeId, desc: &str) -> Option<String> {
+/// The generic signature of method or field `sym` of type `info`, descriptor `desc` and thrown
+/// exception types `thrown`; none if it equals `desc`.
+pub fn member(
+    u: &mut Universe,
+    sym: SymbolId,
+    info: TypeId,
+    desc: &str,
+    thrown: &[TypeId],
+) -> Option<String> {
     if !needed::may_need(u, info) {
         return None;
     }
@@ -46,6 +52,10 @@ pub fn member(u: &mut Universe, sym: SymbolId, info: TypeId, desc: &str) -> Opti
             s.result(info);
         }
         _ => s.jsig(info, true, Boxing::Unbox),
+    }
+    for &t in thrown.iter().filter(|_| method) {
+        s.out.push('^');
+        s.jsig(t, true, Boxing::Unbox);
     }
     (!s.out.is_empty() && s.out != desc).then_some(s.out)
 }

@@ -178,6 +178,11 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       `ClassCastException: Cannot cast to scala.Nothing`.
     - Fix: instantiate it to its bound with itself a wildcard (`Ordered[?]`). VM and JVM: as
       dotty.
+17. **`+=` on another object's `@static var` crashes the backend** (dotty 3.9.0).
+    - `object Counter { @static var a: Int = 1 }` with `Counter.a += 5` elsewhere: `AssertionError:
+      an unexpected type representation reached the compiler backend … NoType`;
+      `Counter.a = Counter.a + 5` compiles.
+    - JVM: compiles it as the assignment.
 
 ## M4: dotty `tests/run`
 

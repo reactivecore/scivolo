@@ -68,6 +68,7 @@ object Trycatch {
 
   def main(args: Array[String]): Unit = {
     println(Stash.stashed("4") + " " + Stash.stashed("x"))
+    println(s"${Stash.widened(2, "1.5")} ${Stash.widened(2, "x")}")
     println(s"${parse("12")} ${parse("x")}")
     println(guarded(0) + "; " + guarded(3))
     println(s"${early(4)} ${early(-1)}")
@@ -89,4 +90,6 @@ object Stash {
     val n = 1.5 + (try s.toDouble catch { case _: NumberFormatException => 0.0 } finally Trycatch.log += "s")
     p.a.toString + p.b + Math.max(3L, try s.toLong catch { case _: Throwable => 9L }) + n
   }
+
+  def widened(i: Int, s: String): Float = i + (try s.toFloat catch { case _: NumberFormatException => 0.5f })
 }
