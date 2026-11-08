@@ -64,11 +64,12 @@ pub enum ConstantValue {
     String(String),
 }
 
-/// The constant pool's `Utf8` texts, the `Utf8` index of each `Class` entry and the values of
-/// the entries a `ConstantValue` may name, by index; a `String`'s as its `Utf8` index.
+/// The constant pool's `Utf8` texts with whether each is exact, the `Utf8` index of each `Class`
+/// entry and the values of the entries a `ConstantValue` may name, by index; a `String`'s as its
+/// `Utf8` index.
 #[derive(Default)]
 struct Constants {
-    utf8: Vec<Option<String>>,
+    utf8: Vec<Option<(String, bool)>>,
     class: Vec<Option<u16>>,
     values: Vec<Option<(u8, u64)>>,
 }
@@ -83,13 +84,16 @@ impl Constants {
             4 => ConstantValue::Float(bits as u32),
             5 => ConstantValue::Long(bits as i64),
             6 => ConstantValue::Double(bits),
-            _ => ConstantValue::String(self.utf8(bits as u16)?),
+            _ => match self.utf8.get(bits as usize) {
+                Some(Some((s, true))) => ConstantValue::String(s.clone()),
+                _ => return Err(format!("constant {i} is no exact String")),
+            },
         })
     }
 
     fn utf8(&self, i: u16) -> Result<String, String> {
         let text = self.utf8.get(usize::from(i)).cloned().flatten();
-        text.ok_or_else(|| format!("constant {i} is no Utf8"))
+        text.map(|(s, _)| s).ok_or_else(|| format!("constant {i} is no Utf8"))
     }
 
     /// The name of `Class` entry `i`, none for 0.
@@ -111,7 +115,7 @@ fn constants(b: &mut Bytes) -> Result<Constants, String> {
         let skipped = match tag {
             1 => {
                 let n = usize::from(b.u2()?);
-                c.utf8[i] = Some(String::from_utf8_lossy(b.take(n)?).into_owned());
+                c.utf8[i] = Some(crate::modified_utf8::decode(b.take(n)?));
                 0
             }
             7 => {

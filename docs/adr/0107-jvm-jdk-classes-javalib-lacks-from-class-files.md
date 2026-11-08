@@ -14,16 +14,19 @@ which dotty reads from the JDK's class files (`ClassfileParser`). ADR 0106 found
   public top-level class that is no annotation is entered with its object and object's class.
 - The class's type parameters and parents come from its `Signature`, else from its superclass
   and interfaces; a member's type from its `Signature`, else its descriptor, as dotty's
-  `sigToType` reads them (`Object` as `<FromJavaObject>`, varargs `Array[T] @Repeated`, a
-  constructor polymorphic in the class's type parameters). Static members go to the object's
-  class, as for the Java classes of the Scala library. Private, package-private, synthetic and
-  bridge members are not entered. A `static final` field's `ConstantValue` is its constant type.
+  `sigToType` and `cook` read them (`Object` as `<FromJavaObject>`, a raw type applied to
+  wildcards, varargs `Array[T] @Repeated`, a constructor polymorphic in the class's type
+  parameters). Static members go to the object's class, as for the Java classes of the Scala
+  library. Private, package-private, synthetic and bridge members are not entered. A field's
+  `ConstantValue` is its constant type. An enum with constants is sealed and abstract.
 - A method's erasure is its descriptor's.
 - Not entered (unknown to the typer, so refused as a member not found): classes nested in such a
-  class, annotation classes, and members whose signature names a class nested in a generic one.
+  class, annotation classes, signature-polymorphic methods (native varargs), constructors with
+  type parameters of their own, and members whose signature names a class nested in a generic
+  one.
 
 ## Consequences
 - The library still wins: a JDK member javalib lacks in a class javalib has stays unknown.
-- Differences from dotty: no annotations, `Exceptions` or `InnerClasses` read; a raw type in a
-  descriptor stays unapplied (dotty's `cook` gives it wildcards); enums read are not sealed, so
-  matches on them get no exhaustivity warnings.
+- No annotations, `Exceptions` or `InnerClasses` are read: an eta-expansion to such a class is
+  refused, as for a Java class that is no known functional interface; deprecation warnings and
+  an enum's children (for its sum mirror, refused) are missing.

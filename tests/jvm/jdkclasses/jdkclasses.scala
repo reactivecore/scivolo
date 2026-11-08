@@ -28,5 +28,7 @@ object Jdkclasses {
     println(m.firstEntry().getKey())
     println(m.headMap("b").size())
     println(java.text.MessageFormat.format("{0}+{1}", "x", "y"))
+    val rows: java.util.Vector[java.util.Vector[?]] = new javax.swing.table.DefaultTableModel(2, 3).getDataVector()
+    println(rows.get(1).size())
   }
 }

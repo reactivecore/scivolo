@@ -115,7 +115,8 @@ impl<'a> Sig<'a> {
                 u.types.intern(Type::Applied(class, args))
             }
             _ if name == "java/lang/Object" => u.types.intern(Type::Sym(None, u.builtins().from_java_object)),
-            _ => class,
+            _ if self.skip => class,
+            _ => cooked(u, name),
         };
         if self.peek() == Some(b'.') {
             return Err(format!("signature `{}`: a class nested in a generic class", self.text));
@@ -196,8 +197,22 @@ pub fn bounded_by_object(bounds: &str) -> bool {
     bounds == OBJECT_BOUND
 }
 
+/// A reference to the class of internal name `internal`, applied to wildcards if it is a raw
+/// type, one whose JDK class file has type parameters (dotty's `cook`).
+pub fn cooked(u: &mut Universe, internal: &str) -> TypeId {
+    let class = class_ref(u, internal);
+    let jdk = u.jdk.as_mut().and_then(|jdk| jdk.class(internal));
+    let Some(signature) = jdk.and_then(|c| c.signature.clone()) else { return class };
+    let n = Sig::new(&signature).type_params(u).map_or(0, |params| params.len());
+    if n == 0 {
+        return class;
+    }
+    let wildcard = u.types.intern(Type::Bounds(NOTHING, ANY));
+    u.types.intern(Type::Applied(class, vec![wildcard; n]))
+}
+
 /// A reference to the class of internal name `internal`, a nested class `A$B` as `A.B`.
-pub fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
+fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
     let (pkg, name) = internal.rsplit_once('/').unwrap_or(("", internal));
     let pkg = u.enter_package(&pkg.replace('/', "."));
     let mut prefix = u.types.intern(Type::Package(pkg));

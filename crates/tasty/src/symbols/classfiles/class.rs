@@ -5,15 +5,15 @@
 
 use super::super::builtin::synthetic;
 use super::super::{Kind, SymbolId, Universe};
-use super::signatures::{Sig, Var, bounded_by_object, bounds, class_ref};
+use super::signatures::{Sig, Var, bounded_by_object, bounds, cooked};
 use crate::tags::{
     ABSTRACT, BYTEconst, CHARconst, DOUBLEconst, FALSEconst, FINAL, FLOATconst, INTconst, LONGconst, MUTABLE,
-    OBJECT, PROTECTED, SHORTconst, STATIC, TRAIT, TRUEconst,
+    OBJECT, PROTECTED, SEALED, SHORTconst, STATIC, TRAIT, TRUEconst,
 };
 use crate::types::{Type, TypeId};
 use classfile::{
-    ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_INTERFACE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC,
-    ACC_VARARGS, ClassInfo, ConstantValue, MemberInfo,
+    ACC_ABSTRACT, ACC_BRIDGE, ACC_ENUM, ACC_FINAL, ACC_INTERFACE, ACC_NATIVE, ACC_PROTECTED, ACC_PUBLIC,
+    ACC_STATIC, ACC_SYNTHETIC, ACC_VARARGS, ClassInfo, ConstantValue, MemberInfo,
 };
 
 /// The class being entered: it, its object's class, and its type parameters with their bounds'
@@ -31,9 +31,11 @@ pub fn enter(u: &mut Universe, pkg: SymbolId, info: &ClassInfo) -> Option<Vec<Sy
     let simple = info.name.rsplit_once('/').map_or(info.name.as_str(), |(_, n)| n);
     let interface = info.access & ACC_INTERFACE != 0;
     let mut flags = Vec::new();
+    let sealed = info.access & ACC_ENUM != 0 && info.fields.iter().any(|f| f.access & ACC_ENUM != 0);
     flags.extend(if interface { &[TRAIT, ABSTRACT][..] } else { &[] });
-    flags.extend((!interface && info.access & ACC_ABSTRACT != 0).then_some(ABSTRACT));
+    flags.extend((!interface && (sealed || info.access & ACC_ABSTRACT != 0)).then_some(ABSTRACT));
     flags.extend((info.access & ACC_FINAL != 0).then_some(FINAL));
+    flags.extend(sealed.then_some(SEALED));
     let class = synthetic(u, pkg, simple, Kind::Class, &flags);
     let object = u.types.intern(Type::Sym(None, u.builtins().object));
     let statics = synthetic(u, pkg, &format!("{simple}$"), Kind::Class, &[OBJECT, FINAL]);
@@ -69,7 +71,7 @@ fn class_signature<'a>(
     let from_java_object = u.types.intern(Type::Sym(None, u.builtins().from_java_object));
     let Some(signature) = info.signature.as_deref() else {
         let names = info.superclass.iter().chain(&info.interfaces);
-        let parents = names.map(|n| if n == "java/lang/Object" { object } else { class_ref(u, n) }).collect();
+        let parents = names.map(|n| if n == "java/lang/Object" { object } else { cooked(u, n) }).collect();
         u.parents.insert(class, parents);
         return Ok(Owners { class, statics, params: Vec::new(), vars: Vec::new() });
     };
@@ -95,12 +97,14 @@ fn class_signature<'a>(
     Ok(Owners { class, statics, params, vars })
 }
 
-/// Enters field or method `m` unless it is private, package-private, synthetic, a bridge or a
-/// static initializer, or its signature is one this reader refuses.
+/// Enters field or method `m` unless it is private, package-private, synthetic, a bridge, a
+/// static initializer or signature polymorphic (native varargs, dotty's `isSignaturePolymorphic`),
+/// or its signature is one this reader refuses.
 fn member(u: &mut Universe, owners: &Owners, m: &MemberInfo, method: bool) {
     let visible = m.access & (ACC_PUBLIC | ACC_PROTECTED) != 0;
     let artifact = m.access & ACC_SYNTHETIC != 0 || method && m.access & ACC_BRIDGE != 0;
-    if !visible || artifact || m.name == "<clinit>" {
+    let polymorphic = method && m.access & (ACC_NATIVE | ACC_VARARGS) == ACC_NATIVE | ACC_VARARGS;
+    if !visible || artifact || polymorphic || m.name == "<clinit>" {
         return;
     }
     let is_static = m.access & ACC_STATIC != 0;
@@ -108,7 +112,7 @@ fn member(u: &mut Universe, owners: &Owners, m: &MemberInfo, method: bool) {
     let text = m.signature.as_deref().unwrap_or(&m.descriptor);
     let info = match (method, &m.constant) {
         (true, _) => method_type(u, owners, m, text),
-        (false, Some(c)) if is_static && m.access & ACC_FINAL != 0 => constant_type(u, &m.descriptor, c),
+        (false, Some(c)) => constant_type(u, &m.descriptor, c),
         (false, _) => Sig::new(text).ty(u, &owners.vars),
     };
     let Ok(info) = info else { return };
@@ -129,8 +133,8 @@ fn member(u: &mut Universe, owners: &Owners, m: &MemberInfo, method: bool) {
     }
 }
 
-/// The constant type of a field of descriptor `descriptor` and constant value `c` (dotty's
-/// `ConstantValue` attribute, its `Integer` entry converted to the field's type).
+/// The constant type of a field of descriptor `descriptor` and `ConstantValue` `c`, its `Integer`
+/// entry converted to the field's type (dotty's `convertTo`).
 fn constant_type(u: &mut Universe, descriptor: &str, c: &ConstantValue) -> Result<TypeId, String> {
     let t = match (descriptor, c) {
         ("Z", &ConstantValue::Int(i)) => Type::Constant(if i != 0 { TRUEconst } else { FALSEconst }, 0),
@@ -148,12 +152,15 @@ fn constant_type(u: &mut Universe, descriptor: &str, c: &ConstantValue) -> Resul
 }
 
 /// The type of method `m` of signature `text`: polymorphic in its type parameters, a
-/// constructor also in the class's, returning the class's type (dotty's
-/// `normalizeConstructorInfo`).
+/// constructor in the class's instead, returning the class's type (dotty's
+/// `normalizeConstructorInfo`); a constructor with type parameters of its own is refused.
 fn method_type(u: &mut Universe, owners: &Owners, m: &MemberInfo, text: &str) -> Result<TypeId, String> {
     let mut sig = Sig::new(text);
     let own = sig.type_params(u)?;
     let constructor = m.name == "<init>";
+    if constructor && !own.is_empty() {
+        return Err(format!("constructor of signature `{text}` with type parameters of its own"));
+    }
     let mut params: Vec<(String, &str)> = if constructor { owners.params.clone() } else { Vec::new() };
     params.extend(own.iter().map(|(n, b)| (n.clone(), *b)));
     let binder = u.fresh_binder();

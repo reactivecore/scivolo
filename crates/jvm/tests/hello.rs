@@ -165,3 +165,9 @@ fn a_class_nested_in_a_jdk_class_javalib_lacks_is_refused() {
     let code = "object R { def f = java.time.zone.ZoneOffsetTransitionRule.TimeDefinition.UTC }";
     refuses("refusednested", code, "member not found");
 }
+
+#[test]
+fn a_signature_polymorphic_method_is_refused() {
+    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\") }";
+    refuses("refusedpolymorphic", code, "member not found");
+}
