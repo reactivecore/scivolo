@@ -209,12 +209,12 @@ Results (2026-11-08):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1494 |
+| passed | 1495 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
 | lowering refused | 0 |
-| typer refused | 12 |
+| typer refused | 11 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
