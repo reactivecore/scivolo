@@ -29,11 +29,13 @@ impl Cmp<'_> {
             Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::RecThis(_) | Type::Skolem(..) => {
                 self.below_singleton(a, b)
             }
+            Type::Match { bound, scrutinee, cases } => {
+                self.recur(bound, b) || self.match_below(scrutinee, &cases, b)
+            }
             Type::Refined(parent, ..)
             | Type::Rec(_, parent)
             | Type::Annotated(parent, _)
-            | Type::Flexible(parent)
-            | Type::Match { bound: parent, .. } => self.recur(parent, b),
+            | Type::Flexible(parent) => self.recur(parent, b),
             Type::And(x, y) => self.and_below(a, b, x, y),
             Type::Lambda { binder, params, result } => self.lambda_below(binder, params.len(), result, b),
             _ => false,
@@ -50,6 +52,19 @@ impl Cmp<'_> {
             }
             _ => None,
         }
+    }
+
+    /// `scrutinee match { cases } <: b` for a match type `b` on the same scrutinee, `scrutinee`
+    /// with its skolems widened, and cases below `b`'s (dotty's `compareMatch`).
+    fn match_below(&mut self, mut scrutinee: TypeId, cases: &[TypeId], b: TypeId) -> bool {
+        let Type::Match { scrutinee: other, cases: others, .. } = self.u.types().get(b).clone() else {
+            return false;
+        };
+        while !(self.recur(scrutinee, other) && self.recur(other, scrutinee)) {
+            let Type::Skolem(_, widened) = *self.u.types().get(scrutinee) else { return false };
+            scrutinee = widened;
+        }
+        cases.len() == others.len() && cases.iter().zip(&others).all(|(&x, &y)| self.recur(x, y))
     }
 
     /// `[X..] =>> result <: b` for a `b` that is no lambda: `result <: b[X..]` if `b` takes as
