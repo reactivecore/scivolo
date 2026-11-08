@@ -51,10 +51,12 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     for &td in &classes {
         by_name::transform(l, td);
-        interpolators::transform(l, td)?;
         hoist_super_args::transform(l, root, td)?;
     }
     patmat::transform(l, root, unit_owner, &moved)?;
+    for &td in &classes {
+        interpolators::transform(l, td)?;
+    }
     let placeholders = inline_patterns::transform(l, root, unit_owner)?;
     classes.retain(|td| !placeholders.contains(td));
     extension_methods::forwarder_spans(l, &moved);
