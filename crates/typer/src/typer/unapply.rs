@@ -118,7 +118,8 @@ impl Typer<'_> {
         self.type_tested_unapply(id, tree, own, sel, ctx)
     }
 
-    /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type.
+    /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type
+    /// other than an opaque one, which no GADT bounds narrow.
     fn has_abstract_arg(&mut self, t: TypeId) -> bool {
         let widened = self.u.widen(t);
         let Type::Applied(_, args) = self.u.types().get(widened).clone() else { return false };
@@ -131,6 +132,7 @@ impl Typer<'_> {
                         tasty::Kind::Type => {
                             let info = u.info(s);
                             !matches!(u.types().get(info), Type::Alias(_))
+                                && !u.symbol(s).flags.has(tasty::tags::OPAQUE)
                         }
                         _ => false,
                     };

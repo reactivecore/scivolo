@@ -99,6 +99,8 @@ pub struct Universe {
     builds_scala_library: bool,
     /// The classes defined outside TASTy in a unit that behaves as the Scala 2 library.
     scala2_classes: FxHashSet<SymbolId>,
+    /// The methods lifted out of terms into classes.
+    lifted: FxHashSet<SymbolId>,
     /// The Java classes of the Scala library entered without TASTy, their objects and objects'
     /// classes.
     java_stubs: FxHashSet<SymbolId>,
@@ -127,6 +129,8 @@ pub struct Universe {
     opaque_lifts: u64,
     /// Whether the sources compiled are javalib's, whose TASTy classes are then Scala classes.
     javalib_sources: bool,
+    /// Whether javalib's members that JDK 17 lacks are left out where only the JDK API's are seen.
+    jdk_17_view: bool,
     /// The indices of the jars whose classes stand for the JDK's.
     jdk_jars: std::ops::Range<usize>,
     /// The jar whose classes are compiled in the same run as the sources, if one is.
@@ -247,6 +251,16 @@ impl Universe {
     /// Records that class `c`, defined outside TASTy, behaves as the Scala 2 library's.
     pub fn set_scala2(&mut self, c: SymbolId) {
         self.scala2_classes.insert(c);
+    }
+
+    /// Records that method `m` was lifted out of a term into a class.
+    pub fn set_lifted(&mut self, m: SymbolId) {
+        self.lifted.insert(m);
+    }
+
+    /// Whether method `m` was lifted out of a term into a class.
+    pub fn is_lifted(&self, m: SymbolId) -> bool {
+        self.lifted.contains(&m)
     }
 
     /// Whether `erase` erases as Scala 2 does.

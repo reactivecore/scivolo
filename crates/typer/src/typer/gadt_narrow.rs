@@ -52,6 +52,8 @@ impl Typer<'_> {
         if syms.is_empty() {
             return Ok(None);
         }
+        let base = self.u.class_symbol(core);
+        let syms = self.gadt_related(syms, pat, base, ctx);
         let first = self.constraint.count();
         let vars: Vec<TypeId> = syms.iter().map(|_| self.constraint.fresh(self.u)).collect();
         let subst = |u: &mut tasty::Universe, t: TypeId| {
@@ -70,7 +72,11 @@ impl Typer<'_> {
                 }
             }
         }
-        let sel = subst(self.u, sel);
+        let pat = match base.and_then(|c| self.u.base_type(pat, c)) {
+            Some(b) if self.u.class_symbol(pat).is_some_and(|c| self.u.is_class(c)) => b,
+            _ => pat,
+        };
+        let (sel, pat) = (subst(self.u, sel), subst(self.u, pat));
         if !self.constrain_pattern(pat, sel)? {
             return Ok(None);
         }
@@ -147,10 +153,13 @@ impl Typer<'_> {
             let Some((old_lo, old_hi)) = self.current_bounds(s) else { continue };
             let lo = if plain_type_ref(self.u, lo) == Some(s) { old_lo } else { lo };
             let hi = if plain_type_ref(self.u, hi) == Some(s) { old_hi } else { hi };
+            let hi = if hi == old_hi { hi } else { self.gadt_upper_pairs(hi) };
             if (lo, hi) != (old_lo, old_hi) {
                 narrowed.push((s, lo, hi));
             }
         }
+        let syms: Vec<SymbolId> = vars.iter().map(|&(s, _)| s).collect();
+        self.order_gadt(&mut narrowed, &syms);
         for (s, lo, hi) in narrowed {
             self.set_gadt_bounds(s, (lo, hi));
         }

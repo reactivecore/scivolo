@@ -196,7 +196,8 @@ impl Translator<'_, '_> {
         let Some((&first, rest)) = components.split_first() else {
             return self.match_args(args, &syms, on_success);
         };
-        self.let_abstract(first, None, |t, sym| {
+        let tpe = self.avoid_pat_bound_type(first);
+        self.let_abstract(first, tpe, |t, sym| {
             syms.push(sym);
             t.bind_components(rest, syms, args, on_success)
         })
