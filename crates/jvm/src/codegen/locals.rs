@@ -36,6 +36,12 @@ impl Gen<'_, '_> {
         for &s in rest {
             self.stat(b, s)?;
         }
+        let synthetic_unit = matches!(self.l.tpd.tree(expr), Tree::Literal { value: Constant::Unit })
+            && self.l.tpd.span(expr) == self.l.tpd.span(rhs);
+        if synthetic_unit && result == "V" {
+            b.code.ret("V");
+            return Ok(());
+        }
         self.expr_ret(b, expr, result)
     }
 
@@ -50,6 +56,10 @@ impl Gen<'_, '_> {
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(t), "a local without a value") };
         let slot = b.local(sym, desc.clone());
         self.expr_as(b, rhs, classfile::value_slots(&desc))?;
+        let null = "Lscala/runtime/Null$;";
+        if desc == null && self.call_result(rhs).is_some_and(|r| descriptor(&r) != null) {
+            b.code.checkcast(b.pool, "scala/runtime/Null$");
+        }
         b.code.store(&desc, slot);
         Ok(0)
     }
