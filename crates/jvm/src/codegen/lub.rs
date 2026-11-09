@@ -116,7 +116,26 @@ impl Gen<'_, '_> {
         let binary = lower::jdk_class_source_name(&binary);
         let (package, name) = binary.rsplit_once('.').unwrap_or(("", binary));
         let package = self.l.u.package(package)?;
-        self.member_class_named(package, name, internal)
+        if let Some(c) = self.member_class_named(package, name, internal) {
+            return Some(c);
+        }
+        let (prefix, _) = name.split_once("$$$$")?;
+        let tops = self.l.u.decls(package).unwrap_or_default().into_iter();
+        let outer = |n: &str| n.starts_with(prefix) || prefix.starts_with(&format!("{n}$"));
+        let tops: Vec<_> = tops.filter(|&c| outer(&self.l.u.symbol(c).name)).collect();
+        tops.into_iter().find_map(|c| self.nested_class_named(c, internal))
+    }
+
+    /// The class of internal name `internal` among `c` and the classes nested in it.
+    fn nested_class_named(&mut self, c: SymbolId, internal: &str) -> Option<SymbolId> {
+        if !self.l.u.is_class(c) {
+            return None;
+        }
+        if self.class_name(c) == internal {
+            return Some(c);
+        }
+        let decls = self.l.u.decls(c).unwrap_or_default();
+        decls.into_iter().find_map(|d| self.nested_class_named(d, internal))
     }
 
     /// The class of internal name `internal` declared in `owner` as `rest`, nested classes
