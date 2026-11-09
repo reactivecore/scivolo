@@ -21,19 +21,27 @@ struct Cli {
     /// The jar manifest's `Main-Class` (dotty's `-Xmain-class`).
     #[arg(long)]
     main_class: Option<String>,
+    /// The sources are Scala's library's: its classes are compiled in the same run.
+    #[arg(long)]
+    scalalib: bool,
+    /// A compiler option of all sources, checked as the options of their directives.
+    #[arg(long = "scalac-option", allow_hyphen_values = true)]
+    scalac_options: Vec<String>,
     /// The Scala files.
     #[arg(required = true)]
     files: Vec<String>,
 }
 
 fn main() {
-    let Cli { cp, d: out, main_class, files } = Cli::parse();
+    let Cli { cp, d: out, main_class, scalalib, scalac_options: mut options, files } = Cli::parse();
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = [&typer::dump::library_jars(&libs)[..], &cp].concat();
     let mut u = Universe::open(&jars).unwrap_or_else(|e| fail(&format!("opening the library: {e:?}")));
     u.set_jdk(classfile::Jdk::default());
-    let mut options = Vec::new();
+    if scalalib {
+        u.set_same_run_jar(0);
+    }
     let sources: Vec<SourceFile> = files
         .iter()
         .map(|f| {

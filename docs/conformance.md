@@ -278,6 +278,7 @@ Results (2026-11-08):
 just dotty-jvm-report   # scivolo-jvm, then java -Xverify:all; jvm-report.md and jvm-results.tsv under tmp/dotty
 just jvm-run FILE       # one file on java -Xverify:all against its .check
 just jvm-check FILE     # its class files against scala-cli's, through javap
+just jvm-lib-compile scalalib   # Scala's library file by file against the published jar; tmp/lib-jvm/scalalib
 ```
 
 `scivolo-jvm` writes class version 61 (Java 17) with stack map frames; its output is semantically
@@ -312,6 +313,29 @@ Results (2026-11-08):
   the TASTy lacks (1), a jump over 32 KiB (1), a `LazyVals` lub of a long class name (1).
 - **Linkage errors and crashes:** a missing lambda `$adapted` method (`context-functions`), a
   missing bridge (`i18315`, `i23245b`), `ClassTag` of a `*:` tuple (`i22345`).
+
+Scala's library (#222, ADR 0110): each of the 649 `.scala` files of `scala-library-3.9.0`'s
+sources jar is compiled alone by `scivolo-jvm --scalalib` and its class files compared with the
+published jar's through javap text, code and attributes apart. Results (2026-11-09):
+
+| Outcome | Files | Classes |
+|---|---:|---:|
+| same | 121 | 624 |
+| attributes differ | 3 | 143 |
+| code differs | 361 | 1756 |
+| only in the jar (of a compiled file) | | 40 |
+| refused | 164 | |
+| oracle-only (Java sources, `$mc…$sp` interfaces) | | 425 |
+
+- **Refused:** `unresolved name FunctionalInterface` (87, a JDK annotation class); TASTy
+  pickling (39: an annotated sealed class 15, a type outside the subset 15);
+  member not found (13); adaptation (9); no applicable alternative (8).
+- **Code differs:** the jar is built with the backend optimizer (`backend/jvm/opt`: inliner,
+  closure optimizer), which `scivolo-jvm` lacks: inlined calls with their receiver null check
+  (`ifnonnull; aconst_null; athrow`, 776 classes), dropped module loads (`getstatic …MODULE$; pop`),
+  trait calls through static `m$` methods (196). Besides: missing `serialVersionUID` fields (60),
+  `tableswitch` order, `ldc` of `<function1>` strings.
+- **Attributes differ:** line numbers (118).
 
 ### com-lihaoyi libraries from source
 
