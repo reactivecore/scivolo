@@ -11,6 +11,9 @@ use syntax::source::{Offset, SourceFile};
 use tasty::TastySpan;
 use tasty::write::{Addr, PositionsBuffer, text_line_sizes};
 
+/// The first id of the trees registered that have no node.
+const SYNTHETIC: u32 = u32::MAX / 2;
+
 /// The source of a quote: its path from the source root and the size of each of its lines.
 pub struct QuoteSource<'a> {
     pub path: String,
@@ -62,6 +65,19 @@ impl TreePickler<'_> {
         // Each tree with the index in `paths` of its parent's source, if any, and of the source
         // of the inline expansion it is in, if any.
         let mut todo = vec![(root, None, None)];
+        let mut nodes: Vec<usize> =
+            self.buf.trees().filter(|&(id, _)| id < SYNTHETIC).map(|(_, a)| a.0).collect();
+        nodes.sort_unstable();
+        // Each tree without a node, written before the node pickled next.
+        let mut synthetic: Vec<(usize, Addr, Span)> = self
+            .synthetic
+            .iter()
+            .filter_map(|&(id, s)| {
+                let at = self.buf.addr_of_tree(id)?;
+                Some((nodes.get(nodes.partition_point(|&n| n <= at.0)).copied().unwrap_or(usize::MAX), at, s))
+            })
+            .collect();
+        synthetic.sort_by_key(|&(_, a, _)| std::cmp::Reverse(a.0));
         while let Some((t, current, library)) = todo.pop() {
             let span = self.tpd.span(t);
             let other = span.exists() && span.without_inlined_call().is_in_other_source();
@@ -71,6 +87,11 @@ impl TreePickler<'_> {
             };
             let in_library = own.is_some_and(|i| i > 0);
             let key = self.tpd.copy_of(t).unwrap_or(t).index() as u32;
+            let at = self.buf.addr_of_tree(key).map(|a| a.0);
+            while let Some(&(_, addr, span)) = synthetic.last().filter(|&&(next, _, _)| Some(next) == at) {
+                out.span(addr, source.tasty_span(span, false)?);
+                synthetic.pop();
+            }
             if let Some(addr) = self.buf.addr_of_tree(key).filter(|_| span.exists()) {
                 if own != current {
                     out.span(addr, source.tasty_span(span, in_library)?);
@@ -107,6 +128,9 @@ impl TreePickler<'_> {
             let children = annots.into_iter().chain(own).chain(hole_args).collect::<Vec<_>>();
             todo.extend(children.into_iter().rev().map(|c| (c, current, library)));
         }
+        while let Some((_, addr, span)) = synthetic.pop() {
+            out.span(addr, source.tasty_span(span, false)?);
+        }
         for (apply, new, tpt) in self.annots.clone() {
             let span = self.tpd.span(tpt);
             let addrs = (self.buf.addr_of_tree(apply), self.buf.addr_of_tree(new));
@@ -120,6 +144,15 @@ impl TreePickler<'_> {
         }
         self.pickler.set_section(section, out.buf.bytes);
         Ok(())
+    }
+
+    /// Gives the tree pickled next, which has no node, span `span` if it exists.
+    pub fn synthetic_here(&mut self, span: Span) {
+        if span.exists() && !self.keying {
+            let id = SYNTHETIC + self.synthetic.len() as u32;
+            self.buf.register_tree(id);
+            self.synthetic.push((id, span));
+        }
     }
 
     /// The source path of the library inline method whose expansion `t` is, if it is one.

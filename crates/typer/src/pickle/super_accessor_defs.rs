@@ -5,8 +5,10 @@
 
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
+use syntax::ast::Span;
 use tasty::tags::{
-    ANNOTATION, APPLY, ARTIFACT, DEFDEF, EMPTYCLAUSE, NEW, PARAM, SELECTin, SPLITCLAUSE, STRINGconst, TYPEPARAM,
+    ANNOTATION, APPLY, ARTIFACT, DEFDEF, EMPTYCLAUSE, NEW, PARAM, SELECTin, SPLITCLAUSE, STRINGconst,
+    TYPEPARAM,
 };
 use tasty::write::Name;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
@@ -18,6 +20,8 @@ impl TreePickler<'_> {
         self.register_def(acc);
         let name = self.accessor_name(acc).ok_or("a super accessor without a name")?;
         let info = self.u.info(acc);
+        let span = self.accessor_spans.get(&acc).copied().unwrap_or(Span::NONE);
+        self.synthetic_here(span);
         self.with_length(DEFDEF, &mut |p| {
             p.name(&name);
             let mut t = p.accessor_type_params(acc, info)?;
@@ -42,6 +46,7 @@ impl TreePickler<'_> {
             if matches!(p.u.types().get(t), Type::Poly { .. }) {
                 return Err("a super call of a method with type parameters after its parameters");
             }
+            p.synthetic_here(span);
             p.ty(t, false)?;
             p.byte(ARTIFACT);
             match p.u.symbol(acc).target.clone() {

@@ -13,7 +13,9 @@ impl TreePickler<'_> {
     /// hosting its accessor; refused for a protected JDK member in a class deriving from its owner.
     pub fn protected_super_needed(&mut self, sym: SymbolId, class: SymbolId) -> Result<bool, Refusal> {
         let u = &mut *self.u;
-        if !needs_accessor_if_not_in_subclass(u, sym, class) || !host_for_accessor_of(u, sym, class).is_some_and(|h| u.is_trait(h)) {
+        if !needs_accessor_if_not_in_subclass(u, sym, class)
+            || !host_for_accessor_of(u, sym, class).is_some_and(|h| u.is_trait(h))
+        {
             return Ok(false);
         }
         let owner = u.symbol(sym).owner.ok_or("a member without owner")?;
@@ -21,7 +23,10 @@ impl TreePickler<'_> {
             return Ok(true);
         }
         let name = u.full_name(owner);
-        match u.may_be_java(owner) && (name.starts_with("java.") || name.starts_with("javax.")) && name != "java.lang.Object" {
+        match u.may_be_java(owner)
+            && (name.starts_with("java.") || name.starts_with("javax."))
+            && name != "java.lang.Object"
+        {
             true => Err("protected Java members on `this` in concrete trait methods"),
             false => Ok(false),
         }

@@ -32,6 +32,7 @@ use unit::File;
 use crate::tpd::{TNodeId, Tpd};
 use crate::unpickle::QuoteHole;
 use rustc_hash::{FxHashMap, FxHashSet};
+use syntax::ast::Span;
 use syntax::names::Names;
 use tasty::write::{Addr, Name, Pickler, TreeBuffer};
 use tasty::{Binder, SymbolId, TypeId, Universe};
@@ -77,6 +78,12 @@ pub struct TreePickler<'a> {
     super_calls: FxHashMap<TNodeId, SymbolId>,
     /// The name of each super accessor, and the class and name of those pickled.
     accessor_names: FxHashMap<SymbolId, Name>,
+    /// The target name of each super accessor of a member with one.
+    accessor_targets: FxHashMap<SymbolId, Name>,
+    /// The span of each super accessor's definition: its call's point.
+    accessor_spans: FxHashMap<SymbolId, Span>,
+    /// The trees pickled that have no node, by the id they are registered under, and their spans.
+    synthetic: Vec<(u32, Span)>,
     accessors: Accessors,
     /// The type tree pickled now and the annotations its type has pickled: the tree ids of their
     /// `Apply` and `New`, and the type tree.
@@ -138,6 +145,9 @@ fn pickle<'a>(
         open: Vec::new(),
         super_calls: FxHashMap::default(),
         accessor_names: FxHashMap::default(),
+        accessor_targets: FxHashMap::default(),
+        accessor_spans: FxHashMap::default(),
+        synthetic: Vec::new(),
         accessors: Vec::new(),
         type_tree: None,
         annots: Vec::new(),

@@ -10,6 +10,7 @@ use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::signatures::result_sig;
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, INLINE, MACRO, SELECT, SELECTin};
 use tasty::write::Name;
 use tasty::{Flags, Kind, Symbol, SymbolId, Universe};
@@ -144,17 +145,24 @@ impl TreePickler<'_> {
         self.u.set_owner(acc, class);
         let info = self.u.widen(self.tpd.tpe(sel));
         self.u.set_info(acc, info);
-        let base = match trait_ {
-            true => {
-                Name::Expanded(Box::new(expanded_prefix_name(self.u, class)), Box::new(Name::utf8(&original)))
-            }
-            false => Name::utf8(&original),
+        let tasty_name = |u: &Universe, original: &str| {
+            let base = match trait_ {
+                true => {
+                    Name::Expanded(Box::new(expanded_prefix_name(u, class)), Box::new(Name::utf8(original)))
+                }
+                false => Name::utf8(original),
+            };
+            let unexpanded = match mix.as_str() {
+                "" => base,
+                mix => Name::ExpandPrefix(Box::new(base), Box::new(Name::utf8(mix))),
+            };
+            Name::SuperAccessor(Box::new(unexpanded))
         };
-        let unexpanded = match mix.as_str() {
-            "" => base,
-            mix => Name::ExpandPrefix(Box::new(base), Box::new(Name::utf8(mix))),
-        };
-        self.accessor_names.insert(acc, Name::SuperAccessor(Box::new(unexpanded)));
+        self.accessor_names.insert(acc, tasty_name(self.u, &original));
+        self.accessor_spans.insert(acc, Span::at(self.tpd.span(sel).point()));
+        if let Some(t) = self.u.symbol(*member).target.clone() {
+            self.accessor_targets.insert(acc, tasty_name(self.u, &t));
+        }
         self.accessors.push((class, name));
         acc
     }
