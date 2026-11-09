@@ -46,12 +46,15 @@ fn zonked(u: &mut Universe, c: &Constraint, mut t: TypeId, keep: bool) -> TypeId
         t = substituted(u, c, t, &mut changed, keep);
     }
     let t = super::seen_from::normalized(u, t);
-    if !keep {
-        return t;
-    }
+    if keep { with_lambda_instances(u, c, t) } else { t }
+}
+
+/// `t` with each type variable applied to arguments replaced by its instance, a type lambda.
+fn with_lambda_instances(u: &mut Universe, c: &Constraint, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| {
         let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
         let inst = lambda_instance(u, c, tycon)?;
+        let args = args.iter().map(|&a| with_lambda_instances(u, c, a)).collect();
         Some(u.intern_type(Type::Applied(inst, args)))
     })
 }
