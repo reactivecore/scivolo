@@ -87,8 +87,10 @@ pub fn declare_library(l: &mut Lower, class: SymbolId, ctor: SymbolId, outer: Sy
     l.outers.entry(class).or_insert((None, param));
 }
 
-/// The enclosing instance of a class of type `tpe` created in `class`: its prefix as a tree.
+/// The enclosing instance of a class of type `tpe` created in `class`: the prefix of its class
+/// type as a tree (dotty's `outerPrefix`).
 fn instance(l: &mut Lower, class: SymbolId, tpe: TypeId, span: Span) -> Result<TNodeId> {
+    let tpe = l.u.dealias(tpe);
     let prefix = match *l.u.types().get(tpe) {
         Type::Applied(tycon, _) => return instance(l, class, tycon, span),
         Type::Sym(Some(p), _) | Type::TypeRef(p, _) => p,

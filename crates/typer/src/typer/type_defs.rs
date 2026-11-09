@@ -36,6 +36,10 @@ impl Typer<'_> {
                     return self.u.intern_type(Type::Error);
                 }
             }
+        } else if !lambda && !matches!(self.u.types().get(tpe), Type::Bounds(..)) && self.type_arity(tpe) > 0
+        {
+            self.unsupported(rhs, "alias of a type constructor");
+            return self.u.intern_type(Type::Error);
         }
         match self.u.types().get(tpe) {
             Type::Bounds(..) => tpe,

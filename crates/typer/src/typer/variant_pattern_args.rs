@@ -35,6 +35,7 @@ impl Typer<'_> {
         }
         let mut bounds: Vec<(SymbolId, TypeId, TypeId)> = Vec::new();
         for ((&p, &s), &v) in pargs.iter().zip(&sargs).zip(&variances) {
+            let s = self.u.dealias(s);
             let part = self.u.types().get(p).clone();
             match part {
                 Type::Sym(None, b) if syms.contains(&b) => {
