@@ -110,7 +110,7 @@ libraries work. dotty's `tests/run-macros`: 308 of 321 pass
   stack map frames, TASTy per top-level class
   ([ADR 0105](docs/adr/0105-jvm-tasty-from-the-typer.md)) and jars scala-cli compiles against;
   JDK classes and members javalib lacks come from the JDK's class files (ADR 0106–0108). dotty's `tests/run`
-  on the JVM: 1,523 of 1,709 pass (`just dotty-jvm-report`, docs/conformance.md). Open:
+  on the JVM: 1,579 of 1,709 pass (`just dotty-jvm-report`, docs/conformance.md). Open:
   - what ADR 0107 and 0108 do not enter: nested and annotation classes, `sun.*`;
   - the linkage errors, crashes and JVM refusals listed in docs/conformance.md;
   - TASTy as dotty's: type sharing, positions, the trees ADR 0105 refuses;
