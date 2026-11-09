@@ -4,8 +4,10 @@
 //! `SearchHistory`, `OpenSearch`, `SearchRoot`, `recursiveRef`).
 
 use super::super::Typer;
-use super::candidates::Candidate;
+use super::candidates::{Candidate, is_implicit};
 use super::measures::Measure;
+use super::prefilter::cannot_fit;
+use super::search::ImplicitSearch;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
@@ -37,6 +39,8 @@ pub struct History {
     pub lazies: Vec<Lazy>,
     /// The last `$_lazy_implicit_$N` the unit used.
     pub names: u32,
+    /// How many more candidates the outermost search in progress may try.
+    pub budget: u32,
 }
 
 /// The dictionary and its name counter, to restore after an attempt.
@@ -63,62 +67,6 @@ impl History {
 }
 
 impl Typer<'_> {
-    /// The implicit argument of an outermost search `found`, with its dictionary of by-name
-    /// implicits (dotty's `emitDictionary`).
-    pub fn emitted(
-        &mut self,
-        found: Result<TNodeId, &'static str>,
-        at: Span,
-        ctx: Ctx,
-    ) -> Result<TNodeId, &'static str> {
-        match found {
-            Ok(tree) => self.with_dictionary(tree, at, ctx),
-            Err(what) if self.history.lazies.is_empty() => Err(what),
-            Err(_) => {
-                self.history.lazies.clear();
-                Err(STALE)
-            }
-        }
-    }
-
-    /// Candidate `c` tried for `pt` within the history, unless it diverges; a successful result
-    /// defines the by-name implicit of `pt` if there is one (dotty's `tryImplicit`). If
-    /// `shallow`, only whether its type fits, without its implicit arguments.
-    pub fn tried(
-        &mut self,
-        c: Candidate,
-        (pt, by_name): (TypeId, bool),
-        at: Span,
-        ctx: Ctx,
-        (depth, shallow): (u32, bool),
-    ) -> Result<TNodeId, &'static str> {
-        self.complete(c.sym);
-        if !self.is_implicit(c.sym) {
-            return Err("not an implicit value");
-        }
-        let info = self.u.info(c.sym);
-        let result = self.final_result(info);
-        if let Some(k) = self.u.class_symbol(result) {
-            self.complete(k);
-        }
-        if self.cannot_fit(c.sym, pt) || self.is_function_type(pt) && !self.is_eligible(c, pt) {
-            return Err("implicit of another type");
-        }
-        if self.diverges(c, pt, by_name)? {
-            return Err("diverging implicit");
-        }
-        self.history.open.push(Open { cand: c, pt, by_name, view: false, measure: None });
-        let tried = self.try_implicit(c, pt, at, ctx, (depth, shallow));
-        self.history.open.pop();
-        let tree = tried?;
-        if shallow {
-            return Ok(tree);
-        }
-        let Some(i) = self.lazy_of(pt) else { return Ok(tree) };
-        self.history.lazies[i].rhs = Some(tree);
-        Ok(self.lazy_ref(i, self.tpd.span(tree)))
-    }
-
     /// `f` run with conversion candidate `c` open.
     pub fn viewing<T>(&mut self, c: Candidate, f: impl FnOnce(&mut Self) -> T) -> T {
         let pt = self.u.intern_type(Type::Wildcard(None));
@@ -127,71 +75,119 @@ impl Typer<'_> {
         self.history.open.pop();
         result
     }
+}
+
+/// The implicit argument of an outermost search `found`, with its dictionary of by-name
+/// implicits (dotty's `emitDictionary`).
+pub fn emitted(
+    t: &mut Typer<'_>,
+    found: Result<TNodeId, &'static str>,
+    at: Span,
+    ctx: Ctx,
+) -> Result<TNodeId, &'static str> {
+    match found {
+        Ok(tree) => t.with_dictionary(tree, at, ctx),
+        Err(what) if t.history.lazies.is_empty() => Err(what),
+        Err(_) => {
+            t.history.lazies.clear();
+            Err(STALE)
+        }
+    }
+}
+
+impl ImplicitSearch {
+    /// Candidate `c` tried within the history, unless it diverges; a successful result defines
+    /// the by-name implicit of `pt` if there is one (dotty's `tryImplicit`). If `shallow`, only
+    /// whether its type fits, without its implicit arguments.
+    pub fn tried(&self, t: &mut Typer<'_>, c: Candidate, shallow: bool) -> Result<TNodeId, &'static str> {
+        let (pt, by_name) = (self.pt, self.by_name);
+        t.complete(c.sym);
+        if !is_implicit(t.u, c.sym) {
+            return Err("not an implicit value");
+        }
+        let info = t.u.info(c.sym);
+        let result = t.final_result(info);
+        if let Some(k) = t.u.class_symbol(result) {
+            t.complete(k);
+        }
+        if cannot_fit(t, c.sym, pt) || t.is_function_type(pt) && !self.is_eligible(t, c) {
+            return Err("implicit of another type");
+        }
+        if self.diverges(t, c)? {
+            return Err("diverging implicit");
+        }
+        t.history.open.push(Open { cand: c, pt, by_name, view: false, measure: None });
+        let tried = self.try_implicit(t, c, shallow);
+        t.history.open.pop();
+        let tree = tried?;
+        if shallow {
+            return Ok(tree);
+        }
+        let Some(i) = lazy_of(t, pt) else { return Ok(tree) };
+        t.history.lazies[i].rhs = Some(tree);
+        let span = t.tpd.span(tree);
+        Ok(lazy_ref(t, i, span))
+    }
 
     /// A reference to the by-name implicit of `pt` constructed or under construction, the knot
     /// tied if an open search for a subtype lies beyond a by-name argument (dotty's
     /// `recursiveRef`).
-    pub fn recursive_ref(
-        &mut self,
-        pt: TypeId,
-        by_name: bool,
-        at: Span,
-    ) -> Result<Option<TNodeId>, &'static str> {
-        if let Some(i) = self.lazy_of(pt) {
-            return Ok(Some(self.lazy_ref(i, at.start_pos())));
+    pub fn recursive_ref(&self, t: &mut Typer<'_>) -> Result<Option<TNodeId>, &'static str> {
+        let (pt, at) = (self.pt, self.at);
+        if let Some(i) = lazy_of(t, pt) {
+            return Ok(Some(lazy_ref(t, i, at.start_pos())));
         }
-        if !by_name && !self.history.open.iter().any(|o| o.by_name) {
+        if !self.by_name && !t.history.open.iter().any(|o| o.by_name) {
             return Ok(None);
         }
-        let mut below = by_name;
-        for i in (0..self.history.open.len()).rev() {
-            let Open { pt: tp, by_name: tp_by_name, view, .. } = self.history.open[i];
+        let mut below = self.by_name;
+        for i in (0..t.history.open.len()).rev() {
+            let Open { pt: tp, by_name: tp_by_name, view, .. } = t.history.open[i];
             if !view && (below || tp_by_name) {
-                let before = self.constraint.attempt();
-                if self.conforms(tp, pt) {
-                    return self.linked(tp, at).map(Some);
+                let before = t.constraint.attempt();
+                if t.conforms(tp, pt) {
+                    return linked(t, tp, at).map(Some);
                 }
-                self.constraint.abandon(before);
+                t.constraint.abandon(before);
             }
             below |= tp_by_name;
         }
         Ok(None)
     }
+}
 
-    /// A reference to the by-name implicit of `tpe`, entered if new (dotty's
-    /// `linkBynameImplicit`).
-    fn linked(&mut self, tpe: TypeId, at: Span) -> Result<TNodeId, &'static str> {
-        if self.history.open.iter().any(|o| o.view) {
-            return Err("by-name implicit in a conversion");
+/// A reference to the by-name implicit of `tpe`, entered if new (dotty's `linkBynameImplicit`).
+fn linked(t: &mut Typer<'_>, tpe: TypeId, at: Span) -> Result<TNodeId, &'static str> {
+    if t.history.open.iter().any(|o| o.view) {
+        return Err("by-name implicit in a conversion");
+    }
+    let i = match lazy_of(t, tpe) {
+        Some(i) => i,
+        None => {
+            t.history.names += 1;
+            let number = t.history.names;
+            t.history.lazies.push(Lazy { tpe, number, refs: Vec::new(), rhs: None });
+            t.history.lazies.len() - 1
         }
-        let i = match self.lazy_of(tpe) {
-            Some(i) => i,
-            None => {
-                self.history.names += 1;
-                let number = self.history.names;
-                self.history.lazies.push(Lazy { tpe, number, refs: Vec::new(), rhs: None });
-                self.history.lazies.len() - 1
-            }
-        };
-        Ok(self.lazy_ref(i, at.start_pos()))
-    }
+    };
+    Ok(lazy_ref(t, i, at.start_pos()))
+}
 
-    /// The index of the by-name implicit of type `t`.
-    fn lazy_of(&mut self, t: TypeId) -> Option<usize> {
-        let t = self.zonk(t);
-        (0..self.history.lazies.len()).find(|&i| {
-            let tpe = self.history.lazies[i].tpe;
-            self.zonk(tpe) == t
-        })
-    }
+/// The index of the by-name implicit of type `tpe`.
+fn lazy_of(t: &mut Typer<'_>, tpe: TypeId) -> Option<usize> {
+    let tpe = t.zonk(tpe);
+    (0..t.history.lazies.len()).find(|&i| {
+        let other = t.history.lazies[i].tpe;
+        t.zonk(other) == tpe
+    })
+}
 
-    /// A placeholder reference to by-name implicit `i`, which the dictionary replaces.
-    fn lazy_ref(&mut self, i: usize, span: Span) -> TNodeId {
-        let tpe = self.history.lazies[i].tpe;
-        let name = self.names.intern(&format!("$_lazy_implicit_${}", self.history.lazies[i].number));
-        let name = syntax::ast::TName { name, is_type: false };
-        let node = self.tpd.node(crate::tpd::Tree::Ident { name }, span, Some(tpe), None);
-        self.history.lazies[i].refs.push(node);
-        node
-    }
+/// A placeholder reference to by-name implicit `i`, which the dictionary replaces.
+fn lazy_ref(t: &mut Typer<'_>, i: usize, span: Span) -> TNodeId {
+    let tpe = t.history.lazies[i].tpe;
+    let name = t.names.intern(&format!("$_lazy_implicit_${}", t.history.lazies[i].number));
+    let name = syntax::ast::TName { name, is_type: false };
+    let node = t.tpd.node(crate::tpd::Tree::Ident { name }, span, Some(tpe), None);
+    t.history.lazies[i].refs.push(node);
+    node
 }

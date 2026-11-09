@@ -26,7 +26,7 @@ impl Typer<'_> {
     /// How candidate `c` converts a tree.
     pub fn view_kind(&mut self, c: Candidate) -> ViewKind {
         let value = self.candidate_value(c);
-        if !self.is_implicit(c.sym) {
+        if !super::candidates::is_implicit(self.u, c.sym) {
             return ViewKind::None;
         }
         match value {

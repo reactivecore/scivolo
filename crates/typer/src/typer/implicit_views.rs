@@ -23,7 +23,7 @@ impl Typer<'_> {
             return false;
         }
         self.complete(m);
-        if !self.is_implicit(m) {
+        if !super::implicits::is_implicit(self.u, m) {
             return false;
         }
         let info = self.u.info(m);

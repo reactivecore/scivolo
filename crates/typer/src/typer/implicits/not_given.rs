@@ -4,9 +4,8 @@
 //! `T` finds nothing.
 
 use super::super::Typer;
-use crate::ctx::Ctx;
+use super::search::ImplicitSearch;
 use crate::tpd::TNodeId;
-use syntax::ast::Span;
 use tasty::{Kind, Type, TypeId};
 
 /// The classes of which dotty finds more instances than this search: those it synthesizes, and
@@ -24,43 +23,41 @@ const UNSEARCHED: [&str; 10] = [
     "scala.Precise",
 ];
 
-impl Typer<'_> {
-    /// `T` if `pt` is `NotGiven[T]`.
-    pub fn not_given_arg(&mut self, pt: TypeId) -> Option<TypeId> {
-        match self.class_args(pt, "scala.util.NotGiven")?[..] {
-            [t] => Some(t),
-            _ => None,
-        }
+/// `T` if `pt` is `NotGiven[T]`.
+pub fn not_given_arg(t: &mut Typer<'_>, pt: TypeId) -> Option<TypeId> {
+    match t.class_args(pt, "scala.util.NotGiven")?[..] {
+        [arg] => Some(arg),
+        _ => None,
     }
+}
 
-    /// `NotGiven.value` at `at` if no implicit argument of type `t` exists in `ctx`.
-    pub fn not_given(&mut self, t: TypeId, at: Span, ctx: Ctx, depth: u32) -> Result<TNodeId, &'static str> {
-        if !self.is_fully_defined(t) {
+impl ImplicitSearch {
+    /// `NotGiven.value` if no implicit argument of type `negated` exists.
+    pub fn not_given(&self, t: &mut Typer<'_>, negated: TypeId) -> Result<TNodeId, &'static str> {
+        if !t.is_fully_defined(negated) {
             return Err("NotGiven of a type with type variables");
         }
-        for part in self.type_parts(t) {
-            let Some(class) = self.u.class_symbol(part) else { continue };
-            let name = self.u.full_name(class);
-            let inner = self
-                .u
-                .symbol(class)
-                .owner
-                .is_some_and(|o| self.u.symbol(o).kind == Kind::Class && !self.u.is_module_class(o));
+        for part in t.type_parts(negated) {
+            let Some(class) = t.u.class_symbol(part) else { continue };
+            let name = t.u.full_name(class);
+            let inner =
+                t.u.symbol(class)
+                    .owner
+                    .is_some_and(|o| t.u.symbol(o).kind == Kind::Class && !t.u.is_module_class(o));
             if inner || UNSEARCHED.iter().any(|u| name.starts_with(u)) {
                 return Err("NotGiven of a type whose instances the search may miss");
             }
         }
-        if self.implicit_exists(t, at, ctx, depth + 1)? {
+        if t.implicit_exists(negated, self.at, self.ctx, self.depth + 1)? {
             return Err("no implicit argument");
         }
-        let module = self.resolve_full_name("scala.util.NotGiven", false).ok_or("NotGiven")?;
-        let module_class = self.u.module_class(module).ok_or("NotGiven")?;
-        let value = self.u.decl(module_class, "value").unwrap_or_default();
-        let value =
-            value.into_iter().find(|&d| self.u.symbol(d).kind == Kind::Def).ok_or("NotGiven.value")?;
-        let class = crate::defn::type_ref(self.u, module_class);
-        let this = self.u.intern_type(Type::This(class));
-        let tpe = self.u.intern_type(Type::Sym(Some(this), value));
-        Ok(self.build().ident(value, tpe, at))
+        let module = t.resolve_full_name("scala.util.NotGiven", false).ok_or("NotGiven")?;
+        let module_class = t.u.module_class(module).ok_or("NotGiven")?;
+        let value = t.u.decl(module_class, "value").unwrap_or_default();
+        let value = value.into_iter().find(|&d| t.u.symbol(d).kind == Kind::Def).ok_or("NotGiven.value")?;
+        let class = crate::defn::type_ref(t.u, module_class);
+        let this = t.u.intern_type(Type::This(class));
+        let tpe = t.u.intern_type(Type::Sym(Some(this), value));
+        Ok(t.build().ident(value, tpe, self.at))
     }
 }

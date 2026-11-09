@@ -66,6 +66,10 @@ code starts with its license notice, which lists its upstream files:
   `crates/libimage/src/image.rs` (maps the library image). The callback
   slot table (ADR 0002), the collector (ADR 0004) and the SIGINT counter
   (ADR 0013) are the only state outside `Vm`.
+- A bounded computation with its own state is a component (ADR 0113): a struct
+  that owns that state, created, run with its services (`&mut Typer`,
+  `&mut Universe`) as arguments, and dropped; its helpers are its methods or
+  free functions, not `impl Typer` methods.
 - Documentation is short: one home per fact.
 - Translated code gets the license notice in its file; a new upstream project
   also goes into `NOTICE` and `acknowledges.md`. Designs and ideas taken from

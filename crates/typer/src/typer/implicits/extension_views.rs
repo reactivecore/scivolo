@@ -4,7 +4,7 @@
 //! methods (dotty's `Candidate.Extension`): `qual.name` typed as `c.name(qual)`.
 
 use super::super::{Pt, Typer};
-use super::candidates::Candidate;
+use super::candidates::{Candidate, candidate_ref};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, TName, Tree};
@@ -29,7 +29,7 @@ impl Typer<'_> {
                 let text = self.text(name.name).to_owned();
                 self.conditional_container(c, qual, &text, ctx)
             }
-            _ => self.candidate_ref(c, at, ctx),
+            _ => candidate_ref(self, c, at, ctx),
         };
         let container = match container {
             Ok(t) => t,
@@ -58,7 +58,7 @@ impl Typer<'_> {
             return self.conditional_container(c, tree, name, ctx);
         }
         let at = self.tpd.span(tree).start_pos();
-        let container = self.candidate_ref(c, at, ctx)?;
+        let container = candidate_ref(self, c, at, ctx)?;
         let value = self.tpd.tpe(container);
         let methods = self.extension_members(value, name)?;
         if let [_, _, ..] = methods[..] {
@@ -86,7 +86,7 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
         let at = self.tpd.span(tree).start_pos();
-        let container = self.candidate_ref(c, at, ctx)?;
+        let container = candidate_ref(self, c, at, ctx)?;
         let container = self.with_type_vars(container)?;
         let tpe = self.tpd.tpe(container);
         let info = self.method_info(tpe).unwrap_or(tpe);

@@ -4,131 +4,126 @@
 //! parts (dotty's `addPath`).
 
 use super::super::Typer;
-use super::candidates::Candidate;
+use super::candidates::{Candidate, implicit_members};
+use super::parts::is_excluded;
 use super::scope::ImplicitScope;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, Universe};
 
 /// How many bounds and intersections finding the classes of a path's type passes at most.
 const MAX_BOUND_STEPS: u32 = 16;
 
-impl Typer<'_> {
-    /// Adds the implicit members of `p` to `out` if it is a static object other than a package
-    /// object, or the `this` of one (dotty's `addPath` of a module).
-    pub fn add_static_module(&mut self, p: TypeId, out: &mut ImplicitScope) {
-        let s = match *self.u.types().get(p) {
-            Type::This(c) => match self.u.class_symbol(c).filter(|&c| self.u.is_module_class(c)) {
-                Some(c) => self.u.source_module(c),
+impl ImplicitScope {
+    /// Adds the implicit members of `p` if it is a static object other than a package object, or
+    /// the `this` of one (dotty's `addPath` of a module).
+    pub fn add_static_module(&mut self, t: &mut Typer<'_>, p: TypeId) {
+        let s = match *t.u.types().get(p) {
+            Type::This(c) => match t.u.class_symbol(c).filter(|&c| t.u.is_module_class(c)) {
+                Some(c) => t.u.source_module(c),
                 None => return,
             },
-            _ => self.referenced(p),
+            _ => t.referenced(p),
         };
         if let Some(s) = s
-            && self.u.is_module(s)
-            && self.is_static_term(s)
-            && !self.is_excluded(s)
-            && let Some(class) = self.u.module_class(s)
+            && t.u.is_module(s)
+            && t.is_static_term(s)
+            && !is_excluded(t.u, s)
+            && let Some(class) = t.u.module_class(s)
         {
-            let module_ref = crate::defn::type_ref(self.u, s);
-            self.add_members(class, module_ref, out);
+            let module_ref = crate::defn::type_ref(t.u, s);
+            self.add_members(t, class, module_ref);
         }
     }
 
     /// Adds the implicit members of `class` selected from path `prefix`, its own private ones
-    /// included, and `prefix`, to `out`.
-    pub fn add_members(&mut self, class: SymbolId, prefix: TypeId, out: &mut ImplicitScope) {
-        let key = self.static_form(prefix);
-        for sym in self.implicit_members(class, true) {
-            let same =
-                |t: &mut Self, c: &Candidate| c.sym == sym && c.prefix.map(|p| t.static_form(p)) == Some(key);
-            if !out.implicits.iter().any(|c| same(self, c)) {
-                out.implicits.push(Candidate { sym, prefix: Some(prefix) });
+    /// included, and `prefix`.
+    pub fn add_members(&mut self, t: &mut Typer<'_>, class: SymbolId, prefix: TypeId) {
+        let key = static_form(t.u, prefix);
+        for sym in implicit_members(t, class, true) {
+            let same = |u: &mut Universe, c: &Candidate| {
+                c.sym == sym && c.prefix.map(|p| static_form(u, p)) == Some(key)
+            };
+            if !self.implicits.iter().any(|c| same(t.u, c)) {
+                self.implicits.push(Candidate { sym, prefix: Some(prefix) });
             }
         }
-        if let Type::Sym(p, sym) = *self.u.types().get(key)
-            && !out.containers.contains(&Candidate { sym, prefix: p })
+        if let Type::Sym(p, sym) = *t.u.types().get(key)
+            && !self.containers.contains(&Candidate { sym, prefix: p })
         {
-            out.containers.push(Candidate { sym, prefix: p });
+            self.containers.push(Candidate { sym, prefix: p });
         }
     }
 
-    /// Reference `t` to a member of a package through the package, as `type_ref` refers to it.
-    fn static_form(&mut self, t: TypeId) -> TypeId {
-        match *self.u.types().get(t) {
-            Type::Sym(Some(p), s) if matches!(self.u.types().get(p), Type::Package(_)) => {
-                crate::defn::type_ref(self.u, s)
-            }
-            _ => t,
-        }
-    }
-
-    /// Adds the implicit members of the stable values that are not static objects on path `p` to
-    /// `out` (dotty's `addPath`).
-    pub fn add_path(&mut self, p: TypeId, out: &mut ImplicitScope) -> Result<(), &'static str> {
-        let outer = match *self.u.types().get(p) {
+    /// Adds the implicit members of the stable values that are not static objects on path `p`
+    /// (dotty's `addPath`).
+    pub fn add_path(&mut self, t: &mut Typer<'_>, p: TypeId) -> Result<(), &'static str> {
+        let outer = match *t.u.types().get(p) {
             Type::Sym(outer, _) => outer,
             Type::TermRef(outer, _) => Some(outer),
             _ => return Ok(()),
         };
-        let s = self.referenced(p).ok_or("implicit scope through an unresolved path")?;
-        if !self.u.symbol(s).kind.is_term()
-            || self.is_excluded(s)
-            || self.is_static_term(s) && self.u.is_module(s)
-        {
+        let s = t.referenced(p).ok_or("implicit scope through an unresolved path")?;
+        if !t.u.symbol(s).kind.is_term() || is_excluded(t.u, s) || t.is_static_term(s) && t.u.is_module(s) {
             return Ok(());
         }
-        self.complete(s);
-        let info = self.u.info(s);
-        if matches!(self.u.types().get(info), Type::Sym(_, x) if self.u.symbol(*x).kind.is_term()) {
-            return self.add_path(info, out);
+        t.complete(s);
+        let info = t.u.info(s);
+        if matches!(t.u.types().get(info), Type::Sym(_, x) if t.u.symbol(*x).kind.is_term()) {
+            return self.add_path(t, info);
         }
-        let widened = self.u.widen(p);
-        let classes = self.bound_classes(widened, MAX_BOUND_STEPS);
+        let widened = t.u.widen(p);
+        let classes = bound_classes(t, widened, MAX_BOUND_STEPS);
         for class in classes.ok_or("implicit scope through a value of no class type")? {
-            self.add_members(class, p, out);
+            self.add_members(t, class, p);
         }
         match outer {
-            Some(outer) => self.add_path(outer, out),
+            Some(outer) => self.add_path(t, outer),
             None => Ok(()),
         }
     }
+}
 
-    /// The classes of `t`, through the upper bounds of abstract types and intersections; `None`
-    /// if a part of `t` has none.
-    fn bound_classes(&mut self, t: TypeId, steps: u32) -> Option<Vec<SymbolId>> {
-        if let Some(c) = self.u.class_symbol(t) {
-            return Some(vec![c]);
-        }
-        let steps = steps.checked_sub(1)?;
-        match self.u.types().get(t).clone() {
-            Type::TypeRef(p, name) => {
-                match self.u.refinement_named(p, &name).map(|i| self.u.types().get(i)) {
-                    Some(&Type::Bounds(_, hi) | &Type::Alias(hi)) => self.bound_classes(hi, steps),
-                    _ => None,
-                }
-            }
-            Type::Refined(parent, ..) => self.bound_classes(parent, steps),
-            Type::And(a, b) => {
-                let mut classes = self.bound_classes(a, steps)?;
-                classes.extend(self.bound_classes(b, steps)?);
-                Some(classes)
-            }
-            Type::Sym(prefix, s) if self.u.is_type_symbol(s) => {
-                let info = self.refined_info(prefix, s);
-                let hi = match *self.u.types().get(info) {
-                    Type::Bounds(_, hi) | Type::Alias(hi) => hi,
-                    _ => return None,
-                };
-                let info = match (prefix, self.u.symbol(s).owner) {
-                    (Some(p), Some(o)) => self.u.as_seen_from(hi, p, o),
-                    _ => hi,
-                };
-                self.bound_classes(info, steps)
-            }
-            Type::Sym(..) | Type::TermRef(..) | Type::Constant(..) | Type::Str(_) => {
-                let widened = self.u.widen(t);
-                if widened == t { None } else { self.bound_classes(widened, steps) }
-            }
+/// Reference `t` to a member of a package through the package, as `type_ref` refers to it.
+fn static_form(u: &mut Universe, t: TypeId) -> TypeId {
+    match *u.types().get(t) {
+        Type::Sym(Some(p), s) if matches!(u.types().get(p), Type::Package(_)) => crate::defn::type_ref(u, s),
+        _ => t,
+    }
+}
+
+/// The classes of `tpe`, through the upper bounds of abstract types and intersections; `None`
+/// if a part of `tpe` has none.
+fn bound_classes(t: &mut Typer<'_>, tpe: TypeId, steps: u32) -> Option<Vec<SymbolId>> {
+    if let Some(c) = t.u.class_symbol(tpe) {
+        return Some(vec![c]);
+    }
+    let steps = steps.checked_sub(1)?;
+    match t.u.types().get(tpe).clone() {
+        Type::TypeRef(p, name) => match t.u.refinement_named(p, &name).map(|i| t.u.types().get(i)) {
+            Some(&Type::Bounds(_, hi) | &Type::Alias(hi)) => bound_classes(t, hi, steps),
             _ => None,
+        },
+        Type::Refined(parent, ..) => bound_classes(t, parent, steps),
+        Type::And(a, b) => {
+            let mut classes = bound_classes(t, a, steps)?;
+            classes.extend(bound_classes(t, b, steps)?);
+            Some(classes)
         }
+        Type::Sym(prefix, s) if t.u.is_type_symbol(s) => {
+            let info = t.refined_info(prefix, s);
+            let hi = match *t.u.types().get(info) {
+                Type::Bounds(_, hi) | Type::Alias(hi) => hi,
+                _ => return None,
+            };
+            let info = match (prefix, t.u.symbol(s).owner) {
+                (Some(p), Some(o)) => t.u.as_seen_from(hi, p, o),
+                _ => hi,
+            };
+            bound_classes(t, info, steps)
+        }
+        Type::Sym(..) | Type::TermRef(..) | Type::Constant(..) | Type::Str(_) => {
+            let widened = t.u.widen(tpe);
+            if widened == tpe { None } else { bound_classes(t, widened, steps) }
+        }
+        _ => None,
     }
 }

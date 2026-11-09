@@ -16,7 +16,7 @@ impl Typer<'_> {
         goal: Goal,
     ) -> Result<(Vec<Candidate>, Vec<Candidate>), &'static str> {
         let super::scope::ImplicitScope { implicits: mut scope, containers } =
-            self.implicit_scope_of(from)?;
+            super::scope::ImplicitScope::of(self, from)?;
         if let Goal::Conform(pt) = goal {
             scope.extend(self.implicit_scope(pt)?);
         }

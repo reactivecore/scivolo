@@ -4,158 +4,153 @@
 //! `isAsGoodValueType` with `preferGeneral`).
 
 use super::super::Typer;
+use super::alt_types::prepared;
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
 use tasty::tags::{CONTRAVARIANT, COVARIANT, EXTENSION, IMPLICIT};
 use tasty::{Kind, Type, TypeId};
 
-impl Typer<'_> {
-    /// Whether `a` of type `t1` is as good as `b` of type `t2` in `ctx`, the constraint
-    /// unchanged; `None` if undecided.
-    pub fn is_as_good(
-        &mut self,
-        (a, t1): (Candidate, TypeId),
-        (b, t2): (Candidate, TypeId),
-        ctx: Ctx,
-    ) -> Option<bool> {
-        let before = self.constraint.attempt();
-        let result = self.as_good_in((a, t1), (b, t2), ctx);
-        self.constraint.abandon(before);
-        result
-    }
+/// Whether `a` of type `t1` is as good as `b` of type `t2` in `ctx`, the constraint unchanged;
+/// `None` if undecided.
+pub fn is_as_good(
+    t: &mut Typer<'_>,
+    a: (Candidate, TypeId),
+    b: (Candidate, TypeId),
+    ctx: Ctx,
+) -> Option<bool> {
+    let before = t.constraint.attempt();
+    let result = as_good_in(t, a, b, ctx);
+    t.constraint.abandon(before);
+    result
+}
 
-    fn as_good_in(
-        &mut self,
-        (a, t1): (Candidate, TypeId),
-        (b, t2): (Candidate, TypeId),
-        ctx: Ctx,
-    ) -> Option<bool> {
-        match self.u.types().get(t1).clone() {
-            Type::Method { params, .. } => {
-                let lambda = matches!(
-                    self.u.types().get(t2),
-                    Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. }
-                );
-                if params.is_empty() && lambda {
-                    return Some(true);
-                }
-                let extension = |t: &Self, c: Candidate| t.u.symbol(c.sym).flags.has(EXTENSION);
-                if extension(self, a) && !extension(self, b) {
-                    return Some(false);
-                }
-                let args: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
-                if args.last().is_some_and(|&p| self.repeated_elem(p).is_some()) {
-                    return None;
-                }
-                let full_b = self.ref_type(b.prefix, b.sym);
-                let full_b = self.method_info(full_b).unwrap_or(full_b);
-                let full_b = self.poly_instance(full_b, b.sym, false);
-                if !matches!(self.u.types().get(full_b), Type::Method { .. }) {
-                    return Some(false);
-                }
-                self.applicable(b.sym, b.prefix, &args, false, ctx)
+fn as_good_in(
+    t: &mut Typer<'_>,
+    (a, t1): (Candidate, TypeId),
+    (b, t2): (Candidate, TypeId),
+    ctx: Ctx,
+) -> Option<bool> {
+    match t.u.types().get(t1).clone() {
+        Type::Method { params, .. } => {
+            let lambda =
+                matches!(t.u.types().get(t2), Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. });
+            if params.is_empty() && lambda {
+                return Some(true);
             }
+            let extension = |t: &Typer<'_>, c: Candidate| t.u.symbol(c.sym).flags.has(EXTENSION);
+            if extension(t, a) && !extension(t, b) {
+                return Some(false);
+            }
+            let args: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+            if args.last().is_some_and(|&p| t.repeated_elem(p).is_some()) {
+                return None;
+            }
+            let full_b = t.ref_type(b.prefix, b.sym);
+            let full_b = t.method_info(full_b).unwrap_or(full_b);
+            let full_b = t.poly_instance(full_b, b.sym, false);
+            if !matches!(t.u.types().get(full_b), Type::Method { .. }) {
+                return Some(false);
+            }
+            t.applicable(b.sym, b.prefix, &args, false, ctx)
+        }
+        Type::Poly { .. } => {
+            let t1 = t.poly_instance(t1, a.sym, true);
+            as_good_in(t, (a, t1), (b, t2), ctx)
+        }
+        _ => match *t.u.types().get(t2) {
+            Type::Method { .. } => Some(true),
+            Type::Poly { result, .. } if matches!(t.u.types().get(result), Type::Method { .. }) => Some(true),
             Type::Poly { .. } => {
-                let t1 = self.poly_instance(t1, a.sym, true);
-                self.as_good_in((a, t1), (b, t2), ctx)
+                let t2 = t.poly_instance(t2, b.sym, false);
+                as_good_value(t, t1, t2, a)
             }
-            _ => match *self.u.types().get(t2) {
-                Type::Method { .. } => Some(true),
-                Type::Poly { result, .. } if matches!(self.u.types().get(result), Type::Method { .. }) => {
-                    Some(true)
-                }
-                Type::Poly { .. } => {
-                    let t2 = self.poly_instance(t2, b.sym, false);
-                    self.as_good_value(t1, t2, a)
-                }
-                _ => self.as_good_value(t1, t2, a),
-            },
-        }
+            _ => as_good_value(t, t1, t2, a),
+        },
     }
+}
 
-    /// dotty's `isAsGoodValueType`: an old-style implicit `a` by subtyping with contravariant
-    /// arguments flipped, a given by the other way round.
-    fn as_good_value(&mut self, t1: TypeId, t2: TypeId, a: Candidate) -> Option<bool> {
-        let (p1, p2) = (self.prepared(t1), self.prepared(t2));
-        if !self.u.symbol(a.sym).flags.has(IMPLICIT) {
-            return Some(self.relaxed_conforms(p2, p1));
-        }
-        let (f1, f2) = (self.flipped(p1, 1)?, self.flipped(p2, 1)?);
-        Some(self.relaxed_conforms(f1, f2))
+/// dotty's `isAsGoodValueType`: an old-style implicit `a` by subtyping with contravariant
+/// arguments flipped, a given by the other way round.
+fn as_good_value(t: &mut Typer<'_>, t1: TypeId, t2: TypeId, a: Candidate) -> Option<bool> {
+    let (p1, p2) = (prepared(t, t1), prepared(t, t2));
+    if !t.u.symbol(a.sym).flags.has(IMPLICIT) {
+        return Some(relaxed_conforms(t, p2, p1));
     }
+    let (f1, f2) = (flipped(t, p1, 1)?, flipped(t, p2, 1)?);
+    Some(relaxed_conforms(t, f1, f2))
+}
 
-    /// `a <: b`, or numeric widening between value classes (dotty's `relaxed_<:<`).
-    pub fn relaxed_conforms(&mut self, a: TypeId, b: TypeId) -> bool {
-        self.conforms(a, b) || matches!(self.u.types().get(b), Type::Sym(..)) && self.widens_to(a, b)
+/// `a <: b`, or numeric widening between value classes (dotty's `relaxed_<:<`).
+pub fn relaxed_conforms(t: &mut Typer<'_>, a: TypeId, b: TypeId) -> bool {
+    t.conforms(a, b) || matches!(t.u.types().get(b), Type::Sym(..)) && t.widens_to(a, b)
+}
+
+/// `tpe` at variance `v` with each argument of a contravariant parameter in a covariant
+/// position replaced by a function from it to `Unit` (dotty's `flip`); `None` where the
+/// variance of a type constructor's parameters is unknown.
+fn flipped(t: &mut Typer<'_>, tpe: TypeId, v: i32) -> Option<TypeId> {
+    if v == 0 {
+        return Some(tpe);
     }
-
-    /// `t` at variance `v` with each argument of a contravariant parameter in a covariant
-    /// position replaced by a function from it to `Unit` (dotty's `flip`); `None` where the
-    /// variance of a type constructor's parameters is unknown.
-    fn flipped(&mut self, t: TypeId, v: i32) -> Option<TypeId> {
-        if v == 0 {
-            return Some(t);
-        }
-        match self.u.types().get(t).clone() {
-            Type::Applied(tycon, args) => {
-                let class = match self.u.types().get(tycon).clone() {
-                    Type::Sym(_, s) => Some(s),
-                    Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
-                    _ => None,
-                };
-                let Some(class) = class else {
-                    let open = matches!(self.u.types().get(tycon), Type::Var(_) | Type::Param(..));
-                    return open.then_some(t);
-                };
-                self.complete(class);
-                let params = self.u.type_params(class);
-                if params.len() != args.len() {
-                    return (self.u.symbol(class).kind == Kind::TypeParam).then_some(t);
-                }
-                let mut out = Vec::new();
-                for (&arg, &p) in args.iter().zip(&params) {
-                    let flags = &self.u.symbol(p).flags;
-                    let pv = if flags.has(CONTRAVARIANT) { -1 } else { i32::from(flags.has(COVARIANT)) };
-                    out.push(if v > 0 && pv < 0 {
-                        let arg = self.flipped(arg, 1)?;
-                        let unit = crate::defn::type_ref(self.u, self.defn.unit);
-                        let function = self.function_class(1)?;
-                        self.u.intern_type(Type::Applied(function, vec![arg, unit]))
-                    } else {
-                        self.flipped(arg, v * pv)?
-                    });
-                }
-                Some(self.u.intern_type(Type::Applied(tycon, out)))
+    match t.u.types().get(tpe).clone() {
+        Type::Applied(tycon, args) => {
+            let class = match t.u.types().get(tycon).clone() {
+                Type::Sym(_, s) => Some(s),
+                Type::TypeRef(p, n) => t.u.resolve(p, &n, true),
+                _ => None,
+            };
+            let Some(class) = class else {
+                let open = matches!(t.u.types().get(tycon), Type::Var(_) | Type::Param(..));
+                return open.then_some(tpe);
+            };
+            t.complete(class);
+            let params = t.u.type_params(class);
+            if params.len() != args.len() {
+                return (t.u.symbol(class).kind == Kind::TypeParam).then_some(tpe);
             }
-            Type::And(x, y) => {
-                let (x, y) = (self.flipped(x, v)?, self.flipped(y, v)?);
-                Some(self.u.intern_type(Type::And(x, y)))
-            }
-            Type::Or(x, y, soft) => {
-                let (x, y) = (self.flipped(x, v)?, self.flipped(y, v)?);
-                Some(self.u.intern_type(Type::Or(x, y, soft)))
-            }
-            Type::Annotated(x, annot) => {
-                let x = self.flipped(x, v)?;
-                Some(self.u.intern_type(Type::Annotated(x, annot)))
-            }
-            Type::Refined(parent, name, info) => {
-                let (parent, info) = (self.flipped(parent, v)?, self.flipped(info, v)?);
-                Some(self.u.intern_type(Type::Refined(parent, name, info)))
-            }
-            Type::Alias(_) => Some(t),
-            Type::Bounds(lo, hi) => {
-                let (lo, hi) = (self.flipped(lo, -v)?, self.flipped(hi, v)?);
-                Some(self.u.intern_type(Type::Bounds(lo, hi)))
-            }
-            _ => {
-                let mut applied = false;
-                self.u.map_type(t, &mut |u, part| {
-                    applied |= matches!(u.types().get(part), Type::Applied(..));
-                    None
+            let mut out = Vec::new();
+            for (&arg, &p) in args.iter().zip(&params) {
+                let flags = &t.u.symbol(p).flags;
+                let pv = if flags.has(CONTRAVARIANT) { -1 } else { i32::from(flags.has(COVARIANT)) };
+                out.push(if v > 0 && pv < 0 {
+                    let arg = flipped(t, arg, 1)?;
+                    let unit = crate::defn::type_ref(t.u, t.defn.unit);
+                    let function = t.function_class(1)?;
+                    t.u.intern_type(Type::Applied(function, vec![arg, unit]))
+                } else {
+                    flipped(t, arg, v * pv)?
                 });
-                (!applied).then_some(t)
             }
+            Some(t.u.intern_type(Type::Applied(tycon, out)))
+        }
+        Type::And(x, y) => {
+            let (x, y) = (flipped(t, x, v)?, flipped(t, y, v)?);
+            Some(t.u.intern_type(Type::And(x, y)))
+        }
+        Type::Or(x, y, soft) => {
+            let (x, y) = (flipped(t, x, v)?, flipped(t, y, v)?);
+            Some(t.u.intern_type(Type::Or(x, y, soft)))
+        }
+        Type::Annotated(x, annot) => {
+            let x = flipped(t, x, v)?;
+            Some(t.u.intern_type(Type::Annotated(x, annot)))
+        }
+        Type::Refined(parent, name, info) => {
+            let (parent, info) = (flipped(t, parent, v)?, flipped(t, info, v)?);
+            Some(t.u.intern_type(Type::Refined(parent, name, info)))
+        }
+        Type::Alias(_) => Some(tpe),
+        Type::Bounds(lo, hi) => {
+            let (lo, hi) = (flipped(t, lo, -v)?, flipped(t, hi, v)?);
+            Some(t.u.intern_type(Type::Bounds(lo, hi)))
+        }
+        _ => {
+            let mut applied = false;
+            t.u.map_type(tpe, &mut |u, part| {
+                applied |= matches!(u.types().get(part), Type::Applied(..));
+                None
+            });
+            (!applied).then_some(tpe)
         }
     }
 }

@@ -4,8 +4,10 @@
 //! selection (dotty's `rank` and `disambiguate` of extension candidates).
 
 use super::super::Typer;
-use super::candidates::Candidate;
+use super::attempts::fitting;
+use super::candidates::{Candidate, candidate_ref};
 use super::conversions::Goal;
+use super::ranking::most_specific;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
@@ -25,11 +27,11 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<Option<Candidate>, &'static str> {
         let Some(name) = goal.member() else { return Ok(None) };
-        let found = self.fitting(group, |t, c| t.try_extension(c, tree, name, ctx))?;
+        let found = fitting(self, group, |t, c| t.try_extension(c, tree, name, ctx))?;
         match found[..] {
             [] => Ok(None),
             [c] => Ok(Some(c)),
-            _ => match self.most_specific(&found, ctx) {
+            _ => match most_specific(self, &found, ctx) {
                 Some(c) => Ok(Some(c)),
                 None => {
                     let at = self.tpd.span(tree).start_pos();
@@ -63,7 +65,7 @@ impl Typer<'_> {
     ) -> bool {
         let at = self.tpd.span(tree).start_pos();
         let (fits, clean, _) = self.speculatively(|t| {
-            let Ok(container) = t.candidate_ref(c, at, ctx) else { return false };
+            let Ok(container) = candidate_ref(t, c, at, ctx) else { return false };
             let value = t.tpd.tpe(container);
             let Ok(members) = t.extension_members(value, name) else { return false };
             let [m] = members[..] else { return false };
@@ -90,7 +92,7 @@ impl Typer<'_> {
     ) -> Option<Candidate> {
         let mut methods = Vec::new();
         for &c in found {
-            let container = self.candidate_ref(c, at, ctx).ok()?;
+            let container = candidate_ref(self, c, at, ctx).ok()?;
             let container = self.with_type_vars(container).ok()?;
             let tpe = self.tpd.tpe(container);
             let info = self.method_info(tpe).unwrap_or(tpe);
@@ -107,7 +109,7 @@ impl Typer<'_> {
             let [m] = kept[..] else { return None };
             methods.push(Candidate { sym: m, prefix: Some(value) });
         }
-        let best = self.most_specific(&methods, ctx)?;
+        let best = most_specific(self, &methods, ctx)?;
         found.iter().zip(&methods).find(|&(_, &m)| m == best).map(|(&c, _)| c)
     }
 }

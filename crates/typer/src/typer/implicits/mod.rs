@@ -47,5 +47,6 @@ mod unsettled;
 mod view_kinds;
 mod view_scope;
 
+pub use candidates::is_implicit;
 pub use history::History;
 pub use search::is_misfit;

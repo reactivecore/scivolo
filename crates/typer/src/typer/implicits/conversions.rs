@@ -5,7 +5,9 @@
 //! of one parameter applied to a tree, to fit an expected type or to give it a member.
 
 use super::super::{Pt, Typer};
-use super::candidates::Candidate;
+use super::attempts::fitting;
+use super::candidates::{Candidate, candidate_ref};
+use super::ranking::{compare, most_specific};
 use super::view_kinds::ViewKind;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
@@ -56,7 +58,7 @@ impl Typer<'_> {
             return Ok(None);
         }
         if self.history.open.is_empty() {
-            self.implicit_budget = super::search::MAX_TRIES;
+            self.history.budget = super::search::MAX_TRIES;
         }
         let contextual = self.contextual_implicits(ctx, &mut |t, c| {
             t.view_kind(c) != ViewKind::None
@@ -70,15 +72,15 @@ impl Typer<'_> {
                 Some(group) => (group, Vec::new()),
                 None => self.view_scope(from, goal)?,
             };
-            let mut found = self.fitting(&group, |t, c| t.try_conversion(c, (tree, false), goal, ctx))?;
+            let mut found = fitting(self, &group, |t, c| t.try_conversion(c, (tree, false), goal, ctx))?;
             let mut widened = Vec::new();
             if constant {
-                widened = self.fitting(&group, |t, c| t.try_conversion(c, (tree, true), goal, ctx))?;
+                widened = fitting(self, &group, |t, c| t.try_conversion(c, (tree, true), goal, ctx))?;
                 widened.retain(|c| !found.contains(c));
             }
             if let Goal::Call(name, proto) = goal
                 && found.len() > 1
-                && self.most_specific(&found, ctx).is_none()
+                && most_specific(self, &found, ctx).is_none()
             {
                 found = self.applying(found, tree, (name, proto), ctx);
             }
@@ -86,12 +88,12 @@ impl Typer<'_> {
                 let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();
                 group.extend(extra);
                 if let Some(c) = self.extension_container(&group, tree, goal, ctx)? {
-                    found.retain(|&v| self.compare(v, c, ctx) != Some(-1));
-                    widened.retain(|&v| self.compare(v, c, ctx) != Some(-1));
+                    found.retain(|&v| compare(self, v, c, ctx) != Some(-1));
+                    widened.retain(|&v| compare(self, v, c, ctx) != Some(-1));
                     if found.is_empty() && widened.is_empty() {
                         return Ok(Some(Viewed::Extension(c)));
                     }
-                    if !found.iter().chain(&widened).any(|&v| self.compare(v, c, ctx) == Some(1)) {
+                    if !found.iter().chain(&widened).any(|&v| compare(self, v, c, ctx) == Some(1)) {
                         return Err("implicit conversion beside an extension method of an implicit value");
                     }
                 }
@@ -101,7 +103,7 @@ impl Typer<'_> {
                 ([], []) => continue,
                 ([c], _) | ([], [c]) => *c,
                 ([], _) => self.best_widened(&widened).ok_or(ambiguous)?,
-                _ => self.most_specific(&found, ctx).ok_or(ambiguous)?,
+                _ => most_specific(self, &found, ctx).ok_or(ambiguous)?,
             };
             if found.contains(&winner) && !self.beats_widened(winner, &widened) {
                 return Err(ambiguous);
@@ -125,12 +127,12 @@ impl Typer<'_> {
         if kind == ViewKind::None {
             return Err("not a conversion");
         }
-        if self.implicit_budget == 0 {
+        if self.history.budget == 0 {
             return Err("implicit search too costly");
         }
-        self.implicit_budget -= 1;
+        self.history.budget -= 1;
         let span = self.tpd.span(tree);
-        let (fun, from) = (self.candidate_ref(c, span.start_pos(), ctx)?, self.constraint.count());
+        let (fun, from) = (candidate_ref(self, c, span.start_pos(), ctx)?, self.constraint.count());
         let mut fun = self.with_type_vars(fun)?;
         if kind == ViewKind::Value {
             fun = self.viewing(c, |t| t.conversion_apply(fun, tree, goal, ctx))?;
