@@ -53,7 +53,7 @@ fn object() -> Erased {
 }
 
 impl Universe {
-    /// The binary name of class `c`: `pkg.Name`, `Outer$Inner`, `Object$Inner`; names encoded,
+    /// The binary name of class `c`: `pkg.Name`, `Outer$Inner`, `Object$Inner`; target names encoded,
     /// a JDK class Scala Native renames under its defined name when outer; a nested name
     /// `compactify`d.
     pub fn binary_name(&self, c: SymbolId) -> String {
@@ -67,7 +67,7 @@ impl Universe {
 
     fn class_name_with(&self, c: SymbolId, compactify: fn(&str) -> String) -> String {
         let s = self.symbol(c);
-        let name = encode(&s.name);
+        let name = encode(s.target.as_deref().unwrap_or(&s.name));
         match s.owner {
             Some(o) if self.symbol(o).kind == Kind::Class => {
                 let outer = self.class_name_with(o, compactify);
