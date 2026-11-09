@@ -80,9 +80,9 @@ def attributes(path):
     return out + inner_class_flags(path) + [l for m in sorted(members) for l in m]
 
 
-def inner_class_flags(path):
-    """The `InnerClasses` entries with their flags in hex, which `javap` shows only in part."""
-    b = path.read_bytes()
+def class_attributes(b):
+    """The constant pool of class file bytes `b` (index to UTF-8 text or referenced index) and its
+    class attributes, each (name, offset of its body, length)."""
     u2 = lambda i: int.from_bytes(b[i:i + 2], "big")
     pool, i, n = {}, 10, 1
     while n < u2(8):
@@ -98,16 +98,27 @@ def inner_class_flags(path):
             attrs, i = u2(i + 6), i + 8
             for _ in range(attrs):
                 i += 6 + int.from_bytes(b[i + 2:i + 6], "big")
-    name = lambda k, cls: (pool[pool[k]] if cls else pool[k]) if k else "-"
-    out, count, i = [], u2(i), i + 2
+    attributes, count, i = [], u2(i), i + 2
     for _ in range(count):
         length = int.from_bytes(b[i + 2:i + 6], "big")
-        if pool[u2(i)] == "InnerClasses":
-            for e in range(u2(i + 6)):
-                j = i + 8 + 8 * e
+        attributes.append((pool[u2(i)], i + 6, length))
+        i += 6 + length
+    return pool, attributes
+
+
+def inner_class_flags(path):
+    """The `InnerClasses` entries with their flags in hex, which `javap` shows only in part."""
+    b = path.read_bytes()
+    u2 = lambda i: int.from_bytes(b[i:i + 2], "big")
+    pool, attributes = class_attributes(b)
+    name = lambda k, cls: (pool[pool[k]] if cls else pool[k]) if k else "-"
+    out = []
+    for attribute, i, _ in attributes:
+        if attribute == "InnerClasses":
+            for e in range(u2(i)):
+                j = i + 2 + 8 * e
                 inner, outer, simple = name(u2(j), True), name(u2(j + 2), True), name(u2(j + 4), False)
                 out.append(f"  inner class {inner} {outer} {simple} 0x{u2(j + 6):04x}")
-        i += 6 + length
     return sorted(out)
 
 
