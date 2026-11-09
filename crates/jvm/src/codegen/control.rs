@@ -66,9 +66,7 @@ impl Gen<'_, '_> {
                 self.expr_to(b, thenp, slots, dest)?;
                 b.code.place(failure);
                 b.code.set_stack(depth);
-                let at = self.l.tpd.span(elsep);
-                let empty = !at.exists() || at.start() == at.end();
-                if !(is_unit(self.l.tpd.tree(elsep)) && slots == 0 && empty) {
+                if !(self.is_synthetic_unit(elsep) && slots == 0) {
                     return self.expr_to(b, elsep, slots, dest);
                 }
                 self.line(b, cond);
@@ -84,10 +82,7 @@ impl Gen<'_, '_> {
                 self.gen_match(b, t, selector, cases, Some((slots, dest)))?;
                 return Ok(());
             }
-            Tree::Return { .. } => {
-                self.expr(b, t)?;
-                return Ok(());
-            }
+            Tree::Return { .. } => return self.expr(b, t).map(drop),
             _ => self.expr_as(b, t, slots)?,
         }
         let call = matches!(self.l.tpd.tree(t), Tree::Apply { .. }) && !self.is_throw(t);
@@ -96,6 +91,7 @@ impl Gen<'_, '_> {
                 Dest::Jump(l) => b.code.jump(0xa7, l),
                 Dest::Return => {
                     let result = b.result.clone();
+                    self.cast_to_null(b, t, &result);
                     b.code.ret(&result)
                 }
                 Dest::Fall => {}
@@ -118,7 +114,7 @@ impl Gen<'_, '_> {
         let depth = b.code.stack();
         self.cond(b, cond, success, failure, success)?;
         b.code.place(success);
-        if is_unit(self.l.tpd.tree(elsep)) && slots == 0 {
+        if self.is_synthetic_unit(elsep) && slots == 0 {
             self.expr_as(b, thenp, slots)?;
             b.code.place(failure);
             b.code.set_stack(depth);
@@ -191,6 +187,12 @@ impl Gen<'_, '_> {
             self.expr_ret(b, expr, &result)?;
         }
         Ok(0)
+    }
+
+    /// Whether `t` is a `()` the parser or typer added, of no extent (dotty's `SyntheticUnit`).
+    fn is_synthetic_unit(&self, t: TNodeId) -> bool {
+        let at = self.l.tpd.span(t);
+        is_unit(self.l.tpd.tree(t)) && (!at.exists() || at.start() == at.end())
     }
 }
 

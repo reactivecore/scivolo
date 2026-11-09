@@ -34,6 +34,7 @@ impl Gen<'_, '_> {
         };
         if let Some((v, assign)) = value {
             self.expr_as(b, v, classfile::value_slots(&desc))?;
+            self.cast_to_null(b, v, &desc);
             self.line(b, assign);
         }
         let (owner, name) = (self.member_owner(owner).0, tasty::encode(&self.l.u.symbol(f).name));
@@ -180,6 +181,7 @@ impl Gen<'_, '_> {
             if self.expr(b, a)? != classfile::value_slots(param) {
                 return unsupported(self.l.tpd.span(a), "an argument of another JVM type");
             }
+            self.cast_to_null(b, a, param);
         }
         let in_trait = self.l.u.is_trait(owner) && owner_name == self.class_name(owner);
         let interface = interface || kind == Invoke::Interface || in_trait || jdk_interface;

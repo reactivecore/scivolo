@@ -125,14 +125,25 @@ impl Gen<'_, '_> {
         Ok(Some(classfile::method_slots(&d).1))
     }
 
-    /// The erased result of the method call `t`, whose type may be a member type the call's
-    /// erasure resolves.
+    /// The erased result of the method call or value `t`, whose type may be a member type the
+    /// erasure of the method or value resolves.
     pub fn call_result(&mut self, t: TNodeId) -> Option<Erased> {
-        let Tree::Apply { mut fun, .. } = *self.l.tpd.tree(t) else { return None };
+        let mut fun = match *self.l.tpd.tree(t) {
+            Tree::Apply { fun, .. } => fun,
+            Tree::Select { .. } | Tree::Ident { .. } => t,
+            _ => return None,
+        };
         while let Tree::TypeApply { fun: f, .. } = *self.l.tpd.tree(fun) {
             fun = f;
         }
-        let m = self.l.tpd.sym(fun).filter(|&m| self.l.u.symbol(m).kind == tasty::Kind::Def)?;
-        Some(self.l.u.erased_method(m).1)
+        let m = self.l.tpd.sym(fun)?;
+        match self.l.u.symbol(m).kind {
+            tasty::Kind::Def => Some(self.l.u.erased_method(m).1),
+            tasty::Kind::Val if !self.l.u.is_module(m) => {
+                let info = self.l.u.info(m);
+                Some(self.l.u.erase(info))
+            }
+            _ => None,
+        }
     }
 }
