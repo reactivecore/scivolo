@@ -278,7 +278,7 @@ Results (2026-11-08):
 just dotty-jvm-report   # scivolo-jvm, then java -Xverify:all; jvm-report.md and jvm-results.tsv under tmp/dotty
 just jvm-run FILE       # one file on java -Xverify:all against its .check
 just jvm-check FILE     # its class files against scala-cli's, through javap
-just jvm-lib-compile scalalib   # Scala's library file by file against the published jar; tmp/lib-jvm/scalalib
+just jvm-lib-compile scalalib   # Scala's library file by file against dotty's; tmp/lib-jvm/scalalib
 ```
 
 `scivolo-jvm` writes class version 61 (Java 17) with stack map frames; its output is semantically
@@ -315,27 +315,27 @@ Results (2026-11-08):
   missing bridge (`i18315`, `i23245b`), `ClassTag` of a `*:` tuple (`i22345`).
 
 Scala's library (#222, ADR 0110): each of the 649 `.scala` files of `scala-library-3.9.0`'s
-sources jar is compiled alone by `scivolo-jvm --scalalib` and its class files compared with the
-published jar's through javap text, code and attributes apart. Results (2026-11-09):
+sources jar is compiled alone by `scivolo-jvm --scalalib` and its class files compared through
+javap text, code and attributes apart, with dotty 3.9.0's from one run over the whole sources jar
+with the library build's options without `-opt`. The published jar is no oracle: its build adds
+the optimizer (1883 of its 3134 classes dotty also writes differ in code from dotty's) and takes
+139 classes and 2.13's specialized ones from Scala 2.13. Results (2026-11-09):
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 121 | 624 |
-| attributes differ | 3 | 143 |
-| code differs | 361 | 1756 |
-| only in the jar (of a compiled file) | | 40 |
+| same | 223 | 1144 |
+| attributes differ | 33 | 259 |
+| code differs | 229 | 1120 |
 | refused | 164 | |
-| oracle-only (Java sources, `$mc…$sp` interfaces) | | 425 |
 
 - **Refused:** `unresolved name FunctionalInterface` (87, a JDK annotation class); TASTy
   pickling (39: an annotated sealed class 15, a type outside the subset 15);
   member not found (13); adaptation (9); no applicable alternative (8).
-- **Code differs:** the jar is built with the backend optimizer (`backend/jvm/opt`: inliner,
-  closure optimizer), which `scivolo-jvm` lacks: inlined calls with their receiver null check
-  (`ifnonnull; aconst_null; athrow`, 776 classes), dropped module loads (`getstatic …MODULE$; pop`),
-  trait calls through static `m$` methods (196). Besides: missing `serialVersionUID` fields (60),
-  `tableswitch` order, `ldc` of `<function1>` strings.
-- **Attributes differ:** line numbers (118).
+- **Code differs**, by first differing line: a missing `serialVersionUID` field (46), dotty's
+  second `athrow` after a call of type `Nothing` (37), generic signatures of trait forwarders and
+  extension methods (`compose`, `equals$extension`), field signatures (`underlying`).
+- **Attributes differ:** line numbers (163), `private final` flags (30), `Deprecated` (25),
+  `InnerClasses` (11).
 
 ### com-lihaoyi libraries from source
 

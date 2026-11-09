@@ -526,7 +526,8 @@ jvm-check file: (jvm-fixture file) (jvm-build file)
     python3 scripts/jvm_check.py tmp/jvm/$(basename {{ file }} .scala)/ref tmp/jvm/$(basename {{ file }} .scala)/out
 
 # Compile Scala's library (`module`: scalalib) file by file with scivolo-jvm (the files whose paths
-# contain `filter`) and compare each class file with the published jar's through javap.
+# contain `filter`) and compare each class file through javap with dotty's, which compiles the
+# whole library once with its options but without the optimizer.
 jvm-lib-compile module filter="": fetch-libs
     cargo build -q --release -p scivolo-jvm
     python3 scripts/jvm_lib_compile.py '{{ module }}' '{{ filter }}'

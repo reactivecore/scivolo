@@ -4,18 +4,19 @@
 Usage: scripts/jvm_lib_compile.py MODULE [FILTER]
 
 MODULE is `scalalib`: the `.scala` files of scala-library's sources jar, unpatched, in
-tmp/lib-jvm/scalalib/src (those whose paths contain FILTER). Each is compiled on its own with the
-options of scalalib_sources.py into tmp/lib-jvm/scalalib/out/FILE/; each class file written is
-compared with the published jar's through jvm_check.py's `code` (javap -c) and `attributes`
-(javap -v) apart. A class of the jar belongs to the file its `SourceFile` attribute names.
+tmp/lib-jvm/scalalib/sources (those whose paths contain FILTER). Each is compiled on its own with
+LIBRARY_OPTIONS into tmp/lib-jvm/scalalib/out/FILE/; each class file written is compared through
+jvm_check.py's `code` (javap -c) and `attributes` (javap -v) apart with the oracle's: the class
+files dotty 3.9.0 compiles all `.scala` and `.java` files of the sources jar to in one run with
+LIBRARY_OPTIONS, in tmp/lib-jvm/scalalib/dotty. An oracle class belongs to the file its
+`SourceFile` attribute names in its package directory.
 
 Writes under tmp/lib-jvm/scalalib: results.tsv (file, same|code differs|attributes differ|refused|
-crashed|timeout, reason, classes same, code differs, attributes differ, missing from the jar, only
-in the jar), cmp.tsv (file, class, one of those states, first differing line), diffs/ (the jar's
-class against ours), refusals.txt and code-groups.txt (by count), oracle-only.txt (the jar's
-classes of no Scala file: Java sources, specialized classes), and prints a summary. With FILTER,
-the rows of the files run replace those of the last run. Files worse than in baseline.tsv are
-listed.
+crashed|timeout, reason, classes same, code differs, attributes differ, only ours, only in the
+oracle), cmp.tsv (file, class, one of those states, first differing line), diffs/ (the oracle's
+class against ours), refusals.txt and code-groups.txt (by count), oracle-only.txt (the oracle's
+classes of no Scala file), and prints a summary. With FILTER, the rows of the files run replace
+those of the last run. Files worse than in baseline.tsv are listed.
 """
 import collections
 import concurrent.futures
@@ -25,55 +26,22 @@ import re
 import shutil
 import subprocess
 import sys
-import zipfile
 from pathlib import Path
 
 import jvm_check
-import scalalib_sources
+import jvm_lib_oracle
 
 ROOT = Path(__file__).resolve().parent.parent
 LIBS = Path(os.environ.get("SCIVOLO_LIBS", ROOT / "ref/libs"))
 WORK = ROOT / "tmp/lib-jvm/scalalib"
-SRC, ORACLE = WORK / "src", WORK / "oracle"
+SRC, ORACLE = WORK / "sources", WORK / "dotty"
 JVM = ROOT / "target/release/scivolo-jvm"
-OPTIONS = ["--scalalib", *(o for o in scalalib_sources.OPTIONS if o.startswith("--scalac-option="))]
+# The options scivolo-jvm does not take: it reads UTF-8 and writes Java 17 class files only.
+FIXED = {"-encoding", "UTF8", "--java-output-version:17"}
+OPTIONS = ["--scalalib", *(f"--scalac-option={o}" for o in jvm_lib_oracle.LIBRARY_OPTIONS if o not in FIXED)]
 STATES = ["same", "attributes differ", "code differs", "refused", "crashed", "timeout"]
-SPECIALIZED = re.compile(r"\$mc[A-Z]+\$sp")
 JOBS = os.cpu_count() or 4
 TIMEOUT = 60
-
-
-def unpacked(jar, out, names):
-    """Directory `out` holding the entries of `jar` that `names` keeps, unpacked once."""
-    if not (out / ".done").exists():
-        shutil.rmtree(out, ignore_errors=True)
-        with zipfile.ZipFile(jar) as z:
-            z.extractall(out, [n for n in z.namelist() if names(n)])
-        (out / ".done").touch()
-    return out
-
-
-def sources():
-    keep = lambda n: n.endswith(".scala") and n not in scalalib_sources.IGNORED
-    return unpacked(LIBS / "scala-library-3.9.0-sources.jar", SRC, keep)
-
-
-def oracle():
-    return unpacked(LIBS / scalalib_sources.LIBRARY, ORACLE, lambda n: n.endswith(".class"))
-
-
-def origins(theirs, files):
-    """The classes of `theirs` by the source in `files` their `SourceFile` attribute names in their
-    package directory; under None the specialized ones (`$mcII$sp`) and those of no such source."""
-    out = collections.defaultdict(set)
-    for p in sorted(theirs.rglob("*.class")):
-        b = p.read_bytes()
-        pool, attributes = jvm_check.class_attributes(b)
-        source = next((pool[int.from_bytes(b[i:i + 2], "big")] for n, i, _ in attributes if n == "SourceFile"), "")
-        name = p.relative_to(theirs)
-        file = str(name.parent / source)
-        out[file if file in files and not SPECIALIZED.search(p.name) else None].add(str(name))
-    return out
 
 
 def run(file, out):
@@ -100,9 +68,9 @@ def first_change(diff):
 def compare(name, ours, theirs):
     """(state, first differing line) of class file `name`; writes the diff of one that differs."""
     if not theirs.exists():
-        return "missing", ""
+        return "only ours", ""
     for state, view in (("code differs", jvm_check.code), ("attributes differ", jvm_check.attributes)):
-        diff = list(difflib.unified_diff(view(theirs), view(ours), f"scalac/{name}", f"ours/{name}", lineterm=""))
+        diff = list(difflib.unified_diff(view(theirs), view(ours), f"dotty/{name}", f"ours/{name}", lineterm=""))
         if diff:
             path = WORK / "diffs" / f"{name}.diff"
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -124,9 +92,9 @@ def one(file, expected):
     for p in sorted(out.rglob("*.class")):
         name = str(p.relative_to(out))
         cmp.append([file, name, *compare(name, p, ORACLE / name)])
-    cmp += [[file, name, "only in the jar", ""] for name in sorted(expected - {c[1] for c in cmp})]
+    cmp += [[file, name, "only in the oracle", ""] for name in sorted(expected - {c[1] for c in cmp})]
     counts = collections.Counter(c[2] for c in cmp)
-    keys = ("same", "code differs", "attributes differ", "missing", "only in the jar")
+    keys = ("same", "code differs", "attributes differ", "only ours", "only in the oracle")
     worst = "attributes differ" if len(cmp) == counts["same"] + counts["attributes differ"] else "code differs"
     state = worst if len(cmp) > counts["same"] else "same"
     return [file, state, "", *(counts[k] for k in keys)], cmp
@@ -152,9 +120,10 @@ def compile_module(filter_):
     if not keep:
         shutil.rmtree(WORK / "diffs", ignore_errors=True)
     WORK.mkdir(parents=True, exist_ok=True)
-    src, theirs = sources(), oracle()
+    src = jvm_lib_oracle.sources(LIBS / "scala-library-3.9.0-sources.jar", SRC)
+    theirs = jvm_lib_oracle.oracle(src, ORACLE)
     files = [str(f.relative_to(src)) for f in sorted(src.rglob("*.scala"))]
-    by_file = origins(theirs, set(files))
+    by_file = jvm_lib_oracle.origins(theirs, set(files))
     todo = [f for f in files if filter_ in f]
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
         done = list(pool.map(lambda f: one(f, by_file[f]), todo))
@@ -172,8 +141,8 @@ def compile_module(filter_):
     classes = collections.Counter(c[2] for c in compared)
     print(f"scalalib (JVM): {len(rows)} files: " + ", ".join(f"{states[s]} {s}" for s in STATES))
     print(f"  classes: {classes['same']} same, {classes['code differs']} code differ, "
-          f"{classes['attributes differ']} attributes differ, {classes['missing']} not in the jar, "
-          f"{classes['only in the jar']} only in the jar; {len(by_file[None])} oracle-only")
+          f"{classes['attributes differ']} attributes differ, {classes['only ours']} only ours, "
+          f"{classes['only in the oracle']} only in the oracle; {len(by_file[None])} oracle-only")
     (WORK / "oracle-only.txt").write_text("".join(f"{p}\n" for p in sorted(by_file[None])))
     for title, lines in (("refusals", refusals), ("code differences, by first differing line", codes)):
         print(f"  top {title}:", *(f"    {l}" for l in lines), sep="\n")
