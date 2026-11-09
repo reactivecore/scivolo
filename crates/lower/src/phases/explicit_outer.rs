@@ -209,8 +209,17 @@ pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
         contextual: false,
     });
     l.u.set_info(m, info);
+    l.u.set_deferred(m, l.u.is_trait(class));
     l.outer_accessors.insert(class, m);
     m
+}
+
+/// Defines the outer accessor of trait `t` if `classes`, the unit's, do not define `t` (dotty's
+/// `transformInfo` of a class it did not compile).
+pub fn outer_accessor_from_elsewhere(l: &mut Lower, t: SymbolId, classes: &[TNodeId]) {
+    if !classes.iter().any(|&c| l.tpd.sym(c) == Some(t)) {
+        outer_accessor(l, t);
+    }
 }
 
 /// `C$$$outer`, the name of the accessor of the enclosing instance of class `class`, `C` its

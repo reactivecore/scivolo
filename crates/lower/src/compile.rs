@@ -68,10 +68,10 @@ pub fn compile_with(
         Err(Fallback::Errors(diags)) => return Err(Refusal { what: "type errors".into(), diags }),
     };
     let sources = (Sources::one(source), cfg.explicit_nulls);
-    let files =
-        lower_sources(u, &mut typed.tpd, typed.root, (p.s.names, &mut p.fresh), sources).map_err(|e| {
-            Refusal::new(format!("the lowering does not support {}{}", e.what, at_point(source, e.at)))
-        })?;
+    let trees = (&mut typed.tpd, &mut typed.diags);
+    let files = lower_sources(u, trees, typed.root, (p.s.names, &mut p.fresh), sources).map_err(|e| {
+        Refusal::new(format!("the lowering does not support {}{}", e.what, at_point(source, e.at)))
+    })?;
     Ok((files, typed.diags))
 }
 
@@ -93,5 +93,6 @@ pub fn lower(
     fresh: &mut FreshNames,
     source: &SourceFile,
 ) -> crate::Result<Vec<NirFile>> {
-    lower_sources(u, tpd, root, (names, fresh), (Sources::one(source), false))
+    let trees = (tpd, &mut Diagnostics::default());
+    lower_sources(u, trees, root, (names, fresh), (Sources::one(source), false))
 }

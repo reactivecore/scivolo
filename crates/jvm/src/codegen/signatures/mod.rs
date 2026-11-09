@@ -4,6 +4,7 @@
 
 mod applied;
 mod classes;
+mod methods;
 mod needed;
 mod refs;
 

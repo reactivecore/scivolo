@@ -56,11 +56,16 @@ pub fn proxy(l: &mut Lower, v: SymbolId, owner: SymbolId, kind: Kind, flags: Fla
 }
 
 /// The span of the definition of local value `v` in unit `root`, none for a parameter of an
-/// `apply` that `SpecializeFunctions` copies with new parameters.
+/// `apply` that `SpecializeFunctions` copies with new parameters; the point of an extension
+/// method for its parameters, which `FullParameterization` makes anew there.
 pub fn definition_span(l: &mut Lower, root: TNodeId, v: SymbolId) -> Span {
     let owner = l.u.symbol(v).owner;
     if l.u.symbol(v).kind == Kind::Param && owner.is_some_and(|m| super::specialize::is_specialized(l, m)) {
         return Span::NONE;
+    }
+    let extension = owner.filter(|m| l.extensions.values().any(|e| e == m));
+    if let Some(at) = extension.filter(|_| l.u.symbol(v).kind == Kind::Param).and_then(|m| l.coords.get(&m)) {
+        return *at;
     }
     let def = super::walk::subtrees(l.tpd, root)
         .into_iter()

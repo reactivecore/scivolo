@@ -14,7 +14,7 @@ pub use units::ascription_type;
 
 use super::casts::{cast, conforms, is_cast, is_new_array};
 use super::select_static::is_static_enum_value;
-use super::type_tests::as_instance_of::primitive_conversion;
+use super::type_tests::primitive_conversion::{failed_conversion, primitive_conversion};
 use crate::Lower;
 use crate::symbols::{has, is_java_field, is_java_static};
 use syntax::ast::Span;
@@ -141,7 +141,10 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
         (Erased::Unit, pt) if reference(pt) => boxed_unit(l, t),
         (Erased::Prim(a), Erased::Prim(b)) if a != b => match primitive_conversion(l, t, *a, *b) {
             Some(select) => applied_to_none(l, select),
-            None => t,
+            None => {
+                let from = crate::definitions::primitive_class_name(*a).unwrap_or_default();
+                failed_conversion(l, t, from.trim_start_matches("scala."), *b)
+            }
         },
         (Erased::Class(_), Erased::Prim(c)) => match l.primitive(*c) {
             Some(p) => {

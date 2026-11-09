@@ -25,7 +25,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let mut stats = l.tpd.items(body).to_vec();
     let mut made: Vec<(SymbolId, Vec<Erased>, Erased)> = Vec::new();
-    let mut removed = Vec::new();
+    let (mut removed, mut lifted) = (Vec::new(), Vec::new());
     for (member, other) in overriding_pairs(l, class, deferred) {
         if is_deferred(l, deferred, member) {
             continue;
@@ -47,10 +47,15 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
         let at = coord.unwrap_or_else(|| Span::at(l.tpd.span(own.unwrap_or(td)).point()));
         let depth = |l: &Lower, s| l.context_results.get(&s).map_or(0, |&(_, d)| d);
         match depth(l, member) > depth(l, other) {
-            true => stats.extend(super::context_bridges::bridge(l, class, member, other, at)?),
+            true => {
+                let (def, closures) = super::context_bridges::bridge(l, class, member, other, at)?;
+                stats.push(def);
+                lifted.extend(closures);
+            }
             false => stats.push(bridge(l, class, member, other, at)?),
         }
     }
+    stats.extend(lifted);
     if !made.is_empty() {
         stats.retain(|&s| l.tpd.sym(s).is_none_or(|s| !removed.contains(&s)));
         let body = l.tpd.list(&stats);

@@ -190,6 +190,17 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       an unexpected type representation reached the compiler backend … NoType`;
       `Counter.a = Counter.a + 5` compiles.
     - JVM: compiles it as the assignment.
+18. **A bridge's closure of more than 22 context parameters is a `Function1`** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/Bridges.scala`, `etaExpand`).
+    - `def mega: Mega[Int]` overriding an abstract one, `Mega` a context function of 23
+      parameters: the bridge returns a closure of the erased `(Object[])` method, a `Function1`
+      where callers expect a `FunctionXXL` (`ClassCastException`).
+    - Fix: give the closure the type `FunctionXXL`. VM and JVM: as dotty.
+19. **Generic signatures flatten one context function result** (dotty 3.9.0,
+    `compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala`, `collectMethodParams`).
+    - It adds the parameters of one `ContextFunctionN` result to every method's signature, whether
+      erasure flattened none (`h(I)Lscala/Function1;` signed `(ILjava/lang/String;)I`) or two.
+    - Fix: follow `ContextResultCount`. JVM: as dotty.
 
 ## M4: dotty `tests/run`
 
@@ -293,11 +304,11 @@ Results (2026-11-09):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1579 |
+| passed | 1583 |
 | wrong output | 0 |
 | verify error | 0 |
-| linkage error | 3 |
-| crashed | 2 |
+| linkage error | 0 |
+| crashed | 1 |
 | timeout | 0 |
 | jvm refused | 4 |
 | lowering refused | 0 |
@@ -310,10 +321,8 @@ Results (2026-11-09):
   classes (`Deprecated`, 2), `-Xmixin-force-forwarders:false` (2).
 - **JVM refused:** a box of a value that is not primitive (1), a protected member's super accessor
   the TASTy lacks (1), a jump over 32 KiB (1), a `LazyVals` lub of a long class name (1).
-- **Linkage errors and crashes:** a missing lambda `$adapted` method (`context-functions`), a
-  missing bridge (`i18315`, `i23245b`), `ClassTag` of a `*:` tuple (`i22345`);
-  `lambda-serialization-gc` casts the application class loader to `URLClassLoader`, which fails
-  for scalac's class files too, as the runner does not load tests through one.
+- **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
+  which fails for scalac's class files too, as the runner does not load tests through one.
 
 ### com-lihaoyi libraries from source
 
