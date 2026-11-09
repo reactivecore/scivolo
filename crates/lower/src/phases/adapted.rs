@@ -5,10 +5,11 @@
 //! abstract method's (dotty's `Erasure.adaptClosure`): erasure then adapts the arguments for the
 //! lambda's method and its result.
 
-use super::adapt::from_start;
+use super::adapt::{adapt, from_start};
 use super::lifted::Method;
+use super::sam::adaptation_needed;
 use crate::Lower;
-use crate::definitions::{symbol, type_ref};
+use crate::definitions::{procedure, specialized, symbol, type_ref};
 use syntax::ast::Span;
 use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::TNodeId;
@@ -24,6 +25,72 @@ pub fn specializable(params: &[Erased], result: &Erased) -> bool {
         [p, q] => prim(p, "ijd") && prim(q, "ijd") && returns("zijfd"),
         _ => false,
     }
+}
+
+/// The specialized interface a closure of a function type implements, its method of erased
+/// parameters `params` and result `result` needing adaptations `needed`: a `JFunctionN`, or a
+/// `JProcedureN` where only its `Unit` result needs one (dotty's `adaptClosure`).
+pub fn specialized_interface(
+    l: &mut Lower,
+    needed: (bool, bool),
+    params: &[Erased],
+    result: &Erased,
+) -> Option<Result<SymbolId, String>> {
+    match needed {
+        (false, false) => None,
+        _ if specializable(params, result) && !l.tpd.scala2 => Some(specialized(l.u, params, result)),
+        (false, _) if *result == Erased::Unit => Some(procedure(l.u, params.len())),
+        _ => None,
+    }
+}
+
+/// The adaptations a closure of `FunctionN` needs for its method of erased parameters `params`
+/// and result `result`.
+pub fn function_adaptation(params: &[Erased], result: &Erased) -> (bool, bool) {
+    let object = Erased::Class("java.lang.Object".into());
+    adaptation_needed(params, result, &vec![object.clone(); params.len()], &object)
+}
+
+/// The `$adapted` method `adapted` of class `class`, of parameters named `names`, calling `anon`,
+/// whose last `arity` parameters are a closure's; those of type `Object` where `needed`, and its
+/// result too, at `span`.
+pub fn erased_adapted_def(
+    l: &mut Lower,
+    (class, anon, adapted): (SymbolId, SymbolId, SymbolId),
+    (arity, needed): (usize, (bool, bool)),
+    names: Vec<String>,
+    span: Span,
+) -> TNodeId {
+    let info = l.u.info(anon);
+    let Type::Method { params, result, .. } = l.u.types().get(info).clone() else {
+        unreachable!("a method type")
+    };
+    let erased = l.u.erased_method_value(anon).0;
+    let object = type_ref(l.u, l.defs.object);
+    let first = params.len() - arity;
+    let params: Vec<(String, TypeId)> = names
+        .into_iter()
+        .zip(&params)
+        .enumerate()
+        .map(|(i, (name, &(_, t)))| (name, if needed.0 && i >= first { object } else { t }))
+        .collect();
+    let adapted_result = if needed.1 { object } else { result };
+    let binder = l.u.fresh_binder();
+    let method = Type::Method { binder, params, result: adapted_result, implicit: false, contextual: false };
+    let method = l.u.intern_type(method);
+    l.u.set_info(adapted, method);
+    l.forwarding_def(adapted, span, |l, args, _| {
+        let args: Vec<TNodeId> = args
+            .iter()
+            .zip(&erased)
+            .enumerate()
+            .map(|(i, (&a, e))| if needed.0 && i >= first { adapt(l, a, e) } else { a })
+            .collect();
+        let this = l.this(class, span);
+        let fun = l.select(this, anon, span);
+        let call = l.apply(fun, &args, result, span);
+        if needed.1 { adapt(l, call, &Erased::Class("java.lang.Object".into())) } else { call }
+    })
 }
 
 /// The parameters and result type of the `$adapted` method of a lambda with `params` and

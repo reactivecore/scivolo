@@ -289,15 +289,15 @@ file. Earlier compilation groups are compiled by scala-cli for the JVM. Skipped 
 report, but for APIs Scala Native's javalib lacks. Failures are grouped by the refusal or the first
 exception line.
 
-Results (2026-11-08):
+Results (2026-11-09):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1523 |
+| passed | 1527 |
 | wrong output | 0 |
 | verify error | 0 |
-| linkage error | 3 |
-| crashed | 1 |
+| linkage error | 0 |
+| crashed | 0 |
 | timeout | 0 |
 | jvm refused | 4 |
 | lowering refused | 0 |
@@ -310,8 +310,6 @@ Results (2026-11-08):
   has without them (`Class.getDeclaredFields`); TASTy pickling (4).
 - **JVM refused:** a box of a value that is not primitive (1), a protected member's super accessor
   the TASTy lacks (1), a jump over 32 KiB (1), a `LazyVals` lub of a long class name (1).
-- **Linkage errors and crashes:** a missing lambda `$adapted` method (`context-functions`), a
-  missing bridge (`i18315`, `i23245b`), `ClassTag` of a `*:` tuple (`i22345`).
 
 ### com-lihaoyi libraries from source
 

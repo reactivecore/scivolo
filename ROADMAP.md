@@ -110,10 +110,10 @@ libraries work. dotty's `tests/run-macros`: 308 of 321 pass
   stack map frames, TASTy per top-level class
   ([ADR 0105](docs/adr/0105-jvm-tasty-from-the-typer.md)) and jars scala-cli compiles against;
   JDK classes javalib lacks come from the JDK's class files (ADR 0106, 0107). dotty's `tests/run`
-  on the JVM: 1,523 of 1,709 pass (`just dotty-jvm-report`, docs/conformance.md). Open:
+  on the JVM: 1,527 of 1,709 pass (`just dotty-jvm-report`, docs/conformance.md). Open:
   - JDK members of classes javalib has without them (most of the 87 typer refusals, e.g.
     reflection), and what ADR 0107 does not enter (nested and annotation classes);
-  - the linkage errors, crashes and JVM refusals listed in docs/conformance.md;
+  - the JVM refusals listed in docs/conformance.md;
   - TASTy as dotty's: type sharing, positions, the trees ADR 0105 refuses;
   - JVM jars on the classpath (`--dep`, scalac's class files) through the class file reader;
   - the standard library as a target; NIR generation out of `crates/lower` into `crates/nirgen`.

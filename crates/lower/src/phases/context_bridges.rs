@@ -4,17 +4,15 @@
 //! fewer context clauses: the bridge returns closures taking the rest (dotty's `etaExpand`).
 
 use super::adapt::adapt;
+use super::adapted::erased_adapted_def;
+use super::context_closures::{closure, function_type, plan, unbunched};
 use super::lift_names::fresh;
-use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::tags::{ARTIFACT, CASEaccessor, FIELDaccessor, LAZY, OBJECT, PARAMsetter, PRIVATE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
-use typer::tpd::{TNodeId, Tree};
-
-/// The parameters of a method, each with its name.
-type Params = Vec<(String, TypeId)>;
+use tasty::tags::{CASEaccessor, FIELDaccessor, LAZY, OBJECT, PARAMsetter};
+use tasty::{Kind, SymbolId, Type, TypeId};
+use typer::tpd::TNodeId;
 
 /// `def m(params): F = closure(m$$anonfun$N)` of the type of `other`, flattened by fewer context
 /// clauses than `m`, and the closures' methods, one per clause `other` lacks, each nested in the
@@ -38,78 +36,58 @@ pub fn bridge(
     let m_result = l.u.result_type(m_info);
     let other_params: Vec<(String, TypeId)> = clauses(l, other_info).concat();
     let mut captured: Vec<(String, TypeId)> = own_clauses[..own].concat();
-    let own_params = captured.len();
+    let originals: Vec<String> = captured.iter().map(|(name, _)| name.clone()).collect();
     for ((name, tpe), (_, other)) in captured.iter_mut().zip(&other_params) {
         *name = fresh(l, name);
         *tpe = *other;
     }
     let (erased, others) = (l.u.erased_method(m).0, l.u.erased_method(other).0);
     let value_params = l.u.erased_method_value(m).0;
-    let flags = Flags::default().with(PRIVATE).with(SYNTHETIC).with(ARTIFACT);
-    let mut anons: Vec<(SymbolId, Params, usize)> = Vec::new();
-    for context in &own_clauses[own..] {
-        let outer = anons.last().map_or(m, |&(a, ..)| a);
-        let anon_name = fresh(l, &format!("{}$$anonfun", l.u.symbol(outer).name));
-        let anon = l.u.define(symbol(&anon_name, Kind::Def, class, flags));
-        if !anons.is_empty() {
-            for (name, _) in &mut captured[own_params..] {
-                *name = fresh(l, name);
-            }
-        }
-        let context: Params = context.iter().filter(|&&(_, p)| !l.u.is_erased_param(p)).cloned().collect();
-        captured.extend(context.iter().cloned());
-        anons.push((anon, captured.clone(), context.len()));
-    }
+    let erased_result = l.u.erase_value(m_result);
+    let anons = plan(l, (class, m), &own_clauses[own..], (captured, originals), erased_result, span)?;
+    let apply = super::bunched::array_apply(l)?;
     let mut defs = Vec::new();
     let mut result = m_result;
-    for (i, (anon, params, _)) in anons.iter().enumerate().rev() {
+    for i in (0..anons.len()).rev() {
+        let (anon, params) = (anons[i].sym, anons[i].params.clone());
         let binder = l.u.fresh_binder();
-        let params = params.clone();
         let info =
             l.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
-        l.u.set_info(*anon, info);
-        let inner = anons.get(i + 1).map(|&(a, _, arity)| (a, arity));
-        defs.push(l.forwarding_def(*anon, span, |l, args, result| match inner {
-            Some((a, arity)) => closure(l, a, arity, args, span),
-            None => {
-                let args: Vec<TNodeId> = args
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &a)| match (erased.get(i), others.get(i), value_params.get(i)) {
-                        (Some(p), Some(o), Some(v)) if p != o => adapt(l, a, v),
-                        _ => a,
-                    })
-                    .collect();
-                let args = &args[..];
-                let this = l.this(class, span);
-                let fun = l.select(this, m, span);
-                l.apply(fun, args, result, span)
+        l.u.set_info(anon, info);
+        let inner = anons.get(i + 1);
+        defs.push(l.forwarding_def(anon, span, |l, args, result| {
+            let args = unbunched(l, apply, &anons[i], args, span);
+            if let Some(a) = inner {
+                return closure(l, a, &args, span);
             }
+            let args: Vec<TNodeId> = args
+                .iter()
+                .enumerate()
+                .map(|(i, &a)| match (erased.get(i), others.get(i), value_params.get(i)) {
+                    (Some(p), Some(o), Some(v)) if p != o => adapt(l, a, v),
+                    _ => a,
+                })
+                .collect();
+            let this = l.this(class, span);
+            let fun = l.select(this, m, span);
+            l.apply(fun, &args, result, span)
         }));
-        result = function_type(l, anons[i].2);
+        if let Some((adapted, names, needed)) = anons[i].adapted.clone() {
+            let methods = (class, anon, adapted);
+            defs.push(erased_adapted_def(l, methods, (anons[i].arity, needed), names, span));
+            l.bridges.insert(adapted);
+        }
+        result = function_type(l, anons[i].arity);
     }
     let mut flags = l.u.symbol(m).flags;
     for tag in [FIELDaccessor, PARAMsetter, CASEaccessor, LAZY, OBJECT] {
         flags = flags.without(tag);
     }
-    let (first, arity) = (anons[0].0, anons[0].2);
-    let (sym, def) = l.method_like(class, other, flags, other_info, span, |l, args, _| {
-        closure(l, first, arity, args, span)
-    })?;
+    let first = &anons[0];
+    let (sym, def) =
+        l.method_like(class, other, flags, other_info, span, |l, args, _| closure(l, first, args, span))?;
     l.bridges.insert(sym);
     Ok([def].into_iter().chain(defs).collect())
-}
-
-/// `closure(anon)` of a function of `arity` parameters capturing `args`.
-fn closure(l: &mut Lower, anon: SymbolId, arity: usize, args: &[TNodeId], span: Span) -> TNodeId {
-    let function = function_type(l, arity);
-    let env = l.tpd.list(args);
-    let meth = l.ident(anon, span);
-    l.tpd.node(Tree::Closure { env, meth, tpt: None }, span, Some(function), None)
-}
-
-fn function_type(l: &mut Lower, arity: usize) -> TypeId {
-    l.u.class_ref(&format!("scala.Function{arity}"))
 }
 
 /// Whether every member of the name of method `m` that `m` may override, or that may override
