@@ -78,12 +78,13 @@ impl Typer<'_> {
         if self.supplied_otherwise(f, "apply", ctx)? {
             return Err("apply of a Dynamic value an extension or conversion may supply");
         }
-        let call = DynamicCall { qual: f, name: "apply".into(), span: self.tpd.span(f), targs: Vec::new() };
+        let call =
+            DynamicCall { qual: f, name: "apply".into(), span: self.adapted_span(f), targs: Vec::new() };
         Ok(Some(self.pending_dynamic(call)))
     }
 
-    /// Whether `f` is a dynamic call, possibly applied to the implicit arguments of the context
-    /// functions it results in (dotty's `isDynamicExpansion`).
+    /// Whether `f` is a dynamic call, possibly applied through inserted `apply`s to the implicit
+    /// arguments of the context functions it results in (dotty's `isDynamicExpansion`).
     fn is_dynamic_call(&self, f: TNodeId) -> bool {
         let callee = self.tpd.meth_part(f);
         let Some(m) = self.tpd.sym(callee) else { return false };
@@ -91,7 +92,9 @@ impl Typer<'_> {
             self.u.symbol(m).owner.is_some_and(|c| self.u.full_name(c).starts_with("scala.ContextFunction"));
         match *self.tpd.tree(callee) {
             _ if is_dynamic_method(&self.u.symbol(m).name) => true,
-            T::Select { qualifier, .. } if contextual => self.is_dynamic_call(qualifier),
+            T::Select { qualifier, .. } if contextual && self.tpd.span(callee).is_synthetic() => {
+                self.is_dynamic_call(qualifier)
+            }
             _ => false,
         }
     }
