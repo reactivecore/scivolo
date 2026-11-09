@@ -47,8 +47,10 @@ code starts with its license notice, which lists its upstream files:
 ## Code style
 
 - No source file over 200 lines, tests excluded; split by what the code is
-  for, not by size. Exempt: a data table, a set of type definitions, or the
-  API around a single type (e.g. the TASTy tag table). A file that ports
+  for, not by size. Exempt: a data table or a set of type definitions (e.g.
+  the TASTy tag table). An API (a type's or trait's public methods, or a set
+  of API-like helpers) may have up to 400 lines where one file reads better
+  than a split. A file that ports
   exactly one dotty method or one dotty phase may have up to 300 lines. The
   license notice does not count.
 - Group by meaning, not by syntactic form: no `types.rs`, `enums.rs`,
