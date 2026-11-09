@@ -4,7 +4,7 @@
 //! Applications of a value without `apply` (dotty's `MethodDoesNotTakeParameters` from
 //! `adaptToArgs`), reported where no extension method or implicit view may supply one.
 
-use super::Typer;
+use super::{Pt, Typer};
 use super::implicits::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
@@ -14,6 +14,13 @@ use tasty::tags::{EXTENSION, LAZY, MUTABLE, OBJECT};
 use tasty::{Kind, SymbolId, TypeId};
 
 impl Typer<'_> {
+    /// `f.apply` on `f` cast to its GADT approximation (dotty's `tryGadt` in the `typedSelect` of
+    /// `tryInsertApplyOrImplicit`), if that has one.
+    pub fn gadt_healed_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Option<TNodeId> {
+        let healed = self.gadt_healed(f, ctx)?;
+        self.with_apply(healed, pt, ctx).ok()
+    }
+
     /// `MethodDoesNotTakeParameters` for the application of reference `fun`, typed as `f`, to
     /// `n` arguments; `None` where dotty may still apply it or word it otherwise.
     pub fn does_not_take_parameters(

@@ -144,6 +144,14 @@ impl FreshNames {
         name
     }
 
+    /// Whether `text` is a name `next` or `unique` made (dotty's `UniqueName`).
+    pub fn made(&self, text: &str) -> bool {
+        let body = text.strip_suffix('$').filter(|b| b.starts_with('$')).unwrap_or(text);
+        let prefix = body.trim_end_matches(|c: char| c.is_ascii_digit());
+        let Ok(n) = body[prefix.len()..].parse::<u32>() else { return false };
+        (body.len() == text.len() || prefix == "$") && self.counts.get(prefix).is_some_and(|&c| c >= n)
+    }
+
     /// Raises each counter to at least that of `other`; takes its `$N$` names.
     pub fn include(&mut self, other: &FreshNames) {
         for (prefix, &n) in &other.counts {

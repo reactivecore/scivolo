@@ -95,6 +95,7 @@ mod function_types;
 mod gadt;
 mod gadt_cases;
 mod gadt_cast;
+mod gadt_full_bounds;
 mod gadt_narrow;
 mod gadt_order;
 mod gadt_tuples;

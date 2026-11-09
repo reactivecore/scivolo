@@ -22,7 +22,9 @@ impl Typer<'_> {
             || flags.is_one_of(f::SYNTHETIC.or(f::ACCESSOR).or(f::CASE_ACCESSOR))
             || flags.is(f::PARAM) && synthetic_owner()
             || flags.is(f::JAVA_DEFINED)
-            || dollars;
+            || dollars
+            || !module && (self.fresh.made(name) || is_default_getter(name))
+            || self.ast.attrs(tree).contains(Attrs::EVIDENCE) && name.starts_with("evidence$");
         let max = if module { name.len() - 1 } else { name.len() };
         if exempt || !name[..max].contains('$') {
             return;
@@ -32,4 +34,9 @@ impl Typer<'_> {
         let msg = format!("The identifier `{shown}` should not contain `$`, which is reserved for internal compiler use.");
         self.diags.warning_at(start, start + max as u32, start, msg);
     }
+}
+
+/// Whether `name` is `<method>$default$<n>` (dotty's `DefaultGetterName`).
+fn is_default_getter(name: &str) -> bool {
+    name.rsplit_once("$default$").is_some_and(|(m, n)| !m.is_empty() && n.parse::<u32>().is_ok())
 }
