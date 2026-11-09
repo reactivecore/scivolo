@@ -131,13 +131,19 @@ fn compacted_member(l: &mut Lower, class: SymbolId, name: &str) -> Option<Symbol
 }
 
 /// The class of binary name `rest` relative to `owner`: a member class `C`, or a class nested in
-/// member class or object `C` named `C$rest`; operator names encoded.
+/// member class or object `C` named `C$rest`; operator names encoded, member classes also by
+/// target name.
 fn member_named(l: &mut Lower, owner: SymbolId, rest: &str) -> Option<SymbolId> {
     let classes = |l: &mut Lower, owner: SymbolId, name: &str| -> Vec<SymbolId> {
         let mut found = l.u.decl(owner, name).unwrap_or_default();
         let decoded = tasty::decode(name);
         if found.is_empty() && decoded != name {
             found = l.u.decl(owner, &decoded).unwrap_or_default();
+        }
+        if found.is_empty() && l.u.is_class(owner) {
+            let decls = l.u.symbol(owner).decls.iter().copied();
+            found =
+                decls.filter(|&d| l.u.class_target(d).is_some_and(|t| t == name || t == decoded)).collect();
         }
         found.into_iter().filter(|&s| l.u.is_class(s)).collect()
     };

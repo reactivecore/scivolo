@@ -4,6 +4,7 @@
 //! as the symbol model reaches), and Scala Native's mangled names from it.
 
 mod applied;
+mod binary_names;
 mod bounds;
 mod bridges;
 mod compactify;
@@ -20,11 +21,9 @@ mod symbols;
 mod upper_bounds;
 mod value;
 
-use crate::symbols::{defined_name, encode, module_class_name, module_name};
-use crate::tags::{OBJECT as MODULE, PARAMsetter, TRAIT};
+use crate::tags::{PARAMsetter, TRAIT};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
-use compactify::compactify;
 pub use signatures::{MatchDegree, match_degree};
 pub use special::PRIMITIVE_VALUE_CLASSES;
 use special::special;
@@ -53,43 +52,6 @@ fn object() -> Erased {
 }
 
 impl Universe {
-    /// The binary name of class `c`: `pkg.Name`, `Outer$Inner`, `Object$Inner`; target names encoded,
-    /// a JDK class Scala Native renames under its defined name when outer; a nested name
-    /// `compactify`d.
-    pub fn binary_name(&self, c: SymbolId) -> String {
-        self.class_name_with(c, compactify)
-    }
-
-    /// `binary_name` without `compactify`, the prefix of an expanded name (`C$$$outer`).
-    pub fn expanded_binary_name(&self, c: SymbolId) -> String {
-        self.class_name_with(c, str::to_owned)
-    }
-
-    fn class_name_with(&self, c: SymbolId, compactify: fn(&str) -> String) -> String {
-        let s = self.symbol(c);
-        let name = encode(s.target.as_deref().unwrap_or(&s.name));
-        match s.owner {
-            Some(o) if self.symbol(o).kind == Kind::Class => {
-                let outer = self.class_name_with(o, compactify);
-                let module = module_name(&outer);
-                let outer = match defined_name(module.unwrap_or(&outer)) {
-                    Some(d) if module.is_some() => module_class_name(d),
-                    Some(d) => d.to_owned(),
-                    None => outer.clone(),
-                };
-                let (pkg, flat) = outer.rsplit_once('.').map_or(("", outer.as_str()), |(p, f)| (p, f));
-                let module = s.flags.has(MODULE).then(|| module_name(&name)).flatten();
-                let simple = module.unwrap_or(&name);
-                let sep = if flat.ends_with('$') { "" } else { "$" };
-                let flat =
-                    compactify(&format!("{flat}{sep}{simple}")) + if module.is_some() { "$" } else { "" };
-                if pkg.is_empty() { flat } else { format!("{pkg}.{flat}") }
-            }
-            Some(o) if o != self.root() => format!("{}.{name}", self.full_name(o)),
-            _ => name,
-        }
-    }
-
     /// The erasure of type `t`.
     pub fn erase(&mut self, t: TypeId) -> Erased {
         match self.types().get(t).clone() {
