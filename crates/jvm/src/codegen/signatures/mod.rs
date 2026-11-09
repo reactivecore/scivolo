@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala
 //! Generic signatures of classes, methods and fields (JVMS §4.7.9.1).
 
+mod applied;
 mod classes;
 mod needed;
 mod refs;
@@ -100,11 +101,6 @@ impl<'u> Sig<'u> {
         let t = self.u.dealias(t);
         matches!(self.u.types().get(t), Type::Sym(..) | Type::TypeRef(..))
             && self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == name)
-    }
-
-    fn erased(&mut self, t: TypeId, boxing: Boxing) {
-        let e = self.u.erase(t);
-        self.erased_sig(&e, boxing);
     }
 
     fn erased_sig(&mut self, e: &Erased, boxing: Boxing) {

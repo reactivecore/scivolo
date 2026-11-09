@@ -18,11 +18,11 @@ use classfile::{
 
 /// The class being entered: it, its object's class, and its type parameters with their bounds'
 /// text.
-struct Owners<'a> {
-    class: SymbolId,
-    statics: SymbolId,
-    params: Vec<(String, &'a str)>,
-    vars: Vec<Var>,
+pub struct Owners<'a> {
+    pub class: SymbolId,
+    pub statics: SymbolId,
+    pub params: Vec<(String, &'a str)>,
+    pub vars: Vec<Var>,
 }
 
 /// Enters class `info` into package `pkg` with its object: the class, the object's class and
@@ -50,12 +50,8 @@ pub fn enter(u: &mut Universe, pkg: SymbolId, info: &ClassInfo) -> Option<Vec<Sy
     };
     u.java_stubs.extend(entered);
     u.classfile_classes.extend(entered);
-    for f in &info.fields {
-        member(u, &owners, f, false);
-    }
-    for m in &info.methods {
-        member(u, &owners, m, true);
-    }
+    let members = info.fields.iter().map(|f| (f, false)).chain(info.methods.iter().map(|m| (m, true)));
+    members.for_each(|(m, method)| _ = member(u, &owners, m, method));
     Some(entered.to_vec())
 }
 
@@ -99,13 +95,21 @@ fn class_signature<'a>(
 
 /// Enters field or method `m` unless it is private, package-private, synthetic, a bridge, a
 /// static initializer or signature polymorphic (native varargs, dotty's `isSignaturePolymorphic`),
-/// or its signature is one this reader refuses.
-fn member(u: &mut Universe, owners: &Owners, m: &MemberInfo, method: bool) {
+/// or its signature is one this reader refuses: the member entered, or the refusal.
+pub fn member(
+    u: &mut Universe,
+    owners: &Owners,
+    m: &MemberInfo,
+    method: bool,
+) -> Result<Option<SymbolId>, String> {
     let visible = m.access & (ACC_PUBLIC | ACC_PROTECTED) != 0;
     let artifact = m.access & ACC_SYNTHETIC != 0 || method && m.access & ACC_BRIDGE != 0;
     let polymorphic = method && m.access & (ACC_NATIVE | ACC_VARARGS) == ACC_NATIVE | ACC_VARARGS;
-    if !visible || artifact || polymorphic || m.name == "<clinit>" {
-        return;
+    if !visible || artifact || m.name == "<clinit>" {
+        return Ok(None);
+    }
+    if polymorphic {
+        return Err(format!("signature polymorphic method {}", m.name));
     }
     let is_static = m.access & ACC_STATIC != 0;
     let owner = if is_static { owners.statics } else { owners.class };
@@ -115,7 +119,7 @@ fn member(u: &mut Universe, owners: &Owners, m: &MemberInfo, method: bool) {
         (false, Some(c)) => constant_type(u, &m.descriptor, c),
         (false, _) => Sig::new(text).ty(u, &owners.vars),
     };
-    let Ok(info) = info else { return };
+    let info = info?;
     let mut flags = Vec::new();
     flags.extend((m.access & ACC_PROTECTED != 0).then_some(PROTECTED));
     if method {
@@ -127,10 +131,11 @@ fn member(u: &mut Universe, owners: &Owners, m: &MemberInfo, method: bool) {
     let kind = if method { Kind::Def } else { Kind::Val };
     let s = synthetic(u, owner, &m.name, kind, &flags);
     u.infos.insert(s, info);
+    u.classfile_descriptors.insert(s, m.descriptor.clone());
     if method {
-        u.classfile_descriptors.insert(s, m.descriptor.clone());
         u.set_deferred(s, m.access & ACC_ABSTRACT != 0);
     }
+    Ok(Some(s))
 }
 
 /// The constant type of a field of descriptor `descriptor` and `ConstantValue` `c`, its `Integer`

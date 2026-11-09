@@ -64,6 +64,12 @@ impl ClassFile {
         self.member_attribute(last, "Signature", bytes);
     }
 
+    /// The `ConstantValue` attribute of the last field, a `long`.
+    pub fn long_constant_value(&mut self, value: i64) {
+        let bytes = self.pool.long(value).to_be_bytes().to_vec();
+        self.member_attribute(Last::Field, "ConstantValue", bytes);
+    }
+
     /// The `Deprecated` attribute of the last member.
     pub fn member_deprecated(&mut self, last: Last) {
         self.member_attribute(last, "Deprecated", Vec::new());

@@ -304,23 +304,25 @@ Results (2026-11-09):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1527 |
+| passed | 1583 |
 | wrong output | 0 |
 | verify error | 0 |
 | linkage error | 0 |
-| crashed | 0 |
+| crashed | 1 |
 | timeout | 0 |
 | jvm refused | 4 |
 | lowering refused | 0 |
-| typer refused | 87 |
+| typer refused | 30 |
 | frontend crashed | 0 |
 | skipped | 91 |
 | **total** | **1709** |
 
-- **Typer refused:** members not found (58): reflection and other JDK members of classes javalib
-  has without them (`Class.getDeclaredFields`); TASTy pickling (4).
+- **Typer refused:** TASTy pickling (4), macro calls (4), members not found (3), JDK annotation
+  classes (`Deprecated`, 2), `-Xmixin-force-forwarders:false` (2).
 - **JVM refused:** a box of a value that is not primitive (1), a protected member's super accessor
   the TASTy lacks (1), a jump over 32 KiB (1), a `LazyVals` lub of a long class name (1).
+- **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
+  which fails for scalac's class files too, as the runner does not load tests through one.
 
 ### com-lihaoyi libraries from source
 

@@ -2,7 +2,8 @@
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //   compiler/src/dotty/tools/dotc/transform/ExpandPrivate.scala
 //! dotty's `ExpandPrivate`: private members used from another class, a nested one or a
-//! companion, and the private values of value classes get expanded names and become public.
+//! companion, and the private values of value classes get expanded names and become public, as
+//! do `@publicInBinary` private constructors.
 
 use crate::Lower;
 use crate::symbols::has;
@@ -14,6 +15,13 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
         if let Some(value) = l.u.underlying(class).filter(|&v| has(l.u, v, PRIVATE)) {
             super::accessor_names::ensure_not_private(l, value);
+        }
+        let decls = l.u.symbol(class).decls.clone();
+        for c in decls {
+            let private = l.u.is_constructor(c) && has(l.u, c, PRIVATE);
+            if private && l.u.is_annotated(c, "scala.annotation.publicInBinary") {
+                super::accessor_names::ensure_not_private(l, c);
+            }
         }
         for t in super::explicit_outer::terms(l, td, false) {
             if !matches!(l.tpd.tree(t), Tree::Ident { .. } | Tree::Select { .. }) {

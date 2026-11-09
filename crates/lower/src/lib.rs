@@ -344,6 +344,11 @@ impl<'a> Lower<'a> {
         self.local_classes.get(&s).copied().or(self.u.symbol(s).owner)
     }
 
+    /// The method local function `f` became when `LambdaLift` lifted it, else `f`.
+    pub fn lifted_method(&self, f: SymbolId) -> SymbolId {
+        self.lifted_to.get(&f).copied().unwrap_or(f)
+    }
+
     /// The trait member that mixin accessor or forwarder `m` copies or calls.
     pub fn mixed_in_from(&self, m: SymbolId) -> Option<SymbolId> {
         self.mixed_from.get(&m).or_else(|| self.forwarded.get(&m)).copied()

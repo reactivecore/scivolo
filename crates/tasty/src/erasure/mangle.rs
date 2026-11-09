@@ -73,7 +73,8 @@ impl Universe {
     }
 
     /// The erased parameter types of method `def`, `Unit` boxed, and its erased result type, also
-    /// boxed for a value; a type parameter erases to its upper bound.
+    /// boxed for a value or a type not equal to `Unit` (dotty's `eraseResult`); a type parameter
+    /// erases to its upper bound.
     pub fn erased_method(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {
         self.erased_method_as(def, false)
     }
@@ -135,9 +136,11 @@ impl Universe {
                 }
             })
             .collect();
+        let dealiased = self.dealias(t);
+        let unit = self.class_name(dealiased).is_some_and(|c| c == "scala.Unit");
         let t = self.upper_bound(t, &bounds);
         match erase(self, t) {
-            Erased::Unit if val => (params, Erased::Class("scala.runtime.BoxedUnit".into())),
+            Erased::Unit if val || !unit => (params, Erased::Class("scala.runtime.BoxedUnit".into())),
             e => (params, e),
         }
     }
