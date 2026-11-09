@@ -118,11 +118,9 @@ impl Cmp<'_> {
             0 => tycon,
             _ => {
                 let binder = Binder(FileId(ADAPTED), tycon.0);
-                let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
-                let params: Vec<(String, TypeId)> =
-                    (0..args.len()).map(|i| (format!("X{i}"), bounds)).collect();
                 let mut body_args = other_args[..fixed].to_vec();
                 body_args.extend((0..args.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))));
+                let params = self.remaining_params(tycon, fixed, &body_args);
                 let result = self.u.intern_type(Type::Applied(tycon, body_args));
                 self.u.intern_type(Type::Lambda { binder, params, result })
             }
@@ -142,6 +140,30 @@ impl Cmp<'_> {
             self.vars.rollback(mark);
         }
         unified
+    }
+
+    /// The type parameters of constructor `tycon` after its first `fixed`, their bounds with its
+    /// parameters replaced by `body_args`; named `X0`, … without bounds if `tycon` has none.
+    fn remaining_params(
+        &mut self,
+        tycon: TypeId,
+        fixed: usize,
+        body_args: &[TypeId],
+    ) -> Vec<(String, TypeId)> {
+        let lambda = match self.u.types().get(tycon) {
+            Type::Lambda { .. } => Some(tycon),
+            _ => self.eta_expand(tycon).or_else(|| self.u.referenced_alias(tycon)),
+        };
+        let Some(Type::Lambda { binder, params, .. }) = lambda
+            .map(|l| self.u.types().get(l).clone())
+            .filter(|l| matches!(l, Type::Lambda { params, .. } if params.len() == body_args.len()))
+        else {
+            let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
+            return (0..body_args.len() - fixed).map(|i| (format!("X{i}"), bounds)).collect();
+        };
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let remaining = params.into_iter().skip(fixed);
+        remaining.map(|(n, b)| (n, self.u.subst(b, binder, &names, body_args))).collect()
     }
 
     /// `(A, B, …)` for tuple class `c` applied to `args` as `A *: B *: … *: EmptyTuple`.

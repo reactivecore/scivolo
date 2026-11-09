@@ -219,7 +219,7 @@ fn constructor_variables_take_constructors() {
     let mut vars = Bounds::default();
     assert!(u.is_subtype_in(map_int_bool, f_bool, &mut vars));
     let [(_, lambda, false)] = vars.added[..] else { panic!("{:?}", vars.added) };
-    assert_eq!(u.show(lambda), "[X0: >: Nothing <: Any] =>> Map[Int, <param 0>]");
+    assert_eq!(u.show(lambda), "[V: >: scala.Nothing <: scala.Any] =>> Map[Int, <param 0>]");
 
     let seq = t(&mut u, "scala.collection.Seq", &[]);
     let seq_int = t(&mut u, "scala.collection.Seq", &[int]);
