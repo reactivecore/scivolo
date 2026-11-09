@@ -102,11 +102,13 @@ impl Gen<'_, '_> {
     /// a mixin forwarder whose signature does not erase to `desc`.
     pub fn generic_signature(&mut self, sym: SymbolId, desc: &str) -> Option<String> {
         let info = self.seen_from_owner(sym);
-        if self.mixed_origin(sym).is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) {
+        let origin = self.mixed_origin(sym);
+        if origin.is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) {
             return None;
         }
         let thrown = self.thrown(sym);
-        let sig = super::signatures::member(self.l.u, sym, info, desc, &thrown)?;
+        let syms = (sym, origin.unwrap_or(sym));
+        let sig = super::signatures::member(self.l.u, syms, info, desc, &thrown)?;
         let forwarder = self.l.mixed_in_from(sym).is_some() && !self.l.is_mixin_accessor(sym);
         (!forwarder || super::signatures::erases_to(&sig, desc)).then_some(sig)
     }

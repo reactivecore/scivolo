@@ -61,7 +61,7 @@ impl Gen<'_, '_> {
             self.exceptions(cf, m);
             let thrown = self.thrown(m);
             if !self.l.is_mixin_accessor(m)
-                && let Some(sig) = super::signatures::member(self.l.u, target, info, &desc, &thrown)
+                && let Some(sig) = super::signatures::member(self.l.u, (target, target), info, &desc, &thrown)
                 && super::signatures::erases_to(&sig, &desc)
             {
                 cf.member_signature(Last::Method, &sig);

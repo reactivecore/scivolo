@@ -182,9 +182,10 @@ fn java_flags(l: &Lower, s: SymbolId) -> u16 {
     let private = !class && (has(PRIVATE) || top_module_constructor);
     let abstract_ = (class && has(ABSTRACT)) || has(TRAIT);
     let in_trait = owner.is_some_and(|o| u.is_trait(o));
+    let method = u.symbol(s).kind == tasty::Kind::Def || has(FIELDaccessor);
     let final_ = (has(FINAL) || u.is_module_class(s) || u.is_module(s))
         && !constructor
-        && !has(MUTABLE)
+        && !(has(MUTABLE) && !method)
         && !in_trait
         && !abstract_;
     let mut flags = if private { ACC_PRIVATE } else { ACC_PUBLIC };
