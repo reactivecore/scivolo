@@ -9,7 +9,9 @@ use classfile::{
 };
 use lower::Result;
 use std::collections::HashSet;
-use tasty::tags::{FIELDaccessor, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC};
+use tasty::tags::{
+    FIELDaccessor, INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC,
+};
 use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
 
@@ -136,10 +138,10 @@ impl Gen<'_, '_> {
     }
 
     /// Whether a forwarder calls member method `m`: neither deferred, a constructor, non-public,
-    /// static, a macro, erased, lifted, nor of an expanded name.
+    /// static, a macro, inline, erased, lifted, nor of an expanded name.
     fn has_forwarder(&mut self, m: SymbolId) -> bool {
         let s = self.l.u.symbol(m);
-        let excluded = [PRIVATE, PROTECTED, PRIVATEqualified, PROTECTEDqualified, STATIC, MACRO];
+        let excluded = [PRIVATE, PROTECTED, PRIVATEqualified, PROTECTEDqualified, STATIC, MACRO, INLINE];
         let excluded = excluded.iter().any(|&f| s.flags.has(f)) || s.name.contains("$$");
         let deferred = match s.tree.is_some() {
             true => self.l.u.body(m).is_none(),
