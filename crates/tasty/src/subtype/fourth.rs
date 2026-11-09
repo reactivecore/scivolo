@@ -116,25 +116,38 @@ impl Cmp<'_> {
         if atom || path && self.same_path(a, b) {
             return true;
         }
-        if let Some(n) = self.named(a)
-            && let Some(s) = n.sym
-            && matches!(self.u.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def)
+        if path
+            && let Some(underlying) = self.singleton_underlying(b)
+            && self.recur(a, underlying)
         {
-            let underlying = self.u.term_type(n.prefix, s);
-            let underlying = match *self.u.types().get(underlying) {
-                Type::ByName(r) => r,
-                _ => underlying,
-            };
-            let singleton = matches!(
-                self.u.types().get(underlying),
-                Type::TermRef(..) | Type::Sym(..) | Type::This(_) | Type::Constant(..) | Type::Str(_)
-            );
-            if singleton && underlying != a && self.recur(underlying, b) {
-                return true;
-            }
+            return true;
+        }
+        if let Some(underlying) = self.singleton_underlying(a)
+            && self.recur(underlying, b)
+        {
+            return true;
         }
         let widened = self.u.widen(a);
         widened != a && self.recur(widened, b)
+    }
+
+    /// The declared type of term reference `t` if it is a singleton other than `t`.
+    fn singleton_underlying(&mut self, t: TypeId) -> Option<TypeId> {
+        let n = self.named(t)?;
+        let s = n.sym.filter(|&s| matches!(self.u.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def))?;
+        let name = self.u.symbol(s).name.clone();
+        let refined = n.prefix.and_then(|p| self.u.term_refinement_named(p, &name));
+        let underlying = refined.unwrap_or_else(|| self.u.term_type(n.prefix, s));
+        let underlying = match *self.u.types().get(underlying) {
+            Type::ByName(r) => r,
+            _ => underlying,
+        };
+        let singleton = match *self.u.types().get(underlying) {
+            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
+            Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
+            _ => false,
+        };
+        (singleton && underlying != t).then_some(underlying)
     }
 
     /// Whether paths `a` and `b` denote the same value: the same term through related prefixes,
