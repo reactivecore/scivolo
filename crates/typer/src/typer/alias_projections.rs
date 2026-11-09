@@ -8,7 +8,8 @@ use tasty::{SymbolId, Type, TypeId};
 impl Typer<'_> {
     /// Projection `id`, `qual#name`, of type alias `sym` of `alias`: the alias seen from `qual`
     /// with the aliases of its owner it refers to expanded, dealiased, its class its symbol;
-    /// refused if it refers to `this` or to another member of `sym`'s owner.
+    /// `qual#name` itself if it refers to `this`; refused if it refers to another member of
+    /// `sym`'s owner.
     pub fn alias_projection(
         &mut self,
         id: NodeId,
@@ -28,15 +29,20 @@ impl Typer<'_> {
                 }
             }
         };
+        let span = self.ast.span(id);
         let Some(alias) = self.expand_owner_aliases(seen, owner) else {
-            return self.unsupported(id, "projection of a type alias referring to its owner");
+            if self.refers_to_member_of(seen, owner) {
+                return self.unsupported(id, "projection of a type alias referring to its owner");
+            }
+            let pre = self.tpd.tpe(qual);
+            let tpe = self.u.intern_type(Type::Sym(Some(pre), sym));
+            return self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         };
         let tpe = self.u.dealias(alias);
         let class = match *self.u.types().get(tpe) {
             Type::Sym(_, s) => Some(s),
             _ => None,
         };
-        let span = self.ast.span(id);
         self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), class)
     }
 
@@ -52,6 +58,16 @@ impl Typer<'_> {
             _ => None,
         });
         this
+    }
+
+    /// Whether `t` refers to a member of `owner`.
+    fn refers_to_member_of(&mut self, t: TypeId, owner: Option<SymbolId>) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, part| {
+            found |= matches!(*u.types().get(part), Type::Sym(_, s) if u.symbol(s).owner == owner);
+            None
+        });
+        found
     }
 
     /// `t` with each type alias of class `owner` it refers to replaced by its alias; `None` if it

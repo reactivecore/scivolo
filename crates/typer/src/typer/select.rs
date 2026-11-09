@@ -172,7 +172,8 @@ impl Typer<'_> {
         if let Err(what) = self.check_protected_path(sym, qual_tpe, new, ctx) {
             return self.unsupported(id, what);
         }
-        let projection = self.tpd.sym(qual).is_some_and(|q| self.u.is_type_symbol(q))
+        let this = matches!(self.tpd.tree(qual), T::This { .. });
+        let projection = !this && self.tpd.sym(qual).is_some_and(|q| self.u.is_type_symbol(q))
             || matches!(self.tpd.tree(qual), T::AppliedTypeTree { .. });
         if projection && self.u.symbol(sym).kind == Kind::Type {
             self.complete(sym);

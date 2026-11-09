@@ -274,6 +274,7 @@ mod variance_lambdas;
 mod variance_messages;
 mod variance_types;
 mod variances;
+mod variant_pattern_args;
 mod views;
 mod widen_inferred;
 mod widen_union;

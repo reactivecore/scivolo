@@ -35,7 +35,12 @@ impl Typer<'_> {
             true => sel,
             false => match self.without_variant_args(sel) {
                 Some(widened) => widened,
-                None => return tpe,
+                None => {
+                    if self.bound_by_variant_args(tpe, sel, &syms) {
+                        self.known_pattern_types.extend(syms);
+                    }
+                    return tpe;
+                }
             },
         };
         let mark = self.constraint.mark();
@@ -140,40 +145,6 @@ impl Typer<'_> {
         let any = self.u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY));
         let args = args.iter().zip(&variances).map(|(&a, &v)| if v == 0 { a } else { any }).collect();
         Some(self.u.intern_type(Type::Applied(tycon, args)))
-    }
-
-    /// Whether pattern type `pat` and `sel` apply the same class, each of `syms` an argument of
-    /// `pat` only where `sel` has an unbounded wildcard, which constrains none of them.
-    fn only_against_wildcards(&mut self, pat: TypeId, sel: TypeId, syms: &[SymbolId]) -> bool {
-        let sel = self.dealiased(sel);
-        let sel = self.u.widen(sel);
-        let (Type::Applied(pc, pargs), Type::Applied(sc, sargs)) =
-            (self.u.types().get(pat).clone(), self.u.types().get(sel).clone())
-        else {
-            return false;
-        };
-        let same = self.u.class_symbol(pc).is_some_and(|c| self.u.class_symbol(sc) == Some(c));
-        let b = self.u.builtins();
-        let (any, nothing) = (b.any, b.nothing);
-        same && pargs.len() == sargs.len()
-            && pargs.iter().zip(&sargs).all(|(&p, &s)| match *self.u.types().get(p) {
-                Type::Sym(None, b) if syms.contains(&b) => match *self.u.types().get(s) {
-                    Type::Bounds(lo, hi) => {
-                        self.u.class_symbol(lo) == Some(nothing) && self.u.class_symbol(hi) == Some(any)
-                    }
-                    _ => false,
-                },
-                _ => !self.refers_to(p, syms),
-            })
-    }
-
-    /// Whether `sel` is a class type whose base classes have no type parameters, against which a
-    /// pattern's type constrains none of its bound types.
-    fn has_unapplied_bases(&mut self, sel: TypeId) -> bool {
-        let sel = self.dealiased(sel);
-        let sel = self.u.widen(sel);
-        let Type::Sym(_, c) = *self.u.types().get(sel) else { return false };
-        self.u.is_class(c) && self.u.linearization(c).into_iter().all(|b| self.u.type_params(b).is_empty())
     }
 
     /// The bounds of type variable `v` zonked, both its instance if it has one.
