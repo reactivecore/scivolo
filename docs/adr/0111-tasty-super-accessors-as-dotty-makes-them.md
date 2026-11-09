@@ -20,8 +20,8 @@ position.
 - An accessor's definition and result type get the point of its call (`sel.span.focus`), the
   `this` of the call the call's start, the annotation's type and argument the point of the
   member's definition when the file has it. Trees without a node are registered under ids from
-  `u32::MAX / 2` and written, in the order dotty's `PositionPickler` visits them, before the
-  node that follows them in the trees.
+  `u32::MAX / 2` and written in the order dotty's `PositionPickler` visits them: the `this` of
+  a call right after the call, the others before the node that follows them in the trees.
 
 - A pattern variable's type is made fully defined with the trees' types (`zonk_trees`), as
   its `BIND` writes it (`t6111`: an extractor's type argument solved by an implicit argument).
