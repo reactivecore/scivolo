@@ -19,7 +19,8 @@ use typer::tpd::{TNodeId, Tree};
 
 /// The children of sealed class `sealed` in unit `root` in the order of their definitions:
 /// classes, and objects by their values; of an enum, its cases; of the library, those its TASTy
-/// names; of `*:`, `Tuple1` to `Tuple22` (dotty's `adjustForTuple` makes them its children).
+/// names; of `*:`, `Tuple1` to `Tuple22` (dotty's `adjustForTuple` makes them its children) by
+/// the start of their definitions in their own files (`Namer.addChild`).
 fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
     if has(l.u, sealed, ENUM) {
         return typer::sealed::enum_cases(l.u, sealed);
@@ -32,7 +33,10 @@ fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
         return types.into_iter().filter_map(|t| referenced(l, t)).collect();
     }
     if l.u.full_name(sealed) == "scala.*:" {
-        return (1..=22).filter_map(|n| class_named(l, &format!("scala.Tuple{n}"))).collect();
+        let mut tuples: Vec<SymbolId> =
+            (1..=22).filter_map(|n| class_named(l, &format!("scala.Tuple{n}"))).collect();
+        tuples.sort_by_cached_key(|&c| l.u.pickled_span(c).map(|s| s.start));
+        return tuples;
     }
     let classes: Vec<(u32, SymbolId)> = class_defs(l.tpd, root)
         .into_iter()

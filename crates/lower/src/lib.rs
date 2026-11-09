@@ -21,6 +21,7 @@ pub use phases::sam::abstract_methods;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use symbols::{is_erased, is_jdk_object};
 use syntax::ast::Span;
+use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use syntax::source::Sources;
 use tasty::{SymbolId, Universe};
@@ -181,25 +182,29 @@ pub struct Lower<'a> {
     pub backend: Backend,
     /// The static `VarHandle` field of each lazy value's field on the JVM.
     var_handles: FxHashMap<SymbolId, SymbolId>,
+    /// The warnings the phases report.
+    warnings: Diagnostics,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
-/// `sources`, typed under `-Yexplicit-nulls` if `explicit_nulls`.
+/// `sources`, typed under `-Yexplicit-nulls` if `explicit_nulls`; the phases' warnings go to
+/// `warnings`.
 pub fn lower_sources(
     u: &mut Universe,
-    tpd: &mut Tpd,
+    (tpd, warnings): (&mut Tpd, &mut Diagnostics),
     root: TNodeId,
     (names, fresh): (&mut Names, &mut FreshNames),
     (sources, explicit_nulls): (Sources, bool),
 ) -> Result<Vec<NirFile>> {
     let generate = (Backend::Native, codegen::unit);
-    lower_trees(u, tpd, root, (names, fresh), (sources, explicit_nulls), generate)
+    lower_trees(u, (tpd, warnings), root, (names, fresh), (sources, explicit_nulls), generate)
 }
 
-/// Runs the phases for `backend` over typed unit `root`, then `generate` over the lowered trees.
+/// Runs the phases for `backend` over typed unit `root`, then `generate` over the lowered trees;
+/// the phases' warnings go to `warnings`.
 pub fn lower_trees<R>(
     u: &mut Universe,
-    tpd: &mut Tpd,
+    (tpd, warnings): (&mut Tpd, &mut Diagnostics),
     root: TNodeId,
     (names, fresh): (&mut Names, &mut FreshNames),
     (sources, explicit_nulls): (Sources, bool),
@@ -212,6 +217,7 @@ pub fn lower_trees<R>(
         .and_then(|()| phases::run(&mut l, root))
         .and_then(|()| generate(&mut l, root));
     phases::recache_given_aliases(&mut l);
+    warnings.items.append(&mut l.warnings.items);
     l.u.elide_opaques(false);
     match std::mem::take(&mut l.u.reductions_exhausted) {
         true => unsupported(Span::NONE, "match type reduction over the reduction budget"),
@@ -309,6 +315,7 @@ impl<'a> Lower<'a> {
             explicit_nulls: false,
             backend: Backend::Native,
             var_handles: FxHashMap::default(),
+            warnings: Diagnostics::default(),
         })
     }
 
@@ -345,6 +352,23 @@ impl<'a> Lower<'a> {
     /// The trait member that mixin accessor or forwarder `m` copies or calls.
     pub fn mixed_in_from(&self, m: SymbolId) -> Option<SymbolId> {
         self.mixed_from.get(&m).or_else(|| self.forwarded.get(&m)).copied()
+    }
+
+    /// Whether `m` is the method of a closure a bridge returns (dotty's `Bridges.etaExpand`).
+    pub fn is_bridge_closure(&self, m: SymbolId) -> bool {
+        let mut from = self.lifted_from.get(&m);
+        while let Some(f) = from {
+            if self.bridges.contains(f) {
+                return true;
+            }
+            from = self.lifted_from.get(f);
+        }
+        false
+    }
+
+    /// The type of `m` before its context closures became parameter clauses, if they did.
+    pub fn unflattened_info(&self, m: SymbolId) -> Option<tasty::TypeId> {
+        self.context_results.get(&m).map(|&(t, _)| t)
     }
 
     /// Whether `m` is an accessor `Mixin` made for a trait value, not a forwarder.

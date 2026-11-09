@@ -14,7 +14,8 @@ use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes lambda block `block`, of method definition `fn_def` of `anon`, implementing class type
-/// `sam`, `{ fn_def; { final class $anon extends sam { final def m(ps) = anon(ps) }; new $anon() } }`.
+/// `sam`, `{ fn_def; { final class $anon extends sam { type T = A; final def m(ps) = anon(ps) };
+/// new $anon() } }`, a type member for each type alias refinement of `sam`.
 pub fn to_anon_class(
     l: &mut Lower,
     block: TNodeId,
@@ -23,6 +24,7 @@ pub fn to_anon_class(
     sam: TypeId,
 ) -> Result<()> {
     let span = coord(l, fn_def, anon);
+    let (sam, aliases) = strip_aliases(l, sam);
     let class = l.u.class_symbol(sam).expect("a single abstract method class");
     let methods = abstract_methods(l, class);
     let Some(&method) = methods.first() else {
@@ -46,11 +48,29 @@ pub fn to_anon_class(
     };
     let owner = l.u.symbol(anon).owner.expect("a closure's owner");
     let cls = class_symbol(l, owner, parents);
+    for (name, info) in aliases {
+        let member = l.u.define(symbol(&name, Kind::Type, cls, Flags::default().with(SYNTHETIC)));
+        l.u.set_info(member, info);
+    }
     let forwarder = forwarder(l, cls, method, anon, span)?;
     let new = instance(l, cls, ctor, &[forwarder], span);
     let Tree::Block { stats, .. } = *l.tpd.tree(block) else { unreachable!("a lambda's block") };
     l.tpd.get_mut(block).tree = Tree::Block { stats, expr: new };
     Ok(())
+}
+
+/// `t` without its outer type alias refinements, and these by name, innermost first (dotty's
+/// `collectAndStripRefinements`).
+fn strip_aliases(l: &mut Lower, mut t: TypeId) -> (TypeId, Vec<(String, TypeId)>) {
+    let mut aliases = Vec::new();
+    while let Type::Refined(parent, name, info) = l.u.types().get(t).clone() {
+        if !matches!(l.u.types().get(info), Type::Alias(_)) {
+            break;
+        }
+        aliases.insert(0, (name, info));
+        t = parent;
+    }
+    (t, aliases)
 }
 
 /// The position of closure method `anon` defined by `fn_def`, as dotty's symbol of it has: the

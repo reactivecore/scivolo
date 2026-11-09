@@ -39,10 +39,15 @@ impl Universe {
 
     /// The point, else the start, of the span pickled for the tree defining loaded symbol `s`.
     pub fn pickled_point(&mut self, s: SymbolId) -> Option<u32> {
+        let span = self.pickled_span(s)?;
+        Some(span.point.unwrap_or(span.start))
+    }
+
+    /// The span pickled for the tree defining loaded symbol `s`.
+    pub fn pickled_span(&mut self, s: SymbolId) -> Option<TastySpan> {
         let (file, id) = self.symbol(s).tree?;
         let addr = self.file(file).0.node(id).addr;
-        let span = self.body_info(file).ok()?.span(addr)?;
-        Some(span.point.unwrap_or(span.start))
+        self.body_info(file).ok()?.span(addr)
     }
 }
 

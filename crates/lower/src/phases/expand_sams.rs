@@ -54,7 +54,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<bool> {
         if class == l.partial_functions()?.class {
             found.push(Closure { block: t, def, anon, sam });
         } else if !is_platform_sam(l, class) {
-            to_anon_class(l, t, def, anon, unrefined)?;
+            to_anon_class(l, t, def, anon, dealiased)?;
             classes = true;
         }
     }
