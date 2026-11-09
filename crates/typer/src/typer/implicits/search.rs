@@ -179,7 +179,7 @@ impl Typer<'_> {
         }
         let applied = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
         if applied != tree {
-            self.interpolate(applied, Pt::Type(pt), from)?;
+            self.interpolate_zonked(applied, Pt::Type(pt), from)?;
         }
         let tree = match (method, direct) {
             (true, _) => self.eta_expanded_implicit(applied, pt, ctx)?,

@@ -44,4 +44,12 @@ impl Typer<'_> {
         let args = self.tpd.list(&typed);
         Ok(self.tpd.node(T::TypeApply { fun: unapp, args }, span, Some(tpe), None))
     }
+
+    /// Whether selection `sel` selects from a new instance of a class (dotty's fallback of
+    /// `trySelectUnapply` for an extractor `C[T](...)`).
+    pub fn is_new_instance(&mut self, sel: TNodeId) -> bool {
+        let T::Select { qualifier, .. } = *self.tpd.tree(sel) else { return false };
+        let ctor = self.tpd.sym(self.tpd.meth_part(qualifier));
+        ctor.is_some_and(|c| self.u.symbol(c).name == "<init>")
+    }
 }

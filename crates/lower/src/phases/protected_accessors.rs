@@ -5,15 +5,15 @@
 //! used from a class outside its package that does not derive from its owner is reached through
 //! `protected$m`, a forwarder of the closest enclosing class that does.
 
-use super::local_free::within;
-use super::mixin::{has_body, is_jdk, java_named};
+use super::mixin::{has_body, java_named};
 use super::walk;
 use crate::definitions::symbol;
-use crate::symbols::{is_java_static, is_static_module};
+use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::{OVERRIDE, PROTECTED, PROTECTEDqualified, SYNTHETIC};
+use tasty::tags::{OVERRIDE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use typer::protected_access::{self, host_for_accessor_of, needs_accessor_if_not_in_subclass};
 use typer::tpd::{TNodeId, Tree};
 
 /// An accessor the phase made: its symbol, the member it accesses, whether it sets it.
@@ -23,64 +23,15 @@ struct Accessor {
     setter: bool,
 }
 
-/// Whether a reference to `sym` from class `class` needs an accessor unless `class` derives from
-/// the owner of `sym` (dotty's `needsAccessorIfNotInSubclass`).
-pub fn needs_accessor_if_not_in_subclass(l: &mut Lower, sym: SymbolId, class: SymbolId) -> bool {
-    let s = l.u.symbol(sym);
-    let (kind, flags, owner) = (s.kind, s.flags, s.owner);
-    matches!(kind, Kind::Def | Kind::Val)
-        && (flags.has(PROTECTED) || flags.has(PROTECTEDqualified))
-        && !l.u.is_constructor(sym)
-        && !l.u.is_annotated(sym, "scala.annotation.publicInBinary")
-        && owner.is_some_and(|o| !l.u.is_trait(o))
-        && !is_java_static(l.u, sym)
-        && !within(l, class, package_of(l, sym))
-}
-
 /// Whether `sym` referred to on `this` at `span` from class `class` needs a super accessor in
-/// the trait hosting its accessor (`SuperAccessors.transformSelect`); refused for a member of a
-/// JDK class but `Object` in a trait deriving from its owner, which dotty rejects.
+/// the trait hosting its accessor.
 pub fn super_accessor_needed(l: &mut Lower, sym: SymbolId, class: SymbolId, span: Span) -> Result<bool> {
-    if !needs_accessor_if_not_in_subclass(l, sym, class)
-        || !host_for_accessor_of(l, sym, class).is_some_and(|h| l.u.is_trait(h))
-    {
-        return Ok(false);
-    }
-    if !derives_from_owner(l, class, sym) {
-        return Ok(true);
-    }
-    let owner = l.u.symbol(sym).owner.expect("a member's owner");
-    match is_jdk(l, owner) && owner != l.defs.object {
-        true => unsupported(span, "protected Java members on `this` in concrete trait methods"),
-        false => Ok(false),
-    }
+    protected_access::super_accessor_needed(l.u, sym, class).or_else(|what| unsupported(span, what))
 }
 
 fn derives_from_owner(l: &mut Lower, class: SymbolId, sym: SymbolId) -> bool {
     let owner = l.u.symbol(sym).owner.expect("a member's owner");
     l.u.derives_from(class, owner)
-}
-
-/// The package `s` is in.
-fn package_of(l: &Lower, mut s: SymbolId) -> SymbolId {
-    while l.u.symbol(s).kind != Kind::Package {
-        s = l.u.symbol(s).owner.expect("an owner up to a package");
-    }
-    s
-}
-
-/// The closest class enclosing `from` that derives from the owner of `sym` or whose object owns
-/// it (dotty's `hostForAccessorOf`).
-fn host_for_accessor_of(l: &mut Lower, sym: SymbolId, from: SymbolId) -> Option<SymbolId> {
-    let owner = l.u.symbol(sym).owner?;
-    let companion = l.u.is_module_class(owner).then(|| l.u.companion_class(owner)).flatten();
-    let mut c = from;
-    loop {
-        if l.u.is_class(c) && (l.u.derives_from(c, owner) || Some(c) == companion) {
-            return Some(c);
-        }
-        c = l.u.symbol(c).owner?;
-    }
 }
 
 /// Replaces the references of the unit's `classes` needing accessors by references to them, and
@@ -128,11 +79,11 @@ fn rewrite(l: &mut Lower, t: TNodeId, class: SymbolId, made: &mut Vec<Accessor>)
         _ => return Ok(()),
     };
     let Some(sym) = l.tpd.sym(t) else { return Ok(()) };
-    if !needs_accessor_if_not_in_subclass(l, sym, class) || derives_from_owner(l, class, sym) {
+    if !needs_accessor_if_not_in_subclass(l.u, sym, class) || derives_from_owner(l, class, sym) {
         return Ok(());
     }
     let span = l.tpd.span(t);
-    let Some(host) = host_for_accessor_of(l, sym, class) else {
+    let Some(host) = host_for_accessor_of(l.u, sym, class) else {
         return unsupported(span, "protected members without a class hosting their accessor");
     };
     let this = l.u.this_type(host);

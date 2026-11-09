@@ -147,6 +147,7 @@ impl Typer<'_> {
             self.unsupported(p, "default argument of an inline parameter of a transparent method");
         }
         let text = self.text(name.name).to_owned();
+        self.check_def_name(p, &text, flags, method);
         let s = self.syms.define(self.u, &text, kind, method, flags);
         self.syms.param_trees.insert(s, p);
         if self.syms.by_tree.insert(p, s).is_some() {

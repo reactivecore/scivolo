@@ -121,8 +121,8 @@ impl Typer<'_> {
         Ok(applied.unwrap_or(tree))
     }
 
-    /// Interpolates the type variables of id `from` or later again if `adapted`, the adaptation
-    /// of `tree` to `pt`, applies it (dotty's `readaptSimplified`).
+    /// Interpolates the type variables of id `from` or later again and zonks the type if
+    /// `adapted`, the adaptation of `tree` to `pt`, applies it (dotty's `readaptSimplified`).
     pub fn reinterpolate(
         &mut self,
         (tree, adapted): (TNodeId, TNodeId),
@@ -133,7 +133,7 @@ impl Typer<'_> {
             T::Apply { fun, .. }
                 if adapted != tree && self.tpd.meth_part(fun) == self.tpd.meth_part(tree) =>
             {
-                self.interpolate(adapted, pt, from)
+                self.interpolate_zonked(adapted, pt, from)
             }
             _ => Ok(()),
         }

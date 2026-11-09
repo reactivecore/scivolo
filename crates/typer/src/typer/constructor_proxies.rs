@@ -54,11 +54,12 @@ impl Typer<'_> {
             Ok(Some(found)) => found.syms.first().map(|&c| (found.prefix, c)),
             _ => None,
         };
-        let found = found.and_then(|(prefix, s)| match self.u.symbol(s).kind {
-            tasty::Kind::Type => self.package_class_alias(s).map(|c| (None, c)),
+        let found = found.and_then(|(prefix, s)| match self.u.symbol(s).kind == Kind::Type {
+            true if !self.is_exported_class(s) => self.package_class_alias(s).map(|c| (None, c)),
             _ => Some((prefix, s)),
         });
-        let Some((prefix, class)) = found.filter(|&(_, c)| self.needs_constructor_proxies(c)) else {
+        let found = found.filter(|&(_, c)| self.needs_constructor_proxies(c) || self.is_exported_class(c));
+        let Some((prefix, class)) = found else {
             return match found {
                 None => self.unbound_in_checked_code(id, name, ctx),
                 Some(_) => None,
@@ -92,18 +93,19 @@ impl Typer<'_> {
     ) -> Option<TNodeId> {
         let text = self.text(name.name).to_owned();
         let members = self.type_members(qual_tpe, &text);
-        if members.iter().any(|&s| self.is_exported_type(s)) {
+        let exported = members.iter().any(|&s| self.is_exported_type(s));
+        if exported && !members.iter().any(|&s| self.is_exported_class(s)) {
             return Some(self.unsupported(id, "constructor proxy of an exported class"));
         }
-        let classes: Vec<SymbolId> =
-            members.into_iter().filter(|&c| self.u.symbol(c).kind == Kind::Class).collect();
+        let class = |t: &mut Self, c| t.u.symbol(c).kind == Kind::Class || t.is_exported_class(c);
+        let classes: Vec<SymbolId> = members.into_iter().filter(|&c| class(self, c)).collect();
         let [class] = classes[..] else { return None };
         let owner = self.u.symbol(class).owner?;
         let term_exists = self.u.linearization(owner).into_iter().any(|b| {
             let decls = self.u.decl(b, &text).unwrap_or_default();
             decls.iter().any(|&d| self.u.symbol(d).kind.is_term())
         });
-        if term_exists || !self.needs_constructor_proxies(class) {
+        if term_exists || !exported && !self.needs_constructor_proxies(class) {
             return None;
         }
         if let Err(what) = self.check_reference(class, Some(qual_tpe), ctx) {
@@ -175,14 +177,6 @@ impl Typer<'_> {
         };
         let tpt = self.tpd.node(tree, span, Some(tpe), Some(class));
         Some(self.proxy_new(tpt, pt, ctx))
-    }
-
-    /// Whether selection `sel` selects from a new instance of a class (dotty's fallback of
-    /// `trySelectUnapply` for an extractor `C[T](...)`).
-    pub fn is_new_instance(&mut self, sel: TNodeId) -> bool {
-        let T::Select { qualifier, .. } = *self.tpd.tree(sel) else { return false };
-        let ctor = self.tpd.sym(self.tpd.meth_part(qualifier));
-        ctor.is_some_and(|c| self.u.symbol(c).name == "<init>")
     }
 
     /// `new tpt` selecting its constructor (dotty's `newExpr`).

@@ -72,10 +72,11 @@ def one(name, groups, check, reason, baseline, dir):
     return outcome
 
 
-def lowered(name, groups, check, dir, options=()):
+def lowered(name, groups, check, dir, options=None):
+    """With `options`, the last group was split."""
     cp = []
     if len(groups) > 1:
-        before, why = earlier(name, groups, dir, options)
+        before, why = earlier(name if options is None else f"{name}-split", groups, dir, options or ())
         if before is None:
             return "earlier groups failed", why
         cp = ["--cp", str(before)]

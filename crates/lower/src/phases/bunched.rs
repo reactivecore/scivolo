@@ -12,7 +12,7 @@ use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::{Flags, Kind, MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId};
+use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The name of the array parameter (dotty's `nme.ALLARGS`).
@@ -45,6 +45,34 @@ pub fn define(l: &mut Lower, method: SymbolId) -> SymbolId {
     s
 }
 
+/// `Array.apply`.
+pub fn array_apply(l: &mut Lower) -> Result<SymbolId> {
+    let array = class_named(l, "scala.Array").expect("`scala.Array`");
+    method(l, array, "apply", Span::NONE)
+}
+
+/// The elements of array parameter `all_args` by `Array.apply` `apply`, each adapted to its
+/// erased type of `types`, at `span` (dotty's `Bridges.etaExpand`).
+pub fn elements(
+    l: &mut Lower,
+    apply: SymbolId,
+    all_args: SymbolId,
+    types: &[Erased],
+    span: Span,
+) -> Vec<TNodeId> {
+    let object = type_ref(l.u, l.defs.object);
+    let mut out = Vec::new();
+    for (i, e) in types.iter().enumerate() {
+        let qual = l.ident(all_args, span);
+        let fun = l.select(qual, apply, span);
+        let index = l.int_literal(i as i32);
+        l.tpd.get_mut(index).span = span;
+        let element = l.apply(fun, &[index], object, span);
+        out.push(super::adapt::adapt(l, element, e));
+    }
+    out
+}
+
 /// `rhs` of `method` after the parameters `params` of its lambda become values of `method` holding
 /// the elements of `all_args` (dotty's `Erasure.Typer.typedDefDef`).
 pub fn unpacked(
@@ -53,8 +81,7 @@ pub fn unpacked(
     params: &[TNodeId],
     rhs: TNodeId,
 ) -> Result<TNodeId> {
-    let array = class_named(l, "scala.Array").expect("`scala.Array`");
-    let apply = method(l, array, "apply", Span::NONE)?;
+    let apply = array_apply(l)?;
     let object = type_ref(l.u, l.defs.object);
     let mut map = FxHashMap::default();
     let mut defs = Vec::new();

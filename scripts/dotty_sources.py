@@ -26,18 +26,18 @@ def lines(text):
     return text.rstrip("\n").splitlines()
 
 
-def run(cmd, timeout, **kwargs):
-    """Exit code (None on timeout), stdout and stderr of `cmd`; on timeout its whole process group
-    is killed, so no child (cc, ld) outlives it."""
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace",
+def run(cmd, timeout, stderr=subprocess.PIPE, **kwargs):
+    """Exit code (None on timeout), stdout and stderr of `cmd` (stderr "" with `stderr=STDOUT`); on
+    timeout its whole process group is killed, so no child (cc, ld) outlives it."""
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr, text=True, errors="replace",
                          start_new_session=True, **kwargs)
     try:
         out, err = p.communicate(timeout=timeout)
-        return p.returncode, out, err
+        return p.returncode, out, err or ""
     except subprocess.TimeoutExpired:
         os.killpg(p.pid, signal.SIGKILL)
         out, err = p.communicate()
-        return None, out, err
+        return None, out, err or ""
 
 
 def load(file):

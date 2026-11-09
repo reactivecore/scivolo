@@ -43,6 +43,7 @@ impl Typer<'_> {
                 if flags.has(t::PRIVATE)
                     || flags.has(t::SYNTHETIC)
                     || name.starts_with("super$")
+                    || name.starts_with("<local ")
                     || name.contains("$default$")
                     || case_path && self.is_case_synthesized(m)
                 {

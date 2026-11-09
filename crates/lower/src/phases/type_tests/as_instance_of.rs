@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
-//   compiler/src/dotty/tools/dotc/ast/tpd.scala
 //   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
 //! `x.asInstanceOf[T]` as dotty's `transformAsInstanceOf` erases it.
 
+use super::primitive_conversion::{class_cast_exception, failed_conversion, primitive_conversion};
 use crate::definitions::type_ref;
 use crate::phases::adapt::{adapt, ascribed, converted, erased_type};
 use crate::phases::casts::{class_named, conforms, conforms_to_class_file, type_of};
@@ -13,7 +13,8 @@ use tasty::{Erased, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
-/// `expr` then `()` for `Unit` and a source cast to `BoxedUnit`, a conversion or a cast of the boxed value from a primitive or `Unit`,
+/// `expr` then `()` for `Unit` and a source cast to `BoxedUnit`, a conversion (else a
+/// `ClassCastException`) or a cast of the boxed value from a primitive or `Unit`,
 /// unboxing from a reference or `null` to a primitive, a `ClassCastException` for `Nothing`,
 /// an ascription if `expr`'s erasure conforms to `target`'s (of a cast at `expr` if only its self
 /// type's does), else `t`; casts from or to value classes as `value_cast`.
@@ -57,8 +58,15 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
         }
         (Erased::Prim(a), Erased::Prim(b)) => match primitive_conversion(l, expr, *a, *b) {
             Some(converted) => converted,
-            None => return refused(),
+            None => {
+                let from = l.u.show_user(widened);
+                failed_conversion(l, expr, &from, *b)
+            }
         },
+        (Erased::Unit, Erased::Prim(b)) => {
+            let from = l.u.show_user(widened);
+            failed_conversion(l, expr, &from, *b)
+        }
         (Erased::Prim(a), Erased::Class(_) | Erased::Array(_)) => match boxed_cast(l, t, expr, *a) {
             Some(t) => t,
             None => return refused(),
@@ -219,39 +227,9 @@ fn recast(l: &mut Lower, t: TNodeId, expr: TNodeId, boxed: TNodeId) -> TNodeId {
     t
 }
 
-/// `expr.toX` for primitive `expr` of erased letter `from`, converted to primitive `to`, if the
-/// class of `from` has that method (dotty's `primitiveConversion`).
-pub fn primitive_conversion(l: &mut Lower, expr: TNodeId, from: char, to: char) -> Option<TNodeId> {
-    let class = l.u.class_ref(&crate::definitions::primitive_class_name(from)?);
-    let class = l.u.class_symbol(class)?;
-    let target = crate::definitions::primitive_class_name(to)?;
-    let simple = target.rsplit('.').next()?;
-    let method = l.u.decl(class, &format!("to{simple}")).ok()?.into_iter().next()?;
-    if from == to {
-        return None;
-    }
-    let select = l.select(expr, method, Span::NONE);
-    Some(l.positioned(select))
-}
-
 /// `{ expr; throw new ClassCastException("Cannot cast to scala.Nothing") }`, at `expr`.
 fn throw_class_cast(l: &mut Lower, expr: TNodeId) -> TNodeId {
-    let class = l.u.class_ref("java.lang.ClassCastException");
-    let class = l.u.class_symbol(class).expect("`ClassCastException`");
-    let string = l.u.class_ref("java.lang.String");
-    let string = l.u.class_symbol(string);
-    let ctors = l.u.decl(class, "<init>").unwrap_or_default();
-    let ctor = ctors.into_iter().find(|&c| {
-        let info = l.u.info(c);
-        let Some(&[(_, p)]) = l.u.method(info).map(|m| m.params) else { return false };
-        l.u.class_symbol(p) == string
-    });
-    let ctor = ctor.expect("`ClassCastException(String)`");
-    let new = l.new_(class, Span::NONE);
-    let message = l.string_literal("Cannot cast to scala.Nothing");
-    let error = l.call(new, ctor, &[message]);
-    l.tpd.get_mut(error).tpe = l.tpd.get(new).tpe;
-    let throw = l.throw_(error);
+    let throw = class_cast_exception(l, Some("Cannot cast to scala.Nothing"));
     let span = l.tpd.span(expr);
     let block = l.block(&[expr], throw, Span::NONE);
     l.with_span(block, span)

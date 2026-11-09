@@ -4,6 +4,7 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
+use syntax::diag::Diagnostic;
 use tasty::SymbolId;
 
 impl Typer<'_> {
@@ -88,6 +89,8 @@ impl Typer<'_> {
         } else if !name.is_type && !span.is_synthetic() && text != "$anonfun" && text.starts_with('$') {
             let at = span.point();
             let name_span = Span::new(at, at + text.len() as u32, at);
+            let dollar_warning = |d: &Diagnostic| d.offset == Some(at) && d.id.is_some_and(|i| i.code == 230);
+            self.diags.items.retain(|d| !dollar_warning(d));
             self.error_at(name_span, "Names cannot start with $ quote pattern");
         }
     }

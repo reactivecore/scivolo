@@ -69,14 +69,8 @@ pub fn is_local(l: &Lower, c: SymbolId) -> bool {
 }
 
 /// Whether `s` is `c` or defined in it.
-pub fn within(l: &Lower, mut s: SymbolId, c: SymbolId) -> bool {
-    loop {
-        if s == c {
-            return true;
-        }
-        let Some(o) = l.u.symbol(s).owner else { return false };
-        s = o;
-    }
+pub fn within(l: &Lower, s: SymbolId, c: SymbolId) -> bool {
+    typer::protected_access::within(l.u, s, c)
 }
 
 /// The local values of the enclosing methods class definition `td` of `class` refers to; fails

@@ -23,6 +23,11 @@ impl TreeBuffer {
         self.tree_addrs.get(&id).copied()
     }
 
+    /// The trees registered, each its id and address.
+    pub fn trees(&self) -> impl Iterator<Item = (u32, Addr)> + '_ {
+        self.tree_addrs.iter().map(|(&id, &a)| (id, a))
+    }
+
     fn keep_offset(&mut self, relative: bool) {
         self.offsets.push(self.buf.len());
         self.is_relative.push(relative);

@@ -78,6 +78,9 @@ impl Universe {
             {
                 return self.decl(owner, &jdk);
             }
+            if self.named(owner, name).is_empty() && self.jdk.is_some() {
+                self.enter_jdk_members(owner);
+            }
             return Ok(self.named(owner, name).to_vec());
         }
         if name.starts_with('_')

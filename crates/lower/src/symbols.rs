@@ -42,22 +42,7 @@ pub fn is_effectively_final(u: &Universe, class: SymbolId, s: SymbolId) -> bool 
     has(u, s, PRIVATE) || has(u, s, FINAL) || has(u, class, FINAL) || u.is_module_class(class)
 }
 
-/// Java's `static`, which `@main` proxies carry; the methods and values of javalib's objects
-/// that stand for the static members of JDK classes; and the library's `@static` members.
-pub fn is_java_static(u: &mut Universe, s: SymbolId) -> bool {
-    let member = matches!(u.symbol(s).kind, Kind::Def | Kind::Val) && !u.is_module(s);
-    has(u, s, STATIC)
-        || (member && u.symbol(s).owner.is_some_and(|o| is_jdk_object(u, o)))
-        || (u.symbol(s).tree.is_some() && u.is_annotated(s, "scala.annotation.static"))
-}
-
-/// Whether class `c` is the class of a javalib object in a JDK package or of an object of the JDK
-/// jars that stands for a JDK class, or of a Java class's stub object.
-pub fn is_jdk_object(u: &Universe, c: SymbolId) -> bool {
-    let name = u.full_name(c);
-    let jdk = name.starts_with("java.") || name.starts_with("javax.") || u.is_from_jdk_jars(c);
-    u.may_be_java(c) && u.is_module_class(c) && jdk || u.is_java_statics(c)
-}
+pub use typer::protected_access::{is_java_static, is_jdk_object};
 
 /// Whether `s` is a Java field: one of a JDK stub or a JDK jar, or a value javalib's class (not
 /// trait) in a JDK package declares outside private and lazy ones, which dotty reads from the

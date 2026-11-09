@@ -9,14 +9,20 @@ use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
 
 impl Universe {
-    /// The erasure of member `s` of `prefix`: of the info a refinement of the prefix's type gives
-    /// abstract type `s`, of the alias by which the prefix's class overrides it, of the argument
+    /// The erasure of member `s` of `prefix`: of alias `s` seen from the prefix, of the info a
+    /// refinement of the prefix's type gives abstract type `s`, of the alias by which the prefix's class overrides it, of the argument
     /// the prefix's type gives class type parameter `s`, else of `s`.
     pub fn erase_member(&mut self, prefix: TypeId, s: SymbolId) -> Erased {
         if let Some(arg) = self.arg_for_param(prefix, s) {
             return self.erase(arg);
         }
-        if self.symbol(s).kind == Kind::Type && self.alias_of(s).is_none() {
+        if let Some(alias) = self.alias_of(s)
+            && let Some(owner) = self.symbol(s).owner.filter(|&o| self.symbol(o).kind == Kind::Class)
+        {
+            let seen = self.as_seen_from(alias, prefix, owner);
+            return self.erase(seen);
+        }
+        if self.symbol(s).kind == Kind::Type {
             if let Some(refined) = self.refinement_info(prefix, s) {
                 return self.erase(refined);
             }

@@ -6,7 +6,7 @@
 //! the block becoming `closure(captured, method)`.
 
 use super::adapt::from_start;
-use super::adapted::{adapted_types, specializable};
+use super::adapted::{adapted_types, specialized_interface};
 use super::function_classes::{erased_function_class, function_class_arity};
 use super::lambda_lift::Function;
 use super::lift_names::fresh;
@@ -14,7 +14,7 @@ use super::lifted::{Method, define};
 use super::narrowed::{enclosing_instance, home};
 use super::poly_functions::poly_function_class;
 use super::sam::{abstract_methods, adaptation_needed};
-use crate::definitions::{procedure, specialized, type_ref};
+use crate::definitions::type_ref;
 use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use tasty::{Erased, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId};
@@ -63,14 +63,8 @@ pub fn plan(
         .collect();
     let erased_result = l.u.erase_value(result);
     let needed = adaptation_needed(&erased, &erased_result, &sam_params, &sam_result);
-    let specialized_interface = match needed {
-        _ if !function || needed == (false, false) => None,
-        _ if specializable(&erased, &erased_result) && !l.tpd.scala2 => {
-            Some(specialized(l.u, &erased, &erased_result))
-        }
-        (false, _) if erased_result == Erased::Unit => Some(procedure(l.u, params.len())),
-        _ => None,
-    };
+    let specialized_interface =
+        function.then(|| specialized_interface(l, needed, &erased, &erased_result)).flatten();
     let Ok(specialized_interface) = specialized_interface.transpose() else {
         return unsupported(span, "lambdas of this function type");
     };

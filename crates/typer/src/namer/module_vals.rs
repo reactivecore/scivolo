@@ -17,7 +17,7 @@ impl Typer<'_> {
         let owner = s.owner?;
         let class = self.u.module_class(sym)?;
         let prefix = (!self.u.symbol(owner).kind.is_term()).then(|| crate::defn::owner_prefix(self.u, owner));
-        let info = crate::defn::ref_type(self.u, prefix, class);
+        let info = self.u.intern_type(tasty::Type::Sym(prefix, class));
         let completing = self.syms.completions.insert(sym, Completion::Done);
         self.u.set_info(sym, info);
         self.complete(class);

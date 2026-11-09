@@ -18,23 +18,6 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "new with an unstable prefix");
         }
-        let tycon = match *self.u.types().get(tpe) {
-            Type::Applied(tc, _) => tc,
-            _ => tpe,
-        };
-        if let Type::Sym(_, s) = *self.u.types().get(tycon)
-            && self.u.symbol(s).kind == Kind::Type
-            && let Some(owner) = self.u.symbol(s).owner
-            && self.u.symbol(owner).kind == Kind::Class
-            && !self.is_static_owner(owner)
-            && !self
-                .u
-                .class_symbol(tpe)
-                .and_then(|c| self.u.symbol(c).owner)
-                .is_some_and(|o| self.is_static_owner(o))
-        {
-            return self.unsupported(id, "new of a type alias of a non-static owner");
-        }
         if let Type::Sym(_, s) = *self.u.types().get(tpe)
             && self.u.symbol(s).kind == Kind::Type
             && self.syms.flags.contains_key(&s)
@@ -70,7 +53,19 @@ impl Typer<'_> {
             }
         }
         let span = self.ast.span(id);
+        let tpe = self.eta_expansion_tycon(tpe).unwrap_or(tpe);
         self.tpd.node(T::New { tpt }, span, Some(tpe), None)
+    }
+
+    /// `C` if `t` dealiases to `[Ps] =>> C[Ps]` (dotty's `typeOfNew`).
+    fn eta_expansion_tycon(&mut self, t: TypeId) -> Option<TypeId> {
+        let dealiased = self.u.dealias(t);
+        let Type::Lambda { binder, ref params, result } = *self.u.types().get(dealiased) else { return None };
+        let n = params.len();
+        let Type::Applied(tycon, ref args) = *self.u.types().get(result) else { return None };
+        let own = args.len() == n
+            && args.iter().enumerate().all(|(i, &a)| *self.u.types().get(a) == Type::Param(binder, i as u32));
+        own.then_some(tycon)
     }
 
     /// `[Ps] =>> C[Ps]` for the type parameters `Ps` of class `c`, referenced by `class`.

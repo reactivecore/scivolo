@@ -165,16 +165,19 @@ fn is_param(l: &Lower, s: TNodeId) -> bool {
 /// The super accessor of `s.clazz` for `s`: the one already there, else a new one whose
 /// definition joins `defs`, at `span`.
 fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>) -> Result<SymbolId> {
-    let original = l.u.symbol(s.member).name.clone();
-    let unexpanded = match s.mix.as_str() {
-        "" => format!("super${original}"),
-        mix => format!("{original}$super${mix}"),
-    };
     let trait_ = l.u.is_trait(s.clazz);
-    let name = match trait_ {
-        true => format!("{}$${unexpanded}", l.u.expanded_prefix(s.clazz)),
-        false => unexpanded,
+    let accessor_name = |l: &Lower, original: &str| {
+        let unexpanded = match s.mix.as_str() {
+            "" => format!("super${original}"),
+            mix => format!("{original}$super${mix}"),
+        };
+        match trait_ {
+            true => format!("{}$${unexpanded}", l.u.expanded_prefix(s.clazz)),
+            false => unexpanded,
+        }
     };
+    let name = accessor_name(l, &l.u.symbol(s.member).name);
+    let target = l.u.symbol(s.member).target.clone().map(|t| accessor_name(l, &t));
     let declared = l.u.decl(s.clazz, &name).unwrap_or_default();
     if let Some(acc) =
         declared.into_iter().find(|a| l.super_accessors.get(a).is_some_and(|&(m, _)| m == s.member))
@@ -185,6 +188,9 @@ fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>)
     let info = java_named(l, s.member, info);
     let acc = l.u.define(symbol(&name, Kind::Def, s.clazz, Flags::default().with(ARTIFACT)));
     l.u.set_info(acc, info);
+    if let Some(target) = target {
+        l.u.set_target(acc, &target);
+    }
     l.super_accessors.insert(acc, (s.member, !s.mix.is_empty()));
     let def = match trait_ {
         true => {

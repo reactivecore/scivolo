@@ -49,6 +49,13 @@ impl Typer<'_> {
         self.settle_type(tree, ctx);
     }
 
+    /// `interpolate`, then the type of `tree` zonked (dotty's `simplify` of an application).
+    pub fn interpolate_zonked(&mut self, tree: TNodeId, pt: Pt, from: usize) -> Result<(), &'static str> {
+        self.interpolate(tree, pt, from)?;
+        self.zonk_type(tree);
+        Ok(())
+    }
+
     /// The type of `tree` with its instantiated type variables replaced.
     pub fn zonk_type(&mut self, tree: TNodeId) {
         let Some(t) = self.tpd.get(tree).tpe else { return };

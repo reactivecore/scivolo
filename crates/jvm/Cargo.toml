@@ -16,10 +16,13 @@ path = "src/main.rs"
 [dependencies]
 clap.workspace = true
 classfile.workspace = true
+libs.workspace = true
 lower.workspace = true
+macros.workspace = true
 syntax.workspace = true
 tasty.workspace = true
 typer.workspace = true
+vm.workspace = true
 zip.workspace = true
 
 [lints]

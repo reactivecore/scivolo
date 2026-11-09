@@ -33,10 +33,11 @@ impl Typer<'_> {
         }
     }
 
-    /// Adds the implicit members of `class` selected from path `prefix`, and `prefix`, to `out`.
+    /// Adds the implicit members of `class` selected from path `prefix`, its own private ones
+    /// included, and `prefix`, to `out`.
     pub fn add_members(&mut self, class: SymbolId, prefix: TypeId, out: &mut ImplicitScope) {
         let key = self.static_form(prefix);
-        for sym in self.implicit_members(class, false) {
+        for sym in self.implicit_members(class, true) {
             let same =
                 |t: &mut Self, c: &Candidate| c.sym == sym && c.prefix.map(|p| t.static_form(p)) == Some(key);
             if !out.implicits.iter().any(|c| same(self, c)) {

@@ -97,6 +97,9 @@ impl TreePickler<'_> {
         self.byte(QUALTHIS);
         match qual {
             Some(q) => _ = self.buf.register_tree(q.index() as u32),
+            None if self.super_calls.contains_key(&id) => {
+                self.synthetic_here(self.tpd.span(id).start_pos().to_synthetic(), Some(id))
+            }
             None => _ = self.self_refs.insert(id),
         }
         self.byte(IDENTtpt);

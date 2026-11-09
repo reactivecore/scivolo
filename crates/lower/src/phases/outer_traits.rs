@@ -60,6 +60,7 @@ pub fn implement(l: &mut Lower, td: TNodeId, class: SymbolId, classes: &[TNodeId
     let mut defs = Vec::new();
     for m in mixins {
         let Some(outer) = outer_class(l, m) else { continue };
+        super::explicit_outer::outer_accessor_from_elsewhere(l, m, classes);
         let span = Span::NONE;
         let prefix = prefix(l, class, m, outer);
         let rhs = path(l, class, prefix, span).map_err(|e| Unsupported { at: l.tpd.span(td), ..e })?;
@@ -92,7 +93,6 @@ pub fn has_inner_parent(l: &mut Lower, class: SymbolId) -> bool {
 /// to enclosing instances call it.
 pub fn add_outer(l: &mut Lower, td: TNodeId, trait_: SymbolId) {
     let accessor = outer_accessor(l, trait_);
-    l.u.set_deferred(accessor, true);
     let Template { body, parents, .. } = l.tpd.class_template(td).expect("a trait definition");
     let stats = l.tpd.items(body).iter().chain(l.tpd.items(parents)).copied();
     let stats: Vec<TNodeId> = stats.filter(|&s| !matches!(l.tpd.tree(s), Tree::TypeDef { .. })).collect();

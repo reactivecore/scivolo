@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala
-//! Signatures of class references, arrays and method types (dotty's `classSig`, `arraySig`,
-//! `jsig` of `MethodOrPoly`).
+//! Signatures of class references and arrays (dotty's `classSig`, `arraySig`).
 
+use super::applied::Applied;
 use super::{Boxing, Sig};
 use crate::codegen::internal;
 use tasty::{Binder, Erased, Kind, SymbolId, Type, TypeId};
@@ -19,6 +19,12 @@ impl Sig<'_> {
             Type::Applied(tycon, args) => (tycon, args),
             _ => (t, Vec::new()),
         };
+        match self.applied_param(tycon, &args) {
+            Some(Applied::Resolved(r)) => return self.jsig(r, false, boxing),
+            Some(Applied::Param(name)) => return self.out.push_str(&format!("T{name};")),
+            Some(Applied::Erased) => return self.erased(t, boxing),
+            None => {}
+        }
         let s = match *self.u.types().get(tycon) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => self.u.resolve_ref(tycon),
@@ -144,39 +150,5 @@ impl Sig<'_> {
             }
             _ => self.jsig(elem, false, Boxing::UnboxOnlyPrimitives),
         }
-    }
-
-    /// A method type: type parameters at the top, parameters, result.
-    pub fn method(&mut self, mut t: TypeId, top: bool) {
-        let mut tparams = Vec::new();
-        let mut vparams = Vec::new();
-        loop {
-            match self.u.types().get(t).clone() {
-                Type::Poly { binder, params, result } => {
-                    self.poly.push((binder, params.iter().map(|(n, b)| (tasty::encode(n), *b)).collect()));
-                    if top && !self.constructor {
-                        tparams.extend(params.into_iter().map(|(n, b)| (tasty::encode(&n), b)));
-                    }
-                    t = result;
-                }
-                Type::Method { params, result, .. } => {
-                    let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
-                    let java_enum = self.constructor && names.ends_with(&["_$name", "_$ordinal"]);
-                    let keep = params.len() - if java_enum { 2 } else { 0 };
-                    let outer = usize::from(self.constructor && names.first() == Some(&"$outer"));
-                    vparams.extend(params.into_iter().take(keep).skip(outer).map(|(_, p)| p));
-                    t = result;
-                }
-                _ => break,
-            }
-        }
-        vparams.retain(|&p| !self.u.is_erased_param(p));
-        self.type_params(&tparams);
-        self.out.push('(');
-        for p in vparams {
-            self.jsig(p, false, Boxing::Unbox);
-        }
-        self.out.push(')');
-        self.result(t);
     }
 }
