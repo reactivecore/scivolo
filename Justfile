@@ -315,10 +315,17 @@ dotty-lower-report filter="" dir="run": release
     python3 scripts/dotty-lower.py '{{ filter }}' '{{ dir }}'
 
 # Compile the dotty tests (default: all) with scivolo-jvm and run them on `java -Xverify:all`;
-# jvm-report.md and jvm-results.tsv under tmp/dotty.
-dotty-jvm-report filter="":
+# jvm-report.md and jvm-results.tsv under tmp/dotty. `dir` another directory of dotty's tests
+# (run-macros: `just dotty-macros`), reported in jvm-report-<dir>.md and jvm-results-<dir>.tsv.
+dotty-jvm-report filter="" dir="run":
     cargo build -q --release -p scivolo-jvm
-    python3 scripts/dotty-tests.py jvm '{{ filter }}'
+    python3 scripts/dotty-tests.py jvm '{{ filter }}' '{{ dir }}'
+
+# Compile tests/programs (default: all) with scivolo-jvm, run them on `java -Xverify:all` and
+# compare with their `.check`; programs-results.tsv and programs-report.md under tmp/jvm.
+programs-jvm filter="":
+    cargo build -q --release -p scivolo-jvm
+    python3 scripts/programs_jvm.py '{{ filter }}'
 
 # Link the dotty tests failing in the VM as Scala Native binaries and run them, for dotty-report.
 dotty-native filter="":

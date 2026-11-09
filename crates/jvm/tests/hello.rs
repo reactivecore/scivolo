@@ -132,6 +132,35 @@ fn jdk_classes_javalib_lacks_run_on_the_jvm() {
     runs_on_the_jvm("jdkclasses", "Jdkclasses");
 }
 
+#[test]
+fn a_macro_call_runs_over_the_macro_classpath() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
+    let jar = root().join("tests/macros/lib/macros.jar");
+    let source = root().join("tmp/jvm-test/MacroCall.scala");
+    std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
+    let code = "object MacroCall:\n  def main(args: Array[String]) = println(macrolib.Macros.twice(3))\n";
+    std::fs::write(&source, code).expect("writing");
+    let out = root().join("tmp/jvm-test/macrocall");
+    let compile = |macro_cp: &[&Path]| {
+        let _ = std::fs::remove_dir_all(&out);
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"));
+        cmd.arg("--cp").arg(&jar);
+        macro_cp.iter().for_each(|p| _ = cmd.arg("--macro-cp").arg(p));
+        cmd.arg("-d").arg(&out).arg(&source).output().expect("running scivolo-jvm")
+    };
+    let refused = compile(&[]);
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("macro call"));
+    let compiled = compile(&[&jar]);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}:{}", out.display(), jar.display(), library.display());
+    let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "MacroCall"]).output();
+    assert_eq!(String::from_utf8_lossy(&run.expect("running java").stdout), "6\n");
+}
+
 /// Compiles `code` as tmp/jvm-test/`name`.scala and expects a refusal containing `message`.
 fn refuses(name: &str, code: &str, message: &str) {
     let source = root().join(format!("tmp/jvm-test/{name}.scala"));

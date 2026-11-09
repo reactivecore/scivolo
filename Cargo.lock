@@ -676,10 +676,13 @@ version = "0.1.6"
 dependencies = [
  "clap",
  "scivolo-classfile",
+ "scivolo-libs",
  "scivolo-lower",
+ "scivolo-macros",
  "scivolo-syntax",
  "scivolo-tasty",
  "scivolo-typer",
+ "scivolo-vm",
  "zip",
 ]
 

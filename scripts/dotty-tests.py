@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Milestone M4, dotty's tests/run in the VM, and on the JVM through scivolo-jvm (docs/conformance.md).
 
-Usage: scripts/dotty-tests.py build|report|native|jvm [FILTER]
+Usage: scripts/dotty-tests.py build|report|native [FILTER]
+       scripts/dotty-tests.py jvm [FILTER [DIR]]
 """
 import collections
 import dotty_jvm
@@ -135,4 +136,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
         sys.exit(__doc__)
     (WORK / "logs").mkdir(parents=True, exist_ok=True)
-    commands[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else "")
+    if sys.argv[1] == "jvm" and len(sys.argv) > 3:
+        dotty_jvm.jvm(sys.argv[2], sys.argv[3])
+    else:
+        commands[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else "")

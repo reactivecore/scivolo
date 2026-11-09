@@ -1,6 +1,7 @@
 use clap::Parser;
 use jvmgen::ClassBytes;
 use lower::Options;
+use macros::{Macros, VmMacros};
 use std::path::{Path, PathBuf};
 use syntax::source::SourceFile;
 use tasty::Universe;
@@ -15,6 +16,10 @@ struct Cli {
     /// A jar or directory of TASTy files the sources see.
     #[arg(long)]
     cp: Vec<PathBuf>,
+    /// A jar or directory of NIR files compiled before; macro calls run in a VM over the library's NIR
+    /// and these.
+    #[arg(long)]
+    macro_cp: Vec<PathBuf>,
     /// The directory to write the class files to, or a jar if it ends in `.jar`.
     #[arg(short)]
     d: PathBuf,
@@ -33,7 +38,7 @@ struct Cli {
 }
 
 fn main() {
-    let Cli { cp, d: out, main_class, scalalib, scalac_options: mut options, files } = Cli::parse();
+    let Cli { cp, macro_cp, d: out, main_class, scalalib, scalac_options: mut options, files } = Cli::parse();
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = [&typer::dump::library_jars(&libs)[..], &cp].concat();
@@ -53,14 +58,23 @@ fn main() {
         })
         .collect();
     let options: Vec<&str> = options.iter().map(String::as_str).collect();
-    let Options { config, .. } = Options::checked(&options)
+    let Options { config, macros: settings, .. } = Options::checked(&options)
         .unwrap_or_else(|o| fail(&format!("the typer does not support option `{o}`")));
+    let mut vm = (!macro_cp.is_empty()).then(|| {
+        let nir = libs::jars().unwrap_or_else(|e| fail(&e));
+        let classpath =
+            vm::Classpath::with_jars(&macro_cp, &nir).unwrap_or_else(|e| fail(&format!("{macro_cp:?}: {e}")));
+        vm::Vm::new(classpath).unwrap_or_else(|e| fail(&format!("the macro VM: {e}")))
+    });
+    let copies = sources.iter().map(|s| SourceFile::new(s.name.clone(), s.text.clone())).collect();
+    let mut runner = vm.as_mut().map(|vm| VmMacros { vm, sources: copies, settings });
+    let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
     let in_backend = std::cell::Cell::new(false);
     let generate = |l: &mut lower::Lower, root, pickles| {
         jvmgen::unit(l, root, pickles).inspect_err(|_| in_backend.set(true))
     };
-    let classes = match lower::compile_units(&mut u, &sources, config, None, (lower::Backend::Jvm, generate))
-    {
+    let backend = (lower::Backend::Jvm, generate);
+    let classes = match lower::compile_units(&mut u, &sources, config, macros, backend) {
         Ok((classes, _)) => classes,
         Err(e) if in_backend.get() => fail(&e.what.replacen("the lowering", "the JVM backend", 1)),
         Err(e) => fail(&e.what.replace("\n  ", " ")),
