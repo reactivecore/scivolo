@@ -103,8 +103,16 @@ fn evaluate(
     release: TNodeId,
 ) -> TNodeId {
     let value = match l.u.erase(info) {
-        Erased::Prim(_) => {
-            let boxed = adapt(l, rhs, &Erased::Class("java.lang.Object".into()));
+        prim @ Erased::Prim(_) => {
+            let value = match super::adapt::erased_type(l, rhs) {
+                Erased::Value(..) => {
+                    let unboxed = adapt(l, rhs, &prim);
+                    let tpe = super::casts::type_of(l, &prim);
+                    super::adapt::ascribed(l, unboxed, tpe, l.tpd.span(rhs))
+                }
+                _ => rhs,
+            };
+            let boxed = adapt(l, value, &Erased::Class("java.lang.Object".into()));
             l.positioned(boxed)
         }
         _ => rhs,

@@ -315,10 +315,17 @@ dotty-lower-report filter="" dir="run": release
     python3 scripts/dotty-lower.py '{{ filter }}' '{{ dir }}'
 
 # Compile the dotty tests (default: all) with scivolo-jvm and run them on `java -Xverify:all`;
-# jvm-report.md and jvm-results.tsv under tmp/dotty.
-dotty-jvm-report filter="":
+# jvm-report.md and jvm-results.tsv under tmp/dotty. `dir` another directory of dotty's tests
+# (run-macros: `just dotty-macros`), reported in jvm-report-<dir>.md and jvm-results-<dir>.tsv.
+dotty-jvm-report filter="" dir="run":
     cargo build -q --release -p scivolo-jvm
-    python3 scripts/dotty-tests.py jvm '{{ filter }}'
+    python3 scripts/dotty-tests.py jvm '{{ filter }}' '{{ dir }}'
+
+# Compile tests/programs (default: all) with scivolo-jvm, run them on `java -Xverify:all` and
+# compare with their `.check`; programs-results.tsv and programs-report.md under tmp/jvm.
+programs-jvm filter="":
+    cargo build -q --release -p scivolo-jvm
+    python3 scripts/programs_jvm.py '{{ filter }}'
 
 # Link the dotty tests failing in the VM as Scala Native binaries and run them, for dotty-report.
 dotty-native filter="":
@@ -523,7 +530,18 @@ jvm-build file:
 
 # Compare the class files of jvm-build with jvm-fixture's through javap; fails on a difference.
 jvm-check file: (jvm-fixture file) (jvm-build file)
-    python3 scripts/jvm-check.py tmp/jvm/$(basename {{ file }} .scala)/ref tmp/jvm/$(basename {{ file }} .scala)/out
+    python3 scripts/jvm_check.py tmp/jvm/$(basename {{ file }} .scala)/ref tmp/jvm/$(basename {{ file }} .scala)/out
+
+# Compile Scala's library (`module`: scalalib) file by file with scivolo-jvm (the files whose paths
+# contain `filter`) and compare each class file through javap with dotty's, which compiles the
+# whole library once with its options but without the optimizer.
+jvm-lib-compile module filter="": fetch-libs
+    cargo build -q --release -p scivolo-jvm
+    python3 scripts/jvm_lib_compile.py '{{ module }}' '{{ filter }}'
+
+# Make the last jvm-lib-compile results the baseline later runs list worse files against.
+jvm-lib-baseline module="scalalib":
+    cp tmp/lib-jvm/{{ module }}/results.tsv tmp/lib-jvm/{{ module }}/baseline.tsv
 
 # Read the TASTy files of jvm-build through dotty's TASTy inspector and print their trees.
 jvm-inspect file: (jvm-build file)

@@ -59,12 +59,13 @@ impl Gen<'_, '_> {
             cf.method(flags, &method, &desc, Some(code), &mut |_, _| None);
             let target = self.l.mixed_in_from(m).unwrap_or(m);
             let this = self.l.u.this_type(module);
-            let info = self.l.u.member_info(this, target);
+            let unflattened = self.l.unflattened_info(target);
+            let info = unflattened.unwrap_or_else(|| self.l.u.member_info(this, target));
             self.exceptions(cf, m);
             let thrown = self.thrown(m);
             if !self.l.is_mixin_accessor(m)
                 && let Some(sig) = super::signatures::member(self.l.u, (target, target), info, &desc, &thrown)
-                && super::signatures::erases_to(&sig, &desc)
+                && (unflattened.is_some() || super::signatures::erases_to(&sig, &desc))
             {
                 cf.member_signature(Last::Method, &sig);
             }

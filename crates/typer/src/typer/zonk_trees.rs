@@ -14,7 +14,8 @@ impl Typer<'_> {
         for i in 0..self.tpd.len() {
             let id = TNodeId::new(i);
             if let Some(t) = self.tpd.get(id).tpe {
-                let t = self.fully_defined(t)?;
+                self.fully_defined(t)?;
+                let t = self.zonk_kept(t);
                 self.tpd.get_mut(id).tpe = Some(t);
             }
             let defines = matches!(self.tpd.tree(id), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });
@@ -23,9 +24,13 @@ impl Typer<'_> {
                 && !(self.syms.closure_syms.contains(&s)
                     && matches!(self.u.symbol(s).kind, Kind::Param | Kind::Def))
             {
-                let info = self.u.info(s);
+                let bind = matches!(self.tpd.tree(id), T::Bind { .. });
+                let mut info = self.u.info(s);
+                if bind {
+                    info = self.fully_defined(info)?;
+                    self.u.set_info(s, info);
+                }
                 if super::deskolemize::has_skolem(self.u, info) {
-                    let bind = matches!(self.tpd.tree(id), T::Bind { .. });
                     match super::deskolemize::skolems_widened(self.u, info).filter(|_| bind) {
                         Some(info) => self.u.set_info(s, info),
                         None => return Err("skolem in the type of a definition"),

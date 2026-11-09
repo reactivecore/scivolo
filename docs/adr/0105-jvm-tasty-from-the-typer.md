@@ -1,6 +1,7 @@
 # ADR 0105 — The JVM backend's TASTy from the typer's trees before inlining
 
-Status: accepted · Date: 2026-11-08
+Status: accepted · Date: 2026-11-08 · Amended by ADR 0111 (super accessors of protected and
+target-name members, their positions)
 
 ## Context
 A class file dotty writes carries a `TASTY` attribute with the UUID of its `.tasty` file, which
@@ -30,8 +31,8 @@ only inside the typer, between the synthetic members and inlining.
 - The TASTy is not byte-identical, an open difference: dotty shares a type by identity
   (`pickledTypes`, an `EqHashMap`), we by its bytes, so the `SHAREDtype` choices differ where our
   synthetic trees build an equal type anew or dotty's are distinct instances.
-- Also open, not accepted: positions missing for the super accessors' definitions and the
-  annotation in an annotated type (`T @uncheckedVariance` of a default getter).
+- Also open, not accepted: positions missing for the annotation in an annotated type
+  (`T @uncheckedVariance` of a default getter).
 - Refused still: the bounds of a type lambda whose declared variances the universe does not know
   (one read from a library's TASTy), a reference to a method a refinement declares, super calls of
-  methods with a target name, implicit parameters or type parameters after a parameter list.
+  methods with implicit parameters or type parameters after a parameter list.

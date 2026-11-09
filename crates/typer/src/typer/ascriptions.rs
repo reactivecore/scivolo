@@ -21,7 +21,8 @@ impl Typer<'_> {
         let tpe = self.simplified(tpe);
         let tpt = self.type_tree(tpe, span.end_pos(), true);
         let actual = self.tpd.tpe(expr);
-        if self.u.is_subtype(actual, tpe) {
+        let zonked = self.zonk(actual);
+        if self.u.is_subtype(zonked, tpe) {
             return self.tpd.node(T::Typed { expr, tpt }, span.to_synthetic(), Some(tpe), None);
         }
         let any = self.u.builtins().any;

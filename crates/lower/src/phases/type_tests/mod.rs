@@ -8,6 +8,7 @@
 pub(super) mod as_instance_of;
 mod combined;
 pub(super) mod not_null;
+pub(super) mod primitive_conversion;
 mod runtime_tests;
 pub(super) mod singletons;
 

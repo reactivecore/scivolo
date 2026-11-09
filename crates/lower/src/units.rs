@@ -89,10 +89,10 @@ pub fn compile_units<R>(
     let sources = (sources, cfg.explicit_nulls);
     let pickles = std::mem::take(&mut typed.pickles);
     let generate = (backend, |l: &mut crate::Lower, root| generate(l, root, pickles));
-    let out = crate::lower_trees(u, &mut typed.tpd, typed.root, (&mut names, &mut fresh), sources, generate)
-        .map_err(|e| {
-            refused(format!("the lowering does not support {}{}", e.what, at_point(&located, e.at)))
-        })?;
+    let trees = (&mut typed.tpd, &mut typed.diags);
+    let out = crate::lower_trees(u, trees, typed.root, (&mut names, &mut fresh), sources, generate).map_err(
+        |e| refused(format!("the lowering does not support {}{}", e.what, at_point(&located, e.at))),
+    )?;
     Ok((out, typed.diags))
 }
 

@@ -1,12 +1,14 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //   compiler/src/dotty/tools/backend/jvm/BCodeSkelBuilder.scala
-//! Local definitions and assignments to locals (dotty's `genStat`).
+//! Local definitions and assignments to locals (dotty's `genStat`), and the descriptors of
+//! locals and fields.
 
 use super::body::Body;
 use super::{Gen, descriptor, unsupported};
 use lower::Result;
 use syntax::ast::constant::Constant;
+use tasty::SymbolId;
 use tasty::tags::MUTABLE;
 use typer::tpd::{TNodeId, Tree};
 
@@ -48,11 +50,7 @@ impl Gen<'_, '_> {
     /// Local definition `t` with value `rhs`, a `BoxedUnit` for a `Unit` local.
     pub fn gen_val_def(&mut self, b: &mut Body, t: TNodeId, rhs: Option<TNodeId>) -> Result<i32> {
         let sym = self.l.tpd.sym(t).expect("a local's symbol");
-        let info = self.l.u.info(sym);
-        let desc = match self.l.u.erase(info) {
-            tasty::Erased::Unit => "Lscala/runtime/BoxedUnit;".to_owned(),
-            e => descriptor(&e),
-        };
+        let desc = self.storage_descriptor(sym);
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(t), "a local without a value") };
         let slot = b.local(sym, desc.clone());
         self.expr_as(b, rhs, classfile::value_slots(&desc))?;
@@ -62,6 +60,15 @@ impl Gen<'_, '_> {
         }
         b.code.store(&desc, slot);
         Ok(0)
+    }
+
+    /// The descriptor of local or field `sym`: `BoxedUnit` for a `Unit` value.
+    pub fn storage_descriptor(&mut self, sym: SymbolId) -> String {
+        let info = self.l.u.info(sym);
+        match self.l.u.erase(info) {
+            tasty::Erased::Unit => "Lscala/runtime/BoxedUnit;".to_owned(),
+            e => descriptor(&e),
+        }
     }
 
     /// Assignment `t` of `lhs = rhs` to a local, `iinc` for `x = x + c` and `x = x - c` of an int;

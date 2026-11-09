@@ -4,7 +4,12 @@
 //! The definitions of super accessors, without bodies (`DefDef(acc, EmptyTree)`).
 
 use super::{Refusal, TreePickler};
-use tasty::tags::{ARTIFACT, DEFDEF, EMPTYCLAUSE, PARAM, SPLITCLAUSE, TYPEPARAM};
+use crate::defn::type_ref;
+use syntax::ast::Span;
+use tasty::tags::{
+    ANNOTATION, APPLY, ARTIFACT, DEFDEF, EMPTYCLAUSE, NEW, PARAM, SELECTin, SPLITCLAUSE, STRINGconst,
+    TYPEPARAM,
+};
 use tasty::write::Name;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
@@ -15,6 +20,8 @@ impl TreePickler<'_> {
         self.register_def(acc);
         let name = self.accessor_name(acc).ok_or("a super accessor without a name")?;
         let info = self.u.info(acc);
+        let (span, member) = self.accessor_spans.get(&acc).copied().unwrap_or((Span::NONE, Span::NONE));
+        self.synthetic_here(span, None);
         self.with_length(DEFDEF, &mut |p| {
             p.name(&name);
             let mut t = p.accessor_type_params(acc, info)?;
@@ -39,9 +46,45 @@ impl TreePickler<'_> {
             if matches!(p.u.types().get(t), Type::Poly { .. }) {
                 return Err("a super call of a method with type parameters after its parameters");
             }
+            let tpt = p.synthetic.len();
+            p.synthetic_here(span, None);
             p.ty(t, false)?;
             p.byte(ARTIFACT);
+            if let Some(target) = p.u.symbol(acc).target.clone() {
+                p.target_name_annotation(&target, member)?;
+            }
+            if tpt < p.synthetic.len() {
+                let entry = p.synthetic.remove(tpt);
+                p.synthetic.push(entry);
+            }
             Ok(())
+        })
+    }
+
+    /// The annotation `@targetName(target)` (dotty's `deriveTargetNameAnnotation`), its type and
+    /// argument at the point of `member`'s definition.
+    fn target_name_annotation(&mut self, target: &str, member: Span) -> Result<(), Refusal> {
+        let class = self.u.package("scala.annotation").and_then(|p| self.u.decl(p, "targetName").ok());
+        let class = class.and_then(|d| d.into_iter().find(|&c| self.u.is_class(c)));
+        let class = class.ok_or("a target name without the class targetName")?;
+        let init = self.u.decl(class, "<init>").ok().and_then(|d| d.first().copied());
+        let init = init.ok_or("a target name without the constructor of targetName")?;
+        let class = type_ref(self.u, class);
+        self.with_length(ANNOTATION, &mut |p| {
+            p.ty(class, false)?;
+            p.with_length(APPLY, &mut |p| {
+                p.with_length(SELECTin, &mut |p| {
+                    p.signed_name(init, true)?;
+                    p.byte(NEW);
+                    p.synthetic_here(member, None);
+                    p.ty(class, false)?;
+                    p.ty(class, false)
+                })?;
+                p.synthetic_here(member, None);
+                p.byte(STRINGconst);
+                p.name(&Name::utf8(target));
+                Ok(())
+            })
         })
     }
 

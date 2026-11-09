@@ -83,6 +83,33 @@ pub fn qualified(path: &str) -> Name {
     parts.fold(first, |q, p| Name::Qualified(Box::new(q), Box::new(p)))
 }
 
+/// The name of `s` and its owners up to its package as `ExpandPrefix` names, an object's
+/// without its `$` and a `_$` for each term between it and its enclosing class (dotty's
+/// `fullNameSeparated(ExpandPrefixName)`, as `Universe::expanded_prefix` spells it).
+pub fn expanded_prefix_name(u: &Universe, s: SymbolId) -> Name {
+    let sym = u.symbol(s);
+    let mut name = tasty::module_name(&sym.name).unwrap_or(&sym.name).to_owned();
+    let mut owner = sym.owner;
+    while let Some(o) = owner.filter(|&o| u.symbol(o).kind.is_term()) {
+        name.insert_str(0, "_$");
+        owner = u.symbol(o).owner;
+    }
+    let last = Box::new(Name::utf8(&name));
+    match owner {
+        Some(o) if u.symbol(o).kind == Kind::Package => match u.full_name(o).as_str() {
+            "" | "<empty>" => *last,
+            package => {
+                let mut parts = package.split('.').map(Name::utf8);
+                let first = parts.next().expect("a package's name");
+                let package = parts.fold(first, |q, p| Name::ExpandPrefix(Box::new(q), Box::new(p)));
+                Name::ExpandPrefix(Box::new(package), last)
+            }
+        },
+        Some(o) => Name::ExpandPrefix(Box::new(expanded_prefix_name(u, o)), last),
+        None => *last,
+    }
+}
+
 fn utf8(s: &str) -> Box<Name> {
     Box::new(Name::utf8(s))
 }

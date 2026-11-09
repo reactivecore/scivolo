@@ -81,9 +81,12 @@ impl Typer<'_> {
         let names = self.elements_of(names)?;
         let names: Option<Vec<String>> = names
             .iter()
-            .map(|&n| match self.u.types().get(n) {
-                Type::Str(s) => Some(s.clone()),
-                _ => None,
+            .map(|&n| {
+                let n = self.u.dealias(n);
+                match self.u.types().get(n) {
+                    Type::Str(s) => Some(s.clone()),
+                    _ => None,
+                }
             })
             .collect();
         let values = self.elements_of(values)?;

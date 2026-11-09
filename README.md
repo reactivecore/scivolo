@@ -59,7 +59,8 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
   geny, fansi and sourcecode compile through the own frontend, every file, macros included;
   1,777 of their 1,786 NIR files are the same as scala-cli's.
 - **Native executables:** 218 of 226 test programs, built from source.
-- **JVM backend:** 1,523 of dotty's 1,709 `tests/run` pass on `java -Xverify:all`.
+- **JVM backend:** 1,587 of dotty's 1,711 `tests/run` and 307 of 321 `tests/run-macros` pass on
+  `java -Xverify:all`.
 - **Startup:** hello 7.5 ms from the heap snapshot; `moderate.scala` 48 ms edit-then-run
   (scala-cli: 360–520 ms, python3 startup: 18 ms).
 

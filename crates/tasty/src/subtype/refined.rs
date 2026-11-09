@@ -16,19 +16,32 @@ impl Cmp<'_> {
     /// `has_matching_member` of `a` found in `t`, `a`'s widened type or a part of its
     /// intersection.
     fn has_matching_member_in(&mut self, a: TypeId, mut t: TypeId, name: &str, info: TypeId) -> bool {
-        let mut recs = Vec::new();
+        let (mut recs, mut seen) = (Vec::new(), None);
         loop {
             match self.u.types().get(t).clone() {
-                Type::Refined(_, n, have) if n == name => {
+                Type::Refined(parent, n, have) if n == name => {
                     let have = self.u.rec_this_replaced(have, &recs, a);
-                    return self.info_conforms(have, info);
+                    let have = match seen {
+                        Some(outer) => match self.bounds_and(outer, have) {
+                            Some(both) => both,
+                            None => return false,
+                        },
+                        None => have,
+                    };
+                    if self.info_conforms(have, info) {
+                        return true;
+                    }
+                    if !matches!(self.u.types().get(have), Type::Bounds(..)) {
+                        return false;
+                    }
+                    (seen, t) = (Some(have), parent);
                 }
                 Type::Rec(b, parent) => {
                     recs.push(b);
                     t = parent;
                 }
                 Type::Refined(parent, ..) | Type::Annotated(parent, _) => t = parent,
-                Type::And(l, r) => {
+                Type::And(l, r) if seen.is_none() => {
                     return self.has_matching_member_in(a, l, name, info)
                         || self.has_matching_member_in(a, r, name, info);
                 }
@@ -40,13 +53,16 @@ impl Cmp<'_> {
                 },
             }
         }
+        if seen.is_some() {
+            return false;
+        }
         let Some(class) = self.u.class_symbol(t) else { return false };
         let members = self.u.member(class, name);
         let site = match self.is_stable(a) {
             true => a,
             false => {
                 let w = self.u.widen(a);
-                if matches!(self.u.types().get(w), Type::And(..)) { w } else { t }
+                if matches!(self.u.types().get(w), Type::And(..) | Type::Refined(..)) { w } else { t }
             }
         };
         members.into_iter().any(|m| {
@@ -55,6 +71,17 @@ impl Cmp<'_> {
                 || self.abstract_member_matches(a, m, have, info)
                 || self.stable_member_matches(a, m, info)
         })
+    }
+
+    /// The intersection of type bounds `x` and `y` (dotty's `TypeBounds.&`).
+    fn bounds_and(&mut self, x: TypeId, y: TypeId) -> Option<TypeId> {
+        let (Type::Bounds(lo1, hi1), Type::Bounds(lo2, hi2)) =
+            (self.u.types().get(x).clone(), self.u.types().get(y).clone())
+        else {
+            return None;
+        };
+        let (lo, hi) = (self.u.lub(lo1, lo2), self.u.glb(hi1, hi2));
+        Some(self.u.intern_type(Type::Bounds(lo, hi)))
     }
 
     /// Whether `a.m`, for path `a` and stable value `m`, conforms to value type `want`.
