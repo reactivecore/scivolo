@@ -35,72 +35,83 @@ pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
     class.is_none_or(|c| !PLAIN.contains(&u.full_name(c).as_str()))
 }
 
-/// Whether method or field signature `sig` erases to descriptor `desc`, type variables matching
-/// any type.
+/// Whether method or field signature `sig` erases to descriptor `desc`: a type variable of the
+/// signature to the erasure of its first bound, another matching any type.
 pub fn erases_to(sig: &str, desc: &str) -> bool {
     let (sig, desc) = (types(sig), types(desc));
     sig.len() == desc.len() && sig.iter().zip(&desc).all(|(s, d)| s == d || s.ends_with('?'))
 }
 
-/// The erased types of a signature in order, `?` for a type variable, past its type parameters.
+/// The erased types of a signature in order, `?` for a type variable it does not declare.
 fn types(sig: &str) -> Vec<String> {
     let b = sig.as_bytes();
-    let mut i = 0;
-    if b.first() == Some(&b'<') {
-        let mut depth = 0;
-        while i < b.len() {
-            depth += match b[i] {
-                b'<' => 1,
-                b'>' => -1,
-                _ => 0,
-            };
+    let mut params = Vec::new();
+    let mut i = usize::from(b.first() == Some(&b'<'));
+    while i > 0 && i < b.len() && b[i] != b'>' {
+        let start = i;
+        while b[i] != b':' {
             i += 1;
-            if depth == 0 {
-                break;
+        }
+        let name = sig[start..i].to_owned();
+        let mut bound = None;
+        while b.get(i) == Some(&b':') {
+            i += 1;
+            if b[i] != b':' {
+                let e = erased(b, &mut i, &params);
+                bound.get_or_insert(e);
             }
         }
+        params.push((name, bound.unwrap_or_else(|| "?".into())));
     }
+    i += usize::from(i > 0);
     let mut out = Vec::new();
-    let mut prefix = String::new();
     while i < b.len() {
         match b[i] {
             b'(' | b')' => i += 1,
             b'^' => break,
-            b'[' => {
-                prefix.push('[');
-                i += 1;
-            }
-            b'T' => {
-                while i < b.len() && b[i] != b';' {
-                    i += 1;
-                }
-                i += 1;
-                out.push(format!("{}?", std::mem::take(&mut prefix)));
-            }
-            b'L' => {
-                let mut name = String::from("L");
-                let mut depth = 0;
-                i += 1;
-                while i < b.len() && !(depth == 0 && b[i] == b';') {
-                    match b[i] {
-                        b'<' => depth += 1,
-                        b'>' => depth -= 1,
-                        b'.' if depth == 0 => name.push('$'),
-                        c if depth == 0 => name.push(c as char),
-                        _ => {}
-                    }
-                    i += 1;
-                }
-                i += 1;
-                out.push(format!("{}{name};", std::mem::take(&mut prefix)));
-            }
-            c => {
-                i += 1;
-                out.push(format!("{}{}", std::mem::take(&mut prefix), c as char));
-            }
+            _ => out.push(erased(b, &mut i, &params)),
         }
     }
     out
+}
+
+/// The erasure of the field type at `i` of signature `b`, past which `i` moves; `params` are the
+/// declared type variables and their erasures.
+fn erased(b: &[u8], i: &mut usize, params: &[(String, String)]) -> String {
+    let c = b[*i];
+    *i += 1;
+    match c {
+        b'[' => match (b[*i], erased(b, i, params)) {
+            (b'T', e) if e == "Ljava/lang/Object;" || e.ends_with('?') => "?".into(),
+            (_, e) => format!("[{e}"),
+        },
+        b'T' => {
+            let start = *i;
+            while b[*i] != b';' {
+                *i += 1;
+            }
+            *i += 1;
+            let name = std::str::from_utf8(&b[start..*i - 1]).unwrap_or_default();
+            params.iter().rev().find(|(n, _)| n == name).map_or("?".into(), |(_, e)| e.clone())
+        }
+        b'L' => {
+            let mut name = String::from("L");
+            let mut depth = 0;
+            while *i < b.len() && !(depth == 0 && b[*i] == b';') {
+                match b[*i] {
+                    b'<' => depth += 1,
+                    b'>' => depth -= 1,
+                    b'.' if depth == 0 => name.push('$'),
+                    c if depth == 0 => name.push(c as char),
+                    _ => {}
+                }
+                *i += 1;
+            }
+            *i += 1;
+            name + ";"
+        }
+        c => (c as char).to_string(),
+    }
 }
 
 #[cfg(test)]
@@ -115,6 +126,11 @@ mod tests {
             "()Lscala/Function1;"
         ));
         assert!(erases_to("()LBox<TA;>.Nested$;", "()LBox$Nested$;"));
+        assert!(!erases_to(
+            "<U:LElement;>(TU;TU;)TU;",
+            "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"
+        ));
+        assert!(erases_to("<U::Ljava/lang/Comparable<-TU;>;>(TU;)V", "(Ljava/lang/Comparable;)V"));
         assert!(!erases_to(
             "(Lscala/Product;)LSingle$;",
             "(Lscala/Product;)Lscala/deriving/Mirror$Singleton;"

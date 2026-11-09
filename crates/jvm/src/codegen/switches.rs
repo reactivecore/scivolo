@@ -130,6 +130,7 @@ impl Gen<'_, '_> {
             for (s, target) in cases {
                 let next = b.code.new_label();
                 let index = b.pool.string(&s);
+                self.line(b, selector);
                 b.code.ldc(index);
                 self.expr_as(b, selector, 1)?;
                 let equals = "(Ljava/lang/Object;)Z";

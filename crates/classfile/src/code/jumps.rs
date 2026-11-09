@@ -9,11 +9,12 @@ pub struct Label(usize);
 
 /// A jump offset to write: the jump's offset, the operand's, its label, and whether it takes four
 /// bytes.
+#[derive(Clone, Copy)]
 pub struct Fixup {
-    insn: usize,
-    operand: usize,
-    label: Label,
-    wide: bool,
+    pub insn: usize,
+    pub operand: usize,
+    pub label: Label,
+    pub wide: bool,
 }
 
 impl Code {
@@ -100,8 +101,7 @@ impl Code {
 
     /// Why the code cannot be written, if it cannot.
     pub fn problem(&self) -> Option<String> {
-        let unplaced = (!self.fixups.is_empty()).then(|| "a jump to a label never placed".to_owned());
-        self.error.clone().or(unplaced)
+        (!self.fixups.is_empty()).then(|| "a jump to a label never placed".to_owned())
     }
 
     /// Switch `opcode` and its padding; returns the switch's offset.
@@ -121,14 +121,16 @@ impl Code {
             self.bytes.extend([0; 4]);
         }
         let f = Fixup { insn, operand, label: target, wide };
+        self.jumps.push(f);
         match self.labels[target.0] {
             Some(to) => self.patch(&f, to),
             None => self.fixups.push(f),
         }
     }
 
-    /// Writes the offset from the jump of `f` to `to` into its operand.
-    fn patch(&mut self, f: &Fixup, to: usize) {
+    /// Writes the offset from the jump of `f` to `to` into its operand; a two-byte jump that does
+    /// not reach is left to `widen`.
+    pub fn patch(&mut self, f: &Fixup, to: usize) {
         let offset = to as i64 - f.insn as i64;
         if f.wide {
             let offset = (offset as i32).to_be_bytes();
@@ -136,7 +138,7 @@ impl Code {
             return;
         }
         let Ok(offset) = i16::try_from(offset) else {
-            self.error = Some("a jump over 32 KiB".into());
+            self.far.push(f.insn);
             return;
         };
         self.bytes[f.operand..f.operand + 2].copy_from_slice(&offset.to_be_bytes());

@@ -102,16 +102,18 @@ impl Gen<'_, '_> {
     /// a mixin forwarder whose signature does not erase to `desc`; of a method whose context
     /// closures became parameter clauses, from its type before.
     pub fn generic_signature(&mut self, sym: SymbolId, desc: &str) -> Option<String> {
-        let origin = self.mixed_origin(sym).unwrap_or(sym);
+        let mixed = self.mixed_origin(sym);
+        let origin = mixed.unwrap_or(sym);
         let info = match self.l.unflattened_info(origin) {
             Some(info) => info,
             None => self.seen_from_owner(sym),
         };
-        if self.mixed_origin(sym).is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) {
+        if mixed.is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) {
             return None;
         }
         let thrown = self.thrown(sym);
-        let sig = super::signatures::member(self.l.u, sym, info, desc, &thrown)?;
+        let syms = (sym, origin);
+        let sig = super::signatures::member(self.l.u, syms, info, desc, &thrown)?;
         let forwarder = self.l.mixed_in_from(sym).is_some() && !self.l.is_mixin_accessor(sym);
         (!forwarder || super::signatures::erases_to(&sig, desc)).then_some(sig)
     }

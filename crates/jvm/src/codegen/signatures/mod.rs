@@ -24,6 +24,8 @@ enum Boxing {
 struct Sig<'u> {
     u: &'u mut Universe,
     sym0: SymbolId,
+    /// The trait member a mixin forwarder `sym0` forwards to, else `sym0`.
+    origin: SymbolId,
     top: Option<SymbolId>,
     field: bool,
     constructor: bool,
@@ -32,11 +34,11 @@ struct Sig<'u> {
     out: String,
 }
 
-/// The generic signature of method or field `sym` of type `info`, descriptor `desc` and thrown
-/// exception types `thrown`; none if it equals `desc`.
+/// The generic signature of method or field `sym`, forwarding to `origin`, of type `info`,
+/// descriptor `desc` and thrown exception types `thrown`; none if it equals `desc`.
 pub fn member(
     u: &mut Universe,
-    sym: SymbolId,
+    (sym, origin): (SymbolId, SymbolId),
     info: TypeId,
     desc: &str,
     thrown: &[TypeId],
@@ -46,6 +48,7 @@ pub fn member(
     }
     let method = desc.starts_with('(');
     let mut s = Sig::new(u, sym);
+    s.origin = origin;
     s.field = !method;
     match s.u.types().get(info) {
         Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => s.jsig(info, true, Boxing::Unbox),
@@ -70,7 +73,7 @@ impl<'u> Sig<'u> {
             top = Some(o);
         }
         let constructor = u.is_constructor(sym0);
-        Sig { u, sym0, top, field: false, constructor, poly: Vec::new(), out: String::new() }
+        Sig { u, sym0, origin: sym0, top, field: false, constructor, poly: Vec::new(), out: String::new() }
     }
 
     fn boxed(&mut self, t: TypeId) {
@@ -183,7 +186,7 @@ impl<'u> Sig<'u> {
         }
         let mut o = Some(s);
         while let Some(x) = o {
-            if Some(x) == self.top || x == self.sym0 {
+            if Some(x) == self.top || x == self.sym0 || x == self.origin {
                 return Some(s);
             }
             o = self.u.symbol(x).owner;

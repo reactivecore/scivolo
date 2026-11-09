@@ -8,8 +8,8 @@ use super::body::Body;
 use super::{Gen, descriptor, unsupported};
 use lower::Result;
 use syntax::ast::constant::Constant;
-use tasty::SymbolId;
 use tasty::tags::MUTABLE;
+use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -38,6 +38,12 @@ impl Gen<'_, '_> {
         for &s in rest {
             self.stat(b, s)?;
         }
+        let synthetic_unit = matches!(self.l.tpd.tree(expr), Tree::Literal { value: Constant::Unit })
+            && self.l.tpd.span(expr) == self.l.tpd.span(rhs);
+        if synthetic_unit && result == "V" {
+            b.code.ret("V");
+            return Ok(());
+        }
         self.expr_ret(b, expr, result)
     }
 
@@ -48,8 +54,18 @@ impl Gen<'_, '_> {
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(t), "a local without a value") };
         let slot = b.local(sym, desc.clone());
         self.expr_as(b, rhs, classfile::value_slots(&desc))?;
+        self.cast_to_null(b, rhs, &desc);
         b.code.store(&desc, slot);
         Ok(0)
+    }
+
+    /// `checkcast Null$` after `t` where descriptor `desc` is `Null$` and `t` calls a method of
+    /// another erased reference result (dotty's `Erasure` cast to `Null`).
+    pub fn cast_to_null(&mut self, b: &mut Body, t: TNodeId, desc: &str) {
+        let reference = matches!(self.call_result(t), Some(Erased::Class(_) | Erased::Array(_)));
+        if desc == "Lscala/runtime/Null$;" && reference {
+            b.code.checkcast(b.pool, "scala/runtime/Null$");
+        }
     }
 
     /// The descriptor of local or field `sym`: `BoxedUnit` for a `Unit` value.
@@ -84,6 +100,7 @@ impl Gen<'_, '_> {
             return Ok(Some(0));
         }
         self.expr_as(b, rhs, classfile::value_slots(&desc))?;
+        self.cast_to_null(b, rhs, &desc);
         self.line(b, t);
         b.code.store(&desc, slot);
         Ok(Some(0))

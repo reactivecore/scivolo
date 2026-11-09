@@ -9,7 +9,8 @@ pub use lattice::Lub;
 
 use crate::{Code, Pool};
 use execute::execute;
-use flow::{length, live_ranges, targets};
+pub use flow::length;
+use flow::{live_ranges, targets};
 use lattice::{Frame, VType};
 use std::collections::BTreeSet;
 
@@ -97,7 +98,7 @@ pub fn stack_map(
             execute(&mut f, bytes, at, pool, m.class)?;
             at += length(bytes, at);
         }
-        let falls = !matches!(bytes[last], 0xa7 | 0xaa..=0xb1 | 0xbf) && end < bytes.len();
+        let falls = !matches!(bytes[last], 0xa7 | 0xaa..=0xb1 | 0xbf | 0xc8) && end < bytes.len();
         for s in targets(bytes, last).into_iter().chain(falls.then_some(end)) {
             flow.reach(s, &f, lub)?;
         }

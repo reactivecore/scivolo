@@ -8,7 +8,7 @@ use classfile::{FieldOp, Invoke};
 use lower::Result;
 use syntax::ast::constant::Constant;
 use tasty::Erased;
-use typer::tpd::TNodeId;
+use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
     /// Literal `value`; returns its slots.
@@ -105,8 +105,9 @@ impl Gen<'_, '_> {
         self.expr(b, *arg)?;
         let letter = match unbox {
             Some(p) => p.letter,
-            None => match self.l.u.erase(self.l.tpd.tpe(*arg)) {
-                Erased::Prim(c) => c,
+            None => match (self.l.u.erase(self.l.tpd.tpe(*arg)), self.call_result(*arg)) {
+                (Erased::Prim(c), _) => c,
+                (_, Some(Erased::Prim(c))) if self.l.u.erased_method(m).0 == [Erased::Prim(c)] => c,
                 _ => return unsupported(self.l.tpd.span(*arg), "a box of a value that is not primitive"),
             },
         };
@@ -122,5 +123,27 @@ impl Gen<'_, '_> {
         };
         b.code.invoke(Invoke::Static, b.pool, "scala/runtime/BoxesRunTime", &name, &d);
         Ok(Some(classfile::method_slots(&d).1))
+    }
+
+    /// The erased result of the method call or value `t`, whose type may be a member type the
+    /// erasure of the method or value resolves.
+    pub fn call_result(&mut self, t: TNodeId) -> Option<Erased> {
+        let mut fun = match *self.l.tpd.tree(t) {
+            Tree::Apply { fun, .. } => fun,
+            Tree::Select { .. } | Tree::Ident { .. } => t,
+            _ => return None,
+        };
+        while let Tree::TypeApply { fun: f, .. } = *self.l.tpd.tree(fun) {
+            fun = f;
+        }
+        let m = self.l.tpd.sym(fun)?;
+        match self.l.u.symbol(m).kind {
+            tasty::Kind::Def => Some(self.l.u.erased_method(m).1),
+            tasty::Kind::Val if !self.l.u.is_module(m) => {
+                let info = self.l.u.info(m);
+                Some(self.l.u.erase(info))
+            }
+            _ => None,
+        }
     }
 }
