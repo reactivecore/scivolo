@@ -4,7 +4,10 @@
 //! The definitions of super accessors, without bodies (`DefDef(acc, EmptyTree)`).
 
 use super::{Refusal, TreePickler};
-use tasty::tags::{ARTIFACT, DEFDEF, EMPTYCLAUSE, PARAM, SPLITCLAUSE, TYPEPARAM};
+use crate::defn::type_ref;
+use tasty::tags::{
+    ANNOTATION, APPLY, ARTIFACT, DEFDEF, EMPTYCLAUSE, NEW, PARAM, SELECTin, SPLITCLAUSE, STRINGconst, TYPEPARAM,
+};
 use tasty::write::Name;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
@@ -41,7 +44,34 @@ impl TreePickler<'_> {
             }
             p.ty(t, false)?;
             p.byte(ARTIFACT);
-            Ok(())
+            match p.u.symbol(acc).target.clone() {
+                Some(target) => p.target_name_annotation(&target),
+                None => Ok(()),
+            }
+        })
+    }
+
+    /// The annotation `@targetName(target)` (dotty's `deriveTargetNameAnnotation`).
+    fn target_name_annotation(&mut self, target: &str) -> Result<(), Refusal> {
+        let class = self.u.package("scala.annotation").and_then(|p| self.u.decl(p, "targetName").ok());
+        let class = class.and_then(|d| d.into_iter().find(|&c| self.u.is_class(c)));
+        let class = class.ok_or("a target name without the class targetName")?;
+        let init = self.u.decl(class, "<init>").ok().and_then(|d| d.first().copied());
+        let init = init.ok_or("a target name without the constructor of targetName")?;
+        let class = type_ref(self.u, class);
+        self.with_length(ANNOTATION, &mut |p| {
+            p.ty(class, false)?;
+            p.with_length(APPLY, &mut |p| {
+                p.with_length(SELECTin, &mut |p| {
+                    p.signed_name(init, true)?;
+                    p.byte(NEW);
+                    p.ty(class, false)?;
+                    p.ty(class, false)
+                })?;
+                p.byte(STRINGconst);
+                p.name(&Name::utf8(target));
+                Ok(())
+            })
         })
     }
 

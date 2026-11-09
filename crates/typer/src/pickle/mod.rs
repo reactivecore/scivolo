@@ -10,6 +10,7 @@ mod defs;
 mod names;
 mod packages;
 mod positions;
+mod protected_supers;
 mod refs;
 mod selects;
 mod sharing;

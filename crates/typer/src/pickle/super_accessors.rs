@@ -5,6 +5,7 @@
 //! (`transformSuperSelect`, `superAccessorCall`): in a trait without `M`, or in a class nested in
 //! `C`; declared without a body, each call a selection of its accessor on `C.this`.
 
+use super::names::expanded_prefix_name;
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::signatures::result_sig;
@@ -51,6 +52,12 @@ impl TreePickler<'_> {
                         if current != class || invalid || mix.is_empty() && self.u.is_trait(class) {
                             self.super_call(t, class, mix, &mut found)?;
                         }
+                    } else if matches!(self.tpd.tree(qualifier), T::This { .. })
+                        && self.tpd.sym(qualifier) == Some(class)
+                        && let Some(member) = self.tpd.sym(t)
+                        && self.protected_super_needed(member, current)?
+                    {
+                        self.super_call(t, class, String::new(), &mut found)?;
                     }
                 }
                 _ => {}
@@ -87,9 +94,6 @@ impl TreePickler<'_> {
         if m.kind.is_type() || m.flags.has(INLINE) {
             return Ok(());
         }
-        if m.target.is_some() {
-            return Err("a super call of a method with a target name");
-        }
         let key = (member, mix);
         let acc = match found.iter().find(|(k, _)| *k == key) {
             Some(&(_, acc)) => acc,
@@ -113,20 +117,24 @@ impl TreePickler<'_> {
     ) -> SymbolId {
         let original = self.u.symbol(*member).name.clone();
         let trait_ = self.u.is_trait(class);
-        let unexpanded = match mix.as_str() {
-            "" => format!("super${original}"),
-            mix => format!("{original}$super${mix}"),
+        let accessor_name = |u: &Universe, original: &str| {
+            let unexpanded = match mix.as_str() {
+                "" => format!("super${original}"),
+                mix => format!("{original}$super${mix}"),
+            };
+            match trait_ {
+                true => format!("{}$${unexpanded}", u.expanded_prefix(class)),
+                false => unexpanded,
+            }
         };
-        let name = match trait_ {
-            true => format!("{}$${unexpanded}", self.u.expanded_prefix(class)),
-            false => unexpanded,
-        };
+        let name = accessor_name(self.u, &original);
+        let target = self.u.symbol(*member).target.clone().map(|t| accessor_name(self.u, &t));
         let symbol = Symbol {
             name: name.clone(),
             kind: Kind::Def,
             owner: None,
             flags: Flags::default().with(ARTIFACT),
-            target: None,
+            target,
             is_extern: false,
             derived: false,
             decls: Vec::new(),
@@ -170,32 +178,5 @@ impl TreePickler<'_> {
             p.class_this(sel, None, class)?;
             p.ty(class, false)
         })
-    }
-}
-
-/// The name of `s` and its owners up to its package as `ExpandPrefix` names, an object's
-/// without its `$` and a `_$` for each term between it and its enclosing class (dotty's
-/// `fullNameSeparated(ExpandPrefixName)`, as `Universe::expanded_prefix` spells it).
-fn expanded_prefix_name(u: &Universe, s: SymbolId) -> Name {
-    let sym = u.symbol(s);
-    let mut name = tasty::module_name(&sym.name).unwrap_or(&sym.name).to_owned();
-    let mut owner = sym.owner;
-    while let Some(o) = owner.filter(|&o| u.symbol(o).kind.is_term()) {
-        name.insert_str(0, "_$");
-        owner = u.symbol(o).owner;
-    }
-    let last = Box::new(Name::utf8(&name));
-    match owner {
-        Some(o) if u.symbol(o).kind == Kind::Package => match u.full_name(o).as_str() {
-            "" | "<empty>" => *last,
-            package => {
-                let mut parts = package.split('.').map(Name::utf8);
-                let first = parts.next().expect("a package's name");
-                let package = parts.fold(first, |q, p| Name::ExpandPrefix(Box::new(q), Box::new(p)));
-                Name::ExpandPrefix(Box::new(package), last)
-            }
-        },
-        Some(o) => Name::ExpandPrefix(Box::new(expanded_prefix_name(u, o)), last),
-        None => *last,
     }
 }
