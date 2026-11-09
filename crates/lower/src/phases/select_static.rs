@@ -3,12 +3,14 @@
 //   compiler/src/dotty/tools/dotc/transform/Mixin.scala
 //! dotty's `SelectStatic` for enum cases and objects nested in static objects but of a Java
 //! class: `qual.f` becomes `f` if `qual` is a path of static objects, else `{ qual; f }`, without
-//! a span; the enclosing tree is copied as dotty's tree copiers do, which gives it one. Also the
-//! span `Mixin` gives a superclass constructor call.
+//! a span; the enclosing tree is copied as dotty's tree copiers do, which gives it one. The same
+//! for `@static` members but those of a path, which stay selections. Also the span `Mixin` gives a
+//! superclass constructor call.
 
 use super::walk::{children, subtrees};
 use crate::Lower;
 use crate::symbols::{has, is_jdk_object, is_static};
+use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{ENUM, FIELDaccessor, LAZY, STATIC};
 use tasty::{Kind, SymbolId};
@@ -25,13 +27,16 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
         for c in children(l.tpd, parent) {
             let Tree::Select { qualifier, .. } = *l.tpd.tree(c) else { continue };
             let Some(f) = l.tpd.sym(c) else { continue };
-            if !is_nested_static_module(l, f) && !is_static_enum_value(l, f)
+            if !is_nested_static_module(l, f) && !is_static_enum_value(l, f) && !is_scala_static(l, f)
                 || is_java_module_ref(l, qualifier)
             {
                 continue;
             }
             let tpe = l.tpd.tpe(c);
             let owner_ref = is_static_owner_ref(l, qualifier);
+            if owner_ref && is_scala_static(l, f) {
+                continue;
+            }
             let at = if owner_ref { moved_init_span(l, parent, c) } else { None };
             let r = l.ident(f, at.unwrap_or(Span::NONE));
             l.tpd.get_mut(r).tpe = Some(tpe);
@@ -49,6 +54,31 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
             l.recopy(parent);
         }
     }
+    let mut lifted = FxHashSet::default();
+    for t in subtrees(l.tpd, td).into_iter().rev() {
+        normalize(l, t, &mut lifted);
+    }
+}
+
+/// Makes `{ qual; g }(args)` `{ qual; g(args) }` for a block `transform` made, or one in
+/// `lifted`, which then holds `t` (dotty's `SelectStatic.normalize`).
+fn normalize(l: &mut Lower, t: TNodeId, lifted: &mut FxHashSet<TNodeId>) {
+    let (Tree::Apply { fun, args } | Tree::TypeApply { fun, args }) = *l.tpd.tree(t) else { return };
+    let Tree::Block { stats, expr } = *l.tpd.tree(fun) else { return };
+    if !l.static_selects.contains(&fun) && !lifted.contains(&fun) {
+        return;
+    }
+    let tree = match l.tpd.tree(t) {
+        Tree::Apply { .. } => Tree::Apply { fun: expr, args },
+        _ => Tree::TypeApply { fun: expr, args },
+    };
+    let (tpe, sym) = (l.tpd.get(t).tpe, l.tpd.get(t).sym);
+    let applied = l.tpd.node(tree, Span::NONE, tpe, sym);
+    let applied = l.positioned(applied);
+    let block = l.tpd.node(Tree::Block { stats, expr: applied }, Span::NONE, tpe, None);
+    let block = l.positioned(block);
+    l.copy_node(t, block);
+    lifted.insert(t);
 }
 
 /// The span of a reference in place of `c`, the right side of field or getter `parent` of a
@@ -85,6 +115,11 @@ fn super_ref_span(l: &mut Lower, call: TNodeId) {
 /// Whether `f` is the static field of an enum case.
 pub fn is_static_enum_value(l: &Lower, f: SymbolId) -> bool {
     l.u.symbol(f).kind == Kind::Val && has(l.u, f, STATIC) && has(l.u, f, ENUM)
+}
+
+/// Whether `f` is an `@static` member moved to its class (dotty's `isScalaStatic`).
+pub fn is_scala_static(l: &mut Lower, f: SymbolId) -> bool {
+    has(l.u, f, STATIC) && l.u.is_annotated(f, "scala.annotation.static")
 }
 
 /// Whether `t` refers to the object of a Java class (dotty's `JavaModule`).

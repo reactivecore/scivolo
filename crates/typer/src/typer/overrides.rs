@@ -15,7 +15,9 @@ impl Typer<'_> {
             None => {
                 let builtins = self.u.builtins();
                 let builtin = |o| o == builtins.any || o == builtins.object;
-                self.u.body(s).is_some() || self.u.symbol(s).owner.is_some_and(builtin)
+                self.u.body(s).is_some()
+                    || self.u.symbol(s).owner.is_some_and(builtin)
+                    || self.u.is_concrete_classfile_member(s)
             }
         }
     }

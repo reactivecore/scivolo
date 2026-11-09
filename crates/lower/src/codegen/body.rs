@@ -42,7 +42,7 @@ impl Gen<'_, '_> {
         if self.l.tpd.sym(callee).is_some_and(|s| self.l.u.full_name(s) == INTRINSIC_MARKER) {
             attrs = canonical(attrs.into_iter().chain([Attr::NoOpt, Attr::NoInline]).collect());
         }
-        let first_scope = if matches!(self.l.tpd.tree(rhs), Tree::Block { .. }) { -1 } else { 0 };
+        let first_scope = if self.is_block_body(rhs) { -1 } else { 0 };
         self.m = Method::new(Some(sym), first_scope, pos);
         let rhs_pos = self.pos_or(self.l.tpd.span(rhs), pos);
         self.m.scopes.push(LexicalScope { id: 0, parent: 0, pos: rhs_pos });
@@ -63,6 +63,19 @@ impl Gen<'_, '_> {
             return unsupported(span, "native interop");
         }
         Ok(())
+    }
+
+    /// Whether method body `rhs` is a block, possibly ascribed the value class erasure keeps it
+    /// a value of (a synthetic `Typed` dotty's `ErasedValueType` stands for).
+    fn is_block_body(&mut self, rhs: TNodeId) -> bool {
+        match *self.l.tpd.tree(rhs) {
+            Tree::Block { .. } => true,
+            Tree::Typed { expr, tpt } => {
+                let block = matches!(self.l.tpd.tree(expr), Tree::Block { .. });
+                block && !self.l.tpd.span(tpt).exists() && self.l.u.value_class(self.l.tpd.tpe(rhs)).is_some()
+            }
+            _ => false,
+        }
     }
 
     /// The body of method `sym`, and the attributes of what it uses: link-time conditions, methods

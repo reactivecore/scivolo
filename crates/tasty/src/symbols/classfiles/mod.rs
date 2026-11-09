@@ -2,6 +2,7 @@
 //! JDK's class files when a universe has a JDK (ADR 0107).
 
 mod class;
+mod javalib;
 mod signatures;
 
 use super::{Kind, SymbolId, Universe};
@@ -49,6 +50,11 @@ impl Universe {
     /// Whether `s` is a class, object or object's class entered from a JDK class file.
     pub fn is_from_classfile(&self, s: SymbolId) -> bool {
         self.classfile_classes.contains(&s)
+    }
+
+    /// Whether `s` is a concrete member entered from a JDK class file.
+    pub fn is_concrete_classfile_member(&self, s: SymbolId) -> bool {
+        self.classfile_descriptors.contains_key(&s) && !self.is_deferred(s)
     }
 
     /// The erasure of method `def` entered from a JDK class file, its descriptor's; a

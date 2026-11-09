@@ -76,6 +76,12 @@ impl Gen<'_, '_> {
         Some((inner, enclosing))
     }
 
+    /// The member classes of class `c`, not those lifted into it (dotty's `memberClasses`).
+    pub fn member_classes(&self, c: SymbolId) -> Vec<SymbolId> {
+        let decls = self.l.u.symbol(c).decls.iter().copied();
+        decls.filter(|&d| self.l.u.symbol(d).kind == Kind::Class && !self.is_local_class(d)).collect()
+    }
+
     /// The class or package lexically enclosing class `c` before local classes were lifted.
     fn enclosing_class_of(&self, c: SymbolId) -> SymbolId {
         let mut s = self.l.original_owner(c).expect("a class's owner");
@@ -97,7 +103,9 @@ impl Gen<'_, '_> {
         loop {
             match self.l.u.symbol(s).kind {
                 Kind::Class | Kind::Package => return None,
-                Kind::Def if !self.l.u.symbol(s).flags.has(tasty::tags::SYNTHETIC) => return Some(s),
+                Kind::Def if !self.l.u.symbol(s).flags.has(tasty::tags::SYNTHETIC) => {
+                    return Some(self.l.lifted_method(s));
+                }
                 _ => s = self.l.original_owner(s)?,
             }
         }

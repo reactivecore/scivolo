@@ -126,6 +126,7 @@ fn move_body(l: &mut Lower, owner: Owner, def: TNodeId, ext: SymbolId) -> TNodeI
     let class_type = type_ref(l.u, class);
     l.u.set_info(this, class_type);
     let span = l.tpd.span(def);
+    l.coords.insert(ext, Span::at(span.point()));
     let this_def = l.param_def(this, Span::at(span.point()));
     let mut ext_clauses = vec![l.tpd.list(&[this_def])];
     let mut kept = Vec::new();
@@ -231,8 +232,8 @@ fn rewired_call(l: &mut Lower, m: SymbolId, qualifier: TNodeId) -> TNodeId {
     let fun = l.ident(ext, Span::NONE);
     let info = l.u.info(ext);
     let tpe = l.u.result_type(l.u.strip_poly(info));
-    let span = l.tpd.span(qualifier);
-    l.apply(fun, &[qualifier], tpe, span)
+    let call = l.apply(fun, &[qualifier], tpe, Span::NONE);
+    l.positioned(call)
 }
 
 /// Whether `s` is a term member of `class`.

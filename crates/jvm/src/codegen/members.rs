@@ -99,9 +99,14 @@ impl Gen<'_, '_> {
 
     /// The generic signature of member `sym` of descriptor `desc` (dotty's `getGenericSignature`
     /// with `Mixin`'s `mixinGenericInfos`): none for an accessor of a private trait value, nor for
-    /// a mixin forwarder whose signature does not erase to `desc`.
+    /// a mixin forwarder whose signature does not erase to `desc`; of a method whose context
+    /// closures became parameter clauses, from its type before.
     pub fn generic_signature(&mut self, sym: SymbolId, desc: &str) -> Option<String> {
-        let info = self.seen_from_owner(sym);
+        let origin = self.mixed_origin(sym).unwrap_or(sym);
+        let info = match self.l.unflattened_info(origin) {
+            Some(info) => info,
+            None => self.seen_from_owner(sym),
+        };
         if self.mixed_origin(sym).is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) {
             return None;
         }

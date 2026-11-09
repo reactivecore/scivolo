@@ -68,6 +68,11 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             let span = l.tpd.span(t);
             l.tpd.get_mut(t).span = span.with_point(span.start());
             if l.backend == crate::Backend::Jvm {
+                let Tree::Select { qualifier, .. } = *l.tpd.tree(t) else { unreachable!("a selection") };
+                let this = matches!(l.tpd.tree(qualifier), Tree::This { .. });
+                if !this && !super::select_static::is_static_owner_ref(l, qualifier) {
+                    return unsupported(span, "an `@static` member selected from a value other than a path");
+                }
                 let tpe = l.tpd.tpe(t);
                 let r = l.ident(s, span);
                 l.tpd.get_mut(r).tpe = Some(tpe);

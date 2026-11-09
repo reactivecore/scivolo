@@ -110,8 +110,11 @@ fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Op
 }
 
 /// The erased class of getter `getter`'s value if it is `Unit`, `Null` or `Nothing`, which need
-/// no field (dotty's `isErasableBottomField`).
+/// no field unless `@volatile` (dotty's `isErasableBottomField`).
 pub fn bottom(l: &mut Lower, getter: SymbolId) -> Option<Erased> {
+    if l.u.is_annotated(getter, "scala.volatile") {
+        return None;
+    }
     let info = l.u.info(getter);
     let erased = l.u.erase(info);
     matches!(erased, Erased::Unit | Erased::Null | Erased::Nothing).then_some(erased)

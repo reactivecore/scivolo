@@ -6,10 +6,11 @@
 
 use super::Typer;
 use super::gadt::plain_type_ref;
+use super::gadt_full_bounds::is_top;
 use super::stability::is_stable_path;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{SymbolId, Type, TypeId, Universe};
+use tasty::{Type, TypeId, Universe};
 
 pub const GADT_HEALED_VIEW: &str = "implicit conversion of a GADT-approximated qualifier";
 
@@ -43,17 +44,17 @@ impl Typer<'_> {
     /// approximated without the GADT bounds, and `pt` unless that approximation conforms to it.
     pub fn gadt_cast(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(tree);
-        let underlying = match *self.u.types().get(tpe) {
-            Type::Annotated(t, _) => t,
-            _ => tpe,
-        };
-        if !self.is_singleton(underlying) {
+        if !self.is_singleton_tree(tree) {
             return self.type_cast(tree, pt);
         }
         if self.gadt.inline {
             let span = self.tpd.span(tree);
             return self.unsupported_tree(span, "GADT cast of a singleton in an inline match case");
         }
+        let underlying = match *self.u.types().get(tpe) {
+            Type::Annotated(t, _) => t,
+            _ => tpe,
+        };
         let widened = self.u.widen(underlying);
         let approx = self.approximate_gadt(widened, 1, ctx);
         let conj = self.u.intern_type(Type::And(tpe, approx));
@@ -67,6 +68,16 @@ impl Typer<'_> {
             false => conj,
         };
         self.type_cast(tree, target)
+    }
+
+    /// Whether the type of `tree`, an annotation dropped, is a singleton.
+    fn is_singleton_tree(&mut self, tree: TNodeId) -> bool {
+        let tpe = self.tpd.tpe(tree);
+        let underlying = match *self.u.types().get(tpe) {
+            Type::Annotated(t, _) => t,
+            _ => tpe,
+        };
+        self.is_singleton(underlying)
     }
 
     /// `tree` cast to `pt` if it conforms to it only by GADT bounds (dotty's `gadtAdaptBranch`);
@@ -88,6 +99,10 @@ impl Typer<'_> {
         }
         match self.gadt_adapted_in(expr, pt, ctx) {
             adapted if adapted == expr => self.gadt_adapted(tree, pt, ctx),
+            _ if self.is_singleton_tree(expr) => {
+                let span = self.tpd.span(tree);
+                self.unsupported_tree(span, "GADT cast of a singleton as a block's expression")
+            }
             adapted => {
                 let span = self.tpd.span(tree);
                 self.build().block(stats, adapted, span)
@@ -154,42 +169,5 @@ impl Typer<'_> {
             }
             _ => t,
         }
-    }
-
-    /// The upper bound for `variance` 1, the lower bound for -1 of `s` or the last parameter it
-    /// was made one with, transitively; for the upper bound, a GADT-narrowed type outside those
-    /// whose lower bound is that parameter if it conforms to that bound (dotty's
-    /// `fullUpperBound`).
-    fn gadt_bound(&mut self, mut s: SymbolId, variance: i8) -> TypeId {
-        let mut seen = vec![s];
-        while let Some((lo, hi)) = self.u.gadt_bounds(s)
-            && lo == hi
-            && let Some(r) = plain_type_ref(self.u, hi).filter(|r| !seen.contains(r))
-        {
-            seen.push(r);
-            s = r;
-        }
-        let own = self.gadt_ref(s);
-        let Some((lo, hi)) = self.current_bounds(s) else { return own };
-        if variance < 0 {
-            return lo;
-        }
-        let above = self
-            .gadt_narrowed()
-            .into_iter()
-            .find(|&n| !seen.contains(&n) && self.u.gadt_bounds(n).is_some_and(|(l, _)| l == own));
-        let above = above.map(|n| self.gadt_ref(n));
-        match above {
-            Some(a) if is_top(self.u, hi) || self.u.is_subtype(a, hi) => a,
-            _ => hi,
-        }
-    }
-}
-
-/// Whether `t` is `Any` or a type lambda of result `Any`.
-fn is_top(u: &mut Universe, t: TypeId) -> bool {
-    match *u.types().get(t) {
-        Type::Lambda { result, .. } => result == tasty::ANY,
-        _ => t == tasty::ANY,
     }
 }

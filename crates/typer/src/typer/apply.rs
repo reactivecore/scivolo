@@ -33,13 +33,11 @@ impl Typer<'_> {
             Ok(f) if self.is_pending_dynamic(f) => return self.dynamic_apply(id, f, proto, pt, fun_ctx),
             Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),
             Ok(f) => f,
-            Err(what @ "application of a non-method") => {
-                let n = self.protos[proto].args.len();
-                return match self.does_not_take_parameters(fun, f, n, fun_ctx) {
-                    Some(error) => error,
-                    None => self.unsupported(id, what),
-                };
-            }
+            Err("application of a non-method") => match self.non_method_applied((id, fun), f, proto, fun_ctx)
+            {
+                Ok(f) => f,
+                Err(error) => return error,
+            },
             Err(what) => return self.unsupported(id, what),
         };
         if let Some(m) = self.tpd.sym(self.tpd.meth_part(f))
@@ -208,6 +206,7 @@ impl Typer<'_> {
                     }
                     let before = typed_args.last().copied().unwrap_or(f);
                     let at = self.tpd.span(before).end_pos();
+                    let elem = self.normalized_tuple_type(elem);
                     let elem = self.java_object_elem(meth, elem);
                     let arg = self.seq_literal(&elems, elem, at);
                     if let T::Typed { expr, .. } = *self.tpd.tree(arg) {

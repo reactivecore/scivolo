@@ -26,7 +26,8 @@ which dotty reads from the JDK's class files (`ClassfileParser`). ADR 0106 found
   one.
 
 ## Consequences
-- The library still wins: a JDK member javalib lacks in a class javalib has stays unknown.
+- The library still wins; a JDK member javalib lacks in a class javalib has is entered as ADR
+  0108 says.
 - No annotations, `Exceptions` or `InnerClasses` are read: an eta-expansion to such a class is
   refused, as for a Java class that is no known functional interface; deprecation warnings and
   an enum's children (for its sum mirror, refused) are missing.
