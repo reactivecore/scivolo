@@ -15,9 +15,11 @@ object Foo:
 
 object Lw26statics:
   import Foo.*
+  def foo(): Foo.type = { println("foo"); Foo }
   def main(args: Array[String]): Unit =
     println(method + field + mutable + accessor)
     mutable = 10
     println(Foo.mutable)
     println(greeting)
     println(new Foo().Bar.field)
+    println(foo().field + foo().mutable + foo().method)

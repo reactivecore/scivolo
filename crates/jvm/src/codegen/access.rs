@@ -5,7 +5,7 @@
 
 use super::body::Body;
 use super::callee::{Receiver, adapt_phantom};
-use super::{Gen, class_internal, descriptor, is_static_member, method_descriptor, method_name, unsupported};
+use super::{Gen, class_internal, is_static_member, method_descriptor, method_name, unsupported};
 use classfile::{FieldOp, Invoke};
 use lower::Result;
 use syntax::ast::Span;
@@ -24,8 +24,7 @@ impl Gen<'_, '_> {
         value: Option<(TNodeId, TNodeId)>,
     ) -> Result<i32> {
         let owner = self.l.u.symbol(f).owner.expect("a field's owner");
-        let info = self.l.u.info(f);
-        let desc = descriptor(&self.l.u.erase(info));
+        let desc = self.storage_descriptor(f);
         let instance = self.receiver(b, (f, false), qualifier, prefix)?;
         let op = match (instance, value) {
             (true, None) => FieldOp::GetField,
@@ -34,7 +33,7 @@ impl Gen<'_, '_> {
             (false, Some(_)) => FieldOp::PutStatic,
         };
         if let Some((v, assign)) = value {
-            self.expr(b, v)?;
+            self.expr_as(b, v, classfile::value_slots(&desc))?;
             self.line(b, assign);
         }
         let (owner, name) = (self.member_owner(owner).0, tasty::encode(&self.l.u.symbol(f).name));

@@ -1,0 +1,14 @@
+List(null, null)
+null
+List((), null)
+List((), null)
+List(null, (), null)
+List(null, null)
+List((), ())
+List((), ())
+List((), ())
+(),null
+List((), null, null)
+ArraySeq((), null)
+List((), null)
+false

@@ -82,7 +82,7 @@ impl Typer<'_> {
                 continue;
             }
             let below = self.gadt_ref(g);
-            lo = if lo == tasty::NOTHING { below } else { self.u.intern_type(Type::Or(lo, below, false)) };
+            lo = self.u.lub(lo, below);
         }
         lo
     }

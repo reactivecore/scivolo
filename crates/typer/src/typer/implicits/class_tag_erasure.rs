@@ -108,7 +108,7 @@ impl Typer<'_> {
 
     /// `TupleN[A, B, …]` for a chain `A *: B *: … *: EmptyTuple` of at most 22 elements, else `t`
     /// (dotty's `normalizedTupleType`).
-    fn normalized_tuple_type(&mut self, t: TypeId) -> TypeId {
+    pub fn normalized_tuple_type(&mut self, t: TypeId) -> TypeId {
         let Some(elems) = self.tuple_elements(t).filter(|e| (1..=MAX_TUPLE_ARITY).contains(&e.len())) else {
             return t;
         };

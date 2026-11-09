@@ -32,7 +32,7 @@ impl Gen<'_, '_> {
         let static_ = flags & ACC_STATIC != 0;
         let this_class = (!static_ || trait_init).then(|| self.class_name(owner));
         let name = method_name(self.l.u, sym);
-        if name.contains("$anonfun") {
+        if name.contains("$anonfun") && !self.l.is_bridge_closure(sym) {
             flags |= ACC_SYNTHETIC;
         }
         let params = self.l.tpd.clause_items(paramss).iter().flat_map(|&c| self.l.tpd.items(c));

@@ -25,6 +25,7 @@ mod mirror;
 mod monitors;
 mod nested;
 mod prims;
+mod serial;
 mod signatures;
 mod stash;
 mod switches;

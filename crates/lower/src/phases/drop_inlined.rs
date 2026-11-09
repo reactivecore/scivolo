@@ -94,6 +94,23 @@ pub fn span_before_erasure(l: &Lower, t: TNodeId) -> Span {
     l.inlined_spans.get(&t).copied().unwrap_or_else(|| l.tpd.span(t))
 }
 
+/// Gives the trees of `adapted` around `t` the span of the inline call `t` is an argument inlined
+/// into from another source, if it is one: dotty adapts a qualifier in the context of the
+/// expansion, and `dropInlined` repositions what it made there.
+pub fn adaptation_at_call(l: &mut Lower, adapted: TNodeId, t: TNodeId) {
+    let call = span_before_erasure(l, t);
+    if !call.is_inlined_call() {
+        return;
+    }
+    let mut pending = vec![adapted];
+    while let Some(n) = pending.pop() {
+        if n != t {
+            l.tpd.get_mut(n).span = call;
+            pending.extend(super::walk::children(l.tpd, n));
+        }
+    }
+}
+
 /// The key `LambdaLift` names definition `sym` starting at `at` by: the start of the inline call
 /// it was inlined at, if any, then `at`, in the order of the trees.
 pub fn naming_order(l: &Lower, sym: SymbolId, at: Offset) -> (Offset, Offset) {

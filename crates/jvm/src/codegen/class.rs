@@ -24,6 +24,7 @@ impl Gen<'_, '_> {
         let (superclass, interfaces) = self.parents(sym, &targets);
         let interfaces: Vec<&str> = interfaces.iter().map(String::as_str).collect();
         let mut cf = ClassFile::new(java_flags(self.l, sym), &name, &superclass, &interfaces);
+        self.serial_version_uid(&mut cf, sym)?;
         let module = is_static_module(self.l.u, sym);
         let module_desc = format!("L{name};");
         if module {
@@ -46,8 +47,7 @@ impl Gen<'_, '_> {
                 Tree::DefDef { .. } => self.gen_method(&mut cf, (td, stat), s)?,
                 Tree::ValDef { .. } => {
                     self.check_annotations(s, self.l.tpd.span(stat))?;
-                    let info = self.l.u.info(s);
-                    let desc = super::descriptor(&self.l.u.erase(info));
+                    let desc = self.storage_descriptor(s);
                     let name = self.l.u.symbol(s).name.clone();
                     let mutable = self.l.u.symbol(s).flags.has(MUTABLE);
                     let volatile = if self.l.var_handle(s).is_some() { ACC_VOLATILE } else { 0 };
@@ -83,7 +83,10 @@ impl Gen<'_, '_> {
         }
         let source = self.source_name(td);
         cf.source_file(&source);
-        let declared: Vec<SymbolId> = nested.iter().filter_map(|&n| self.l.tpd.sym(n)).collect();
+        let mut declared: Vec<SymbolId> = nested.iter().filter_map(|&n| self.l.tpd.sym(n)).collect();
+        if let Some(companion) = companion.filter(|&c| top && !module && is_static_module(self.l.u, c)) {
+            declared.extend(self.member_classes(companion));
+        }
         self.nested_attributes(&mut cf, sym, &declared);
         let mirror = module && top && self.l.u.companion_class(sym).is_none();
         let tasty = self.tasty.remove(&sym);

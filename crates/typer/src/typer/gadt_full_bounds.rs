@@ -38,7 +38,8 @@ impl Typer<'_> {
     }
 
     /// Upper bound `hi` of `own` with each pattern-bound type in it whose lower bound `own`
-    /// conforms to replaced by its upper bound, as dotty's constraint propagates it.
+    /// conforms to replaced by the part of its upper bound that is no GADT-constrained type, as
+    /// dotty's constraint propagates it.
     fn without_bound_above(&mut self, own: TypeId, hi: TypeId) -> TypeId {
         match *self.u.types().get(hi) {
             Type::And(a, b) => {
@@ -47,10 +48,26 @@ impl Typer<'_> {
             }
             _ => match plain_type_ref(self.u, hi).filter(|p| self.gadt.bound.contains(p)) {
                 Some(p) => match self.current_bounds(p) {
-                    Some((lo, up)) if self.u.is_subtype(own, lo) => up,
+                    Some((lo, up)) if self.u.is_subtype(own, lo) => self.without_gadt_params(up),
                     _ => hi,
                 },
                 None => hi,
+            },
+        }
+    }
+
+    /// `t` without the parts of an intersection that are GADT-constrained types, `Any` if none
+    /// is left.
+    fn without_gadt_params(&mut self, t: TypeId) -> TypeId {
+        match *self.u.types().get(t) {
+            Type::And(a, b) => {
+                let (a, b) = (self.without_gadt_params(a), self.without_gadt_params(b));
+                self.u.glb(a, b)
+            }
+            Type::Var(_) => tasty::ANY,
+            _ => match plain_type_ref(self.u, t) {
+                Some(r) if self.gadt.bound.contains(&r) || self.u.gadt_bounds(r).is_some() => tasty::ANY,
+                _ => t,
             },
         }
     }
