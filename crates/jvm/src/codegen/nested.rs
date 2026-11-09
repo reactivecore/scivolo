@@ -70,7 +70,10 @@ impl Gen<'_, '_> {
         let inner = InnerClass {
             inner: self.class_name(d),
             outer,
-            name: (!anonymous).then(|| tasty::encode(self.l.original_name(d))),
+            name: (!anonymous).then(|| {
+                let target = self.l.u.class_target(d);
+                tasty::encode(target.as_deref().unwrap_or(self.l.original_name(d)))
+            }),
             flags: flags & INNER_CLASSES_FLAGS,
         };
         Some((inner, enclosing))
@@ -163,6 +166,9 @@ impl Gen<'_, '_> {
                 let seg = &rest[..cut];
                 let mut cands = self.l.u.decl(owner, seg).unwrap_or_default();
                 cands.extend(self.l.u.decl(owner, &format!("{seg}$")).unwrap_or_default());
+                let decls = self.l.u.symbol(owner).decls.iter().copied();
+                let target = |t: String| t.strip_suffix('$').unwrap_or(&t) == seg;
+                cands.extend(decls.filter(|&d| self.l.u.class_target(d).is_some_and(target)));
                 for c in cands.into_iter().filter(|&c| self.l.u.symbol(c).kind == Kind::Class) {
                     let own = self.class_name(c);
                     if own == name {

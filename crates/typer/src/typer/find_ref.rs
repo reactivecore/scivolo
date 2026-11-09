@@ -65,14 +65,10 @@ impl Typer<'_> {
                         }
                         let classes = self.defined(l, Name { is_type: true, ..name }).map(|f| f.syms);
                         let classes = classes.unwrap_or_default();
-                        if !name.is_type
-                            && !ctx.mode.is(Mode::EXTENSION_METHOD)
-                            && classes.iter().any(|&s| self.is_exported_class(s))
-                        {
-                            return Err("constructor proxy of an exported class");
-                        }
                         let class = classes.iter().any(|&s| self.u.symbol(s).kind == Kind::Class);
-                        let proxy = classes.iter().any(|&s| self.needs_constructor_proxies(s));
+                        let proxy = classes
+                            .iter()
+                            .any(|&s| self.needs_constructor_proxies(s) || self.is_exported_class(s));
                         if !name.is_type
                             && class
                             && !proxy

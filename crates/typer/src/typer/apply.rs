@@ -63,6 +63,7 @@ impl Typer<'_> {
             other => other,
         };
         let f = match f {
+            Ok(f) if self.is_pending_dynamic(f) => return self.dynamic_apply(id, f, proto, pt, fun_ctx),
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };

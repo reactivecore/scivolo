@@ -83,6 +83,24 @@ impl Typer<'_> {
         Ok(self.tpd.node(T::Select { qualifier: f, name }, span, Some(apply_tpe), Some(sym)))
     }
 
+    /// The span of the tree `f` adapts by applying context functions to implicit arguments, the
+    /// span of `f` itself if it is no such adaptation.
+    pub fn adapted_span(&self, f: TNodeId) -> Span {
+        let context_apply = |t: TNodeId| {
+            let owner = self.tpd.sym(t).and_then(|m| self.u.symbol(m).owner);
+            owner.is_some_and(|c| self.u.full_name(c).starts_with("scala.ContextFunction"))
+        };
+        let mut t = f;
+        while self.tpd.span(t).is_synthetic() {
+            t = match *self.tpd.tree(t) {
+                T::Apply { fun, .. } if context_apply(fun) => fun,
+                T::Select { qualifier, .. } if context_apply(t) => qualifier,
+                _ => return self.tpd.span(f),
+            };
+        }
+        self.tpd.span(t)
+    }
+
     /// `f.apply` as a call of an extension method `apply` in scope or in the implicit scope of
     /// `f`'s type, or of the `apply` of `f` converted by an implicit view, if there is one.
     fn extension_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Option<TNodeId> {
