@@ -31,7 +31,9 @@ impl Typer<'_> {
         }
         let shown = if module { &name[..max] } else { name };
         let start = span.point();
-        let msg = format!("The identifier `{shown}` should not contain `$`, which is reserved for internal compiler use.");
+        let msg = format!(
+            "The identifier `{shown}` should not contain `$`, which is reserved for internal compiler use."
+        );
         self.diags.warning_at(start, start + max as u32, start, msg);
     }
 }
