@@ -83,17 +83,22 @@ impl Typer<'_> {
         Ok(Some(self.pending_dynamic(call)))
     }
 
-    /// Whether `f` is a dynamic call, possibly applied through inserted `apply`s to the implicit
-    /// arguments of the context functions it results in (dotty's `isDynamicExpansion`).
+    /// Whether `f` is a dynamic call, possibly applied to the implicit arguments of the context
+    /// functions it results in, the innermost `apply` inserted (dotty's `isDynamicExpansion`).
     fn is_dynamic_call(&self, f: TNodeId) -> bool {
+        self.is_dynamic_expansion(f, true)
+    }
+
+    /// `is_dynamic_call` for `f` whose `apply` is `synthetic`.
+    fn is_dynamic_expansion(&self, f: TNodeId, synthetic: bool) -> bool {
         let callee = self.tpd.meth_part(f);
         let Some(m) = self.tpd.sym(callee) else { return false };
         let contextual =
             self.u.symbol(m).owner.is_some_and(|c| self.u.full_name(c).starts_with("scala.ContextFunction"));
         match *self.tpd.tree(callee) {
-            _ if is_dynamic_method(&self.u.symbol(m).name) => true,
-            T::Select { qualifier, .. } if contextual && self.tpd.span(callee).is_synthetic() => {
-                self.is_dynamic_call(qualifier)
+            _ if is_dynamic_method(&self.u.symbol(m).name) => synthetic,
+            T::Select { qualifier, .. } if contextual => {
+                self.is_dynamic_expansion(qualifier, self.tpd.span(callee).is_synthetic())
             }
             _ => false,
         }
