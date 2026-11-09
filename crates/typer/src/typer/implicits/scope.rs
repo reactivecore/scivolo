@@ -111,7 +111,7 @@ impl Typer<'_> {
     /// Whether object `module` has implicit members or extension methods.
     fn holds_implicits(&mut self, module: SymbolId) -> bool {
         let Some(class) = self.u.module_class(module) else { return false };
-        !self.implicit_members(class, false).is_empty()
+        !self.implicit_members(class, true).is_empty()
             || self.u.linearization(class).into_iter().any(|b| {
                 let decls = self.u.decls(b).unwrap_or_default();
                 decls.iter().any(|&d| self.u.symbol(d).flags.has(EXTENSION))
