@@ -63,7 +63,7 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { def f(): Boolean = ().isInstanceOf[Unit] }", "type tests of primitive values or of null"),
     (
-        "object O { def f(x: Boolean): Int = x.asInstanceOf[Int] }",
+        "object O { def f(x: Int): Nothing = x.asInstanceOf[Nothing] }",
         "casts between primitive values or to references",
     ),
     (

@@ -13,7 +13,8 @@ use tasty::{Erased, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
-/// `expr` then `()` for `Unit` and a source cast to `BoxedUnit`, a conversion or a cast of the boxed value from a primitive or `Unit`,
+/// `expr` then `()` for `Unit` and a source cast to `BoxedUnit`, a conversion (else a
+/// `ClassCastException`) or a cast of the boxed value from a primitive or `Unit`,
 /// unboxing from a reference or `null` to a primitive, a `ClassCastException` for `Nothing`,
 /// an ascription if `expr`'s erasure conforms to `target`'s (of a cast at `expr` if only its self
 /// type's does), else `t`; casts from or to value classes as `value_cast`.
@@ -57,8 +58,9 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
         }
         (Erased::Prim(a), Erased::Prim(b)) => match primitive_conversion(l, expr, *a, *b) {
             Some(converted) => converted,
-            None => return refused(),
+            None => failed_conversion(l, expr, &found, *b),
         },
+        (Erased::Unit, Erased::Prim(b)) => failed_conversion(l, expr, &found, *b),
         (Erased::Prim(a), Erased::Class(_) | Erased::Array(_)) => match boxed_cast(l, t, expr, *a) {
             Some(t) => t,
             None => return refused(),
@@ -234,8 +236,31 @@ pub fn primitive_conversion(l: &mut Lower, expr: TNodeId, from: char, to: char) 
     Some(l.positioned(select))
 }
 
+/// `throw new ClassCastException()` at `expr`, which it drops, with dotty's warning that the
+/// conversion from `from` to `to` fails (dotty's `primitiveConversion` without a `toX` method).
+pub fn failed_conversion(l: &mut Lower, expr: TNodeId, from: &Erased, to: char) -> TNodeId {
+    let name = |c| crate::definitions::primitive_class_name(c).unwrap_or_default().replace("scala.", "");
+    let from = match from {
+        Erased::Prim(c) => name(*c),
+        _ => "Unit".into(),
+    };
+    let message = format!("conversion from {from} to {} will always fail at runtime.", name(to));
+    l.warnings.warning_unpositioned(message);
+    let throw = new_class_cast(l, None);
+    let span = l.tpd.span(expr);
+    l.with_span(throw, span)
+}
+
 /// `{ expr; throw new ClassCastException("Cannot cast to scala.Nothing") }`, at `expr`.
 fn throw_class_cast(l: &mut Lower, expr: TNodeId) -> TNodeId {
+    let throw = new_class_cast(l, Some("Cannot cast to scala.Nothing"));
+    let span = l.tpd.span(expr);
+    let block = l.block(&[expr], throw, Span::NONE);
+    l.with_span(block, span)
+}
+
+/// `throw new ClassCastException(message)`, or without an argument.
+fn new_class_cast(l: &mut Lower, message: Option<&str>) -> TNodeId {
     let class = l.u.class_ref("java.lang.ClassCastException");
     let class = l.u.class_symbol(class).expect("`ClassCastException`");
     let string = l.u.class_ref("java.lang.String");
@@ -243,16 +268,16 @@ fn throw_class_cast(l: &mut Lower, expr: TNodeId) -> TNodeId {
     let ctors = l.u.decl(class, "<init>").unwrap_or_default();
     let ctor = ctors.into_iter().find(|&c| {
         let info = l.u.info(c);
-        let Some(&[(_, p)]) = l.u.method(info).map(|m| m.params) else { return false };
-        l.u.class_symbol(p) == string
+        match l.u.method(info).map(|m| m.params) {
+            Some(&[(_, p)]) => message.is_some() && l.u.class_symbol(p) == string,
+            Some([]) => message.is_none(),
+            _ => false,
+        }
     });
-    let ctor = ctor.expect("`ClassCastException(String)`");
+    let ctor = ctor.expect("a `ClassCastException` constructor");
     let new = l.new_(class, Span::NONE);
-    let message = l.string_literal("Cannot cast to scala.Nothing");
-    let error = l.call(new, ctor, &[message]);
+    let args: Vec<TNodeId> = message.into_iter().map(|m| l.string_literal(m)).collect();
+    let error = l.call(new, ctor, &args);
     l.tpd.get_mut(error).tpe = l.tpd.get(new).tpe;
-    let throw = l.throw_(error);
-    let span = l.tpd.span(expr);
-    let block = l.block(&[expr], throw, Span::NONE);
-    l.with_span(block, span)
+    l.throw_(error)
 }

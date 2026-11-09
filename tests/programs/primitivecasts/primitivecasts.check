@@ -1,0 +1,8 @@
+Boolean to Int: java.lang.ClassCastException null
+Int to Boolean: java.lang.ClassCastException null
+Char to Boolean: java.lang.ClassCastException null
+Unit to Int: java.lang.ClassCastException null
+dropped operand: java.lang.ClassCastException null
+Boolean to Boolean: true
+Int to Long: 1
+Char to Int: 97
