@@ -17,16 +17,50 @@ fn is_script_lambda(u: &Universe, t: TypeId) -> bool {
 }
 
 /// `t` with the type variables that have instances in `constraint` replaced by them once, a
-/// skolem keeping its identity.
-fn substituted(u: &mut Universe, constraint: &Constraint, t: TypeId, changed: &mut bool) -> TypeId {
-    u.map_type(t, &mut |u, part| match *u.types().get(part) {
-        Type::Var(v) => constraint.instance(v).inspect(|_| *changed = true),
+/// skolem keeping its identity; with `keep`, a variable applied to arguments whose instance is a
+/// type lambda stays, its arguments substituted.
+fn substituted(u: &mut Universe, c: &Constraint, t: TypeId, changed: &mut bool, keep: bool) -> TypeId {
+    u.map_type(t, &mut |u, part| match u.types().get(part).clone() {
+        Type::Var(v) => c.instance(v).inspect(|_| *changed = true),
         Type::Skolem(b, info) => {
-            let info = substituted(u, constraint, info, changed);
+            let info = substituted(u, c, info, changed, keep);
             Some(u.intern_type(Type::Skolem(b, info)))
+        }
+        Type::Applied(tycon, args) if keep && lambda_instance(u, c, tycon).is_some() => {
+            let args = args.iter().map(|&a| substituted(u, c, a, changed, keep)).collect();
+            Some(u.intern_type(Type::Applied(tycon, args)))
         }
         _ => None,
     })
+}
+
+/// `t` with instantiated type variables replaced by their instances, normalized; with `keep`, an
+/// application of a variable instantiated to a type lambda unreduced.
+fn zonked(u: &mut Universe, c: &Constraint, mut t: TypeId, keep: bool) -> TypeId {
+    let mut changed = true;
+    for _ in 0..16 {
+        if !changed {
+            break;
+        }
+        changed = false;
+        t = substituted(u, c, t, &mut changed, keep);
+    }
+    let t = super::seen_from::normalized(u, t);
+    if !keep {
+        return t;
+    }
+    u.map_type(t, &mut |u, part| {
+        let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
+        let inst = lambda_instance(u, c, tycon)?;
+        Some(u.intern_type(Type::Applied(inst, args)))
+    })
+}
+
+/// The instance of type variable `t`, zonked, if it is a type lambda.
+fn lambda_instance(u: &mut Universe, c: &Constraint, t: TypeId) -> Option<TypeId> {
+    let Type::Var(v) = *u.types().get(t) else { return None };
+    let inst = zonked(u, c, c.instance(v)?, false);
+    matches!(u.types().get(inst), Type::Lambda { .. }).then_some(inst)
 }
 
 impl Typer<'_> {
@@ -48,16 +82,13 @@ impl Typer<'_> {
 
     /// `t` with instantiated type variables replaced by their instances, normalized.
     pub fn zonk(&mut self, t: TypeId) -> TypeId {
-        let mut changed = true;
-        let mut t = t;
-        for _ in 0..16 {
-            if !changed {
-                break;
-            }
-            changed = false;
-            t = substituted(self.u, &self.constraint, t, &mut changed);
-        }
-        self.normalized(t)
+        zonked(self.u, &self.constraint, t, false)
+    }
+
+    /// `zonk`, an application of a type variable instantiated to a type lambda unreduced (dotty's
+    /// tree types keep the `TypeVar`).
+    pub fn zonk_kept(&mut self, t: TypeId) -> TypeId {
+        zonked(self.u, &self.constraint, t, true)
     }
 
     /// `v`'s lower bound widened below `v`, which may constrain `v`, or its upper bound (dotty's
