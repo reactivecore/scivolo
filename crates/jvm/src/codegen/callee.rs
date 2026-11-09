@@ -53,11 +53,7 @@ impl Gen<'_, '_> {
         if self.is_concat(t) {
             return self.concat(b, t);
         }
-        let m = self.l.tpd.sym(fun);
-        let s = m.map(|m| self.l.u.symbol(m));
-        let special = s.and_then(|s| s.owner).is_some_and(|o| self.l.u.symbol(o).name == "<special-ops>");
-        if special
-            && s.is_some_and(|s| s.name == "throw")
+        if self.is_throw(t)
             && let &[e] = self.l.tpd.items(args)
         {
             self.expr(b, e)?;
@@ -68,6 +64,13 @@ impl Gen<'_, '_> {
             return Ok(slots);
         }
         self.apply(b, fun, args)
+    }
+
+    /// Whether `t` is a call of `throw`.
+    pub fn is_throw(&self, t: TNodeId) -> bool {
+        let Tree::Apply { fun, .. } = *self.l.tpd.tree(t) else { return false };
+        let Some(s) = self.l.tpd.sym(fun).map(|m| self.l.u.symbol(m)) else { return false };
+        s.name == "throw" && s.owner.is_some_and(|o| self.l.u.symbol(o).name == "<special-ops>")
     }
 
     /// Fails for method `m` of class `owner` that the backend cannot call yet: the primitive

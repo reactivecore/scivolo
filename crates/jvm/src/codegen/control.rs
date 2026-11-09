@@ -12,8 +12,7 @@ use typer::tpd::{TNodeId, Tree};
 impl Gen<'_, '_> {
     /// The descriptor of `t`'s erased type.
     pub fn desc_of(&mut self, t: TNodeId) -> String {
-        let tpe = self.l.tpd.tpe(t);
-        descriptor(&self.l.u.erase(tpe))
+        descriptor(&self.l.u.erase(self.l.tpd.tpe(t)))
     }
 
     /// Generates `t` leaving `slots` slots: a value dropped, a `BoxedUnit` for none, as many as
@@ -67,7 +66,12 @@ impl Gen<'_, '_> {
                 self.expr_to(b, thenp, slots, dest)?;
                 b.code.place(failure);
                 b.code.set_stack(depth);
-                return self.expr_to(b, elsep, slots, dest);
+                let at = self.l.tpd.span(elsep);
+                let empty = !at.exists() || at.start() == at.end();
+                if !(is_unit(self.l.tpd.tree(elsep)) && slots == 0 && empty) {
+                    return self.expr_to(b, elsep, slots, dest);
+                }
+                self.line(b, cond);
             }
             Tree::Labeled { expr } => {
                 let label = self.l.tpd.sym(t).expect("a label's symbol");
@@ -86,7 +90,8 @@ impl Gen<'_, '_> {
             }
             _ => self.expr_as(b, t, slots)?,
         }
-        if b.code.live() {
+        let call = matches!(self.l.tpd.tree(t), Tree::Apply { .. }) && !self.is_throw(t);
+        if b.code.live() || call && self.desc_of(t) == "Lscala/runtime/Nothing$;" {
             match dest {
                 Dest::Jump(l) => b.code.jump(0xa7, l),
                 Dest::Return => {
@@ -175,10 +180,7 @@ impl Gen<'_, '_> {
             let result = b.result.clone();
             self.expr_as(b, expr, classfile::value_slots(&result))?;
             if result != "V" {
-                let slot = match b.early_return {
-                    Some(slot) => slot,
-                    None => b.temp(&result),
-                };
+                let slot = b.early_return.unwrap_or_else(|| b.temp(&result));
                 b.early_return = Some(slot);
                 b.code.store(&result, slot);
             }
