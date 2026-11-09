@@ -50,12 +50,8 @@ pub fn enter(u: &mut Universe, pkg: SymbolId, info: &ClassInfo) -> Option<Vec<Sy
     };
     u.java_stubs.extend(entered);
     u.classfile_classes.extend(entered);
-    for f in &info.fields {
-        let _ = member(u, &owners, f, false);
-    }
-    for m in &info.methods {
-        let _ = member(u, &owners, m, true);
-    }
+    let members = info.fields.iter().map(|f| (f, false)).chain(info.methods.iter().map(|m| (m, true)));
+    members.for_each(|(m, method)| _ = member(u, &owners, m, method));
     Some(entered.to_vec())
 }
 

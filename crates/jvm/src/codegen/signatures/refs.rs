@@ -3,6 +3,7 @@
 //! Signatures of class references, arrays and method types (dotty's `classSig`, `arraySig`,
 //! `jsig` of `MethodOrPoly`).
 
+use super::applied::Applied;
 use super::{Boxing, Sig};
 use crate::codegen::internal;
 use tasty::{Binder, Erased, Kind, SymbolId, Type, TypeId};
@@ -19,6 +20,12 @@ impl Sig<'_> {
             Type::Applied(tycon, args) => (tycon, args),
             _ => (t, Vec::new()),
         };
+        match self.applied_param(tycon, &args) {
+            Some(Applied::Resolved(r)) => return self.jsig(r, false, boxing),
+            Some(Applied::Param(name)) => return self.out.push_str(&format!("T{name};")),
+            Some(Applied::Erased) => return self.erased(t, boxing),
+            None => {}
+        }
         let s = match *self.u.types().get(tycon) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => self.u.resolve_ref(tycon),

@@ -16,8 +16,8 @@ javalib lacks in a class javalib has stays unknown: `Class.getDeclaredMethods`,
   is overridden by the class's own (`Enum.describeConstable` over `Constable`'s).
 - A member is read as ADR 0107 reads one (`Signature`, else descriptor; erasure the
   descriptor's; concrete unless `ACC_ABSTRACT`); the JDK class's type parameters stand for
-  the library class's (`C.this.A`), by position; a different count enters nothing. Classes the members name that javalib lacks resolve
-  through ADR 0107.
+  the library class's (`C.this.A`), by position; a different count enters nothing. Classes
+  the members name that javalib lacks resolve through ADR 0107.
 - A name of which one member is refused (signature polymorphic, a class nested in a generic
   one) is not entered, so no overload set is partial.
 
