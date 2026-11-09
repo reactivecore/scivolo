@@ -5,6 +5,7 @@
 
 use super::Cmp;
 use super::refs::{Meaning, Named};
+use crate::tags::PRIVATE;
 use crate::types::{Type, TypeId, VarId};
 use crate::{Kind, NOTHING, SymbolId};
 
@@ -57,9 +58,35 @@ impl Cmp<'_> {
                     || self.sub_prefix_of(s1, n1.prefix, n2.prefix)
                     || self.third_try_named(a, b, n2)
             }
+            (Some(s1), Some(s2))
+                if self.same_name_member(s1, s2)
+                    && n1.prefix.is_some()
+                    && n2.prefix.is_some()
+                    && self.sub_prefix(n1.prefix, n2.prefix) =>
+            {
+                true
+            }
             (None, None) if n1.same_unresolved(&n2) => true,
             _ => self.third_try_named(a, b, n2),
         }
+    }
+
+    /// Whether distinct members `s1` and `s2` share a name and a signature that is not a method's,
+    /// are not private and are not both classes, so that references through related prefixes
+    /// are the same member.
+    fn same_name_member(&mut self, s1: SymbolId, s2: SymbolId) -> bool {
+        let (m1, m2) = (self.u.symbol(s1), self.u.symbol(s2));
+        let kind = |k: Kind| matches!(k, Kind::Type | Kind::Class | Kind::Val);
+        let member = |o: Option<SymbolId>| o.is_some_and(|o| self.u.symbol(o).kind == Kind::Class);
+        m1.name == m2.name
+            && kind(m1.kind)
+            && kind(m2.kind)
+            && m1.kind.is_term() == m2.kind.is_term()
+            && !(m1.kind == Kind::Class && m2.kind == Kind::Class)
+            && !m1.flags.has(PRIVATE)
+            && !m2.flags.has(PRIVATE)
+            && member(m1.owner)
+            && member(m2.owner)
     }
 
     /// Whether `s` is owned by a package.

@@ -125,6 +125,11 @@ fn substituted(
             };
         }
         let Type::Sym(Some(pre), s) = *u.types().get(part) else { return None };
+        if u.symbol(s).kind.is_term() {
+            let new_pre = substituted(u, pre, param, replacements);
+            let selected = u.intern_type(Type::Sym(Some(new_pre), s));
+            return (new_pre != pre).then(|| refined_path(u, selected).unwrap_or(selected));
+        }
         if u.symbol(s).kind != Kind::Type {
             return None;
         }
