@@ -252,8 +252,7 @@ fn forwarder(
 /// Whether class `c` is in a JDK package, which dotty reads from Java class files: not one of
 /// the unit's, nor javalib's when compiling javalib.
 pub fn is_jdk(l: &Lower, c: SymbolId) -> bool {
-    let name = l.u.full_name(c);
-    l.u.may_be_java(c) && (name.starts_with("java.") || name.starts_with("javax."))
+    typer::protected_access::is_jdk(l.u, c)
 }
 
 /// The base classes of `class` that javalib gives JDK classes as parents and the JDK does not,

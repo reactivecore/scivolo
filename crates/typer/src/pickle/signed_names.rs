@@ -138,9 +138,10 @@ impl TreePickler<'_> {
                 Err(_) => sig_type_name(self.u, p).map(ParamSig::Term),
             })
             .collect::<Result<_, _>>()?;
-        let target = match &self.u.symbol(s).target {
-            Some(t) => Name::utf8(t),
-            None => orig.clone(),
+        let target = match (self.accessor_targets.get(&s), &self.u.symbol(s).target) {
+            (Some(t), _) => t.clone(),
+            (None, Some(t)) => Name::utf8(t),
+            (None, None) => orig.clone(),
         };
         let class = self.u.symbol(s).owner.filter(|_| self.u.is_constructor(s));
         let result = match class.filter(|&c| self.u.underlying(c).is_none()) {
