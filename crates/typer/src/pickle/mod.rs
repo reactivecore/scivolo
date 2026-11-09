@@ -10,7 +10,6 @@ mod defs;
 mod names;
 mod packages;
 mod positions;
-mod protected_supers;
 mod refs;
 mod selects;
 mod sharing;
@@ -83,8 +82,9 @@ pub struct TreePickler<'a> {
     /// The span of each super accessor's definition, its call's point, and the point of its
     /// member's definition if pickled.
     accessor_spans: FxHashMap<SymbolId, (Span, Span)>,
-    /// The trees pickled that have no node, by the id they are registered under, and their spans.
-    synthetic: Vec<(u32, Span)>,
+    /// The trees pickled that have no node, by the id they are registered under, their spans, and
+    /// the node whose position theirs follows if not the node pickled next.
+    synthetic: Vec<(u32, Span, Option<TNodeId>)>,
     accessors: Accessors,
     /// The type tree pickled now and the annotations its type has pickled: the tree ids of their
     /// `Apply` and `New`, and the type tree.

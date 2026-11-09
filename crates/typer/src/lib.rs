@@ -12,6 +12,7 @@ pub mod inlining;
 mod main_proxies;
 mod namer;
 pub mod pickle;
+pub mod protected_access;
 pub mod sealed;
 mod signatures;
 mod special;

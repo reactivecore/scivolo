@@ -8,6 +8,7 @@
 use super::names::expanded_prefix_name;
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
+use crate::protected_access::super_accessor_needed;
 use crate::signatures::result_sig;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -56,7 +57,7 @@ impl TreePickler<'_> {
                     } else if matches!(self.tpd.tree(qualifier), T::This { .. })
                         && self.tpd.sym(qualifier) == Some(class)
                         && let Some(member) = self.tpd.sym(t)
-                        && self.protected_super_needed(member, current)?
+                        && super_accessor_needed(self.u, member, current)?
                     {
                         self.super_call(t, class, String::new(), &mut found)?;
                     }

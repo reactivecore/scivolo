@@ -21,7 +21,7 @@ impl TreePickler<'_> {
         let name = self.accessor_name(acc).ok_or("a super accessor without a name")?;
         let info = self.u.info(acc);
         let (span, member) = self.accessor_spans.get(&acc).copied().unwrap_or((Span::NONE, Span::NONE));
-        self.synthetic_here(span);
+        self.synthetic_here(span, None);
         self.with_length(DEFDEF, &mut |p| {
             p.name(&name);
             let mut t = p.accessor_type_params(acc, info)?;
@@ -47,7 +47,7 @@ impl TreePickler<'_> {
                 return Err("a super call of a method with type parameters after its parameters");
             }
             let tpt = p.synthetic.len();
-            p.synthetic_here(span);
+            p.synthetic_here(span, None);
             p.ty(t, false)?;
             p.byte(ARTIFACT);
             if let Some(target) = p.u.symbol(acc).target.clone() {
@@ -76,11 +76,11 @@ impl TreePickler<'_> {
                 p.with_length(SELECTin, &mut |p| {
                     p.signed_name(init, true)?;
                     p.byte(NEW);
-                    p.synthetic_here(member);
+                    p.synthetic_here(member, None);
                     p.ty(class, false)?;
                     p.ty(class, false)
                 })?;
-                p.synthetic_here(member);
+                p.synthetic_here(member, None);
                 p.byte(STRINGconst);
                 p.name(&Name::utf8(target));
                 Ok(())

@@ -6,6 +6,7 @@
 
 use super::{Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree as T};
+use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use syntax::source::{Offset, SourceFile};
 use tasty::TastySpan;
@@ -68,15 +69,22 @@ impl TreePickler<'_> {
         let mut nodes: Vec<usize> =
             self.buf.trees().filter(|&(id, _)| id < SYNTHETIC).map(|(_, a)| a.0).collect();
         nodes.sort_unstable();
-        // Each tree without a node, in the order dotty writes them, before the node pickled next.
+        // Each tree without a node, in the order dotty writes them, before the node pickled next
+        // or after the node given.
         let mut synthetic: Vec<(usize, Addr, Span)> = self
             .synthetic
             .iter()
             .rev()
-            .filter_map(|&(id, s)| {
+            .filter(|&&(_, _, after)| after.is_none())
+            .filter_map(|&(id, s, _)| {
                 let at = self.buf.addr_of_tree(id)?;
                 Some((nodes.get(nodes.partition_point(|&n| n <= at.0)).copied().unwrap_or(usize::MAX), at, s))
             })
+            .collect();
+        let after: FxHashMap<TNodeId, (Addr, Span)> = self
+            .synthetic
+            .iter()
+            .filter_map(|&(id, s, after)| Some((after?, (self.buf.addr_of_tree(id)?, s))))
             .collect();
         while let Some((t, current, library)) = todo.pop() {
             let span = self.tpd.span(t);
@@ -107,6 +115,9 @@ impl TreePickler<'_> {
                 self.buf.addr_of_tree(t.index() as u32).filter(|_| self.self_refs.contains(&t))
             {
                 out.span(Addr(addr.0 + 1), source.tasty_span(span.start_pos().to_synthetic(), in_library)?);
+            }
+            if let Some(&(addr, span)) = after.get(&t) {
+                out.span(addr, source.tasty_span(span, false)?);
             }
             let current = if span.exists() { own } else { current };
             let library = match self.inline_source(t) {
@@ -146,12 +157,13 @@ impl TreePickler<'_> {
         Ok(())
     }
 
-    /// Gives the tree pickled next, which has no node, span `span` if it exists.
-    pub fn synthetic_here(&mut self, span: Span) {
+    /// Gives the tree pickled next, which has no node, span `span` if it exists; its position
+    /// after node `after`'s if given.
+    pub fn synthetic_here(&mut self, span: Span, after: Option<TNodeId>) {
         if span.exists() && !self.keying {
             let id = SYNTHETIC + self.synthetic.len() as u32;
             self.buf.register_tree(id);
-            self.synthetic.push((id, span));
+            self.synthetic.push((id, span, after));
         }
     }
 
