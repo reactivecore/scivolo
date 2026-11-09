@@ -19,6 +19,10 @@ impl Parser<'_> {
                 let msg = "Illegal backquoted identifier: `<init>` and `<clinit>` are forbidden";
                 self.s.diags.error(o, Message::syntax(230, msg));
             }
+            if self.s.names.text(name).contains('$') {
+                let at = self.name_start();
+                self.ast.note_dollar_ident(at, name);
+            }
             self.next();
             TName { name, is_type: false }
         } else {

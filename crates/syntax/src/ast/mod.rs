@@ -5,6 +5,7 @@ pub mod children;
 pub mod constant;
 mod copy;
 mod deep_copy;
+mod dollar_idents;
 pub mod flags;
 pub mod from_digits;
 mod kinds;
@@ -100,6 +101,7 @@ pub struct Ast {
     clauses: Vec<List>,
     mods: Vec<Modifiers>,
     parens: rustc_hash::FxHashMap<NodeId, Span>,
+    dollar_idents: rustc_hash::FxHashMap<crate::source::Offset, crate::names::Name>,
 }
 
 impl Ast {

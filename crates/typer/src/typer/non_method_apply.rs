@@ -4,8 +4,8 @@
 //! Applications of a value without `apply` (dotty's `MethodDoesNotTakeParameters` from
 //! `adaptToArgs`), reported where no extension method or implicit view may supply one.
 
-use super::Typer;
 use super::implicits::conversions::Goal;
+use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
@@ -14,6 +14,28 @@ use tasty::tags::{EXTENSION, LAZY, MUTABLE, OBJECT};
 use tasty::{Kind, SymbolId, TypeId};
 
 impl Typer<'_> {
+    /// For application `id` of `fun`, typed as `f` without `apply`, to the arguments of `proto`:
+    /// `f.apply` on `f` cast to its GADT approximation (dotty's `tryGadt` in the `typedSelect` of
+    /// `tryInsertApplyOrImplicit`), else the error or refusal.
+    pub fn non_method_applied(
+        &mut self,
+        (id, fun): (NodeId, NodeId),
+        f: TNodeId,
+        proto: usize,
+        ctx: Ctx,
+    ) -> Result<TNodeId, TNodeId> {
+        if let Some(healed) = self.gadt_healed(f, ctx)
+            && let Ok(applied) = self.with_apply(healed, Pt::Fun(proto), ctx)
+        {
+            return Ok(applied);
+        }
+        let n = self.protos[proto].args.len();
+        Err(match self.does_not_take_parameters(fun, f, n, ctx) {
+            Some(error) => error,
+            None => self.unsupported(id, "application of a non-method"),
+        })
+    }
+
     /// `MethodDoesNotTakeParameters` for the application of reference `fun`, typed as `f`, to
     /// `n` arguments; `None` where dotty may still apply it or word it otherwise.
     pub fn does_not_take_parameters(

@@ -9,6 +9,7 @@ mod base_types;
 mod check_static;
 mod checks;
 mod complete;
+mod def_names;
 mod defaults;
 mod double_definitions;
 mod erased;
@@ -128,6 +129,7 @@ impl Typer<'_> {
         if package_private {
             flags = flags.and_not(f::PRIVATE_LOCAL);
         }
+        self.check_def_name(tree, &text, flags, ctx.owner);
         if self.u.symbol(ctx.owner).kind == Kind::Package {
             self.unenter_classpath_members(ctx.owner, &text);
         }
