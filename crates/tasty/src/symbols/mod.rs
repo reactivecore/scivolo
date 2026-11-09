@@ -109,8 +109,10 @@ pub struct Universe {
     jdk: Option<classfile::Jdk>,
     /// The classes, objects and objects' classes entered from the JDK's class files.
     classfile_classes: FxHashSet<SymbolId>,
-    /// The descriptor of each method entered from them.
+    /// The descriptor of each member entered from them.
     classfile_descriptors: FxHashMap<SymbolId, String>,
+    /// The library's classes the JDK's class files were asked for the members they lack.
+    jdk_member_classes: FxHashSet<SymbolId>,
     /// The given self type of each class whose self type was asked for or set.
     self_types: FxHashMap<SymbolId, Option<TypeId>>,
     /// The annotation classes of the symbols defined outside TASTy.

@@ -2,6 +2,8 @@ import java.time.{DayOfWeek, Duration, LocalDate, Year}
 import java.time.temporal.{ChronoField, ChronoUnit, TemporalAccessor, TemporalAdjuster, TemporalQueries, TemporalQuery}
 import java.util.concurrent.ConcurrentSkipListMap
 
+class Point(val x: Int, val y: Int)
+
 class DayQuery extends TemporalQuery[Integer] {
   def queryFrom(t: TemporalAccessor): Integer = t.get(ChronoField.DAY_OF_MONTH)
 }
@@ -30,5 +32,12 @@ object Jdkclasses {
     println(java.text.MessageFormat.format("{0}+{1}", "x", "y"))
     val rows: java.util.Vector[java.util.Vector[?]] = new javax.swing.table.DefaultTableModel(2, 3).getDataVector()
     println(rows.get(1).size())
+    val point = classOf[Point]
+    println(point.getDeclaredFields.map(_.getName).sorted.mkString(","))
+    println(java.lang.reflect.Modifier.isPublic(point.getModifiers))
+    println(point.getDeclaredMethod("y").invoke(new Point(1, 2)))
+    println(point.getConstructors.length)
+    println(classOf[DayOfWeek].getEnumConstants.length)
+    println(java.util.EnumSet.allOf(classOf[DayOfWeek]).size())
   }
 }
