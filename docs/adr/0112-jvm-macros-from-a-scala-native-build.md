@@ -20,5 +20,8 @@ macro call.
 
 ## Consequences
 - The typer sees the JVM build's TASTy while the macro runs from the Scala Native build's NIR;
-  both come from scala-cli 3.9.0 of the same sources.
+  both come from scala-cli 3.9.0 of the same sources, and their TASTy agree as dotty's
+  `TastyPrinter` shows it (`scripts/jvm-tasty.py` on `quotes-reflection`'s two builds).
+- Each test is compiled from the directory that holds `tests/`, so `SourceFile` annotations
+  and positions name `tests/…` as dotty's runner does.
 - A macro that reflects on the platform (`System.getProperty`, class names) sees Scala Native.

@@ -287,6 +287,8 @@ Results (2026-11-08):
 
 ```sh
 just dotty-jvm-report   # scivolo-jvm, then java -Xverify:all; jvm-report.md and jvm-results.tsv under tmp/dotty
+just dotty-jvm-report "" run-macros   # tests/run-macros: jvm-report-run-macros.md
+just programs-jvm       # tests/programs: programs-report.md and programs-results.tsv under tmp/jvm
 just jvm-run FILE       # one file on java -Xverify:all against its .check
 just jvm-check FILE     # its class files against scala-cli's, through javap
 ```
@@ -296,33 +298,67 @@ equivalent to scalac 3.9.0's, not byte-identical, and scala-cli compiles against
 
 Each test is compiled by `scivolo-jvm` (#142) and its `Test.main` called through reflection, as
 dotty's test runner calls it, on `java -Xverify:all`; its output is compared with dotty's `.check`
-file. Earlier compilation groups are compiled by scala-cli for the JVM. Skipped as in the VM's
-report, but for APIs Scala Native's javalib lacks. Failures are grouped by the refusal or the first
-exception line.
+file (run-macros: the one recorded in `tests/dotty-checks` where that exists), compiled from the
+directory that holds `tests/`. Earlier compilation groups are compiled by scala-cli for the JVM;
+for a macro call also for Scala Native, whose NIR the macro runs from in the VM (ADR 0112).
+Skipped as in the VM's report, but for APIs Scala Native's javalib lacks. Failures are grouped by
+the refusal or the first exception line.
 
 Results (2026-11-09):
 
-| Outcome | Tests |
-|---|---:|
-| passed | 1583 |
-| wrong output | 0 |
-| verify error | 0 |
-| linkage error | 0 |
-| crashed | 1 |
-| timeout | 0 |
-| jvm refused | 4 |
-| lowering refused | 0 |
-| typer refused | 30 |
-| frontend crashed | 0 |
-| skipped | 91 |
-| **total** | **1709** |
+| Outcome | tests/run | tests/run-macros |
+|---|---:|---:|
+| passed | 1587 | 307 |
+| wrong output | 0 | 0 |
+| verify error | 0 | 0 |
+| linkage error | 0 | 0 |
+| crashed | 1 | 0 |
+| timeout | 0 | 0 |
+| jvm refused | 5 | 0 |
+| lowering refused | 0 | 0 |
+| typer refused | 27 | 7 |
+| skipped | 91 | 7 |
+| **total** | **1711** | **321** |
 
-- **Typer refused:** TASTy pickling (4), macro calls (4), members not found (3), JDK annotation
-  classes (`Deprecated`, 2), `-Xmixin-force-forwarders:false` (2).
+- **Typer refused (run):** TASTy pickling (4), members not found (3), JDK annotation classes
+  (`Deprecated`, 2), `-Xmixin-force-forwarders:false` (2), adaptation (2), `Printer.TypeReprStructure`
+  (`i22649`), the rest singles.
+- **Typer refused (run-macros):** `-Xread-docs` (2), a concrete class with an unimplemented member,
+  `SuppressWarnings`, adaptation, `Symbol.newClass` with a self type, a source version.
 - **JVM refused:** a box of a value that is not primitive (1), a protected member's super accessor
-  the TASTy lacks (1), a jump over 32 KiB (1), a `LazyVals` lub of a long class name (1).
+  the TASTy lacks (1), a jump over 32 KiB (1), a `LazyVals` lub of a long class name (1), erased
+  parameters of a macro-generated method (`quotes-add-erased`).
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
+
+`just programs-jvm` compiles each of `tests/programs` with `scivolo-jvm`, runs it on
+`java -Xverify:all` and compares stdout, then stderr, with its `.check` (Scala Native's output).
+Results (2026-11-09):
+
+| Outcome | Programs |
+|---|---:|
+| passed | 287 |
+| wrong output | 5 |
+| linkage error | 12 |
+| crashed | 3 |
+| jvm refused | 4 |
+| lowering refused | 1 |
+| typer refused | 6 |
+| **total** | **318** |
+
+- **As scalac's class files on the JVM** (platform differences): wrong output `bottomarrays`,
+  `universaljoins` (array class names), `classtags` (`ClassTag` of a nested array), `staticinit`
+  (object initialization order), `unitarrays` (`Array[Unit]` elements); crashes `closuretypes`
+  (a package named `java.*`), `matchtypearrays` (`ClassCastException`), `resources` (no resource
+  directory on the classpath).
+- **Scala Native APIs:** 12 linkage errors (`scala.scalanative.unsafe`, `meta.LinktimeInfo`,
+  `runtime.LLVMIntrinsics`), `overflow` (a `scalanative.unsafe` macro call),
+  `Ni26intrinsics` (JVM refused: an ordering of references).
+- **JVM refused:** `exprforms` (an argument of another JVM type), `lowergaps` (a `LazyVals` lub
+  of a long class name), `protectedaccess` (super accessors the TASTy lacks).
+- **Refused:** TASTy pickling (`mirrorproxies`, `scala2mirrors`, `quotecc`), `dynamic`
+  (constructor proxy and an imported term), `hkerasure` (no implicit argument), `Lw26statics`
+  (lowering: an `@static` member selected from a value other than a path).
 
 ### com-lihaoyi libraries from source
 

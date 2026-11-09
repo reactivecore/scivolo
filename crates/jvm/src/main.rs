@@ -16,7 +16,7 @@ struct Cli {
     /// A jar or directory of TASTy files the sources see.
     #[arg(long)]
     cp: Vec<PathBuf>,
-    /// A directory of NIR files compiled before; macro calls run in a VM over the library's NIR
+    /// A jar or directory of NIR files compiled before; macro calls run in a VM over the library's NIR
     /// and these.
     #[arg(long)]
     macro_cp: Vec<PathBuf>,
@@ -65,7 +65,8 @@ fn main() {
     let generate = |l: &mut lower::Lower, root, pickles| {
         jvmgen::unit(l, root, pickles).inspect_err(|_| in_backend.set(true))
     };
-    let classes = match lower::compile_units(&mut u, &sources, config, macros, (lower::Backend::Jvm, generate)) {
+    let backend = (lower::Backend::Jvm, generate);
+    let classes = match lower::compile_units(&mut u, &sources, config, macros, backend) {
         Ok((classes, _)) => classes,
         Err(e) if in_backend.get() => fail(&e.what.replacen("the lowering", "the JVM backend", 1)),
         Err(e) => fail(&e.what.replace("\n  ", " ")),
