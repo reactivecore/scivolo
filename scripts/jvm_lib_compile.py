@@ -5,11 +5,9 @@ Usage: scripts/jvm_lib_compile.py MODULE [FILTER]
 
 MODULE is `scalalib`: the `.scala` files of scala-library's sources jar, unpatched, in
 tmp/lib-jvm/scalalib/sources (those whose paths contain FILTER). Each is compiled on its own with
-LIBRARY_OPTIONS into tmp/lib-jvm/scalalib/out/FILE/; each class file written is compared through
-jvm_check.py's `code` (javap -c) and `attributes` (javap -v) apart with the oracle's: the class
-files dotty 3.9.0 compiles all `.scala` and `.java` files of the sources jar to in one run with
-LIBRARY_OPTIONS, in tmp/lib-jvm/scalalib/dotty. An oracle class belongs to the file its
-`SourceFile` attribute names in its package directory.
+jvm_lib_oracle.py's LIBRARY_OPTIONS into tmp/lib-jvm/scalalib/out/FILE/; each class file written
+is compared through jvm_check.py's `code` (javap -c) and `attributes` (javap -v) apart with
+jvm_lib_oracle.py's, in tmp/lib-jvm/scalalib/dotty.
 
 Writes under tmp/lib-jvm/scalalib: results.tsv (file, same|code differs|attributes differ|refused|
 crashed|timeout, reason, classes same, code differs, attributes differ, only ours, only in the
