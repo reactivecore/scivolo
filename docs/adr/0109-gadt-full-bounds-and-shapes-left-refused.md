@@ -16,8 +16,8 @@ approximation kept it: `gadt-cast-singleton` cast `x` to `x & S$1` where dotty c
   variable's own, each GADT variable whose upper bound is that variable or an intersection
   with it.
 - A GADT approximation's upper bound replaces a pattern-bound type whose lower bound the
-  parameter conforms to by that type's upper bound, the parts of an intersection joined by
-  `glb`.
+  parameter conforms to by the parts of that type's upper bound that are no GADT-constrained
+  types, the parts of an intersection joined by `glb`.
 - An application of a value without `apply` retries on the value cast to its GADT
   approximation (`tryGadt` in the `typedSelect` of `tryInsertApplyOrImplicit`).
 
@@ -34,6 +34,8 @@ Refused still, each with what it lacks:
   the call's type refers to by a skolem.
 - `i16785`, `i16997`: a class's higher-kinded type parameter in a pattern's GADT comparison.
 - `inline-match-gadt`: a singleton's GADT cast in an inline match case, which dotty casts twice.
+- A singleton cast by GADT bounds as a block's expression (`case Refl() => a`): dotty casts
+  the block again, typed as the singleton.
 - `i15867`: an implicit conversion of a GADT-approximated qualifier; dotty applies it to the
   unhealed qualifier with the argument cast, inferring the conversion's type argument from it.
 - `gadt-alt-doc1`: an F-bounded type variable instantiated to a type containing it.

@@ -44,17 +44,17 @@ impl Typer<'_> {
     /// approximated without the GADT bounds, and `pt` unless that approximation conforms to it.
     pub fn gadt_cast(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(tree);
-        let underlying = match *self.u.types().get(tpe) {
-            Type::Annotated(t, _) => t,
-            _ => tpe,
-        };
-        if !self.is_singleton(underlying) {
+        if !self.is_singleton_tree(tree) {
             return self.type_cast(tree, pt);
         }
         if self.gadt.inline {
             let span = self.tpd.span(tree);
             return self.unsupported_tree(span, "GADT cast of a singleton in an inline match case");
         }
+        let underlying = match *self.u.types().get(tpe) {
+            Type::Annotated(t, _) => t,
+            _ => tpe,
+        };
         let widened = self.u.widen(underlying);
         let approx = self.approximate_gadt(widened, 1, ctx);
         let conj = self.u.intern_type(Type::And(tpe, approx));
@@ -68,6 +68,16 @@ impl Typer<'_> {
             false => conj,
         };
         self.type_cast(tree, target)
+    }
+
+    /// Whether the type of `tree`, an annotation dropped, is a singleton.
+    fn is_singleton_tree(&mut self, tree: TNodeId) -> bool {
+        let tpe = self.tpd.tpe(tree);
+        let underlying = match *self.u.types().get(tpe) {
+            Type::Annotated(t, _) => t,
+            _ => tpe,
+        };
+        self.is_singleton(underlying)
     }
 
     /// `tree` cast to `pt` if it conforms to it only by GADT bounds (dotty's `gadtAdaptBranch`);
@@ -89,6 +99,10 @@ impl Typer<'_> {
         }
         match self.gadt_adapted_in(expr, pt, ctx) {
             adapted if adapted == expr => self.gadt_adapted(tree, pt, ctx),
+            _ if self.is_singleton_tree(expr) => {
+                let span = self.tpd.span(tree);
+                self.unsupported_tree(span, "GADT cast of a singleton as a block's expression")
+            }
             adapted => {
                 let span = self.tpd.span(tree);
                 self.build().block(stats, adapted, span)
