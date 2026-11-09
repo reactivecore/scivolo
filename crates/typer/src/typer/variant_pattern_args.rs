@@ -1,11 +1,11 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/PatternTypeConstrainer.scala
-//! The bounds of the types a typed pattern binds against a class applied at variant parameters
-//! only (dotty's `constrainSimplePatternType` for such a scrutinee).
+//! Selectors against which a typed pattern constrains its bound types at most by variant
+//! arguments (dotty's `constrainSimplePatternType` for such a scrutinee).
 
 use super::Typer;
 use super::dependent_results::has_wildcard;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Gives each of `syms`, the types pattern type `pat` binds, its bounds against `sel`, a class
@@ -63,6 +63,54 @@ impl Typer<'_> {
             self.u.set_info(b, info);
         }
         true
+    }
+
+    /// Whether pattern type `pat`, or its base type at `sel`'s class, and `sel` apply the same
+    /// class, each of `syms` an argument of `pat` only where `sel` has an unbounded wildcard,
+    /// which constrains none of them.
+    pub fn only_against_wildcards(&mut self, pat: TypeId, sel: TypeId, syms: &[SymbolId]) -> bool {
+        let sel = self.dealiased(sel);
+        let sel = self.u.widen(sel);
+        let base = match (self.u.class_symbol(pat), self.u.class_symbol(sel)) {
+            (Some(p), Some(s)) if p != s && self.u.derives_from(p, s) => self.u.base_type(pat, s),
+            _ => Some(pat),
+        };
+        let (Some(Type::Applied(pc, pargs)), Type::Applied(sc, sargs)) =
+            (base.map(|b| self.u.types().get(b).clone()), self.u.types().get(sel).clone())
+        else {
+            return false;
+        };
+        let same = self.u.class_symbol(pc).is_some_and(|c| self.u.class_symbol(sc) == Some(c));
+        let b = self.u.builtins();
+        let (any, nothing) = (b.any, b.nothing);
+        same && pargs.len() == sargs.len()
+            && pargs.iter().zip(&sargs).all(|(&p, &s)| match *self.u.types().get(p) {
+                Type::Sym(None, b) if syms.contains(&b) => match *self.u.types().get(s) {
+                    Type::Bounds(lo, hi) => {
+                        self.u.class_symbol(lo) == Some(nothing) && self.u.class_symbol(hi) == Some(any)
+                    }
+                    _ => false,
+                },
+                _ => !self.refers_to(p, syms),
+            })
+    }
+
+    /// Whether `sel` is a class type whose base classes have no type parameters, or an abstract
+    /// type bounded by one, against which a pattern's type constrains none of its bound types.
+    pub fn has_unapplied_bases(&mut self, sel: TypeId) -> bool {
+        let sel = self.dealiased(sel);
+        let sel = self.u.widen(sel);
+        let Type::Sym(pre, c) = *self.u.types().get(sel) else { return false };
+        if !self.u.is_class(c) {
+            let info = match pre {
+                Some(p) => self.u.member_info(p, c),
+                None => self.u.info(c),
+            };
+            let abstract_type = matches!(self.u.symbol(c).kind, Kind::TypeParam | Kind::Type);
+            let Type::Bounds(_, hi) = *self.u.types().get(info) else { return false };
+            return abstract_type && hi != sel && self.u.gadt_bounds(c).is_none() && self.has_unapplied_bases(hi);
+        }
+        self.u.linearization(c).into_iter().all(|b| self.u.type_params(b).is_empty())
     }
 
     /// Of bound `old` and `new`, the one that implies the other, the lower bound by `lower`; `None`
