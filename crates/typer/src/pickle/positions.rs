@@ -68,16 +68,16 @@ impl TreePickler<'_> {
         let mut nodes: Vec<usize> =
             self.buf.trees().filter(|&(id, _)| id < SYNTHETIC).map(|(_, a)| a.0).collect();
         nodes.sort_unstable();
-        // Each tree without a node, written before the node pickled next.
+        // Each tree without a node, in the order dotty writes them, before the node pickled next.
         let mut synthetic: Vec<(usize, Addr, Span)> = self
             .synthetic
             .iter()
+            .rev()
             .filter_map(|&(id, s)| {
                 let at = self.buf.addr_of_tree(id)?;
                 Some((nodes.get(nodes.partition_point(|&n| n <= at.0)).copied().unwrap_or(usize::MAX), at, s))
             })
             .collect();
-        synthetic.sort_by_key(|&(_, a, _)| std::cmp::Reverse(a.0));
         while let Some((t, current, library)) = todo.pop() {
             let span = self.tpd.span(t);
             let other = span.exists() && span.without_inlined_call().is_in_other_source();

@@ -159,10 +159,15 @@ impl TreePickler<'_> {
             Name::SuperAccessor(Box::new(unexpanded))
         };
         self.accessor_names.insert(acc, tasty_name(self.u, &original));
-        self.accessor_spans.insert(acc, Span::at(self.tpd.span(sel).point()));
+        let mut defined = Span::NONE;
         if let Some(t) = self.u.symbol(*member).target.clone() {
             self.accessor_targets.insert(acc, tasty_name(self.u, &t));
+            let def = (0..self.tpd.len())
+                .map(TNodeId::new)
+                .find(|&t| matches!(self.tpd.tree(t), T::DefDef { .. }) && self.tpd.sym(t) == Some(*member));
+            defined = def.map_or(Span::NONE, |d| Span::at(self.tpd.span(d).point()));
         }
+        self.accessor_spans.insert(acc, (Span::at(self.tpd.span(sel).point()), defined));
         self.accessors.push((class, name));
         acc
     }

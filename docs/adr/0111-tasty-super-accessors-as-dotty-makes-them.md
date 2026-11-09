@@ -18,11 +18,16 @@ position.
   (`super$t`, `t$super$M`, a trait's expanded), in its signed name and in the lowering, and the
   annotation `@targetName("…")` after its flags.
 - An accessor's definition and result type get the point of its call (`sel.span.focus`), the
-  `this` of the call the call's start. Trees without a node are registered under ids from
-  `u32::MAX / 2` and written before the node that follows them in the trees.
+  `this` of the call the call's start, the annotation's type and argument the point of the
+  member's definition when the file has it. Trees without a node are registered under ids from
+  `u32::MAX / 2` and written, in the order dotty's `PositionPickler` visits them, before the
+  node that follows them in the trees.
+
+- A pattern variable's type is made fully defined with the trees' types (`zonk_trees`), as
+  its `BIND` writes it (`t6111`: an extractor's type argument solved by an implicit argument).
 
 ## Consequences
 - The JVM and NIR names of these accessors are their target names (`B1$$super$f2`), as for
   every member with a target name.
-- Open still: the position of the `@targetName` annotation (dotty gives it the member's span)
-  and `SHAREDtype` by identity (ADR 0105).
+- Open still: the annotation's position for a member of another file, and `SHAREDtype` by
+  identity (ADR 0105).

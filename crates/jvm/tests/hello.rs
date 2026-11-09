@@ -128,6 +128,11 @@ fn streams_run_on_the_jvm() {
 }
 
 #[test]
+fn super_accessors_run_on_the_jvm() {
+    runs_on_the_jvm("superaccessors", "Superaccessors");
+}
+
+#[test]
 fn jdk_classes_javalib_lacks_run_on_the_jvm() {
     runs_on_the_jvm("jdkclasses", "Jdkclasses");
 }
@@ -145,10 +150,9 @@ fn refuses(name: &str, code: &str, message: &str) {
 
 #[test]
 fn a_definition_the_tasty_pickler_lacks_is_refused() {
-    let code = "import scala.annotation.targetName\n\
-        trait A { @targetName(\"g\") def f(): Int = 1 }\n\
-        trait B extends A { @targetName(\"g\") override def f(): Int = super.f() + 1 }";
-    refuses("refusedtasty", code, "pickling a super call of a method with a target name into TASTy");
+    let code = "trait A { def f(using x: Int): Int = x }\n\
+        trait B extends A { override def f(using x: Int): Int = super.f + 1 }";
+    refuses("refusedtasty", code, "pickling a super call of a method with implicit parameters into TASTy");
 }
 
 #[test]
