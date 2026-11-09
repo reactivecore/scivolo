@@ -330,9 +330,14 @@ Results (2026-11-09):
   parameters of a macro-generated method (`quotes-add-erased`).
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
+- **Difference from dotty (case 1):** a macro runs from its Scala Native build in the VM, so a
+  macro implementation that reads the platform (`System.getProperty`, `scala.util.Properties`,
+  runtime class names) sees Scala Native's; what it reflects on (`Symbol`s, types) is the JVM
+  build's TASTy, as for dotty.
 
 `just programs-jvm` compiles each of `tests/programs` with `scivolo-jvm`, runs it on
-`java -Xverify:all` and compares stdout, then stderr, with its `.check` (Scala Native's output).
+`java -Xverify:all` and compares its stdout and stderr, in one stream, with its `.check` (Scala
+Native's output).
 Results (2026-11-09):
 
 | Outcome | Programs |

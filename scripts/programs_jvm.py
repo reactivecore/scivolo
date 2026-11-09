@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """tests/programs through the Rust frontend and the JVM backend, run on `java -Xverify:all` and
-compared with their `.check` (Scala Native's output, stdout and stderr together).
+compared with their `.check` (Scala Native's output, stdout and stderr in one stream).
 
 Usage: scripts/programs_jvm.py [FILTER]
 
@@ -8,6 +8,7 @@ Writes programs-results.tsv and programs-report.md under tmp/jvm; FILTER is a su
 program names to run, whose rows replace those of the last run.
 """
 import concurrent.futures
+import subprocess
 import sys
 
 from dotty_jvm import JOBS, LIBRARY, ROOT, TIMEOUT, ran, run, scivolo, write
@@ -24,9 +25,9 @@ def one(name):
     if isinstance(out, tuple):
         return out
     cmd = ["java", "-Xverify:all", "-Duser.language=en", "-Duser.country=US", "-cp", f"{out}:{LIBRARY}", name]
-    code, stdout, err = run(cmd, TIMEOUT, cwd=PROGRAMS / name)
-    (WORK / "programs-logs" / name).write_text(stdout + "\n--- stderr ---\n" + err)
-    return ran(code, stdout + err, err, check)
+    code, output, _ = run(cmd, TIMEOUT, stderr=subprocess.STDOUT, cwd=PROGRAMS / name)
+    (WORK / "programs-logs" / name).write_text(output)
+    return ran(code, output, output, check)
 
 
 def main(filter_):

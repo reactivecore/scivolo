@@ -75,12 +75,13 @@ def compiled(name, groups, dir, options=None):
     key = name if dir == "run" else f"{dir}-{name}"
     if len(groups) == 1:
         return scivolo(key, groups[-1], [], []), []
-    before, why = earlier(key if options is None else f"{key}-split", groups, options or [])
+    split = "" if options is None else "-split"
+    before, why = earlier(key + split, groups, options or [])
     if before is None:
         return ("earlier groups failed", why), []
     outcome = scivolo(key, groups[-1], [before], [])
     if outcome == ("typer refused", "macro call"):
-        nir, why = native_earlier(name, groups, dir, options or [])
+        nir, why = native_earlier(name + split, groups, dir, options or [])
         if nir is None:
             return ("earlier groups failed", f"Scala Native: {why}"), []
         outcome = scivolo(key, groups[-1], [before], [nir])
