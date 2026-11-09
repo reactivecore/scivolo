@@ -7,15 +7,16 @@ mod calls;
 pub(super) mod erased_defs;
 mod generic_arrays;
 mod members;
+mod receivers;
 
 use super::adapt::{adapt, applied_to_none, ascription_type, erased_type, is_parameterless_ref};
-use super::casts::receiver_type;
 use super::erased_branches::{typed_branches, typed_switch, typed_try};
 use super::poly_functions::poly_function_member;
 use super::type_tests::{intercept, is_test_or_cast};
 use super::vc_elide::elided;
 use super::walk::map_children;
 use crate::{Lower, Result, unsupported};
+use receivers::receiver_type;
 use tasty::{Erased, Kind};
 use typer::tpd::{TNodeId, Tree};
 
