@@ -67,10 +67,13 @@ impl Typer<'_> {
 
     /// Whether pattern type `pat`, or its base type at `sel`'s class, and `sel` apply the same
     /// class, each of `syms` an argument of `pat` only where `sel` has an unbounded wildcard,
-    /// which constrains none of them.
+    /// which constrains none of them; for an abstract `sel`, its upper bound.
     pub fn only_against_wildcards(&mut self, pat: TypeId, sel: TypeId, syms: &[SymbolId]) -> bool {
         let sel = self.dealiased(sel);
         let sel = self.u.widen(sel);
+        if let Some(hi) = self.abstract_upper(sel) {
+            return self.only_against_wildcards(pat, hi, syms);
+        }
         let base = match (self.u.class_symbol(pat), self.u.class_symbol(sel)) {
             (Some(p), Some(s)) if p != s && self.u.derives_from(p, s) => self.u.base_type(pat, s),
             _ => Some(pat),
@@ -100,17 +103,25 @@ impl Typer<'_> {
     pub fn has_unapplied_bases(&mut self, sel: TypeId) -> bool {
         let sel = self.dealiased(sel);
         let sel = self.u.widen(sel);
-        let Type::Sym(pre, c) = *self.u.types().get(sel) else { return false };
-        if !self.u.is_class(c) {
-            let info = match pre {
-                Some(p) => self.u.member_info(p, c),
-                None => self.u.info(c),
-            };
-            let abstract_type = matches!(self.u.symbol(c).kind, Kind::TypeParam | Kind::Type);
-            let Type::Bounds(_, hi) = *self.u.types().get(info) else { return false };
-            return abstract_type && hi != sel && self.u.gadt_bounds(c).is_none() && self.has_unapplied_bases(hi);
+        if let Some(hi) = self.abstract_upper(sel) {
+            return self.has_unapplied_bases(hi);
         }
-        self.u.linearization(c).into_iter().all(|b| self.u.type_params(b).is_empty())
+        let Type::Sym(_, c) = *self.u.types().get(sel) else { return false };
+        self.u.is_class(c) && self.u.linearization(c).into_iter().all(|b| self.u.type_params(b).is_empty())
+    }
+
+    /// The upper bound of abstract type `sel` without GADT bounds, other than `sel`.
+    fn abstract_upper(&mut self, sel: TypeId) -> Option<TypeId> {
+        let Type::Sym(pre, c) = *self.u.types().get(sel) else { return None };
+        if !matches!(self.u.symbol(c).kind, Kind::TypeParam | Kind::Type) || self.u.gadt_bounds(c).is_some() {
+            return None;
+        }
+        let info = match pre {
+            Some(p) => self.u.member_info(p, c),
+            None => self.u.info(c),
+        };
+        let Type::Bounds(_, hi) = *self.u.types().get(info) else { return None };
+        (hi != sel).then_some(hi)
     }
 
     /// Of bound `old` and `new`, the one that implies the other, the lower bound by `lower`; `None`
