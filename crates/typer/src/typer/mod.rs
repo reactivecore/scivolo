@@ -328,6 +328,8 @@ pub struct Typer<'a> {
     pub lints: Lints,
     /// Whether the source version is `future`.
     pub source_future: bool,
+    /// Whether `$` in a definition's name is warned about (source 3.9 and later).
+    pub dollar_names_warned: bool,
     /// Whether the unit behaves as the Scala 2 library (`language.\`2.13\``).
     pub scala2: bool,
     /// `Config::interactive`.
@@ -478,6 +480,7 @@ impl<'a> Typer<'a> {
             experimental: cfg.experimental,
             lints: cfg.warnings.lints,
             source_future: v.requires_new_syntax(),
+            dollar_names_warned: v.is_at_least(SourceVersion::V3_9),
             scala2: v.is_scala2(),
             interactive: cfg.interactive,
             ahead: FxHashMap::default(),

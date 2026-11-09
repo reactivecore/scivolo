@@ -46,6 +46,7 @@ impl Typer<'_> {
             }
             let (lo, hi) = self.constraint.bounds(v);
             let (lo, hi) = (self.zonk(lo), self.zonk(hi));
+            let lo = self.with_gadt_params_below(lo, var, gadt);
             let final_hi = self.u.class_symbol(hi).is_some_and(|c| self.u.symbol(c).flags.has(FINAL));
             let fixed = lo == hi || final_hi || self.u.is_subtype_frozen_in(hi, lo, &mut self.constraint);
             if fixed {
@@ -69,6 +70,21 @@ impl Typer<'_> {
                 sym
             })
             .collect())
+    }
+
+    /// Lower bound `lo` of type variable `var` joined with each GADT variable of `gadt` whose upper
+    /// bound is `var` or an intersection with it (dotty's `fullLowerBound`).
+    fn with_gadt_params_below(&mut self, mut lo: TypeId, var: TypeId, gadt: &[(SymbolId, TypeId)]) -> TypeId {
+        for &(g, gv) in gadt {
+            let Type::Var(id) = *self.u.types().get(gv) else { continue };
+            let (_, hi) = self.constraint.bounds(id);
+            if !and_parts(self.u, hi).contains(&var) {
+                continue;
+            }
+            let below = self.gadt_ref(g);
+            lo = if lo == tasty::NOTHING { below } else { self.u.intern_type(Type::Or(lo, below, false)) };
+        }
+        lo
     }
 
     /// The type variables that are type arguments of `unapp`, with their parameters' names.
@@ -106,5 +122,13 @@ impl Typer<'_> {
         }
         let args = self.tpd.list(&args);
         self.tpd.get_mut(unapp).tree = T::TypeApply { fun, args };
+    }
+}
+
+/// The parts of intersection `t`, or `t`.
+fn and_parts(u: &mut tasty::Universe, t: TypeId) -> Vec<TypeId> {
+    match *u.types().get(t) {
+        Type::And(a, b) => [and_parts(u, a), and_parts(u, b)].concat(),
+        _ => vec![t],
     }
 }

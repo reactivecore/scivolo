@@ -174,6 +174,7 @@ impl Typer<'_> {
         if variance < 0 {
             return lo;
         }
+        let hi = self.without_bound_above(own, hi);
         let above = self
             .gadt_narrowed()
             .into_iter()
@@ -182,6 +183,24 @@ impl Typer<'_> {
         match above {
             Some(a) if is_top(self.u, hi) || self.u.is_subtype(a, hi) => a,
             _ => hi,
+        }
+    }
+
+    /// Upper bound `hi` of `own` with each pattern-bound type in it whose lower bound `own`
+    /// conforms to replaced by its upper bound, as dotty's constraint propagates it.
+    fn without_bound_above(&mut self, own: TypeId, hi: TypeId) -> TypeId {
+        match *self.u.types().get(hi) {
+            Type::And(a, b) => {
+                let (a, b) = (self.without_bound_above(own, a), self.without_bound_above(own, b));
+                self.u.glb(a, b)
+            }
+            _ => match plain_type_ref(self.u, hi).filter(|p| self.gadt.bound.contains(p)) {
+                Some(p) => match self.current_bounds(p) {
+                    Some((lo, up)) if self.u.is_subtype(own, lo) => up,
+                    _ => hi,
+                },
+                None => hi,
+            },
         }
     }
 }
