@@ -132,6 +132,11 @@ fn jdk_classes_javalib_lacks_run_on_the_jvm() {
     runs_on_the_jvm("jdkclasses", "Jdkclasses");
 }
 
+#[test]
+fn jumps_over_32_kib_run_on_the_jvm() {
+    runs_on_the_jvm("widejumps", "Widejumps");
+}
+
 /// Compiles `code` as tmp/jvm-test/`name`.scala and expects a refusal containing `message`.
 fn refuses(name: &str, code: &str, message: &str) {
     let source = root().join(format!("tmp/jvm-test/{name}.scala"));

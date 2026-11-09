@@ -130,6 +130,7 @@ impl ClassFile {
         descriptor: &str,
         lub: &mut Lub,
     ) -> Result<Option<Vec<u8>>, String> {
+        code.widen();
         if code.bytes.len() > usize::from(u16::MAX) {
             return Err("over 65,535 bytes of code".into());
         }

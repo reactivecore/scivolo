@@ -59,7 +59,7 @@ pub fn execute(f: &mut Frame, code: &[u8], at: usize, pool: &Pool, this: &str) -
             f.pop(if op < 0x7e { 1 + size(&t) } else { 2 * size(&t) })?;
             f.push(t);
         }
-        0x00 | 0x84 | 0xa7 | 0xac..=0xb1 | 0xbf => {}
+        0x00 | 0x84 | 0xa7 | 0xac..=0xb1 | 0xbf | 0xc8 => {}
         0x85..=0x90 => {
             let from = usize::from(op - 0x85) / 3;
             let mut to: Vec<VType> = KINDS.to_vec();

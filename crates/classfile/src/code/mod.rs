@@ -4,6 +4,7 @@ mod descriptors;
 mod jumps;
 mod lines;
 mod ops;
+mod widen;
 
 use descriptors::{kind, slots};
 pub use descriptors::{method_slots, split_method, value_slots};
@@ -37,12 +38,13 @@ pub struct Code {
     labels: Vec<Option<usize>>,
     /// The jumps to labels not yet placed.
     fixups: Vec<Fixup>,
+    /// Every jump, and the offsets of the two-byte ones whose offset does not fit.
+    jumps: Vec<Fixup>,
+    far: Vec<usize>,
     /// The protected ranges: start, end, handler and the class index of the exception, 0 for any.
     handlers: Vec<(Label, Label, Label, u16)>,
     /// The exception table: start, end, handler and class index, set with the frames.
     pub exceptions: Vec<[u16; 4]>,
-    /// Why the code cannot be written, e.g. a jump over 32 KiB.
-    error: Option<String>,
     live: bool,
     /// The `LineNumberTable`: offsets and their source lines.
     lines: Vec<(u16, u16)>,
@@ -59,9 +61,10 @@ impl Code {
             max_locals: params,
             labels: Vec::new(),
             fixups: Vec::new(),
+            jumps: Vec::new(),
+            far: Vec::new(),
             handlers: Vec::new(),
             exceptions: Vec::new(),
-            error: None,
             live: true,
             lines: Vec::new(),
             last_line: 0,

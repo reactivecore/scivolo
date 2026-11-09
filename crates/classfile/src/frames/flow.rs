@@ -6,7 +6,7 @@ pub fn length(code: &[u8], at: usize) -> usize {
     match code[at] {
         0x10 | 0x12 | 0x15..=0x19 | 0x36..=0x3a | 0xbc => 2,
         0x11 | 0x13 | 0x14 | 0x84 | 0x99..=0xa7 | 0xb2..=0xb8 | 0xbb | 0xbd | 0xc0 | 0xc1 | 0xc6 | 0xc7 => 3,
-        0xb9 | 0xba => 5,
+        0xb9 | 0xba | 0xc8 => 5,
         0xc4 if code[at + 1] == 0x84 => 6,
         0xc4 => 4,
         0xaa | 0xab => {
@@ -22,6 +22,7 @@ pub fn targets(code: &[u8], at: usize) -> Vec<usize> {
     let to = |offset: i64| (at as i64 + offset) as usize;
     match code[at] {
         0x99..=0xa7 | 0xc6 | 0xc7 => vec![to(i16::from_be_bytes([code[at + 1], code[at + 2]]).into())],
+        0xc8 => vec![to(int(code, at + 1).into())],
         0xaa | 0xab => {
             let (base, slots) = (operands(at), switch_slots(code, at));
             let firsts = if code[at] == 0xaa { 3..slots } else { 2..slots };
