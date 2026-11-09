@@ -35,7 +35,12 @@ impl Typer<'_> {
             true => sel,
             false => match self.without_variant_args(sel) {
                 Some(widened) => widened,
-                None => return tpe,
+                None => {
+                    if self.bound_by_variant_args(tpe, sel, &syms) {
+                        self.known_pattern_types.extend(syms);
+                    }
+                    return tpe;
+                }
             },
         };
         let mark = self.constraint.mark();

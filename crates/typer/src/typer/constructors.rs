@@ -18,23 +18,6 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "new with an unstable prefix");
         }
-        let tycon = match *self.u.types().get(tpe) {
-            Type::Applied(tc, _) => tc,
-            _ => tpe,
-        };
-        if let Type::Sym(_, s) = *self.u.types().get(tycon)
-            && self.u.symbol(s).kind == Kind::Type
-            && let Some(owner) = self.u.symbol(s).owner
-            && self.u.symbol(owner).kind == Kind::Class
-            && !self.is_static_owner(owner)
-            && !self
-                .u
-                .class_symbol(tpe)
-                .and_then(|c| self.u.symbol(c).owner)
-                .is_some_and(|o| self.is_static_owner(o))
-        {
-            return self.unsupported(id, "new of a type alias of a non-static owner");
-        }
         if let Type::Sym(_, s) = *self.u.types().get(tpe)
             && self.u.symbol(s).kind == Kind::Type
             && self.syms.flags.contains_key(&s)

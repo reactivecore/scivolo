@@ -19,10 +19,23 @@ impl Typer<'_> {
         let lambda = matches!(self.ast.tree(rhs), Tree::LambdaTypeTree { .. });
         let typed = self.typed_type(rhs, ctx);
         self.typed_ahead(rhs, typed, ctx);
-        let tpe = self.tpd.tpe(typed);
-        if !lambda && !matches!(self.u.types().get(tpe), Type::Bounds(..)) && self.type_arity(tpe) > 0 {
-            self.unsupported(rhs, "alias of a type constructor");
-            return self.u.intern_type(Type::Error);
+        let mut tpe = self.tpd.tpe(typed);
+        if !lambda
+            && let Type::Sym(_, c) = *self.u.types().get(tpe)
+            && self.u.is_class(c)
+            && !self.u.type_params(c).is_empty()
+        {
+            match self.eta_expanded(c, tpe) {
+                Ok(expanded) => {
+                    tpe = expanded;
+                    let node = self.tpd.get_mut(typed);
+                    (node.tpe, node.sym) = (Some(expanded), None);
+                }
+                Err(what) => {
+                    self.unsupported(rhs, what);
+                    return self.u.intern_type(Type::Error);
+                }
+            }
         }
         match self.u.types().get(tpe) {
             Type::Bounds(..) => tpe,

@@ -267,6 +267,7 @@ mod unresolved_terms;
 mod unsafe_nulls;
 mod untupled;
 mod valid_infix;
+mod variant_pattern_args;
 mod variance_aliases;
 mod variance_checks;
 mod variance_lambdas;
