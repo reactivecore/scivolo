@@ -309,26 +309,24 @@ Results (2026-11-09):
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1587 | 307 |
+| passed | 1594 | 307 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
 | crashed | 1 | 0 |
 | timeout | 0 | 0 |
-| jvm refused | 5 | 0 |
+| jvm refused | 1 | 0 |
 | lowering refused | 0 | 0 |
-| typer refused | 27 | 7 |
+| typer refused | 24 | 7 |
 | skipped | 91 | 7 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** TASTy pickling (4), members not found (3), JDK annotation classes
+- **Typer refused (run):** TASTy pickling (2), members not found (3), JDK annotation classes
   (`Deprecated`, 2), `-Xmixin-force-forwarders:false` (2), adaptation (2), `Printer.TypeReprStructure`
   (`i22649`), the rest singles.
 - **Typer refused (run-macros):** `-Xread-docs` (2), a concrete class with an unimplemented member,
   `SuppressWarnings`, adaptation, `Symbol.newClass` with a self type, a source version.
-- **JVM refused:** a box of a value that is not primitive (1), a protected member's super accessor
-  the TASTy lacks (1), a jump over 32 KiB (1), a `LazyVals` lub of a long class name (1), erased
-  parameters of a macro-generated method (`quotes-add-erased`).
+- **JVM refused:** erased parameters of a macro-generated method (`quotes-add-erased`).
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
 - **Difference from dotty (open, not accepted):** a macro runs from its Scala Native build in the VM, so a
@@ -343,11 +341,11 @@ Results (2026-11-09):
 
 | Outcome | Programs |
 |---|---:|
-| passed | 287 |
+| passed | 288 |
 | wrong output | 5 |
-| linkage error | 12 |
+| linkage error | 13 |
 | crashed | 3 |
-| jvm refused | 4 |
+| jvm refused | 2 |
 | lowering refused | 1 |
 | typer refused | 6 |
 | **total** | **318** |
@@ -360,8 +358,9 @@ Results (2026-11-09):
 - **Scala Native APIs:** 12 linkage errors (`scala.scalanative.unsafe`, `meta.LinktimeInfo`,
   `runtime.LLVMIntrinsics`), `overflow` (a `scalanative.unsafe` macro call),
   `Ni26intrinsics` (JVM refused: an ordering of references).
-- **JVM refused:** `exprforms` (an argument of another JVM type), `lowergaps` (a `LazyVals` lub
-  of a long class name), `protectedaccess` (super accessors the TASTy lacks).
+- **JVM refused:** `exprforms` (an argument of another JVM type).
+- **Linkage error:** `protectedaccess` (`NoSuchMethodError` of `Copies.clone()`: super accessors
+  the TASTy lacks).
 - **Refused:** TASTy pickling (`mirrorproxies`, `scala2mirrors`, `quotecc`), `dynamic`
   (constructor proxy and an imported term), `hkerasure` (no implicit argument), `Lw26statics`
   (lowering: an `@static` member selected from a value other than a path).
