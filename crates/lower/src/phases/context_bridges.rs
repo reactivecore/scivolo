@@ -17,14 +17,14 @@ use typer::tpd::TNodeId;
 /// `def m(params): F = closure(m$$anonfun$N)` of the type of `other`, flattened by fewer context
 /// clauses than `m`, and the closures' methods, one per clause `other` lacks, each nested in the
 /// one before: `def m$$anonfun$N(params, contextParams) = this.m(params, contextParams)` for the
-/// last, in `class` at `span`.
+/// last, in `class` at `span`; the methods innermost first, then their `$adapted` methods.
 pub fn bridge(
     l: &mut Lower,
     class: SymbolId,
     m: SymbolId,
     other: SymbolId,
     span: Span,
-) -> Result<Vec<TNodeId>> {
+) -> Result<(TNodeId, Vec<TNodeId>)> {
     let (_, depth) = l.context_results[&m];
     let flattened = l.context_results.get(&other).map_or(0, |&(_, d)| d);
     let (m_info, other_info) = (l.u.info(m), l.u.info(other));
@@ -46,7 +46,7 @@ pub fn bridge(
     let erased_result = l.u.erase_value(m_result);
     let anons = plan(l, (class, m), &own_clauses[own..], (captured, originals), erased_result, span)?;
     let apply = super::bunched::array_apply(l)?;
-    let mut defs = Vec::new();
+    let (mut defs, mut adapteds) = (Vec::new(), Vec::new());
     let mut result = m_result;
     for i in (0..anons.len()).rev() {
         let (anon, params) = (anons[i].sym, anons[i].params.clone());
@@ -74,7 +74,7 @@ pub fn bridge(
         }));
         if let Some((adapted, names, needed)) = anons[i].adapted.clone() {
             let methods = (class, anon, adapted);
-            defs.push(erased_adapted_def(l, methods, (anons[i].arity, needed), names, span));
+            adapteds.push(erased_adapted_def(l, methods, (anons[i].arity, needed), names, span));
             l.bridges.insert(adapted);
         }
         result = function_type(l, anons[i].arity);
@@ -87,7 +87,15 @@ pub fn bridge(
     let (sym, def) =
         l.method_like(class, other, flags, other_info, span, |l, args, _| closure(l, first, args, span))?;
     l.bridges.insert(sym);
-    Ok([def].into_iter().chain(defs).collect())
+    for (i, a) in anons.iter().enumerate() {
+        let from = if i == 0 { sym } else { anons[i - 1].sym };
+        l.lifted_from.insert(a.sym, from);
+        if let Some((adapted, ..)) = a.adapted {
+            l.lifted_from.insert(adapted, from);
+        }
+    }
+    defs.extend(adapteds);
+    Ok((def, defs))
 }
 
 /// Whether every member of the name of method `m` that `m` may override, or that may override

@@ -349,6 +349,23 @@ impl<'a> Lower<'a> {
         self.mixed_from.get(&m).or_else(|| self.forwarded.get(&m)).copied()
     }
 
+    /// Whether `m` is the method of a closure a bridge returns (dotty's `Bridges.etaExpand`).
+    pub fn is_bridge_closure(&self, m: SymbolId) -> bool {
+        let mut from = self.lifted_from.get(&m);
+        while let Some(f) = from {
+            if self.bridges.contains(f) {
+                return true;
+            }
+            from = self.lifted_from.get(f);
+        }
+        false
+    }
+
+    /// The type of `m` before its context closures became parameter clauses, if they did.
+    pub fn unflattened_info(&self, m: SymbolId) -> Option<tasty::TypeId> {
+        self.context_results.get(&m).map(|&(t, _)| t)
+    }
+
     /// Whether `m` is an accessor `Mixin` made for a trait value, not a forwarder.
     pub fn is_mixin_accessor(&self, m: SymbolId) -> bool {
         self.mixed_from.contains_key(&m)

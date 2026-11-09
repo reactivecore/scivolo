@@ -190,6 +190,17 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       an unexpected type representation reached the compiler backend … NoType`;
       `Counter.a = Counter.a + 5` compiles.
     - JVM: compiles it as the assignment.
+18. **A bridge's closure of more than 22 context parameters is a `Function1`** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/transform/Bridges.scala`, `etaExpand`).
+    - `def mega: Mega[Int]` overriding an abstract one, `Mega` a context function of 23
+      parameters: the bridge returns a closure of the erased `(Object[])` method, a `Function1`
+      where callers expect a `FunctionXXL` (`ClassCastException`).
+    - Fix: give the closure the type `FunctionXXL`. VM and JVM: as dotty.
+19. **Generic signatures flatten one context function result** (dotty 3.9.0,
+    `compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala`, `collectMethodParams`).
+    - It adds the parameters of one `ContextFunctionN` result to every method's signature, whether
+      erasure flattened none (`h(I)Lscala/Function1;` signed `(ILjava/lang/String;)I`) or two.
+    - Fix: follow `ContextResultCount`. JVM: as dotty.
 
 ## M4: dotty `tests/run`
 

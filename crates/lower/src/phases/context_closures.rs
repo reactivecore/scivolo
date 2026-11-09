@@ -9,7 +9,7 @@ use super::lift_names::fresh;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::{ARTIFACT, PRIVATE, SYNTHETIC};
+use tasty::tags::{ARTIFACT, FINAL, PRIVATE, SYNTHETIC};
 use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -39,7 +39,9 @@ pub fn plan(
     result: Erased,
     span: Span,
 ) -> Result<Vec<Anon>> {
-    let flags = Flags::default().with(PRIVATE).with(SYNTHETIC).with(ARTIFACT);
+    let adapted_flags = Flags::default().with(PRIVATE).with(SYNTHETIC).with(ARTIFACT);
+    let flags = Flags::default().with(PRIVATE);
+    let flags = if l.u.is_trait(class) { flags } else { flags.with(FINAL) };
     let mut anons: Vec<Anon> = Vec::new();
     for (k, context) in contexts.iter().enumerate() {
         let outer = anons.last().map_or(m, |a| a.sym);
@@ -75,7 +77,7 @@ pub fn plan(
         };
         let adapted = (interface.is_none() && needed != (false, false)).then(|| {
             let name = fresh(l, &format!("{prefix}$$anonfun$adapted"));
-            let adapted = l.u.define(symbol(&name, Kind::Def, class, flags));
+            let adapted = l.u.define(symbol(&name, Kind::Def, class, adapted_flags));
             let first = captured.len() - context.len();
             let names = captured.iter().zip(&originals).enumerate();
             let names = names.map(|(i, ((name, _), o))| if i < first { fresh(l, o) } else { name.clone() });
@@ -96,16 +98,23 @@ pub fn unbunched(l: &mut Lower, apply: SymbolId, anon: &Anon, args: &[TNodeId], 
     captured.iter().copied().chain(elements).collect()
 }
 
-/// `closure(anon)` of the function type of `anon`'s arity capturing `args`.
+/// `closure(anon)` of the function type of `anon`'s arity capturing `args`, `Function1` of one
+/// taking an array; in a block, in two if of its `$adapted` method (dotty's `etaExpand` and
+/// `adaptClosure`).
 pub fn closure(l: &mut Lower, anon: &Anon, args: &[TNodeId], span: Span) -> TNodeId {
-    let function = function_type(l, anon.arity);
+    let function = function_type(l, if anon.bunched.is_some() { 1 } else { anon.arity });
     let env = l.tpd.list(args);
     let meth = l.ident(anon.adapted.as_ref().map_or(anon.sym, |a| a.0), span);
     let tpt = anon.interface.map(|i| {
         let interface = type_ref(l.u, i);
         l.type_tree(interface, span)
     });
-    l.tpd.node(Tree::Closure { env, meth, tpt }, span, Some(function), None)
+    let mut expr = l.tpd.node(Tree::Closure { env, meth, tpt }, span, Some(function), None);
+    for _ in 0..1 + usize::from(anon.adapted.is_some()) {
+        let stats = l.tpd.list(&[]);
+        expr = l.tpd.node(Tree::Block { stats, expr }, span, Some(function), None);
+    }
+    expr
 }
 
 /// `FunctionN` of `arity` parameters, `FunctionXXL` beyond the library's arities.

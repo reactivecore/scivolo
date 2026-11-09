@@ -165,7 +165,7 @@ impl Sig<'_> {
                     let keep = params.len() - if java_enum { 2 } else { 0 };
                     let outer = usize::from(self.constructor && names.first() == Some(&"$outer"));
                     vparams.extend(params.into_iter().take(keep).skip(outer).map(|(_, p)| p));
-                    t = result;
+                    t = self.context_result(result, &mut vparams);
                 }
                 _ => break,
             }
@@ -178,5 +178,20 @@ impl Sig<'_> {
         }
         self.out.push(')');
         self.result(t);
+    }
+
+    /// The result type of context function type `t` with its parameter types added to `vparams`,
+    /// else `t` (dotty's `collectMethodParams`).
+    fn context_result(&mut self, t: TypeId, vparams: &mut Vec<TypeId>) -> TypeId {
+        let d = self.u.dealias(t);
+        let Type::Applied(tycon, mut args) = self.u.types().get(d).clone() else { return t };
+        let name = self.u.class_symbol(tycon).map(|c| self.u.symbol(c).name.clone());
+        let Some(arity) = name.as_deref().and_then(|n| n.strip_prefix("ContextFunction")) else { return t };
+        if arity.is_empty() || !arity.bytes().all(|b| b.is_ascii_digit()) {
+            return t;
+        }
+        let Some(result) = args.pop() else { return t };
+        vparams.extend(args);
+        result
     }
 }
