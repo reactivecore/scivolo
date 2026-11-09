@@ -7,19 +7,13 @@ use super::super::did_you_mean::is_jdk;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
-use tasty::tags::{GIVEN, IMPLICIT, PRIVATE};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{SymbolId, Type, TypeId};
 
 /// An implicit value or method and the prefix it is referenced through.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Candidate {
     pub sym: SymbolId,
     pub prefix: Option<TypeId>,
-}
-
-pub fn is_implicit(u: &Universe, s: SymbolId) -> bool {
-    let sym = u.symbol(s);
-    sym.kind.is_term() && (sym.flags.has(IMPLICIT) || sym.flags.has(GIVEN))
 }
 
 /// The implicit members of class `c` and its base classes, the private ones of `c` if
@@ -54,8 +48,9 @@ fn implicit_members_of(
     for (i, &base) in lin.iter().enumerate() {
         t.complete(base);
         for d in t.u.decls(base).unwrap_or_default() {
-            if is_implicit(t.u, d)
-                && (own_private && base == c || !t.u.symbol(d).flags.has(PRIVATE))
+            let s = t.u.symbol(d);
+            if s.is_implicit()
+                && (own_private && base == c || !s.is_private())
                 && !out.contains(&d)
                 && !overridden_in(t, site, &lin[..i], d)
             {
@@ -72,8 +67,7 @@ fn overridden_in(t: &mut Typer<'_>, site: TypeId, bases: &[SymbolId], d: SymbolI
     for &b in bases {
         for m in t.u.decl(b, &name).unwrap_or_default() {
             let s = t.u.symbol(m);
-            let term = s.kind.is_term() && s.kind != Kind::Param;
-            if m != d && term && !s.flags.has(PRIVATE) && t.same_member(site, m, d) {
+            if m != d && s.is_term_member() && !s.is_private() && t.same_member(site, m, d) {
                 return true;
             }
         }
@@ -97,14 +91,14 @@ pub fn imported_implicits(t: &mut Typer<'_>, i: usize) -> Result<Vec<(Candidate,
     let classes = match t
         .u
         .module_class(site)
-        .or_else(|| (t.u.symbol(site).kind == Kind::Class).then_some(site))
+        .or_else(|| t.u.symbol(site).is_class().then_some(site))
         .or_else(|| class_of_value(t))
     {
         Some(class) => vec![class],
-        None if t.u.symbol(site).kind == Kind::Package => {
+        None if t.u.symbol(site).is_package() => {
             t.u.package_objects(site).map_err(|_| "implicit import from an unreadable package object")?
         }
-        None if t.u.symbol(site).kind.is_term() => {
+        None if t.u.symbol(site).is_term() => {
             return Err("implicit import from a value of no class type");
         }
         None => return Ok(Vec::new()),
@@ -124,7 +118,7 @@ pub fn imported_implicits(t: &mut Typer<'_>, i: usize) -> Result<Vec<(Candidate,
     let members: Vec<_> = classes.into_iter().flat_map(|c| implicit_members(t, c, true)).collect();
     for sym in members {
         let name = t.u.symbol(sym).name.clone();
-        let given = t.u.symbol(sym).flags.has(GIVEN);
+        let given = t.u.symbol(sym).is_given();
         let excluded = (wildcard || givens) && names.iter().any(|(n, r)| *n == name && *r != name);
         let named = names.iter().find(|(n, r)| *n == name && r != "_").map(|(_, r)| r.clone());
         let wild = if givens { t.imports_given(i, sym) } else { !given && wildcard };
@@ -151,12 +145,12 @@ pub fn candidate_ref(t: &mut Typer<'_>, c: Candidate, span: Span, ctx: Ctx) -> R
             "inaccessible implicit"
         });
     }
-    let package_object = t.u.symbol(c.sym).owner.filter(|&o| t.is_named_package_object(o));
+    let package_object = t.u.symbol(c.sym).owner.filter(|&o| crate::defn::is_named_package_object(t.u, o));
     let through_object = |t: &mut Typer<'_>, p: Option<Type>, o: SymbolId| match p {
         Some(Type::Package(_)) => true,
         Some(Type::This(c)) => match *t.u.types().get(c) {
             Type::Package(_) => true,
-            Type::Sym(_, s) => s == o || t.u.symbol(s).kind == tasty::Kind::Package,
+            Type::Sym(_, s) => s == o || t.u.symbol(s).is_package(),
             _ => false,
         },
         _ => false,
@@ -174,7 +168,7 @@ pub fn candidate_ref(t: &mut Typer<'_>, c: Candidate, span: Span, ctx: Ctx) -> R
             let this = t.u.intern_type(Type::This(class));
             t.u.intern_type(Type::Sym(Some(this), c.sym))
         }
-        _ => t.ref_type(c.prefix, c.sym),
+        _ => t.types().ref_type(c.prefix, c.sym),
     };
     let through_path = !t.term_prefix_is_elidable(c.prefix, c.sym, ctx);
     if through_path && c.prefix.and_then(|p| t.path_tree_from(p, span, 8, Some(ctx))).is_none() {

@@ -2,6 +2,7 @@
 //! adapting a non-constant inserts (dotty's views from the value classes' companions).
 
 use super::Typer;
+use super::type_ops::TypeOps;
 use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use tasty::{Kind, Type, TypeId};
@@ -28,7 +29,7 @@ pub fn widens(from: &str, to: &str) -> bool {
     WIDENINGS.iter().any(|(n, targets)| *n == from && targets.contains(&to))
 }
 
-impl Typer<'_> {
+impl TypeOps<'_> {
     /// The full name of the value class `t` widens to, if it is one.
     pub fn value_class(&mut self, t: TypeId) -> Option<String> {
         let widened = self.u.widen(t);
@@ -37,6 +38,14 @@ impl Typer<'_> {
         value.then_some(name)
     }
 
+    /// Whether the value class of `from` widens numerically to that of `to`.
+    pub fn widens_to(&mut self, from: TypeId, to: TypeId) -> bool {
+        let (Some(from), Some(to)) = (self.value_class(from), self.value_class(to)) else { return false };
+        widens(&from, &to)
+    }
+}
+
+impl Typer<'_> {
     /// `tree` widened to the numeric class of `pt` by its class's companion conversion, e.g.
     /// `Int.int2long(tree)`; `None` if no widening applies or a script implicit might compete.
     pub fn numeric_view(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {

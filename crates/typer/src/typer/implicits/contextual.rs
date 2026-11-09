@@ -4,12 +4,10 @@
 //! `ContextualImplicits`: `level` and `combineEligibles`).
 
 use super::super::Typer;
-use super::candidates::{
-    Candidate, implicit_members, imported_implicits, is_implicit, this_implicit_members,
-};
+use super::candidates::{Candidate, implicit_members, imported_implicits, this_implicit_members};
 use super::too_late::comes_too_late;
 use crate::ctx::{Ctx, Level, LevelId};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{SymbolId, Type};
 
 /// How a level binds its implicits (dotty's `BindingPrec`).
 #[derive(Clone, Copy, PartialEq)]
@@ -121,12 +119,12 @@ fn level_refs(t: &mut Typer<'_>, l: LevelId) -> Result<Option<Refs>, &'static st
             let owner = entries.first().and_then(|&(_, s)| t.u.symbol(s).owner);
             let cands = entries
                 .into_iter()
-                .filter(|&(_, s)| is_implicit(t.u, s))
+                .filter(|&(_, s)| t.u.symbol(s).is_implicit())
                 .map(|(n, sym)| (Candidate { sym, prefix: None }, n))
                 .collect();
             Refs { cands, prec: Prec::Definition, owner }
         }
-        &Level::Members(owner) if t.u.symbol(owner).kind == Kind::Class => {
+        &Level::Members(owner) if t.u.symbol(owner).is_class() => {
             let this = crate::defn::type_ref(t.u, owner);
             let prefix = Some(t.u.intern_type(Type::This(this)));
             let members = this_implicit_members(t, owner);
@@ -136,7 +134,7 @@ fn level_refs(t: &mut Typer<'_>, l: LevelId) -> Result<Option<Refs>, &'static st
                 .collect();
             Refs { cands, prec: Prec::Definition, owner: Some(owner) }
         }
-        &Level::Members(pkg) if t.u.symbol(pkg).kind == Kind::Package => {
+        &Level::Members(pkg) if t.u.symbol(pkg).is_package() => {
             let members = match t.package_implicits.get(&pkg) {
                 Some(members) => members.clone(),
                 None => package_implicits(t, pkg)?,
@@ -166,11 +164,9 @@ fn level_refs(t: &mut Typer<'_>, l: LevelId) -> Result<Option<Refs>, &'static st
 fn package_implicits(t: &mut Typer<'_>, pkg: SymbolId) -> Result<Vec<(SymbolId, SymbolId)>, &'static str> {
     let mut members = Vec::new();
     let script =
-        t.u.symbol(pkg)
-            .decls
-            .clone()
-            .into_iter()
-            .filter(|&c| t.syms.is_script(c) && t.is_named_package_object(c) && t.u.is_class(c));
+        t.u.symbol(pkg).decls.clone().into_iter().filter(|&c| {
+            t.syms.is_script(c) && crate::defn::is_named_package_object(t.u, c) && t.u.is_class(c)
+        });
     let mut objects: Vec<SymbolId> = script.collect();
     for c in t.u.package_objects(pkg).map_err(|_| "package object that cannot be read")? {
         if !objects.contains(&c) {

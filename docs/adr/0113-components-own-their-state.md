@@ -32,5 +32,8 @@ run and dropped.
   views and the application of implicit clauses are still `impl Typer`.
 - State shared across nested searches that run through the typer (the open searches, the by-name
   dictionary, the budget) stays in `Typer::history`, as dotty keeps it in the `Context`.
-- Stateless helpers that need typer services (`conforms`, `zonk`, `complete`) become free functions
-  over `&mut Typer`; a narrower service type is a later step.
+- Type relations and queries that need only the universe and the constraint (`conforms`, `zonk`,
+  `open_vars`, `wild_approx`, …) are a service type, `TypeOps` from `Typer::types()` (dotty's
+  `TypeComparer`), for completed symbols; helpers that need no more take it, and `Typer`'s methods
+  of the same names forward to it. Flag and kind checks are methods on `tasty::Symbol`
+  (`is_implicit`, `is_given`). Helpers that complete symbols, type trees or search take the typer.

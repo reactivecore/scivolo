@@ -25,7 +25,7 @@ pub fn implicit_value_type(t: &mut Typer<'_>, tpe: TypeId, sym: SymbolId, pt: Ty
         _ => tpe,
     };
     let method = matches!(t.u.types().get(tpe), Type::Method { .. });
-    let tpe = match method && t.is_function_type(pt) {
+    let tpe = match method && t.types().is_function_type(pt) {
         true => t.proto_normalized((tpe, Some(sym)), pt, true, 8)?,
         false => tpe,
     };
@@ -37,11 +37,11 @@ pub fn implicit_value_type(t: &mut Typer<'_>, tpe: TypeId, sym: SymbolId, pt: Ty
 /// results (dotty's `normalize` following them).
 pub fn implicit_fit(t: &mut Typer<'_>, tpe: TypeId, sym: SymbolId, pt: TypeId) -> Option<bool> {
     let value = implicit_value_type(t, tpe, sym, pt)?;
-    if t.conforms(value, pt) {
+    if t.types().conforms(value, pt) {
         return Some(true);
     }
     let (result, pt_result) = (t.context_result(value), t.context_result(pt));
-    ((result != value || pt_result != pt) && t.conforms(result, pt_result)).then_some(false)
+    ((result != value || pt_result != pt) && t.types().conforms(result, pt_result)).then_some(false)
 }
 
 impl ImplicitSearch {
@@ -63,7 +63,7 @@ impl ImplicitSearch {
             Type::Sym(_, s) if t.u.is_type_symbol(s) => tpe,
             _ => t.method_info(tpe).unwrap_or(tpe),
         };
-        let stripped = t.strip_implicit(info);
+        let stripped = t.types().strip_implicit(info);
         let method = matches!(t.u.types().get(stripped), Type::Method { .. });
         let contextual = t.context_function_parts(pt).is_some();
         let direct = implicit_fit(t, info, c.sym, pt).ok_or("implicit of another type")?;
@@ -94,7 +94,7 @@ impl ImplicitSearch {
         if matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
             return Err("not an implicit value");
         }
-        let fits = t.conforms(tpe, pt);
+        let fits = t.types().conforms(tpe, pt);
         fits.then(|| t.gadt_adapted(tree, pt, ctx)).ok_or("implicit of another type")
     }
 
@@ -129,7 +129,7 @@ impl ImplicitSearch {
         t.splices.insert(splice, tree);
         let closure = typed_as_implicit(t, |t| t.typed(splice, Pt::Type(self.pt), self.ctx))?;
         let tpe = t.tpd.tpe(closure);
-        if t.conforms(tpe, self.pt) { Ok(closure) } else { Err("implicit of another type") }
+        if t.types().conforms(tpe, self.pt) { Ok(closure) } else { Err("implicit of another type") }
     }
 }
 

@@ -15,7 +15,7 @@ use super::candidates::Candidate;
 use super::function_goals::implicit_value_type;
 use super::search::ImplicitSearch;
 use crate::symbols::Completion;
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
+use tasty::{SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 /// How deep type arguments are compared.
 const DEPTH: u32 = 4;
@@ -39,8 +39,8 @@ impl ImplicitSearch {
         let before = t.constraint.attempt();
         let tpe = alt_type(t, c);
         let tpe = t.poly_instance(tpe, c.sym, false);
-        let fits =
-            implicit_value_type(t, tpe, c.sym, self.pt).is_some_and(|v| relaxed_conforms(t, v, self.pt));
+        let fits = implicit_value_type(t, tpe, c.sym, self.pt)
+            .is_some_and(|v| relaxed_conforms(&mut t.types(), v, self.pt));
         t.constraint.abandon(before);
         fits
     }
@@ -57,7 +57,7 @@ pub fn cannot_fit(t: &mut Typer<'_>, sym: SymbolId, pt: TypeId) -> bool {
             Type::Poly { result, .. }
             | Type::Method { result, implicit: true, .. }
             | Type::ByName(result) => result,
-            Type::Method { .. } => return !t.is_function_type(pt),
+            Type::Method { .. } => return !t.types().is_function_type(pt),
             _ => break,
         };
     }
@@ -134,7 +134,7 @@ fn nominal(t: &mut Typer<'_>, tpe: TypeId) -> Option<(SymbolId, Vec<TypeId>)> {
     let special = SPECIAL.contains(&full.as_str()) || full.starts_with("scala.ContextFunction");
     let known = matches!(t.syms.completions.get(&c), None | Some(Completion::Done))
         && !t.syms.incomplete.contains(&c);
-    (t.u.symbol(c).kind == Kind::Class && !special && known).then_some((c, args))
+    (t.u.symbol(c).is_class() && !special && known).then_some((c, args))
 }
 
 /// Whether `full` names a tuple class, with its arity if it is a `TupleN`.

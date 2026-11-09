@@ -5,7 +5,7 @@
 
 use super::super::Typer;
 use crate::ctx::Ctx;
-use tasty::tags::{GIVEN, PARAMsetter, SYNTHETIC};
+use tasty::tags::{PARAMsetter, SYNTHETIC};
 use tasty::{Kind, SymbolId};
 
 /// Whether contextual implicit `cand` comes too late for a search in `ctx`.
@@ -19,12 +19,12 @@ pub fn comes_too_late(t: &Typer<'_>, cand: SymbolId, ctx: Ctx) -> bool {
     while let Some(owner) = t.u.symbol(sym).owner {
         if Some(owner) == c.owner {
             let s = t.u.symbol(sym);
-            return s.kind.is_term()
-                && s.flags.has(GIVEN)
+            return s.is_term()
+                && s.is_given()
                 && !s.name.starts_with("derived$")
                 && def_start(t, sym).is_some_and(|start| start <= cand_start);
         }
-        if t.u.symbol(owner).kind == Kind::Class {
+        if t.u.symbol(owner).is_class() {
             return false;
         }
         sym = owner;

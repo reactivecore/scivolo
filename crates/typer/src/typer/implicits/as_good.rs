@@ -4,10 +4,10 @@
 //! `isAsGoodValueType` with `preferGeneral`).
 
 use super::super::Typer;
+use super::super::type_ops::TypeOps;
 use super::alt_types::prepared;
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
-use tasty::tags::{CONTRAVARIANT, COVARIANT, EXTENSION, IMPLICIT};
 use tasty::{Kind, Type, TypeId};
 
 /// Whether `a` of type `t1` is as good as `b` of type `t2` in `ctx`, the constraint unchanged;
@@ -37,15 +37,14 @@ fn as_good_in(
             if params.is_empty() && lambda {
                 return Some(true);
             }
-            let extension = |t: &Typer<'_>, c: Candidate| t.u.symbol(c.sym).flags.has(EXTENSION);
-            if extension(t, a) && !extension(t, b) {
+            if t.u.symbol(a.sym).is_extension() && !t.u.symbol(b.sym).is_extension() {
                 return Some(false);
             }
             let args: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
             if args.last().is_some_and(|&p| t.repeated_elem(p).is_some()) {
                 return None;
             }
-            let full_b = t.ref_type(b.prefix, b.sym);
+            let full_b = t.types().ref_type(b.prefix, b.sym);
             let full_b = t.method_info(full_b).unwrap_or(full_b);
             let full_b = t.poly_instance(full_b, b.sym, false);
             if !matches!(t.u.types().get(full_b), Type::Method { .. }) {
@@ -72,17 +71,18 @@ fn as_good_in(
 /// dotty's `isAsGoodValueType`: an old-style implicit `a` by subtyping with contravariant
 /// arguments flipped, a given by the other way round.
 fn as_good_value(t: &mut Typer<'_>, t1: TypeId, t2: TypeId, a: Candidate) -> Option<bool> {
-    let (p1, p2) = (prepared(t, t1), prepared(t, t2));
-    if !t.u.symbol(a.sym).flags.has(IMPLICIT) {
-        return Some(relaxed_conforms(t, p2, p1));
+    let mut ty = t.types();
+    let (p1, p2) = (prepared(&mut ty, t1), prepared(&mut ty, t2));
+    if !ty.u.symbol(a.sym).is_old_implicit() {
+        return Some(relaxed_conforms(&mut ty, p2, p1));
     }
     let (f1, f2) = (flipped(t, p1, 1)?, flipped(t, p2, 1)?);
-    Some(relaxed_conforms(t, f1, f2))
+    Some(relaxed_conforms(&mut t.types(), f1, f2))
 }
 
 /// `a <: b`, or numeric widening between value classes (dotty's `relaxed_<:<`).
-pub fn relaxed_conforms(t: &mut Typer<'_>, a: TypeId, b: TypeId) -> bool {
-    t.conforms(a, b) || matches!(t.u.types().get(b), Type::Sym(..)) && t.widens_to(a, b)
+pub fn relaxed_conforms(ty: &mut TypeOps<'_>, a: TypeId, b: TypeId) -> bool {
+    ty.conforms(a, b) || matches!(ty.u.types().get(b), Type::Sym(..)) && ty.widens_to(a, b)
 }
 
 /// `tpe` at variance `v` with each argument of a contravariant parameter in a covariant
@@ -110,8 +110,7 @@ fn flipped(t: &mut Typer<'_>, tpe: TypeId, v: i32) -> Option<TypeId> {
             }
             let mut out = Vec::new();
             for (&arg, &p) in args.iter().zip(&params) {
-                let flags = &t.u.symbol(p).flags;
-                let pv = if flags.has(CONTRAVARIANT) { -1 } else { i32::from(flags.has(COVARIANT)) };
+                let pv = t.u.symbol(p).variance();
                 out.push(if v > 0 && pv < 0 {
                     let arg = flipped(t, arg, 1)?;
                     let unit = crate::defn::type_ref(t.u, t.defn.unit);

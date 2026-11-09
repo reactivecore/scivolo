@@ -1,7 +1,10 @@
 //! What a symbol is: its kind, flags, owner and declarations.
 
 use crate::NodeId;
-use crate::tags::{PRIVATEqualified, PROTECTEDqualified};
+use crate::tags::{
+    CONTRAVARIANT, COVARIANT, EXTENSION, GIVEN, IMPLICIT, MUTABLE, PRIVATE, PRIVATEqualified,
+    PROTECTEDqualified,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct SymbolId(pub u32);
@@ -81,4 +84,55 @@ pub struct Symbol {
     pub decls: Vec<SymbolId>,
     /// The file and tree that define it; `None` for packages.
     pub tree: Option<(FileId, NodeId)>,
+}
+
+impl Symbol {
+    pub fn is_term(&self) -> bool {
+        self.kind.is_term()
+    }
+
+    pub fn is_class(&self) -> bool {
+        self.kind == Kind::Class
+    }
+
+    pub fn is_package(&self) -> bool {
+        self.kind == Kind::Package
+    }
+
+    /// A term with the `implicit` or `given` modifier.
+    pub fn is_implicit(&self) -> bool {
+        self.is_term() && (self.flags.has(IMPLICIT) || self.flags.has(GIVEN))
+    }
+
+    /// With the `implicit` modifier, a Scala 2 style implicit.
+    pub fn is_old_implicit(&self) -> bool {
+        self.flags.has(IMPLICIT)
+    }
+
+    pub fn is_given(&self) -> bool {
+        self.flags.has(GIVEN)
+    }
+
+    pub fn is_private(&self) -> bool {
+        self.flags.has(PRIVATE)
+    }
+
+    pub fn is_extension(&self) -> bool {
+        self.flags.has(EXTENSION)
+    }
+
+    /// A `val`, not a `var`.
+    pub fn is_stable_val(&self) -> bool {
+        self.kind == Kind::Val && !self.flags.has(MUTABLE)
+    }
+
+    /// A term member of a class: a term other than a parameter.
+    pub fn is_term_member(&self) -> bool {
+        self.is_term() && self.kind != Kind::Param
+    }
+
+    /// 1 if covariant, -1 if contravariant, else 0.
+    pub fn variance(&self) -> i32 {
+        if self.flags.has(CONTRAVARIANT) { -1 } else { i32::from(self.flags.has(COVARIANT)) }
+    }
 }

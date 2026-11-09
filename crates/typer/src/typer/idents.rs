@@ -180,10 +180,6 @@ impl Typer<'_> {
         found.next().is_none().then_some(s)
     }
 
-    pub fn ref_type(&mut self, prefix: Option<TypeId>, sym: SymbolId) -> TypeId {
-        crate::defn::ref_type(self.u, prefix, sym)
-    }
-
     pub fn is_named_package_object(&self, c: SymbolId) -> bool {
         crate::defn::is_named_package_object(self.u, c)
     }

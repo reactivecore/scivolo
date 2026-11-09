@@ -4,6 +4,7 @@
 //! `checkDivergence`).
 
 use super::super::Typer;
+use super::super::type_ops::TypeOps;
 use super::candidates::Candidate;
 use super::measures::Measure;
 use super::search::ImplicitSearch;
@@ -25,24 +26,26 @@ impl ImplicitSearch {
                 if view {
                     return Err("divergence check through a conversion");
                 }
-                let (wild_tp, wild_pt) = (t.wild_approx(tp), t.wild_approx(pt));
-                if below && frozen_conforms(t, wild_tp, wild_pt) {
+                let mut ty = t.types();
+                let (wild_tp, wild_pt) = (ty.wild_approx(tp), ty.wild_approx(pt));
+                if below && ty.frozen_conforms(wild_tp, wild_pt) {
                     t.fully_defined_as(tp, true)?;
                     return Ok(false);
                 }
                 let prev = match t.history.open[i].measure.clone() {
                     Some(m) => m,
-                    None => Measure::of(t, tp)?,
+                    None => Measure::of(&mut t.types(), tp)?,
                 };
                 t.history.open[i].measure = Some(prev.clone());
+                let mut ty = t.types();
                 let cur = match current.clone() {
                     Some(m) => m,
-                    None => Measure::of(t, pt)?,
+                    None => Measure::of(&mut ty, pt)?,
                 };
                 current = Some(cur.clone());
                 if prev.size <= cur.size
                     && prev.covering == cur.covering
-                    && (prev.size < cur.size || frozen_same(t, wild_tp, wild_pt))
+                    && (prev.size < cur.size || frozen_same(&mut ty, wild_tp, wild_pt))
                 {
                     return Ok(true);
                 }
@@ -53,16 +56,8 @@ impl ImplicitSearch {
     }
 }
 
-/// Whether `a <: b` without constraining type variables.
-fn frozen_conforms(t: &mut Typer<'_>, a: TypeId, b: TypeId) -> bool {
-    let before = t.constraint.attempt();
-    let result = t.conforms(a, b);
-    t.constraint.abandon(before);
-    result
-}
-
-fn frozen_same(t: &mut Typer<'_>, a: TypeId, b: TypeId) -> bool {
-    a == b || frozen_conforms(t, a, b) && frozen_conforms(t, b, a)
+fn frozen_same(ty: &mut TypeOps<'_>, a: TypeId, b: TypeId) -> bool {
+    a == b || ty.frozen_conforms(a, b) && ty.frozen_conforms(b, a)
 }
 
 /// Whether `a` and `b` are the same reference, or siblings of the same type (dotty's
@@ -74,16 +69,16 @@ fn equivalent(t: &mut Typer<'_>, a: Candidate, b: Candidate) -> bool {
     if t.u.symbol(a.sym).owner != t.u.symbol(b.sym).owner {
         return false;
     }
-    let (ta, tb) = (t.ref_type(a.prefix, a.sym), t.ref_type(b.prefix, b.sym));
+    let (ta, tb) = (t.types().ref_type(a.prefix, a.sym), t.types().ref_type(b.prefix, b.sym));
     let ta = t.method_info(ta).unwrap_or(ta);
     let tb = t.method_info(tb).unwrap_or(tb);
-    same_signature(t, ta, tb)
+    same_signature(&mut t.types(), ta, tb)
 }
 
 /// Whether method or value types `a` and `b` are the same, their parameters matched by position.
-fn same_signature(t: &mut Typer<'_>, a: TypeId, b: TypeId) -> bool {
-    let (a, b) = (t.zonk(a), t.zonk(b));
-    let sides = (t.u.types().get(a).clone(), t.u.types().get(b).clone());
+fn same_signature(ty: &mut TypeOps<'_>, a: TypeId, b: TypeId) -> bool {
+    let (a, b) = (ty.zonk(a), ty.zonk(b));
+    let sides = (ty.u.types().get(a).clone(), ty.u.types().get(b).clone());
     let ((ba, pa, ra), (bb, pb, rb)) = match sides {
         (
             Type::Poly { binder: ba, params: pa, result: ra },
@@ -96,19 +91,19 @@ fn same_signature(t: &mut Typer<'_>, a: TypeId, b: TypeId) -> bool {
         (Type::Poly { .. } | Type::Method { .. }, _) | (_, Type::Poly { .. } | Type::Method { .. }) => {
             return false;
         }
-        _ => return frozen_same(t, a, b),
+        _ => return frozen_same(ty, a, b),
     };
     if pa.len() != pb.len() {
         return false;
     }
     for ((_, x), (_, y)) in pa.into_iter().zip(pb) {
-        let y = rebound(t.u, y, bb, ba);
-        if !frozen_same(t, x, y) {
+        let y = rebound(ty.u, y, bb, ba);
+        if !frozen_same(ty, x, y) {
             return false;
         }
     }
-    let rb = rebound(t.u, rb, bb, ba);
-    same_signature(t, ra, rb)
+    let rb = rebound(ty.u, rb, bb, ba);
+    same_signature(ty, ra, rb)
 }
 
 /// `x` with the parameters of binder `from` referring to those of `to`.

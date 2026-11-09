@@ -147,7 +147,7 @@ impl ImplicitSearch {
             let linked = t.history.changed(&dictionary);
             let outcome = match result {
                 _ if !clean => Err("implicit candidate outside the subset"),
-                Ok(_) if nested_failure && has_unbounded_var(t, self.pt) => {
+                Ok(_) if nested_failure && has_unbounded_var(&mut t.types(), self.pt) => {
                     Err("implicit candidate rejected by a search with type variables")
                 }
                 Ok(tree) => return Ok(Some(tree)),
@@ -173,7 +173,7 @@ impl ImplicitSearch {
             let (tpe, _, _) = t.speculatively(|t| {
                 let tree = self.tried(t, c, false)?;
                 let tpe = t.tpd.tpe(tree);
-                Ok::<_, &'static str>(t.zonk(tpe))
+                Ok::<_, &'static str>(t.types().zonk(tpe))
             });
             types.push(tpe?);
         }

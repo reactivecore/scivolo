@@ -7,7 +7,6 @@
 use super::super::Typer;
 use super::candidates::{Candidate, implicit_members};
 use super::parts::Parts;
-use tasty::tags::EXTENSION;
 use tasty::{SymbolId, Type, TypeId, Universe};
 
 /// The implicits of an implicit scope, and the objects and values they are members of (dotty's
@@ -31,8 +30,9 @@ impl ImplicitScope {
     /// `implicit_scope` of `tpe` with the containers; `Err` if a companion with implicits or
     /// extension methods cannot be referenced.
     pub fn of(t: &mut Typer<'_>, tpe: TypeId) -> Result<ImplicitScope, &'static str> {
-        let tpe = t.zonk(tpe);
-        let parts = Parts::of(t, tpe);
+        let mut ty = t.types();
+        let tpe = ty.zonk(tpe);
+        let parts = Parts::of(&mut ty, tpe);
         let mut out = ImplicitScope::default();
         for (c, prefix) in parts.classes {
             out.add_class(t, c, prefix)?;
@@ -60,7 +60,7 @@ impl ImplicitScope {
                 false => base_prefix(t.u, class_ref, base),
             };
             let term_path = prefix.filter(|&p| match *t.u.types().get(p) {
-                Type::Sym(_, s) => t.u.symbol(s).kind.is_term(),
+                Type::Sym(_, s) => t.u.symbol(s).is_term(),
                 Type::Package(_) => true,
                 _ => false,
             });
@@ -73,7 +73,7 @@ impl ImplicitScope {
                     let Some(module) = class_companion(t.u, base) else { continue };
                     let path = prefix.filter(|&p| match *t.u.types().get(p) {
                         Type::This(_) => true,
-                        Type::Sym(_, s) => t.u.symbol(s).kind.is_term(),
+                        Type::Sym(_, s) => t.u.symbol(s).is_term(),
                         _ => false,
                     });
                     if base != c
@@ -113,9 +113,9 @@ impl ImplicitScope {
         }
         if let Some(m) = anchor_companion(t.u, s).filter(|&m| holds_implicits(t, m)) {
             let path = prefix.and_then(|p| match *t.u.types().get(p) {
-                Type::Sym(_, x) => t.u.symbol(x).kind.is_term().then_some(p),
+                Type::Sym(_, x) => t.u.symbol(x).is_term().then_some(p),
                 Type::TermRef(pp, _) => {
-                    let x = t.referenced(p).filter(|&x| t.u.symbol(x).kind.is_term())?;
+                    let x = t.types().referenced(p).filter(|&x| t.u.symbol(x).is_term())?;
                     Some(t.u.intern_type(Type::Sym(Some(pp), x)))
                 }
                 _ => None,
@@ -136,7 +136,7 @@ fn holds_implicits(t: &mut Typer<'_>, module: SymbolId) -> bool {
     !implicit_members(t, class, true).is_empty()
         || t.u.linearization(class).into_iter().any(|b| {
             let decls = t.u.decls(b).unwrap_or_default();
-            decls.iter().any(|&d| t.u.symbol(d).flags.has(EXTENSION))
+            decls.iter().any(|&d| t.u.symbol(d).is_extension())
         })
 }
 

@@ -5,12 +5,12 @@
 //! with them; the same member by its prefix.
 
 use super::super::Typer;
+use super::super::type_ops::TypeOps;
 use super::alt_types::{alt_type, parents_of};
 use super::as_good::{is_as_good, relaxed_conforms};
 use super::candidates::{Candidate, implicit_members};
 use crate::ctx::Ctx;
-use tasty::tags::{IMPLICIT, MUTABLE};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{SymbolId, Type, TypeId, Universe};
 
 /// The candidate of `found` that ranks above all others in `ctx`.
 pub fn most_specific(t: &mut Typer<'_>, found: &[Candidate], ctx: Ctx) -> Option<Candidate> {
@@ -51,21 +51,23 @@ fn compare_with_types(
     let owner = compare_owner(t, t.u.symbol(a.sym).owner, t.u.symbol(b.sym).owner);
     let wins_a = is_as_good(t, (a, ta), (b, tb), ctx)?;
     let wins_b = is_as_good(t, (b, tb), (a, ta), ctx)?;
-    let same = |t: &mut Typer<'_>| {
-        let (ra, rb) = (t.ref_type(a.prefix, a.sym), t.ref_type(b.prefix, b.sym));
-        a.sym == b.sym && t.u.is_subtype(ra, rb) && t.u.is_subtype(rb, ra)
+    let mut ty = t.types();
+    let same = |ty: &mut TypeOps<'_>| {
+        let (ra, rb) = (ty.ref_type(a.prefix, a.sym), ty.ref_type(b.prefix, b.sym));
+        a.sym == b.sym && ty.u.is_subtype(ra, rb) && ty.u.is_subtype(rb, ra)
     };
-    if wins_a && wins_b && is_stable_alt(t.u, a) && (t.is_singleton(ta) || t.is_singleton(tb) || same(t)) {
+    let stable = ty.u.symbol(a.sym).is_stable_val();
+    if wins_a && wins_b && stable && (ty.is_singleton(ta) || ty.is_singleton(tb) || same(&mut ty)) {
         return None;
     }
-    let implicit = |t: &Typer<'_>, c: Candidate| t.u.symbol(c.sym).flags.has(IMPLICIT);
-    let new_scheme = !(implicit(t, a) && implicit(t, b));
+    let implicit = |c: Candidate| ty.u.symbol(c.sym).is_old_implicit();
+    let new_scheme = !(implicit(a) && implicit(b));
     Some(match owner {
         1 if wins_a || !wins_b || new_scheme => 1,
         -1 if wins_b || !wins_a || new_scheme => -1,
         1 | -1 => 0,
         _ if wins_a != wins_b => i32::from(wins_a) - i32::from(wins_b),
-        _ if a.sym == b.sym => compare_prefixes(t, a, b),
+        _ if a.sym == b.sym => compare_prefixes(&mut t.types(), a, b),
         _ => 0,
     })
 }
@@ -92,11 +94,6 @@ fn without_implicits(u: &mut Universe, t: TypeId) -> Option<TypeId> {
         }
         _ => Some(t),
     }
-}
-
-fn is_stable_alt(u: &Universe, c: Candidate) -> bool {
-    let s = u.symbol(c.sym);
-    s.kind == Kind::Val && !s.flags.has(MUTABLE)
 }
 
 /// 1 if owner `x` derives from owner `y`, -1 the other way round, an object counting as its
@@ -137,13 +134,13 @@ fn compare_owner(t: &mut Typer<'_>, x: Option<SymbolId>, y: Option<SymbolId>) ->
 
 /// For two references to one member: 1 if `a`'s prefix is the more specific, -1 if `b`'s, an
 /// object's prefix counting as its parents (dotty's `comparePrefixes`).
-fn compare_prefixes(t: &mut Typer<'_>, a: Candidate, b: Candidate) -> i32 {
-    let (pa, pb) = (widened_prefix(t.u, a.prefix), widened_prefix(t.u, b.prefix));
-    let before = t.constraint.attempt();
-    let wins_a = relaxed_conforms(t, pa, pb);
-    t.constraint.abandon(before);
-    let wins_b = relaxed_conforms(t, pb, pa);
-    t.constraint.abandon(before);
+fn compare_prefixes(ty: &mut TypeOps<'_>, a: Candidate, b: Candidate) -> i32 {
+    let (pa, pb) = (widened_prefix(ty.u, a.prefix), widened_prefix(ty.u, b.prefix));
+    let before = ty.constraint.attempt();
+    let wins_a = relaxed_conforms(ty, pa, pb);
+    ty.constraint.abandon(before);
+    let wins_b = relaxed_conforms(ty, pb, pa);
+    ty.constraint.abandon(before);
     i32::from(wins_a) - i32::from(wins_b)
 }
 
@@ -151,7 +148,7 @@ fn widened_prefix(u: &mut Universe, prefix: Option<TypeId>) -> TypeId {
     let Some(p) = prefix else { return u.intern_type(Type::NoPrefix) };
     let w = u.widen(p);
     match u.class_symbol(w) {
-        Some(c) if u.is_module_class(c) && u.symbol(c).kind != Kind::Package => parents_of(u, w, c),
+        Some(c) if u.is_module_class(c) && !u.symbol(c).is_package() => parents_of(u, w, c),
         _ => w,
     }
 }

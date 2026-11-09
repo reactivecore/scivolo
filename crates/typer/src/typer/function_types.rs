@@ -33,12 +33,7 @@ impl Typer<'_> {
 
     /// The parameter and result types of `t` if it is a `FunctionN` of `n` parameters.
     pub fn function_parts(&mut self, t: TypeId, n: usize) -> Option<Parts> {
-        self.applied_function(t, "scala.Function").filter(|(params, _)| params.len() == n)
-    }
-
-    /// Whether `t` is a `FunctionN` type.
-    pub fn is_function_type(&mut self, t: TypeId) -> bool {
-        self.applied_function(t, "scala.Function").is_some()
+        self.types().applied_function(t, "scala.Function").filter(|(params, _)| params.len() == n)
     }
 
     /// The parameter and result types of `t` if it is a `ContextFunctionN`, possibly refined by
@@ -51,19 +46,9 @@ impl Typer<'_> {
             && let Type::Method { binder, result, .. } = *self.u.types().get(info)
             && !self.mentions_params(result, binder, None)
         {
-            return self.applied_function(parent, "scala.ContextFunction");
+            return self.types().applied_function(parent, "scala.ContextFunction");
         }
-        self.applied_function(t, "scala.ContextFunction")
-    }
-
-    /// The parameter and result types of `t` if it is an application of class `{base}N`.
-    fn applied_function(&mut self, t: TypeId, base: &str) -> Option<Parts> {
-        let t = self.zonk(t);
-        let t = self.u.dealias(t);
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
-        let class = self.u.class_symbol(tycon)?;
-        let (&result, params) = args.split_last()?;
-        (self.u.full_name(class) == format!("{base}{}", params.len())).then(|| (params.to_vec(), result))
+        self.types().applied_function(t, "scala.ContextFunction")
     }
 
     /// The expected parameter and result types of function value `id` of `n` parameters, a
@@ -125,7 +110,7 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let (parts, arrow) = match self.context_function_parts(t) {
             Some(parts) => (Some(parts), "?=>"),
-            None => (self.applied_function(t, "scala.Function"), "=>"),
+            None => (self.types().applied_function(t, "scala.Function"), "=>"),
         };
         if let Some((params, result)) = parts {
             let params: Vec<String> = params.iter().map(|&p| self.show_type(p)).collect();

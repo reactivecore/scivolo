@@ -4,6 +4,7 @@
 //! `T` finds nothing.
 
 use super::super::Typer;
+use super::super::type_ops::TypeOps;
 use super::search::ImplicitSearch;
 use crate::tpd::TNodeId;
 use tasty::{Kind, Type, TypeId};
@@ -24,8 +25,8 @@ const UNSEARCHED: [&str; 10] = [
 ];
 
 /// `T` if `pt` is `NotGiven[T]`.
-pub fn not_given_arg(t: &mut Typer<'_>, pt: TypeId) -> Option<TypeId> {
-    match t.class_args(pt, "scala.util.NotGiven")?[..] {
+pub fn not_given_arg(ty: &mut TypeOps<'_>, pt: TypeId) -> Option<TypeId> {
+    match ty.class_args(pt, "scala.util.NotGiven")?[..] {
         [arg] => Some(arg),
         _ => None,
     }
@@ -34,16 +35,14 @@ pub fn not_given_arg(t: &mut Typer<'_>, pt: TypeId) -> Option<TypeId> {
 impl ImplicitSearch {
     /// `NotGiven.value` if no implicit argument of type `negated` exists.
     pub fn not_given(&self, t: &mut Typer<'_>, negated: TypeId) -> Result<TNodeId, &'static str> {
-        if !t.is_fully_defined(negated) {
+        if !t.types().is_fully_defined(negated) {
             return Err("NotGiven of a type with type variables");
         }
-        for part in t.type_parts(negated) {
+        for part in t.types().type_parts(negated) {
             let Some(class) = t.u.class_symbol(part) else { continue };
             let name = t.u.full_name(class);
             let inner =
-                t.u.symbol(class)
-                    .owner
-                    .is_some_and(|o| t.u.symbol(o).kind == Kind::Class && !t.u.is_module_class(o));
+                t.u.symbol(class).owner.is_some_and(|o| t.u.symbol(o).is_class() && !t.u.is_module_class(o));
             if inner || UNSEARCHED.iter().any(|u| name.starts_with(u)) {
                 return Err("NotGiven of a type whose instances the search may miss");
             }

@@ -94,12 +94,12 @@ impl ImplicitSearch {
         let outermost = t.history.open.is_empty();
         t.constraint.enter_search();
         let constructors = constructor_vars(t.u, formal);
-        let found = match var_upper_bound(t, formal) {
+        let found = match var_upper_bound(&mut t.types(), formal) {
             Some(hi) => {
                 self.pt = hi;
                 self.search(t).and_then(|tree| {
                     let tpe = t.tpd.tpe(tree);
-                    if t.conforms(tpe, formal) { Ok(tree) } else { Err("implicit of another type") }
+                    if t.types().conforms(tpe, formal) { Ok(tree) } else { Err("implicit of another type") }
                 })
             }
             None => self.search(t),
@@ -116,9 +116,9 @@ impl ImplicitSearch {
         if let Type::ByName(r) = *t.u.types().get(self.pt) {
             (self.pt, self.by_name) = (r, true);
         }
-        self.pt = determined(t, self.pt);
+        self.pt = determined(&mut t.types(), self.pt);
         let (pt, ctx) = (self.pt, self.ctx);
-        if let Some(what) = unsettled(t, pt) {
+        if let Some(what) = unsettled(&mut t.types(), pt) {
             return Err(what);
         }
         if self.depth > MAX_DEPTH {
@@ -130,13 +130,13 @@ impl ImplicitSearch {
         if let Some(found) = self.recursive_ref(t)? {
             return Ok(found);
         }
-        if let Some(negated) = not_given_arg(t, pt) {
+        if let Some(negated) = not_given_arg(&mut t.types(), pt) {
             return self.not_given(t, negated);
         }
-        if is_underspecified(t, pt) {
+        if is_underspecified(&mut t.types(), pt) {
             return Err("no implicit argument");
         }
-        self.coherent = t.class_args(pt, "scala.CanEqual").is_some();
+        self.coherent = t.types().class_args(pt, "scala.CanEqual").is_some();
         let contextual = t.contextual_implicits(ctx, &mut |t, c| self.is_eligible(t, c))?;
         let levels = contextual.len();
         let mut contextual = contextual.into_iter();
@@ -161,10 +161,10 @@ impl ImplicitSearch {
         let (pt, coherent) = (self.pt, self.coherent);
         let group = fitting(t, &group, |t, c| self.tried(t, c, true))?;
         let existence = self.ctx.mode.is(Mode::EXISTENCE);
-        if coherent && existence && !t.is_fully_defined(pt) {
+        if coherent && existence && !t.types().is_fully_defined(pt) {
             return self.first_fitting(t, &group);
         }
-        let unpruned = coherent || has_unbounded_var(t, pt);
+        let unpruned = coherent || has_unbounded_var(&mut t.types(), pt);
         match self.best_first(t, &group, unpruned)? {
             BestFirst::Found(tree) => return Ok(Some(tree)),
             BestFirst::Failed if group.len() == 1 => return Ok(None),
@@ -178,12 +178,12 @@ impl ImplicitSearch {
         })?;
         let winner = match found.as_slice() {
             [] => return Ok(None),
-            [_] if nested_failure && has_unbounded_var(t, pt) => {
+            [_] if nested_failure && has_unbounded_var(&mut t.types(), pt) => {
                 return Err("implicit candidate rejected by a search with type variables");
             }
             [c] => *c,
             [c, ..] if coherent => {
-                if !existence && (!t.is_fully_defined(pt) || !self.found_one_type(t, &found)?) {
+                if !existence && (!t.types().is_fully_defined(pt) || !self.found_one_type(t, &found)?) {
                     return Err("several CanEqual instances, tried in an order of a hash table");
                 }
                 *c

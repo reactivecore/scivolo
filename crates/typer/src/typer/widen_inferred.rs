@@ -15,14 +15,6 @@ pub enum Widen {
 }
 
 impl Typer<'_> {
-    pub fn is_singleton(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
-            Type::Constant(..) | Type::Str(_) | Type::This(_) | Type::TermRef(..) | Type::Skolem(..) => true,
-            Type::Sym(_, s) => !self.u.is_type_symbol(s),
-            _ => false,
-        }
-    }
-
     /// `inst` widened as an instance below `bound` (dotty's `widenInferred`); an error where the
     /// join of a soft union is not known.
     pub fn widen_inferred(

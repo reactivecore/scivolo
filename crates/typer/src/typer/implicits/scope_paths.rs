@@ -4,6 +4,7 @@
 //! parts (dotty's `addPath`).
 
 use super::super::Typer;
+use super::super::type_ops::TypeOps;
 use super::candidates::{Candidate, implicit_members};
 use super::parts::is_excluded;
 use super::scope::ImplicitScope;
@@ -21,11 +22,11 @@ impl ImplicitScope {
                 Some(c) => t.u.source_module(c),
                 None => return,
             },
-            _ => t.referenced(p),
+            _ => t.types().referenced(p),
         };
         if let Some(s) = s
             && t.u.is_module(s)
-            && t.is_static_term(s)
+            && t.u.is_static_symbol(s)
             && !is_excluded(t.u, s)
             && let Some(class) = t.u.module_class(s)
         {
@@ -61,17 +62,17 @@ impl ImplicitScope {
             Type::TermRef(outer, _) => Some(outer),
             _ => return Ok(()),
         };
-        let s = t.referenced(p).ok_or("implicit scope through an unresolved path")?;
-        if !t.u.symbol(s).kind.is_term() || is_excluded(t.u, s) || t.is_static_term(s) && t.u.is_module(s) {
+        let s = t.types().referenced(p).ok_or("implicit scope through an unresolved path")?;
+        if !t.u.symbol(s).is_term() || is_excluded(t.u, s) || t.u.is_static_symbol(s) && t.u.is_module(s) {
             return Ok(());
         }
         t.complete(s);
         let info = t.u.info(s);
-        if matches!(t.u.types().get(info), Type::Sym(_, x) if t.u.symbol(*x).kind.is_term()) {
+        if matches!(t.u.types().get(info), Type::Sym(_, x) if t.u.symbol(*x).is_term()) {
             return self.add_path(t, info);
         }
         let widened = t.u.widen(p);
-        let classes = bound_classes(t, widened, MAX_BOUND_STEPS);
+        let classes = bound_classes(&mut t.types(), widened, MAX_BOUND_STEPS);
         for class in classes.ok_or("implicit scope through a value of no class type")? {
             self.add_members(t, class, p);
         }
@@ -92,37 +93,37 @@ fn static_form(u: &mut Universe, t: TypeId) -> TypeId {
 
 /// The classes of `tpe`, through the upper bounds of abstract types and intersections; `None`
 /// if a part of `tpe` has none.
-fn bound_classes(t: &mut Typer<'_>, tpe: TypeId, steps: u32) -> Option<Vec<SymbolId>> {
-    if let Some(c) = t.u.class_symbol(tpe) {
+fn bound_classes(ty: &mut TypeOps<'_>, tpe: TypeId, steps: u32) -> Option<Vec<SymbolId>> {
+    if let Some(c) = ty.u.class_symbol(tpe) {
         return Some(vec![c]);
     }
     let steps = steps.checked_sub(1)?;
-    match t.u.types().get(tpe).clone() {
-        Type::TypeRef(p, name) => match t.u.refinement_named(p, &name).map(|i| t.u.types().get(i)) {
-            Some(&Type::Bounds(_, hi) | &Type::Alias(hi)) => bound_classes(t, hi, steps),
+    match ty.u.types().get(tpe).clone() {
+        Type::TypeRef(p, name) => match ty.u.refinement_named(p, &name).map(|i| ty.u.types().get(i)) {
+            Some(&Type::Bounds(_, hi) | &Type::Alias(hi)) => bound_classes(ty, hi, steps),
             _ => None,
         },
-        Type::Refined(parent, ..) => bound_classes(t, parent, steps),
+        Type::Refined(parent, ..) => bound_classes(ty, parent, steps),
         Type::And(a, b) => {
-            let mut classes = bound_classes(t, a, steps)?;
-            classes.extend(bound_classes(t, b, steps)?);
+            let mut classes = bound_classes(ty, a, steps)?;
+            classes.extend(bound_classes(ty, b, steps)?);
             Some(classes)
         }
-        Type::Sym(prefix, s) if t.u.is_type_symbol(s) => {
-            let info = t.refined_info(prefix, s);
-            let hi = match *t.u.types().get(info) {
+        Type::Sym(prefix, s) if ty.u.is_type_symbol(s) => {
+            let info = ty.refined_info(prefix, s);
+            let hi = match *ty.u.types().get(info) {
                 Type::Bounds(_, hi) | Type::Alias(hi) => hi,
                 _ => return None,
             };
-            let info = match (prefix, t.u.symbol(s).owner) {
-                (Some(p), Some(o)) => t.u.as_seen_from(hi, p, o),
+            let info = match (prefix, ty.u.symbol(s).owner) {
+                (Some(p), Some(o)) => ty.u.as_seen_from(hi, p, o),
                 _ => hi,
             };
-            bound_classes(t, info, steps)
+            bound_classes(ty, info, steps)
         }
         Type::Sym(..) | Type::TermRef(..) | Type::Constant(..) | Type::Str(_) => {
-            let widened = t.u.widen(tpe);
-            if widened == tpe { None } else { bound_classes(t, widened, steps) }
+            let widened = ty.u.widen(tpe);
+            if widened == tpe { None } else { bound_classes(ty, widened, steps) }
         }
         _ => None,
     }

@@ -26,7 +26,7 @@ impl Typer<'_> {
     /// How candidate `c` converts a tree.
     pub fn view_kind(&mut self, c: Candidate) -> ViewKind {
         let value = self.candidate_value(c);
-        if !super::candidates::is_implicit(self.u, c.sym) {
+        if !self.u.symbol(c.sym).is_implicit() {
             return ViewKind::None;
         }
         match value {
@@ -111,12 +111,6 @@ impl Typer<'_> {
             let others: Vec<Candidate> = widened.iter().copied().filter(|&o| o != w).collect();
             self.beats_widened(w, &others)
         })
-    }
-
-    /// Whether the value class of `from` widens numerically to that of `to`.
-    pub fn widens_to(&mut self, from: TypeId, to: TypeId) -> bool {
-        let (Some(from), Some(to)) = (self.value_class(from), self.value_class(to)) else { return false };
-        widens(&from, &to)
     }
 
     /// The value class of the parameter of view method `c`.

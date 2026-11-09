@@ -4,15 +4,15 @@
 //! own and given objects as their parents (dotty's `widenGiven` and `prepare` in `compare`).
 
 use super::super::Typer;
+use super::super::type_ops::TypeOps;
 use super::candidates::Candidate;
-use tasty::tags::{GIVEN, IMPLICIT};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// The type of candidate `c` as seen from its prefix, a by-name result widened, the result of
 /// a given with a class of its own widened to the class's parents.
 pub fn alt_type(t: &mut Typer<'_>, c: Candidate) -> TypeId {
     t.complete(c.sym);
-    let tpe = t.ref_type(c.prefix, c.sym);
+    let tpe = t.types().ref_type(c.prefix, c.sym);
     let info = t.method_info(tpe).unwrap_or(tpe);
     let info = match *t.u.types().get(info) {
         Type::ByName(r) => r,
@@ -41,17 +41,16 @@ fn widen_given(u: &mut Universe, t: TypeId, alt: SymbolId) -> TypeId {
 /// Whether `alt` is the method of a given or implicit class `cls` (dotty's `isCoDefinedGiven`).
 fn is_co_defined_given(u: &Universe, alt: SymbolId, cls: SymbolId) -> bool {
     let (a, k) = (u.symbol(alt), u.symbol(cls));
-    let given = |f: &tasty::Flags| f.has(GIVEN) || f.has(IMPLICIT);
-    a.kind == Kind::Def && given(&a.flags) && given(&k.flags) && a.name == k.name && a.owner == k.owner
+    let given = |s: &tasty::Symbol| s.is_given() || s.is_old_implicit();
+    a.kind == Kind::Def && given(a) && given(k) && a.name == k.name && a.owner == k.owner
 }
 
 /// `tpe`, or if it is the class of a given object, that class's parents.
-pub fn prepared(t: &mut Typer<'_>, tpe: TypeId) -> TypeId {
-    let tpe = t.zonk(tpe);
-    let u = &mut *t.u;
+pub fn prepared(ty: &mut TypeOps<'_>, tpe: TypeId) -> TypeId {
+    let tpe = ty.zonk(tpe);
+    let u = &mut *ty.u;
     let Type::Sym(_, c) = *u.types().get(tpe) else { return tpe };
-    let given_object =
-        u.is_module_class(c) && u.source_module(c).is_some_and(|m| u.symbol(m).flags.has(GIVEN));
+    let given_object = u.is_module_class(c) && u.source_module(c).is_some_and(|m| u.symbol(m).is_given());
     if given_object { parents_of(u, tpe, c) } else { tpe }
 }
 

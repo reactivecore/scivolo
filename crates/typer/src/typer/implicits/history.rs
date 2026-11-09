@@ -4,7 +4,7 @@
 //! `SearchHistory`, `OpenSearch`, `SearchRoot`, `recursiveRef`).
 
 use super::super::Typer;
-use super::candidates::{Candidate, is_implicit};
+use super::candidates::Candidate;
 use super::measures::Measure;
 use super::prefilter::cannot_fit;
 use super::search::ImplicitSearch;
@@ -102,15 +102,15 @@ impl ImplicitSearch {
     pub fn tried(&self, t: &mut Typer<'_>, c: Candidate, shallow: bool) -> Result<TNodeId, &'static str> {
         let (pt, by_name) = (self.pt, self.by_name);
         t.complete(c.sym);
-        if !is_implicit(t.u, c.sym) {
+        if !t.u.symbol(c.sym).is_implicit() {
             return Err("not an implicit value");
         }
         let info = t.u.info(c.sym);
-        let result = t.final_result(info);
+        let result = t.types().final_result(info);
         if let Some(k) = t.u.class_symbol(result) {
             t.complete(k);
         }
-        if cannot_fit(t, c.sym, pt) || t.is_function_type(pt) && !self.is_eligible(t, c) {
+        if cannot_fit(t, c.sym, pt) || t.types().is_function_type(pt) && !self.is_eligible(t, c) {
             return Err("implicit of another type");
         }
         if self.diverges(t, c)? {
@@ -145,7 +145,7 @@ impl ImplicitSearch {
             let Open { pt: tp, by_name: tp_by_name, view, .. } = t.history.open[i];
             if !view && (below || tp_by_name) {
                 let before = t.constraint.attempt();
-                if t.conforms(tp, pt) {
+                if t.types().conforms(tp, pt) {
                     return linked(t, tp, at).map(Some);
                 }
                 t.constraint.abandon(before);
@@ -175,10 +175,10 @@ fn linked(t: &mut Typer<'_>, tpe: TypeId, at: Span) -> Result<TNodeId, &'static 
 
 /// The index of the by-name implicit of type `tpe`.
 fn lazy_of(t: &mut Typer<'_>, tpe: TypeId) -> Option<usize> {
-    let tpe = t.zonk(tpe);
+    let tpe = t.types().zonk(tpe);
     (0..t.history.lazies.len()).find(|&i| {
         let other = t.history.lazies[i].tpe;
-        t.zonk(other) == tpe
+        t.types().zonk(other) == tpe
     })
 }
 

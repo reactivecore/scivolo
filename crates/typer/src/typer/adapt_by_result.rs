@@ -97,15 +97,6 @@ impl Typer<'_> {
         false
     }
 
-    /// The type after the leading implicit parameter clauses of `t`, references to their
-    /// parameters kept (dotty's `stripInferrable` of a method type).
-    pub fn strip_implicit(&self, mut t: TypeId) -> TypeId {
-        while let Type::Method { result, implicit: true, .. } = *self.u.types().get(t) {
-            t = result;
-        }
-        t
-    }
-
     /// `t` as a value compared with `pt` (dotty's `normalize`): type parameters made type
     /// variables, implicit clauses stripped, a by-name type's result, a method as a function
     /// type, a context function's result unless `t` itself is one and not `follow` (`followIFT`);

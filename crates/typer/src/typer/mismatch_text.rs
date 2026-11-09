@@ -9,16 +9,6 @@ use tasty::tags::OBJECT;
 use tasty::{Const, Kind, SymbolId, Type, TypeId, constant};
 
 impl Typer<'_> {
-    /// The parts of `t`, `t` included.
-    pub fn type_parts(&mut self, t: TypeId) -> Vec<TypeId> {
-        let mut parts = Vec::new();
-        self.u.map_type(t, &mut |_, part| {
-            parts.push(part);
-            None
-        });
-        parts
-    }
-
     /// Whether no two of the classes and type definitions `types` mention share a name, which
     /// dotty's message would tell apart with a `where` clause.
     pub fn distinct_names(&mut self, types: &[TypeId]) -> bool {

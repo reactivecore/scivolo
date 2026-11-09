@@ -113,13 +113,6 @@ impl Typer<'_> {
         leaks
     }
 
-    /// The info of type member `s` selected on `pre`: that a refinement of `pre`'s type gives it,
-    /// else its own.
-    pub fn refined_info(&mut self, pre: Option<TypeId>, s: SymbolId) -> TypeId {
-        let refined = pre.and_then(|p| self.u.refinement_info(p, s));
-        refined.unwrap_or_else(|| self.u.info(s))
-    }
-
     /// The type lambda that projection `P#A` of a type alias `A` of a class stands for, as seen
     /// from `P`.
     pub fn projected_alias(&mut self, t: TypeId) -> Option<TypeId> {
