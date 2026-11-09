@@ -44,7 +44,11 @@ fn typed_qualifier(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<TN
     let owner = receiver_type(l, sel, qualifier);
     let qualifier = typed(l, qualifier, None)?;
     Ok(match owner {
-        Some(owner) => adapt(l, qualifier, &owner),
+        Some(owner) => {
+            let adapted = adapt(l, qualifier, &owner);
+            super::drop_inlined::adaptation_at_call(l, adapted, qualifier);
+            adapted
+        }
         None => qualifier,
     })
 }

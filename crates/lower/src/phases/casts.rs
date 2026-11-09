@@ -181,13 +181,14 @@ pub fn is_cast(l: &Lower, t: TNodeId) -> bool {
 
 /// The erased type the receiver `qualifier` of selection `sel` is adapted to: the class owning
 /// the selected member, or the receiver's own type if that is a JDK class that is not public
-/// (dotty's `isJvmAccessible`); `None` for a `super` receiver, a member of `Array` or a member
-/// outside classes.
+/// (dotty's `isJvmAccessible`); `None` for a `super` receiver, an `@static` member, a member of
+/// `Array` or a member outside classes.
 pub fn receiver_type(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Option<Erased> {
     if matches!(l.tpd.tree(qualifier), Tree::Super { .. }) {
         return None;
     }
-    let owner = l.u.symbol(l.tpd.sym(sel)?).owner.filter(|&o| l.u.is_class(o))?;
+    let member = l.tpd.sym(sel).filter(|&m| !super::select_static::is_scala_static(l, m))?;
+    let owner = l.u.symbol(member).owner.filter(|&o| l.u.is_class(o))?;
     let name = l.u.full_name(owner);
     if name == "scala.Array" {
         let array = l.u.widen(l.tpd.tpe(qualifier));

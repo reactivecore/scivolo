@@ -102,9 +102,10 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     drop_inlined::unmark_calls(l);
     array_apply::transform(l, &classes)?;
     for &td in &classes {
-        elim_static_this::transform(l, td);
-        select_static::transform(l, td);
         tailrec::transform(l, td);
+        elim_static_this::transform(l, td);
+        returns::transform(l, td);
+        select_static::transform(l, td);
     }
     let (traits, others): (Vec<TNodeId>, Vec<TNodeId>) =
         classes.iter().partition(|&&td| l.tpd.sym(td).is_some_and(|c| l.u.is_trait(c)));
@@ -119,9 +120,6 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     for &td in &classes {
         constructors::transform(l, td)?;
-    }
-    for &td in &classes {
-        returns::transform(l, td);
     }
     expand_private::transform(l, &classes);
     Ok(())
