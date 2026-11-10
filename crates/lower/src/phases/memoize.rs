@@ -71,7 +71,7 @@ fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Op
     let span = l.tpd.span(stat);
     let init = rhs.filter(|&r| !is_wildcard(l, r));
     let field = (bottom.is_none() || !mixed_in && init.is_some()).then(|| {
-        let name_text = super::accessor_names::run_name(l, getter).to_owned();
+        let name_text = l.u.symbol(getter).run_name().to_owned();
         let mut flags = Flags::default().with(PRIVATE).with(LOCAL);
         if has(l.u, getter, MUTABLE) {
             flags = flags.with(MUTABLE);
