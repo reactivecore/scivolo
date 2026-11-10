@@ -1,13 +1,13 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
-//   compiler/src/dotty/tools/dotc/core/TypeOps.scala
 //   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! `Mirror`s of tuple types (dotty's `makeTupleProductMirror`): `new scala.runtime.TupleMirror(n)`
-//! cast to the mirror type; and the tuple types they are made of.
+//! cast to the mirror type.
 
-use super::super::Typer;
-use super::super::small_tuples::MAX_TUPLE_ARITY;
-use super::mirror_types::{MISSING, MirrorCore, MirrorSynthesis, label_pairs};
+use super::formal::MirrorCore;
+use super::{MirrorSynthesis, label_pairs};
 use crate::tpd::TNodeId;
+use crate::typer::Typer;
+use crate::typer::small_tuples::MAX_TUPLE_ARITY;
 use syntax::ast::constant::Constant;
 use tasty::{Type, TypeId};
 
@@ -45,28 +45,5 @@ impl MirrorSynthesis {
         let arity = t.build().literal(Constant::Int(elems.len() as i32), self.at);
         let created = self.new_with_args(t, "scala.runtime.TupleMirror", &[arity])?;
         self.cast(t, created, cast)
-    }
-}
-
-impl Typer<'_> {
-    /// Builds the generic tuple type `A *: B *: EmptyTuple` of `elems` (dotty's
-    /// `TypeOps.nestedPairs`).
-    pub fn nested_pairs(&mut self, elems: &[TypeId]) -> Result<TypeId, &'static str> {
-        let pair = self.resolve_full_name("scala.*:", true).ok_or(MISSING)?;
-        let empty = self.resolve_full_name("scala.EmptyTuple", false).ok_or(MISSING)?;
-        let pair = crate::defn::type_ref(self.u, pair);
-        let mut t = self.u.intern_type(Type::Sym(None, empty));
-        for &e in elems.iter().rev() {
-            t = self.u.intern_type(Type::Applied(pair, vec![e, t]));
-        }
-        Ok(t)
-    }
-
-    /// The element types of `t` if it is `TupleN[…]`.
-    pub fn tuple_class_args(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
-        let d = self.u.dealias(t);
-        let Type::Applied(f, args) = self.u.types().get(d).clone() else { return None };
-        let c = self.u.class_symbol(f)?;
-        (self.u.full_name(c) == format!("scala.Tuple{}", args.len())).then_some(args)
     }
 }

@@ -1,15 +1,17 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //   compiler/src/dotty/tools/dotc/core/Annotations.scala
-//! The `@Child` annotations dotty's `Namer` gives sealed classes (`addChild`,
-//! `Annotation.Child`), for their TASTy.
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//! The children of sealed classes (dotty's `children`) and the `@Child` annotations dotty's
+//! `Namer` gives them (`addChild`, `Annotation.Child`), for their TASTy.
 
 use super::Typer;
 use crate::defn::type_ref;
+use crate::sealed;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::tags::SEALED;
+use tasty::tags::{ENUM, SEALED};
 use tasty::{Kind, SymbolId, Type};
 
 const CHILD: &str = "scala.annotation.internal.Child";
@@ -59,6 +61,34 @@ impl Typer<'_> {
             out.get_mut(&s).expect("the entry made above").extend(trees);
         }
         Ok(out)
+    }
+
+    /// Lists the direct subclasses of sealed class or trait `s` in the order of their
+    /// definitions, an object by its value; for an enum, its cases. For a sealed class of the
+    /// library, the children its TASTy names.
+    pub fn sealed_children(&mut self, s: SymbolId) -> Result<Vec<SymbolId>, &'static str> {
+        if self.u.symbol(s).flags.has(ENUM) {
+            return Ok(sealed::enum_cases(self.u, s));
+        }
+        let Some(&def) = self.syms.def_trees.get(&s) else {
+            let types = self.u.decoded_children(s).ok_or("sum Mirror of a sealed class without TASTy")?;
+            return types
+                .into_iter()
+                .map(|t| self.referenced(t).ok_or("sealed child outside the subset"))
+                .collect();
+        };
+        let file = self.file_of(self.ast.span(def));
+        let defs: Vec<(SymbolId, syntax::ast::NodeId)> =
+            self.syms.def_trees.iter().map(|(&k, &v)| (k, v)).collect();
+        let mut classes = Vec::new();
+        for (c, node) in defs {
+            let span = self.ast.span(node);
+            if self.u.symbol(c).kind == Kind::Class && self.file_of(span) == file {
+                self.complete(c);
+                classes.push((span.start(), c));
+            }
+        }
+        Ok(sealed::direct_children(self.u, s, &classes))
     }
 
     /// Whether child `c` of sealed class `parent` is neither anonymous nor local to a term the
