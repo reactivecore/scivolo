@@ -57,6 +57,6 @@ impl Typer<'_> {
             return sym;
         }
         let any = self.u.builtins().any;
-        self.u.decl(any, &name).unwrap_or_default().first().copied().unwrap_or(sym)
+        self.u.decls_named(any, &name).first().copied().unwrap_or(sym)
     }
 }

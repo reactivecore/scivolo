@@ -66,7 +66,7 @@ impl Typer<'_> {
                     })
                     .map(|&m| self.ast.span(m).point())
                     .collect();
-                let decls = self.u.decl(cls, &name).unwrap_or_default();
+                let decls = self.u.decls_named(cls, &name);
                 let of_ext = |t: &Self, d: &SymbolId| {
                     t.syms.flags.get(d).is_some_and(|fl| fl.is(f::EXTENSION_METHOD))
                         && t.syms.def_trees.get(d).is_some_and(|&tree| {

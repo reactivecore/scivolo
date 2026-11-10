@@ -131,7 +131,7 @@ impl Expansion<'_, '_> {
     fn static_module_ref(&mut self, t: TypeId) -> Option<TypeId> {
         let widened = self.i.u.widen(t);
         let c = self.i.u.class_symbol(widened)?;
-        if !self.i.u.is_module_class(c) || !self.i.is_static_owner(c) {
+        if !self.i.u.is_static_module(c) {
             return None;
         }
         let m = self.i.u.source_module(c)?;

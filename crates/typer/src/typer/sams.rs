@@ -160,7 +160,7 @@ impl Typer<'_> {
 
     fn takes_no_args(&mut self, c: SymbolId) -> bool {
         self.complete(c);
-        let ctors = self.u.decl(c, "<init>").unwrap_or_default();
+        let ctors = self.u.decls_named(c, "<init>");
         let mut applicable = 0;
         for &ctor in &ctors {
             self.complete(ctor);

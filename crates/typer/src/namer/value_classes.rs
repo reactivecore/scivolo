@@ -72,7 +72,7 @@ impl Typer<'_> {
             self.error_at(span, syntax_msg(74, false, "Value classes may not be abstract"));
         }
         let owner = self.u.symbol(cls).owner;
-        if !owner.is_some_and(|o| self.is_static_owner(o)) {
+        if !owner.is_some_and(|o| self.u.is_static_owner(o)) {
             let local = owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
             let what = if local { "local class" } else { "member of another class" };
             self.error_at(span, syntax_msg(75, false, format!("Value classes may not be a {what}")));

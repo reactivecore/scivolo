@@ -69,7 +69,7 @@ impl Typer<'_> {
             return format!("{}.this", sym.name);
         }
         let name = tasty::module_name(&sym.name).unwrap_or(&sym.name).to_owned();
-        if self.is_static_owner(cls) {
+        if self.u.is_static_owner(cls) {
             return self.u.source_module(cls).map_or(name.clone(), |m| self.full_name_string(m));
         }
         match sym.owner.filter(|&o| self.u.is_class(o)) {

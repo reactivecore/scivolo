@@ -112,7 +112,7 @@ impl Reflect<'_> {
             true => self.u.module_class(s),
             false => Some(s),
         };
-        let decls = class.and_then(|c| self.u.decl(c, &tasty::decode(name)).ok()).unwrap_or_default();
+        let decls = class.map(|c| self.u.decls_named(c, &tasty::decode(name))).unwrap_or_default();
         decls.into_iter().filter(|&d| self.u.symbol(d).kind == Kind::Def).collect()
     }
 
@@ -132,7 +132,7 @@ impl Reflect<'_> {
     /// `TermRef(qual, name)`: the reference to the only term member `name` of `qual`.
     pub fn term_ref(&mut self, qual: TypeId, name: &str) -> Result<TypeId, &'static str> {
         let found = match *self.u.ty(crate::defn::package_ref(self.u, qual)) {
-            Type::Package(p) => self.u.decl(p, name).unwrap_or_default(),
+            Type::Package(p) => self.u.decls_named(p, name),
             _ => self.u.member_of_type(qual, name),
         };
         let terms: Vec<SymbolId> = found.into_iter().filter(|&s| self.u.symbol(s).kind.is_term()).collect();

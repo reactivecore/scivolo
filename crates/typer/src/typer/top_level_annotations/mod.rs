@@ -159,9 +159,9 @@ fn is_annotated_experimental(t: &mut Typer, s: SymbolId) -> bool {
 fn prepend_annotation(t: &mut Typer, s: SymbolId, class: &str, text: &str, span: Span) {
     let Some((pkg, name)) = class.rsplit_once('.') else { return };
     let Some(package) = t.u.package(pkg) else { return };
-    let classes = t.u.decl(package, name).unwrap_or_default();
+    let classes = t.u.decls_named(package, name);
     let Some(cls) = classes.into_iter().find(|&c| t.u.is_class(c)) else { return };
-    let ctors = t.u.decl(cls, "<init>").unwrap_or_default();
+    let ctors = t.u.decls_named(cls, "<init>");
     let Some(ctor) = ctors.into_iter().find(|&c| t.u.erased_method(c).0.len() == 1) else { return };
     let at = if span.exists() { span.start_pos() } else { span };
     let tpe = type_ref(t.u, cls);

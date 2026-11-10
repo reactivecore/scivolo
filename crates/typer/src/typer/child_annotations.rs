@@ -116,9 +116,9 @@ fn is_accessible_child(u: &Universe, c: SymbolId, parent: SymbolId) -> bool {
 fn child_annotation(t: &mut Typer, c: SymbolId, at: Span) -> Result<TNodeId, &'static str> {
     let (pkg, name) = CHILD.rsplit_once('.').expect("a qualified name");
     let package = t.u.package(pkg).ok_or("scala.annotation.internal missing")?;
-    let classes = t.u.decl(package, name).unwrap_or_default();
+    let classes = t.u.decls_named(package, name);
     let class = classes.into_iter().find(|&s| t.u.is_class(s)).ok_or("Child missing")?;
-    let ctor = t.u.decl(class, "<init>").unwrap_or_default().into_iter().next();
+    let ctor = t.u.decls_named(class, "<init>").into_iter().next();
     let ctor = ctor.ok_or("Child without a constructor")?;
     let tycon = type_ref(t.u, class);
     let child = type_ref(t.u, c);

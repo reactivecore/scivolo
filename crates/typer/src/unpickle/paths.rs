@@ -37,7 +37,7 @@ impl Unpickler<'_> {
                 let prefix = self.resolved(prefix);
                 let name = self.name(id);
                 let found = match *self.u.ty(prefix) {
-                    Type::Package(p) => self.u.decl(p, &name).unwrap_or_default(),
+                    Type::Package(p) => self.u.decls_named(p, &name),
                     _ => self.u.member_of_type(prefix, &name),
                 };
                 let sym = self.at_signature(found, id, false)?;

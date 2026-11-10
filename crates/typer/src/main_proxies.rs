@@ -82,7 +82,7 @@ impl Typer<'_> {
 
     fn main_proxy(&mut self, fun: SymbolId, annot_span: Span) -> Option<NodeId> {
         let owner = self.u.symbol(fun).owner.expect("a member");
-        if !self.is_static_owner(owner) {
+        if !self.u.is_static_owner(owner) {
             self.unsupported_at(annot_span, "@main method not statically accessible");
             return None;
         }

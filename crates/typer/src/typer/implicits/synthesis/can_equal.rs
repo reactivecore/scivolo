@@ -40,7 +40,7 @@ impl Synthesizer {
         }
         let module = t.resolve_full_name(CAN_EQUAL, false).ok_or("CanEqual")?;
         let module_class = t.u.module_class(module).ok_or("CanEqual")?;
-        let any = t.u.decl(module_class, "canEqualAny").unwrap_or_default();
+        let any = t.u.decls_named(module_class, "canEqualAny");
         let any = any.into_iter().find(|&d| t.u.symbol(d).kind == Kind::Def).ok_or("CanEqual.canEqualAny")?;
         let select = t.member_ref(any, at);
         let targs = [t.type_tree(l, at, false), t.type_tree(r, at, false)];

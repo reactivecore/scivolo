@@ -66,7 +66,7 @@ fn implicit_members_of(
 fn overridden_in(t: &mut Typer<'_>, site: TypeId, bases: &[SymbolId], d: SymbolId) -> bool {
     let name = t.u.symbol(d).name.clone();
     for &b in bases {
-        for m in t.u.decl(b, &name).unwrap_or_default() {
+        for m in t.u.decls_named(b, &name) {
             let s = t.u.symbol(m);
             if m != d && s.is_term_member() && !s.is_private() && t.same_member(site, m, d) {
                 return true;

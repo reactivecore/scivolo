@@ -166,7 +166,7 @@ impl Typer<'_> {
     /// in `Denotation.meet`).
     pub fn own_type_param_over_self(&mut self, cls: SymbolId, name: &str) -> Vec<SymbolId> {
         let Some(given) = self.u.given_self_type(cls) else { return Vec::new() };
-        let own: Vec<SymbolId> = self.u.decl(cls, name).unwrap_or_default();
+        let own: Vec<SymbolId> = self.u.decls_named(cls, name);
         let own: Vec<SymbolId> =
             own.into_iter().filter(|&p| self.u.symbol(p).kind == Kind::TypeParam).collect();
         if own.is_empty() {

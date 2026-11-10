@@ -80,7 +80,7 @@ impl Typer<'_> {
     fn constructor_of_companion(&mut self, owner: SymbolId, method: &str) -> Vec<SymbolId> {
         let primary = if method == "<init>" { self.companion_constructor(owner) } else { None };
         let class = primary.and_then(|p| self.u.symbol(p).owner);
-        class.map(|c| self.u.decl(c, "<init>").unwrap_or_default()).unwrap_or_default()
+        class.map(|c| self.u.decls_named(c, "<init>")).unwrap_or_default()
     }
 
     /// `t` with its references to type parameters of method `sym` made wildcards (dotty's

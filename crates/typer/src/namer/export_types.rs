@@ -38,8 +38,7 @@ impl Typer<'_> {
     /// The type alias forwarding to type member `m` of `e`'s path.
     pub fn add_type_forwarder(&mut self, e: &mut Export, alias: &str, m: SymbolId, span: Span) {
         let class = self.u.symbol(m).kind == Kind::Class;
-        let taken =
-            self.u.decl(e.cls, alias).unwrap_or_default().into_iter().any(|d| self.u.is_type_symbol(d));
+        let taken = self.u.decls_named(e.cls, alias).into_iter().any(|d| self.u.is_type_symbol(d));
         if taken {
             self.unsupported_at(span, "export of a type whose name the class defines");
             return;

@@ -26,7 +26,7 @@ impl Expansion<'_, '_> {
             _ => self.ident_prefix(fun),
         };
         let impure = prefix.is_some_and(|q| !self.i.pure().is_idempotent_expr(q));
-        if self.i.is_static_owner(cls) {
+        if self.i.u.is_static_owner(cls) {
             return self.bind_static_opaque_this((cls, meth), body, (prefix, impure));
         }
         if self.i.u.symbol(cls).kind.is_term() {
@@ -82,7 +82,7 @@ impl Expansion<'_, '_> {
         let point = Span::at(call_span.point());
         let widened = self.i.u.widen(info);
         let widened_cls = self.i.u.class_symbol(widened);
-        let module = widened_cls.filter(|&c| self.i.u.is_module_class(c) && self.i.is_static_owner(c));
+        let module = widened_cls.filter(|&c| self.i.u.is_static_module(c));
         let module = module.and_then(|c| self.i.u.source_module(c));
         let term_ref = self.i.u.sym_ref(qt).is_some();
         let pure_ref = if stable && term_ref && self.i.pure().is_pure_expr(q) {
@@ -140,7 +140,7 @@ impl Inlining<'_> {
             for c in classes {
                 if c == cls {
                     *uses = true;
-                } else if !self.is_static_owner(c) && !outer.contains(&c) {
+                } else if !self.u.is_static_owner(c) && !outer.contains(&c) {
                     outer.push(c);
                 }
             }

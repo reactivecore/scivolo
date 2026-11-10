@@ -44,12 +44,12 @@ impl Unpickler<'_> {
     /// A reference to method `name` of object `scala.quoted.runtime.Expr`.
     fn runtime_expr(&mut self, name: &str) -> Result<TNodeId, Refusal> {
         let pkg = self.u.package("scala.quoted.runtime").ok_or(NO_RUNTIME)?;
-        let decls = self.u.decl(pkg, "Expr").unwrap_or_default();
+        let decls = self.u.decls_named(pkg, "Expr");
         let is_module =
             |u: &tasty::Universe, s| u.symbol(s).kind == Kind::Val && u.symbol(s).flags.has(OBJECT);
         let module = decls.into_iter().find(|&s| is_module(self.u, s)).ok_or(NO_RUNTIME)?;
         let class = self.u.module_class(module).ok_or(NO_RUNTIME)?;
-        let found = self.u.decl(class, name).unwrap_or_default();
+        let found = self.u.decls_named(class, name);
         let [sym] = found[..] else { return Err(NO_RUNTIME) };
         let pkg = self.u.intern_type(Type::Package(pkg));
         let module = ref_type(self.u, Some(pkg), module);

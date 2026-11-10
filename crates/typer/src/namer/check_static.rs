@@ -17,7 +17,7 @@ impl Typer<'_> {
         let Some(companion) = companion else {
             return self.unsupported_at(span, "@static outside an object with a companion class");
         };
-        if !self.is_static_owner(owner) {
+        if !self.u.is_static_owner(owner) {
             return self.unsupported_at(span, "@static in an object that is not static");
         }
         let name = self.u.symbol(sym).name.clone();

@@ -16,7 +16,7 @@ const REPEATED_ANNOT: &str = "scala.annotation.internal.Repeated";
 impl Typer<'_> {
     /// Whether `annot`, an annotation's class type, marks a repeated parameter.
     pub fn is_repeated_annot(&mut self, annot: TypeId) -> bool {
-        self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == REPEATED_ANNOT)
+        self.u.is_class_named(annot, REPEATED_ANNOT)
     }
 
     /// The element type `T` of repeated parameter type `p`: `<repeated>[T]`, or `Seq[T] @Repeated`

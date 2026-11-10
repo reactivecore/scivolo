@@ -55,7 +55,7 @@ impl Typer<'_> {
         let site = crate::defn::type_ref(self.u, owner);
         let mut out = Vec::new();
         for base in self.u.linearization(owner).into_iter().skip(1) {
-            for m in self.u.decl(base, &name).unwrap_or_default() {
+            for m in self.u.decls_named(base, &name) {
                 let private = self.u.symbol(m).flags.has(tasty::tags::PRIVATE);
                 if !private && self.same_member(site, m, s) {
                     out.push(m);

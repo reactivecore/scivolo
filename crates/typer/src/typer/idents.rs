@@ -17,18 +17,6 @@ pub struct Found {
 }
 
 impl Typer<'_> {
-    /// Whether `c` is a package, or an object whose owners are all packages or objects.
-    pub fn is_static_owner(&self, c: SymbolId) -> bool {
-        let s = self.u.symbol(c);
-        match s.kind {
-            Kind::Package => true,
-            Kind::Class if s.flags.has(tasty::tags::OBJECT) => {
-                s.owner.is_none_or(|o| self.is_static_owner(o))
-            }
-            _ => false,
-        }
-    }
-
     pub fn members_found(&mut self, prefix: TypeId, name: &str, is_type: bool) -> Option<Found> {
         let syms: Vec<SymbolId> = self
             .type_members(prefix, name)
@@ -129,7 +117,7 @@ impl Typer<'_> {
             && self.is_param_or_accessor(sym)
             && found.prefix.is_some_and(|p| {
                 let class = self.u.this_of(p).and_then(|c| self.u.class_symbol(c));
-                class.is_some_and(|c| !self.is_static_owner(c))
+                class.is_some_and(|c| !self.u.is_static_owner(c))
             });
         if overloaded_accessor || !self.prefix_is_elidable(tpe, ctx) {
             if name.is_type {
@@ -186,7 +174,7 @@ impl Typer<'_> {
     /// static owner, else a selection from its `this` (dotty's `ref`).
     pub fn member_ref(&mut self, m: SymbolId, span: syntax::ast::Span) -> TNodeId {
         let cls = self.u.symbol(m).owner.expect("a member");
-        if self.is_static_owner(cls) {
+        if self.u.is_static_owner(cls) {
             let prefix = crate::defn::owner_prefix(self.u, cls);
             let tpe = self.u.intern_type(Type::Sym(Some(prefix), m));
             return self.build().ident(m, tpe, span);

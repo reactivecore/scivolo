@@ -119,8 +119,7 @@ impl Inlining<'_> {
     pub fn no_errors(&mut self, call: TNodeId, span: Span) -> Result<TNodeId, Unsupported> {
         let immutable =
             self.u.package("scala.collection.immutable").ok_or((span, "scala.collection.immutable"))?;
-        let nil =
-            self.u.decl(immutable, "Nil").unwrap_or_default().into_iter().find(|&d| self.u.is_module(d));
+        let nil = self.u.decls_named(immutable, "Nil").into_iter().find(|&d| self.u.is_module(d));
         let nil = nil.ok_or((span, "scala.collection.immutable.Nil"))?;
         let mut r = super::Reflect { u: &mut *self.u, tpd: &mut *self.tpd, names: &mut *self.names, span };
         let nil = r.local_ident(nil).map_err(|what| (span, what))?;

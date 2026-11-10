@@ -47,7 +47,7 @@ impl Expansion<'_, '_> {
             o = self.i.u.symbol(x).owner;
         }
         let inside = o.is_some();
-        let source = self.i.u.source_module(module).filter(|_| self.i.is_static_owner(module) && !inside);
+        let source = self.i.u.source_module(module).filter(|_| self.i.u.is_static_owner(module) && !inside);
         let Some(source) = source.filter(|_| this.is_empty()) else { return Err(refused) };
         let module_ref = crate::defn::type_ref(self.i.u, source);
         let point = Span::at(self.i.tpd.span(self.call).point());

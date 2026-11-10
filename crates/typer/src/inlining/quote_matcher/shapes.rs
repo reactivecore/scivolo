@@ -65,7 +65,7 @@ impl Matcher<'_> {
 
     pub fn is_repeated(&mut self, tpt: TNodeId) -> bool {
         let Some(t) = self.tpd.get(tpt).tpe else { return false };
-        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == "scala.<repeated>")
+        self.u.is_class_named(t, "scala.<repeated>")
     }
 
     pub fn is_type_tree(&self, t: TNodeId) -> bool {
@@ -115,7 +115,7 @@ impl Matcher<'_> {
         let name = self.u.symbol(a).name.clone();
         let site = self.u.this_type(c);
         for base in self.u.linearization(c) {
-            for d in self.u.decl(base, &name).unwrap_or_default() {
+            for d in self.u.decls_named(base, &name) {
                 if d == a || self.u.symbol(d).kind.is_term() && self.u.matches(site, d, a) {
                     return d;
                 }

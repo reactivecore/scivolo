@@ -62,7 +62,7 @@ pub fn upper_bound(u: &mut Universe, p: SymbolId) -> tasty::TypeId {
 
 /// The number of parameter lists of the primary constructor of class `c`.
 fn param_lists(u: &mut Universe, c: SymbolId) -> usize {
-    let Some(&ctor) = u.decl(c, "<init>").unwrap_or_default().first() else { return 0 };
+    let Some(&ctor) = u.decls_named(c, "<init>").first() else { return 0 };
     let mut t = u.info(ctor);
     let mut lists = 0;
     loop {

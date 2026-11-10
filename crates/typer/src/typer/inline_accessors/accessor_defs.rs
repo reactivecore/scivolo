@@ -105,7 +105,7 @@ fn method_clauses(u: &Universe, info: &mut TypeId) -> Vec<Clause> {
 /// static object or a parameter accessor outside traits, else a selection (dotty's `ref`).
 fn accessed_ref(t: &mut Typer<'_>, host: SymbolId, accessed: SymbolId, at: Span) -> TNodeId {
     let owner = t.u.symbol(accessed).owner.expect("a member");
-    if t.is_static_owner(owner) {
+    if t.u.is_static_owner(owner) {
         return t.member_ref(accessed, at);
     }
     let host_type = crate::defn::type_ref(t.u, host);

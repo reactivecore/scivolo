@@ -77,7 +77,7 @@ impl Constraint {
                 }
             }
             Type::Sym(_, s) if v > 0 => match u.symbol(s).kind {
-                Kind::Class if owned_by_term(u, s) && !declares_members(u, s) => {
+                Kind::Class if u.in_method_or_value(s) && !declares_members(u, s) => {
                     let parents = u.parents(s).into_iter().fold(ANY, |acc, p| meet(u, acc, p));
                     self.avoided(u, parents, at, v)
                 }
@@ -154,10 +154,6 @@ fn class_param_bounds(u: &mut Universe, pre: TypeId, p: SymbolId) -> Option<(Typ
     let selected = u.intern_type(Type::Sym(Some(pre), p));
     let arg = crate::typer::seen_from::class_param_arg(u, selected)?;
     Some(u.bounds(arg).unwrap_or((arg, arg)))
-}
-
-fn owned_by_term(u: &Universe, s: SymbolId) -> bool {
-    u.symbol(s).owner.is_some_and(|o| matches!(u.symbol(o).kind, Kind::Def | Kind::Val))
 }
 
 /// Whether class `c` declares a member other than its constructor and private ones.

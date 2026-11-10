@@ -12,7 +12,7 @@ impl Typer<'_> {
     pub fn class_members(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
         let classes = self.completed_linearization(c);
         if name == "<init>" {
-            return self.u.decl(c, name).unwrap_or_default();
+            return self.u.decls_named(c, name);
         }
         self.members_of_bases(c, &classes, name, true)
     }
@@ -74,7 +74,7 @@ impl Typer<'_> {
         let site = crate::defn::type_ref(self.u, c);
         let mut out: Vec<SymbolId> = Vec::new();
         for &base in classes {
-            let decls: Vec<SymbolId> = self.u.decl(base, name).unwrap_or_default();
+            let decls: Vec<SymbolId> = self.u.decls_named(base, name);
             let decls: Vec<SymbolId> = decls
                 .into_iter()
                 .filter(|&m| base == c && own_private || !self.u.symbol(m).flags.has(tasty::tags::PRIVATE))

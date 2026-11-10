@@ -70,7 +70,7 @@ impl Typer<'_> {
     fn offers(&mut self, owners: &[SymbolId], name: &str, this: bool, ctx: Ctx) -> bool {
         let mut terms = Vec::new();
         for &owner in owners {
-            let decls = self.u.decl(owner, name).unwrap_or_default();
+            let decls = self.u.decls_named(owner, name);
             let inherited = |s: SymbolId| owner == owners[0] || !self.u.symbol(s).flags.has(PRIVATE);
             let decls = decls.into_iter().filter(|&d| !self.u.is_type_symbol(d) && inherited(d));
             terms.extend(decls.filter(|&d| !self.is_lowered(d)));
@@ -106,7 +106,7 @@ impl Typer<'_> {
     /// class gets proxies, no base class of `owner` declares a term `name`, and the proxy,
     /// public unless the class is protected or qualified private, is accessible.
     fn has_proxy(&mut self, owner: SymbolId, name: &str, this: bool, ctx: Ctx) -> bool {
-        let decls = self.u.decl(owner, name).unwrap_or_default();
+        let decls = self.u.decls_named(owner, name);
         let Some(class) = decls.into_iter().find(|&d| self.u.symbol(d).kind == Kind::Class) else {
             return false;
         };
@@ -115,7 +115,7 @@ impl Typer<'_> {
             _ => self.u.linearization(owner),
         };
         let term_exists = bases.into_iter().any(|b| {
-            let decls = self.u.decl(b, name).unwrap_or_default();
+            let decls = self.u.decls_named(b, name);
             decls.iter().any(|&d| self.u.symbol(d).kind.is_term())
         });
         let flags = self.u.symbol(class).flags;

@@ -173,7 +173,7 @@ fn is_pure_case_apply(t: &mut Typer, s: SymbolId) -> bool {
         return false;
     };
     let Some(owner) = t.u.symbol(module).owner else { return false };
-    let classes = t.u.decl(owner, &name).unwrap_or_default();
+    let classes = t.u.decls_named(owner, &name);
     classes.into_iter().any(|c| {
         let flags = t.u.symbol(c).flags;
         t.u.symbol(c).kind == Kind::Class

@@ -102,7 +102,7 @@ impl Typer<'_> {
 
     /// Whether package `owner` has a subpackage named `name`.
     fn has_package(&mut self, owner: SymbolId, name: &str) -> bool {
-        let decls = self.u.decl(owner, name).unwrap_or_default();
+        let decls = self.u.decls_named(owner, name);
         decls.into_iter().any(|d| self.u.symbol(d).kind == Kind::Package)
     }
 

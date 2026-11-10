@@ -130,7 +130,7 @@ impl Reflect<'_> {
         if self.u.is_trait(c) || !type_tree {
             return Ok(p);
         }
-        let ctors = self.u.decl(c, "<init>").unwrap_or_default();
+        let ctors = self.u.decls_named(c, "<init>");
         let no_args = |r: &mut Self, k: SymbolId| {
             let info = r.u.info(k);
             r.u.method(info).is_some_and(|m| m.params.is_empty() && r.u.method(m.result).is_none())

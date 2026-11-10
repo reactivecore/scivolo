@@ -145,7 +145,7 @@ impl Typer<'_> {
     /// Whether one of `bases` declares a concrete value `name`.
     fn has_value_named(&mut self, bases: &[SymbolId], name: &str) -> bool {
         bases.iter().any(|&b| {
-            let decls = self.u.decl(b, name).unwrap_or_default();
+            let decls = self.u.decls_named(b, name);
             decls.into_iter().any(|m| self.u.symbol(m).kind == Kind::Val && !self.u.is_deferred(m))
         })
     }

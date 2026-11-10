@@ -153,10 +153,8 @@ impl Units {
     /// the script symbols: no later unit refers to them or is told of their names.
     pub fn forget(&mut self, u: &mut Universe, name: &str) {
         let root = u.root();
-        let objects: Vec<tasty::SymbolId> = [name.to_owned(), format!("{name}$")]
-            .iter()
-            .flat_map(|n| u.decl(root, n).unwrap_or_default())
-            .collect();
+        let objects: Vec<tasty::SymbolId> =
+            [name.to_owned(), format!("{name}$")].iter().flat_map(|n| u.decls_named(root, n)).collect();
         let under = |mut s: tasty::SymbolId| loop {
             if objects.contains(&s) {
                 return true;

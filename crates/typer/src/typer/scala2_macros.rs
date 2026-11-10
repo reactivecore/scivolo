@@ -55,7 +55,7 @@ impl Typer<'_> {
         let name = self.u.symbol(sym).name.clone();
         let site = self.u.this_type(owner);
         let signature = self.u.signature(site, sym, false);
-        let siblings = self.u.decl(owner, &name).unwrap_or_default();
+        let siblings = self.u.decls_named(owner, &name);
         siblings.iter().for_each(|&p| self.complete(p));
         siblings.into_iter().any(|p| {
             let f = self.u.symbol(p).flags;

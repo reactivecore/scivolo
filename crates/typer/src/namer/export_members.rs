@@ -140,7 +140,7 @@ impl Typer<'_> {
             if !self.u.derives_from(cls, base) {
                 continue;
             }
-            for o in self.u.decl(base, &name).unwrap_or_default() {
+            for o in self.u.decls_named(base, &name) {
                 if !self.u.is_type_symbol(o) && self.is_concrete(o) && self.same_member(site, m, o) {
                     return true;
                 }

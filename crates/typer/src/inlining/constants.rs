@@ -170,28 +170,12 @@ impl Inlining<'_> {
                 let accessor = self.u.symbol(s).flags.has(PARAMsetter)
                     && !self.u.symbol(c).flags.has(TRAIT)
                     && self.enclosing_class == Some(c);
-                self.is_static_owner(c) || accessor
+                self.u.is_static_owner(c) || accessor
             }),
             Type::Sym(_, m) => {
-                self.u.is_module(m) && self.u.module_class(m).is_some_and(|c| self.is_static_owner(c))
+                self.u.is_module(m) && self.u.module_class(m).is_some_and(|c| self.u.is_static_owner(c))
             }
             _ => false,
         }
-    }
-
-    /// Whether `c` is a package or an object class nested only in packages and objects.
-    pub fn is_static_owner(&self, c: SymbolId) -> bool {
-        let mut o = Some(c);
-        while let Some(x) = o {
-            let s = self.u.symbol(x);
-            if s.kind == Kind::Package {
-                return true;
-            }
-            if !self.u.is_module_class(x) {
-                return false;
-            }
-            o = s.owner;
-        }
-        false
     }
 }

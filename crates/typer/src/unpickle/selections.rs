@@ -36,7 +36,7 @@ impl Unpickler<'_> {
         let prefix = self.widen_if_unstable(tpe);
         let name = self.name(id);
         let found = match *self.u.ty(prefix) {
-            Type::Package(p) => self.u.decl(p, &name).unwrap_or_default(),
+            Type::Package(p) => self.u.decls_named(p, &name),
             _ => self.u.member_of_type(prefix, &name),
         };
         let refined = is_type && !found.iter().any(|&s| self.u.is_type_symbol(s));
@@ -68,7 +68,7 @@ impl Unpickler<'_> {
         let tpe = self.tpd.tpe(qual);
         let prefix = self.widen_if_unstable(tpe);
         let name = self.name(id);
-        let decls = self.u.decl(owner, &name).unwrap_or_default();
+        let decls = self.u.decls_named(owner, &name);
         let sym = match self.at_signature(decls, id, false) {
             Ok(s) => s,
             Err(_) => {

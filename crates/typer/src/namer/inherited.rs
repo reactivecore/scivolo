@@ -145,8 +145,9 @@ impl Typer<'_> {
             for (&(_, p), &own) in ps.iter().zip(clause) {
                 let own = self.u.info(own);
                 let same = self.u.is_subtype(p, own) && self.u.is_subtype(own, p);
-                let object_any =
-                    java && self.is_class(p, "java.lang.Object") && self.is_class(own, "scala.Any");
+                let object_any = java
+                    && self.u.is_class_named(p, "java.lang.Object")
+                    && self.u.is_class_named(own, "scala.Any");
                 if !same && !object_any {
                     return None;
                 }
@@ -181,11 +182,6 @@ impl Typer<'_> {
             Some((None, s)) => from.iter().position(|&p| p == s).map(|i| to[i]),
             _ => None,
         })
-    }
-
-    /// Whether `t` is a reference to the class named `name`.
-    fn is_class(&mut self, t: TypeId, name: &str) -> bool {
-        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == name)
     }
 
     /// Whether `sym` keeps its right-hand side's type over an inherited one: an inline value.
