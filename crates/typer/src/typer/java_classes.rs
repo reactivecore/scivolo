@@ -3,9 +3,10 @@
 //! or member is a Java one; the JDK's functional interfaces.
 
 use super::Typer;
+use super::type_ops::TypeOps;
 use tasty::SymbolId;
 
-impl Typer<'_> {
+impl TypeOps<'_> {
     /// Whether `s` is a member of a `java.*` or `javax.*` class or a Java class of the Scala
     /// library, its parameter names unknown.
     pub fn is_java_member(&mut self, s: SymbolId) -> bool {
@@ -24,6 +25,16 @@ impl Typer<'_> {
             java_classes(pkg).any(|c| c == simple)
         });
         name.starts_with("java.") || name.starts_with("javax.") || library_java
+    }
+}
+
+impl Typer<'_> {
+    pub fn is_java_member(&mut self, s: SymbolId) -> bool {
+        self.types().is_java_member(s)
+    }
+
+    pub fn is_java_class_name(&mut self, c: SymbolId) -> bool {
+        self.types().is_java_class_name(c)
     }
 
     /// The type parameters of the class of constructor `ctor`, whose bounds may be the JDK's

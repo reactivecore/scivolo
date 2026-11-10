@@ -40,5 +40,9 @@ run and dropped.
   callers use them; the others call `t.types()`. Flag and kind checks are methods on
   `tasty::Symbol` (`is_implicit`, `is_given`). Helpers that complete symbols, type trees or
   search take the typer.
+- The checks after typing are components that collect their errors for `Typer` to report:
+  `VarianceCheck` (over the `VarianceOps` service), `ForwardRefs`; so are the top-level
+  annotations (`TopLevel`) and the `-Wnonunit-statement` lint (`Linter`). The variances inferred
+  for aliases and the variables assigned non-locally stay on `Typer`: typing fills them.
 - Avoiding local symbols in a type is a component, `Avoid`, whose methods take the typer: it
   completes the members of approximated prefixes and instantiates type variables.

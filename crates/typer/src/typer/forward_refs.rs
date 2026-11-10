@@ -4,11 +4,11 @@
 //! precedes: an error (dotty's `ForwardDepChecks`, without the self constructor call check).
 
 use super::Typer;
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::{TNodeId, Tpd, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::LAZY;
-use tasty::{SymbolId, Type};
+use tasty::{SymbolId, Type, Universe};
 
 /// The definitions of one block by index, and its greatest index referred to so far.
 struct Level {
@@ -16,42 +16,61 @@ struct Level {
     max: Option<(usize, Span, SymbolId)>,
 }
 
+/// One check of a typed unit for references in a block that reach over a value definition to a
+/// later definition, as `x` in `{ def f = x; val y = f; val x = 1 }`.
+pub struct ForwardRefs<'a> {
+    pub tpd: &'a Tpd,
+    /// The blocks around the tree being checked, innermost last.
+    levels: Vec<Level>,
+    /// The errors found, with dotty's messages.
+    pub errors: Vec<(Span, String)>,
+}
+
 impl Typer<'_> {
     /// Reports each forward reference in unit `root` that extends over a value definition.
     pub fn check_forward_refs(&mut self, root: TNodeId) {
-        let mut errors = Vec::new();
-        self.forward_refs_in(root, &mut Vec::new(), &mut errors);
-        for (span, msg) in errors {
+        let mut check = ForwardRefs::new(&self.tpd);
+        check.refs_in(self.u, root);
+        for (span, msg) in check.errors {
             self.error_at(span, msg);
         }
     }
+}
 
-    fn forward_refs_in(&mut self, t: TNodeId, levels: &mut Vec<Level>, errors: &mut Vec<(Span, String)>) {
-        let sym = self.tpd.sym(t);
-        match *self.tpd.tree(t) {
+impl<'a> ForwardRefs<'a> {
+    /// Starts a check of the trees of `tpd`.
+    pub fn new(tpd: &'a Tpd) -> Self {
+        ForwardRefs { tpd, levels: Vec::new(), errors: Vec::new() }
+    }
+
+    /// Checks tree `t` and its subtrees.
+    pub fn refs_in(&mut self, u: &mut Universe, t: TNodeId) {
+        let tpd = self.tpd;
+        let sym = tpd.sym(t);
+        match *tpd.tree(t) {
             T::Block { stats, expr } => {
-                let stats = self.tpd.items(stats).to_vec();
+                let stats = tpd.items(stats);
                 let defs = stats.iter().enumerate().filter_map(|(i, &s)| self.member_def(s).map(|d| (d, i)));
-                levels.push(Level { index: defs.collect(), max: None });
-                for s in stats.into_iter().chain([expr]) {
-                    self.forward_refs_in(s, levels, errors);
+                self.levels.push(Level { index: defs.collect(), max: None });
+                for &s in stats.iter().chain([&expr]) {
+                    self.refs_in(u, s);
                 }
-                levels.pop();
+                self.levels.pop();
                 return;
             }
             T::Inlined { bindings, expansion, .. } => {
-                for b in self.tpd.items(bindings).to_vec().into_iter().chain([expansion]) {
-                    self.forward_refs_in(b, levels, errors);
+                for &b in tpd.items(bindings).iter().chain([&expansion]) {
+                    self.refs_in(u, b);
                 }
                 return;
             }
-            _ if self.tpd.is_type_tree(t) => return,
-            T::Ident { .. } => sym.into_iter().for_each(|s| self.enter_reference(s, t, levels)),
+            _ if tpd.is_type_tree(t) => return,
+            T::Ident { .. } => sym.into_iter().for_each(|s| self.enter_reference(s, t)),
             T::New { tpt } => {
-                let Some(tpe) = self.tpd.get(tpt).tpe else { return };
-                let mut refs: Vec<SymbolId> = self.u.class_symbol(tpe).into_iter().collect();
-                let tpe = self.u.dealias(tpe);
-                self.u.map_type(tpe, &mut |u, part| {
+                let Some(tpe) = tpd.get(tpt).tpe else { return };
+                let mut refs: Vec<SymbolId> = u.class_symbol(tpe).into_iter().collect();
+                let tpe = u.dealias(tpe);
+                u.map_type(tpe, &mut |u, part| {
                     if let Type::Sym(_, s) = *u.types().get(part)
                         && u.symbol(s).kind.is_term()
                     {
@@ -59,23 +78,23 @@ impl Typer<'_> {
                     }
                     None
                 });
-                refs.into_iter().for_each(|s| self.enter_reference(s, t, levels));
+                refs.into_iter().for_each(|s| self.enter_reference(s, t));
                 return;
             }
             _ => {}
         }
-        for c in self.tpd.children(t) {
-            self.forward_refs_in(c, levels, errors);
+        for c in tpd.children(t) {
+            self.refs_in(u, c);
         }
-        if let (T::ValDef { .. }, Some(s)) = (self.tpd.tree(t), sym)
-            && !self.u.symbol(s).flags.has(LAZY)
-            && !self.u.is_module(s)
-            && let Some(level) = levels.iter().rev().find(|l| l.index.contains_key(&s))
+        if let (T::ValDef { .. }, Some(s)) = (tpd.tree(t), sym)
+            && !u.symbol(s).flags.has(LAZY)
+            && !u.is_module(s)
+            && let Some(level) = self.levels.iter().rev().find(|l| l.index.contains_key(&s))
             && let Some((max, span, referred)) = level.max
             && level.index[&s] <= max
         {
-            let (referred, value) = (&self.u.symbol(referred).name, &self.u.symbol(s).name);
-            errors.push((
+            let (referred, value) = (&u.symbol(referred).name, &u.symbol(s).name);
+            self.errors.push((
                 span,
                 format!("forward reference to {referred} extends over the definition of {value}"),
             ));
@@ -90,8 +109,8 @@ impl Typer<'_> {
     }
 
     /// Records the reference `t` to `s` in the innermost block defining `s`.
-    fn enter_reference(&self, s: SymbolId, t: TNodeId, levels: &mut [Level]) {
-        let Some(level) = levels.iter_mut().rev().find(|l| l.index.contains_key(&s)) else { return };
+    fn enter_reference(&mut self, s: SymbolId, t: TNodeId) {
+        let Some(level) = self.levels.iter_mut().rev().find(|l| l.index.contains_key(&s)) else { return };
         let idx = level.index[&s];
         if level.max.is_none_or(|(max, ..)| max < idx) {
             level.max = Some((idx, self.tpd.span(t), s));

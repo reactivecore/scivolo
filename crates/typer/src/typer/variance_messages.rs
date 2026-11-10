@@ -2,16 +2,19 @@
 //   compiler/src/dotty/tools/dotc/typer/VarianceChecker.scala
 //! The messages of variance errors (dotty's `Traverser.checkVariance`).
 
-use super::Typer;
-use super::variance_types::{declared, label};
+use super::variance_types::{VarianceOps, declared, label};
+use crate::symbols::Syms;
 use syntax::ast::flags as f;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 const ENUM_EXAMPLE: &str = "See an example at https://docs.scala-lang.org/scala3/reference/enums/adts.html#parameter-variance-of-enums";
 
-impl Typer<'_> {
-    /// The error for type parameter `tvar` occurring in the type of `sym` where variance
-    /// `required` is; of a class, `unchecked` are its parents annotated `@uncheckedVariance`.
+impl VarianceOps<'_> {
+    /// Writes dotty's error for type parameter `tvar` occurring in the type of `sym` where variance
+    /// `required` is, as "covariant type A occurs in contravariant position in type A of
+    /// parameter a"; of a class, `unchecked` are its parents annotated `@uncheckedVariance`. It
+    /// adds dotty's hints for the synthetic type parameters of enum cases and for private
+    /// parameter accessors.
     pub fn variance_message(
         &mut self,
         sym: SymbolId,
@@ -36,19 +39,20 @@ impl Typer<'_> {
             _ => self.u.show_user(info),
         };
         let (own, at) = (label(declared(self.u, tvar)), label(required));
-        let (tname, described) = (self.u.symbol(tvar).name.clone(), self.described(sym));
+        let (tname, described) = (self.u.symbol(tvar).name.clone(), described(self.u, self.syms, sym));
         let mut msg = format!("{own} type {tname} occurs in {at} position in type {shown} of {described}");
         let towner = self.u.symbol(tvar).owner;
-        let enum_case = towner.filter(|&o| self.flags_of(o).is_all_of(f::ENUM_CASE) && self.u.is_class(o));
+        let enum_case =
+            towner.filter(|&o| self.syms.flags_of(o).is_all_of(f::ENUM_CASE) && self.u.is_class(o));
         if let Some(case) = enum_case
-            && self.flags_of(tvar).is(f::SYNTHETIC)
+            && self.syms.flags_of(tvar).is(f::SYNTHETIC)
         {
             let case = &self.u.symbol(case).name;
             msg.push_str(&format!(
                 "\nenum case {case} requires explicit declaration of type {tname} to resolve this issue.\n{ENUM_EXAMPLE}"
             ));
         }
-        let flags = self.flags_of(sym);
+        let flags = self.syms.flags_of(sym);
         if flags.is(f::PARAM_ACCESSOR) && flags.is(f::PRIVATE) {
             let (kw, fix) = match flags.is(f::MUTABLE) {
                 true => ("var", " and add\na field inside the class instead"),
@@ -61,21 +65,22 @@ impl Typer<'_> {
         }
         msg
     }
+}
 
-    /// `sym` as dotty's messages name it: its kind and name.
-    pub fn described(&self, sym: SymbolId) -> String {
-        let s = self.u.symbol(sym);
-        let flags = self.flags_of(sym);
-        let kind = match s.kind {
-            Kind::Class if flags.is(f::TRAIT) => "trait",
-            Kind::Class => "class",
-            Kind::Type | Kind::TypeParam => "type",
-            Kind::Def => "method",
-            Kind::Param if s.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Def) => "parameter",
-            _ if flags.is(f::MUTABLE) => "variable",
-            _ if flags.is(f::LAZY) => "lazy value",
-            _ => "value",
-        };
-        format!("{kind} {}", s.name)
-    }
+/// Names `sym` as dotty's messages do, by its kind and name: `trait T`, `method f`,
+/// `parameter x`, `lazy value v`.
+pub fn described(u: &Universe, syms: &Syms, sym: SymbolId) -> String {
+    let s = u.symbol(sym);
+    let flags = syms.flags_of(sym);
+    let kind = match s.kind {
+        Kind::Class if flags.is(f::TRAIT) => "trait",
+        Kind::Class => "class",
+        Kind::Type | Kind::TypeParam => "type",
+        Kind::Def => "method",
+        Kind::Param if s.owner.is_some_and(|o| u.symbol(o).kind == Kind::Def) => "parameter",
+        _ if flags.is(f::MUTABLE) => "variable",
+        _ if flags.is(f::LAZY) => "lazy value",
+        _ => "value",
+    };
+    format!("{kind} {}", s.name)
 }

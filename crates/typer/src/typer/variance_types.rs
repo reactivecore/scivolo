@@ -6,6 +6,8 @@
 
 use super::Typer;
 use crate::sealed::is_contained_in;
+use crate::symbols::Syms;
+use rustc_hash::FxHashMap;
 use tasty::tags::{CONTRAVARIANT as CONTRA_TAG, COVARIANT as CO_TAG};
 use tasty::{Binder, SymbolId, Type, TypeId, Universe};
 
@@ -16,10 +18,12 @@ pub const BIVARIANT: u8 = 3;
 
 const MAX_DEPTH: u32 = 64;
 
+/// Swaps covariant and contravariant, as a method parameter's position does.
 pub fn flip(v: u8) -> u8 {
     (v & COVARIANT) << 1 | (v & CONTRAVARIANT) >> 1
 }
 
+/// Names variance `v` as dotty's messages do.
 pub fn label(v: u8) -> &'static str {
     match v {
         COVARIANT => "covariant",
@@ -41,6 +45,7 @@ pub fn is_unchecked_variance(u: &mut Universe, annot: TypeId) -> bool {
     class.is_some_and(|c| u.full_name(c) == "scala.annotation.unchecked.uncheckedVariance")
 }
 
+/// Converts the variance sign `v` (+1, -1, 0) to a variance.
 pub fn of_sign(v: i8) -> u8 {
     match v {
         1 => COVARIANT,
@@ -64,9 +69,30 @@ pub enum Misplaced {
     Lambda(usize, u8),
 }
 
+/// Finds the type parameters that occur in a type where their declared variance does not allow
+/// it, as `A` in `class C[+A] { def f(a: A): Unit }`, and infers the variances of the parameters
+/// of type aliases such as `type F[X] = X => Int` from where they occur.
+pub struct VarianceOps<'a> {
+    pub u: &'a mut Universe,
+    /// The script symbols, for their dotty flags.
+    pub syms: &'a Syms,
+    /// The variances of the parameters of each alias's type lambda, once asked for; all +1 while
+    /// they are computed.
+    pub aliases: &'a mut FxHashMap<Binder, Vec<i8>>,
+}
+
 impl Typer<'_> {
-    /// The first type parameter that `checked` restricts occurring in `t` at variance `v` where
-    /// its own does not allow it (dotty's `Validator.apply`, `checkLambda`'s `checkOK`).
+    /// Starts variance queries over the universe and the variances of aliases inferred so far.
+    pub fn variance_ops(&mut self) -> VarianceOps<'_> {
+        VarianceOps { u: self.u, syms: &self.syms, aliases: &mut self.alias_variances }
+    }
+}
+
+impl VarianceOps<'_> {
+    /// Finds the first type parameter that `checked` restricts occurring in `t` at variance `v`
+    /// (+1, -1 or 0) where its own does not allow it (dotty's `Validator.apply`, `checkLambda`'s
+    /// `checkOK`): `A` in the parameter type of `def f(a: A)` in `class C[+A]`. Parts annotated
+    /// `@uncheckedVariance` are skipped.
     pub fn misplaced(&mut self, checked: Checked, t: TypeId, v: i8, depth: u32) -> Option<Misplaced> {
         if depth > MAX_DEPTH {
             return None;
@@ -127,29 +153,6 @@ impl Typer<'_> {
                 _,
             ) => go(self, x, v),
             _ => None,
-        }
-    }
-
-    /// The variances the bounds of type parameter `i` of polymorphic type `binder` in the type
-    /// of `base` declare.
-    fn poly_param_variances(&mut self, base: SymbolId, binder: Binder, i: u32) -> Vec<i8> {
-        let mut info = self.u.info(base);
-        loop {
-            match self.u.types().get(info).clone() {
-                Type::Poly { binder: b, params, .. } if b == binder => {
-                    let Some(&(_, bounds)) = params.get(i as usize) else { return Vec::new() };
-                    let hi = match *self.u.types().get(bounds) {
-                        Type::Bounds(_, hi) => hi,
-                        _ => bounds,
-                    };
-                    let Type::Lambda { binder: lambda, .. } = *self.u.types().get(hi) else {
-                        return Vec::new();
-                    };
-                    return self.u.declared_variances(lambda).unwrap_or_default();
-                }
-                Type::Poly { result, .. } | Type::Method { result, .. } => info = result,
-                _ => return Vec::new(),
-            }
         }
     }
 

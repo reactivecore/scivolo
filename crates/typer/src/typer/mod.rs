@@ -233,6 +233,7 @@ mod summon_from;
 mod supers;
 mod this;
 mod this_calls;
+mod this_type_results;
 mod throws_types;
 mod top_level_annotations;
 mod tracked_refs;

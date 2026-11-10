@@ -144,6 +144,11 @@ impl Syms {
         self.flags.contains_key(&s)
     }
 
+    /// The dotty flags of script symbol `s`; none for a symbol from TASTy.
+    pub fn flags_of(&self, s: SymbolId) -> FlagSet {
+        self.flags.get(&s).copied().unwrap_or_default()
+    }
+
     /// A binder no other method or type lambda has, of file `SCRIPT_BINDERS`.
     pub fn fresh_binder(&mut self) -> Binder {
         self.binders += 1;
