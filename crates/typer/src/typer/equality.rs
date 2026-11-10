@@ -12,6 +12,9 @@ use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::Features;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
+/// The full name of the type class of equality evidence.
+pub const CAN_EQUAL: &str = "scala.CanEqual";
+
 impl Typer<'_> {
     /// Checks comparison `fun(arg)` at `at` of type `arg_tpe` in `ctx`, if `fun` selects `Any.==`
     /// or `Any.!=`; an error reported there if no `CanEqual` instance exists.
@@ -132,7 +135,7 @@ impl Typer<'_> {
 
     /// Builds the type `CanEqual[l, r]`; `None` if the class path has no `scala.CanEqual`.
     pub fn can_equal_type(&mut self, l: TypeId, r: TypeId) -> Option<TypeId> {
-        let class = self.resolve_full_name("scala.CanEqual", true)?;
+        let class = self.resolve_full_name(CAN_EQUAL, true)?;
         Some(crate::defn::applied(self.u, class, vec![l, r]))
     }
 

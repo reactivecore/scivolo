@@ -4,6 +4,7 @@
 //! class's type parameters (dotty's `deriveSingleParameter` and `deriveCanEqual`).
 
 use super::super::Typer;
+use super::super::equality::CAN_EQUAL;
 use super::Deriver;
 use super::trees::{class_applied, node, param_def, param_def_of, param_ident, type_node};
 use syntax::ast::{NodeId, Span, TName, Tree};
@@ -39,7 +40,7 @@ impl Deriver {
         let cannot_be_unified = format!("{cls_name} cannot be unified with the type argument of {tc_name}");
         let instance = match tc_params.len() {
             1 => self.single_parameter(t, tc_params[0], span),
-            _ if t.u.full_name(tc) == "scala.CanEqual" => self.can_equal(t, &tc_params, span),
+            _ if t.u.full_name(tc) == CAN_EQUAL => self.can_equal(t, &tc_params, span),
             0 => {
                 t.error(d, format!("type {tc_name} in derives clause of {cls_name} has no type parameters"));
                 return None;
