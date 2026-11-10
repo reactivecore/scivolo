@@ -7,13 +7,34 @@
 
 use super::Typer;
 use crate::symbols::Completion;
+use syntax::ast::flags as f;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether members `a` and `b` of `site` have the same run-time name and match (dotty's
     /// `matches`).
     pub fn same_member(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
-        self.run_name(a) == self.run_name(b) && self.matches_loosely(site, a, b)
+        self.u.symbol(a).run_name() == self.u.symbol(b).run_name() && self.matches_loosely(site, a, b)
+    }
+
+    /// Whether member `s` is concrete: a definition of the unit with a right-hand side, as
+    /// `def f = 1`; a library member with a body, of `Any` or `Object`, or concrete in its class
+    /// file.
+    pub fn is_concrete(&self, s: SymbolId) -> bool {
+        match self.syms.flags.get(&s) {
+            Some(flags) => !flags.is(f::DEFERRED),
+            None => {
+                let builtins = self.u.builtins();
+                let builtin = |o| o == builtins.any || o == builtins.object;
+                self.u.body(s).is_some()
+                    || self.u.symbol(s).owner.is_some_and(builtin)
+                    || self.u.is_concrete_classfile_member(s)
+            }
+        }
+    }
+
+    pub fn self_type_bases(&mut self, c: SymbolId) -> Vec<SymbolId> {
+        self.u.self_type_bases(c)
     }
 
     /// Whether members `a` and `b` of `site` match: as methods, or a method without parameters

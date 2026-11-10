@@ -131,6 +131,11 @@ impl Symbol {
         self.is_term() && self.kind != Kind::Param
     }
 
+    /// The name it has at run time: its `@targetName`, else its name.
+    pub fn run_name(&self) -> &str {
+        self.target.as_deref().unwrap_or(&self.name)
+    }
+
     /// 1 if covariant, -1 if contravariant, else 0.
     pub fn variance(&self) -> i32 {
         if self.flags.has(CONTRAVARIANT) { -1 } else { i32::from(self.flags.has(COVARIANT)) }

@@ -415,9 +415,9 @@ pub struct Typer<'a> {
     pub poly_owners: FxHashSet<SymbolId>,
     /// The parameters of context closures named after an expected `apply`'s, not in scope.
     pub hidden_params: FxHashSet<NodeId>,
-    /// The classes with macro annotations, their `this` types and spans, checked for unimplemented
+    /// The override checks of the classes with macro annotations, which check for unimplemented
     /// members once the annotations expanded.
-    pub macro_annotated: Vec<(SymbolId, tasty::TypeId, Span)>,
+    pub macro_annotated: Vec<overrides::OverrideChecks>,
     /// The quote pattern being typed.
     pub quote_pattern: Option<quote_patterns::QuotePatternScope>,
     /// How many `typed` calls are in progress, one inside another.

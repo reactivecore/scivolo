@@ -4,69 +4,71 @@
 //! `ElimErasedValueType.checkNoClashes`).
 
 use super::super::Typer;
-use crate::symbols::Completion;
-use syntax::ast::{Span, Tree};
+use super::OverrideChecks;
+use crate::symbols::{Completion, Syms};
+use syntax::ast::{Ast, Tree};
 use tasty::tags::{ERASED, INLINE, MACRO, PRIVATE};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Universe};
 
-impl Typer<'_> {
-    /// Refuses class `cls` if two of its members, or one of them and an inherited member of
-    /// another name or of a type it does not match, have the same name at run time and the same
-    /// erased signature.
-    pub fn check_no_clashes(&mut self, cls: SymbolId, span: Span) {
-        let decls = self.u.symbol(cls).decls.clone();
-        let own: Vec<SymbolId> = decls.into_iter().filter(|&d| self.at_run_time(d)).collect();
+impl OverrideChecks {
+    /// Why two members of the class, or one of them and an inherited member of another name or
+    /// of a type it does not match, may not be defined together, if they may not: they have the
+    /// same name at run time and the same erased signature, as `def f(x: List[Int])` and
+    /// `def f(x: List[String])`.
+    pub fn name_clash(&self, t: &mut Typer<'_>) -> Option<&'static str> {
+        let decls = t.u.symbol(self.cls).decls.clone();
+        let own: Vec<SymbolId> = decls.into_iter().filter(|&d| at_run_time(t.u, d)).collect();
         for (k, &a) in own.iter().enumerate() {
             for &b in &own[..k] {
-                if self.run_name(a) == self.run_name(b) && self.u.erased_method(a) == self.u.erased_method(b)
+                if t.u.symbol(a).run_name() == t.u.symbol(b).run_name()
+                    && t.u.erased_method(a) == t.u.erased_method(b)
                 {
-                    return self.unsupported_at(span, "double definition");
+                    return Some("double definition");
                 }
             }
         }
-        let site = crate::defn::type_ref(self.u, cls);
-        let bases: Vec<SymbolId> = self.u.linearization(cls).into_iter().skip(1).collect();
-        for b in bases {
-            let inherited = self.u.symbol(b).decls.clone();
+        for &b in &self.bases {
+            let inherited = t.u.symbol(b).decls.clone();
             for m in inherited {
-                if self.has_pending_annotations(m) {
-                    self.complete(m);
+                if has_pending_annotations(&t.syms, t.ast, m) {
+                    t.complete(m);
                 }
-                if !self.at_run_time(m) {
+                if !at_run_time(t.u, m) {
                     continue;
                 }
                 for &d in &own {
-                    let same_name = self.u.symbol(m).name == self.u.symbol(d).name;
-                    let defs = [m, d].iter().all(|&s| self.u.symbol(s).kind == Kind::Def);
-                    let loose = !defs || b == self.u.builtins().any || self.is_java_member(m);
-                    if same_name && loose || self.run_name(m) != self.run_name(d) {
+                    let same_name = t.u.symbol(m).name == t.u.symbol(d).name;
+                    let defs = [m, d].iter().all(|&s| t.u.symbol(s).kind == Kind::Def);
+                    let loose = !defs || b == t.u.builtins().any || t.is_java_member(m);
+                    if same_name && loose || t.u.symbol(m).run_name() != t.u.symbol(d).run_name() {
                         continue;
                     }
-                    self.complete(m);
-                    if self.u.erased_method(m) == self.u.erased_method(d)
-                        && (!same_name || !self.u.info_matches(site, d, m))
+                    t.complete(m);
+                    if t.u.erased_method(m) == t.u.erased_method(d)
+                        && (!same_name || !t.u.info_matches(self.site, d, m))
                     {
-                        return self.unsupported_at(span, "name clash between defined and inherited member");
+                        return Some("name clash between defined and inherited member");
                     }
                 }
             }
         }
+        None
     }
+}
 
-    /// Whether script symbol `s` is not completed yet and its definition has annotations, one of
-    /// which may give it a run-time name.
-    fn has_pending_annotations(&self, s: SymbolId) -> bool {
-        let Some(&Completion::Pending { tree, .. }) = self.syms.completions.get(&s) else { return false };
-        let (Tree::ValDef { mods, .. } | Tree::DefDef { mods, .. }) = *self.ast.tree(tree) else {
-            return false;
-        };
-        !self.ast.items(self.ast.modifiers(mods).annotations).is_empty()
-    }
+/// Whether script symbol `s` is not completed yet and its definition has annotations, one of
+/// which may give it a run-time name.
+fn has_pending_annotations(syms: &Syms, ast: &Ast, s: SymbolId) -> bool {
+    let Some(&Completion::Pending { tree, .. }) = syms.completions.get(&s) else { return false };
+    let (Tree::ValDef { mods, .. } | Tree::DefDef { mods, .. }) = *ast.tree(tree) else {
+        return false;
+    };
+    !ast.items(ast.modifiers(mods).annotations).is_empty()
+}
 
-    /// Whether member `s` is a method or value with a run-time name in its class.
-    fn at_run_time(&self, s: SymbolId) -> bool {
-        let sym = self.u.symbol(s);
-        let absent = [PRIVATE, INLINE, ERASED, MACRO].iter().any(|&f| sym.flags.has(f));
-        matches!(sym.kind, Kind::Def | Kind::Val) && sym.name != "<init>" && !absent
-    }
+/// Whether member `s` is a method or value with a run-time name in its class.
+fn at_run_time(u: &Universe, s: SymbolId) -> bool {
+    let sym = u.symbol(s);
+    let absent = [PRIVATE, INLINE, ERASED, MACRO].iter().any(|&f| sym.flags.has(f));
+    matches!(sym.kind, Kind::Def | Kind::Val) && sym.name != "<init>" && !absent
 }

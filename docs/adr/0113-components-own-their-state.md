@@ -32,7 +32,8 @@ run and dropped.
   synthesis (`Synthesizer`, `MirrorSynthesis`), the application of an implicit clause
   (`ImplicitClause`) and the dictionary of by-name implicits (`Dictionary`, which takes them out
   of `Typer::history`), and so does the search for a view (`ViewSearch`: conversions, extension
-  containers, the view on a qualifier).
+  containers, the view on a qualifier), and so do the override checks of a class
+  (`OverrideChecks`), kept in `Typer::macro_annotated` until macro annotations expanded.
 - State shared across nested searches that run through the typer (the open searches, the by-name
   dictionary, the budget) stays in `Typer::history`, as dotty keeps it in the `Context`.
 - Type relations and queries that need only the universe and the constraint (`conforms`, `zonk`,
