@@ -4,6 +4,7 @@
 //! The class a synthesized `ClassTag[T]` or `Manifest[T]` names: whether `T` erases alike in
 //! every instance and the class it erases to.
 
+use crate::defn::ARRAY;
 use crate::typer::Typer;
 use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe};
 
@@ -43,7 +44,7 @@ pub fn has_stable_erasure(t: &mut Typer<'_>, tpe: TypeId) -> bool {
 pub fn erased_class_type(t: &mut Typer<'_>, tpe: TypeId) -> Option<TypeId> {
     let tpe = translucent(t, tpe);
     let tpe = t.normalized_tuple_type(tpe);
-    if t.class_args(tpe, "scala.Array").is_some() {
+    if t.class_args(tpe, ARRAY).is_some() {
         return Some(tpe);
     }
     let mut classes = Vec::new();

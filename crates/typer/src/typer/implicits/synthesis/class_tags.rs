@@ -8,6 +8,7 @@
 
 use super::Synthesizer;
 use super::class_tag_erasure::{erased_class_type, has_stable_erasure};
+use crate::defn::{ARRAY, CLASS_TAG};
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::Typer;
 use crate::typer::type_ops::TypeOps;
@@ -25,10 +26,10 @@ impl Synthesizer {
         let dealiased = t.u.dealias(arg);
         let array_elem = match t.is_opaque_ref(dealiased) {
             true => None,
-            false => t.class_args(dealiased, "scala.Array"),
+            false => t.class_args(dealiased, ARRAY),
         };
         if let Some(&[elem]) = array_elem.as_deref() {
-            let class_tag = t.resolve_full_name("scala.reflect.ClassTag", true).ok_or("ClassTag")?;
+            let class_tag = t.resolve_full_name(CLASS_TAG, true).ok_or("ClassTag")?;
             let elem_tag = crate::defn::applied(t.u, class_tag, vec![elem]);
             let elem_tag = t.implicit_arg(elem_tag, at, self.ctx, self.depth + 1)?;
             let wrap =
@@ -45,7 +46,7 @@ impl Synthesizer {
         if is_bottom(t.u, arg) {
             return Err("class tag of a bottom type");
         }
-        let module = t.resolve_full_name("scala.reflect.ClassTag", false).ok_or("ClassTag")?;
+        let module = t.resolve_full_name(CLASS_TAG, false).ok_or("ClassTag")?;
         let module_tpe = crate::defn::type_ref(t.u, module);
         let class = match t.u.types().get(dealiased).clone() {
             Type::And(..) | Type::Or(..) => None,

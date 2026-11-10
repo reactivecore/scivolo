@@ -5,6 +5,7 @@
 //! else None`.
 
 use super::Synthesizer;
+use crate::defn::TYPE_TEST;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use crate::typer::{Pt, Typer};
 use syntax::ast::modifiers::Modifiers;
@@ -30,11 +31,11 @@ impl Synthesizer {
         let from = t.fully_defined_as(from, true)?;
         let to = t.fully_defined_as(to, true)?;
         let to = t.u.normalized(to);
-        let class = t.resolve_full_name("scala.reflect.TypeTest", true).ok_or("TypeTest")?;
+        let class = t.resolve_full_name(TYPE_TEST, true).ok_or("TypeTest")?;
         let pt = crate::defn::applied(t.u, class, vec![from, to]);
         let s = Synthesizer { at: self.at.to_synthetic(), ..self };
         if t.u.is_subtype(from, to) {
-            let module = t.resolve_full_name("scala.reflect.TypeTest", false).ok_or("TypeTest")?;
+            let module = t.resolve_full_name(TYPE_TEST, false).ok_or("TypeTest")?;
             let module_class = t.u.module_class(module).ok_or("TypeTest")?;
             let decl = t.u.decl(module_class, "identity").ok().and_then(|d| d.first().copied());
             let identity = s.ref_splice(t, decl.ok_or("TypeTest.identity")?);

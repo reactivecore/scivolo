@@ -4,6 +4,7 @@
 //! `checkFormal`, `mirrorCore`, `checkRefinement`).
 
 use super::{MISSING, MirrorSynthesis};
+use crate::defn::{MIRROR, MIRROR_PRODUCT, MIRROR_SUM};
 use crate::typer::Typer;
 use crate::typer::type_ops::TypeOps;
 use tasty::{Type, TypeId, Universe};
@@ -53,9 +54,9 @@ impl MirrorFormal {
         }
         let base = u.class_symbol(t).map(|c| u.full_name(c));
         let kind = match base.as_deref()? {
-            "scala.deriving.Mirror" => MirrorKind::Any,
-            "scala.deriving.Mirror$.Product" => MirrorKind::Product,
-            "scala.deriving.Mirror$.Sum" => MirrorKind::Sum,
+            MIRROR => MirrorKind::Any,
+            MIRROR_PRODUCT => MirrorKind::Product,
+            MIRROR_SUM => MirrorKind::Sum,
             _ => return None,
         };
         Some(MirrorFormal { pt, kind, mirrored: mirrored? })

@@ -8,6 +8,7 @@ use super::children::child_type;
 use super::formal::MirrorCore;
 use super::sources::MirrorSource;
 use super::{MirrorSynthesis, label_pairs};
+use crate::defn::MIRROR_SUM;
 use crate::tpd::TNodeId;
 use crate::typer::Typer;
 use crate::typer::paths::MAX_PATH_DEPTH;
@@ -47,12 +48,8 @@ impl MirrorSynthesis {
         let (mono, elem_types) = self.formal.mono_and_elems(t.u, nested);
         let elem_labels = label_pairs(t, &labels)?;
         let label = t.u.symbol(cls).name.clone();
-        let core = MirrorCore {
-            parent: "scala.deriving.Mirror$.Sum",
-            mono,
-            label: &label,
-            elems: Some((elem_types, elem_labels)),
-        };
+        let core =
+            MirrorCore { parent: MIRROR_SUM, mono, label: &label, elems: Some((elem_types, elem_labels)) };
         let cast = self.mirror_type(t, core)?;
         let mirror = match companion {
             Some(module) => {
@@ -76,7 +73,7 @@ fn sum_companion(t: &mut Typer<'_>, c: SymbolId) -> Option<SymbolId> {
     if t.syms.def_trees.contains_key(&c) {
         return Some(module);
     }
-    let sum = t.resolve_full_name("scala.deriving.Mirror$.Sum", true)?;
+    let sum = t.resolve_full_name(MIRROR_SUM, true)?;
     t.u.derives_from(module_class, sum).then_some(module)
 }
 

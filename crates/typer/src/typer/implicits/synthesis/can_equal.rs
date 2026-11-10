@@ -6,6 +6,7 @@
 
 use super::Synthesizer;
 use crate::ctx::Mode;
+use crate::defn::CAN_EQUAL;
 use crate::tpd::TNodeId;
 use crate::typer::Typer;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
@@ -37,7 +38,7 @@ impl Synthesizer {
         if !assumed {
             return Ok(None);
         }
-        let module = t.resolve_full_name("scala.CanEqual", false).ok_or("CanEqual")?;
+        let module = t.resolve_full_name(CAN_EQUAL, false).ok_or("CanEqual")?;
         let module_class = t.u.module_class(module).ok_or("CanEqual")?;
         let any = t.u.decl(module_class, "canEqualAny").unwrap_or_default();
         let any = any.into_iter().find(|&d| t.u.symbol(d).kind == Kind::Def).ok_or("CanEqual.canEqualAny")?;

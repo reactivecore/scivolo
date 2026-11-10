@@ -5,6 +5,7 @@
 //! takes a class tag (dotty's `convertNewGenericArray`).
 
 use super::Typer;
+use crate::defn::ARRAY;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::tags::OPAQUE;
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -17,7 +18,7 @@ impl Typer<'_> {
         let Some(s) = self.tpd.sym(ctor).filter(|&s| self.u.symbol(s).name == "<init>") else {
             return Ok(tree);
         };
-        let array = self.defn.array(self.u).map_err(|_| "scala.Array")?;
+        let array = self.defn.array(self.u).map_err(|_| ARRAY)?;
         if self.u.symbol(s).owner != Some(array) {
             return Ok(tree);
         }

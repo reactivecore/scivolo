@@ -6,10 +6,13 @@
 
 use super::Synthesizer;
 use super::class_tag_erasure::{erased_class_type, has_stable_erasure};
+use crate::defn::ARRAY;
 use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
 use syntax::ast::{NodeId, TName, Tree};
 use tasty::{Kind, Type, TypeId};
+
+const MANIFEST_FACTORY: &str = "scala.reflect.ManifestFactory";
 
 const PRIMITIVES: [&str; 9] = ["Byte", "Short", "Char", "Int", "Long", "Float", "Double", "Boolean", "Unit"];
 
@@ -61,7 +64,7 @@ impl Synthesizer {
         top: bool,
     ) -> Result<Option<TNodeId>, &'static str> {
         let tpe = t.u.dealias(tpe);
-        if let Some(&[elem]) = t.class_args(tpe, "scala.Array").as_deref() {
+        if let Some(&[elem]) = t.class_args(tpe, ARRAY).as_deref() {
             let elem_kind = if kind == ManifestKind::Full { kind } else { ManifestKind::Clss };
             let Some(e) = self.manifest_or_none(t, elem, elem_kind, top)? else { return Ok(None) };
             return self.factory_manifest(t, kind, "arrayType", elem, &[e]).map(Some);
@@ -119,7 +122,7 @@ impl Synthesizer {
 
     /// `ManifestFactory.name` of a primitive or special class.
     fn singleton_manifest(self, t: &mut Typer<'_>, name: &str) -> Result<TNodeId, &'static str> {
-        let module = t.resolve_full_name("scala.reflect.ManifestFactory", false).ok_or("ManifestFactory")?;
+        let module = t.resolve_full_name(MANIFEST_FACTORY, false).ok_or("ManifestFactory")?;
         let member = t.resolve_full_name(&format!("scala.reflect.ManifestFactory$.{name}"), false);
         let member = member.ok_or("ManifestFactory member")?;
         let tpe = crate::defn::type_ref(t.u, module);
@@ -138,7 +141,7 @@ impl Synthesizer {
         args: &[TNodeId],
     ) -> Result<TNodeId, &'static str> {
         let factory = match kind {
-            ManifestKind::Full => "scala.reflect.ManifestFactory",
+            ManifestKind::Full => MANIFEST_FACTORY,
             _ => "scala.reflect.ClassManifestFactory",
         };
         let module = t.resolve_full_name(factory, false).ok_or("ManifestFactory")?;

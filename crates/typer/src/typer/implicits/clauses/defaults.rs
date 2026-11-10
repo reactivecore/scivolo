@@ -5,22 +5,26 @@
 
 use super::super::super::{Pt, Typer};
 use super::ImplicitClause;
+use crate::defn::{
+    CAN_EQUAL, CLASS_TAG, MANIFEST, MIRROR, MIRROR_PRODUCT, MIRROR_SUM, OPT_MANIFEST, TUPLED_FUNCTION,
+    TYPE_TEST, VALUE_OF,
+};
 use crate::tpd::TNodeId;
 use syntax::ast::{Attrs, NodeId, TName, Tree};
 use tasty::TypeId;
 
 /// The classes whose instances dotty's `Synthesizer` makes.
 const SYNTHESIZED: &[&str] = &[
-    "scala.reflect.ClassTag",
-    "scala.reflect.TypeTest",
-    "scala.CanEqual",
-    "scala.ValueOf",
-    "scala.util.TupledFunction",
-    "scala.deriving.Mirror",
-    "scala.deriving.Mirror$.Product",
-    "scala.deriving.Mirror$.Sum",
-    "scala.reflect.Manifest",
-    "scala.reflect.OptManifest",
+    CLASS_TAG,
+    TYPE_TEST,
+    CAN_EQUAL,
+    VALUE_OF,
+    TUPLED_FUNCTION,
+    MIRROR,
+    MIRROR_PRODUCT,
+    MIRROR_SUM,
+    MANIFEST,
+    OPT_MANIFEST,
     "scala.Singleton",
     "scala.Precise",
 ];

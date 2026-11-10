@@ -7,6 +7,7 @@
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
+use crate::defn::ARRAY;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName, Tree};
@@ -166,7 +167,7 @@ impl Typer<'_> {
         if self.u.class_symbol(tpe).zip(seq).is_some_and(|(c, s)| self.u.derives_from(c, s)) {
             return ("addSeq", xs_node);
         }
-        let array = self.u.class_ref("scala.Array");
+        let array = self.u.class_ref(ARRAY);
         let array = self.u.intern_type(Type::Applied(array, vec![elem]));
         if self.conforms(tpe, array) {
             return ("addArray", xs_node);

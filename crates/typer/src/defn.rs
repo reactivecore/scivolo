@@ -6,6 +6,21 @@
 
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
+pub const ARRAY: &str = "scala.Array";
+/// The type class of equality evidence.
+pub const CAN_EQUAL: &str = "scala.CanEqual";
+pub const CLASS_TAG: &str = "scala.reflect.ClassTag";
+pub const TYPE_TEST: &str = "scala.reflect.TypeTest";
+pub const MANIFEST: &str = "scala.reflect.Manifest";
+pub const OPT_MANIFEST: &str = "scala.reflect.OptManifest";
+pub const VALUE_OF: &str = "scala.ValueOf";
+pub const TUPLED_FUNCTION: &str = "scala.util.TupledFunction";
+pub const MIRROR: &str = "scala.deriving.Mirror";
+pub const MIRROR_PRODUCT: &str = "scala.deriving.Mirror$.Product";
+pub const MIRROR_SUM: &str = "scala.deriving.Mirror$.Sum";
+/// The annotation of the types of `inline` parameters.
+pub const INLINE_PARAM: &str = "scala.annotation.internal.InlineParam";
+
 /// The symbols every unit needs, and those resolved on first use.
 pub struct Defn {
     pub scala: SymbolId,

@@ -16,6 +16,7 @@ use super::unsettled::{
     var_upper_bound,
 };
 use crate::ctx::{Ctx, Mode};
+use crate::defn::CAN_EQUAL;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use tasty::{SymbolId, Type, TypeId};
@@ -136,7 +137,7 @@ impl ImplicitSearch {
         if is_underspecified(&mut t.types(), pt) {
             return Err("no implicit argument");
         }
-        self.coherent = t.types().class_args(pt, "scala.CanEqual").is_some();
+        self.coherent = t.types().class_args(pt, CAN_EQUAL).is_some();
         let contextual = t.contextual_implicits(ctx, &mut |t, c| self.is_eligible(t, c))?;
         let levels = contextual.len();
         let mut contextual = contextual.into_iter();

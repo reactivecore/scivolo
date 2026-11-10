@@ -9,12 +9,13 @@ use super::implicits::is_misfit;
 use super::patterns::MAX_ALIAS_STEPS;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
+use crate::defn::{CLASS_TAG, TYPE_TEST};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::tags::OPAQUE;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
-const TAGS: [&str; 2] = ["scala.reflect.TypeTest", "scala.reflect.ClassTag"];
+const TAGS: [&str; 2] = [TYPE_TEST, CLASS_TAG];
 
 impl Typer<'_> {
     /// Pattern `id`, `expr: tpe` with type tree `tpt`, against `pt` as the extractor pattern

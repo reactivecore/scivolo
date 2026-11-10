@@ -14,6 +14,7 @@ mod tupled_functions;
 mod type_tests;
 
 use crate::ctx::{Ctx, Mode};
+use crate::defn::{CAN_EQUAL, CLASS_TAG, MANIFEST, OPT_MANIFEST, TUPLED_FUNCTION, TYPE_TEST, VALUE_OF};
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::Typer;
 use crate::typer::constants::of_type;
@@ -63,13 +64,13 @@ impl Synthesizer {
         let Type::Applied(tycon, args) = t.u.types().get(pt).clone() else { return Ok(None) };
         let Some(class) = t.u.class_symbol(tycon) else { return Ok(None) };
         match (t.u.full_name(class).as_str(), &args[..]) {
-            ("scala.CanEqual", &[l, r]) => self.can_equal(t, l, r),
-            ("scala.reflect.ClassTag", &[arg]) => self.class_tag(t, arg),
-            ("scala.ValueOf", &[arg]) => self.value_of(t, class, arg),
-            ("scala.reflect.Manifest", &[arg]) => self.manifest(t, arg, ManifestKind::Full),
-            ("scala.reflect.OptManifest", &[arg]) => self.manifest(t, arg, ManifestKind::Opt),
-            ("scala.reflect.TypeTest", &[from, to]) => self.type_test(t, from, to),
-            ("scala.util.TupledFunction", &[fun, tupled]) => self.tupled_function(t, fun, tupled),
+            (CAN_EQUAL, &[l, r]) => self.can_equal(t, l, r),
+            (CLASS_TAG, &[arg]) => self.class_tag(t, arg),
+            (VALUE_OF, &[arg]) => self.value_of(t, class, arg),
+            (MANIFEST, &[arg]) => self.manifest(t, arg, ManifestKind::Full),
+            (OPT_MANIFEST, &[arg]) => self.manifest(t, arg, ManifestKind::Opt),
+            (TYPE_TEST, &[from, to]) => self.type_test(t, from, to),
+            (TUPLED_FUNCTION, &[fun, tupled]) => self.tupled_function(t, fun, tupled),
             _ => Ok(None),
         }
     }

@@ -5,6 +5,7 @@
 
 use super::Typer;
 use super::type_ops::TypeOps;
+use crate::defn::{ARRAY, INLINE_PARAM};
 use crate::special::entered;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -120,7 +121,7 @@ impl Typer<'_> {
         };
         let (Some(seq_class), Some(array_class)) = (
             self.resolve_full_name("scala.collection.immutable.Seq", true),
-            self.resolve_full_name("scala.Array", true),
+            self.resolve_full_name(ARRAY, true),
         ) else {
             return self.unsupported(a, "sequence argument");
         };
@@ -191,8 +192,6 @@ impl TypeOps<'_> {
     /// `inline` parameter of an inline method is.
     pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
         let Type::Annotated(_, annot) = *self.u.types().get(p) else { return false };
-        self.u
-            .class_symbol(annot)
-            .is_some_and(|c| self.u.full_name(c) == "scala.annotation.internal.InlineParam")
+        self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == INLINE_PARAM)
     }
 }

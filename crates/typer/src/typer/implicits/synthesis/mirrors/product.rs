@@ -7,6 +7,7 @@
 use super::formal::MirrorCore;
 use super::sources::MirrorSource;
 use super::{MirrorSynthesis, label_pairs};
+use crate::defn::MIRROR_PRODUCT;
 use crate::tpd::TNodeId;
 use crate::typer::Typer;
 use crate::typer::paths::MAX_PATH_DEPTH;
@@ -54,7 +55,7 @@ impl MirrorSynthesis {
         let elem_labels = label_pairs(t, &labels)?;
         let label = t.u.symbol(cls).name.clone();
         let core = MirrorCore {
-            parent: "scala.deriving.Mirror$.Product",
+            parent: MIRROR_PRODUCT,
             mono,
             label: &label,
             elems: Some((elem_types, elem_labels)),

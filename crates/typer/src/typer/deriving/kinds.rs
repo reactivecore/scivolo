@@ -4,9 +4,9 @@
 //! class's type parameters (dotty's `deriveSingleParameter` and `deriveCanEqual`).
 
 use super::super::Typer;
-use super::super::equality::CAN_EQUAL;
 use super::Deriver;
 use super::trees::{class_applied, node, param_def, param_def_of, param_ident, type_node};
+use crate::defn::CAN_EQUAL;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{SymbolId, Type, TypeId, Universe};
 

@@ -5,6 +5,7 @@
 
 use super::formal::MirrorCore;
 use super::{MirrorSynthesis, label_pairs};
+use crate::defn::MIRROR_PRODUCT;
 use crate::tpd::TNodeId;
 use crate::typer::Typer;
 use crate::typer::small_tuples::MAX_TUPLE_ARITY;
@@ -36,7 +37,7 @@ impl MirrorSynthesis {
             _ => "Tuple".to_owned(),
         };
         let core = MirrorCore {
-            parent: "scala.deriving.Mirror$.Product",
+            parent: MIRROR_PRODUCT,
             mono: self.formal.mirrored,
             label: &label,
             elems: Some((elem_types, elem_labels)),

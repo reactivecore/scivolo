@@ -7,13 +7,11 @@
 use super::Typer;
 use super::implicits::is_misfit;
 use crate::ctx::{Ctx, Mode};
+use crate::defn::CAN_EQUAL;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::Features;
 use tasty::{Kind, SymbolId, Type, TypeId};
-
-/// The full name of the type class of equality evidence.
-pub const CAN_EQUAL: &str = "scala.CanEqual";
 
 impl Typer<'_> {
     /// Checks comparison `fun(arg)` at `at` of type `arg_tpe` in `ctx`, if `fun` selects `Any.==`

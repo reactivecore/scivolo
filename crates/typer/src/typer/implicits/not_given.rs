@@ -6,6 +6,7 @@
 use super::super::Typer;
 use super::super::type_ops::TypeOps;
 use super::search::ImplicitSearch;
+use crate::defn::{MANIFEST, MIRROR, OPT_MANIFEST, TUPLED_FUNCTION, TYPE_TEST, VALUE_OF};
 use crate::tpd::TNodeId;
 use tasty::{Kind, Type, TypeId};
 
@@ -14,12 +15,12 @@ use tasty::{Kind, Type, TypeId};
 const UNSEARCHED: [&str; 10] = [
     "scala.Function",
     "scala.ContextFunction",
-    "scala.deriving.Mirror",
-    "scala.reflect.TypeTest",
-    "scala.reflect.Manifest",
-    "scala.reflect.OptManifest",
-    "scala.ValueOf",
-    "scala.util.TupledFunction",
+    MIRROR,
+    TYPE_TEST,
+    MANIFEST,
+    OPT_MANIFEST,
+    VALUE_OF,
+    TUPLED_FUNCTION,
     "scala.Singleton",
     "scala.Precise",
 ];
