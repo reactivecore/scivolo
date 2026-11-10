@@ -4,6 +4,7 @@
 mod decode;
 mod flexible;
 mod map;
+mod name_table;
 mod narrowing;
 mod parts;
 mod refined_aliases;
@@ -17,6 +18,8 @@ use crate::{FileId, SymbolId};
 use rustc_hash::FxHashMap;
 
 pub use decode::{Decoder, param_tree_clauses};
+pub use name_table::NameId;
+use name_table::NameTable;
 pub use parts::Binding;
 pub use show_source::{Highlight, escape};
 
@@ -37,16 +40,16 @@ pub enum Type {
     /// The prefix of a reference to a local symbol.
     NoPrefix,
     /// `prefix.name` as a type, resolved when used.
-    TypeRef(TypeId, String),
+    TypeRef(TypeId, NameId),
     /// `prefix.name` as a path.
-    TermRef(TypeId, String),
+    TermRef(TypeId, NameId),
     /// A symbol of the universe, with its prefix if the reference has one.
     Sym(Option<TypeId>, SymbolId),
     /// A symbol defined in a tree the universe does not enter (a lambda's type parameter).
-    Local(Binder, String),
+    Local(Binder, NameId),
     Package(SymbolId),
     /// A package the universe does not have, by qualified name (`java.lang` without javalib).
-    PackageName(String),
+    PackageName(NameId),
     This(TypeId),
     /// `C.super[P]`: the `this` type of `C` and the parent type `P`, or all parents intersected.
     Super(TypeId, TypeId),
@@ -63,14 +66,14 @@ pub enum Type {
     /// `T | Null`, holding `T`.
     Flexible(TypeId),
     ByName(TypeId),
-    Refined(TypeId, String, TypeId),
+    Refined(TypeId, NameId, TypeId),
     Rec(Binder, TypeId),
     RecThis(Binder),
     /// Parameters named and typed; `implicit` for a `using` or `implicit` clause, `contextual`
     /// for a `using` one.
     Method {
         binder: Binder,
-        params: Vec<(String, TypeId)>,
+        params: Vec<(NameId, TypeId)>,
         result: TypeId,
         implicit: bool,
         contextual: bool,
@@ -78,12 +81,12 @@ pub enum Type {
     /// Type parameters named, with their bounds.
     Poly {
         binder: Binder,
-        params: Vec<(String, TypeId)>,
+        params: Vec<(NameId, TypeId)>,
         result: TypeId,
     },
     Lambda {
         binder: Binder,
-        params: Vec<(String, TypeId)>,
+        params: Vec<(NameId, TypeId)>,
         result: TypeId,
     },
     Param(Binder, u32),
@@ -100,7 +103,7 @@ pub enum Type {
     /// class type.
     Constant(u8, i64),
     /// A string constant.
-    Str(String),
+    Str(NameId),
     /// A type not represented yet, by its tag.
     Other(u8),
     /// A type variable, instantiated by the constraint the comparison runs in.
@@ -118,6 +121,7 @@ pub enum Type {
 pub struct Types {
     all: Vec<Type>,
     ids: FxHashMap<Type, TypeId>,
+    names: NameTable,
 }
 
 impl Types {
@@ -133,5 +137,13 @@ impl Types {
 
     pub fn get(&self, id: TypeId) -> &Type {
         &self.all[id.0 as usize]
+    }
+
+    pub fn intern_name(&mut self, text: &str) -> NameId {
+        self.names.intern(text)
+    }
+
+    pub fn name(&self, id: NameId) -> &str {
+        self.names.get(id)
     }
 }

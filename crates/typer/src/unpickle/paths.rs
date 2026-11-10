@@ -155,7 +155,7 @@ impl Unpickler<'_> {
         match self.u.ty(t).clone() {
             Type::TermRef(p, n) => {
                 let p = self.resolved(p);
-                match self.u.resolve(p, &n, false) {
+                match self.u.resolve(p, n, false) {
                     Some(s) if self.u.symbol(s).kind == Kind::Package => self.u.intern_type(Type::Package(s)),
                     Some(s) => self.u.intern_type(Type::Sym(Some(p), s)),
                     None => t,

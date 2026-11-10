@@ -69,6 +69,7 @@ fn refined(u: &mut Universe, c: SymbolId, parent: TypeId) -> TypeId {
             None => selectable,
         };
         if narrows {
+            let name = u.intern_name(&name);
             refined = u.intern_type(Type::Refined(refined, name, info));
         }
     }

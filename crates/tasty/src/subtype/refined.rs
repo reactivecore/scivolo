@@ -3,19 +3,19 @@
 //! Refinements on the right of a comparison (dotty's `hasMatchingMember`).
 
 use super::Cmp;
-use crate::types::{Type, TypeId};
+use crate::types::{NameId, Type, TypeId};
 
 impl Cmp<'_> {
     /// Whether `a` has a member `name` that conforms to refinement info `info`: a refinement of
     /// `a` itself, else a member of its class.
-    pub fn has_matching_member(&mut self, a: TypeId, name: &str, info: TypeId) -> bool {
+    pub fn has_matching_member(&mut self, a: TypeId, name: NameId, info: TypeId) -> bool {
         let t = self.u.widen(a);
         self.has_matching_member_in(a, t, name, info)
     }
 
     /// `has_matching_member` of `a` found in `t`, `a`'s widened type or a part of its
     /// intersection.
-    fn has_matching_member_in(&mut self, a: TypeId, mut t: TypeId, name: &str, info: TypeId) -> bool {
+    fn has_matching_member_in(&mut self, a: TypeId, mut t: TypeId, name: NameId, info: TypeId) -> bool {
         let (mut recs, mut seen) = (Vec::new(), None);
         loop {
             match self.u.ty(t).clone() {
@@ -55,7 +55,8 @@ impl Cmp<'_> {
             return false;
         }
         let Some(class) = self.u.class_symbol(t) else { return false };
-        let members = self.u.member(class, name);
+        let name = self.u.name(name).to_owned();
+        let members = self.u.member(class, &name);
         let site = match self.is_stable(a) {
             true => a,
             false => {

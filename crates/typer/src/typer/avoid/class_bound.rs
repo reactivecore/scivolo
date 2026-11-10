@@ -31,7 +31,7 @@ impl Avoid<'_> {
                 continue;
             }
             let is_type = t.u.is_type_symbol(d);
-            let name = t.u.symbol(d).name.clone();
+            let name = t.u.interned_name(d);
             let info = if is_type { type_info(t.u, d) } else { term_info(t.u, d) };
             let avoided = Avoid { visiting: self.visiting, ..Avoid::new(&missing, &[]) };
             let info = avoided.at(t, info, 1)?.hi();

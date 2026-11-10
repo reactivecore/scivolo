@@ -13,7 +13,7 @@ mod refinements;
 pub use annotated::escape;
 pub use highlight::Highlight;
 
-use super::{Binder, Type, TypeId};
+use super::{Binder, NameId, Type, TypeId};
 use crate::Universe;
 use crate::tags::INFIX;
 use crate::view::{Const, constant};
@@ -35,7 +35,7 @@ impl Universe {
 struct SourcePrinter<'u> {
     u: &'u mut Universe,
     /// The parameter names of the enclosing binding types.
-    binders: Vec<(Binder, Vec<String>)>,
+    binders: Vec<(Binder, Vec<NameId>)>,
     out: String,
     indent: usize,
     /// Whether references print with their prefixes.
@@ -57,11 +57,15 @@ impl SourcePrinter<'_> {
                 };
                 self.paint(Highlight::Literal, &text);
             }
-            Type::Str(s) => self.string(&s),
+            Type::Str(s) => {
+                let s = self.u.name(s).to_owned();
+                self.string(&s)
+            }
             Type::Annotated(inner, annot) => self.annotated(inner, annot)?,
             Type::NoPrefix => self.out.push_str("<NoPrefix() does not have a source representation>"),
             Type::TypeRef(p, n) => {
                 self.type_prefix(p)?;
+                let n = self.u.name(n).to_owned();
                 self.paint(Highlight::Type, n.strip_suffix('$').unwrap_or(&n));
             }
             Type::Sym(p, s) if self.u.symbol(s).kind.is_type() => {
@@ -85,7 +89,10 @@ impl SourcePrinter<'_> {
                     }
                 }
             }
-            Type::TermRef(p, n) => self.term_ref(p, &n)?,
+            Type::TermRef(p, n) => {
+                let n = self.u.name(n).to_owned();
+                self.term_ref(p, &n)?
+            }
             Type::This(c) => self.this(c)?,
             Type::Package(s) if s == self.u.root() => self.paint(Highlight::Type, "_root_"),
             Type::Package(s) if self.full => self.package_name(s, true),

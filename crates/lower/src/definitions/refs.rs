@@ -49,7 +49,7 @@ pub fn ref_class(u: &mut Universe, e: &Erased) -> Result<Ref, String> {
     };
     let ref_type = type_ref(u, class);
     let binder = u.fresh_binder();
-    let params = vec![("elem".to_owned(), elem_type)];
+    let params = vec![(u.intern_name("elem"), elem_type)];
     let info =
         u.intern_type(Type::Method { binder, params, result: ref_type, implicit: false, contextual: false });
     let create = java_static(u, class, "create", Kind::Def, info);

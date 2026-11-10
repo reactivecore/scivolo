@@ -135,8 +135,8 @@ impl Cmp<'_> {
     fn singleton_underlying(&mut self, t: TypeId) -> Option<TypeId> {
         let n = self.named(t)?;
         let s = n.sym.filter(|&s| matches!(self.u.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def))?;
-        let name = self.u.symbol(s).name.clone();
-        let refined = n.prefix.and_then(|p| self.u.term_refinement_named(p, &name));
+        let name = self.u.interned_name(s);
+        let refined = n.prefix.and_then(|p| self.u.term_refinement_named(p, name));
         let underlying = refined.unwrap_or_else(|| self.u.term_type(n.prefix, s));
         let underlying = self.u.by_name(underlying).unwrap_or(underlying);
         let singleton = match *self.u.ty(underlying) {

@@ -42,7 +42,7 @@ impl Typer<'_> {
                 _ => 0,
             },
             Type::Lambda { params, .. } => params.len(),
-            Type::TypeRef(pre, name) => match self.u.refinement_named(pre, &name) {
+            Type::TypeRef(pre, name) => match self.u.refinement_named(pre, name) {
                 Some(info) => self.info_arity(info, depth),
                 None => self.u.resolve_ref(t).map_or(0, |s| {
                     let sym = self.u.intern_type(Type::Sym(Some(pre), s));

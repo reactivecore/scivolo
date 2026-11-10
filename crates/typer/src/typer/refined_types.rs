@@ -46,7 +46,8 @@ impl Typer<'_> {
             let Tree::TypeDef { name, rhs, .. } = *self.ast.tree(r) else {
                 match self.term_refinement(class, r, ctx) {
                     Ok((name, info, tree)) => {
-                        let refined = self.u.intern_type(Type::Refined(tpe, name.clone(), info));
+                        let n = self.u.intern_name(&name);
+                        let refined = self.u.intern_type(Type::Refined(tpe, n, info));
                         if let Err(what) = self.refines_member(tpe, refined, &name) {
                             return self.unsupported(r, what);
                         }
@@ -74,6 +75,7 @@ impl Typer<'_> {
                 Ok(refinement) => refinement,
                 Err(refused) => return refused,
             };
+            let text = self.u.intern_name(&text);
             tpe = self.u.intern_type(Type::Refined(tpe, text, info));
             members.push(tree);
         }
@@ -127,7 +129,8 @@ impl Typer<'_> {
             _ => false,
         };
         let text = self.text(name.name).to_owned();
-        if !stable || self.u.refinement_named(pre, &text).is_none() {
+        let text = self.u.intern_name(&text);
+        if !stable || self.u.refinement_named(pre, text).is_none() {
             return None;
         }
         let tpe = self.u.intern_type(Type::TypeRef(pre, text));
@@ -172,6 +175,7 @@ impl Typer<'_> {
         if terms.is_empty() || self.u.is_subtype(parent, refined) {
             return Ok(());
         }
+        let name = self.u.intern_name(name);
         let narrows = terms.into_iter().any(|m| {
             let seen = self.u.member_info(parent, m);
             self.u.term_refinement_named(refined, name) == Some(seen)

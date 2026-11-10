@@ -164,7 +164,7 @@ fn hoist(l: &mut Lower, h: &mut Hoister, arg: TNodeId, lifted: &[SymbolId], span
         params.push(q);
     }
     let result = l.u.widen(l.tpd.tpe(arg));
-    let typed = params.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
+    let typed = params.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
     let binder = l.u.fresh_binder();
     let info =
         l.u.intern_type(Type::Method { binder, params: typed, result, implicit: false, contextual: false });

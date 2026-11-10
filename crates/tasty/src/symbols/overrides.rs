@@ -5,10 +5,10 @@
 //! `matches`), on types in a normal form.
 
 use super::{SymbolId, Universe};
-use crate::types::{Binder, Type, TypeId};
+use crate::types::{Binder, NameId, Type, TypeId};
 
 /// The binder and parameters of each value parameter clause of a method type.
-type Clauses = Vec<(Binder, Vec<(String, TypeId)>)>;
+type Clauses = Vec<(Binder, Vec<(NameId, TypeId)>)>;
 
 impl Universe {
     /// Whether members `a` and `b` of `site` match as Scala members (dotty's `matchesLoosely`):
@@ -91,7 +91,7 @@ impl Universe {
                 return None;
             }
             let p = u.param_paths_named(p, methods);
-            let name = u.symbol(s).name.clone();
+            let name = u.interned_name(s);
             let named =
                 if u.symbol(s).kind.is_term() { Type::TermRef(p, name) } else { Type::TypeRef(p, name) };
             Some(u.intern_type(named))

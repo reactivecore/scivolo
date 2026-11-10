@@ -5,7 +5,7 @@
 
 use super::super::Cmp;
 use super::super::refs::Meaning;
-use crate::types::{Binder, Type, TypeId};
+use crate::types::{Binder, NameId, Type, TypeId};
 use crate::{Kind, SymbolId};
 
 /// A legal pattern (dotty's `MatchTypeCasePattern`).
@@ -51,7 +51,7 @@ pub enum Spec {
 
 pub struct Specced {
     pub binder: Binder,
-    pub names: Vec<String>,
+    pub names: Vec<NameId>,
     /// The bounds of each capture.
     pub bounds: Vec<TypeId>,
     pub pattern: Pattern,
@@ -68,7 +68,7 @@ impl Cmp<'_> {
                     return Spec::Unsupported;
                 };
                 let mut unaccounted = vec![true; params.len()];
-                let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+                let names: Vec<_> = params.iter().map(|&(n, _)| n).collect();
                 if self.missing_captures(pat, binder, params.len()) {
                     return Spec::Unsupported;
                 }
@@ -105,13 +105,13 @@ impl Cmp<'_> {
         &mut self,
         pat: TypeId,
         variance: i8,
-        captures: (Binder, &[String]),
+        captures: (Binder, &[NameId]),
         unaccounted: &mut [bool],
     ) -> Option<Pattern> {
         match self.u.ty(pat).clone() {
             Type::Param(b, i) if b == captures.0 => {
                 *unaccounted.get_mut(i as usize)? = false;
-                let name = captures.1.get(i as usize)?;
+                let name = self.u.name(*captures.1.get(i as usize)?);
                 Some(Pattern::Capture(i, name == "_" || name.starts_with("_$")))
             }
             Type::Applied(tycon, args) if variance == 1 => {
@@ -167,7 +167,7 @@ impl Cmp<'_> {
         &mut self,
         args: &[TypeId],
         variances: &[i8],
-        captures: (Binder, &[String]),
+        captures: (Binder, &[NameId]),
         unaccounted: &mut [bool],
     ) -> Option<Vec<Pattern>> {
         if variances.len() != args.len() {

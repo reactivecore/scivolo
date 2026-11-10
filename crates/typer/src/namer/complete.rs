@@ -7,7 +7,7 @@ use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::typer::{InlineDef, Typer};
 use syntax::ast::{NodeId, Span, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Completes the info of `sym` if it is a script symbol not completed yet.
@@ -138,8 +138,8 @@ impl Typer<'_> {
     pub fn clauses_info(&mut self, clauses: Vec<Vec<SymbolId>>, result: TypeId) -> TypeId {
         clauses.into_iter().rev().fold(result, |result, clause| {
             let binder = self.syms.fresh_binder();
-            let params: Vec<(String, TypeId)> =
-                clause.iter().map(|&p| (self.u.symbol(p).name.clone(), self.method_param_type(p))).collect();
+            let params: Vec<(NameId, TypeId)> =
+                clause.iter().map(|&p| (self.u.interned_name(p), self.method_param_type(p))).collect();
             if clause.first().is_some_and(|&p| self.u.is_type_symbol(p)) {
                 let params =
                     params.into_iter().map(|(n, i)| (n, self.param_refs(i, &clause, binder))).collect();

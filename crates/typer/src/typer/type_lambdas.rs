@@ -58,11 +58,11 @@ impl Typer<'_> {
         let body = self.typed_type(body, lctx);
         let binder = self.syms.fresh_binder();
         let refs = |u: &mut tasty::Universe, t: TypeId| over_params(u, &syms, binder, t);
-        let lambda_params: Vec<(String, TypeId)> = syms
+        let lambda_params: Vec<(tasty::NameId, TypeId)> = syms
             .iter()
             .map(|&s| {
                 let bounds = self.u.info(s);
-                (self.u.symbol(s).name.clone(), refs(self.u, bounds))
+                (self.u.interned_name(s), refs(self.u, bounds))
             })
             .collect();
         let body_tpe = self.tpd.tpe(body);

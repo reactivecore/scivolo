@@ -5,7 +5,7 @@
 
 use super::Fallible;
 use crate::host::Host;
-use tasty::{Type, TypeId};
+use tasty::{NameId, Type, TypeId};
 
 /// Lambda kinds: method types plain, implicit and contextual, polymorphic types, type lambdas.
 const POLY: i32 = 3;
@@ -28,11 +28,12 @@ impl Host {
     /// `types` but the last, and the last as its result type.
     pub fn lambda_type(&mut self, binder: TypeId, types: Vec<TypeId>, names: String) -> Fallible<TypeId> {
         let (&result, params) = types.split_last().ok_or("a lambda type without its result type")?;
-        let names: Vec<String> = names.split('\0').filter(|n| !n.is_empty()).map(str::to_owned).collect();
+        let names: Vec<NameId> =
+            names.split('\0').filter(|n| !n.is_empty()).map(|n| self.u.intern_name(n)).collect();
         if names.len() != params.len() {
             return Err("a lambda type with another number of names than types");
         }
-        let params: Vec<(String, TypeId)> = names.into_iter().zip(params.iter().copied()).collect();
+        let params: Vec<(NameId, TypeId)> = names.into_iter().zip(params.iter().copied()).collect();
         let t = match self.u.ty(binder).clone() {
             Type::Method { binder, implicit, contextual, .. } => {
                 Type::Method { binder, params, result, implicit, contextual }

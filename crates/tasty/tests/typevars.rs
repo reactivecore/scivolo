@@ -241,7 +241,8 @@ fn class_constructors_compare_as_type_lambdas() {
         let bounds = u.intern_type(Type::Bounds(NOTHING, ANY));
         let x = u.intern_type(Type::Param(binder, 0));
         let result = u.intern_type(Type::Applied(tycon, vec![x]));
-        u.intern_type(Type::Lambda { binder, params: vec![("X".into(), bounds)], result })
+        let params = vec![(u.intern_name("X"), bounds)];
+        u.intern_type(Type::Lambda { binder, params, result })
     };
     let (to_seq, to_list) = (lambda(&mut u, seq), lambda(&mut u, list));
     assert!(u.is_subtype(list, to_seq));

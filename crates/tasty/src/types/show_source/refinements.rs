@@ -42,6 +42,7 @@ impl SourcePrinter<'_> {
             return Ok(());
         };
         self.refinements(parent)?;
+        let name = self.u.name(name).to_owned();
         self.indent += 1;
         self.line_break();
         let bounds = match *self.u.ty(info) {

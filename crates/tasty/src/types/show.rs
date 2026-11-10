@@ -1,27 +1,30 @@
 //! Types as text, close to Scala syntax: `scala.Option[B]`, `(f: A => B): R`, `[B] => …`.
 
-use super::{Type, TypeId};
+use super::{NameId, Type, TypeId};
 use crate::Universe;
 
 impl Universe {
     pub fn show(&self, t: TypeId) -> String {
-        let params = |ps: &[(String, TypeId)]| {
-            ps.iter().map(|(n, t)| format!("{n}: {}", self.show(*t))).collect::<Vec<_>>().join(", ")
+        let params = |ps: &[(NameId, TypeId)]| {
+            ps.iter()
+                .map(|&(n, t)| format!("{}: {}", self.name(n), self.show(t)))
+                .collect::<Vec<_>>()
+                .join(", ")
         };
         match self.ty(t) {
             Type::NoPrefix => String::new(),
             Type::TypeRef(p, n) | Type::TermRef(p, n) => match self.show(*p) {
-                prefix if prefix.is_empty() => n.clone(),
-                prefix => format!("{prefix}.{n}"),
+                prefix if prefix.is_empty() => self.name(*n).to_owned(),
+                prefix => format!("{prefix}.{}", self.name(*n)),
             },
             Type::Sym(Some(p), s) => match self.show(*p) {
                 prefix if prefix.is_empty() => self.symbol(*s).name.clone(),
                 prefix => format!("{prefix}.{}", self.symbol(*s).name),
             },
             Type::Sym(None, s) => self.symbol(*s).name.clone(),
-            Type::Local(_, n) => n.clone(),
+            Type::Local(_, n) => self.name(*n).to_owned(),
             Type::Package(p) => self.full_name(*p),
-            Type::PackageName(p) => p.clone(),
+            Type::PackageName(p) => self.name(*p).to_owned(),
             Type::This(c) => format!("{}.this", self.show(*c)),
             Type::Super(t, p) => format!("{}.super[{}]", self.show(*t), self.show(*p)),
             Type::Applied(c, args) => {
@@ -39,7 +42,7 @@ impl Universe {
             Type::Annotated(u, _) => self.show(*u),
             Type::Flexible(u) => format!("({})?", self.show(*u)),
             Type::ByName(u) => format!("=> {}", self.show(*u)),
-            Type::Refined(p, n, i) => format!("{} {{ {n}: {} }}", self.show(*p), self.show(*i)),
+            Type::Refined(p, n, i) => format!("{} {{ {}: {} }}", self.show(*p), self.name(*n), self.show(*i)),
             Type::Rec(_, p) => self.show(*p),
             Type::RecThis(_) => "this".into(),
             Type::Method { params: ps, result, implicit, contextual, .. } => {
@@ -64,7 +67,7 @@ impl Universe {
             }
             Type::MatchCase(p, b) => format!("case {} => {}", self.show(*p), self.show(*b)),
             Type::Constant(tag, v) => format!("{}({v})", crate::tags::name(*tag)),
-            Type::Str(s) => format!("{s:?}"),
+            Type::Str(s) => format!("{:?}", self.name(*s)),
             Type::Other(tag) => format!("<{}>", crate::tags::name(*tag)),
             Type::Var(v) => format!("?{}", v.0),
             Type::Skolem(b, info) => format!("(?{} : {})", b.1, self.show(*info)),

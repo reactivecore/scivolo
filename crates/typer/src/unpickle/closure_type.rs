@@ -6,7 +6,7 @@ use super::{Refusal, Unpickler};
 use crate::tpd::TNodeId;
 use crate::typer::approx::{self, Approx};
 use crate::typer::dependent_params::mentions_params;
-use tasty::{Binder, Kind, NOTHING, SymbolId, Type, TypeId};
+use tasty::{Binder, Kind, NOTHING, NameId, SymbolId, Type, TypeId};
 
 /// The method type whose dependent result is approximated: its binder, parameter types and
 /// method symbol.
@@ -19,7 +19,8 @@ impl Unpickler<'_> {
         let info = self.u.info(s);
         if self.u.poly(info).is_some() || self.u.has_erased_params(info) {
             let poly_function = self.u.class_ref(crate::defn::POLY_FUNCTION);
-            return Ok(self.u.intern_type(Type::Refined(poly_function, "apply".into(), info)));
+            let apply = self.u.intern_name("apply");
+            return Ok(self.u.intern_type(Type::Refined(poly_function, apply, info)));
         }
         let Some((binder, params, result, contextual)) =
             self.u.method(info).map(|m| (m.binder, m.params.to_vec(), m.result, m.contextual))
@@ -37,7 +38,10 @@ impl Unpickler<'_> {
         let class = self.class_symbol(&format!("scala.{kind}{}", params.len()))?;
         let function = crate::defn::applied(self.u, class, types.into_iter().chain([approx]).collect());
         Ok(match dependent {
-            true => self.u.intern_type(Type::Refined(function, "apply".into(), info)),
+            true => {
+                let apply = self.u.intern_name("apply");
+                self.u.intern_type(Type::Refined(function, apply, info))
+            }
             false => function,
         })
     }
@@ -67,7 +71,7 @@ impl Unpickler<'_> {
             }
             Type::Refined(parent, name, info) => {
                 let (parent, info) = (self.approx(parent, v, ps)?, self.approx(info, v, ps)?);
-                Some(approx::refined(self.u, parent, &name, info, v))
+                Some(approx::refined(self.u, parent, name, info, v))
             }
             Type::Bounds(lo, hi) => {
                 let (lo, hi) = (self.approx(lo, -v, ps)?, self.approx(hi, v, ps)?);
@@ -107,7 +111,7 @@ impl Unpickler<'_> {
     fn member_approx(
         &mut self,
         pre: TypeId,
-        member: Result<SymbolId, String>,
+        member: Result<SymbolId, NameId>,
         v: i8,
         ps: Params,
     ) -> Option<Approx> {
@@ -115,6 +119,7 @@ impl Unpickler<'_> {
         let member = match member {
             Ok(m) => m,
             Err(name) => {
+                let name = self.u.name(name).to_owned();
                 self.u.member_of_type(param, &name).into_iter().find(|&m| self.u.is_type_symbol(m))?
             }
         };

@@ -151,7 +151,7 @@ impl Inlining<'_> {
         let select = self.tpd.node(T::Select { qualifier: new, name }, at, Some(ctor_ref), Some(ctor));
         let applied = crate::defn::applied(self.u, some, vec![elem]);
         let binder = self.u.fresh_binder();
-        let params = vec![("value".to_owned(), elem)];
+        let params = vec![(self.u.intern_name("value"), elem)];
         let method = self.u.intern_type(Type::Method {
             binder,
             params,

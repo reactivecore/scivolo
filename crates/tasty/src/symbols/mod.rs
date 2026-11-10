@@ -300,6 +300,22 @@ impl Universe {
         self.types.intern(t)
     }
 
+    /// The id of name `text` in the name table of the types.
+    pub fn intern_name(&mut self, text: &str) -> crate::NameId {
+        self.types.intern_name(text)
+    }
+
+    /// The name of symbol `s`, interned.
+    pub fn interned_name(&mut self, s: SymbolId) -> crate::NameId {
+        self.types.intern_name(&self.symbols[s.0 as usize].name)
+    }
+
+    /// The constant type of string `text`.
+    pub fn str_type(&mut self, text: &str) -> TypeId {
+        let s = self.types.intern_name(text);
+        self.types.intern(crate::Type::Str(s))
+    }
+
     /// The unions built so far and the atoms of unions.
     pub fn unions(&mut self) -> &mut Unions {
         &mut self.unions

@@ -195,7 +195,7 @@ fn poly_call(l: &mut Lower, fun: TNodeId, targs: &[TypeId], span: Span) -> TNode
     let instance = l.u.subst(result, binder, &names, targs);
     let instance = l.u.map_type(instance, &mut |u, x| match u.sym_of(x) {
         Some(s) if u.symbol(s).owner == Some(method) => {
-            names.iter().position(|n| *n == u.symbol(s).name).map(|i| targs[i])
+            names.iter().position(|&n| u.name(n) == u.symbol(s).name).map(|i| targs[i])
         }
         _ => None,
     });

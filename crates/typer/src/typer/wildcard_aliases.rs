@@ -37,10 +37,9 @@ impl Typer<'_> {
 
 fn bounded(u: &mut Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| {
-        let Type::Refined(parent, ref name, info) = *u.ty(part) else { return None };
+        let Type::Refined(parent, name, info) = *u.ty(part) else { return None };
         let b = u.type_alias(info)?;
         u.bounds(b)?;
-        let name = name.clone();
         let parent = bounded(u, parent);
         Some(u.intern_type(Type::Refined(parent, name, b)))
     })

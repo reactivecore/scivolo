@@ -70,7 +70,7 @@ pub fn enum_ordinal(
     let cc = l.case_classes()?;
     let int = l.u.class_ref("scala.Int");
     let binder = l.u.fresh_binder();
-    let params = vec![("x$0".into(), param)];
+    let params = vec![(l.u.intern_name("x$0"), param)];
     let info =
         l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
     let like = l.u.decls_named(cc.mirror_sum, "ordinal");
@@ -103,7 +103,7 @@ pub fn ordinal(
     let children = children(l, root, sealed);
     let int = l.u.class_ref("scala.Int");
     let binder = l.u.fresh_binder();
-    let params = vec![("x$0".into(), param)];
+    let params = vec![(l.u.intern_name("x$0"), param)];
     let info =
         l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
     let like = l.u.decls_named(cc.mirror_sum, "ordinal");

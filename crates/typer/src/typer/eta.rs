@@ -108,7 +108,8 @@ impl Typer<'_> {
                 let typed = self.type_tree(*p, start, false);
                 self.splices.insert(tpt, typed);
             }
-            let name = if java { self.name(&format!("x${i}")) } else { self.name(name) };
+            let name = if java { format!("x${i}") } else { self.u.name(*name).to_owned() };
+            let name = self.name(&name);
             let name = TName { name, is_type: false };
             let mods = self.ast.mods(Modifiers::with_flags(f::SYNTHETIC_TERM_PARAM));
             let param = self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods });

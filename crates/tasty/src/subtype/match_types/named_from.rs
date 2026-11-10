@@ -57,7 +57,7 @@ impl Cmp<'_> {
                 ((1..=elems.len()).map(|i| format!("_{i}")).collect(), elems)
             }
         };
-        let labels: Vec<TypeId> = labels.into_iter().map(|l| self.u.intern_type(Type::Str(l))).collect();
+        let labels: Vec<TypeId> = labels.iter().map(|l| self.u.str_type(l)).collect();
         let (labels, fields) = (self.pairs(&labels)?, self.pairs(&fields)?);
         Some(self.u.intern_type(Type::Applied(nt, vec![labels, fields])))
     }

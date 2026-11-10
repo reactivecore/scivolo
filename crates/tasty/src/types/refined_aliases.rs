@@ -14,7 +14,7 @@ impl Universe {
     pub fn lookup_refined(&mut self, t: TypeId, name: &str) -> Option<TypeId> {
         match self.ty(t).clone() {
             Type::Refined(p, n, info) => match *self.ty(info) {
-                Type::Alias(alias) if n == name => Some(alias),
+                Type::Alias(alias) if self.name(n) == name => Some(alias),
                 _ => self.lookup_refined(p, name),
             },
             Type::Annotated(p, _) | Type::Skolem(_, p) => self.lookup_refined(p, name),

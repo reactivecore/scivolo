@@ -52,7 +52,8 @@ impl Reflect<'_> {
     fn select_apply(&mut self, fun: TNodeId, info: TypeId) -> Result<TNodeId, &'static str> {
         let span = self.tpd.span(fun);
         if self.u.poly_function_apply_of(info).is_some() {
-            let tpe = self.u.intern_type(Type::TermRef(info, "apply".into()));
+            let apply = self.u.intern_name("apply");
+            let tpe = self.u.intern_type(Type::TermRef(info, apply));
             let name = TName { name: self.names.intern("apply"), is_type: false };
             return Ok(self.tpd.node(T::Select { qualifier: fun, name }, span, Some(tpe), None));
         }

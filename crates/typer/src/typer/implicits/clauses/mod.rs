@@ -11,7 +11,7 @@ use super::search::AMBIGUOUS;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{Binder, Binding, SymbolId, TypeId};
+use tasty::{Binder, Binding, NameId, SymbolId, TypeId};
 
 /// The application of one implicit parameter clause of a tree to the arguments the searches find
 /// for it, as `summon[Ordering[Int]]` gets `(using Ordering.Int)` (dotty's `addImplicitArgs` in
@@ -24,9 +24,9 @@ pub struct ImplicitClause {
     /// The binder its parameter types refer to the parameters by.
     binder: Binder,
     /// The parameters of the clause, by name and type.
-    params: Vec<(String, TypeId)>,
+    params: Vec<(NameId, TypeId)>,
     /// The names of `params`.
-    names: Vec<String>,
+    names: Vec<NameId>,
     /// The type after the clause, referring to its parameters.
     result: TypeId,
     /// Where the arguments are searched.
@@ -95,7 +95,7 @@ impl ImplicitClause {
         let info = t.method_info(tpe).unwrap_or(tpe);
         let m = t.u.method(info).filter(|m| m.implicit)?;
         let (binder, params, result) = (m.binder, m.params.to_vec(), m.result);
-        let names = params.iter().map(|(n, _)| n.clone()).collect();
+        let names = params.iter().map(|&(n, _)| n).collect();
         let meth = t.tpd.sym(t.tpd.meth_part(tree));
         Some(ImplicitClause { tree, meth, binder, params, names, result, at, span, ctx, depth })
     }
@@ -106,15 +106,15 @@ impl ImplicitClause {
     fn applied(self, t: &mut Typer<'_>) -> Result<TNodeId, &'static str> {
         let mut found: Vec<Option<TNodeId>> = Vec::new();
         let mut ambiguous = false;
-        for (i, (name, p)) in self.params.iter().enumerate() {
-            if ambiguous && self.mentions_params(t, *p) {
+        for (i, &(name, p)) in self.params.iter().enumerate() {
+            if ambiguous && self.mentions_params(t, p) {
                 break;
             }
-            if found.contains(&None) && self.mentions_params(t, *p) {
+            if found.contains(&None) && self.mentions_params(t, p) {
                 return Err("implicit parameter depending on a defaulted one");
             }
             let before: Vec<TypeId> = found.iter().flatten().map(|&a| t.tpd.tpe(a)).collect();
-            let formal = self.substituted(t, *p, &before);
+            let formal = self.substituted(t, p, &before);
             match t.implicit_arg(formal, self.at, self.ctx, self.depth) {
                 Err("no implicit argument") if self.defaultable(t, i, formal) => found.push(None),
                 Err("no implicit argument")
@@ -123,7 +123,8 @@ impl ImplicitClause {
                     return Err("nested implicit argument left to its default");
                 }
                 Err(what @ "no implicit argument") if self.depth == 0 => {
-                    return self.unsupplied(t, name, formal).ok_or(what);
+                    let name = t.u.name(name).to_owned();
+                    return self.unsupplied(t, &name, formal).ok_or(what);
                 }
                 Err(AMBIGUOUS) if self.depth > 0 => ambiguous = true,
                 arg => found.push(Some(arg?)),

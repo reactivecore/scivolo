@@ -3,7 +3,7 @@
 
 use super::{Kind, SymbolId, Universe};
 use crate::tags::OBJECT;
-use crate::types::{Type, TypeId};
+use crate::types::{NameId, Type, TypeId};
 
 /// How many resolutions may be in progress at once, one inside another.
 const MAX_RESOLVING: u32 = 64;
@@ -14,9 +14,9 @@ impl Universe {
         if let Some(&s) = self.resolved.get(&t) {
             return Some(s);
         }
-        let s = match self.types.get(t).clone() {
-            Type::TypeRef(p, n) => self.resolve(p, &n, true)?,
-            Type::TermRef(p, n) => self.resolve(p, &n, false)?,
+        let s = match *self.types.get(t) {
+            Type::TypeRef(p, n) => self.resolve(p, n, true)?,
+            Type::TermRef(p, n) => self.resolve(p, n, false)?,
             _ => return None,
         };
         self.resolved.insert(t, s);
@@ -25,12 +25,13 @@ impl Universe {
 
     /// The symbol `prefix.name` refers to, a type symbol if `ty`, else a term symbol; `None` for
     /// a reference whose prefix leads back to itself deeper than `MAX_RESOLVING`.
-    pub fn resolve(&mut self, prefix: TypeId, name: &str, ty: bool) -> Option<SymbolId> {
+    pub fn resolve(&mut self, prefix: TypeId, name: NameId, ty: bool) -> Option<SymbolId> {
         if self.resolving >= MAX_RESOLVING {
             return None;
         }
         self.resolving += 1;
-        let found = self.resolve_in(prefix, name, ty);
+        let name = self.name(name).to_owned();
+        let found = self.resolve_in(prefix, &name, ty);
         self.resolving -= 1;
         found
     }

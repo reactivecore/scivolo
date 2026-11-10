@@ -29,7 +29,7 @@ impl Typer<'_> {
         let fun = self.build().ident(spread, fun_tpe, at);
         let targ = self.type_tree(elem, at, true);
         let binder = self.u.fresh_binder();
-        let params = vec![("x$0".to_owned(), ANY)];
+        let params = vec![(self.u.intern_name("x$0"), ANY)];
         let info = Type::Method { binder, params, result: elem, implicit: false, contextual: false };
         let info = self.u.intern_type(info);
         let fun = self.build().type_apply(fun, &[targ], info, at);

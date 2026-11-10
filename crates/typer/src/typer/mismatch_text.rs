@@ -17,7 +17,7 @@ impl Typer<'_> {
             for part in self.type_parts(t) {
                 let sym = match self.u.ty(part).clone() {
                     Type::Sym(_, s) => Some(s),
-                    Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
+                    Type::TypeRef(p, n) => self.u.resolve(p, n, true),
                     _ => None,
                 };
                 let Some(s) = sym.filter(|&s| !self.u.symbol(s).kind.is_term()) else { continue };
@@ -48,7 +48,7 @@ impl Typer<'_> {
     pub fn term_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
         let s = match self.u.ty(t).clone() {
             Type::Sym(_, s) => s,
-            Type::TermRef(p, n) => self.u.resolve(p, &n, false)?,
+            Type::TermRef(p, n) => self.u.resolve(p, n, false)?,
             _ => return None,
         };
         let sym = self.u.symbol(s);
@@ -60,7 +60,7 @@ impl Typer<'_> {
     pub fn found_text(&mut self, t: TypeId) -> Option<String> {
         let widened = self.u.widen(t);
         let literal = match self.u.ty(t).clone() {
-            Type::Str(s) => format!("\"{}\"", plain_chars(&s)?),
+            Type::Str(s) => format!("\"{}\"", plain_chars(self.u.name(s))?),
             Type::Constant(tag, bits) => match constant(tag, bits)? {
                 Const::Bool(b) => b.to_string(),
                 Const::Char(c) => format!("'{}'", plain_chars(&c.to_string())?),

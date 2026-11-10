@@ -165,7 +165,9 @@ fn integrate(l: &mut Lower, def: TNodeId, m: SymbolId) -> usize {
 pub fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
     let Some(m) = l.u.method(t) else { return t };
     let (binder, result, implicit, contextual) = (m.binder, m.result, m.implicit, m.contextual);
-    let params = m.params.iter().enumerate().map(|(i, &(_, p))| (format!("x${i}"), p)).collect();
+    let params = m.params.to_vec();
+    let params =
+        params.into_iter().enumerate().map(|(i, (_, p))| (l.u.intern_name(&format!("x${i}")), p)).collect();
     l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
 }
 
@@ -226,7 +228,7 @@ fn references(l: &Lower, mut t: TNodeId, f: &Flattened) -> bool {
 fn is_context_apply(l: &mut Lower, t: TNodeId) -> bool {
     let Some(s) = l.tpd.sym(t) else {
         let Some((prefix, name)) = l.u.term_ref(l.tpd.tpe(t)) else { return false };
-        return name == "apply" && is_erased_context_function(l, prefix);
+        return l.u.name(name) == "apply" && is_erased_context_function(l, prefix);
     };
     let owner = l.u.symbol(s).owner;
     l.u.symbol(s).name == "apply"
@@ -242,8 +244,8 @@ fn is_annotated(l: &mut Lower, s: SymbolId) -> bool {
 pub fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
     let t = l.u.dealias(t);
     let mut base = t;
-    while let Type::Refined(parent, ref name, _) = *l.u.ty(base)
-        && name == "apply"
+    while let Type::Refined(parent, name, _) = *l.u.ty(base)
+        && l.u.name(name) == "apply"
     {
         base = parent;
     }

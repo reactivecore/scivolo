@@ -19,7 +19,7 @@ use tasty::tags::{
     BYTEconst, CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INLINE, INTconst, LAZY, LONGconst,
     MUTABLE, SHORTconst, TRUEconst,
 };
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// How many references `term_ref_underlying` looks through.
@@ -67,7 +67,7 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
         return;
     }
     if is_constant_op(l, t, inits)
-        && let Some(lit) = literal(l.u.ty(l.tpd.tpe(t)))
+        && let Some(lit) = literal(l.u, l.tpd.tpe(t))
     {
         l.tpd.get_mut(t).tree = lit;
         l.tpd.get_mut(t).sym = None;
@@ -78,7 +78,7 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
             Type::Sym(_, s) if l.u.symbol(s).kind == Kind::Val => l.u.info(s),
             _ => l.tpd.tpe(t),
         };
-        if let Some(lit) = literal(l.u.ty(tpe)) {
+        if let Some(lit) = literal(l.u, tpe) {
             let node = l.tpd.get_mut(t);
             node.tree = lit;
             return;
@@ -89,8 +89,8 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
         return;
     }
     let underlying = term_ref_underlying(l, l.tpd.tpe(t));
-    let info = if literal(l.u.ty(underlying)).is_some() { underlying } else { l.u.info(s) };
-    let Some(lit) = literal(l.u.ty(info)) else { return };
+    let info = if literal(l.u, underlying).is_some() { underlying } else { l.u.info(s) };
+    let Some(lit) = literal(l.u, info) else { return };
     let node = l.tpd.get_mut(t);
     node.tree = lit;
     node.tpe = Some(info);
@@ -201,16 +201,16 @@ pub fn is_pure(l: &Lower, t: TNodeId) -> bool {
 }
 
 /// The literal of constant type `t`, if the syntax has one for it.
-pub fn literal(t: &Type) -> Option<Tree> {
-    if let Type::Constant(CLASSconst, bits) = *t {
+pub fn literal(u: &Universe, t: TypeId) -> Option<Tree> {
+    if let Type::Constant(CLASSconst, bits) = *u.ty(t) {
         return Some(Tree::ClassLiteral { tpe: TypeId(bits as u32) });
     }
-    Some(Tree::Literal { value: constant(t)? })
+    Some(Tree::Literal { value: constant(u, t)? })
 }
 
 /// The constant of constant type `t`, if the syntax has one for it.
-fn constant(t: &Type) -> Option<Constant> {
-    Some(match *t {
+fn constant(u: &Universe, t: TypeId) -> Option<Constant> {
+    Some(match *u.ty(t) {
         Type::Constant(TRUEconst, _) => Constant::Boolean(true),
         Type::Constant(FALSEconst, _) => Constant::Boolean(false),
         Type::Constant(BYTEconst, b) => Constant::Byte(b as i8),
@@ -220,7 +220,7 @@ fn constant(t: &Type) -> Option<Constant> {
         Type::Constant(LONGconst, b) => Constant::Long(b),
         Type::Constant(FLOATconst, b) => Constant::Float(f32::from_bits(b as u32)),
         Type::Constant(DOUBLEconst, b) => Constant::Double(f64::from_bits(b as u64)),
-        Type::Str(ref s) => Constant::String(to_utf16(s).into()),
+        Type::Str(s) => Constant::String(to_utf16(u.name(s)).into()),
         _ => return None,
     })
 }
@@ -228,6 +228,6 @@ fn constant(t: &Type) -> Option<Constant> {
 /// The constant value of constant `final` value `s`, as a literal tree at `span`.
 pub fn literal_of(l: &mut Lower, s: tasty::SymbolId, span: syntax::ast::Span) -> Option<TNodeId> {
     let info = l.u.info(s);
-    let lit = literal(l.u.ty(info))?;
+    let lit = literal(l.u, info)?;
     Some(l.tpd.node(lit, span, Some(info), None))
 }

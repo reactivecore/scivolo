@@ -164,7 +164,7 @@ fn tuple_tail(
 fn size(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     let tpe = l.tpd.tpe(t);
     let constant = l.u.try_normalize(tpe)?;
-    let tree = literal(l.u.ty(constant))?;
+    let tree = literal(l.u, constant)?;
     Some(l.tpd.node(tree, Span::NONE, Some(constant), None))
 }
 

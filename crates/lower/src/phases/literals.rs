@@ -5,7 +5,7 @@ use crate::Lower;
 use crate::definitions::type_ref;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Erased, Type, TypeId};
+use tasty::{Erased, TypeId};
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Lower<'_> {
@@ -14,7 +14,7 @@ impl Lower<'_> {
     }
 
     pub fn string_literal(&mut self, s: &str) -> TNodeId {
-        let tpe = self.u.intern_type(Type::Str(s.to_owned()));
+        let tpe = self.u.str_type(s);
         let value = Constant::String(syntax::names::to_utf16(s).into());
         self.tpd.node(Tree::Literal { value }, Span::NONE, Some(tpe), None)
     }

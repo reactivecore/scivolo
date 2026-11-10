@@ -217,9 +217,10 @@ fn deferred_def(l: &mut Lower, acc: SymbolId, info: TypeId, span: Span) -> TNode
     let tdefs: Vec<TNodeId> = tparams.iter().map(|&t| l.type_param_def(t, span)).collect();
     let (params, result) = l.u.method(mono).map_or((None, mono), |m| (Some(m.params.to_vec()), m.result));
     let mut defs = Vec::new();
-    for (pname, ptype) in params.iter().flatten() {
-        let p = l.u.define(symbol(pname, Kind::Param, acc, Flags::default()));
-        l.u.set_info(p, *ptype);
+    for &(pname, ptype) in params.iter().flatten() {
+        let pname = l.u.name(pname).to_owned();
+        let p = l.u.define(symbol(&pname, Kind::Param, acc, Flags::default()));
+        l.u.set_info(p, ptype);
         defs.push(l.param_def(p, span));
     }
     let tpt = l.type_tree(result, span);
@@ -238,8 +239,13 @@ pub fn type_params(l: &mut Lower, acc: SymbolId, info: TypeId) -> (Vec<SymbolId>
     else {
         return (Vec::new(), info);
     };
-    let tparams: Vec<SymbolId> =
-        names.iter().map(|n| l.u.define(symbol(n, Kind::TypeParam, acc, Flags::default()))).collect();
+    let tparams: Vec<SymbolId> = names
+        .iter()
+        .map(|&n| {
+            let n = l.u.name(n).to_owned();
+            l.u.define(symbol(&n, Kind::TypeParam, acc, Flags::default()))
+        })
+        .collect();
     let args: Vec<TypeId> = tparams.iter().map(|&t| l.u.intern_type(Type::Sym(None, t))).collect();
     for (&t, bounds) in tparams.iter().zip(bounds) {
         let bounds = l.u.subst(bounds, binder, &names, &args);

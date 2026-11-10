@@ -16,7 +16,7 @@ pub struct Sam {
     pub clause: SamClause,
 }
 
-pub type SamClause = (tasty::Binder, Vec<String>, SymbolId);
+pub type SamClause = (tasty::Binder, Vec<tasty::NameId>, SymbolId);
 /// `parent` and `clause` of a `Sam`.
 pub type SamParent = (TypeId, SamClause);
 

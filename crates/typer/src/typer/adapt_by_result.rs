@@ -6,7 +6,7 @@
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`
@@ -87,19 +87,19 @@ impl Typer<'_> {
         let depth = depth.checked_sub(1)?;
         match self.u.ty(t).clone() {
             Type::Poly { binder, params, result } => {
-                let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+                let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
                 let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
                 let result = self.instantiate_poly(result, binder, &names, &vars, None);
                 self.proto_normalized((result, meth), pt, true, depth)
             }
             Type::Method { binder, params, result, implicit: true, .. } => {
-                let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+                let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
                 let infos: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
                 let result = self.u.subst(result, binder, &names, &infos);
                 let result = self.u.map_type(result, &mut |u, t| match *u.ty(t) {
                     Type::Sym(None, s) if u.symbol(s).kind == tasty::Kind::Param && meth.is_some() => {
                         let own = u.symbol(s).owner == meth;
-                        names.iter().position(|n| own && *n == u.symbol(s).name).map(|i| infos[i])
+                        names.iter().position(|n| own && u.name(*n) == u.symbol(s).name).map(|i| infos[i])
                     }
                     _ => None,
                 });

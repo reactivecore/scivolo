@@ -10,7 +10,7 @@ use super::dependent_params::{
     applied_result, has_false_dependency, mentions_clause_params, mentions_params, mentions_params_except,
 };
 use crate::tpd::TNodeId;
-use tasty::{Binder, Kind, SymbolId, Type, TypeId, TypeVars};
+use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// Whether parameter type `p` is by-name or refers to a parameter it does not bind.
@@ -33,7 +33,7 @@ impl Typer<'_> {
     pub fn applied_result(
         &mut self,
         t: TypeId,
-        params: (Binder, &[String]),
+        params: (Binder, &[NameId]),
         method: Option<SymbolId>,
         args: &[TypeId],
     ) -> TypeId {
@@ -49,7 +49,7 @@ impl Typer<'_> {
     pub fn mentions_clause_params(
         &mut self,
         t: TypeId,
-        clause: (Binder, &[String]),
+        clause: (Binder, &[NameId]),
         method: Option<SymbolId>,
     ) -> bool {
         mentions_clause_params(self.u, t, clause, method)
@@ -62,7 +62,7 @@ impl Typer<'_> {
     pub fn param_dependent(
         &mut self,
         formals: &[TypeId],
-        (clause, method): ((Binder, &[String]), Option<SymbolId>),
+        (clause, method): ((Binder, &[NameId]), Option<SymbolId>),
         applied: &[SymbolId],
         in_order: bool,
     ) -> Result<bool, &'static str> {
@@ -86,7 +86,7 @@ impl Typer<'_> {
     pub fn dependent_formal(
         &mut self,
         formal: TypeId,
-        (clause, method): ((Binder, &[String]), Option<SymbolId>),
+        (clause, method): ((Binder, &[NameId]), Option<SymbolId>),
         before: &[TNodeId],
     ) -> TypeId {
         let types: Vec<TypeId> = before.iter().map(|&a| self.tpd.tpe(a)).collect();
@@ -137,12 +137,12 @@ impl Typer<'_> {
     pub fn dependent_result(
         &mut self,
         t: TypeId,
-        (binder, params): (Binder, &[(String, TypeId)]),
+        (binder, params): (Binder, &[(NameId, TypeId)]),
         method: Option<SymbolId>,
         args: &[TNodeId],
     ) -> Option<TypeId> {
         let types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let formals: Vec<TypeId> = params.iter().map(|&(_, p)| self.zonked_upper(p)).collect();
         if types.len() != params.len() || has_false_dependency(self.u, t, (binder, &names), method, &formals)
         {

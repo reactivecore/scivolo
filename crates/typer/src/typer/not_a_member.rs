@@ -124,7 +124,7 @@ impl Typer<'_> {
     pub fn shown_as_dotty(&mut self, part: TypeId) -> bool {
         let sym = match self.u.ty(part).clone() {
             Type::Sym(_, s) => s,
-            Type::TypeRef(p, n) => match self.u.resolve(p, &n, true) {
+            Type::TypeRef(p, n) => match self.u.resolve(p, n, true) {
                 Some(s) => s,
                 None => return false,
             },
@@ -155,11 +155,11 @@ impl Typer<'_> {
 pub fn is_concrete_part(u: &mut Universe, part: TypeId) -> bool {
     let sym = match u.ty(part).clone() {
         Type::Sym(_, s) => s,
-        Type::TypeRef(p, n) => match u.resolve(p, &n, true) {
+        Type::TypeRef(p, n) => match u.resolve(p, n, true) {
             Some(s) => s,
             None => return false,
         },
-        Type::TermRef(p, n) => match u.resolve(p, &n, false) {
+        Type::TermRef(p, n) => match u.resolve(p, n, false) {
             Some(s) if matches!(u.symbol(s).kind, Kind::Package | Kind::Val) => s,
             _ => return false,
         },

@@ -37,7 +37,7 @@ pub fn strip_params(l: &mut Lower, constr: TNodeId) {
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs };
     let unit = l.u.class_ref("scala.Unit");
     let binder = l.u.fresh_binder();
-    let params = lifted.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
+    let params = lifted.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
     let info =
         l.u.intern_type(Type::Method { binder, params, result: unit, implicit: false, contextual: false });
     l.u.set_info(ctor, info);

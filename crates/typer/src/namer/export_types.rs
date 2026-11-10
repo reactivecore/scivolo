@@ -95,7 +95,7 @@ impl Typer<'_> {
                     _ => None,
                 })
             };
-            let params: Vec<(String, TypeId)> =
+            let params: Vec<(tasty::NameId, TypeId)> =
                 params.into_iter().map(|(n, b)| (n, rebind(self.u, b))).collect();
             let args = (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
             let result = self.u.intern_type(Type::Applied(target, args));

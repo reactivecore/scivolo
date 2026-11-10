@@ -81,7 +81,7 @@ impl Typer<'_> {
             .map(|&n| {
                 let n = self.u.dealias(n);
                 match self.u.ty(n) {
-                    Type::Str(s) => Some(s.clone()),
+                    &Type::Str(s) => Some(self.u.name(s).to_owned()),
                     _ => None,
                 }
             })
@@ -129,7 +129,7 @@ impl Typer<'_> {
     /// `NamedTuple[(names…), (values…)]` with the names as string constant types.
     pub fn named_tuple_type(&mut self, names: &[String], values: &[TypeId]) -> Option<TypeId> {
         let nt = self.named_tuple_ref()?;
-        let names: Vec<TypeId> = names.iter().map(|n| self.u.intern_type(Type::Str(n.clone()))).collect();
+        let names: Vec<TypeId> = names.iter().map(|n| self.u.str_type(n)).collect();
         let names = self.values_type(&names)?;
         let values = self.values_type(values)?;
         Some(self.u.intern_type(Type::Applied(nt, vec![names, values])))

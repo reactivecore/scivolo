@@ -75,7 +75,8 @@ impl Reflect<'_> {
         let result = self.u.widen(result);
         let result = self.with_syms(result, &syms);
         let binder = self.u.fresh_binder();
-        let method_params = params.iter().map(|c| c.name.clone()).zip(types.iter().copied()).collect();
+        let method_params =
+            params.iter().map(|c| self.u.intern_name(&c.name)).zip(types.iter().copied()).collect();
         let info = Type::Method { binder, params: method_params, result, implicit: false, contextual: false };
         let info = self.u.intern_type(info);
         let (info, fun_tpe) = match type_params.is_empty() {
@@ -123,10 +124,11 @@ impl Reflect<'_> {
             _ => None,
         });
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
-        let params = tparams.iter().map(|&p| (self.u.symbol(p).name.clone(), bounds)).collect();
+        let params = tparams.iter().map(|&p| (self.u.interned_name(p), bounds)).collect();
         let info = self.u.intern_type(Type::Poly { binder, params, result });
         let parent = self.u.class_ref(crate::defn::POLY_FUNCTION);
-        (info, self.u.intern_type(Type::Refined(parent, "apply".into(), info)))
+        let apply = self.u.intern_name("apply");
+        (info, self.u.intern_type(Type::Refined(parent, apply, info)))
     }
 
     /// A copy of `t` with the references to the symbols of `syms` replaced by references to

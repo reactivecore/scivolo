@@ -92,7 +92,7 @@ impl Universe {
         };
         let Some(args) = args else { return Some(hi) };
         let Type::Lambda { binder, params, result } = self.ty(hi).clone() else { return Some(ANY) };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
         Some(self.subst(result, binder, &names, &args))
     }
 

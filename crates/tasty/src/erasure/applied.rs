@@ -7,7 +7,7 @@
 
 use super::special::tuple;
 use super::{Erased, object};
-use crate::types::{Type, TypeId};
+use crate::types::{NameId, Type, TypeId};
 use crate::{Kind, Universe};
 
 impl Universe {
@@ -53,7 +53,7 @@ impl Universe {
     pub fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         let alias = self.referenced(tycon).and_then(|s| self.opaque_alias(s))?;
         let Type::Lambda { binder, params, result } = self.ty(alias).clone() else { return None };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
         Some(self.subst(result, binder, &names, args))
     }
 
@@ -111,7 +111,7 @@ impl Universe {
                 return (self.tuple_arity(b)? == n).then_some(n);
             }
             Type::Sym(_, s) => Some(s),
-            Type::TermRef(p, n) => self.resolve(p, &n, false),
+            Type::TermRef(p, n) => self.resolve(p, n, false),
             _ => None,
         };
         if let Some(r) = self.try_normalize(t) {
@@ -141,7 +141,7 @@ impl Universe {
     fn applied_info(&mut self, tycon: TypeId, args: &[TypeId], upper: bool) -> Option<TypeId> {
         let (prefix, alias) = match self.ty(tycon).clone() {
             Type::Sym(p, s) => (p, Some(s)),
-            Type::TypeRef(p, n) => (Some(p), self.resolve(p, &n, true)),
+            Type::TypeRef(p, n) => (Some(p), self.resolve(p, n, true)),
             _ => (None, None),
         };
         let alias = alias?;
@@ -157,12 +157,12 @@ impl Universe {
             _ => info,
         };
         let Type::Lambda { binder, params, result } = self.ty(info).clone() else { return None };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
         Some(self.subst(result, binder, &names, args))
     }
 
     /// `t` with the parameters of lambda `binder`, named `names`, replaced by `args`.
-    pub fn subst(&mut self, t: TypeId, binder: crate::Binder, names: &[String], args: &[TypeId]) -> TypeId {
+    pub fn subst(&mut self, t: TypeId, binder: crate::Binder, names: &[NameId], args: &[TypeId]) -> TypeId {
         self.map_type(t, &mut |u, x| match u.ty(x) {
             Type::Local(b, n) if b.0 == binder.0 => {
                 names.iter().position(|m| m == n).and_then(|i| args.get(i).copied())
@@ -176,7 +176,7 @@ impl Universe {
     pub fn referenced(&mut self, t: TypeId) -> Option<crate::SymbolId> {
         match self.ty(t).clone() {
             Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, n) => self.resolve(p, &n, true),
+            Type::TypeRef(p, n) => self.resolve(p, n, true),
             _ => None,
         }
     }

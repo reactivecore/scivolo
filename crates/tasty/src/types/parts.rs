@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Borrowed views of the parts of types, in the style of dotty's extractors.
 
-use super::{Binder, Type, TypeId, VarId};
+use super::{Binder, NameId, Type, TypeId, VarId};
 use crate::{SymbolId, Universe};
 
 /// The parts a `Method`, `Poly` or `Lambda` type binds; `implicit` and `contextual` are false
@@ -10,7 +10,7 @@ use crate::{SymbolId, Universe};
 #[derive(Clone, Copy)]
 pub struct Binding<'a> {
     pub binder: Binder,
-    pub params: &'a [(String, TypeId)],
+    pub params: &'a [(NameId, TypeId)],
     pub result: TypeId,
     pub implicit: bool,
     pub contextual: bool,
@@ -21,8 +21,8 @@ impl Binding<'_> {
         self.params.iter().map(|(_, t)| *t).collect()
     }
 
-    pub fn names(&self) -> Vec<String> {
-        self.params.iter().map(|(n, _)| n.clone()).collect()
+    pub fn names(&self) -> Vec<NameId> {
+        self.params.iter().map(|&(n, _)| n).collect()
     }
 }
 
@@ -32,6 +32,10 @@ impl Universe {
         self.types().get(t)
     }
 
+    /// The text of name `id`.
+    pub fn name(&self, id: NameId) -> &str {
+        self.types().name(id)
+    }
     /// The prefix and symbol of a `Sym` type.
     pub fn sym_ref(&self, t: TypeId) -> Option<(Option<TypeId>, SymbolId)> {
         match *self.ty(t) {
@@ -46,17 +50,17 @@ impl Universe {
     }
 
     /// The prefix and name of a `TypeRef` type.
-    pub fn type_ref(&self, t: TypeId) -> Option<(TypeId, &str)> {
-        match self.ty(t) {
-            Type::TypeRef(p, n) => Some((*p, n)),
+    pub fn type_ref(&self, t: TypeId) -> Option<(TypeId, NameId)> {
+        match *self.ty(t) {
+            Type::TypeRef(p, n) => Some((p, n)),
             _ => None,
         }
     }
 
     /// The prefix and name of a `TermRef` type.
-    pub fn term_ref(&self, t: TypeId) -> Option<(TypeId, &str)> {
-        match self.ty(t) {
-            Type::TermRef(p, n) => Some((*p, n)),
+    pub fn term_ref(&self, t: TypeId) -> Option<(TypeId, NameId)> {
+        match *self.ty(t) {
+            Type::TermRef(p, n) => Some((p, n)),
             _ => None,
         }
     }
@@ -161,6 +165,6 @@ impl Universe {
     }
 }
 
-fn plain(binder: Binder, params: &[(String, TypeId)], result: TypeId) -> Binding<'_> {
+fn plain(binder: Binder, params: &[(NameId, TypeId)], result: TypeId) -> Binding<'_> {
     Binding { binder, params, result, implicit: false, contextual: false }
 }

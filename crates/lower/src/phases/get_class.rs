@@ -18,7 +18,7 @@ pub fn fold(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     if !matches!(l.u.ty(l.tpd.tpe(t)), Type::Constant(CLASSconst, _)) {
         return false;
     }
-    let Some(lit) = literal(l.u.ty(l.tpd.tpe(t))) else { return false };
+    let Some(lit) = literal(l.u, l.tpd.tpe(t)) else { return false };
     let mut inner = pre;
     while let Tree::Typed { expr, .. } = *l.tpd.tree(inner) {
         inner = expr;

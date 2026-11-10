@@ -32,7 +32,8 @@ pub fn flatten_reference(l: &mut Lower, t: TNodeId, m: SymbolId) -> Option<(usiz
         let args = l.u.applied(function)?.1.to_vec();
         let (&last, params) = args.split_last()?;
         let binder = l.u.fresh_binder();
-        let params = params.iter().map(|&p| (String::new(), p)).collect();
+        let empty = l.u.intern_name("");
+        let params = params.iter().map(|&p| (empty, p)).collect();
         let method = Type::Method { binder, params, result: last, implicit: false, contextual: true };
         let method = l.u.intern_type(method);
         methods.push(synthetic_names(l, method));

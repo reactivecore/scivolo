@@ -9,7 +9,7 @@ use crate::typer::dependent_params::applied_result;
 use crate::typer::seen_from::resolve_class_params;
 use crate::typer::type_apply::instantiate_poly;
 use tasty::tags::{MUTABLE, OBJECT, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 
 impl Unpickler<'_> {
     /// The class of full name `full`.
@@ -40,7 +40,7 @@ impl Unpickler<'_> {
                 let info = resolve_class_params(self.u, info);
                 (self.with_repeated_class(info), Some(s))
             }
-            Type::TermRef(pre, ref n) if n == "apply" => match self.u.poly_function_apply_of(pre) {
+            Type::TermRef(pre, n) if self.u.name(n) == "apply" => match self.u.poly_function_apply_of(pre) {
                 Some(info) => (info, meth),
                 None => (tpe, meth),
             },
@@ -134,7 +134,7 @@ impl Unpickler<'_> {
                 _ => return Err("constructor call in a library inline body"),
             }
         }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
         let args: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         Ok(applied_result(self.u, result, (binder, &names), meth, &args))
     }
@@ -150,7 +150,7 @@ impl Unpickler<'_> {
         if params.len() != args.len() {
             return Err("type application with missing arguments in a library inline body");
         }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
         let args: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         Ok(instantiate_poly(self.u, result, (binder, &names), &args, meth))
     }

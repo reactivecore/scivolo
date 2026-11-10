@@ -10,7 +10,7 @@ use crate::tags::{
     ABSTRACT, BYTEconst, CHARconst, DOUBLEconst, FALSEconst, FINAL, FLOATconst, INTconst, LONGconst, MUTABLE,
     OBJECT, PROTECTED, SEALED, SHORTconst, STATIC, TRAIT, TRUEconst,
 };
-use crate::types::{Type, TypeId};
+use crate::types::{NameId, Type, TypeId};
 use classfile::{
     ACC_ABSTRACT, ACC_BRIDGE, ACC_ENUM, ACC_FINAL, ACC_INTERFACE, ACC_NATIVE, ACC_PROTECTED, ACC_PUBLIC,
     ACC_STATIC, ACC_SYNTHETIC, ACC_VARARGS, ClassInfo, ConstantValue, MemberInfo,
@@ -150,7 +150,7 @@ fn constant_type(u: &mut Universe, descriptor: &str, c: &ConstantValue) -> Resul
         ("J", &ConstantValue::Long(l)) => Type::Constant(LONGconst, l),
         ("F", &ConstantValue::Float(f)) => Type::Constant(FLOATconst, i64::from(f)),
         ("D", &ConstantValue::Double(d)) => Type::Constant(DOUBLEconst, d as i64),
-        ("Ljava/lang/String;", ConstantValue::String(s)) => Type::Str(s.clone()),
+        ("Ljava/lang/String;", ConstantValue::String(s)) => Type::Str(u.types.intern_name(s)),
         _ => return Err(format!("constant {c:?} of a field of type {descriptor}")),
     };
     Ok(u.types.intern(t))
@@ -174,15 +174,21 @@ fn method_type(u: &mut Universe, owners: &Owners, m: &MemberInfo, text: &str) ->
         let param = u.types.intern(Type::Param(binder, i as u32));
         vars.push((name.clone(), param, bounded_by_object(b)));
     }
-    let bounds: Vec<(String, TypeId)> =
-        params.iter().map(|(n, b)| Ok((n.clone(), bounds(u, b, &vars)?))).collect::<Result<_, String>>()?;
+    let bounds: Vec<(NameId, TypeId)> = params
+        .iter()
+        .map(|(n, b)| Ok((u.types.intern_name(n), bounds(u, b, &vars)?)))
+        .collect::<Result<_, String>>()?;
     let (param_types, mut result) = sig.method(u, &vars, m.access & ACC_VARARGS != 0)?;
     if constructor {
         let class = u.types.intern(Type::Sym(None, owners.class));
         let args: Vec<TypeId> = vars[..owners.params.len()].iter().map(|&(_, t, _)| t).collect();
         result = if args.is_empty() { class } else { u.types.intern(Type::Applied(class, args)) };
     }
-    let names = param_types.into_iter().enumerate().map(|(i, t)| (format!("x${i}"), t)).collect();
+    let names = param_types
+        .into_iter()
+        .enumerate()
+        .map(|(i, t)| (u.types.intern_name(&format!("x${i}")), t))
+        .collect();
     let mbinder = u.fresh_binder();
     let method = u.types.intern(Type::Method {
         binder: mbinder,

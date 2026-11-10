@@ -68,7 +68,7 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
         }
         Type::TypeRef(p, name) if v == 1 => {
             let p = deskolemized(u, p, 1)?;
-            match u.refinement_named(p, &name).and_then(|i| u.type_alias(i)) {
+            match u.refinement_named(p, name).and_then(|i| u.type_alias(i)) {
                 Some(a) => a,
                 None => u.intern_type(Type::TypeRef(p, name)),
             }

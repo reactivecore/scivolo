@@ -8,7 +8,7 @@ use crate::ctx::{Ctx, Level, LevelId, Mode};
 use crate::tpd::TNodeId;
 use syntax::ast::flags::CASE;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId};
+use tasty::{ANY, Kind, NOTHING, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_match_type_tree(
@@ -109,8 +109,8 @@ impl Typer<'_> {
             return Some((case, body, captures));
         }
         let binder = self.syms.fresh_binder();
-        let params: Vec<(String, TypeId)> =
-            captures.iter().map(|&s| (self.u.symbol(s).name.clone(), self.u.info(s))).collect();
+        let params: Vec<(NameId, TypeId)> =
+            captures.iter().map(|&s| (self.u.interned_name(s), self.u.info(s))).collect();
         let result = self.u.map_type(case, &mut |u, t| {
             let i = captures.iter().position(|&c| Some(c) == u.sym_of(t))?;
             Some(u.intern_type(Type::Param(binder, i as u32)))

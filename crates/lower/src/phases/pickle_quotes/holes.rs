@@ -102,8 +102,12 @@ pub fn lambda(l: &mut Lower, contents: &[(TNodeId, Vec<SymbolId>)], owner: Symbo
             .map(|c| l.u.class_ref(&format!("scala.{c}")));
     let seq = l.u.intern_type(Type::Applied(seq, vec![any]));
     let result = l.u.intern_type(Type::Applied(expr, vec![any]));
-    let params =
-        [("idx", int), ("contents", seq), ("quotes", quotes)].map(|(n, t)| (fresh(l, n), t)).to_vec();
+    let params = [("idx", int), ("contents", seq), ("quotes", quotes)]
+        .map(|(n, t)| {
+            let n = fresh(l, n);
+            (l.u.intern_name(&n), t)
+        })
+        .to_vec();
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, Flags::default().with(SYNTHETIC)));
     let binder = l.u.fresh_binder();
     let info = l.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });

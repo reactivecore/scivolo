@@ -9,7 +9,7 @@ use super::Typer;
 use crate::ctx::Ctx;
 use syntax::ast::{Attrs, NodeId, Span, TName, Tree};
 use syntax::config::Features;
-use tasty::{SymbolId, TypeId};
+use tasty::{NameId, SymbolId, TypeId};
 
 impl Typer<'_> {
     /// Replaces the arguments of `proto`, more than one, by their tuple when `params`, those of
@@ -17,7 +17,7 @@ impl Typer<'_> {
     pub fn tuple_args_of_unary(
         &mut self,
         proto: usize,
-        params: &[(String, TypeId)],
+        params: &[(NameId, TypeId)],
         ctx: Ctx,
     ) -> Result<(), &'static str> {
         let args = self.protos[proto].args.clone();

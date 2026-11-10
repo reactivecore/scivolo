@@ -30,7 +30,7 @@ impl Universe {
         Some(match self.ty(t).clone() {
             Type::TermRef(p, name) => match self.resolve_ref(t) {
                 Some(s) => self.term_type(Some(p), s),
-                None => self.term_refinement_named(p, &name)?,
+                None => self.term_refinement_named(p, name)?,
             },
             Type::Sym(p, s) if matches!(self.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def) => {
                 self.term_type(p, s)
@@ -68,7 +68,7 @@ impl Universe {
             Type::Annotated(u, _) => u,
             Type::Applied(tycon, args) => match self.ty(tycon).clone() {
                 Type::Lambda { binder, params, result } => {
-                    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                    let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
                     self.subst(result, binder, &names, &args)
                 }
                 _ => Some(self.dealias_step(tycon))
@@ -86,7 +86,7 @@ impl Universe {
             Type::Sym(p, s) => (p, s),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => (Some(p), s),
-                None => return self.refinement_named(p, &n).and_then(|i| self.type_alias(i)),
+                None => return self.refinement_named(p, n).and_then(|i| self.type_alias(i)),
             },
             _ => return None,
         };
@@ -183,9 +183,13 @@ impl Universe {
             None => {
                 let prefix = match self.package(pkg) {
                     Some(p) => self.intern_type(Type::Package(p)),
-                    None => self.intern_type(Type::PackageName(pkg.to_owned())),
+                    None => {
+                        let pkg = self.intern_name(pkg);
+                        self.intern_type(Type::PackageName(pkg))
+                    }
                 };
-                self.intern_type(Type::TypeRef(prefix, name.to_owned()))
+                let name = self.intern_name(name);
+                self.intern_type(Type::TypeRef(prefix, name))
             }
         }
     }

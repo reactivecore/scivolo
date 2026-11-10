@@ -11,7 +11,7 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, MUTABLE, PARAMalias, PARAMsetter, PRIVATE, PRIVATEqualified, STABLE};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, NameId, SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// A parameter accessor `sym` defined by `stat` of class definition `td`, and the accessor of a
@@ -84,7 +84,7 @@ fn super_param_aliases(l: &mut Lower, td: TNodeId) -> Vec<(TNodeId, SymbolId)> {
             continue;
         }
         let Some(i) = args.iter().position(|&a| l.tpd.sym(a) == Some(sym)) else { continue };
-        if names.get(i).is_some_and(|n| *n == l.u.symbol(sym).name) {
+        if names.get(i).is_some_and(|&n| l.u.name(n) == l.u.symbol(sym).name) {
             out.push((stat, sym));
         }
     }
@@ -97,14 +97,14 @@ fn is_primary_constructor(l: &mut Lower, ctor: SymbolId) -> bool {
 }
 
 /// The parameter names of clause `n` of constructor `ctor`.
-fn clause_names(l: &mut Lower, ctor: SymbolId, n: usize) -> Vec<String> {
+fn clause_names(l: &mut Lower, ctor: SymbolId, n: usize) -> Vec<NameId> {
     let mut t = l.u.info(ctor);
     let mut clauses = Vec::new();
     loop {
         match l.u.ty(t) {
             Type::Poly { result, .. } => t = *result,
             Type::Method { params, result, .. } => {
-                clauses.push(params.iter().map(|(name, _)| name.clone()).collect());
+                clauses.push(params.iter().map(|&(name, _)| name).collect());
                 t = *result;
             }
             _ => break,

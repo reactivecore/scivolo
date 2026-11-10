@@ -23,13 +23,13 @@ impl Decoder<'_> {
     }
 
     /// A `TYPEREFpkg` or `TERMREFpkg` at `id`.
-    pub fn package_ref(&self, id: NodeId) -> Type {
-        let name = self.name(id);
-        let name = name.strip_prefix("_root_").map_or(name.as_str(), |n| n.trim_start_matches('.'));
+    pub fn package_ref(&mut self, id: NodeId) -> Type {
+        let name = self.text(id);
+        let name = name.strip_prefix("_root_").map_or(name, |n| n.trim_start_matches('.'));
         let key = if name == "<empty>" { "" } else { name };
         match self.packages.get(key) {
             Some(&p) => Type::Package(p),
-            None => Type::PackageName(name.to_owned()),
+            None => Type::PackageName(self.types.intern_name(name)),
         }
     }
 
@@ -44,6 +44,6 @@ impl Decoder<'_> {
             p = ast.deref(k);
         }
         matches!(ast.tag(p), TYPEREFpkg | TERMREFpkg)
-            && crate::symbols::jdk_name(&self.name(p), &self.name(def)).is_some()
+            && crate::symbols::jdk_name(self.text(p), self.text(def)).is_some()
     }
 }

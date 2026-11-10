@@ -30,7 +30,7 @@ pub fn constant_type_of(u: &mut Universe, c: &Constant) -> TypeId {
         Constant::Long(l) => Type::Constant(LONGconst, l),
         Constant::Float(f) => Type::Constant(FLOATconst, f.to_bits() as i64),
         Constant::Double(d) => Type::Constant(DOUBLEconst, d.to_bits() as i64),
-        Constant::String(ref s) => Type::Str(String::from_utf16_lossy(s)),
+        Constant::String(ref s) => return u.str_type(&String::from_utf16_lossy(s)),
         Constant::Null => Type::Constant(NULLconst, 0),
     };
     u.intern_type(t)
@@ -50,7 +50,7 @@ pub fn constant_of(u: &Universe, t: TypeId) -> Option<Constant> {
         Type::Constant(FLOATconst, f) => Constant::Float(f32::from_bits(f as u32)),
         Type::Constant(DOUBLEconst, d) => Constant::Double(f64::from_bits(d as u64)),
         Type::Constant(NULLconst, _) => Constant::Null,
-        Type::Str(ref s) => Constant::String(s.encode_utf16().collect()),
+        Type::Str(s) => Constant::String(u.name(s).encode_utf16().collect()),
         _ => return None,
     })
 }

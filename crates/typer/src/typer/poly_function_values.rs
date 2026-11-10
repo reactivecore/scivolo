@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Tree};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Polymorphic function value `id`: its function typed with the type parameters in scope,
@@ -101,11 +101,11 @@ impl Typer<'_> {
         if params.len() != tparams.len() || formals.len() != n {
             return Err("polymorphic function value of other arities than its expected type");
         }
-        let param_names: Vec<String> = formals.iter().map(|(n, _)| n.clone()).collect();
+        let param_names: Vec<NameId> = formals.iter().map(|&(n, _)| n).collect();
         if self.mentions_clause_params(restpe, (mb, &param_names), None) {
             self.poly_closures.insert(fun, Some((mb, param_names)));
         }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
         let args: Vec<TypeId> = tparams.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
         let mut fun_args: Vec<TypeId> =
             formals.into_iter().map(|(_, p)| self.u.subst(p, binder, &names, &args)).collect();

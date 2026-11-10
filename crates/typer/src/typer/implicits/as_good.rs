@@ -95,7 +95,7 @@ fn flipped(t: &mut Typer<'_>, tpe: TypeId, v: i32) -> Option<TypeId> {
         Type::Applied(tycon, args) => {
             let class = match t.u.ty(tycon).clone() {
                 Type::Sym(_, s) => Some(s),
-                Type::TypeRef(p, n) => t.u.resolve(p, &n, true),
+                Type::TypeRef(p, n) => t.u.resolve(p, n, true),
                 _ => None,
             };
             let Some(class) = class else {

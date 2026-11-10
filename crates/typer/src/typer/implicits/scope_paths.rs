@@ -99,7 +99,7 @@ fn bound_classes(ty: &mut TypeOps<'_>, tpe: TypeId, steps: u32) -> Option<Vec<Sy
     }
     let steps = steps.checked_sub(1)?;
     match ty.u.ty(tpe).clone() {
-        Type::TypeRef(p, name) => match ty.u.refinement_named(p, &name).map(|i| ty.u.ty(i)) {
+        Type::TypeRef(p, name) => match ty.u.refinement_named(p, name).map(|i| ty.u.ty(i)) {
             Some(&Type::Bounds(_, hi) | &Type::Alias(hi)) => bound_classes(ty, hi, steps),
             _ => None,
         },

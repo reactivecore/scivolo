@@ -55,7 +55,7 @@ impl Avoid<'_> {
             Type::Refined(parent, name, info) => {
                 let parent = m(t, parent, v)?;
                 let info = m(t, info, v)?;
-                Some(approx::refined(t.u, parent, &name, info, v))
+                Some(approx::refined(t.u, parent, name, info, v))
             }
             Type::And(x, y) | Type::Or(x, y, _) => {
                 let parts = [m(t, x, v)?, m(t, y, v)?];
@@ -183,7 +183,7 @@ impl Avoid<'_> {
         let node = t.u.ty(tpe).clone();
         Some(approx::derived(t.u, &parts, &flip, v, &mut |u, p| {
             let (ps, r) = p.split_at(params.len());
-            let ps = params.iter().zip(ps).map(|((n, _), &t)| (n.clone(), t)).collect();
+            let ps = params.iter().zip(ps).map(|(&(n, _), &t)| (n, t)).collect();
             u.intern_type(match node.clone() {
                 Type::Method { binder, implicit, contextual, .. } => {
                     Type::Method { binder, params: ps, result: r[0], implicit, contextual }

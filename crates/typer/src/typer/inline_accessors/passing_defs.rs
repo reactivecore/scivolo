@@ -18,7 +18,7 @@ use tasty::{SymbolId, Type, TypeId, Universe};
 const SETTER_RECEIVER: &str = "x$0$receiver";
 
 /// The names and types of one value parameter clause.
-type Params = Vec<(String, TypeId)>;
+type Params = Vec<(tasty::NameId, TypeId)>;
 
 /// Makes `def name[Ls](x$0: R)(ps): T = x$0.m(ps)` for `access` of member `m` and receivers of
 /// type `R` over the inline method's types `Ls`, or `def name[Ls](x$0: R)(x$0: T): Unit =
@@ -58,7 +58,7 @@ pub fn passing_def(
     let member = TName { name: t.name(&t.u.symbol(accessed).name.clone()), is_type: false };
     let mut rhs = t.ast.node(Tree::Select { qualifier, name: member });
     let result = if setter {
-        clauses.push(vec![("x$0".to_owned(), info)]);
+        clauses.push(vec![(t.u.intern_name("x$0"), info)]);
         crate::defn::type_ref(t.u, t.defn.unit)
     } else {
         info
@@ -67,10 +67,11 @@ pub fn passing_def(
     for clause in &clauses {
         let mut params = Vec::new();
         let mut args = Vec::new();
-        for (pname, ptype) in clause {
-            let tpt = passing_tpt(t, *ptype, locals, span)?;
-            params.push(passing_param(t, pname, tpt));
-            let name = TName { name: t.name(pname), is_type: false };
+        for &(pname, ptype) in clause {
+            let pname = t.u.name(pname).to_owned();
+            let tpt = passing_tpt(t, ptype, locals, span)?;
+            params.push(passing_param(t, &pname, tpt));
+            let name = TName { name: t.name(&pname), is_type: false };
             args.push(t.ast.node(Tree::Ident { name }));
         }
         rhs = match setter {

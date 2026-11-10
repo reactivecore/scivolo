@@ -3,7 +3,7 @@
 //! The type members refinements give a path's type (dotty's `goRefined`), and types without
 //! their refinements.
 
-use super::{Binder, Type, TypeId};
+use super::{Binder, NameId, Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
 
 /// How many steps finding a refinement takes at most.
@@ -15,8 +15,8 @@ impl Universe {
         if self.symbol(s).kind != Kind::Type {
             return None;
         }
-        let name = self.symbol(s).name.clone();
-        self.refinement_named(prefix, &name)
+        let name = self.interned_name(s);
+        self.refinement_named(prefix, name)
     }
 
     /// `t` with the `this` of each recursive type of `binders` replaced by `by` (dotty's
@@ -28,7 +28,7 @@ impl Universe {
 
     /// The info a refinement of `prefix`'s widened type gives type member `name`, a member
     /// that need not have a symbol: its bounds or alias.
-    pub fn refinement_named(&mut self, prefix: TypeId, name: &str) -> Option<TypeId> {
+    pub fn refinement_named(&mut self, prefix: TypeId, name: NameId) -> Option<TypeId> {
         let mut t = self.widen(prefix);
         let mut recs = Vec::new();
         for _ in 0..MAX_STEPS {
@@ -126,7 +126,8 @@ impl Universe {
         {
             return None;
         }
-        let info = self.term_refinement_named(prefix, "apply")?;
+        let apply = self.intern_name("apply");
+        let info = self.term_refinement_named(prefix, apply)?;
         let Type::Method { binder, result, .. } = *self.ty(info) else { return None };
         let mut dependent = false;
         self.map_type(result, &mut |u, part| {
@@ -137,7 +138,7 @@ impl Universe {
     }
 
     /// The info a refinement of `prefix`'s widened type gives term member `name`.
-    pub fn term_refinement_named(&mut self, prefix: TypeId, name: &str) -> Option<TypeId> {
+    pub fn term_refinement_named(&mut self, prefix: TypeId, name: NameId) -> Option<TypeId> {
         let mut t = self.widen(prefix);
         let mut recs = Vec::new();
         for _ in 0..MAX_STEPS {

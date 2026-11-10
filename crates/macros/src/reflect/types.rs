@@ -170,6 +170,7 @@ impl Host {
             if !narrows || this {
                 return Err(refused);
             }
+            let name = self.u.interned_name(s);
             tpe = self.u.intern_type(Type::Refined(tpe, name, info));
         }
         let refinements = self.tpd.list(&defs);

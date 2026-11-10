@@ -8,7 +8,7 @@ use super::Deriver;
 use super::trees::{class_applied, node, param_def, param_def_of, param_ident, type_node};
 use crate::defn::CAN_EQUAL;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{SymbolId, Type, TypeId, Universe};
+use tasty::{NameId, SymbolId, Type, TypeId, Universe};
 
 /// How deeply nested the kinds of two type parameters may be compared.
 const KIND_DEPTH: u32 = 8;
@@ -143,16 +143,18 @@ fn partial_application(
     t: &mut Typer<'_>,
     class: TypeId,
     derived: &[SymbolId],
-    tc_infos: &[(String, TypeId)],
+    tc_infos: &[(NameId, TypeId)],
     aligned: usize,
     span: Span,
 ) -> Result<NodeId, &'static str> {
     let mut args: Vec<NodeId> = derived.iter().map(|&p| param_ident(t, p, span)).collect();
-    let lambda_names: Vec<String> = tc_infos.iter().map(|(n, _)| n.clone()).collect();
+    let lambda_names: Vec<String> = tc_infos.iter().map(|&(n, _)| t.u.name(n).to_owned()).collect();
     if derived.iter().any(|&p| lambda_names.contains(&t.u.symbol(p).name)) {
         return Err("derives clause whose type lambda shadows a type parameter");
     }
-    let lparams = tc_infos.iter().map(|(n, b)| param_def(t, n, *b, span)).collect::<Result<Vec<_>, _>>()?;
+    let lparams = (lambda_names.iter().zip(tc_infos))
+        .map(|(n, &(_, b))| param_def(t, n, b, span))
+        .collect::<Result<Vec<_>, _>>()?;
     for n in &lambda_names[tc_infos.len() - aligned..] {
         let name = TName { name: t.name(n), is_type: true };
         args.push(node(t, Tree::Ident { name }, span));
@@ -172,7 +174,7 @@ fn class_type_params(t: &mut Typer<'_>, cls: SymbolId) -> Vec<SymbolId> {
 }
 
 /// The parameters of higher-kinded type `info`, a type lambda or bounds over one.
-fn hk_params(u: &Universe, info: TypeId) -> Option<Vec<(String, TypeId)>> {
+fn hk_params(u: &Universe, info: TypeId) -> Option<Vec<(NameId, TypeId)>> {
     match u.ty(info) {
         Type::Lambda { params, .. } => Some(params.clone()),
         &Type::Bounds(_, hi) => hk_params(u, hi),

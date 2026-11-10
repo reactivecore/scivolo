@@ -130,7 +130,8 @@ fn is_defined_at_def(
     let Some((params, result)) = l.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
         unreachable!("a method type")
     };
-    let p = param(l, sym, &params[0].0, params[0].1);
+    let name = l.u.name(params[0].0).to_owned();
+    let p = param(l, sym, &name, params[0].1);
     let default = l.build().literal(Constant::Boolean(false), Span::NONE);
     let rhs = translate_match(l, x, (sym, p), default, result, true)?;
     Ok(def(l, sym, (&[], &[p]), (result, rhs), x.span.start_pos()))
@@ -149,7 +150,13 @@ fn apply_or_else_def(
     let Some((params, result)) = l.u.method(result).map(|m| (m.params.to_vec(), m.result)) else {
         unreachable!("a method type")
     };
-    let vparams: Vec<SymbolId> = params.iter().map(|(name, t)| param(l, sym, name, *t)).collect();
+    let vparams: Vec<SymbolId> = params
+        .iter()
+        .map(|&(name, t)| {
+            let name = l.u.name(name).to_owned();
+            param(l, sym, &name, t)
+        })
+        .collect();
     let default = l.ident(vparams[1], Span::NONE);
     let apply = l.select(default, pf.function1_apply, Span::NONE);
     l.positioned(apply);

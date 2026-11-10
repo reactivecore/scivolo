@@ -84,8 +84,11 @@ impl Printer<'_> {
     pub fn path(&mut self, p: TypeId) -> Path {
         match self.u.ty(p).clone() {
             Type::Package(s) => self.symbol_path(None, s),
-            Type::PackageName(n) => package_path(&n),
-            Type::TermRef(pp, n) => select(self.path(pp), &n),
+            Type::PackageName(n) => package_path(self.u.name(n)),
+            Type::TermRef(pp, n) => {
+                let path = self.path(pp);
+                select(path, self.u.name(n))
+            }
             Type::Sym(pp, s) => self.symbol_path(pp, s),
             Type::This(c) => match self.u.class_symbol(c) {
                 Some(cls) if self.u.symbol(cls).flags.has(OBJECT) => self.symbol_path(None, cls),

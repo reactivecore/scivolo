@@ -88,7 +88,7 @@ impl Inlining<'_> {
     /// The constant of type `t`, of a constant type or a reference to a term of one.
     pub fn constant_of_type(&mut self, t: TypeId) -> Option<C> {
         match self.u.ty(t).clone() {
-            Type::Str(s) => Some(C::String(s.encode_utf16().collect())),
+            Type::Str(s) => Some(C::String(self.u.name(s).encode_utf16().collect())),
             Type::Constant(tasty::tags::CHARconst, bits) => Some(C::Char(bits as u16)),
             Type::Constant(tag, bits) => Some(match constant(tag, bits)? {
                 Const::Unit => C::Unit,

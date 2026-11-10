@@ -20,7 +20,8 @@ impl Decoder<'_> {
                 t if is_modifier(t) => {}
                 _ => {
                     let ty = self.ty(c);
-                    let name = rest.next().map_or_else(String::new, |n| self.name(n));
+                    let name = rest.next().map_or("", |n| self.text(n));
+                    let name = self.types.intern_name(name);
                     params.push((name, ty));
                 }
             }

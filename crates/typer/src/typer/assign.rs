@@ -14,6 +14,7 @@ impl Typer<'_> {
         let q = self.typed(qual, Pt::Any, ctx);
         let pre = self.tpd.tpe(q);
         let pre = self.u.widen(pre);
+        let setter = self.u.intern_name(setter);
         self.u.term_refinement_named(pre, setter).is_some()
     }
 

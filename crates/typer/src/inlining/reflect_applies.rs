@@ -7,7 +7,7 @@ use super::Reflect;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::type_apply::instantiate_poly;
 use tasty::tags::CLASSconst;
-use tasty::{Binding, Type, TypeId};
+use tasty::{Binding, NameId, Type, TypeId};
 
 impl Reflect<'_> {
     /// `Apply(fun, args)` (dotty's `tpd.Apply`), of the result of `fun`'s method type for the
@@ -21,7 +21,7 @@ impl Reflect<'_> {
         if params.len() != args.len() {
             return Err("Apply with another number of arguments than parameters");
         }
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let tpes: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         let meth = self.tpd.sym(self.tpd.meth_part(fun));
         let tpe =
@@ -56,7 +56,7 @@ impl Reflect<'_> {
         if params.len() != tpts.len() {
             return Err(refused);
         }
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let args: Vec<TypeId> = tpts.iter().map(|&t| self.tpd.tpe(t)).collect();
         let tpe = instantiate_poly(self.u, result, (binder, &names), &args, self.tpd.sym(fun));
         let span = self.span;

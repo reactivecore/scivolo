@@ -10,7 +10,7 @@ use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{FINAL, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes lambda block `block`, of method definition `fn_def` of `anon`, implementing class type
@@ -49,6 +49,7 @@ pub fn to_anon_class(
     let owner = l.u.symbol(anon).owner.expect("a closure's owner");
     let cls = class_symbol(l, owner, parents);
     for (name, info) in aliases {
+        let name = l.u.name(name).to_owned();
         let member = l.u.define(symbol(&name, Kind::Type, cls, Flags::default().with(SYNTHETIC)));
         l.u.set_info(member, info);
     }
@@ -61,7 +62,7 @@ pub fn to_anon_class(
 
 /// `t` without its outer type alias refinements, and these by name, innermost first (dotty's
 /// `collectAndStripRefinements`).
-fn strip_aliases(l: &mut Lower, mut t: TypeId) -> (TypeId, Vec<(String, TypeId)>) {
+fn strip_aliases(l: &mut Lower, mut t: TypeId) -> (TypeId, Vec<(NameId, TypeId)>) {
     let mut aliases = Vec::new();
     while let Type::Refined(parent, name, info) = l.u.ty(t).clone() {
         if l.u.type_alias(info).is_none() {
@@ -93,7 +94,13 @@ fn forwarder(l: &mut Lower, cls: SymbolId, method: SymbolId, anon: SymbolId, spa
     let Some((params, result)) = l.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
         return unsupported(span, "polymorphic single abstract methods");
     };
-    let params: Vec<SymbolId> = params.iter().map(|(n, t)| param(l, fwd, n, *t)).collect();
+    let params: Vec<SymbolId> = params
+        .iter()
+        .map(|&(n, t)| {
+            let n = l.u.name(n).to_owned();
+            param(l, fwd, &n, t)
+        })
+        .collect();
     let fun = l.ident(anon, span);
     let args: Vec<TNodeId> = params.iter().map(|&p| l.ident(p, span)).collect();
     let call = l.apply(fun, &args, result, span);

@@ -14,7 +14,7 @@ use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result};
 use rustc_hash::FxHashMap;
 use tasty::tags::{FINAL, PRIVATE, STATIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A lifted method: its symbol, the proxies of the captured values and the parameter holding the
@@ -32,9 +32,9 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
         let (params, result) = signature(l, f)?;
         let name = l.u.symbol(f.sym).name.clone();
         let bunched = super::bunched::is_bunched(l, f, params.len())?;
-        let params: Vec<(String, TypeId)> = match bunched {
+        let params: Vec<(NameId, TypeId)> = match bunched {
             true => vec![super::bunched::param(l)],
-            false => params.iter().map(|&(p, t)| (l.u.symbol(p).name.clone(), t)).collect(),
+            false => params.iter().map(|&(p, t)| (l.u.interned_name(p), t)).collect(),
         };
         let mut method = define(l, home(l, class, f), &name, &f.captured, &params, result, f.instance());
         if bunched {
@@ -149,7 +149,7 @@ pub fn define(
     class: SymbolId,
     name: &str,
     captured: &[SymbolId],
-    params: &[(String, TypeId)],
+    params: &[(NameId, TypeId)],
     result: TypeId,
     this: bool,
 ) -> Method {
@@ -166,9 +166,9 @@ pub fn define(
         l.u.set_info(proxy, info);
         proxies.push(proxy);
     }
-    let mut typed: Vec<(String, TypeId)> =
-        proxies.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
-    typed.extend(params.iter().cloned());
+    let mut typed: Vec<(NameId, TypeId)> =
+        proxies.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
+    typed.extend(params.iter().copied());
     let binder = l.u.fresh_binder();
     let info =
         l.u.intern_type(Type::Method { binder, params: typed, result, implicit: false, contextual: false });

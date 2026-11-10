@@ -7,7 +7,7 @@ use super::sharing::BY_NAME;
 use super::{Refusal, TreePickler};
 use tasty::tags::*;
 use tasty::write::{Addr, Name};
-use tasty::{Binder, Type, TypeId};
+use tasty::{Binder, NameId, Type, TypeId};
 
 impl TreePickler<'_> {
     fn types(&mut self, ts: &[TypeId], rich: bool) -> Result<(), Refusal> {
@@ -29,7 +29,7 @@ impl TreePickler<'_> {
                 if self.keying {
                     self.byte(BY_NAME);
                 }
-                self.named_ref(prefix, &name, self.u.type_ref(t).is_some())
+                self.named_ref(prefix, name, self.u.type_ref(t).is_some())
             }
             Type::Package(p) => {
                 self.package_ref(p);
@@ -37,7 +37,8 @@ impl TreePickler<'_> {
             }
             Type::PackageName(n) => {
                 self.byte(TERMREFpkg);
-                self.name(&qualified(&n));
+                let name = qualified(self.u.name(n));
+                self.name(&name);
                 Ok(())
             }
             Type::This(class) => match *self.u.ty(class) {
@@ -60,7 +61,8 @@ impl TreePickler<'_> {
             }
             Type::Skolem(_, info) => self.ty(info, false),
             Type::Refined(parent, name, info) => self.with_length(REFINEDtype, &mut |p| {
-                p.name(&Name::utf8(&name));
+                let name = Name::utf8(p.u.name(name));
+                p.name(&name);
                 p.ty(parent, false)?;
                 p.ty(info, true)
             }),
@@ -131,18 +133,19 @@ impl TreePickler<'_> {
         &mut self,
         tag: u8,
         (binder, at): (Binder, Addr),
-        params: &[(String, TypeId)],
+        params: &[(NameId, TypeId)],
         result: TypeId,
         modifier: Option<u8>,
     ) -> Result<(), Refusal> {
         self.binders.insert(binder, at);
-        self.params.insert(binder, params.iter().map(|(n, _)| n.clone()).collect());
+        self.params.insert(binder, params.iter().map(|&(n, _)| n).collect());
         self.open.push(binder);
         let pickled = self.with_length(tag, &mut |p| {
             p.ty(result, true)?;
-            for (name, t) in params {
-                p.ty(*t, false)?;
-                p.name(&param_name(name));
+            for &(name, t) in params {
+                p.ty(t, false)?;
+                let name = param_name(p.u.name(name));
+                p.name(&name);
             }
             modifier.into_iter().for_each(|m| p.byte(m));
             Ok(())
@@ -172,7 +175,8 @@ impl TreePickler<'_> {
             Type::Constant(tag, bits) => (tag, bits),
             Type::Str(s) => {
                 self.byte(STRINGconst);
-                self.name(&Name::utf8(&s));
+                let s = Name::utf8(self.u.name(s));
+                self.name(&s);
                 return Ok(());
             }
             _ => return Err("a constant of another type"),

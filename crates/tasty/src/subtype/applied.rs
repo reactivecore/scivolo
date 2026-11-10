@@ -169,7 +169,7 @@ impl Cmp<'_> {
     pub fn apply(&mut self, t: TypeId, args: &[TypeId]) -> TypeId {
         match self.u.ty(t).clone() {
             Type::Lambda { binder, params, result } => {
-                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
                 self.u.subst(result, binder, &names, args)
             }
             _ if args.is_empty() || t == NOTHING || t == ANY => t,

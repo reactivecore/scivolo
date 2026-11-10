@@ -12,7 +12,7 @@ mod def;
 mod named_tuple;
 mod prefix;
 
-use super::{Binder, Type, TypeId};
+use super::{Binder, NameId, Type, TypeId};
 use crate::tags::OBJECT;
 use crate::{Kind, SymbolId, Universe};
 use rustc_hash::FxHashSet;
@@ -64,7 +64,7 @@ pub struct Printer<'u> {
     /// The classes shown without prefix: those aliased in `Predef` or the `scala` package object.
     pub bare: FxHashSet<SymbolId>,
     /// The parameter names of the enclosing binding types.
-    pub binders: Vec<(Binder, Vec<String>)>,
+    pub binders: Vec<(Binder, Vec<NameId>)>,
 }
 
 /// `text` in parentheses if its precedence `own` is below the context's `prec`.
@@ -91,7 +91,8 @@ impl<'u> Printer<'u> {
         match self.u.ty(t).clone() {
             Type::NoPrefix => String::new(),
             Type::TypeRef(p, n) => {
-                let s = self.u.resolve(p, &n, true);
+                let s = self.u.resolve(p, n, true);
+                let n = self.u.name(n).to_owned();
                 self.named(Some(p), s, &n)
             }
             Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => format!("{}.type", self.path(t).shown),
@@ -106,7 +107,7 @@ impl<'u> Printer<'u> {
             Type::TermRef(..) | Type::This(_) | Type::Package(_) | Type::PackageName(_) => {
                 format!("{}.type", self.path(t).shown)
             }
-            Type::Local(_, n) => simple(&n).to_owned(),
+            Type::Local(_, n) => simple(self.u.name(n)).to_owned(),
             Type::Applied(c, args) => self.applied(c, &args, prec),
             Type::Alias(_) | Type::Bounds(..) => self.rhs(t),
             Type::And(a, b) => self.infix("&", a, b, prec),
@@ -129,7 +130,7 @@ impl<'u> Printer<'u> {
                 format!("classOf[{}]", self.text(TypeId(bits as u32), GLOBAL))
             }
             Type::Constant(tag, bits) => constant::text(tag, bits),
-            Type::Str(s) => format!("\"{s}\""),
+            Type::Str(s) => format!("\"{}\"", self.u.name(s)),
             Type::Other(tag) => format!("<{}>", crate::tags::name(tag)),
             Type::Var(_) => "?".into(),
             Type::Skolem(_, info) => format!("(?1 : {})", self.text(info, GLOBAL)),
@@ -165,7 +166,7 @@ impl<'u> Printer<'u> {
     fn param(&self, b: Binder, i: u32) -> String {
         let names = self.binders.iter().rev().find(|(binder, _)| *binder == b);
         match names.and_then(|(_, names)| names.get(i as usize)) {
-            Some(n) => simple(n).to_owned(),
+            Some(&n) => simple(self.u.name(n)).to_owned(),
             None => format!("<param {i}>"),
         }
     }
@@ -183,7 +184,7 @@ impl<'u> Printer<'u> {
     pub fn full_name_of(&mut self, t: TypeId) -> Option<String> {
         match self.u.ty(t).clone() {
             Type::Sym(p, s) => Some(self.symbol_path(p, s).full),
-            Type::TypeRef(p, n) => Some(prefix::join(&self.path(p).full, &n)),
+            Type::TypeRef(p, n) => Some(prefix::join(&self.path(p).full, self.u.name(n))),
             _ => None,
         }
     }

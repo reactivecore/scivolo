@@ -5,10 +5,10 @@
 
 use super::Typer;
 use super::avoid::Avoid;
-use tasty::{Binder, Kind, SymbolId, Type, TypeId};
+use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId};
 
 /// The parameter types and result of an `apply`, and the binder and names of its parameters.
-pub type ApplyParts = ((Vec<TypeId>, TypeId), (Binder, Vec<String>));
+pub type ApplyParts = ((Vec<TypeId>, TypeId), (Binder, Vec<NameId>));
 
 impl Typer<'_> {
     /// The parameter types and result of the `apply` refining dependent function type `t` of `n`
@@ -25,7 +25,7 @@ impl Typer<'_> {
             true => self.context_function_parts(parent),
             false => self.function_parts(parent, n),
         };
-        if name != "apply" || params.len() != n || parent_parts.is_none() {
+        if self.u.name(name) != "apply" || params.len() != n || parent_parts.is_none() {
             return None;
         }
         let (names, types) = params.into_iter().unzip();
@@ -33,10 +33,10 @@ impl Typer<'_> {
     }
 
     /// The parameters and result of the `apply` of dependent context function type `t`.
-    pub fn dependent_context_function(&mut self, t: TypeId) -> Option<(Vec<(String, TypeId)>, TypeId)> {
+    pub fn dependent_context_function(&mut self, t: TypeId) -> Option<(Vec<(NameId, TypeId)>, TypeId)> {
         let Type::Refined(parent, name, info) = self.u.ty(t).clone() else { return None };
         let Type::Method { params, result, .. } = self.u.ty(info).clone() else { return None };
-        self.context_function_parts(parent).filter(|_| name == "apply")?;
+        self.context_function_parts(parent).filter(|_| self.u.name(name) == "apply")?;
         Some((params, result))
     }
 
@@ -60,7 +60,7 @@ impl Typer<'_> {
         if self.refers_to(approx, params) {
             return None;
         }
-        let names = params.iter().zip(&types).map(|(&p, &t)| (self.u.symbol(p).name.clone(), t)).collect();
+        let names = params.iter().zip(&types).map(|(&p, &t)| (self.u.interned_name(p), t)).collect();
         let result = self.u.map_type(result, &mut |u, part| match *u.ty(part) {
             Type::Sym(None, s) => {
                 let i = params.iter().position(|&p| p == s)?;
@@ -73,7 +73,8 @@ impl Typer<'_> {
         let mut args = types;
         args.push(approx);
         let core = self.u.intern_type(Type::Applied(class, args));
-        Some(self.u.intern_type(Type::Refined(core, "apply".into(), method)))
+        let apply = self.u.intern_name("apply");
+        Some(self.u.intern_type(Type::Refined(core, apply, method)))
     }
 
     /// Whether `t` has a refinement by a method whose type refers to `params` and to its own

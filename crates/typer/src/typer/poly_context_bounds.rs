@@ -109,7 +109,7 @@ impl Typer<'_> {
             let span = self.ast.span(bound).to_synthetic();
             param_trees.push(self.build().val_def(p, typed, None, span));
             args.push(self.type_tree(tpe, self.tpd.span(typed).to_synthetic(), false));
-            params.push((text, tpe));
+            params.push((self.u.intern_name(&text), tpe));
         }
         let (result_tpe, result_span) = (self.tpd.tpe(result), self.tpd.span(result));
         args.push(self.type_tree(result_tpe, result_span, false));
@@ -129,7 +129,8 @@ impl Typer<'_> {
         let args = self.tpd.list(&args);
         let core = self.tpd.node(T::AppliedTypeTree { tpt: tycon, args }, span, Some(parent), None);
         let def = self.build().def_def(apply, &[&param_trees], result, None, result_span);
-        let tpe = self.u.intern_type(Type::Refined(parent, "apply".into(), method));
+        let apply = self.u.intern_name("apply");
+        let tpe = self.u.intern_type(Type::Refined(parent, apply, method));
         let refinements = self.tpd.list(&[def]);
         Ok(self.tpd.node(T::RefinedTypeTree { tpt: core, refinements }, span, Some(tpe), None))
     }

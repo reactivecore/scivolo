@@ -23,7 +23,7 @@ pub fn poly_function_member(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> 
     if l.tpd.sym(sel).is_some() || name.is_type {
         return None;
     }
-    if l.u.term_ref(l.tpd.tpe(sel))?.1 != "apply" {
+    if l.u.name(l.u.term_ref(l.tpd.tpe(sel))?.1) != "apply" {
         return None;
     }
     let class = poly_function_class(l, l.tpd.tpe(qualifier))?;

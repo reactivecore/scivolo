@@ -33,13 +33,8 @@ pub fn throw(u: &mut Universe) -> Result<SymbolId, String> {
     let nothing = u.defn().nothing;
     let result = type_ref(u, nothing);
     let binder = u.fresh_binder();
-    let info = u.intern_type(Type::Method {
-        binder,
-        params: vec![("x".into(), throwable)],
-        result,
-        implicit: false,
-        contextual: false,
-    });
+    let params = vec![(u.intern_name("x"), throwable)];
+    let info = u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
     let throw = u.define(symbol("throw", Kind::Def, ops, Flags::default()));
     u.set_info(throw, info);
     Ok(throw)

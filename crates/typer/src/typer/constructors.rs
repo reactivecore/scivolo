@@ -103,7 +103,7 @@ impl Typer<'_> {
             if dependent {
                 return Err("type parameter bounds referring to type parameters");
             }
-            params.push((self.u.symbol(p).name.clone(), info));
+            params.push((self.u.interned_name(p), info));
         }
         let args = (0..params.len()).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
         let result = self.u.intern_type(Type::Applied(class, args));

@@ -155,7 +155,7 @@ fn with_receiver_named(u: &mut Universe, info: TypeId) -> TypeId {
             u.intern_type(Type::Poly { binder, params, result })
         }
         Type::Method { binder, mut params, result, implicit, contextual } => {
-            params[0].0 = "x$0".to_owned();
+            params[0].0 = u.intern_name("x$0");
             u.intern_type(Type::Method { binder, params, result, implicit, contextual })
         }
         _ => info,

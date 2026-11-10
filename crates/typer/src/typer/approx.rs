@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Approximations of mapped types by ranges (dotty's `ApproximatingTypeMap`).
 
-use tasty::{ANY, NOTHING, Type, TypeId, Universe};
+use tasty::{ANY, NOTHING, NameId, Type, TypeId, Universe};
 
 /// A mapped type, or the range of types between a lower and an upper bound.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -148,7 +148,7 @@ pub fn alias(u: &mut Universe, a: Approx, v: i8) -> Approx {
 }
 
 /// `parent { name: info }` (dotty's `derivedRefinedType`).
-pub fn refined(u: &mut Universe, parent: Approx, name: &str, info: Approx, v: i8) -> Approx {
+pub fn refined(u: &mut Universe, parent: Approx, name: NameId, info: Approx, v: i8) -> Approx {
     if let Approx::Range(lo, hi) = parent {
         let lo = refined(u, Approx::Exact(lo), name, info, v);
         let hi = refined(u, Approx::Exact(hi), name, info, v);
@@ -159,14 +159,14 @@ pub fn refined(u: &mut Universe, parent: Approx, name: &str, info: Approx, v: i8
         return Approx::Exact(parent);
     }
     let Approx::Range(lo, hi) = info else {
-        return Approx::Exact(u.intern_type(Type::Refined(parent, name.to_owned(), info.hi())));
+        return Approx::Exact(u.intern_type(Type::Refined(parent, name, info.hi())));
     };
     let is_alias = |u: &Universe, t| u.type_alias(t).is_some();
     let is_bounds = |u: &Universe, t| matches!(u.ty(t), Type::Alias(_) | Type::Bounds(..));
     if is_bounds(u, lo) && is_bounds(u, hi) && (is_alias(u, lo) || is_alias(u, hi)) {
         return range(u, Approx::Exact(NOTHING), Approx::Exact(parent), v);
     }
-    let lo = u.intern_type(Type::Refined(parent, name.to_owned(), lo));
-    let hi = u.intern_type(Type::Refined(parent, name.to_owned(), hi));
+    let lo = u.intern_type(Type::Refined(parent, name, lo));
+    let hi = u.intern_type(Type::Refined(parent, name, hi));
     range(u, Approx::Exact(lo), Approx::Exact(hi), v)
 }

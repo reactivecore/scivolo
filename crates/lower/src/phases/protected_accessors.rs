@@ -111,7 +111,7 @@ fn use_setter(l: &mut Lower, t: TNodeId, lhs: TNodeId, rhs: TNodeId, made: &mut 
     let getter_info = l.u.info(getter);
     let value = l.u.result_type(getter_info);
     let binder = l.u.fresh_binder();
-    let params = vec![("x$0".to_owned(), value)];
+    let params = vec![(l.u.intern_name("x$0"), value)];
     let info =
         l.u.intern_type(Type::Method { binder, params, result: unit, implicit: false, contextual: false });
     let acc = accessor(l, host, &name, info, (accessed, true), made);

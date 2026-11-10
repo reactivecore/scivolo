@@ -6,7 +6,7 @@
 use super::super::Typer;
 use super::Lifter;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::TypeId;
+use tasty::{NameId, TypeId};
 
 impl Lifter {
     /// Gives call `f` with its prefix lifted unless idempotent, or for a method with default
@@ -34,7 +34,7 @@ impl Lifter {
                 let method = t.tpd.sym(fun);
                 let tpe = match lifted == fun {
                     true if t.mentions_params(result, binder, method) => {
-                        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+                        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
                         let types: Vec<TypeId> = lifted_args.iter().map(|&a| t.tpd.tpe(a)).collect();
                         t.applied_result(result, (binder, &names), method, &types)
                     }

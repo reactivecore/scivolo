@@ -63,7 +63,7 @@ impl Typer<'_> {
             return tpe;
         }
         let prefix = self.package_path(qualifier);
-        let name = self.u.symbol(p).name.clone();
+        let name = self.u.interned_name(p);
         self.u.intern_type(Type::TermRef(prefix, name))
     }
 

@@ -1,6 +1,6 @@
 //! Rebuilding a type with parts replaced.
 
-use super::{Type, TypeId};
+use super::{NameId, Type, TypeId};
 use crate::Universe;
 
 impl Universe {
@@ -14,7 +14,7 @@ impl Universe {
         }
         let mut m = |u: &mut Self, x: TypeId| u.map_type(x, f);
         let params =
-            |u: &mut Self, ps: Vec<(String, TypeId)>, m: &mut dyn FnMut(&mut Self, TypeId) -> TypeId| {
+            |u: &mut Self, ps: Vec<(NameId, TypeId)>, m: &mut dyn FnMut(&mut Self, TypeId) -> TypeId| {
                 ps.into_iter().map(|(n, p)| (n, m(u, p))).collect::<Vec<_>>()
             };
         let mapped = match self.ty(t).clone() {

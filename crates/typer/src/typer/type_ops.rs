@@ -124,7 +124,7 @@ impl TypeOps<'_> {
         let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
         let c = match self.u.ty(tycon).clone() {
             Type::Sym(_, c) => c,
-            Type::TypeRef(p, n) => self.u.resolve(p, &n, true)?,
+            Type::TypeRef(p, n) => self.u.resolve(p, n, true)?,
             _ => return None,
         };
         (self.u.symbol(c).kind == Kind::Class).then_some(c)

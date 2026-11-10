@@ -8,7 +8,7 @@ use super::{UnapplyPattern, is_seq_wildcard};
 use crate::ctx::Mode;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::{Binder, Type, TypeId};
+use tasty::{Binder, NameId, Type, TypeId};
 
 /// The extractor method of a pattern, applied to everything before its scrutinee.
 pub struct Extractor {
@@ -28,7 +28,7 @@ pub struct MethodShape {
     /// The binder through which the result refers to the scrutinee parameter.
     pub binder: Binder,
     /// The name of the scrutinee parameter.
-    pub param: String,
+    pub param: NameId,
     /// The type of the scrutinee parameter.
     pub arg_type: TypeId,
     /// The result type, the implicit clauses still to apply included.
@@ -102,12 +102,12 @@ fn method_shape(t: &mut Typer<'_>, unapp: TNodeId) -> Result<MethodShape, &'stat
     let info = t.method_info(fun_tpe).unwrap_or(fun_tpe);
     let m = t.u.method(info).filter(|m| !m.implicit).ok_or("not an extractor")?;
     let (binder, params, result) = (m.binder, m.params.to_vec(), m.result);
-    let [(ref param, arg_type)] = params[..] else { return Err("not an extractor") };
+    let [(param, arg_type)] = params[..] else { return Err("not an extractor") };
     let implicit = t.u.method(result).is_some_and(|m| m.implicit);
     if !implicit && matches!(t.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
         return Err("extractor with more parameters");
     }
-    Ok(MethodShape { binder, param: param.clone(), arg_type, result })
+    Ok(MethodShape { binder, param, arg_type, result })
 }
 
 /// Whether selection `sel` selects from a new instance of a class (dotty's fallback of

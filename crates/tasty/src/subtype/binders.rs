@@ -2,11 +2,11 @@
 //! compared contravariantly, then the bodies.
 
 use super::Cmp;
-use crate::types::{Binder, Type, TypeId};
+use crate::types::{Binder, NameId, Type, TypeId};
 use crate::{Kind, Universe};
 
 /// A binding type: its binder, its parameters' names and bounds, its body.
-pub type Binding<'a> = (Binder, &'a [(String, TypeId)], TypeId);
+pub type Binding<'a> = (Binder, &'a [(NameId, TypeId)], TypeId);
 
 impl Cmp<'_> {
     /// Whether binding type `a` is a subtype of `b`: as many parameters, each bound of `b`'s
@@ -44,12 +44,12 @@ impl Cmp<'_> {
     /// `t` with the parameters of binding `binding` replaced by `refs`: its parameter
     /// references, and the symbols of a method's type parameters of the same names.
     fn renamed(&mut self, binding: Binding, t: TypeId, refs: &[TypeId]) -> TypeId {
-        let names: Vec<String> = binding.1.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = binding.1.iter().map(|&(n, _)| n).collect();
         let t = self.u.subst(t, binding.0, &names, refs);
         self.u.map_type(t, &mut |u, x| match u.ty(x) {
             Type::Sym(_, s) if u.symbol(*s).kind == Kind::TypeParam => {
                 let method = u.symbol(*s).owner.is_some_and(|o| u.symbol(o).kind == Kind::Def);
-                let i = names.iter().position(|n| *n == u.symbol(*s).name)?;
+                let i = names.iter().position(|&n| u.name(n) == u.symbol(*s).name)?;
                 method.then(|| refs[i])
             }
             _ => None,
@@ -61,14 +61,14 @@ impl Universe {
     /// `t` with its references to the symbols of term parameters of clause `params` with binder
     /// `binder`, the symbols of a method whose info has that clause, replaced by parameter
     /// references.
-    pub fn param_syms_as_refs(&mut self, t: TypeId, params: &[(String, TypeId)], binder: Binder) -> TypeId {
+    pub fn param_syms_as_refs(&mut self, t: TypeId, params: &[(NameId, TypeId)], binder: Binder) -> TypeId {
         self.map_type(t, &mut |u, x| {
             let Type::Sym(None, s) = *u.ty(x) else { return None };
             if u.symbol(s).kind != Kind::Param || !u.symbol(s).owner.is_some_and(|o| has_clause(u, o, binder))
             {
                 return None;
             }
-            let i = params.iter().position(|(n, _)| *n == u.symbol(s).name)?;
+            let i = params.iter().position(|&(n, _)| u.name(n) == u.symbol(s).name)?;
             Some(u.intern_type(Type::Param(binder, i as u32)))
         })
     }

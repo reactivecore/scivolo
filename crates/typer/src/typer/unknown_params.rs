@@ -114,7 +114,7 @@ impl Typer<'_> {
             let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
             let c = match self.u.ty(tycon).clone() {
                 Type::Sym(_, c) => c,
-                Type::TypeRef(p, n) => match self.u.resolve(p, &n, true) {
+                Type::TypeRef(p, n) => match self.u.resolve(p, n, true) {
                     Some(c) => c,
                     None => return false,
                 },

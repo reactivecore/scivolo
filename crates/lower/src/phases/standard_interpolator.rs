@@ -80,10 +80,11 @@ fn process(
     let string = l.u.class_ref("java.lang.String");
     let info = l.u.info(process_escapes);
     let Some(m) = l.u.method(info) else { unreachable!("a method") };
-    let name = m.params[0].0.clone();
+    let name = m.params[0].0;
     let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, flags));
-    let param = l.u.define(symbol(&name, Kind::Param, anon, Flags::default()));
+    let param = symbol(l.u.name(name), Kind::Param, anon, Flags::default());
+    let param = l.u.define(param);
     l.u.set_info(param, string);
     let binder = l.u.fresh_binder();
     let params = vec![(name, string)];

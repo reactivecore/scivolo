@@ -6,7 +6,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::dependent_params::applied_result;
 use crate::typer::type_apply::instantiate_poly;
 use tasty::tags::PRIVATE;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{NameId, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// Makes selection `t` of `name` from retyped `qualifier` select the member dotty's retyping
@@ -73,11 +73,11 @@ impl Inlining<'_> {
         let args: Vec<TypeId> = self.tpd.items(args).iter().map(|&a| self.tpd.tpe(a)).collect();
         let tpe = match self.u.ty(info).clone() {
             Type::Method { binder, params, result, .. } if applied && params.len() == args.len() => {
-                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
                 applied_result(self.u, result, (binder, &names), meth, &args)
             }
             Type::Poly { binder, params, result } if !applied && params.len() == args.len() => {
-                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
                 instantiate_poly(self.u, result, (binder, &names), &args, meth)
             }
             _ => return,

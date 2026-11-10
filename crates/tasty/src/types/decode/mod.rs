@@ -7,7 +7,7 @@ mod refs;
 
 pub use defs::param_tree_clauses;
 
-use super::{Binder, Type, TypeId, Types};
+use super::{Binder, NameId, Type, TypeId, Types};
 use crate::tags::*;
 use crate::{Ast, FileId, NodeId, SymbolId};
 use rustc_hash::FxHashMap;
@@ -52,9 +52,14 @@ impl<'a> Decoder<'a> {
         }
     }
 
-    /// The name the node at `id` refers to.
-    pub fn name(&self, id: NodeId) -> String {
-        self.names.get(self.ast.node(id).a as usize).cloned().unwrap_or_default()
+    /// The text of the name the node at `id` refers to.
+    pub fn text(&self, id: NodeId) -> &'a str {
+        self.names.get(self.ast.node(id).a as usize).map_or("", String::as_str)
+    }
+
+    /// The name the node at `id` refers to, interned.
+    pub fn name(&mut self, id: NodeId) -> NameId {
+        self.types.intern_name(self.text(id))
     }
 
     pub fn intern(&mut self, t: Type) -> TypeId {
@@ -82,12 +87,12 @@ impl<'a> Decoder<'a> {
 
     /// Whether `tycon` is `scala.&` (`true`) or `scala.|` (`false`).
     fn and_or(&self, tycon: TypeId) -> Option<bool> {
-        let Type::TypeRef(prefix, name) = self.types.get(tycon) else { return None };
+        let Type::TypeRef(prefix, name) = *self.types.get(tycon) else { return None };
         let scala = self.packages.get("scala");
-        if !matches!(self.types.get(*prefix), Type::Package(p) if Some(p) == scala) {
+        if !matches!(self.types.get(prefix), Type::Package(p) if Some(p) == scala) {
             return None;
         }
-        match name.as_str() {
+        match self.types.name(name) {
             "&" => Some(true),
             "|" => Some(false),
             _ => None,

@@ -107,7 +107,7 @@ fn erased_params(u: &mut Universe, site: TypeId, s: SymbolId) -> Vec<Erased> {
         let Some((None, p)) = u.sym_ref(x) else { return None };
         let param = u.symbol(p);
         let own = param.kind == Kind::Param && param.owner == Some(s);
-        own.then(|| params.iter().find(|(n, _)| *n == param.name).map(|&(_, t)| t)).flatten()
+        own.then(|| params.iter().find(|&&(n, _)| u.name(n) == param.name).map(|&(_, t)| t)).flatten()
     });
     let info = u.normalize(info);
     u.erased_method_type(info).0

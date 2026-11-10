@@ -34,13 +34,14 @@ impl Typer<'_> {
         match tparams.is_empty() {
             true => upper,
             false => {
-                let params = tparams
+                let names: Vec<String> = tparams
                     .iter()
                     .map(|&p| match *self.ast.tree(p) {
-                        Tree::TypeDef { name, .. } => (self.text(name.name).to_owned(), bounds),
-                        _ => (String::new(), bounds),
+                        Tree::TypeDef { name, .. } => self.text(name.name).to_owned(),
+                        _ => String::new(),
                     })
                     .collect();
+                let params = names.iter().map(|n| (self.u.intern_name(n), bounds)).collect();
                 let binder = self.syms.fresh_binder();
                 self.u.intern_type(Type::Lambda { binder, params, result: upper })
             }

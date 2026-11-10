@@ -190,8 +190,10 @@ fn wildcards_constants_singletons_and_lambdas() {
     let list = app(u, "scala.collection.immutable.List", &[x]);
     let list_class = t(u, "scala.collection.immutable.List");
     let lambda = |u: &mut Universe, result| {
-        u.intern_type(Type::Lambda { binder, params: vec![("X".into(), unbounded)], result })
+        let params = vec![(u.intern_name("X"), unbounded)];
+        u.intern_type(Type::Lambda { binder, params, result })
     };
+    let none = u.intern_name("None");
     let cases = [
         (app(u, "scala.Option", &[upper]), "Option[? <: AnyVal]"),
         (app(u, "scala.Option", &[lower]), "Option[? >: Int]"),
@@ -201,8 +203,8 @@ fn wildcards_constants_singletons_and_lambdas() {
         (u.intern_type(Type::Constant(CHARconst, 'c' as i64)), "c"),
         (u.intern_type(Type::Constant(DOUBLEconst, 1e10f64.to_bits() as i64)), "1.0E10"),
         (u.intern_type(Type::Constant(FLOATconst, 1.5f32.to_bits() as i64)), "1.5"),
-        (u.intern_type(Type::Str("a".into())), "\"a\""),
-        (u.intern_type(Type::TermRef(scala, "None".into())), "None.type"),
+        (u.str_type("a"), "\"a\""),
+        (u.intern_type(Type::TermRef(scala, none)), "None.type"),
         (lambda(u, map), "[X] =>> Map[X, Int]"),
         (lambda(u, list), "List"),
         (list_class, "List"),
@@ -228,17 +230,19 @@ fn definitions_of_a_repl_line() {
     let def = define(u, wrapper, "f", Kind::Def, &[]);
     let binder = u.fresh_binder();
     let c = u.intern_type(Type::Sym(None, trait_));
+    let c_name = u.intern_name("c");
     let using = u.intern_type(Type::Method {
         binder,
-        params: vec![("c".into(), c)],
+        params: vec![(c_name, c)],
         result: int,
         implicit: true,
         contextual: true,
     });
     let binder = u.fresh_binder();
+    let x_name = u.intern_name("x");
     let method = u.intern_type(Type::Method {
         binder,
-        params: vec![("x".into(), point)],
+        params: vec![(x_name, point)],
         result: using,
         implicit: false,
         contextual: false,

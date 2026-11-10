@@ -54,9 +54,9 @@ impl TreePickler<'_> {
         let named = self.tpd.items(named).to_vec();
         let mut others = others.map(|o| self.tpd.items(o).to_vec()).unwrap_or_default().into_iter();
         let mut ordered = Vec::new();
-        for (name, _) in &params {
+        for &(name, _) in &params {
             let given = named.iter().find_map(|&a| match *self.tpd.tree(a) {
-                T::NamedArg { name: n, arg } if self.names.text(n.name) == name => Some(arg),
+                T::NamedArg { name: n, arg } if self.names.text(n.name) == self.u.name(name) => Some(arg),
                 _ => None,
             });
             ordered.push(given.or_else(|| others.next()).ok_or("named type arguments missing a parameter")?);

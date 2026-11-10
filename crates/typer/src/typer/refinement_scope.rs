@@ -67,7 +67,7 @@ impl Typer<'_> {
             let replaced = match *u.ty(part) {
                 _ if part == this => rec_this,
                 Type::Sym(Some(p), s) if p == this => {
-                    let name = u.symbol(s).name.clone();
+                    let name = u.interned_name(s);
                     let named = if u.is_type_symbol(s) {
                         Type::TypeRef(rec_this, name)
                     } else {

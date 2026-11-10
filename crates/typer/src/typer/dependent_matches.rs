@@ -6,7 +6,7 @@
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::{ANY, Type, TypeId};
+use tasty::{ANY, NameId, Type, TypeId};
 
 impl Typer<'_> {
     /// The cases of match type `pt` if a match on `sel` with cases `cases` has its shape: as many
@@ -59,7 +59,7 @@ impl Typer<'_> {
                 }
                 let args: Vec<TypeId> =
                     bound.iter().map(|&(s, _)| self.u.intern_type(Type::Sym(None, s))).collect();
-                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
                 self.u.subst(result, binder, &names, &args)
             }
             _ => case,

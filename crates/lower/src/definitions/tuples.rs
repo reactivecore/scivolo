@@ -57,7 +57,7 @@ pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str) -> Result<SymbolId, 
     }
     let ctor = u.define(symbol("<init>", Kind::Def, class, Flags::default()));
     let params = tags.chars().zip(elems).enumerate();
-    let params = params.map(|(i, (t, e))| (format!("_{}$mc{t}$sp", i + 1), e)).collect();
+    let params = params.map(|(i, (t, e))| (u.intern_name(&format!("_{}$mc{t}$sp", i + 1)), e)).collect();
     let result = type_ref(u, class);
     let binder = u.fresh_binder();
     let info = u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });

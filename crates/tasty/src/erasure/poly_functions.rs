@@ -17,7 +17,7 @@ impl Universe {
     /// subclass of `PolyFunction` (dotty's `PolyFunctionOf.unapply`).
     pub fn poly_function_apply(&mut self, t: TypeId) -> Option<TypeId> {
         let Type::Refined(parent, name, info) = self.ty(t).clone() else { return None };
-        if name != "apply" || !matches!(self.ty(info), Type::Method { .. } | Type::Poly { .. }) {
+        if self.name(name) != "apply" || !matches!(self.ty(info), Type::Method { .. } | Type::Poly { .. }) {
             return None;
         }
         let poly_function = self.class_ref(crate::defn::POLY_FUNCTION);

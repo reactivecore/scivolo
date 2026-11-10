@@ -80,10 +80,11 @@ impl Decoder<'_> {
     fn annotated_param(&mut self, t: TypeId, annot: &str) -> TypeId {
         let internal = match self.packages.get("scala.annotation.internal") {
             Some(&pkg) => Type::Package(pkg),
-            None => Type::PackageName("scala.annotation.internal".into()),
+            None => Type::PackageName(self.types.intern_name("scala.annotation.internal")),
         };
         let internal = self.intern(internal);
-        let annot = self.intern(Type::TypeRef(internal, annot.into()));
+        let annot = self.types.intern_name(annot);
+        let annot = self.intern(Type::TypeRef(internal, annot));
         match *self.types.get(t) {
             Type::ByName(r) => {
                 let r = self.intern(Type::Annotated(r, annot));
@@ -127,7 +128,8 @@ impl Decoder<'_> {
                 if self.ast.tag(m) == TYPEDEF && !self.is_bounds_or_alias(info) {
                     info = self.intern(Type::Alias(info));
                 }
-                t = self.intern(Type::Refined(t, self.name(m), info));
+                let name = self.name(m);
+                t = self.intern(Type::Refined(t, name, info));
             }
         }
         t

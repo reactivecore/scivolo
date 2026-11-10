@@ -73,7 +73,8 @@ pub fn declare_library(l: &mut Lower, class: SymbolId, ctor: SymbolId, outer: Sy
     let tpe = type_ref(l.u, outer);
     let info = l.u.info(ctor);
     let first = l.u.strip_poly(info);
-    let declared = l.u.method(first).is_some_and(|m| m.params.first().is_some_and(|(n, _)| n == "$outer"));
+    let declared =
+        l.u.method(first).is_some_and(|m| m.params.first().is_some_and(|&(n, _)| l.u.name(n) == "$outer"));
     if declared && l.outers.contains_key(&class) {
         return;
     }

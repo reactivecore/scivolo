@@ -29,9 +29,10 @@ pub fn from_product(
     let cc = l.case_classes()?;
     let product = type_ref(l.u, cc.product);
     let binder = l.u.fresh_binder();
+    let x0 = l.u.intern_name("x$0");
     let info = l.u.intern_type(Type::Method {
         binder,
-        params: vec![("x$0".into(), product)],
+        params: vec![(x0, product)],
         result: mono,
         implicit: false,
         contextual: false,

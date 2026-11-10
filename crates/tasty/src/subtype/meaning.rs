@@ -1,11 +1,11 @@
 //! What a type symbol or a refinement-only type member stands for through a prefix.
 
 use super::refs::Meaning;
-use crate::types::{Type, TypeId};
+use crate::types::{NameId, Type, TypeId};
 use crate::{ANY, Kind, NOTHING, SymbolId, Universe};
 
 /// What type member `name` stands for by a refinement of `prefix`'s type.
-pub fn refined_meaning(u: &mut Universe, prefix: TypeId, name: &str) -> Option<Meaning> {
+pub fn refined_meaning(u: &mut Universe, prefix: TypeId, name: NameId) -> Option<Meaning> {
     let info = u.refinement_named(prefix, name)?;
     match *u.ty(info) {
         Type::Alias(a) => Some(Meaning::Alias(a)),
@@ -30,9 +30,9 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
     match u.symbol(s).kind {
         Kind::Class => Meaning::Class(s),
         Kind::Type | Kind::TypeParam => {
-            let name = u.symbol(s).name.clone();
+            let name = u.interned_name(s);
             let member = u.symbol(s).kind == Kind::Type;
-            if let Some(refined) = prefix.filter(|_| member).and_then(|p| refined_meaning(u, p, &name)) {
+            if let Some(refined) = prefix.filter(|_| member).and_then(|p| refined_meaning(u, p, name)) {
                 let info = u.info(s);
                 return match (refined, u.ty(info).clone()) {
                     (Meaning::Abstract(lo, hi), Type::Bounds(lo2, hi2)) => {

@@ -13,9 +13,8 @@ impl Typer<'_> {
     pub fn qual_skolem(&mut self, p: TypeId, s: SymbolId) -> TypeId {
         let unstable = match *self.u.ty(p) {
             Type::Sym(..) => !super::stability::is_stable_path(self.u, p),
-            Type::TermRef(pre, ref name) => {
-                let name = name.clone();
-                let info = self.u.term_refinement_named(pre, &name);
+            Type::TermRef(pre, name) => {
+                let info = self.u.term_refinement_named(pre, name);
                 info.is_some_and(|i| matches!(self.u.ty(i), Type::ByName(_) | Type::Method { .. }))
             }
             Type::Applied(..) | Type::Refined(..) | Type::And(..) | Type::Or(..) => true,

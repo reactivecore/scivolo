@@ -7,7 +7,7 @@
 use super::Reflect;
 use crate::tpd::TNodeId;
 use tasty::tags::{GIVEN, IMPLICIT};
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, NameId, Symbol, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
     /// New parameter definitions of method `s` by clause, from its type (the parameter symbols
@@ -21,7 +21,7 @@ impl Reflect<'_> {
                 Type::Method { params, result, implicit, contextual, .. } => {
                     let mut clause = Vec::new();
                     for (name, info) in params {
-                        let p = self.new_param(s, &name, Kind::Param);
+                        let p = self.new_param(s, name, Kind::Param);
                         self.u.set_info(p, info);
                         let flags = self.u.symbol(p).flags;
                         match (contextual, implicit) {
@@ -36,9 +36,9 @@ impl Reflect<'_> {
                     t = result;
                 }
                 Type::Poly { binder, params, result } => {
-                    let (names, bounds): (Vec<String>, Vec<TypeId>) = params.into_iter().unzip();
+                    let (names, bounds): (Vec<NameId>, Vec<TypeId>) = params.into_iter().unzip();
                     let syms: Vec<SymbolId> =
-                        names.iter().map(|n| self.new_param(s, n, Kind::TypeParam)).collect();
+                        names.iter().map(|&n| self.new_param(s, n, Kind::TypeParam)).collect();
                     let refs: Vec<TypeId> =
                         syms.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
                     let mut clause = Vec::new();
@@ -55,9 +55,9 @@ impl Reflect<'_> {
         }
     }
 
-    fn new_param(&mut self, owner: SymbolId, name: &str, kind: Kind) -> SymbolId {
+    fn new_param(&mut self, owner: SymbolId, name: NameId, kind: Kind) -> SymbolId {
         let p = self.u.define(Symbol {
-            name: name.to_owned(),
+            name: self.u.name(name).to_owned(),
             kind,
             owner: None,
             flags: Flags::default(),
@@ -87,7 +87,7 @@ impl Reflect<'_> {
             match self.u.ty(result).clone() {
                 Type::Method { result: r, .. } => result = r,
                 Type::Poly { binder, params: ps, result: r } => {
-                    let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
+                    let names: Vec<NameId> = ps.into_iter().map(|(n, _)| n).collect();
                     let refs: Vec<TypeId> = (clause.iter())
                         .map(|&p| self.tpd.sym(p).map(|p| self.u.intern_type(Type::Sym(None, p))))
                         .collect::<Option<_>>()

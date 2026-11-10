@@ -37,7 +37,8 @@ pub fn encode(
         let tpe = tags.iter().find(|(_, t)| *t == tag).map(|&(s, _)| s).expect("a tag's type");
         let name = fresh(l, &l.u.symbol(evidence).name.clone());
         let local = l.u.define(symbol(&name, Kind::Type, owner, Flags::default().with(SYNTHETIC)));
-        let underlying = l.u.intern_type(Type::TypeRef(tag, UNDERLYING.into()));
+        let underlying = l.u.intern_name(UNDERLYING);
+        let underlying = l.u.intern_type(Type::TypeRef(tag, underlying));
         let alias = l.u.intern_type(Type::Alias(underlying));
         l.u.set_info(local, alias);
         let bound = l.u.intern_type(Type::Sym(None, tpe));

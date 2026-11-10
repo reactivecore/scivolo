@@ -59,6 +59,6 @@ impl Equality {
 /// The type of a method taking `params` named `x$0`… and returning `result`.
 pub fn method(u: &mut Universe, params: &[TypeId], result: TypeId) -> TypeId {
     let binder = u.fresh_binder();
-    let params = params.iter().enumerate().map(|(i, &t)| (format!("x${i}"), t)).collect();
+    let params = params.iter().enumerate().map(|(i, &t)| (u.intern_name(&format!("x${i}")), t)).collect();
     u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false })
 }

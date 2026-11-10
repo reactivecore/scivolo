@@ -70,7 +70,7 @@ fn forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> Result<TNodeId> 
     let (_, array) = param(l);
     let object = type_ref(l.u, l.defs.object);
     let binder = l.u.fresh_binder();
-    let params = vec![("args".to_owned(), array)];
+    let params = vec![(l.u.intern_name("args"), array)];
     let info =
         l.u.intern_type(Type::Method { binder, params, result: object, implicit: false, contextual: false });
     let sym = l.u.define(symbol("apply", Kind::Def, class, Flags::default().with(SYNTHETIC)));

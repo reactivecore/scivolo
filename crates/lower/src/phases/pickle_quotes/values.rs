@@ -56,13 +56,9 @@ pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId, owner: Symbol
     let expr = l.u.intern_type(Type::Applied(expr, vec![q.tpe]));
     let quotes_type = l.tpd.tpe(q.quotes);
     let binder = l.u.fresh_binder();
-    let using = l.u.intern_type(Type::Method {
-        binder,
-        params: vec![("x$2".into(), quotes_type)],
-        result: expr,
-        implicit: true,
-        contextual: true,
-    });
+    let params = vec![(l.u.intern_name("x$2"), quotes_type)];
+    let using =
+        l.u.intern_type(Type::Method { binder, params, result: expr, implicit: true, contextual: true });
     let first = l.apply(fun, &[lit], using, Span::NONE);
     let first = l.positioned(first);
     let call = l.apply(first, &[q.quotes], expr, Span::NONE);

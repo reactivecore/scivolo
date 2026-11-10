@@ -6,7 +6,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether the callee's parameter type may give a parameter of expected type `formal` its
@@ -137,7 +137,10 @@ impl Typer<'_> {
                         self.complete(s);
                         Some((self.u.member_info(tpe, s), Some(s)))
                     }
-                    [] => Some((self.u.term_refinement_named(tpe, &text)?, None)),
+                    [] => {
+                        let name = self.u.intern_name(&text);
+                        Some((self.u.term_refinement_named(tpe, name)?, None))
+                    }
                     _ => None,
                 }
             }
@@ -160,7 +163,7 @@ impl Typer<'_> {
                     self.typed_ahead(a, typed, ctx);
                     targs.push(self.tpd.tpe(typed));
                 }
-                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
                 Some((self.instantiate_poly(result, binder, &names, &targs, sym), None))
             }
             _ => None,

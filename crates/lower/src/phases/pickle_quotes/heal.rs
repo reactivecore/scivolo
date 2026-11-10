@@ -128,7 +128,8 @@ impl Healer<'_> {
                     None => self.used.push((tag, self.at)),
                 }
                 self.at.1 += 1;
-                Some(u.intern_type(Type::TypeRef(tag, UNDERLYING.into())))
+                let underlying = u.intern_name(UNDERLYING);
+                Some(u.intern_type(Type::TypeRef(tag, underlying)))
             }
             Type::Sym(..) | Type::TypeRef(..) => {
                 let aliased = u.referenced_alias(x).filter(|&a| !u.is_match(a)).map(|a| self.healed(u, a));

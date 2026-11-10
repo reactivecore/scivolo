@@ -87,7 +87,7 @@ impl Printer<'_> {
         }
         let s = match self.u.ty(tycon).clone() {
             Type::Sym(_, s) => s,
-            Type::TypeRef(p, n) => self.u.resolve(p, &n, true)?,
+            Type::TypeRef(p, n) => self.u.resolve(p, n, true)?,
             _ => return None,
         };
         let sym = self.u.symbol(s);
@@ -118,12 +118,12 @@ impl Printer<'_> {
     pub fn as_function(&mut self, t: TypeId) -> String {
         let text = match self.u.ty(t).clone() {
             Type::Method { binder, params, result, implicit, .. } => {
-                self.binders.push((binder, params.iter().map(|(n, _)| n.clone()).collect()));
+                self.binders.push((binder, params.iter().map(|&(n, _)| n).collect()));
                 let arrow = if implicit { "?=>" } else { "=>" };
                 format!("({}) {arrow} {}", self.params(&params), self.as_function(result))
             }
             Type::Poly { binder, params, result } => {
-                self.binders.push((binder, params.iter().map(|(n, _)| n.clone()).collect()));
+                self.binders.push((binder, params.iter().map(|&(n, _)| n).collect()));
                 format!("[{}] => {}", self.type_params(&params), self.as_function(result))
             }
             _ => return self.text(t, GLOBAL),

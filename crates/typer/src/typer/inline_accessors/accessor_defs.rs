@@ -33,7 +33,7 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
         return None;
     }
     let result = if access.setter {
-        let params = vec![("x$0".to_owned(), info)];
+        let params = vec![(t.u.intern_name("x$0"), info)];
         clauses.push(Clause { binder: None, params, flags: f::TERM_PARAM });
         crate::defn::type_ref(t.u, t.defn.unit)
     } else {
@@ -49,9 +49,10 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
         let is_type = clause.flags.is(f::TYPE_PARAM);
         let mut params = Vec::new();
         let mut args = Vec::new();
-        for (pname, ptype) in &clause.params {
-            let name = TName { name: t.name(pname), is_type };
-            let tpt = accessor_tpt(t, *ptype, &clauses[..=i], span)?;
+        for &(pname, ptype) in &clause.params {
+            let pname = t.u.name(pname).to_owned();
+            let name = TName { name: t.name(&pname), is_type };
+            let tpt = accessor_tpt(t, ptype, &clauses[..=i], span)?;
             let mods = t.ast.mods(Modifiers::with_flags(clause.flags));
             params.push(match is_type {
                 true => t.ast.node(Tree::TypeDef { name, rhs: tpt, mods }),

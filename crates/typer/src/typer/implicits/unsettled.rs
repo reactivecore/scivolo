@@ -125,7 +125,7 @@ pub fn is_underspecified(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
             let tpe = ty.u.dealias(tpe);
             let class = match ty.u.ty(tpe).clone() {
                 Type::Sym(_, s) => Some(s),
-                Type::TypeRef(p, n) => ty.u.resolve(p, &n, true),
+                Type::TypeRef(p, n) => ty.u.resolve(p, n, true),
                 _ => None,
             };
             class.is_some_and(|c| c == b.any || c == b.object)

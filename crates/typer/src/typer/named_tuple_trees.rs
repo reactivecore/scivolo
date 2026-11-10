@@ -9,7 +9,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName, Tree};
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 impl Typer<'_> {
     /// The tree of named tuple type `tpe` at `span`, written with names `names` and value type
@@ -48,7 +48,7 @@ impl Typer<'_> {
         span: Span,
         ctx: Ctx,
     ) -> Option<TNodeId> {
-        let types: Vec<TypeId> = names.iter().map(|n| self.u.intern_type(Type::Str(n.clone()))).collect();
+        let types: Vec<TypeId> = names.iter().map(|n| self.u.str_type(n)).collect();
         let names_tpe = self.values_type(&types)?;
         let names_tree = self.names_tree(names_tpe, names, span);
         let start = span.start_pos().to_synthetic();

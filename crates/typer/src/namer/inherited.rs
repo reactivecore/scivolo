@@ -6,7 +6,7 @@
 use crate::typer::Typer;
 use syntax::ast::Tree;
 use syntax::ast::flags as f;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The intersection of the result types of the members `sym` overrides, as seen from its class,
@@ -131,7 +131,7 @@ impl Typer<'_> {
                 }
                 let start = targs.len();
                 targs.extend(clause.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))));
-                let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
+                let names: Vec<NameId> = ps.into_iter().map(|(n, _)| n).collect();
                 t = self.u.subst(result, binder, &names, &targs[start..]);
                 let n = targs.len().min(their_types.len());
                 t = self.subst_syms(t, &their_types[..n], &targs[..n]);
@@ -152,7 +152,7 @@ impl Typer<'_> {
                     return None;
                 }
             }
-            let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
+            let names: Vec<NameId> = ps.into_iter().map(|(n, _)| n).collect();
             let start = refs.len();
             refs.extend(clause.iter().map(|&p| self.ref_type(None, p)));
             t = self.u.subst(result, binder, &names, &refs[start..]);

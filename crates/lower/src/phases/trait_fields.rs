@@ -179,6 +179,7 @@ pub fn forwarder(l: &mut Lower, class: SymbolId, member: SymbolId, rhs: Option<T
     let defs: Vec<TNodeId> = params
         .into_iter()
         .map(|(n, t)| {
+            let n = l.u.name(n).to_owned();
             let p = l.u.define(symbol(&n, Kind::Param, sym, tasty::Flags::default()));
             l.u.set_info(p, t);
             l.param_def(p, span)

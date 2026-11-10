@@ -7,7 +7,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Attrs, List, NodeId, Tree};
 use syntax::config::Features;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, NameId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, fun_ctx: Ctx) -> TNodeId {
@@ -84,7 +84,7 @@ impl Typer<'_> {
             return self.unsupported(id, what);
         }
         let meth = self.tpd.sym(self.tpd.meth_part(f));
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let result = self.without_false_deps(result, binder, meth);
         let dependent = self.mentions_clause_params(result, (binder, &names), meth);
         if !dependent && let Err(what) = self.constrain_applied_result(meth, result, pt) {
@@ -100,7 +100,9 @@ impl Typer<'_> {
             .last()
             .copied()
             .filter(|&a| repeated.is_some() && arg_ids.len() == params.len() + 1 && self.is_sequence_arg(a));
-        let named_seq = seq_arg.is_some_and(|a| self.arg_name(a).is_some_and(|n| Some(&n) == names.last()));
+        let named_seq = seq_arg.is_some_and(|a| {
+            self.arg_name(a).is_some_and(|n| names.last().is_some_and(|&l| self.u.name(l) == n))
+        });
         let unnamed = &arg_ids[..arg_ids.len() - usize::from(named_seq)];
         let aligned = match self.aligned_args(unnamed, &params, repeated.is_some()) {
             Ok(aligned) => aligned,

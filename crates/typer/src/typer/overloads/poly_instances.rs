@@ -8,7 +8,7 @@ use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
 use syntax::ast::NodeId;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 /// Instantiates polymorphic type `info` of `owner`: its type parameters replaced by fresh
 /// abstract types within their bounds if `rigid`, else by fresh type variables within them;
@@ -18,15 +18,16 @@ pub fn poly_instance(t: &mut Typer, info: TypeId, owner: SymbolId, rigid: bool) 
     else {
         return info;
     };
-    let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+    let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
     if let Some(args) = mapped_targs_of(t, owner, names.len()) {
         return t.instantiate_poly(result, binder, &names, &args, Some(owner));
     }
 
     let mut args = Vec::new();
-    for n in &names {
+    for &n in &names {
         args.push(if rigid {
-            let s = t.syms.define(t.u, n, Kind::TypeParam, owner, syntax::ast::flags::TYPE_PARAM);
+            let n = t.u.name(n).to_owned();
+            let s = t.syms.define(t.u, &n, Kind::TypeParam, owner, syntax::ast::flags::TYPE_PARAM);
             t.u.unenter(s);
             t.u.intern_type(Type::Sym(None, s))
         } else {

@@ -5,16 +5,16 @@
 //! context clause it takes (dotty's `Bridges.etaExpand` with `Erasure.adaptClosure`).
 
 use super::adapted::{function_adaptation, specialized_interface};
-use super::lift_names::fresh;
+use super::lift_names::{fresh, fresh_name};
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, FINAL, PRIVATE, SYNTHETIC};
-use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId};
+use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The parameters of a method, each with its name.
-pub type Params = Vec<(String, TypeId)>;
+pub type Params = Vec<(NameId, TypeId)>;
 
 /// A closure's method: its parameters, the erased types of the closure's if they come as one
 /// array, how many are the closure's, the specialized interface the closure implements if any,
@@ -25,7 +25,7 @@ pub struct Anon {
     pub bunched: Option<Vec<Erased>>,
     pub arity: usize,
     pub interface: Option<SymbolId>,
-    pub adapted: Option<(SymbolId, Vec<String>, (bool, bool))>,
+    pub adapted: Option<(SymbolId, Vec<NameId>, (bool, bool))>,
 }
 
 /// The closures' methods of `class` for `contexts`, the context clauses of `m` its bridge lacks,
@@ -35,7 +35,7 @@ pub fn plan(
     l: &mut Lower,
     (class, m): (SymbolId, SymbolId),
     contexts: &[Params],
-    (mut captured, mut originals): (Params, Vec<String>),
+    (mut captured, mut originals): (Params, Vec<NameId>),
     result: Erased,
     span: Span,
 ) -> Result<Vec<Anon>> {
@@ -49,15 +49,15 @@ pub fn plan(
         let name = fresh(l, &format!("{prefix}$$anonfun"));
         let sym = l.u.define(symbol(&name, Kind::Def, class, flags));
         if !anons.is_empty() {
-            for ((name, _), original) in captured.iter_mut().zip(&originals) {
-                *name = fresh(l, original);
+            for ((name, _), &original) in captured.iter_mut().zip(&originals) {
+                *name = fresh_name(l, original);
             }
         }
         let context: Params = context.iter().filter(|&&(_, p)| !l.u.is_erased_param(p)).cloned().collect();
         let erased: Vec<Erased> = context.iter().map(|&(_, t)| l.u.erase_value(t)).collect();
         let mut params = captured.clone();
         captured.extend(context.iter().cloned());
-        originals.extend(context.iter().map(|(name, _)| name.clone()));
+        originals.extend(context.iter().map(|&(name, _)| name));
         let bunched = context.len() > MAX_IMPLEMENTED_ARITY;
         match bunched {
             true => params.push(super::bunched::param(l)),
@@ -80,7 +80,7 @@ pub fn plan(
             let adapted = l.u.define(symbol(&name, Kind::Def, class, adapted_flags));
             let first = captured.len() - context.len();
             let names = captured.iter().zip(&originals).enumerate();
-            let names = names.map(|(i, ((name, _), o))| if i < first { fresh(l, o) } else { name.clone() });
+            let names = names.map(|(i, (&(name, _), &o))| if i < first { fresh_name(l, o) } else { name });
             (adapted, names.collect(), needed)
         });
         let bunched = bunched.then_some(erased);

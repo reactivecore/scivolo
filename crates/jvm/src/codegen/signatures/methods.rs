@@ -13,14 +13,16 @@ impl Sig<'_> {
         loop {
             match self.u.ty(t).clone() {
                 Type::Poly { binder, params, result } => {
-                    self.poly.push((binder, params.iter().map(|(n, b)| (tasty::encode(n), *b)).collect()));
+                    let encoded: Vec<(String, TypeId)> =
+                        params.iter().map(|&(n, b)| (tasty::encode(self.u.name(n)), b)).collect();
                     if top && !self.constructor {
-                        tparams.extend(params.into_iter().map(|(n, b)| (tasty::encode(&n), b)));
+                        tparams.extend(encoded.iter().cloned());
                     }
+                    self.poly.push((binder, encoded));
                     t = result;
                 }
                 Type::Method { params, result, .. } => {
-                    let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
+                    let names: Vec<&str> = params.iter().map(|&(n, _)| self.u.name(n)).collect();
                     let java_enum = self.constructor && names.ends_with(&["_$name", "_$ordinal"]);
                     let keep = params.len() - if java_enum { 2 } else { 0 };
                     let outer = usize::from(self.constructor && names.first() == Some(&"$outer"));

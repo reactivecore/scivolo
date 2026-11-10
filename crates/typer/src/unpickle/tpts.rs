@@ -20,8 +20,8 @@ impl Unpickler<'_> {
             }
             IDENTtpt => {
                 let tpe = self.ty(id);
-                let sym = match self.u.type_ref(tpe).map(|(p, n)| (p, n.to_owned())) {
-                    Some((p, n)) => self.u.resolve(p, &n, true),
+                let sym = match self.u.type_ref(tpe) {
+                    Some((p, n)) => self.u.resolve(p, n, true),
                     None => self.u.sym_of(tpe),
                 };
                 let name = self.tname(id, true);

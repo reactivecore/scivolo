@@ -26,6 +26,7 @@ impl Reflect<'_> {
         {
             let mut defs = Vec::new();
             for (name, bounds) in params {
+                let name = self.u.name(name).to_owned();
                 if refers_to(self.u, bounds, b) {
                     return Err("Symbol.newClass with type parameter bounds referring to type parameters");
                 }
@@ -45,6 +46,7 @@ impl Reflect<'_> {
         while let Some((params, result)) = self.u.method(t).map(|m| (m.params.to_vec(), m.result)) {
             let mut defs = Vec::new();
             for (name, tpe) in params {
+                let name = self.u.name(name).to_owned();
                 let field = self.define(&name, Kind::Val, class, Flags::default().with(PARAMsetter));
                 let field_type = substituted(self.u, tpe, binder, &class_refs);
                 self.u.set_info(field, field_type);

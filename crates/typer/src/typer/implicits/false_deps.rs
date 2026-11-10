@@ -5,7 +5,7 @@
 
 use super::super::dependent_params::{clause_param, mentions_clause_params};
 use super::super::type_ops::TypeOps;
-use tasty::{Binder, Kind, SymbolId, TypeId};
+use tasty::{Binder, Kind, NameId, SymbolId, TypeId};
 
 impl TypeOps<'_> {
     /// Dealiases the result `t` of a clause of binder `binder` and parameters `params` of method
@@ -14,10 +14,10 @@ impl TypeOps<'_> {
     pub fn without_false_deps_in(
         &mut self,
         t: TypeId,
-        (binder, params): (Binder, &[(String, TypeId)]),
+        (binder, params): (Binder, &[(NameId, TypeId)]),
         meth: Option<SymbolId>,
     ) -> TypeId {
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         if !mentions_clause_params(self.u, t, (binder, &names), meth) {
             return t;
         }

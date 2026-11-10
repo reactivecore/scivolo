@@ -41,7 +41,7 @@ impl Universe {
                     && let Type::Lambda { binder, params, result } = u.ty(hi).clone()
                 {
                     seen.push((b, i));
-                    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                    let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
                     applied = u.subst(result, binder, &names, &args);
                 }
                 (applied != x).then(|| u.upper_bound_except(applied, bounds, &seen))

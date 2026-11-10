@@ -31,7 +31,7 @@ impl Typer<'_> {
                     Some(info) if info != t => info,
                     _ => return None,
                 },
-                Type::Str(s) => return Some(C::String(s.encode_utf16().collect())),
+                Type::Str(s) => return Some(C::String(self.u.name(*s).encode_utf16().collect())),
                 Type::Constant(tag, bits) => return of_type(*tag, *bits),
                 _ => return None,
             }

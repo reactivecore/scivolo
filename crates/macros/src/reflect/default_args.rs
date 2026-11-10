@@ -25,7 +25,7 @@ impl Host {
         let Type::Method { params, .. } = self.u.ty(info).clone() else {
             return self.reflect().apply(fun, terms);
         };
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<String> = params.iter().map(|&(n, _)| self.u.name(n).to_owned()).collect();
         let named = |h: &Host, t: TNodeId| matches!(h.tpd.tree(t), T::NamedArg { .. });
         if terms.len() == names.len() && !terms.iter().any(|&t| named(self, t)) {
             return self.reflect().apply(fun, terms);
@@ -55,8 +55,8 @@ impl Host {
                 qual = self.lifted_prefix(qual, &mut defs, complex)?;
             }
             let mut arg_defs = Vec::new();
-            for (i, (arg, (name, p))) in typed.iter_mut().zip(&params).enumerate() {
-                if !self.is_lifted_param(*p) {
+            for (i, (arg, name)) in typed.iter_mut().zip(&names).enumerate() {
+                if !self.is_lifted_param(params[i].1) {
                     continue;
                 }
                 let prefix = if name.contains('$') { "" } else { name.as_str() };

@@ -20,6 +20,7 @@ impl Printer<'_> {
         let mut fields = Vec::with_capacity(names.len());
         for (n, v) in names.into_iter().zip(values) {
             let Type::Str(n) = self.u.ty(n).clone() else { return None };
+            let n = self.u.name(n).to_owned();
             fields.push(format!("{n} : {}", self.text(v, GLOBAL)));
         }
         Some(format!("({})", fields.join(", ")))

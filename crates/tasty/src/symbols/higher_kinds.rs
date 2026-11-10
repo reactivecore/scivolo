@@ -8,7 +8,7 @@
 //! invariant 0.
 
 use super::{Kind, Universe};
-use crate::{Binder, Type, TypeId};
+use crate::{Binder, NameId, Type, TypeId};
 
 impl Universe {
     /// Whether type constructor `t` is a type lambda, an application reducing to one or an
@@ -80,7 +80,7 @@ fn flags(sign: i8) -> i32 {
 /// The variances of the parameters of a type lambda, narrowed by their occurrences.
 struct Narrowing {
     binder: Binder,
-    params: Vec<(String, TypeId)>,
+    params: Vec<(NameId, TypeId)>,
     found: Vec<i32>,
     pending: Vec<Binder>,
 }

@@ -9,7 +9,7 @@ use crate::ctx::{Ctx, Level};
 use crate::tpd::TNodeId;
 use syntax::ast::flags::{self as f, GIVEN, IMPLICIT, MUTABLE};
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 /// A refinement: its name, its info and its typed definition.
 pub type Refinement = (String, TypeId, TNodeId);
@@ -122,7 +122,7 @@ impl Typer<'_> {
                 mctx = Ctx { level, ..mctx };
                 let pspan = self.ast.span(p);
                 trees.push(self.build().val_def(psym, typed, None, pspan));
-                params.push((ptext, tpe));
+                params.push((self.u.intern_name(&ptext), tpe));
             }
             clause_trees.push(trees);
             clause_params.push((params, kind));
@@ -146,11 +146,11 @@ impl Typer<'_> {
         }
         if !tparams.is_empty() {
             let binder = self.syms.fresh_binder();
-            let params: Vec<(String, TypeId)> = tparams
+            let params: Vec<(NameId, TypeId)> = tparams
                 .iter()
                 .map(|&p| {
                     let bounds = self.u.info(p);
-                    (self.u.symbol(p).name.clone(), self.param_refs(bounds, &tparams, binder))
+                    (self.u.interned_name(p), self.param_refs(bounds, &tparams, binder))
                 })
                 .collect();
             let result = self.param_refs(info, &tparams, binder);
@@ -179,7 +179,7 @@ impl Typer<'_> {
         }
         let class = names.first().and_then(|_| self.u.class_symbol(t));
         let mut wanted: Vec<(SymbolId, String)> =
-            names.into_iter().filter_map(|n| Some((class?, n))).collect();
+            names.into_iter().filter_map(|n| Some((class?, self.u.name(n).to_owned()))).collect();
         for side in [t, pt] {
             if let Some((Some(p), s)) = self.u.sym_ref(side)
                 && self.u.symbol(s).kind == Kind::Type

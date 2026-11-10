@@ -6,7 +6,7 @@
 use crate::typer::Typer;
 use syntax::ast::flags as f;
 use tasty::tags as t;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Gives forwarder `fwd` to term member `m` of `path` the info of `m` seen from `path`, with
@@ -99,11 +99,12 @@ impl Typer<'_> {
                 let inline = original.is_some_and(|o| self.u.symbol(o).flags.has(t::INLINE));
                 let flags = if inline { flags.or(f::INLINE) } else { flags };
                 let kind = if poly { Kind::TypeParam } else { Kind::Param };
-                let s = self.syms.define(self.u, &fresh(n), kind, fwd, flags);
+                let name = fresh(self.u.name(*n));
+                let s = self.syms.define(self.u, &name, kind, fwd, flags);
                 pairs.extend(original.map(|o| (o, s)));
                 syms.push((s, *p));
             }
-            let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+            let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
             let args: Vec<TypeId> =
                 syms.iter().map(|&(s, _)| self.u.intern_type(Type::Sym(None, s))).collect();
             for &(s, p) in &syms {

@@ -46,7 +46,7 @@ impl Text<'_> {
             Type::Package(p) => self.package(p, true),
             Type::Sym(_, p) if self.h.u.symbol(p).kind == Kind::Package => self.package(p, true),
             Type::PackageName(n) => {
-                self.out.push_str(&package_named(&n, true));
+                self.out.push_str(&package_named(self.h.u.name(n), true));
                 Ok(())
             }
             _ => self.node("ThisType", &[c], ""),

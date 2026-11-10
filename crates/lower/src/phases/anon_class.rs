@@ -62,12 +62,15 @@ pub fn override_sym(l: &mut Lower, cls: SymbolId, m: SymbolId, site: TypeId) -> 
     let mut info = l.u.member_info(site, m);
     let mut tparams = Vec::new();
     if let Some((binder, names)) = l.u.poly(info).map(|p| (p.binder, p.names())) {
-        tparams = names.iter().map(|n| l.u.define(symbol(n, Kind::TypeParam, s, Flags::default()))).collect();
+        tparams = names
+            .iter()
+            .map(|&n| l.u.define(symbol(l.u.name(n), Kind::TypeParam, s, Flags::default())))
+            .collect();
         let args: Vec<TypeId> = tparams.iter().map(|&t| l.u.intern_type(Type::Sym(None, t))).collect();
         info = l.u.subst(info, binder, &names, &args);
         info = l.u.map_type(info, &mut |u, t| match *u.ty(t) {
             Type::Sym(_, p) if u.symbol(p).owner == Some(m) => {
-                names.iter().position(|n| *n == u.symbol(p).name).map(|i| args[i])
+                names.iter().position(|&n| u.name(n) == u.symbol(p).name).map(|i| args[i])
             }
             _ => None,
         });

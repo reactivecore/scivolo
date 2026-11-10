@@ -155,7 +155,7 @@ impl TypeOps<'_> {
         let z = self.zonk(t);
         let d = self.u.dealias(z);
         if let Type::Refined(parent, name, info) = self.u.ty(d).clone()
-            && name == "apply"
+            && self.u.name(name) == "apply"
             && let Type::Method { binder, result, .. } = *self.u.ty(info)
             && !mentions_params(self.u, result, binder, None)
         {

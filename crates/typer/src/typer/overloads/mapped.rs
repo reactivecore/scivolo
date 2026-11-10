@@ -8,7 +8,7 @@
 
 use super::{Resolution, Unchosen};
 use crate::typer::{Pt, Typer};
-use tasty::{Binder, Kind, Symbol, SymbolId, Type, TypeId, Universe};
+use tasty::{Binder, Kind, NameId, Symbol, SymbolId, Type, TypeId, Universe};
 
 /// An alternative's copy, paired with the alternative.
 type Mapped = (SymbolId, SymbolId);
@@ -76,7 +76,7 @@ fn choose_mapped(t: &mut Typer, mapped: &[Mapped], pt: Pt) -> Result<SymbolId, U
 pub fn strip_implicit_clauses(u: &mut Universe, info: TypeId, meth: SymbolId) -> (TypeId, usize) {
     match u.ty(info).clone() {
         Type::Method { binder, params, result, implicit: true, .. } => {
-            let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+            let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
             let wild = u.intern_type(Type::Wildcard(None));
             let wilds = vec![wild; names.len()];
             let mut approx = Vec::new();
@@ -88,7 +88,7 @@ pub fn strip_implicit_clauses(u: &mut Universe, info: TypeId, meth: SymbolId) ->
             let result = u.subst(result, binder, &names, &approx);
             let result = u.map_type(result, &mut |u, t| match *u.ty(t) {
                 Type::Sym(None, s) if u.symbol(s).kind == Kind::Param && u.symbol(s).owner == Some(meth) => {
-                    names.iter().position(|n| *n == u.symbol(s).name).map(|i| approx[i])
+                    names.iter().position(|&n| u.name(n) == u.symbol(s).name).map(|i| approx[i])
                 }
                 _ => None,
             });
@@ -117,7 +117,7 @@ fn skip_param_clause(
             Ok(Some(flattened_poly(t.u, binder, params, rt)))
         }
         Type::Method { binder, params, result, .. } => {
-            let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+            let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
             let result = t.u.subst(result, binder, &names, arg_types);
             if matches!(t.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
                 return Ok(Some(result));
@@ -134,7 +134,7 @@ fn skip_param_clause(
 /// Gives the polymorphic type of binder `binder`, parameters `params` and result `result`,
 /// merged with `result` if that is polymorphic too, its parameters appended (dotty's
 /// `PolyType.flatten`).
-fn flattened_poly(u: &mut Universe, binder: Binder, params: Vec<(String, TypeId)>, result: TypeId) -> TypeId {
+fn flattened_poly(u: &mut Universe, binder: Binder, params: Vec<(NameId, TypeId)>, result: TypeId) -> TypeId {
     let Some((inner, more, result)) = u.poly(result).map(|p| (p.binder, p.params.to_vec(), p.result)) else {
         return u.intern_type(Type::Poly { binder, params, result });
     };
@@ -145,7 +145,7 @@ fn flattened_poly(u: &mut Universe, binder: Binder, params: Vec<(String, TypeId)
             Some(u.intern_type(Type::Param(binder, n + i)))
         })
     };
-    let more: Vec<(String, TypeId)> = more.into_iter().map(|(name, bounds)| (name, shift(bounds))).collect();
+    let more: Vec<(NameId, TypeId)> = more.into_iter().map(|(name, bounds)| (name, shift(bounds))).collect();
     let result = shift(result);
     let params = params.into_iter().chain(more).collect();
     u.intern_type(Type::Poly { binder, params, result })

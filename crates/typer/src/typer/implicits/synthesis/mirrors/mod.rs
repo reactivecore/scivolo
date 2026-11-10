@@ -21,7 +21,7 @@ use crate::typer::Typer;
 use formal::{MirrorFormal, MirrorKind};
 use sources::MirrorSource;
 use syntax::ast::Span;
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 /// The refusal when the library lacks a class a mirror needs.
 const MISSING: &str = "Mirror without its library classes";
@@ -86,6 +86,6 @@ impl MirrorSynthesis {
 
 /// Builds the tuple type of `labels` as string literal types, e.g. `("x", "y")`.
 fn label_pairs(t: &mut Typer<'_>, labels: &[String]) -> Result<TypeId, &'static str> {
-    let labels: Vec<TypeId> = labels.iter().map(|l| t.u.intern_type(Type::Str(l.clone()))).collect();
+    let labels: Vec<TypeId> = labels.iter().map(|l| t.u.str_type(l)).collect();
     t.nested_pairs(&labels)
 }

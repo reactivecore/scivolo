@@ -6,7 +6,7 @@ use super::literals::constant_value;
 use super::printed::Printed;
 use super::type_string_refs::package_named;
 use crate::host::Host;
-use tasty::{Binder, Kind, Type, TypeId};
+use tasty::{Binder, Kind, NameId, Type, TypeId};
 
 pub type Shown = Result<(), &'static str>;
 
@@ -34,13 +34,15 @@ impl Text<'_> {
         match self.h.u.ty(t).clone() {
             Type::NoPrefix => self.out.push_str("NoPrefix"),
             Type::Package(p) => self.package(p, false)?,
-            Type::PackageName(n) => self.out.push_str(&package_named(&n, false)),
+            Type::PackageName(n) => self.out.push_str(&package_named(self.h.u.name(n), false)),
             Type::Sym(prefix, s) => self.sym_ref(prefix, s)?,
-            Type::Local(_, name) => self.out.push_str(&format!("TypeRef(NoPrefix,type {name})")),
-            Type::TypeRef(p, n) => self.node("TypeRef", &[p], &format!(",{n}"))?,
+            Type::Local(_, name) => {
+                self.out.push_str(&format!("TypeRef(NoPrefix,type {})", self.h.u.name(name)))
+            }
+            Type::TypeRef(p, n) => self.node("TypeRef", &[p], &format!(",{}", self.h.u.name(n)))?,
             Type::TermRef(p, n) => match self.h.u.resolve_ref(t) {
                 Some(s) if self.h.u.symbol(s).kind == Kind::Package => self.package(s, false)?,
-                _ => self.node("TermRef", &[p], &format!(",{n}"))?,
+                _ => self.node("TermRef", &[p], &format!(",{}", self.h.u.name(n)))?,
             },
             Type::This(c) => self.this(c)?,
             Type::Super(a, b) => self.node("SuperType", &[a, b], "")?,
@@ -59,7 +61,7 @@ impl Text<'_> {
             Type::Refined(parent, name, info) => {
                 self.out.push_str("RefinedType(");
                 self.tpe(parent)?;
-                self.out.push_str(&format!(",{name},"));
+                self.out.push_str(&format!(",{},", self.h.u.name(name)));
                 self.tpe(info)?;
                 self.out.push(')');
             }
@@ -101,7 +103,7 @@ impl Text<'_> {
                 constant_value(tag, bits, &mut self.out).ok_or(REFUSED)?;
                 self.out.push_str("))");
             }
-            Type::Str(s) => self.out.push_str(&format!("ConstantType(Constant({s}))")),
+            Type::Str(s) => self.out.push_str(&format!("ConstantType(Constant({}))", self.h.u.name(s))),
             Type::Wildcard(None) => self.out.push_str("WildcardType(NoType)"),
             Type::Wildcard(Some(b)) => self.node("WildcardType", &[b], "")?,
             _ => return Err(REFUSED),
@@ -140,11 +142,11 @@ impl Text<'_> {
         &mut self,
         what: &str,
         binder: Binder,
-        params: &[(String, TypeId)],
+        params: &[(NameId, TypeId)],
         result: TypeId,
         terms: bool,
     ) -> Shown {
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<String> = params.iter().map(|&(n, _)| self.h.u.name(n).to_owned()).collect();
         self.out.push_str(&format!("{what}(List({}), ", names.join(", ")));
         self.binders.push((binder, names, terms));
         let infos: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();

@@ -3,7 +3,7 @@
 //! Type lambdas, method and poly types and their parameters of `Printer.TypeReprCode`.
 
 use super::{Highlight, REFUSED, Shown, SourcePrinter};
-use crate::types::{Binder, Type, TypeId};
+use crate::types::{Binder, NameId, Type, TypeId};
 
 impl SourcePrinter<'_> {
     /// Binding type or parameter reference `t`.
@@ -24,9 +24,9 @@ impl SourcePrinter<'_> {
             }),
             Type::Poly { binder, params, result } => self.bind(binder, &params, |p| {
                 p.out.push('[');
-                for (i, &(ref name, info)) in params.iter().enumerate() {
+                for (i, &(name, info)) in params.iter().enumerate() {
                     p.out.push_str(if i > 0 { ", " } else { "" });
-                    p.out.push_str(&format!("{name} "));
+                    p.out.push_str(&format!("{} ", p.u.name(name)));
                     p.print(info)?;
                 }
                 p.out.push(']');
@@ -34,8 +34,8 @@ impl SourcePrinter<'_> {
             }),
             Type::Param(b, i) => {
                 let names = self.binders.iter().rev().find(|(binder, _)| *binder == b);
-                let name = names.and_then(|(_, n)| n.get(i as usize)).ok_or(REFUSED)?;
-                self.out.push_str(&name.clone());
+                let &name = names.and_then(|(_, n)| n.get(i as usize)).ok_or(REFUSED)?;
+                self.out.push_str(self.u.name(name));
                 Ok(())
             }
             _ => Err(REFUSED),
@@ -46,20 +46,20 @@ impl SourcePrinter<'_> {
     pub fn bind(
         &mut self,
         binder: Binder,
-        params: &[(String, TypeId)],
+        params: &[(NameId, TypeId)],
         f: impl FnOnce(&mut Self) -> Shown,
     ) -> Shown {
-        self.binders.push((binder, params.iter().map(|(n, _)| n.clone()).collect()));
+        self.binders.push((binder, params.iter().map(|&(n, _)| n).collect()));
         let shown = f(self);
         self.binders.pop();
         shown
     }
 
     /// Parameters `params` as `printMethodicTypeParams` shows them.
-    pub fn params(&mut self, params: &[(String, TypeId)]) -> Shown {
-        for (i, &(ref name, info)) in params.iter().enumerate() {
+    pub fn params(&mut self, params: &[(NameId, TypeId)]) -> Shown {
+        for (i, &(name, info)) in params.iter().enumerate() {
             self.out.push_str(if i > 0 { ", " } else { "" });
-            self.out.push_str(name);
+            self.out.push_str(self.u.name(name));
             match *self.u.ty(info) {
                 Type::Bounds(lo, hi) => self.bounds(lo, hi)?,
                 Type::Alias(a) => self.bounds(a, a)?,

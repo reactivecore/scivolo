@@ -72,9 +72,10 @@ pub fn param_def(t: &mut Typer<'_>, name: &str, info: TypeId, span: Span) -> Res
     let rhs = match lambda {
         Some((params, result)) => {
             let mut tparams = Vec::new();
-            for (i, (n, b)) in params.iter().enumerate() {
-                let n = if n == "_" { format!("_${}", i + 1) } else { n.clone() };
-                tparams.push(param_def(t, &n, *b, span)?);
+            for (i, &(n, b)) in params.iter().enumerate() {
+                let n = t.u.name(n);
+                let n = if n == "_" { format!("_${}", i + 1) } else { n.to_owned() };
+                tparams.push(param_def(t, &n, b, span)?);
             }
             let result = match t.u.ty(result) {
                 Type::Bounds(..) => result,

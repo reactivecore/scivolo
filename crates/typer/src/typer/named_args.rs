@@ -8,7 +8,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::{NodeId, Tree};
-use tasty::{SymbolId, TypeId};
+use tasty::{NameId, SymbolId, TypeId};
 
 /// The arguments of a call aligned with the parameters, `None` where one gets none.
 pub type Aligned = Vec<Option<NodeId>>;
@@ -28,7 +28,7 @@ impl Typer<'_> {
     pub fn aligned_args(
         &self,
         args: &[NodeId],
-        params: &[(String, TypeId)],
+        params: &[(NameId, TypeId)],
         repeated: bool,
     ) -> Result<Option<Aligned>, &'static str> {
         let named = args.iter().any(|&a| self.arg_name(a).is_some());
@@ -39,7 +39,7 @@ impl Typer<'_> {
         if repeated || !named && args.len() > params.len() {
             return Err("named or default arguments of a repeated method, or wrong arity");
         }
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<String> = params.iter().map(|&(n, _)| self.u.name(n).to_owned()).collect();
         self.ordered_args(args, &names).map(Some)
     }
 
@@ -122,7 +122,7 @@ impl Typer<'_> {
         &mut self,
         (mut f, method): (TNodeId, Option<SymbolId>),
         (args, aligned, pretyped): (&[NodeId], &Aligned, Option<&[Option<TNodeId>]>),
-        (params, formals): (&[(String, TypeId)], &[TypeId]),
+        (params, formals): (&[(NameId, TypeId)], &[TypeId]),
         ctx: Ctx,
     ) -> Result<(TNodeId, Vec<TNodeId>, Vec<TNodeId>), &'static str> {
         let pre = |a: NodeId| pretyped.and_then(|p| args.iter().position(|&b| b == a).and_then(|i| p[i]));

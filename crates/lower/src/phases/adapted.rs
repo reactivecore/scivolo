@@ -11,7 +11,7 @@ use super::sam::adaptation_needed;
 use crate::Lower;
 use crate::definitions::{procedure, specialized, symbol, type_ref};
 use syntax::ast::Span;
-use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Erased, Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::TNodeId;
 
 /// Whether a function of erased parameters `params` and result `result` has a specialized
@@ -58,7 +58,7 @@ pub fn erased_adapted_def(
     l: &mut Lower,
     (class, anon, adapted): (SymbolId, SymbolId, SymbolId),
     (arity, needed): (usize, (bool, bool)),
-    names: Vec<String>,
+    names: Vec<NameId>,
     span: Span,
 ) -> TNodeId {
     let info = l.u.info(anon);
@@ -68,7 +68,7 @@ pub fn erased_adapted_def(
     let erased = l.u.erased_method_value(anon).0;
     let object = type_ref(l.u, l.defs.object);
     let first = params.len() - arity;
-    let params: Vec<(String, TypeId)> = names
+    let params: Vec<(NameId, TypeId)> = names
         .into_iter()
         .zip(&params)
         .enumerate()
@@ -102,7 +102,7 @@ pub fn adapted_types(
     (params_needed, result_needed): (bool, bool),
     params: &[(SymbolId, TypeId)],
     result: TypeId,
-) -> (Vec<(String, TypeId)>, TypeId) {
+) -> (Vec<(NameId, TypeId)>, TypeId) {
     let (erased, erased_result) = l.u.erased_method_value(sam);
     let info = l.u.info(sam);
     let declared = l.u.method(info).map(|m| m.params.to_vec()).unwrap_or_default();
@@ -110,11 +110,10 @@ pub fn adapted_types(
     let object = type_ref(l.u, l.defs.object);
     let as_erased =
         |e: &Erased, t: TypeId| if *e == Erased::Class("java.lang.Object".into()) { object } else { t };
-    let mut out: Vec<(String, TypeId)> =
-        params.iter().map(|&(p, t)| (l.u.symbol(p).name.clone(), t)).collect();
+    let mut out: Vec<(NameId, TypeId)> = params.iter().map(|&(p, t)| (l.u.interned_name(p), t)).collect();
     if params_needed {
         for ((param, (name, t)), e) in out.iter_mut().zip(declared).zip(&erased) {
-            *param = (if result_needed { name } else { param.0.clone() }, as_erased(e, t));
+            *param = (if result_needed { name } else { param.0 }, as_erased(e, t));
         }
     }
     let result = if result_needed { as_erased(&erased_result, declared_result) } else { result };
@@ -138,6 +137,7 @@ pub fn adapted_def(
     };
     let mut defs: Vec<TNodeId> = adapted.proxies.iter().map(|&p| l.param_def(p, span)).collect();
     for (name, t) in params.into_iter().skip(adapted.proxies.len()) {
+        let name = l.u.name(name).to_owned();
         let p = l.u.define(symbol(&name, Kind::Param, adapted.sym, Flags::default()));
         l.u.set_info(p, t);
         defs.push(l.param_def(p, span));

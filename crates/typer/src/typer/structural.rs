@@ -25,7 +25,8 @@ impl Typer<'_> {
         if name.is_type {
             return None;
         }
-        let info = self.u.term_refinement_named(pre, &text)?;
+        let n = self.u.intern_name(&text);
+        let info = self.u.term_refinement_named(pre, n)?;
         let mut recursive = false;
         self.u.map_type(info, &mut |_, part| {
             recursive |= part == pre;
@@ -39,7 +40,7 @@ impl Typer<'_> {
             Type::Method { .. } => true,
             _ => false,
         };
-        let tpe = self.u.intern_type(Type::TermRef(pre, text.clone()));
+        let tpe = self.u.intern_type(Type::TermRef(pre, n));
         let span = self.ast.span(id);
         if method {
             return Some(self.structural_method(qual, name, info, span));

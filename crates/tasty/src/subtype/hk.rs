@@ -7,7 +7,7 @@
 //! (`liftIfHK`), and tuple classes as nested pairs.
 
 use super::Cmp;
-use crate::types::{Binder, Type, TypeId};
+use crate::types::{Binder, NameId, Type, TypeId};
 use crate::{ANY, FileId, Kind, NOTHING, SymbolId};
 
 /// The files of the binders of adapted constructors (numbered by the constructor they apply)
@@ -32,7 +32,8 @@ impl Cmp<'_> {
         };
         let binder = Binder(FileId(LIFTED), a.0.wrapping_mul(0x9e37_79b9) ^ b.0);
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
-        let params: Vec<(String, TypeId)> = (0..combined).map(|i| (format!("X{i}"), bounds)).collect();
+        let params: Vec<(NameId, TypeId)> =
+            (0..combined).map(|i| (self.u.intern_name(&format!("X{i}")), bounds)).collect();
         let refs: Vec<TypeId> =
             (0..combined as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
         let (applied_a, applied_b) = (self.apply(a, &refs), self.apply(b, &refs));
@@ -149,7 +150,7 @@ impl Cmp<'_> {
         tycon: TypeId,
         fixed: usize,
         body_args: &[TypeId],
-    ) -> Vec<(String, TypeId)> {
+    ) -> Vec<(NameId, TypeId)> {
         let lambda = match self.u.ty(tycon) {
             Type::Lambda { .. } => Some(tycon),
             _ => self.eta_expand(tycon).or_else(|| self.u.referenced_alias(tycon)),
@@ -159,9 +160,11 @@ impl Cmp<'_> {
             .filter(|l| matches!(l, Type::Lambda { params, .. } if params.len() == body_args.len()))
         else {
             let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
-            return (0..body_args.len() - fixed).map(|i| (format!("X{i}"), bounds)).collect();
+            return (0..body_args.len() - fixed)
+                .map(|i| (self.u.intern_name(&format!("X{i}")), bounds))
+                .collect();
         };
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<_> = params.iter().map(|&(n, _)| n).collect();
         let remaining = params.into_iter().skip(fixed);
         remaining.map(|(n, b)| (n, self.u.subst(b, binder, &names, body_args))).collect()
     }

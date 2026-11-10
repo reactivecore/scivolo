@@ -52,8 +52,8 @@ impl Inlining<'_> {
             t = expansion;
         }
         let mut widened = self.u.widen(self.tpd.get(t).tpe?);
-        while let Type::Refined(parent, ref name, _) = *self.u.ty(widened)
-            && name == "apply"
+        while let Type::Refined(parent, name, _) = *self.u.ty(widened)
+            && self.u.name(name) == "apply"
         {
             widened = parent;
         }

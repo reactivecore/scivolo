@@ -134,7 +134,8 @@ fn interface(
 /// Method `name` of `owner`.
 fn method(u: &mut Universe, owner: SymbolId, name: &str, params: &[TypeId], result: TypeId) -> SymbolId {
     let m = u.define(symbol(name, Kind::Def, owner, Flags::default()));
-    let params = params.iter().enumerate().map(|(i, &t)| (format!("v{}", i + 1), t)).collect();
+    let params =
+        params.iter().enumerate().map(|(i, &t)| (u.intern_name(&format!("v{}", i + 1)), t)).collect();
     let binder = u.fresh_binder();
     let info = u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
     u.set_info(m, info);

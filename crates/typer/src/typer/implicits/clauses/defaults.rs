@@ -49,10 +49,11 @@ impl ImplicitClause {
     pub fn with_defaults(&self, t: &mut Typer<'_>, found: &[Option<TNodeId>]) -> TNodeId {
         let span = t.tpd.span(self.tree);
         let mut named: Vec<NodeId> = Vec::new();
-        for (n, &arg) in self.names.iter().zip(found) {
+        for (&n, &arg) in self.names.iter().zip(found) {
             let Some(arg) = arg else { continue };
             let arg = t.spliced(arg);
-            let name = TName { name: t.name(n), is_type: false };
+            let n = t.u.name(n).to_owned();
+            let name = TName { name: t.name(&n), is_type: false };
             let node = t.ast.node(Tree::NamedArg { name, arg });
             t.ast.with_span(node, t.ast.span(arg));
             named.push(node);

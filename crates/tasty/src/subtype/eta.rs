@@ -57,7 +57,7 @@ impl Cmp<'_> {
                 Some((owner, i)) if owner == c => refs.get(i).copied(),
                 _ => None,
             });
-            lambda_params.push((self.u.symbol(p).name.clone(), bounds));
+            lambda_params.push((self.u.interned_name(p), bounds));
         }
         let result = self.u.intern_type(Type::Applied(t, refs));
         Some(self.u.intern_type(Type::Lambda { binder, params: lambda_params, result }))
@@ -68,7 +68,7 @@ impl Cmp<'_> {
         let binder = Binder(FileId(ETA), t.0);
         let refs: Vec<TypeId> =
             (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<_> = params.iter().map(|&(n, _)| n).collect();
         let params = params.into_iter().map(|(n, b)| (n, self.u.subst(b, own, &names, &refs))).collect();
         let result = self.u.intern_type(Type::Applied(t, refs));
         Some(self.u.intern_type(Type::Lambda { binder, params, result }))

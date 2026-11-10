@@ -58,8 +58,11 @@ impl Typer<'_> {
                 self.splices.insert(tpt, typed);
             }
             let named = names.next();
-            let name = match &named {
-                Some(n) => self.name(n),
+            let name = match named {
+                Some(n) => {
+                    let n = self.u.name(n).to_owned();
+                    self.name(&n)
+                }
                 None => self.fresh.next(self.names, "contextual$"),
             };
             let name = TName { name, is_type: false };

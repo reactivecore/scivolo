@@ -12,7 +12,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
 use syntax::ast::flags::CASE;
 use tasty::tags::FINAL;
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, VarId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {
     /// Instantiates the type variables from id `vars` on that occur in `t`: a covariant one from
@@ -55,7 +55,7 @@ impl Typer<'_> {
                 self.instantiate_var(v, false)?;
                 continue;
             }
-            let param = names.iter().find(|(w, _)| *w == v).map_or("T", |(_, n)| n.as_str());
+            let param = names.iter().find(|(w, _)| *w == v).map_or("T", |&(_, n)| self.u.name(n));
             let name = self.fresh.next(self.names, &format!("{param}$"));
             let text = self.text(name).to_owned();
             let sym = self.syms.define(self.u, &text, Kind::Type, ctx.owner, CASE);
@@ -90,7 +90,7 @@ impl Typer<'_> {
     }
 
     /// The type variables that are type arguments of `unapp`, with their parameters' names.
-    fn type_var_names(&mut self, unapp: TNodeId) -> Vec<(VarId, String)> {
+    fn type_var_names(&mut self, unapp: TNodeId) -> Vec<(VarId, NameId)> {
         let T::TypeApply { fun, args } = *self.tpd.tree(unapp) else { return Vec::new() };
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
@@ -98,7 +98,7 @@ impl Typer<'_> {
         let args = self.tpd.items(args).to_vec();
         args.iter()
             .zip(poly.params)
-            .filter_map(|(&a, (name, _))| self.u.var(self.tpd.tpe(a)).map(|v| (v, name.clone())))
+            .filter_map(|(&a, &(name, _))| self.u.var(self.tpd.tpe(a)).map(|v| (v, name)))
             .collect()
     }
 

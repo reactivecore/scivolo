@@ -57,9 +57,9 @@ impl Universe {
             Type::Sym(_, s) => self.erase_symbol(s),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => self.erase_member(p, s),
-                None => match self.refinement_named(p, &n) {
+                None => match self.refinement_named(p, n) {
                     Some(info) => self.erase(info),
-                    None => match self.unresolved_class(p, &n) {
+                    None => match self.unresolved_class(p, self.name(n)) {
                         Some(full) => special(&full).unwrap_or(Erased::Class(full)),
                         None => object(),
                     },
@@ -67,7 +67,7 @@ impl Universe {
             },
             Type::TermRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => self.erase_symbol(s),
-                None => match self.term_refinement_named(p, &n) {
+                None => match self.term_refinement_named(p, n) {
                     Some(info) => match *self.ty(info) {
                         Type::ByName(r) => self.erase(r),
                         _ => self.erase(info),
@@ -142,10 +142,11 @@ impl Universe {
     fn path_name(&self, t: TypeId) -> Option<(String, bool)> {
         match self.ty(t) {
             Type::Package(pkg) => Some((self.full_name(*pkg), false)),
-            Type::PackageName(pkg) => Some((pkg.clone(), false)),
+            Type::PackageName(pkg) => Some((self.name(*pkg).to_owned(), false)),
             Type::TermRef(p, n) => {
                 let (path, in_class) = self.path_name(*p)?;
                 let sep = if in_class { '$' } else { '.' };
+                let n = self.name(*n);
                 Some((format!("{path}{sep}{n}"), n.starts_with(char::is_uppercase)))
             }
             _ => None,
@@ -159,7 +160,7 @@ impl Universe {
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) if self.symbol(s).kind == Kind::Class => Some(self.full_name(s)),
                 Some(_) => None,
-                None => self.unresolved_class(p, &n),
+                None => self.unresolved_class(p, self.name(n)),
             },
             _ => None,
         }

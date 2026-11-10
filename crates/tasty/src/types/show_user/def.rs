@@ -6,7 +6,7 @@
 
 use super::{DOT, GLOBAL, Printer, simple};
 use crate::tags::{CASE, LAZY, MUTABLE, OBJECT, TRAIT};
-use crate::types::{Type, TypeId};
+use crate::types::{NameId, Type, TypeId};
 use crate::{Kind, SymbolId, module_name};
 
 impl Printer<'_> {
@@ -67,7 +67,7 @@ impl Printer<'_> {
             | Type::Lambda { binder, params, result } => (binder, params, result),
             _ => return self.text(t, GLOBAL),
         };
-        self.binders.push((binder, params.iter().map(|(n, _)| n.clone()).collect()));
+        self.binders.push((binder, params.iter().map(|&(n, _)| n).collect()));
         let nested = matches!(self.u.ty(result), Type::Method { .. } | Type::Poly { .. });
         let colon = if nested { "" } else { ": " };
         let text = match *self.u.ty(t) {
@@ -89,20 +89,28 @@ impl Printer<'_> {
         text
     }
 
-    pub fn params(&mut self, params: &[(String, TypeId)]) -> String {
+    pub fn params(&mut self, params: &[(NameId, TypeId)]) -> String {
         let texts: Vec<String> = params
             .iter()
-            .map(|(n, t)| match *self.u.ty(*t) {
-                Type::ByName(r) => format!("{n}: => {}", self.text(r, GLOBAL)),
-                _ => format!("{n}: {}", self.text(*t, GLOBAL)),
+            .map(|&(n, t)| {
+                let n = self.u.name(n).to_owned();
+                match *self.u.ty(t) {
+                    Type::ByName(r) => format!("{n}: => {}", self.text(r, GLOBAL)),
+                    _ => format!("{n}: {}", self.text(t, GLOBAL)),
+                }
             })
             .collect();
         texts.join(", ")
     }
 
-    pub fn type_params(&mut self, params: &[(String, TypeId)]) -> String {
-        let texts: Vec<String> =
-            params.iter().map(|(n, b)| format!("{}{}", simple(n), self.rhs(*b))).collect();
+    pub fn type_params(&mut self, params: &[(NameId, TypeId)]) -> String {
+        let texts: Vec<String> = params
+            .iter()
+            .map(|&(n, b)| {
+                let n = simple(self.u.name(n)).to_owned();
+                format!("{n}{}", self.rhs(b))
+            })
+            .collect();
         texts.join(", ")
     }
 
@@ -155,13 +163,14 @@ impl Printer<'_> {
         let texts: Vec<String> = params
             .iter()
             .enumerate()
-            .map(|(i, (n, b))| {
+            .map(|(i, &(n, b))| {
                 let sign = match variances.get(i) {
                     Some(1) => "+",
                     Some(-1) => "-",
                     _ => "",
                 };
-                format!("{sign}{n}{}", self.rhs(*b))
+                let n = self.u.name(n).to_owned();
+                format!("{sign}{n}{}", self.rhs(b))
             })
             .collect();
         self.binders.push((binder, params.into_iter().map(|(n, _)| n).collect()));
@@ -172,7 +181,7 @@ impl Printer<'_> {
     pub fn refined(&mut self, mut t: TypeId, prec: u8) -> String {
         let mut members = Vec::new();
         while let Type::Refined(parent, name, info) = self.u.ty(t).clone() {
-            members.push((name, info));
+            members.push((self.u.name(name).to_owned(), info));
             t = parent;
         }
         if let [(name, info)] = &members[..]

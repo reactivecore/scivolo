@@ -78,9 +78,10 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     poly(u, object, "synchronized", any_bounds, |u, x0| {
         let t = u.types.intern(x0.clone());
         let binder = u.fresh_binder();
+        let x0 = u.types.intern_name("x$0");
         u.types.intern(Type::Method {
             binder,
-            params: vec![("x$0".into(), t)],
+            params: vec![(x0, t)],
             result: t,
             implicit: false,
             contextual: false,
@@ -101,9 +102,13 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
 pub fn class_type(u: &mut Universe, pkg: &str, name: &str) -> TypeId {
     let prefix = match u.package(pkg) {
         Some(p) => u.types.intern(Type::Package(p)),
-        None => u.types.intern(Type::PackageName(pkg.into())),
+        None => {
+            let pkg = u.types.intern_name(pkg);
+            u.types.intern(Type::PackageName(pkg))
+        }
     };
-    u.types.intern(Type::TypeRef(prefix, name.into()))
+    let name = u.types.intern_name(name);
+    u.types.intern(Type::TypeRef(prefix, name))
 }
 
 pub fn method(
@@ -115,7 +120,7 @@ pub fn method(
     flags: &[u8],
 ) {
     let binder = u.fresh_binder();
-    let params = params.iter().map(|&(n, t)| (n.to_owned(), t)).collect();
+    let params = params.iter().map(|&(n, t)| (u.types.intern_name(n), t)).collect();
     let info = u.types.intern(Type::Method { binder, params, result, implicit: false, contextual: false });
     let s = synthetic(u, owner, name, Kind::Def, flags);
     u.infos.insert(s, info);
@@ -139,7 +144,8 @@ fn poly(
     let binder = u.fresh_binder();
     let x0 = Type::Param(binder, 0);
     let result = result(u, &x0);
-    let info = u.types.intern(Type::Poly { binder, params: vec![("X0".into(), bounds)], result });
+    let params = vec![(u.types.intern_name("X0"), bounds)];
+    let info = u.types.intern(Type::Poly { binder, params, result });
     let s = synthetic(u, owner, name, Kind::Def, &[FINAL]);
     u.infos.insert(s, info);
     s

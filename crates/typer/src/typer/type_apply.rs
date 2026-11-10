@@ -10,7 +10,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId};
-use tasty::{ANY, Binder, SymbolId, Type, TypeId, TypeVars};
+use tasty::{ANY, Binder, NameId, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -118,7 +118,7 @@ impl Typer<'_> {
         if args.len() != params.len() {
             return Err("wrong number of type arguments");
         }
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let method = self.tpd.sym(self.tpd.meth_part(f));
         let of_java = method.is_some_and(|m| self.is_java_member(m));
         let class_params = self.java_class_params(method.filter(|_| of_java));
@@ -168,7 +168,7 @@ impl Typer<'_> {
         &mut self,
         t: TypeId,
         binder: Binder,
-        names: &[String],
+        names: &[NameId],
         args: &[TypeId],
         method: Option<SymbolId>,
     ) -> TypeId {
@@ -182,7 +182,7 @@ impl Typer<'_> {
 pub fn instantiate_poly(
     u: &mut tasty::Universe,
     t: TypeId,
-    (binder, names): (Binder, &[String]),
+    (binder, names): (Binder, &[NameId]),
     args: &[TypeId],
     method: Option<SymbolId>,
 ) -> TypeId {
@@ -190,7 +190,7 @@ pub fn instantiate_poly(
     u.map_type(t, &mut |u, part| match *u.ty(part) {
         Type::Sym(_, s) if method.is_some() && u.symbol(s).owner == method => {
             let name = &u.symbol(s).name;
-            names.iter().position(|n| n == name).map(|i| args[i])
+            names.iter().position(|&n| u.name(n) == name).map(|i| args[i])
         }
         _ => None,
     })

@@ -3,7 +3,7 @@
 //! Substituting arguments for the parameters of a method type (dotty's `safeSubstParam`).
 
 use super::stability::is_stable_path;
-use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId, Universe};
 
 /// Result `t` of the method type of binder `binder` and parameters `names`, of method `method`,
 /// applied to arguments of types `args`: its references to the parameters replaced by the
@@ -12,7 +12,7 @@ use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 pub fn applied_result(
     u: &mut Universe,
     t: TypeId,
-    (binder, names): (Binder, &[String]),
+    (binder, names): (Binder, &[NameId]),
     method: Option<SymbolId>,
     args: &[TypeId],
 ) -> TypeId {
@@ -42,13 +42,13 @@ pub fn applied_result(
 pub fn clause_param(
     u: &Universe,
     part: TypeId,
-    (binder, names): (Binder, &[String]),
+    (binder, names): (Binder, &[NameId]),
     method: Option<SymbolId>,
 ) -> Option<usize> {
     match *u.ty(part) {
         Type::Param(b, i) if b == binder => Some(i as usize),
         Type::Sym(None, p) if u.symbol(p).kind == Kind::Param && u.symbol(p).owner == method => {
-            names.iter().position(|n| *n == u.symbol(p).name)
+            names.iter().position(|&n| u.name(n) == u.symbol(p).name)
         }
         _ => None,
     }
@@ -59,7 +59,7 @@ pub fn clause_param(
 pub fn mentions_clause_params(
     u: &mut Universe,
     t: TypeId,
-    clause: (Binder, &[String]),
+    clause: (Binder, &[NameId]),
     method: Option<SymbolId>,
 ) -> bool {
     let mut found = false;
@@ -76,7 +76,7 @@ pub fn mentions_clause_params(
 pub fn has_false_dependency(
     u: &mut Universe,
     t: TypeId,
-    clause: (Binder, &[String]),
+    clause: (Binder, &[NameId]),
     method: Option<SymbolId>,
     formals: &[TypeId],
 ) -> bool {
@@ -84,14 +84,14 @@ pub fn has_false_dependency(
     u.map_type(t, &mut |u, part| {
         let (pre, name) = match u.ty(part).clone() {
             Type::TypeRef(pre, name) => (pre, name),
-            Type::Sym(Some(pre), s) if u.symbol(s).kind == Kind::Type => (pre, u.symbol(s).name.clone()),
+            Type::Sym(Some(pre), s) if u.symbol(s).kind == Kind::Type => (pre, u.interned_name(s)),
             _ => return None,
         };
         selections.extend(clause_param(u, pre, clause, method).and_then(|i| Some((*formals.get(i)?, name))));
         None
     });
     selections.into_iter().any(|(formal, name)| {
-        let Some(info) = u.refinement_named(formal, &name) else { return false };
+        let Some(info) = u.refinement_named(formal, name) else { return false };
         let Some(alias) = u.type_alias(info) else { return false };
         let mut recursive = false;
         u.map_type(alias, &mut |_, part| {
@@ -114,12 +114,12 @@ fn substituted(
         if let Some(i) = param(u, part) {
             return replacements.get(i).copied();
         }
-        if let Some((pre, name)) = u.type_ref(part).map(|(pre, name)| (pre, name.to_owned())) {
+        if let Some((pre, name)) = u.type_ref(part) {
             let new_pre = substituted(u, pre, param, replacements);
             if new_pre == pre || !matches!(u.ty(new_pre), Type::Skolem(..) | Type::Refined(..)) {
                 return None;
             }
-            let alias = u.refinement_named(new_pre, &name).and_then(|i| u.type_alias(i));
+            let alias = u.refinement_named(new_pre, name).and_then(|i| u.type_alias(i));
             return Some(alias.unwrap_or_else(|| u.intern_type(Type::TypeRef(new_pre, name))));
         }
         let Some((Some(pre), s)) = u.sym_ref(part) else { return None };
@@ -155,8 +155,8 @@ fn refined_path(u: &mut Universe, t: TypeId) -> Option<TypeId> {
     if !matches!(u.ty(pre), Type::Skolem(..)) || !u.symbol(m).kind.is_term() {
         return None;
     }
-    let name = u.symbol(m).name.clone();
-    let info = u.term_refinement_named(pre, &name)?;
+    let name = u.interned_name(m);
+    let info = u.term_refinement_named(pre, name)?;
     match *u.ty(info) {
         Type::Sym(_, p) if u.symbol(p).kind.is_term() => Some(info),
         Type::TermRef(..) => Some(info),

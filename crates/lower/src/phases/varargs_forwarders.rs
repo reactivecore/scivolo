@@ -9,7 +9,7 @@ use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, OVERRIDE, PRIVATE};
-use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Erased, Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the forwarders to class definition `td`, each after its method.
@@ -77,9 +77,10 @@ fn forwarder(
     }
     let Tree::DefDef { paramss, .. } = *l.tpd.tree(def) else { unreachable!("a method definition") };
     let clause = l.tpd.clause_items(paramss).first().map(|&c| l.tpd.items(c).to_vec()).unwrap_or_default();
-    let names = clause.iter().map(|&p| l.tpd.sym(p).map(|s| l.u.symbol(s).name.clone()));
-    let mut fparams: Vec<(String, TypeId)> =
-        params.iter().zip(names).map(|((n, t), m)| (m.unwrap_or_else(|| n.clone()), *t)).collect();
+    let names: Vec<Option<NameId>> =
+        clause.iter().map(|&p| l.tpd.sym(p).map(|s| l.u.interned_name(s))).collect();
+    let mut fparams: Vec<(NameId, TypeId)> =
+        params.iter().zip(names).map(|(&(n, t), m)| (m.unwrap_or(n), t)).collect();
     fparams.last_mut().expect("a repeated parameter").1 = array;
     let binder = l.u.fresh_binder();
     let finfo = l.u.intern_type(Type::Method { binder, params: fparams, result, implicit, contextual });

@@ -51,9 +51,11 @@ impl Cmp<'_> {
             Some(s) => Named { sym: Some(s), prefix: Some(prefix), meaning: meaning(u, s, Some(prefix)) },
             None => {
                 let typeref = u.type_ref(t).is_some();
-                let meaning = match typeref.then(|| refined_meaning(u, prefix, &name)).flatten() {
+                let meaning = match typeref.then(|| refined_meaning(u, prefix, name)).flatten() {
                     Some(m) => m,
-                    None => u.unresolved_class(prefix, &name).map_or(Meaning::Unknown, Meaning::Unresolved),
+                    None => {
+                        u.unresolved_class(prefix, u.name(name)).map_or(Meaning::Unknown, Meaning::Unresolved)
+                    }
                 };
                 Named { sym: None, prefix: Some(prefix), meaning }
             }

@@ -219,9 +219,11 @@ fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
     let mut parts: Vec<&str> = name.split('$').filter(|p| !p.is_empty()).collect();
     let last = parts.pop().unwrap_or(name);
     for outer in parts {
-        prefix = u.types.intern(Type::TermRef(prefix, outer.to_owned()));
+        let outer = u.types.intern_name(outer);
+        prefix = u.types.intern(Type::TermRef(prefix, outer));
     }
-    u.types.intern(Type::TypeRef(prefix, last.to_owned()))
+    let last = u.types.intern_name(last);
+    u.types.intern(Type::TypeRef(prefix, last))
 }
 
 /// The type of primitive descriptor `tag`.

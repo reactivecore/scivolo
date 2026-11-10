@@ -8,7 +8,7 @@ mod value;
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{SymbolId, TypeId};
+use tasty::{NameId, SymbolId, TypeId};
 
 /// Lifts the parts of one application into local values, evaluated once and in order: in
 /// `f().x += 1` the qualifier `f()` becomes a local value whose `x` is read and then set, and a
@@ -45,7 +45,7 @@ impl Typer<'_> {
     pub fn lift_args(
         &mut self,
         defs: &mut Vec<(usize, TNodeId)>,
-        params: &[(String, TypeId)],
+        params: &[(NameId, TypeId)],
         args: &[TNodeId],
         complex: bool,
         ctx: Ctx,

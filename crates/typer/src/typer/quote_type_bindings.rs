@@ -57,7 +57,7 @@ impl Typer<'_> {
         let empty = self.u.intern_type(Type::Bounds(NOTHING, ANY));
         let class = match self.u.ty(tycon).clone() {
             Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
+            Type::TypeRef(p, name) => self.u.resolve(p, name, true),
             _ => None,
         };
         let params = match class {

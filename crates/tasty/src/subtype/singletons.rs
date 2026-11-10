@@ -88,7 +88,7 @@ impl Cmp<'_> {
             }
         }
         let (prefix, s) = match self.u.ty(t).clone() {
-            Type::TermRef(p, name) => match self.u.resolve(p, &name, false) {
+            Type::TermRef(p, name) => match self.u.resolve(p, name, false) {
                 Some(s) => (Some(p), s),
                 None => return t,
             },

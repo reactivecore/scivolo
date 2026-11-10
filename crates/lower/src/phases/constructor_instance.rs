@@ -23,7 +23,7 @@ pub fn instantiated_constructor(l: &mut Lower, c: SymbolId, ctor: SymbolId) -> (
     for (i, &bounds) in bounds.iter().enumerate() {
         let (lo, hi) = l.u.bounds(bounds).unwrap_or((tasty::NOTHING, bounds));
         let hi = l.u.subst(hi, binder, &names[..i], &his);
-        let inst = match mentions_param(l, hi, binder, (&names[i], i)) {
+        let inst = match mentions_param(l, hi, binder, (names[i], i)) {
             true => l.u.subst(lo, binder, &names[..i], &his),
             false => hi,
         };
@@ -39,11 +39,16 @@ pub fn instantiated_constructor(l: &mut Lower, c: SymbolId, ctor: SymbolId) -> (
 }
 
 /// Whether `t` mentions parameter `name`, the `index`th, of type lambda `binder`.
-fn mentions_param(l: &mut Lower, t: TypeId, binder: tasty::Binder, (name, index): (&str, usize)) -> bool {
+fn mentions_param(
+    l: &mut Lower,
+    t: TypeId,
+    binder: tasty::Binder,
+    (name, index): (tasty::NameId, usize),
+) -> bool {
     let mut found = false;
     l.u.map_type(t, &mut |u, x| {
         found |= match u.ty(x) {
-            Type::Local(b, n) => b.0 == binder.0 && n == name,
+            Type::Local(b, n) => b.0 == binder.0 && *n == name,
             Type::Param(b, i) => *b == binder && *i as usize == index,
             _ => false,
         };

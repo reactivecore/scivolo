@@ -94,8 +94,8 @@ impl Inlining<'_> {
         {
             pre = self.u.info(p);
         }
-        let name = &self.u.symbol(s).name;
-        while let Type::Refined(parent, ref n, info) = *self.u.ty(pre) {
+        let name = self.u.interned_name(s);
+        while let Type::Refined(parent, n, info) = *self.u.ty(pre) {
             if n == name {
                 return self.u.type_alias(info);
             }

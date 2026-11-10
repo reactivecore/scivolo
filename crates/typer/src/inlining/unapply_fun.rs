@@ -27,7 +27,7 @@ impl Inlining<'_> {
         let Some((params, result)) = self.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
             return Err((span, "inline extractor that is not a method"));
         };
-        let [(ref param_name, param_type)] = params[..] else {
+        let [(param_name, param_type)] = params[..] else {
             return Err((span, "inline extractor of several parameters"));
         };
         let object = self.u.defn().object;
@@ -41,7 +41,7 @@ impl Inlining<'_> {
         let name = self.u.symbol(meth).name.clone();
         let unapply = self.synthetic(&name, Kind::Def, cls, Flags::default().with(SYNTHETIC));
         self.change_owner(fun, owner, unapply);
-        let mut clauses = vec![(vec![(param_name.clone(), param_type)], Flags::default())];
+        let mut clauses = vec![(vec![(param_name, param_type)], Flags::default())];
         let mut result = result;
         while let Some(m) = self.u.method(result).filter(|m| m.implicit) {
             clauses.push((
@@ -58,6 +58,7 @@ impl Inlining<'_> {
         for (clause, flags) in clauses {
             let (mut args, mut syms) = (Vec::new(), Vec::new());
             for (param_name, param_type) in clause {
+                let param_name = self.u.name(param_name).to_owned();
                 let param = self.synthetic(&param_name, Kind::Param, unapply, flags);
                 self.u.set_info(param, param_type);
                 let (arg_name, arg_type) =

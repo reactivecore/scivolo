@@ -5,7 +5,7 @@
 
 use super::{SymbolId, Universe};
 use crate::subtype::NoVars;
-use crate::types::{Binder, Type, TypeId};
+use crate::types::{Binder, NameId, Type, TypeId};
 use rustc_hash::FxHashMap;
 
 /// How many steps finding the intersection a prefix selects a joint member on takes at most.
@@ -112,7 +112,7 @@ impl Universe {
                     return None;
                 }
                 let result = self.info_meet(result, r2)?;
-                let params = merged_names(&params, &p2, "x$").into_iter().zip(ours).collect();
+                let params = merged_names(self, &params, &p2, "x$").into_iter().zip(ours).collect();
                 Some(self.intern_type(Type::Method { binder, params, result, implicit, contextual }))
             }
             (Type::Poly { binder, params, result }, Type::Poly { binder: b2, params: p2, result: r2 })
@@ -120,7 +120,7 @@ impl Universe {
             {
                 let r2 = self.with_binder(r2, (b2, &p2), binder);
                 let result = self.info_meet(result, r2)?;
-                let names = merged_names(&params, &p2, "X");
+                let names = merged_names(self, &params, &p2, "X");
                 let mut merged = Vec::new();
                 for ((n, &(_, x)), &(_, y)) in names.into_iter().zip(&params).zip(&p2) {
                     let y = self.with_binder(y, (b2, &p2), binder);
@@ -145,10 +145,10 @@ impl Universe {
     pub fn with_binder(
         &mut self,
         t: TypeId,
-        (binder, params): (Binder, &[(String, TypeId)]),
+        (binder, params): (Binder, &[(NameId, TypeId)]),
         to: Binder,
     ) -> TypeId {
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let refs: Vec<TypeId> =
             (0..names.len() as u32).map(|i| self.intern_type(Type::Param(to, i))).collect();
         self.subst(t, binder, &names, &refs)
@@ -167,10 +167,15 @@ impl Universe {
 }
 
 /// The names of `a`'s parameters, a synthetic one where `b`'s differs (dotty's `mergeParamNames`).
-fn merged_names(a: &[(String, TypeId)], b: &[(String, TypeId)], synthetic: &str) -> Vec<String> {
+fn merged_names(
+    u: &mut Universe,
+    a: &[(NameId, TypeId)],
+    b: &[(NameId, TypeId)],
+    synthetic: &str,
+) -> Vec<NameId> {
     a.iter()
         .zip(b)
         .enumerate()
-        .map(|(i, ((x, _), (y, _)))| if x == y { x.clone() } else { format!("{synthetic}{i}") })
+        .map(|(i, (&(x, _), &(y, _)))| if x == y { x } else { u.intern_name(&format!("{synthetic}{i}")) })
         .collect()
 }

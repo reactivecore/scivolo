@@ -37,10 +37,10 @@ impl VarianceCheck<'_> {
             {
                 let named = ops.u.map_type(result, &mut |u, part| {
                     let (_, k) = u.param_ref(part).filter(|&(b, _)| b == binder)?;
-                    Some(u.intern_type(Type::Local(binder, params[k as usize].0.clone())))
+                    Some(u.intern_type(Type::Local(binder, params[k as usize].0)))
                 });
                 let shown = ops.u.show_user(named);
-                let (own, at, name) = (label(of_sign(variances[i])), label(v), &params[i].0);
+                let (own, at, name) = (label(of_sign(variances[i])), label(v), ops.u.name(params[i].0));
                 let msg = format!("{own} type parameter {name} occurs in {at} position in {shown}");
                 let tparam = self.tpd.items(tparams).get(i).copied();
                 self.errors.push((self.tpd.span(tparam.unwrap_or(t)), msg));

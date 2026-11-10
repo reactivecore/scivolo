@@ -26,7 +26,7 @@ pub fn spliced(
     let function = l.u.intern_type(Type::Applied(function, vec![quotes, expr]));
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, Flags::default().with(SYNTHETIC)));
     let binder = l.u.fresh_binder();
-    let params = vec![("x$0".to_owned(), quotes)];
+    let params = vec![(l.u.intern_name("x$0"), quotes)];
     let info =
         l.u.intern_type(Type::Method { binder, params, result: expr, implicit: false, contextual: true });
     l.u.set_info(anon, info);

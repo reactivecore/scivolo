@@ -8,7 +8,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use tasty::defn::MAX_TUPLE_ARITY;
-use tasty::{Binding, Kind, Type, TypeId};
+use tasty::{Binding, Kind, NameId, Type, TypeId};
 
 /// The largest number of tuple elements unrolled.
 const MAX_UNROLLED: usize = 1024;
@@ -102,7 +102,7 @@ impl Inlining<'_> {
         let Some(Binding { binder, params, result, .. }) = self.u.poly(info) else {
             return Err(missing);
         };
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let method =
             crate::typer::type_apply::instantiate_poly(self.u, result, (binder, &names), &types, Some(apply));
         let Some(applied) = self.u.method(method).map(|m| m.result) else { return Err(missing) };

@@ -129,7 +129,7 @@ impl Inlining<'_> {
             if s.kind != Kind::Type || !s.flags.has(OPAQUE) {
                 continue;
             }
-            let name = s.name.clone();
+            let name = self.u.interned_name(d);
             let Some(alias) = self.u.opaque_rhs(d) else { continue };
             let seen = self.u.as_seen_from(alias, module_ref, module);
             let info = self.u.intern_type(Type::Alias(seen));

@@ -6,12 +6,12 @@ use super::super::Typer;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Binder, Type, TypeId, Universe};
+use tasty::{Binder, NameId, Type, TypeId, Universe};
 
 /// A parameter clause of an accessed method: its binder, parameters and their flags.
 pub struct Clause {
     pub binder: Option<Binder>,
-    pub params: Vec<(String, TypeId)>,
+    pub params: Vec<(NameId, TypeId)>,
     pub flags: FlagSet,
 }
 
@@ -74,6 +74,7 @@ pub fn accessor_tpt(t: &mut Typer<'_>, tpe: TypeId, clauses: &[Clause], span: Sp
         }
         Type::TypeRef(p, n) => {
             let qualifier = path(t, p, clauses, span)?;
+            let n = t.u.name(n).to_owned();
             Tree::Select { qualifier, name: TName { name: t.name(&n), is_type: true } }
         }
         Type::Sym(Some(_), _) | Type::TermRef(..) => {
@@ -96,7 +97,7 @@ fn path(t: &mut Typer<'_>, p: TypeId, clauses: &[Clause], span: Span) -> Option<
     let (qualifier, name) = match t.u.ty(p).clone() {
         Type::Param(..) => return param_ref(t, p, clauses).map(|(_, r)| r),
         Type::Sym(Some(q), s) if !t.u.is_type_symbol(s) => (q, t.u.symbol(s).name.clone()),
-        Type::TermRef(q, n) => (q, n),
+        Type::TermRef(q, n) => (q, t.u.name(n).to_owned()),
         _ => return unsupported(t, span),
     };
     let qualifier = path(t, qualifier, clauses, span)?;
@@ -109,7 +110,8 @@ fn param_ref(t: &mut Typer<'_>, p: TypeId, clauses: &[Clause]) -> Option<(TName,
     let (b, i) = t.u.param_ref(p)?;
     let clause = clauses.iter().find(|c| c.binder == Some(b))?;
     let is_type = clause.flags.is(f::TYPE_PARAM);
-    let name = TName { name: t.name(&clause.params[i as usize].0), is_type };
+    let name = t.u.name(clause.params[i as usize].0).to_owned();
+    let name = TName { name: t.name(&name), is_type };
     Some((name, t.ast.node(Tree::Ident { name })))
 }
 

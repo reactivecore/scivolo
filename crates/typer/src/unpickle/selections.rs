@@ -18,8 +18,8 @@ impl Unpickler<'_> {
         let tpe = self.resolved(tpe);
         let name = self.tname(id, false);
         if self.name(id) == "_" {
-            let sym = match self.u.type_ref(tpe).map(|(p, n)| (p, n.to_owned())) {
-                Some((p, n)) => self.u.resolve(p, &n, true),
+            let sym = match self.u.type_ref(tpe) {
+                Some((p, n)) => self.u.resolve(p, n, true),
                 None => self.u.sym_of(tpe),
             };
             return Ok(self.bare(T::Ident { name }, Some(tpe), sym));
@@ -40,14 +40,15 @@ impl Unpickler<'_> {
             _ => self.u.member_of_type(prefix, &name),
         };
         let refined = is_type && !found.iter().any(|&s| self.u.is_type_symbol(s));
-        if refined && self.u.refinement_named(prefix, &name).is_some() {
-            let tpe = self.u.intern_type(Type::TypeRef(prefix, name));
+        let n = self.u.intern_name(&name);
+        if refined && self.u.refinement_named(prefix, n).is_some() {
+            let tpe = self.u.intern_type(Type::TypeRef(prefix, n));
             let name = self.tname(id, true);
             return Ok(self.bare(T::Select { qualifier: qual, name }, Some(tpe), None));
         }
         if !is_type && found.is_empty() && name == "apply" && self.u.poly_function_apply_of(prefix).is_some()
         {
-            let tpe = self.u.intern_type(Type::TermRef(prefix, name));
+            let tpe = self.u.intern_type(Type::TermRef(prefix, n));
             let name = self.tname(id, false);
             return Ok(self.bare(T::Select { qualifier: qual, name }, Some(tpe), None));
         }
@@ -60,8 +61,8 @@ impl Unpickler<'_> {
         let k = self.kids(id);
         let qual = self.term(k[0])?;
         let owner = self.ty(k[1]);
-        let owner = match self.u.type_ref(owner).map(|(p, n)| (p, n.to_owned())) {
-            Some((p, n)) => self.u.resolve(p, &n, true),
+        let owner = match self.u.type_ref(owner) {
+            Some((p, n)) => self.u.resolve(p, n, true),
             None => self.u.class_symbol(owner),
         };
         let owner = owner.ok_or("selection in an unknown class in a library inline body")?;

@@ -7,7 +7,7 @@ use crate::defn::type_ref;
 use crate::tpd::TNodeId;
 use tasty::tags::*;
 use tasty::write::Name;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 
 /// The prefix of a reference: a type, the `this` of a package, or the companion object of a
 /// Java class of the JDK, which holds its static members.
@@ -60,8 +60,8 @@ impl TreePickler<'_> {
         let owner = owner.ok_or("a reference to a symbol without owner")?;
         let shadowed = match prefix {
             Prefix::Type(p) if self.u.symbol(s).kind == Kind::Class => {
-                let name = self.u.symbol(s).name.clone();
-                self.u.resolve(p, &name, true) != Some(s)
+                let name = self.u.interned_name(s);
+                self.u.resolve(p, name, true) != Some(s)
             }
             _ => false,
         };
@@ -148,7 +148,7 @@ impl TreePickler<'_> {
     }
 
     /// `prefix.name`, through the symbol it resolves to if it does.
-    pub fn named_ref(&mut self, prefix: TypeId, name: &str, is_type: bool) -> Result<(), Refusal> {
+    pub fn named_ref(&mut self, prefix: TypeId, name: NameId, is_type: bool) -> Result<(), Refusal> {
         if let Some(s) = self.u.resolve(prefix, name, is_type) {
             return self.sym_ref(Some(prefix), s);
         }
@@ -159,7 +159,8 @@ impl TreePickler<'_> {
             return Err("an unresolved term reference, its signature not known");
         }
         self.byte(if is_type { TYPEREF } else { TERMREF });
-        self.name(&Name::utf8(name));
+        let name = Name::utf8(self.u.name(name));
+        self.name(&name);
         self.ty(prefix, false)
     }
 }

@@ -34,7 +34,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use syntax::names::Names;
 use tasty::write::{Addr, Name, Pickler, TreeBuffer};
-use tasty::{Binder, SymbolId, TypeId, Universe};
+use tasty::{Binder, NameId, SymbolId, TypeId, Universe};
 
 /// Why a tree is outside the subset pickled.
 pub type Refusal = &'static str;
@@ -52,7 +52,7 @@ pub struct TreePickler<'a> {
     keying: bool,
     binders: FxHashMap<Binder, Addr>,
     /// The parameter names of each binder pickled.
-    params: FxHashMap<Binder, Vec<String>>,
+    params: FxHashMap<Binder, Vec<NameId>>,
     holes: FxHashMap<TNodeId, (u32, Vec<TNodeId>)>,
     /// The definitions of the quote: their addresses, `None` until pickled (dotty's `symRefs`).
     defs: FxHashMap<SymbolId, Option<Addr>>,

@@ -159,7 +159,7 @@ impl Typer<'_> {
         let (tycon, args) = self.u.applied(t).map_or((t, Vec::new()), |(tc, args)| (tc, args.to_vec()));
         let sym = match self.u.ty(tycon).clone() {
             Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
+            Type::TypeRef(p, name) => self.u.resolve(p, name, true),
             _ => None,
         };
         let class = sym.is_some_and(|s| self.u.symbol(s).kind == Kind::Class);
@@ -191,8 +191,8 @@ impl Typer<'_> {
         let Pt::Type(tpe) = pt else { return self.unsupported(id, "wildcard without expected type") };
         let sym = match self.u.ty(self.stripped(tpe)).clone() {
             Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
-            Type::TermRef(p, name) => self.u.resolve(p, &name, false),
+            Type::TypeRef(p, name) => self.u.resolve(p, name, true),
+            Type::TermRef(p, name) => self.u.resolve(p, name, false),
             Type::This(c) => self.u.class_symbol(c),
             _ => None,
         };

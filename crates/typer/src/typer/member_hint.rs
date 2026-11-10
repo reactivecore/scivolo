@@ -73,8 +73,8 @@ impl Typer<'_> {
     /// dot; `None` for other types.
     fn hint_prefix(&mut self, site: TypeId) -> Option<String> {
         let name = match self.u.ty(site) {
-            Type::TermRef(_, n) | Type::TypeRef(_, n) => n.clone(),
-            &Type::Sym(_, s) => self.u.symbol(s).name.clone(),
+            &Type::TermRef(_, n) | &Type::TypeRef(_, n) => self.u.name(n),
+            &Type::Sym(_, s) => self.u.symbol(s).name.as_str(),
             _ => return None,
         };
         (!name.ends_with('$')).then(|| format!("{name}."))

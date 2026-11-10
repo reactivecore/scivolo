@@ -12,7 +12,7 @@ use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, NameId, Type, TypeId};
 
 impl Typer<'_> {
     /// Function type `id` of arguments `args` (types or parameter definitions) and result `body`,
@@ -90,7 +90,7 @@ impl Typer<'_> {
 
     /// The parameters and result of the `apply` of context function type `t`,
     /// `PolyFunction { def apply(using params): result }`.
-    pub fn erased_context_names(&mut self, t: TypeId) -> Option<(Vec<(String, TypeId)>, TypeId)> {
+    pub fn erased_context_names(&mut self, t: TypeId) -> Option<(Vec<(NameId, TypeId)>, TypeId)> {
         let t = self.zonk(t);
         let t = self.u.dealias(t);
         let info = self.u.poly_function_apply(t)?;
@@ -128,8 +128,7 @@ impl Typer<'_> {
         let class = self.resolve_full_name(crate::defn::POLY_FUNCTION, true)?;
         let core = crate::defn::type_ref(self.u, class);
         let binder = self.syms.fresh_binder();
-        let names =
-            params.iter().map(|&p| (self.u.symbol(p).name.clone(), self.method_param_type(p))).collect();
+        let names = params.iter().map(|&p| (self.u.interned_name(p), self.method_param_type(p))).collect();
         let result = self.u.map_type(result, &mut |u, part| match *u.ty(part) {
             Type::Sym(None, s) => {
                 let i = params.iter().position(|&p| p == s)?;
@@ -139,6 +138,7 @@ impl Typer<'_> {
         });
         let method = Type::Method { binder, params: names, result, implicit: contextual, contextual };
         let method = self.u.intern_type(method);
-        Some(self.u.intern_type(Type::Refined(core, "apply".into(), method)))
+        let apply = self.u.intern_name("apply");
+        Some(self.u.intern_type(Type::Refined(core, apply, method)))
     }
 }

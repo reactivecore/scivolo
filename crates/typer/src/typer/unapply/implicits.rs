@@ -78,7 +78,7 @@ fn applied_unapply_result(
     method: &MethodShape,
     own: TypeId,
 ) -> TypeId {
-    let names = [method.param.clone()];
+    let names = [method.param];
     let applied = applied_result(t.u, method.result, (method.binder, &names), sym, &[own]);
     let skolem = |u: &Universe, x| match *u.ty(x) {
         Type::Skolem(_, w) => Some(w),

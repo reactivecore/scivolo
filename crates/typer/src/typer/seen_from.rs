@@ -3,7 +3,7 @@
 
 use super::Typer;
 use super::type_ops::TypeOps;
-use tasty::{Binding, Kind, SymbolId, Type, TypeId};
+use tasty::{Binding, Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The type of the method `fun_tpe` refers to, as seen from its prefix; remembered unless the
@@ -170,7 +170,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
         if lambda != tycon && !eta && !impure {
             return None;
         }
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         Some(u.subst(result, binder, &names, &args))
     });
     if again { normalized(u, out) } else { out }

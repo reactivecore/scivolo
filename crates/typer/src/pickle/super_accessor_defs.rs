@@ -37,10 +37,11 @@ impl TreePickler<'_> {
                 } else if term_before {
                     p.byte(SPLITCLAUSE);
                 }
-                for (name, tpe) in params.iter() {
+                for &(name, tpe) in params.iter() {
                     p.with_length(PARAM, &mut |p| {
-                        p.name(&Name::utf8(name));
-                        p.ty(*tpe, false)
+                        let name = Name::utf8(p.u.name(name));
+                        p.name(&name);
+                        p.ty(tpe, false)
                     })?;
                 }
                 (t, term_before) = (result, !params.is_empty());
@@ -99,9 +100,9 @@ impl TreePickler<'_> {
             return Ok(info);
         };
         let mut syms = Vec::new();
-        for (name, _) in &params {
+        for &(name, _) in &params {
             let symbol = Symbol {
-                name: name.clone(),
+                name: self.u.name(name).to_owned(),
                 kind: Kind::TypeParam,
                 owner: None,
                 flags: Flags::default(),
@@ -120,7 +121,8 @@ impl TreePickler<'_> {
         for (s, (name, bounds)) in syms.into_iter().zip(params) {
             self.register_def(s);
             self.with_length(TYPEPARAM, &mut |p| {
-                p.name(&Name::utf8(&name));
+                let name = Name::utf8(p.u.name(name));
+                p.name(&name);
                 p.ty(bounds, false)
             })?;
         }

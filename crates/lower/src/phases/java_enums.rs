@@ -176,7 +176,7 @@ fn with_name_and_ordinal(l: &mut Lower, t: TypeId) -> TypeId {
             let string = l.u.class_ref("java.lang.String");
             let int = l.u.class_ref("scala.Int");
             let mut params = params;
-            params.extend([("_$name".to_owned(), string), ("_$ordinal".to_owned(), int)]);
+            params.extend([(l.u.intern_name("_$name"), string), (l.u.intern_name("_$ordinal"), int)]);
             l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
         }
         _ => t,

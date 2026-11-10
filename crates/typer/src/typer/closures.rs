@@ -9,7 +9,7 @@ use crate::ctx::{Ctx, Level};
 use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, NameId, Type, TypeId};
 
 impl Typer<'_> {
     /// Function value `(params) => body` against the expected type `pt`, a pattern-matching
@@ -91,7 +91,7 @@ impl Typer<'_> {
         if missing {
             return self.error_tree(self.ast.span(id));
         }
-        let names: Vec<String> = entries.iter().map(|&(_, s)| self.u.symbol(s).name.clone()).collect();
+        let names: Vec<NameId> = entries.iter().map(|&(_, s)| self.u.interned_name(s)).collect();
         let params_syms: Vec<tasty::SymbolId> = entries.iter().map(|&(_, s)| s).collect();
         let level = self.levels.push(Some(ctx.level), Level::Scope(entries));
         let bctx = Ctx { owner: anonfun, level, ..ctx };

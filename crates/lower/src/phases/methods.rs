@@ -61,6 +61,7 @@ impl Lower<'_> {
             if self.u.is_erased_param(ptype) {
                 continue;
             }
+            let pname = self.u.name(pname).to_owned();
             let p = self.u.define(symbol(&pname, Kind::Param, sym, Default::default()));
             let bounded = self.u.upper_bound(ptype, &bounds);
             self.u.set_info(p, bounded);

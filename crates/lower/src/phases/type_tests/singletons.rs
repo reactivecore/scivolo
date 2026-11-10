@@ -60,12 +60,12 @@ pub fn singleton(l: &mut Lower, tp: TypeId) -> Option<TNodeId> {
             Some(l.this(c, Span::NONE))
         }
         Type::Constant(..) | Type::Str(_) => {
-            let lit = literal(l.u.ty(tp))?;
+            let lit = literal(l.u, tp)?;
             Some(l.tpd.node(lit, Span::NONE, Some(tp), None))
         }
         Type::Sym(prefix, s) => Some(reference(l, prefix, s)),
         Type::TermRef(prefix, name) => {
-            let s = l.u.resolve(prefix, &name, false)?;
+            let s = l.u.resolve(prefix, name, false)?;
             Some(reference(l, Some(prefix), s))
         }
         _ => None,

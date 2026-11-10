@@ -24,8 +24,11 @@ impl Universe {
                 self.intern_type(Type::Poly { binder, params, result })
             }
             Type::Method { binder, params, result, implicit, contextual } => {
-                let params =
-                    params.into_iter().enumerate().map(|(i, (_, p))| (format!("x${i}"), p)).collect();
+                let params = params
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, (_, p))| (self.intern_name(&format!("x${i}")), p))
+                    .collect();
                 let result = self.positional_params(result);
                 self.intern_type(Type::Method { binder, params, result, implicit, contextual })
             }

@@ -6,7 +6,7 @@ use super::literals::constant_structure;
 use super::printed::Printed;
 use crate::host::Host;
 use syntax::ast::constant::Constant as C;
-use tasty::{Const, Kind, SymbolId, Type, TypeId, constant};
+use tasty::{Const, Kind, NameId, SymbolId, Type, TypeId, constant};
 
 const STRUCTURE: &str = "Printer.TypeReprStructure of a type the frontend does not print";
 
@@ -45,7 +45,7 @@ impl Host {
             }
             Type::Str(s) => {
                 out.push_str("ConstantType(");
-                constant_structure(&C::String(s.encode_utf16().collect()), out)?;
+                constant_structure(&C::String(self.u.name(s).encode_utf16().collect()), out)?;
                 out.push(')');
             }
             Type::Sym(prefix, s) => {
@@ -60,8 +60,11 @@ impl Host {
                 };
                 self.reference(term, prefix, &name, out)?;
             }
-            Type::TypeRef(p, n) => self.reference(false, p, &n, out)?,
-            Type::TermRef(p, n) => self.reference(true, p, &n, out)?,
+            Type::TypeRef(p, n) | Type::TermRef(p, n) => {
+                let term = matches!(self.u.ty(t), Type::TermRef(..));
+                let n = self.u.name(n).to_owned();
+                self.reference(term, p, &n, out)?
+            }
             Type::Package(p) => self.package_ref(p, out)?,
             Type::This(inner) => match self.package_class(inner) {
                 Some(pkg) => out.push_str(&package_this(&pkg)),
@@ -72,7 +75,7 @@ impl Host {
             Type::Refined(parent, name, info) => {
                 out.push_str("Refinement(");
                 self.visit_type(parent, out)?;
-                out.push_str(&format!(", \"{name}\", "));
+                out.push_str(&format!(", \"{}\", ", self.u.name(name)));
                 self.visit_type(info, out)?;
                 out.push(')');
             }
@@ -137,7 +140,10 @@ impl Host {
             Type::Package(p) => p,
             Type::Sym(_, p) if self.u.symbol(p).kind == Kind::Package => p,
             Type::TermRef(..) => self.u.resolve_ref(t).filter(|&p| self.u.symbol(p).kind == Kind::Package)?,
-            Type::PackageName(n) => return Some(n.rsplit('.').next().unwrap_or(&n).to_owned()),
+            Type::PackageName(n) => {
+                let n = self.u.name(n);
+                return Some(n.rsplit('.').next().unwrap_or(n).to_owned());
+            }
             _ => return None,
         };
         Some(match p == self.u.root() {
@@ -186,10 +192,10 @@ impl Host {
         &mut self,
         out: &mut Printed,
         what: &str,
-        params: &[(String, TypeId)],
+        params: &[(NameId, TypeId)],
         result: TypeId,
     ) -> Result<(), &'static str> {
-        let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
+        let names: Vec<&str> = params.iter().map(|&(n, _)| self.u.name(n)).collect();
         match names.is_empty() {
             true => out.push_str(&format!("{what}(Nil, ")),
             false => out.push_str(&format!("{what}(List({}), ", names.join(", "))),

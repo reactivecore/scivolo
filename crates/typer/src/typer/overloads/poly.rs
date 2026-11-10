@@ -8,7 +8,7 @@ use super::poly_instances::mapped_info;
 use super::{Resolution, Unchosen};
 use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
-use tasty::{SymbolId, Type, TypeId, Universe};
+use tasty::{NameId, SymbolId, Type, TypeId, Universe};
 
 /// Why type arguments select no alternative, or several.
 const MISS: &str = "overloaded reference with type arguments";
@@ -111,7 +111,7 @@ fn poly_arg_types(t: &mut Typer, poly: usize) -> Vec<TypeId> {
 /// `info` of `alt`; the constraint unchanged.
 fn within_bounds(t: &mut Typer, info: TypeId, alt: SymbolId, targs: &[TypeId]) -> bool {
     let Some((binder, params)) = t.u.poly(info).map(|p| (p.binder, p.params.to_vec())) else { return false };
-    let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+    let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
     let before = t.constraint.attempt();
     let mut within = true;
     for (&(_, bounds), &arg) in params.iter().zip(targs) {

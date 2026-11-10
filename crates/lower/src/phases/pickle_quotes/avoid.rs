@@ -3,7 +3,7 @@
 //   compiler/src/dotty/tools/dotc/core/TypeOps.scala
 
 use super::class_bound::class_bound;
-use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId, Universe};
+use tasty::{ANY, Kind, NOTHING, NameId, SymbolId, Type, TypeId, Universe};
 use typer::approx::{self, Approx};
 
 /// `t` with each abstract type that is not static, or reached through a value that is not,
@@ -45,7 +45,7 @@ fn avoided_at(u: &mut Universe, t: TypeId, v: i8) -> Approx {
             if (p, i) == (Approx::Exact(parent), Approx::Exact(info)) {
                 return Approx::Exact(t);
             }
-            approx::refined(u, p, &name, i, v)
+            approx::refined(u, p, name, i, v)
         }
         Type::Annotated(x, annot) => {
             let parts = [avoided_at(u, x, v)];
@@ -86,7 +86,7 @@ fn avoided_applied(u: &mut Universe, t: TypeId, tycon: TypeId, args: &[TypeId], 
 
 /// Method, polymorphic or lambda type `t` with its parameters avoided contravariantly and its
 /// result covariantly (dotty's `derivedLambdaType`).
-fn avoided_lambda(u: &mut Universe, t: TypeId, params: &[(String, TypeId)], result: TypeId, v: i8) -> Approx {
+fn avoided_lambda(u: &mut Universe, t: TypeId, params: &[(NameId, TypeId)], result: TypeId, v: i8) -> Approx {
     let mut parts: Vec<Approx> = params.iter().map(|&(_, p)| avoided_at(u, p, -v)).collect();
     parts.push(avoided_at(u, result, v));
     if parts.iter().zip(params.iter().map(|p| p.1).chain([result])).all(|(m, x)| *m == Approx::Exact(x)) {
@@ -96,7 +96,7 @@ fn avoided_lambda(u: &mut Universe, t: TypeId, params: &[(String, TypeId)], resu
     let node = u.ty(t).clone();
     approx::derived(u, &parts, &flip, v, &mut |u, p| {
         let (ps, r) = p.split_at(params.len());
-        let ps = params.iter().zip(ps).map(|((n, _), &x)| (n.clone(), x)).collect();
+        let ps = params.iter().zip(ps).map(|(&(n, _), &x)| (n, x)).collect();
         u.intern_type(match node.clone() {
             Type::Method { binder, implicit, contextual, .. } => {
                 Type::Method { binder, params: ps, result: r[0], implicit, contextual }

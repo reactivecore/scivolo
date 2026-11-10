@@ -91,7 +91,10 @@ impl Synthesizer {
         let dealiased = t.u.dealias(normalized);
         let value = match t.u.ty(dealiased).clone() {
             Type::Constant(tag, bits) => of_type(tag, bits).map(|c| t.build().literal(c, at)),
-            Type::Str(s) => Some(t.build().literal(C::String(s.encode_utf16().collect()), at)),
+            Type::Str(s) => {
+                let s = C::String(t.u.name(s).encode_utf16().collect());
+                Some(t.build().literal(s, at))
+            }
             Type::Sym(_, s) if s == t.defn.unit => Some(t.build().literal(C::Unit, at)),
             Type::Sym(_, s) if t.u.symbol(s).kind.is_term() => t.path_tree(dealiased, at, MAX_PATH_DEPTH),
             Type::This(_) => t.path_tree(dealiased, at, MAX_PATH_DEPTH),
@@ -107,7 +110,7 @@ impl Synthesizer {
         let select = t.build().select(new, ctor, at);
         let result = crate::defn::applied(t.u, class, vec![tpe]);
         let binder = t.u.fresh_binder();
-        let params = vec![("value".to_owned(), tpe)];
+        let params = vec![(t.u.intern_name("value"), tpe)];
         let method =
             t.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
         let targ = t.type_tree(tpe, at, false);

@@ -40,8 +40,8 @@ pub fn reselected_members(u: &mut Universe, t: TypeId) -> TypeId {
         if u.symbol(s).kind != Kind::Type || u.sym_ref(p).is_none() || u.alias_of(s).is_some() {
             return None;
         }
-        let name = u.symbol(s).name.clone();
-        let r = u.resolve(p, &name, true).filter(|&r| r != s && u.alias_of(r).is_some())?;
+        let name = u.interned_name(s);
+        let r = u.resolve(p, name, true).filter(|&r| r != s && u.alias_of(r).is_some())?;
         Some(u.intern_type(Type::Sym(Some(p), r)))
     })
 }

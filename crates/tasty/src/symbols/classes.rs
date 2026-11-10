@@ -53,7 +53,7 @@ impl Universe {
     pub fn beta_reduced(&mut self, t: TypeId) -> TypeId {
         let Type::Applied(tycon, args) = self.ty(t).clone() else { return t };
         let Type::Lambda { binder, params, result } = self.ty(tycon).clone() else { return t };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
         self.subst(result, binder, &names, &args)
     }
 

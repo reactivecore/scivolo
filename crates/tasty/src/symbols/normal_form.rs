@@ -23,7 +23,7 @@ impl Universe {
             Type::Applied(tycon, args) => {
                 let expanded = match u.ty(tycon).clone() {
                     Type::Lambda { binder, params, result } => {
-                        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                        let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
                         u.subst(result, binder, &names, &args)
                     }
                     _ => match u.expand(tycon, &args).filter(|&e| u.bounds(e).is_none()) {
@@ -32,8 +32,8 @@ impl Universe {
                             let Type::Sym(Some(prefix), s) = *u.ty(tycon) else {
                                 return None;
                             };
-                            let name = u.symbol(s).name.clone();
-                            let member = u.resolve(prefix, &name, true).filter(|&m| m != s)?;
+                            let name = u.interned_name(s);
+                            let member = u.resolve(prefix, name, true).filter(|&m| m != s)?;
                             let tycon = u.intern_type(Type::Sym(Some(prefix), member));
                             u.expand(tycon, &args)?
                         }
@@ -45,9 +45,13 @@ impl Universe {
             Type::Sym(_, _) | Type::TypeRef(_, _) => {
                 let s = match u.ty(x).clone() {
                     Type::Sym(_, s) => s,
-                    Type::TypeRef(p, n) => match u.resolve(p, &n, true) {
+                    Type::TypeRef(p, n) => match u.resolve(p, n, true) {
                         Some(s) => s,
-                        None => u.resolve(p, n.strip_prefix("Impure")?, true)?,
+                        None => {
+                            let pure = u.name(n).strip_prefix("Impure")?.to_owned();
+                            let pure = u.intern_name(&pure);
+                            u.resolve(p, pure, true)?
+                        }
                     },
                     _ => return None,
                 };
@@ -61,8 +65,8 @@ impl Universe {
                                 let Type::Sym(Some(prefix), _) = *u.ty(x) else {
                                     return None;
                                 };
-                                let name = u.symbol(s).name.clone();
-                                let member = u.resolve(prefix, &name, true).filter(|&m| m != s)?;
+                                let name = u.interned_name(s);
+                                let member = u.resolve(prefix, name, true).filter(|&m| m != s)?;
                                 if u.symbol(member).kind == Kind::Class {
                                     return Some(u.intern_type(Type::Sym(None, member)));
                                 }
