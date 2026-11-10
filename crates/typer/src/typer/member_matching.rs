@@ -33,10 +33,6 @@ impl Typer<'_> {
         }
     }
 
-    pub fn self_type_bases(&mut self, c: SymbolId) -> Vec<SymbolId> {
-        self.u.self_type_bases(c)
-    }
-
     /// Whether members `a` and `b` of `site` match: as methods, or a method without parameters
     /// and a member that is not a method nor a Java field.
     pub fn matches_loosely(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {

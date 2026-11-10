@@ -28,7 +28,7 @@ pub fn implicit_members(t: &mut Typer<'_>, c: SymbolId, own_private: bool) -> Ve
 pub fn this_implicit_members(t: &mut Typer<'_>, c: SymbolId) -> Vec<SymbolId> {
     t.complete(c);
     let mut lin = t.u.linearization(c);
-    for b in t.self_type_bases(c) {
+    for b in t.u.self_type_bases(c) {
         if !lin.contains(&b) {
             lin.push(b);
         }
