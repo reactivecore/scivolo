@@ -21,5 +21,8 @@ scope. dotty keeps it in the `Context`.
 ## Consequences
 - `Gadt` owns the type parameters narrowed by the cases being typed, the types they bind, and the
   owners of polymorphic function values, whose type parameters it may narrow too.
+- `Nullables` owns the not-null facts of the contexts, the infos of typed trees and the tracked
+  variables. Its methods take `Flow`, which lends them the typed trees, `TypeOps`, the definitions
+  and the unit's syntax trees; it is one module directory, so its fields are private to them.
 - A method of the state cannot take `&mut Typer`; one that needs a typing callback is a method of
   a component or of `Typer`.

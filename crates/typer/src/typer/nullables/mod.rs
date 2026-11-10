@@ -145,13 +145,13 @@ impl Nullables {
     }
 
     /// Lists the not-null infos of `ctx`, the most recent first.
-    pub fn not_null_infos(&self, ctx: Ctx) -> impl Iterator<Item = &NotNullInfo> {
+    fn not_null_infos(&self, ctx: Ctx) -> impl Iterator<Item = &NotNullInfo> {
         std::iter::successors(ctx.nulls, |&i| self.chain[i as usize].0).map(|i| &self.chain[i as usize].1)
     }
 
     /// Tells whether `ctx` knows reference `r` not to be null: a more recent info asserts it, or
     /// says the code is not reached, before one retracts it.
-    pub fn implies_not_null(&self, ctx: Ctx, r: TypeId) -> bool {
+    fn implies_not_null(&self, ctx: Ctx, r: TypeId) -> bool {
         let mut at = ctx.nulls;
         while let Some(i) = at {
             let (outer, info) = &self.chain[i as usize];

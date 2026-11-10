@@ -51,7 +51,7 @@ impl Typer<'_> {
 
 impl Nullables {
     /// Finds the references known not to be null after `t` completes normally, remembered.
-    pub fn not_null_info(&mut self, f: &mut Flow, t: TNodeId) -> NotNullInfo {
+    fn not_null_info(&mut self, f: &mut Flow, t: TNodeId) -> NotNullInfo {
         if let Some(i) = self.infos.get(&t) {
             return i.clone();
         }
@@ -130,7 +130,7 @@ impl Nullables {
     }
 
     /// Finds the info of condition `t` when it is `c` (dotty's `notNullInfoIf`).
-    pub fn not_null_info_if(&mut self, f: &mut Flow, t: TNodeId, c: bool) -> NotNullInfo {
+    fn not_null_info_if(&mut self, f: &mut Flow, t: TNodeId, c: bool) -> NotNullInfo {
         let conditional = self.not_null_conditional(f, t);
         let info = self.not_null_info(f, t);
         if conditional.if_true.is_empty() && conditional.if_false.is_empty() {
