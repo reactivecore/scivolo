@@ -139,7 +139,7 @@ impl Host {
     fn result_conforms(&mut self, fun: TNodeId, to: TypeId) -> Fallible<bool> {
         let tpe = self.tpd.tpe(fun);
         let info = self.u.widen(tpe);
-        let Type::Method { result, .. } = *self.u.types().get(info) else { return Ok(false) };
+        let Some(result) = self.u.method(info).map(|m| m.result) else { return Ok(false) };
         let normalized = self.function_type(result)?;
         Ok(self.u.is_subtype(normalized, to))
     }

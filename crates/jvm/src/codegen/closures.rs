@@ -129,7 +129,7 @@ impl Gen<'_, '_> {
         let site = self.l.u.intern_type(Type::This(site));
         let mut out = Vec::new();
         for base in self.l.u.linearization(owner).into_iter().skip(1) {
-            for m in self.l.u.decl(base, &name).unwrap_or_default() {
+            for m in self.l.u.decls_named(base, &name) {
                 if self.l.u.symbol(m).kind == tasty::Kind::Def && self.l.u.info_matches(site, sam, m) {
                     out.push(method_descriptor(self.l.u, m));
                 }

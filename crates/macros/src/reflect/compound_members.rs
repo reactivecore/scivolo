@@ -16,7 +16,7 @@ impl Host {
     /// `t` without the aliases, lambdas and upper bounds around the type it stands for.
     fn stood_for(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..DEALIAS_STEPS {
-            t = match *self.u.types().get(t) {
+            t = match *self.u.ty(t) {
                 Type::Alias(a) => a,
                 Type::Lambda { result, .. } => result,
                 Type::Bounds(_, hi) => hi,
@@ -51,7 +51,7 @@ impl Host {
     /// `orDominator`).
     fn classes_of(&mut self, t: TypeId) -> Vec<SymbolId> {
         let t = self.stood_for(t);
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::And(a, b) => {
                 let mut out = self.classes_of(a);
                 out.extend(self.classes_of(b));
@@ -73,7 +73,7 @@ impl Host {
     /// The base classes both sides of union `t` share, in the order of its left side's.
     fn or_base_classes(&mut self, t: TypeId) -> Vec<SymbolId> {
         let t = self.stood_for(t);
-        let Type::Or(a, b, _) = *self.u.types().get(t) else { return self.type_base_classes(t) };
+        let Type::Or(a, b, _) = *self.u.ty(t) else { return self.type_base_classes(t) };
         let right = self.or_base_classes(b);
         self.or_base_classes(a).into_iter().filter(|c| right.contains(c)).collect()
     }
@@ -82,7 +82,7 @@ impl Host {
     /// first, of a union its right side's in its left side's.
     fn type_base_classes(&mut self, t: TypeId) -> Vec<SymbolId> {
         let t = self.stood_for(t);
-        let (and, l, r) = match *self.u.types().get(t) {
+        let (and, l, r) = match *self.u.ty(t) {
             Type::And(l, r) => (true, l, r),
             Type::Or(l, r, _) => (false, l, r),
             _ => {
@@ -137,7 +137,7 @@ impl Host {
     /// intersection those of either side, of a union those of both.
     pub fn type_sorted_parents(&mut self, t: TypeId, order: &mut Vec<SymbolId>) {
         let t = self.stood_for(t);
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::And(a, b) => {
                 self.type_sorted_parents(a, order);
                 self.type_sorted_parents(b, order);

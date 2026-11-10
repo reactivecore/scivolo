@@ -4,7 +4,7 @@
 //! `minimizeParents`, `polyParamSig`, `boundsSig`).
 
 use super::Sig;
-use tasty::{SymbolId, Type, TypeId, Universe};
+use tasty::{SymbolId, TypeId, Universe};
 
 /// The generic signature of class `c`: its type parameters and parents.
 pub fn class(u: &mut Universe, c: SymbolId) -> String {
@@ -43,10 +43,7 @@ impl Sig<'_> {
         self.out.push('<');
         for (name, bounds) in params {
             self.out.push_str(name);
-            let hi = match *self.u.types().get(*bounds) {
-                Type::Bounds(_, hi) => hi,
-                _ => *bounds,
-            };
+            let hi = self.u.bounds(*bounds).map_or(*bounds, |(_, hi)| hi);
             let mut parts = Vec::new();
             self.and_parts(hi, &mut parts);
             let whole = self.u.erase(hi);

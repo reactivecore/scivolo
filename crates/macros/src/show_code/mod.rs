@@ -26,7 +26,7 @@ mod types;
 use crate::host::Host;
 use printed::Printed;
 use std::collections::HashMap;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
 
 type Shown = Result<(), &'static str>;
@@ -189,8 +189,8 @@ impl Code<'_> {
     /// Type `t` as `printType` shows it, the spliced types substituted.
     fn ty(&mut self, t: TypeId) -> Shown {
         let spliced = std::mem::take(&mut self.spliced);
-        let t = self.h.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
+        let t = self.h.u.map_type(t, &mut |u, part| match u.sym_ref(part) {
+            Some((None, s)) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
             _ => None,
         });
         self.spliced = spliced;

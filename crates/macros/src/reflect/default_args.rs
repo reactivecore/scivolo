@@ -22,7 +22,7 @@ impl Host {
     ) -> Fallible<TNodeId> {
         let fun = self.selected(qual, m, targs)?;
         let info = self.u.widen(self.tpd.tpe(fun));
-        let Type::Method { params, .. } = self.u.types().get(info).clone() else {
+        let Type::Method { params, .. } = self.u.ty(info).clone() else {
             return self.reflect().apply(fun, terms);
         };
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
@@ -119,7 +119,7 @@ impl Host {
         let getter = getter.ok_or("Select.overloaded without an argument of a parameter without default")?;
         let sel = self.selected(qual, getter, targs)?;
         let info = self.u.widen(self.tpd.tpe(sel));
-        match self.u.types().get(info) {
+        match self.u.ty(info) {
             Type::Poly { .. } | Type::Method { .. } => {
                 Err("Select.overloaded of a default getter with parameters")
             }
@@ -185,7 +185,7 @@ impl Host {
     /// Whether the argument of a parameter of type `p` may be lifted: not by-name, not
     /// `@InlineParam`.
     fn is_lifted_param(&mut self, p: TypeId) -> bool {
-        match *self.u.types().get(p) {
+        match *self.u.ty(p) {
             Type::ByName(_) => false,
             Type::Annotated(_, annot) => self
                 .u

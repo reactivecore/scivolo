@@ -42,7 +42,7 @@ impl Text<'_> {
 
     /// The `this` of class or package `c`.
     pub fn this(&mut self, c: TypeId) -> Shown {
-        match self.h.u.types().get(c).clone() {
+        match self.h.u.ty(c).clone() {
             Type::Package(p) => self.package(p, true),
             Type::Sym(_, p) if self.h.u.symbol(p).kind == Kind::Package => self.package(p, true),
             Type::PackageName(n) => {
@@ -81,8 +81,8 @@ impl Text<'_> {
             self.out.push_str(&format!(",{symbol})"));
             return Ok(());
         };
-        let owner_this = match *self.h.u.types().get(prefix) {
-            Type::This(c) => match *self.h.u.types().get(c) {
+        let owner_this = match *self.h.u.ty(prefix) {
+            Type::This(c) => match *self.h.u.ty(c) {
                 Type::Package(p) => Some(p),
                 _ => self.h.u.class_symbol(c),
             },

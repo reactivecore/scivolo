@@ -30,19 +30,19 @@ impl Host {
     pub fn is_alias_type(&mut self, s: SymbolId) -> bool {
         self.u.symbol(s).kind.is_type() && !self.u.is_class(s) && {
             let info = self.u.info(s);
-            matches!(self.u.types().get(info), tasty::Type::Alias(_))
+            self.u.type_alias(info).is_some()
         }
     }
 
     pub fn required_module(&mut self, full: String) -> Fallible<SymbolId> {
         let (pkg, name) = full.rsplit_once('.').unwrap_or(("", &full));
         let p = self.u.package(pkg).ok_or("Symbol.requiredModule in a package the frontend lacks")?;
-        let decls = self.u.decl(p, name).unwrap_or_default();
+        let decls = self.u.decls_named(p, name);
         let module = decls.into_iter().find(|&d| self.u.is_module(d)).or_else(|| {
-            let objects = self.u.decl(p, "package").unwrap_or_default();
+            let objects = self.u.decls_named(p, "package");
             let class =
                 objects.into_iter().find(|&d| self.u.is_module(d)).and_then(|m| self.u.module_class(m))?;
-            let vals = self.u.decl(class, name).unwrap_or_default();
+            let vals = self.u.decls_named(class, name);
             vals.into_iter().find(|&v| self.u.symbol(v).kind == Kind::Val)
         });
         module.ok_or("Symbol.requiredModule of an object the frontend lacks")

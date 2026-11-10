@@ -80,15 +80,11 @@ pub fn literal(a: &MacroArg, param: &Erased) -> Option<Option<vm::MacroArg>> {
 /// Whether macro implementation `m` returns a context function taking the `Quotes` by name.
 pub fn quotes_by_name(u: &mut Universe, m: SymbolId) -> bool {
     let mut t = u.info(m);
-    while let Type::Method { result, .. } | Type::Poly { result, .. } | Type::ByName(result) =
-        *u.types().get(t)
-    {
+    while let Type::Method { result, .. } | Type::Poly { result, .. } | Type::ByName(result) = *u.ty(t) {
         t = result;
     }
     let t = u.dealias(t);
-    let types = u.types();
-    matches!(types.get(t), Type::Applied(_, targs)
-        if targs.first().is_some_and(|&a| matches!(types.get(a), Type::ByName(_))))
+    u.applied(t).is_some_and(|(_, targs)| targs.first().is_some_and(|&a| u.by_name(a).is_some()))
 }
 
 /// Signature `sig` of a macro implementation whose result is `count` nested context functions of

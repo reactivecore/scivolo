@@ -8,7 +8,7 @@
 use super::symbols::METHOD;
 use crate::host::Host;
 use tasty::tags::{ABSTRACT, FINAL, LAZY, OBJECT, OPAQUE, OVERRIDE, PROTECTED, PROTECTEDqualified};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 
 const PACKAGE: u32 = 3;
 const PARAM: u32 = 4;
@@ -59,11 +59,9 @@ impl Host {
             Kind::Val | Kind::Def if tasty => self.u.body(s).is_none(),
             Kind::Val | Kind::Def => self.u.is_deferred(s),
             Kind::Type => {
-                let mut info = self.u.info(s);
-                if let Type::Lambda { result, .. } = self.u.types().get(info) {
-                    info = *result;
-                }
-                opaque || matches!(self.u.types().get(info), Type::Bounds(..))
+                let info = self.u.info(s);
+                let info = self.u.lambda(info).map_or(info, |l| l.result);
+                opaque || self.u.bounds(info).is_some()
             }
             _ => false,
         }

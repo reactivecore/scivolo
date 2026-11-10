@@ -12,7 +12,7 @@ use tasty::{SymbolId, Type, TypeId};
 
 impl Host {
     pub fn type_parts(&mut self, t: TypeId) -> Fallible<Vec<TypeId>> {
-        Ok(match self.u.types().get(t).clone() {
+        Ok(match self.u.ty(t).clone() {
             Type::Applied(tycon, args) => [tycon].into_iter().chain(args).collect(),
             Type::Annotated(inner, _) | Type::This(inner) | Type::ByName(inner) | Type::Rec(_, inner) => {
                 vec![inner]
@@ -50,16 +50,13 @@ impl Host {
     }
 
     pub fn param_num(&self, t: TypeId) -> Fallible<i32> {
-        match *self.u.types().get(t) {
-            Type::Param(_, i) => Ok(i as i32),
-            _ => Err("ParamRef.paramNum of another type"),
-        }
+        self.u.param_ref(t).map(|(_, i)| i as i32).ok_or("ParamRef.paramNum of another type")
     }
 
     /// Whether lambda type `t` is implicit and contextual, its number of parameters, their types
     /// and its result type; the parameters' names.
     pub fn lambda_parts(&mut self, t: TypeId) -> Answer {
-        let (flags, params, result) = match self.u.types().get(t).clone() {
+        let (flags, params, result) = match self.u.ty(t).clone() {
             Type::Method { params, result, implicit, contextual, .. } => {
                 ([implicit, contextual], params, result)
             }
@@ -86,7 +83,7 @@ impl Host {
     }
 
     pub fn type_kind(&self, t: TypeId) -> i32 {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => 2,
             Type::Sym(..) | Type::TypeRef(..) => 1,
             Type::TermRef(..) | Type::Package(_) => 2,

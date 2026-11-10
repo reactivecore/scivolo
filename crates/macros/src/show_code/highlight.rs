@@ -59,7 +59,7 @@ impl Code<'_> {
     /// Inferred type `tpe` followed by its annotations (dotty's `printTypeAndAnnots`); refused for
     /// an annotation of a class that takes arguments, which the type does not keep.
     pub fn annotated_type(&mut self, tpe: TypeId) -> Shown {
-        let Type::Annotated(inner, annot) = *self.h.u.types().get(tpe) else {
+        let Some((inner, annot)) = self.h.u.annotated(tpe) else {
             self.ty(tpe)?;
             if self.is_singleton(tpe) {
                 self.push(".type");
@@ -77,7 +77,7 @@ impl Code<'_> {
     /// Parameter type `tpe` of a method's type without its `@InlineParam` and `@ErasedParam`, as
     /// the parameter's type tree has it.
     pub fn without_param_annotations(&mut self, tpe: TypeId) -> TypeId {
-        match *self.h.u.types().get(tpe) {
+        match *self.h.u.ty(tpe) {
             Type::ByName(r) => {
                 let r = self.without_param_annotations(r);
                 return self.h.u.intern_type(Type::ByName(r));

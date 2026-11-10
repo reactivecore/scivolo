@@ -4,7 +4,6 @@
 
 use super::{Code, REFUSED, Shown};
 use syntax::ast::constant::Constant;
-use tasty::Type;
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Code<'_> {
@@ -43,8 +42,8 @@ impl Code<'_> {
     /// Whether `t` is of type `<repeated>[T]`.
     fn is_repeated(&mut self, t: TNodeId) -> bool {
         let Some(tpe) = self.h.tpd.get(t).tpe else { return false };
-        let Type::Applied(c, _) = *self.h.u.types().get(tpe) else { return false };
-        self.h.u.class_symbol(c).is_some_and(|c| self.h.u.full_name(c) == "scala.<repeated>")
+        let Some((c, _)) = self.h.u.applied(tpe) else { return false };
+        self.h.u.is_class_named(c, "scala.<repeated>")
     }
 
     pub fn typed(&mut self, expr: TNodeId, tpt: TNodeId) -> Shown {
@@ -68,7 +67,7 @@ impl Code<'_> {
         let operator = self.out.ends_with(|c: char| "~!@#%^*+-<>?:=&|/\\".contains(c));
         self.push(if operator { " : " } else { ": " });
         let tpe = self.h.tpd.tpe(tpt);
-        if matches!(self.h.u.types().get(tpe), Type::Annotated(..)) {
+        if self.h.u.annotated(tpe).is_some() {
             return Err(REFUSED);
         }
         self.ty(tpe)?;

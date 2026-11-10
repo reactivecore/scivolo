@@ -50,10 +50,7 @@ impl Host {
     /// `t` dealiased up to a reference to an opaque type.
     pub fn dealias_keep_opaques(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..DEALIAS_STEPS {
-            let reference = match *self.u.types().get(t) {
-                Type::Applied(tycon, _) => tycon,
-                _ => t,
-            };
+            let reference = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
             if self.u.referenced(reference).is_some_and(|s| self.u.symbol(s).flags.has(OPAQUE)) {
                 break;
             }
@@ -83,7 +80,7 @@ impl Host {
     /// `t` with each reference to a symbol of `pairs` but `this` replaced by its type.
     pub fn substitute_types(&mut self, t: TypeId, pairs: Vec<(SymbolId, TypeId)>) -> TypeId {
         self.u.map_type(t, &mut |u, part| {
-            let s = match *u.types().get(part) {
+            let s = match *u.ty(part) {
                 Type::Sym(_, s) => s,
                 Type::TypeRef(..) | Type::TermRef(..) => u.resolve_ref(part)?,
                 Type::This(_) => return Some(part),
@@ -100,7 +97,7 @@ impl Host {
 
     /// The constant of constant type `t`, nothing for another type.
     pub fn constant_type(&mut self, t: TypeId) -> Fallible<Reflected> {
-        if matches!(*self.u.types().get(t), Type::Constant(tag, _) if tag == CLASSconst) {
+        if matches!(*self.u.ty(t), Type::Constant(tag, _) if tag == CLASSconst) {
             return Err("ConstantType of a class constant");
         }
         Ok(constant_of(&self.u, t).map_or((Vec::new(), None), encoded))
@@ -117,7 +114,7 @@ impl Host {
         let mut undecided = false;
         for t in types {
             self.u.map_type(t, &mut |u, part| {
-                undecided |= match *u.types().get(part) {
+                undecided |= match *u.ty(part) {
                     Type::Var(_) | Type::Wildcard(_) | Type::Match { .. } | Type::Local(..) => true,
                     Type::Other(_) | Type::PackageName(_) => true,
                     Type::TypeRef(..) | Type::TermRef(..) => u.resolve_ref(part).is_none(),
@@ -150,10 +147,7 @@ impl Host {
             let flags = self.u.symbol(s).flags;
             let narrows = match (self.tpd.tree(d), self.u.symbol(s).kind) {
                 (T::TypeDef { .. }, Kind::Type) => {
-                    let lambda = match *self.u.types().get(info) {
-                        Type::Alias(a) => matches!(self.u.types().get(a), Type::Lambda { .. }),
-                        _ => true,
-                    };
+                    let lambda = self.u.type_alias(info).is_none_or(|a| self.u.lambda(a).is_some());
                     !lambda && existing.iter().all(|&m| self.u.symbol(m).kind != Kind::Class)
                 }
                 (T::ValDef { .. }, Kind::Val)
@@ -168,7 +162,7 @@ impl Host {
             };
             let mut this = false;
             self.u.map_type(info, &mut |u, part| {
-                if let Type::This(c) = *u.types().get(part) {
+                if let Some(c) = u.this_of(part) {
                     this |= u.class_symbol(c) == Some(cls);
                 }
                 None
@@ -195,6 +189,6 @@ impl Host {
             None => name.to_owned(),
         };
         let t = self.u.class_ref(&full);
-        matches!(self.u.types().get(t), Type::Sym(..)).then_some(t)
+        self.u.sym_of(t).is_some().then_some(t)
     }
 }

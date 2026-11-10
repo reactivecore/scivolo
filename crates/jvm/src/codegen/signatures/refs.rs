@@ -15,17 +15,14 @@ impl Sig<'_> {
             self.out.push_str(&format!("T{name};"));
             return;
         }
-        let (tycon, args) = match self.u.types().get(t).clone() {
-            Type::Applied(tycon, args) => (tycon, args),
-            _ => (t, Vec::new()),
-        };
+        let (tycon, args) = self.u.applied(t).map_or((t, Vec::new()), |(c, a)| (c, a.to_vec()));
         match self.applied_param(tycon, &args) {
             Some(Applied::Resolved(r)) => return self.jsig(r, false, boxing),
             Some(Applied::Param(name)) => return self.out.push_str(&format!("T{name};")),
             Some(Applied::Erased) => return self.erased(t, boxing),
             None => {}
         }
-        let s = match *self.u.types().get(tycon) {
+        let s = match *self.u.ty(tycon) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => self.u.resolve_ref(tycon),
             _ => None,
@@ -73,21 +70,20 @@ impl Sig<'_> {
     /// applies it to some (dotty's `classSig` of a `pre` with arguments).
     fn generic_outer(&mut self, c: SymbolId, tycon: TypeId) -> Option<(SymbolId, Vec<TypeId>)> {
         let outer = self.u.symbol(c).owner.filter(|&o| self.u.is_class(o))?;
-        let prefix = match *self.u.types().get(tycon) {
+        let prefix = match *self.u.ty(tycon) {
             Type::Sym(Some(p), _) | Type::TypeRef(p, _) => p,
             _ => return None,
         };
         let prefix = self.u.widen(prefix);
         let prefix = self.u.dealias(prefix);
-        let parts = match *self.u.types().get(prefix) {
+        let parts = match *self.u.ty(prefix) {
             Type::And(a, b) => vec![a, b],
             _ => vec![prefix],
         };
-        parts.into_iter().find_map(|p| match self.u.types().get(p).clone() {
-            Type::Applied(t, args) if !args.is_empty() && self.u.class_symbol(t) == Some(outer) => {
-                Some((outer, args))
-            }
-            _ => None,
+        parts.into_iter().find_map(|p| {
+            let (t, args) = self.u.applied(p).filter(|(_, args)| !args.is_empty())?;
+            let args = args.to_vec();
+            (self.u.class_symbol(t) == Some(outer)).then_some((outer, args))
         })
     }
 
@@ -110,7 +106,7 @@ impl Sig<'_> {
 
     fn arg(&mut self, a: TypeId) {
         let a = self.u.dealias(a);
-        match *self.u.types().get(a) {
+        match *self.u.ty(a) {
             Type::Bounds(lo, hi) => {
                 if !self.class_named(hi, "scala.Any") {
                     self.out.push('+');
@@ -134,21 +130,19 @@ impl Sig<'_> {
     }
 
     fn array(&mut self, elem: TypeId) {
-        let checked = match *self.u.types().get(elem) {
-            Type::Param(b, i) => self.poly_param(b, i).map_or(elem, |(_, bounds)| bounds),
-            _ => elem,
-        };
+        let param = self.u.param_ref(elem).and_then(|(b, i)| self.poly_param(b, i));
+        let checked = param.map_or(elem, |(_, bounds)| bounds);
         if self.u.is_generic(checked) {
             return self.out.push_str("Ljava/lang/Object;");
         }
         self.out.push('[');
         let elem = self.u.dealias(elem);
-        match *self.u.types().get(elem) {
-            Type::Bounds(_, hi) => {
+        match self.u.bounds(elem) {
+            Some((_, hi)) => {
                 let hi = self.u.widen(hi);
                 self.jsig(hi, false, Boxing::Unbox)
             }
-            _ => self.jsig(elem, false, Boxing::UnboxOnlyPrimitives),
+            None => self.jsig(elem, false, Boxing::UnboxOnlyPrimitives),
         }
     }
 }

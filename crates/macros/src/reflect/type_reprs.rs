@@ -26,7 +26,7 @@ impl Host {
     }
 
     pub fn type_name(&mut self, t: TypeId) -> Fallible<String> {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Sym(_, s) | Type::Package(s) => Ok(self.u.symbol(s).name.clone()),
             Type::TypeRef(_, n) | Type::TermRef(_, n) | Type::Refined(_, n, _) => Ok(n),
             _ => Err("the name of an unnamed type"),
@@ -53,7 +53,7 @@ impl Host {
     }
 
     pub fn is_singleton(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
             Type::TermRef(..) | Type::This(_) | Type::Super(..) | Type::Skolem(..) => true,
             Type::Constant(..) | Type::Str(_) => true,
@@ -78,11 +78,11 @@ impl Host {
             return Ok(self.u.intern_type(Type::Sym(member.then_some(t), s)));
         }
         let m = self.u.term_type(Some(t), s);
-        let shape = self.u.types().get(m);
+        let shape = self.u.ty(m);
         let method = matches!(shape, Type::Method { .. } | Type::Poly { .. });
         let bounds = match shape {
             Type::Bounds(..) | Type::Alias(_) => true,
-            Type::Lambda { result, .. } => matches!(self.u.types().get(*result), Type::Bounds(..)),
+            Type::Lambda { result, .. } => self.u.bounds(*result).is_some(),
             _ => false,
         };
         Ok(match self.u.symbol(s).kind {
@@ -98,7 +98,7 @@ impl Host {
 
     /// The annotation of annotated type `t` as a `new` of its type.
     pub fn annotation(&mut self, t: TypeId) -> Fallible<TNodeId> {
-        let Type::Annotated(_, annot) = *self.u.types().get(t) else {
+        let Some((_, annot)) = self.u.annotated(t) else {
             return Err("AnnotatedType.annotation of another type");
         };
         let span = self.expansion;
@@ -145,9 +145,9 @@ impl Host {
             return Ok(None);
         }
         let (mut t, mut poly) = (self.u.info(owner), false);
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.u.types().get(t).clone() {
-            if let Type::Method { params, .. } = self.u.types().get(t).clone()
-                && let Some(&(_, p)) = params.iter().find(|(n, _)| *n == name)
+        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.u.ty(t).clone() {
+            if let Some(m) = self.u.method(t)
+                && let Some(&(_, p)) = m.params.iter().find(|(n, _)| *n == name)
             {
                 let repeated = self.u.class_symbol(p).is_some_and(|c| self.u.symbol(c).name == "<repeated>");
                 return match (repeated, poly) {
@@ -155,7 +155,7 @@ impl Host {
                     _ => Ok(repeated.then_some(p)),
                 };
             }
-            poly |= matches!(self.u.types().get(t), Type::Poly { .. });
+            poly |= self.u.poly(t).is_some();
             t = result;
         }
         Ok(None)

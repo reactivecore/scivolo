@@ -50,7 +50,7 @@ pub fn member(
     let mut s = Sig::new(u, sym);
     s.origin = origin;
     s.field = !method;
-    match s.u.types().get(info) {
+    match s.u.ty(info) {
         Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => s.jsig(info, true, Boxing::Unbox),
         _ if method => {
             s.out.push_str("()");
@@ -83,7 +83,7 @@ impl<'u> Sig<'u> {
 
     fn and_parts(&mut self, t: TypeId, parts: &mut Vec<TypeId>) {
         let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::And(a, b) => {
                 self.and_parts(a, parts);
                 self.and_parts(b, parts);
@@ -103,7 +103,7 @@ impl<'u> Sig<'u> {
 
     fn class_named(&mut self, t: TypeId, name: &str) -> bool {
         let t = self.u.dealias(t);
-        matches!(self.u.types().get(t), Type::Sym(..) | Type::TypeRef(..))
+        matches!(self.u.ty(t), Type::Sym(..) | Type::TypeRef(..))
             && self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == name)
     }
 
@@ -119,7 +119,7 @@ impl<'u> Sig<'u> {
 
     fn jsig(&mut self, t: TypeId, top: bool, boxing: Boxing) {
         let t = self.u.dealias(t);
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Lambda { result: p, .. } => {
                 self.jsig(p, top, boxing)
             }
@@ -173,7 +173,7 @@ impl<'u> Sig<'u> {
 
     /// The type parameter `t` refers to, if it appears in the signature by name.
     fn type_param(&mut self, t: TypeId) -> Option<SymbolId> {
-        let s = match *self.u.types().get(t) {
+        let s = match *self.u.ty(t) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.u.resolve_ref(t)?,
             _ => return None,

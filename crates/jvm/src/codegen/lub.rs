@@ -145,9 +145,9 @@ impl Gen<'_, '_> {
         for end in ends.collect::<Vec<_>>() {
             let names = [(rest.get(..=end), end + 1), (Some(&rest[..end]), end + 1)];
             for (name, next) in names.into_iter().filter_map(|(n, next)| Some((n?, next))) {
-                let mut found = self.l.u.decl(owner, name).unwrap_or_default();
+                let mut found = self.l.u.decls_named(owner, name);
                 if found.is_empty() {
-                    found = self.l.u.decl(owner, &tasty::decode(name)).unwrap_or_default();
+                    found = self.l.u.decls_named(owner, &tasty::decode(name));
                 }
                 for c in found {
                     let found = match rest.get(next..).filter(|r| !r.is_empty()) {

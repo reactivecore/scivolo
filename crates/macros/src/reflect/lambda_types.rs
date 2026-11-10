@@ -33,7 +33,7 @@ impl Host {
             return Err("a lambda type with another number of names than types");
         }
         let params: Vec<(String, TypeId)> = names.into_iter().zip(params.iter().copied()).collect();
-        let t = match self.u.types().get(binder).clone() {
+        let t = match self.u.ty(binder).clone() {
             Type::Method { binder, implicit, contextual, .. } => {
                 Type::Method { binder, params, result, implicit, contextual }
             }
@@ -46,7 +46,7 @@ impl Host {
 
     /// The reference to parameter `i` of lambda type `t` (dotty's `newParamRef`).
     pub fn param_ref(&mut self, t: TypeId, i: i32) -> Fallible<TypeId> {
-        let binder = match *self.u.types().get(t) {
+        let binder = match *self.u.ty(t) {
             Type::Method { binder, .. } | Type::Poly { binder, .. } | Type::Lambda { binder, .. } => binder,
             _ => return Err("param of a type other than a lambda type"),
         };
@@ -55,10 +55,7 @@ impl Host {
 
     /// Whether each parameter of method type `t` is erased (dotty's `paramErasureStatuses`).
     pub fn erased_params(&mut self, t: TypeId) -> Vec<i32> {
-        let params = match self.u.types().get(t) {
-            Type::Method { params, .. } => params.iter().map(|&(_, p)| p).collect(),
-            _ => Vec::new(),
-        };
+        let params = self.u.method(t).map(|m| m.param_types()).unwrap_or_default();
         params.into_iter().map(|p| self.u.is_erased_param(p) as i32).collect()
     }
 }

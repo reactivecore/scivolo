@@ -154,18 +154,13 @@ fn method_name(u: &Universe, m: SymbolId) -> String {
     }
 }
 
-/// Whether `s` is an object's class reached through static paths only.
-fn is_static_module(u: &Universe, s: SymbolId) -> bool {
-    u.is_module_class(s) && u.is_static_symbol(s)
-}
-
 /// Whether `s` is a static member: one of a static object's fields but a lazy value's field or
 /// flag, or a Java static member.
 fn is_static_member(l: &Lower, s: SymbolId) -> bool {
     let sym = l.u.symbol(s);
     let field = sym.kind == tasty::Kind::Val && !sym.flags.has(FIELDaccessor) && !l.u.is_module(s);
     let field = field && !l.is_lazy_storage(s);
-    sym.flags.has(STATIC) || (field && sym.owner.is_some_and(|o| is_static_module(l.u, o)))
+    sym.flags.has(STATIC) || (field && sym.owner.is_some_and(|o| l.u.is_static_module(o)))
 }
 
 /// The access flags of member or class `s` (dotty's `javaFlags`).

@@ -4,7 +4,7 @@
 //! the method type parameters in scope bounded.
 
 use super::{Boxing, Sig};
-use tasty::{Binder, Type, TypeId};
+use tasty::{Binder, TypeId};
 
 /// What an applied method type parameter stands for in a signature.
 pub enum Applied {
@@ -19,16 +19,11 @@ pub enum Applied {
 impl Sig<'_> {
     /// `tycon[args]`, if `tycon` is a method type parameter in scope.
     pub fn applied_param(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<Applied> {
-        let Type::Param(b, i) = *self.u.types().get(tycon) else { return None };
+        let (b, i) = self.u.param_ref(tycon)?;
         let (name, bounds) = self.poly_param(b, i)?;
-        let hi = match *self.u.types().get(bounds) {
-            Type::Bounds(_, hi) => hi,
-            _ => bounds,
-        };
-        let Type::Lambda { binder, params, result } = self.u.types().get(hi).clone() else {
-            return Some(Applied::Param(name));
-        };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
+        let Some(lambda) = self.u.lambda(hi) else { return Some(Applied::Param(name)) };
+        let (binder, names, result) = (lambda.binder, lambda.names(), lambda.result);
         let t = self.u.subst(result, binder, &names, args);
         let mut recursive = false;
         self.u.map_type(t, &mut |_, x| {

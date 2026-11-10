@@ -67,10 +67,9 @@ impl Host {
     fn is_package_alias(&mut self, full: &str) -> bool {
         let (pkg, name) = full.rsplit_once('.').unwrap_or(("", full));
         let Some(p) = self.u.package(pkg) else { return false };
-        let objects = self.u.decl(p, "package").unwrap_or_default();
+        let objects = self.u.decls_named(p, "package");
         let object = objects.into_iter().find(|&d| self.u.is_module(d)).and_then(|m| self.u.module_class(m));
-        let decls =
-            [Some(p), object].into_iter().flatten().flat_map(|o| self.u.decl(o, name).unwrap_or_default());
+        let decls = [Some(p), object].into_iter().flatten().flat_map(|o| self.u.decls_named(o, name));
         let decls: Vec<SymbolId> = decls.collect();
         decls.iter().any(|&d| self.u.symbol(d).kind == Kind::Type && !self.u.is_class(d))
             && !decls.iter().any(|&d| self.u.is_class(d))
@@ -80,10 +79,10 @@ impl Host {
     fn package_object_value(&mut self, full: &str) -> Option<SymbolId> {
         let (pkg, name) = full.rsplit_once('.')?;
         let p = self.u.package(pkg)?;
-        let objects = self.u.decl(p, "package").unwrap_or_default();
+        let objects = self.u.decls_named(p, "package");
         let object =
             objects.into_iter().find(|&d| self.u.is_module(d)).and_then(|m| self.u.module_class(m))?;
-        let vals = self.u.decl(object, name).unwrap_or_default();
+        let vals = self.u.decls_named(object, name);
         vals.into_iter().find(|&v| self.u.symbol(v).kind == Kind::Val)
     }
 
@@ -91,7 +90,7 @@ impl Host {
     fn static_module_class(&mut self, full: &str) -> Option<SymbolId> {
         let (pkg, name) = full.rsplit_once('.').unwrap_or(("", full));
         let p = self.u.package(pkg)?;
-        let decls = self.u.decl(p, name).unwrap_or_default();
+        let decls = self.u.decls_named(p, name);
         let module = decls.into_iter().find(|&d| self.u.is_module(d))?;
         self.u.module_class(module)
     }

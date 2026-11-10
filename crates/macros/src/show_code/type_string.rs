@@ -31,7 +31,7 @@ pub struct Text<'h> {
 
 impl Text<'_> {
     fn tpe(&mut self, t: TypeId) -> Shown {
-        match self.h.u.types().get(t).clone() {
+        match self.h.u.ty(t).clone() {
             Type::NoPrefix => self.out.push_str("NoPrefix"),
             Type::Package(p) => self.package(p, false)?,
             Type::PackageName(n) => self.out.push_str(&package_named(&n, false)),

@@ -63,7 +63,7 @@ impl Gen<'_, '_> {
             if self.l.u.class_symbol(tpe).is_none_or(|c| self.l.u.full_name(c) != "scala.throws") {
                 continue;
             }
-            if let tasty::Type::Applied(_, args) = self.l.u.types().get(tpe)
+            if let Some((_, args)) = self.l.u.applied(tpe)
                 && let [t] = args[..]
             {
                 out.push(t);
@@ -148,7 +148,7 @@ impl Gen<'_, '_> {
             return Some(m);
         }
         let (owner, name) = (self.l.u.symbol(sym).owner?, self.l.u.symbol(sym).name.clone());
-        let getters = self.l.u.decl(owner, &name).unwrap_or_default();
+        let getters = self.l.u.decls_named(owner, &name);
         getters.into_iter().find(|&g| g != sym).and_then(|g| self.l.mixed_in_from(g))
     }
 

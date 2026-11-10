@@ -3,18 +3,9 @@
 //! The names local symbols print as (dotty's `splicedName`).
 
 use super::Code;
-use tasty::{Kind, SymbolId};
+use tasty::SymbolId;
 
 impl Code<'_> {
-    /// Whether `s` is owned by a term (dotty's `splicedName` applies).
-    pub fn is_local(&self, s: SymbolId) -> bool {
-        self.h
-            .u
-            .symbol(s)
-            .owner
-            .is_some_and(|o| !matches!(self.h.u.symbol(o).kind, Kind::Class | Kind::Package))
-    }
-
     /// The name local `s` prints as: its own, subscripted from its second symbol on.
     pub fn spliced_name(&mut self, s: SymbolId) -> String {
         if let Some(n) = self.names.get(&s) {

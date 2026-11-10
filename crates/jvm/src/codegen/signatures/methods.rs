@@ -11,7 +11,7 @@ impl Sig<'_> {
         let mut tparams = Vec::new();
         let mut vparams = Vec::new();
         loop {
-            match self.u.types().get(t).clone() {
+            match self.u.ty(t).clone() {
                 Type::Poly { binder, params, result } => {
                     self.poly.push((binder, params.iter().map(|(n, b)| (tasty::encode(n), *b)).collect()));
                     if top && !self.constructor {
@@ -44,7 +44,7 @@ impl Sig<'_> {
     /// else `t` (dotty's `collectMethodParams`).
     fn context_result(&mut self, t: TypeId, vparams: &mut Vec<TypeId>) -> TypeId {
         let d = self.u.dealias(t);
-        let Type::Applied(tycon, mut args) = self.u.types().get(d).clone() else { return t };
+        let Type::Applied(tycon, mut args) = self.u.ty(d).clone() else { return t };
         let name = self.u.class_symbol(tycon).map(|c| self.u.symbol(c).name.clone());
         let Some(arity) = name.as_deref().and_then(|n| n.strip_prefix("ContextFunction")) else { return t };
         if arity.is_empty() || !arity.bytes().all(|b| b.is_ascii_digit()) {

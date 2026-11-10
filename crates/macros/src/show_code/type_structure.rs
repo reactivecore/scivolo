@@ -24,7 +24,7 @@ impl Host {
     }
 
     fn visit_type(&mut self, t: TypeId, out: &mut Printed) -> Result<(), &'static str> {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Constant(tag, bits) => {
                 let c = match constant(tag, bits).ok_or(STRUCTURE)? {
                     Const::Unit => C::Unit,
@@ -108,8 +108,7 @@ impl Host {
             self.u.symbol(c).owner.is_some_and(|o| self.u.full_name(o) == "scala.annotation.internal");
         let Some(init) = self.primary_constructor(c).filter(|_| internal) else { return false };
         let info = self.u.info(init);
-        matches!(self.u.types().get(info), Type::Method { params, result, .. }
-            if params.is_empty() && !matches!(self.u.types().get(*result), Type::Method { .. }))
+        self.u.method(info).is_some_and(|m| m.params.is_empty() && self.u.method(m.result).is_none())
     }
 
     /// The `TermRef` of package `p` (dotty's `p.termRef`, whose prefix is the owner's `this`); the
@@ -131,7 +130,7 @@ impl Host {
 
     /// The name of the class of the package `t` refers to, `<empty>` for the root.
     fn package_class(&mut self, t: TypeId) -> Option<String> {
-        let p = match self.u.types().get(t).clone() {
+        let p = match self.u.ty(t).clone() {
             Type::Package(p) => p,
             Type::Sym(_, p) if self.u.symbol(p).kind == Kind::Package => p,
             Type::TermRef(..) => self.u.resolve_ref(t).filter(|&p| self.u.symbol(p).kind == Kind::Package)?,

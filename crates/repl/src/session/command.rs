@@ -89,19 +89,15 @@ impl Session {
             _ => self.u.info(sym),
         };
         let t = self.u.widen(t);
-        let class = match self.u.types().get(t).clone() {
+        let class = match self.u.ty(t).clone() {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
             _ => None,
         };
         Some(match class {
-            Some(c) if self.is_static_module_class(c) => self.u.show_module_class(c),
+            Some(c) if self.u.is_static_module(c) => self.u.show_module_class(c),
             _ => self.u.show_user(t),
         })
-    }
-
-    fn is_static_module_class(&self, c: SymbolId) -> bool {
-        self.u.is_module_class(c) && self.u.is_static_symbol(c)
     }
 
     /// Whether `sym` is a show method or a variable's setter.
