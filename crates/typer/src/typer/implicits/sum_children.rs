@@ -12,9 +12,9 @@ use tasty::tags::{ABSTRACT, CONTRAVARIANT, ENUM, SEALED};
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe};
 
 impl Typer<'_> {
-    /// The children of sealed class `s` in the order of their definitions: classes, and objects
-    /// by their values; of an enum, its cases. A sealed class of the library has the children
-    /// its TASTy names.
+    /// Lists the direct subclasses of sealed class or trait `s` in the order of their
+    /// definitions, an object by its value; for an enum, its cases. For a sealed class of the
+    /// library, the children its TASTy names.
     pub fn sealed_children(&mut self, s: SymbolId) -> Result<Vec<SymbolId>, &'static str> {
         if self.u.symbol(s).flags.has(ENUM) {
             return Ok(sealed::enum_cases(self.u, s));
