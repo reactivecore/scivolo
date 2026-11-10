@@ -10,6 +10,11 @@ use crate::types::{Type, TypeId, TypeList};
 use crate::{Kind, SymbolId};
 
 impl Cmp<'_> {
+    /// Decides `a <: b` by the shape of `a` once the earlier tries failed (dotty's `fourthTry`):
+    /// - an abstract type through its upper bound or its GADT bound from a pattern match;
+    /// - `Nothing` below every value type, `Null` below every nullable one;
+    /// - singletons (`x.type`, `this`, literals) through their underlying type;
+    /// - applied types, match types, refinements, intersections and type lambdas by their parts.
     pub fn fourth_try(&mut self, a: TypeId, b: TypeId) -> bool {
         match *self.u.ty(a) {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(a).map(|n| n.meaning) {

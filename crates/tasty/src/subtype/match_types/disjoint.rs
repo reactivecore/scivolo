@@ -19,6 +19,16 @@ impl Cmp<'_> {
         self.disjoint_in(a, b, &mut Pending::default())
     }
 
+    /// Decides whether `a` and `b` provably have no value in common, both widened to class
+    /// types, singletons, unions, intersections or type lambdas first (dotty's `provablyDisjoint`):
+    /// - `Nothing` is disjoint from everything; a union is disjoint if both sides are, an
+    ///   intersection if one side is;
+    /// - singletons such as `x.type` or `1` and objects by their value;
+    /// - classes when neither derives from the other and one is final or an object, or their
+    ///   classes (traits left out) are unrelated, or a common base class gets disjoint arguments;
+    /// - type lambdas by their arity and result; `AnyKind` is disjoint from nothing.
+    ///
+    /// `pending` holds the pairs being compared further out, which count as not disjoint.
     pub fn disjoint_in(&mut self, a: TypeId, b: TypeId, pending: &mut Pending) -> bool {
         let (x, y) = (self.boundary(a), self.boundary(b));
         if pending.contains(&(x, y)) {

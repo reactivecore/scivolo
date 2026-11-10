@@ -125,7 +125,10 @@ impl Inlining<'_> {
         }
     }
 
-    /// Whether `t` can be dropped or duplicated by the inliner (dotty's `isElideableExpr`).
+    /// Decides whether the inliner may drop or duplicate expression `t` (dotty's `isElideableExpr`):
+    /// `this`, literals, `new` and lambdas; stable paths and `inline` parameters; calls that fold
+    /// to a constant or a case class `apply` without initialization code, on elideable arguments;
+    /// blocks whose statements and result are elideable.
     pub fn is_elideable(&mut self, t: TNodeId) -> bool {
         match self.tpd.tree(t).clone() {
             T::This { .. } | T::Super { .. } | T::Literal { .. } | T::New { .. } | T::Closure { .. } => true,

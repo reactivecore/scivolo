@@ -48,6 +48,9 @@ pub enum View<'t> {
     Other,
 }
 
+/// Interprets TASTy node `id` as a `View`, naming its children: the parameters, body and
+/// modifiers of definitions, the optional selector of a `match`, the call of an `inline` expansion,
+/// the value of a constant. A node whose tag is not listed, or that lacks children, is `Other`.
 pub fn view(ast: &Ast, id: NodeId) -> View<'_> {
     let n = ast.node(id);
     let k = ast.kids(id);

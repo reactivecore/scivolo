@@ -10,6 +10,9 @@ use typer::tpd::{TNodeId, Tree as T};
 pub const STRUCTURE: &str = "Printer.TreeStructure of a tree the frontend does not print";
 
 impl Code<'_> {
+    /// Appends tree `t` as `Printer.TreeStructure` shows it, e.g. `Apply(Ident("f"), List(...))`
+    /// (dotty's `Extractors.visitTree`). Refuses the trees it does not show yet, e.g. closures
+    /// with an explicit type or `inline` expansions that keep their call.
     pub fn structure(&mut self, t: TNodeId) -> Shown {
         let t = self.r(t);
         let is_type = self.is_type_tree(t);

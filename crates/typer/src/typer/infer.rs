@@ -107,7 +107,10 @@ impl Typer<'_> {
         self.widen_inferred(inst, bound, widen)
     }
 
-    /// Instantiates `v` to its instance type.
+    /// Instantiates type variable `v` to its instance type, from its lower bound if `from_below`
+    /// else its upper bound (dotty's `TypeVar.instantiate`). Refuses an instance that contains `v`,
+    /// a union or intersection of type constructors (`List | Option`), a singleton below another
+    /// type variable, and a higher-kinded variable of the script fixed to its upper bound.
     pub fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
         let inst = self.instance_type(v, from_below)?;
         let hi = self.constraint.bounds(v).1;

@@ -281,6 +281,11 @@ lib-baseline module:
 native-stale:
     python3 scripts/native-stale.py
 
+# List the `pub fn`s of 30+ lines with at most one doc line and their total (`--per-crate`: one
+# total per crate), tests left out.
+doc-gaps *args:
+    python3 scripts/doc_gaps.py {{ args }}
+
 # Run a `.scala` or `.sc` file with call and instruction counts on stderr.
 [no-cd]
 script-profile file *args: release

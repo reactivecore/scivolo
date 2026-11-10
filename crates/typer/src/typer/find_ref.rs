@@ -40,7 +40,17 @@ pub struct Name<'a> {
 }
 
 impl Typer<'_> {
-    /// The symbols `name` refers to in `ctx`; `Err` for an ambiguous reference.
+    /// Looks up simple name `name`, a term or a type, from `ctx` outward and returns the symbols
+    /// it refers to (dotty's `findRef`):
+    /// - a definition in a local scope, class or the same compilation unit wins at once;
+    ///   definitions elsewhere in an enclosing package, named and wildcard imports are kept
+    ///   until an inner binding of higher precedence or the end of the search;
+    /// - an explicit import from `Predef` that does not supply the name hides the root import
+    ///   of `Predef`.
+    ///
+    /// `Err` names the refused case: an ambiguous reference, a member of an intersection type,
+    /// or a constructor proxy (`C(...)` for a class without `apply`) and the proxy of an exported
+    /// class.
     pub fn find_ref(&mut self, name: &str, is_type: bool, ctx: Ctx) -> Result<Option<Found>, &'static str> {
         let name = Name { text: name, is_type };
         let mut prev: Option<Hit> = None;

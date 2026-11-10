@@ -36,11 +36,13 @@ Minimal. State only what code does, never why — no rationale, history,
 alternatives, or reviewer notes. Every `unsafe` block carries a concise
 `// SAFETY:` justification (mandatory). A module comment (`//!`) only where
 the file name and items do not already say what it holds, a line or two.
-Public structs and members carry a doc comment that gives a feeling of what
-they do, short but more than the result: it starts with a verb
-("Determines the last accessor of a type"), not with the result ("Last
-accessor of a type"), except for getter-like items. The more an item is used,
-the more it is documented. Rationale goes in `docs/adr/`, one decision per file. A file with translated
+Public items carry a doc comment that starts with a verb ("Determines the last accessor
+of a type"), not the result ("Last accessor of a type"); getter-like items may name it.
+A `pub` fn of 30+ lines or several cases also names its inputs, cases, effects, refusals
+and the dotty / Scala Native method it ports, in a Scala developer's words: cases by the
+Scala code they handle, refusals by the programs not supported, no restated code (gaps:
+`just doc-gaps`). The more an item is used, the more it is documented.
+Rationale goes in `docs/adr/`, one decision per file. A file with translated
 code starts with its license notice, which lists its upstream files:
 
 ```rust
