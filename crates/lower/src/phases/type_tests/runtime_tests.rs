@@ -47,11 +47,11 @@ pub fn array_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Resu
     let mut dims = 0;
     loop {
         let dealiased = l.u.dealias(elem);
-        let Some((tycon, &[arg])) = l.u.applied(dealiased) else { break };
-        if l.u.class_symbol(tycon).is_none_or(|c| l.u.full_name(c) != "scala.Array") {
+        let Some((tycon, args)) = l.u.applied(dealiased).map(|(c, a)| (c, a.to_vec())) else { break };
+        if l.u.class_symbol(tycon).is_none_or(|c| l.u.full_name(c) != "scala.Array") || args.len() != 1 {
             break;
         }
-        (elem, dims) = (arg, dims + 1);
+        (elem, dims) = (args[0], dims + 1);
     }
     if dims == 0 || !l.u.is_generic(elem) {
         return Ok(None);
