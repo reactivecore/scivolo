@@ -6,7 +6,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Type, TypeId};
+use tasty::{MAX_IMPLEMENTED_ARITY, Type, TypeId};
 
 impl Typer<'_> {
     /// `tree.apply` fitted to function type `pt` for a reference `tree` to the companion of a case
@@ -26,7 +26,7 @@ impl Typer<'_> {
             arity.is_some_and(|n| n.parse::<u8>().is_ok())
         };
         if !self.u.symbol(class).flags.has(tasty::tags::CASE)
-            || !(0..=22).any(|n| self.function_parts(pt, n).is_some())
+            || !(0..=MAX_IMPLEMENTED_ARITY).any(|n| self.function_parts(pt, n).is_some())
             || self.u.linearization(module_class).into_iter().any(|c| is_function(&self.u.full_name(c)))
         {
             return None;
