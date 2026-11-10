@@ -12,8 +12,8 @@ use tasty::{Kind, SymbolId, Type};
 impl OverrideChecks {
     /// Why a member of `own`, the class's declarations, may not override a member of a base
     /// class, if one may not: as a non-inline member overriding an inline method, a member of
-    /// another `@targetName` or kind, a member without `override`, or an abstract member
-    /// overriding a concrete one.
+    /// another `@targetName` or kind or with other empty parameter lists, a member without
+    /// `override`, or an abstract member overriding a concrete one.
     pub fn member_refusal(&self, t: &mut Typer<'_>, own: Vec<SymbolId>) -> Option<&'static str> {
         let site = self.site;
         for d in own {
