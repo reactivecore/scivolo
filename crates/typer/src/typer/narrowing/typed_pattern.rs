@@ -139,7 +139,7 @@ pub fn this_widened(u: &mut Universe, t: TypeId) -> TypeId {
     }
 }
 
-/// The parameters of `narrowed` whose GADT bounds are another of them, and those others.
+/// Lists the parameters of `narrowed` whose GADT bounds are another of them, and those others.
 fn params_made_one(u: &mut Universe, narrowed: &[(SymbolId, TypeId)]) -> Vec<SymbolId> {
     let params: Vec<SymbolId> = narrowed.iter().map(|&(s, _)| s).collect();
     let mut made_one = Vec::new();

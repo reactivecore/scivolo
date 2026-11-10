@@ -15,11 +15,12 @@ use super::typed_pattern::this_widened;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 impl Narrowing {
-    /// Whether pattern type `pat` conforms to `sel` with `sel`'s narrowable type parameters
-    /// as type variables of their bounds, constraining them; those parameters and variables. A
-    /// variable that variables from id `from` on were made one with is instantiated to the first
-    /// of their parameters, which takes its instance as bounds, as dotty's comparison constrains a
-    /// pattern's type variables first.
+    /// Finds the type parameters of `sel` a case may narrow, as `T` of `Box[T]` against
+    /// `case _: IntBox`, by comparing pattern type `pat` with `sel` where each stands for a
+    /// fresh type variable of its bounds; gives them with their variables, `None` if `pat` does
+    /// not conform or nothing is narrowable. A variable made one with the pattern's own type
+    /// variables (ids from `from` on) is instantiated to the first of their parameters, which
+    /// takes its instance as bounds, as dotty's comparison constrains the pattern's first.
     pub fn vars(
         &self,
         t: &mut Typer,
@@ -162,7 +163,7 @@ pub fn narrow(t: &mut Typer, vars: &[(SymbolId, TypeId)]) -> Result<(), &'static
 }
 
 impl TypeOps<'_> {
-    /// The variable `t` was made one with, or `t`.
+    /// Follows type variable `t` to the last variable it was made one with, else gives `t`.
     fn var_root(&mut self, mut t: TypeId) -> TypeId {
         while let Type::Var(id) = *self.u.types().get(t)
             && let Some(next) = self.constraint.instance(id)
@@ -174,7 +175,7 @@ impl TypeOps<'_> {
     }
 }
 
-/// Whether `t` refers to an abstract type.
+/// Tells whether `t` refers to an abstract type.
 fn has_abstract_type(u: &mut tasty::Universe, t: TypeId) -> bool {
     let mut parts = Vec::new();
     u.map_type(t, &mut |u, p| {

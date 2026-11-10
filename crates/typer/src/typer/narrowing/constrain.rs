@@ -26,8 +26,8 @@ pub fn constrain_pattern(t: &mut Typer, pat: TypeId, sel: TypeId) -> Result<bool
     }
 }
 
-/// Whether one of the pairs of pattern and selector types constrains, keeping the weaker of
-/// two constraints or neither if they are incomparable (dotty's `either`).
+/// Tells whether one of the pairs of pattern and selector types constrains, keeping the weaker
+/// of two constraints or neither if they are incomparable (dotty's `either`).
 fn constrain_either(t: &mut Typer, l: (TypeId, TypeId), r: (TypeId, TypeId)) -> Result<bool, &'static str> {
     let mark = t.constraint.mark();
     if !constrain_operand(t, l.0, l.1)? {
@@ -61,8 +61,9 @@ fn constrain_either(t: &mut Typer, l: (TypeId, TypeId), r: (TypeId, TypeId)) -> 
     Ok(true)
 }
 
-/// `constrain_pattern` for an operand of a union; outside the subset where it fails although
-/// the classes of `pat` and `sel` might share an instance.
+/// Constrains pattern type `pat` by `sel`, one operand of a union, as `constrain_pattern` does;
+/// outside the subset where it fails although the classes of `pat` and `sel` might share an
+/// instance.
 fn constrain_operand(t: &mut Typer, pat: TypeId, sel: TypeId) -> Result<bool, &'static str> {
     if constrain_pattern(t, pat, sel)? {
         return Ok(true);
@@ -75,12 +76,12 @@ fn constrain_operand(t: &mut Typer, pat: TypeId, sel: TypeId) -> Result<bool, &'
     Ok(false)
 }
 
-/// The bounds of `vars`, both an instance if a variable has one.
+/// Lists the bounds of `vars`, both an instance if a variable has one.
 fn var_bounds(constraint: &Constraint, vars: &[VarId]) -> Vec<(TypeId, TypeId)> {
     vars.iter().map(|&v| constraint.instance(v).map_or_else(|| constraint.bounds(v), |t| (t, t))).collect()
 }
 
-/// Whether the bounds `c1` lie within the bounds `c2`: always if `c2` is `pre`, never if only
+/// Tells whether the bounds `c1` lie within the bounds `c2`: always if `c2` is `pre`, never if only
 /// `c1` is (dotty's `subsumes`).
 fn subsumes(
     u: &mut Universe,

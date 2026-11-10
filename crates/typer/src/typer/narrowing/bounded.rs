@@ -92,9 +92,9 @@ impl Narrowing {
     }
 }
 
-/// Whether pattern type `pat` against `sel` constrains every type argument of their common
-/// base class: `sel` without wildcard arguments, and `pat`'s class final or a case class, or
-/// that base class's parameters invariant (dotty's `assumeInvariantRefinement`, the variant
+/// Tells whether pattern type `pat` against `sel` constrains every type argument of their
+/// common base class: `sel` without wildcard arguments, and `pat`'s class final or a case class,
+/// or that base class's parameters invariant (dotty's `assumeInvariantRefinement`, the variant
 /// arguments otherwise left unconstrained); never for an opaque type seen from outside.
 pub fn refines_invariantly(t: &mut Typer, pat: TypeId, sel: TypeId) -> bool {
     let sel = t.dealiased(sel);
@@ -118,9 +118,10 @@ pub fn refines_invariantly(t: &mut Typer, pat: TypeId, sel: TypeId) -> bool {
     t.u.variances(base).iter().all(|&v| v == 0)
 }
 
-/// Class or opaque type application `sel` with its arguments at variant parameters replaced by
-/// `?`, which `constrainSimplePatternType` leaves unconstrained, its `Null` parts dropped; `None`
-/// if `sel` has a wildcard argument or no invariant parameter.
+/// Replaces the arguments at variant parameters of class or opaque type application `sel` by
+/// `?` and drops its `Null` parts, as `Map[K, V]` becomes `Map[K, ?]`, since
+/// `constrainSimplePatternType` leaves those arguments unconstrained; `None` if `sel` has a
+/// wildcard argument or no invariant parameter.
 pub fn without_variant_args(t: &mut Typer, sel: TypeId) -> Option<TypeId> {
     let sel = t.strip_null(sel);
     let sel = t.dealiased(sel);
@@ -143,7 +144,7 @@ pub fn without_variant_args(t: &mut Typer, sel: TypeId) -> Option<TypeId> {
 }
 
 impl TypeOps<'_> {
-    /// The bounds of type variable `v` zonked, both its instance if it has one.
+    /// Gives the bounds of type variable `v` zonked, both its instance if it has one.
     fn var_bounds_of(&mut self, v: TypeId) -> (TypeId, TypeId) {
         let Type::Var(id) = *self.u.types().get(v) else { return (v, v) };
         let (lo, hi) = match self.constraint.instance(id) {
