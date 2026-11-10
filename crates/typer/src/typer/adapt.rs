@@ -4,7 +4,7 @@
 //! Fitting a typed tree to what its context expects (dotty's `adapt`), as far as the subset
 //! goes: a tree that fits as it is, a numeric constant converted, a value discarded for `Unit`.
 
-use super::implicits::conversions::Goal;
+use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};

@@ -3,11 +3,11 @@
 //! Whether an implicit definition may convert a class to a type with a given member or to a given
 //! type, or offer an extension method of that name (dotty's `candidateKind` for a view prototype).
 
-use super::Typer;
-use super::did_you_mean::{KNOWN_JAVA, OBJECT_MEMBERS, is_jdk};
-use super::implicits::conversions::Goal;
-use super::java_members::java_members;
-use super::widening::{is_numeric, widens};
+use super::super::super::Typer;
+use super::super::super::did_you_mean::{KNOWN_JAVA, OBJECT_MEMBERS, is_jdk};
+use super::super::super::java_members::java_members;
+use super::super::super::widening::{is_numeric, widens};
+use super::Goal;
 use tasty::tags::{EXTENSION, GIVEN, IMPLICIT};
 use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 

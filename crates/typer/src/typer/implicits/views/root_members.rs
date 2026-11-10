@@ -6,8 +6,8 @@
 //! one named so, or one whose result may have the member, in the script or a Scala library object;
 //! and the objects whose members those searches see.
 
-use super::Typer;
-use super::implicits::conversions::Goal;
+use super::super::super::Typer;
+use super::Goal;
 use crate::ctx::{Ctx, Level};
 use crate::symbols::Completion;
 use rustc_hash::FxHashSet;

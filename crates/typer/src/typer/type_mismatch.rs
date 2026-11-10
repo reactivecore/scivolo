@@ -6,7 +6,7 @@
 
 use super::Typer;
 use super::constants::{is_numeric, of_type};
-use super::implicits::conversions::Goal;
+use super::implicits::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;

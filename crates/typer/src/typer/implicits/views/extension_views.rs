@@ -3,8 +3,8 @@
 //! Implicit values, and the objects and values of an implicit scope, as containers of extension
 //! methods (dotty's `Candidate.Extension`): `qual.name` typed as `c.name(qual)`.
 
-use super::super::{Pt, Typer};
-use super::candidates::{Candidate, candidate_ref};
+use super::super::super::{Pt, Typer};
+use super::super::candidates::{Candidate, candidate_ref};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, TName, Tree};

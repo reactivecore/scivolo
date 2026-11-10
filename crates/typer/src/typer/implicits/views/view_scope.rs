@@ -2,9 +2,9 @@
 //   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! Where a view search looks, and the types it does not convert from or to.
 
-use super::super::Typer;
-use super::candidates::Candidate;
-use super::conversions::Goal;
+use super::super::super::Typer;
+use super::super::candidates::Candidate;
+use super::Goal;
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
@@ -15,8 +15,8 @@ impl Typer<'_> {
         from: TypeId,
         goal: Goal,
     ) -> Result<(Vec<Candidate>, Vec<Candidate>), &'static str> {
-        let super::scope::ImplicitScope { implicits: mut scope, containers } =
-            super::scope::ImplicitScope::of(self, from)?;
+        let super::super::scope::ImplicitScope { implicits: mut scope, containers } =
+            super::super::scope::ImplicitScope::of(self, from)?;
         if let Goal::Conform(pt) = goal {
             scope.extend(self.implicit_scope(pt)?);
         }

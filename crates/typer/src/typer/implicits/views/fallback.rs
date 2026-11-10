@@ -3,8 +3,8 @@
 //! The in-scope extension methods a selection cannot call, so that the implicit scope is searched
 //! as dotty's `tryExtensionOrConversion` does when the in-scope extension method fails.
 
-use super::Typer;
-use super::implicits::conversions::{Goal, Viewed};
+use super::super::super::Typer;
+use super::{Goal, Viewed};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::{Type, TypeId};
@@ -14,7 +14,7 @@ impl Typer<'_> {
     /// its type conforms to none of their receiver types, their type parameters as variables, and
     /// no implicit view converts it to one.
     pub fn extensions_reject(&mut self, qual: TNodeId, name: &str, ctx: Ctx) -> bool {
-        let lookup = super::extension_calls::extension_ctx(ctx);
+        let lookup = super::super::super::extension_calls::extension_ctx(ctx);
         let Ok(Some(found)) = self.find_ref(name, false, lookup) else { return false };
         let qual_tpe = self.zonk(self.tpd.tpe(qual));
         let qual_tpe = self.u.widen(qual_tpe);

@@ -4,15 +4,27 @@
 //! Implicit conversions (dotty's `inferView`, `tryInsertImplicitOnQualifier`): an implicit method
 //! of one parameter applied to a tree, to fit an expected type or to give it a member.
 
+mod call_views;
+mod extension_containers;
+mod extension_views;
+mod fallback;
+mod may_view;
+mod qualifier;
+mod root_members;
+mod view_kinds;
+mod view_scope;
+
+pub use qualifier::QualifierView;
+
 use super::super::{Pt, Typer};
 use super::attempts::fitting;
 use super::candidates::{Candidate, candidate_ref};
 use super::ranking::{compare, most_specific};
-use super::view_kinds::ViewKind;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::tags::PRIVATE;
 use tasty::{Binding, Type, TypeId};
+use view_kinds::ViewKind;
 
 /// What a conversion's result must offer.
 #[derive(Clone, Copy)]

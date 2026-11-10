@@ -4,9 +4,9 @@
 //! arguments and fits the expected result (dotty's `SelectionProto.isMatchedBy` with a
 //! `FunProto` member prototype).
 
-use super::super::{Pt, Typer};
-use super::candidates::Candidate;
-use super::conversions::Goal;
+use super::super::super::{Pt, Typer};
+use super::super::candidates::Candidate;
+use super::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::{Type, TypeId};

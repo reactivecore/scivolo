@@ -6,7 +6,7 @@
 //! and with implicit conversions where nothing applies without.
 
 use super::Typer;
-use super::implicits::conversions::Goal;
+use super::implicits::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::Tree as T;
 use syntax::config::Features;

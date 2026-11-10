@@ -4,10 +4,10 @@
 //! explicit parameter, or a value, or a method's result after its implicit clauses, of a class
 //! deriving from `Conversion` or `<:<`; and the `apply` of such a value.
 
-use super::super::widening::widens;
-use super::super::{Pt, Typer};
-use super::candidates::Candidate;
-use super::conversions::Goal;
+use super::super::super::widening::widens;
+use super::super::super::{Pt, Typer};
+use super::super::candidates::Candidate;
+use super::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::tags::EXTENSION;

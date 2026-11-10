@@ -3,11 +3,11 @@
 //! Choosing among the implicit values of one group that offer an extension method for a
 //! selection (dotty's `rank` and `disambiguate` of extension candidates).
 
-use super::super::Typer;
-use super::attempts::fitting;
-use super::candidates::{Candidate, candidate_ref};
-use super::conversions::Goal;
-use super::ranking::most_specific;
+use super::super::super::Typer;
+use super::super::attempts::fitting;
+use super::super::candidates::{Candidate, candidate_ref};
+use super::super::ranking::most_specific;
+use super::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;

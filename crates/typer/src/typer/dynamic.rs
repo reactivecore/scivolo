@@ -4,7 +4,7 @@
 //! Selections over `scala.Dynamic` (dotty's `Dynamic`): `qual.name` typed as a call of
 //! `selectDynamic`, `applyDynamic`, `applyDynamicNamed` or `updateDynamic` with the name.
 
-use super::implicits::conversions::Goal;
+use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};

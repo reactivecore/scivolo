@@ -4,8 +4,8 @@
 //! A view on the qualifier of an application whose method does not apply to the arguments
 //! (dotty's `tryWithImplicitOnQualifier`, `tryInsertImplicitOnQualifier`).
 
-use super::implicits::conversions::{Goal, Viewed};
-use super::{Pt, Typer};
+use super::super::super::{Pt, Typer};
+use super::{Goal, Viewed};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, Tree};

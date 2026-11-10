@@ -5,7 +5,7 @@
 //! Assignment operators `x op= y` typed as `x = x op y` when `x` has no member `op=` (dotty's
 //! `typedOpAssign`).
 
-use super::implicits::conversions::Goal;
+use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};

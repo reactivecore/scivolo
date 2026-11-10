@@ -4,7 +4,7 @@
 //! Applications of a value without `apply` (dotty's `MethodDoesNotTakeParameters` from
 //! `adaptToArgs`), reported where no extension method or implicit view may supply one.
 
-use super::implicits::conversions::Goal;
+use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};

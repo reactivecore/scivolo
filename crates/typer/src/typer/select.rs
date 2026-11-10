@@ -3,9 +3,8 @@
 //! Selections `qual.name` (dotty's `typedSelect`).
 
 use super::gadt_cast::GADT_HEALED_VIEW;
-use super::implicits::conversions::{Goal, Viewed};
+use super::implicits::{Goal, QualifierView, Viewed};
 use super::opaque_paths::OPAQUE_THROUGH_OBJECT;
-use super::qualifier_views::QualifierView;
 use super::source_splices::STAGING_REFERENCE;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
