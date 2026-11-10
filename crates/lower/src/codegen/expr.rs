@@ -12,6 +12,13 @@ use typer::tpd::print::class_name;
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
+    /// Emits the NIR instructions that evaluate expression `t` into the current block and returns
+    /// its value (Scala Native's `genExpr`):
+    /// - `BoxedUnit.UNIT`, returns and assignments yield `()`; a block runs its statements in a
+    ///   new debug scope;
+    /// - a `return` leaves the current method or an enclosing label, and an assignment to an
+    ///   `@extern` field stores into the C global;
+    /// - `return` from an enclosing method and trees that are not expressions are refused.
     pub fn gen_expr(&mut self, t: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
         match *self.l.tpd.tree(t) {

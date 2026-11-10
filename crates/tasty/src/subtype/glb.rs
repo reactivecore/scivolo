@@ -16,6 +16,12 @@ impl Universe {
 }
 
 impl Cmp<'_> {
+    /// Computes the greatest lower bound of `a` and `b` within a running comparison (dotty's `glb`):
+    /// - `a` if both are equal, `b` is `Any` or `a` is `Nothing`, and the other way round;
+    /// - the parts of an intersection that are supertypes of the other type dropped, the other
+    ///   type if no part remains;
+    /// - distributed over unions: `(A | B) & C` is `(A & C) | (B & C)`;
+    /// - `Nothing` for two different literal types, else the intersection `a & b`.
     pub fn glb(&mut self, a: TypeId, b: TypeId) -> TypeId {
         if a == b || self.is_top(b, a) || self.is_bottom(a) {
             return a;

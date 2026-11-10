@@ -10,6 +10,9 @@ use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
+    /// Types type tree `id`, e.g. `List[Int]`, `x.type`, `42` or `A => B` (dotty's `typedType`);
+    /// it checks arity, bounds and kinds of type arguments; refuses compile-time operations that
+    /// do not fold, match types that may reduce, and wildcards on aliases that do not reduce.
     pub fn typed_type(&mut self, id: NodeId, ctx: Ctx) -> TNodeId {
         if let Some(t) = self.ready(id, ctx) {
             return t;
