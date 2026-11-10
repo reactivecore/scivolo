@@ -80,8 +80,8 @@ impl Typer<'_> {
     }
 }
 
-/// `captured_wildcards` of `tpe`; `None` also for a Java class whose parameter has no upper
-/// bound unless `java_unbounded`.
+/// Captures the wildcards of `tpe` as `captured_wildcards` does; unless `java_unbounded`, gives
+/// `None` also for a Java class whose parameter has no upper bound.
 fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<TypeId> {
     let tpe = t.zonk(tpe);
     let tpe = t.u.widen(tpe);

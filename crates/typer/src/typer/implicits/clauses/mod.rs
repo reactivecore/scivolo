@@ -21,9 +21,11 @@ pub struct ImplicitClause {
     tree: TNodeId,
     /// The method the tree refers to, if any.
     meth: Option<SymbolId>,
+    /// The binder its parameter types refer to the parameters by.
     binder: Binder,
     /// The parameters of the clause, by name and type.
     params: Vec<(String, TypeId)>,
+    /// The names of `params`.
     names: Vec<String>,
     /// The type after the clause, referring to its parameters.
     result: TypeId,
@@ -31,6 +33,7 @@ pub struct ImplicitClause {
     at: Span,
     /// Where the application is placed.
     span: Span,
+    /// The context the arguments are searched and typed in.
     ctx: Ctx,
     /// How deep the searches nest in implicit arguments of implicit arguments.
     depth: u32,
