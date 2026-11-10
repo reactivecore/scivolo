@@ -6,11 +6,11 @@
 mod this_type_results;
 
 use super::Typer;
-use super::type_ops::TypeOps;
+use super::java_classes::is_java_member;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::config::Lints;
 use syntax::diag::{Message, MessageId};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// Decides whether a statement's value is worth a warning under `-Wnonunit-statement`: the
 /// result of a call such as `list.map(f)` is, while `()`, `sb.append(x)` returning its receiver,
@@ -29,7 +29,7 @@ impl Typer<'_> {
             return false;
         }
         let linter = Linter { tpd: &self.tpd, unit: self.defn.unit };
-        if !linter.interesting_shape(&mut TypeOps { u: self.u, constraint: &mut self.constraint }, t) {
+        if !linter.interesting_shape(self.u, t) {
             return false;
         }
         let at = match *self.tpd.tree(t) {
@@ -59,22 +59,22 @@ impl Typer<'_> {
 impl Linter<'_> {
     /// Whether statement `t`, or a branch or the result of a block it is, has an interesting
     /// result.
-    fn interesting_shape(&self, ty: &mut TypeOps, t: TNodeId) -> bool {
+    fn interesting_shape(&self, u: &mut Universe, t: TNodeId) -> bool {
         match *self.tpd.tree(t) {
             T::If { thenp, elsep, .. } => {
-                self.interesting_shape(ty, thenp) || self.interesting_shape(ty, elsep)
+                self.interesting_shape(u, thenp) || self.interesting_shape(u, elsep)
             }
-            T::Block { expr, .. } => self.interesting_shape(ty, expr),
+            T::Block { expr, .. } => self.interesting_shape(u, expr),
             T::Match { cases, .. } => self.tpd.items(cases).iter().any(|&c| match *self.tpd.tree(c) {
-                T::CaseDef { body, .. } => self.interesting_shape(ty, body),
+                T::CaseDef { body, .. } => self.interesting_shape(u, body),
                 _ => false,
             }),
-            _ => self.interesting_result(ty, t),
+            _ => self.interesting_result(u, t),
         }
     }
 
     /// dotty's `checksForInterestingResult`.
-    fn interesting_result(&self, ty: &mut TypeOps, t: TNodeId) -> bool {
+    fn interesting_result(&self, u: &mut Universe, t: TNodeId) -> bool {
         let sym = match *self.tpd.tree(t) {
             T::Ident { .. } | T::Select { .. } | T::Apply { .. } | T::TypeApply { .. } => {
                 self.tpd.sym(self.tpd.meth_part(t))
@@ -83,37 +83,37 @@ impl Linter<'_> {
         };
         let Some(sym) = sym else { return false };
         let tpe = self.tpd.tpe(t);
-        !uninteresting_symbol(ty, sym)
-            && !self.uninteresting_type(ty, tpe)
-            && !self.is_this_type_result(ty, t)
-            && !self.is_java_application(ty, t)
+        !uninteresting_symbol(u, sym)
+            && !self.uninteresting_type(u, tpe)
+            && !self.is_this_type_result(u, t)
+            && !self.is_java_application(u, t)
     }
 
-    fn uninteresting_type(&self, ty: &mut TypeOps, t: TypeId) -> bool {
-        let w = ty.u.widen(t);
-        if w == tasty::NOTHING || matches!(ty.u.types().get(w), Type::Error) {
+    fn uninteresting_type(&self, u: &mut Universe, t: TypeId) -> bool {
+        let w = u.widen(t);
+        if w == tasty::NOTHING || matches!(u.types().get(w), Type::Error) {
             return true;
         }
-        let Some(c) = type_class(ty, w) else { return false };
-        let b = ty.u.builtins();
+        let Some(c) = type_class(u, w) else { return false };
+        let b = u.builtins();
         [self.unit, b.nothing, b.null, b.any, b.object].contains(&c)
             || b.any_val == Some(c)
-            || ty.u.full_name(c) == "scala.runtime.BoxedUnit"
+            || u.full_name(c) == "scala.runtime.BoxedUnit"
     }
 
     /// dotty's `isJavaApplication`: a call of a Java method not of `Object`.
-    fn is_java_application(&self, ty: &mut TypeOps, t: TNodeId) -> bool {
+    fn is_java_application(&self, u: &mut Universe, t: TNodeId) -> bool {
         let T::Apply { fun, .. } = *self.tpd.tree(t) else { return false };
         let Some(f) = self.tpd.sym(fun) else { return false };
-        let b = ty.u.builtins();
-        let owner = ty.u.symbol(f).owner;
-        ty.is_java_member(f) && !owner.is_some_and(|o| [b.object, b.any, b.matchable].contains(&o))
+        let b = u.builtins();
+        let owner = u.symbol(f).owner;
+        is_java_member(u, f) && !owner.is_some_and(|o| [b.object, b.any, b.matchable].contains(&o))
     }
 }
 
-fn uninteresting_symbol(ty: &mut TypeOps, s: SymbolId) -> bool {
-    let b = ty.u.builtins();
-    let sym = ty.u.symbol(s);
+fn uninteresting_symbol(u: &mut Universe, s: SymbolId) -> bool {
+    let b = u.builtins();
+    let sym = u.symbol(s);
     let name = sym.name.trim_end_matches('$');
     name == "<init>"
         || sym.kind == Kind::Package
@@ -121,23 +121,23 @@ fn uninteresting_symbol(ty: &mut TypeOps, s: SymbolId) -> bool {
         || name.ends_with("$package")
         || [b.any, b.any_ref].contains(&s)
         || b.any_val == Some(s)
-        || ty.u.full_name(s) == "scala.runtime.BoxedUnit"
+        || u.full_name(s) == "scala.runtime.BoxedUnit"
 }
 
 /// The class `t` names, through aliases but not abstract types (dotty's `typeSymbol`).
-fn type_class(ty: &mut TypeOps, t: TypeId) -> Option<SymbolId> {
-    let s = match *ty.u.types().get(t) {
+fn type_class(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
+    let s = match *u.types().get(t) {
         Type::Sym(_, s) => s,
-        Type::TypeRef(..) => ty.u.resolve_ref(t)?,
-        Type::Applied(inner, _) | Type::Annotated(inner, _) => return type_class(ty, inner),
+        Type::TypeRef(..) => u.resolve_ref(t)?,
+        Type::Applied(inner, _) | Type::Annotated(inner, _) => return type_class(u, inner),
         _ => return None,
     };
-    match ty.u.symbol(s).kind {
+    match u.symbol(s).kind {
         Kind::Class => Some(s),
         Kind::Type => {
-            let info = ty.u.info(s);
-            match *ty.u.types().get(info) {
-                Type::Alias(a) => type_class(ty, a),
+            let info = u.info(s);
+            match *u.types().get(info) {
+                Type::Alias(a) => type_class(u, a),
                 _ => None,
             }
         }

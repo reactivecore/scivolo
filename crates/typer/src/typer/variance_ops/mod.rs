@@ -76,6 +76,7 @@ pub enum Misplaced {
 /// it, as `A` in `class C[+A] { def f(a: A): Unit }`, and infers the variances of the parameters
 /// of type aliases such as `type F[X] = X => Int` from where they occur.
 pub struct VarianceOps<'a> {
+    /// The universe the checked types live in.
     pub u: &'a mut Universe,
     /// The script symbols, for their dotty flags.
     pub syms: &'a Syms,
