@@ -2,8 +2,8 @@
 //   compiler/src/dotty/tools/dotc/core/TypeOps.scala
 //! The type a local class is approximated by when avoiding it (dotty's `classBound`).
 
-use super::Typer;
-use super::avoid::Avoid;
+use super::Avoid;
+use crate::typer::Typer;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Avoid<'_> {

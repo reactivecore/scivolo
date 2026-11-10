@@ -4,10 +4,13 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Types without references to local symbols (dotty's `ensureNoLocalRefs`, `TypeOps.avoid`).
 
-use super::type_ops::TypeOps;
-use super::{Pt, Typer};
+mod class_bound;
+mod map;
+mod select;
+
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{SymbolId, Type, TypeId};
+use crate::typer::{Pt, Typer};
+use tasty::{SymbolId, Type, TypeId, Universe};
 
 /// One approximation of a type by a type that no longer mentions definitions going out of scope
 /// (dotty's `AvoidMap`), as the type of `{ class C; val c = new C; c }` becomes a type the code
@@ -18,18 +21,18 @@ use tasty::{SymbolId, Type, TypeId};
 #[derive(Clone, Copy)]
 pub struct Avoid<'a> {
     /// The definitions going out of scope.
-    pub locals: &'a [SymbolId],
+    locals: &'a [SymbolId],
     /// The opaque types whose bounds are unknown.
-    pub opaque: &'a [SymbolId],
+    opaque: &'a [SymbolId],
     /// The local definitions being expanded.
-    pub visiting: &'a [SymbolId],
+    visiting: &'a [SymbolId],
     /// The type members whose bounds are being expanded.
-    pub expanding: &'a [SymbolId],
+    expanding: &'a [SymbolId],
     /// The type member whose own declared bounds are being read: a reference back to it stands
     /// for any type (dotty's `LazyRef` of an F-bound).
-    pub own: Option<SymbolId>,
+    own: Option<SymbolId>,
     /// Whether the bound of a type variable is being read: type variables in it stay as they are.
-    pub in_var_bound: bool,
+    in_var_bound: bool,
 }
 
 impl<'a> Avoid<'a> {
@@ -39,26 +42,8 @@ impl<'a> Avoid<'a> {
     }
 
     /// Copies the approximation for a part outside the bounds of the member being expanded.
-    pub fn elsewhere(self) -> Self {
+    fn elsewhere(self) -> Self {
         Avoid { own: None, ..self }
-    }
-}
-
-impl TypeOps<'_> {
-    /// Checks whether type `t` mentions one of the definitions `syms` anywhere, also as the prefix
-    /// of a selection or as the class of a `classOf` constant.
-    pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
-        let mut found = false;
-        let mut classes = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            match *u.types().get(part) {
-                Type::Sym(_, s) => found |= syms.contains(&s),
-                Type::Constant(tasty::tags::CLASSconst, bits) => classes.push(TypeId(bits as u32)),
-                _ => {}
-            }
-            None
-        });
-        found || classes.into_iter().any(|c| self.refers_to(c, syms))
     }
 }
 
@@ -122,5 +107,14 @@ impl Typer<'_> {
             return None;
         }
         Some(self.ascribed(expr, avoided))
+    }
+}
+
+/// Checks whether `t` is a singleton type: a path, `this`, a constant or a skolem.
+fn is_path(u: &mut Universe, t: TypeId) -> bool {
+    match *u.types().get(t) {
+        Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::Skolem(..) => true,
+        Type::Sym(_, s) => u.symbol(s).kind.is_term(),
+        _ => false,
     }
 }

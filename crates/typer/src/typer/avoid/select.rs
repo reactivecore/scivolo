@@ -3,10 +3,9 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Selections on an approximated prefix (dotty's `AvoidMap.derivedSelect` and `tryWiden`).
 
-use super::Typer;
-use super::approx::{self, Approx};
-use super::avoid::Avoid;
-use super::type_ops::TypeOps;
+use super::{Avoid, is_path};
+use crate::typer::Typer;
+use crate::typer::approx::{self, Approx};
 use tasty::{Kind, NOTHING, SymbolId, Type, TypeId};
 
 impl Avoid<'_> {
@@ -26,7 +25,7 @@ impl Avoid<'_> {
         if p == Approx::Exact(pre) {
             return Some(Approx::Exact(tpe));
         }
-        let singleton = matches!(p, Approx::Exact(q) if t.types().is_path(q));
+        let singleton = matches!(p, Approx::Exact(q) if is_path(t.u, q));
         if !singleton && let Some(r) = self.try_widen(t, tpe, pre, s, v) {
             return r;
         }
@@ -90,7 +89,8 @@ impl Avoid<'_> {
         let a = self.elsewhere();
         match t.u.symbol(s).kind {
             Kind::TypeParam => {
-                let arg = super::seen_from::class_param_arg(t.u, tpe).map(|x| t.resolve_class_params(x));
+                let arg =
+                    crate::typer::seen_from::class_param_arg(t.u, tpe).map(|x| t.resolve_class_params(x));
                 arg.map(|arg| match *t.u.types().get(arg) {
                     Type::Bounds(..) if cyclic => None,
                     Type::Bounds(..) => inner.elsewhere().info(t, arg, v),
@@ -112,20 +112,9 @@ impl Avoid<'_> {
                     Type::ByName(r) => r,
                     _ => info,
                 };
-                t.types().is_path(info).then(|| a.at(t, info, v))
+                is_path(t.u, info).then(|| a.at(t, info, v))
             }
             _ => None,
-        }
-    }
-}
-
-impl TypeOps<'_> {
-    /// Checks whether `t` is a singleton type: a path, `this`, a constant or a skolem.
-    pub fn is_path(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
-            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::Skolem(..) => true,
-            Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
-            _ => false,
         }
     }
 }
