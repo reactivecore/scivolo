@@ -6,7 +6,7 @@
 use super::super::Typer;
 use tasty::{Type, TypeId, Universe};
 
-/// The arity of `scala.TupleN` if `t` applies it to as many arguments.
+/// Gives the arity of `scala.TupleN` if `t` applies it to as many arguments.
 fn tuple_arity(u: &mut Universe, t: TypeId) -> Option<usize> {
     let Type::Applied(_, ref args) = *u.types().get(t) else { return None };
     let n = args.len();

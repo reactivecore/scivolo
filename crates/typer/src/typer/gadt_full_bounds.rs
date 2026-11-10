@@ -37,9 +37,9 @@ impl Gadt {
         }
     }
 
-    /// Upper bound `hi` of `own` with each pattern-bound type in it whose lower bound `own`
-    /// conforms to replaced by the part of its upper bound that is no GADT-constrained type, as
-    /// dotty's constraint propagates it.
+    /// Replaces in upper bound `hi` of `own` each pattern-bound type whose lower bound `own`
+    /// conforms to by the part of its upper bound that is no GADT-constrained type, as dotty's
+    /// constraint propagates it.
     fn without_bound_above(&self, u: &mut Universe, own: TypeId, hi: TypeId) -> TypeId {
         match *u.types().get(hi) {
             Type::And(a, b) => {
@@ -56,8 +56,8 @@ impl Gadt {
         }
     }
 
-    /// `t` without the parts of an intersection that are GADT-constrained types, `Any` if none
-    /// is left.
+    /// Drops the GADT-constrained types from `t` and from the operands of an intersection `t`,
+    /// giving `Any` if none is left.
     fn without_gadt_params(&self, u: &mut Universe, t: TypeId) -> TypeId {
         match *u.types().get(t) {
             Type::And(a, b) => {
@@ -73,7 +73,7 @@ impl Gadt {
     }
 }
 
-/// Whether `t` is `Any` or a type lambda of result `Any`.
+/// Tells whether `t` is `Any` or a type lambda of result `Any`.
 pub fn is_top(u: &mut Universe, t: TypeId) -> bool {
     match *u.types().get(t) {
         Type::Lambda { result, .. } => result == tasty::ANY,

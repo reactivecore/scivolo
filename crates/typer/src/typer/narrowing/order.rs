@@ -14,7 +14,7 @@ pub struct Narrowed {
     pub hi: TypeId,
 }
 
-/// The operands of `t`, an intersection if `upper`, else a union.
+/// Adds to `out` the operands of `t`, an intersection if `upper`, else a union.
 fn operands(u: &mut Universe, t: TypeId, upper: bool, out: &mut Vec<TypeId>) {
     match *u.types().get(t) {
         Type::And(a, b) if upper => {

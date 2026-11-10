@@ -82,7 +82,7 @@ impl Typer<'_> {
         self.is_singleton(underlying)
     }
 
-    /// Whether `a` conforms to `b` without the GADT bounds, constraining type variables.
+    /// Tells whether `a` conforms to `b` without the GADT bounds, constraining type variables.
     fn conforms_without_gadt(&mut self, a: TypeId, b: TypeId) -> bool {
         let ops = &mut TypeOps { u: self.u, constraint: &mut self.constraint };
         self.gadt.conforms_without(ops, a, b)
@@ -134,9 +134,10 @@ impl Typer<'_> {
 }
 
 impl Gadt {
-    /// `t` with each GADT-constrained type replaced by its upper bound where it occurs
-    /// covariantly, by its lower bound where contravariantly, not inside the bounds; a covariant
-    /// application of one without a proper upper bound or made one with another by `Any`.
+    /// Replaces in `t` each type a case may narrow by its upper bound where it occurs
+    /// covariantly, by its lower bound where contravariantly, not inside the bounds, as `Box[T]`
+    /// becomes `Box[Int]` for `T = Int`; a covariant application of one without a proper upper
+    /// bound or made one with another by `Any`.
     fn approximate(&self, u: &mut Universe, t: TypeId, variance: i8, ctx: Ctx) -> TypeId {
         let t = u.dealias(t);
         if let Some(s) = plain_type_ref(u, t)

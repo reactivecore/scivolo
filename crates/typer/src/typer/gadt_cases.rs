@@ -160,7 +160,7 @@ impl Gadt {
     }
 }
 
-/// Whether scope level `case` is `level` or encloses it.
+/// Tells whether scope level `case` is `level` or encloses it.
 fn encloses(levels: &Levels, case: LevelId, level: LevelId) -> bool {
     let mut l = Some(level);
     while let Some(i) = l {

@@ -54,10 +54,9 @@ it; such a shared helper rather moves out, to `TypeOps`, a `Symbol` method or a 
   for aliases and the variables assigned non-locally stay on `Typer`: typing fills them.
 - Avoiding local symbols in a type is a component, `Avoid`, whose methods take the typer: it
   completes the members of approximated prefixes and instantiates type variables.
-- State scoped to what the typer recurses through (`Gadt`, `Nullables`, `History`) stays a field
-  of `Typer` with its methods on its own struct (ADR 0114). The narrowing of the GADT bounds by
-  one pattern is a component, `Narrowing`, whose methods take the typer: comparing types
-  completes aliases.
+- The narrowing of the GADT bounds by one pattern is a component, `Narrowing`, whose methods
+  take the typer: comparing types completes aliases. The GADT bounds themselves are scoped
+  state (ADR 0114).
 - Lifting the parts of one application into local values is a component, `Lifter`, whose
   methods take the typer: deciding purity completes methods. Purity has no state of its own; its
   helpers are free functions taking the typer.
