@@ -3,13 +3,22 @@
 //! Type class instances of `derives` clauses (dotty's `Deriving`): `given derived$TC: TC[C] =
 //! TC.derived` in the companion of `C`, entered with the companion and typed after its body.
 
+mod finalize;
+mod kinds;
+mod trees;
+
 use super::Typer;
-use super::deriving_finalize::Problem;
 use crate::ctx::Ctx;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
+
+/// Why an instance's `TC.derived` cannot be called: the type class, or its companion's path.
+pub enum Problem {
+    NoCompanion(String),
+    ExplicitParams(String),
+}
 
 impl Typer<'_> {
     /// Enters into module class `cls` the instances of its `derives` clause `derived`, for its

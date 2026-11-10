@@ -3,16 +3,11 @@
 //! Derived instances typed after the statements around their companion (dotty's
 //! `Deriver.finalize`, `syntheticDefs`).
 
-use super::Typer;
+use super::super::Typer;
+use super::Problem;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::SymbolId;
-
-/// Why an instance's `TC.derived` cannot be called: the type class, or its companion's path.
-pub enum Problem {
-    NoCompanion(String),
-    ExplicitParams(String),
-}
 
 impl Typer<'_> {
     /// Appends to the body of each module class among typed statements `stats`, typed in `ctxs`,

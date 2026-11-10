@@ -4,7 +4,7 @@
 //! References through inline accessors that take the accessed member's receiver as their first
 //! parameter (dotty's `MakeInlineablePassing`, `useSetter`).
 
-use super::Typer;
+use super::super::Typer;
 use super::passing_defs::{dealiased, local_refs, with_receiver_named};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};

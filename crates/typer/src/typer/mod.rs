@@ -4,8 +4,6 @@
 
 mod access;
 mod accessible;
-mod accessor_defs;
-mod accessor_types;
 mod adapt;
 mod adapt_by_result;
 mod ahead;
@@ -66,11 +64,8 @@ mod dependent_functions;
 mod dependent_matches;
 pub(crate) mod dependent_params;
 mod dependent_results;
-mod derived;
+mod derived_types;
 mod deriving;
-mod deriving_finalize;
-mod deriving_kinds;
-mod deriving_trees;
 pub(crate) mod deskolemize;
 pub(crate) mod did_you_mean;
 mod dispatch;
@@ -167,8 +162,6 @@ mod param_vars;
 mod parameterless;
 mod parent_trees;
 mod parents;
-mod passing_accessors;
-mod passing_defs;
 mod paths;
 mod pattern_alternatives;
 mod pattern_args;
@@ -198,7 +191,6 @@ mod refinement_scope;
 mod refutable_warnings;
 mod repeated;
 mod report;
-mod retained;
 mod right_assoc;
 mod sam_closures;
 mod sam_method_values;
@@ -288,8 +280,8 @@ use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Universe};
 
 pub use const_ops::{fold_binop, fold_unop};
+pub use inline_accessors::RETAINED_BODY;
 pub use overloads::Pt;
-pub use retained::RETAINED_BODY;
 pub use transparent::InlineDef;
 pub use widen_inferred::Widen;
 
@@ -396,7 +388,7 @@ pub struct Typer<'a> {
     pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
     /// The definitions of the instances of each module class's `derives` clause, entered and
     /// not typed yet.
-    pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving_finalize::Problem>)>>,
+    pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving::Problem>)>>,
     /// The types typed patterns bind whose bounds the selector gave.
     pub known_pattern_types: FxHashSet<SymbolId>,
     pub gadt: gadt_cases::Gadt,

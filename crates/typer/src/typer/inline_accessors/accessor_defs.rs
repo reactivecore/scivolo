@@ -5,7 +5,7 @@
 //! The definitions of inline accessors: their class, name and forwarding body (dotty's
 //! `hostForAccessorOf`, `InlineAccessorName`, `accessorDef`).
 
-use super::Typer;
+use super::super::Typer;
 use super::accessor_types::Clause;
 use crate::tpd::TNodeId;
 use syntax::ast::flags as f;

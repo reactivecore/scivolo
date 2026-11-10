@@ -5,6 +5,14 @@
 //! expands, reached through public synthetic methods of a class that sees them (dotty's
 //! `PrepareInlineable.MakeInlineableDirect`, `AccessProxies`).
 
+mod accessor_defs;
+mod accessor_types;
+mod passing;
+mod passing_defs;
+mod retained;
+
+pub use retained::RETAINED_BODY;
+
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};

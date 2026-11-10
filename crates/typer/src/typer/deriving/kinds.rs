@@ -3,7 +3,7 @@
 //! The shape of a derived instance by the kinds of the type class's parameter and the deriving
 //! class's type parameters (dotty's `deriveSingleParameter` and `deriveCanEqual`).
 
-use super::Typer;
+use super::super::Typer;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{SymbolId, Type, TypeId};
 

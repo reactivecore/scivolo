@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/transform/AccessProxies.scala
 //! The parameter, result and type argument trees of inline accessors.
 
-use super::Typer;
+use super::super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, TName, Tree};

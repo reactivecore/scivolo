@@ -6,7 +6,7 @@
 //! Retained inline methods, which override a method that is not inline and so keep a body at run
 //! time: each followed by its body retainer (dotty's `isRetainedInline`, `Inlines.bodyRetainer`).
 
-use super::Typer;
+use super::super::Typer;
 use crate::ctx::Ctx;
 use crate::inlining::Unsupported;
 use crate::tpd::{TNodeId, Tree as T};

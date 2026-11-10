@@ -1,7 +1,7 @@
 //! The untyped trees of derived type class instances: type parameters copied from the deriving
 //! class, applied type class and class types.
 
-use super::Typer;
+use super::super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;

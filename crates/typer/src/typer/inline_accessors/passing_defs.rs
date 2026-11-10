@@ -4,7 +4,7 @@
 //! The definitions of inline accessors that take the accessed member's receiver as their first
 //! parameter (dotty's `MakeInlineablePassing`, `accessorDef` with `passReceiverAsArg`).
 
-use super::Typer;
+use super::super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
