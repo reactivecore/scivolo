@@ -36,7 +36,11 @@ Minimal. State only what code does, never why — no rationale, history,
 alternatives, or reviewer notes. Every `unsafe` block carries a concise
 `// SAFETY:` justification (mandatory). A module comment (`//!`) only where
 the file name and items do not already say what it holds, a line or two.
-Rationale goes in `docs/adr/`, one decision per file. A file with translated
+Public structs and members carry a doc comment that gives a feeling of what
+they do, short but more than the result: it starts with a verb
+("Determines the last accessor of a type"), not with the result ("Last
+accessor of a type"), except for getter-like items. The more an item is used,
+the more it is documented. Rationale goes in `docs/adr/`, one decision per file. A file with translated
 code starts with its license notice, which lists its upstream files:
 
 ```rust
@@ -72,6 +76,8 @@ code starts with its license notice, which lists its upstream files:
   that owns that state, created, run with its services (`&mut Typer`,
   `&mut Universe`) as arguments, and dropped; its helpers are its methods or
   free functions, not `impl Typer` methods.
+- Public signatures take and return concrete types: no tuples of more than two
+  values; the more an item is used, the more its data gets a named type.
 - Documentation is short: one home per fact.
 - Translated code gets the license notice in its file; a new upstream project
   also goes into `NOTICE` and `acknowledges.md`. Designs and ideas taken from
