@@ -305,18 +305,22 @@ impl Universe {
         self.types.intern_name(text)
     }
 
+    /// Interns type list `list` in the types' list table.
     pub fn intern_types(&mut self, list: &[TypeId]) -> crate::TypeList {
         self.types.intern_types(list)
     }
 
+    /// Interns parameter list `list` in the types' parameter table.
     pub fn intern_params(&mut self, list: &[(crate::NameId, TypeId)]) -> crate::ParamList {
         self.types.intern_params(list)
     }
 
+    /// Interns `tycon[args]`.
     pub fn intern_applied(&mut self, tycon: TypeId, args: &[TypeId]) -> TypeId {
         self.types.intern_applied(tycon, args)
     }
 
+    /// Interns the method type of binder `binder`, parameters `params` and result `result`.
     pub fn intern_method(
         &mut self,
         binder: crate::Binder,
@@ -328,6 +332,7 @@ impl Universe {
         self.types.intern_method(binder, params, result, implicit, contextual)
     }
 
+    /// Interns the polymorphic type of binder `binder`, type parameters `params` and `result`.
     pub fn intern_poly(
         &mut self,
         binder: crate::Binder,
@@ -337,6 +342,7 @@ impl Universe {
         self.types.intern_poly(binder, params, result)
     }
 
+    /// Interns the type lambda of binder `binder`, parameters `params` and body `result`.
     pub fn intern_lambda(
         &mut self,
         binder: crate::Binder,
@@ -346,6 +352,7 @@ impl Universe {
         self.types.intern_lambda(binder, params, result)
     }
 
+    /// Interns `scrutinee match { cases } <: bound`.
     pub fn intern_match(&mut self, bound: TypeId, scrutinee: TypeId, cases: &[TypeId]) -> TypeId {
         self.types.intern_match(bound, scrutinee, cases)
     }

@@ -66,6 +66,7 @@ impl<'a> Decoder<'a> {
         self.types.intern(t)
     }
 
+    /// Interns `tycon[args]`.
     pub fn intern_applied(&mut self, tycon: TypeId, args: &[TypeId]) -> TypeId {
         self.types.intern_applied(tycon, args)
     }

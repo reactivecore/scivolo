@@ -14,6 +14,7 @@ pub struct TypeList(u32);
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct ParamList(u32);
 
+/// Hash-conses lists of `T`: equal lists get the same id.
 pub struct ListTable<T> {
     elems: Vec<T>,
     /// Where each list starts in `elems`, then where the last one ends.
@@ -55,27 +56,33 @@ impl<T: Copy + Eq + Hash> ListTable<T> {
 }
 
 impl Types {
+    /// Interns type list `list`, returning the id an equal list got before if any.
     pub fn intern_types(&mut self, list: &[TypeId]) -> TypeList {
         TypeList(self.lists.intern(list))
     }
 
+    /// The types of list `list`.
     pub fn types_of(&self, list: TypeList) -> &[TypeId] {
         self.lists.get(list.0)
     }
 
+    /// Interns parameter list `list`, returning the id an equal list got before if any.
     pub fn intern_params(&mut self, list: &[(NameId, TypeId)]) -> ParamList {
         ParamList(self.params.intern(list))
     }
 
+    /// The parameters of list `list`.
     pub fn params_of(&self, list: ParamList) -> &[(NameId, TypeId)] {
         self.params.get(list.0)
     }
 
+    /// Interns `tycon[args]`, its arguments interned first.
     pub fn intern_applied(&mut self, tycon: TypeId, args: &[TypeId]) -> TypeId {
         let args = self.intern_types(args);
         self.intern(Type::Applied(tycon, args))
     }
 
+    /// Interns the method type of binder `binder`, parameters `params` and result `result`.
     pub fn intern_method(
         &mut self,
         binder: Binder,
@@ -88,16 +95,19 @@ impl Types {
         self.intern(Type::Method { binder, params, result, implicit, contextual })
     }
 
+    /// Interns the polymorphic type of binder `binder`, type parameters `params` and `result`.
     pub fn intern_poly(&mut self, binder: Binder, params: &[(NameId, TypeId)], result: TypeId) -> TypeId {
         let params = self.intern_params(params);
         self.intern(Type::Poly { binder, params, result })
     }
 
+    /// Interns the type lambda of binder `binder`, parameters `params` and body `result`.
     pub fn intern_lambda(&mut self, binder: Binder, params: &[(NameId, TypeId)], result: TypeId) -> TypeId {
         let params = self.intern_params(params);
         self.intern(Type::Lambda { binder, params, result })
     }
 
+    /// Interns `scrutinee match { cases } <: bound`.
     pub fn intern_match(&mut self, bound: TypeId, scrutinee: TypeId, cases: &[TypeId]) -> TypeId {
         let cases = self.intern_types(cases);
         self.intern(Type::Match { bound, scrutinee, cases })
