@@ -33,20 +33,19 @@ pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId, owner: Symbol
     }
     let lifter = format!("{}ToExpr", value.tag());
     let quoted = l.u.package("scala.quoted").expect("scala.quoted");
-    let decls = l.u.decl(quoted, "ToExpr").unwrap_or_default();
+    let decls = l.u.decls_named(quoted, "ToExpr");
     let module = decls.into_iter().find(|&s| l.u.symbol(s).kind == Kind::Val).expect("object ToExpr");
     let class = l.u.module_class(module).expect("ToExpr's class");
-    let decls = l.u.decl(class, &lifter).unwrap_or_default();
+    let decls = l.u.decls_named(class, &lifter);
     let Some(given) = decls.into_iter().find(|&s| l.u.symbol(s).kind.is_term()) else {
         return unsupported(span, format!("quotes without ToExpr.{lifter}"));
     };
     let qual = l.ident(module, Span::NONE);
     let fun = l.select(qual, given, Span::NONE);
     let info = l.u.info(given);
-    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
+    let Some((binder, names, result)) = l.u.poly(info).map(|p| (p.binder, p.names(), p.result)) else {
         return unsupported(span, format!("ToExpr.{lifter} not polymorphic"));
     };
-    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
     let instance = l.u.subst(result, binder, &names, &[q.tpe]);
     let targ = l.type_tree(q.tpe, Span::NONE);
     let lifter = l.build().type_apply(fun, &[targ], instance, Span::NONE);

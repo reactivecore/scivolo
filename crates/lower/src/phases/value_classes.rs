@@ -48,7 +48,7 @@ fn at_receiver(l: &Lower, span: Span, receiver: TNodeId) -> Span {
 fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let Some(tpe) = l.tpd.get(t).tpe else { return Ok(()) };
     let widened = l.u.widen(tpe);
-    if matches!(l.u.types().get(widened), Type::Method { .. } | Type::Poly { .. }) {
+    if matches!(l.u.ty(widened), Type::Method { .. } | Type::Poly { .. }) {
         return Ok(());
     }
     let mut argss = Vec::new();
@@ -186,7 +186,7 @@ pub fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let this = type_ref(l.u, class);
     let binder = l.u.fresh_binder();
     let params = vec![("$this".to_owned(), this)];
-    let (poly, result) = match l.u.types().get(info).clone() {
+    let (poly, result) = match l.u.ty(info).clone() {
         Type::Poly { binder, params, result } => (Some((binder, params)), result),
         Type::ByName(result) => (None, result),
         _ => (None, info),

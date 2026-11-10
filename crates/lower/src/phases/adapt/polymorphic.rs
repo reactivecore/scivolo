@@ -51,11 +51,8 @@ pub fn synchronized_type(l: &mut Lower, fun: TNodeId) -> Option<Erased> {
 pub fn qualify_synchronized(l: &mut Lower, sel: TNodeId) -> Result<()> {
     let Tree::Ident { name } = *l.tpd.tree(sel) else { return Ok(()) };
     let span = l.tpd.span(sel);
-    let class = match *l.u.types().get(l.tpd.tpe(sel)) {
-        Type::Sym(Some(p), _) | Type::TermRef(p, _) => match *l.u.types().get(p) {
-            Type::This(c) => l.u.class_symbol(c),
-            _ => None,
-        },
+    let class = match *l.u.ty(l.tpd.tpe(sel)) {
+        Type::Sym(Some(p), _) | Type::TermRef(p, _) => l.u.this_of(p).and_then(|c| l.u.class_symbol(c)),
         _ => None,
     };
     let Some(class) = class else { return unsupported(span, "`synchronized` on a prefix other than `this`") };

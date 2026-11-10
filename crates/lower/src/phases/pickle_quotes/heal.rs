@@ -118,9 +118,9 @@ impl Healer<'_> {
     /// `t` with the aliases among its parts dealiased and each type of level 0 with a tag `t`
     /// made `t.Underlying` (dotty's `HealType`).
     fn healed(&mut self, u: &mut Universe, t: TypeId) -> TypeId {
-        u.map_type(t, &mut |u, x| match *u.types().get(x) {
+        u.map_type(t, &mut |u, x| match *u.ty(x) {
             Type::Sym(p, s)
-                if p.is_none_or(|p| matches!(u.types().get(p), Type::This(_)))
+                if p.is_none_or(|p| u.this_of(p).is_some())
                     && let Some(&(_, tag)) = self.tags.iter().find(|(t, _)| *t == s) =>
             {
                 match self.used.iter_mut().find(|(t, _)| *t == tag) {
@@ -151,7 +151,7 @@ fn inconsistent_root(u: &mut Universe, defined: &FxHashSet<SymbolId>, t: TypeId)
     let outside = |u: &Universe, s| {
         !std::iter::successors(Some(s), |&o| u.symbol(o).owner).any(|o| defined.contains(&o))
     };
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::Sym(_, s) if u.is_static_symbol(s) || !outside(u, s) => None,
         Type::Sym(Some(prefix), _) => inconsistent_root(u, defined, prefix),
         Type::Sym(None, s) => {

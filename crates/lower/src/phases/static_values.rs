@@ -44,7 +44,7 @@ pub fn transform(
     let vars: Vec<SymbolId> = inits.iter().map(|&(s, _)| s).filter(|&s| has(l.u, s, MUTABLE)).collect();
     for var in vars {
         let name = format!("{}_=", l.u.symbol(var).name);
-        let setter = l.u.decl(module, &name).unwrap_or_default().into_iter().next();
+        let setter = l.u.decls_named(module, &name).into_iter().next();
         let def = setter.and_then(|s| body.iter().copied().find(|&d| l.tpd.sym(d) == Some(s)));
         let Some(def) = def else { return unsupported(Span::NONE, "@static variables without a setter") };
         set_setter_body(l, def, source, var);

@@ -50,7 +50,7 @@ pub fn pickle(l: &mut Lower, t: TNodeId, q: TypeQuote, owner: SymbolId) -> Resul
         l.copy_node(t, tag);
         return Ok(());
     }
-    let class = match *l.u.types().get(tpe) {
+    let class = match *l.u.ty(tpe) {
         Type::Sym(_, c) => Some(c),
         Type::TypeRef(..) => l.u.resolve_ref(tpe),
         _ => None,

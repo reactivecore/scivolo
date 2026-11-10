@@ -26,10 +26,7 @@ fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
         return typer::sealed::enum_cases(l.u, sealed);
     }
     if let Some(types) = l.u.decoded_children(sealed) {
-        let referenced = |l: &mut Lower, t: TypeId| match *l.u.types().get(t) {
-            Type::Sym(_, s) => Some(s),
-            _ => l.u.resolve_ref(t),
-        };
+        let referenced = |l: &mut Lower, t: TypeId| l.u.sym_of(t).or_else(|| l.u.resolve_ref(t));
         return types.into_iter().filter_map(|t| referenced(l, t)).collect();
     }
     if l.u.full_name(sealed) == "scala.*:" {
@@ -76,7 +73,7 @@ pub fn enum_ordinal(
     let params = vec![("x$0".into(), param)];
     let info =
         l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
-    let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
+    let like = l.u.decls_named(cc.mirror_sum, "ordinal");
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
@@ -108,7 +105,7 @@ pub fn ordinal(
     let params = vec![("x$0".into(), param)];
     let info =
         l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
-    let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
+    let like = l.u.decls_named(cc.mirror_sum, "ordinal");
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);

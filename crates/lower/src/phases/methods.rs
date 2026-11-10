@@ -42,7 +42,7 @@ impl Lower<'_> {
         let mut has_clause = false;
         let mut bounds = Vec::new();
         loop {
-            match self.u.types().get(t) {
+            match self.u.ty(t) {
                 Type::Poly { binder, params, result } => {
                     bounds.push((*binder, params.iter().map(|&(_, b)| b).collect()));
                     t = *result;

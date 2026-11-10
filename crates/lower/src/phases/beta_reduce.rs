@@ -160,7 +160,7 @@ pub fn application(
     let params: Vec<SymbolId> = params.iter().map(|&p| l.tpd.sym(p).expect("a parameter's symbol")).collect();
     for (&arg, &param) in args.iter().zip(&params) {
         let info = l.u.info(param);
-        if matches!(l.u.types().get(info), Type::ByName(_)) {
+        if l.u.by_name(info).is_some() {
             return unsupported(l.tpd.span(arg), "applications of a lambda with by-name parameters");
         }
     }
@@ -169,7 +169,7 @@ pub fn application(
         let arg = literalized(l, arg);
         if let Tree::Ident { .. } = l.tpd.tree(arg)
             && is_pure(l, arg)
-            && let Some(s) = l.tpd.sym(arg).filter(|&s| is_local(l, s))
+            && let Some(s) = l.tpd.sym(arg).filter(|&s| l.u.in_method_or_value(s))
         {
             subst.insert(param, s);
             continue;
@@ -200,11 +200,6 @@ fn literalized(l: &mut Lower, arg: TNodeId) -> TNodeId {
     literal_of(l, s, span).unwrap_or(arg)
 }
 
-/// Whether `s` is a value local to a method.
-fn is_local(l: &Lower, s: SymbolId) -> bool {
-    l.u.symbol(s).owner.is_some_and(|o| matches!(l.u.symbol(o).kind, Kind::Def | Kind::Val))
-}
-
 /// The value `param` of `arg` in `owner`, its definition added to `bindings` unless it is a pure
 /// constant or `Unit`.
 fn binding(
@@ -216,7 +211,7 @@ fn binding(
 ) -> SymbolId {
     let name = l.u.symbol(param).name.clone();
     let tpe = l.tpd.tpe(arg);
-    let constant = matches!(l.u.types().get(tpe), Type::Constant(..) | Type::Str(_));
+    let constant = matches!(l.u.ty(tpe), Type::Constant(..) | Type::Str(_));
     let tpe = match l.u.erase(tpe) {
         Erased::Nothing | Erased::Null => l.u.info(param),
         _ if constant => tpe,

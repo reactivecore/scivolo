@@ -62,7 +62,7 @@ pub fn erased_adapted_def(
     span: Span,
 ) -> TNodeId {
     let info = l.u.info(anon);
-    let Type::Method { params, result, .. } = l.u.types().get(info).clone() else {
+    let Some((params, result)) = l.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
         unreachable!("a method type")
     };
     let erased = l.u.erased_method_value(anon).0;
@@ -105,10 +105,7 @@ pub fn adapted_types(
 ) -> (Vec<(String, TypeId)>, TypeId) {
     let (erased, erased_result) = l.u.erased_method_value(sam);
     let info = l.u.info(sam);
-    let declared = match l.u.types().get(info) {
-        Type::Method { params, .. } => params.clone(),
-        _ => Vec::new(),
-    };
+    let declared = l.u.method(info).map(|m| m.params.to_vec()).unwrap_or_default();
     let declared_result = l.u.result_type(info);
     let object = type_ref(l.u, l.defs.object);
     let as_erased =
@@ -136,7 +133,7 @@ pub fn adapted_def(
 ) -> TNodeId {
     let span = from_start(l.tpd.span(closure));
     let info = l.u.info(adapted.sym);
-    let Type::Method { params, result, .. } = l.u.types().get(info).clone() else {
+    let Some((params, result)) = l.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
         unreachable!("a method type")
     };
     let mut defs: Vec<TNodeId> = adapted.proxies.iter().map(|&p| l.param_def(p, span)).collect();

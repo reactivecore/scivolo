@@ -40,10 +40,7 @@ impl Lower<'_> {
         let mut sorted = accessors.to_vec();
         sorted.sort_by_key(|&a| {
             let info = self.u.info(a);
-            let symbol = match *self.u.types().get(info) {
-                tasty::Type::Sym(_, s) => Some(s),
-                _ => None,
-            };
+            let symbol = self.u.sym_of(info);
             let primitive = symbol.is_some_and(|s| {
                 let name = self.u.full_name(s);
                 name == "scala.Unit"

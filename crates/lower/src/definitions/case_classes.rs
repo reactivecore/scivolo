@@ -1,6 +1,6 @@
 use super::equality::{Equality, method};
 use super::{java_class, java_static, member, package, type_ref};
-use tasty::{Kind, SymbolId, Type, Universe};
+use tasty::{Kind, SymbolId, Universe};
 
 /// What the synthetic members of case classes and their companions refer to.
 #[derive(Clone, Copy)]
@@ -140,13 +140,13 @@ fn module_class(u: &mut Universe, module: SymbolId) -> Result<SymbolId, String> 
 fn with_params(u: &mut Universe, owner: SymbolId, name: &str, n: usize) -> Result<SymbolId, String> {
     let mut found = Vec::new();
     for base in u.linearization(owner) {
-        found.extend(u.decl(base, name).unwrap_or_default());
+        found.extend(u.decls_named(base, name));
     }
     found
         .into_iter()
         .find(|&m| {
             let info = u.info(m);
-            matches!(u.types().get(info), Type::Method { params, .. } if params.len() == n)
+            u.method(info).is_some_and(|m| m.params.len() == n)
         })
         .ok_or_else(|| format!("{}.{name} with {n} parameters missing", u.full_name(owner)))
 }

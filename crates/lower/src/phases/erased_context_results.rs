@@ -14,7 +14,7 @@ use tasty::{SymbolId, Type, TypeId};
 pub fn is_erased_context_function(l: &mut Lower, t: TypeId) -> bool {
     let t = l.u.dealias(t);
     let info = l.u.poly_function_apply(t);
-    info.is_some_and(|i| matches!(l.u.types().get(i), Type::Method { contextual: true, .. }))
+    info.and_then(|i| l.u.method(i)).is_some_and(|m| m.contextual)
 }
 
 /// Names flattened method `m` of type `info` before flattening `<name>$direct` if all
@@ -23,7 +23,7 @@ pub fn is_erased_context_function(l: &mut Lower, t: TypeId) -> bool {
 /// `l.context_results` already.
 pub fn rename_direct(l: &mut Lower, m: SymbolId, info: TypeId) {
     let mut t = info;
-    while let Type::Poly { result, .. } | Type::Method { result, .. } = *l.u.types().get(t) {
+    while let Type::Poly { result, .. } | Type::Method { result, .. } = *l.u.ty(t) {
         t = result;
     }
     if !all_erased(l, t) {
@@ -33,7 +33,7 @@ pub fn rename_direct(l: &mut Lower, m: SymbolId, info: TypeId) {
     let name = l.u.symbol(m).name.clone();
     let site = l.u.this_type(owner);
     let overrides = l.u.linearization(owner).into_iter().skip(1).any(|b| {
-        let decls = l.u.decl(b, &name).unwrap_or_default();
+        let decls = l.u.decls_named(b, &name);
         decls.into_iter().any(|d| {
             l.u.symbol(d).kind.is_term() && !has(l.u, d, PRIVATE) && super::bridges::matching(l, site, m, d)
         })
@@ -47,9 +47,7 @@ pub fn rename_direct(l: &mut Lower, m: SymbolId, info: TypeId) {
 /// Whether the context functions `t` nests take erased parameters only.
 fn all_erased(l: &mut Lower, t: TypeId) -> bool {
     let t = l.u.dealias(t);
-    if let Type::Applied(..) = l.u.types().get(t)
-        && super::context_results::is_context_function(l, t)
-    {
+    if l.u.applied(t).is_some() && super::context_results::is_context_function(l, t) {
         return false;
     }
     let Some(info) = l.u.poly_function_apply(t) else { return true };

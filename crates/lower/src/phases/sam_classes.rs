@@ -4,7 +4,7 @@
 //! Closures of single abstract method types that are not functional interfaces as anonymous
 //! classes whose method calls the closure's (dotty's `ExpandSAMs.transformBlock`, `tpd.AnonClass`).
 
-use super::anon_class::{class_symbol, def, instance, param, repeated_elem};
+use super::anon_class::{class_symbol, def, instance, param};
 use super::sam::abstract_methods;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -63,8 +63,8 @@ pub fn to_anon_class(
 /// `collectAndStripRefinements`).
 fn strip_aliases(l: &mut Lower, mut t: TypeId) -> (TypeId, Vec<(String, TypeId)>) {
     let mut aliases = Vec::new();
-    while let Type::Refined(parent, name, info) = l.u.types().get(t).clone() {
-        if !matches!(l.u.types().get(info), Type::Alias(_)) {
+    while let Type::Refined(parent, name, info) = l.u.ty(t).clone() {
+        if l.u.type_alias(info).is_none() {
             break;
         }
         aliases.insert(0, (name, info));
@@ -78,8 +78,8 @@ fn strip_aliases(l: &mut Lower, mut t: TypeId) -> (TypeId, Vec<(String, TypeId)>
 fn coord(l: &mut Lower, fn_def: TNodeId, anon: SymbolId) -> Span {
     let span = l.tpd.span(fn_def);
     let info = l.u.info(anon);
-    match l.u.types().get(info) {
-        Type::Method { params, .. } if params.is_empty() => Span::at(span.end()),
+    match l.u.method(info) {
+        Some(m) if m.params.is_empty() => Span::at(span.end()),
         _ => Span::at(span.point()),
     }
 }
@@ -90,7 +90,7 @@ fn forwarder(l: &mut Lower, cls: SymbolId, method: SymbolId, anon: SymbolId, spa
     let fwd = l.u.define(symbol(&name, Kind::Def, cls, Flags::default().with(SYNTHETIC).with(FINAL)));
     let info = l.u.info(anon);
     l.u.set_info(fwd, info);
-    let Type::Method { params, result, .. } = l.u.types().get(info).clone() else {
+    let Some((params, result)) = l.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
         return unsupported(span, "polymorphic single abstract methods");
     };
     let params: Vec<SymbolId> = params.iter().map(|(n, t)| param(l, fwd, n, *t)).collect();
@@ -103,15 +103,17 @@ fn forwarder(l: &mut Lower, cls: SymbolId, method: SymbolId, anon: SymbolId, spa
 
 /// The constructor of class `c` taking no arguments, or only repeated ones.
 fn no_arg_constructor(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
-    l.u.decl(c, "<init>").unwrap_or_default().into_iter().find(|&ctor| {
+    l.u.decls_named(c, "<init>").into_iter().find(|&ctor| {
         let info = l.u.info(ctor);
         let info = l.u.strip_poly(info);
-        let Type::Method { params, result, .. } = l.u.types().get(info).clone() else { return false };
+        let Some((params, result)) = l.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
+            return false;
+        };
         let no_args = match params[..] {
             [] => true,
-            [(_, p)] => repeated_elem(l, p).is_some(),
+            [(_, p)] => l.u.repeated_elem(p).is_some(),
             _ => false,
         };
-        no_args && !matches!(l.u.types().get(result), Type::Method { .. })
+        no_args && l.u.method(result).is_none()
     })
 }

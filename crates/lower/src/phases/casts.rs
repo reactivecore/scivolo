@@ -19,7 +19,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, to: &Erased) -> TNodeId {
         (Erased::Array(e), Erased::Array(p)) if prim(&e) && !prim(p) => {
             let module = l.scala_run_time().expect("`ScalaRunTime`");
             let class = l.u.module_class(module).expect("ScalaRunTime's class");
-            let method = l.u.decl(class, "toObjectArray").unwrap_or_default();
+            let method = l.u.decls_named(class, "toObjectArray");
             let method = *method.first().expect("`ScalaRunTime.toObjectArray`");
             super::adapt::converted(l, t, module, method)
         }
@@ -135,10 +135,10 @@ fn compacted_member(l: &mut Lower, class: SymbolId, name: &str) -> Option<Symbol
 /// target name.
 fn member_named(l: &mut Lower, owner: SymbolId, rest: &str) -> Option<SymbolId> {
     let classes = |l: &mut Lower, owner: SymbolId, name: &str| -> Vec<SymbolId> {
-        let mut found = l.u.decl(owner, name).unwrap_or_default();
+        let mut found = l.u.decls_named(owner, name);
         let decoded = tasty::decode(name);
         if found.is_empty() && decoded != name {
-            found = l.u.decl(owner, &decoded).unwrap_or_default();
+            found = l.u.decls_named(owner, &decoded);
         }
         if found.is_empty() && l.u.is_class(owner) {
             let decls = l.u.symbol(owner).decls.iter().copied();

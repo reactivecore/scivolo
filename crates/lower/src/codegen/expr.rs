@@ -80,7 +80,7 @@ impl Gen<'_, '_> {
         } else if self.l.u.is_module(sym) && is_static(self.l.u, sym) {
             self.gen_module(sym)
         } else if self.l.u.is_module(sym) {
-            let tasty::Type::Sym(Some(prefix), _) = *self.l.u.types().get(self.l.tpd.tpe(t)) else {
+            let Some((Some(prefix), _)) = self.l.u.sym_ref(self.l.tpd.tpe(t)) else {
                 return unsupported(span, "a reference to an object of a class without its prefix");
             };
             self.gen_apply_method(sym, false, super::apply::Receiver::Prefix(prefix, span), &[], span)?

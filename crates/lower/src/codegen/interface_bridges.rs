@@ -28,7 +28,7 @@ impl Gen<'_, '_> {
         let mut seen: Vec<(Vec<Erased>, Erased)> = Vec::new();
         let mut out = Vec::new();
         for t in traits {
-            let decls = self.l.u.decl(t, &name).unwrap_or_default();
+            let decls = self.l.u.decls_named(t, &name);
             let terms = decls.iter().filter(|&&d| self.l.u.symbol(d).kind.is_term()).count();
             for inherited in decls.into_iter().filter(|_| terms == 1) {
                 let library = self.l.u.symbol(inherited).tree.is_some();

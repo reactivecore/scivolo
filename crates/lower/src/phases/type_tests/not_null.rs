@@ -19,7 +19,7 @@ pub fn is_not_null(l: &mut Lower, tpe: TypeId, explicit_nulls: bool) -> bool {
 fn not_null(l: &mut Lower, t: TypeId, explicit: bool, depth: u32) -> bool {
     let Some(depth) = depth.checked_sub(1) else { return false };
     let next = |l: &mut Lower, t| not_null(l, t, explicit, depth);
-    match l.u.types().get(t).clone() {
+    match l.u.ty(t).clone() {
         Type::Constant(tag, _) => tag != NULLconst,
         Type::Str(_) => true,
         Type::Flexible(_) => false,
@@ -50,7 +50,7 @@ fn not_null(l: &mut Lower, t: TypeId, explicit: bool, depth: u32) -> bool {
 
 /// The type symbol named type `t` refers to.
 fn type_symbol(l: &mut Lower, t: TypeId) -> Option<SymbolId> {
-    let s = match *l.u.types().get(t) {
+    let s = match *l.u.ty(t) {
         Type::Sym(_, s) => s,
         Type::TypeRef(..) => l.u.resolve_ref(t)?,
         _ => return None,

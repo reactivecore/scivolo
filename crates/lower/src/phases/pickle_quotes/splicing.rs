@@ -112,7 +112,7 @@ impl Splicer<'_> {
     fn captured_term(&self, l: &mut Lower, t: TNodeId) -> Option<SymbolId> {
         let s = self.captured_ident(l, t)?;
         let tpe = value_type(l, l.tpd.tpe(t));
-        let method = matches!(l.u.types().get(tpe), Type::Method { .. } | Type::Poly { .. });
+        let method = matches!(l.u.ty(tpe), Type::Method { .. } | Type::Poly { .. });
         (!method).then_some(s)
     }
 
@@ -175,8 +175,5 @@ fn expr_arg(l: &mut Lower, param: SymbolId) -> TypeId {
 /// `t` widened, past a by-name type.
 fn value_type(l: &mut Lower, t: TypeId) -> TypeId {
     let widened = l.u.widen(t);
-    match *l.u.types().get(widened) {
-        Type::ByName(r) => r,
-        _ => widened,
-    }
+    l.u.by_name(widened).unwrap_or(widened)
 }

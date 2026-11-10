@@ -40,7 +40,7 @@ pub fn restore(l: &mut Lower) {
 /// Whether given alias `s` must cache a right-hand side of type `rhs`: unless `rhs` is a `this`
 /// type, or a stable reference without prefix or through the `this` of the class enclosing `s`.
 fn needs_cache(l: &mut Lower, s: SymbolId, rhs: TypeId) -> bool {
-    let (prefix, y) = match *l.u.types().get(rhs) {
+    let (prefix, y) = match *l.u.ty(rhs) {
         Type::This(_) => return false,
         Type::Sym(prefix, y) => (prefix, y),
         Type::TermRef(prefix, _) => match l.u.resolve_ref(rhs) {
@@ -49,7 +49,7 @@ fn needs_cache(l: &mut Lower, s: SymbolId, rhs: TypeId) -> bool {
         },
         _ => return true,
     };
-    let this_prefix = match prefix.map(|p| l.u.types().get(p).clone()) {
+    let this_prefix = match prefix.map(|p| l.u.ty(p).clone()) {
         None | Some(Type::NoPrefix) => true,
         Some(Type::This(c)) => {
             let owner = l.u.symbol(s).owner.expect("a given alias's owner");
@@ -67,7 +67,7 @@ fn is_stable(l: &mut Lower, y: SymbolId) -> bool {
         _ if l.u.is_module(y) => true,
         Kind::Val if has(l.u, y, MUTABLE) => {
             let info = l.u.info(y);
-            match *l.u.types().get(info) {
+            match *l.u.ty(info) {
                 Type::This(_) | Type::TermRef(..) | Type::Constant(..) | Type::Str(_) => true,
                 Type::Sym(_, t) => l.u.symbol(t).kind.is_term(),
                 _ => false,

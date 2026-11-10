@@ -15,7 +15,7 @@ pub fn avoided(u: &mut Universe, t: TypeId) -> TypeId {
 }
 
 fn avoided_at(u: &mut Universe, t: TypeId, v: i8) -> Approx {
-    match u.types().get(t).clone() {
+    match u.ty(t).clone() {
         Type::And(a0, b0) => {
             let parts = [avoided_at(u, a0, v), avoided_at(u, b0, v)];
             if parts == [Approx::Exact(a0), Approx::Exact(b0)] {
@@ -31,9 +31,7 @@ fn avoided_at(u: &mut Universe, t: TypeId, v: i8) -> Approx {
             let parts = [avoided_at(u, a, v), avoided_at(u, b, v)];
             approx::derived(u, &parts, &[], v, &mut |u, p| u.intern_type(Type::Or(p[0], p[1], soft)))
         }
-        Type::Applied(tycon, args) if !matches!(u.types().get(tycon), Type::Lambda { .. }) => {
-            avoided_applied(u, t, tycon, &args, v)
-        }
+        Type::Applied(tycon, args) if u.lambda(tycon).is_none() => avoided_applied(u, t, tycon, &args, v),
         Type::Bounds(lo, hi) => {
             let (l, h) = (avoided_at(u, lo, -v), avoided_at(u, hi, v));
             approx::bounds(u, l, h, v)
@@ -69,7 +67,7 @@ fn avoided_applied(u: &mut Universe, t: TypeId, tycon: TypeId, args: &[TypeId], 
         .iter()
         .zip(&variances)
         .map(|(&a, &pv)| {
-            let wildcard = matches!(u.types().get(a), Type::Bounds(..) | Type::Wildcard(_));
+            let wildcard = matches!(u.ty(a), Type::Bounds(..) | Type::Wildcard(_));
             avoided_at(u, a, if wildcard { v } else { v * pv })
         })
         .collect();
@@ -95,7 +93,7 @@ fn avoided_lambda(u: &mut Universe, t: TypeId, params: &[(String, TypeId)], resu
         return Approx::Exact(t);
     }
     let flip: Vec<bool> = (0..parts.len()).map(|i| i < params.len()).collect();
-    let node = u.types().get(t).clone();
+    let node = u.ty(t).clone();
     approx::derived(u, &parts, &flip, v, &mut |u, p| {
         let (ps, r) = p.split_at(params.len());
         let ps = params.iter().zip(ps).map(|((n, _), &x)| (n.clone(), x)).collect();
@@ -117,12 +115,12 @@ fn avoided_ref(u: &mut Universe, t: TypeId, v: i8) -> Approx {
         let bound = avoided_at(u, bound, v);
         return approx::range(u, Approx::Exact(NOTHING), bound, v);
     }
-    let (prefix, s) = match *u.types().get(t) {
+    let (prefix, s) = match *u.ty(t) {
         Type::Sym(prefix, s) => (prefix, Some(s)),
         Type::TypeRef(prefix, _) => (Some(prefix), None),
         _ => return Approx::Exact(t),
     };
-    let static_path = match (prefix.map(|p| u.types().get(p).clone()), s) {
+    let static_path = match (prefix.map(|p| u.ty(p).clone()), s) {
         (None, Some(s)) => u.is_static_symbol(s),
         (Some(Type::Sym(_, t)), _) => u.symbol(t).kind.is_type() || u.is_static_symbol(t),
         (Some(Type::This(_)), Some(s)) => u.is_static_symbol(s),
@@ -140,19 +138,19 @@ fn avoided_ref(u: &mut Universe, t: TypeId, v: i8) -> Approx {
         return Approx::Exact(children_avoided(u, t, v));
     };
     let info = u.info(s);
-    match *u.types().get(info) {
-        Type::Bounds(lo, hi) => {
+    match u.bounds(info) {
+        Some((lo, hi)) => {
             let (l, h) = (avoided_at(u, lo, -v), avoided_at(u, hi, v));
             approx::range(u, l, h, v)
         }
-        _ => Approx::Exact(children_avoided(u, t, v)),
+        None => Approx::Exact(children_avoided(u, t, v)),
     }
 }
 
 /// The class `t` refers to if it is a member of a class and not static, or reached through a
 /// prefix that is not.
 fn avoided_class(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
-    let s = match *u.types().get(t) {
+    let s = match *u.ty(t) {
         Type::Sym(_, s) => s,
         Type::TypeRef(..) => u.resolve_ref(t)?,
         _ => return None,
@@ -164,7 +162,7 @@ fn avoided_class(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
 
 /// Whether the named types on path `t` are static (dotty's `AvoidMap.isStaticPrefix`).
 fn static_prefix(u: &mut Universe, t: TypeId) -> bool {
-    let (prefix, s) = match *u.types().get(t) {
+    let (prefix, s) = match *u.ty(t) {
         Type::Sym(prefix, s) => (prefix, s),
         Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => match u.resolve_ref(t) {
             Some(s) => (Some(prefix), s),

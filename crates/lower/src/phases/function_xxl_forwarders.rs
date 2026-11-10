@@ -57,7 +57,7 @@ fn implements_xxl_apply(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool 
         if function_class_arity(l, base).is_none_or(|(n, _)| n as usize <= MAX_IMPLEMENTED_ARITY) {
             continue;
         }
-        let applies = l.u.decl(base, "apply").unwrap_or_default();
+        let applies = l.u.decls_named(base, "apply");
         if applies.into_iter().any(|apply| l.u.info_matches(site, meth, apply)) {
             return true;
         }

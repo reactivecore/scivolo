@@ -60,8 +60,8 @@ fn copy_node(l: &mut Lower, m: &Copier, t: TNodeId) -> TNodeId {
 }
 
 fn map_type(l: &mut Lower, m: &Copier, t: TypeId) -> TypeId {
-    l.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-        Type::Sym(None, s) => m.syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
+    l.u.map_type(t, &mut |u, part| match u.sym_ref(part) {
+        Some((None, s)) => m.syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
         _ => None,
     })
 }

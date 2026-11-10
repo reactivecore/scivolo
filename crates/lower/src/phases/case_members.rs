@@ -95,7 +95,7 @@ fn body(
                     let this = l.this(class, Span::NONE);
                     let sel = match scala2 {
                         true => vec![accessors[i - 1]],
-                        false => l.u.decl(class, &format!("_{i}")).unwrap_or_default(),
+                        false => l.u.decls_named(class, &format!("_{i}")),
                     };
                     let sel = sel.into_iter().find(|&s| l.u.symbol(s).kind.is_term()).expect("a selector");
                     let info = l.u.info(sel);
@@ -180,7 +180,7 @@ pub fn existing_def(l: &mut Lower, class: SymbolId, sym: SymbolId) -> Option<Sym
     let name = l.u.symbol(sym).name.clone();
     let params = l.u.erased_method(sym).0;
     for base in l.u.linearization(class) {
-        for other in l.u.decl(base, &name).unwrap_or_default() {
+        for other in l.u.decls_named(base, &name) {
             let member = matches!(l.u.symbol(other).kind, Kind::Def | Kind::Val);
             if !member || l.u.erased_method(other).0 != params {
                 continue;

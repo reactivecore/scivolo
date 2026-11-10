@@ -134,7 +134,7 @@ fn setter(
     let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(stat) else { unreachable!("a setter") };
     let unit_body = |l: &mut Lower| rhs.unwrap_or_else(|| l.unit_literal(l.tpd.span(stat)));
     let getter_name = setter_getter_name(&l.u.symbol(setter).name).to_owned();
-    let getters = l.u.decl(class, &getter_name).unwrap_or_default();
+    let getters = l.u.decls_named(class, &getter_name);
     let getter = getters.into_iter().find(|&g| !is_setter(l, g) && !l.bridges.contains(&g));
     let param_val = getter.is_some_and(|g| is_param_accessor(l, g) && !has(l.u, g, MUTABLE));
     let Some(getter) = getter.filter(|_| memoized.contains(&getter_name) && !param_val) else {

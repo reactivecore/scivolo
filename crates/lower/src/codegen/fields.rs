@@ -7,7 +7,7 @@
 //! `genAssign`).
 
 use super::Gen;
-use crate::symbols::{has, is_java_field, is_static_module};
+use crate::symbols::{has, is_java_field};
 use crate::{Result, unsupported};
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Defn, DefnKind, GlobalId, Op, PosId, Val, ValId};
@@ -179,7 +179,7 @@ impl Gen<'_, '_> {
         match qual {
             _ if has(self.l.u, f, STATIC) => Ok(self.gen_module(owner)),
             Some(q) if matches!(self.l.tpd.tree(q), Tree::This { .. }) => self.gen_expr(q),
-            _ if is_static_module(self.l.u, owner) => Ok(self.gen_module(owner)),
+            _ if self.l.u.is_static_module(owner) => Ok(self.gen_module(owner)),
             Some(q) => self.gen_expr(q),
             None => self.this_of(owner, span),
         }

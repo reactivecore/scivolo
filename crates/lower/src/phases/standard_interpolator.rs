@@ -27,7 +27,7 @@ pub fn transform(l: &mut Lower, t: TNodeId, raw: bool, owner: SymbolId) -> Resul
     let module = string_context(l)?;
     let class = l.u.module_class(module).expect("StringContext's class");
     let member = |l: &mut Lower, owner: SymbolId, name: &str| -> Result<SymbolId> {
-        match l.u.decl(owner, name).unwrap_or_default().first() {
+        match l.u.decls_named(owner, name).first() {
             Some(&m) => Ok(m),
             None => unsupported(span, format!("StringContext.{name} missing from the library")),
         }
@@ -61,7 +61,7 @@ pub fn transform(l: &mut Lower, t: TNodeId, raw: bool, owner: SymbolId) -> Resul
 /// The module `scala.StringContext`.
 fn string_context(l: &mut Lower) -> Result<SymbolId> {
     let scala = l.u.package("scala").expect("package scala");
-    let found = l.u.decl(scala, "StringContext").unwrap_or_default();
+    let found = l.u.decls_named(scala, "StringContext");
     match found.into_iter().find(|&s| l.u.symbol(s).kind == Kind::Val) {
         Some(m) => Ok(m),
         None => unsupported(Span::NONE, "scala.StringContext missing from the library"),

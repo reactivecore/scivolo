@@ -164,7 +164,7 @@ fn tuple_tail(
 fn size(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     let tpe = l.tpd.tpe(t);
     let constant = l.u.try_normalize(tpe)?;
-    let tree = literal(l.u.types().get(constant))?;
+    let tree = literal(l.u.ty(constant))?;
     Some(l.tpd.node(tree, Span::NONE, Some(constant), None))
 }
 
@@ -209,7 +209,7 @@ fn concat(
 /// none of more than 22 elements.
 fn apply(l: &mut Lower, t: TNodeId, tup: TNodeId, index: TNodeId) -> Option<TNodeId> {
     let index_type = l.tpd.tpe(index);
-    let Type::Constant(tag, n) = *l.u.types().get(index_type) else { return None };
+    let Type::Constant(tag, n) = *l.u.ty(index_type) else { return None };
     if tag != INTconst {
         return None;
     }

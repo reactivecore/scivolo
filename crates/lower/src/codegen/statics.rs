@@ -7,7 +7,7 @@ use super::Gen;
 use super::forwarded_members;
 use super::method::Method;
 use crate::phases::getters::is_setter;
-use crate::symbols::{has, is_extern, is_java_field, is_static, is_static_module, jdk_api_owner};
+use crate::symbols::{has, is_extern, is_java_field, is_static, jdk_api_owner};
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, Param, PosId, Type, Val};
 use rustc_hash::FxHashSet;
@@ -31,7 +31,7 @@ impl Gen<'_, '_> {
     /// The forwarders of the current class to the methods of its companion object.
     pub fn static_method_forwarders(&mut self, existing: &[GlobalId]) -> Result<Vec<Defn>> {
         let c = self.class.expect("a class");
-        if !self.is_candidate_for_forwarders(c) || is_static_module(self.l.u, c) {
+        if !self.is_candidate_for_forwarders(c) || self.l.u.is_static_module(c) {
             return Ok(Vec::new());
         }
         let Some(module) = self.l.u.companion_module(c) else { return Ok(Vec::new()) };
@@ -138,7 +138,7 @@ impl Gen<'_, '_> {
             false => return is_java_field(self.l.u, m),
         };
         let owner = self.l.u.symbol(m).owner.expect("a setter's class");
-        let fields = self.l.u.decl(owner, getter).unwrap_or_default();
+        let fields = self.l.u.decls_named(owner, getter);
         fields.into_iter().any(|f| is_java_field(self.l.u, f))
     }
 

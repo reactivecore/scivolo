@@ -14,14 +14,14 @@ impl Gen<'_, '_> {
         let mut t = self.l.u.info(method);
         let mut index = 0;
         loop {
-            match self.l.u.types().get(t).clone() {
+            match self.l.u.ty(t).clone() {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, result, .. } => {
                     for (_, param) in params {
                         if self.l.u.is_erased_param(param) {
                             continue;
                         }
-                        let is_repeated = match *self.l.u.types().get(param) {
+                        let is_repeated = match *self.l.u.ty(param) {
                             Type::Applied(c, _) => self
                                 .l
                                 .u

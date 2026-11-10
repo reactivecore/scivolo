@@ -8,7 +8,6 @@
 use super::mixin::{has_body, java_named};
 use super::walk;
 use crate::definitions::symbol;
-use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{OVERRIDE, SYNTHETIC};
@@ -89,7 +88,7 @@ fn rewrite(l: &mut Lower, t: TNodeId, class: SymbolId, made: &mut Vec<Accessor>)
     let this = l.u.this_type(host);
     let info = l.u.member_info(this, sym);
     let info = java_named(l, sym, info);
-    if matches!(l.u.types().get(info), Type::Poly { .. }) {
+    if l.u.poly(info).is_some() {
         return unsupported(span, "protected accessors of polymorphic methods");
     }
     let name = format!("protected${}", l.u.symbol(sym).name);
@@ -147,8 +146,7 @@ fn accessor(
     l.u.set_info(sym, info);
     let site = l.u.this_type(host);
     let bases = l.u.linearization(host);
-    let inherited: Vec<SymbolId> =
-        bases.into_iter().skip(1).flat_map(|b| l.u.decl(b, name).unwrap_or_default()).collect();
+    let inherited: Vec<SymbolId> = bases.into_iter().skip(1).flat_map(|b| l.u.decls_named(b, name)).collect();
     if inherited.into_iter().any(|m| has_body(l, m) && l.u.info_matches(site, m, sym)) {
         l.u.set_flags(sym, flags.with(OVERRIDE));
     }
@@ -172,7 +170,7 @@ fn rewired(l: &mut Lower, qualifier: Option<TNodeId>, acc: SymbolId, span: Span)
 
 /// `sym` of class `class` from inside it: by name in a static object, else on its `this`.
 fn reference(l: &mut Lower, class: SymbolId, sym: SymbolId, span: Span) -> TNodeId {
-    if is_static_module(l.u, class) {
+    if l.u.is_static_module(class) {
         return l.ident(sym, span);
     }
     let this = l.this(class, span);
@@ -195,7 +193,7 @@ fn accessor_def(l: &mut Lower, root: TNodeId, a: &Accessor, end: Span) -> TNodeI
     let host = l.u.symbol(a.sym).owner.expect("an accessor's class");
     let (accessed, setter) = (a.accessed, a.setter);
     let info = l.u.info(accessed);
-    let applied = matches!(l.u.types().get(info), Type::Method { .. });
+    let applied = l.u.method(info).is_some();
     l.forwarding_def(a.sym, span, |l, args, result| {
         let access = reference(l, host, accessed, span);
         match () {

@@ -11,7 +11,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Specializes the tuple creations and element selections in class definition `td`; `inits`
@@ -126,7 +126,7 @@ fn selection(l: &mut Lower, t: TNodeId, qual: TNodeId) -> Result<()> {
     }
     let tpe = l.u.widen(l.tpd.tpe(qual));
     let tpe = l.u.dealias(tpe);
-    let Type::Applied(tycon, elems) = l.u.types().get(tpe).clone() else { return Ok(()) };
+    let Some((tycon, elems)) = l.u.applied(tpe).map(|(c, a)| (c, a.to_vec())) else { return Ok(()) };
     let Some(class) = l.u.class_symbol(tycon) else { return Ok(()) };
     let n = elems.len();
     let base = format!("scala.Tuple{n}");

@@ -68,16 +68,13 @@ fn is_nullable_private_field(l: &mut Lower, s: SymbolId) -> bool {
         return false;
     }
     let info = l.u.info(s);
-    if let Type::ByName(_) = *l.u.types().get(info) {
+    if l.u.by_name(info).is_some() {
         return true;
     }
     let tpe = l.u.widen(info);
     let tpe = l.u.dealias(tpe);
-    let head = match *l.u.types().get(tpe) {
-        Type::Applied(f, _) => f,
-        _ => tpe,
-    };
-    let class = match *l.u.types().get(head) {
+    let head = l.u.applied(tpe).map_or(tpe, |(f, _)| f);
+    let class = match *l.u.ty(head) {
         Type::Sym(_, c) => c,
         Type::TypeRef(..) => {
             let Some(c) = l.u.resolve_ref(head) else { return false };

@@ -5,7 +5,6 @@
 
 use super::Gen;
 use crate::phases::select_static::is_static_owner_ref;
-use crate::symbols::is_static_module;
 use crate::{Result, unsupported};
 use nir::{Op, ValId};
 use syntax::ast::Span;
@@ -55,7 +54,7 @@ impl Gen<'_, '_> {
         let class = self.class.expect("a class");
         let package_object = self.l.u.is_package_object(c);
         let static_method = self.m.this.is_none();
-        let static_module = is_static_module(self.l.u, c);
+        let static_module = self.l.u.is_static_module(c);
         if (c != class || static_method) && static_module || package_object {
             return Ok(self.gen_module(c));
         }

@@ -5,7 +5,7 @@ use super::casts::class_named;
 use crate::Lower;
 use crate::definitions::{primitive_class_name, type_ref};
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId, Type, TypeId};
+use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::TNodeId;
 
 impl Lower<'_> {
@@ -14,10 +14,7 @@ impl Lower<'_> {
         let fun = self.select(qual, m, Span::NONE);
         let fun = self.positioned(fun);
         let info = self.u.info(m);
-        let result = match *self.u.types().get(info) {
-            Type::Method { result, .. } => result,
-            _ => info,
-        };
+        let result = self.u.method(info).map_or(info, |m| m.result);
         let apply = self.apply(fun, args, result, Span::NONE);
         self.positioned(apply)
     }

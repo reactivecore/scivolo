@@ -39,17 +39,17 @@ fn rewrite_args(l: &mut Lower, t: TNodeId, owner: SymbolId, passed: &mut FxHashS
     let new: Vec<TNodeId> = old
         .iter()
         .enumerate()
-        .map(|(i, &a)| match formals.get(i).map(|&f| l.u.types().get(f).clone()) {
-            Some(Type::ByName(_)) if by_name_ref(l, l.tpd.strip_typed(a)) => {
+        .map(|(i, &a)| match formals.get(i).and_then(|&f| l.u.by_name(f)) {
+            Some(_) if by_name_ref(l, l.tpd.strip_typed(a)) => {
                 let a = l.tpd.strip_typed(a);
                 passed.insert(a);
                 a
             }
-            Some(Type::ByName(result)) => {
+            Some(result) => {
                 let result = if instantiated { result } else { l.tpd.tpe(a) };
                 closure(l, a, owner, result)
             }
-            _ => a,
+            None => a,
         })
         .collect();
     if new != old {
@@ -63,22 +63,19 @@ pub fn is_by_name_param(l: &mut Lower, s: SymbolId) -> bool {
     let param =
         l.u.symbol(s).kind == Kind::Param || l.u.symbol(s).kind == Kind::Val && is_param_accessor(l, s);
     let info = l.u.info(s);
-    param && matches!(l.u.types().get(info), Type::ByName(_))
+    param && l.u.by_name(info).is_some()
 }
 
 /// `T` if `tpe` is a reference whose underlying type is `=> T`, else `tpe` (`PatternMatcher`'s
 /// match type).
 pub fn by_name_result(l: &mut Lower, tpe: tasty::TypeId) -> tasty::TypeId {
     let mut t = tpe;
-    while matches!(l.u.types().get(t), Type::Sym(..) | Type::TermRef(..))
+    while matches!(l.u.ty(t), Type::Sym(..) | Type::TermRef(..))
         && let Some(next) = l.u.widen_once(t)
     {
         t = next;
     }
-    match *l.u.types().get(t) {
-        Type::ByName(result) => result,
-        _ => tpe,
-    }
+    l.u.by_name(t).unwrap_or(tpe)
 }
 
 /// Whether `t` refers to a by-name parameter.
@@ -94,13 +91,13 @@ fn apply_reference(l: &mut Lower, t: TNodeId) {
     let x = l.tpd.sym(t).expect("a by-name parameter");
     let span = l.tpd.span(t);
     let info = l.u.info(x);
-    let Type::ByName(result) = *l.u.types().get(info) else { unreachable!("a by-name type") };
+    let Some(result) = l.u.by_name(info) else { unreachable!("a by-name type") };
     let n = l.tpd.get(t);
     let (tree, tpe) = (n.tree.clone(), n.tpe);
     let qual = l.tpd.node(tree, span, tpe, Some(x));
     let function = l.u.class_ref("scala.Function0");
     let class = l.u.class_symbol(function).expect("`Function0`");
-    let apply = l.u.decl(class, "apply").unwrap_or_default();
+    let apply = l.u.decls_named(class, "apply");
     let apply = apply.into_iter().next().expect("`Function0.apply`");
     let fun = l.select(qual, apply, Span::NONE);
     let call = l.apply(fun, &[], result, Span::NONE);
@@ -112,8 +109,8 @@ fn apply_reference(l: &mut Lower, t: TNodeId) {
 /// are as the call instantiates them rather than as the method declares them.
 fn formals(l: &mut Lower, mut fun: TNodeId) -> (Vec<tasty::TypeId>, bool) {
     let direct = l.u.widen(l.tpd.tpe(fun));
-    if let Type::Method { params, .. } = l.u.types().get(direct) {
-        return (params.iter().map(|&(_, p)| p).collect(), true);
+    if let Some(m) = l.u.method(direct) {
+        return (m.param_types(), true);
     }
     let mut clause = 0;
     let method = loop {
@@ -125,7 +122,7 @@ fn formals(l: &mut Lower, mut fun: TNodeId) -> (Vec<tasty::TypeId>, bool) {
     };
     let mut t = l.u.widen(method);
     loop {
-        match l.u.types().get(t) {
+        match l.u.ty(t) {
             Type::Poly { result, .. } => t = *result,
             Type::Method { result, .. } if clause > 0 => (t, clause) = (*result, clause - 1),
             Type::Method { params, .. } => return (params.iter().map(|&(_, p)| p).collect(), false),

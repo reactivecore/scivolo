@@ -11,7 +11,7 @@ use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The field, the flag if any and the accessor definition `stat` of lazy value `lazy`, the
@@ -54,8 +54,7 @@ pub fn is_thread_unsafe(l: &mut Lower, accessor: SymbolId) -> bool {
     };
     let bases: Vec<SymbolId> =
         l.u.linearization(class).into_iter().skip(1).filter(|&b| l.u.is_trait(b)).collect();
-    let getters: Vec<SymbolId> =
-        bases.into_iter().flat_map(|b| l.u.decl(b, &name).unwrap_or_default()).collect();
+    let getters: Vec<SymbolId> = bases.into_iter().flat_map(|b| l.u.decls_named(b, &name)).collect();
     getters.into_iter().any(|m| has(l.u, m, LAZY) && annotated(l, m))
 }
 
@@ -137,8 +136,5 @@ fn assign(l: &mut Lower, lhs: TNodeId, rhs: TNodeId) -> TNodeId {
 
 /// The type of the value lazy `accessor` of type `info` holds.
 pub fn value_type(l: &mut Lower, info: TypeId) -> TypeId {
-    match *l.u.types().get(info) {
-        Type::ByName(r) => r,
-        _ => l.u.result_type(info),
-    }
+    l.u.by_name(info).unwrap_or_else(|| l.u.result_type(info))
 }

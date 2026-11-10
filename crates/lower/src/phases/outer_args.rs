@@ -7,7 +7,7 @@ use super::explicit_outer::{enclosing_instance, outer_chain, terms};
 use super::leading_params::with_leading_params;
 use super::local_free::{enclosing_class, is_term, within};
 use crate::definitions::{symbol, type_ref};
-use crate::symbols::{has, is_static, is_static_module};
+use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::PRIVATE;
@@ -50,7 +50,7 @@ pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
         };
         let outer_this = l.tpd.sym(instance).filter(|&c| c != class);
         if let (Tree::This { .. }, Some(c)) = (l.tpd.tree(instance), outer_this) {
-            let end = match is_static_module(l.u, c) {
+            let end = match l.u.is_static_module(c) {
                 true => l.tpd.span(fun),
                 false => Span::at(l.tpd.span(fun).end()),
             };
@@ -73,8 +73,7 @@ pub fn declare_library(l: &mut Lower, class: SymbolId, ctor: SymbolId, outer: Sy
     let tpe = type_ref(l.u, outer);
     let info = l.u.info(ctor);
     let first = l.u.strip_poly(info);
-    let declared = matches!(l.u.types().get(first), Type::Method { params, .. }
-        if params.first().is_some_and(|(n, _)| n == "$outer"));
+    let declared = l.u.method(first).is_some_and(|m| m.params.first().is_some_and(|(n, _)| n == "$outer"));
     if declared && l.outers.contains_key(&class) {
         return;
     }
@@ -91,7 +90,7 @@ pub fn declare_library(l: &mut Lower, class: SymbolId, ctor: SymbolId, outer: Sy
 /// type as a tree (dotty's `outerPrefix`).
 fn instance(l: &mut Lower, class: SymbolId, tpe: TypeId, span: Span) -> Result<TNodeId> {
     let tpe = l.u.dealias(tpe);
-    let prefix = match *l.u.types().get(tpe) {
+    let prefix = match *l.u.ty(tpe) {
         Type::Applied(tycon, _) => return instance(l, class, tycon, span),
         Type::Sym(Some(p), _) | Type::TypeRef(p, _) => p,
         _ => return unsupported(span, "creating an inner class without a prefix"),
@@ -106,12 +105,12 @@ fn instance(l: &mut Lower, class: SymbolId, tpe: TypeId, span: Span) -> Result<T
 /// selected on such a path.
 fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId> {
     let refused = "creating an inner class through this prefix";
-    match *l.u.types().get(p) {
+    match *l.u.ty(p) {
         Type::This(c) => {
             let Some(c) = l.u.class_symbol(c) else { return unsupported(span, refused) };
             let module = l.u.is_module_class(c).then(|| l.u.source_module(c)).flatten();
             match module.filter(|_| !within(l, class, c)) {
-                _ if c == class || is_static_module(l.u, c) => Ok(l.this(c, Span::NONE)),
+                _ if c == class || l.u.is_static_module(c) => Ok(l.this(c, Span::NONE)),
                 Some(m) => {
                     let owner = l.u.symbol(c).owner.expect("an object's owner");
                     let owner = type_ref(l.u, owner);
@@ -143,10 +142,7 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
             if owner.is_some_and(|o| is_term(l, o)) {
                 return Ok(l.ident(s, span));
             }
-            let this_class = match q.map(|q| l.u.types().get(q)) {
-                Some(&Type::This(c)) => l.u.class_symbol(c),
-                _ => None,
-            };
+            let this_class = q.and_then(|q| l.u.this_of(q)).and_then(|c| l.u.class_symbol(c));
             let on_this = q.is_none() || this_class == Some(class);
             let qualifier = match q {
                 _ if on_this && owner == Some(class) => l.this(class, span),

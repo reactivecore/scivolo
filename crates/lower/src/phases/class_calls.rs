@@ -7,7 +7,6 @@ use super::lifted::Method;
 use super::lifted_calls::{call_of, push_terms_in, redirect};
 use super::local_free::{is_method, original_owner};
 use super::walk::{children, is_class_def};
-use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -46,7 +45,7 @@ pub fn calls_from_class(
                 };
                 let span = l.tpd.span(reference);
                 let home = l.u.symbol(method.sym).owner.unwrap_or(home);
-                let receiver = match f.instance() && !is_static_module(l.u, home) {
+                let receiver = match f.instance() && !l.u.is_static_module(home) {
                     true => super::outer_fields::outer_path(l, (td, class), home, in_method, span)?,
                     false => l.this(home, span),
                 };

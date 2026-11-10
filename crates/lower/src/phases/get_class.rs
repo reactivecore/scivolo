@@ -15,10 +15,10 @@ use typer::tpd::{TNodeId, Tree};
 /// literal or a pure path not through objects `inits`; whether `t` is such a call.
 pub fn fold(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     let Some(pre) = receiver(l, t) else { return false };
-    if !matches!(l.u.types().get(l.tpd.tpe(t)), Type::Constant(CLASSconst, _)) {
+    if !matches!(l.u.ty(l.tpd.tpe(t)), Type::Constant(CLASSconst, _)) {
         return false;
     }
-    let Some(lit) = literal(l.u.types().get(l.tpd.tpe(t))) else { return false };
+    let Some(lit) = literal(l.u.ty(l.tpd.tpe(t))) else { return false };
     let mut inner = pre;
     while let Tree::Typed { expr, .. } = *l.tpd.tree(inner) {
         inner = expr;

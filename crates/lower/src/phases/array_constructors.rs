@@ -58,7 +58,7 @@ fn expanded(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
 /// Whether `t` may be other than a class type (dotty's `TypeErasure.isGeneric`).
 fn is_generic(l: &mut Lower, t: TypeId) -> bool {
     let t = l.u.dealias(t);
-    match *l.u.types().get(t) {
+    match *l.u.ty(t) {
         Type::Applied(u, _) | Type::Annotated(u, _) | Type::Refined(u, _, _) => is_generic(l, u),
         Type::And(a, b) | Type::Or(a, b, _) => is_generic(l, a) || is_generic(l, b),
         Type::Param(..) | Type::Local(..) => true,

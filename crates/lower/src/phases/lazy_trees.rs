@@ -39,7 +39,7 @@ pub fn call(l: &mut Lower, qual: TNodeId, m: SymbolId, args: &[TNodeId]) -> TNod
     let fun = l.select(qual, m, Span::NONE);
     let fun = l.positioned(fun);
     let info = l.u.info(m);
-    let result = match *l.u.types().get(info) {
+    let result = match *l.u.ty(info) {
         _ if l.u.symbol(m).name == "<init>" => l.tpd.tpe(qual),
         Type::Method { result, .. } => result,
         _ => info,
@@ -81,7 +81,7 @@ pub fn assign(l: &mut Lower, var: SymbolId, rhs: TNodeId) -> TNodeId {
 
 /// Method `name` of class `c`.
 pub fn method(l: &mut Lower, c: SymbolId, name: &str, span: Span) -> Result<SymbolId> {
-    let found = l.u.decl(c, name).unwrap_or_default();
+    let found = l.u.decls_named(c, name);
     match found.into_iter().find(|&s| l.u.symbol(s).kind == Kind::Def) {
         Some(m) => Ok(m),
         None => unsupported(span, format!("{}.{name} missing", l.u.full_name(c))),

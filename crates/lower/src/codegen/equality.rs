@@ -181,7 +181,7 @@ impl<'l, 'a> Gen<'l, 'a> {
     /// an object or a field, else its erased type.
     fn tree_type(&mut self, t: TNodeId) -> (Option<tasty::TypeId>, Erased) {
         let tpe = self.l.tpd.tpe(t);
-        let singleton = match *self.l.u.types().get(tpe) {
+        let singleton = match *self.l.u.ty(tpe) {
             tasty::Type::This(_) => true,
             tasty::Type::Sym(_, s) if !self.l.u.is_type_symbol(s) => {
                 let in_class = self.l.u.symbol(s).owner.is_some_and(|o| self.l.u.is_class(o));

@@ -62,7 +62,7 @@ fn unmapped(l: &mut Lower, t: TNodeId) -> Option<(Option<TNodeId>, SymbolId, Vec
             map_call(l, fun, Vec::new())
         }
         Tree::Apply { fun, .. } => {
-            let implicit = matches!(l.u.types().get(l.tpd.tpe(fun)), Type::Method { implicit: true, .. });
+            let implicit = l.u.method(l.tpd.tpe(fun)).is_some_and(|m| m.implicit);
             if implicit { unmapped(l, fun) } else { None }
         }
         Tree::TypeApply { fun, .. } => unmapped(l, fun),
@@ -187,7 +187,7 @@ fn marked_call(l: &Lower, call: TNodeId) -> bool {
 }
 
 fn is_method_or_poly(l: &Lower, tpe: TypeId) -> bool {
-    matches!(l.u.types().get(tpe), Type::Method { .. } | Type::Poly { .. })
+    matches!(l.u.ty(tpe), Type::Method { .. } | Type::Poly { .. })
 }
 
 fn same_type(l: &mut Lower, a: TypeId, b: TypeId) -> bool {

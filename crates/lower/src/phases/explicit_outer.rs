@@ -126,7 +126,7 @@ pub fn outer_prefix(l: &mut Lower, t: TNodeId, class: SymbolId) -> Option<TNodeI
     if l.tpd.sym(t).is_some_and(|s| l.u.is_type_symbol(s)) {
         return None;
     }
-    let Type::Sym(Some(prefix), s) = *l.u.types().get(l.tpd.get(t).tpe?) else { return None };
+    let Some((Some(prefix), s)) = l.u.sym_ref(l.tpd.get(t).tpe?) else { return None };
     if !l.u.symbol(s).kind.is_term() {
         return None;
     }
@@ -145,7 +145,7 @@ pub fn outer_prefix(l: &mut Lower, t: TNodeId, class: SymbolId) -> Option<TNodeI
 /// Prefix `p` as a tree at `at` and its `this`, if `this` of a class enclosing `class` through
 /// enclosing instances or objects selected on it.
 fn prefix_path(l: &mut Lower, p: TypeId, class: SymbolId, at: Span) -> Option<(TNodeId, TNodeId)> {
-    match *l.u.types().get(p) {
+    match *l.u.ty(p) {
         Type::This(c) => {
             let c = l.u.class_symbol(c).filter(|&c| c != class)?;
             outer_chain(l, class, c)?;
@@ -179,7 +179,7 @@ pub fn outer_chain(l: &mut Lower, class: SymbolId, target: SymbolId) -> Option<V
 fn instance_class(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
     if let Some(&(_, param)) = l.outers.get(&c) {
         let info = l.u.info(param);
-        let Type::Sym(_, outer) = *l.u.types().get(info) else { unreachable!("a class type") };
+        let Some(outer) = l.u.sym_of(info) else { unreachable!("a class type") };
         return Some(outer);
     }
     let local = l.u.symbol(c).owner.is_some_and(|o| is_term(l, o));

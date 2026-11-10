@@ -51,7 +51,7 @@ impl Gen<'_, '_> {
             let name = self.pool.top("java.lang.Object");
             return Ok(self.val(Val::ClassOf(name)));
         }
-        let class = match *self.l.u.types().get(tpe) {
+        let class = match *self.l.u.ty(tpe) {
             tasty::Type::Sym(_, s) if self.l.u.is_module(s) => self.l.u.module_class(s),
             _ => self.l.u.class_symbol(tpe),
         };

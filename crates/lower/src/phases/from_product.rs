@@ -36,12 +36,12 @@ pub fn from_product(
         implicit: false,
         contextual: false,
     });
-    let like = l.u.decl(cc.mirror_product, "fromProduct").unwrap_or_default();
+    let like = l.u.decls_named(cc.mirror_product, "fromProduct");
     let like = like.into_iter().next().expect("`Mirror.Product.fromProduct`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
     }
-    let ctor = l.u.decl(case_class, "<init>").unwrap_or_default();
+    let ctor = l.u.decls_named(case_class, "<init>");
     let ctor = ctor.into_iter().next().expect("a case class constructor");
     let (created_type, param_types) = instantiated_constructor(l, case_class, ctor);
     let flags = Flags::default().with(SYNTHETIC);
@@ -143,10 +143,9 @@ fn unrolled_getters(
     let mut getters = Vec::new();
     for n in first..accessors.len() {
         let name = format!("<init>$default${}", n + 1);
-        let getter = l.u.decl(class, &name).unwrap_or_default().into_iter().next();
+        let getter = l.u.decls_named(class, &name).into_iter().next();
         let info = getter.map(|g| l.u.info(g));
-        let plain =
-            info.is_some_and(|i| !matches!(l.u.types().get(i), Type::Poly { .. } | Type::Method { .. }));
+        let plain = info.is_some_and(|i| !matches!(l.u.ty(i), Type::Poly { .. } | Type::Method { .. }));
         let Some(g) = getter.filter(|_| plain) else {
             return unsupported(
                 Span::NONE,

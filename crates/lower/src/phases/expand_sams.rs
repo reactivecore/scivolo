@@ -81,7 +81,7 @@ fn to_partial_function(l: &mut Lower, c: &Closure) -> Result<()> {
     let param = l.tpd.sym(param).expect("a parameter's symbol");
     let pf = l.partial_functions()?;
     let info = l.u.info(c.anon);
-    let Type::Method { result, .. } = *l.u.types().get(info) else { unreachable!("a closure's method type") };
+    let Some(result) = l.u.method(info).map(|m| m.result) else { unreachable!("a closure's method type") };
     let arg = l.u.info(param);
     let parents = vec![applied(l.u, pf.abstract_class, vec![arg, result]), type_ref(l.u, pf.serializable)];
     let owner = l.u.symbol(c.anon).owner.expect("a closure's owner");
@@ -127,7 +127,7 @@ fn is_defined_at_def(
 ) -> Result<TNodeId> {
     let (sym, _) = override_sym(l, cls, pf.is_defined_at, sam);
     let info = l.u.info(sym);
-    let Type::Method { params, result, .. } = l.u.types().get(info).clone() else {
+    let Some((params, result)) = l.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
         unreachable!("a method type")
     };
     let p = param(l, sym, &params[0].0, params[0].1);
@@ -145,8 +145,8 @@ fn apply_or_else_def(
 ) -> Result<TNodeId> {
     let (sym, tsyms) = override_sym(l, cls, pf.apply_or_else, sam);
     let info = l.u.info(sym);
-    let Type::Poly { result, .. } = *l.u.types().get(info) else { unreachable!("a polymorphic method type") };
-    let Type::Method { params, result, .. } = l.u.types().get(result).clone() else {
+    let Some(result) = l.u.poly(info).map(|p| p.result) else { unreachable!("a polymorphic method type") };
+    let Some((params, result)) = l.u.method(result).map(|m| (m.params.to_vec(), m.result)) else {
         unreachable!("a method type")
     };
     let vparams: Vec<SymbolId> = params.iter().map(|(name, t)| param(l, sym, name, *t)).collect();

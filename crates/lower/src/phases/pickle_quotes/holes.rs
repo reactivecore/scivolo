@@ -47,7 +47,7 @@ pub fn extract(l: &mut Lower, body: TNodeId, owner: SymbolId) -> Result<Holes> {
         todo.extend(children(l.tpd, t).into_iter().rev());
     }
     for (t, s) in refs {
-        if !defined.contains(&s) && is_local(l, s) {
+        if !defined.contains(&s) && l.u.is_local(s) {
             return unsupported(l.tpd.span(t), "captured reference in a quote");
         }
     }
@@ -88,13 +88,6 @@ fn place_args(l: &mut Lower, args: &[TNodeId], content: TNodeId) {
             _ => l.tpd.get_mut(a).span = covered.end_pos(),
         }
     }
-}
-
-/// Whether `s` is a term or type local to a method or value, not a member.
-fn is_local(l: &Lower, s: SymbolId) -> bool {
-    let sym = l.u.symbol(s);
-    sym.kind != Kind::Package
-        && sym.owner.is_some_and(|o| !matches!(l.u.symbol(o).kind, Kind::Class | Kind::Package))
 }
 
 /// `null` without holes, else `(idx, contents, quotes) => idx match { case i => content_i(quotes) }`

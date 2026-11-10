@@ -21,7 +21,7 @@ impl Translator<'_, '_> {
     pub fn avoid_pat_bound_type(&mut self, tree: TNodeId) -> Option<TypeId> {
         let tpe = self.l.tpd.tpe(tree);
         let widened = self.l.u.widen(tpe);
-        let Type::Sym(_, s) = *self.l.u.types().get(widened) else { return None };
+        let s = self.l.u.sym_of(widened)?;
         (self.l.u.symbol(s).kind == Kind::Type && has(self.l.u, s, CASE)).then_some(tasty::ANY)
     }
 
@@ -42,7 +42,7 @@ impl Translator<'_, '_> {
     /// `widenIfUnstable`).
     pub fn sanitized(&mut self, mut t: TypeId) -> TypeId {
         loop {
-            let s = match *self.l.u.types().get(t) {
+            let s = match *self.l.u.ty(t) {
                 Type::ByName(r) => {
                     t = r;
                     continue;
@@ -54,9 +54,7 @@ impl Translator<'_, '_> {
             let unstable = match kind {
                 Kind::Val => has(self.l.u, s, MUTABLE),
                 Kind::Def => !has(self.l.u, s, STABLE),
-                Kind::Param => {
-                    has(self.l.u, s, INLINE) || matches!(self.l.u.types().get(info), Type::ByName(_))
-                }
+                Kind::Param => has(self.l.u, s, INLINE) || self.l.u.by_name(info).is_some(),
                 _ => false,
             };
             match self.l.u.widen_once(t).filter(|_| unstable) {

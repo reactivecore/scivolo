@@ -53,7 +53,7 @@ impl Gen<'_, '_> {
         let attrs = attrs.collect();
         let name = self.type_name(sym);
         let traits = self.class_interfaces(sym);
-        let kind = if crate::symbols::is_static_module(self.l.u, sym) {
+        let kind = if self.l.u.is_static_module(sym) {
             DefnKind::Module { parent: Some(self.pool.top("java.lang.Object")), traits }
         } else if self.l.u.is_trait(sym) {
             DefnKind::Trait { traits }

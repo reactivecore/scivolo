@@ -64,18 +64,18 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
         return;
     }
     if is_constant_op(l, t, inits)
-        && let Some(lit) = literal(l.u.types().get(l.tpd.tpe(t)))
+        && let Some(lit) = literal(l.u.ty(l.tpd.tpe(t)))
     {
         l.tpd.get_mut(t).tree = lit;
         l.tpd.get_mut(t).sym = None;
         return;
     }
     if is_constant_block(l, t) {
-        let tpe = match *l.u.types().get(l.tpd.tpe(t)) {
+        let tpe = match *l.u.ty(l.tpd.tpe(t)) {
             Type::Sym(_, s) if l.u.symbol(s).kind == Kind::Val => l.u.info(s),
             _ => l.tpd.tpe(t),
         };
-        if let Some(lit) = literal(l.u.types().get(tpe)) {
+        if let Some(lit) = literal(l.u.ty(tpe)) {
             let node = l.tpd.get_mut(t);
             node.tree = lit;
             return;
@@ -86,8 +86,8 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
         return;
     }
     let underlying = term_ref_underlying(l, l.tpd.tpe(t));
-    let info = if literal(l.u.types().get(underlying)).is_some() { underlying } else { l.u.info(s) };
-    let Some(lit) = literal(l.u.types().get(info)) else { return };
+    let info = if literal(l.u.ty(underlying)).is_some() { underlying } else { l.u.info(s) };
+    let Some(lit) = literal(l.u.ty(info)) else { return };
     let node = l.tpd.get_mut(t);
     node.tree = lit;
     node.tpe = Some(info);
@@ -98,7 +98,7 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
 /// from their prefixes (dotty's `widenTermRefExpr`).
 fn term_ref_underlying(l: &mut Lower, mut t: TypeId) -> TypeId {
     for _ in 0..64 {
-        let next = match *l.u.types().get(t) {
+        let next = match *l.u.ty(t) {
             Type::ByName(r) => Some(r),
             Type::TermRef(..) => l.u.widen_once(t),
             Type::Sym(_, s) if !l.u.is_type_symbol(s) => l.u.widen_once(t),
@@ -159,7 +159,7 @@ fn is_constant_block(l: &Lower, t: TNodeId) -> bool {
 
 /// Whether parameter `s` is by-name, its type known.
 pub fn is_by_name(l: &Lower, s: tasty::SymbolId) -> bool {
-    l.u.known_info(s).is_some_and(|t| matches!(l.u.types().get(t), Type::ByName(_)))
+    l.u.known_info(s).is_some_and(|t| l.u.by_name(t).is_some())
 }
 
 /// `is_pure` before `ElimByName`: a reference to a by-name parameter evaluates it.
@@ -225,6 +225,6 @@ fn constant(t: &Type) -> Option<Constant> {
 /// The constant value of constant `final` value `s`, as a literal tree at `span`.
 pub fn literal_of(l: &mut Lower, s: tasty::SymbolId, span: syntax::ast::Span) -> Option<TNodeId> {
     let info = l.u.info(s);
-    let lit = literal(l.u.types().get(info))?;
+    let lit = literal(l.u.ty(info))?;
     Some(l.tpd.node(lit, span, Some(info), None))
 }

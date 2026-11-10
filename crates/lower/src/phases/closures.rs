@@ -15,7 +15,6 @@ use super::narrowed::{enclosing_instance, home};
 use super::poly_functions::poly_function_class;
 use super::sam::{abstract_methods, adaptation_needed};
 use crate::definitions::type_ref;
-use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use tasty::{Erased, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -94,7 +93,7 @@ pub fn rewrite(
     let span = l.tpd.span(closure);
     let env: Vec<TNodeId> = f.captured.iter().map(|&s| l.ident(s, from_start(span))).collect();
     let target = plan.adapted.as_ref().unwrap_or(method).sym;
-    let local = |c: SymbolId| f.parent.is_none() && c != class && !is_static_module(l.u, c);
+    let local = |c: SymbolId| f.parent.is_none() && c != class && !l.u.is_static_module(c);
     let meth = match f.into.filter(|&c| enclosing_instance(l, class, c) || local(c)) {
         Some(c) => {
             let receiver = super::outer_fields::outer_path(l, (td, class), c, !f.ctor, from_start(span))?;

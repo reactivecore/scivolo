@@ -104,7 +104,7 @@ fn complete_value_class(l: &mut Lower, root: TNodeId, td: TNodeId, class: Symbol
     let Some(enum_class) = called_class(l, parent) else {
         return unsupported(span, "an enum value without a call of its enum's constructor");
     };
-    let ctor = l.u.decl(enum_class, "<init>").unwrap_or_default().into_iter().next();
+    let ctor = l.u.decls_named(enum_class, "<init>").into_iter().next();
     let info = ctor.map(|c| l.u.info(c));
     add_args(l, parent, &args, info);
     Ok(())
@@ -152,11 +152,9 @@ fn add_args(l: &mut Lower, call: TNodeId, args: &[TNodeId], info: Option<TypeId>
 
 /// The method type of the last clause of method type `t`.
 fn last_clause(l: &Lower, t: TypeId) -> TypeId {
-    match *l.u.types().get(t) {
+    match *l.u.ty(t) {
         Type::Poly { result, .. } => last_clause(l, result),
-        Type::Method { result, .. } if matches!(l.u.types().get(result), Type::Method { .. }) => {
-            last_clause(l, result)
-        }
+        Type::Method { result, .. } if l.u.method(result).is_some() => last_clause(l, result),
         _ => t,
     }
 }
@@ -164,13 +162,13 @@ fn last_clause(l: &Lower, t: TypeId) -> TypeId {
 /// Method or polymorphic type `t` with `_$name: String, _$ordinal: Int` added to its last
 /// clause (dotty's `addConstrParams`).
 fn with_name_and_ordinal(l: &mut Lower, t: TypeId) -> TypeId {
-    match l.u.types().get(t).clone() {
+    match l.u.ty(t).clone() {
         Type::Poly { binder, params, result } => {
             let result = with_name_and_ordinal(l, result);
             l.u.intern_type(Type::Poly { binder, params, result })
         }
         Type::Method { binder, params, result, implicit, contextual } => {
-            if matches!(l.u.types().get(result), Type::Method { .. }) {
+            if l.u.method(result).is_some() {
                 let result = with_name_and_ordinal(l, result);
                 return l.u.intern_type(Type::Method { binder, params, result, implicit, contextual });
             }

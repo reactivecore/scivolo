@@ -35,12 +35,8 @@ impl Splicer<'_> {
             }
             Tree::TypeTree { .. } if level >= 1 => {
                 let tpe = l.tpd.tpe(t);
-                let exact = match *l.u.types().get(tpe) {
-                    Type::Sym(None, s) => Some(s),
-                    _ => None,
-                };
-                match exact {
-                    Some(s) if self.defined.contains(&s) && is_abstract(l.u, s) => self.tag(l, s),
+                match l.u.sym_ref(tpe) {
+                    Some((None, s)) if self.defined.contains(&s) && is_abstract(l.u, s) => self.tag(l, s),
                     _ if refers_to(l.u, self.defined, tpe) => {
                         self.captures.untranslated.get_or_insert(t);
                     }
@@ -74,7 +70,7 @@ impl Splicer<'_> {
         let mut found = Vec::new();
         let tpe = l.tpd.tpe(q.body);
         l.u.map_type(tpe, &mut |u, x| {
-            if let Type::Sym(None, s) = *u.types().get(x)
+            if let Some((None, s)) = u.sym_ref(x)
                 && self.defined.contains(&s)
                 && is_abstract(u, s)
                 && !found.contains(&s)
@@ -116,8 +112,8 @@ impl Splicer<'_> {
 /// Whether a part of `t`, aliases followed, refers to one of the definitions `defined`.
 fn refers_to(u: &mut Universe, defined: &FxHashSet<SymbolId>, t: TypeId) -> bool {
     let mut found = false;
-    u.map_type(t, &mut |u, x| match *u.types().get(x) {
-        Type::Sym(_, s) if defined.contains(&s) => {
+    u.map_type(t, &mut |u, x| match u.sym_of(x) {
+        Some(s) if defined.contains(&s) => {
             match u.referenced_alias(x) {
                 Some(a) => found |= refers_to(u, defined, a),
                 None => found = true,

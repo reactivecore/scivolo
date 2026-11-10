@@ -117,11 +117,8 @@ fn to_raw_generic(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
     let class = type_ref(l.u, f);
     let applied = l.u.intern_type(Type::Applied(class, args.clone()));
     let Some(base) = l.u.base_type(applied, t) else { return true };
-    let Type::Applied(_, found) = l.u.types().get(base).clone() else { return true };
-    let found = found.into_iter().map(|a| match *l.u.types().get(a) {
-        Type::Annotated(a, _) => a,
-        _ => a,
-    });
+    let Some((_, found)) = l.u.applied(base) else { return true };
+    let found = found.iter().map(|&a| l.u.annotated(a).map_or(a, |(a, _)| a));
     !found.eq(args) || !fs.iter().zip(&ts).all(|(&a, &b)| weaker_bounds(l, (base, t, b), a))
 }
 
@@ -130,10 +127,7 @@ fn to_raw_generic(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
 fn weaker_bounds(l: &mut Lower, (prefix, class, p): (TypeId, SymbolId, SymbolId), q: SymbolId) -> bool {
     let bounds = |l: &mut Lower, s| {
         let info = l.u.info(s);
-        match *l.u.types().get(info) {
-            Type::Bounds(lo, hi) => (lo, hi),
-            _ => (info, info),
-        }
+        l.u.bounds(info).unwrap_or((info, info))
     };
     let (p_lo, p_hi) = bounds(l, p);
     let (p_lo, p_hi) = (l.u.as_seen_from(p_lo, prefix, class), l.u.as_seen_from(p_hi, prefix, class));

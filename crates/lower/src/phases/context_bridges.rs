@@ -124,7 +124,7 @@ pub fn overrides_alike(
     let mut related: Vec<SymbolId> = Vec::new();
     for class in classes {
         for base in l.u.linearization(class) {
-            related.extend(l.u.decl(base, &name).unwrap_or_default());
+            related.extend(l.u.decls_named(base, &name));
         }
     }
     let roots = [("java.lang", "Object"), ("scala", "Any")];
@@ -144,7 +144,7 @@ pub fn overrides_alike(
 /// Whether class `class` of package `package` declares a member `name`, or cannot be found.
 fn root_declares(l: &mut Lower, package: &str, class: &str, name: &str) -> bool {
     let Some(pkg) = l.u.package(package) else { return true };
-    let found = l.u.decl(pkg, class).unwrap_or_default();
+    let found = l.u.decls_named(pkg, class);
     let classes: Vec<SymbolId> = found.into_iter().filter(|&c| l.u.symbol(c).kind == Kind::Class).collect();
     classes.is_empty() || classes.into_iter().any(|c| l.u.decl(c, name).map_or(true, |d| !d.is_empty()))
 }
@@ -160,7 +160,7 @@ pub fn bridged(l: &mut Lower, owner: SymbolId, d: SymbolId) -> bool {
 pub fn clauses(l: &Lower, mut t: TypeId) -> Vec<Vec<(String, TypeId)>> {
     let mut out = Vec::new();
     loop {
-        match l.u.types().get(t) {
+        match l.u.ty(t) {
             Type::Poly { result, .. } => t = *result,
             Type::Method { params, result, .. } => {
                 out.push(params.clone());

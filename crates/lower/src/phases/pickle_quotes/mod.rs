@@ -149,8 +149,9 @@ fn unpickled(
     let fun = l.select(quotes, meth, Span::NONE);
     let fun = l.positioned(fun);
     let info = l.u.info(meth);
-    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else { panic!("an unpickler") };
-    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+    let Some((binder, names, result)) = l.u.poly(info).map(|p| (p.binder, p.names(), p.result)) else {
+        panic!("an unpickler")
+    };
     let instance = l.u.subst(result, binder, &names, &[t]);
     let targ = l.type_tree(t, Span::NONE);
     let fun = l.build().type_apply(fun, &[targ], instance, Span::NONE);

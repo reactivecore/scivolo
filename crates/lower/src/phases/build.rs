@@ -4,7 +4,6 @@
 
 use crate::Lower;
 use crate::definitions::type_ref;
-use crate::symbols::is_static_module;
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName};
 use tasty::{SymbolId, Type, TypeId};
@@ -36,7 +35,7 @@ impl Lower<'_> {
     /// object's, else through `this`.
     pub fn field_ref(&mut self, f: SymbolId, span: Span) -> TNodeId {
         let class = self.u.symbol(f).owner.expect("a field's class");
-        let module = is_static_module(self.u, class).then(|| self.u.source_module(class)).flatten();
+        let module = self.u.is_static_module(class).then(|| self.u.source_module(class)).flatten();
         let qual = match module {
             Some(m) => self.ident(m, span),
             None => self.this(class, span),

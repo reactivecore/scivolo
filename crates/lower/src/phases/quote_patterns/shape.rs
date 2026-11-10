@@ -121,7 +121,7 @@ fn applied_to_seq(l: &mut Lower, fun: TNodeId, args: &[TNodeId], span: Span) -> 
     let literal = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, Span::NONE, Some(tpe), None);
     let literal = l.positioned(literal);
     let method = l.u.widen(l.tpd.tpe(fun));
-    let Type::Method { result, .. } = *l.u.types().get(method) else { panic!("a hole method") };
+    let Some(result) = l.u.method(method).map(|m| m.result) else { panic!("a hole method") };
     l.apply(fun, &[literal], result, span)
 }
 
@@ -135,5 +135,5 @@ fn is_plain_splice(l: &Lower, t: TNodeId) -> bool {
 fn is_repeated(l: &mut Lower, t: TNodeId) -> bool {
     let tpe = l.u.widen(l.tpd.tpe(t));
     let class = l.u.applied(tpe).map(|(c, _)| c);
-    class.and_then(|c| l.u.class_symbol(c)).is_some_and(|c| l.u.full_name(c) == "scala.<repeated>")
+    class.is_some_and(|c| l.u.is_class_named(c, "scala.<repeated>"))
 }

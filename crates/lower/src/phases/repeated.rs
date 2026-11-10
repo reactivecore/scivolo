@@ -41,7 +41,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNodeId> {
     let Tree::Typed { expr: seq, tpt } = *l.tpd.tree(a) else { return Ok(a) };
     let ascribed = l.tpd.tpe(tpt);
-    if !is_class(l, ascribed, "scala.<repeated>") {
+    if !l.u.is_class_named(ascribed, "scala.<repeated>") {
         return Ok(a);
     }
     let span = l.tpd.span(a);
@@ -50,12 +50,12 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
     };
     let Tree::SeqLiteral { elemtpt, .. } = *l.tpd.tree(seq) else {
         let tpe = l.u.widen(l.tpd.tpe(seq));
-        let Type::Applied(_, ref elems) = *l.u.types().get(ascribed) else { return Ok(seq) };
+        let Some((_, elems)) = l.u.applied(ascribed) else { return Ok(seq) };
         let elem = elems[0];
         if java_varargs(l, method, clause, i).is_some() {
             return to_array(l, seq, elem, span);
         }
-        if is_class(l, tpe, "scala.Array") {
+        if l.u.is_class_named(tpe, "scala.Array") {
             let wrapped = wrap_array(l, seq, elem, ascribed, Span::NONE)?;
             return Ok(l.positioned(wrapped));
         }
@@ -80,14 +80,14 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
 fn to_array(l: &mut Lower, seq: TNodeId, elem: TypeId, span: Span) -> Result<TNodeId> {
     let array = array_of(l, elem);
     let tpe = l.u.widen(l.tpd.tpe(seq));
-    let adapted = if is_class(l, tpe, "scala.Array") {
+    let adapted = if l.u.is_class_named(tpe, "scala.Array") {
         seq
     } else {
         let runtime = l.u.package("scala.runtime").expect("package scala.runtime");
-        let module = l.u.decl(runtime, "Arrays").unwrap_or_default();
+        let module = l.u.decls_named(runtime, "Arrays");
         let module = module.into_iter().find(|&m| l.u.is_module(m));
         let class = module.and_then(|m| l.u.module_class(m));
-        let method = class.and_then(|c| l.u.decl(c, "seqToArray").unwrap_or_default().first().copied());
+        let method = class.and_then(|c| l.u.decls_named(c, "seqToArray").first().copied());
         let (Some(module), Some(method)) = (module, method) else {
             return unsupported(span, "scala.runtime.Arrays.seqToArray missing from the library");
         };
@@ -127,7 +127,7 @@ fn java_varargs(l: &mut Lower, method: SymbolId, clause: usize, i: usize) -> Opt
     let mut t = l.u.info(method);
     let mut clauses = 0;
     loop {
-        match l.u.types().get(t).clone() {
+        match l.u.ty(t).clone() {
             Type::Poly { result, .. } => t = result,
             Type::Method { result, .. } if clauses < clause => (t, clauses) = (result, clauses + 1),
             Type::Method { params, .. } => return java_array(l, params.get(i)?.1),
@@ -138,13 +138,8 @@ fn java_varargs(l: &mut Lower, method: SymbolId, clause: usize, i: usize) -> Opt
 
 /// The array of parameter type `p` if it is Java varargs, an array marked repeated.
 pub fn java_array(l: &mut Lower, p: TypeId) -> Option<TypeId> {
-    let Type::Annotated(inner, annot) = l.u.types().get(p).clone() else { return None };
-    let array =
-        matches!(l.u.types().get(inner).clone(), Type::Applied(c, _) if is_class(l, c, "scala.Array"));
-    let repeated = is_class(l, annot, "scala.annotation.internal.Repeated");
+    let (inner, annot) = l.u.annotated(p)?;
+    let array = l.u.applied(inner).map(|(c, _)| c).is_some_and(|c| l.u.is_class_named(c, "scala.Array"));
+    let repeated = l.u.is_class_named(annot, "scala.annotation.internal.Repeated");
     (array && repeated).then_some(inner)
-}
-
-pub fn is_class(l: &mut Lower, t: TypeId, full: &str) -> bool {
-    l.u.class_symbol(t).is_some_and(|c| l.u.full_name(c) == full)
 }

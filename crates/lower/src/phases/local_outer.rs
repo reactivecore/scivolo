@@ -10,7 +10,7 @@ use super::local_free::{enclosing_class, is_term};
 use super::outer_traits::{is_pure_interface, outer_class};
 use super::references_outer::references_outer;
 use crate::Lower;
-use crate::symbols::{has, is_static_owner};
+use crate::symbols::has;
 use tasty::tags::LAZY;
 use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
@@ -42,7 +42,7 @@ pub fn needs_outer_if_referenced(l: &Lower, c: SymbolId) -> bool {
     if l.u.symbol(owner).kind == Kind::Def && l.u.symbol(owner).name.contains("$superArg$") {
         owner = enclosing_class(l, owner);
     }
-    !(l.u.is_trait(c) && is_pure_interface(l.u, c) || is_static_owner(l.u, owner))
+    !(l.u.is_trait(c) && is_pure_interface(l.u, c) || l.u.is_static_owner(owner))
 }
 
 /// Whether local class `class` is anonymous.

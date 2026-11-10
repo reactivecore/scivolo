@@ -41,7 +41,7 @@ fn reduce(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<Option<TNodeId>>
     let Some(name) = l.tpd.sym(fun).map(|s| l.u.symbol(s).name.clone()) else { return Ok(None) };
     let tpe = l.tpd.tpe(t);
     if !matches!(name.as_str(), "unapply" | "unapplySeq")
-        || matches!(l.u.types().get(tpe), Type::Method { .. } | Type::Poly { .. })
+        || matches!(l.u.ty(tpe), Type::Method { .. } | Type::Poly { .. })
     {
         return Ok(None);
     }

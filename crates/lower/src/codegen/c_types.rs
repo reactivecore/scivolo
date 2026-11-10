@@ -18,7 +18,7 @@ impl Gen<'_, '_> {
         for _ in 0..64 {
             let w = self.l.u.widen(t);
             let mut d = self.l.u.dealias(w);
-            if let tasty::Type::Sym(_, s) = *self.l.u.types().get(d)
+            if let Some(s) = self.l.u.sym_of(d)
                 && let Some(alias) = self.l.u.opaque_alias(s)
             {
                 d = alias;
@@ -34,9 +34,7 @@ impl Gen<'_, '_> {
     /// The class of type `t` after dealiasing, none for an abstract type or a type parameter.
     pub fn layout_class(&mut self, t: tasty::TypeId) -> Option<SymbolId> {
         let t = self.widen_dealias(t);
-        if let tasty::Type::Sym(_, s) = *self.l.u.types().get(t)
-            && !self.l.u.is_class(s)
-        {
+        if self.l.u.sym_of(t).is_some_and(|s| !self.l.u.is_class(s)) {
             return None;
         }
         self.l.u.class_symbol(t)
@@ -48,10 +46,7 @@ impl Gen<'_, '_> {
         let Some(class) = self.layout_class(t) else {
             return Ok(self.class_type("java.lang.Object", false));
         };
-        let args = match self.l.u.types().get(t) {
-            tasty::Type::Applied(_, args) => args.clone(),
-            _ => Vec::new(),
-        };
+        let args = self.l.u.applied(t).map(|(_, a)| a.to_vec()).unwrap_or_default();
         let name = self.l.u.full_name(class);
         let binary = self.l.u.binary_name(class);
         if let Some(t) = self.struct_type(&binary) {

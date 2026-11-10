@@ -64,18 +64,18 @@ impl Translator<'_, '_> {
         let int = self.l.u.class_ref("scala.Int");
         let int = self.l.u.class_symbol(int);
         for base in self.l.u.linearization(class) {
-            for m in self.l.u.decl(base, name).unwrap_or_default() {
+            for m in self.l.u.decls_named(base, name) {
                 if self.l.u.symbol(m).kind != Kind::Def {
                     continue;
                 }
                 let info = self.l.u.member_info(tpe, m);
-                let (params, result) = match self.l.u.types().get(info).clone() {
+                let (params, result) = match self.l.u.ty(info).clone() {
                     Type::Method { params, result, .. } => (Some(params), result),
                     Type::Poly { .. } => continue,
                     Type::ByName(result) => (None, result),
                     _ => (None, info),
                 };
-                if matches!(self.l.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+                if matches!(self.l.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
                     continue;
                 }
                 let shape = match name {

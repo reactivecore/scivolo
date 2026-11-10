@@ -199,7 +199,7 @@ fn matching_decls(l: &mut Lower, base: SymbolId, meth: SymbolId, site: TypeId) -
     let name = l.u.symbol(meth).name.clone();
     let signature = l.u.erased_method(meth);
     let Lower { u, bridges, .. } = l;
-    let mut decls = u.decl(base, &name).unwrap_or_default();
+    let mut decls = u.decls_named(base, &name);
     decls.retain(|&other| {
         matches!(u.symbol(other).kind, Kind::Def | Kind::Val)
             && !has(u, other, PRIVATE)
@@ -280,7 +280,7 @@ pub fn java_named(l: &mut Lower, member: SymbolId, info: TypeId) -> TypeId {
 /// Method type `info` of a JDK method with its parameters named as dotty names those of Java
 /// class files: `x$0`, `x$1`, ...
 pub fn with_java_param_names(l: &mut Lower, info: TypeId) -> TypeId {
-    match l.u.types().get(info).clone() {
+    match l.u.ty(info).clone() {
         Type::Method { binder, params, result, implicit, contextual } => {
             let params = params.into_iter().enumerate().map(|(i, (_, t))| (format!("x${i}"), t)).collect();
             l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })

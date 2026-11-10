@@ -7,12 +7,12 @@ use super::local_free::is_local;
 use super::outer_traits::outer_class;
 use crate::Lower;
 use crate::symbols::is_static;
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 /// Why a type test against `target` cannot be lowered: an object of a class, or in a match a
 /// class that may test its enclosing instance.
 pub fn unsupported_test(l: &mut Lower, target: TypeId, in_match: bool) -> Option<&'static str> {
-    if let Type::Sym(_, s) = *l.u.types().get(target)
+    if let Some(s) = l.u.sym_of(target)
         && l.u.is_module(s)
         && !is_static(l.u, s)
     {
@@ -39,11 +39,8 @@ pub enum OuterTest {
 /// no enclosing instance or `p` is neither a singleton nor a class type.
 pub fn outer_test(l: &mut Lower, target: TypeId) -> Option<OuterTest> {
     let target = l.u.dealias(target);
-    let target = match *l.u.types().get(target) {
-        Type::Applied(tycon, _) => tycon,
-        _ => target,
-    };
-    let Type::Sym(Some(pre), c) = *l.u.types().get(target) else { return None };
+    let target = l.u.applied(target).map_or(target, |(tycon, _)| tycon);
+    let Some((Some(pre), c)) = l.u.sym_ref(target) else { return None };
     if !l.u.is_class(c) || outer_class(l, c).is_none() {
         return None;
     }

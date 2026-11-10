@@ -5,7 +5,7 @@
 //! none for a class parameter only the constructor uses (assignments: `setter_calls.rs`).
 
 use crate::definitions::symbol;
-use crate::symbols::{has, is_static_module};
+use crate::symbols::has;
 use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
@@ -35,7 +35,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         let in_trait = owner.is_some_and(|o| l.u.is_trait(o));
         let in_value_class = owner.is_some_and(|o| l.u.underlying(o).is_some());
         if l.u.is_module(sym) {
-            if owner.is_some_and(|o| is_static_module(l.u, o)) {
+            if owner.is_some_and(|o| l.u.is_static_module(o)) {
                 kept.pop();
                 continue;
             }
@@ -91,7 +91,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs };
         let setter_name = format!("{}_=", l.u.symbol(sym).name);
         let class = owner.expect("a value's class");
-        if has(l.u, sym, MUTABLE) && l.u.decl(class, &setter_name).unwrap_or_default().is_empty() {
+        if has(l.u, sym, MUTABLE) && l.u.decls_named(class, &setter_name).is_empty() {
             let at = Span::at(l.tpd.span(td).point());
             kept.push(param_setter(l, class, sym, &setter_name, at));
         }
@@ -151,14 +151,14 @@ pub fn is_const_final(l: &mut Lower, s: SymbolId) -> bool {
         return false;
     }
     let info = l.u.info(s);
-    matches!(l.u.types().get(info), Type::Constant(..) | Type::Str(_))
+    matches!(l.u.ty(info), Type::Constant(..) | Type::Str(_))
 }
 
 /// Whether `setter` of trait `mixin` is a variable's whose getter `class` does not get from
 /// `mixin`, an abstract variable's.
 pub fn is_abstract_var_setter(l: &mut Lower, class: SymbolId, mixin: SymbolId, setter: SymbolId) -> bool {
     let name = l.u.symbol(setter).name.clone();
-    let getters = l.u.decl(mixin, name.strip_suffix("_=").unwrap_or(&name)).unwrap_or_default();
+    let getters = l.u.decls_named(mixin, name.strip_suffix("_=").unwrap_or(&name));
     let var = getters.into_iter().find(|&g| has(l.u, g, MUTABLE) && !is_setter(l, g));
     var.is_some_and(|g| !super::trait_fields::implemented_by(l, class, g))
 }

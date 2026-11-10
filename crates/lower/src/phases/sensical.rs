@@ -45,7 +45,7 @@ fn checkable(l: &mut Lower, found: SymbolId, test: SymbolId) -> bool {
 fn found_classes(l: &mut Lower, tpe: TypeId) -> Vec<SymbolId> {
     let tpe = l.u.widen(tpe);
     let tpe = l.u.dealias(tpe);
-    match *l.u.types().get(tpe) {
+    match *l.u.ty(tpe) {
         Type::Or(a, b, _) => {
             let mut out = found_classes(l, a);
             out.extend(found_classes(l, b));

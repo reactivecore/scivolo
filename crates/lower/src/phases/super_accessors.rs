@@ -133,7 +133,7 @@ fn post_typer_order(l: &Lower, td: TNodeId) -> Vec<TNodeId> {
 /// Whether `clazz` declares a member of the name of `sym` that is `abstract override`.
 fn is_abstract_override(l: &mut Lower, clazz: SymbolId, sym: SymbolId) -> bool {
     let name = l.u.symbol(sym).name.clone();
-    let decls = l.u.decl(clazz, &name).unwrap_or_default();
+    let decls = l.u.decls_named(clazz, &name);
     decls.into_iter().any(|m| has(l.u, m, ABSTRACT) && has(l.u, m, OVERRIDE))
 }
 
@@ -178,7 +178,7 @@ fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>)
     };
     let name = accessor_name(l, &l.u.symbol(s.member).name);
     let target = l.u.symbol(s.member).target.clone().map(|t| accessor_name(l, &t));
-    let declared = l.u.decl(s.clazz, &name).unwrap_or_default();
+    let declared = l.u.decls_named(s.clazz, &name);
     if let Some(acc) =
         declared.into_iter().find(|a| l.super_accessors.get(a).is_some_and(|&(m, _)| m == s.member))
     {
@@ -215,10 +215,7 @@ fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>)
 fn deferred_def(l: &mut Lower, acc: SymbolId, info: TypeId, span: Span) -> TNodeId {
     let (tparams, mono) = type_params(l, acc, info);
     let tdefs: Vec<TNodeId> = tparams.iter().map(|&t| l.type_param_def(t, span)).collect();
-    let (params, result) = match l.u.types().get(mono).clone() {
-        Type::Method { params, result, .. } => (Some(params), result),
-        _ => (None, mono),
-    };
+    let (params, result) = l.u.method(mono).map_or((None, mono), |m| (Some(m.params.to_vec()), m.result));
     let mut defs = Vec::new();
     for (pname, ptype) in params.iter().flatten() {
         let p = l.u.define(symbol(pname, Kind::Param, acc, Flags::default()));
@@ -236,14 +233,15 @@ fn deferred_def(l: &mut Lower, acc: SymbolId, info: TypeId, span: Span) -> TNode
 /// New type parameters of method `acc` for those of its type `info`, and the result of `info`
 /// referring to them.
 pub fn type_params(l: &mut Lower, acc: SymbolId, info: TypeId) -> (Vec<SymbolId>, TypeId) {
-    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
+    let Some((binder, names, bounds, result)) =
+        l.u.poly(info).map(|p| (p.binder, p.names(), p.param_types(), p.result))
+    else {
         return (Vec::new(), info);
     };
-    let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
     let tparams: Vec<SymbolId> =
         names.iter().map(|n| l.u.define(symbol(n, Kind::TypeParam, acc, Flags::default()))).collect();
     let args: Vec<TypeId> = tparams.iter().map(|&t| l.u.intern_type(Type::Sym(None, t))).collect();
-    for (&t, (_, bounds)) in tparams.iter().zip(params) {
+    for (&t, bounds) in tparams.iter().zip(bounds) {
         let bounds = l.u.subst(bounds, binder, &names, &args);
         l.u.set_info(t, bounds);
     }
