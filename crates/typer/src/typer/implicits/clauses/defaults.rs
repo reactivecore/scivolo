@@ -32,7 +32,7 @@ impl ImplicitClause {
     pub fn defaultable(&self, t: &mut Typer<'_>, n: usize, formal: TypeId) -> bool {
         let Some(m) = self.meth else { return false };
         let dealiased = t.u.dealias(formal);
-        let class = t.direct_class(dealiased);
+        let class = t.types().direct_class(dealiased);
         let synthesized = class.is_some_and(|c| SYNTHESIZED.contains(&t.u.full_name(c).as_str()));
         class.is_some()
             && !synthesized

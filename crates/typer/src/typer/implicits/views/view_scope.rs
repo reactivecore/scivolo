@@ -3,36 +3,35 @@
 //! Where a view search looks, and the types it does not convert from or to.
 
 use super::super::super::Typer;
-use super::super::candidates::Candidate;
-use super::Goal;
+use super::super::super::type_ops::TypeOps;
+use super::super::scope::ImplicitScope;
+use super::{Goal, ViewSearch};
 use tasty::{Kind, Type, TypeId};
 
-impl Typer<'_> {
-    /// The implicit scope of a view of `from` to `goal`, and the containers of extension methods
-    /// in that of `from`.
-    pub fn view_scope(
-        &mut self,
-        from: TypeId,
-        goal: Goal,
-    ) -> Result<(Vec<Candidate>, Vec<Candidate>), &'static str> {
-        let super::super::scope::ImplicitScope { implicits: mut scope, containers } =
-            super::super::scope::ImplicitScope::of(self, from)?;
-        if let Goal::Conform(pt) = goal {
-            scope.extend(self.implicit_scope(pt)?);
+impl ViewSearch<'_> {
+    /// Collects the implicit scope of a view of `from` to the goal, with the containers of
+    /// extension methods in that of `from`; fails when the scope holds an extension method of the
+    /// selected name itself.
+    pub fn scope(&self, t: &mut Typer<'_>, from: TypeId) -> Result<ImplicitScope, &'static str> {
+        let mut scope = ImplicitScope::of(t, from)?;
+        if let Goal::Conform(pt) = self.goal {
+            scope.implicits.extend(t.implicit_scope(pt)?);
         }
-        if let Some(name) = goal.member()
-            && scope.iter().any(|c| {
-                let s = self.u.symbol(c.sym);
-                s.name == name && s.flags.has(tasty::tags::EXTENSION)
+        if let Some(name) = self.goal.member()
+            && scope.implicits.iter().any(|c| {
+                let s = t.u.symbol(c.sym);
+                s.name == name && s.is_extension()
             })
         {
             return Err("extension method in the implicit scope");
         }
-        Ok((scope, containers))
+        Ok(scope)
     }
+}
 
-    /// Whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, no conversion's target;
-    /// not an abstract type bounded by one of them (dotty's `isRef`).
+impl TypeOps<'_> {
+    /// Tells whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, which no
+    /// conversion targets; not an abstract type bounded by one of them (dotty's `isRef`).
     pub fn is_top_like(&mut self, pt: TypeId) -> bool {
         let pt = self.zonk(pt);
         let pt = self.u.dealias(pt);
@@ -52,7 +51,8 @@ impl Typer<'_> {
         })
     }
 
-    /// Whether `from` is `Null` or `Nothing`, which no conversion takes (`isUnderSpecifiedArgument`).
+    /// Tells whether `from` is `Null` or `Nothing`, which no conversion takes
+    /// (`isUnderSpecifiedArgument`).
     pub fn is_underspecified_arg(&mut self, from: TypeId) -> bool {
         let widened = self.u.widen(from);
         let b = self.u.builtins();

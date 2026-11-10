@@ -6,55 +6,38 @@
 
 use super::super::super::{Pt, Typer};
 use super::super::candidates::Candidate;
-use super::Goal;
+use super::qualifier::is_plain_arg;
+use super::{Goal, ViewSearch};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::{Type, TypeId};
 
-impl<'a> Goal<'a> {
-    /// The goal of a conversion of the qualifier of a selection of `name` with expected type `pt`.
-    pub fn of_select(name: &'a str, pt: Pt) -> Goal<'a> {
-        match pt {
-            Pt::Fun(proto) => Goal::Call(name, proto),
-            Pt::Type(t) => Goal::Typed(name, t),
-            _ => Goal::Member(name),
-        }
-    }
-
-    /// The member the converted tree must have.
-    pub fn member(self) -> Option<&'a str> {
-        match self {
-            Goal::Member(name) | Goal::Call(name, _) | Goal::Typed(name, _) => Some(name),
-            Goal::Conform(_) => None,
-        }
-    }
-}
-
-impl Typer<'_> {
-    /// The conversions of ambiguous `found` whose result's member `name` applies to the
-    /// arguments of `proto` and fits its expected result (dotty's `deepenProto` after an
-    /// ambiguous search); `found` if the arguments are not literals or paths, or that is unknown
-    /// for a conversion.
+impl ViewSearch<'_> {
+    /// Narrows ambiguous conversions `found` to those whose result's member `name` applies to the
+    /// arguments of call `proto` and fits its expected result, as for `x.plus(1)` when two
+    /// conversions give a `plus` (dotty's `deepenProto` after an ambiguous search); keeps `found`
+    /// when the arguments are not literals or paths, or when that is unknown for a conversion.
     pub fn applying(
-        &mut self,
+        &self,
+        t: &mut Typer<'_>,
         found: Vec<Candidate>,
-        tree: TNodeId,
-        (name, proto): (&str, usize),
-        ctx: Ctx,
+        name: &str,
+        proto: usize,
     ) -> Vec<Candidate> {
-        let Some(args) = self.plain_arg_types(proto) else { return found };
-        let result = match self.protos[proto].pt {
-            Pt::Type(t) => Some(t),
+        let Some(args) = plain_arg_types(t, proto) else { return found };
+        let result = match t.protos[proto].pt {
+            Pt::Type(pt) => Some(pt),
             _ => None,
         };
-        let reported = self.diags.items.len();
+        let member = ViewSearch::new(self.tree, Goal::Member(name), self.ctx);
+        let reported = t.diags.items.len();
         let mut applying = Vec::new();
         for &c in &found {
-            let (fits, clean, _) = self.speculatively(|t| {
-                let q = t.try_conversion(c, (tree, false), Goal::Member(name), ctx).ok()?;
-                t.member_fits(q, name, &args, result, ctx)
+            let (fits, clean, _) = t.speculatively(|t| {
+                let q = member.try_conversion(t, c, false).ok()?;
+                member_fits(t, q, name, &args, result, self.ctx)
             });
-            self.retract_diags(reported);
+            t.retract_diags(reported);
             match fits {
                 None => return found,
                 Some(true) if clean => applying.push(c),
@@ -63,66 +46,66 @@ impl Typer<'_> {
         }
         applying
     }
+}
 
-    /// The types of the arguments of `proto` if all are literals or paths and none is a method,
-    /// typed speculatively without diagnostics.
-    fn plain_arg_types(&mut self, proto: usize) -> Option<Vec<TypeId>> {
-        let (args, arg_ctx) = (self.protos[proto].args.clone(), self.protos[proto].ctx);
-        if self.protos[proto].typed.is_some() || !args.iter().all(|&a| self.is_plain_arg(a)) {
-            return None;
-        }
-        let reported = self.diags.items.len();
-        let (types, _, _) = self.speculatively(|t| {
-            let mut types = Vec::new();
-            for &a in &args {
-                let typed = t.typed(a, Pt::Any, arg_ctx);
-                let tpe = t.zonk(t.tpd.tpe(typed));
-                let info = t.method_info(tpe).unwrap_or(tpe);
-                if matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
-                    return None;
-                }
-                types.push(tpe);
-            }
-            Some(types)
-        });
-        let diagnosed = self.diags.items.len() > reported;
-        self.retract_diags(reported);
-        types.filter(|_| !diagnosed)
+/// The types of the arguments of `proto` if all are literals or paths and none is a method,
+/// typed speculatively without diagnostics.
+fn plain_arg_types(t: &mut Typer<'_>, proto: usize) -> Option<Vec<TypeId>> {
+    let (args, arg_ctx) = (t.protos[proto].args.clone(), t.protos[proto].ctx);
+    if t.protos[proto].typed.is_some() || !args.iter().all(|&a| is_plain_arg(t.ast, a)) {
+        return None;
     }
-
-    /// Whether a member `name` of `q` applies to arguments of types `args`, its result
-    /// conforming to `pt` if it is a method of one clause; `None` if that is unknown.
-    fn member_fits(
-        &mut self,
-        q: TNodeId,
-        name: &str,
-        args: &[TypeId],
-        pt: Option<TypeId>,
-        ctx: Ctx,
-    ) -> Option<bool> {
-        let tpe = self.tpd.tpe(q);
-        let mut known = true;
-        for m in self.type_members(tpe, name) {
-            match self.applicable(m, Some(tpe), args, true, ctx) {
-                Some(true) => {}
-                Some(false) => continue,
-                None => {
-                    known = false;
-                    continue;
-                }
+    let reported = t.diags.items.len();
+    let (types, _, _) = t.speculatively(|t| {
+        let mut types = Vec::new();
+        for &a in &args {
+            let typed = t.typed(a, Pt::Any, arg_ctx);
+            let tpe = t.zonk(t.tpd.tpe(typed));
+            let info = t.method_info(tpe).unwrap_or(tpe);
+            if matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
+                return None;
             }
-            let t = self.ref_type(Some(tpe), m);
-            let info = self.method_info(t).unwrap_or(t);
-            let Some(pt) = pt else { return Some(true) };
-            match self.u.types().get(info).clone() {
-                Type::Method { result, .. } if !matches!(self.u.types().get(result), Type::Method { .. }) => {
-                    if self.conforms(result, pt) {
-                        return Some(true);
-                    }
-                }
-                _ => return Some(true),
+            types.push(tpe);
+        }
+        Some(types)
+    });
+    let diagnosed = t.diags.items.len() > reported;
+    t.retract_diags(reported);
+    types.filter(|_| !diagnosed)
+}
+
+/// Tells whether a member `name` of `q` applies to arguments of types `args`, its result
+/// conforming to `pt` if it is a method of one clause; `None` if that is unknown.
+fn member_fits(
+    t: &mut Typer<'_>,
+    q: TNodeId,
+    name: &str,
+    args: &[TypeId],
+    pt: Option<TypeId>,
+    ctx: Ctx,
+) -> Option<bool> {
+    let tpe = t.tpd.tpe(q);
+    let mut known = true;
+    for m in t.type_members(tpe, name) {
+        match t.applicable(m, Some(tpe), args, true, ctx) {
+            Some(true) => {}
+            Some(false) => continue,
+            None => {
+                known = false;
+                continue;
             }
         }
-        known.then_some(false)
+        let r = t.ref_type(Some(tpe), m);
+        let info = t.method_info(r).unwrap_or(r);
+        let Some(pt) = pt else { return Some(true) };
+        match t.u.types().get(info).clone() {
+            Type::Method { result, .. } if !matches!(t.u.types().get(result), Type::Method { .. }) => {
+                if t.conforms(result, pt) {
+                    return Some(true);
+                }
+            }
+            _ => return Some(true),
+        }
     }
+    known.then_some(false)
 }

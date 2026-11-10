@@ -101,7 +101,7 @@ impl Typer<'_> {
         let t = self.zonk(qual_tpe);
         let site = self.u.widen(t);
         let dealiased = self.u.dealias(site);
-        let class = self.direct_class(dealiased)?;
+        let class = self.types().direct_class(dealiased)?;
         if self.is_named_package_object(class) {
             return None;
         }

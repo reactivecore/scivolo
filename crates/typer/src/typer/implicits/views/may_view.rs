@@ -1,25 +1,28 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! Whether an implicit definition may convert a class to a type with a given member or to a given
-//! type, or offer an extension method of that name (dotty's `candidateKind` for a view prototype).
+//! type, or offer an extension method of that name (dotty's `candidateKind` for a view prototype),
+//! decided without searching.
 
 use super::super::super::Typer;
 use super::super::super::did_you_mean::{KNOWN_JAVA, OBJECT_MEMBERS, is_jdk};
 use super::super::super::java_members::java_members;
+use super::super::super::type_ops::TypeOps;
 use super::super::super::widening::{is_numeric, widens};
 use super::Goal;
-use tasty::tags::{EXTENSION, GIVEN, IMPLICIT};
+use super::view_kinds::is_view_type;
 use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Whether member `m` of an object is an extension method named as `goal`'s member, or an
-    /// implicit that may convert class `q` to fit `goal` or offer such an extension method.
+    /// Tells whether member `m` of an object is an extension method named as `goal`'s member, or
+    /// an implicit that may convert class `q` to fit `goal` or offer such an extension method, as
+    /// `implicit def toRich(i: Int): RichInt` for `1.max` on `Int`.
     pub fn may_view(&mut self, m: SymbolId, q: SymbolId, goal: Goal) -> bool {
         let sym = self.u.symbol(m);
-        if sym.flags.has(EXTENSION) {
+        if sym.is_extension() {
             return goal.member().is_some_and(|name| sym.name == name);
         }
-        if !(sym.flags.has(IMPLICIT) || sym.flags.has(GIVEN)) || !matches!(sym.kind, Kind::Val | Kind::Def) {
+        if !sym.is_implicit() || !matches!(sym.kind, Kind::Val | Kind::Def) {
             return false;
         }
         self.complete(m);
@@ -30,13 +33,14 @@ impl Typer<'_> {
         let info = self.u.strip_poly(info);
         if let Some(Binding { params, result, implicit: false, .. }) = self.u.method(info) {
             let [(_, param)] = *params else { return false };
-            let result = self.strip_implicit(result);
-            return self.may_accept(param, q, matches!(goal, Goal::Conform(_)))
+            let mut ty = self.types();
+            let result = ty.strip_implicit(result);
+            return ty.may_accept(param, q, matches!(goal, Goal::Conform(_)))
                 && match goal {
                     Goal::Member(name) | Goal::Call(name, _) | Goal::Typed(name, _) => {
-                        self.may_have(result, param, name)
+                        ty.may_have(result, param, name)
                     }
-                    Goal::Conform(to) => self.may_conform(result, param, to),
+                    Goal::Conform(to) => ty.may_conform(result, param, to),
                 };
         }
         let value = self.strip_implicit(info);
@@ -47,18 +51,34 @@ impl Typer<'_> {
         }
         let Some(c) = self.u.class_symbol(value) else { return true };
         if let Some(name) = goal.member()
-            && self.class_members(c, name).iter().any(|&e| self.u.symbol(e).flags.has(EXTENSION))
+            && self.class_members(c, name).iter().any(|&e| self.u.symbol(e).is_extension())
         {
             return true;
         }
-        let is_view = self.is_view_type(value);
+        let is_view = is_view_type(self, value);
         let identity = matches!(self.u.types().get(value), Type::Applied(_, args) if args.len() == 2 && args[0] == args[1]);
         is_view && !(identity && ["scala.<:<", "scala.=:="].contains(&&*self.u.full_name(c)))
     }
+}
 
-    /// Whether class `q`, whose base classes the universe knows, may conform or widen numerically
-    /// (only to a wider class if `widening`) to view parameter type `param`; not to a class of a
-    /// package the universe lacks.
+impl TypeOps<'_> {
+    /// Finds the class `t` refers to, applied or not; `None` for other types.
+    pub fn direct_class(&mut self, t: TypeId) -> Option<SymbolId> {
+        let tycon = match self.u.types().get(t) {
+            Type::Applied(tycon, _) => *tycon,
+            _ => t,
+        };
+        let c = match self.u.types().get(tycon).clone() {
+            Type::Sym(_, c) => c,
+            Type::TypeRef(p, n) => self.u.resolve(p, &n, true)?,
+            _ => return None,
+        };
+        (self.u.symbol(c).kind == Kind::Class).then_some(c)
+    }
+
+    /// Whether class `q`, whose base classes the universe knows, may conform or widen
+    /// numerically (only to a wider class if `widening`) to view parameter type `param`; not to a
+    /// class of a package the universe lacks.
     fn may_accept(&mut self, param: TypeId, q: SymbolId, widening: bool) -> bool {
         let param = self.u.widen(param);
         let param = self.u.dealias(param);
@@ -145,19 +165,5 @@ impl Typer<'_> {
             Type::PackageName(p) => Some(format!("{p}.{name}")),
             _ => None,
         }
-    }
-
-    /// The class `t` refers to, applied or not; `None` for other types.
-    pub fn direct_class(&mut self, t: TypeId) -> Option<SymbolId> {
-        let tycon = match self.u.types().get(t) {
-            Type::Applied(tycon, _) => *tycon,
-            _ => t,
-        };
-        let c = match self.u.types().get(tycon).clone() {
-            Type::Sym(_, c) => c,
-            Type::TypeRef(p, n) => self.u.resolve(p, &n, true)?,
-            _ => return None,
-        };
-        (self.u.symbol(c).kind == Kind::Class).then_some(c)
     }
 }

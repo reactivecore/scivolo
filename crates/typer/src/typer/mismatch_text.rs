@@ -111,7 +111,7 @@ impl Typer<'_> {
     /// `C.this` for the `this` of class reference `class`, a named class that is not an object and
     /// has no type parameters.
     fn this_path(&mut self, class: TypeId) -> Option<String> {
-        let c = self.direct_class(class)?;
+        let c = self.types().direct_class(class)?;
         let name = self.u.symbol(c).name.clone();
         if self.u.symbol(c).flags.has(OBJECT) || !self.u.type_params(c).is_empty() || name.contains('$') {
             return None;

@@ -64,7 +64,7 @@ fn surely_unsupplied(t: &mut Typer<'_>, formal: TypeId) -> bool {
     if matches!(t.u.types().get(formal), Type::ByName(_)) || !t.types().is_fully_defined(formal) {
         return false;
     }
-    let Some(c) = t.direct_class(formal) else { return false };
+    let Some(c) = t.types().direct_class(formal) else { return false };
     let unit_class = t.syms.flags.contains_key(&c) && !t.u.is_module_class(c);
     let special = |ast: &Ast, n: NodeId| match *ast.tree(n) {
         Tree::Template { derived: Some(_), .. } => true,
