@@ -32,7 +32,7 @@ impl Universe {
         let mut t = self.widen(prefix);
         let mut recs = Vec::new();
         for _ in 0..MAX_STEPS {
-            match self.ty(t).clone() {
+            match *self.ty(t) {
                 Type::Refined(_, n, info)
                     if n == name && matches!(self.ty(info), Type::Alias(_) | Type::Bounds(..)) =>
                 {
@@ -46,8 +46,8 @@ impl Universe {
                 Type::And(a, b) => {
                     let (a, b) = (self.refinement_named(a, name), self.refinement_named(b, name));
                     let (Some(a), Some(b)) = (a, b) else { return a.or(b) };
-                    return match (self.ty(a), self.ty(b)) {
-                        (&Type::Bounds(lx, hx), &Type::Bounds(ly, hy)) => {
+                    return match (*self.ty(a), *self.ty(b)) {
+                        (Type::Bounds(lx, hx), Type::Bounds(ly, hy)) => {
                             let (lo, hi) = (self.lub(lx, ly), self.glb(hx, hy));
                             Some(self.intern_type(Type::Bounds(lo, hi)))
                         }
@@ -142,7 +142,7 @@ impl Universe {
         let mut t = self.widen(prefix);
         let mut recs = Vec::new();
         for _ in 0..MAX_STEPS {
-            match self.ty(t).clone() {
+            match *self.ty(t) {
                 Type::Refined(_, n, info)
                     if n == name && !matches!(self.ty(info), Type::Alias(_) | Type::Bounds(..)) =>
                 {

@@ -15,7 +15,8 @@ impl TreePickler<'_> {
     }
 
     pub fn new_type(&mut self, t: TypeId, rich: bool, at: Addr) -> Result<(), Refusal> {
-        match self.u.ty(t).clone() {
+        let ty = *self.u.ty(t);
+        match ty {
             Type::Applied(tycon, args) => {
                 let args = self.u.types_of(args).to_vec();
                 self.with_length(APPLIEDtype, &mut |p| {
@@ -175,7 +176,7 @@ impl TreePickler<'_> {
 
     /// Constant type `t` (dotty's `pickleConstant`).
     pub fn constant(&mut self, t: TypeId) -> Result<(), Refusal> {
-        let (tag, bits) = match self.u.ty(t).clone() {
+        let (tag, bits) = match *self.u.ty(t) {
             Type::Constant(tag, bits) => (tag, bits),
             Type::Str(s) => {
                 self.byte(STRINGconst);

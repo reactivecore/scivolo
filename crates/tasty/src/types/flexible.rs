@@ -15,7 +15,8 @@ impl Universe {
     /// `t?`, `t` itself if it is flexible or a union with `Null`, bounds made flexible
     /// (dotty's `FlexibleType.make`).
     pub fn flexible(&mut self, t: TypeId) -> TypeId {
-        match self.ty(t).clone() {
+        let ty = *self.ty(t);
+        match ty {
             Type::Flexible(_) => t,
             Type::Or(_, b, _) if self.is_null_ref(b) => t,
             Type::Bounds(lo, hi) => {

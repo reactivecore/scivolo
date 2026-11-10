@@ -105,10 +105,10 @@ impl Cmp<'_> {
 
     /// `a | b`, soft if `soft`, by-name results joined.
     pub fn or_type(&mut self, a: TypeId, b: TypeId, soft: bool) -> TypeId {
-        match (self.u.ty(a), self.u.ty(b)) {
-            (&Type::Annotated(x, _), _) => self.lub_as(x, b, soft),
-            (_, &Type::Annotated(y, _)) => self.lub_as(y, a, soft),
-            (&Type::ByName(x), &Type::ByName(y)) => {
+        match (*self.u.ty(a), *self.u.ty(b)) {
+            (Type::Annotated(x, _), _) => self.lub_as(x, b, soft),
+            (_, Type::Annotated(y, _)) => self.lub_as(y, a, soft),
+            (Type::ByName(x), Type::ByName(y)) => {
                 let either = self.lub_as(x, y, soft);
                 self.u.intern_type(Type::ByName(either))
             }

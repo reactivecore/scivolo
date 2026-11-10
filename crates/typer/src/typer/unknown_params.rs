@@ -112,7 +112,7 @@ impl Typer<'_> {
         let mut t = self.u.dealias(t);
         for _ in 0..16 {
             let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
-            let c = match self.u.ty(tycon).clone() {
+            let c = match *self.u.ty(tycon) {
                 Type::Sym(_, c) => c,
                 Type::TypeRef(p, n) => match self.u.resolve(p, n, true) {
                     Some(c) => c,

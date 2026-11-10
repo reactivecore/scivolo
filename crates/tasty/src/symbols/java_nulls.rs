@@ -50,7 +50,7 @@ impl Universe {
     }
 
     fn nullify(&mut self, t: TypeId, modes: Modes) -> TypeId {
-        match self.ty(t).clone() {
+        match *self.ty(t) {
             Type::Sym(..) | Type::TypeRef(..) | Type::Param(..) => self.nullified(t, modes),
             Type::Applied(tycon, args) => {
                 let java = self.class_symbol(tycon).is_some_and(|c| self.is_jdk_class(c));
@@ -106,7 +106,7 @@ impl Universe {
                     Type::Or(_, _, soft) => u.intern_type(Type::Or(x, y, soft)),
                     _ => u.intern_type(Type::And(x, y)),
                 };
-                match (self.ty(x).clone(), self.ty(y).clone()) {
+                match (*self.ty(x), *self.ty(y)) {
                     (Type::Flexible(x), Type::Flexible(y)) => {
                         let joined = join(self, x, y);
                         self.flexible(joined)
@@ -138,7 +138,7 @@ impl Universe {
 
     fn needs_no_null(&mut self, t: TypeId) -> bool {
         let t = self.dealias(t);
-        match self.ty(t).clone() {
+        match *self.ty(t) {
             Type::Sym(..) | Type::TypeRef(..) => {
                 let Some(s) = self.referenced(t) else { return false };
                 let b = self.defn();

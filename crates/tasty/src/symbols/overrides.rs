@@ -101,11 +101,11 @@ impl Universe {
     /// The binder and parameters of each value parameter clause of method type `t`.
     fn method_clauses(&self, mut t: TypeId) -> Clauses {
         let mut out = Vec::new();
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.ty(t) {
-            if let Type::Method { binder, params, .. } = self.ty(t) {
-                out.push((*binder, self.params_of(*params).to_vec()));
+        while let Type::Poly { result, .. } | Type::Method { result, .. } = *self.ty(t) {
+            if let Type::Method { binder, params, .. } = *self.ty(t) {
+                out.push((binder, self.params_of(params).to_vec()));
             }
-            t = *result;
+            t = result;
         }
         out
     }
@@ -113,7 +113,8 @@ impl Universe {
     /// The element type `T` of repeated parameter type `t`: `<repeated>[T]` or `Seq[T] @Repeated`
     /// as TASTy gives it.
     pub fn repeated_elem(&mut self, t: TypeId) -> Option<TypeId> {
-        let applied = match self.ty(t).clone() {
+        let ty = *self.ty(t);
+        let applied = match ty {
             Type::Annotated(seq, annot)
                 if self.is_class_named(annot, "scala.annotation.internal.Repeated") =>
             {
@@ -130,8 +131,8 @@ impl Universe {
 
     /// The result type of method type `t` after all its clauses.
     pub fn result_type(&self, mut t: TypeId) -> TypeId {
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.ty(t) {
-            t = *result;
+        while let Type::Poly { result, .. } | Type::Method { result, .. } = *self.ty(t) {
+            t = result;
         }
         t
     }
@@ -139,11 +140,11 @@ impl Universe {
     /// The binder of each type-parameter clause of method type `t` and its number of parameters.
     fn poly_binders(&self, mut t: TypeId) -> Vec<(Binder, usize)> {
         let mut out = Vec::new();
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.ty(t) {
-            if let Type::Poly { binder, params, .. } = self.ty(t) {
-                out.push((*binder, self.params_of(*params).len()));
+        while let Type::Poly { result, .. } | Type::Method { result, .. } = *self.ty(t) {
+            if let Type::Poly { binder, params, .. } = *self.ty(t) {
+                out.push((binder, self.params_of(params).len()));
             }
-            t = *result;
+            t = result;
         }
         out
     }
@@ -153,11 +154,11 @@ impl Universe {
     pub fn param_clauses(&self, mut t: TypeId) -> Vec<(bool, Vec<TypeId>)> {
         let mut out = Vec::new();
         loop {
-            match self.ty(t) {
-                Type::Poly { result, .. } => t = *result,
+            match *self.ty(t) {
+                Type::Poly { result, .. } => t = result,
                 Type::Method { params, result, implicit, .. } => {
-                    out.push((*implicit, self.params_of(*params).iter().map(|(_, p)| *p).collect()));
-                    t = *result;
+                    out.push((implicit, self.params_of(params).iter().map(|(_, p)| *p).collect()));
+                    t = result;
                 }
                 _ => return out,
             }

@@ -152,7 +152,7 @@ impl Cmp<'_> {
         fixed: usize,
         body_args: &[TypeId],
     ) -> Vec<(NameId, TypeId)> {
-        let lambda = match self.u.ty(tycon) {
+        let lambda = match *self.u.ty(tycon) {
             Type::Lambda { .. } => Some(tycon),
             _ => self.eta_expand(tycon).or_else(|| self.u.referenced_alias(tycon)),
         };

@@ -144,7 +144,8 @@ impl Cmp<'_> {
             self.provisional = true;
         }
         let t = dealiased;
-        match self.u.ty(t).clone() {
+        let ty = *self.u.ty(t);
+        match ty {
             Type::Or(..) | Type::Constant(..) | Type::Str(_) => self.atoms_at(t, depth),
             Type::ByName(r) => self.atoms_at(r, depth),
             Type::Var(v) => {

@@ -75,7 +75,7 @@ impl Cmp<'_> {
     fn named_is_nothing(&mut self, t: TypeId, d: u32) -> Option<bool> {
         let t = self.u.dealias(t);
         let nothing = self.u.defn().nothing;
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Applied(tycon, args) => match self.named(tycon)?.meaning {
                 Meaning::Class(c) => Some(c == nothing),
                 Meaning::Abstract(_, hi) => {

@@ -13,7 +13,7 @@ impl Cmp<'_> {
     pub fn is_concrete(&mut self, t: TypeId, depth: u32) -> bool {
         let Some(depth) = depth.checked_sub(1) else { return false };
         let t = self.normal(t);
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {
                 let Some(s) = self.named(t).and_then(|n| n.sym) else {
                     let d = self.u.dealias(t);

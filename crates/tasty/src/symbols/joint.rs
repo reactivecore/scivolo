@@ -62,7 +62,8 @@ impl Universe {
             if self.joint_members[&m].iter().any(|&(s, _)| s == t) {
                 return Some(t);
             }
-            t = match self.ty(t).clone() {
+            let ty = *self.ty(t);
+            t = match ty {
                 Type::And(a, b) => return self.joint_site(a, m).or_else(|| self.joint_site(b, m)),
                 Type::This(c) => {
                     let c = self.class_symbol(c)?;
@@ -93,7 +94,7 @@ impl Universe {
         if a == b {
             return Some(a);
         }
-        match (self.ty(a).clone(), self.ty(b).clone()) {
+        match (*self.ty(a), *self.ty(b)) {
             (
                 Type::Method { binder, params, result, implicit, contextual },
                 Type::Method { binder: b2, params: p2, result: r2, implicit: i2, .. },
@@ -158,8 +159,8 @@ impl Universe {
 
     /// The intersection of type parameter bounds `a` and `b`.
     fn bounds_meet(&mut self, a: TypeId, b: TypeId) -> TypeId {
-        match (self.ty(a), self.ty(b)) {
-            (&Type::Bounds(l1, h1), &Type::Bounds(l2, h2)) if a != b => {
+        match (*self.ty(a), *self.ty(b)) {
+            (Type::Bounds(l1, h1), Type::Bounds(l2, h2)) if a != b => {
                 let (lo, hi) = (self.lub(l1, l2), self.glb(h1, h2));
                 self.intern_type(Type::Bounds(lo, hi))
             }

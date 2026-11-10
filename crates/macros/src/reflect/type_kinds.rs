@@ -12,7 +12,7 @@ use tasty::{SymbolId, Type, TypeId};
 
 impl Host {
     pub fn type_parts(&mut self, t: TypeId) -> Fallible<Vec<TypeId>> {
-        Ok(match self.u.ty(t).clone() {
+        Ok(match *self.u.ty(t) {
             Type::Applied(tycon, args) => {
                 [tycon].into_iter().chain(self.u.types_of(args).iter().copied()).collect()
             }
@@ -61,7 +61,7 @@ impl Host {
     /// Whether lambda type `t` is implicit and contextual, its number of parameters, their types
     /// and its result type; the parameters' names.
     pub fn lambda_parts(&mut self, t: TypeId) -> Answer {
-        let (flags, params, result) = match self.u.ty(t).clone() {
+        let (flags, params, result) = match *self.u.ty(t) {
             Type::Method { params, result, implicit, contextual, .. } => {
                 ([implicit, contextual], params, result)
             }

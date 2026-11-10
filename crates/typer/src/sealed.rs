@@ -66,9 +66,9 @@ fn param_lists(u: &mut Universe, c: SymbolId) -> usize {
     let mut t = u.info(ctor);
     let mut lists = 0;
     loop {
-        match u.ty(t) {
-            Type::Poly { result, .. } => t = *result,
-            Type::Method { result, .. } => (t, lists) = (*result, lists + 1),
+        match *u.ty(t) {
+            Type::Poly { result, .. } => t = result,
+            Type::Method { result, .. } => (t, lists) = (result, lists + 1),
             _ => return lists,
         }
     }

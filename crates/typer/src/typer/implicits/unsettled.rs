@@ -53,7 +53,7 @@ pub fn any_open_constructor(c: &Constraint, vars: &[tasty::VarId]) -> bool {
 /// sides with each side so.
 pub fn var_upper_bound(ty: &mut TypeOps<'_>, tpe: TypeId) -> Option<TypeId> {
     let tpe = ty.zonk(tpe);
-    let (var, args) = match ty.u.ty(tpe).clone() {
+    let (var, args) = match *ty.u.ty(tpe) {
         Type::Var(v) => (v, None),
         Type::Applied(c, args) => (ty.u.var(c)?, Some(args)),
         Type::And(a, b) => {
@@ -115,7 +115,8 @@ fn dealiased_parts(ty: &mut TypeOps<'_>, tpe: TypeId) -> TypeId {
 /// no search may answer (dotty's `isUnderspecified`).
 pub fn is_underspecified(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
     let tpe = ty.zonk(tpe);
-    match ty.u.ty(tpe).clone() {
+    let node = *ty.u.ty(tpe);
+    match node {
         Type::Var(v) => {
             let (_, hi) = ty.constraint.bounds(v);
             is_underspecified(ty, hi)
@@ -124,7 +125,8 @@ pub fn is_underspecified(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
         Type::Sym(..) | Type::TypeRef(..) => {
             let b = ty.u.defn();
             let tpe = ty.u.dealias(tpe);
-            let class = match ty.u.ty(tpe).clone() {
+            let inner = *ty.u.ty(tpe);
+            let class = match inner {
                 Type::Sym(_, s) => Some(s),
                 Type::TypeRef(p, n) => ty.u.resolve(p, n, true),
                 _ => None,
@@ -139,7 +141,7 @@ pub fn is_underspecified(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
 fn open_union_within(ty: &mut TypeOps<'_>, tpe: TypeId, depth: u32) -> bool {
     let Some(depth) = depth.checked_sub(1) else { return false };
     let tpe = ty.u.dealias(tpe);
-    match ty.u.ty(tpe).clone() {
+    match *ty.u.ty(tpe) {
         Type::Or(..) => !ty.open_vars(tpe).is_empty(),
         Type::And(a, b) => open_union_within(ty, a, depth) || open_union_within(ty, b, depth),
         Type::Applied(_, args) => {

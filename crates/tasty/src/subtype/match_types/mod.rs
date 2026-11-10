@@ -72,7 +72,7 @@ impl Cmp<'_> {
 
     pub fn try_normalize(&mut self, t: TypeId) -> Option<TypeId> {
         let n = self.underlying_normalizable(t)?;
-        match self.u.ty(n) {
+        match *self.u.ty(n) {
             Type::Match { .. } => {
                 if self.normalizing.contains(&n) || self.normalizing.len() >= MAX_NORMALIZING {
                     self.u.reductions_exhausted = true;
@@ -94,7 +94,7 @@ impl Cmp<'_> {
     /// annotations, instantiated variables and applied aliases and abstract types.
     fn underlying_normalizable(&mut self, mut t: TypeId) -> Option<TypeId> {
         for _ in 0..MAX_STEPS {
-            t = match self.u.ty(t).clone() {
+            t = match *self.u.ty(t) {
                 Type::Match { .. } => return Some(t),
                 Type::Annotated(inner, _) => inner,
                 Type::Var(v) => self.vars.instance(v)?,
@@ -149,7 +149,7 @@ impl Cmp<'_> {
 
     /// The reduction of match type `m`, if it reduces (dotty's `MatchType.reduced`).
     pub fn reduced(&mut self, m: TypeId) -> Option<TypeId> {
-        let Type::Match { scrutinee, cases, .. } = self.u.ty(m).clone() else { return None };
+        let Type::Match { scrutinee, cases, .. } = *self.u.ty(m) else { return None };
         if self.u.reducing == 0 {
             self.u.reductions_left = MAX_TOTAL_REDUCTIONS;
         }

@@ -45,7 +45,7 @@ impl VarianceOps<'_> {
     pub fn poly_param_variances(&mut self, base: SymbolId, binder: Binder, i: u32) -> Vec<i8> {
         let mut info = self.u.info(base);
         loop {
-            match self.u.ty(info).clone() {
+            match *self.u.ty(info) {
                 Type::Poly { binder: b, params, .. } if b == binder => {
                     let Some(&(_, bounds)) = self.u.params_of(params).get(i as usize) else {
                         return Vec::new();

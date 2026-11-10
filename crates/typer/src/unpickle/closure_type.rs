@@ -56,7 +56,7 @@ impl Unpickler<'_> {
         if let Some(param) = self.param_type(t, ps) {
             return Some(approx::range(self.u, Approx::Exact(NOTHING), Approx::Exact(param), v));
         }
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(Some(pre), member) => self.member_approx(pre, Ok(member), v, ps),
             Type::TypeRef(pre, name) => self.member_approx(pre, Err(name), v, ps),
             Type::Applied(tycon, args) => {
@@ -84,7 +84,7 @@ impl Unpickler<'_> {
             }
             Type::And(x, y) | Type::Or(x, y, _) => {
                 let parts = [self.approx(x, v, ps)?, self.approx(y, v, ps)?];
-                let node = self.u.ty(t).clone();
+                let node = *self.u.ty(t);
                 Some(approx::derived(self.u, &parts, &[], v, &mut |u, p| match node {
                     Type::Or(_, _, soft) => u.intern_type(Type::Or(p[0], p[1], soft)),
                     _ => u.intern_type(Type::And(p[0], p[1])),

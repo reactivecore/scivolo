@@ -60,7 +60,7 @@ impl UnapplyPattern {
             }
             implicits.extend_from_slice(t.tpd.items(args));
             let tpe = t.tpd.tpe(applied);
-            match t.u.ty(tpe) {
+            match *t.u.ty(tpe) {
                 Type::Method { implicit: true, .. } => app = applied,
                 Type::Method { .. } | Type::Poly { .. } => return Err("extractor with more parameters"),
                 _ => return Ok((tpe, implicits)),

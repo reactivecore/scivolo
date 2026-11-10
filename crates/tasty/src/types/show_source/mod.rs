@@ -45,7 +45,7 @@ struct SourcePrinter<'u> {
 
 impl SourcePrinter<'_> {
     fn print(&mut self, t: TypeId) -> Shown {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Constant(tag, bits) => {
                 let text = match constant(tag, bits) {
                     Some(Const::Int(n)) => n.to_string(),

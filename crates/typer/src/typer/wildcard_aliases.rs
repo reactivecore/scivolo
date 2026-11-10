@@ -15,9 +15,9 @@ impl Typer<'_> {
         let lambda = self.u.type_alias(info).unwrap_or(info);
         let Some(lambda) = self.u.lambda(lambda) else { return false };
         let (binder, result, names) = (lambda.binder, lambda.result, lambda.names());
-        let is_param = |u: &Universe, t: TypeId| match u.ty(t) {
-            Type::Param(b, _) => *b == binder,
-            Type::Local(b, n) => b.0 == binder.0 && names.contains(n),
+        let is_param = |u: &Universe, t: TypeId| match *u.ty(t) {
+            Type::Param(b, _) => b == binder,
+            Type::Local(b, n) => b.0 == binder.0 && names.contains(&n),
             _ => false,
         };
         let mut total = 0;

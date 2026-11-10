@@ -49,7 +49,7 @@ fn needs_cache(l: &mut Lower, s: SymbolId, rhs: TypeId) -> bool {
         },
         _ => return true,
     };
-    let this_prefix = match prefix.map(|p| l.u.ty(p).clone()) {
+    let this_prefix = match prefix.map(|p| *l.u.ty(p)) {
         None | Some(Type::NoPrefix) => true,
         Some(Type::This(c)) => {
             let owner = l.u.symbol(s).owner.expect("a given alias's owner");

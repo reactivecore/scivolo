@@ -156,14 +156,14 @@ pub fn candidate_ref(t: &mut Typer<'_>, c: Candidate, span: Span, ctx: Ctx) -> R
         },
         _ => false,
     };
-    let prefix = c.prefix.map(|p| t.u.ty(p).clone());
+    let prefix = c.prefix.map(|p| *t.u.ty(p));
     let owner = t.u.symbol(c.sym).owner.filter(|&o| t.u.is_class(o));
     if let (Some(Type::Package(p)), Some(owner)) = (&prefix, owner)
         && crate::defn::inheriting_package_object(t.u, *p, owner).is_some()
     {
         return Err("implicit a package object inherits, through its package");
     }
-    let tpe = match (prefix.clone(), package_object) {
+    let tpe = match (prefix, package_object) {
         (_, Some(o)) if through_object(t, prefix, o) => {
             let class = crate::defn::type_ref(t.u, o);
             let this = t.u.intern_type(Type::This(class));

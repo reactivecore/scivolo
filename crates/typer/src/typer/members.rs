@@ -29,7 +29,8 @@ impl Typer<'_> {
         if let Some(hi) = self.u.opaque_upper(t) {
             return self.members_within(hi, name, within);
         }
-        match self.u.ty(t).clone() {
+        let node = *self.u.ty(t);
+        match node {
             Type::Package(p) => self.package_members(p, name),
             Type::This(c) => {
                 let class = self.u.class_symbol(c);

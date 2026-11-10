@@ -21,7 +21,7 @@ impl Host {
         let named = !matches!(kind, Kind::If | Kind::Match | Kind::SummonFrom | Kind::Unapply);
         let renamed = named && old_name.as_deref().is_some_and(|n| n != text);
         if let T::TypeTree { .. } = self.tpd.tree(original) {
-            let bounds = self.u.ty(self.tpd.tpe(original)).clone();
+            let bounds = *self.u.ty(self.tpd.tpe(original));
             let same = match (bounds, &new[..]) {
                 (tasty::Type::Bounds(lo, hi), &[Some(l), Some(h)]) => {
                     [lo, hi] == [l, h].map(|b| self.tpd.tpe(b))

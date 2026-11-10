@@ -199,7 +199,7 @@ impl Typer<'_> {
     /// Whether method type `t` has a parameter of type `=> T*` in a clause.
     fn has_by_name_repeated_param(&mut self, mut t: TypeId) -> bool {
         loop {
-            match self.u.ty(t).clone() {
+            match *self.u.ty(t) {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, result, .. } => {
                     for (_, p) in self.u.params_of(params).to_vec() {

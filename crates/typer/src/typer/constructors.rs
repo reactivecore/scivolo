@@ -132,7 +132,7 @@ impl Typer<'_> {
             Some(tc) if self.u.sym_ref(tc).is_some_and(|(p, c)| c == owner && !package(self.u, p)) => tc,
             _ => crate::defn::type_ref(self.u, owner),
         };
-        match self.u.ty(info).clone() {
+        match *self.u.ty(info) {
             Type::Poly { binder, params, result } => {
                 let arity = self.u.params_of(params).len();
                 let args: Vec<_> =
@@ -147,7 +147,8 @@ impl Typer<'_> {
 
     /// Method type `t` with its final result, if `Unit`, replaced by `class`.
     fn with_final_result(&mut self, t: TypeId, class: TypeId) -> TypeId {
-        match self.u.ty(t).clone() {
+        let node = *self.u.ty(t);
+        match node {
             Type::Method { binder, params, result, implicit, contextual } => {
                 let result = self.with_final_result(result, class);
                 self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })

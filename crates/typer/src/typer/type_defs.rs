@@ -40,7 +40,7 @@ impl Typer<'_> {
             self.unsupported(rhs, "alias of a type constructor");
             return self.u.intern_type(Type::Error);
         }
-        match self.u.ty(tpe) {
+        match *self.u.ty(tpe) {
             Type::Bounds(..) => tpe,
             Type::Lambda { .. } if lambda => tpe,
             _ if matches!(self.ast.tree(rhs), Tree::DerivedTypeTree { .. }) => tpe,

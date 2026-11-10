@@ -77,7 +77,7 @@ pub fn param_def(t: &mut Typer<'_>, name: &str, info: TypeId, span: Span) -> Res
                 let n = if n == "_" { format!("_${}", i + 1) } else { n.to_owned() };
                 tparams.push(param_def(t, &n, b, span)?);
             }
-            let result = match t.u.ty(result) {
+            let result = match *t.u.ty(result) {
                 Type::Bounds(..) => result,
                 _ => t.u.intern_type(Type::Bounds(tasty::NOTHING, result)),
             };

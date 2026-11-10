@@ -27,17 +27,17 @@ impl Cmp<'_> {
         if x == NOTHING || y == NOTHING || self.is_nothing_class(x) || self.is_nothing_class(y) {
             return true;
         }
-        match (self.u.ty(x), self.u.ty(y)) {
-            (_, &Type::Or(p, q, _)) => {
+        match (*self.u.ty(x), *self.u.ty(y)) {
+            (_, Type::Or(p, q, _)) => {
                 return self.disjoint_in(x, p, pending) && self.disjoint_in(x, q, pending);
             }
-            (_, &Type::And(p, q)) => {
+            (_, Type::And(p, q)) => {
                 return self.disjoint_in(x, p, pending) || self.disjoint_in(x, q, pending);
             }
-            (&Type::Or(p, q, _), _) => {
+            (Type::Or(p, q, _), _) => {
                 return self.disjoint_in(p, y, pending) && self.disjoint_in(q, y, pending);
             }
-            (&Type::And(p, q), _) => {
+            (Type::And(p, q), _) => {
                 return self.disjoint_in(p, y, pending) || self.disjoint_in(q, y, pending);
             }
             _ => {}
@@ -46,7 +46,7 @@ impl Cmp<'_> {
         if [x, y].iter().any(|&t| self.class_of(t) == Some(any_kind)) {
             return false;
         }
-        match (self.u.ty(x).clone(), self.u.ty(y).clone()) {
+        match (*self.u.ty(x), *self.u.ty(y)) {
             (Type::Lambda { params: p1, result: r1, .. }, Type::Lambda { params: p2, result: r2, .. }) => {
                 return self.u.params_of(p1).len() != self.u.params_of(p2).len()
                     || self.disjoint_in(r1, r2, pending);
@@ -70,7 +70,7 @@ impl Cmp<'_> {
     /// lambdas as they are, others through their supertype.
     fn boundary(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..MAX_STEPS {
-            t = match self.u.ty(t).clone() {
+            t = match *self.u.ty(t) {
                 Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {
                     let Some(s) = self.named(t).and_then(|n| n.sym) else { return t };
                     let sym = self.u.symbol(s);
@@ -143,7 +143,7 @@ impl Cmp<'_> {
     /// For a boundary that is a unique value: `Some(Some(s))` for enum case `s`, `Some(None)`
     /// for a constant.
     fn unique_value(&mut self, t: TypeId) -> Option<Option<SymbolId>> {
-        match self.u.ty(t) {
+        match *self.u.ty(t) {
             Type::Constant(..) | Type::Str(_) => Some(None),
             Type::Sym(..) | Type::TermRef(..) => {
                 let s = self.named(t)?.sym?;

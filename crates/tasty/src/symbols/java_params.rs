@@ -18,7 +18,7 @@ impl Universe {
     }
 
     fn positional_params(&mut self, t: TypeId) -> TypeId {
-        match self.ty(t).clone() {
+        match *self.ty(t) {
             Type::Poly { binder, params, result } => {
                 let result = self.positional_params(result);
                 self.intern_type(Type::Poly { binder, params, result })

@@ -22,7 +22,7 @@ pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
         "scala.Double",
     ];
     let t = u.dealias(t);
-    let class = match u.ty(t).clone() {
+    let class = match *u.ty(t) {
         Type::ByName(r) => return may_need(u, r),
         Type::Method { params, result, .. } => {
             return may_need(u, result)

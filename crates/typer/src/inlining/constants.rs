@@ -87,7 +87,7 @@ impl Inlining<'_> {
 
     /// The constant of type `t`, of a constant type or a reference to a term of one.
     pub fn constant_of_type(&mut self, t: TypeId) -> Option<C> {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Str(s) => Some(C::String(self.u.name(s).encode_utf16().collect())),
             Type::Constant(tasty::tags::CHARconst, bits) => Some(C::Char(bits as u16)),
             Type::Constant(tag, bits) => Some(match constant(tag, bits)? {
@@ -114,7 +114,7 @@ impl Inlining<'_> {
 
     /// A tree of singleton type `t` at `span`: a literal or a reference to a local term.
     pub fn singleton(&mut self, t: TypeId, span: Span) -> Option<TNodeId> {
-        let tpe = self.u.ty(t).clone();
+        let tpe = *self.u.ty(t);
         match tpe {
             Type::Constant(..) | Type::Str(_) => {
                 let value = self.constant_of_type(t)?;

@@ -116,7 +116,7 @@ impl Gadt {
     /// refinement, a singleton, a class's higher-kinded type parameter or an abstract type
     /// constructor applied.
     fn first_order_params(&self, u: &mut Universe, t: TypeId, params: &mut Vec<SymbolId>) -> bool {
-        match u.ty(t).clone() {
+        match *u.ty(t) {
             Type::Sym(_, s) if u.symbol(s).kind == Kind::TypeParam || self.bound.contains(&s) => {
                 let info = u.info(s);
                 let Some((_, hi)) = u.bounds(info) else { return false };

@@ -15,7 +15,7 @@ impl Typer<'_> {
         let mut seen: FxHashMap<String, SymbolId> = FxHashMap::default();
         for &t in types {
             for part in self.type_parts(t) {
-                let sym = match self.u.ty(part).clone() {
+                let sym = match *self.u.ty(part) {
                     Type::Sym(_, s) => Some(s),
                     Type::TypeRef(p, n) => self.u.resolve(p, n, true),
                     _ => None,
@@ -46,7 +46,7 @@ impl Typer<'_> {
 
     /// The non-module term singleton `t` refers to.
     pub fn term_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
-        let s = match self.u.ty(t).clone() {
+        let s = match *self.u.ty(t) {
             Type::Sym(_, s) => s,
             Type::TermRef(p, n) => self.u.resolve(p, n, false)?,
             _ => return None,
@@ -59,7 +59,7 @@ impl Typer<'_> {
     /// type, `(1 : Int)`, `(x : Int)`, else as `plain_text` does.
     pub fn found_text(&mut self, t: TypeId) -> Option<String> {
         let widened = self.u.widen(t);
-        let literal = match self.u.ty(t).clone() {
+        let literal = match *self.u.ty(t) {
             Type::Str(s) => format!("\"{}\"", plain_chars(self.u.name(s))?),
             Type::Constant(tag, bits) => match constant(tag, bits)? {
                 Const::Bool(b) => b.to_string(),

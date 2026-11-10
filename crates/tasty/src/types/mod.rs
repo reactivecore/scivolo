@@ -38,7 +38,7 @@ pub struct VarId(pub u32);
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Binder(pub FileId, pub u32);
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Type {
     /// The prefix of a reference to a local symbol.
     NoPrefix,
@@ -120,6 +120,8 @@ pub enum Type {
     Error,
 }
 
+const _: () = assert!(size_of::<Type>() <= 24);
+
 #[derive(Default)]
 pub struct Types {
     all: Vec<Type>,
@@ -135,7 +137,7 @@ impl Types {
             return id;
         }
         let id = TypeId(self.all.len() as u32);
-        self.all.push(t.clone());
+        self.all.push(t);
         self.ids.insert(t, id);
         id
     }

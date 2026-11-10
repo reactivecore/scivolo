@@ -30,7 +30,7 @@ fn as_good_in(
     (b, t2): (Candidate, TypeId),
     ctx: Ctx,
 ) -> Option<bool> {
-    match t.u.ty(t1).clone() {
+    match *t.u.ty(t1) {
         Type::Method { params, .. } => {
             let params = t.u.params_of(params).to_vec();
             let lambda = matches!(t.u.ty(t2), Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. });
@@ -92,10 +92,10 @@ fn flipped(t: &mut Typer<'_>, tpe: TypeId, v: i32) -> Option<TypeId> {
     if v == 0 {
         return Some(tpe);
     }
-    match t.u.ty(tpe).clone() {
+    match *t.u.ty(tpe) {
         Type::Applied(tycon, args) => {
             let args = t.u.types_of(args).to_vec();
-            let class = match t.u.ty(tycon).clone() {
+            let class = match *t.u.ty(tycon) {
                 Type::Sym(_, s) => Some(s),
                 Type::TypeRef(p, n) => t.u.resolve(p, n, true),
                 _ => None,

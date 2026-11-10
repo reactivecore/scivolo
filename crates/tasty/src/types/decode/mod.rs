@@ -132,7 +132,7 @@ impl<'a> Decoder<'a> {
                 self.refining.push(id);
                 let t = self.refined(k[0], &k[1..]);
                 self.refining.pop();
-                self.types.get(t).clone()
+                *self.types.get(t)
             }
             IDENTtpt | IDENT | SINGLETONtpt | INLINED if !k.is_empty() => self.decode(k[0]),
             FLEXIBLEtype if !k.is_empty() => Type::Flexible(self.kid(id, 0)),

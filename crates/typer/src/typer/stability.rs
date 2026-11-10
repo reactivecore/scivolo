@@ -68,7 +68,8 @@ impl Typer<'_> {
     /// `t` widened while it is a by-name type or a reference to an unstable term (dotty's
     /// `widenIfUnstable`).
     pub fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
-        match self.u.ty(t).clone() {
+        let ty = *self.u.ty(t);
+        match ty {
             Type::ByName(r) => self.widen_if_unstable(r),
             Type::Sym(_, s) if !self.u.is_type_symbol(s) && !self.is_stable_member(s) => {
                 if let Some(&annotated) = self.syms.repeated_params.get(&s) {
@@ -132,7 +133,7 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
 /// (dotty's `realizability`, `boundsRealizability`).
 fn is_realizable_class(u: &mut Universe, t: TypeId) -> bool {
     let d = u.dealias(t);
-    let (s, args) = match u.ty(d).clone() {
+    let (s, args) = match *u.ty(d) {
         Type::Sym(_, s) => (s, Vec::new()),
         Type::Applied(c, args) => match *u.ty(c) {
             Type::Sym(_, s) => (s, u.types_of(args).to_vec()),

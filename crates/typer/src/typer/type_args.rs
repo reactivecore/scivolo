@@ -51,7 +51,8 @@ impl Typer<'_> {
     /// `tycon` takes type parameters and dotty shows it and the arguments as `show_user` does.
     pub fn wrong_type_arg_count(&mut self, id: NodeId, tycon: TypeId, args: &[NodeId]) -> Option<TNodeId> {
         let dealiased = self.u.dealias(tycon);
-        let params: Vec<String> = match self.u.ty(dealiased).clone() {
+        let ty = *self.u.ty(dealiased);
+        let params: Vec<String> = match ty {
             Type::Sym(_, c) if self.u.full_name(c) == crate::defn::THROWS => return None,
             Type::Sym(_, c) if self.u.symbol(c).kind == Kind::Class => {
                 self.u.type_params(c).iter().map(|&p| self.u.symbol(p).name.clone()).collect()

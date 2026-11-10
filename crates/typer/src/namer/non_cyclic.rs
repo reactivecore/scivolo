@@ -110,7 +110,7 @@ impl Typer<'_> {
     }
 
     fn check_type(&mut self, c: &mut NonCyclic, t: TypeId) -> Result<(), Cycle> {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(pre, s) if self.u.is_type_symbol(s) => self.check_type_ref(c, t, pre, s),
             Type::TypeRef(pre, _) => match self.u.resolve_ref(t) {
                 Some(s) => self.check_type_ref(c, t, Some(pre), s),
@@ -214,7 +214,7 @@ impl Typer<'_> {
     fn is_interesting(&mut self, sym: SymbolId, pre: Option<TypeId>) -> bool {
         let Some(pre) = pre else { return true };
         let owner = self.u.symbol(sym).owner;
-        match self.u.ty(pre).clone() {
+        match *self.u.ty(pre) {
             Type::NoPrefix => true,
             Type::This(cls) => {
                 let (Some(cls), Some(owner)) = (self.u.class_symbol(cls), owner) else { return false };

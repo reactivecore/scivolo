@@ -11,7 +11,7 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
     if !has_skolem(u, t) {
         return Some(t);
     }
-    Some(match u.ty(t).clone() {
+    Some(match *u.ty(t) {
         Type::Skolem(_, info) => {
             let hi = deskolemized(u, info, 1)?;
             match v {

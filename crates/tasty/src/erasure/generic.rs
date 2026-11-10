@@ -19,7 +19,7 @@ enum Holder {
 impl Universe {
     /// Whether an array of `t` erases to `Object`: no JVM array holds all its values.
     pub fn is_generic(&mut self, t: TypeId) -> bool {
-        match self.ty(t).clone() {
+        match *self.ty(t) {
             Type::Param(..) | Type::Local(..) => true,
             Type::Bounds(_, hi) => self.holder(hi) == Holder::None,
             Type::Annotated(u, _)
@@ -100,7 +100,7 @@ impl Universe {
 
     /// The kind of array that can hold every value of type `t`.
     fn holder(&mut self, t: TypeId) -> Holder {
-        match self.ty(t).clone() {
+        match *self.ty(t) {
             Type::Annotated(u, _)
             | Type::Flexible(u)
             | Type::Refined(u, _, _)

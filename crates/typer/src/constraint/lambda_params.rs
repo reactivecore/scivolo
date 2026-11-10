@@ -30,7 +30,7 @@ fn approx_at(u: &mut Universe, t: TypeId, v: i8) -> Option<Approx> {
     if !refers_to_compared(u, t) {
         return Some(Approx::Exact(t));
     }
-    match u.ty(t).clone() {
+    match *u.ty(t) {
         Type::Param(..) => Some(approx::range(u, Approx::Exact(NOTHING), Approx::Exact(ANY), v)),
         Type::Applied(tycon, args) => {
             let c = approx_at(u, tycon, v)?;

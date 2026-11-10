@@ -82,7 +82,7 @@ pub fn has_false_dependency(
 ) -> bool {
     let mut selections = Vec::new();
     u.map_type(t, &mut |u, part| {
-        let (pre, name) = match u.ty(part).clone() {
+        let (pre, name) = match *u.ty(part) {
             Type::TypeRef(pre, name) => (pre, name),
             Type::Sym(Some(pre), s) if u.symbol(s).kind == Kind::Type => (pre, u.interned_name(s)),
             _ => return None,

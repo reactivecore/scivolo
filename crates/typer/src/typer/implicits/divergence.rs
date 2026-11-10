@@ -78,7 +78,7 @@ fn equivalent(t: &mut Typer<'_>, a: Candidate, b: Candidate) -> bool {
 /// Whether method or value types `a` and `b` are the same, their parameters matched by position.
 fn same_signature(ty: &mut TypeOps<'_>, a: TypeId, b: TypeId) -> bool {
     let (a, b) = (ty.zonk(a), ty.zonk(b));
-    let sides = (ty.u.ty(a).clone(), ty.u.ty(b).clone());
+    let sides = (*ty.u.ty(a), *ty.u.ty(b));
     let ((ba, pa, ra), (bb, pb, rb)) = match sides {
         (
             Type::Poly { binder: ba, params: pa, result: ra },

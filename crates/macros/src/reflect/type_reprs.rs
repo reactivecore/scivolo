@@ -26,7 +26,7 @@ impl Host {
     }
 
     pub fn type_name(&mut self, t: TypeId) -> Fallible<String> {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(_, s) | Type::Package(s) => Ok(self.u.symbol(s).name.clone()),
             Type::TypeRef(_, n) | Type::TermRef(_, n) | Type::Refined(_, n, _) => {
                 Ok(self.u.name(n).to_owned())
@@ -147,7 +147,7 @@ impl Host {
             return Ok(None);
         }
         let (mut t, mut poly) = (self.u.info(owner), false);
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.u.ty(t).clone() {
+        while let Type::Poly { result, .. } | Type::Method { result, .. } = *self.u.ty(t) {
             if let Some(m) = self.u.method(t)
                 && let Some(&(_, p)) = m.params.iter().find(|&&(n, _)| self.u.name(n) == name)
             {

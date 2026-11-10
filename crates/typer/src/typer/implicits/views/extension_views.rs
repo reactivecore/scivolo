@@ -43,7 +43,7 @@ impl ViewSearch<'_> {
         let at = t.tpd.span(self.tree).start_pos();
         let tpe = t.ref_type(c.prefix, c.sym);
         let info = t.method_info(tpe).unwrap_or(tpe);
-        match t.u.ty(info) {
+        match *t.u.ty(info) {
             Type::Method { .. } | Type::Poly { .. } => self.conditional_container(t, c, name),
             _ => candidate_ref(t, c, at, self.ctx),
         }

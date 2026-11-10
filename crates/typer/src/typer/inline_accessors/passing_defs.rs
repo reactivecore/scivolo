@@ -106,7 +106,7 @@ fn value_clauses(
 ) -> Option<(Vec<Params>, TypeId)> {
     let mut clauses = Vec::new();
     loop {
-        match t.u.ty(info).clone() {
+        match *t.u.ty(info) {
             Type::Method { params, result, implicit: false, .. } if !setter => {
                 clauses.push(t.u.params_of(params).to_vec());
                 info = result;
@@ -160,7 +160,7 @@ fn passing_tpt(t: &mut Typer<'_>, tpe: TypeId, locals: &[SymbolId], span: Span) 
     if !refers_to(t.u, tpe, locals) {
         return Some(t.splice_type(tpe));
     }
-    match t.u.ty(tpe).clone() {
+    match *t.u.ty(tpe) {
         Type::Sym(_, s) if locals.contains(&s) => {
             let name = TName { name: t.name(&t.u.symbol(s).name.clone()), is_type: true };
             Some(t.ast.node(Tree::Ident { name }))

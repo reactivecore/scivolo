@@ -67,7 +67,7 @@ impl Typer<'_> {
         let mut clauses = Vec::new();
         let mut tpe = info;
         loop {
-            let (binder, names, poly, result) = match self.u.ty(tpe).clone() {
+            let (binder, names, poly, result) = match *self.u.ty(tpe) {
                 Type::Poly { binder, params, result } => (binder, params, true, result),
                 Type::Method { binder, params, result, .. } => (binder, params, false, result),
                 _ => break,

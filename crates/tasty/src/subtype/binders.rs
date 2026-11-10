@@ -45,10 +45,10 @@ impl Cmp<'_> {
     fn renamed(&mut self, binding: Binding, t: TypeId, refs: &[TypeId]) -> TypeId {
         let names: Vec<NameId> = binding.1.iter().map(|&(n, _)| n).collect();
         let t = self.u.subst(t, binding.0, &names, refs);
-        self.u.map_type(t, &mut |u, x| match u.ty(x) {
-            Type::Sym(_, s) if u.symbol(*s).kind == Kind::TypeParam => {
-                let method = u.symbol(*s).owner.is_some_and(|o| u.symbol(o).kind == Kind::Def);
-                let i = names.iter().position(|&n| u.name(n) == u.symbol(*s).name)?;
+        self.u.map_type(t, &mut |u, x| match *u.ty(x) {
+            Type::Sym(_, s) if u.symbol(s).kind == Kind::TypeParam => {
+                let method = u.symbol(s).owner.is_some_and(|o| u.symbol(o).kind == Kind::Def);
+                let i = names.iter().position(|&n| u.name(n) == u.symbol(s).name)?;
                 method.then(|| refs[i])
             }
             _ => None,

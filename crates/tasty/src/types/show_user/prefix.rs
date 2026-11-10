@@ -82,7 +82,7 @@ impl Printer<'_> {
 
     /// Path `p`, a package, a value, a module or `this`.
     pub fn path(&mut self, p: TypeId) -> Path {
-        match self.u.ty(p).clone() {
+        match *self.u.ty(p) {
             Type::Package(s) => self.symbol_path(None, s),
             Type::PackageName(n) => package_path(self.u.name(n)),
             Type::TermRef(pp, n) => {

@@ -20,7 +20,7 @@ impl Host {
         }
         let (mut numbers, mut names) = (Vec::new(), Vec::new());
         loop {
-            match self.u.ty(t).clone() {
+            match *self.u.ty(t) {
                 Type::Poly { params, result, .. } => {
                     numbers.push(self.u.params_of(params).len() as i32);
                     t = result;

@@ -36,7 +36,7 @@ impl SourcePrinter<'_> {
     }
 
     fn refinements(&mut self, t: TypeId) -> Shown {
-        let Type::Refined(parent, name, info) = self.u.ty(t).clone() else {
+        let Type::Refined(parent, name, info) = *self.u.ty(t) else {
             self.print(t)?;
             self.out.push_str(" {");
             return Ok(());
@@ -69,7 +69,7 @@ impl SourcePrinter<'_> {
 
     /// The type of a refined method or value (dotty's `printMethodicType`).
     fn methodic(&mut self, t: TypeId) -> Shown {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Method { binder, params, result, .. } => self.bind(binder, params, |p| {
                 p.out.push('(');
                 p.params(params)?;

@@ -16,8 +16,7 @@ impl Inlining<'_> {
         loop {
             let Some(tpe) = self.tpd.get(t).tpe else { return Ok(t) };
             let widened = self.u.widen(tpe);
-            let Type::Method { binder, params, result, implicit, contextual } = self.u.ty(widened).clone()
-            else {
+            let Type::Method { binder, params, result, implicit, contextual } = *self.u.ty(widened) else {
                 return Ok(t);
             };
             if !implicit && !contextual {

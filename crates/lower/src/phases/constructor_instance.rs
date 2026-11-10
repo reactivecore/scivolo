@@ -47,9 +47,9 @@ fn mentions_param(
 ) -> bool {
     let mut found = false;
     l.u.map_type(t, &mut |u, x| {
-        found |= match u.ty(x) {
-            Type::Local(b, n) => b.0 == binder.0 && *n == name,
-            Type::Param(b, i) => *b == binder && *i as usize == index,
+        found |= match *u.ty(x) {
+            Type::Local(b, n) => b.0 == binder.0 && n == name,
+            Type::Param(b, i) => b == binder && i as usize == index,
             _ => false,
         };
         None

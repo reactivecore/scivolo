@@ -122,7 +122,7 @@ impl TypeOps<'_> {
             return;
         }
         let mut go = |s: &mut Self, t, v| s.collect_variances(t, v, out, depth + 1);
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Var(var) => match self.constraint.instance(var) {
                 Some(i) => go(self, i, v),
                 None if !self.constraint.is_pending(var) => {}

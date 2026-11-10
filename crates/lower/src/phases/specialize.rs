@@ -187,7 +187,7 @@ fn specialize_def(l: &mut Lower, class: SymbolId, dd: TNodeId) -> Result<Option<
 
 /// The symbol type `t` refers to, an alias not dealiased (dotty's `typeSymbol`).
 fn type_symbol(l: &mut Lower, t: TypeId) -> Option<SymbolId> {
-    match l.u.ty(t).clone() {
+    match *l.u.ty(t) {
         Type::Sym(_, s) => Some(s),
         Type::TypeRef(prefix, name) => l.u.resolve(prefix, name, true),
         Type::Annotated(inner, _) => type_symbol(l, inner),

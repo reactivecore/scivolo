@@ -35,7 +35,7 @@ impl Typer<'_> {
         if recursive && matches!(self.u.ty(pre), Type::TermRef(..)) && self.u.resolve_ref(pre).is_none() {
             return Some(self.unsupported(id, "structural member referring to a structural prefix"));
         }
-        let method = match self.u.ty(info) {
+        let method = match *self.u.ty(info) {
             Type::Poly { .. } => return Some(self.unsupported(id, "polymorphic structural method")),
             Type::Method { .. } => true,
             _ => false,

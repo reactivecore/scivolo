@@ -17,7 +17,7 @@ impl Reflect<'_> {
         let (span, mut t) = (self.span, self.u.info(s));
         let mut clauses = Vec::new();
         loop {
-            match self.u.ty(t).clone() {
+            match *self.u.ty(t) {
                 Type::Method { params, result, implicit, contextual, .. } => {
                     let mut clause = Vec::new();
                     for (name, info) in self.u.params_of(params).to_vec() {
@@ -85,7 +85,7 @@ impl Reflect<'_> {
         }
         let mut result = self.u.info(s);
         for clause in params {
-            match self.u.ty(result).clone() {
+            match *self.u.ty(result) {
                 Type::Method { result: r, .. } => result = r,
                 Type::Poly { binder, params: ps, result: r } => {
                     let names: Vec<NameId> = self.u.params_of(ps).iter().map(|&(n, _)| n).collect();

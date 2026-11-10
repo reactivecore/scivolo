@@ -20,7 +20,7 @@ impl Cmp<'_> {
                 Some(t) => self.recur(a, t),
                 None => self.second_try(a, b),
             },
-            Type::Wildcard(bounds) => match bounds.map(|t| self.u.ty(t).clone()) {
+            Type::Wildcard(bounds) => match bounds.map(|t| *self.u.ty(t)) {
                 Some(Type::Bounds(_, hi)) => self.recur(a, hi),
                 _ => true,
             },
@@ -110,7 +110,7 @@ impl Cmp<'_> {
                 Some(t) => self.recur(t, b),
                 None => self.var_below(a, v, b),
             },
-            Type::Wildcard(bounds) => match bounds.map(|t| self.u.ty(t).clone()) {
+            Type::Wildcard(bounds) => match bounds.map(|t| *self.u.ty(t)) {
                 Some(Type::Bounds(lo, _)) => self.recur(lo, b),
                 _ => true,
             },

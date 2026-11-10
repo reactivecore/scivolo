@@ -24,7 +24,7 @@ impl Universe {
     ) -> TypeId {
         let bound =
             |b: Binder, i: u32| bounds.iter().find(|(binder, _)| *binder == b)?.1.get(i as usize).copied();
-        let mut t = self.map_type(t, &mut |u, x| match u.ty(x).clone() {
+        let mut t = self.map_type(t, &mut |u, x| match *u.ty(x) {
             Type::Param(b, i) if !reduced.contains(&(b, i)) => {
                 let param_bounds = bound(b, i)?;
                 let (_, hi) = u.bounds(param_bounds)?;
@@ -33,7 +33,7 @@ impl Universe {
             }
             Type::Applied(..) => {
                 let (mut applied, mut seen) = (x, reduced.to_vec());
-                while let Type::Applied(tycon, args) = u.ty(applied).clone()
+                while let Type::Applied(tycon, args) = *u.ty(applied)
                     && let Some((b, i)) = u.param_ref(tycon)
                     && !seen.contains(&(b, i))
                     && let Some(bounds) = bound(b, i)

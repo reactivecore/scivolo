@@ -172,7 +172,7 @@ impl Typer<'_> {
     pub fn complete_refined_members(&mut self, t: TypeId, pt: TypeId) {
         let mut names = Vec::new();
         let mut r = pt;
-        while let Type::Refined(parent, name, _) = self.u.ty(r).clone() {
+        while let Type::Refined(parent, name, _) = *self.u.ty(r) {
             names.push(name);
             r = parent;
         }

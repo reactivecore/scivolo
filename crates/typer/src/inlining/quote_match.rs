@@ -30,7 +30,7 @@ fn collect_variances(
         return;
     }
     let mut go = |u: &mut Universe, t, v| collect_variances(u, t, v, binds, found, depth + 1);
-    match u.ty(t).clone() {
+    match *u.ty(t) {
         Type::Sym(None, s) if binds.contains(&s) => {
             let entry = found.entry(s).or_insert(v);
             if *entry != v {

@@ -92,7 +92,7 @@ impl Typer<'_> {
         if !ctx.mode.is(Mode::PATTERN_TYPE) {
             return types;
         }
-        let class = match self.u.ty(tycon).clone() {
+        let class = match *self.u.ty(tycon) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, name) => self.u.resolve(p, name, true),
             _ => None,

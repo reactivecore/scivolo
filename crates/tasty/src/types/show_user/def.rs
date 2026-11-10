@@ -61,7 +61,7 @@ impl Printer<'_> {
 
     /// A method, polymorphic method or type lambda type, its parameters' names in scope.
     pub fn lambda(&mut self, t: TypeId) -> String {
-        let (binder, params, result) = match self.u.ty(t).clone() {
+        let (binder, params, result) = match *self.u.ty(t) {
             Type::Method { binder, params, result, .. }
             | Type::Poly { binder, params, result }
             | Type::Lambda { binder, params, result } => (binder, params, result),
@@ -158,7 +158,7 @@ impl Printer<'_> {
     /// The result of type lambda `t` and its parameters `[X,+Y]`, `[_$1]` with `variances`, which stay
     /// in scope; `t` and nothing else.
     fn lambda_params(&mut self, t: TypeId, variances: &[i8]) -> (TypeId, String) {
-        let Type::Lambda { binder, params, result } = self.u.ty(t).clone() else {
+        let Type::Lambda { binder, params, result } = *self.u.ty(t) else {
             return (t, String::new());
         };
         let params = self.u.params_of(params).to_vec();
@@ -182,7 +182,7 @@ impl Printer<'_> {
     /// A refinement type `P{type T = A; def f: B}`.
     pub fn refined(&mut self, mut t: TypeId, prec: u8) -> String {
         let mut members = Vec::new();
-        while let Type::Refined(parent, name, info) = self.u.ty(t).clone() {
+        while let Type::Refined(parent, name, info) = *self.u.ty(t) {
             members.push((self.u.name(name).to_owned(), info));
             t = parent;
         }

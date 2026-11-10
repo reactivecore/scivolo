@@ -81,10 +81,10 @@ impl TreePickler<'_> {
     fn qualifier(&mut self, id: TNodeId, qual: TNodeId) -> Result<(), Refusal> {
         let types = self.u.types();
         let object = match (
-            self.tpd.get(qual).tpe.map(|t| types.get(t)),
-            self.tpd.get(id).tpe.map(|t| types.get(t)),
+            self.tpd.get(qual).tpe.map(|t| *types.get(t)),
+            self.tpd.get(id).tpe.map(|t| *types.get(t)),
         ) {
-            (Some(Type::Package(_)), Some(&Type::Sym(Some(pre), _))) => match *types.get(pre) {
+            (Some(Type::Package(_)), Some(Type::Sym(Some(pre), _))) => match *types.get(pre) {
                 Type::Sym(None, m) if self.u.is_module(m) => Some(m),
                 _ => None,
             },

@@ -15,7 +15,8 @@ impl Avoid<'_> {
     pub fn at(self, t: &mut Typer, tpe: TypeId, v: i8) -> Option<Approx> {
         let exact = |x| Some(Approx::Exact(x));
         let m = |t: &mut Typer, x, v| self.at(t, x, v);
-        match t.u.ty(tpe).clone() {
+        let node = *t.u.ty(tpe);
+        match node {
             Type::Sym(_, s) if self.own == Some(s) => Some(approx::empty(t.u, v)),
             Type::Sym(_, s) if self.opaque.contains(&s) => None,
             Type::Sym(_, s) if self.locals.contains(&s) => self.local(t, s, v),
@@ -60,7 +61,7 @@ impl Avoid<'_> {
             }
             Type::And(x, y) | Type::Or(x, y, _) => {
                 let parts = [m(t, x, v)?, m(t, y, v)?];
-                let node = t.u.ty(tpe).clone();
+                let node = *t.u.ty(tpe);
                 Some(approx::derived(t.u, &parts, &[], v, &mut |u, p| match node {
                     Type::Or(_, _, soft) => u.intern_type(Type::Or(p[0], p[1], soft)),
                     _ => u.intern_type(Type::And(p[0], p[1])),
@@ -181,12 +182,12 @@ impl Avoid<'_> {
         }
         parts.push(self.at(t, result, v)?);
         let flip: Vec<bool> = (0..parts.len()).map(|i| i < params.len()).collect();
-        let node = t.u.ty(tpe).clone();
+        let node = *t.u.ty(tpe);
         Some(approx::derived(t.u, &parts, &flip, v, &mut |u, p| {
             let (ps, r) = p.split_at(params.len());
             let ps: Vec<_> = params.iter().zip(ps).map(|(&(n, _), &t)| (n, t)).collect();
             let ps = u.intern_params(&ps);
-            u.intern_type(match node.clone() {
+            u.intern_type(match node {
                 Type::Method { binder, implicit, contextual, .. } => {
                     Type::Method { binder, params: ps, result: r[0], implicit, contextual }
                 }

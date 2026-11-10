@@ -15,7 +15,7 @@ pub fn avoided(u: &mut Universe, t: TypeId) -> TypeId {
 }
 
 fn avoided_at(u: &mut Universe, t: TypeId, v: i8) -> Approx {
-    match u.ty(t).clone() {
+    match *u.ty(t) {
         Type::And(a0, b0) => {
             let parts = [avoided_at(u, a0, v), avoided_at(u, b0, v)];
             if parts == [Approx::Exact(a0), Approx::Exact(b0)] {
@@ -99,12 +99,12 @@ fn avoided_lambda(u: &mut Universe, t: TypeId, params: &[(NameId, TypeId)], resu
         return Approx::Exact(t);
     }
     let flip: Vec<bool> = (0..parts.len()).map(|i| i < params.len()).collect();
-    let node = u.ty(t).clone();
+    let node = *u.ty(t);
     approx::derived(u, &parts, &flip, v, &mut |u, p| {
         let (ps, r) = p.split_at(params.len());
         let ps: Vec<_> = params.iter().zip(ps).map(|(&(n, _), &x)| (n, x)).collect();
         let ps = u.intern_params(&ps);
-        u.intern_type(match node.clone() {
+        u.intern_type(match node {
             Type::Method { binder, implicit, contextual, .. } => {
                 Type::Method { binder, params: ps, result: r[0], implicit, contextual }
             }
@@ -127,7 +127,7 @@ fn avoided_ref(u: &mut Universe, t: TypeId, v: i8) -> Approx {
         Type::TypeRef(prefix, _) => (Some(prefix), None),
         _ => return Approx::Exact(t),
     };
-    let static_path = match (prefix.map(|p| u.ty(p).clone()), s) {
+    let static_path = match (prefix.map(|p| *u.ty(p)), s) {
         (None, Some(s)) => u.is_static_symbol(s),
         (Some(Type::Sym(_, t)), _) => u.symbol(t).kind.is_type() || u.is_static_symbol(t),
         (Some(Type::This(_)), Some(s)) => u.is_static_symbol(s),

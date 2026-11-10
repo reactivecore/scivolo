@@ -25,13 +25,13 @@ impl Host {
     fn eta(&mut self, t: TNodeId, owner: SymbolId) -> Fallible<Option<TNodeId>> {
         let info = self.tpd.get(t).tpe.ok_or("Term.etaExpand of a term without a type")?;
         let info = self.u.widen(info);
-        let Type::Method { binder, params, result, .. } = self.u.ty(info).clone() else {
+        let Type::Method { binder, params, result, .. } = *self.u.ty(info) else {
             return Ok(None);
         };
         if self.u.params_of(params).to_vec().into_iter().any(|(_, p)| self.refers_to(p, binder)) {
             return Ok(None);
         }
-        let result = match self.u.ty(result) {
+        let result = match *self.u.ty(result) {
             Type::Method { .. } => self.function_type(result)?,
             _ => result,
         };
@@ -54,7 +54,7 @@ impl Host {
     /// The function type of method type `m`, curried for its later clauses (dotty's
     /// `toFunctionType`).
     pub fn function_type(&mut self, m: TypeId) -> Fallible<TypeId> {
-        let Type::Method { binder, params, result, contextual, .. } = self.u.ty(m).clone() else {
+        let Type::Method { binder, params, result, contextual, .. } = *self.u.ty(m) else {
             return Ok(m);
         };
         if self.refers_to(result, binder) {
@@ -83,7 +83,8 @@ impl Host {
     /// Repeated parameter type `p` as a `Seq` (dotty's `translateFromRepeated`), else `p`.
     fn translated_from_repeated(&mut self, p: TypeId) -> TypeId {
         let class_name = |h: &mut Host, t: TypeId| h.u.class_symbol(t).map(|c| h.u.full_name(c));
-        match self.u.ty(p).clone() {
+        let ty = *self.u.ty(p);
+        match ty {
             Type::Annotated(seq, annot)
                 if class_name(self, annot).as_deref() == Some("scala.annotation.internal.Repeated") =>
             {

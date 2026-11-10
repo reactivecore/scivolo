@@ -53,7 +53,7 @@ pub fn accessor_tpt(t: &mut Typer<'_>, tpe: TypeId, clauses: &[Clause], span: Sp
     if !refers_to_params(t.u, tpe, clauses) {
         return Some(t.splice_type(tpe));
     }
-    let tree = match t.u.ty(tpe).clone() {
+    let tree = match *t.u.ty(tpe) {
         Type::Param(..) => {
             let (name, reference) = param_ref(t, tpe, clauses)?;
             return Some(match name.is_type {
@@ -96,7 +96,7 @@ pub fn accessor_tpt(t: &mut Typer<'_>, tpe: TypeId, clauses: &[Clause], span: Sp
 
 /// The path tree of term reference `p` in an accessor with parameter clauses `clauses`.
 fn path(t: &mut Typer<'_>, p: TypeId, clauses: &[Clause], span: Span) -> Option<NodeId> {
-    let (qualifier, name) = match t.u.ty(p).clone() {
+    let (qualifier, name) = match *t.u.ty(p) {
         Type::Param(..) => return param_ref(t, p, clauses).map(|(_, r)| r),
         Type::Sym(Some(q), s) if !t.u.is_type_symbol(s) => (q, t.u.symbol(s).name.clone()),
         Type::TermRef(q, n) => (q, t.u.name(n).to_owned()),

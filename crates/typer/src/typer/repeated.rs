@@ -20,7 +20,8 @@ impl Typer<'_> {
     /// The element type `T` of repeated parameter type `p`: `<repeated>[T]`, or `Seq[T] @Repeated`
     /// as TASTy and parameter type trees give it, also annotated `@InlineParam`.
     pub fn repeated_elem(&mut self, p: TypeId) -> Option<TypeId> {
-        match self.u.ty(p).clone() {
+        let ty = *self.u.ty(p);
+        match ty {
             Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => match self.u.applied(seq) {
                 Some((_, &[arg])) => Some(arg),
                 _ => None,
@@ -37,7 +38,7 @@ impl Typer<'_> {
 
     /// Method type `t` with its repeated parameters typed `<repeated>[T]`, in each clause.
     pub fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Method { binder, params, result, implicit, contextual } => {
                 let params: Vec<_> = (self.u.params_of(params).to_vec().into_iter())
                     .map(|(n, p)| (n, self.with_repeated_param_class(p)))

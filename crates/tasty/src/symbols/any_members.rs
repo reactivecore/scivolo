@@ -57,7 +57,7 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     let this_any = u.types.intern(Type::This(any_ref));
     let get_class_bounds = u.types.intern(Type::Bounds(this_any, ANY));
     poly(u, any, "getClass", get_class_bounds, |u, x0| {
-        let x0 = u.types.intern(x0.clone());
+        let x0 = u.types.intern(*x0);
         let bounds = u.types.intern(Type::Bounds(NOTHING, x0));
         let result = u.types.intern_applied(class, &[bounds]);
         let binder = u.fresh_binder();
@@ -66,8 +66,8 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     poly(u, any, "isInstanceOf", any_bounds, |_, _| boolean);
     let type_test = poly(u, any, "$isInstanceOf$", any_bounds, |_, _| boolean);
     u.set_flags(type_test, u.symbol(type_test).flags.with(ARTIFACT));
-    poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(x0.clone()));
-    let type_cast = poly(u, any, "$asInstanceOf$", any_bounds, |u, x0| u.types.intern(x0.clone()));
+    poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(*x0));
+    let type_cast = poly(u, any, "$asInstanceOf$", any_bounds, |u, x0| u.types.intern(*x0));
     u.set_flags(type_cast, u.symbol(type_cast).flags.with(ARTIFACT));
     let hidden: Vec<SymbolId> = (u.symbol(object).decls.iter().copied())
         .filter(|&d| HIDDEN.contains(&u.symbol(d).name.as_str()))
@@ -76,7 +76,7 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     method(u, object, "eq", &[("x$0", object_type)], boolean, &[FINAL, INFIX]);
     method(u, object, "ne", &[("x$0", object_type)], boolean, &[FINAL, INFIX]);
     poly(u, object, "synchronized", any_bounds, |u, x0| {
-        let t = u.types.intern(x0.clone());
+        let t = u.types.intern(*x0);
         let binder = u.fresh_binder();
         let x0 = u.types.intern_name("x$0");
         u.types.intern_method(binder, &[(x0, t)], t, false, false)

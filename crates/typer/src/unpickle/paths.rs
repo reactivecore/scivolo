@@ -152,7 +152,7 @@ impl Unpickler<'_> {
     /// Path type `t` with its references by name resolved to symbols, the classes of its `this`
     /// types referred to from where they are visible.
     pub fn resolved(&mut self, t: TypeId) -> TypeId {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::TermRef(p, n) => {
                 let p = self.resolved(p);
                 match self.u.resolve(p, n, false) {

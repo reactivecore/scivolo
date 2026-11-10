@@ -186,7 +186,7 @@ pub fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let this = type_ref(l.u, class);
     let binder = l.u.fresh_binder();
     let params = [(l.u.intern_name("$this"), this)];
-    let (poly, result) = match l.u.ty(info).clone() {
+    let (poly, result) = match *l.u.ty(info) {
         Type::Poly { binder, params, result } => (Some((binder, params)), result),
         Type::ByName(result) => (None, result),
         _ => (None, info),

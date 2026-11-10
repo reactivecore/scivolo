@@ -18,7 +18,7 @@ impl Cmp<'_> {
     fn has_matching_member_in(&mut self, a: TypeId, mut t: TypeId, name: NameId, info: TypeId) -> bool {
         let (mut recs, mut seen) = (Vec::new(), None);
         loop {
-            match self.u.ty(t).clone() {
+            match *self.u.ty(t) {
                 Type::Refined(parent, n, have) if n == name => {
                     let have = self.u.rec_this_replaced(have, &recs, a);
                     let have = match seen {
@@ -123,7 +123,7 @@ impl Cmp<'_> {
             }
             Type::Method { .. } | Type::Poly { .. } => self.recur(have, want),
             Type::ByName(want) => self.info_conforms(have, want),
-            _ => match self.u.ty(have).clone() {
+            _ => match *self.u.ty(have) {
                 Type::Method { params, result, .. } if self.u.params_of(params).is_empty() => {
                     self.recur(result, want)
                 }

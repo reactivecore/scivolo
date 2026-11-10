@@ -14,7 +14,7 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
     let mut parts = Vec::new();
     let mut bounds: Vec<(Binder, Vec<TypeId>)> = Vec::new();
     loop {
-        match u.ty(t).clone() {
+        match *u.ty(t) {
             Type::Poly { binder, params, result } => {
                 let params = u.params_of(params).to_vec();
                 parts.push(params.len().to_string());

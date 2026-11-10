@@ -88,7 +88,7 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
 fn method_clauses(u: &Universe, info: &mut TypeId) -> Vec<Clause> {
     let mut clauses = Vec::new();
     while let Type::Poly { binder, params, result: r } | Type::Method { binder, params, result: r, .. } =
-        u.ty(*info).clone()
+        *u.ty(*info)
     {
         let flags = match *u.ty(*info) {
             Type::Poly { .. } => f::TYPE_PARAM,

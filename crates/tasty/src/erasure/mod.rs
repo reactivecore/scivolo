@@ -52,7 +52,7 @@ fn object() -> Erased {
 impl Universe {
     /// The erasure of type `t`.
     pub fn erase(&mut self, t: TypeId) -> Erased {
-        match self.ty(t).clone() {
+        match *self.ty(t) {
             Type::Sym(Some(p), s) => self.erase_member(p, s),
             Type::Sym(_, s) => self.erase_symbol(s),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
@@ -143,13 +143,13 @@ impl Universe {
     /// The qualified name of a path the universe cannot resolve, and whether it ends in a class
     /// or object (a capitalized term) rather than a package.
     fn path_name(&self, t: TypeId) -> Option<(String, bool)> {
-        match self.ty(t) {
-            Type::Package(pkg) => Some((self.full_name(*pkg), false)),
-            Type::PackageName(pkg) => Some((self.name(*pkg).to_owned(), false)),
+        match *self.ty(t) {
+            Type::Package(pkg) => Some((self.full_name(pkg), false)),
+            Type::PackageName(pkg) => Some((self.name(pkg).to_owned(), false)),
             Type::TermRef(p, n) => {
-                let (path, in_class) = self.path_name(*p)?;
+                let (path, in_class) = self.path_name(p)?;
                 let sep = if in_class { '$' } else { '.' };
-                let n = self.name(*n);
+                let n = self.name(n);
                 Some((format!("{path}{sep}{n}"), n.starts_with(char::is_uppercase)))
             }
             _ => None,
@@ -158,7 +158,7 @@ impl Universe {
 
     /// The qualified name of the class `t` refers to, if it names one.
     fn class_name(&mut self, t: TypeId) -> Option<String> {
-        match self.ty(t).clone() {
+        match *self.ty(t) {
             Type::Sym(_, s) if self.symbol(s).kind == Kind::Class => Some(self.full_name(s)),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) if self.symbol(s).kind == Kind::Class => Some(self.full_name(s)),

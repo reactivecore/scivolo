@@ -54,7 +54,7 @@ pub fn singleton(l: &mut Lower, tp: TypeId) -> Option<TNodeId> {
     if !is_singleton(l, tp) {
         return None;
     }
-    match l.u.ty(tp).clone() {
+    match *l.u.ty(tp) {
         Type::This(c) => {
             let c = l.u.class_symbol(c)?;
             Some(l.this(c, Span::NONE))
@@ -74,9 +74,9 @@ pub fn singleton(l: &mut Lower, tp: TypeId) -> Option<TNodeId> {
 
 /// A reference to term `s` through `prefix` if that is a value (dotty's `ref`).
 fn reference(l: &mut Lower, prefix: Option<TypeId>, s: tasty::SymbolId) -> TNodeId {
-    let qualifier = match prefix.map(|p| (p, l.u.ty(p))) {
+    let qualifier = match prefix.map(|p| (p, *l.u.ty(p))) {
         Some((p, Type::Sym(..) | Type::TermRef(..))) => singleton(l, p),
-        Some((p, &Type::This(c))) => {
+        Some((p, Type::This(c))) => {
             let package = l.u.class_symbol(c).is_some_and(|c| l.u.symbol(c).kind == Kind::Package);
             (!package && !l.u.is_module(s)).then(|| singleton(l, p)).flatten()
         }

@@ -13,7 +13,7 @@ impl Universe {
     pub fn join(&mut self, t: TypeId) -> Option<TypeId> {
         let Type::Or(a, b, _) = *self.ty(t) else { return Some(t) };
         let (da, db) = (self.dealias(a), self.dealias(b));
-        if let (&Type::Applied(c1, _), &Type::Applied(c2, _)) = (self.ty(da), self.ty(db))
+        if let (Type::Applied(c1, _), Type::Applied(c2, _)) = (*self.ty(da), *self.ty(db))
             && c1 == c2
         {
             return self.merged(da, db);
@@ -214,7 +214,7 @@ impl Universe {
         if x == y {
             return Some(x);
         }
-        match (self.ty(x).clone(), self.ty(y).clone()) {
+        match (*self.ty(x), *self.ty(y)) {
             (Type::And(x1, x2), _) => {
                 let (m1, m2) = (self.merged(x1, y)?, self.merged(x2, y)?);
                 Some(self.glb(m1, m2))

@@ -27,7 +27,8 @@ impl Typer<'_> {
         depth: u32,
         ctx: Option<Ctx>,
     ) -> Option<TNodeId> {
-        match self.u.ty(prefix).clone() {
+        let ty = *self.u.ty(prefix);
+        match ty {
             Type::This(class) => Some(self.build().this(class, span)),
             Type::TermRef(p, _) => {
                 let s = self.u.resolve_ref(prefix)?;
@@ -37,7 +38,7 @@ impl Typer<'_> {
             Type::Sym(p, s) if !self.u.is_type_symbol(s) && self.is_stable_member(s) && depth > 0 => {
                 let static_class =
                     |t: &mut Self, c| t.u.class_symbol(c).is_some_and(|cls| t.u.is_static_owner(cls));
-                let elidable = match p.map(|p| self.u.ty(crate::defn::package_ref(self.u, p)).clone()) {
+                let elidable = match p.map(|p| *self.u.ty(crate::defn::package_ref(self.u, p))) {
                     None | Some(Type::NoPrefix | Type::Package(_)) => true,
                     Some(Type::This(c)) if self.is_param_or_accessor(s) => match ctx {
                         Some(ctx) => self.term_prefix_is_elidable(p, s, ctx),

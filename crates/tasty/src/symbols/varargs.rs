@@ -53,7 +53,7 @@ impl Universe {
     /// `t` with the last parameter of its first clause marked repeated if that clause has one of
     /// `counts` parameters, the last an array.
     fn mark_last_array(&mut self, t: TypeId, counts: &[usize]) -> TypeId {
-        match self.types.get(t).clone() {
+        match *self.types.get(t) {
             Type::Poly { binder, params, result } => {
                 let result = self.mark_last_array(result, counts);
                 self.types.intern(Type::Poly { binder, params, result })
@@ -75,7 +75,7 @@ impl Universe {
 
     /// Whether `t` is `Array[e]`.
     pub fn is_array(&mut self, t: TypeId) -> bool {
-        match self.types.get(t).clone() {
+        match *self.types.get(t) {
             Type::Applied(c, args) => {
                 self.types.types_of(args).len() == 1 && self.is_class_named(c, super::defn::ARRAY)
             }

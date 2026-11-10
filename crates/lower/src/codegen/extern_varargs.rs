@@ -14,7 +14,7 @@ impl Gen<'_, '_> {
         let mut t = self.l.u.info(method);
         let mut index = 0;
         loop {
-            match self.l.u.ty(t).clone() {
+            match *self.l.u.ty(t) {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, result, .. } => {
                     for (_, param) in self.l.u.params_of(params).to_vec() {

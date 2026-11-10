@@ -149,7 +149,7 @@ fn passing_fun(
 
 /// Accessor type `info` with its receiver parameter named `x$0`.
 fn with_receiver_named(u: &mut Universe, info: TypeId) -> TypeId {
-    match u.ty(info).clone() {
+    match *u.ty(info) {
         Type::Poly { binder, params, result } => {
             let result = with_receiver_named(u, result);
             u.intern_type(Type::Poly { binder, params, result })

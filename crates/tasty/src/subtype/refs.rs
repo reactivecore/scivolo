@@ -42,7 +42,7 @@ impl Cmp<'_> {
     /// What `t` names, if it is a named type.
     pub fn named(&mut self, t: TypeId) -> Option<Named> {
         let u = &mut *self.u;
-        let (prefix, name) = match u.ty(t).clone() {
+        let (prefix, name) = match *u.ty(t) {
             Type::TypeRef(p, n) | Type::TermRef(p, n) => (p, n),
             Type::Sym(p, s) => return Some(Named { sym: Some(s), prefix: p, meaning: meaning(u, s, p) }),
             _ => return None,

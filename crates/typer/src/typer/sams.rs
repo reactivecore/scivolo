@@ -104,7 +104,7 @@ impl Typer<'_> {
     /// Records in `seen` whether type parameter `p` occurs in `t` at variance `v` covariantly and
     /// whether contravariantly, an invariant occurrence as both; `false` for a form not followed.
     fn occurrences(&mut self, t: TypeId, p: SymbolId, v: i8, seen: &mut (bool, bool)) -> bool {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(_, s) if s == p => {
                 seen.0 |= v >= 0;
                 seen.1 |= v <= 0;

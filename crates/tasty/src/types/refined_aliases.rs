@@ -12,7 +12,8 @@ impl Universe {
     /// The alias the outermost alias refinement of `name` in `t` gives it, through skolems,
     /// annotations and type aliases (dotty's `lookupRefined`).
     pub fn lookup_refined(&mut self, t: TypeId, name: &str) -> Option<TypeId> {
-        match self.ty(t).clone() {
+        let ty = *self.ty(t);
+        match ty {
             Type::Refined(p, n, info) => match *self.ty(info) {
                 Type::Alias(alias) if self.name(n) == name => Some(alias),
                 _ => self.lookup_refined(p, name),

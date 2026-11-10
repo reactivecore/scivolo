@@ -79,7 +79,7 @@ impl Typer<'_> {
         let taken: Vec<String> = clauses.iter().flatten().map(|&p| self.u.symbol(p).name.clone()).collect();
         let fresh = |n: &str| if taken.iter().any(|t| t == n) { format!("{n}$1") } else { n.to_owned() };
         loop {
-            let (binder, params, result, poly, flags) = match self.u.ty(info).clone() {
+            let (binder, params, result, poly, flags) = match *self.u.ty(info) {
                 Type::Poly { binder, params, result } => (binder, params, result, true, f::TYPE_PARAM),
                 Type::Method { binder, params, result, implicit, contextual } => {
                     let flags = match (contextual, implicit) {

@@ -121,7 +121,7 @@ pub fn narrow(t: &mut Typer, vars: &[GadtVar]) -> Result<(), &'static str> {
     for &(s, v) in vars {
         let Some(mut id) = t.u.var(v) else { continue };
         let (lo, hi) = loop {
-            match t.constraint.instance(id).map(|ty| (ty, t.u.ty(ty).clone())) {
+            match t.constraint.instance(id).map(|ty| (ty, *t.u.ty(ty))) {
                 Some((_, Type::Var(next))) => id = next,
                 Some((ty, _)) if plain_type_ref(t.u, ty) != Some(s) => break (ty, ty),
                 _ => break t.constraint.bounds(id),

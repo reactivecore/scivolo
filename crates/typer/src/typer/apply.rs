@@ -71,8 +71,7 @@ impl Typer<'_> {
         let pretyped = self.protos[proto].typed.take();
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe).or(Some(fun_tpe));
-        let Some(Type::Method { binder, params, result, implicit, contextual }) =
-            info.map(|i| self.u.ty(i).clone())
+        let Some(Type::Method { binder, params, result, implicit, contextual }) = info.map(|i| *self.u.ty(i))
         else {
             return self.unsupported(id, "application of a non-method");
         };

@@ -89,7 +89,7 @@ impl Synthesizer {
         let tpe = t.fully_defined_as(tpe, true)?;
         let normalized = t.u.normalized(tpe);
         let dealiased = t.u.dealias(normalized);
-        let value = match t.u.ty(dealiased).clone() {
+        let value = match *t.u.ty(dealiased) {
             Type::Constant(tag, bits) => of_type(tag, bits).map(|c| t.build().literal(c, at)),
             Type::Str(s) => {
                 let s = C::String(t.u.name(s).encode_utf16().collect());

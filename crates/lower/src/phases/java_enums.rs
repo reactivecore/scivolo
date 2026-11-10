@@ -163,7 +163,7 @@ fn last_clause(l: &Lower, t: TypeId) -> TypeId {
 /// Method or polymorphic type `t` with `_$name: String, _$ordinal: Int` added to its last
 /// clause (dotty's `addConstrParams`).
 fn with_name_and_ordinal(l: &mut Lower, t: TypeId) -> TypeId {
-    match l.u.ty(t).clone() {
+    match *l.u.ty(t) {
         Type::Poly { binder, params, result } => {
             let result = with_name_and_ordinal(l, result);
             l.u.intern_type(Type::Poly { binder, params, result })

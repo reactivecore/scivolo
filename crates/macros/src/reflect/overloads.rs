@@ -123,15 +123,15 @@ impl Host {
         let tpe = self.tpd.tpe(fun);
         let info = self.u.widen(tpe);
         let types = self.u.types();
-        let Type::Method { params, result, implicit: false, .. } = types.get(info) else { return None };
-        if matches!(types.get(*result), Type::Method { implicit: true, .. }) {
+        let Type::Method { params, result, implicit: false, .. } = *types.get(info) else { return None };
+        if matches!(types.get(result), Type::Method { implicit: true, .. }) {
             return None;
         }
         let by_value = |p: TypeId| match *types.get(p) {
             Type::ByName(r) => r,
             _ => p,
         };
-        Some(types.params_of(*params).iter().map(|&(_, p)| by_value(p)).collect())
+        Some(types.params_of(params).iter().map(|&(_, p)| by_value(p)).collect())
     }
 
     /// Whether the result of the first clause of the method type of `fun`, a method as its

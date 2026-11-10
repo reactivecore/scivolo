@@ -59,7 +59,7 @@ fn forwarder(
 ) -> Result<TNodeId> {
     let span = l.tpd.span(def);
     let info = l.u.info(meth);
-    let Type::Method { params, result, implicit, contextual, .. } = l.u.ty(info).clone() else {
+    let Type::Method { params, result, implicit, contextual, .. } = *l.u.ty(info) else {
         return unsupported(span, "varargs forwarders of polymorphic or curried methods");
     };
     if !l.u.param_clauses(result).is_empty() {

@@ -131,7 +131,7 @@ impl Inlining<'_> {
         if depth == 0 {
             return mentions_any(self.u, t, locals);
         }
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(p, x) if !self.u.is_type_symbol(x) => {
                 if locals.contains(&x) {
                     let proxy = self.u.symbol(x).flags.has(INLINEPROXY);

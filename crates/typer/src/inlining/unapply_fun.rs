@@ -133,7 +133,7 @@ impl Inlining<'_> {
 
     /// Method type `info` with its innermost result `result`.
     fn with_result(&mut self, info: TypeId, result: TypeId) -> TypeId {
-        let Type::Method { binder, params, result: r, implicit, contextual } = self.u.ty(info).clone() else {
+        let Type::Method { binder, params, result: r, implicit, contextual } = *self.u.ty(info) else {
             return result;
         };
         let result = self.with_result(r, result);

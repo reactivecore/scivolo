@@ -54,8 +54,8 @@ impl Typer<'_> {
     pub fn default_param_proto(&mut self, getter: SymbolId) -> (Option<(TypeId, TypeId)>, bool) {
         let Some((exact, pt)) = self.default_param_type(getter) else { return (None, false) };
         let types = self.u.types();
-        match (types.get(exact), types.get(pt)) {
-            (&Type::ByName(e), &Type::ByName(p)) => (Some((e, p)), true),
+        match (*types.get(exact), *types.get(pt)) {
+            (Type::ByName(e), Type::ByName(p)) => (Some((e, p)), true),
             _ => (Some((exact, pt)), false),
         }
     }

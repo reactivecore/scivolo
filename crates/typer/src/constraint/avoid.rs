@@ -24,7 +24,8 @@ impl Constraint {
         if !self.refers_to_local(u, t, at, 4) {
             return Some(t);
         }
-        match u.ty(t).clone() {
+        let ty = *u.ty(t);
+        match ty {
             Type::Var(x) => match self.vars[x.0 as usize].instance {
                 Some(i) => self.avoided(u, i, at, v),
                 None if v > 0 => {
@@ -117,7 +118,8 @@ impl Constraint {
             }
             Type::Refined(parent, name, info) => {
                 let parent = self.avoided(u, parent, at, v)?;
-                let info = match u.ty(info).clone() {
+                let info_ty = *u.ty(info);
+                let info = match info_ty {
                     _ if !self.refers_to_local(u, info, at, 4) => info,
                     Type::Alias(_) if v > 0 => return Some(parent),
                     Type::Bounds(lo, hi) if v > 0 => {

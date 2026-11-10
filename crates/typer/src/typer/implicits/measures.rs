@@ -32,7 +32,7 @@ impl Measure {
 
 /// The parts of `t` a size or covering set folds over: its prefix, arguments and operands.
 fn parts(u: &mut Universe, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
-    Ok(match u.ty(t).clone() {
+    Ok(match *u.ty(t) {
         Type::Sym(p, _) => p.into_iter().collect(),
         Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::This(p) => vec![p],
         Type::Applied(c, args) => [&[c][..], u.types_of(args)].concat(),
@@ -87,7 +87,8 @@ fn type_size(ty: &mut TypeOps<'_>, n: u32, tpe: TypeId, seen: &mut Vec<VarId>) -
     if let Some(d) = alias_of(ty.u, tpe) {
         return type_size(ty, n, d, seen);
     }
-    match ty.u.ty(tpe).clone() {
+    let node = *ty.u.ty(tpe);
+    match node {
         Type::Var(v) if seen.contains(&v) => Ok(n),
         Type::Var(v) => {
             seen.push(v);
@@ -161,7 +162,7 @@ fn cover(
 /// `Any` and `Nothing`.
 fn folded(u: &mut Universe, t: TypeId) -> Result<Option<Fold>, &'static str> {
     let b = u.defn();
-    Ok(Some(match u.ty(t).clone() {
+    Ok(Some(match *u.ty(t) {
         Type::Applied(c, args) => ([&[c][..], u.types_of(args)].concat(), type_symbol(u, c)),
         Type::Refined(p, _, i) => (vec![p, i], type_symbol(u, p)),
         Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {

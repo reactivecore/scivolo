@@ -113,7 +113,7 @@ impl Universe {
         let mut params = Vec::new();
         let mut bounds = Vec::new();
         loop {
-            match self.ty(t).clone() {
+            match *self.ty(t) {
                 Type::Poly { binder, params: ps, result } => {
                     bounds.push((binder, self.params_of(ps).iter().map(|&(_, b)| b).collect::<Vec<_>>()));
                     t = result;

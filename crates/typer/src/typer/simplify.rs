@@ -36,31 +36,36 @@ impl Typer<'_> {
 }
 
 fn simplify(u: &mut tasty::Universe, t: TypeId, keep: bool) -> TypeId {
-    u.map_type(t, &mut |u, part| match u.ty(part).clone() {
-        Type::Annotated(inner, annot) if !keep => {
-            let class = u.class_symbol(annot);
-            class
-                .is_some_and(|c| member_of(u, c, "scala.annotation.unchecked", |n| n == "uncheckedVariance"))
-                .then(|| simplify(u, inner, keep))
+    u.map_type(t, &mut |u, part| {
+        let ty = *u.ty(part);
+        match ty {
+            Type::Annotated(inner, annot) if !keep => {
+                let class = u.class_symbol(annot);
+                class
+                    .is_some_and(|c| {
+                        member_of(u, c, "scala.annotation.unchecked", |n| n == "uncheckedVariance")
+                    })
+                    .then(|| simplify(u, inner, keep))
+            }
+            Type::Or(a, b, soft) => {
+                let (a, b) = (simplify(u, a, keep), simplify(u, b, keep));
+                Some(u.lub_as(a, b, soft))
+            }
+            Type::And(a, b) => {
+                let (a, b) = (simplify(u, a, keep), simplify(u, b, keep));
+                Some(u.glb(a, b))
+            }
+            Type::Super(..) | Type::Skolem(..) => Some(part),
+            Type::Sym(Some(p), s) if u.symbol(s).kind == tasty::Kind::Type && is_class_type(u, p) => {
+                let alias = u.referenced_alias(part)?;
+                let lambda = u.lambda(alias).is_some();
+                (!lambda).then(|| {
+                    let dealiased = u.dealias(alias);
+                    simplify(u, dealiased, keep)
+                })
+            }
+            _ => None,
         }
-        Type::Or(a, b, soft) => {
-            let (a, b) = (simplify(u, a, keep), simplify(u, b, keep));
-            Some(u.lub_as(a, b, soft))
-        }
-        Type::And(a, b) => {
-            let (a, b) = (simplify(u, a, keep), simplify(u, b, keep));
-            Some(u.glb(a, b))
-        }
-        Type::Super(..) | Type::Skolem(..) => Some(part),
-        Type::Sym(Some(p), s) if u.symbol(s).kind == tasty::Kind::Type && is_class_type(u, p) => {
-            let alias = u.referenced_alias(part)?;
-            let lambda = u.lambda(alias).is_some();
-            (!lambda).then(|| {
-                let dealiased = u.dealias(alias);
-                simplify(u, dealiased, keep)
-            })
-        }
-        _ => None,
     })
 }
 

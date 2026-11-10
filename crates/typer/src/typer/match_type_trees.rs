@@ -100,7 +100,7 @@ impl Typer<'_> {
         }
         let mut body = self.tpd.tpe(body);
         if let Some(bound) = outer.filter(|_| unbounded)
-            && let Type::Match { scrutinee, cases, .. } = self.u.ty(body).clone()
+            && let Type::Match { scrutinee, cases, .. } = *self.u.ty(body)
         {
             body = self.u.intern_type(Type::Match { bound, scrutinee, cases });
         }

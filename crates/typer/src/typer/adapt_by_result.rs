@@ -85,7 +85,7 @@ impl Typer<'_> {
         depth: u32,
     ) -> Option<TypeId> {
         let depth = depth.checked_sub(1)?;
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Poly { binder, params, result } => {
                 let names: Vec<NameId> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
                 let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();

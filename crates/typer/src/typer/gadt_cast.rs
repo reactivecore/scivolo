@@ -140,7 +140,7 @@ impl Gadt {
         {
             return self.bound(u, s, variance);
         }
-        match u.ty(t).clone() {
+        match *u.ty(t) {
             Type::Applied(tycon, args) => {
                 let args = u.types_of(args).to_vec();
                 let variances = u.tycon_variances(tycon, args.len());

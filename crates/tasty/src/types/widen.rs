@@ -27,7 +27,7 @@ impl Universe {
     /// The underlying type of singleton type, constant or `this` `t`; `None` for other types
     /// and unresolved paths (dotty's `underlying`, `ThisType.underlying` for `this`).
     pub fn widen_once(&mut self, t: TypeId) -> Option<TypeId> {
-        Some(match self.ty(t).clone() {
+        Some(match *self.ty(t) {
             Type::TermRef(p, name) => match self.resolve_ref(t) {
                 Some(s) => self.term_type(Some(p), s),
                 None => self.term_refinement_named(p, name)?,
@@ -64,9 +64,9 @@ impl Universe {
 
     /// `t` with its alias followed or its applied type lambda reduced once; `t` if neither.
     pub fn dealias_step(&mut self, t: TypeId) -> TypeId {
-        match self.ty(t).clone() {
+        match *self.ty(t) {
             Type::Annotated(u, _) => u,
-            Type::Applied(tycon, args) => match self.ty(tycon).clone() {
+            Type::Applied(tycon, args) => match *self.ty(tycon) {
                 Type::Lambda { binder, params, result } => {
                     let names: Vec<_> = self.params_of(params).iter().map(|&(n, _)| n).collect();
                     let args = self.types_of(args).to_vec();
@@ -83,7 +83,7 @@ impl Universe {
 
     /// The right-hand side of the alias `t` refers to, seen from the reference's prefix.
     pub fn referenced_alias(&mut self, t: TypeId) -> Option<TypeId> {
-        let (prefix, s) = match self.ty(t).clone() {
+        let (prefix, s) = match *self.ty(t) {
             Type::Sym(p, s) => (p, s),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => (Some(p), s),

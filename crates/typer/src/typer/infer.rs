@@ -20,18 +20,25 @@ fn is_script_lambda(u: &Universe, t: TypeId) -> bool {
 /// skolem keeping its identity; with `keep`, a variable applied to arguments whose instance is a
 /// type lambda stays, its arguments substituted.
 fn substituted(u: &mut Universe, c: &Constraint, t: TypeId, changed: &mut bool, keep: bool) -> TypeId {
-    u.map_type(t, &mut |u, part| match u.ty(part).clone() {
-        Type::Var(v) => c.instance(v).inspect(|_| *changed = true),
-        Type::Skolem(b, info) => {
-            let info = substituted(u, c, info, changed, keep);
-            Some(u.intern_type(Type::Skolem(b, info)))
+    u.map_type(t, &mut |u, part| {
+        let node = *u.ty(part);
+        match node {
+            Type::Var(v) => c.instance(v).inspect(|_| *changed = true),
+            Type::Skolem(b, info) => {
+                let info = substituted(u, c, info, changed, keep);
+                Some(u.intern_type(Type::Skolem(b, info)))
+            }
+            Type::Applied(tycon, args) if keep && lambda_instance(u, c, tycon).is_some() => {
+                let args: Vec<_> = u
+                    .types_of(args)
+                    .to_vec()
+                    .into_iter()
+                    .map(|a| substituted(u, c, a, changed, keep))
+                    .collect();
+                Some(u.intern_applied(tycon, &args))
+            }
+            _ => None,
         }
-        Type::Applied(tycon, args) if keep && lambda_instance(u, c, tycon).is_some() => {
-            let args: Vec<_> =
-                u.types_of(args).to_vec().into_iter().map(|a| substituted(u, c, a, changed, keep)).collect();
-            Some(u.intern_applied(tycon, &args))
-        }
-        _ => None,
     })
 }
 

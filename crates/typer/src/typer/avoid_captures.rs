@@ -17,7 +17,7 @@ impl TypeOps<'_> {
         if !self.refers_to(t, captures) {
             return t;
         }
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(_, s) if captures.contains(&s) => {
                 let info = self.u.info(s);
                 let (lo, hi) = self.u.bounds(info).unwrap_or((NOTHING, ANY));

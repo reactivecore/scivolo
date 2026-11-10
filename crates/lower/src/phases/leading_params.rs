@@ -28,7 +28,7 @@ pub fn add_params(l: &mut Lower, constr: TNodeId, ctor: SymbolId, params: &[Symb
 /// Method type `info`, also under type parameters, with `params` first in its first clause; of a
 /// method without parameter lists, a method type of `params`.
 pub fn with_leading_params(l: &mut Lower, info: tasty::TypeId, params: &[SymbolId]) -> tasty::TypeId {
-    match l.u.ty(info).clone() {
+    match *l.u.ty(info) {
         Type::Poly { binder, params: tparams, result } => {
             let result = with_leading_params(l, result, params);
             l.u.intern_type(Type::Poly { binder, params: tparams, result })

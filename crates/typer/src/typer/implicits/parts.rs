@@ -18,7 +18,7 @@ pub struct Parts {
 impl TypeOps<'_> {
     /// The symbol reference `t` refers to.
     pub fn referenced(&mut self, t: TypeId) -> Option<SymbolId> {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, n) => self.u.resolve(p, n, true),
             Type::TermRef(p, n) => self.u.resolve(p, n, false),

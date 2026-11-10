@@ -16,7 +16,7 @@ impl Universe {
         let (ra, mut rb) = (self.result_type(a), self.result_type(b));
         let mut own = None;
         if let (Type::Poly { binder, params, .. }, Type::Poly { binder: b2, params: p2, .. }) =
-            (self.ty(a).clone(), self.ty(b).clone())
+            (*self.ty(a), *self.ty(b))
             && self.params_of(params).len() == self.params_of(p2).len()
         {
             let p2 = self.params_of(p2).to_vec();

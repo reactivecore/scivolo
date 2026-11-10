@@ -68,7 +68,7 @@ impl Translator<'_, '_> {
                     continue;
                 }
                 let info = self.l.u.member_info(tpe, m);
-                let (params, result) = match self.l.u.ty(info).clone() {
+                let (params, result) = match *self.l.u.ty(info) {
                     Type::Method { params, result, .. } => {
                         (Some(self.l.u.params_of(params).to_vec()), result)
                     }

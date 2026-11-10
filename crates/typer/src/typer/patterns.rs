@@ -157,7 +157,7 @@ impl Typer<'_> {
     pub fn is_class_type(&mut self, t: TypeId, wildcards: bool) -> bool {
         let t = self.dealiased(t);
         let (tycon, args) = self.u.applied(t).map_or((t, Vec::new()), |(tc, args)| (tc, args.to_vec()));
-        let sym = match self.u.ty(tycon).clone() {
+        let sym = match *self.u.ty(tycon) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, name) => self.u.resolve(p, name, true),
             _ => None,
@@ -189,7 +189,7 @@ impl Typer<'_> {
     /// `_` as a pattern: of the expected type, with that type's class as its symbol.
     pub fn wildcard_pattern(&mut self, id: NodeId, name: TName, pt: Pt) -> TNodeId {
         let Pt::Type(tpe) = pt else { return self.unsupported(id, "wildcard without expected type") };
-        let sym = match self.u.ty(self.stripped(tpe)).clone() {
+        let sym = match *self.u.ty(self.stripped(tpe)) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, name) => self.u.resolve(p, name, true),
             Type::TermRef(p, name) => self.u.resolve(p, name, false),

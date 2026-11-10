@@ -114,7 +114,8 @@ impl Synthesizer {
 /// The name of the member of `ClassTag`'s companion that tags `dealiased`'s class: `Unit`, `Any`
 /// or `AnyVal`; `None` for another class, an intersection, a union, or an applied alias.
 fn special_class_name(t: &mut Typer<'_>, dealiased: TypeId) -> Option<&'static str> {
-    let class = match t.u.ty(dealiased).clone() {
+    let node = *t.u.ty(dealiased);
+    let class = match node {
         Type::And(..) | Type::Or(..) => None,
         Type::Applied(tycon, _) if t.referenced(tycon).is_some_and(|s| t.u.symbol(s).kind != Kind::Class) => {
             None
@@ -138,7 +139,7 @@ fn class_tag_arg(t: &mut Typer<'_>, arg: TypeId) -> Result<Option<TypeId>, &'sta
     for _ in 0..MAX_INSTANTIATIONS {
         let arg = t.zonk(arg);
         let dealiased = t.u.dealias(arg);
-        let tpe = t.u.ty(dealiased).clone();
+        let tpe = *t.u.ty(dealiased);
         let v = match tpe {
             Type::And(a, b) | Type::Or(a, b, _) if a == b => return class_tag_arg(t, a),
             Type::And(..) | Type::Or(..) if !t.open_vars(dealiased).is_empty() => {

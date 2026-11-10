@@ -87,7 +87,7 @@ impl Universe {
         depth: u32,
     ) -> Option<TypeId> {
         let depth = depth.checked_sub(1)?;
-        let pre_kind = self.ty(pre).clone();
+        let pre_kind = *self.ty(pre);
         if self.symbol(cls).kind == Kind::Package || matches!(pre_kind, Type::NoPrefix) {
             return None;
         }

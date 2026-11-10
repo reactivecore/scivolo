@@ -89,7 +89,7 @@ impl Resolution {
 /// Shows method type `info` as dotty's message shows it, `(x: Int): Int`.
 fn method_text(t: &mut Typer, info: TypeId) -> Option<String> {
     for part in t.type_parts(info) {
-        let known = match t.u.ty(part) {
+        let known = match *t.u.ty(part) {
             Type::Method { .. } | Type::Poly { .. } | Type::Param(..) | Type::ByName(_) => true,
             Type::Constant(..) | Type::Str(_) => false,
             _ => crate::typer::not_a_member::is_concrete_part(t.u, part) && t.shown_as_dotty(part),

@@ -19,7 +19,8 @@ pub fn is_not_null(l: &mut Lower, tpe: TypeId, explicit_nulls: bool) -> bool {
 fn not_null(l: &mut Lower, t: TypeId, explicit: bool, depth: u32) -> bool {
     let Some(depth) = depth.checked_sub(1) else { return false };
     let next = |l: &mut Lower, t| not_null(l, t, explicit, depth);
-    match l.u.ty(t).clone() {
+    let ty = *l.u.ty(t);
+    match ty {
         Type::Constant(tag, _) => tag != NULLconst,
         Type::Str(_) => true,
         Type::Flexible(_) => false,

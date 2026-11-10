@@ -53,9 +53,7 @@ impl Host {
         }
         let mut sizes = Vec::new();
         let mut t = self.u.info(s);
-        while let Type::Poly { params, result, .. } | Type::Method { params, result, .. } =
-            self.u.ty(t).clone()
-        {
+        while let Type::Poly { params, result, .. } | Type::Method { params, result, .. } = *self.u.ty(t) {
             sizes.push(self.u.params_of(params).len());
             t = result;
         }

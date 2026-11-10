@@ -40,7 +40,7 @@ impl Universe {
     /// of the type lambda an alias or application stands for, else those declared; bivariant
     /// counts as covariant (dotty's `paramVarianceSign`).
     pub fn tycon_variances(&mut self, tycon: TypeId, n: usize) -> Vec<i8> {
-        let lambda = match self.ty(tycon) {
+        let lambda = match *self.ty(tycon) {
             Type::Lambda { .. } => Some(tycon),
             Type::Applied(..) => Some(self.dealias(tycon)),
             _ => self.referenced_alias(tycon),
@@ -95,7 +95,7 @@ impl Narrowing {
             }
             return;
         }
-        match u.ty(t).clone() {
+        match *u.ty(t) {
             Type::Sym(Some(prefix), _) | Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => {
                 self.go(u, prefix, v.max(0))
             }
@@ -147,9 +147,9 @@ impl Narrowing {
     /// The index of the parameter `t` refers to, if it refers to one; a lambda read from TASTy
     /// refers to its parameters by name.
     fn param(&self, u: &Universe, t: TypeId) -> Option<usize> {
-        match u.ty(t) {
-            Type::Param(b, i) if *b == self.binder => Some(*i as usize),
-            Type::Local(b, n) if b.0 == self.binder.0 => self.params.iter().position(|(m, _)| m == n),
+        match *u.ty(t) {
+            Type::Param(b, i) if b == self.binder => Some(i as usize),
+            Type::Local(b, n) if b.0 == self.binder.0 => self.params.iter().position(|&(m, _)| m == n),
             _ => None,
         }
     }

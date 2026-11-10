@@ -70,7 +70,7 @@ impl Unpickler<'_> {
     /// Method type `t` with its repeated parameters, `Seq[T] @Repeated` in TASTy, typed
     /// `<repeated>[T]`, in each clause.
     fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Method { binder, params, result, implicit, contextual } => {
                 let mut mapped = Vec::new();
                 for (n, p) in self.u.params_of(params).to_vec() {
@@ -158,7 +158,7 @@ impl Unpickler<'_> {
 
 /// Constructor clauses `t` with the constructed `class` as their final result.
 fn constructed(u: &mut tasty::Universe, t: TypeId, class: TypeId) -> TypeId {
-    match u.ty(t).clone() {
+    match *u.ty(t) {
         Type::Method { binder, params, result, implicit, contextual } => {
             let result = constructed(u, result, class);
             u.intern_type(Type::Method { binder, params, result, implicit, contextual })

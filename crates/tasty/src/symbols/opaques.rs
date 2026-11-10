@@ -67,7 +67,7 @@ impl Universe {
         }
         self.symbol(s).tree?;
         let info = self.info(s);
-        match self.ty(info).clone() {
+        match *self.ty(info) {
             Type::Alias(a) => Some(a),
             Type::Lambda { binder, params, result } => match *self.ty(result) {
                 Type::Alias(a) => Some(self.intern_type(Type::Lambda { binder, params, result: a })),

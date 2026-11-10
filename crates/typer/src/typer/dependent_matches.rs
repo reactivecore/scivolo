@@ -51,7 +51,7 @@ impl Typer<'_> {
             T::Ident { .. } => ANY,
             _ => return None,
         };
-        let case = match self.u.ty(case).clone() {
+        let case = match *self.u.ty(case) {
             Type::Lambda { binder, params, result } => {
                 let params = self.u.params_of(params).to_vec();
                 let mut bound = Vec::new();

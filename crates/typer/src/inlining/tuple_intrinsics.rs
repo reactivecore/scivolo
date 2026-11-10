@@ -49,7 +49,7 @@ impl Inlining<'_> {
     fn unrolled_tuple(&mut self, t: TypeId, depth: usize) -> Option<Vec<TypeId>> {
         let depth = depth.checked_sub(1)?;
         let d = self.u.dealias(t);
-        if let Type::Match { .. } = self.u.ty(d) {
+        if let Type::Match { .. } = *self.u.ty(d) {
             let n = self.u.try_normalize(d)?;
             return self.unrolled_tuple(n, depth);
         }

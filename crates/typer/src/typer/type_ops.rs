@@ -122,7 +122,7 @@ impl TypeOps<'_> {
     /// Finds the class `t` refers to, applied or not; `None` for other types.
     pub fn direct_class(&mut self, t: TypeId) -> Option<SymbolId> {
         let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
-        let c = match self.u.ty(tycon).clone() {
+        let c = match *self.u.ty(tycon) {
             Type::Sym(_, c) => c,
             Type::TypeRef(p, n) => self.u.resolve(p, n, true)?,
             _ => return None,

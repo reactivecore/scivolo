@@ -44,7 +44,7 @@ impl Typer<'_> {
         self.u.map_type(t, &mut |u, part| {
             let Type::Rec(binder, mut parent) = *u.ty(part) else { return None };
             let mut kept = Vec::new();
-            while let Type::Refined(p, name, info) = u.ty(parent).clone() {
+            while let Type::Refined(p, name, info) = *u.ty(parent) {
                 let mut recursive = false;
                 u.map_type(info, &mut |u, x| {
                     recursive |= *u.ty(x) == Type::RecThis(binder);

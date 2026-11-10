@@ -40,7 +40,7 @@ impl TreePickler<'_> {
             T::TypeApply { fun, args } => self.type_apply(fun, args),
             T::Literal { value } => {
                 let t = typed()?;
-                match self.u.ty(t) {
+                match *self.u.ty(t) {
                     Type::Constant(..) | Type::Str(_) => self.constant(t),
                     _ => {
                         let t = constant_type_of(self.u, &value);

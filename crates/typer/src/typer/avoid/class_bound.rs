@@ -138,7 +138,7 @@ fn term_info(u: &mut Universe, d: SymbolId) -> TypeId {
 /// The info of type member `d` as a refinement gives it: an alias or bounds.
 fn type_info(u: &mut Universe, d: SymbolId) -> TypeId {
     let info = u.info(d);
-    match u.ty(info) {
+    match *u.ty(info) {
         Type::Alias(_) | Type::Bounds(..) => info,
         _ => u.intern_type(Type::Alias(info)),
     }

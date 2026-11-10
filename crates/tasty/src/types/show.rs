@@ -5,75 +5,70 @@ use crate::Universe;
 
 impl Universe {
     pub fn show(&self, t: TypeId) -> String {
-        let params = |ps: &ParamList| {
-            self.params_of(*ps)
+        let params = |ps: ParamList| {
+            self.params_of(ps)
                 .iter()
                 .map(|&(n, t)| format!("{}: {}", self.name(n), self.show(t)))
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        match self.ty(t) {
+        match *self.ty(t) {
             Type::NoPrefix => String::new(),
-            Type::TypeRef(p, n) | Type::TermRef(p, n) => match self.show(*p) {
-                prefix if prefix.is_empty() => self.name(*n).to_owned(),
-                prefix => format!("{prefix}.{}", self.name(*n)),
+            Type::TypeRef(p, n) | Type::TermRef(p, n) => match self.show(p) {
+                prefix if prefix.is_empty() => self.name(n).to_owned(),
+                prefix => format!("{prefix}.{}", self.name(n)),
             },
-            Type::Sym(Some(p), s) => match self.show(*p) {
-                prefix if prefix.is_empty() => self.symbol(*s).name.clone(),
-                prefix => format!("{prefix}.{}", self.symbol(*s).name),
+            Type::Sym(Some(p), s) => match self.show(p) {
+                prefix if prefix.is_empty() => self.symbol(s).name.clone(),
+                prefix => format!("{prefix}.{}", self.symbol(s).name),
             },
-            Type::Sym(None, s) => self.symbol(*s).name.clone(),
-            Type::Local(_, n) => self.name(*n).to_owned(),
-            Type::Package(p) => self.full_name(*p),
-            Type::PackageName(p) => self.name(*p).to_owned(),
-            Type::This(c) => format!("{}.this", self.show(*c)),
-            Type::Super(t, p) => format!("{}.super[{}]", self.show(*t), self.show(*p)),
+            Type::Sym(None, s) => self.symbol(s).name.clone(),
+            Type::Local(_, n) => self.name(n).to_owned(),
+            Type::Package(p) => self.full_name(p),
+            Type::PackageName(p) => self.name(p).to_owned(),
+            Type::This(c) => format!("{}.this", self.show(c)),
+            Type::Super(t, p) => format!("{}.super[{}]", self.show(t), self.show(p)),
             Type::Applied(c, args) => {
                 format!(
                     "{}[{}]",
-                    self.show(*c),
-                    self.types_of(*args).iter().map(|a| self.show(*a)).collect::<Vec<_>>().join(", ")
+                    self.show(c),
+                    self.types_of(args).iter().map(|a| self.show(*a)).collect::<Vec<_>>().join(", ")
                 )
             }
-            Type::Alias(a) => format!("= {}", self.show(*a)),
-            Type::Bounds(lo, hi) if lo == hi => self.show(*lo),
-            Type::Bounds(lo, hi) => format!(">: {} <: {}", self.show(*lo), self.show(*hi)),
-            Type::And(a, b) => format!("{} & {}", self.show(*a), self.show(*b)),
-            Type::Or(a, b, _) => format!("{} | {}", self.show(*a), self.show(*b)),
-            Type::Annotated(u, _) => self.show(*u),
-            Type::Flexible(u) => format!("({})?", self.show(*u)),
-            Type::ByName(u) => format!("=> {}", self.show(*u)),
-            Type::Refined(p, n, i) => format!("{} {{ {}: {} }}", self.show(*p), self.name(*n), self.show(*i)),
-            Type::Rec(_, p) => self.show(*p),
+            Type::Alias(a) => format!("= {}", self.show(a)),
+            Type::Bounds(lo, hi) if lo == hi => self.show(lo),
+            Type::Bounds(lo, hi) => format!(">: {} <: {}", self.show(lo), self.show(hi)),
+            Type::And(a, b) => format!("{} & {}", self.show(a), self.show(b)),
+            Type::Or(a, b, _) => format!("{} | {}", self.show(a), self.show(b)),
+            Type::Annotated(u, _) => self.show(u),
+            Type::Flexible(u) => format!("({})?", self.show(u)),
+            Type::ByName(u) => format!("=> {}", self.show(u)),
+            Type::Refined(p, n, i) => format!("{} {{ {}: {} }}", self.show(p), self.name(n), self.show(i)),
+            Type::Rec(_, p) => self.show(p),
             Type::RecThis(_) => "this".into(),
             Type::Method { params: ps, result, implicit, contextual, .. } => {
-                let using = match (*contextual, *implicit) {
+                let using = match (contextual, implicit) {
                     (true, _) => "using ",
                     (false, true) => "implicit ",
                     _ => "",
                 };
-                format!("({using}{}): {}", params(ps), self.show(*result))
+                format!("({using}{}): {}", params(ps), self.show(result))
             }
-            Type::Poly { params: ps, result, .. } => format!("[{}]{}", params(ps), self.show(*result)),
-            Type::Lambda { params: ps, result, .. } => format!("[{}] =>> {}", params(ps), self.show(*result)),
+            Type::Poly { params: ps, result, .. } => format!("[{}]{}", params(ps), self.show(result)),
+            Type::Lambda { params: ps, result, .. } => format!("[{}] =>> {}", params(ps), self.show(result)),
             Type::Param(_, i) => format!("<param {i}>"),
             Type::Match { bound, scrutinee, cases } => {
-                let cases: Vec<String> = self.types_of(*cases).iter().map(|&c| self.show(c)).collect();
-                format!(
-                    "({} match {{ {} }} <: {})",
-                    self.show(*scrutinee),
-                    cases.join("; "),
-                    self.show(*bound)
-                )
+                let cases: Vec<String> = self.types_of(cases).iter().map(|&c| self.show(c)).collect();
+                format!("({} match {{ {} }} <: {})", self.show(scrutinee), cases.join("; "), self.show(bound))
             }
-            Type::MatchCase(p, b) => format!("case {} => {}", self.show(*p), self.show(*b)),
-            Type::Constant(tag, v) => format!("{}({v})", crate::tags::name(*tag)),
-            Type::Str(s) => format!("{:?}", self.name(*s)),
-            Type::Other(tag) => format!("<{}>", crate::tags::name(*tag)),
+            Type::MatchCase(p, b) => format!("case {} => {}", self.show(p), self.show(b)),
+            Type::Constant(tag, v) => format!("{}({v})", crate::tags::name(tag)),
+            Type::Str(s) => format!("{:?}", self.name(s)),
+            Type::Other(tag) => format!("<{}>", crate::tags::name(tag)),
             Type::Var(v) => format!("?{}", v.0),
-            Type::Skolem(b, info) => format!("(?{} : {})", b.1, self.show(*info)),
+            Type::Skolem(b, info) => format!("(?{} : {})", b.1, self.show(info)),
             Type::Wildcard(None) => "?".into(),
-            Type::Wildcard(Some(b)) => format!("? {}", self.show(*b)),
+            Type::Wildcard(Some(b)) => format!("? {}", self.show(b)),
             Type::Error => "<error>".into(),
         }
     }

@@ -37,7 +37,8 @@ impl Typer<'_> {
 /// Whether seeing `t` at variance `v` from unstable `p` approximates a `this` of class `owner`.
 fn approximated(u: &mut Universe, t: TypeId, v: i8, (p, owner): (TypeId, SymbolId)) -> bool {
     let m = |u: &mut Universe, t, v| approximated(u, t, v, (p, owner));
-    match u.ty(t).clone() {
+    let ty = *u.ty(t);
+    match ty {
         Type::This(_) => v <= 0 && is_owner_this(u, t, owner),
         Type::Sym(_, s) if u.is_static_symbol(s) => false,
         Type::Sym(Some(pre), s) if v <= 0 && is_owner_this(u, pre, owner) => not_forwarded(u, p, s),

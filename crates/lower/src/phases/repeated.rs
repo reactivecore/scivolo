@@ -127,7 +127,7 @@ fn java_varargs(l: &mut Lower, method: SymbolId, clause: usize, i: usize) -> Opt
     let mut t = l.u.info(method);
     let mut clauses = 0;
     loop {
-        match l.u.ty(t).clone() {
+        match *l.u.ty(t) {
             Type::Poly { result, .. } => t = result,
             Type::Method { result, .. } if clauses < clause => (t, clauses) = (result, clauses + 1),
             Type::Method { params, .. } => {

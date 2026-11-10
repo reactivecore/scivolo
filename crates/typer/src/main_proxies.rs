@@ -88,7 +88,7 @@ impl Typer<'_> {
         }
         let mut call = self.splice_ref(fun);
         let info = self.u.info(fun);
-        match self.u.ty(info).clone() {
+        match *self.u.ty(info) {
             Type::Method { params, result, implicit: false, .. } if self.u.method(result).is_none() => {
                 let mut args = Vec::new();
                 for (i, (_, p)) in self.u.params_of(params).to_vec().into_iter().enumerate() {

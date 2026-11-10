@@ -28,7 +28,7 @@ impl Typer<'_> {
             self.u.is_type_symbol(s) && (!self.u.is_class(s) || parent && self.is_pending_plain_class(s))
         });
         let info = if type_member { None } else { self.method_info(tpe) };
-        let method = info.or(Some(tpe)).map(|i| self.u.ty(i).clone());
+        let method = info.or(Some(tpe)).map(|i| *self.u.ty(i));
         if let Some(Type::Poly { .. }) = method {
             return match self.with_type_vars(tree) {
                 Ok(applied) => self.adapt(applied, pt, ctx),

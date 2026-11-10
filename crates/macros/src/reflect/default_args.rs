@@ -22,7 +22,7 @@ impl Host {
     ) -> Fallible<TNodeId> {
         let fun = self.selected(qual, m, targs)?;
         let info = self.u.widen(self.tpd.tpe(fun));
-        let Type::Method { params, .. } = self.u.ty(info).clone() else {
+        let Type::Method { params, .. } = *self.u.ty(info) else {
             return self.reflect().apply(fun, terms);
         };
         let params = self.u.params_of(params).to_vec();
@@ -120,7 +120,7 @@ impl Host {
         let getter = getter.ok_or("Select.overloaded without an argument of a parameter without default")?;
         let sel = self.selected(qual, getter, targs)?;
         let info = self.u.widen(self.tpd.tpe(sel));
-        match self.u.ty(info) {
+        match *self.u.ty(info) {
             Type::Poly { .. } | Type::Method { .. } => {
                 Err("Select.overloaded of a default getter with parameters")
             }

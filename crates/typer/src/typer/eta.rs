@@ -65,7 +65,7 @@ impl Typer<'_> {
     ) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(tree);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let Type::Method { params, result, contextual: false, .. } = self.u.ty(info).clone() else {
+        let Type::Method { params, result, contextual: false, .. } = *self.u.ty(info) else {
             return Err("method value");
         };
         let params = self.u.params_of(params).to_vec();

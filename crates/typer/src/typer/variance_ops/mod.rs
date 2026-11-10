@@ -101,7 +101,7 @@ impl VarianceOps<'_> {
             return None;
         }
         let go = |s: &mut Self, t, v| s.misplaced(checked, t, v, depth + 1);
-        match (self.u.ty(t).clone(), checked) {
+        match (*self.u.ty(t), checked) {
             (Type::Param(b, i), Checked::Lambda(binder, variances)) if b == binder => {
                 let own = variances.get(i as usize).copied().unwrap_or(0);
                 (own != 0 && own != v).then_some(Misplaced::Lambda(i as usize, of_sign(v)))
@@ -119,7 +119,7 @@ impl VarianceOps<'_> {
                 };
                 go(self, tycon, v).or_else(|| {
                     self.u.types_of(args).to_vec().into_iter().enumerate().find_map(|(i, a)| {
-                        let av = match self.u.ty(a) {
+                        let av = match *self.u.ty(a) {
                             Type::Bounds(..) | Type::Wildcard(_) => v,
                             _ => v * variances.get(i).copied().unwrap_or(0),
                         };

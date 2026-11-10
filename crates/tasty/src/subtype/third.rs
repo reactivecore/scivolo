@@ -10,7 +10,7 @@ use crate::{ANY, NOTHING};
 
 impl Cmp<'_> {
     pub fn third_try(&mut self, a: TypeId, b: TypeId) -> bool {
-        match self.u.ty(b).clone() {
+        match *self.u.ty(b) {
             Type::Applied(tycon, args) => {
                 let args = self.u.types_of(args).to_vec();
                 self.compare_applied2(a, b, tycon, &args)
@@ -32,7 +32,7 @@ impl Cmp<'_> {
                 Some(r) => self.recur(a, r),
                 None => self.fourth_try(a, b),
             },
-            Type::Lambda { binder: b2, params: p2, result: r2 } => match self.u.ty(a).clone() {
+            Type::Lambda { binder: b2, params: p2, result: r2 } => match *self.u.ty(a) {
                 Type::Lambda { binder: b1, params: p1, result: r1 } => {
                     let (p1, p2) = (self.u.params_of(p1).to_vec(), self.u.params_of(p2).to_vec());
                     self.compare_binders((b1, &p1, r1), (b2, &p2, r2)) || self.fourth_try(a, b)
@@ -46,38 +46,32 @@ impl Cmp<'_> {
                 Some(decided) => decided,
                 None => self.below_union(a, b, x, y),
             },
-            Type::Method { binder: b2, params: p2, result: r2, implicit: i2, .. } => {
-                match self.u.ty(a).clone() {
-                    Type::Method { binder: b1, params: p1, result: r1, implicit: i1, .. } => {
-                        let (p1, p2) = (self.u.params_of(p1).to_vec(), self.u.params_of(p2).to_vec());
-                        if p1.len() != p2.len() || !i1 && i2 {
-                            return false;
-                        }
-                        let names: Vec<_> = p2.iter().map(|&(n, _)| n).collect();
-                        let refs: Vec<TypeId> =
-                            (0..p1.len() as u32).map(|i| self.u.intern_type(Type::Param(b1, i))).collect();
-                        let own = |s: &mut Self, t: TypeId| s.u.param_syms_as_refs(t, &p1, b1);
-                        let (x, r1): (Vec<TypeId>, TypeId) =
-                            (p1.iter().map(|&(_, x)| own(self, x)).collect(), own(self, r1));
-                        let theirs = |s: &mut Self, t: TypeId| {
-                            let t = s.u.param_syms_as_refs(t, &p2, b2);
-                            s.u.subst(t, b2, &names, &refs)
-                        };
-                        let y: Vec<TypeId> = p2.iter().map(|&(_, y)| theirs(self, y)).collect();
-                        let r2 = theirs(self, r2);
-                        if !x
-                            .iter()
-                            .zip(&y)
-                            .all(|(&x, &y)| self.recur_frozen(x, y) && self.recur_frozen(y, x))
-                        {
-                            return false;
-                        }
-                        self.recur(r1, r2)
+            Type::Method { binder: b2, params: p2, result: r2, implicit: i2, .. } => match *self.u.ty(a) {
+                Type::Method { binder: b1, params: p1, result: r1, implicit: i1, .. } => {
+                    let (p1, p2) = (self.u.params_of(p1).to_vec(), self.u.params_of(p2).to_vec());
+                    if p1.len() != p2.len() || !i1 && i2 {
+                        return false;
                     }
-                    _ => false,
+                    let names: Vec<_> = p2.iter().map(|&(n, _)| n).collect();
+                    let refs: Vec<TypeId> =
+                        (0..p1.len() as u32).map(|i| self.u.intern_type(Type::Param(b1, i))).collect();
+                    let own = |s: &mut Self, t: TypeId| s.u.param_syms_as_refs(t, &p1, b1);
+                    let (x, r1): (Vec<TypeId>, TypeId) =
+                        (p1.iter().map(|&(_, x)| own(self, x)).collect(), own(self, r1));
+                    let theirs = |s: &mut Self, t: TypeId| {
+                        let t = s.u.param_syms_as_refs(t, &p2, b2);
+                        s.u.subst(t, b2, &names, &refs)
+                    };
+                    let y: Vec<TypeId> = p2.iter().map(|&(_, y)| theirs(self, y)).collect();
+                    let r2 = theirs(self, r2);
+                    if !x.iter().zip(&y).all(|(&x, &y)| self.recur_frozen(x, y) && self.recur_frozen(y, x)) {
+                        return false;
+                    }
+                    self.recur(r1, r2)
                 }
-            }
-            Type::Poly { binder: b2, params: p2, result: r2 } => match self.u.ty(a).clone() {
+                _ => false,
+            },
+            Type::Poly { binder: b2, params: p2, result: r2 } => match *self.u.ty(a) {
                 Type::Poly { binder: b1, params: p1, result: r1 } => {
                     let (p1, p2) = (self.u.params_of(p1).to_vec(), self.u.params_of(p2).to_vec());
                     self.compare_binders((b1, &p1, r1), (b2, &p2, r2))
@@ -117,7 +111,7 @@ impl Cmp<'_> {
         match self.frozen() {
             true => self.fourth_try(a, b),
             false => {
-                let a = match self.u.ty(a).clone() {
+                let a = match *self.u.ty(a) {
                     Type::ByName(r) => r,
                     Type::Applied(tycon, args) => {
                         let args = self.u.types_of(args).to_vec();

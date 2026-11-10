@@ -50,10 +50,11 @@ impl MirrorSource {
 
 fn reduced_source(t: &mut Typer<'_>, tpe: TypeId, depth: u32) -> Result<Option<MirrorSource>, &'static str> {
     let Some(depth) = depth.checked_sub(1) else { return Err("Mirror of a type too deep to reduce") };
-    let next = match t.u.ty(tpe).clone() {
+    let node = *t.u.ty(tpe);
+    let next = match node {
         Type::TypeRef(p, n) if t.referenced(tpe).is_none() => {
-            match t.u.refinement_named(p, n).map(|i| t.u.ty(i)) {
-                Some(&Type::Alias(a) | &Type::Bounds(_, a)) => Some(a),
+            match t.u.refinement_named(p, n).map(|i| *t.u.ty(i)) {
+                Some(Type::Alias(a) | Type::Bounds(_, a)) => Some(a),
                 _ => return Err("Mirror of an unresolved type"),
             }
         }

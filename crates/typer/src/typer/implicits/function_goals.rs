@@ -15,7 +15,7 @@ use tasty::{SymbolId, Type, TypeId};
 /// references to their parameters made wildcards, a method as a function type if `pt` is a
 /// `FunctionN` type (dotty's `normalize`); `None` if it stays a method.
 pub fn implicit_value_type(t: &mut Typer<'_>, tpe: TypeId, sym: SymbolId, pt: TypeId) -> Option<TypeId> {
-    let tpe = match t.u.ty(tpe).clone() {
+    let tpe = match *t.u.ty(tpe) {
         Type::Method { binder, params, result, implicit: true, contextual } => {
             let ps = t.u.params_of(params).to_vec();
             let result = t.types().without_false_deps_in(result, (binder, &ps), Some(sym));

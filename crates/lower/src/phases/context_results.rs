@@ -173,7 +173,7 @@ pub fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
 
 /// Method type `t` with its final result `result`.
 pub fn with_result(l: &mut Lower, t: TypeId, result: TypeId) -> TypeId {
-    let t = match l.u.ty(t).clone() {
+    let t = match *l.u.ty(t) {
         Type::Poly { binder, params, result: r } => {
             Type::Poly { binder, params, result: with_result(l, r, result) }
         }

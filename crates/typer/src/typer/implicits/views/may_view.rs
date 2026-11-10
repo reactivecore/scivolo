@@ -140,9 +140,9 @@ impl TypeOps<'_> {
         let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
         let (prefix, name) = self.u.type_ref(tycon)?;
         let name = self.u.name(name);
-        match self.u.ty(prefix) {
-            Type::Package(p) => Some(format!("{}.{name}", self.u.full_name(*p))),
-            Type::PackageName(p) => Some(format!("{}.{name}", self.u.name(*p))),
+        match *self.u.ty(prefix) {
+            Type::Package(p) => Some(format!("{}.{name}", self.u.full_name(p))),
+            Type::PackageName(p) => Some(format!("{}.{name}", self.u.name(p))),
             _ => None,
         }
     }

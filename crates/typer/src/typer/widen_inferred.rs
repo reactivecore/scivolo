@@ -71,7 +71,8 @@ impl Typer<'_> {
     /// nothing widens (dotty's `widenSingletons`).
     pub fn widen_singletons(&mut self, t: TypeId, skip_soft_unions: bool) -> TypeId {
         let d = self.u.dealias(t);
-        match self.u.ty(d).clone() {
+        let ty = *self.u.ty(d);
+        match ty {
             Type::Or(a, b, true) if !skip_soft_unions => {
                 let (wa, wb) = (self.widen_singletons(a, false), self.widen_singletons(b, false));
                 if (wa, wb) == (a, b) { t } else { self.u.lub(wa, wb) }

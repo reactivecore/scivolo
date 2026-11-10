@@ -16,7 +16,7 @@ impl Universe {
     /// The info of `apply` if `t` is `PolyFunction { def apply: info }` or a refinement of a
     /// subclass of `PolyFunction` (dotty's `PolyFunctionOf.unapply`).
     pub fn poly_function_apply(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Refined(parent, name, info) = self.ty(t).clone() else { return None };
+        let Type::Refined(parent, name, info) = *self.ty(t) else { return None };
         if self.name(name) != "apply" || !matches!(self.ty(info), Type::Method { .. } | Type::Poly { .. }) {
             return None;
         }
@@ -54,7 +54,7 @@ impl Universe {
     pub fn erase_refined_function_apply(&mut self, info: TypeId) -> Erased {
         let mut t = info;
         let arity = loop {
-            match self.ty(t).clone() {
+            match *self.ty(t) {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, .. } => {
                     break self

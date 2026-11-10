@@ -55,7 +55,7 @@ impl Universe {
             _ => None,
         };
         let named = |u: &mut Self, c: SymbolId| erases_to(u, c, name);
-        let found = match (self.erased_class(widened), self.ty(widened).clone()) {
+        let found = match (self.erased_class(widened), *self.ty(widened)) {
             (None, Type::Or(x, y, _)) => match (side(self, x), side(self, y)) {
                 (Some(cx), Some(cy)) => self.common_base(cx, cy),
                 (cx, cy) => cx.or(cy),

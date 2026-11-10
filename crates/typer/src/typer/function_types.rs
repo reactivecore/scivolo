@@ -154,7 +154,7 @@ impl TypeOps<'_> {
     pub fn context_function_parts(&mut self, t: TypeId) -> Option<Parts> {
         let z = self.zonk(t);
         let d = self.u.dealias(z);
-        if let Type::Refined(parent, name, info) = self.u.ty(d).clone()
+        if let Type::Refined(parent, name, info) = *self.u.ty(d)
             && self.u.name(name) == "apply"
             && let Type::Method { binder, result, .. } = *self.u.ty(info)
             && !mentions_params(self.u, result, binder, None)

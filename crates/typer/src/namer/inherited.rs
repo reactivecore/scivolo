@@ -159,9 +159,9 @@ impl Typer<'_> {
         }
         t = self.subst_syms(t, &their_types, &targs);
         t = self.subst_syms(t, &their_values, &refs);
-        match self.u.ty(t) {
+        match *self.u.ty(t) {
             Type::Method { .. } | Type::Poly { .. } => None,
-            Type::ByName(r) => Some(*r),
+            Type::ByName(r) => Some(r),
             _ => {
                 let mut depends = false;
                 self.u.map_type(t, &mut |u, x| {

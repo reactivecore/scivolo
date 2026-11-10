@@ -11,7 +11,7 @@ use crate::{Kind, SymbolId};
 
 impl Cmp<'_> {
     pub fn fourth_try(&mut self, a: TypeId, b: TypeId) -> bool {
-        match self.u.ty(a).clone() {
+        match *self.u.ty(a) {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(a).map(|n| n.meaning) {
                 Some(Meaning::Abstract(_, hi)) => {
                     self.recur(hi, b)

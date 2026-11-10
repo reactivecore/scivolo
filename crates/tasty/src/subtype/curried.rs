@@ -31,7 +31,7 @@ impl Cmp<'_> {
     /// The upper bound of type constructor `t` (dotty's `superType`), or its lower one
     /// (`lowerBound`); `None` for classes and constructors without bounds.
     fn bound(&mut self, t: TypeId, upper: bool) -> Option<TypeId> {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Applied(tycon, args) => {
                 let b = self.bound(tycon, upper)?;
                 let args = self.u.types_of(args).to_vec();

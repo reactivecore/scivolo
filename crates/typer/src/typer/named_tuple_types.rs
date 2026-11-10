@@ -80,8 +80,8 @@ impl Typer<'_> {
             .iter()
             .map(|&n| {
                 let n = self.u.dealias(n);
-                match self.u.ty(n) {
-                    &Type::Str(s) => Some(self.u.name(s).to_owned()),
+                match *self.u.ty(n) {
+                    Type::Str(s) => Some(self.u.name(s).to_owned()),
                     _ => None,
                 }
             })

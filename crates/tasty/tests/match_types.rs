@@ -18,7 +18,7 @@ fn match_alias(u: &mut Universe, pkg: &str, obj: &str, name: &str) -> TypeId {
     let alias = u.decl(class, name).unwrap()[0];
     let mut t = u.info(alias);
     loop {
-        match u.types().get(t).clone() {
+        match *u.types().get(t) {
             Type::Alias(a) | Type::Bounds(_, a) => t = a,
             Type::Lambda { result, .. } => t = result,
             Type::Match { .. } => return t,
@@ -125,12 +125,12 @@ fn library_match_types_keep_scrutinee_and_cases() {
         ("scala", "Tuple", "Fold", 2),
     ] {
         let t = match_alias(&mut u, pkg, obj, name);
-        let Type::Match { cases, .. } = u.types().get(t).clone() else { unreachable!() };
+        let Type::Match { cases, .. } = *u.types().get(t) else { unreachable!() };
         assert_eq!(u.types_of(cases).len(), n, "{name}: {}", u.show(t));
         assert!(!has_undecoded(&mut u, t), "{name}: {}", u.show(t));
     }
     let head = match_alias(&mut u, "scala", "Tuple", "Head");
-    let Type::Match { cases, .. } = u.types().get(head).clone() else { unreachable!() };
+    let Type::Match { cases, .. } = *u.types().get(head) else { unreachable!() };
     let Some(lambda) = u.lambda(u.types_of(cases)[0]) else { panic!("{}", u.show(head)) };
     assert_eq!(lambda.params.len(), 2);
     assert!(matches!(u.types().get(lambda.result), Type::MatchCase(..)));

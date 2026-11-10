@@ -49,7 +49,7 @@ pub fn ref_type(u: &mut Universe, prefix: Option<TypeId>, sym: SymbolId) -> Type
     let in_package_object = |u: &mut Universe, c: TypeId| {
         !opaque && u.class_symbol(c).is_some_and(|c| is_named_package_object(u, c))
     };
-    let prefix = match prefix.map(|p| u.ty(package_ref(u, p)).clone()) {
+    let prefix = match prefix.map(|p| *u.ty(package_ref(u, p))) {
         Some(Type::Package(p)) => package_object_prefix(u, Some(p), sym).or(prefix),
         Some(Type::This(c)) if in_package_object(u, c) => package_object_prefix(u, None, sym).or(prefix),
         _ => prefix,

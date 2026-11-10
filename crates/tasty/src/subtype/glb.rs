@@ -33,12 +33,12 @@ impl Cmp<'_> {
             None => return a,
             _ => {}
         }
-        match (self.u.ty(a), self.u.ty(b)) {
-            (_, &Type::Or(l, r, soft)) => {
+        match (*self.u.ty(a), *self.u.ty(b)) {
+            (_, Type::Or(l, r, soft)) => {
                 let (al, ar) = (self.glb(a, l), self.glb(a, r));
                 self.lub_as(al, ar, soft)
             }
-            (&Type::Or(l, r, soft), _) => {
+            (Type::Or(l, r, soft), _) => {
                 let (lb, rb) = (self.glb(l, b), self.glb(r, b));
                 self.lub_as(lb, rb, soft)
             }
@@ -78,10 +78,10 @@ impl Cmp<'_> {
                 }
             }
         }
-        match (self.u.ty(a), self.u.ty(b)) {
-            (&Type::Annotated(x, _), _) => self.glb(x, b),
-            (_, &Type::Annotated(y, _)) => self.glb(a, y),
-            (&Type::ByName(x), &Type::ByName(y)) => {
+        match (*self.u.ty(a), *self.u.ty(b)) {
+            (Type::Annotated(x, _), _) => self.glb(x, b),
+            (_, Type::Annotated(y, _)) => self.glb(a, y),
+            (Type::ByName(x), Type::ByName(y)) => {
                 let both = self.glb(x, y);
                 self.u.intern_type(Type::ByName(both))
             }

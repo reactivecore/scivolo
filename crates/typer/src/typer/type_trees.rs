@@ -178,9 +178,9 @@ impl Typer<'_> {
                 && let Some((inner, inner_args)) = self.u.applied(result)
                 && inner_args.len() == params.len()
                 && args.len() == params.len()
-                && inner_args.iter().enumerate().all(|(i, &a)| match self.u.ty(a) {
-                    Type::Param(b, k) => *b == binder && *k == i as u32,
-                    Type::Local(b, name) => b.0 == binder.0 && *name == params[i].0,
+                && inner_args.iter().enumerate().all(|(i, &a)| match *self.u.ty(a) {
+                    Type::Param(b, k) => b == binder && k == i as u32,
+                    Type::Local(b, name) => b.0 == binder.0 && name == params[i].0,
                     _ => false,
                 })
             {

@@ -101,7 +101,8 @@ impl Universe {
     /// object `EmptyTuple`, not its alias, or a `TupleN`, or a match type that reduces to one
     /// (dotty's `tupleArity`).
     fn tuple_arity(&mut self, t: TypeId) -> Option<usize> {
-        let module = match self.ty(t).clone() {
+        let ty = *self.ty(t);
+        let module = match ty {
             Type::Applied(c, a)
                 if self.class_name(c).as_deref() == Some("scala.*:") && self.types_of(a).len() == 2 =>
             {
@@ -140,7 +141,7 @@ impl Universe {
     }
 
     fn applied_info(&mut self, tycon: TypeId, args: &[TypeId], upper: bool) -> Option<TypeId> {
-        let (prefix, alias) = match self.ty(tycon).clone() {
+        let (prefix, alias) = match *self.ty(tycon) {
             Type::Sym(p, s) => (p, Some(s)),
             Type::TypeRef(p, n) => (Some(p), self.resolve(p, n, true)),
             _ => (None, None),
@@ -163,18 +164,18 @@ impl Universe {
 
     /// `t` with the parameters of lambda `binder`, named `names`, replaced by `args`.
     pub fn subst(&mut self, t: TypeId, binder: crate::Binder, names: &[NameId], args: &[TypeId]) -> TypeId {
-        self.map_type(t, &mut |u, x| match u.ty(x) {
+        self.map_type(t, &mut |u, x| match *u.ty(x) {
             Type::Local(b, n) if b.0 == binder.0 => {
-                names.iter().position(|m| m == n).and_then(|i| args.get(i).copied())
+                names.iter().position(|&m| m == n).and_then(|i| args.get(i).copied())
             }
-            Type::Param(b, i) if *b == binder => args.get(*i as usize).copied(),
+            Type::Param(b, i) if b == binder => args.get(i as usize).copied(),
             _ => None,
         })
     }
 
     /// The symbol a `Sym` or `TypeRef` refers to.
     pub fn referenced(&mut self, t: TypeId) -> Option<crate::SymbolId> {
-        match self.ty(t).clone() {
+        match *self.ty(t) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, n) => self.resolve(p, n, true),
             _ => None,

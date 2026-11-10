@@ -74,7 +74,7 @@ fn choose_mapped(t: &mut Typer, mapped: &[Mapped], pt: Pt) -> Result<SymbolId, U
 /// parameters made wildcards bounded by their types, and counts the clauses stripped (dotty's
 /// `stripImplicit` with `resultTypeApprox`).
 pub fn strip_implicit_clauses(u: &mut Universe, info: TypeId, meth: SymbolId) -> (TypeId, usize) {
-    match u.ty(info).clone() {
+    match *u.ty(info) {
         Type::Method { binder, params, result, implicit: true, .. } => {
             let params = u.params_of(params).to_vec();
             let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
@@ -113,7 +113,7 @@ fn skip_param_clause(
     info: TypeId,
     arg_types: &[TypeId],
 ) -> Result<Option<TypeId>, &'static str> {
-    match t.u.ty(info).clone() {
+    match *t.u.ty(info) {
         Type::Poly { binder, params, result } => {
             let Some(rt) = skip_param_clause(t, result, arg_types)? else { return Ok(None) };
             let params = t.u.params_of(params).to_vec();

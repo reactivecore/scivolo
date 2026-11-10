@@ -16,7 +16,7 @@ impl Typer<'_> {
 
     fn type_arity_within(&mut self, t: TypeId, depth: u32) -> usize {
         let Some(depth) = depth.checked_sub(1) else { return 0 };
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(pre, s) => match self.u.symbol(s).kind {
                 Kind::Class if self.is_pending_plain_class(s) => 0,
                 Kind::Class => {
@@ -127,7 +127,7 @@ impl Typer<'_> {
     /// of a higher-kinded one, `[X] =>> >: L <: H`, `[X] =>> L` and `[X] =>> H`, the lower one
     /// `None` for `Nothing`.
     pub fn bounds_of(&mut self, bounds: TypeId) -> (Option<TypeId>, TypeId, usize) {
-        match self.u.ty(bounds).clone() {
+        match *self.u.ty(bounds) {
             Type::Bounds(lo, hi) => (Some(lo), hi, self.type_arity(hi)),
             Type::Lambda { binder, params, result } => {
                 let (lo, hi) = self.u.bounds(result).unwrap_or((result, result));

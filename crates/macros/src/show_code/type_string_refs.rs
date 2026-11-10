@@ -42,7 +42,7 @@ impl Text<'_> {
 
     /// The `this` of class or package `c`.
     pub fn this(&mut self, c: TypeId) -> Shown {
-        match self.h.u.ty(c).clone() {
+        match *self.h.u.ty(c) {
             Type::Package(p) => self.package(p, true),
             Type::Sym(_, p) if self.h.u.symbol(p).kind == Kind::Package => self.package(p, true),
             Type::PackageName(n) => {

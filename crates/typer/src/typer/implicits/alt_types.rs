@@ -19,7 +19,7 @@ pub fn alt_type(t: &mut Typer<'_>, c: Candidate) -> TypeId {
 }
 
 fn widen_given(u: &mut Universe, t: TypeId, alt: SymbolId) -> TypeId {
-    match u.ty(t).clone() {
+    match *u.ty(t) {
         Type::Method { binder, params, result, implicit: true, contextual } => {
             let result = widen_given(u, result, alt);
             u.intern_type(Type::Method { binder, params, result, implicit: true, contextual })

@@ -17,7 +17,7 @@ impl Universe {
             let ps: Vec<_> = u.params_of(ps).to_vec().into_iter().map(|(n, p)| (n, m(u, p))).collect();
             u.intern_params(&ps)
         };
-        let mapped = match self.ty(t).clone() {
+        let mapped = match *self.ty(t) {
             Type::TypeRef(p, n) => Type::TypeRef(m(self, p), n),
             Type::TermRef(p, n) => Type::TermRef(m(self, p), n),
             Type::Sym(Some(p), s) => Type::Sym(Some(m(self, p)), s),

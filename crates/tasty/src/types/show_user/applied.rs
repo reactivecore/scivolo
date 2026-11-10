@@ -71,7 +71,7 @@ impl Printer<'_> {
     }
 
     fn assoc_mismatch(&mut self, t: TypeId, right: bool) -> bool {
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Applied(c, args) => {
                 self.infix_op(c, self.u.types_of(args).len()).is_some_and(|op| op.ends_with(':') != right)
             }
@@ -85,7 +85,7 @@ impl Printer<'_> {
         if arity != 2 {
             return None;
         }
-        let s = match self.u.ty(tycon).clone() {
+        let s = match *self.u.ty(tycon) {
             Type::Sym(_, s) => s,
             Type::TypeRef(p, n) => self.u.resolve(p, n, true)?,
             _ => return None,
@@ -116,7 +116,7 @@ impl Printer<'_> {
     /// The `apply` method type `t` of a function refinement as a function: `(x: A) => x.type`,
     /// `[A] => (x: A) => A`.
     pub fn as_function(&mut self, t: TypeId) -> String {
-        let text = match self.u.ty(t).clone() {
+        let text = match *self.u.ty(t) {
             Type::Method { binder, params, result, implicit, .. } => {
                 let params = self.u.params_of(params).to_vec();
                 self.binders.push((binder, params.iter().map(|&(n, _)| n).collect()));
@@ -137,7 +137,7 @@ impl Printer<'_> {
     /// The type constructor `F` of eta-expansion `[X, Y] =>> F[X, Y]`, unless `F[X, Y]` shows
     /// as a tuple, function, repeated or infix type.
     pub fn eta_contracted(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Lambda { binder, params, result } = self.u.ty(t).clone() else { return None };
+        let Type::Lambda { binder, params, result } = *self.u.ty(t) else { return None };
         let (tycon, args) = self.u.applied(result)?;
         let (params, args) = (self.u.params_of(params).to_vec(), args.to_vec());
         let own = |i: usize, a: &Type| match a {
@@ -170,7 +170,8 @@ impl Printer<'_> {
         }
         let ("scala.*:", [head, tail]) = (name.as_str(), args) else { return None };
         let mut elems = vec![*head];
-        match self.u.ty(*tail).clone() {
+        let ty = *self.u.ty(*tail);
+        match ty {
             Type::Applied(c, rest) => {
                 let rest = self.u.types_of(rest).to_vec();
                 elems.extend(self.tuple_elems(c, &rest)?)

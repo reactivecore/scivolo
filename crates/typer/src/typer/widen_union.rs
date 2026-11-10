@@ -31,7 +31,7 @@ impl Typer<'_> {
 
     fn widen_union_without_null(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
         let t = self.types().widened(t);
-        Ok(match self.u.ty(t).clone() {
+        Ok(match *self.u.ty(t) {
             Type::And(a, b) => {
                 let (wa, wb) = (self.widen_union_without_null(a)?, self.widen_union_without_null(b)?);
                 if (wa, wb) == (a, b) { t } else { self.u.intern_type(Type::And(wa, wb)) }
@@ -166,7 +166,7 @@ impl TypeOps<'_> {
     /// lambda results (dotty's `hardenUnions`).
     pub fn harden_unions(&mut self, t: TypeId) -> TypeId {
         let widened = self.widened(t);
-        match self.u.ty(widened).clone() {
+        match *self.u.ty(widened) {
             Type::And(a, b) => {
                 let (ha, hb) = (self.harden_unions(a), self.harden_unions(b));
                 self.u.intern_type(Type::And(ha, hb))

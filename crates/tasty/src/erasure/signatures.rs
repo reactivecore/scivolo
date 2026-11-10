@@ -54,7 +54,7 @@ impl Universe {
         let previous = self.set_scala2_erasure(scala2);
         let (mut parts, mut bounds) = (Vec::new(), Vec::new());
         loop {
-            match self.ty(t).clone() {
+            match *self.ty(t) {
                 Type::Poly { binder, params, result } => {
                     let params = self.params_of(params);
                     parts.push(Err(params.len()));

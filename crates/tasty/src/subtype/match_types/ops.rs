@@ -77,9 +77,9 @@ impl Cmp<'_> {
     /// `t` with term references replaced by their underlying types, repeatedly.
     pub fn widen_term_refs(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..MAX_WIDENINGS {
-            let term = match self.u.ty(t) {
+            let term = match *self.u.ty(t) {
                 Type::TermRef(..) => true,
-                Type::Sym(_, s) => self.u.symbol(*s).kind.is_term(),
+                Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
                 _ => false,
             };
             match term.then(|| self.u.widen_once(t)).flatten() {

@@ -150,7 +150,7 @@ impl Typer<'_> {
             }
             Tree::TypeApply { fun, args } => {
                 let (method, sym) = self.callee_method(fun, ctx)?;
-                let Type::Poly { binder, params, result } = self.u.ty(method).clone() else {
+                let Type::Poly { binder, params, result } = *self.u.ty(method) else {
                     return None;
                 };
                 let args = self.ast.items(args).to_vec();

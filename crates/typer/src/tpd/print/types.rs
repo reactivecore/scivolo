@@ -12,15 +12,15 @@ const MAX_DEPTH: u32 = 14;
 /// or the `this` of a package or object.
 fn is_static_prefix(u: &mut Universe, p: Option<TypeId>) -> bool {
     let Some(p) = p else { return true };
-    match u.ty(p).clone() {
+    match *u.ty(p) {
         Type::NoPrefix | Type::Package(_) | Type::PackageName(_) => true,
         Type::Sym(_, s) => u.symbol(s).kind == Kind::Package,
         Type::TermRef(q, name) => {
             u.resolve(q, name, false).is_some_and(|s| u.symbol(s).kind == Kind::Package)
         }
-        Type::This(c) => match u.ty(c) {
+        Type::This(c) => match *u.ty(c) {
             Type::Sym(_, c) => {
-                let c = u.symbol(*c);
+                let c = u.symbol(c);
                 c.kind == Kind::Package || c.flags.has(tasty::tags::OBJECT)
             }
             Type::Package(_) => true,
@@ -95,7 +95,8 @@ impl Printer<'_> {
             return "…".into();
         }
         let n = d + 1;
-        match self.u.ty(t).clone() {
+        let ty = *self.u.ty(t);
+        match ty {
             Type::Sym(p, s)
                 if is_static_prefix(self.u, p)
                     && let Some(shown) = self.bound_param(s) =>

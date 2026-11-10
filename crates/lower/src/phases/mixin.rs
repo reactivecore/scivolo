@@ -280,7 +280,7 @@ pub fn java_named(l: &mut Lower, member: SymbolId, info: TypeId) -> TypeId {
 /// Method type `info` of a JDK method with its parameters named as dotty names those of Java
 /// class files: `x$0`, `x$1`, ...
 pub fn with_java_param_names(l: &mut Lower, info: TypeId) -> TypeId {
-    match l.u.ty(info).clone() {
+    match *l.u.ty(info) {
         Type::Method { binder, params, result, implicit, contextual } => {
             let params: Vec<_> =
                 l.u.params_of(params)

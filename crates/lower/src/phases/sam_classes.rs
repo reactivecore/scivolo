@@ -64,7 +64,7 @@ pub fn to_anon_class(
 /// `collectAndStripRefinements`).
 fn strip_aliases(l: &mut Lower, mut t: TypeId) -> (TypeId, Vec<(NameId, TypeId)>) {
     let mut aliases = Vec::new();
-    while let Type::Refined(parent, name, info) = l.u.ty(t).clone() {
+    while let Type::Refined(parent, name, info) = *l.u.ty(t) {
         if l.u.type_alias(info).is_none() {
             break;
         }

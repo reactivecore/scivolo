@@ -143,8 +143,8 @@ fn prefix(l: &mut Lower, class: SymbolId, m: SymbolId, outer: SymbolId) -> TypeI
     let this = type_ref(l.u, class);
     let this = l.u.intern_type(Type::This(this));
     let base = l.u.base_type(this, m).map(|b| l.u.applied(b).map_or(b, |(t, _)| t));
-    match base.map(|b| l.u.ty(b)) {
-        Some(&(Type::Sym(Some(pre), _) | Type::TypeRef(pre, _))) => pre,
+    match base.map(|b| *l.u.ty(b)) {
+        Some(Type::Sym(Some(pre), _) | Type::TypeRef(pre, _)) => pre,
         _ => {
             let outer = type_ref(l.u, outer);
             l.u.intern_type(Type::This(outer))
@@ -190,7 +190,7 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
             if let Some(call) = super::local_lazy::object_call(l, s, span) {
                 return Ok(call);
             }
-            let qualifier = match q.map(|q| l.u.ty(q)) {
+            let qualifier = match q.map(|q| *l.u.ty(q)) {
                 _ if static_module => return Ok(l.ident(s, span)),
                 None | Some(Type::Package(_)) => return Ok(l.ident(s, span)),
                 Some(_) => path(l, class, q.expect("a prefix"), span)?,

@@ -17,8 +17,8 @@ impl Typer<'_> {
     pub fn dependent_function_parts(&mut self, t: TypeId, n: usize, contextual: bool) -> Option<ApplyParts> {
         let t = self.zonk(t);
         let t = self.u.dealias(t);
-        let Type::Refined(parent, name, info) = self.u.ty(t).clone() else { return None };
-        let Type::Method { binder, params, result, .. } = self.u.ty(info).clone() else {
+        let Type::Refined(parent, name, info) = *self.u.ty(t) else { return None };
+        let Type::Method { binder, params, result, .. } = *self.u.ty(info) else {
             return None;
         };
         let parent_parts = match contextual {
@@ -35,8 +35,8 @@ impl Typer<'_> {
 
     /// The parameters and result of the `apply` of dependent context function type `t`.
     pub fn dependent_context_function(&mut self, t: TypeId) -> Option<(Vec<(NameId, TypeId)>, TypeId)> {
-        let Type::Refined(parent, name, info) = self.u.ty(t).clone() else { return None };
-        let Type::Method { params, result, .. } = self.u.ty(info).clone() else { return None };
+        let Type::Refined(parent, name, info) = *self.u.ty(t) else { return None };
+        let Type::Method { params, result, .. } = *self.u.ty(info) else { return None };
         self.context_function_parts(parent).filter(|_| self.u.name(name) == "apply")?;
         Some((self.u.params_of(params).to_vec(), result))
     }
@@ -103,7 +103,8 @@ impl Typer<'_> {
     /// arguments, refinements and methods: by projections from the parameters' types where they
     /// occur covariantly, by their bounds' intersection contravariantly.
     fn projected(&mut self, t: TypeId, params: &[SymbolId], v: i8) -> TypeId {
-        match self.u.ty(t).clone() {
+        let node = *self.u.ty(t);
+        match node {
             Type::Sym(Some(pre), s) if self.u.symbol(s).kind == Kind::Type => match self.u.sym_ref(pre) {
                 Some((None, p)) if params.contains(&p) => {
                     let info = self.u.info(p);

@@ -149,7 +149,8 @@ impl Typer<'_> {
     /// dropped, in covariant positions (dotty's `lift` in `assumedCanEqual`).
     fn lifted(&mut self, t: TypeId, depth: u32) -> TypeId {
         let Some(depth) = depth.checked_sub(1) else { return t };
-        match self.u.ty(t).clone() {
+        let node = *self.u.ty(t);
+        match node {
             Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                 self.complete(s);
                 let info = self.u.info(s);

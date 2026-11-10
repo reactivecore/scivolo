@@ -27,12 +27,15 @@ impl Universe {
                 return None;
             }
             let any = u.defn().any;
-            let args = args.into_iter().map(|a| match u.ty(a).clone() {
-                Type::Bounds(lo, hi) if hi == ANY || u.referenced(hi) == Some(any) => {
-                    let lo = u.java_wildcards(lo, from_java_object);
-                    u.intern_type(Type::Bounds(lo, from_java_object))
+            let args = args.into_iter().map(|a| {
+                let ty = *u.ty(a);
+                match ty {
+                    Type::Bounds(lo, hi) if hi == ANY || u.referenced(hi) == Some(any) => {
+                        let lo = u.java_wildcards(lo, from_java_object);
+                        u.intern_type(Type::Bounds(lo, from_java_object))
+                    }
+                    _ => u.java_wildcards(a, from_java_object),
                 }
-                _ => u.java_wildcards(a, from_java_object),
             });
             let args: Vec<_> = args.collect();
             Some(u.intern_applied(tycon, &args))

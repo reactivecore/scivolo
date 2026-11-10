@@ -61,7 +61,7 @@ pub struct Specced {
 
 impl Cmp<'_> {
     pub fn analyze(&mut self, case: TypeId) -> Spec {
-        match self.u.ty(case).clone() {
+        match *self.u.ty(case) {
             Type::MatchCase(pat, body) => Spec::SubTypeTest(pat, body),
             Type::Lambda { binder, params, result } => {
                 let Type::MatchCase(pat, body) = *self.u.ty(result) else {
@@ -109,7 +109,7 @@ impl Cmp<'_> {
         captures: (Binder, &[NameId]),
         unaccounted: &mut [bool],
     ) -> Option<Pattern> {
-        match self.u.ty(pat).clone() {
+        match *self.u.ty(pat) {
             Type::Param(b, i) if b == captures.0 => {
                 *unaccounted.get_mut(i as usize)? = false;
                 let name = self.u.name(*captures.1.get(i as usize)?);

@@ -91,7 +91,8 @@ impl Typer<'_> {
     /// `widenRhs`): a constant for a final value, a singleton for an object, else `t` widened.
     fn widen_rhs(&mut self, sym: SymbolId, t: TypeId) -> TypeId {
         let inline_val = self.keeps_rhs_type(sym);
-        match self.u.ty(t).clone() {
+        let ty = *self.u.ty(t);
+        match ty {
             Type::Constant(..) | Type::Str(_) if inline_val => t,
             Type::Constant(..) | Type::Str(_) => self.u.widen(t),
             Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => seq,

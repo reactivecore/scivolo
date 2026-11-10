@@ -50,7 +50,7 @@ pub fn member(
     let mut s = Sig::new(u, sym);
     s.origin = origin;
     s.field = !method;
-    match s.u.ty(info) {
+    match *s.u.ty(info) {
         Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => s.jsig(info, true, Boxing::Unbox),
         _ if method => {
             s.out.push_str("()");
@@ -118,7 +118,7 @@ impl<'u> Sig<'u> {
 
     fn jsig(&mut self, t: TypeId, top: bool, boxing: Boxing) {
         let t = self.u.dealias(t);
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Lambda { result: p, .. } => {
                 self.jsig(p, top, boxing)
             }

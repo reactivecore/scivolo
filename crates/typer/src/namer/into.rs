@@ -50,7 +50,7 @@ impl Typer<'_> {
         if let Some(mapped) = f(self.u, t) {
             return mapped;
         }
-        match self.u.ty(t).clone() {
+        match *self.u.ty(t) {
             Type::ByName(r) => {
                 let r = self.map_into(r, v, f);
                 self.u.intern_type(Type::ByName(r))

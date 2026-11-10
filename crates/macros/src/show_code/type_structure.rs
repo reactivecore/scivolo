@@ -24,7 +24,8 @@ impl Host {
     }
 
     fn visit_type(&mut self, t: TypeId, out: &mut Printed) -> Result<(), &'static str> {
-        match self.u.ty(t).clone() {
+        let ty = *self.u.ty(t);
+        match ty {
             Type::Constant(tag, bits) => {
                 let c = match constant(tag, bits).ok_or(STRUCTURE)? {
                     Const::Unit => C::Unit,
@@ -149,7 +150,7 @@ impl Host {
 
     /// The name of the class of the package `t` refers to, `<empty>` for the root.
     fn package_class(&mut self, t: TypeId) -> Option<String> {
-        let p = match self.u.ty(t).clone() {
+        let p = match *self.u.ty(t) {
             Type::Package(p) => p,
             Type::Sym(_, p) if self.u.symbol(p).kind == Kind::Package => p,
             Type::TermRef(..) => self.u.resolve_ref(t).filter(|&p| self.u.symbol(p).kind == Kind::Package)?,

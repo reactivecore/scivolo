@@ -53,7 +53,7 @@ pub fn receiver_type(t: &mut Typer<'_>, method: SymbolId, info: TypeId) -> Optio
     let tparams = t.u.type_params(method);
     let mut binders = Vec::new();
     let receiver = loop {
-        match t.u.ty(tpe).clone() {
+        match *t.u.ty(tpe) {
             Type::Poly { binder, params, result } => {
                 let params = t.u.params_of(params).to_vec();
                 let names: Vec<tasty::NameId> = params.iter().map(|&(n, _)| n).collect();

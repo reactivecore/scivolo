@@ -89,7 +89,7 @@ impl Session {
             _ => self.u.info(sym),
         };
         let t = self.u.widen(t);
-        let class = match self.u.ty(t).clone() {
+        let class = match *self.u.ty(t) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, n) => self.u.resolve(p, n, true),
             _ => None,

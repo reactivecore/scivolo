@@ -11,7 +11,7 @@ impl Sig<'_> {
         let mut tparams = Vec::new();
         let mut vparams = Vec::new();
         loop {
-            match self.u.ty(t).clone() {
+            match *self.u.ty(t) {
                 Type::Poly { binder, params, result } => {
                     let encoded: Vec<(String, TypeId)> = self
                         .u

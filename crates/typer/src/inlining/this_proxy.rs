@@ -166,7 +166,7 @@ pub fn replace_this(
     let is_cls = |i: &mut Inlining<'_>, c| i.u.class_symbol(c) == Some(cls);
     let prefix_this = i.u.sym_ref(tpe).and_then(|(p, _)| p).and_then(|p| i.u.this_of(p));
     let prefix_is_cls = prefix_this.is_some_and(|c| is_cls(i, c));
-    match (i.tpd.tree(t).clone(), i.u.ty(tpe).clone()) {
+    match (i.tpd.tree(t).clone(), *i.u.ty(tpe)) {
         (T::This { .. }, Type::This(c)) if is_cls(i, c) => {
             let inner = i.singleton(proxy_tpe, call)?;
             let empty = i.tpd.list(&[]);

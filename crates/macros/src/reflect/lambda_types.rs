@@ -33,7 +33,7 @@ impl Host {
             return Err("a lambda type with another number of names than types");
         }
         let params: Vec<(NameId, TypeId)> = names.into_iter().zip(params.iter().copied()).collect();
-        Ok(match self.u.ty(binder).clone() {
+        Ok(match *self.u.ty(binder) {
             Type::Method { binder, implicit, contextual, .. } => {
                 self.u.intern_method(binder, &params, result, implicit, contextual)
             }

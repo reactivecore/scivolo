@@ -55,7 +55,7 @@ impl Typer<'_> {
     /// to no other parameter.
     pub fn quoted_type_arg_bounds(&mut self, tycon: TypeId, i: usize) -> TypeId {
         let empty = self.u.intern_type(Type::Bounds(NOTHING, ANY));
-        let class = match self.u.ty(tycon).clone() {
+        let class = match *self.u.ty(tycon) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, name) => self.u.resolve(p, name, true),
             _ => None,
