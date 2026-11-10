@@ -29,8 +29,9 @@ run and dropped.
 ## Consequences
 - The core implicit search (`search`, `attempts`, `history`, `divergence`, `measures`, `ranking`,
   `contextual`, `candidates`, `scope`, `parts`, and their helpers) follows this, and so does
-  synthesis (`Synthesizer`, `MirrorSynthesis`); views and the application of implicit clauses
-  are still `impl Typer`.
+  synthesis (`Synthesizer`, `MirrorSynthesis`), the application of an implicit clause
+  (`ImplicitClause`) and the dictionary of by-name implicits (`Dictionary`, which takes them out
+  of `Typer::history`); views are still `impl Typer`.
 - State shared across nested searches that run through the typer (the open searches, the by-name
   dictionary, the budget) stays in `Typer::history`, as dotty keeps it in the `Context`.
 - Type relations and queries that need only the universe and the constraint (`conforms`, `zonk`,
