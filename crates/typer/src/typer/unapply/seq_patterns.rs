@@ -4,25 +4,28 @@
 //! those of the product selectors before the sequence, the others of the element type, a last
 //! `x*` of the sequence.
 
-use super::super::unapply_args::SeqArgs;
+use super::super::unapply_args::{SeqArgs, UnapplyArgs};
 use super::super::{Pt, Typer};
-use super::UnapplyPattern;
+use super::{SEQ_WILDCARD, UnapplyPattern, is_named_pattern, is_seq_wildcard};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Kind, Type, TypeId};
 
-/// The written name of a sequence wildcard's type, `x: _*`.
-const SEQ_WILDCARD: &str = "_*";
-
 impl UnapplyPattern {
-    /// Types the argument patterns of a sequence extractor against `types`, the first `leading`
-    /// of them product selectors, the others elements. Refuses a wildcard element type and a
-    /// sequence wildcard `xs*` other than one last among the elements.
+    /// Types the argument patterns of an `unapplySeq` with result type `result`, those before the
+    /// sequence against product selectors, the others against the element type. Refuses named
+    /// patterns, a wildcard element type and a sequence wildcard `xs*` other than one last among
+    /// the elements.
     pub fn typed_seq_patterns(
         &self,
         t: &mut Typer<'_>,
-        SeqArgs { types, leading }: SeqArgs,
+        result: TypeId,
     ) -> Result<Vec<TNodeId>, &'static str> {
+        if self.args.iter().any(|&a| is_named_pattern(t, a)) {
+            return Err("named pattern of a sequence extractor");
+        }
+        let SeqArgs { types, leading } = UnapplyArgs { result, n: self.args.len() }.seq_arg_types(t)?;
+
         let mut out = Vec::new();
         let mut wildcards = 0;
         for (i, (&a, tpe)) in self.args.iter().zip(types).enumerate() {
@@ -41,7 +44,8 @@ impl UnapplyPattern {
         Ok(out)
     }
 
-    /// Sequence wildcard `a`, `x*` or `_*`, of elements of type `elem`: `x @ (_*: <repeated>[elem])`.
+    /// Types sequence wildcard `a`, `x*` or `_*`, of elements of type `elem` as
+    /// `x @ (_*: <repeated>[elem])`.
     fn seq_wildcard(&self, t: &mut Typer<'_>, a: NodeId, elem: TypeId) -> Result<TNodeId, &'static str> {
         let Tree::Typed { expr, tpt } = *t.ast.tree(a) else { return Err("sequence pattern") };
         let Tree::Ident { name } = *t.ast.tree(expr) else { return Err("sequence pattern") };
@@ -76,10 +80,4 @@ impl UnapplyPattern {
         let tpe = t.u.intern_type(Type::Sym(None, sym));
         Ok(t.tpd.node(T::Bind { name, body: typed }, t.ast.span(a), Some(tpe), Some(sym)))
     }
-}
-
-/// Whether pattern `a` is a sequence wildcard `x*` or `_*`.
-pub fn is_seq_wildcard(t: &Typer<'_>, a: NodeId) -> bool {
-    let Tree::Typed { tpt, .. } = *t.ast.tree(a) else { return false };
-    matches!(*t.ast.tree(tpt), Tree::Ident { name } if name.is_type && t.text(name.name) == SEQ_WILDCARD)
 }

@@ -11,7 +11,9 @@ use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Type, TypeId, Universe};
 
+/// The annotation `(x: @unchecked)` that turns off the checks of a pattern's selector.
 pub const UNCHECKED: &str = "scala.unchecked";
+/// The annotation `x.runtimeChecked` gives a selector, matched at run time without a warning.
 const RUNTIME_CHECKED: &str = "scala.annotation.internal.RuntimeChecked";
 
 /// Why a pattern may not match its selector.
@@ -20,6 +22,7 @@ pub enum Refutable {
     NonConforming(TNodeId, TypeId),
     /// The extractor pattern's extractor may not match.
     Extractor(TNodeId),
+    /// The expected types of an extractor's patterns are unknown.
     Unknown,
 }
 

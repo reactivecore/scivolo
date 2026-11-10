@@ -7,36 +7,34 @@ use super::super::Typer;
 use super::super::dependent_params::applied_result;
 use super::super::type_ops::TypeOps;
 use super::UnapplyPattern;
-use super::extractor::MethodShape;
+use super::extractor::{Extractor, MethodShape};
 use crate::ctx::Mode;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use tasty::{SymbolId, Type, TypeId, Universe};
 
 impl UnapplyPattern {
-    /// Applies extractor `unapp` to the arguments the search finds for the implicit clauses
-    /// before its scrutinee, as `unapply(using Ord[T])(x: T)` (dotty's `adapt` of `unapplyFn`
-    /// to `FunProto(dummyArg)`).
-    pub fn leading_implicits_applied(
+    /// Applies `extractor` to a value of the pattern's own type `own` and to the arguments the
+    /// search finds for its implicit clauses after the scrutinee, as `unapply(x)(using Ord[T])`;
+    /// the simplified result type, and those arguments in one list. Refuses lifted implicit
+    /// arguments and further explicit parameter lists.
+    pub fn applied_extractor(
         &self,
         t: &mut Typer<'_>,
-        mut unapp: TNodeId,
-    ) -> Result<TNodeId, &'static str> {
-        loop {
-            let tpe = t.tpd.tpe(unapp);
-            let info = t.method_info(tpe).unwrap_or(tpe);
-            if !matches!(t.u.types().get(info), Type::Method { implicit: true, .. }) {
-                return Ok(unapp);
-            }
-            unapp = t.implicit_clause_applied(unapp, self.ctx.with_mode(Mode::NONE))?;
-        }
+        extractor: &Extractor,
+        own: TypeId,
+    ) -> Result<(TypeId, Vec<TNodeId>), &'static str> {
+        let unapp = extractor.fun;
+        let sym = t.tpd.sym(t.tpd.meth_part(unapp));
+        let result = applied_unapply_result(&mut t.types(), sym, &extractor.method, own);
+        let (result, implicits) = self.unapply_implicits(t, unapp, result, own)?;
+        Ok((t.simplified(result), implicits))
     }
 
     /// Applies extractor `unapp`, applied to a value of type `own` with result type `result`, to
-    /// the arguments the search finds for its implicit clauses, as `unapply(x)(using Ord[T])`;
-    /// the result after them, and those arguments in one list. Refuses lifted implicit
-    /// arguments and further explicit parameter lists.
-    pub fn unapply_implicits(
+    /// the arguments the search finds for its implicit clauses; the result after them, and those
+    /// arguments in one list.
+    fn unapply_implicits(
         &self,
         t: &mut Typer<'_>,
         unapp: TNodeId,
@@ -71,10 +69,10 @@ impl UnapplyPattern {
     }
 }
 
-/// The result type of extractor method `sym` of method type `method` applied to a value of type
-/// `own`: an intersection `(?1 : S) & T` with the skolem of an unstable `own` as `S & T`
+/// Computes the result type of extractor method `sym` of method type `method` applied to a value
+/// of type `own`: an intersection `(?1 : S) & T` with the skolem of an unstable `own` as `S & T`
 /// simplified, type variables instantiated.
-pub fn applied_unapply_result(
+fn applied_unapply_result(
     t: &mut TypeOps<'_>,
     sym: Option<SymbolId>,
     method: &MethodShape,

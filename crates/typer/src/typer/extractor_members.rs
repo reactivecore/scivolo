@@ -7,8 +7,11 @@
 use super::Typer;
 use tasty::{Binding, Kind, Type, TypeId};
 
+/// The result type of an extractor that matches without binding anything.
 pub const BOOLEAN: &str = "scala.Boolean";
+/// The class of generic tuples `A *: B *: EmptyTuple`, whose elements patterns match.
 pub const NON_EMPTY_TUPLE: &str = "scala.NonEmptyTuple";
+/// The class of sequences, whose elements the patterns of an `unapplySeq` match.
 pub const SEQ: &str = "scala.collection.Seq";
 
 /// Finds the types of the product selectors `_1`, `_2`, ... of `t`, as `Int, String` of a

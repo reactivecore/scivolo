@@ -7,6 +7,7 @@
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 pub const ARRAY: &str = "scala.Array";
+/// The class of case classes and tuples, whose selectors `_1`, ..., `_n` patterns match.
 pub const PRODUCT: &str = "scala.Product";
 pub const EQUALS: &str = "scala.Equals";
 /// The type class of equality evidence.
