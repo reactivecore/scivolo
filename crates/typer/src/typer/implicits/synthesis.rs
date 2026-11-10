@@ -15,10 +15,12 @@ use syntax::ast::{NodeId, Span, Tree};
 use tasty::{SymbolId, Type, TypeId};
 
 /// Makes one implicit argument the compiler synthesizes instead of finding it (dotty's
-/// `Synthesizer`); its trees are placed at `at` and typed in `ctx`.
+/// `Synthesizer`).
 #[derive(Clone, Copy)]
 pub struct Synthesizer {
+    /// Where its trees are placed.
     pub at: Span,
+    /// The context its trees are typed and its searches run in.
     pub ctx: Ctx,
     /// How deep the search that asks for the argument nests; its own searches nest one deeper.
     pub depth: u32,
