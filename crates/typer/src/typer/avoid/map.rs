@@ -2,9 +2,9 @@
 //   compiler/src/dotty/tools/dotc/core/TypeOps.scala
 //! Approximating references to local symbols away (dotty's `AvoidMap`).
 
-use super::Typer;
-use super::approx::{self, Approx};
-use super::avoid::Avoid;
+use super::{Avoid, is_path};
+use crate::typer::Typer;
+use crate::typer::approx::{self, Approx};
 use tasty::{Kind, NOTHING, SymbolId, Type, TypeId, TypeVars};
 
 impl Avoid<'_> {
@@ -110,7 +110,7 @@ impl Avoid<'_> {
             k if k.is_term() => {
                 let info = t.u.dealias(info);
                 let hi = a.at(t, info, v)?;
-                if t.types().is_path(info) {
+                if is_path(t.u, info) {
                     return Some(hi);
                 }
                 Some(approx::range(t.u, Approx::Exact(NOTHING), hi, v))

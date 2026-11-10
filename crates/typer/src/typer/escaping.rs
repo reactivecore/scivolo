@@ -7,6 +7,22 @@ use super::type_ops::TypeOps;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 impl TypeOps<'_> {
+    /// Checks whether type `t` mentions one of the definitions `syms` anywhere, also as the prefix
+    /// of a selection or as the class of a `classOf` constant.
+    pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
+        let mut found = false;
+        let mut classes = Vec::new();
+        self.u.map_type(t, &mut |u, part| {
+            match *u.types().get(part) {
+                Type::Sym(_, s) => found |= syms.contains(&s),
+                Type::Constant(tasty::tags::CLASSconst, bits) => classes.push(TypeId(bits as u32)),
+                _ => {}
+            }
+            None
+        });
+        found || classes.into_iter().any(|c| self.refers_to(c, syms))
+    }
+
     /// Checks whether type `t` mentions one of the definitions `locals` that go out of scope, as
     /// dotty looks for them: a member of an object reached by its full path does not count its
     /// prefix, the class of a `classOf` constant does count (dotty's `namedPartsWith`).
