@@ -149,7 +149,7 @@ impl Typer<'_> {
 
     /// `tree.toTuple` if `tree` is a named tuple and `pt` derives from `Tuple`.
     fn named_tuple_values(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> Option<TNodeId> {
-        let tuple = self.resolve_full_name("scala.Tuple", true)?;
+        let tuple = self.resolve_full_name(crate::defn::TUPLE, true)?;
         if !self.is_named_tuple_type(self.tpd.tpe(tree)) || self.u.base_type(pt, tuple).is_none() {
             return None;
         }

@@ -65,7 +65,7 @@ impl Synthesizer {
         let reference = s.node(t, Tree::Ident { name });
         let cast = s.ast_select(t, reference, "asInstanceOf");
         let cast = s.ast_apply(t, cast, both, true);
-        let some = t.resolve_full_name("scala.Some", false).ok_or("Some")?;
+        let some = t.resolve_full_name(crate::defn::SOME, false).ok_or("Some")?;
         let some = s.ref_splice(t, some);
         let thenp = s.ast_apply(t, some, cast, false);
         let none = t.resolve_full_name("scala.None", false).ok_or("None")?;

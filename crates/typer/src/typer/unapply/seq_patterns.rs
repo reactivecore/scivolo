@@ -49,8 +49,7 @@ impl UnapplyPattern {
     fn seq_wildcard(&self, t: &mut Typer<'_>, a: NodeId, elem: TypeId) -> Result<TNodeId, &'static str> {
         let Tree::Typed { expr, tpt } = *t.ast.tree(a) else { return Err("sequence pattern") };
         let Tree::Ident { name } = *t.ast.tree(expr) else { return Err("sequence pattern") };
-        let seq_class =
-            t.resolve_full_name("scala.collection.immutable.Seq", true).ok_or("sequence pattern")?;
+        let seq_class = t.resolve_full_name(crate::defn::IMMUTABLE_SEQ, true).ok_or("sequence pattern")?;
         let seq_class = crate::defn::type_ref(t.u, seq_class);
         let seq = t.u.intern_type(Type::Applied(seq_class, vec![elem]));
         let repeated = t.repeated_type(elem);

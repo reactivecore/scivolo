@@ -83,7 +83,7 @@ fn int_method_results(t: &mut Typer<'_>, tpe: TypeId, name: &str) -> Vec<TypeId>
 }
 
 fn is_int(t: &mut Typer<'_>, tpe: TypeId) -> bool {
-    t.u.class_symbol(tpe).is_some_and(|c| t.u.full_name(c) == "scala.Int")
+    t.u.class_symbol(tpe).is_some_and(|c| t.u.full_name(c) == crate::defn::INT)
 }
 
 /// The results of the alternatives of member `name` of `tpe` that are parameterless methods.

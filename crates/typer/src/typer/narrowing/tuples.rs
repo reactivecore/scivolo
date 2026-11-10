@@ -11,7 +11,7 @@ fn tuple_arity(u: &mut Universe, t: TypeId) -> Option<usize> {
     let Type::Applied(_, ref args) = *u.types().get(t) else { return None };
     let n = args.len();
     let c = u.class_symbol(t)?;
-    let arity: usize = u.full_name(c).strip_prefix("scala.Tuple")?.parse().ok()?;
+    let arity: usize = u.full_name(c).strip_prefix(crate::defn::TUPLE)?.parse().ok()?;
     (arity == n).then_some(n)
 }
 

@@ -70,7 +70,7 @@ fn is_irrefutable_extractor(t: &mut Typer<'_>, fun: TNodeId, n: usize) -> bool {
         let class = owner.and_then(|o| t.u.companion_class(o));
         synthetic && class.is_some_and(|c| t.u.symbol(c).is_case())
     });
-    let some = t.resolve_full_name("scala.Some", true);
+    let some = t.resolve_full_name(crate::defn::SOME, true);
     t.u.class_symbol(result).is_some_and(|c| Some(c) == some)
         || is_bool_constant(t.u, result, true)
         || case_companion

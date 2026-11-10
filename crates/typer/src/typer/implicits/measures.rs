@@ -120,7 +120,8 @@ fn type_size(ty: &mut TypeOps<'_>, n: u32, tpe: TypeId, seen: &mut Vec<VarId>) -
 fn tuple_arity(u: &mut Universe, c: TypeId) -> Option<usize> {
     let class = u.class_symbol(c)?;
     let name = u.full_name(class);
-    name.strip_prefix("scala.Tuple")?.parse().ok().filter(|&n| (2..=22).contains(&n))
+    let max = crate::typer::small_tuples::MAX_TUPLE_ARITY;
+    name.strip_prefix(crate::defn::TUPLE)?.parse().ok().filter(|&n| (2..=max).contains(&n))
 }
 
 /// Adds the symbols `tpe` is built from to `cs`, those of the prefixes of references to symbols

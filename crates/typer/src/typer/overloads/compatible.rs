@@ -37,7 +37,7 @@ pub fn compatible(t: &mut Typer, arg: TypeId, param: TypeId, views: bool, ctx: C
 /// named tuple whose values conform to `param`, a `Tuple` (dotty's `viewExists`): `None` if the
 /// search is outside the subset.
 fn view_exists(t: &mut Typer, arg: TypeId, param: TypeId, ctx: Ctx) -> Option<bool> {
-    let tuple = t.resolve_full_name("scala.Tuple", true);
+    let tuple = t.resolve_full_name(crate::defn::TUPLE, true);
     if let (Some(values), Some(tuple)) = (t.stripped_named_tuple(arg), tuple)
         && t.u.base_type(param, tuple).is_some()
         && t.conforms(values, param)

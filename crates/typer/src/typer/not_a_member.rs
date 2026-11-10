@@ -14,7 +14,7 @@ use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// The classes whose members dotty's selection finds otherwise or tries further.
 const SPECIAL_SITES: [&str; 5] =
-    ["scala.Dynamic", "scala.Selectable", "scala.Tuple", "scala.Nothing", "scala.Null"];
+    ["scala.Dynamic", "scala.Selectable", crate::defn::TUPLE, "scala.Nothing", "scala.Null"];
 
 impl Typer<'_> {
     /// `not_a_member`, else refused as a missing member.

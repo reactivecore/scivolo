@@ -103,7 +103,8 @@ fn pattern_element_names(t: &mut Typer<'_>, pt: TypeId) -> Result<Vec<String>, &
         return Ok(names);
     }
     let class = t.u.class_symbol(pt).ok_or("named pattern of a type that is no case class")?;
-    let tuple = t.u.full_name(class).strip_prefix("scala.Tuple").is_some_and(|n| n.parse::<usize>().is_ok());
+    let tuple =
+        t.u.full_name(class).strip_prefix(crate::defn::TUPLE).is_some_and(|n| n.parse::<usize>().is_ok());
     if !t.u.symbol(class).is_case() || tuple {
         return Err("named pattern of a type that is no case class");
     }

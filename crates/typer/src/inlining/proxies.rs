@@ -181,7 +181,7 @@ impl Inlining<'_> {
         if args.len() != 1 || self.u.class_symbol(c) != Some(self.scala_member("<repeated>", Kind::Class)?) {
             return None;
         }
-        let seq = self.u.class_ref("scala.collection.immutable.Seq");
+        let seq = self.u.class_ref(crate::defn::IMMUTABLE_SEQ);
         Some(self.u.intern_type(Type::Applied(seq, args)))
     }
 

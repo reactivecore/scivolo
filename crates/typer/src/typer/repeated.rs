@@ -5,7 +5,7 @@
 
 use super::Typer;
 use super::type_ops::TypeOps;
-use crate::defn::{ARRAY, INLINE_PARAM};
+use crate::defn::{ARRAY, IMMUTABLE_SEQ, INLINE_PARAM};
 use crate::special::entered;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -119,10 +119,9 @@ impl Typer<'_> {
         let syntax::ast::Tree::Typed { expr, tpt } = *self.ast.tree(a) else {
             return self.unsupported(a, "sequence argument");
         };
-        let (Some(seq_class), Some(array_class)) = (
-            self.resolve_full_name("scala.collection.immutable.Seq", true),
-            self.resolve_full_name(ARRAY, true),
-        ) else {
+        let (Some(seq_class), Some(array_class)) =
+            (self.resolve_full_name(IMMUTABLE_SEQ, true), self.resolve_full_name(ARRAY, true))
+        else {
             return self.unsupported(a, "sequence argument");
         };
         let pt = elem.map_or(super::Pt::Any, |elem| {
@@ -180,7 +179,7 @@ impl Typer<'_> {
         if self.tpd.get(tree).tpe.is_some() {
             return;
         }
-        let Some(seq) = self.resolve_full_name("scala.collection.immutable.Seq", true) else { return };
+        let Some(seq) = self.resolve_full_name(IMMUTABLE_SEQ, true) else { return };
         let elem = self.tpd.tpe(elemtpt);
         let seq = crate::defn::type_ref(self.u, seq);
         self.tpd.get_mut(tree).tpe = Some(self.u.intern_type(Type::Applied(seq, vec![elem])));

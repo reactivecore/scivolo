@@ -7,6 +7,11 @@
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 pub const ARRAY: &str = "scala.Array";
+pub const INT: &str = "scala.Int";
+pub const SOME: &str = "scala.Some";
+/// The class of tuples, and the prefix of the names of `TupleN`.
+pub const TUPLE: &str = "scala.Tuple";
+pub const IMMUTABLE_SEQ: &str = "scala.collection.immutable.Seq";
 /// The class of case classes and tuples, whose selectors `_1`, ..., `_n` patterns match.
 pub const PRODUCT: &str = "scala.Product";
 pub const EQUALS: &str = "scala.Equals";
