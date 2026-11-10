@@ -84,7 +84,7 @@ impl Matcher<'_> {
         let class = self.tpd.get(tpt).tpe.and_then(|c| self.u.class_symbol(c));
         let tuple = class.is_some_and(|c| {
             let name = self.u.full_name(c);
-            name.strip_prefix("scala.Tuple")
+            name.strip_prefix(crate::defn::TUPLE)
                 .is_some_and(|n| n.parse::<u8>().is_ok_and(|n| (1..=22).contains(&n)))
         });
         match args[..] {

@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Identifiers (dotty's `typedIdent`) and the references they make.
 
+use super::overloads::{AMBIGUOUS, NO_APPLICABLE, NO_SIZE, Unchosen};
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -88,18 +89,15 @@ impl Typer<'_> {
         }
         let sym = match self.choose(&found.syms, found.prefix, pt) {
             Ok(sym) => sym,
-            Err(
-                what @ ("no applicable alternative"
-                | "no alternative with that many arguments"
-                | "ambiguous overload"),
-            ) if !self.unusable_for_inference(pt) => {
-                let ambiguous = (what == "ambiguous overload").then(|| std::mem::take(&mut self.ambiguous));
+            Err(Unchosen { what: what @ (NO_APPLICABLE | NO_SIZE | AMBIGUOUS), ambiguous })
+                if !self.unusable_for_inference(pt) =>
+            {
                 return match self.overload_error(id, (&found.syms, found.prefix), pt, ambiguous) {
                     Some(error) => error,
                     None => self.unsupported(id, what),
                 };
             }
-            Err(what) => return self.unchosen(id, what, pt),
+            Err(e) => return self.unchosen(id, e.what, pt),
         };
         if let Err(what) = self
             .check_reference(sym, found.prefix, ctx)
@@ -180,11 +178,21 @@ impl Typer<'_> {
         found.next().is_none().then_some(s)
     }
 
-    pub fn ref_type(&mut self, prefix: Option<TypeId>, sym: SymbolId) -> TypeId {
-        crate::defn::ref_type(self.u, prefix, sym)
-    }
-
     pub fn is_named_package_object(&self, c: SymbolId) -> bool {
         crate::defn::is_named_package_object(self.u, c)
+    }
+
+    /// Makes a reference to member `m` from inside its class: an identifier if the class is a
+    /// static owner, else a selection from its `this` (dotty's `ref`).
+    pub fn member_ref(&mut self, m: SymbolId, span: syntax::ast::Span) -> TNodeId {
+        let cls = self.u.symbol(m).owner.expect("a member");
+        if self.is_static_owner(cls) {
+            let prefix = crate::defn::owner_prefix(self.u, cls);
+            let tpe = self.u.intern_type(Type::Sym(Some(prefix), m));
+            return self.build().ident(m, tpe, span);
+        }
+        let class_type = crate::defn::type_ref(self.u, cls);
+        let this = self.build().this(class_type, span);
+        self.build().select(this, m, span)
     }
 }

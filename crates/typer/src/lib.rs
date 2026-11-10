@@ -2,6 +2,7 @@
 //! over `syntax` trees, with symbols and types in `tasty::Universe` (docs/research/09-typer.md).
 #![allow(non_upper_case_globals)]
 
+mod case_members;
 mod completion;
 mod constraint;
 mod ctx;

@@ -12,7 +12,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The arity of the function method reference `tree` is eta-expanded to against `pt`, `None`
@@ -33,7 +33,7 @@ impl Typer<'_> {
 
     /// N if `t` is a `FunctionN` type.
     fn function_arity(&mut self, t: TypeId) -> Option<usize> {
-        (0..=22).find(|&n| self.function_parts(t, n).is_some())
+        (0..=MAX_IMPLEMENTED_ARITY).find(|&n| self.function_parts(t, n).is_some())
     }
 
     /// N if `t`, or the upper bound of the type variable it is, is a `FunctionN` type.

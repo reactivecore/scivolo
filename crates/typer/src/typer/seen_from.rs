@@ -2,6 +2,7 @@
 //! prefix's base type, applied type lambdas reduced, capture annotations dropped.
 
 use super::Typer;
+use super::type_ops::TypeOps;
 use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -63,14 +64,20 @@ impl Typer<'_> {
         }
         p
     }
+}
 
+impl TypeOps<'_> {
+    /// Replaces each type parameter of a class `C` in `t`, selected on a prefix other than `this`,
+    /// by the argument the prefix's base type `C[..]` gives it, as `A` of `xs: List[Int]` becomes
+    /// `Int`, and normalizes the result.
     pub fn resolve_class_params(&mut self, t: TypeId) -> TypeId {
         resolve_class_params(self.u, t)
     }
 
-    /// `t` with applied type lambdas and applied aliases of type lambdas reduced (dotty's
-    /// `appliedTo`: an alias only if it eta-expands its result), and capture-checking annotations
-    /// (`retains`) dropped; an impure function alias only if its arguments have such annotations.
+    /// Normalizes `t`: reduces applied type lambdas and applied aliases of type lambdas (dotty's
+    /// `appliedTo`: an alias only if it eta-expands its result), and drops capture-checking
+    /// annotations (`retains`); an impure function alias only if its arguments have such
+    /// annotations.
     pub fn normalized(&mut self, t: TypeId) -> TypeId {
         normalized(self.u, t)
     }

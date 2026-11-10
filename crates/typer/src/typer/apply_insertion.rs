@@ -3,8 +3,7 @@
 //! `apply` inserted on an applied value (dotty's `tryInsertApplyOrImplicit`), an extension
 //! method `apply` if the member does not apply (`tryWithImplicitOnQualifier`).
 
-use super::implicits::conversions::{Goal, Viewed};
-use super::qualifier_views::QualifierView;
+use super::implicits::{Goal, QualifierView, Viewed};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
@@ -74,7 +73,7 @@ impl Typer<'_> {
         }
         let sym = match self.choose(&found.syms, Some(tpe), pt) {
             Err(_) if self.unusable_for_inference(pt) => return Ok(self.error_tree(self.tpd.span(f))),
-            chosen => chosen?,
+            chosen => chosen.map_err(|e| e.what)?,
         };
         self.check_reference(sym, Some(tpe), ctx)?;
         let name = syntax::ast::TName { name: self.name("apply"), is_type: false };

@@ -4,6 +4,7 @@
 //! `wildApprox`), as transparent inline methods constrain their results.
 
 use super::Typer;
+use super::type_ops::TypeOps;
 use crate::constraint::Constraint;
 use tasty::{SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
@@ -12,16 +13,18 @@ impl Typer<'_> {
     /// `meth` is a transparent inline method (dotty's `constrainResult(meth, mt, pt)`).
     pub fn result_pt(&mut self, meth: Option<SymbolId>, pt: TypeId) -> TypeId {
         match meth {
-            Some(m) if self.is_transparent_inline(m) => self.wild_approx(pt),
+            Some(m) if self.is_transparent_inline(m) => self.types().wild_approx(pt),
             _ => pt,
         }
     }
+}
 
+impl TypeOps<'_> {
     /// `t` with its uninstantiated type variables replaced by wildcards of their bounds, those
     /// approximated in turn; a variable within its own bounds by an unbounded wildcard.
     pub fn wild_approx(&mut self, t: TypeId) -> TypeId {
         let t = self.zonk(t);
-        approx(self.u, &self.constraint, t, &mut Vec::new())
+        approx(self.u, self.constraint, t, &mut Vec::new())
     }
 }
 

@@ -96,7 +96,7 @@ impl Typer<'_> {
 
     /// Whether `t` is a function or single abstract method type.
     fn is_function_like(&mut self, t: TypeId) -> bool {
-        self.is_function_type(t)
+        self.types().is_function_type(t)
             || self.context_function_parts(t).is_some()
             || self.u.class_symbol(t).is_some_and(|c| self.sam_method(c).is_some())
     }

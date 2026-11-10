@@ -1,6 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/ast/DesugarEnums.scala
-//! Type references the desugaring made to enum classes by their full names.
+//! Type references the desugaring made to classes by their names, to enum classes by their full
+//! names.
 
 use super::Typer;
 use crate::ctx::Ctx;
@@ -75,6 +76,14 @@ impl Typer<'_> {
             (None, 0) => name.clone(),
             (Some(p), 0) => format!("{p}.{name}"),
             (p, t) => format!("{}.{}{name}", p.as_deref().unwrap_or("<empty>"), "_$".repeat(t)),
+        }
+    }
+
+    /// The class named `name` defined in the owner of `ctx` or around it.
+    pub fn class_named(&mut self, name: &str, ctx: Ctx) -> Option<SymbolId> {
+        match self.find_ref(name, true, ctx) {
+            Ok(Some(found)) => found.syms.into_iter().find(|&s| self.u.symbol(s).kind == Kind::Class),
+            _ => None,
         }
     }
 }

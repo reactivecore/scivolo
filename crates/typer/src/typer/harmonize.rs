@@ -95,7 +95,7 @@ impl Typer<'_> {
             }
             class = c;
         }
-        class.filter(|c| int_seen && c != "scala.Int")
+        class.filter(|c| int_seen && c != crate::defn::INT)
     }
 
     /// The numeric value class of `t`, of both sides of a union (dotty's `classSymbol`).

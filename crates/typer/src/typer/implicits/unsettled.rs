@@ -4,160 +4,152 @@
 //! Expected types of implicit searches with type variables outside the subset (unbounded ones,
 //! ones in unions), or too unspecific to search; variables settled by their bounds.
 
-use super::super::Typer;
-use tasty::{Type, TypeId, TypeVars};
+use super::super::type_ops::TypeOps;
+use crate::constraint::Constraint;
+use tasty::{Type, TypeId, TypeVars, Universe};
 
-impl Typer<'_> {
-    /// Whether `t` has an uninstantiated type variable without bounds.
-    pub fn has_unbounded_var(&mut self, t: TypeId) -> bool {
-        let vars = self.open_vars(t);
-        vars.into_iter().any(|v| self.constraint.bounds(v) == (tasty::NOTHING, tasty::ANY))
+/// Whether `tpe` has an uninstantiated type variable without bounds.
+pub fn has_unbounded_var(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
+    let vars = ty.open_vars(tpe);
+    vars.into_iter().any(|v| ty.constraint.bounds(v) == (tasty::NOTHING, tasty::ANY))
+}
+
+/// What about the type variables of expected type `tpe` is outside the subset: a union with
+/// one, or one without bounds applied as a type constructor.
+pub fn unsettled(ty: &mut TypeOps<'_>, tpe: TypeId) -> Option<&'static str> {
+    if open_union_within(ty, tpe, 16) {
+        return Some("implicit search for a union with type variables");
     }
-
-    /// What about the type variables of expected type `t` is outside the subset: a union with
-    /// one, or one without bounds applied as a type constructor.
-    pub fn unsettled(&mut self, t: TypeId) -> Option<&'static str> {
-        if self.has_open_union(t) {
-            return Some("implicit search for a union with type variables");
-        }
-        let unbounded = self.constructor_vars(t).into_iter().any(|v| {
-            let (lo, hi) = self.constraint.bounds(v);
-            let hi = match *self.u.types().get(hi) {
-                Type::Lambda { result, .. } => result,
-                _ => hi,
-            };
-            lo == tasty::NOTHING && self.is_exactly_any(hi)
-        });
-        unbounded.then_some("implicit search for a type with an unbounded higher-kinded type variable")
-    }
-
-    /// The uninstantiated type variables of `t` applied as type constructors.
-    pub fn constructor_vars(&mut self, t: TypeId) -> Vec<tasty::VarId> {
-        let mut constructors = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Applied(c, _) = *u.types().get(part)
-                && let Type::Var(v) = *u.types().get(c)
-            {
-                constructors.push(v);
-            }
-            None
-        });
-        constructors
-    }
-
-    /// Whether one of `vars` is still uninstantiated without lower bound.
-    pub fn any_open_constructor(&mut self, vars: &[tasty::VarId]) -> bool {
-        vars.iter()
-            .any(|&v| self.constraint.instance(v).is_none() && self.constraint.bounds(v).0 == tasty::NOTHING)
-    }
-
-    /// What the search looks for in place of `t` (dotty's `wildApprox`): the upper bound of an
-    /// uninstantiated type variable bounded from above only; that bound applied to the arguments
-    /// of such a variable applied, if it is a class taking as many; an intersection with such
-    /// sides with each side so.
-    pub fn var_upper_bound(&mut self, t: TypeId) -> Option<TypeId> {
-        let t = self.zonk(t);
-        let (var, args) = match self.u.types().get(t).clone() {
-            Type::Var(v) => (v, None),
-            Type::Applied(c, args) => match *self.u.types().get(c) {
-                Type::Var(v) => (v, Some(args)),
-                _ => return None,
-            },
-            Type::And(a, b) => {
-                let (x, y) = (self.var_upper_bound(a), self.var_upper_bound(b));
-                if x.is_none() && y.is_none() {
-                    return None;
-                }
-                return Some(self.u.intern_type(Type::And(x.unwrap_or(a), y.unwrap_or(b))));
-            }
-            _ => return None,
+    let unbounded = constructor_vars(ty.u, tpe).into_iter().any(|v| {
+        let (lo, hi) = ty.constraint.bounds(v);
+        let hi = match *ty.u.types().get(hi) {
+            Type::Lambda { result, .. } => result,
+            _ => hi,
         };
-        let (lo, hi) = self.constraint.bounds(var);
-        if lo != tasty::NOTHING || self.is_exactly_any(hi) {
-            return None;
+        lo == tasty::NOTHING && ty.is_exactly_any(hi)
+    });
+    unbounded.then_some("implicit search for a type with an unbounded higher-kinded type variable")
+}
+
+/// The uninstantiated type variables of `t` applied as type constructors.
+pub fn constructor_vars(u: &mut Universe, t: TypeId) -> Vec<tasty::VarId> {
+    let mut constructors = Vec::new();
+    u.map_type(t, &mut |u, part| {
+        if let Type::Applied(c, _) = *u.types().get(part)
+            && let Type::Var(v) = *u.types().get(c)
+        {
+            constructors.push(v);
         }
-        let hi = self.zonk(hi);
-        let Some(args) = args else { return Some(hi) };
-        let class = self.u.class_symbol(hi).filter(|_| matches!(self.u.types().get(hi), Type::Sym(..)))?;
-        (self.u.type_params(class).len() == args.len()).then(|| self.u.intern_type(Type::Applied(hi, args)))
-    }
+        None
+    });
+    constructors
+}
 
-    /// `t` with its type variables whose bounds are equal up to aliases instantiated to them, or
-    /// to their upper bound if their lower bound is not normal and both normalize alike, and so
-    /// those of the instances.
-    pub fn determined(&mut self, t: TypeId) -> TypeId {
-        let mut t = self.zonk(t);
-        for _ in 0..4 {
-            let mut changed = false;
-            for v in self.open_vars(t) {
-                let (lo, hi) = self.constraint.bounds(v);
-                let normal = self.u.normalized(lo);
-                if normal != lo && normal == self.u.normalized(hi) {
-                    self.constraint.instantiate(v, hi);
-                    changed = true;
-                } else if lo == hi || self.dealiased_parts(lo) == self.dealiased_parts(hi) {
-                    self.constraint.instantiate(v, lo);
-                    changed = true;
-                }
+/// Whether one of `vars` is still uninstantiated without lower bound.
+pub fn any_open_constructor(c: &Constraint, vars: &[tasty::VarId]) -> bool {
+    vars.iter().any(|&v| c.instance(v).is_none() && c.bounds(v).0 == tasty::NOTHING)
+}
+
+/// What the search looks for in place of `tpe` (dotty's `wildApprox`): the upper bound of an
+/// uninstantiated type variable bounded from above only; that bound applied to the arguments
+/// of such a variable applied, if it is a class taking as many; an intersection with such
+/// sides with each side so.
+pub fn var_upper_bound(ty: &mut TypeOps<'_>, tpe: TypeId) -> Option<TypeId> {
+    let tpe = ty.zonk(tpe);
+    let (var, args) = match ty.u.types().get(tpe).clone() {
+        Type::Var(v) => (v, None),
+        Type::Applied(c, args) => match *ty.u.types().get(c) {
+            Type::Var(v) => (v, Some(args)),
+            _ => return None,
+        },
+        Type::And(a, b) => {
+            let (x, y) = (var_upper_bound(ty, a), var_upper_bound(ty, b));
+            if x.is_none() && y.is_none() {
+                return None;
             }
-            t = self.zonk(t);
-            if !changed {
-                break;
+            return Some(ty.u.intern_type(Type::And(x.unwrap_or(a), y.unwrap_or(b))));
+        }
+        _ => return None,
+    };
+    let (lo, hi) = ty.constraint.bounds(var);
+    if lo != tasty::NOTHING || ty.is_exactly_any(hi) {
+        return None;
+    }
+    let hi = ty.zonk(hi);
+    let Some(args) = args else { return Some(hi) };
+    let class = ty.u.class_symbol(hi).filter(|_| matches!(ty.u.types().get(hi), Type::Sym(..)))?;
+    (ty.u.type_params(class).len() == args.len()).then(|| ty.u.intern_type(Type::Applied(hi, args)))
+}
+
+/// `tpe` with its type variables whose bounds are equal up to aliases instantiated to them, or
+/// to their upper bound if their lower bound is not normal and both normalize alike, and so
+/// those of the instances.
+pub fn determined(ty: &mut TypeOps<'_>, tpe: TypeId) -> TypeId {
+    let mut tpe = ty.zonk(tpe);
+    for _ in 0..4 {
+        let mut changed = false;
+        for v in ty.open_vars(tpe) {
+            let (lo, hi) = ty.constraint.bounds(v);
+            let normal = ty.u.normalized(lo);
+            if normal != lo && normal == ty.u.normalized(hi) {
+                ty.constraint.instantiate(v, hi);
+                changed = true;
+            } else if lo == hi || dealiased_parts(ty, lo) == dealiased_parts(ty, hi) {
+                ty.constraint.instantiate(v, lo);
+                changed = true;
             }
         }
-        t
-    }
-
-    /// `t` zonked with the aliases among its parts dealiased.
-    fn dealiased_parts(&mut self, t: TypeId) -> TypeId {
-        let t = self.zonk(t);
-        self.u.map_type(t, &mut |u, x| {
-            let d = u.dealias(x);
-            (d != x).then_some(d)
-        })
-    }
-
-    /// Whether `t` is `Any`, `AnyRef`, or an uninstantiated type variable bounded by them, which no
-    /// search may answer (dotty's `isUnderspecified`).
-    pub fn is_underspecified(&mut self, t: TypeId) -> bool {
-        let t = self.zonk(t);
-        match self.u.types().get(t).clone() {
-            Type::Var(v) => {
-                let (_, hi) = self.constraint.bounds(v);
-                self.is_underspecified(hi)
-            }
-            Type::Or(a, b, _) if self.u.class_symbol(b) == Some(self.u.builtins().null) => {
-                self.is_underspecified(a)
-            }
-            Type::Sym(..) | Type::TypeRef(..) => {
-                let b = self.u.builtins();
-                let t = self.u.dealias(t);
-                let class = match self.u.types().get(t).clone() {
-                    Type::Sym(_, s) => Some(s),
-                    Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
-                    _ => None,
-                };
-                class.is_some_and(|c| c == b.any || c == b.object)
-            }
-            _ => false,
+        tpe = ty.zonk(tpe);
+        if !changed {
+            break;
         }
     }
+    tpe
+}
 
-    /// Whether `t`, its aliases expanded, has a union with an uninstantiated type variable in it.
-    pub fn has_open_union(&mut self, t: TypeId) -> bool {
-        self.open_union_within(t, 16)
-    }
+/// `tpe` zonked with the aliases among its parts dealiased.
+fn dealiased_parts(ty: &mut TypeOps<'_>, tpe: TypeId) -> TypeId {
+    let tpe = ty.zonk(tpe);
+    ty.u.map_type(tpe, &mut |u, x| {
+        let d = u.dealias(x);
+        (d != x).then_some(d)
+    })
+}
 
-    fn open_union_within(&mut self, t: TypeId, depth: u32) -> bool {
-        let Some(depth) = depth.checked_sub(1) else { return false };
-        let t = self.u.dealias(t);
-        match self.u.types().get(t).clone() {
-            Type::Or(..) => !self.open_vars(t).is_empty(),
-            Type::And(a, b) => self.open_union_within(a, depth) || self.open_union_within(b, depth),
-            Type::Applied(_, args) => args.into_iter().any(|a| self.open_union_within(a, depth)),
-            Type::Annotated(a, _) | Type::ByName(a) => self.open_union_within(a, depth),
-            Type::Bounds(lo, hi) => self.open_union_within(lo, depth) || self.open_union_within(hi, depth),
-            _ => false,
+/// Whether `tpe` is `Any`, `AnyRef`, or an uninstantiated type variable bounded by them, which
+/// no search may answer (dotty's `isUnderspecified`).
+pub fn is_underspecified(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
+    let tpe = ty.zonk(tpe);
+    match ty.u.types().get(tpe).clone() {
+        Type::Var(v) => {
+            let (_, hi) = ty.constraint.bounds(v);
+            is_underspecified(ty, hi)
         }
+        Type::Or(a, b, _) if ty.u.class_symbol(b) == Some(ty.u.builtins().null) => is_underspecified(ty, a),
+        Type::Sym(..) | Type::TypeRef(..) => {
+            let b = ty.u.builtins();
+            let tpe = ty.u.dealias(tpe);
+            let class = match ty.u.types().get(tpe).clone() {
+                Type::Sym(_, s) => Some(s),
+                Type::TypeRef(p, n) => ty.u.resolve(p, &n, true),
+                _ => None,
+            };
+            class.is_some_and(|c| c == b.any || c == b.object)
+        }
+        _ => false,
+    }
+}
+
+/// Whether `tpe`, its aliases expanded, has a union with an uninstantiated type variable in it.
+fn open_union_within(ty: &mut TypeOps<'_>, tpe: TypeId, depth: u32) -> bool {
+    let Some(depth) = depth.checked_sub(1) else { return false };
+    let tpe = ty.u.dealias(tpe);
+    match ty.u.types().get(tpe).clone() {
+        Type::Or(..) => !ty.open_vars(tpe).is_empty(),
+        Type::And(a, b) => open_union_within(ty, a, depth) || open_union_within(ty, b, depth),
+        Type::Applied(_, args) => args.into_iter().any(|a| open_union_within(ty, a, depth)),
+        Type::Annotated(a, _) | Type::ByName(a) => open_union_within(ty, a, depth),
+        Type::Bounds(lo, hi) => open_union_within(ty, lo, depth) || open_union_within(ty, hi, depth),
+        _ => false,
     }
 }

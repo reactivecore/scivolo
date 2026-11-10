@@ -7,7 +7,7 @@ use super::Typer;
 use rustc_hash::FxHashSet;
 use syntax::ast::NodeId;
 use syntax::ast::flags as f;
-use tasty::SymbolId;
+use tasty::{SymbolId, Universe};
 
 /// The synthetic methods of a case class or its companion that a definition of the user removes,
 /// besides the default getters of `copy`.
@@ -62,14 +62,14 @@ impl Typer<'_> {
     /// is a case class or its companion's class (dotty's `isRetractableCaseClassMethodName`).
     pub fn is_retractable_name(&mut self, cls: SymbolId, name: &str) -> bool {
         (RETRACTABLE.contains(&name) || name.starts_with("copy$default$"))
-            && self.is_case_class_or_companion(cls)
+            && is_case_class_or_companion(self.u, cls)
     }
+}
 
-    fn is_case_class_or_companion(&mut self, cls: SymbolId) -> bool {
-        let class = match self.u.is_module_class(cls) {
-            true => self.u.companion_class(cls),
-            false => Some(cls),
-        };
-        class.is_some_and(|c| self.u.symbol(c).flags.has(tasty::tags::CASE))
-    }
+fn is_case_class_or_companion(u: &mut Universe, cls: SymbolId) -> bool {
+    let class = match u.is_module_class(cls) {
+        true => u.companion_class(cls),
+        false => Some(cls),
+    };
+    class.is_some_and(|c| u.symbol(c).flags.has(tasty::tags::CASE))
 }

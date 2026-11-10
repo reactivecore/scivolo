@@ -15,7 +15,7 @@ impl Typer<'_> {
             let id = TNodeId::new(i);
             if let Some(t) = self.tpd.get(id).tpe {
                 self.fully_defined(t)?;
-                let t = self.zonk_kept(t);
+                let t = self.types().zonk_kept(t);
                 self.tpd.get_mut(id).tpe = Some(t);
             }
             let defines = matches!(self.tpd.tree(id), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });

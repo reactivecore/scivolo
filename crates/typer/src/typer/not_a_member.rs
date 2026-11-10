@@ -14,7 +14,7 @@ use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// The classes whose members dotty's selection finds otherwise or tries further.
 const SPECIAL_SITES: [&str; 5] =
-    ["scala.Dynamic", "scala.Selectable", "scala.Tuple", "scala.Nothing", "scala.Null"];
+    ["scala.Dynamic", "scala.Selectable", crate::defn::TUPLE, "scala.Nothing", "scala.Null"];
 
 impl Typer<'_> {
     /// `not_a_member`, else refused as a missing member.
@@ -101,7 +101,7 @@ impl Typer<'_> {
         let t = self.zonk(qual_tpe);
         let site = self.u.widen(t);
         let dealiased = self.u.dealias(site);
-        let class = self.direct_class(dealiased)?;
+        let class = self.types().direct_class(dealiased)?;
         if self.is_named_package_object(class) {
             return None;
         }

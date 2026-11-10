@@ -7,8 +7,10 @@
 use super::Typer;
 use super::implicits::is_misfit;
 use crate::ctx::{Ctx, Mode};
+use crate::defn::CAN_EQUAL;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Ast, NodeId, Span, Tree};
+use syntax::config::Features;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -127,6 +129,20 @@ impl Typer<'_> {
     pub fn assumed_can_equal(&mut self, a: TypeId, b: TypeId) -> bool {
         let (lifted_a, lifted_b) = (self.lifted(a, 8), self.lifted(b, 8));
         self.u.is_subtype(a, lifted_b) || self.u.is_subtype(b, lifted_a)
+    }
+
+    /// Builds the type `CanEqual[l, r]`; `None` if the class path has no `scala.CanEqual`.
+    pub fn can_equal_type(&mut self, l: TypeId, r: TypeId) -> Option<TypeId> {
+        let class = self.resolve_full_name(CAN_EQUAL, true)?;
+        Some(crate::defn::applied(self.u, class, vec![l, r]))
+    }
+
+    /// Determines whether `==` in `ctx` needs a `CanEqual` instance: under
+    /// `import scala.language.strictEquality` or its compiler flag, and while checking whether a
+    /// type has a `CanEqual` with itself.
+    pub fn is_strict_equality(&mut self, ctx: Ctx) -> bool {
+        ctx.mode.is(Mode::STRICT_EQUALITY)
+            || self.feature_enabled(Features::STRICT_EQUALITY, "strictEquality", ctx)
     }
 
     /// `t` with abstract types replaced by their upper bounds, singletons widened and refinements

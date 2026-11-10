@@ -6,14 +6,16 @@
 
 use super::dependent_results::has_wildcard;
 use super::implicits::is_misfit;
+use super::patterns::MAX_ALIAS_STEPS;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
+use crate::defn::{CLASS_TAG, TYPE_TEST};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::tags::OPAQUE;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
-const TAGS: [&str; 2] = ["scala.reflect.TypeTest", "scala.reflect.ClassTag"];
+const TAGS: [&str; 2] = [TYPE_TEST, CLASS_TAG];
 
 impl Typer<'_> {
     /// Pattern `id`, `expr: tpe` with type tree `tpt`, against `pt` as the extractor pattern
@@ -98,7 +100,7 @@ impl Typer<'_> {
 
     /// The match-type alias that `t`, or an alias `t` refers to, is or applies.
     fn match_alias(&mut self, mut t: TypeId) -> Option<TypeId> {
-        for _ in 0..8 {
+        for _ in 0..MAX_ALIAS_STEPS {
             let tycon = match *self.u.types().get(t) {
                 Type::Applied(tycon, _) => tycon,
                 _ => t,

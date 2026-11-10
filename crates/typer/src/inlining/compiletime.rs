@@ -138,7 +138,7 @@ impl Inlining<'_> {
         let Some(value) = self.const_value(tpe) else {
             return Err((span, "constValueOpt of a type that is not constant"));
         };
-        let some = self.scala_member("Some", Kind::Class).ok_or((span, "scala.Some"))?;
+        let some = self.scala_member("Some", Kind::Class).ok_or((span, crate::defn::SOME))?;
         let ctor = self.u.decl(some, "<init>").ok().and_then(|d| d.first().copied()).ok_or((span, "Some"))?;
         let literal = self.literal(value, span);
         let elem = self.tpd.tpe(literal);

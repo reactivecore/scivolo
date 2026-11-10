@@ -6,6 +6,7 @@
 use super::copy::TreeTypeMap;
 use super::expand::Expansion;
 use super::{Inlining, Unsupported};
+use crate::defn::INLINE_PARAM;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::{Span, TName};
@@ -180,7 +181,7 @@ impl Inlining<'_> {
         if args.len() != 1 || self.u.class_symbol(c) != Some(self.scala_member("<repeated>", Kind::Class)?) {
             return None;
         }
-        let seq = self.u.class_ref("scala.collection.immutable.Seq");
+        let seq = self.u.class_ref(crate::defn::IMMUTABLE_SEQ);
         Some(self.u.intern_type(Type::Applied(seq, args)))
     }
 
@@ -188,10 +189,9 @@ impl Inlining<'_> {
     pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
         match *self.u.types().get(p) {
             Type::ByName(r) => self.is_inline_param_type(r),
-            Type::Annotated(_, annot) => self
-                .u
-                .class_symbol(annot)
-                .is_some_and(|c| self.u.full_name(c) == "scala.annotation.internal.InlineParam"),
+            Type::Annotated(_, annot) => {
+                self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == INLINE_PARAM)
+            }
             _ => false,
         }
     }

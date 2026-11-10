@@ -5,6 +5,7 @@
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
+use crate::defn::ARRAY;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Binding, Type, TypeId};
@@ -130,7 +131,7 @@ impl Typer<'_> {
         for &p in params {
             let widened = self.u.widen(p);
             let dealiased = self.u.dealias(widened);
-            if self.class_args(dealiased, "scala.Array").is_some() || self.is_value_class_type(dealiased) {
+            if self.types().class_args(dealiased, ARRAY).is_some() || self.is_value_class_type(dealiased) {
                 return None;
             }
             let class = self.u.erased_class(dealiased)?;

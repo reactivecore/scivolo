@@ -125,7 +125,7 @@ impl Typer<'_> {
     /// repeated one, which is recorded as such.
     fn set_param_info(&mut self, s: SymbolId, p: TypeId) {
         let Some(elem) = self.repeated_elem(p) else { return self.u.set_info(s, p) };
-        let seq = self.resolve_full_name("scala.collection.immutable.Seq", true);
+        let seq = self.resolve_full_name(crate::defn::IMMUTABLE_SEQ, true);
         let annot = self.resolve_full_name("scala.annotation.internal.Repeated", true);
         let (Some(seq), Some(annot)) = (seq, annot) else { return self.u.set_info(s, p) };
         let seq = crate::defn::type_ref(self.u, seq);

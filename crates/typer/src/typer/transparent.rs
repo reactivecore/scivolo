@@ -79,7 +79,7 @@ impl Typer<'_> {
             return Err((span, "transparent inline extractor"));
         }
         if let Pt::Type(p) = pt {
-            let (tpe, approx) = (self.tpd.tpe(call), self.wild_approx(p));
+            let (tpe, approx) = (self.tpd.tpe(call), self.types().wild_approx(p));
             if !self.is_fully_defined(approx) && self.has_compiletime_op(tpe) {
                 return Err((span, "compile-time operation type"));
             }

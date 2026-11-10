@@ -5,11 +5,14 @@
 //! of `bindTypeSymbols`): by their upper bound where they occur covariantly, their lower bound
 //! contravariantly, a wildcard of both as an invariant argument.
 
-use super::Typer;
+use super::type_ops::TypeOps;
 use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId};
 
-impl Typer<'_> {
-    /// `t` at variance `variance` without references to `captures`.
+impl TypeOps<'_> {
+    /// Approximates the body type `t` of a match type case such as `case List[x] => Option[x]` by
+    /// a type that no longer mentions the bound type variables `captures`: each variable by its
+    /// upper bound where a supertype will do, its lower bound where a subtype will, and a
+    /// wildcard of both as an invariant type argument.
     pub fn avoid_captures(&mut self, t: TypeId, captures: &[SymbolId], variance: i8) -> TypeId {
         if !self.refers_to(t, captures) {
             return t;

@@ -81,7 +81,7 @@ impl Unpickler<'_> {
             REPEATED => {
                 let elemtpt = self.tpt(k[0])?;
                 let elems = k[1..].iter().map(|&e| self.term(e)).collect::<Result<Vec<_>, _>>()?;
-                let seq = self.class_symbol("scala.collection.immutable.Seq")?;
+                let seq = self.class_symbol(crate::defn::IMMUTABLE_SEQ)?;
                 let elem = self.tpd.tpe(elemtpt);
                 let tpe = crate::defn::applied(self.u, seq, vec![elem]);
                 let elems = self.tpd.list(&elems);

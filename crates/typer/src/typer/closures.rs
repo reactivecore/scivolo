@@ -125,7 +125,7 @@ impl Typer<'_> {
             }
         };
         let checked = match expected_result {
-            Some(_) if self.var_bounds_escape(result, &params_syms) => {
+            Some(_) if self.types().var_bounds_escape(result, &params_syms) => {
                 return self.unsupported(id, "local type escaping through a type variable");
             }
             Some(_) => vec![result],

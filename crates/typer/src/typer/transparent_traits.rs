@@ -7,6 +7,9 @@
 use super::Typer;
 use tasty::{Kind, Type, TypeId, TypeVars};
 
+/// How many transparent traits `without_transparent_traits` tries to drop at most.
+const MAX_DROPS: usize = 32;
+
 impl Typer<'_> {
     /// `t` without transparent traits among its intersection parts, one at a time while the
     /// result conforms to `bound`; `t` if each dropped trait conforms to the result (dotty's
@@ -15,7 +18,7 @@ impl Typer<'_> {
         let mark = self.constraint.mark();
         let (mut kept, mut dropped) = (Vec::new(), Vec::new());
         let mut current = t;
-        for _ in 0..32 {
+        for _ in 0..MAX_DROPS {
             let narrower = self.drop_one_transparent(current, &kept, &mut dropped);
             if narrower == current {
                 break;

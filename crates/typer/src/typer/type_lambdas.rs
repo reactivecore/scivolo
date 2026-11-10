@@ -15,7 +15,7 @@ impl Typer<'_> {
     /// Type lambda `id` of type parameters `tparams` and `body`, typed in `ctx`: its parameters
     /// entered in a scope of their own, its type a lambda over them, bounds of lambdas for bounds.
     pub fn typed_lambda_type(&mut self, id: NodeId, tparams: List, body: NodeId, ctx: Ctx) -> TNodeId {
-        let derived = self.derived_lambdas.get(&id).and_then(|d| self.syms.by_tree.get(d)).copied();
+        let derived = self.derivations.lambda_owner(id).and_then(|d| self.syms.by_tree.get(&d)).copied();
         let type_def = self.type_def_with_rhs(id).or(derived);
         let owner = type_def.unwrap_or(ctx.owner);
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
@@ -111,13 +111,6 @@ impl Typer<'_> {
             });
         }
         leaks
-    }
-
-    /// The info of type member `s` selected on `pre`: that a refinement of `pre`'s type gives it,
-    /// else its own.
-    pub fn refined_info(&mut self, pre: Option<TypeId>, s: SymbolId) -> TypeId {
-        let refined = pre.and_then(|p| self.u.refinement_info(p, s));
-        refined.unwrap_or_else(|| self.u.info(s))
     }
 
     /// The type lambda that projection `P#A` of a type alias `A` of a class stands for, as seen

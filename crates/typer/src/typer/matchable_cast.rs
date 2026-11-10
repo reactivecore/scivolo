@@ -30,7 +30,7 @@ impl Typer<'_> {
             return None;
         }
         let span = self.tpd.span(tree).to_synthetic();
-        let cast = self.cast_to(tree, target, span).ok()?;
+        let cast = self.build().cast_to(tree, target, span).ok()?;
         if let T::TypeApply { args, .. } = *self.tpd.tree(cast)
             && let Some(&tpt) = self.tpd.items(args).first()
         {

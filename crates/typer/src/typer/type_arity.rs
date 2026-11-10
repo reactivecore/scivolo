@@ -36,7 +36,7 @@ impl Typer<'_> {
                     if let Some(n) = self.completing_arity(s) {
                         return n;
                     }
-                    let info = self.refined_info(pre, s);
+                    let info = self.types().refined_info(pre, s);
                     self.info_arity(info, depth)
                 }
                 _ => 0,

@@ -3,14 +3,14 @@
 //! The result of an implicit clause with its false dependencies dealiased (dotty's
 //! `TermLambda.resultType` for `FalseDeps`).
 
-use super::super::Typer;
 use super::super::dependent_params::{clause_param, mentions_clause_params};
+use super::super::type_ops::TypeOps;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId};
 
-impl Typer<'_> {
-    /// Result `t` of a clause of binder `binder` and parameters `params` of method `meth`, each
-    /// alias member selected from a parameter replaced by its alias in the parameter's type, if
-    /// that leaves no reference to a parameter, else `t`.
+impl TypeOps<'_> {
+    /// Dealiases the result `t` of a clause of binder `binder` and parameters `params` of method
+    /// `meth` where it selects an alias member of a parameter, as `(using c: C { type T = Int })`
+    /// with result `c.T` gives `Int`; `t` itself if a parameter is still referred to then.
     pub fn without_false_deps_in(
         &mut self,
         t: TypeId,
