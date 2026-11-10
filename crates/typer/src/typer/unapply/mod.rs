@@ -1,24 +1,50 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
-//! Extractor patterns `C(p1, ..., pn)` (dotty's `typedUnApply`): `C.unapply` applied to the
-//! matched value, its result's product selectors or `get` the expected types of the patterns.
 
+mod extractor;
 mod fun;
 mod implicits;
 mod named;
+mod own_type;
 mod proto;
+mod seq_patterns;
 mod transparent;
 mod type_args;
 
+use super::unapply_args::UnapplyArgs;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{List, NodeId, Tree};
-use tasty::{Type, TypeId, TypeVars};
+use syntax::ast::{List, NodeId};
+use tasty::TypeId;
+
+/// One extractor pattern `C(p1, ..., pn)` against a value of the scrutinee's type (dotty's
+/// `typedUnApply`): `C.unapply`, or `C.unapplySeq` for `C(p, xs*)`, selected on `C`, applied to
+/// the type arguments of `C[T](...)` and to its implicit clauses, a transparent inline one
+/// expanded. The result's product selectors `_1`, ..., `_n`, the `get` of an `isEmpty`/`get`
+/// result, a `Boolean` result or a generic tuple give the patterns their expected types; named
+/// patterns `C(x = p)` are placed at the elements they name. Refuses, among others, extension
+/// methods as extractors, extractors with further parameter lists and patterns that would
+/// constrain invariant type arguments of an open class.
+pub struct UnapplyPattern {
+    /// The pattern tree.
+    id: NodeId,
+    /// The argument patterns, named ones placed at the elements they name once those are known.
+    args: Vec<NodeId>,
+    /// The expected type, or its values tuple if it is a named tuple.
+    sel: TypeId,
+    /// The expected type instantiated and without the names of a named tuple, on which the
+    /// extractor is selected.
+    scrutinee: TypeId,
+    ctx: Ctx,
+}
 
 impl Typer<'_> {
+    /// Types extractor pattern `id`, `fun(args)`, against the matched value of type `pt`; refused
+    /// if the extractor is outside the subset or an alphanumeric infix one under
+    /// `-source future`.
     pub fn typed_unapply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
-        match self.unapply_tree(id, fun, args, pt, ctx) {
+        match UnapplyPattern::new(self, id, args, pt, ctx).and_then(|p| p.run(self, fun)) {
             Ok(tree) => {
                 let unapply = match *self.tpd.tree(tree) {
                     T::UnApply { fun, .. } => self.tpd.sym(self.tpd.meth_part(fun)),
@@ -32,171 +58,79 @@ impl Typer<'_> {
             Err(what) => self.unsupported(id, what),
         }
     }
+}
 
-    fn unapply_tree(
-        &mut self,
-        id: NodeId,
-        fun: NodeId,
-        args: List,
-        pt: Pt,
-        ctx: Ctx,
-    ) -> Result<TNodeId, &'static str> {
+impl UnapplyPattern {
+    /// Starts pattern `id` with argument patterns `args` against expected type `pt`; refused
+    /// without an expected type.
+    fn new(t: &mut Typer<'_>, id: NodeId, args: List, pt: Pt, ctx: Ctx) -> Result<Self, &'static str> {
         let Pt::Type(sel) = pt else { return Err("extractor without expected type") };
-        let mut arg_ids = self.ast.items(args).to_vec();
-        let zonked = self.zonk(sel);
-        let sel_type = self.strip_named_tuple(zonked);
-        let sel = if sel_type == zonked { sel } else { sel_type };
-        self.retype_tuple_arg_types(sel_type, &arg_ids, ctx);
-        let (applied, targs) = (fun, self.unapply_type_args(fun, sel_type, ctx));
-        let fun = targs.map_or(fun, |(qual, _)| qual);
-        let with_targs = matches!(self.ast.tree(fun), Tree::TypeApply { .. });
-        if !with_targs
-            && !self.splices.contains_key(&fun)
-            && !matches!(
-                self.ast.tree(fun),
-                Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. }
-            )
-        {
-            return Err("extractor with type arguments");
+        let args = t.ast.items(args).to_vec();
+        let zonked = t.zonk(sel);
+        let scrutinee = t.strip_named_tuple(zonked);
+        let sel = if scrutinee == zonked { sel } else { scrutinee };
+        Ok(UnapplyPattern { id, args, sel, scrutinee, ctx })
+    }
+
+    /// Types the pattern with extractor `fun`: the extractor, the pattern's own type, the
+    /// patterns against the extractor's result, then a type test if the own type is narrower
+    /// than the expected one.
+    fn run(mut self, t: &mut Typer<'_>, fun: NodeId) -> Result<TNodeId, &'static str> {
+        self.retype_tuple_arg_types(t);
+        let extractor = self.extractor(t, fun)?;
+        let unapp = extractor.fun;
+        let method = extractor::method_shape(t, unapp)?;
+
+        let own = self.pattern_type(t, method.arg_type, extractor.vars, unapp)?;
+        let sel = t.zonk(self.sel);
+        let (normal_own, normal_sel) = (t.normalized(own), t.normalized(sel));
+        let tested = t.stripped(normal_own) != t.stripped(normal_sel);
+
+        let sym = t.tpd.sym(t.tpd.meth_part(unapp));
+        let result = implicits::applied_unapply_result(&mut t.types(), sym, &method, own);
+        let (result, implicits) = self.unapply_implicits(t, unapp, result, own)?;
+        let result = t.simplified(result);
+        let patterns = self.typed_patterns(t, result, extractor.seq)?;
+
+        let (implicits, patterns) = (t.tpd.list(&implicits), t.tpd.list(&patterns));
+        let span = t.ast.span(self.id);
+        let tree = t.tpd.node(T::UnApply { fun: unapp, implicits, patterns }, span, Some(own), None);
+        t.record_inline_extractor(unapp, self.ctx);
+        if !tested || t.is_bottom_type(sel) {
+            return Ok(tree);
         }
-        let (unapp, seq) = self.unapply_fun(fun, sel_type, ctx)?;
-        if with_targs && !self.is_new_instance(unapp) {
-            return Err("extractor with type arguments");
-        }
-        if with_targs && let crate::tpd::Tree::Select { qualifier, .. } = *self.tpd.tree(unapp) {
-            let span = self.tpd.span(qualifier);
-            self.tpd.get_mut(qualifier).span = span.to_synthetic();
-        }
-        if !seq && arg_ids.iter().any(|&a| self.is_seq_wildcard(a)) {
-            return Err("sequence wildcard of an extractor without unapplySeq");
-        }
-        let vars = self.constraint.count();
-        let unapp = match targs {
-            Some((_, args)) => self.with_unapply_type_args(applied, unapp, args, ctx)?,
-            None => self.with_type_vars(unapp)?,
-        };
-        let unapp = self.leading_implicits_applied(unapp, ctx)?;
-        let unapp = self.transparent_unapply(unapp, ctx)?;
-        let fun_tpe = self.tpd.tpe(unapp);
-        let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-        let Type::Method { binder, params, result, implicit: false, .. } = self.u.types().get(info).clone()
-        else {
-            return Err("not an extractor");
-        };
-        let [(ref param, arg_type)] = params[..] else { return Err("not an extractor") };
-        let implicit = matches!(self.u.types().get(result), Type::Method { implicit: true, .. });
-        if !implicit && matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
-            return Err("extractor with more parameters");
-        }
-        let own = self.pattern_type((sel, arg_type), vars, unapp, ctx)?;
-        let sel = self.zonk(sel);
-        let (normal_own, normal_sel) = (self.normalized(own), self.normalized(sel));
-        let tested = self.stripped(normal_own) != self.stripped(normal_sel);
-        let result = self.applied_unapply_result(unapp, result, (binder, param), own);
-        let (result, implicits) = self.unapply_implicits(unapp, result, own, ctx)?;
-        let result = self.simplified(result);
-        let named = arg_ids.iter().any(|&a| self.is_named_pattern(a));
-        let patterns: Vec<TNodeId> = if seq {
+        t.type_tested_unapply(self.id, tree, own, sel, self.ctx)
+    }
+
+    /// Types the argument patterns against the types extractor result `result` gives them, as
+    /// those of an `unapplySeq` if `seq`.
+    fn typed_patterns(
+        &mut self,
+        t: &mut Typer<'_>,
+        result: TypeId,
+        seq: bool,
+    ) -> Result<Vec<TNodeId>, &'static str> {
+        let named = self.args.iter().any(|&a| named::is_named_pattern(t, a));
+        if seq {
             if named {
                 return Err("named pattern of a sequence extractor");
             }
-            let types = self.unapply_seq_arg_types(result, arg_ids.len())?;
-            self.typed_seq_patterns(&arg_ids, types, ctx)?
-        } else {
-            let mut values = None;
-            if named {
-                let names;
-                (names, values) = self.named_pattern_elements(result, &arg_ids)?;
-                arg_ids = self.adapt_pattern_args(&arg_ids, &names)?;
-            }
-            let arg_types = match values {
-                Some(values) => values,
-                None => self.unapply_arg_types(result, arg_ids.len())?,
-            };
-            arg_ids.iter().zip(arg_types).map(|(&a, t)| self.typed_pattern_arg(a, t, ctx)).collect()
+            let types = UnapplyArgs { result, n: self.args.len() }.seq_arg_types(t)?;
+            return self.typed_seq_patterns(t, types);
+        }
+
+        let mut values = None;
+        if named {
+            let names;
+            (names, values) = self.named_pattern_elements(t, result)?;
+            self.args = super::named_tuple_patterns::adapt_pattern_args(t, &self.args, &names)?;
+        }
+        let arg_types = match values {
+            Some(values) => values,
+            None => UnapplyArgs { result, n: self.args.len() }.arg_types(t)?,
         };
-        let (implicits, patterns) = (self.tpd.list(&implicits), self.tpd.list(&patterns));
-        let span = self.ast.span(id);
-        let tree = self.tpd.node(T::UnApply { fun: unapp, implicits, patterns }, span, Some(own), None);
-        self.record_inline_extractor(unapp, ctx);
-        if !tested || self.is_bottom_type(sel) {
-            return Ok(tree);
-        }
-        self.type_tested_unapply(id, tree, own, sel, ctx)
-    }
-
-    /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type
-    /// other than an opaque one, which no GADT bounds narrow.
-    fn has_abstract_arg(&mut self, t: TypeId) -> bool {
-        let widened = self.u.widen(t);
-        let Type::Applied(_, args) = self.u.types().get(widened).clone() else { return false };
-        let mut found = false;
-        for a in args {
-            self.u.map_type(a, &mut |u, part| {
-                if let Type::Sym(_, s) = *u.types().get(part) {
-                    found |= match u.symbol(s).kind {
-                        tasty::Kind::TypeParam => true,
-                        tasty::Kind::Type => {
-                            let info = u.info(s);
-                            !matches!(u.types().get(info), Type::Alias(_))
-                                && !u.symbol(s).flags.has(tasty::tags::OPAQUE)
-                        }
-                        _ => false,
-                    };
-                }
-                None
-            });
-        }
-        found
-    }
-
-    /// The type of a pattern whose extractor takes `arg_type` against a value of type `sel`:
-    /// `sel` if it conforms, else `arg_type` constrained by `sel`, unless only variant type
-    /// arguments of an open class would be, and maximized with the binders added to extractor
-    /// `unapp`; type variables from id `vars` on instantiated.
-    fn pattern_type(
-        &mut self,
-        (sel, arg_type): (TypeId, TypeId),
-        vars: usize,
-        unapp: TNodeId,
-        ctx: Ctx,
-    ) -> Result<TypeId, &'static str> {
-        let mark = self.constraint.mark();
-        if self.conforms(sel, arg_type) {
-            self.fully_defined_as(arg_type, true)?;
-            return Ok(if self.is_bottom_type(sel) {
-                self.zonk(arg_type)
-            } else {
-                self.without_unchecked(sel)
-            });
-        }
-        self.constraint.rollback(mark);
-        let open = self.u.class_symbol(arg_type).is_none_or(|c| {
-            let flags = self.u.symbol(c).flags;
-            !flags.has(tasty::tags::FINAL) && !flags.has(tasty::tags::CASE)
-        });
-        let variances = self.variances(arg_type, None, vars);
-        let unconstrained = open && !variances.is_empty();
-        if unconstrained && variances.values().any(|&v| v == 0) {
-            return Err("invariant type arguments of a pattern of an open class");
-        }
-        let mut gadt = Vec::new();
-        if !unconstrained && !self.constrain_pattern(arg_type, sel)? {
-            self.constraint.rollback(mark);
-            match self.gadt_vars((arg_type, vars), sel, ctx)? {
-                Some(narrowed) => gadt = narrowed,
-                None => {
-                    self.constraint.rollback(mark);
-                    if self.has_abstract_arg(sel) {
-                        return Err("pattern constraining type parameters (GADT)");
-                    }
-                }
-            }
-        }
-        let bound = self.maximize_type(arg_type, (vars, &gadt), unapp, ctx)?;
-        self.narrow_gadt(&gadt)?;
-        self.gadt_bind(&bound);
-        self.add_binders(unapp, &bound);
-        Ok(self.zonk(arg_type))
+        Ok((self.args.iter().zip(arg_types))
+            .map(|(&a, tpe)| named::typed_pattern_arg(t, a, tpe, self.ctx))
+            .collect())
     }
 }

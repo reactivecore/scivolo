@@ -43,8 +43,9 @@ it; such a shared helper rather moves out, to `TypeOps`, a `Symbol` method or a 
   containers, the view on a qualifier), the override checks of a class (`OverrideChecks`),
   kept in `Typer::macro_annotated` until macro annotations expanded, the `derives` clause of a
   class (`Deriver`; its instances wait in `Typer::derivations` until typed), a derived type tree
-  (`DerivedTypeTree`) and making an inline method inlineable (`MakeInlineable`; its accessors
-  wait in `Typer::accessors` until their class's body is typed).
+  (`DerivedTypeTree`), making an inline method inlineable (`MakeInlineable`; its accessors
+  wait in `Typer::accessors` until their class's body is typed), an extractor pattern
+  (`UnapplyPattern`) and the expected types of its patterns (`UnapplyArgs`).
 - State shared across nested searches that run through the typer (the open searches, the by-name
   dictionary, the budget) stays in `Typer::history`, as dotty keeps it in the `Context`.
 - Type relations and queries that need only the universe and the constraint (`conforms`, `zonk`,

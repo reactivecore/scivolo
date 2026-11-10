@@ -4,52 +4,44 @@
 //! `tryWithTypeArgs` in `trySelectUnapply`).
 
 use super::super::Typer;
-use crate::ctx::Ctx;
+use super::UnapplyPattern;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Span, Tree};
 use tasty::{Type, TypeId};
 
-impl Typer<'_> {
+impl UnapplyPattern {
     /// The extractor and type arguments of `C[Ts]` if `C`'s extractor method has as many type
-    /// parameters as `Ts` are, for a value of type `sel`.
-    pub fn unapply_type_args(&mut self, fun: NodeId, sel: TypeId, ctx: Ctx) -> Option<(NodeId, List)> {
-        let Tree::TypeApply { fun: qual, args } = *self.ast.tree(fun) else { return None };
-        let n = self.ast.items(args).len();
-        let reported = self.diags.items.len();
-        let (found, clean, _) = self.speculatively(|t| {
-            let (unapp, _) = t.unapply_fun(qual, sel, ctx).ok()?;
+    /// parameters as `Ts` are.
+    pub fn unapply_type_args(&self, t: &mut Typer<'_>, fun: NodeId) -> Option<(NodeId, List)> {
+        let Tree::TypeApply { fun: qual, args } = *t.ast.tree(fun) else { return None };
+        let n = t.ast.items(args).len();
+        let reported = t.diags.items.len();
+        let (found, clean, _) = t.speculatively(|t| {
+            let (unapp, _) = self.unapply_fun(t, qual).ok()?;
             let tpe = t.tpd.tpe(unapp);
             let info = t.method_info(tpe).unwrap_or(tpe);
             Some(matches!(t.u.types().get(info), Type::Poly { params, .. } if params.len() == n))
         });
-        self.retract_diags(reported);
+        t.retract_diags(reported);
         (clean && found == Some(true)).then_some((qual, args))
     }
 
     /// Extractor method `unapp` applied to type arguments `args` of type application `id`, at
     /// the span from `unapp` to the last argument.
     pub fn with_unapply_type_args(
-        &mut self,
+        &self,
+        t: &mut Typer<'_>,
         id: NodeId,
         unapp: TNodeId,
         args: List,
-        ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
-        let arg_ids = self.ast.items(args).to_vec();
-        let typed: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
-        let types: Vec<TypeId> = typed.iter().map(|&a| self.adapted_type_arg(a)).collect::<Result<_, _>>()?;
-        let tpe = self.instantiated(unapp, &types)?;
-        let end = typed.last().map_or(self.ast.span(id).end(), |&a| self.tpd.span(a).end());
-        let span = Span::synthetic(self.tpd.span(unapp).start(), end);
-        let args = self.tpd.list(&typed);
-        Ok(self.tpd.node(T::TypeApply { fun: unapp, args }, span, Some(tpe), None))
-    }
-
-    /// Whether selection `sel` selects from a new instance of a class (dotty's fallback of
-    /// `trySelectUnapply` for an extractor `C[T](...)`).
-    pub fn is_new_instance(&mut self, sel: TNodeId) -> bool {
-        let T::Select { qualifier, .. } = *self.tpd.tree(sel) else { return false };
-        let ctor = self.tpd.sym(self.tpd.meth_part(qualifier));
-        ctor.is_some_and(|c| self.u.symbol(c).name == "<init>")
+        let arg_ids = t.ast.items(args).to_vec();
+        let typed: Vec<TNodeId> = arg_ids.iter().map(|&a| t.typed_type(a, self.ctx)).collect();
+        let types: Vec<TypeId> = typed.iter().map(|&a| t.adapted_type_arg(a)).collect::<Result<_, _>>()?;
+        let tpe = t.instantiated(unapp, &types)?;
+        let end = typed.last().map_or(t.ast.span(id).end(), |&a| t.tpd.span(a).end());
+        let span = Span::synthetic(t.tpd.span(unapp).start(), end);
+        let args = t.tpd.list(&typed);
+        Ok(t.tpd.node(T::TypeApply { fun: unapp, args }, span, Some(tpe), None))
     }
 }

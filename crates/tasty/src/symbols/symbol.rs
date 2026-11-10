@@ -2,8 +2,8 @@
 
 use crate::NodeId;
 use crate::tags::{
-    CONTRAVARIANT, COVARIANT, EXTENSION, GIVEN, IMPLICIT, MUTABLE, PRIVATE, PRIVATEqualified,
-    PROTECTEDqualified,
+    CASE, CASEaccessor, CONTRAVARIANT, COVARIANT, EXTENSION, FINAL, GIVEN, IMPLICIT, MUTABLE, OPAQUE,
+    PRIVATE, PRIVATEqualified, PROTECTEDqualified, SYNTHETIC,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -139,5 +139,30 @@ impl Symbol {
     /// 1 if covariant, -1 if contravariant, else 0.
     pub fn variance(&self) -> i32 {
         if self.flags.has(CONTRAVARIANT) { -1 } else { i32::from(self.flags.has(COVARIANT)) }
+    }
+
+    /// A `case class`, `case object` or the module class of one, or a `case` of an `enum`.
+    pub fn is_case(&self) -> bool {
+        self.flags.has(CASE)
+    }
+
+    /// A `final` class or member.
+    pub fn is_final(&self) -> bool {
+        self.flags.has(FINAL)
+    }
+
+    /// An `opaque type`.
+    pub fn is_opaque(&self) -> bool {
+        self.flags.has(OPAQUE)
+    }
+
+    /// Made by the compiler, as the `apply` and `unapply` of a case class's companion.
+    pub fn is_synthetic(&self) -> bool {
+        self.flags.has(SYNTHETIC)
+    }
+
+    /// A parameter of a case class's first parameter list, or its field.
+    pub fn is_case_accessor(&self) -> bool {
+        self.flags.has(CASEaccessor)
     }
 }
