@@ -9,7 +9,8 @@ use super::type_ops::TypeOps;
 use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId};
 
 impl TypeOps<'_> {
-    /// `t` at variance `variance` without references to `captures`.
+    /// Approximates `t` at variance `variance` by a type without references to `captures`: a
+    /// capture by its upper bound, its lower bound, or as invariant argument a wildcard of both.
     pub fn avoid_captures(&mut self, t: TypeId, captures: &[SymbolId], variance: i8) -> TypeId {
         if !self.refers_to(t, captures) {
             return t;

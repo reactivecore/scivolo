@@ -118,7 +118,7 @@ impl Avoid<'_> {
 }
 
 impl TypeOps<'_> {
-    /// Whether `t` is a singleton type: a path, `this`, a constant or a skolem.
+    /// Checks whether `t` is a singleton type: a path, `this`, a constant or a skolem.
     pub fn is_path(&mut self, t: TypeId) -> bool {
         match *self.u.types().get(t) {
             Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::Skolem(..) => true,

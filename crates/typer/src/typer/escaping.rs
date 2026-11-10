@@ -7,7 +7,7 @@ use super::type_ops::TypeOps;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 impl TypeOps<'_> {
-    /// Whether type `t` refers to one of `locals` as dotty's `namedPartsWith` finds them: the
+    /// Checks whether type `t` refers to one of `locals` as dotty's `namedPartsWith` finds them: the
     /// prefix of a static member not traversed, the class of a class constant traversed.
     pub fn escapes(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         let mut found = false;
@@ -26,14 +26,15 @@ impl TypeOps<'_> {
         found || classes.into_iter().any(|c| self.escapes(c, locals))
     }
 
-    /// Whether an uninstantiated type variable in `t` has a bound that refers to one of `locals`
-    /// going out of scope, also once the bounds of the variables in `t` avoid them.
+    /// Checks whether an uninstantiated type variable in `t` has a bound that refers to one of
+    /// `locals` going out of scope, also once the bounds of the variables in `t` avoid them,
+    /// which narrows those bounds in the constraint.
     pub fn var_bounds_escape(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         self.var_bounds_refer_to(t, locals)
             && (!self.constraint.avoid_in_bounds(self.u, t) || self.var_bounds_refer_to(t, locals))
     }
 
-    /// Whether an uninstantiated type variable in `t` made before one of `locals` has a bound
+    /// Checks whether an uninstantiated type variable in `t` made before one of `locals` has a bound
     /// that refers to one of them, directly or through the bounds of the variables in it.
     pub fn var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         if locals.is_empty() {

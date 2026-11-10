@@ -78,7 +78,7 @@ impl TypeOps<'_> {
         refined.unwrap_or_else(|| self.u.info(s))
     }
 
-    /// `t` widened, a by-name type as its result.
+    /// Widens `t` to the underlying type of a singleton, a by-name type to its result.
     pub fn widened(&mut self, t: TypeId) -> TypeId {
         let widened = self.u.widen(t);
         match *self.u.types().get(widened) {

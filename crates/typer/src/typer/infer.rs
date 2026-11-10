@@ -68,8 +68,8 @@ fn lambda_instance(u: &mut Universe, c: &Constraint, t: TypeId) -> Option<TypeId
 }
 
 impl TypeOps<'_> {
-    /// Whether `a` conforms to `b` frozen, no reference lifted to the `this` of an enclosing
-    /// object with opaque types (dotty's test under the root owner).
+    /// Checks whether `a` conforms to `b` frozen, both zonked, no reference lifted to the `this`
+    /// of an enclosing object with opaque types (dotty's test under the root owner).
     pub fn conforms_unlifted(&mut self, a: TypeId, b: TypeId) -> bool {
         let (a, b) = (self.zonk(a), self.zonk(b));
         let owner = self.u.set_comparison_owner(None);
@@ -78,8 +78,8 @@ impl TypeOps<'_> {
         ok
     }
 
-    /// `zonk`, an application of a type variable instantiated to a type lambda unreduced (dotty's
-    /// tree types keep the `TypeVar`).
+    /// Zonks `t` as `zonk` does, but keeps an application of a type variable instantiated to a
+    /// type lambda unreduced (dotty's tree types keep the `TypeVar`).
     pub fn zonk_kept(&mut self, t: TypeId) -> TypeId {
         zonked(self.u, self.constraint, t, true)
     }

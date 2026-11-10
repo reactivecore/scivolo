@@ -39,7 +39,8 @@ impl<'a> Avoid<'a> {
 }
 
 impl TypeOps<'_> {
-    /// Whether type `t` refers to one of `syms`.
+    /// Checks whether type `t` refers to one of `syms` in any part, prefixes and the classes of
+    /// class constants included.
     pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
         let mut found = false;
         let mut classes = Vec::new();

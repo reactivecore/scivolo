@@ -8,8 +8,9 @@ use super::type_ops::TypeOps;
 use tasty::{Type, TypeId};
 
 impl TypeOps<'_> {
-    /// `t` without `@uncheckedVariance` annotations, its unions and intersections the lubs and
-    /// glbs of their parts (dotty's `TypeOps.simplify` of a term's type).
+    /// Simplifies `t`: drops `@uncheckedVariance` annotations, makes its unions and intersections
+    /// the lubs and glbs of their parts, dealiases type projections on classes (dotty's
+    /// `TypeOps.simplify` of a term's type).
     pub fn simplified(&mut self, t: TypeId) -> TypeId {
         simplify(self.u, t, false)
     }

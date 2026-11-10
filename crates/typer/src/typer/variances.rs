@@ -8,9 +8,10 @@ use rustc_hash::FxHashMap;
 use tasty::{Type, TypeId, TypeVars, VarId};
 
 impl TypeOps<'_> {
-    /// The variance of each type variable of id `from` or later occurring in `t` or in the final
-    /// result type of `pt`, or in the bounds of such a variable: 1 covariant, -1 contravariant,
-    /// 0 both or invariant.
+    /// Determines the variance of each type variable of id `from` or later occurring in `t` or in
+    /// the final result type of `pt`, or in the bounds of such a variable: 1 covariant, -1
+    /// contravariant, 0 both or invariant; a variable's bounds pass its variance on to the
+    /// variables in them, until no variance changes.
     pub fn variances(&mut self, t: TypeId, pt: Option<TypeId>, from: usize) -> FxHashMap<u32, i8> {
         let mut out = FxHashMap::default();
         self.collect_variances(t, 1, &mut out, 0);
@@ -83,7 +84,7 @@ impl TypeOps<'_> {
         vars
     }
 
-    /// Whether `p` holds for an operand of the top-level unions (`or`) or intersections of `t`.
+    /// Checks whether `p` holds for an operand of the top-level unions (`or`) or intersections of `t`.
     pub fn any_factor(&self, t: TypeId, or: bool, p: &mut impl FnMut(TypeId) -> bool) -> bool {
         match *self.u.types().get(t) {
             Type::Or(a, b, _) if or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
@@ -107,8 +108,8 @@ impl TypeOps<'_> {
         }
     }
 
-    /// The variance of each type variable occurring in `t`, as `variances` without bounds and
-    /// expected type.
+    /// Determines the variance of each type variable occurring in `t`, as `variances` does
+    /// without bounds and expected type.
     pub fn occurrence_variances(&mut self, t: TypeId) -> FxHashMap<u32, i8> {
         let mut out = FxHashMap::default();
         self.collect_variances(t, 1, &mut out, 0);

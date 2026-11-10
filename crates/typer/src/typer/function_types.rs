@@ -142,13 +142,15 @@ impl Typer<'_> {
 }
 
 impl TypeOps<'_> {
-    /// The parameter and result types of `t` if it is a `FunctionN` of `n` parameters.
+    /// Splits `t` into its parameter and result types if it is a `FunctionN` of `n` parameters,
+    /// zonked and dealiased.
     pub fn function_parts(&mut self, t: TypeId, n: usize) -> Option<Parts> {
         self.applied_function(t, "scala.Function").filter(|(params, _)| params.len() == n)
     }
 
-    /// The parameter and result types of `t` if it is a `ContextFunctionN`, possibly refined by
-    /// an `apply` whose result does not refer to its parameters (dotty's `dropDependentRefinement`).
+    /// Splits `t` into its parameter and result types if it is a `ContextFunctionN`, possibly
+    /// refined by an `apply` whose result does not refer to its parameters (dotty's
+    /// `dropDependentRefinement`).
     pub fn context_function_parts(&mut self, t: TypeId) -> Option<Parts> {
         let z = self.zonk(t);
         let d = self.u.dealias(z);
@@ -162,7 +164,7 @@ impl TypeOps<'_> {
         self.applied_function(t, "scala.ContextFunction")
     }
 
-    /// Whether `t` has a part left open by an expected type (dotty's `WildcardType`).
+    /// Checks whether `t` has a part left open by an expected type (dotty's `WildcardType`).
     pub fn has_proto_wildcard(&mut self, t: TypeId) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |u, part| {
@@ -172,7 +174,7 @@ impl TypeOps<'_> {
         found
     }
 
-    /// Type `t` as dotty's messages show it: function types as `(A, B) => R` or `A ?=> R`.
+    /// Shows type `t` as dotty's messages do: function types as `(A, B) => R` or `A ?=> R`.
     pub fn show_type(&mut self, t: TypeId) -> String {
         let t = self.zonk(t);
         let (parts, arrow) = match self.context_function_parts(t) {

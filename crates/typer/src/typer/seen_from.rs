@@ -67,13 +67,16 @@ impl Typer<'_> {
 }
 
 impl TypeOps<'_> {
+    /// Replaces each class type parameter of `t` selected on a prefix other than `this` by the
+    /// argument the prefix's base type gives it, then normalizes, as `resolve_class_params` does.
     pub fn resolve_class_params(&mut self, t: TypeId) -> TypeId {
         resolve_class_params(self.u, t)
     }
 
-    /// `t` with applied type lambdas and applied aliases of type lambdas reduced (dotty's
-    /// `appliedTo`: an alias only if it eta-expands its result), and capture-checking annotations
-    /// (`retains`) dropped; an impure function alias only if its arguments have such annotations.
+    /// Normalizes `t`: reduces applied type lambdas and applied aliases of type lambdas (dotty's
+    /// `appliedTo`: an alias only if it eta-expands its result), and drops capture-checking
+    /// annotations (`retains`); an impure function alias only if its arguments have such
+    /// annotations.
     pub fn normalized(&mut self, t: TypeId) -> TypeId {
         normalized(self.u, t)
     }

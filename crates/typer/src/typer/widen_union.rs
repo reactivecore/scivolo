@@ -71,7 +71,8 @@ impl Typer<'_> {
 }
 
 impl TypeOps<'_> {
-    /// `t` without the `Null` parts of its top-level unions (dotty's `stripNull`).
+    /// Drops the `Null` parts of the top-level unions of `t`, widened and dealiased, also inside
+    /// intersections and flexible types; `t` itself if there are none (dotty's `stripNull`).
     pub fn strip_null(&mut self, t: TypeId) -> TypeId {
         let widened = self.u.widen(t);
         let w = self.u.dealias(widened);
@@ -98,7 +99,7 @@ impl TypeOps<'_> {
         if stripped != w { stripped } else { t }
     }
 
-    /// Whether `t` is a reference to `Null` (dotty's `isNullType`).
+    /// Checks whether `t` is a reference to `Null`, dealiased (dotty's `isNullType`).
     pub fn is_null_type(&mut self, t: TypeId) -> bool {
         let d = self.u.dealias(t);
         self.u.is_null_ref(d)
@@ -161,7 +162,8 @@ impl TypeOps<'_> {
         ok
     }
 
-    /// `t` with its top-level unions made hard (dotty's `hardenUnions`).
+    /// Makes the top-level unions of `t` hard, also inside intersections, refinements and type
+    /// lambda results (dotty's `hardenUnions`).
     pub fn harden_unions(&mut self, t: TypeId) -> TypeId {
         let widened = self.widened(t);
         match self.u.types().get(widened).clone() {

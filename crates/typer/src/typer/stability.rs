@@ -8,11 +8,12 @@ use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl TypeOps<'_> {
+    /// Checks whether term `s` denotes the same value each time, as `is_stable_member` does.
     pub fn is_stable_member(&mut self, s: SymbolId) -> bool {
         is_stable_member(self.u, s)
     }
 
-    /// `t` widened and dealiased until neither changes it (dotty's `widenDealias`).
+    /// Widens and dealiases `t` until neither changes it (dotty's `widenDealias`).
     pub fn widen_dealias(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..64 {
             let widened = self.u.widen(t);
@@ -25,8 +26,8 @@ impl TypeOps<'_> {
         t
     }
 
-    /// `t`, or the result type of the by-name parameter it refers to, as the parts of a `try`
-    /// take it.
+    /// Returns `t`, or the result type of the by-name parameter it refers to, as the parts of a
+    /// `try` take it.
     pub fn by_name_result(&mut self, t: TypeId) -> TypeId {
         let Type::Sym(_, s) = *self.u.types().get(t) else { return t };
         if self.u.symbol(s).kind != Kind::Param {

@@ -34,6 +34,11 @@ run and dropped.
   dictionary, the budget) stays in `Typer::history`, as dotty keeps it in the `Context`.
 - Type relations and queries that need only the universe and the constraint (`conforms`, `zonk`,
   `open_vars`, `wild_approx`, …) are a service type, `TypeOps` from `Typer::types()` (dotty's
-  `TypeComparer`), for completed symbols; helpers that need no more take it, and `Typer`'s methods
-  of the same names forward to it. Flag and kind checks are methods on `tasty::Symbol`
-  (`is_implicit`, `is_given`). Helpers that complete symbols, type trees or search take the typer.
+  `TypeComparer`), for completed symbols; helpers that need no more take it. So do the inference
+  queries that need no completion (variances, widening, `seen_from`, simplification, escaping
+  references). `Typer` keeps methods of the same names that forward to it only where many
+  callers use them; the others call `t.types()`. Flag and kind checks are methods on
+  `tasty::Symbol` (`is_implicit`, `is_given`). Helpers that complete symbols, type trees or
+  search take the typer.
+- Avoiding local symbols in a type is a component, `Avoid`, whose methods take the typer: it
+  completes the members of approximated prefixes and instantiates type variables.

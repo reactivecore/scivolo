@@ -171,8 +171,9 @@ impl TypeOps<'_> {
             })
     }
 
-    /// Whether uninstantiated variable `a` is bounded by `b` directly: `b` an intersection operand
-    /// of `a`'s upper bound, or `a` a union operand of `b`'s lower bound (dotty's `isLess`).
+    /// Checks whether uninstantiated variable `a` is bounded by `b` directly: `b` an intersection
+    /// operand of `a`'s upper bound, or `a` a union operand of `b`'s lower bound (dotty's
+    /// `isLess`).
     pub fn is_less(&self, a: VarId, b: VarId) -> bool {
         let (hi, lo) = (self.constraint.bounds(a).1, self.constraint.bounds(b).0);
         self.any_factor(hi, false, &mut |f| *self.u.types().get(f) == Type::Var(b))

@@ -144,7 +144,7 @@ impl Typer<'_> {
 }
 
 impl TypeOps<'_> {
-    /// The object whose module class `t` is, as a reference, or `t`.
+    /// Replaces a reference to a module class by a reference to its object; `t` otherwise.
     pub fn module_ref(&mut self, t: TypeId) -> TypeId {
         let Type::Sym(prefix, c) = *self.u.types().get(t) else { return t };
         if !self.u.is_module_class(c) {
