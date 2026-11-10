@@ -23,7 +23,7 @@ impl MirrorSynthesis {
         let (pre, cls) = match source {
             MirrorSource::Tuple(elems) => return self.tuple(t, &elems, None),
             MirrorSource::NamedTuple(names, elems) => return self.tuple(t, &elems, Some(&names)),
-            MirrorSource::Singleton(s, path) => return self.singleton(t, s, path).map(Some),
+            MirrorSource::Singleton(s, path) => return self.singleton(t, s, path),
             MirrorSource::Class(pre, cls) => (pre, cls),
         };
         if let Some(args) = tuple_class_args(t.u, mirrored).filter(|a| !a.is_empty()) {
@@ -84,7 +84,12 @@ impl MirrorSynthesis {
 
     /// Synthesizes the case object or enum value `s` at `path` cast to its `Mirror.Singleton`
     /// type; a Scala 2 object wrapped in `new Mirror.SingletonProxy(s)`.
-    fn singleton(self, t: &mut Typer<'_>, s: SymbolId, path: TypeId) -> Result<TNodeId, &'static str> {
+    fn singleton(
+        self,
+        t: &mut Typer<'_>,
+        s: SymbolId,
+        path: TypeId,
+    ) -> Result<Option<TNodeId>, &'static str> {
         let empty = t.nested_pairs(&[])?;
         let scala2 = t.u.is_module(s) && t.u.module_class(s).is_some_and(|c| t.u.is_scala2(c));
         let parent = match scala2 {
@@ -100,7 +105,7 @@ impl MirrorSynthesis {
         if scala2 {
             value = self.new_with_args(t, parent, &[value])?;
         }
-        t.build().cast_to(value, cast, self.at)
+        self.cast(t, value, cast)
     }
 
     /// Whether case class `c` gets a product mirror where this one is summoned (dotty's

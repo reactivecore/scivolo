@@ -125,7 +125,7 @@ impl<'a> Build<'a> {
     pub fn cast_to(&mut self, tree: TNodeId, to: TypeId, span: Span) -> Result<TNodeId, &'static str> {
         let any = self.u.builtins().any;
         let m = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
-        let m = m.ok_or("Mirror without its library classes")?;
+        let m = m.ok_or("cast without Any.asInstanceOf")?;
         let select_tpe = self.u.intern_type(Type::Sym(Some(self.tpd.tpe(tree)), m));
         let name = TName { name: self.names.intern("$asInstanceOf$"), is_type: false };
         let fun = self.tpd.node(T::Select { qualifier: tree, name }, span, Some(select_tpe), Some(m));
