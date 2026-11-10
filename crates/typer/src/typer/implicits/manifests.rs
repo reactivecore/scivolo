@@ -5,13 +5,16 @@
 //! `wildcardType` and `classType`; `NoManifest` for an `OptManifest` of another type.
 
 use super::super::{Pt, Typer};
-use crate::ctx::Ctx;
+use super::class_tag_erasure::{erased_class_type, has_stable_erasure};
+use super::synthesis::Synthesizer;
 use crate::tpd::TNodeId;
-use syntax::ast::{NodeId, Span, TName, Tree};
+use syntax::ast::{NodeId, TName, Tree};
 use tasty::{Kind, Type, TypeId};
 
 const PRIMITIVES: [&str; 9] = ["Byte", "Short", "Char", "Int", "Long", "Float", "Double", "Boolean", "Unit"];
 
+/// The manifest asked for: a `Manifest`, an `OptManifest`, or the `ClassManifest` of an array
+/// element of an `OptManifest`.
 #[derive(Clone, Copy, PartialEq)]
 pub enum ManifestKind {
     Full,
@@ -19,70 +22,70 @@ pub enum ManifestKind {
     Clss,
 }
 
-impl Typer<'_> {
-    pub fn synthesized_manifest(
-        &mut self,
+impl Synthesizer {
+    /// Synthesizes a manifest of `kind` for `arg`, made fully defined.
+    pub fn manifest(
+        self,
+        t: &mut Typer<'_>,
         arg: TypeId,
         kind: ManifestKind,
-        at: Span,
-        ctx: Ctx,
     ) -> Result<Option<TNodeId>, &'static str> {
-        let arg = self.fully_defined_as(arg, true)?;
-        self.manifest_or_none(arg, kind, true, (at, ctx))
+        let arg = t.fully_defined_as(arg, true)?;
+        self.manifest_or_none(t, arg, kind, true)
     }
 
-    /// The manifest of `t`, `NoManifest` in place of none for an `OptManifest`.
+    /// The manifest of `tpe`, `NoManifest` in place of none for an `OptManifest`.
     fn manifest_or_none(
-        &mut self,
-        t: TypeId,
+        self,
+        t: &mut Typer<'_>,
+        tpe: TypeId,
         kind: ManifestKind,
         top: bool,
-        (at, ctx): (Span, Ctx),
     ) -> Result<Option<TNodeId>, &'static str> {
-        match self.manifest_of(t, kind, top, (at, ctx))? {
+        match self.manifest_of(t, tpe, kind, top)? {
             None if kind == ManifestKind::Opt => {
-                let module = self.resolve_full_name("scala.reflect.NoManifest", false).ok_or("NoManifest")?;
-                let tpe = crate::defn::type_ref(self.u, module);
-                Ok(Some(self.build().ident(module, tpe, at)))
+                let module = t.resolve_full_name("scala.reflect.NoManifest", false).ok_or("NoManifest")?;
+                let module_tpe = crate::defn::type_ref(t.u, module);
+                Ok(Some(t.build().ident(module, module_tpe, self.at)))
             }
             found => Ok(found),
         }
     }
 
     fn manifest_of(
-        &mut self,
-        t: TypeId,
+        self,
+        t: &mut Typer<'_>,
+        tpe: TypeId,
         kind: ManifestKind,
         top: bool,
-        (at, ctx): (Span, Ctx),
     ) -> Result<Option<TNodeId>, &'static str> {
-        let t = self.u.dealias(t);
-        if let Some(&[elem]) = self.class_args(t, "scala.Array").as_deref() {
+        let tpe = t.u.dealias(tpe);
+        if let Some(&[elem]) = t.class_args(tpe, "scala.Array").as_deref() {
             let elem_kind = if kind == ManifestKind::Full { kind } else { ManifestKind::Clss };
-            let Some(e) = self.manifest_or_none(elem, elem_kind, top, (at, ctx))? else { return Ok(None) };
-            return self.factory_manifest(kind, "arrayType", elem, &[e], (at, ctx)).map(Some);
+            let Some(e) = self.manifest_or_none(t, elem, elem_kind, top)? else { return Ok(None) };
+            return self.factory_manifest(t, kind, "arrayType", elem, &[e]).map(Some);
         }
-        if let Type::Bounds(_, hi) = *self.u.types().get(t) {
+        if let Type::Bounds(_, hi) = *t.u.types().get(tpe) {
             if kind != ManifestKind::Full {
                 return Ok(None);
             }
-            let nothing = self.singleton_manifest("Nothing", at)?;
-            let Some(upper) = self.manifest_or_none(hi, ManifestKind::Full, top, (at, ctx))? else {
+            let nothing = self.singleton_manifest(t, "Nothing")?;
+            let Some(upper) = self.manifest_or_none(t, hi, ManifestKind::Full, top)? else {
                 return Ok(None);
             };
-            return self.factory_manifest(kind, "wildcardType", t, &[nothing, upper], (at, ctx)).map(Some);
+            return self.factory_manifest(t, kind, "wildcardType", tpe, &[nothing, upper]).map(Some);
         }
-        let class = self.u.class_symbol(t);
-        let abstract_type = self.referenced(t).is_some_and(|s| {
-            let s = self.u.symbol(s);
+        let class = t.u.class_symbol(tpe);
+        let abstract_type = t.referenced(tpe).is_some_and(|s| {
+            let s = t.u.symbol(s);
             s.kind == Kind::TypeParam || s.kind == Kind::Type && !s.flags.has(tasty::tags::OPAQUE)
         });
-        let b = self.u.builtins();
+        let b = t.u.builtins();
         let bottom = class.is_some_and(|c| c == b.nothing || c == b.null);
-        if abstract_type || !self.has_stable_erasure(t) || top && bottom {
+        if abstract_type || !has_stable_erasure(t, tpe) || top && bottom {
             return Ok(None);
         }
-        let name = class.map(|c| self.u.full_name(c)).unwrap_or_default();
+        let name = class.map(|c| t.u.full_name(c)).unwrap_or_default();
         let special = match name.strip_prefix("scala.") {
             Some(n) if PRIMITIVES.contains(&n) || ["Any", "AnyVal", "Null", "Nothing"].contains(&n) => {
                 Some(n)
@@ -91,80 +94,73 @@ impl Typer<'_> {
             _ => None,
         };
         if let Some(special) = special {
-            return self.singleton_manifest(special, at).map(Some);
+            return self.singleton_manifest(t, special).map(Some);
         }
-        let erased = self.erased_class_type(t).ok_or("Manifest of a type erasing to no class")?;
-        let class_class = self.resolve_full_name("java.lang.Class", true).ok_or("java.lang.Class")?;
-        let literal_tpe = crate::defn::applied(self.u, class_class, vec![erased]);
+        let erased = erased_class_type(t, tpe).ok_or("Manifest of a type erasing to no class")?;
+        let class_class = t.resolve_full_name("java.lang.Class", true).ok_or("java.lang.Class")?;
+        let literal_tpe = crate::defn::applied(t.u, class_class, vec![erased]);
         let literal =
-            self.tpd.node(crate::tpd::Tree::ClassLiteral { tpe: erased }, at, Some(literal_tpe), None);
-        let class_of_t = crate::defn::applied(self.u, class_class, vec![t]);
-        let mut args = vec![self.type_cast(literal, class_of_t)];
+            t.tpd.node(crate::tpd::Tree::ClassLiteral { tpe: erased }, self.at, Some(literal_tpe), None);
+        let class_of_t = crate::defn::applied(t.u, class_class, vec![tpe]);
+        let mut args = vec![t.type_cast(literal, class_of_t)];
         if kind == ManifestKind::Full
-            && let Type::Applied(_, targs) = self.u.types().get(t).clone()
+            && let Type::Applied(_, targs) = t.u.types().get(tpe).clone()
         {
             for a in targs {
-                let Some(m) = self.manifest_or_none(a, ManifestKind::Full, false, (at, ctx))? else {
+                let Some(m) = self.manifest_or_none(t, a, ManifestKind::Full, false)? else {
                     return Ok(None);
                 };
                 args.push(m);
             }
         }
-        self.factory_manifest(kind, "classType", t, &args, (at, ctx)).map(Some)
+        self.factory_manifest(t, kind, "classType", tpe, &args).map(Some)
     }
 
     /// `ManifestFactory.name` of a primitive or special class.
-    fn singleton_manifest(&mut self, name: &str, at: Span) -> Result<TNodeId, &'static str> {
-        let module =
-            self.resolve_full_name("scala.reflect.ManifestFactory", false).ok_or("ManifestFactory")?;
-        let member = self.resolve_full_name(&format!("scala.reflect.ManifestFactory$.{name}"), false);
+    fn singleton_manifest(self, t: &mut Typer<'_>, name: &str) -> Result<TNodeId, &'static str> {
+        let module = t.resolve_full_name("scala.reflect.ManifestFactory", false).ok_or("ManifestFactory")?;
+        let member = t.resolve_full_name(&format!("scala.reflect.ManifestFactory$.{name}"), false);
         let member = member.ok_or("ManifestFactory member")?;
-        let tpe = crate::defn::type_ref(self.u, module);
-        let qualifier = self.build().ident(module, tpe, at);
-        Ok(self.build().select(qualifier, member, at))
+        let tpe = crate::defn::type_ref(t.u, module);
+        let qualifier = t.build().ident(module, tpe, self.at);
+        Ok(t.build().select(qualifier, member, self.at))
     }
 
-    /// `factory.name[t](args)`, the factory `ManifestFactory` for a full manifest, else
+    /// `factory.name[tpe](args)`, the factory `ManifestFactory` for a full manifest, else
     /// `ClassManifestFactory`, the alternative chosen by the arguments.
     fn factory_manifest(
-        &mut self,
+        self,
+        t: &mut Typer<'_>,
         kind: ManifestKind,
         name: &str,
-        t: TypeId,
+        tpe: TypeId,
         args: &[TNodeId],
-        (at, ctx): (Span, Ctx),
     ) -> Result<TNodeId, &'static str> {
         let factory = match kind {
             ManifestKind::Full => "scala.reflect.ManifestFactory",
             _ => "scala.reflect.ClassManifestFactory",
         };
-        let module = self.resolve_full_name(factory, false).ok_or("ManifestFactory")?;
-        let tpe = crate::defn::type_ref(self.u, module);
-        let module_ref = self.build().ident(module, tpe, at);
-        let qualifier = self.spliced(module_ref);
-        let name = TName { name: self.name(name), is_type: false };
-        let mut fun = self.at(Tree::Select { qualifier, name }, at);
-        let t = match *self.u.types().get(t) {
+        let module = t.resolve_full_name(factory, false).ok_or("ManifestFactory")?;
+        let module_tpe = crate::defn::type_ref(t.u, module);
+        let module_ref = t.build().ident(module, module_tpe, self.at);
+        let qualifier = t.spliced(module_ref);
+        let name = TName { name: t.name(name), is_type: false };
+        let mut fun = self.node(t, Tree::Select { qualifier, name });
+        let tpe = match *t.u.types().get(tpe) {
             Type::Bounds(_, hi) => hi,
-            _ => t,
+            _ => tpe,
         };
-        let targ = self.type_tree(t, at, false);
-        let targs = [self.spliced(targ)];
-        let targs = self.ast.list(&targs);
-        fun = self.at(Tree::TypeApply { fun, args: targs }, at);
-        let args: Vec<NodeId> = args.iter().map(|&a| self.spliced(a)).collect();
-        let args = self.ast.list(&args);
-        let apply = self.at(Tree::Apply { fun, args }, at);
-        let typed = self.typed(apply, Pt::Any, ctx);
-        if self.is_error(typed) {
+        let targ = t.type_tree(tpe, self.at, false);
+        let targs = [t.spliced(targ)];
+        let targs = t.ast.list(&targs);
+        fun = self.node(t, Tree::TypeApply { fun, args: targs });
+        let args: Vec<NodeId> = args.iter().map(|&a| t.spliced(a)).collect();
+        let args = t.ast.list(&args);
+        let apply = self.node(t, Tree::Apply { fun, args });
+        let typed = t.typed(apply, Pt::Any, self.ctx);
+        if t.is_error(typed) {
             return Err("Manifest factory call");
         }
         Ok(typed)
-    }
-
-    fn at(&mut self, tree: Tree, span: Span) -> NodeId {
-        let node = self.ast.node(tree);
-        self.ast.with_span(node, span);
-        node
     }
 }

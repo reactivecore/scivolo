@@ -1,6 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeUtils.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! Selections on small generic tuples (dotty's `trySmallGenericTuple`).
+//! Selections on small generic tuples (dotty's `trySmallGenericTuple`) and their element types.
 
 use super::Typer;
 use crate::tpd::TNodeId;
@@ -54,6 +55,18 @@ impl Typer<'_> {
             return self.is_empty_tuple(d).then_some(elems);
         }
         None
+    }
+
+    /// Normalizes a chain `A *: B *: … *: EmptyTuple` of at most 22 elements to `TupleN[A, B, …]`;
+    /// returns any other `t` unchanged (dotty's `normalizedTupleType`).
+    pub fn normalized_tuple_type(&mut self, t: TypeId) -> TypeId {
+        let Some(elems) = self.tuple_elements(t).filter(|e| (1..=MAX_TUPLE_ARITY).contains(&e.len())) else {
+            return t;
+        };
+        match self.resolve_full_name(&format!("scala.Tuple{}", elems.len()), true) {
+            Some(class) => crate::defn::applied(self.u, class, elems),
+            None => t,
+        }
     }
 
     /// Whether `c` is class `scala.TupleN` of arity `n`.

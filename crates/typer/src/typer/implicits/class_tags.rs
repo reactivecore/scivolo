@@ -7,149 +7,136 @@
 //! from outside among them.
 
 use super::super::Typer;
-use crate::ctx::Ctx;
+use super::super::type_ops::TypeOps;
+use super::class_tag_erasure::{erased_class_type, has_stable_erasure, is_bottom};
+use super::synthesis::Synthesizer;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::Span;
 use tasty::{Kind, Type, TypeId, TypeVars};
 
 /// How many type variables instantiating the argument of a class tag passes at most.
 const MAX_INSTANTIATIONS: u32 = 8;
 
-impl Typer<'_> {
-    pub fn synthesized_class_tag(
-        &mut self,
-        arg: TypeId,
-        at: Span,
-        ctx: Ctx,
-        depth: u32,
-    ) -> Result<Option<TNodeId>, &'static str> {
-        let Some(arg) = self.class_tag_arg(arg)? else { return Ok(None) };
-        let dealiased = self.u.dealias(arg);
-        let array_elem = match self.is_opaque_ref(dealiased) {
+impl Synthesizer {
+    /// Synthesizes `ClassTag[arg]`.
+    pub fn class_tag(self, t: &mut Typer<'_>, arg: TypeId) -> Result<Option<TNodeId>, &'static str> {
+        let at = self.at;
+        let Some(arg) = class_tag_arg(t, arg)? else { return Ok(None) };
+        let dealiased = t.u.dealias(arg);
+        let array_elem = match t.is_opaque_ref(dealiased) {
             true => None,
-            false => self.class_args(dealiased, "scala.Array"),
+            false => t.class_args(dealiased, "scala.Array"),
         };
         if let Some(&[elem]) = array_elem.as_deref() {
-            let class_tag = self.resolve_full_name("scala.reflect.ClassTag", true).ok_or("ClassTag")?;
-            let elem_tag = crate::defn::applied(self.u, class_tag, vec![elem]);
-            let elem_tag = self.implicit_arg(elem_tag, at, ctx, depth + 1)?;
-            let wrap = self
-                .u
-                .decl(class_tag, "wrap")
-                .ok()
-                .and_then(|d| d.first().copied())
-                .ok_or("ClassTag.wrap")?;
-            let prefix = self.tpd.tpe(elem_tag);
-            let prefix = self.widen_if_unstable(prefix);
-            let tpe = self.u.intern_type(Type::Sym(Some(prefix), wrap));
-            let name = self.build().term_name(wrap);
-            return Ok(Some(self.tpd.node(
-                T::Select { qualifier: elem_tag, name },
-                at,
-                Some(tpe),
-                Some(wrap),
-            )));
+            let class_tag = t.resolve_full_name("scala.reflect.ClassTag", true).ok_or("ClassTag")?;
+            let elem_tag = crate::defn::applied(t.u, class_tag, vec![elem]);
+            let elem_tag = t.implicit_arg(elem_tag, at, self.ctx, self.depth + 1)?;
+            let wrap =
+                t.u.decl(class_tag, "wrap").ok().and_then(|d| d.first().copied()).ok_or("ClassTag.wrap")?;
+            let prefix = t.tpd.tpe(elem_tag);
+            let prefix = t.widen_if_unstable(prefix);
+            let tpe = t.u.intern_type(Type::Sym(Some(prefix), wrap));
+            let name = t.build().term_name(wrap);
+            return Ok(Some(t.tpd.node(T::Select { qualifier: elem_tag, name }, at, Some(tpe), Some(wrap))));
         }
-        if !self.has_stable_erasure(arg) {
+        if !has_stable_erasure(t, arg) {
             return Ok(None);
         }
-        if self.is_bottom(arg) {
+        if is_bottom(t.u, arg) {
             return Err("class tag of a bottom type");
         }
-        let module = self.resolve_full_name("scala.reflect.ClassTag", false).ok_or("ClassTag")?;
-        let module_tpe = crate::defn::type_ref(self.u, module);
-        let class = match self.u.types().get(dealiased).clone() {
+        let module = t.resolve_full_name("scala.reflect.ClassTag", false).ok_or("ClassTag")?;
+        let module_tpe = crate::defn::type_ref(t.u, module);
+        let class = match t.u.types().get(dealiased).clone() {
             Type::And(..) | Type::Or(..) => None,
             Type::Applied(tycon, _)
-                if self.referenced(tycon).is_some_and(|s| self.u.symbol(s).kind != Kind::Class) =>
+                if t.referenced(tycon).is_some_and(|s| t.u.symbol(s).kind != Kind::Class) =>
             {
                 None
             }
-            _ => self.u.class_symbol(dealiased),
+            _ => t.u.class_symbol(dealiased),
         };
-        let b = self.u.builtins();
+        let b = t.u.builtins();
         let special = class.and_then(|c| match c {
-            _ if c == self.defn.unit => Some("Unit"),
+            _ if c == t.defn.unit => Some("Unit"),
             _ if c == b.any => Some("Any"),
             _ if Some(c) == b.any_val => Some("AnyVal"),
             _ => None,
         });
         if let Some(special) = special {
-            if !matches!(self.u.types().get(arg), Type::Sym(..) | Type::TypeRef(..))
-                || self.referenced(arg).is_none_or(|s| self.u.symbol(s).kind != Kind::Class)
+            if !matches!(t.u.types().get(arg), Type::Sym(..) | Type::TypeRef(..))
+                || t.referenced(arg).is_none_or(|s| t.u.symbol(s).kind != Kind::Class)
             {
                 return Err("class tag of an alias of a special class");
             }
-            let member = self.resolve_full_name(&format!("scala.reflect.ClassTag$.{special}"), false);
+            let member = t.resolve_full_name(&format!("scala.reflect.ClassTag$.{special}"), false);
             let member = member.ok_or("ClassTag member")?;
-            let qualifier = self.build().ident(module, module_tpe, at);
-            return Ok(Some(self.build().select(qualifier, member, at)));
+            let qualifier = t.build().ident(module, module_tpe, at);
+            return Ok(Some(t.build().select(qualifier, member, at)));
         }
-        let erased = self.erased_class_type(arg).ok_or("class tag of a type erasing to no class")?;
-        let module_class = self.u.module_class(module).ok_or("ClassTag")?;
-        let apply = self
-            .u
-            .decl(module_class, "apply")
-            .unwrap_or_default()
-            .into_iter()
-            .find(|&d| self.u.symbol(d).kind == Kind::Def)
-            .ok_or("ClassTag.apply")?;
-        let qualifier = self.build().ident(module, module_tpe, at);
-        let select = self.build().select(qualifier, apply, at);
-        let targ = self.type_tree(arg, at, false);
-        let method = self.instantiated(select, &[arg])?;
-        let fun = self.build().type_apply(select, &[targ], method, at);
-        let Type::Method { result, .. } = *self.u.types().get(method) else {
+        let erased = erased_class_type(t, arg).ok_or("class tag of a type erasing to no class")?;
+        let module_class = t.u.module_class(module).ok_or("ClassTag")?;
+        let apply =
+            t.u.decl(module_class, "apply")
+                .unwrap_or_default()
+                .into_iter()
+                .find(|&d| t.u.symbol(d).kind == Kind::Def)
+                .ok_or("ClassTag.apply")?;
+        let qualifier = t.build().ident(module, module_tpe, at);
+        let select = t.build().select(qualifier, apply, at);
+        let targ = t.type_tree(arg, at, false);
+        let method = t.instantiated(select, &[arg])?;
+        let fun = t.build().type_apply(select, &[targ], method, at);
+        let Type::Method { result, .. } = *t.u.types().get(method) else {
             return Err("ClassTag.apply");
         };
-        let class = self.resolve_full_name("java.lang.Class", true).ok_or("java.lang.Class")?;
-        let class_tpe = crate::defn::applied(self.u, class, vec![erased]);
-        let literal = self.tpd.node(T::ClassLiteral { tpe: erased }, at, Some(class_tpe), None);
-        Ok(Some(self.build().apply(fun, &[literal], result, at)))
+        let class = t.resolve_full_name("java.lang.Class", true).ok_or("java.lang.Class")?;
+        let class_tpe = crate::defn::applied(t.u, class, vec![erased]);
+        let literal = t.tpd.node(T::ClassLiteral { tpe: erased }, at, Some(class_tpe), None);
+        Ok(Some(t.build().apply(fun, &[literal], result, at)))
     }
+}
 
-    /// The type argument of a class tag (dotty's `instArg`): an intersection or union of equal
-    /// sides reduced to one; an uninstantiated type variable instantiated to its lower bound, else
-    /// its upper bound, if that bound has no type variable on top, else fully defined; `None` for
-    /// one without bounds or that cannot be fully defined.
-    fn class_tag_arg(&mut self, arg: TypeId) -> Result<Option<TypeId>, &'static str> {
-        for _ in 0..MAX_INSTANTIATIONS {
-            let arg = self.zonk(arg);
-            let dealiased = self.u.dealias(arg);
-            let tpe = self.u.types().get(dealiased).clone();
-            let v = match tpe {
-                Type::And(a, b) | Type::Or(a, b, _) if a == b => return self.class_tag_arg(a),
-                Type::And(..) | Type::Or(..) if !self.open_vars(dealiased).is_empty() => {
-                    return Err("class tag of an intersection or union with a type variable");
-                }
-                Type::Var(v) => v,
-                _ => return Ok(Some(arg)),
-            };
-            let (lo, hi) = self.constraint.bounds(v);
-            let nothing = self.u.builtins().nothing;
-            let (bound, from_below) = match lo != tasty::NOTHING && self.u.class_symbol(lo) != Some(nothing) {
-                true => (lo, true),
-                false if !self.is_exactly_any(hi) => (hi, false),
-                false => return Ok(None),
-            };
-            if self.is_ground(bound) {
-                self.instantiate_var(v, from_below)?;
-            } else if self.fully_defined_as(arg, true).is_err() {
-                return Ok(None);
+/// The type argument of a class tag (dotty's `instArg`): an intersection or union of equal
+/// sides reduced to one; an uninstantiated type variable instantiated to its lower bound, else
+/// its upper bound, if that bound has no type variable on top, else fully defined; `None` for
+/// one without bounds or that cannot be fully defined.
+fn class_tag_arg(t: &mut Typer<'_>, arg: TypeId) -> Result<Option<TypeId>, &'static str> {
+    for _ in 0..MAX_INSTANTIATIONS {
+        let arg = t.zonk(arg);
+        let dealiased = t.u.dealias(arg);
+        let tpe = t.u.types().get(dealiased).clone();
+        let v = match tpe {
+            Type::And(a, b) | Type::Or(a, b, _) if a == b => return class_tag_arg(t, a),
+            Type::And(..) | Type::Or(..) if !t.open_vars(dealiased).is_empty() => {
+                return Err("class tag of an intersection or union with a type variable");
             }
+            Type::Var(v) => v,
+            _ => return Ok(Some(arg)),
+        };
+        let (lo, hi) = t.constraint.bounds(v);
+        let nothing = t.u.builtins().nothing;
+        let (bound, from_below) = match lo != tasty::NOTHING && t.u.class_symbol(lo) != Some(nothing) {
+            true => (lo, true),
+            false if !t.is_exactly_any(hi) => (hi, false),
+            false => return Ok(None),
+        };
+        if is_ground(&mut t.types(), bound) {
+            t.instantiate_var(v, from_below)?;
+        } else if t.fully_defined_as(arg, true).is_err() {
+            return Ok(None);
         }
-        Err("class tag of an undetermined type")
     }
+    Err("class tag of an undetermined type")
+}
 
-    /// Whether `t` is no uninstantiated type variable, nor an intersection or union with one
-    /// (dotty's `isGroundConstr`).
-    fn is_ground(&mut self, t: TypeId) -> bool {
-        let t = self.zonk(t);
-        let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
-            Type::Var(_) => false,
-            Type::And(a, b) | Type::Or(a, b, _) => self.is_ground(a) && self.is_ground(b),
-            _ => true,
-        }
+/// Whether `t` is no uninstantiated type variable, nor an intersection or union with one
+/// (dotty's `isGroundConstr`).
+fn is_ground(ty: &mut TypeOps<'_>, t: TypeId) -> bool {
+    let t = ty.zonk(t);
+    let t = ty.u.dealias(t);
+    match *ty.u.types().get(t) {
+        Type::Var(_) => false,
+        Type::And(a, b) | Type::Or(a, b, _) => is_ground(ty, a) && is_ground(ty, b),
+        _ => true,
     }
 }

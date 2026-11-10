@@ -5,11 +5,11 @@
 //! classes that compare, and `CanEqual.canEqualAny` where neither side has a reflexive instance.
 
 use super::super::Typer;
+use super::synthesis::Synthesizer;
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
-use syntax::ast::Span;
 use syntax::config::Features;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 const NUMERIC: [&str; 7] = ["Byte", "Short", "Char", "Int", "Long", "Float", "Double"];
 const BOXED: [(&str, &str); 9] = [
@@ -25,102 +25,91 @@ const BOXED: [(&str, &str); 9] = [
 ];
 
 impl Typer<'_> {
-    /// `CanEqual[l, r]`.
+    /// Builds the type `CanEqual[l, r]`; `None` without the class `scala.CanEqual`.
     pub fn can_equal_type(&mut self, l: TypeId, r: TypeId) -> Option<TypeId> {
         let class = self.resolve_full_name("scala.CanEqual", true)?;
         Some(crate::defn::applied(self.u, class, vec![l, r]))
     }
 
-    /// `CanEqual.canEqualAny[l, r]` at `at` if `CanEqual[l, r]` may be assumed in `ctx`.
-    pub fn synthesized_can_equal(
-        &mut self,
-        l: TypeId,
-        r: TypeId,
-        at: Span,
-        ctx: Ctx,
-        depth: u32,
-    ) -> Result<Option<TNodeId>, &'static str> {
-        let (l, r) = (self.fully_defined_as(l, true)?, self.fully_defined_as(r, true)?);
-        let strict = self.is_strict_equality(ctx);
-        let assumed = self.can_compare_predefined(l, r)
-            || !strict
-                && (self.assumed_can_equal(l, r)
-                    || !self.has_eq(l, at, ctx, depth)? && !self.has_eq(r, at, ctx, depth)?);
-        if !assumed {
-            return Ok(None);
-        }
-        let module = self.resolve_full_name("scala.CanEqual", false).ok_or("CanEqual")?;
-        let module_class = self.u.module_class(module).ok_or("CanEqual")?;
-        let any = self.u.decl(module_class, "canEqualAny").unwrap_or_default();
-        let any =
-            any.into_iter().find(|&d| self.u.symbol(d).kind == Kind::Def).ok_or("CanEqual.canEqualAny")?;
-        let select = self.member_ref(any, at);
-        let targs = [self.type_tree(l, at, false), self.type_tree(r, at, false)];
-        let tpe = self.instantiated(select, &[l, r])?;
-        Ok(Some(self.build().type_apply(select, &targs, tpe, at)))
-    }
-
-    /// Whether `ctx` compares under `strictEquality`, by the language feature or while searching
-    /// for a reflexive instance (dotty's `Mode.StrictEquality`).
+    /// Determines whether `ctx` compares under `strictEquality`, by the language feature or while
+    /// searching for a reflexive instance (dotty's `Mode.StrictEquality`).
     pub fn is_strict_equality(&mut self, ctx: Ctx) -> bool {
         ctx.mode.is(Mode::STRICT_EQUALITY)
             || self.feature_enabled(Features::STRICT_EQUALITY, "strictEquality", ctx)
     }
+}
 
-    /// Whether a `CanEqual[t, t]` instance exists under `strictEquality`.
-    fn has_eq(&mut self, t: TypeId, at: Span, ctx: Ctx, depth: u32) -> Result<bool, &'static str> {
-        let pt = self.can_equal_type(t, t).ok_or("CanEqual")?;
-        self.implicit_exists(pt, at, ctx.with_mode(Mode::STRICT_EQUALITY.with(Mode::EXISTENCE)), depth + 1)
-    }
-
-    /// Whether `CanEqual` is assumed for the classes of `l` and `r`: the same or two numeric
-    /// value classes, a value class and its box, `Null` and a reference class, or `Nothing`.
-    fn can_compare_predefined(&mut self, l: TypeId, r: TypeId) -> bool {
-        let (ls, rs) = (self.class_symbols(l), self.class_symbols(r));
-        ls.iter().any(|&a| rs.iter().any(|&b| self.can_compare_classes(a, b)))
-    }
-
-    fn can_compare_classes(&mut self, a: SymbolId, b: SymbolId) -> bool {
-        let (na, nb) = (self.u.full_name(a), self.u.full_name(b));
-        let primitive = |n: &str| BOXED.iter().any(|(p, _)| *p == n);
-        let numeric = |n: &str| NUMERIC.iter().any(|x| n.strip_prefix("scala.") == Some(*x));
-        let builtins = self.u.builtins();
-        let with_boxed = |s: &mut Self, prim: &str, other: SymbolId, other_name: &str| {
-            other == builtins.nothing
-                || BOXED.iter().any(|&(p, boxed)| p == prim && boxed == other_name)
-                || numeric(prim)
-                    && s.resolve_full_name("java.lang.Number", true)
-                        .is_some_and(|n| s.u.derives_from(other, n))
-        };
-        if primitive(&na) {
-            if primitive(&nb) {
-                na == nb || numeric(&na) && numeric(&nb)
-            } else {
-                with_boxed(self, &na, b, &nb)
-            }
-        } else if primitive(&nb) {
-            with_boxed(self, &nb, a, &na)
-        } else if a == builtins.null {
-            a == b || self.u.derives_from(b, self.defn.object)
-        } else if b == builtins.null {
-            self.u.derives_from(a, self.defn.object)
-        } else {
-            a == builtins.nothing || b == builtins.nothing
+impl Synthesizer {
+    /// Synthesizes `CanEqual.canEqualAny[l, r]` if `CanEqual[l, r]` may be assumed.
+    pub fn can_equal(self, t: &mut Typer<'_>, l: TypeId, r: TypeId) -> Result<Option<TNodeId>, &'static str> {
+        let at = self.at;
+        let (l, r) = (t.fully_defined_as(l, true)?, t.fully_defined_as(r, true)?);
+        let strict = t.is_strict_equality(self.ctx);
+        let assumed = can_compare_predefined(t, l, r)
+            || !strict && (t.assumed_can_equal(l, r) || !self.has_eq(t, l)? && !self.has_eq(t, r)?);
+        if !assumed {
+            return Ok(None);
         }
+        let module = t.resolve_full_name("scala.CanEqual", false).ok_or("CanEqual")?;
+        let module_class = t.u.module_class(module).ok_or("CanEqual")?;
+        let any = t.u.decl(module_class, "canEqualAny").unwrap_or_default();
+        let any = any.into_iter().find(|&d| t.u.symbol(d).kind == Kind::Def).ok_or("CanEqual.canEqualAny")?;
+        let select = t.member_ref(any, at);
+        let targs = [t.type_tree(l, at, false), t.type_tree(r, at, false)];
+        let tpe = t.instantiated(select, &[l, r])?;
+        Ok(Some(t.build().type_apply(select, &targs, tpe, at)))
     }
 
-    /// The classes `t` refers to: those of either side of an intersection, those common to both
-    /// sides of a union (dotty's `classSymbols`).
-    fn class_symbols(&mut self, t: TypeId) -> Vec<SymbolId> {
-        let t = self.u.widen(t);
-        let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
-            Type::And(a, b) => [self.class_symbols(a), self.class_symbols(b)].concat(),
-            Type::Or(a, b, _) => {
-                let right = self.class_symbols(b);
-                self.class_symbols(a).into_iter().filter(|c| right.contains(c)).collect()
-            }
-            _ => self.u.class_symbol(t).into_iter().collect(),
+    /// Whether a `CanEqual[tpe, tpe]` instance exists under `strictEquality`.
+    fn has_eq(self, t: &mut Typer<'_>, tpe: TypeId) -> Result<bool, &'static str> {
+        let pt = t.can_equal_type(tpe, tpe).ok_or("CanEqual")?;
+        let ctx = self.ctx.with_mode(Mode::STRICT_EQUALITY.with(Mode::EXISTENCE));
+        t.implicit_exists(pt, self.at, ctx, self.depth + 1)
+    }
+}
+
+/// Whether `CanEqual` is assumed for the classes of `l` and `r`: the same or two numeric value
+/// classes, a value class and its box, `Null` and a reference class, or `Nothing`.
+fn can_compare_predefined(t: &mut Typer<'_>, l: TypeId, r: TypeId) -> bool {
+    let (ls, rs) = (class_symbols(t.u, l), class_symbols(t.u, r));
+    ls.iter().any(|&a| rs.iter().any(|&b| can_compare_classes(t, a, b)))
+}
+
+fn can_compare_classes(t: &mut Typer<'_>, a: SymbolId, b: SymbolId) -> bool {
+    let (na, nb) = (t.u.full_name(a), t.u.full_name(b));
+    let primitive = |n: &str| BOXED.iter().any(|(p, _)| *p == n);
+    let numeric = |n: &str| NUMERIC.iter().any(|x| n.strip_prefix("scala.") == Some(*x));
+    let builtins = t.u.builtins();
+    let with_boxed = |t: &mut Typer<'_>, prim: &str, other: SymbolId, other_name: &str| {
+        other == builtins.nothing
+            || BOXED.iter().any(|&(p, boxed)| p == prim && boxed == other_name)
+            || numeric(prim)
+                && t.resolve_full_name("java.lang.Number", true).is_some_and(|n| t.u.derives_from(other, n))
+    };
+    if primitive(&na) {
+        if primitive(&nb) { na == nb || numeric(&na) && numeric(&nb) } else { with_boxed(t, &na, b, &nb) }
+    } else if primitive(&nb) {
+        with_boxed(t, &nb, a, &na)
+    } else if a == builtins.null {
+        a == b || t.u.derives_from(b, t.defn.object)
+    } else if b == builtins.null {
+        t.u.derives_from(a, t.defn.object)
+    } else {
+        a == builtins.nothing || b == builtins.nothing
+    }
+}
+
+/// The classes `t` refers to: those of either side of an intersection, those common to both
+/// sides of a union (dotty's `classSymbols`).
+fn class_symbols(u: &mut Universe, t: TypeId) -> Vec<SymbolId> {
+    let t = u.widen(t);
+    let t = u.dealias(t);
+    match *u.types().get(t) {
+        Type::And(a, b) => [class_symbols(u, a), class_symbols(u, b)].concat(),
+        Type::Or(a, b, _) => {
+            let right = class_symbols(u, b);
+            class_symbols(u, a).into_iter().filter(|c| right.contains(c)).collect()
         }
+        _ => u.class_symbol(t).into_iter().collect(),
     }
 }
