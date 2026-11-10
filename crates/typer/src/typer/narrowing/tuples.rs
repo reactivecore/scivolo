@@ -3,7 +3,7 @@
 //   compiler/src/dotty/tools/dotc/core/TypeUtils.scala
 //! Tuple classes in GADT bounds, which dotty's comparison records as `*:` pairs.
 
-use super::Typer;
+use super::super::Typer;
 use tasty::{Type, TypeId, Universe};
 
 /// The arity of `scala.TupleN` if `t` applies it to as many arguments.

@@ -4,7 +4,7 @@
 //! An extractor pattern's type constrained by a union selector type (dotty's
 //! `constrainPatternType` on an `OrType` scrutinee, `necessaryEither`).
 
-use super::Typer;
+use super::super::Typer;
 use tasty::{SymbolId, Type, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {

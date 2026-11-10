@@ -3,7 +3,7 @@
 //! A pattern type of a class unrelated to the selector's constrained by the base types they
 //! share (dotty's `constrainUpcasted` on a class application).
 
-use super::Typer;
+use super::super::Typer;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {

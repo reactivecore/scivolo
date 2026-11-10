@@ -3,8 +3,8 @@
 //! The bounds the selector gives the types a typed pattern binds (dotty's
 //! `constrainPatternType` on pattern-bound symbols).
 
-use super::dependent_results::has_wildcard;
-use super::{Pt, Typer};
+use super::super::dependent_results::has_wildcard;
+use super::super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::{SymbolId, Type, TypeId, TypeVars};

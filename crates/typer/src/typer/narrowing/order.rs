@@ -2,8 +2,8 @@
 //   compiler/src/dotty/tools/dotc/core/ConstraintHandling.scala
 //! The ordering between GADT-narrowed type parameters, kept on both sides (dotty's `addLess`).
 
-use super::Typer;
-use super::gadt::plain_type_ref;
+use super::super::Typer;
+use super::super::gadt::plain_type_ref;
 use tasty::{SymbolId, Type, TypeId};
 
 /// A narrowed symbol with its new lower and upper bound.

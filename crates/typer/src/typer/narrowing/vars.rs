@@ -4,8 +4,8 @@
 //! The GADT bounds a pattern's type gives the narrowable type parameters of the selector type
 //! (dotty's `constrainPatternType` in `GadtConstraintInference` mode, `narrowGADTBounds`).
 
-use super::Typer;
-use super::gadt::plain_type_ref;
+use super::super::Typer;
+use super::super::gadt::plain_type_ref;
 use crate::ctx::Ctx;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 

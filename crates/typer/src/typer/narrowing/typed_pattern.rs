@@ -5,8 +5,8 @@
 //! (dotty's `constrainPatternType` in `typedTyped` with the binds of `typedBind` in the GADT
 //! constraint).
 
-use super::Typer;
-use super::gadt::plain_type_ref;
+use super::super::Typer;
+use super::super::gadt::plain_type_ref;
 use crate::ctx::Ctx;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
