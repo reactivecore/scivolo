@@ -71,7 +71,7 @@ impl Printer<'_> {
     }
 
     fn assoc_mismatch(&mut self, t: TypeId, right: bool) -> bool {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Applied(c, args) => {
                 self.infix_op(c, args.len()).is_some_and(|op| op.ends_with(':') != right)
             }
@@ -85,7 +85,7 @@ impl Printer<'_> {
         if arity != 2 {
             return None;
         }
-        let s = match self.u.types().get(tycon).clone() {
+        let s = match self.u.ty(tycon).clone() {
             Type::Sym(_, s) => s,
             Type::TypeRef(p, n) => self.u.resolve(p, &n, true)?,
             _ => return None,
@@ -116,7 +116,7 @@ impl Printer<'_> {
     /// The `apply` method type `t` of a function refinement as a function: `(x: A) => x.type`,
     /// `[A] => (x: A) => A`.
     pub fn as_function(&mut self, t: TypeId) -> String {
-        let text = match self.u.types().get(t).clone() {
+        let text = match self.u.ty(t).clone() {
             Type::Method { binder, params, result, implicit, .. } => {
                 self.binders.push((binder, params.iter().map(|(n, _)| n.clone()).collect()));
                 let arrow = if implicit { "?=>" } else { "=>" };
@@ -135,8 +135,8 @@ impl Printer<'_> {
     /// The type constructor `F` of eta-expansion `[X, Y] =>> F[X, Y]`, unless `F[X, Y]` shows
     /// as a tuple, function, repeated or infix type.
     pub fn eta_contracted(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Lambda { binder, params, result } = self.u.types().get(t).clone() else { return None };
-        let Type::Applied(tycon, args) = self.u.types().get(result).clone() else { return None };
+        let Type::Lambda { binder, params, result } = self.u.ty(t).clone() else { return None };
+        let Type::Applied(tycon, args) = self.u.ty(result).clone() else { return None };
         let own = |i: usize, a: &Type| match a {
             Type::Param(b, j) => *b == binder && *j as usize == i,
             Type::Local(_, n) => *n == params[i].0,
@@ -154,13 +154,9 @@ impl Printer<'_> {
     }
 
     fn is_tuple_class(&mut self, t: TypeId) -> bool {
-        match self.u.types().get(t).clone() {
-            Type::Applied(c, args) => {
-                let name = self.full_name_of(c).unwrap_or_default();
-                name.strip_prefix("scala.Tuple").is_some_and(|n| n.parse() == Ok(args.len()))
-            }
-            _ => false,
-        }
+        let Some((c, arity)) = self.u.applied(t).map(|(c, args)| (c, args.len())) else { return false };
+        let name = self.full_name_of(c).unwrap_or_default();
+        name.strip_prefix("scala.Tuple").is_some_and(|n| n.parse() == Ok(arity))
     }
 
     /// The element types of tuple `tycon[args]`: `TupleN` or `*:` ending in `EmptyTuple`.
@@ -171,7 +167,7 @@ impl Printer<'_> {
         }
         let ("scala.*:", [head, tail]) = (name.as_str(), args) else { return None };
         let mut elems = vec![*head];
-        match self.u.types().get(*tail).clone() {
+        match self.u.ty(*tail).clone() {
             Type::Applied(c, rest) => elems.extend(self.tuple_elems(c, &rest)?),
             _ if self.full_name_of(*tail).as_deref() == Some("scala.EmptyTuple") => {}
             _ => return None,
@@ -186,7 +182,7 @@ impl Printer<'_> {
 
     /// Type argument `t`: `?` and its bounds for a wildcard.
     pub fn arg_text(&mut self, t: TypeId, prec: u8) -> String {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Bounds(lo, hi) if lo != hi => format!("?{}", self.rhs(t)),
             Type::Bounds(lo, _) => self.text(lo, prec),
             _ => self.text(t, prec),

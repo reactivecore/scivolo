@@ -9,7 +9,7 @@ use crate::{Kind, SymbolId};
 impl SourcePrinter<'_> {
     /// A term reference `name` through prefix `p`.
     pub fn term_ref(&mut self, p: TypeId, name: &str) -> Shown {
-        if self.full && !self.is_elided(p) && !matches!(self.u.types().get(p), Type::NoPrefix) {
+        if self.full && !self.is_elided(p) && !matches!(self.u.ty(p), Type::NoPrefix) {
             self.print(p)?;
             if name == "package" {
                 return Ok(());
@@ -25,7 +25,7 @@ impl SourcePrinter<'_> {
         if !self.full || self.is_elided(p) {
             return Ok(());
         }
-        match *self.u.types().get(p) {
+        match *self.u.ty(p) {
             Type::NoPrefix => Err(REFUSED),
             Type::Sym(_, s) | Type::Package(s) if self.u.symbol(s).kind == Kind::Package => {
                 self.package(s);
@@ -77,7 +77,7 @@ impl SourcePrinter<'_> {
 
     /// `C.this` (dotty's `ThisType`): a package by its name, an object by its path.
     pub fn this(&mut self, c: TypeId) -> Shown {
-        let class = match *self.u.types().get(c) {
+        let class = match *self.u.ty(c) {
             Type::Package(p) => p,
             _ => self.u.class_symbol(c).ok_or(REFUSED)?,
         };
@@ -109,8 +109,8 @@ impl SourcePrinter<'_> {
     /// Whether prefix `p` is the root's or the empty package's `this`, which dotty omits.
     fn is_elided(&mut self, p: TypeId) -> bool {
         let root = self.u.root();
-        match *self.u.types().get(p) {
-            Type::This(c) => match *self.u.types().get(c) {
+        match *self.u.ty(p) {
+            Type::This(c) => match *self.u.ty(c) {
                 Type::Package(s) => s == root,
                 _ => self.u.class_symbol(c) == Some(root),
             },

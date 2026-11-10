@@ -11,7 +11,7 @@ use crate::{Kind, SymbolId};
 
 impl Cmp<'_> {
     pub fn fourth_try(&mut self, a: TypeId, b: TypeId) -> bool {
-        match self.u.types().get(a).clone() {
+        match self.u.ty(a).clone() {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(a).map(|n| n.meaning) {
                 Some(Meaning::Abstract(_, hi)) => {
                     self.recur(hi, b)
@@ -25,7 +25,7 @@ impl Cmp<'_> {
                 _ => false,
             },
             Type::Applied(tycon, args) => self.compare_applied1(a, b, tycon, &args),
-            Type::Skolem(x, _) if matches!(*self.u.types().get(b), Type::Skolem(y, _) if x == y) => true,
+            Type::Skolem(x, _) if matches!(*self.u.ty(b), Type::Skolem(y, _) if x == y) => true,
             Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::RecThis(_) | Type::Skolem(..) => {
                 self.below_singleton(a, b)
             }
@@ -44,10 +44,10 @@ impl Cmp<'_> {
 
     /// The GADT bounds of type parameter `t`, plain or seen from `this`, if it has some.
     pub fn gadt_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Sym(None, s) => self.u.gadt_bounds(s),
             Type::Sym(Some(p), s) => {
-                let Type::This(c) = *self.u.types().get(p) else { return None };
+                let c = self.u.this_of(p)?;
                 (self.u.class_symbol(c) == self.u.symbol(s).owner).then(|| self.u.gadt_bounds(s))?
             }
             _ => None,
@@ -57,11 +57,11 @@ impl Cmp<'_> {
     /// `scrutinee match { cases } <: b` for a match type `b` on the same scrutinee, `scrutinee`
     /// with its skolems widened, and cases below `b`'s (dotty's `compareMatch`).
     fn match_below(&mut self, mut scrutinee: TypeId, cases: &[TypeId], b: TypeId) -> bool {
-        let Type::Match { scrutinee: other, cases: others, .. } = self.u.types().get(b).clone() else {
+        let Type::Match { scrutinee: other, cases: others, .. } = self.u.ty(b).clone() else {
             return false;
         };
         while !(self.recur(scrutinee, other) && self.recur(other, scrutinee)) {
-            let Type::Skolem(_, widened) = *self.u.types().get(scrutinee) else { return false };
+            let Type::Skolem(_, widened) = *self.u.ty(scrutinee) else { return false };
             scrutinee = widened;
         }
         cases.len() == others.len() && cases.iter().zip(&others).all(|(&x, &y)| self.recur(x, y))
@@ -70,7 +70,7 @@ impl Cmp<'_> {
     /// `[X..] =>> result <: b` for a `b` that is no lambda: `result <: b[X..]` if `b` takes as
     /// many type parameters (dotty's `compareHKLambda`).
     fn lambda_below(&mut self, binder: crate::types::Binder, n: usize, result: TypeId, b: TypeId) -> bool {
-        if matches!(self.u.types().get(b), Type::Lambda { .. }) || self.hk_arity(b) != Some(n) {
+        if self.u.lambda(b).is_some() || self.hk_arity(b) != Some(n) {
             return false;
         }
         let refs: Vec<TypeId> = (0..n as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
@@ -81,7 +81,7 @@ impl Cmp<'_> {
     /// `a <: b` for `a` the type of module class `c`: `b` a reference to `c`'s object through a
     /// related prefix (dotty's `compareNamed`).
     fn module_class_below(&mut self, a: TypeId, b: TypeId, c: SymbolId) -> bool {
-        if !matches!(self.u.types().get(b), Type::TermRef(..) | Type::Sym(..)) {
+        if !matches!(self.u.ty(b), Type::TermRef(..) | Type::Sym(..)) {
             return false;
         }
         let (Some(na), Some(nb)) = (self.named(a), self.named(b)) else { return false };
@@ -96,7 +96,7 @@ impl Cmp<'_> {
             return self.recur(a, dealiased);
         }
         for (or, other, left) in [(x, y, true), (y, x, false)] {
-            if let Type::Or(p, q, _) = *self.u.types().get(or) {
+            if let Type::Or(p, q, _) = *self.u.ty(or) {
                 let inter = |s: &mut Self, t| match left {
                     true => s.u.intern_type(Type::And(t, other)),
                     false => s.u.intern_type(Type::And(other, t)),
@@ -111,7 +111,7 @@ impl Cmp<'_> {
     /// `a <: b` for a singleton `a`: the same atom or path, `a`'s underlying path (dotty's
     /// `underlying`), or `a` widened.
     fn below_singleton(&mut self, a: TypeId, b: TypeId) -> bool {
-        let path = matches!(self.u.types().get(b), Type::TermRef(..) | Type::This(_) | Type::Sym(..));
+        let path = matches!(self.u.ty(b), Type::TermRef(..) | Type::This(_) | Type::Sym(..));
         let atom = path && self.is_singleton(b) && self.compare_atoms(a, b, true) == Some(true);
         if atom || path && self.same_path(a, b) {
             return true;
@@ -138,11 +138,8 @@ impl Cmp<'_> {
         let name = self.u.symbol(s).name.clone();
         let refined = n.prefix.and_then(|p| self.u.term_refinement_named(p, &name));
         let underlying = refined.unwrap_or_else(|| self.u.term_type(n.prefix, s));
-        let underlying = match *self.u.types().get(underlying) {
-            Type::ByName(r) => r,
-            _ => underlying,
-        };
-        let singleton = match *self.u.types().get(underlying) {
+        let underlying = self.u.by_name(underlying).unwrap_or(underlying);
+        let singleton = match *self.u.ty(underlying) {
             Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
             Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
             _ => false,
@@ -153,10 +150,7 @@ impl Cmp<'_> {
     /// Whether paths `a` and `b` denote the same value: the same term through related prefixes,
     /// `this` of the same class, or a top-level object and `this` of its class.
     fn same_path(&mut self, a: TypeId, b: TypeId) -> bool {
-        let this = |s: &mut Self, t| match *s.u.types().get(t) {
-            Type::This(c) => s.path_symbol(c),
-            _ => None,
-        };
+        let this = |s: &mut Self, t| s.u.this_of(t).and_then(|c| s.path_symbol(c));
         match (this(self, a), this(self, b)) {
             (Some(c1), Some(c2)) => c1 == c2,
             (Some(c), None) => self.object_of(b) == Some(c),

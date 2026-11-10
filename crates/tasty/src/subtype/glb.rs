@@ -33,7 +33,7 @@ impl Cmp<'_> {
             None => return a,
             _ => {}
         }
-        match (self.u.types().get(a), self.u.types().get(b)) {
+        match (self.u.ty(a), self.u.ty(b)) {
             (_, &Type::Or(l, r, soft)) => {
                 let (al, ar) = (self.glb(a, l), self.glb(a, r));
                 self.lub_as(al, ar, soft)
@@ -49,7 +49,7 @@ impl Cmp<'_> {
 
     /// `t` without its `&`-parts that are supertypes of `sub`; `None` if none remains.
     fn drop_if_super(&mut self, t: TypeId, sub: TypeId) -> Option<TypeId> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::And(x, y) => match (self.drop_if_super(x, sub), self.drop_if_super(y, sub)) {
                 (Some(x2), Some(y2)) if (x2, y2) == (x, y) => Some(t),
                 (Some(x2), Some(y2)) => Some(self.u.intern_type(Type::And(x2, y2))),
@@ -64,7 +64,7 @@ impl Cmp<'_> {
     /// give a type below both.
     fn and_type(&mut self, a: TypeId, b: TypeId) -> TypeId {
         if let (Type::Applied(c1, args1), Type::Applied(c2, args2)) =
-            (self.u.types().get(a).clone(), self.u.types().get(b).clone())
+            (self.u.ty(a).clone(), self.u.ty(b).clone())
             && args1.len() == args2.len()
             && self.same_constructor(c1, c2)
         {
@@ -78,7 +78,7 @@ impl Cmp<'_> {
                 }
             }
         }
-        match (self.u.types().get(a), self.u.types().get(b)) {
+        match (self.u.ty(a), self.u.ty(b)) {
             (&Type::Annotated(x, _), _) => self.glb(x, b),
             (_, &Type::Annotated(y, _)) => self.glb(a, y),
             (&Type::ByName(x), &Type::ByName(y)) => {

@@ -11,7 +11,7 @@ impl Universe {
     pub fn narrowing_refinement(&mut self, prefix: TypeId, m: SymbolId, info: TypeId) -> Option<TypeId> {
         let name = self.symbol(m).name.clone();
         let refined = self.term_refinement_named(prefix, &name).filter(|&r| r != info)?;
-        let (narrows, refined) = match (self.types().get(refined).clone(), self.types().get(info).clone()) {
+        let (narrows, refined) = match (self.ty(refined).clone(), self.ty(info).clone()) {
             (Type::Method { .. }, Type::Method { .. }) => (self.method_narrows(refined, info), refined),
             (
                 Type::Poly { binder, params: p, result: r },
@@ -20,7 +20,7 @@ impl Universe {
                 let own = self.type_params(m);
                 let ours = |u: &mut Self, t| {
                     u.map_type(t, &mut |u, t| {
-                        let i = match *u.types().get(t) {
+                        let i = match *u.ty(t) {
                             Type::Param(b, i) if b == b2 => i,
                             Type::Sym(None, x) => own.iter().position(|&o| o == x)? as u32,
                             _ => return None,
@@ -45,7 +45,7 @@ impl Universe {
     /// Whether method type `a` has the parameter types of `b` and a result conforming to its.
     fn method_narrows(&mut self, a: TypeId, b: TypeId) -> bool {
         let (Type::Method { params: p, result: r, .. }, Type::Method { params: q, result: s, .. }) =
-            (self.types().get(a).clone(), self.types().get(b).clone())
+            (self.ty(a).clone(), self.ty(b).clone())
         else {
             return false;
         };
@@ -56,7 +56,7 @@ impl Universe {
 
     /// Whether type parameter bounds `a` and `b` are the same.
     fn same_bounds(&mut self, a: TypeId, b: TypeId) -> bool {
-        match (self.types().get(a).clone(), self.types().get(b).clone()) {
+        match (self.ty(a).clone(), self.ty(b).clone()) {
             (Type::Bounds(l1, h1), Type::Bounds(l2, h2)) => self.is_same(l1, l2) && self.is_same(h1, h2),
             _ => self.is_same(a, b),
         }

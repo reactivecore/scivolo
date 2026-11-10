@@ -119,9 +119,8 @@ impl Universe {
             return t;
         }
         self.map_type(t, &mut |u, part| {
-            let Type::Annotated(seq, annot) = *u.types().get(part) else { return None };
-            let Type::Applied(_, ref args) = *u.types().get(seq) else { return None };
-            let args = args.clone();
+            let (seq, annot) = u.annotated(part)?;
+            let args = u.applied(seq)?.1.to_vec();
             let repeated =
                 u.class_symbol(annot).is_some_and(|c| u.full_name(c) == "scala.annotation.internal.Repeated");
             if !repeated || args.len() != 1 {

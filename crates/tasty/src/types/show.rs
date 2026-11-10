@@ -8,7 +8,7 @@ impl Universe {
         let params = |ps: &[(String, TypeId)]| {
             ps.iter().map(|(n, t)| format!("{n}: {}", self.show(*t))).collect::<Vec<_>>().join(", ")
         };
-        match self.types().get(t) {
+        match self.ty(t) {
             Type::NoPrefix => String::new(),
             Type::TypeRef(p, n) | Type::TermRef(p, n) => match self.show(*p) {
                 prefix if prefix.is_empty() => n.clone(),

@@ -10,7 +10,7 @@ use crate::{ANY, NOTHING};
 
 impl Cmp<'_> {
     pub fn third_try(&mut self, a: TypeId, b: TypeId) -> bool {
-        match self.u.types().get(b).clone() {
+        match self.u.ty(b).clone() {
             Type::Applied(tycon, args) => self.compare_applied2(a, b, tycon, &args),
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(b) {
                 Some(n2) => self.third_try_named(a, b, n2),
@@ -29,7 +29,7 @@ impl Cmp<'_> {
                 Some(r) => self.recur(a, r),
                 None => self.fourth_try(a, b),
             },
-            Type::Lambda { binder: b2, params: p2, result: r2 } => match self.u.types().get(a).clone() {
+            Type::Lambda { binder: b2, params: p2, result: r2 } => match self.u.ty(a).clone() {
                 Type::Lambda { binder: b1, params: p1, result: r1 } => {
                     self.compare_binders((b1, &p1, r1), (b2, &p2, r2)) || self.fourth_try(a, b)
                 }
@@ -43,7 +43,7 @@ impl Cmp<'_> {
                 None => self.below_union(a, b, x, y),
             },
             Type::Method { binder: b2, params: p2, result: r2, implicit: i2, .. } => {
-                match self.u.types().get(a).clone() {
+                match self.u.ty(a).clone() {
                     Type::Method { binder: b1, params: p1, result: r1, implicit: i1, .. } => {
                         if p1.len() != p2.len() || !i1 && i2 {
                             return false;
@@ -72,18 +72,18 @@ impl Cmp<'_> {
                     _ => false,
                 }
             }
-            Type::Poly { binder: b2, params: p2, result: r2 } => match self.u.types().get(a).clone() {
+            Type::Poly { binder: b2, params: p2, result: r2 } => match self.u.ty(a).clone() {
                 Type::Poly { binder: b1, params: p1, result: r1 } => {
                     self.compare_binders((b1, &p1, r1), (b2, &p2, r2))
                 }
                 _ => false,
             },
-            Type::ByName(r2) => match *self.u.types().get(a) {
+            Type::ByName(r2) => match *self.u.ty(a) {
                 Type::ByName(r1) => self.recur(r1, r2),
                 Type::Method { ref params, result, .. } if params.is_empty() => self.recur(result, r2),
                 _ => self.fourth_try(a, b),
             },
-            Type::Bounds(lo2, hi2) => match *self.u.types().get(a) {
+            Type::Bounds(lo2, hi2) => match *self.u.ty(a) {
                 Type::Bounds(lo1, hi1) => {
                     (lo2 == NOTHING || self.recur(lo2, lo1)) && (hi2 == ANY || self.recur(hi1, hi2))
                 }
@@ -109,7 +109,7 @@ impl Cmp<'_> {
         match self.frozen() {
             true => self.fourth_try(a, b),
             false => {
-                let a = match self.u.types().get(a).clone() {
+                let a = match self.u.ty(a).clone() {
                     Type::ByName(r) => r,
                     Type::Applied(tycon, args) => self.applied_alias_expansion(tycon, &args).unwrap_or(a),
                     _ => a,
@@ -124,7 +124,7 @@ impl Cmp<'_> {
     /// `compareRec`).
     fn compare_rec(&mut self, a: TypeId, binder: Binder, parent: TypeId) -> bool {
         let d = self.u.dealias(a);
-        let rec = match *self.u.types().get(d) {
+        let rec = match *self.u.ty(d) {
             Type::Rec(b1, p1) => Some((b1, p1)),
             _ => None,
         };
@@ -136,8 +136,7 @@ impl Cmp<'_> {
                 (skolem, skolem)
             }
         };
-        let opened =
-            self.u.map_type(parent, &mut |u, x| (*u.types().get(x) == Type::RecThis(binder)).then_some(this));
+        let opened = self.u.map_type(parent, &mut |u, x| (*u.ty(x) == Type::RecThis(binder)).then_some(this));
         self.recur(a, opened)
     }
 
@@ -160,9 +159,9 @@ impl Cmp<'_> {
         if dealiased != a {
             return self.recur(dealiased, b);
         }
-        let soft = matches!(self.u.types().get(b), Type::Or(_, _, true));
+        let soft = matches!(self.u.ty(b), Type::Or(_, _, true));
         for (and, other, left) in [(x, y, true), (y, x, false)] {
-            if let Type::And(p, q) = *self.u.types().get(and) {
+            if let Type::And(p, q) = *self.u.ty(and) {
                 let union = |s: &mut Self, t| match left {
                     true => s.u.intern_type(Type::Or(t, other, soft)),
                     false => s.u.intern_type(Type::Or(other, t, soft)),

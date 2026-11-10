@@ -45,7 +45,7 @@ struct SourcePrinter<'u> {
 
 impl SourcePrinter<'_> {
     fn print(&mut self, t: TypeId) -> Shown {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Constant(tag, bits) => {
                 let text = match constant(tag, bits) {
                     Some(Const::Int(n)) => n.to_string(),
@@ -142,8 +142,7 @@ impl SourcePrinter<'_> {
             self.out.push_str("_*");
             return Ok(());
         }
-        let infix =
-            matches!(*self.u.types().get(tycon), Type::Sym(_, s) if self.u.symbol(s).flags.has(INFIX));
+        let infix = matches!(*self.u.ty(tycon), Type::Sym(_, s) if self.u.symbol(s).flags.has(INFIX));
         if !self.full && infix && args.len() == 2 {
             self.out.push('(');
             self.print(args[0])?;
@@ -154,7 +153,7 @@ impl SourcePrinter<'_> {
             self.out.push(')');
             return Ok(());
         }
-        if matches!(self.u.types().get(tycon), Type::Lambda { .. }) {
+        if self.u.lambda(tycon).is_some() {
             self.out.push('(');
             self.print(tycon)?;
             self.out.push(')');

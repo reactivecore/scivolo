@@ -33,7 +33,7 @@ impl Universe {
 
     /// Whether `t` is a match type, or a type lambda over one (dotty's `isMatch`).
     pub fn is_match(&self, t: TypeId) -> bool {
-        match *self.types().get(t) {
+        match *self.ty(t) {
             Type::Match { .. } => true,
             Type::Lambda { result, .. } => self.is_match(result),
             Type::Annotated(t, _) => self.is_match(t),
@@ -49,7 +49,7 @@ impl Universe {
     /// The match type `t` stands for, unreduced (dotty's `underlyingNormalizable`).
     pub fn underlying_match(&mut self, t: TypeId) -> Option<TypeId> {
         let n = Cmp::new(self, &mut NoVars).underlying_normalizable(t)?;
-        matches!(self.types().get(n), Type::Match { .. }).then_some(n)
+        matches!(self.ty(n), Type::Match { .. }).then_some(n)
     }
 
     /// Whether match type case `case` has a pattern that reduction handles.
@@ -72,7 +72,7 @@ impl Cmp<'_> {
 
     pub fn try_normalize(&mut self, t: TypeId) -> Option<TypeId> {
         let n = self.underlying_normalizable(t)?;
-        match self.u.types().get(n) {
+        match self.u.ty(n) {
             Type::Match { .. } => {
                 if self.normalizing.contains(&n) || self.normalizing.len() >= MAX_NORMALIZING {
                     self.u.reductions_exhausted = true;
@@ -94,7 +94,7 @@ impl Cmp<'_> {
     /// annotations, instantiated variables and applied aliases and abstract types.
     fn underlying_normalizable(&mut self, mut t: TypeId) -> Option<TypeId> {
         for _ in 0..MAX_STEPS {
-            t = match self.u.types().get(t).clone() {
+            t = match self.u.ty(t).clone() {
                 Type::Match { .. } => return Some(t),
                 Type::Annotated(inner, _) => inner,
                 Type::Var(v) => self.vars.instance(v)?,
@@ -114,14 +114,14 @@ impl Cmp<'_> {
     /// `tryReplace`); the alias a type member of a path `t` is in the path's refinement; `t`
     /// itself otherwise.
     fn fixed(&mut self, t: TypeId) -> TypeId {
-        if matches!(self.u.types().get(t), Type::TypeRef(..)) {
+        if self.u.type_ref(t).is_some() {
             return match self.named(t).map(|n| n.meaning) {
                 Some(Meaning::Alias(a)) => a,
                 Some(Meaning::Abstract(lo, hi)) if lo == hi => lo,
                 _ => t,
             };
         }
-        let Type::Var(v) = *self.u.types().get(t) else { return t };
+        let Some(v) = self.u.var(t) else { return t };
         if let Some(i) = self.vars.instance(v) {
             return i;
         }
@@ -134,7 +134,7 @@ impl Cmp<'_> {
     /// The supertype of `tycon[args]` for `tycon` not a class: a lambda's body, an alias's or
     /// an abstract type's upper bound applied (dotty's `AppliedType.superType`).
     pub fn applied_super_type(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
-        match *self.u.types().get(tycon) {
+        match *self.u.ty(tycon) {
             Type::Lambda { .. } => Some(self.apply(tycon, args)),
             Type::Var(v) => {
                 let t = self.vars.instance(v)?;
@@ -148,7 +148,7 @@ impl Cmp<'_> {
 
     /// The reduction of match type `m`, if it reduces (dotty's `MatchType.reduced`).
     pub fn reduced(&mut self, m: TypeId) -> Option<TypeId> {
-        let Type::Match { scrutinee, cases, .. } = self.u.types().get(m).clone() else { return None };
+        let Type::Match { scrutinee, cases, .. } = self.u.ty(m).clone() else { return None };
         if self.u.reducing == 0 {
             self.u.reductions_left = MAX_TOTAL_REDUCTIONS;
         }

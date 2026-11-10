@@ -50,7 +50,7 @@ impl Universe {
     }
 
     fn nullify(&mut self, t: TypeId, modes: Modes) -> TypeId {
-        match self.types().get(t).clone() {
+        match self.ty(t).clone() {
             Type::Sym(..) | Type::TypeRef(..) | Type::Param(..) => self.nullified(t, modes),
             Type::Applied(tycon, args) => {
                 let java = self.class_symbol(tycon).is_some_and(|c| self.is_jdk_class(c));
@@ -63,7 +63,7 @@ impl Universe {
                 let inner = self.nullify(inner, modes);
                 let repeated = self.class_symbol(annot).map(|c| self.full_name(c));
                 let repeated = repeated.as_deref() == Some("scala.annotation.internal.Repeated");
-                match *self.types().get(inner) {
+                match *self.ty(inner) {
                     Type::Flexible(hi) if repeated => self.intern_type(Type::Annotated(hi, annot)),
                     Type::Flexible(hi) => {
                         let annotated = self.intern_type(Type::Annotated(hi, annot));
@@ -96,11 +96,11 @@ impl Universe {
             }
             Type::And(a, b) | Type::Or(a, b, _) => {
                 let (x, y) = (self.nullify(a, modes), self.nullify(b, modes));
-                let join = |u: &mut Self, x, y| match *u.types().get(t) {
+                let join = |u: &mut Self, x, y| match *u.ty(t) {
                     Type::Or(_, _, soft) => u.intern_type(Type::Or(x, y, soft)),
                     _ => u.intern_type(Type::And(x, y)),
                 };
-                match (self.types().get(x).clone(), self.types().get(y).clone()) {
+                match (self.ty(x).clone(), self.ty(y).clone()) {
                     (Type::Flexible(x), Type::Flexible(y)) => {
                         let joined = join(self, x, y);
                         self.flexible(joined)
@@ -110,7 +110,7 @@ impl Universe {
             }
             Type::Refined(parent, name, info) => {
                 let parent = self.nullify(parent, modes);
-                match *self.types().get(parent) {
+                match *self.ty(parent) {
                     Type::Flexible(hi) => {
                         let refined = self.intern_type(Type::Refined(hi, name, info));
                         self.flexible(refined)
@@ -132,7 +132,7 @@ impl Universe {
 
     fn needs_no_null(&mut self, t: TypeId) -> bool {
         let t = self.dealias(t);
-        match self.types().get(t).clone() {
+        match self.ty(t).clone() {
             Type::Sym(..) | Type::TypeRef(..) => {
                 let Some(s) = self.referenced(t) else { return false };
                 let b = self.builtins();

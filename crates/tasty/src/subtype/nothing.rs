@@ -34,7 +34,7 @@ impl Cmp<'_> {
 
     fn own_nothing(&mut self, t: TypeId, depth: u32) -> Option<bool> {
         let d = depth + 1;
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Constant(..) | Type::Str(_) | Type::This(_) | Type::Package(_) | Type::NoPrefix => {
                 Some(false)
             }
@@ -75,7 +75,7 @@ impl Cmp<'_> {
     fn named_is_nothing(&mut self, t: TypeId, d: u32) -> Option<bool> {
         let t = self.u.dealias(t);
         let nothing = self.u.builtins().nothing;
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Applied(tycon, args) => match self.named(tycon)?.meaning {
                 Meaning::Class(c) => Some(c == nothing),
                 Meaning::Abstract(_, hi) => {

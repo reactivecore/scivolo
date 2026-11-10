@@ -38,10 +38,7 @@ impl Cmp<'_> {
 
     /// Whether `t` passes class `c` as many arguments as it takes.
     fn args_match(&mut self, t: TypeId, c: SymbolId) -> bool {
-        let n = match self.u.types().get(t) {
-            Type::Applied(_, args) => args.len(),
-            _ => 0,
-        };
+        let n = self.u.applied(t).map_or(0, |(_, args)| args.len());
         self.u.type_params(c).len() == n
     }
 
@@ -60,7 +57,7 @@ impl Cmp<'_> {
             return false;
         };
         let (Type::Applied(_, args1), Type::Applied(_, args2)) =
-            (self.u.types().get(b1).clone(), self.u.types().get(b2).clone())
+            (self.u.ty(b1).clone(), self.u.ty(b2).clone())
         else {
             return false;
         };
@@ -102,7 +99,7 @@ impl Cmp<'_> {
             .collect();
         fields.into_iter().any(|f| {
             let info = self.u.info(f);
-            matches!(*self.u.types().get(info), Type::Sym(_, s) if s == p)
+            self.u.sym_of(info) == Some(p)
         })
     }
 

@@ -163,7 +163,7 @@ impl Unions {
 
     /// The parts of `t` as a union of softness `soft`.
     fn parts_of(&mut self, u: &Universe, t: TypeId, soft: bool) -> List {
-        if !matches!(*u.types().get(t), Type::Or(_, _, s) if s == soft) {
+        if !matches!(*u.ty(t), Type::Or(_, _, s) if s == soft) {
             return List::Own(vec![t]);
         }
         if let Some(p) = self.parts.get(&t) {
@@ -194,7 +194,7 @@ impl Unions {
 }
 
 fn or_parts(u: &Universe, t: TypeId, soft: bool, out: &mut Vec<TypeId>) {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::Or(x, y, s) if s == soft => [x, y].into_iter().for_each(|p| or_parts(u, p, soft, out)),
         _ => out.push(t),
     }

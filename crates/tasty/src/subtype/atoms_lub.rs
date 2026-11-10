@@ -37,7 +37,7 @@ impl Cmp<'_> {
         }
         let t = self.or_type(a, b, soft);
         let parts_kept = self.is_nothing(a) == Some(false) && self.is_nothing(b) == Some(false);
-        if fixed && parts_kept && matches!(self.u.types().get(t), Type::Or(..)) {
+        if fixed && parts_kept && matches!(self.u.ty(t), Type::Or(..)) {
             let atoms = self.joined(atoms_a, atoms_b, true);
             self.u.unions().set_atoms(t, atoms);
         }

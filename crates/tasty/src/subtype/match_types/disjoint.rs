@@ -27,7 +27,7 @@ impl Cmp<'_> {
         if x == NOTHING || y == NOTHING || self.is_nothing_class(x) || self.is_nothing_class(y) {
             return true;
         }
-        match (self.u.types().get(x), self.u.types().get(y)) {
+        match (self.u.ty(x), self.u.ty(y)) {
             (_, &Type::Or(p, q, _)) => {
                 return self.disjoint_in(x, p, pending) && self.disjoint_in(x, q, pending);
             }
@@ -46,7 +46,7 @@ impl Cmp<'_> {
         if [x, y].iter().any(|&t| self.class_of(t) == Some(any_kind)) {
             return false;
         }
-        match (self.u.types().get(x).clone(), self.u.types().get(y).clone()) {
+        match (self.u.ty(x).clone(), self.u.ty(y).clone()) {
             (Type::Lambda { params: p1, result: r1, .. }, Type::Lambda { params: p2, result: r2, .. }) => {
                 return p1.len() != p2.len() || self.disjoint_in(r1, r2, pending);
             }
@@ -69,7 +69,7 @@ impl Cmp<'_> {
     /// lambdas as they are, others through their supertype.
     fn boundary(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..MAX_STEPS {
-            t = match self.u.types().get(t).clone() {
+            t = match self.u.ty(t).clone() {
                 Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {
                     let Some(s) = self.named(t).and_then(|n| n.sym) else { return t };
                     let sym = self.u.symbol(s);
@@ -125,16 +125,13 @@ impl Cmp<'_> {
 
     fn is_nothing_class(&mut self, t: TypeId) -> bool {
         let nothing = self.u.builtins().nothing;
-        matches!(*self.u.types().get(t), Type::Sym(_, s) if s == nothing)
-            || matches!(self.u.types().get(t), Type::TypeRef(..)) && self.u.resolve_ref(t) == Some(nothing)
+        self.u.sym_of(t) == Some(nothing)
+            || self.u.type_ref(t).is_some() && self.u.resolve_ref(t) == Some(nothing)
     }
 
     /// The class of class type `t`.
     fn class_of(&mut self, t: TypeId) -> Option<SymbolId> {
-        let tycon = match *self.u.types().get(t) {
-            Type::Applied(tycon, _) => tycon,
-            _ => t,
-        };
+        let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
         let s = self.named(tycon)?.sym?;
         (self.u.symbol(s).kind == Kind::Class).then_some(s)
     }
@@ -142,7 +139,7 @@ impl Cmp<'_> {
     /// For a boundary that is a unique value: `Some(Some(s))` for enum case `s`, `Some(None)`
     /// for a constant.
     fn unique_value(&mut self, t: TypeId) -> Option<Option<SymbolId>> {
-        match self.u.types().get(t) {
+        match self.u.ty(t) {
             Type::Constant(..) | Type::Str(_) => Some(None),
             Type::Sym(..) | Type::TermRef(..) => {
                 let s = self.named(t)?.sym?;

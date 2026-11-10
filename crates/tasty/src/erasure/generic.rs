@@ -19,7 +19,7 @@ enum Holder {
 impl Universe {
     /// Whether an array of `t` erases to `Object`: no JVM array holds all its values.
     pub fn is_generic(&mut self, t: TypeId) -> bool {
-        match self.types().get(t).clone() {
+        match self.ty(t).clone() {
             Type::Param(..) | Type::Local(..) => true,
             Type::Bounds(_, hi) => self.holder(hi) == Holder::None,
             Type::Annotated(u, _)
@@ -54,7 +54,7 @@ impl Universe {
                 _ if let Some(alias) = self.overriding_member(t) => self.is_generic(alias),
                 Some(s) if matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                     let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
-                    match *self.types().get(info) {
+                    match *self.ty(info) {
                         Type::Bounds(_, hi) => self.holder(hi) == Holder::None,
                         Type::Lambda { .. } => false,
                         _ => self.is_generic(info),
@@ -69,7 +69,7 @@ impl Universe {
     /// The alias or class by which the class of the prefix of abstract type reference `t`
     /// overrides it (dotty's `dealias` of a member found through the prefix).
     fn overriding_member(&mut self, t: TypeId) -> Option<TypeId> {
-        let prefix = match *self.types().get(t) {
+        let prefix = match *self.ty(t) {
             Type::Sym(p, _) => p?,
             Type::TypeRef(p, _) => p,
             _ => return None,
@@ -80,11 +80,8 @@ impl Universe {
 
     /// The body of match type case `case`, under its captures' lambda if any.
     fn case_body(&self, case: TypeId) -> Option<TypeId> {
-        let case = match *self.types().get(case) {
-            Type::Lambda { result, .. } => result,
-            _ => case,
-        };
-        match *self.types().get(case) {
+        let case = self.lambda(case).map_or(case, |l| l.result);
+        match *self.ty(case) {
             Type::MatchCase(_, body) => Some(body),
             _ => None,
         }
@@ -94,13 +91,12 @@ impl Universe {
     fn is_abstract(&mut self, tycon: TypeId) -> bool {
         let Some(s) = self.referenced(tycon) else { return false };
         let info = self.info(s);
-        matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam)
-            && matches!(self.types().get(info), Type::Bounds(..))
+        matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) && self.bounds(info).is_some()
     }
 
     /// The kind of array that can hold every value of type `t`.
     fn holder(&mut self, t: TypeId) -> Holder {
-        match self.types().get(t).clone() {
+        match self.ty(t).clone() {
             Type::Annotated(u, _)
             | Type::Flexible(u)
             | Type::Refined(u, _, _)
@@ -130,11 +126,7 @@ impl Universe {
                 }
                 let Some(s) = self.referenced(t) else { return Holder::None };
                 let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
-                if matches!(self.types().get(info), Type::Lambda { .. }) {
-                    Holder::None
-                } else {
-                    self.holder(info)
-                }
+                if self.lambda(info).is_some() { Holder::None } else { self.holder(info) }
             }
             _ => Holder::None,
         }

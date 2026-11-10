@@ -67,9 +67,9 @@ impl Universe {
         }
         self.symbol(s).tree?;
         let info = self.info(s);
-        match self.types().get(info).clone() {
+        match self.ty(info).clone() {
             Type::Alias(a) => Some(a),
-            Type::Lambda { binder, params, result } => match *self.types().get(result) {
+            Type::Lambda { binder, params, result } => match *self.ty(result) {
                 Type::Alias(a) => Some(self.intern_type(Type::Lambda { binder, params, result: a })),
                 Type::Bounds(..) => None,
                 _ => Some(info),
@@ -89,7 +89,7 @@ impl Universe {
         if self.opaques_elided {
             return Some(alias);
         }
-        let Type::This(c) = *self.types().get(prefix?) else { return None };
+        let c = self.this_of(prefix?)?;
         let owner = self.symbol(s).owner;
         let inside = self.comparison_owner.is_none_or(|o| self.encloses(owner, o));
         (self.class_symbol(c) == owner && inside).then_some(alias)
@@ -152,7 +152,7 @@ impl Universe {
         }
         self.opaque_aliases.get(&s)?;
         let info = self.info(s);
-        let Type::Bounds(_, hi) = *self.types().get(info) else { return None };
+        let (_, hi) = self.bounds(info)?;
         Some(match (prefix, self.symbol(s).owner) {
             (Some(p), Some(owner)) => self.as_seen_from(hi, p, owner),
             _ => hi,

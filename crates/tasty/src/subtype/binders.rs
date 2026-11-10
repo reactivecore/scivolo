@@ -30,8 +30,8 @@ impl Cmp<'_> {
     /// Higher-kinded bounds `[X] =>> >: L <: H` as `>: [X] =>> L <: [X] =>> H`, `Nothing` as
     /// the lower bound for a lower bound `Nothing`.
     fn lambda_bounds(&mut self, t: TypeId) -> TypeId {
-        let Type::Lambda { binder, ref params, result } = *self.u.types().get(t) else { return t };
-        let Type::Bounds(lo, hi) = *self.u.types().get(result) else { return t };
+        let Type::Lambda { binder, ref params, result } = *self.u.ty(t) else { return t };
+        let Type::Bounds(lo, hi) = *self.u.ty(result) else { return t };
         let params = params.clone();
         let hi = self.u.intern_type(Type::Lambda { binder, params: params.clone(), result: hi });
         let lo = match lo == crate::NOTHING {
@@ -46,7 +46,7 @@ impl Cmp<'_> {
     fn renamed(&mut self, binding: Binding, t: TypeId, refs: &[TypeId]) -> TypeId {
         let names: Vec<String> = binding.1.iter().map(|(n, _)| n.clone()).collect();
         let t = self.u.subst(t, binding.0, &names, refs);
-        self.u.map_type(t, &mut |u, x| match u.types().get(x) {
+        self.u.map_type(t, &mut |u, x| match u.ty(x) {
             Type::Sym(_, s) if u.symbol(*s).kind == Kind::TypeParam => {
                 let method = u.symbol(*s).owner.is_some_and(|o| u.symbol(o).kind == Kind::Def);
                 let i = names.iter().position(|n| *n == u.symbol(*s).name)?;
@@ -63,7 +63,7 @@ impl Universe {
     /// references.
     pub fn param_syms_as_refs(&mut self, t: TypeId, params: &[(String, TypeId)], binder: Binder) -> TypeId {
         self.map_type(t, &mut |u, x| {
-            let Type::Sym(None, s) = *u.types().get(x) else { return None };
+            let Type::Sym(None, s) = *u.ty(x) else { return None };
             if u.symbol(s).kind != Kind::Param || !u.symbol(s).owner.is_some_and(|o| has_clause(u, o, binder))
             {
                 return None;
@@ -78,7 +78,7 @@ impl Universe {
 fn has_clause(u: &Universe, method: crate::SymbolId, binder: Binder) -> bool {
     let mut t = u.known_info(method);
     while let Some(x) = t {
-        t = match *u.types().get(x) {
+        t = match *u.ty(x) {
             Type::Method { binder: b, .. } if b == binder => return true,
             Type::Method { result, .. } | Type::Poly { result, .. } => Some(result),
             _ => None,

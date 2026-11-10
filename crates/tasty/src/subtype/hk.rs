@@ -60,7 +60,7 @@ impl Cmp<'_> {
     }
 
     fn flattened(&self, t: TypeId, out: &mut Vec<TypeId>) {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::And(x, y) => [x, y].into_iter().for_each(|p| self.flattened(p, out)),
             _ => out.push(t),
         }
@@ -86,7 +86,7 @@ impl Cmp<'_> {
             return true;
         }
         let Some(class) = self.u.class_symbol(widened) else { return false };
-        let Type::Var(v) = *self.u.types().get(var) else { return false };
+        let Some(v) = self.u.var(var) else { return false };
         let class_bounds = self.class_symbols(self.vars.bounds(v).1);
         for base in self.u.linearization(class) {
             if (class_bounds.is_empty() || class_bounds.iter().any(|&c| self.u.derives_from(base, c)))
@@ -109,7 +109,7 @@ impl Cmp<'_> {
     /// arguments fixed, so that `var[args]` is below `other` (above it if `from_below`); the
     /// constraint as before if not.
     fn unify_constructor(&mut self, var: TypeId, args: &[TypeId], other: TypeId, from_below: bool) -> bool {
-        let Type::Applied(tycon, other_args) = self.u.types().get(other).clone() else { return false };
+        let Type::Applied(tycon, other_args) = self.u.ty(other).clone() else { return false };
         let Some(fixed) = other_args.len().checked_sub(args.len()) else { return false };
         if tycon == var {
             return false;
@@ -150,12 +150,12 @@ impl Cmp<'_> {
         fixed: usize,
         body_args: &[TypeId],
     ) -> Vec<(String, TypeId)> {
-        let lambda = match self.u.types().get(tycon) {
+        let lambda = match self.u.ty(tycon) {
             Type::Lambda { .. } => Some(tycon),
             _ => self.eta_expand(tycon).or_else(|| self.u.referenced_alias(tycon)),
         };
         let Some(Type::Lambda { binder, params, .. }) = lambda
-            .map(|l| self.u.types().get(l).clone())
+            .map(|l| self.u.ty(l).clone())
             .filter(|l| matches!(l, Type::Lambda { params, .. } if params.len() == body_args.len()))
         else {
             let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));

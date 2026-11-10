@@ -54,7 +54,7 @@ fn object() -> Erased {
 impl Universe {
     /// The erasure of type `t`.
     pub fn erase(&mut self, t: TypeId) -> Erased {
-        match self.types().get(t).clone() {
+        match self.ty(t).clone() {
             Type::Sym(Some(p), s) => self.erase_member(p, s),
             Type::Sym(_, s) => self.erase_symbol(s),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
@@ -70,7 +70,7 @@ impl Universe {
             Type::TermRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => self.erase_symbol(s),
                 None => match self.term_refinement_named(p, &n) {
-                    Some(info) => match *self.types().get(info) {
+                    Some(info) => match *self.ty(info) {
                         Type::ByName(r) => self.erase(r),
                         _ => self.erase(info),
                     },
@@ -142,7 +142,7 @@ impl Universe {
     /// The qualified name of a path the universe cannot resolve, and whether it ends in a class
     /// or object (a capitalized term) rather than a package.
     fn path_name(&self, t: TypeId) -> Option<(String, bool)> {
-        match self.types().get(t) {
+        match self.ty(t) {
             Type::Package(pkg) => Some((self.full_name(*pkg), false)),
             Type::PackageName(pkg) => Some((pkg.clone(), false)),
             Type::TermRef(p, n) => {
@@ -156,7 +156,7 @@ impl Universe {
 
     /// The qualified name of the class `t` refers to, if it names one.
     fn class_name(&mut self, t: TypeId) -> Option<String> {
-        match self.types().get(t).clone() {
+        match self.ty(t).clone() {
             Type::Sym(_, s) if self.symbol(s).kind == Kind::Class => Some(self.full_name(s)),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) if self.symbol(s).kind == Kind::Class => Some(self.full_name(s)),

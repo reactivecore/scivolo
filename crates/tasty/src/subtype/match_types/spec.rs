@@ -61,10 +61,10 @@ pub struct Specced {
 
 impl Cmp<'_> {
     pub fn analyze(&mut self, case: TypeId) -> Spec {
-        match self.u.types().get(case).clone() {
+        match self.u.ty(case).clone() {
             Type::MatchCase(pat, body) => Spec::SubTypeTest(pat, body),
             Type::Lambda { binder, params, result } => {
-                let Type::MatchCase(pat, body) = *self.u.types().get(result) else {
+                let Type::MatchCase(pat, body) = *self.u.ty(result) else {
                     return Spec::Unsupported;
                 };
                 let mut unaccounted = vec![true; params.len()];
@@ -89,7 +89,7 @@ impl Cmp<'_> {
     fn missing_captures(&mut self, pat: TypeId, binder: Binder, n: usize) -> bool {
         let mut present = vec![false; n];
         self.u.map_type(pat, &mut |u, x| {
-            if let Type::Param(b, i) = *u.types().get(x)
+            if let Type::Param(b, i) = *u.ty(x)
                 && b == binder
                 && let Some(p) = present.get_mut(i as usize)
             {
@@ -108,17 +108,17 @@ impl Cmp<'_> {
         captures: (Binder, &[String]),
         unaccounted: &mut [bool],
     ) -> Option<Pattern> {
-        match self.u.types().get(pat).clone() {
+        match self.u.ty(pat).clone() {
             Type::Param(b, i) if b == captures.0 => {
                 *unaccounted.get_mut(i as usize)? = false;
                 let name = captures.1.get(i as usize)?;
                 Some(Pattern::Capture(i, name == "_" || name.starts_with("_$")))
             }
             Type::Applied(tycon, args) if variance == 1 => {
-                if matches!(self.u.types().get(tycon), Type::Param(b, _) if *b == captures.0) {
+                if matches!(self.u.ty(tycon), Type::Param(b, _) if *b == captures.0) {
                     return None;
                 }
-                if !matches!(self.u.types().get(tycon), Type::Sym(..) | Type::TypeRef(..)) {
+                if !matches!(self.u.ty(tycon), Type::Sym(..) | Type::TypeRef(..)) {
                     return Some(Pattern::TypeTest);
                 }
                 let named = self.named(tycon)?;
@@ -154,10 +154,8 @@ impl Cmp<'_> {
                 }
                 None
             }
-            Type::Refined(_, _, info) if variance == 1 => match *self.u.types().get(info) {
-                Type::Alias(a) if matches!(self.u.types().get(a), Type::Param(b, _) if *b == captures.0) => {
-                    None
-                }
+            Type::Refined(_, _, info) if variance == 1 => match *self.u.ty(info) {
+                Type::Alias(a) if matches!(self.u.ty(a), Type::Param(b, _) if *b == captures.0) => None,
                 _ => Some(Pattern::TypeTest),
             },
             _ => Some(Pattern::TypeTest),

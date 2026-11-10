@@ -42,7 +42,7 @@ impl Cmp<'_> {
             let w = s.u.widen(t);
             !s.explicit_nulls() && w != t && s.nullable_within(w, depth)
         };
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(t).map(|n| n.meaning) {
                 Some(Meaning::Class(c)) => self.nullable_class(c),
                 Some(Meaning::Term(_)) => widened(self),

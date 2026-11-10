@@ -60,7 +60,7 @@ impl SourcePrinter<'_> {
         for (i, &(ref name, info)) in params.iter().enumerate() {
             self.out.push_str(if i > 0 { ", " } else { "" });
             self.out.push_str(name);
-            match *self.u.types().get(info) {
+            match *self.u.ty(info) {
                 Type::Bounds(lo, hi) => self.bounds(lo, hi)?,
                 Type::Alias(a) => self.bounds(a, a)?,
                 _ => {

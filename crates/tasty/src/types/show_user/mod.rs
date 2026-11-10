@@ -88,7 +88,7 @@ impl<'u> Printer<'u> {
 
     /// Type `t` in a context of precedence `prec`.
     pub fn text(&mut self, t: TypeId, prec: u8) -> String {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::NoPrefix => String::new(),
             Type::TypeRef(p, n) => {
                 let s = self.u.resolve(p, &n, true);
@@ -173,15 +173,15 @@ impl<'u> Printer<'u> {
     /// `inner` annotated with `annot`: Java varargs `T*`; other annotations are dropped.
     fn annotated(&mut self, inner: TypeId, annot: TypeId, prec: u8) -> String {
         let repeated = self.full_name_of(annot).as_deref() == Some("scala.annotation.internal.Repeated");
-        match self.u.types().get(inner).clone() {
-            Type::Applied(_, args) if repeated && args.len() == 1 => format!("{}*", self.text(args[0], DOT)),
+        match self.u.applied(inner) {
+            Some((_, &[arg])) if repeated => format!("{}*", self.text(arg, DOT)),
             _ => self.text(inner, prec),
         }
     }
 
     /// The qualified name of the class or type `t` refers to.
     pub fn full_name_of(&mut self, t: TypeId) -> Option<String> {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Sym(p, s) => Some(self.symbol_path(p, s).full),
             Type::TypeRef(p, n) => Some(prefix::join(&self.path(p).full, &n)),
             _ => None,

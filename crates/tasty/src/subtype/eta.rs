@@ -17,8 +17,8 @@ impl Cmp<'_> {
     /// How many type parameters type constructor `t` takes: a type lambda's, or those of a class
     /// referred to without arguments.
     pub fn constructor_arity(&mut self, t: TypeId) -> Option<usize> {
-        if let Type::Lambda { params, .. } = self.u.types().get(t) {
-            return Some(params.len());
+        if let Some(l) = self.u.lambda(t) {
+            return Some(l.params.len());
         }
         let Some(Meaning::Class(c)) = self.named(t).map(|n| n.meaning) else { return None };
         let n = self.u.type_params(c).len();
@@ -64,7 +64,7 @@ impl Cmp<'_> {
     }
 
     fn abstract_eta_expand(&mut self, t: TypeId, hi: TypeId) -> Option<TypeId> {
-        let Type::Lambda { binder: own, params, .. } = self.u.types().get(hi).clone() else { return None };
+        let Type::Lambda { binder: own, params, .. } = self.u.ty(hi).clone() else { return None };
         let binder = Binder(FileId(ETA), t.0);
         let refs: Vec<TypeId> =
             (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();

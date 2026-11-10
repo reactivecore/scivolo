@@ -48,15 +48,15 @@ impl Universe {
         let (ma, mb) = (self.method_clauses(ia), self.method_clauses(ib));
         let pairs = ca.into_iter().zip(cb).flat_map(|((_, x), (_, y))| x.into_iter().zip(y));
         pairs.collect::<Vec<_>>().into_iter().all(|(x, y)| {
-            let ((rx, x), (ry, y)) = (self.repeated_elem(x), self.repeated_elem(y));
-            if rx != ry {
+            let (ex, ey) = (self.repeated_elem(x), self.repeated_elem(y));
+            if ex.is_some() != ey.is_some() {
                 return false;
             }
-            let (x, y) = (self.normalize(x), self.normalize(y));
+            let (x, y) = (self.normalize(ex.unwrap_or(x)), self.normalize(ey.unwrap_or(y)));
             let rename =
                 |u: &mut Universe, t, own: &[SymbolId], binders: &[(Binder, usize)], methods: &Clauses| {
                     let t = methods.iter().fold(t, |t, (b, ps)| u.param_syms_as_refs(t, ps, *b));
-                    u.map_type(t, &mut |u, t| match *u.types().get(t) {
+                    u.map_type(t, &mut |u, t| match *u.ty(t) {
                         Type::Sym(_, s) => own.iter().position(|&p| p == s).map(|i| renamed[i]),
                         Type::Param(b, i) => {
                             if let Some(k) = methods.iter().position(|(own, _)| *own == b) {
@@ -81,13 +81,12 @@ impl Universe {
     /// reference by name.
     fn param_paths_named(&mut self, t: TypeId, methods: &Clauses) -> TypeId {
         self.map_type(t, &mut |u, x| {
-            let Type::Sym(Some(p), s) = *u.types().get(x) else { return None };
+            let Type::Sym(Some(p), s) = *u.ty(x) else { return None };
             let mut root = p;
-            while let Type::Sym(Some(q), _) | Type::TermRef(q, _) | Type::TypeRef(q, _) = *u.types().get(root)
-            {
+            while let Type::Sym(Some(q), _) | Type::TermRef(q, _) | Type::TypeRef(q, _) = *u.ty(root) {
                 root = q;
             }
-            let Type::Param(b, _) = *u.types().get(root) else { return None };
+            let (b, _) = u.param_ref(root)?;
             if !methods.iter().any(|(own, _)| *own == b) {
                 return None;
             }
@@ -102,8 +101,8 @@ impl Universe {
     /// The binder and parameters of each value parameter clause of method type `t`.
     fn method_clauses(&self, mut t: TypeId) -> Clauses {
         let mut out = Vec::new();
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.types().get(t) {
-            if let Type::Method { binder, params, .. } = self.types().get(t) {
+        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.ty(t) {
+            if let Type::Method { binder, params, .. } = self.ty(t) {
                 out.push((*binder, params.clone()));
             }
             t = *result;
@@ -111,25 +110,27 @@ impl Universe {
         out
     }
 
-    /// Whether parameter type `t` is repeated, `<repeated>[T]` or `Seq[T] @Repeated` as TASTy
-    /// gives it, and then its element type `T`, else `t`.
-    fn repeated_elem(&mut self, t: TypeId) -> (bool, TypeId) {
-        let is_class =
-            |u: &mut Self, c: TypeId, name: &str| u.class_symbol(c).is_some_and(|c| u.full_name(c) == name);
-        let (applied, repeated) = match self.types().get(t).clone() {
-            Type::Annotated(seq, annot) => (seq, is_class(self, annot, "scala.annotation.internal.Repeated")),
-            Type::Applied(c, _) => (t, is_class(self, c, "scala.<repeated>")),
-            _ => return (false, t),
+    /// The element type `T` of repeated parameter type `t`: `<repeated>[T]` or `Seq[T] @Repeated`
+    /// as TASTy gives it.
+    pub fn repeated_elem(&mut self, t: TypeId) -> Option<TypeId> {
+        let applied = match self.ty(t).clone() {
+            Type::Annotated(seq, annot)
+                if self.is_class_named(annot, "scala.annotation.internal.Repeated") =>
+            {
+                seq
+            }
+            Type::Applied(c, _) if self.is_class_named(c, "scala.<repeated>") => t,
+            _ => return None,
         };
-        match self.types().get(applied) {
-            Type::Applied(_, args) if repeated && args.len() == 1 => (true, args[0]),
-            _ => (false, t),
+        match self.applied(applied)? {
+            (_, &[elem]) => Some(elem),
+            _ => None,
         }
     }
 
     /// The result type of method type `t` after all its clauses.
     pub fn result_type(&self, mut t: TypeId) -> TypeId {
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.types().get(t) {
+        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.ty(t) {
             t = *result;
         }
         t
@@ -138,8 +139,8 @@ impl Universe {
     /// The binder of each type-parameter clause of method type `t` and its number of parameters.
     fn poly_binders(&self, mut t: TypeId) -> Vec<(Binder, usize)> {
         let mut out = Vec::new();
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.types().get(t) {
-            if let Type::Poly { binder, params, .. } = self.types().get(t) {
+        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.ty(t) {
+            if let Type::Poly { binder, params, .. } = self.ty(t) {
                 out.push((*binder, params.len()));
             }
             t = *result;
@@ -152,7 +153,7 @@ impl Universe {
     pub fn param_clauses(&self, mut t: TypeId) -> Vec<(bool, Vec<TypeId>)> {
         let mut out = Vec::new();
         loop {
-            match self.types().get(t) {
+            match self.ty(t) {
                 Type::Poly { result, .. } => t = *result,
                 Type::Method { params, result, implicit, .. } => {
                     out.push((*implicit, params.iter().map(|(_, p)| *p).collect()));

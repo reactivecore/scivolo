@@ -22,10 +22,7 @@ impl Cmp<'_> {
 
     /// `From[arg]` with `from` the reference to `From`, folded if `arg` is known enough.
     pub fn fields_of(&mut self, from: TypeId, arg: TypeId) -> Option<TypeId> {
-        let (prefix, s) = match *self.u.types().get(from) {
-            Type::Sym(p, s) => (p, s),
-            _ => return None,
-        };
+        let (prefix, s) = self.u.sym_ref(from)?;
         let owner = self.u.symbol(s).owner?;
         let nt = self
             .u
@@ -47,7 +44,7 @@ impl Cmp<'_> {
             _ => {
                 let widened = self.u.widen(arg);
                 let d = self.u.dealias(widened);
-                if let Type::Applied(tycon, _) = *self.u.types().get(d)
+                if let Type::Applied(tycon, _) = *self.u.ty(d)
                     && self.named(tycon).and_then(|n| n.sym) == self.named(nt).and_then(|n| n.sym)
                 {
                     return Some(d);
@@ -66,7 +63,7 @@ impl Cmp<'_> {
         let (mut out, mut t) = (Vec::new(), t);
         for _ in 0..MAX_ELEMENTS {
             let d = self.u.dealias(t);
-            let Type::Applied(tycon, args) = self.u.types().get(d).clone() else {
+            let Type::Applied(tycon, args) = self.u.ty(d).clone() else {
                 let class = self.u.class_symbol(d)?;
                 return (self.u.full_name(class) == "scala.EmptyTuple$").then_some(out);
             };

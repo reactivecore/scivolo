@@ -19,14 +19,14 @@ impl Printer<'_> {
         }
         let mut fields = Vec::with_capacity(names.len());
         for (n, v) in names.into_iter().zip(values) {
-            let Type::Str(n) = self.u.types().get(n).clone() else { return None };
+            let Type::Str(n) = self.u.ty(n).clone() else { return None };
             fields.push(format!("{n} : {}", self.text(v, GLOBAL)));
         }
         Some(format!("({})", fields.join(", ")))
     }
 
     fn elems_of(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
-        let Type::Applied(c, args) = self.u.types().get(t).clone() else { return None };
+        let (c, args) = self.u.applied(t).map(|(c, a)| (c, a.to_vec()))?;
         self.tuple_elems(c, &args)
     }
 }

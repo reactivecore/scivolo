@@ -7,7 +7,7 @@ use crate::{ANY, Kind, NOTHING, SymbolId, Universe};
 /// What type member `name` stands for by a refinement of `prefix`'s type.
 pub fn refined_meaning(u: &mut Universe, prefix: TypeId, name: &str) -> Option<Meaning> {
     let info = u.refinement_named(prefix, name)?;
-    match *u.types().get(info) {
+    match *u.ty(info) {
         Type::Alias(a) => Some(Meaning::Alias(a)),
         Type::Bounds(lo, hi) => Some(Meaning::Abstract(lo, hi)),
         _ => None,
@@ -18,10 +18,7 @@ pub fn refined_meaning(u: &mut Universe, prefix: TypeId, name: &str) -> Option<M
 /// type gives it (dotty's `argForParam`); `None` for a `this` prefix.
 fn class_param_arg(u: &mut Universe, p: SymbolId, prefix: TypeId) -> Option<Meaning> {
     let arg = u.arg_for_param(prefix, p)?;
-    Some(match *u.types().get(arg) {
-        Type::Bounds(lo, hi) => Meaning::Abstract(lo, hi),
-        _ => Meaning::Alias(arg),
-    })
+    Some(u.bounds(arg).map_or(Meaning::Alias(arg), |(lo, hi)| Meaning::Abstract(lo, hi)))
 }
 
 /// What symbol `s` stands for when referred to through `prefix`.
@@ -37,7 +34,7 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
             let member = u.symbol(s).kind == Kind::Type;
             if let Some(refined) = prefix.filter(|_| member).and_then(|p| refined_meaning(u, p, &name)) {
                 let info = u.info(s);
-                return match (refined, u.types().get(info).clone()) {
+                return match (refined, u.ty(info).clone()) {
                     (Meaning::Abstract(lo, hi), Type::Bounds(lo2, hi2)) => {
                         let (lo2, hi2) = (seen(u, lo2), seen(u, hi2));
                         Meaning::Abstract(u.lub(lo, lo2), u.glb(hi, hi2))
@@ -64,9 +61,9 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
                 return Meaning::Abstract(seen(u, lo), seen(u, hi));
             }
             let info = u.info(s);
-            match u.types().get(info).clone() {
+            match u.ty(info).clone() {
                 Type::Bounds(lo, hi) => Meaning::Abstract(seen(u, lo), seen(u, hi)),
-                Type::Lambda { binder, params, result } => match *u.types().get(result) {
+                Type::Lambda { binder, params, result } => match *u.ty(result) {
                     Type::Bounds(lo, hi) => {
                         let lambda = |u: &mut Universe, body| {
                             let body = seen(u, body);

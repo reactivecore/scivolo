@@ -17,7 +17,7 @@ impl Universe {
             |u: &mut Self, ps: Vec<(String, TypeId)>, m: &mut dyn FnMut(&mut Self, TypeId) -> TypeId| {
                 ps.into_iter().map(|(n, p)| (n, m(u, p))).collect::<Vec<_>>()
             };
-        let mapped = match self.types().get(t).clone() {
+        let mapped = match self.ty(t).clone() {
             Type::TypeRef(p, n) => Type::TypeRef(m(self, p), n),
             Type::TermRef(p, n) => Type::TermRef(m(self, p), n),
             Type::Sym(Some(p), s) => Type::Sym(Some(m(self, p)), s),
@@ -33,7 +33,7 @@ impl Universe {
                 }
                 let applied = Type::Applied(mapped, args.into_iter().map(|a| m(self, a)).collect());
                 let applied = self.intern_type(applied);
-                let lambda = matches!(self.types().get(mapped), Type::Lambda { .. });
+                let lambda = self.lambda(mapped).is_some();
                 return if mapped != c && lambda { self.beta_reduced(applied) } else { applied };
             }
             Type::Alias(a) => Type::Alias(m(self, a)),

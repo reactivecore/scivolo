@@ -15,7 +15,7 @@ impl Universe {
     /// `t?`, `t` itself if it is flexible or a union with `Null`, bounds made flexible
     /// (dotty's `FlexibleType.make`).
     pub fn flexible(&mut self, t: TypeId) -> TypeId {
-        match self.types().get(t).clone() {
+        match self.ty(t).clone() {
             Type::Flexible(_) => t,
             Type::Or(_, b, _) if self.is_null_ref(b) => t,
             Type::Bounds(lo, hi) => {
@@ -34,6 +34,6 @@ impl Universe {
     /// Whether `t` refers to class `Null`.
     pub fn is_null_ref(&mut self, t: TypeId) -> bool {
         let null = self.builtins().null;
-        matches!(self.types().get(t), Type::Sym(..) | Type::TypeRef(..)) && self.referenced(t) == Some(null)
+        matches!(self.ty(t), Type::Sym(..) | Type::TypeRef(..)) && self.referenced(t) == Some(null)
     }
 }

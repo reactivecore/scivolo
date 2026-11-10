@@ -113,7 +113,7 @@ impl Universe {
         let mut params = Vec::new();
         let mut bounds = Vec::new();
         loop {
-            match self.types().get(t).clone() {
+            match self.ty(t).clone() {
                 Type::Poly { binder, params: ps, result } => {
                     bounds.push((binder, ps.into_iter().map(|(_, b)| b).collect::<Vec<_>>()));
                     t = result;
@@ -154,7 +154,7 @@ impl Universe {
         let name = self.symbol(def).name.clone();
         let (params, _) = self.erased_method(def);
         for base in self.linearization(owner).into_iter().skip(1) {
-            for m in self.decl(base, &name).unwrap_or_default() {
+            for m in self.decls_named(base, &name) {
                 let f = self.symbol(m).flags;
                 if self.symbol(m).kind == Kind::Def
                     && !f.has(INLINE)

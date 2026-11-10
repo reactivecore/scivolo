@@ -32,9 +32,9 @@ impl Universe {
         let mut t = self.widen(prefix);
         let mut recs = Vec::new();
         for _ in 0..MAX_STEPS {
-            match self.types().get(t).clone() {
+            match self.ty(t).clone() {
                 Type::Refined(_, n, info)
-                    if n == name && matches!(self.types().get(info), Type::Alias(_) | Type::Bounds(..)) =>
+                    if n == name && matches!(self.ty(info), Type::Alias(_) | Type::Bounds(..)) =>
                 {
                     return Some(self.rec_this_replaced(info, &recs, prefix));
                 }
@@ -46,7 +46,7 @@ impl Universe {
                 Type::And(a, b) => {
                     let (a, b) = (self.refinement_named(a, name), self.refinement_named(b, name));
                     let (Some(a), Some(b)) = (a, b) else { return a.or(b) };
-                    return match (self.types().get(a), self.types().get(b)) {
+                    return match (self.ty(a), self.ty(b)) {
                         (&Type::Bounds(lx, hx), &Type::Bounds(ly, hy)) => {
                             let (lo, hi) = (self.lub(lx, ly), self.glb(hx, hy));
                             Some(self.intern_type(Type::Bounds(lo, hi)))
@@ -66,7 +66,7 @@ impl Universe {
 
     /// The upper bound of abstract type or type parameter reference `t`, seen from its prefix.
     pub fn abstract_upper(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Sym(prefix, s) = *self.types().get(t) else { return None };
+        let (prefix, s) = self.sym_ref(t)?;
         if !matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) {
             return None;
         }
@@ -74,10 +74,7 @@ impl Universe {
             Some(p) => self.member_info(p, s),
             None => self.info(s),
         };
-        match *self.types().get(info) {
-            Type::Bounds(_, hi) => Some(hi),
-            _ => None,
-        }
+        self.bounds(info).map(|(_, hi)| hi)
     }
 
     /// The alias or class by which the class of term `prefix`'s type as seen from its own prefix,
@@ -86,7 +83,7 @@ impl Universe {
         if self.symbol(s).kind != Kind::Type {
             return None;
         }
-        let declared = match *self.types().get(prefix) {
+        let declared = match *self.ty(prefix) {
             Type::Sym(p, term) if self.symbol(term).kind.is_term() => self.term_type(p, term),
             Type::TermRef(p, _) => {
                 let term = self.resolve_ref(prefix)?;
@@ -111,8 +108,8 @@ impl Universe {
     /// `t` without its refinements, and whether one of them refines a term member.
     pub fn without_refinements(&mut self, mut t: TypeId) -> (TypeId, bool) {
         let mut term = false;
-        while let Type::Refined(p, _, info) = *self.types().get(t) {
-            term |= !matches!(self.types().get(info), Type::Alias(_) | Type::Bounds(..));
+        while let Type::Refined(p, _, info) = *self.ty(t) {
+            term |= !matches!(self.ty(info), Type::Alias(_) | Type::Bounds(..));
             t = p;
         }
         (t, term)
@@ -130,10 +127,10 @@ impl Universe {
             return None;
         }
         let info = self.term_refinement_named(prefix, "apply")?;
-        let Type::Method { binder, result, .. } = *self.types().get(info) else { return None };
+        let Type::Method { binder, result, .. } = *self.ty(info) else { return None };
         let mut dependent = false;
         self.map_type(result, &mut |u, part| {
-            dependent |= matches!(*u.types().get(part), Type::Param(b, _) if b == binder);
+            dependent |= matches!(*u.ty(part), Type::Param(b, _) if b == binder);
             None
         });
         dependent.then_some(info)
@@ -144,9 +141,9 @@ impl Universe {
         let mut t = self.widen(prefix);
         let mut recs = Vec::new();
         for _ in 0..MAX_STEPS {
-            match self.types().get(t).clone() {
+            match self.ty(t).clone() {
                 Type::Refined(_, n, info)
-                    if n == name && !matches!(self.types().get(info), Type::Alias(_) | Type::Bounds(..)) =>
+                    if n == name && !matches!(self.ty(info), Type::Alias(_) | Type::Bounds(..)) =>
                 {
                     return Some(self.rec_this_replaced(info, &recs, prefix));
                 }

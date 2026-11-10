@@ -15,7 +15,7 @@ impl Universe {
         }
         let mut string = None;
         self.map_type(t, &mut |u, part| {
-            if !matches!(u.types().get(part), Type::Sym(..) | Type::TypeRef(..)) {
+            if !matches!(u.ty(part), Type::Sym(..) | Type::TypeRef(..)) {
                 return None;
             }
             let s = u.referenced(part)?;

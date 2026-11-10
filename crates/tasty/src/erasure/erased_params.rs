@@ -9,12 +9,8 @@ use crate::types::{Type, TypeId};
 impl Universe {
     /// Whether parameter type `t` of a method type is annotated `@ErasedParam`.
     pub fn is_erased_param(&mut self, t: TypeId) -> bool {
-        let t = match *self.types().get(t) {
-            Type::ByName(r) => r,
-            _ => t,
-        };
-        let mut t = t;
-        while let Type::Annotated(inner, annot) = *self.types().get(t) {
+        let mut t = self.by_name(t).unwrap_or(t);
+        while let Type::Annotated(inner, annot) = *self.ty(t) {
             let class = self.class_symbol(annot);
             if class.is_some_and(|c| self.full_name(c) == "scala.annotation.internal.ErasedParam") {
                 return true;

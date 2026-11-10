@@ -82,7 +82,7 @@ impl Cmp<'_> {
             return Atoms::Unmodelled;
         }
         let outer = std::mem::replace(&mut self.provisional, false);
-        let (atoms, elsewhere) = match *self.u.types().get(t) {
+        let (atoms, elsewhere) = match *self.u.ty(t) {
             Type::Constant(..) | Type::Str(_) => (Atoms::single(t), true),
             Type::Or(x, y, _) => (self.or_atoms(t, x, y, depth), true),
             _ => (self.own_atoms(t, depth + 1), false),
@@ -144,7 +144,7 @@ impl Cmp<'_> {
             self.provisional = true;
         }
         let t = dealiased;
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Or(..) | Type::Constant(..) | Type::Str(_) => self.atoms_at(t, depth),
             Type::ByName(r) => self.atoms_at(r, depth),
             Type::Var(v) => {

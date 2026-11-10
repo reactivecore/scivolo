@@ -22,12 +22,12 @@ impl Universe {
 
     fn java_wildcards(&mut self, t: TypeId, from_java_object: TypeId) -> TypeId {
         self.map_type(t, &mut |u, part| {
-            let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
+            let (tycon, args) = u.applied(part).map(|(c, a)| (c, a.to_vec()))?;
             if u.class_symbol(tycon).is_some_and(|c| u.full_name(c) == "scala.Array") {
                 return None;
             }
             let any = u.builtins().any;
-            let args = args.into_iter().map(|a| match u.types().get(a).clone() {
+            let args = args.into_iter().map(|a| match u.ty(a).clone() {
                 Type::Bounds(lo, hi) if hi == ANY || u.referenced(hi) == Some(any) => {
                     let lo = u.java_wildcards(lo, from_java_object);
                     u.intern_type(Type::Bounds(lo, from_java_object))

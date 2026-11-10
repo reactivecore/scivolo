@@ -3,7 +3,6 @@
 use super::atoms::Atoms;
 use super::refs::Meaning;
 use super::{Cmp, MAX_DEPTH};
-use crate::tags::OBJECT;
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId};
 
@@ -63,7 +62,7 @@ impl Cmp<'_> {
 
     /// Whether `t` is a path, a `this` or a constant.
     pub fn is_singleton(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::TermRef(..)
             | Type::This(_)
             | Type::RecThis(_)
@@ -88,7 +87,7 @@ impl Cmp<'_> {
                 return self.normalized(w, depth + 1);
             }
         }
-        let (prefix, s) = match self.u.types().get(t).clone() {
+        let (prefix, s) = match self.u.ty(t).clone() {
             Type::TermRef(p, name) => match self.u.resolve(p, &name, false) {
                 Some(s) => (Some(p), s),
                 None => return t,
@@ -106,10 +105,8 @@ impl Cmp<'_> {
         };
         let owner = self.u.symbol(s).owner;
         let prefix = match (prefix, owner) {
-            (_, Some(o)) if self.is_static_owner(o) => None,
-            (Some(p), _) if !matches!(self.u.types().get(p), Type::NoPrefix) => {
-                Some(self.normalized(p, depth + 1))
-            }
+            (_, Some(o)) if self.u.is_static_owner(o) => None,
+            (Some(p), _) if !matches!(self.u.ty(p), Type::NoPrefix) => Some(self.normalized(p, depth + 1)),
             (_, Some(o)) if self.u.symbol(o).kind == Kind::Class => {
                 let class = self.u.intern_type(Type::Sym(None, o));
                 Some(self.u.intern_type(Type::This(class)))
@@ -119,21 +116,10 @@ impl Cmp<'_> {
         self.u.intern_type(Type::Sym(prefix, s))
     }
 
-    /// Whether `o` is a package or the class of an object whose owner is one of these.
-    fn is_static_owner(&mut self, o: SymbolId) -> bool {
-        match self.u.symbol(o).kind {
-            Kind::Package => true,
-            Kind::Class if self.u.symbol(o).flags.has(OBJECT) => {
-                self.u.symbol(o).owner.is_some_and(|owner| self.is_static_owner(owner))
-            }
-            _ => false,
-        }
-    }
-
     /// The object whose class is `class`, if its owner is static.
     fn static_module(&mut self, class: SymbolId) -> Option<SymbolId> {
         let owner = self.u.symbol(class).owner?;
-        if !self.is_static_owner(owner) {
+        if !self.u.is_static_owner(owner) {
             return None;
         }
         self.module_of(class)

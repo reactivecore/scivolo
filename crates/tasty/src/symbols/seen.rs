@@ -15,24 +15,23 @@ impl Universe {
     /// `prefix` gives them, one a wildcard by the parameter selected on `prefix` (dotty's
     /// `argForParam`), a type member a refinement of `prefix` aliases the alias.
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
-        let prefix = match *self.types().get(prefix) {
+        let prefix = match *self.ty(prefix) {
             Type::Super(this, _) => this,
             _ => prefix,
         };
-        let seen = self.map_type(t, &mut |u, x| match *u.types().get(x) {
+        let seen = self.map_type(t, &mut |u, x| match *u.ty(x) {
             Type::Sym(Some(_), s) if u.is_static_symbol(s) && !u.sees_opaques(s) => Some(x),
             Type::This(c) => {
                 let c = u.class_symbol(c)?;
                 u.this_seen_from(prefix, owner, c, MAX_DEPTH)
             }
-            Type::Sym(Some(p), _) | Type::TypeRef(p, _) if !matches!(u.types().get(p), Type::This(_)) => None,
+            Type::Sym(Some(p), _) | Type::TypeRef(p, _) if u.this_of(p).is_none() => None,
             _ => {
                 let (c, i) = u.class_param(x)?;
-                let this_cls = match *u.types().get(x) {
-                    Type::Sym(Some(p), _) | Type::TypeRef(p, _) => match *u.types().get(p) {
-                        Type::This(t) => u.class_symbol(t).filter(|&t| !u.derives_from(t, owner)),
-                        _ => None,
-                    },
+                let this_cls = match *u.ty(x) {
+                    Type::Sym(Some(p), _) | Type::TypeRef(p, _) => {
+                        u.this_of(p).and_then(|t| u.class_symbol(t).filter(|&t| !u.derives_from(t, owner)))
+                    }
                     _ => None,
                 };
                 let prefix = match this_cls {
@@ -42,9 +41,9 @@ impl Universe {
                 let seen = u.base_type(prefix, c)?;
                 let param = u.type_params(c)[i];
                 let Some(arg) = u.base_arg(seen, i) else {
-                    return matches!(u.types().get(seen), Type::Or(..)).then_some(x);
+                    return matches!(u.ty(seen), Type::Or(..)).then_some(x);
                 };
-                if !matches!(u.types().get(arg), Type::Bounds(..)) {
+                if u.bounds(arg).is_none() {
                     return Some(arg);
                 }
                 Some(u.intern_type(Type::Sym(Some(prefix), param)))
@@ -56,7 +55,7 @@ impl Universe {
     /// Whether `t` is a stable path to a value: a skolem, or a reference to an immutable value or
     /// a parameter neither by-name nor inline, through `this`, a package, a type or such a path.
     pub fn is_value_path(&mut self, t: TypeId) -> bool {
-        let (pre, s) = match *self.types().get(t) {
+        let (pre, s) = match *self.ty(t) {
             Type::Skolem(..) => return true,
             Type::Sym(pre, s) => (pre, s),
             _ => return false,
@@ -65,12 +64,12 @@ impl Universe {
             Kind::Val => !self.symbol(s).flags.has(MUTABLE),
             Kind::Param => {
                 let info = self.info(s);
-                !self.symbol(s).flags.has(INLINE) && !matches!(self.types().get(info), Type::ByName(_))
+                !self.symbol(s).flags.has(INLINE) && self.by_name(info).is_none()
             }
             _ => false,
         };
         stable
-            && pre.is_none_or(|p| match *self.types().get(p) {
+            && pre.is_none_or(|p| match *self.ty(p) {
                 Type::This(_) | Type::NoPrefix | Type::Package(_) | Type::PackageName(_) => true,
                 Type::Sym(_, c) if !self.symbol(c).kind.is_term() => true,
                 _ => self.is_value_path(p),
@@ -88,7 +87,7 @@ impl Universe {
         depth: u32,
     ) -> Option<TypeId> {
         let depth = depth.checked_sub(1)?;
-        let pre_kind = self.types().get(pre).clone();
+        let pre_kind = self.ty(pre).clone();
         if self.symbol(cls).kind == Kind::Package || matches!(pre_kind, Type::NoPrefix) {
             return None;
         }
@@ -107,7 +106,7 @@ impl Universe {
 
     /// The prefix of class type `t`, through applications.
     fn normalized_prefix(&mut self, t: TypeId) -> Option<TypeId> {
-        match *self.types().get(t) {
+        match *self.ty(t) {
             Type::Sym(p, _) => p,
             Type::TypeRef(p, _) | Type::TermRef(p, _) => Some(p),
             Type::Applied(tycon, _) => self.normalized_prefix(tycon),
@@ -118,7 +117,7 @@ impl Universe {
     /// The argument, a wildcard's bounds among them, that the base type of `prefix`, other than
     /// `this`, gives class type parameter `p` (dotty's `argForParam`).
     pub fn arg_for_param(&mut self, prefix: TypeId, p: SymbolId) -> Option<TypeId> {
-        if self.symbol(p).kind != Kind::TypeParam || matches!(self.types().get(prefix), Type::This(_)) {
+        if self.symbol(p).kind != Kind::TypeParam || self.this_of(prefix).is_some() {
             return None;
         }
         let class = self.symbol(p).owner.filter(|&c| self.symbol(c).kind == Kind::Class)?;
@@ -131,7 +130,7 @@ impl Universe {
     /// The `i`th argument of base type `base`; of an intersection, its first part's; of a union,
     /// its parts' if they agree.
     fn base_arg(&mut self, base: TypeId, i: usize) -> Option<TypeId> {
-        match *self.types().get(base) {
+        match *self.ty(base) {
             Type::And(a, _) => self.base_arg(a, i),
             Type::Or(a, b, _) => {
                 let x = self.base_arg(a, i)?;

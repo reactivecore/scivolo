@@ -51,8 +51,8 @@ impl Universe {
 
     /// `t`, or the body of type lambda `l` with its parameters replaced if `t` is `l[args]`.
     pub fn beta_reduced(&mut self, t: TypeId) -> TypeId {
-        let Type::Applied(tycon, args) = self.types().get(t).clone() else { return t };
-        let Type::Lambda { binder, params, result } = self.types().get(tycon).clone() else { return t };
+        let Type::Applied(tycon, args) = self.ty(t).clone() else { return t };
+        let Type::Lambda { binder, params, result } = self.ty(tycon).clone() else { return t };
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         self.subst(result, binder, &names, &args)
     }
@@ -123,7 +123,7 @@ impl Universe {
 
     /// The class type parameter reference `t` names: its class and index.
     pub fn class_param(&mut self, t: TypeId) -> Option<(SymbolId, usize)> {
-        let s = match *self.types().get(t) {
+        let s = match *self.ty(t) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.resolve_ref(t)?,
             _ => return None,
@@ -142,7 +142,7 @@ impl Universe {
 
     fn class_symbol_within(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
         let depth = depth.checked_sub(1)?;
-        let s = match *self.types().get(t) {
+        let s = match *self.ty(t) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.resolve_ref(t)?,
             Type::Applied(inner, _)

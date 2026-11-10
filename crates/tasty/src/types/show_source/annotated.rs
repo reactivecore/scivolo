@@ -11,7 +11,7 @@ impl Universe {
     /// the whole annotation.
     pub fn is_argless_annotation(&mut self, annot: TypeId) -> bool {
         let Some(class) = self.class_symbol(annot) else { return false };
-        let ctors = self.decl(class, "<init>").unwrap_or_default();
+        let ctors = self.decls_named(class, "<init>");
         !ctors.is_empty() && ctors.into_iter().all(|c| self.erased_method(c).0.is_empty())
     }
 }

@@ -16,7 +16,7 @@ impl Cmp<'_> {
 
     fn class_symbols_within(&mut self, t: TypeId, depth: u32) -> Vec<SymbolId> {
         let Some(depth) = depth.checked_sub(1) else { return Vec::new() };
-        let sym = match *self.u.types().get(t) {
+        let sym = match *self.u.ty(t) {
             Type::And(x, y) => {
                 let mut cs = self.class_symbols_within(x, depth);
                 for c in self.class_symbols_within(y, depth) {

@@ -34,7 +34,7 @@ impl Universe {
         let site = self.intern_type(Type::This(site));
         let name = self.symbol(def).name.clone();
         for base in self.linearization(c).into_iter().skip(1) {
-            for other in self.decl(base, &name).unwrap_or_default() {
+            for other in self.decls_named(base, &name) {
                 if self.symbol(other).kind != Kind::Def || self.symbol(other).flags.has(PRIVATE) {
                     continue;
                 }

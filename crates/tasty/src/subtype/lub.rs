@@ -67,12 +67,9 @@ impl Cmp<'_> {
     /// `t` widened if it refers to a variable, method or by-name parameter (dotty's
     /// `widenIfUnstable`).
     fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
-        let Type::Sym(_, s) = *self.u.types().get(t) else { return t };
+        let Some(s) = self.u.sym_of(t) else { return t };
         let widened = if self.is_unstable(s) { self.u.widen(t) } else { return t };
-        match *self.u.types().get(widened) {
-            Type::ByName(r) => r,
-            _ => widened,
-        }
+        self.u.by_name(widened).unwrap_or(widened)
     }
 
     /// Whether term `s` is a variable, a method that is not stable, or a by-name or inline
@@ -82,7 +79,7 @@ impl Cmp<'_> {
         match kind {
             Kind::Val => flags.has(MUTABLE),
             Kind::Def => !flags.has(STABLE),
-            Kind::Param => flags.has(INLINE) || matches!(self.u.types().get(info), Type::ByName(_)),
+            Kind::Param => flags.has(INLINE) || self.u.by_name(info).is_some(),
             _ => false,
         }
     }
@@ -95,7 +92,7 @@ impl Cmp<'_> {
 
     /// `t` without its `|`-parts that are subtypes of `sup`; `None` if none remains.
     fn drop_if_sub(&mut self, t: TypeId, sup: TypeId) -> Option<TypeId> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Or(x, y, soft) => match (self.drop_if_sub(x, sup), self.drop_if_sub(y, sup)) {
                 (Some(x2), Some(y2)) if (x2, y2) == (x, y) => Some(t),
                 (Some(x2), Some(y2)) => Some(self.u.intern_type(Type::Or(x2, y2, soft))),
@@ -108,7 +105,7 @@ impl Cmp<'_> {
 
     /// `a | b`, soft if `soft`, by-name results joined.
     pub fn or_type(&mut self, a: TypeId, b: TypeId, soft: bool) -> TypeId {
-        match (self.u.types().get(a), self.u.types().get(b)) {
+        match (self.u.ty(a), self.u.ty(b)) {
             (&Type::Annotated(x, _), _) => self.lub_as(x, b, soft),
             (_, &Type::Annotated(y, _)) => self.lub_as(y, a, soft),
             (&Type::ByName(x), &Type::ByName(y)) => {

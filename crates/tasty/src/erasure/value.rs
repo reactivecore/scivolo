@@ -21,7 +21,7 @@ impl Universe {
     /// The semi-erasure of `t`: `Value` for a value class other than `this` or a by-name type,
     /// else its erasure.
     pub fn erase_value(&mut self, t: TypeId) -> Erased {
-        match *self.types().get(t) {
+        match *self.ty(t) {
             Type::This(class) => return self.erase_boxed(class),
             Type::ByName(_) => return self.erase(t),
             _ => {}
@@ -37,7 +37,7 @@ impl Universe {
     /// `erasedGlb` ranks value classes first).
     pub fn value_class(&mut self, t: TypeId) -> Option<SymbolId> {
         let dealiased = self.dealias(t);
-        if let Type::And(a, b) = *self.types().get(dealiased) {
+        if let Type::And(a, b) = *self.ty(dealiased) {
             return self.value_class(a).or_else(|| self.value_class(b));
         }
         self.class_symbol(t).filter(|&c| self.underlying(c).is_some())

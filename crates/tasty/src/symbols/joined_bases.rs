@@ -37,8 +37,7 @@ impl Universe {
     /// Base types `a` and `b` of class `base` intersected, argument by argument as their
     /// parameters' variances allow; `None` if an invariant argument differs.
     pub fn joined_base_type(&mut self, base: SymbolId, a: TypeId, b: TypeId) -> Option<TypeId> {
-        let (Type::Applied(tycon, xs), Type::Applied(_, ys)) =
-            (self.types().get(a).clone(), self.types().get(b).clone())
+        let (Type::Applied(tycon, xs), Type::Applied(_, ys)) = (self.ty(a).clone(), self.ty(b).clone())
         else {
             return (a == b).then_some(a);
         };

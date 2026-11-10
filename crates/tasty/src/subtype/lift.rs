@@ -28,7 +28,7 @@ impl Cmp<'_> {
     /// `t` with a reference to an enclosing object with opaque types, as a path or a prefix,
     /// made the `this` of its class.
     fn lift_to_this(&mut self, t: TypeId) -> TypeId {
-        let module = match self.u.types().get(t).clone() {
+        let module = match self.u.ty(t).clone() {
             Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => Some(s),
             Type::TermRef(..) => self.u.resolve_ref(t),
             Type::Sym(Some(p), s) => {

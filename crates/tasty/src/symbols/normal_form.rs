@@ -18,21 +18,18 @@ impl Universe {
 
     fn normalize_within(&mut self, t: TypeId, depth: u32) -> TypeId {
         let Some(depth) = depth.checked_sub(1) else { return t };
-        self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
+        self.map_type(t, &mut |u, x| match u.ty(x).clone() {
             Type::Annotated(inner, _) => Some(u.normalize_within(inner, depth)),
             Type::Applied(tycon, args) => {
-                let expanded = match u.types().get(tycon).clone() {
+                let expanded = match u.ty(tycon).clone() {
                     Type::Lambda { binder, params, result } => {
                         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
                         u.subst(result, binder, &names, &args)
                     }
-                    _ => match u
-                        .expand(tycon, &args)
-                        .filter(|&e| !matches!(u.types().get(e), Type::Bounds(..)))
-                    {
+                    _ => match u.expand(tycon, &args).filter(|&e| u.bounds(e).is_none()) {
                         Some(e) => e,
                         None => {
-                            let Type::Sym(Some(prefix), s) = *u.types().get(tycon) else {
+                            let Type::Sym(Some(prefix), s) = *u.ty(tycon) else {
                                 return None;
                             };
                             let name = u.symbol(s).name.clone();
@@ -46,7 +43,7 @@ impl Universe {
                 Some(u.normalize_within(expanded, depth))
             }
             Type::Sym(_, _) | Type::TypeRef(_, _) => {
-                let s = match u.types().get(x).clone() {
+                let s = match u.ty(x).clone() {
                     Type::Sym(_, s) => s,
                     Type::TypeRef(p, n) => match u.resolve(p, &n, true) {
                         Some(s) => s,
@@ -63,7 +60,7 @@ impl Universe {
                         let a = match u.alias(s) {
                             Some(a) => a,
                             None => {
-                                let Type::Sym(Some(prefix), _) = *u.types().get(x) else {
+                                let Type::Sym(Some(prefix), _) = *u.ty(x) else {
                                     return None;
                                 };
                                 let name = u.symbol(s).name.clone();
@@ -86,6 +83,6 @@ impl Universe {
     /// The type type alias `s` stands for, unless a type lambda.
     fn alias(&mut self, s: SymbolId) -> Option<TypeId> {
         let a = self.alias_of(s)?;
-        (!matches!(self.types().get(a), Type::Lambda { .. })).then_some(a)
+        self.lambda(a).is_none().then_some(a)
     }
 }

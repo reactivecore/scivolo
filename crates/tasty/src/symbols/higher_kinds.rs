@@ -15,11 +15,11 @@ impl Universe {
     /// abstract type bounded by one, and not a match alias (dotty's `isLambdaSub &&
     /// !isMatchAlias`); not a named alias, which dotty reduces on application.
     pub fn is_lambda_sub(&mut self, t: TypeId) -> bool {
-        match *self.types().get(t) {
-            Type::Lambda { result, .. } => !matches!(self.types().get(result), Type::Match { .. }),
+        match *self.ty(t) {
+            Type::Lambda { result, .. } => !matches!(self.ty(result), Type::Match { .. }),
             Type::Applied(..) => {
                 let d = self.dealias(t);
-                d != t && matches!(self.types().get(d), Type::Lambda { .. }) && self.is_lambda_sub(d)
+                d != t && self.lambda(d).is_some() && self.is_lambda_sub(d)
             }
             Type::Sym(..) | Type::TypeRef(..) => {
                 if self.referenced_alias(t).is_some() {
@@ -30,10 +30,7 @@ impl Universe {
                     return false;
                 }
                 let info = self.info(s);
-                match *self.types().get(info) {
-                    Type::Bounds(_, hi) if hi != t => self.is_lambda_sub(hi),
-                    _ => false,
-                }
+                self.bounds(info).is_some_and(|(_, hi)| hi != t && self.is_lambda_sub(hi))
             }
             _ => false,
         }
@@ -43,7 +40,7 @@ impl Universe {
     /// of the type lambda an alias or application stands for, else those declared; bivariant
     /// counts as covariant (dotty's `paramVarianceSign`).
     pub fn tycon_variances(&mut self, tycon: TypeId, n: usize) -> Vec<i8> {
-        let lambda = match self.types().get(tycon) {
+        let lambda = match self.ty(tycon) {
             Type::Lambda { .. } => Some(tycon),
             Type::Applied(..) => Some(self.dealias(tycon)),
             _ => self.referenced_alias(tycon),
@@ -58,7 +55,7 @@ impl Universe {
     /// The variances of the parameters of type lambda `t`; bivariant for a lambda of `pending`,
     /// whose variances are being computed.
     pub fn lambda_variance_flags(&mut self, t: TypeId, pending: &[Binder]) -> Option<Vec<i32>> {
-        let Type::Lambda { binder, params, result } = self.types().get(t).clone() else { return None };
+        let Type::Lambda { binder, params, result } = self.ty(t).clone() else { return None };
         if let Some(declared) = self.declared_variances(binder).filter(|v| v.len() == params.len()) {
             return Some(declared.into_iter().map(flags).collect());
         }
@@ -97,7 +94,7 @@ impl Narrowing {
             }
             return;
         }
-        match u.types().get(t).clone() {
+        match u.ty(t).clone() {
             Type::Sym(Some(prefix), _) | Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => {
                 self.go(u, prefix, v.max(0))
             }
@@ -105,7 +102,7 @@ impl Narrowing {
                 self.go(u, tycon, v);
                 let signs = self.tycon_variances(u, tycon, args.len());
                 for (arg, s) in args.into_iter().zip(signs) {
-                    let bounds = matches!(u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));
+                    let bounds = matches!(u.ty(arg), Type::Bounds(..) | Type::Wildcard(_));
                     self.go(u, arg, if bounds { v } else { v * s });
                 }
             }
@@ -124,7 +121,7 @@ impl Narrowing {
             Type::Method { params, result, .. }
             | Type::Poly { params, result, .. }
             | Type::Lambda { params, result, .. } => {
-                let case = matches!(u.types().get(result), Type::MatchCase(..));
+                let case = matches!(u.ty(result), Type::MatchCase(..));
                 for (_, p) in params {
                     self.go(u, p, if case { 0 } else { -v });
                 }
@@ -148,7 +145,7 @@ impl Narrowing {
     /// The index of the parameter `t` refers to, if it refers to one; a lambda read from TASTy
     /// refers to its parameters by name.
     fn param(&self, u: &Universe, t: TypeId) -> Option<usize> {
-        match u.types().get(t) {
+        match u.ty(t) {
             Type::Param(b, i) if *b == self.binder => Some(*i as usize),
             Type::Local(b, n) if b.0 == self.binder.0 => self.params.iter().position(|(m, _)| m == n),
             _ => None,
@@ -173,8 +170,5 @@ impl Narrowing {
 
 /// The upper bound of bounds `t`, else `t`.
 fn upper(u: &Universe, t: TypeId) -> TypeId {
-    match *u.types().get(t) {
-        Type::Bounds(_, hi) => hi,
-        _ => t,
-    }
+    u.bounds(t).map_or(t, |(_, hi)| hi)
 }

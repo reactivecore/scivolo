@@ -59,7 +59,7 @@ pub fn bare_classes(u: &mut Universe) -> FxHashSet<SymbolId> {
     let mut bare = FxHashSet::from_iter([u.builtins().object]);
     let Some(scala) = u.package("scala") else { return bare };
     for owner in ["Predef$", "package$"] {
-        let decls = u.decl(scala, owner).unwrap_or_default();
+        let decls = u.decls_named(scala, owner);
         let Some(owner) = decls.into_iter().find(|&c| u.symbol(c).kind == Kind::Class) else { continue };
         for d in u.decls(owner).unwrap_or_default() {
             if u.symbol(d).kind == Kind::Type
@@ -82,7 +82,7 @@ impl Printer<'_> {
 
     /// Path `p`, a package, a value, a module or `this`.
     pub fn path(&mut self, p: TypeId) -> Path {
-        match self.u.types().get(p).clone() {
+        match self.u.ty(p).clone() {
             Type::Package(s) => self.symbol_path(None, s),
             Type::PackageName(n) => package_path(&n),
             Type::TermRef(pp, n) => select(self.path(pp), &n),

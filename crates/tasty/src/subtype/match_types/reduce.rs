@@ -90,7 +90,7 @@ impl Cmp<'_> {
                     _ => scrut,
                 };
                 inst.of[*i as usize] = Some(t);
-                !matches!(self.u.types().get(t), Type::Error)
+                !matches!(self.u.ty(t), Type::Error)
             }
             Pattern::Capture(i, false) => {
                 let t = match bounds {
@@ -112,12 +112,12 @@ impl Cmp<'_> {
                     None => scrut,
                 };
                 inst.of[*i as usize] = Some(t);
-                !matches!(self.u.types().get(t), Type::Error)
+                !matches!(self.u.ty(t), Type::Error)
             }
             Pattern::TypeTest => true,
             Pattern::BaseTypeTest { class, args, needs_concrete } => {
                 let Some(base) = self.match_base_type(scrut, *class) else { return false };
-                let Type::Applied(_, base_args) = self.u.types().get(base).clone() else { return false };
+                let Type::Applied(_, base_args) = self.u.ty(base).clone() else { return false };
                 let widened = widened || *needs_concrete && !self.is_concrete(scrut, 32);
                 let variances = self.u.variances(*class);
                 args.len() == base_args.len()
@@ -129,7 +129,7 @@ impl Cmp<'_> {
             }
             Pattern::AbstractTypeConstructor { tycon, sym, args } => {
                 let dealiased = self.u.dealias(scrut);
-                let Type::Applied(t, scrut_args) = self.u.types().get(dealiased).clone() else {
+                let Type::Applied(t, scrut_args) = self.u.ty(dealiased).clone() else {
                     return false;
                 };
                 let (Some(n1), Some(n2)) = (self.named(t), self.named(*tycon)) else { return false };
@@ -166,7 +166,7 @@ impl Cmp<'_> {
         {
             return Some(base);
         }
-        let Type::Applied(tycon, args) = self.u.types().get(dealiased).clone() else { return None };
+        let Type::Applied(tycon, args) = self.u.ty(dealiased).clone() else { return None };
         let tuple = self.named(tycon)?.sym?;
         let pairs = self.nested_pairs(tuple, &args)?;
         self.u.base_type(pairs, c)
@@ -177,7 +177,7 @@ impl Cmp<'_> {
         let t = self.widen_term_refs(t);
         let t = self.u.dealias(t);
         let t = self.normal(t);
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Constant(INTconst, n) if (0..=i32::MAX as i64).contains(&n) => Some(n),
             _ => None,
         }
