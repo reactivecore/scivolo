@@ -158,7 +158,7 @@ pub struct Ctx {
     pub mode: Mode,
     /// The staging level (dotty's `StagingLevel.level`): +1 in a quote, -1 in a splice.
     pub staging: i32,
-    /// The most recent not-null info (`Typer::with_not_null`).
+    /// The most recent not-null info (`Nullables::with_not_null`).
     pub nulls: Option<u32>,
 }
 

@@ -1,8 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Nullables.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! Flow typing under explicit nulls: the references known not to be null after a tree or when a
-//! condition holds, and the contexts that carry them.
 
 mod assignments;
 mod cases;
@@ -12,13 +10,17 @@ mod loops;
 mod tracked;
 
 use super::Typer;
+use super::type_ops::TypeOps;
 use crate::ctx::Ctx;
-use crate::tpd::{TNodeId, Tree as T};
+use crate::defn::Defn;
+use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::FxHashMap;
-use tasty::{Type, TypeId};
+use syntax::ast::{Ast, NodeId};
+use tasty::{SymbolId, TypeId};
 
-/// The references known not to be null after a tree completes normally (`None`: it does not),
-/// and the variables it may set to null (dotty's `NotNullInfo`).
+/// Holds the references known not to be null after a tree completes normally (`None`: it does
+/// not), and the variables it may set to null (dotty's `NotNullInfo`): after
+/// `if x == null then return`, `x` is known not null; after `x = null`, a `var x` no longer is.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NotNullInfo {
     asserted: Option<Vec<TypeId>>,
@@ -26,18 +28,22 @@ pub struct NotNullInfo {
 }
 
 impl NotNullInfo {
+    /// Makes the info of a tree that knows nothing.
     pub fn empty() -> Self {
         NotNullInfo { asserted: Some(Vec::new()), retracted: Vec::new() }
     }
 
+    /// Makes the info that knows the references `asserted` not null.
     pub fn of(asserted: Vec<TypeId>) -> Self {
         NotNullInfo { asserted: Some(asserted), retracted: Vec::new() }
     }
 
+    /// Makes the info that drops what is known of the variables `retracted`.
     pub fn retracting(retracted: Vec<TypeId>) -> Self {
         NotNullInfo { asserted: Some(Vec::new()), retracted }
     }
 
+    /// The references known not to be null.
     pub fn asserted(&self) -> &[TypeId] {
         self.asserted.as_deref().unwrap_or_default()
     }
@@ -46,14 +52,17 @@ impl NotNullInfo {
         *self == Self::empty()
     }
 
+    /// Keeps only what the tree retracts, as for a loop body that may run any number of times.
     pub fn retracted_info(self) -> Self {
         NotNullInfo { asserted: Some(Vec::new()), retracted: self.retracted }
     }
 
+    /// Marks the tree as never completing normally, as a `return` or a call of type `Nothing`.
     pub fn terminated_info(self) -> Self {
         NotNullInfo { asserted: None, retracted: self.retracted }
     }
 
+    /// Combines the info of a tree with that of the tree evaluated after it.
     pub fn seq(self, that: Self) -> Self {
         if self.is_empty() {
             return that;
@@ -70,6 +79,7 @@ impl NotNullInfo {
         NotNullInfo { asserted, retracted: union(self.retracted, &that.retracted) }
     }
 
+    /// Combines the infos of two alternative paths, as the branches of an `if`.
     pub fn alt(self, that: Self) -> Self {
         let asserted = match (self.asserted, that.asserted) {
             (None, b) => b,
@@ -80,55 +90,87 @@ impl NotNullInfo {
     }
 }
 
+/// Appends the references of `b` that `a` lacks to `a`.
 pub fn union(mut a: Vec<TypeId>, b: &[TypeId]) -> Vec<TypeId> {
     a.extend(b.iter().filter(|r| !a.contains(r)).copied().collect::<Vec<_>>());
     a
 }
 
-/// The not-null infos of the contexts, each with the next older one, and the infos of trees.
+/// Holds the not-null facts of the flow typing under explicit nulls: in
+/// `if x != null then x.length else 0` the `then` branch knows `x` is not null, and so does the
+/// code after `if x == null then return` (dotty's `NotNullInfo`s in the `Context`). One field of
+/// `Typer`; a context refers to its most recent facts by index (ADR 0114).
 #[derive(Default)]
 pub struct Nullables {
+    /// The not-null info of each context with the index of the next older one.
     chain: Vec<(Option<u32>, NotNullInfo)>,
-    pub infos: FxHashMap<TNodeId, NotNullInfo>,
-    pub assignments: Option<assignments::Assignments>,
+    /// The info of each typed tree computed so far.
+    infos: FxHashMap<TNodeId, NotNullInfo>,
+    /// The local variables flow typing tracks, found on first use.
+    assignments: Option<assignments::Assignments>,
 }
 
-impl Typer<'_> {
-    /// `ctx` with `info` as its most recent not-null info.
+/// Lends the flow typing what it reads: the typed trees, the types with the constraint, the
+/// definitions, and the unit's syntax trees with the definition tree of each symbol.
+pub struct Flow<'a> {
+    tpd: &'a Tpd,
+    types: TypeOps<'a>,
+    defn: &'a Defn,
+    ast: &'a Ast,
+    unit: NodeId,
+    def_trees: &'a FxHashMap<SymbolId, NodeId>,
+}
+
+/// Splits the typer into its not-null facts and what the flow typing reads.
+fn flow<'a>(t: &'a mut Typer<'_>) -> (&'a mut Nullables, Flow<'a>) {
+    let flow = Flow {
+        tpd: &t.tpd,
+        types: TypeOps { u: t.u, constraint: &mut t.constraint },
+        defn: &t.defn,
+        ast: t.ast,
+        unit: t.unit,
+        def_trees: &t.syms.def_trees,
+    };
+    (&mut t.nullables, flow)
+}
+
+impl Nullables {
+    /// Gives `ctx` the not-null info `info` as its most recent one.
     pub fn with_not_null(&mut self, ctx: Ctx, info: NotNullInfo) -> Ctx {
         if info.is_empty() {
             return ctx;
         }
-        self.nullables.chain.push((ctx.nulls, info));
-        Ctx { nulls: Some(self.nullables.chain.len() as u32 - 1), ..ctx }
+        self.chain.push((ctx.nulls, info));
+        Ctx { nulls: Some(self.chain.len() as u32 - 1), ..ctx }
     }
 
-    /// `ctx` after tree `t` completed normally (dotty's `nullableContext`).
-    pub fn nullable_ctx(&mut self, t: TNodeId, ctx: Ctx) -> Ctx {
-        let info = self.not_null_info(t);
-        self.with_not_null(ctx, info)
+    /// Lists the not-null infos of `ctx`, the most recent first.
+    pub fn not_null_infos(&self, ctx: Ctx) -> impl Iterator<Item = &NotNullInfo> {
+        std::iter::successors(ctx.nulls, |&i| self.chain[i as usize].0).map(|i| &self.chain[i as usize].1)
     }
 
-    /// `ctx` when condition `t` is `c` (dotty's `nullableContextIf`).
-    pub fn nullable_ctx_if(&mut self, t: TNodeId, c: bool, ctx: Ctx) -> Ctx {
-        let info = self.not_null_info_if(t, c);
-        self.with_not_null(ctx, info)
-    }
-
-    /// The context of the argument of `f` if it is `&&` or `||` (dotty's `nullableInArgContext`).
-    pub fn nullable_in_arg_ctx(&mut self, f: TNodeId, ctx: Ctx) -> Ctx {
-        let T::Select { qualifier, .. } = *self.tpd.tree(f) else { return ctx };
-        match self.boolean_op(f).as_deref() {
-            Some("&&") => self.nullable_ctx_if(qualifier, true, ctx),
-            Some("||") => self.nullable_ctx_if(qualifier, false, ctx),
-            _ => ctx,
+    /// Tells whether `ctx` knows reference `r` not to be null: a more recent info asserts it, or
+    /// says the code is not reached, before one retracts it.
+    pub fn implies_not_null(&self, ctx: Ctx, r: TypeId) -> bool {
+        let mut at = ctx.nulls;
+        while let Some(i) = at {
+            let (outer, info) = &self.chain[i as usize];
+            match &info.asserted {
+                None => return true,
+                Some(a) if a.contains(&r) => return true,
+                _ if info.retracted.contains(&r) => return false,
+                _ => at = *outer,
+            }
         }
+        false
     }
+}
 
-    /// The context of definition `stat` in a statement sequence whose not-null infos were `initial`:
-    /// `ctx` if `stat` is local and not completed yet, which then gets the infos of `ctx` (dotty's
-    /// `adaptCreationContext`), else `ctx` with the `initial` infos.
-    pub fn definition_ctx(&mut self, stat: syntax::ast::NodeId, initial: Option<u32>, ctx: Ctx) -> Ctx {
+impl Typer<'_> {
+    /// Finds the context of definition `stat` in a statement sequence whose not-null infos were
+    /// `initial`: `ctx` if `stat` is local and not completed yet, which then gets the infos of
+    /// `ctx` (dotty's `adaptCreationContext`), else `ctx` with the `initial` infos.
+    pub fn definition_ctx(&mut self, stat: NodeId, initial: Option<u32>, ctx: Ctx) -> Ctx {
         let sym = self.syms.by_tree.get(&stat).copied();
         let pending = match sym.and_then(|s| self.syms.completions.get_mut(&s)) {
             Some(crate::symbols::Completion::Pending { ctx: c, .. }) => Some(c),
@@ -140,54 +182,6 @@ impl Typer<'_> {
                 ctx
             }
             _ => Ctx { nulls: initial, ..ctx },
-        }
-    }
-
-    /// The infos of `ctx`, the most recent first.
-    pub fn not_null_infos(&self, ctx: Ctx) -> impl Iterator<Item = &NotNullInfo> {
-        std::iter::successors(ctx.nulls, |&i| self.nullables.chain[i as usize].0)
-            .map(|i| &self.nullables.chain[i as usize].1)
-    }
-
-    pub fn implies_not_null(&self, ctx: Ctx, r: TypeId) -> bool {
-        let mut at = ctx.nulls;
-        while let Some(i) = at {
-            let (outer, info) = &self.nullables.chain[i as usize];
-            match &info.asserted {
-                None => return true,
-                Some(a) if a.contains(&r) => return true,
-                _ if info.retracted.contains(&r) => return false,
-                _ => at = *outer,
-            }
-        }
-        false
-    }
-
-    /// Reference `tree`, cast to `ref.type & T` if it is known not to be null and of type
-    /// `T | Null` (dotty's `toNotNullTermRef`); the cast of a selection keeps its span.
-    pub fn to_not_null_ref(&mut self, tree: TNodeId, select: bool, ctx: Ctx) -> TNodeId {
-        let r = self.tpd.tpe(tree);
-        let Some(sym) = self.term_ref_sym(r) else { return tree };
-        if !self.implies_not_null(ctx, r) || self.used_out_of_order(sym, ctx) {
-            return tree;
-        }
-        let stripped = self.strip_null(r);
-        if stripped == r {
-            return tree;
-        }
-        let to = self.u.intern_type(Type::And(r, stripped));
-        let span = self.tpd.span(tree);
-        let cast_span = if select { span } else { span.to_synthetic() };
-        match self.cast_to(tree, to, cast_span) {
-            Ok(t) => {
-                if let T::TypeApply { fun, args } = *self.tpd.tree(t) {
-                    let tpt = self.tpd.items(args)[0];
-                    self.tpd.get_mut(tpt).span = span.end_pos();
-                    self.tpd.get_mut(fun).span = span.to_synthetic();
-                }
-                t
-            }
-            Err(what) => self.unsupported_tree(span, what),
         }
     }
 }

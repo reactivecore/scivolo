@@ -83,7 +83,7 @@ impl Typer<'_> {
         let expr = self.typed(expr, pt, ctx);
         let mut all = vec![expr];
         let expr_info = self.not_null_info(expr).retracted_info();
-        let cases_ctx = self.with_not_null(ctx, expr_info);
+        let cases_ctx = self.nullables.with_not_null(ctx, expr_info);
         all.extend(cases.iter().map(|&c| self.typed_case(c, throwable, pt, cases_ctx)));
         let all = match self.harmonic(all, pt, Some(before), ctx) {
             Ok(h) => h,

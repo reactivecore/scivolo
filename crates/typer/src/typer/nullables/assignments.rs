@@ -3,7 +3,7 @@
 //! The local variables flow typing tracks and the spans of their assignments (dotty's
 //! `assignmentSpans`).
 
-use super::super::Typer;
+use super::{Flow, Nullables};
 use rustc_hash::FxHashMap;
 use syntax::ast::flags as f;
 use syntax::ast::{Ast, Attrs, NodeId, Span, Tree};
@@ -88,16 +88,17 @@ impl Populate {
     }
 }
 
-impl Typer<'_> {
-    /// The spans of the assignments to local variable `sym` if flow typing tracks it: it is
-    /// assigned only where its block reaches through conditionals, loops, matches and `try`s.
-    pub fn assignment_spans(&mut self, sym: SymbolId) -> Option<&[Span]> {
-        if self.nullables.assignments.is_none() {
+impl Nullables {
+    /// Finds the spans of the assignments to local variable `sym` if flow typing tracks it: it is
+    /// assigned only where its block reaches through conditionals, loops, matches and `try`s, not
+    /// in a closure or a local method.
+    pub fn assignment_spans(&mut self, f: &Flow, sym: SymbolId) -> Option<&[Span]> {
+        if self.assignments.is_none() {
             let mut p = Populate::default();
-            p.traverse(self.ast, self.unit);
-            self.nullables.assignments = Some(p.tracked);
+            p.traverse(f.ast, f.unit);
+            self.assignments = Some(p.tracked);
         }
-        let def = self.syms.def_trees.get(&sym)?;
-        self.nullables.assignments.as_ref()?.get(def).map(Vec::as_slice)
+        let def = f.def_trees.get(&sym)?;
+        self.assignments.as_ref()?.get(def).map(Vec::as_slice)
     }
 }

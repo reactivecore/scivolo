@@ -171,7 +171,7 @@ impl Typer<'_> {
             }
             let by_name =
                 params.get(i).is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
-            let arg_ctx = if by_name { self.retract_mutables(ctx) } else { ctx };
+            let arg_ctx = if by_name { self.nullables.retract_mutables(self.u, ctx) } else { ctx };
             let arg = self.arg_against(a, pre, formal, arg_ctx);
             let arg = if by_name { self.by_name_uncaptured(arg) } else { arg };
             typed_args.push(self.by_name_flow_dropped(arg, i, meth));

@@ -9,8 +9,8 @@ use crate::tpd::{TNodeId, Tree as T};
 use tasty::Type;
 
 impl Typer<'_> {
-    /// `tree`, a call or selection of a Java member of type `T | Null` or flexible `T`, cast to
-    /// `T` under explicit nulls without safe nulls; `None` otherwise.
+    /// Casts `tree`, a call or selection of a Java member of type `T | Null` or flexible `T`, to
+    /// `T` under explicit nulls where unsafe nulls are enabled; `None` otherwise.
     pub fn java_null_stripped(&mut self, tree: TNodeId) -> Option<TNodeId> {
         let mode = self.u.null_mode();
         if !mode.explicit || mode.safe || !matches!(self.tpd.tree(tree), T::Apply { .. } | T::Select { .. }) {

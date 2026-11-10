@@ -1,40 +1,31 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/EtaExpansion.scala
-//! Parts of applications lifted into local values, evaluated once and in order (dotty's
-//! `Lifter`, `LiftComplex` if `complex`, else `LiftImpure`).
 
 mod app;
+mod args;
+mod value;
 
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::Span;
-use syntax::ast::flags as f;
-use tasty::{Kind, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
+
+/// Lifts the parts of one application into local values, evaluated once and in order: in
+/// `f().x += 1` the qualifier `f()` becomes a local value whose `x` is read and then set, and a
+/// call with named or default arguments evaluates them in the order written (dotty's `Lifter`:
+/// `LiftComplex` if `complex`, else `LiftImpure`). Its methods
+/// take the typer: deciding purity completes the methods trees refer to, and each lifted value
+/// is a new local symbol.
+pub struct Lifter {
+    /// Whether only pure paths stay in place (`LiftComplex`), not every pure expression.
+    complex: bool,
+    ctx: Ctx,
+    /// The definitions of the lifted values, in evaluation order.
+    defs: Vec<TNodeId>,
+}
 
 impl Typer<'_> {
-    /// Whether `expr` stays in place (dotty's `noLift`).
-    fn no_lift(&mut self, expr: TNodeId, complex: bool) -> bool {
-        if complex { self.is_pure_path(expr) } else { self.is_pure_expr(expr) }
-    }
-
-    /// Whether `t` is a stable type (dotty's `isStable`): a reference to a stable member through a
-    /// stable prefix, a `this`, a package, a constant.
-    fn is_stable_type(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
-            Type::This(_) | Type::Package(_) | Type::Constant(..) | Type::Str(_) => true,
-            Type::Sym(prefix, s) => {
-                let kind = self.u.symbol(s).kind;
-                kind == Kind::Package
-                    || !self.u.is_type_symbol(s)
-                        && self.is_stable_member(s)
-                        && prefix.is_none_or(|p| self.is_stable_type(p))
-            }
-            _ => false,
-        }
-    }
-
-    /// `expr`, or a reference to `val prefix$N = expr` added to `defs` if it needs lifting
+    /// Gives `expr`, or a reference to `val prefix$N = expr` added to `defs` if it needs lifting
     /// (dotty's `lift`); `$N$` for an empty prefix.
     pub fn lift(
         &mut self,
@@ -44,31 +35,71 @@ impl Typer<'_> {
         complex: bool,
         ctx: Ctx,
     ) -> TNodeId {
-        if self.no_lift(expr, complex) {
-            return expr;
-        }
-        let name = match prefix {
-            "" => self.fresh.unique(self.names),
-            p => self.fresh.next(self.names, &format!("{p}$")),
-        };
-        let text = self.text(name).to_owned();
-        let tpe = self.tpd.tpe(expr);
-        let tpe = if self.is_stable_type(tpe) { tpe } else { self.u.widen(tpe) };
-        let sym = self.syms.define(self.u, &text, Kind::Val, ctx.owner, f::SYNTHETIC);
-        self.defined_unique(name, sym, self.tpd.span(expr));
-        self.u.set_info(sym, tpe);
-        self.syms.closure_syms.push(sym);
-        self.change_owners(expr, ctx.owner, sym);
-        let span = self.tpd.span(expr);
-        let tpt = self.type_tree(tpe, span.start_pos(), true);
-        defs.push(self.build().val_def(sym, tpt, Some(expr), span));
-        let reference = self.u.intern_type(Type::Sym(None, sym));
-        self.build().ident(sym, reference, Span::at(span.point()))
+        let mut lifter = Lifter { complex, ctx, defs: Vec::new() };
+        let lifted = lifter.lift(self, expr, prefix);
+        defs.append(&mut lifter.defs);
+        lifted
     }
 
-    /// Makes `to` the owner of the definitions in `tree` that `from` owns (dotty's
-    /// `changeNonLocalOwners`).
-    pub fn change_owners(&mut self, tree: TNodeId, from: tasty::SymbolId, to: tasty::SymbolId) {
+    /// Gives `args`, of parameters `params`, each lifted unless it needs not or its parameter is
+    /// by-name or inline, named after its parameter unless the name has a `$` (dotty's
+    /// `liftArgs`); the definitions added to `defs` with their argument's index.
+    pub fn lift_args(
+        &mut self,
+        defs: &mut Vec<(usize, TNodeId)>,
+        params: &[(String, TypeId)],
+        args: &[TNodeId],
+        complex: bool,
+        ctx: Ctx,
+    ) -> Vec<TNodeId> {
+        let mut lifter = Lifter { complex, ctx, defs: Vec::new() };
+        let mut out = Vec::new();
+        for (i, (&arg, param)) in args.iter().zip(params).enumerate() {
+            out.push(lifter.arg(self, arg, param));
+            defs.extend(lifter.defs.drain(..).map(|d| (i, d)));
+        }
+        out
+    }
+
+    /// Gives call `f` with its prefix and arguments lifted as far as evaluating them once and in
+    /// order needs, the definitions added to `defs` (dotty's `liftApp`); `Err` for a function tree
+    /// it does not lift.
+    pub fn lift_app(
+        &mut self,
+        defs: &mut Vec<TNodeId>,
+        f: TNodeId,
+        complex: bool,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
+        let mut lifter = Lifter { complex, ctx, defs: Vec::new() };
+        let lifted = lifter.app(self, f);
+        defs.append(&mut lifter.defs);
+        lifted
+    }
+
+    /// Finds the `n` formal parameter types of lifted call `f`, by-name and repeated parameters as
+    /// their underlying and element types, if its method type has as many parameters (dotty's
+    /// `methType` from `liftedFunType`).
+    pub fn lifted_formals(&mut self, f: TNodeId, n: usize) -> Option<Vec<TypeId>> {
+        let tpe = self.tpd.tpe(f);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
+        let last = params.len().checked_sub(1)?;
+        let formals: Vec<TypeId> = (params.iter().enumerate())
+            .map(|(i, &(_, p))| {
+                let p = if i == last { self.repeated_param_elem(p).unwrap_or(p) } else { p };
+                match *self.u.types().get(p) {
+                    Type::ByName(r) => r,
+                    _ => p,
+                }
+            })
+            .collect();
+        (formals.len() == n).then_some(formals)
+    }
+
+    /// Makes `to` the owner of the definitions in `tree` that `from` owns, as for an expression
+    /// moved into the right-hand side of a new value (dotty's `changeNonLocalOwners`).
+    pub fn change_owners(&mut self, tree: TNodeId, from: SymbolId, to: SymbolId) {
         let mut todo = vec![tree];
         while let Some(t) = todo.pop() {
             let definition = matches!(
@@ -82,77 +113,6 @@ impl Typer<'_> {
                 self.u.set_owner(s, to);
             }
             todo.extend(self.tpd.children(t));
-        }
-    }
-
-    /// `args`, of parameters `params`, each lifted unless it needs not or its parameter is by-name,
-    /// named after its parameter unless the name has a `$` (dotty's `liftArgs`); the definitions
-    /// added to `defs` by argument index.
-    pub fn lift_args(
-        &mut self,
-        defs: &mut Vec<(usize, TNodeId)>,
-        params: &[(String, TypeId)],
-        args: &[TNodeId],
-        complex: bool,
-        ctx: Ctx,
-    ) -> Vec<TNodeId> {
-        let mut out = Vec::new();
-        for (i, (&arg, (name, p))) in args.iter().zip(params).enumerate() {
-            if matches!(self.u.types().get(*p), Type::ByName(_)) || self.is_inline_param_type(*p) {
-                out.push(arg);
-                continue;
-            }
-            let prefix = if name.contains('$') { String::new() } else { name.clone() };
-            let mut own = Vec::new();
-            let node = self.tpd.tree(arg).clone();
-            let lifted = match node {
-                T::NamedArg { name, arg: inner } => {
-                    let lifted = self.lift(&mut own, inner, &prefix, complex, ctx);
-                    let (span, tpe) = (self.tpd.span(arg), self.tpd.get(arg).tpe);
-                    if lifted == inner {
-                        arg
-                    } else {
-                        self.tpd.node(T::NamedArg { name, arg: lifted }, span, tpe, None)
-                    }
-                }
-                T::Typed { expr, tpt }
-                    if self.tpd.get(arg).tpe.is_some_and(|t| self.repeated_elem(t).is_some()) =>
-                {
-                    self.type_seq_literal(expr);
-                    let lifted = self.lift(&mut own, expr, &prefix, complex, ctx);
-                    let (span, tpe) = (self.tpd.span(arg), self.tpd.get(arg).tpe);
-                    if lifted == expr {
-                        arg
-                    } else {
-                        self.tpd.node(T::Typed { expr: lifted, tpt }, span, tpe, None)
-                    }
-                }
-                _ => self.lift(&mut own, arg, &prefix, complex, ctx),
-            };
-            defs.extend(own.into_iter().map(|d| (i, d)));
-            out.push(lifted);
-        }
-        out
-    }
-
-    /// Whether parameter type `p` is annotated `@InlineParam`.
-    pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
-        let Type::Annotated(_, annot) = *self.u.types().get(p) else { return false };
-        self.u
-            .class_symbol(annot)
-            .is_some_and(|c| self.u.full_name(c) == "scala.annotation.internal.InlineParam")
-    }
-
-    /// The result type of method reference `f`.
-    pub fn result_of(&mut self, f: TNodeId) -> Option<TypeId> {
-        let tpe = self.tpd.tpe(f);
-        let info = match self.u.types().get(tpe) {
-            Type::Method { .. } => tpe,
-            _ => self.method_info(tpe)?,
-        };
-        match *self.u.types().get(info) {
-            Type::Method { result, .. } => Some(result),
-            _ => None,
         }
     }
 }
