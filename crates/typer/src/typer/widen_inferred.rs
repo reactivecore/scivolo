@@ -4,6 +4,7 @@
 //! singleton-bounded, soft unions joined or hard unions hardened, module classes as their objects.
 
 use super::Typer;
+use super::type_ops::TypeOps;
 use tasty::{Kind, Type, TypeId, TypeVars};
 
 /// The widenings `widen_inferred` applies (dotty's `Widen`): of singletons only, unions hardened,
@@ -40,10 +41,11 @@ impl Typer<'_> {
                     single
                 }
             }
-            Widen::Singletons => self.harden_unions(single),
+            Widen::Singletons => self.types().harden_unions(single),
         };
         let wide = self.without_transparent_traits(wide, bound);
-        let wide = match (self.module_ref(wide), self.u.types().get(inst).clone()) {
+        let module = self.types().module_ref(wide);
+        let wide = match (module, self.u.types().get(inst).clone()) {
             (m, Type::Sym(Some(p), s))
                 if matches!(*self.u.types().get(m), Type::Sym(_, n) if n == s)
                     && self.in_package_object(p) =>
@@ -85,7 +87,7 @@ impl Typer<'_> {
                 if (wa, wb) == (a, b) { t } else { self.u.glb(wa, wb) }
             }
             _ if self.is_singleton(d) => {
-                let widened = self.widened(d);
+                let widened = self.types().widened(d);
                 if self.is_singleton_bounded(widened) { t } else { widened }
             }
             _ => t,
@@ -139,7 +141,9 @@ impl Typer<'_> {
         let Type::This(c) = *self.u.types().get(prefix) else { return false };
         self.u.class_symbol(c).is_some_and(|c| self.is_named_package_object(c))
     }
+}
 
+impl TypeOps<'_> {
     /// The object whose module class `t` is, as a reference, or `t`.
     pub fn module_ref(&mut self, t: TypeId) -> TypeId {
         let Type::Sym(prefix, c) = *self.u.types().get(t) else { return t };

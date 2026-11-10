@@ -104,7 +104,7 @@ impl Typer<'_> {
     pub fn refines_invariantly(&mut self, pat: TypeId, sel: TypeId) -> bool {
         let sel = self.dealiased(sel);
         if let Type::Or(a, b, _) = *self.u.types().get(sel) {
-            return match (self.is_null_type(a), self.is_null_type(b)) {
+            return match (self.types().is_null_type(a), self.types().is_null_type(b)) {
                 (true, _) => self.refines_invariantly(pat, b),
                 (_, true) => self.refines_invariantly(pat, a),
                 _ => self.refines_invariantly(pat, a) && self.refines_invariantly(pat, b),

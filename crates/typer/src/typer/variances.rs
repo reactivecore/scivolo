@@ -3,11 +3,11 @@
 //! Where type variables occur in a type: covariantly, contravariantly or both (dotty's
 //! `variances`).
 
-use super::Typer;
+use super::type_ops::TypeOps;
 use rustc_hash::FxHashMap;
 use tasty::{Type, TypeId, TypeVars, VarId};
 
-impl Typer<'_> {
+impl TypeOps<'_> {
     /// The variance of each type variable of id `from` or later occurring in `t` or in the final
     /// result type of `pt`, or in the bounds of such a variable: 1 covariant, -1 contravariant,
     /// 0 both or invariant.
@@ -81,6 +81,30 @@ impl Typer<'_> {
             }
         });
         vars
+    }
+
+    /// Whether `p` holds for an operand of the top-level unions (`or`) or intersections of `t`.
+    pub fn any_factor(&self, t: TypeId, or: bool, p: &mut impl FnMut(TypeId) -> bool) -> bool {
+        match *self.u.types().get(t) {
+            Type::Or(a, b, _) if or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
+            Type::And(a, b) if !or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
+            _ => p(t),
+        }
+    }
+
+    /// Calls `f` on each operand of the top-level unions (`or`) or intersections of `t`.
+    pub fn for_each_factor(&self, t: TypeId, or: bool, f: &mut impl FnMut(TypeId)) {
+        match *self.u.types().get(t) {
+            Type::Or(a, b, _) if or => {
+                self.for_each_factor(a, or, f);
+                self.for_each_factor(b, or, f);
+            }
+            Type::And(a, b) if !or => {
+                self.for_each_factor(a, or, f);
+                self.for_each_factor(b, or, f);
+            }
+            _ => f(t),
+        }
     }
 
     /// The variance of each type variable occurring in `t`, as `variances` without bounds and

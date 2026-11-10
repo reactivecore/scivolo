@@ -3,10 +3,10 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! References to local symbols escaping their scope (dotty's `escapingRefs`).
 
-use super::Typer;
+use super::type_ops::TypeOps;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
-impl Typer<'_> {
+impl TypeOps<'_> {
     /// Whether type `t` refers to one of `locals` as dotty's `namedPartsWith` finds them: the
     /// prefix of a static member not traversed, the class of a class constant traversed.
     pub fn escapes(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {

@@ -4,15 +4,18 @@
 
 use super::Typer;
 use super::seen_from::member_of;
+use super::type_ops::TypeOps;
 use tasty::{Type, TypeId};
 
-impl Typer<'_> {
+impl TypeOps<'_> {
     /// `t` without `@uncheckedVariance` annotations, its unions and intersections the lubs and
     /// glbs of their parts (dotty's `TypeOps.simplify` of a term's type).
     pub fn simplified(&mut self, t: TypeId) -> TypeId {
         simplify(self.u, t, false)
     }
+}
 
+impl Typer<'_> {
     /// `simplified`, match types reduced and compile-time operations folded too; a reduction
     /// that reaches its own type again is outside the subset.
     pub fn simplified_inferred(&mut self, t: TypeId) -> TypeId {

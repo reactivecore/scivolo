@@ -5,10 +5,10 @@
 //! of `bindTypeSymbols`): by their upper bound where they occur covariantly, their lower bound
 //! contravariantly, a wildcard of both as an invariant argument.
 
-use super::Typer;
+use super::type_ops::TypeOps;
 use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId};
 
-impl Typer<'_> {
+impl TypeOps<'_> {
     /// `t` at variance `variance` without references to `captures`.
     pub fn avoid_captures(&mut self, t: TypeId, captures: &[SymbolId], variance: i8) -> TypeId {
         if !self.refers_to(t, captures) {

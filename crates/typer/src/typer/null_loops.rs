@@ -66,7 +66,7 @@ impl Typer<'_> {
         self.var_not_null_casts(arg, Some(formal), &mut casts);
         for &(cast, qualifier, expected) in &casts {
             let q = self.tpd.tpe(qualifier);
-            if !expected.is_some_and(|e| self.conforms_unlifted(q, e)) {
+            if !expected.is_some_and(|e| self.types().conforms_unlifted(q, e)) {
                 let what = "flow typing of a variable in a by-name argument";
                 return self.unsupported_tree(self.tpd.span(cast), what);
             }

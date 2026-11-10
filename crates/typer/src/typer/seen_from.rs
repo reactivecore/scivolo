@@ -2,6 +2,7 @@
 //! prefix's base type, applied type lambdas reduced, capture annotations dropped.
 
 use super::Typer;
+use super::type_ops::TypeOps;
 use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -63,7 +64,9 @@ impl Typer<'_> {
         }
         p
     }
+}
 
+impl TypeOps<'_> {
     pub fn resolve_class_params(&mut self, t: TypeId) -> TypeId {
         resolve_class_params(self.u, t)
     }

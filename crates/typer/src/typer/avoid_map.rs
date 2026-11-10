@@ -108,7 +108,7 @@ impl Typer<'_> {
             k if k.is_term() => {
                 let info = self.u.dealias(info);
                 let hi = self.avoid_at(info, v, a)?;
-                if self.is_path(info) {
+                if self.types().is_path(info) {
                     return Some(hi);
                 }
                 Some(approx::range(self.u, Approx::Exact(NOTHING), hi, v))

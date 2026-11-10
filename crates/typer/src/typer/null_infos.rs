@@ -94,7 +94,7 @@ impl Typer<'_> {
         let info = self.not_null_info(rhs);
         let Some(r) = self.tracked(lhs).filter(|&r| self.strip_null(r) != r) else { return info };
         let rhs = self.tpd.tpe(rhs);
-        let nullable = self.is_null_type(rhs) || self.strip_null(rhs) != rhs;
+        let nullable = self.types().is_null_type(rhs) || self.strip_null(rhs) != rhs;
         info.seq(if nullable { NotNullInfo::retracting(vec![r]) } else { NotNullInfo::of(vec![r]) })
     }
 

@@ -6,6 +6,7 @@
 use super::Typer;
 use super::approx::{self, Approx};
 use super::avoid::Avoided;
+use super::type_ops::TypeOps;
 use tasty::{Kind, NOTHING, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -24,7 +25,7 @@ impl Typer<'_> {
         if p == Approx::Exact(pre) {
             return Some(Approx::Exact(t));
         }
-        let singleton = matches!(p, Approx::Exact(q) if self.is_path(q));
+        let singleton = matches!(p, Approx::Exact(q) if self.types().is_path(q));
         if !singleton && let Some(r) = self.try_widen(t, pre, s, v, a) {
             return r;
         }
@@ -109,12 +110,14 @@ impl Typer<'_> {
                     Type::ByName(r) => r,
                     _ => info,
                 };
-                self.is_path(info).then(|| self.avoid_at(info, v, a))
+                self.types().is_path(info).then(|| self.avoid_at(info, v, a))
             }
             _ => None,
         }
     }
+}
 
+impl TypeOps<'_> {
     /// Whether `t` is a singleton type: a path, `this`, a constant or a skolem.
     pub fn is_path(&mut self, t: TypeId) -> bool {
         match *self.u.types().get(t) {

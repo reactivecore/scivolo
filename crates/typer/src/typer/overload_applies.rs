@@ -84,7 +84,7 @@ impl Typer<'_> {
                     || alt_param(u, part).is_some();
                 None
             });
-            if mentions || !self.conforms_unlifted(p, a) {
+            if mentions || !self.types().conforms_unlifted(p, a) {
                 return false;
             }
         }

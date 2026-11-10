@@ -46,7 +46,7 @@ impl Typer<'_> {
                     Some(&r) => r,
                     None => self.u.info(sym),
                 };
-                let shown = self.show_type(result);
+                let shown = self.types().show_type(result);
                 let msg = match problem {
                     Problem::NoCompanion(tc) => {
                         format!("{shown} cannot be derived since {tc} has no companion object")

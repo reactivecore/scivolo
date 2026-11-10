@@ -47,7 +47,7 @@ impl Typer<'_> {
             return None;
         }
         let Some(tc_type) = self.underlying_class_ref(original, 16) else {
-            let shown = self.show_type(original);
+            let shown = self.types().show_type(original);
             self.error(d, format!("{shown} is not a class type"));
             return None;
         };
@@ -151,7 +151,7 @@ impl Typer<'_> {
                 format!("{}.{}", self.ref_text(p), self.u.symbol(s).name)
             }
             Type::Sym(_, s) => self.u.symbol(s).name.clone(),
-            _ => self.show_type(t),
+            _ => self.types().show_type(t),
         }
     }
 

@@ -4,6 +4,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Types without references to local symbols (dotty's `ensureNoLocalRefs`, `TypeOps.avoid`).
 
+use super::type_ops::TypeOps;
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{SymbolId, Type, TypeId};
@@ -34,7 +35,7 @@ impl<'a> Avoided<'a> {
     }
 }
 
-impl Typer<'_> {
+impl TypeOps<'_> {
     /// Whether type `t` refers to one of `syms`.
     pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
         let mut found = false;
@@ -49,7 +50,9 @@ impl Typer<'_> {
         });
         found || classes.into_iter().any(|c| self.refers_to(c, syms))
     }
+}
 
+impl Typer<'_> {
     /// `{ defs; tree }`, or `tree` if there are no definitions (dotty's `wrapDefs`), its type
     /// avoiding the definitions (dotty's `avoidingType`); outside the subset if it still refers
     /// to them or is not a supertype of the original.
@@ -89,7 +92,7 @@ impl Typer<'_> {
     ) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(expr);
         let tpe = self.zonk(tpe);
-        if !self.escapes(tpe, locals) && !self.var_bounds_refer_to(tpe, locals) {
+        if !self.types().escapes(tpe, locals) && !self.types().var_bounds_refer_to(tpe, locals) {
             return Some(expr);
         }
         let avoided = self.avoid_at(tpe, 1, Avoided::new(locals, opaque))?.hi();
@@ -103,7 +106,7 @@ impl Typer<'_> {
         }
         let checked = self.without_rec_refinements(avoided);
         if self.refers_to(avoided, locals)
-            || self.var_bounds_refer_to(avoided, locals)
+            || self.types().var_bounds_refer_to(avoided, locals)
             || !self.u.is_subtype(tpe, checked)
         {
             return None;

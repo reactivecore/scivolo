@@ -124,7 +124,7 @@ impl Typer<'_> {
             return None;
         }
         let tpe = self.tpd.tpe(qual);
-        let widened = self.widen_dealias(tpe);
+        let widened = self.types().widen_dealias(tpe);
         let (names, values) = self.derived_named_tuple_parts(widened)?;
         let i = names.iter().position(|n| n == self.text(name.name))?;
         if names.iter().any(|n| n == "apply") {

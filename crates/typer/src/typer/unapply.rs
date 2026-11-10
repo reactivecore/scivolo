@@ -168,7 +168,7 @@ impl Typer<'_> {
             let flags = self.u.symbol(c).flags;
             !flags.has(tasty::tags::FINAL) && !flags.has(tasty::tags::CASE)
         });
-        let variances = self.variances(arg_type, None, vars);
+        let variances = self.types().variances(arg_type, None, vars);
         let unconstrained = open && !variances.is_empty();
         if unconstrained && variances.values().any(|&v| v == 0) {
             return Err("invariant type arguments of a pattern of an open class");

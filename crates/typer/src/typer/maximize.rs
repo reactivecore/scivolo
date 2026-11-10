@@ -26,7 +26,7 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<Vec<SymbolId>, &'static str> {
         let t = self.zonk(t);
-        let variances = self.variances(t, None, vars);
+        let variances = self.types().variances(t, None, vars);
         let names = self.type_var_names(unapp);
         let gadt_bounds = self.gadt_var_bounds(gadt);
         let mut bound = Vec::new();

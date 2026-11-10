@@ -3,6 +3,7 @@
 //! Instantiating the type variables a typed tree determines (dotty's `interpolateTypeVars` and
 //! `instantiateTypeVars`).
 
+use super::type_ops::TypeOps;
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
@@ -38,7 +39,7 @@ impl Typer<'_> {
         {
             self.constrain_result(tree, unwidened, p);
         }
-        let variances = self.variances(tpe, pt, from);
+        let variances = self.types().variances(tpe, pt, from);
         let mut pending = Vec::new();
         for i in from..self.constraint.count() {
             let v = VarId(i as u32);
@@ -52,7 +53,7 @@ impl Typer<'_> {
             };
             pending.push((v, variance));
         }
-        let pending = self.filter_by_deps(pending);
+        let pending = self.types().filter_by_deps(pending);
         let pending = pending
             .into_iter()
             .map(|(v, x)| (v, x == 1 || x == 0 && self.constraint.bounds(v).0 != NOTHING))
@@ -60,6 +61,57 @@ impl Typer<'_> {
         self.instantiate_in_order(pending)
     }
 
+    /// Instantiates `vars` from below or above as given, each after the others among its bound's
+    /// or-factors (from below) or and-factors (from above) (dotty's `doInstantiate`).
+    fn instantiate_in_order(&mut self, mut vars: Vec<(VarId, bool)>) -> Result<(), &'static str> {
+        while !vars.is_empty() {
+            let mut suspended = Vec::new();
+            for i in 0..vars.len() {
+                let (v, from_below) = vars[i];
+                if !self.constraint.is_pending(v) {
+                    continue;
+                }
+                let ty = self.types();
+                let waits = vars[i + 1..]
+                    .iter()
+                    .any(|&(w, _)| if from_below { ty.is_less(w, v) } else { ty.is_less(v, w) });
+                if waits {
+                    suspended.push((v, from_below));
+                } else {
+                    self.instantiate_var(v, from_below)?;
+                }
+            }
+            if suspended.len() == vars.len() {
+                for (v, from_below) in suspended {
+                    self.instantiate_var(v, from_below)?;
+                }
+                return Ok(());
+            }
+            vars = suspended;
+        }
+        Ok(())
+    }
+
+    /// Constrains `tree`'s type `tpe` to conform to `pt`, keeping the constraint only if it does
+    /// (dotty's `constrainResult`).
+    fn constrain_result(&mut self, tree: TNodeId, tpe: TypeId, pt: TypeId) {
+        let unit = crate::defn::type_ref(self.u, self.defn.unit);
+        if self.u.widen(pt) == unit || matches!(self.u.types().get(pt), Type::Error) {
+            return;
+        }
+        let pt = self.result_pt(self.tpd.get(tree).sym, pt);
+        let tpe = match *self.u.types().get(tpe) {
+            Type::ByName(r) => r,
+            _ => tpe,
+        };
+        let mark = self.constraint.mark();
+        if !self.conforms(tpe, pt) {
+            self.constraint.rollback(mark);
+        }
+    }
+}
+
+impl TypeOps<'_> {
     /// `vars` without the ones whose instantiation would narrow the bounds of a variable not
     /// among them, a non-occurring one directed away from such a variable (dotty's
     /// `filterByDeps`).
@@ -119,83 +171,11 @@ impl Typer<'_> {
             })
     }
 
-    /// Instantiates `vars` from below or above as given, each after the others among its bound's
-    /// or-factors (from below) or and-factors (from above) (dotty's `doInstantiate`).
-    fn instantiate_in_order(&mut self, mut vars: Vec<(VarId, bool)>) -> Result<(), &'static str> {
-        while !vars.is_empty() {
-            let mut suspended = Vec::new();
-            for i in 0..vars.len() {
-                let (v, from_below) = vars[i];
-                if !self.constraint.is_pending(v) {
-                    continue;
-                }
-                let waits = vars[i + 1..]
-                    .iter()
-                    .any(|&(w, _)| if from_below { self.is_less(w, v) } else { self.is_less(v, w) });
-                if waits {
-                    suspended.push((v, from_below));
-                } else {
-                    self.instantiate_var(v, from_below)?;
-                }
-            }
-            if suspended.len() == vars.len() {
-                for (v, from_below) in suspended {
-                    self.instantiate_var(v, from_below)?;
-                }
-                return Ok(());
-            }
-            vars = suspended;
-        }
-        Ok(())
-    }
-
     /// Whether uninstantiated variable `a` is bounded by `b` directly: `b` an intersection operand
     /// of `a`'s upper bound, or `a` a union operand of `b`'s lower bound (dotty's `isLess`).
     pub fn is_less(&self, a: VarId, b: VarId) -> bool {
         let (hi, lo) = (self.constraint.bounds(a).1, self.constraint.bounds(b).0);
         self.any_factor(hi, false, &mut |f| *self.u.types().get(f) == Type::Var(b))
             || self.any_factor(lo, true, &mut |f| *self.u.types().get(f) == Type::Var(a))
-    }
-
-    /// Whether `p` holds for an operand of the top-level unions (`or`) or intersections of `t`.
-    pub fn any_factor(&self, t: TypeId, or: bool, p: &mut impl FnMut(TypeId) -> bool) -> bool {
-        match *self.u.types().get(t) {
-            Type::Or(a, b, _) if or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
-            Type::And(a, b) if !or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
-            _ => p(t),
-        }
-    }
-
-    /// Calls `f` on each operand of the top-level unions (`or`) or intersections of `t`.
-    pub fn for_each_factor(&self, t: TypeId, or: bool, f: &mut impl FnMut(TypeId)) {
-        match *self.u.types().get(t) {
-            Type::Or(a, b, _) if or => {
-                self.for_each_factor(a, or, f);
-                self.for_each_factor(b, or, f);
-            }
-            Type::And(a, b) if !or => {
-                self.for_each_factor(a, or, f);
-                self.for_each_factor(b, or, f);
-            }
-            _ => f(t),
-        }
-    }
-
-    /// Constrains `tree`'s type `tpe` to conform to `pt`, keeping the constraint only if it does
-    /// (dotty's `constrainResult`).
-    fn constrain_result(&mut self, tree: TNodeId, tpe: TypeId, pt: TypeId) {
-        let unit = crate::defn::type_ref(self.u, self.defn.unit);
-        if self.u.widen(pt) == unit || matches!(self.u.types().get(pt), Type::Error) {
-            return;
-        }
-        let pt = self.result_pt(self.tpd.get(tree).sym, pt);
-        let tpe = match *self.u.types().get(tpe) {
-            Type::ByName(r) => r,
-            _ => tpe,
-        };
-        let mark = self.constraint.mark();
-        if !self.conforms(tpe, pt) {
-            self.constraint.rollback(mark);
-        }
     }
 }
