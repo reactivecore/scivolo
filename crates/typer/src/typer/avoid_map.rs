@@ -4,184 +4,184 @@
 
 use super::Typer;
 use super::approx::{self, Approx};
-use super::avoid::Avoided;
+use super::avoid::Avoid;
 use tasty::{Kind, NOTHING, SymbolId, Type, TypeId, TypeVars};
 
-impl Typer<'_> {
-    /// `t` approximated at variance `v` by types without references to `a.locals`; `None` if an
-    /// opaque symbol or a local class whose bound is out of the subset is reached.
-    pub fn avoid_at(&mut self, t: TypeId, v: i8, a: Avoided) -> Option<Approx> {
-        let exact = |t| Some(Approx::Exact(t));
-        let m = |this: &mut Self, t, v| this.avoid_at(t, v, a);
-        match self.u.types().get(t).clone() {
-            Type::Sym(_, s) if a.own == Some(s) => Some(approx::empty(self.u, v)),
-            Type::Sym(_, s) if a.opaque.contains(&s) => None,
-            Type::Sym(_, s) if a.locals.contains(&s) => self.avoid_local(s, v, a),
-            Type::Sym(Some(pre), s) if !self.u.is_static_symbol(s) => {
-                let Some(p) = m(self, pre, v.max(0)) else {
-                    return self.avoid_select_on_failed(t, pre, s, v, a);
+impl Avoid<'_> {
+    /// Approximates `tpe` at variance `v` by types without references to `self.locals`; `None`
+    /// if an opaque symbol or a local class whose bound is out of the subset is reached.
+    pub fn at(self, t: &mut Typer, tpe: TypeId, v: i8) -> Option<Approx> {
+        let exact = |x| Some(Approx::Exact(x));
+        let m = |t: &mut Typer, x, v| self.at(t, x, v);
+        match t.u.types().get(tpe).clone() {
+            Type::Sym(_, s) if self.own == Some(s) => Some(approx::empty(t.u, v)),
+            Type::Sym(_, s) if self.opaque.contains(&s) => None,
+            Type::Sym(_, s) if self.locals.contains(&s) => self.local(t, s, v),
+            Type::Sym(Some(pre), s) if !t.u.is_static_symbol(s) => {
+                let Some(p) = m(t, pre, v.max(0)) else {
+                    return self.select_on_failed(t, tpe, pre, s, v);
                 };
-                self.avoid_select(t, pre, p, s, v, a)
+                self.select(t, tpe, pre, p, s, v)
             }
-            Type::This(_) | Type::Sym(..) => exact(t),
+            Type::This(_) | Type::Sym(..) => exact(tpe),
             Type::Applied(tycon, _)
-                if self.u.referenced(tycon).is_some_and(|s| a.locals.contains(&s))
-                    && self.u.dealias(t) != t =>
+                if t.u.referenced(tycon).is_some_and(|s| self.locals.contains(&s))
+                    && t.u.dealias(tpe) != tpe =>
             {
-                let dealiased = self.u.dealias(t);
-                m(self, dealiased, v)
+                let dealiased = t.u.dealias(tpe);
+                m(t, dealiased, v)
             }
             Type::Applied(tycon, args) => {
-                let c = m(self, tycon, v)?;
-                let variances = self.u.tycon_variances(tycon, args.len());
+                let c = m(t, tycon, v)?;
+                let variances = t.u.tycon_variances(tycon, args.len());
                 let mut mapped = Vec::with_capacity(args.len());
                 for (&arg, &pv) in args.iter().zip(&variances) {
-                    let wildcard = matches!(self.u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));
-                    mapped.push(m(self, arg, if wildcard { v } else { v * pv })?);
+                    let wildcard = matches!(t.u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));
+                    mapped.push(m(t, arg, if wildcard { v } else { v * pv })?);
                 }
-                Some(approx::applied(self.u, c, &mapped, &variances, v))
+                Some(approx::applied(t.u, c, &mapped, &variances, v))
             }
             Type::Alias(x) => {
-                let x = m(self, x, 0)?;
-                Some(approx::alias(self.u, x, v))
+                let x = m(t, x, 0)?;
+                Some(approx::alias(t.u, x, v))
             }
             Type::Bounds(lo, hi) => {
-                let lo = m(self, lo, -v)?;
-                let hi = m(self, hi, v)?;
-                Some(approx::bounds(self.u, lo, hi, v))
+                let lo = m(t, lo, -v)?;
+                let hi = m(t, hi, v)?;
+                Some(approx::bounds(t.u, lo, hi, v))
             }
             Type::Refined(parent, name, info) => {
-                let parent = m(self, parent, v)?;
-                let info = m(self, info, v)?;
-                Some(approx::refined(self.u, parent, &name, info, v))
+                let parent = m(t, parent, v)?;
+                let info = m(t, info, v)?;
+                Some(approx::refined(t.u, parent, &name, info, v))
             }
             Type::And(x, y) | Type::Or(x, y, _) => {
-                let parts = [m(self, x, v)?, m(self, y, v)?];
-                let node = self.u.types().get(t).clone();
-                Some(approx::derived(self.u, &parts, &[], v, &mut |u, p| match node {
+                let parts = [m(t, x, v)?, m(t, y, v)?];
+                let node = t.u.types().get(tpe).clone();
+                Some(approx::derived(t.u, &parts, &[], v, &mut |u, p| match node {
                     Type::Or(_, _, soft) => u.intern_type(Type::Or(p[0], p[1], soft)),
                     _ => u.intern_type(Type::And(p[0], p[1])),
                 }))
             }
-            Type::ByName(x) => self.avoid_unary(t, x, v, a, Type::ByName),
-            Type::Annotated(x, an) => self.avoid_unary(t, x, v, a, |x| Type::Annotated(x, an)),
-            Type::Rec(b, x) => self.avoid_unary(t, x, v, a, |x| Type::Rec(b, x)),
+            Type::ByName(x) => self.unary(t, tpe, x, v, Type::ByName),
+            Type::Annotated(x, an) => self.unary(t, tpe, x, v, |x| Type::Annotated(x, an)),
+            Type::Rec(b, x) => self.unary(t, tpe, x, v, |x| Type::Rec(b, x)),
             Type::Wildcard(Some(b)) => {
-                let b = m(self, b, v)?.to_bounds(self.u);
-                exact(self.u.intern_type(Type::Wildcard(Some(b))))
+                let b = m(t, b, v)?.to_bounds(t.u);
+                exact(t.u.intern_type(Type::Wildcard(Some(b))))
             }
-            Type::Skolem(_, info) => match m(self, info, v)? {
-                Approx::Exact(i) if i == info => exact(t),
-                i => Some(approx::range(self.u, Approx::Exact(NOTHING), i, v)),
+            Type::Skolem(_, info) => match m(t, info, v)? {
+                Approx::Exact(i) if i == info => exact(tpe),
+                i => Some(approx::range(t.u, Approx::Exact(NOTHING), i, v)),
             },
-            Type::Var(var) => self.avoid_var(t, var, v, a),
-            Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. } => self.avoid_lambda(t, v, a),
-            Type::Match { .. } if self.refers_to(t, a.locals) => None,
-            Type::Constant(tasty::tags::CLASSconst, _) if self.refers_to(t, a.locals) => {
-                let class = self.u.widen(t);
-                m(self, class, v)
+            Type::Var(var) => self.var(t, tpe, var, v),
+            Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. } => self.lambda(t, tpe, v),
+            Type::Match { .. } if t.refers_to(tpe, self.locals) => None,
+            Type::Constant(tasty::tags::CLASSconst, _) if t.refers_to(tpe, self.locals) => {
+                let class = t.u.widen(tpe);
+                m(t, class, v)
             }
-            _ => exact(t),
+            _ => exact(tpe),
         }
     }
 
-    /// A reference to local symbol `s` approximated: a term by its widened type, an alias by its
+    /// Approximates a reference to local symbol `s`: a term by its widened type, an alias by its
     /// right-hand side, an abstract type by its bounds, a class by its `class_bound`; `None` if
     /// `s` is reached again while expanding it.
-    fn avoid_local(&mut self, s: SymbolId, v: i8, a: Avoided) -> Option<Approx> {
-        if a.visiting.contains(&s) {
+    fn local(self, t: &mut Typer, s: SymbolId, v: i8) -> Option<Approx> {
+        if self.visiting.contains(&s) {
             return None;
         }
-        let visiting = [a.visiting, &[s]].concat();
-        let a = Avoided { visiting: &visiting, in_var_bound: false, ..a.elsewhere() };
-        let info = self.u.info(s);
-        let info = match *self.u.types().get(info) {
+        let visiting = [self.visiting, &[s]].concat();
+        let a = Avoid { visiting: &visiting, in_var_bound: false, ..self.elsewhere() };
+        let info = t.u.info(s);
+        let info = match *t.u.types().get(info) {
             Type::ByName(r) => r,
             _ => info,
         };
-        match self.u.symbol(s).kind {
+        match t.u.symbol(s).kind {
             Kind::Class => {
-                let bound = self.local_class_bound(s, a.visiting)?;
-                let hi = self.avoid_at(bound, v, a)?;
-                Some(approx::range(self.u, Approx::Exact(NOTHING), hi, v))
+                let bound = a.class_bound(t, s)?;
+                let hi = a.at(t, bound, v)?;
+                Some(approx::range(t.u, Approx::Exact(NOTHING), hi, v))
             }
             k if k.is_term() => {
-                let info = self.u.dealias(info);
-                let hi = self.avoid_at(info, v, a)?;
-                if self.types().is_path(info) {
+                let info = t.u.dealias(info);
+                let hi = a.at(t, info, v)?;
+                if t.types().is_path(info) {
                     return Some(hi);
                 }
-                Some(approx::range(self.u, Approx::Exact(NOTHING), hi, v))
+                Some(approx::range(t.u, Approx::Exact(NOTHING), hi, v))
             }
-            _ => self.avoid_info(info, v, a),
+            _ => a.info(t, info, v),
         }
     }
 
-    /// The approximation of a type whose info is `info`: its alias, or its bounds.
-    pub fn avoid_info(&mut self, info: TypeId, v: i8, a: Avoided) -> Option<Approx> {
-        match *self.u.types().get(info) {
-            Type::Alias(x) => self.avoid_at(x, v, a),
+    /// Approximates a type whose info is `info` by its alias, or its bounds.
+    pub fn info(self, t: &mut Typer, info: TypeId, v: i8) -> Option<Approx> {
+        match *t.u.types().get(info) {
+            Type::Alias(x) => self.at(t, x, v),
             Type::Bounds(lo, hi) => {
-                let lo = self.avoid_at(lo, -v, a)?;
-                let hi = self.avoid_at(hi, v, a)?;
-                Some(approx::range(self.u, lo, hi, v))
+                let lo = self.at(t, lo, -v)?;
+                let hi = self.at(t, hi, v)?;
+                Some(approx::range(t.u, lo, hi, v))
             }
             _ => None,
         }
     }
 
     /// `make(x)` with its single part `x` approximated.
-    fn avoid_unary(
-        &mut self,
-        t: TypeId,
+    fn unary(
+        self,
+        t: &mut Typer,
+        tpe: TypeId,
         x: TypeId,
         v: i8,
-        a: Avoided,
         make: impl Fn(TypeId) -> Type,
     ) -> Option<Approx> {
-        let mapped = self.avoid_at(x, v, a)?;
+        let mapped = self.at(t, x, v)?;
         if mapped == Approx::Exact(x) {
-            return Some(Approx::Exact(t));
+            return Some(Approx::Exact(tpe));
         }
-        Some(approx::derived(self.u, &[mapped], &[], v, &mut |u, p| u.intern_type(make(p[0]))))
+        Some(approx::derived(t.u, &[mapped], &[], v, &mut |u, p| u.intern_type(make(p[0]))))
     }
 
-    /// Uninstantiated type variable `t` replaced by its instance type if avoiding changes that
+    /// Uninstantiated type variable `tpe` replaced by its instance type if avoiding changes that
     /// type (dotty's `avoid` of a `TypeVar`).
-    fn avoid_var(&mut self, t: TypeId, var: tasty::VarId, v: i8, a: Avoided) -> Option<Approx> {
-        if let Some(inst) = self.constraint.instance(var) {
-            return self.avoid_at(inst, v, a);
+    fn var(self, t: &mut Typer, tpe: TypeId, var: tasty::VarId, v: i8) -> Option<Approx> {
+        if let Some(inst) = t.constraint.instance(var) {
+            return self.at(t, inst, v);
         }
-        if a.in_var_bound {
-            return Some(Approx::Exact(t));
+        if self.in_var_bound {
+            return Some(Approx::Exact(tpe));
         }
-        let (lo, hi) = self.constraint.bounds(var);
+        let (lo, hi) = t.constraint.bounds(var);
         let from_below = v > 0 || v == 0 && lo != NOTHING;
-        let bound = match self.instance_type(var, from_below) {
+        let bound = match t.instance_type(var, from_below) {
             Ok(inst) => inst,
-            Err(_) => self.zonk(if from_below { lo } else { hi }),
+            Err(_) => t.zonk(if from_below { lo } else { hi }),
         };
-        let mapped = self.avoid_at(bound, v, Avoided { in_var_bound: true, ..a })?;
-        Some(if mapped == Approx::Exact(bound) { Approx::Exact(t) } else { mapped })
+        let mapped = Avoid { in_var_bound: true, ..self }.at(t, bound, v)?;
+        Some(if mapped == Approx::Exact(bound) { Approx::Exact(tpe) } else { mapped })
     }
 
     /// A method, polymorphic or lambda type with its parameters approximated contravariantly
     /// and its result covariantly (dotty's `derivedLambdaType`).
-    fn avoid_lambda(&mut self, t: TypeId, v: i8, a: Avoided) -> Option<Approx> {
-        let (params, result) = match self.u.types().get(t) {
+    fn lambda(self, t: &mut Typer, tpe: TypeId, v: i8) -> Option<Approx> {
+        let (params, result) = match t.u.types().get(tpe) {
             Type::Method { params, result, .. }
             | Type::Poly { params, result, .. }
             | Type::Lambda { params, result, .. } => (params.clone(), *result),
-            _ => return Some(Approx::Exact(t)),
+            _ => return Some(Approx::Exact(tpe)),
         };
         let mut parts = Vec::with_capacity(params.len() + 1);
         for (_, p) in &params {
-            parts.push(self.avoid_at(*p, -v, a)?);
+            parts.push(self.at(t, *p, -v)?);
         }
-        parts.push(self.avoid_at(result, v, a)?);
+        parts.push(self.at(t, result, v)?);
         let flip: Vec<bool> = (0..parts.len()).map(|i| i < params.len()).collect();
-        let node = self.u.types().get(t).clone();
-        Some(approx::derived(self.u, &parts, &flip, v, &mut |u, p| {
+        let node = t.u.types().get(tpe).clone();
+        Some(approx::derived(t.u, &parts, &flip, v, &mut |u, p| {
             let (ps, r) = p.split_at(params.len());
             let ps = params.iter().zip(ps).map(|((n, _), &t)| (n.clone(), t)).collect();
             u.intern_type(match node.clone() {

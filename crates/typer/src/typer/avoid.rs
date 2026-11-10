@@ -9,13 +9,15 @@ use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{SymbolId, Type, TypeId};
 
-/// The symbols to avoid, those whose bounds are unknown, the local symbols being expanded and
-/// the types whose bounds are: reaching one of the last three fails. A reference to `own`, the
-/// type member whose declared bounds are traversed, gives `Nothing .. Any` (dotty's `LazyRef` of
-/// an F-bound under `isExpandingBounds`). In the bound of a type variable, type variables stay as
-/// they are (dotty's `TypeParamRef`s of a constraint), but not in the info of a local symbol.
+/// One approximation of a type by types without references to local symbols (dotty's
+/// `AvoidMap`): the symbols to avoid, those whose bounds are unknown, the local symbols being
+/// expanded and the types whose bounds are; reaching one of the last three fails. A reference to
+/// `own`, the type member whose declared bounds are traversed, gives `Nothing .. Any` (dotty's
+/// `LazyRef` of an F-bound under `isExpandingBounds`). In the bound of a type variable, type
+/// variables stay as they are (dotty's `TypeParamRef`s of a constraint), but not in the info of
+/// a local symbol. A nested part is approximated by a copy with other fields.
 #[derive(Clone, Copy)]
-pub struct Avoided<'a> {
+pub struct Avoid<'a> {
     pub locals: &'a [SymbolId],
     pub opaque: &'a [SymbolId],
     pub visiting: &'a [SymbolId],
@@ -24,14 +26,15 @@ pub struct Avoided<'a> {
     pub in_var_bound: bool,
 }
 
-impl<'a> Avoided<'a> {
+impl<'a> Avoid<'a> {
+    /// Starts an approximation that avoids `locals` and fails on a reference to `opaque`.
     pub fn new(locals: &'a [SymbolId], opaque: &'a [SymbolId]) -> Self {
-        Avoided { locals, opaque, visiting: &[], expanding: &[], own: None, in_var_bound: false }
+        Avoid { locals, opaque, visiting: &[], expanding: &[], own: None, in_var_bound: false }
     }
 
-    /// `self` for a type that is not part of the bounds of `own`.
+    /// Copies `self` for a type that is not part of the bounds of `own`.
     pub fn elsewhere(self) -> Self {
-        Avoided { own: None, ..self }
+        Avoid { own: None, ..self }
     }
 }
 
@@ -65,7 +68,7 @@ impl Typer<'_> {
         let syms: Vec<SymbolId> = defs.iter().filter_map(|&d| self.tpd.sym(d)).collect();
         let original = self.tpd.get(tree).tpe;
         let tpe = original.map(|t| {
-            let avoided = self.avoid_at(t, 1, Avoided::new(&syms, &[]));
+            let avoided = Avoid::new(&syms, &[]).at(self, t, 1);
             match avoided {
                 Some(a) if self.refers_to(t, &syms) => self.normalized(a.hi()),
                 _ => t,
@@ -95,7 +98,7 @@ impl Typer<'_> {
         if !self.types().escapes(tpe, locals) && !self.types().var_bounds_refer_to(tpe, locals) {
             return Some(expr);
         }
-        let avoided = self.avoid_at(tpe, 1, Avoided::new(locals, opaque))?.hi();
+        let avoided = Avoid::new(locals, opaque).at(self, tpe, 1)?.hi();
         let mut avoided = self.normalized(avoided);
         if let Pt::Type(p) = pt
             && let p = self.zonk(p)

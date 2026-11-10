@@ -5,112 +5,112 @@
 
 use super::Typer;
 use super::approx::{self, Approx};
-use super::avoid::Avoided;
+use super::avoid::Avoid;
 use super::type_ops::TypeOps;
 use tasty::{Kind, NOTHING, SymbolId, Type, TypeId};
 
-impl Typer<'_> {
-    /// `pre.s` with prefix `pre` approximated as `p`: the member's alias, bounds or singleton
-    /// type when it has one, a term's widened type at a positive variance, the member of the
-    /// upper prefix if it has one, `Nothing .. Any` otherwise.
-    pub fn avoid_select(
-        &mut self,
-        t: TypeId,
+impl Avoid<'_> {
+    /// Approximates `tpe`, `pre.s` with prefix `pre` approximated as `p`: by the member's alias,
+    /// bounds or singleton type when it has one, a term's widened type at a positive variance,
+    /// the member of the upper prefix if it has one, `Nothing .. Any` otherwise.
+    pub fn select(
+        self,
+        t: &mut Typer,
+        tpe: TypeId,
         pre: TypeId,
         p: Approx,
         s: SymbolId,
         v: i8,
-        a: Avoided,
     ) -> Option<Approx> {
         if p == Approx::Exact(pre) {
-            return Some(Approx::Exact(t));
+            return Some(Approx::Exact(tpe));
         }
-        let singleton = matches!(p, Approx::Exact(q) if self.types().is_path(q));
-        if !singleton && let Some(r) = self.try_widen(t, pre, s, v, a) {
+        let singleton = matches!(p, Approx::Exact(q) if t.types().is_path(q));
+        if !singleton && let Some(r) = self.try_widen(t, tpe, pre, s, v) {
             return r;
         }
-        if self.u.symbol(s).kind.is_term() && v > 0 && !singleton {
-            return self.avoid_term_info(pre, s, v, a);
+        if t.u.symbol(s).kind.is_term() && v > 0 && !singleton {
+            return self.term_info(t, pre, s, v);
         }
-        let name = self.u.symbol(s).name.clone();
-        if self.type_members(p.hi(), &name).is_empty() {
-            return Some(approx::empty(self.u, v));
+        let name = t.u.symbol(s).name.clone();
+        if t.type_members(p.hi(), &name).is_empty() {
+            return Some(approx::empty(t.u, v));
         }
-        let hi = self.u.intern_type(Type::Sym(Some(p.hi()), s));
+        let hi = t.u.intern_type(Type::Sym(Some(p.hi()), s));
         let lo = match p.lo() {
             NOTHING => NOTHING,
-            lo => self.u.intern_type(Type::Sym(Some(lo), s)),
+            lo => t.u.intern_type(Type::Sym(Some(lo), s)),
         };
-        Some(approx::range(self.u, Approx::Exact(lo), Approx::Exact(hi), v))
+        Some(approx::range(t.u, Approx::Exact(lo), Approx::Exact(hi), v))
     }
 
-    /// `pre.s` whose prefix cannot be approximated: what it is equal to or bounded by, or a
-    /// term's widened type at a positive variance.
-    pub fn avoid_select_on_failed(
-        &mut self,
-        t: TypeId,
+    /// Approximates `tpe`, `pre.s` whose prefix cannot be approximated: by what it is equal to
+    /// or bounded by, or a term's widened type at a positive variance.
+    pub fn select_on_failed(
+        self,
+        t: &mut Typer,
+        tpe: TypeId,
         pre: TypeId,
         s: SymbolId,
         v: i8,
-        a: Avoided,
     ) -> Option<Approx> {
-        if let Some(r) = self.try_widen(t, pre, s, v, a) {
+        if let Some(r) = self.try_widen(t, tpe, pre, s, v) {
             return r;
         }
-        (self.u.symbol(s).kind.is_term() && v > 0).then(|| self.avoid_term_info(pre, s, v, a))?
+        (t.u.symbol(s).kind.is_term() && v > 0).then(|| self.term_info(t, pre, s, v))?
     }
 
     /// The widened type of term `s` selected on `pre`, approximated.
-    fn avoid_term_info(&mut self, pre: TypeId, s: SymbolId, v: i8, a: Avoided) -> Option<Approx> {
-        let info = self.u.term_type(Some(pre), s);
-        let info = self.u.widen(info);
-        let a = a.elsewhere();
-        if matches!(self.u.types().get(info), Type::Bounds(..)) {
-            return self.avoid_info(info, v, a);
+    fn term_info(self, t: &mut Typer, pre: TypeId, s: SymbolId, v: i8) -> Option<Approx> {
+        let info = t.u.term_type(Some(pre), s);
+        let info = t.u.widen(info);
+        let a = self.elsewhere();
+        if matches!(t.u.types().get(info), Type::Bounds(..)) {
+            return a.info(t, info, v);
         }
-        self.avoid_at(info, v, a)
+        a.at(t, info, v)
     }
 
-    /// `pre.s` replaced by what it is equal to or bounded by (dotty's `tryWiden` and
+    /// `tpe`, `pre.s`, replaced by what it is equal to or bounded by (dotty's `tryWiden` and
     /// `expandParam`); `None` if it has no such type, `Some(None)` if avoiding that fails, also
     /// when the bounds of `s` are reached again while expanding them.
     fn try_widen(
-        &mut self,
-        t: TypeId,
+        self,
+        t: &mut Typer,
+        tpe: TypeId,
         pre: TypeId,
         s: SymbolId,
         v: i8,
-        a: Avoided,
     ) -> Option<Option<Approx>> {
-        let expanding = [a.expanding, &[s]].concat();
-        let cyclic = a.expanding.contains(&s);
-        let inner = Avoided { expanding: &expanding, own: Some(s), ..a };
-        let a = a.elsewhere();
-        match self.u.symbol(s).kind {
+        let expanding = [self.expanding, &[s]].concat();
+        let cyclic = self.expanding.contains(&s);
+        let inner = Avoid { expanding: &expanding, own: Some(s), ..self };
+        let a = self.elsewhere();
+        match t.u.symbol(s).kind {
             Kind::TypeParam => {
-                let arg = super::seen_from::class_param_arg(self.u, t).map(|a| self.resolve_class_params(a));
-                arg.map(|arg| match *self.u.types().get(arg) {
+                let arg = super::seen_from::class_param_arg(t.u, tpe).map(|x| t.resolve_class_params(x));
+                arg.map(|arg| match *t.u.types().get(arg) {
                     Type::Bounds(..) if cyclic => None,
-                    Type::Bounds(..) => self.avoid_info(arg, v, inner.elsewhere()),
-                    _ => self.avoid_at(arg, v, a),
+                    Type::Bounds(..) => inner.elsewhere().info(t, arg, v),
+                    _ => a.at(t, arg, v),
                 })
             }
             Kind::Type => {
-                let alias = self.u.dealias(t);
-                if alias != t {
-                    return Some(self.avoid_at(alias, v, a));
+                let alias = t.u.dealias(tpe);
+                if alias != tpe {
+                    return Some(a.at(t, alias, v));
                 }
-                let info = self.u.member_info(pre, s);
-                let bounds = matches!(self.u.types().get(info), Type::Bounds(..));
-                bounds.then(|| if cyclic { None } else { self.avoid_info(info, v, inner) })
+                let info = t.u.member_info(pre, s);
+                let bounds = matches!(t.u.types().get(info), Type::Bounds(..));
+                bounds.then(|| if cyclic { None } else { inner.info(t, info, v) })
             }
             k if k.is_term() => {
-                let info = self.u.term_type(Some(pre), s);
-                let info = match *self.u.types().get(info) {
+                let info = t.u.term_type(Some(pre), s);
+                let info = match *t.u.types().get(info) {
                     Type::ByName(r) => r,
                     _ => info,
                 };
-                self.types().is_path(info).then(|| self.avoid_at(info, v, a))
+                t.types().is_path(info).then(|| a.at(t, info, v))
             }
             _ => None,
         }
