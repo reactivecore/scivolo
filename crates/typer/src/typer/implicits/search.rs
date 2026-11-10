@@ -5,13 +5,21 @@
 //! one group a unique winner or the most specific one. A candidate that does not fit is skipped;
 //! any other failure of a candidate fails the search.
 
-use super::super::{Pt, Typer};
-use super::attempts::BestFirst;
+use super::super::Typer;
+use super::attempts::{BestFirst, fitting};
 use super::candidates::Candidate;
+use super::history::emitted;
+use super::not_given::not_given_arg;
+use super::ranking::most_specific;
+use super::unsettled::{
+    any_open_constructor, constructor_vars, determined, has_unbounded_var, is_underspecified, unsettled,
+    var_upper_bound,
+};
 use crate::ctx::{Ctx, Mode};
+use crate::defn::CAN_EQUAL;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
-use tasty::{Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 /// How deep implicit arguments of implicit arguments may nest.
 const MAX_DEPTH: u32 = 12;
@@ -37,6 +45,22 @@ pub fn is_misfit(what: &str) -> bool {
     MISFITS.contains(&what)
 }
 
+/// One search of an implicit argument (dotty's `ImplicitSearch`); the searches in progress and
+/// the by-name dictionary stay in `Typer::history`, which nested searches share.
+pub struct ImplicitSearch {
+    /// The type searched for, without its by-name, its determined type variables instantiated.
+    pub pt: TypeId,
+    pub by_name: bool,
+    pub at: Span,
+    pub ctx: Ctx,
+    /// How deep the search nests in implicit arguments of implicit arguments.
+    pub depth: u32,
+    /// The candidates the search leaves out.
+    ignored: Vec<SymbolId>,
+    /// Whether the search is for a `CanEqual` (dotty's `isCoherent`).
+    coherent: bool,
+}
+
 impl Typer<'_> {
     /// An implicit argument of type `pt` at `at` in `ctx`, with the dictionary of its by-name
     /// implicits if the search is outermost; the constraint knows the search is in progress.
@@ -47,154 +71,126 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
-        let outermost = self.history.open.is_empty();
-        self.constraint.enter_search();
-        let constructors = self.constructor_vars(pt);
-        let found = match self.var_upper_bound(pt) {
-            Some(hi) => self.arg_search(hi, at, ctx, depth).and_then(|t| {
-                let tpe = self.tpd.tpe(t);
-                if self.conforms(tpe, pt) { Ok(t) } else { Err("implicit of another type") }
-            }),
-            None => self.arg_search(pt, at, ctx, depth),
-        };
-        self.constraint.leave_search();
-        if found.is_ok() && self.any_open_constructor(&constructors) {
-            return Err("higher-kinded type variable left without lower bound by an implicit search");
-        }
-        if outermost { self.emitted(found, at, ctx) } else { found }
+        ImplicitSearch::new(pt, at, ctx, depth, Vec::new()).run(self)
     }
 
-    fn arg_search(&mut self, pt: TypeId, at: Span, ctx: Ctx, depth: u32) -> Result<TNodeId, &'static str> {
-        let ignored = if depth == 0 { std::mem::take(&mut self.ignored_implicits) } else { Vec::new() };
-        let (pt, by_name) = match *self.u.types().get(pt) {
-            Type::ByName(r) => (r, true),
-            _ => (pt, false),
+    /// `implicit_arg` of an outermost search that leaves out the candidates `ignored`.
+    pub fn implicit_arg_ignoring(
+        &mut self,
+        (pt, ignored): (TypeId, &[SymbolId]),
+        at: Span,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
+        ImplicitSearch::new(pt, at, ctx, 0, ignored.to_vec()).run(self)
+    }
+}
+
+impl ImplicitSearch {
+    fn new(pt: TypeId, at: Span, ctx: Ctx, depth: u32, ignored: Vec<SymbolId>) -> Self {
+        ImplicitSearch { pt, by_name: false, at, ctx, depth, ignored, coherent: false }
+    }
+
+    fn run(mut self, t: &mut Typer<'_>) -> Result<TNodeId, &'static str> {
+        let (formal, at, ctx) = (self.pt, self.at, self.ctx);
+        let outermost = t.history.open.is_empty();
+        t.constraint.enter_search();
+        let constructors = constructor_vars(t.u, formal);
+        let found = match var_upper_bound(&mut t.types(), formal) {
+            Some(hi) => {
+                self.pt = hi;
+                self.search(t).and_then(|tree| {
+                    let tpe = t.tpd.tpe(tree);
+                    if t.types().conforms(tpe, formal) { Ok(tree) } else { Err("implicit of another type") }
+                })
+            }
+            None => self.search(t),
         };
-        let pt = self.determined(pt);
-        if let Some(what) = self.unsettled(pt) {
+        t.constraint.leave_search();
+        if found.is_ok() && any_open_constructor(&t.constraint, &constructors) {
+            return Err("higher-kinded type variable left without lower bound by an implicit search");
+        }
+        if outermost { emitted(t, found, at, ctx) } else { found }
+    }
+
+    /// The argument of the first group of candidates that gives one, else a synthesized one.
+    fn search(&mut self, t: &mut Typer<'_>) -> Result<TNodeId, &'static str> {
+        if let Type::ByName(r) = *t.u.types().get(self.pt) {
+            (self.pt, self.by_name) = (r, true);
+        }
+        self.pt = determined(&mut t.types(), self.pt);
+        let (pt, ctx) = (self.pt, self.ctx);
+        if let Some(what) = unsettled(&mut t.types(), pt) {
             return Err(what);
         }
-        if depth > MAX_DEPTH {
+        if self.depth > MAX_DEPTH {
             return Err("implicit search too deep");
         }
-        if depth == 0 && self.history.open.is_empty() {
-            self.implicit_budget = MAX_TRIES;
+        if self.depth == 0 && t.history.open.is_empty() {
+            t.history.budget = MAX_TRIES;
         }
-        if let Some(found) = self.recursive_ref(pt, by_name, at)? {
+        if let Some(found) = self.recursive_ref(t)? {
             return Ok(found);
         }
-        if let Some(negated) = self.not_given_arg(pt) {
-            return self.not_given(negated, at, ctx, depth);
+        if let Some(negated) = not_given_arg(&mut t.types(), pt) {
+            return self.not_given(t, negated);
         }
-        if self.is_underspecified(pt) {
+        if is_underspecified(&mut t.types(), pt) {
             return Err("no implicit argument");
         }
-        let coherent = self.class_args(pt, "scala.CanEqual").is_some();
-        let contextual = self.contextual_implicits(ctx, &mut |t, c| t.is_eligible(c, pt))?;
+        self.coherent = t.types().class_args(pt, CAN_EQUAL).is_some();
+        let contextual = t.contextual_implicits(ctx, &mut |t, c| self.is_eligible(t, c))?;
         let levels = contextual.len();
         let mut contextual = contextual.into_iter();
         for _ in 0..=levels {
             let mut group = match contextual.next() {
                 Some(group) => group,
-                None => self.implicit_scope(pt)?,
+                None => t.implicit_scope(pt)?,
             };
-            group.retain(|c| !ignored.contains(&c.sym));
-            let group = self.fitting(&group, |t, c| t.tried(c, (pt, by_name), at, ctx, (depth, true)))?;
-            let existence = ctx.mode.is(Mode::EXISTENCE);
-            if coherent && existence && !self.is_fully_defined(pt) {
-                match self.first_fitting(&group, (pt, by_name), at, ctx, depth)? {
-                    Some(tree) => return Ok(tree),
-                    None => continue,
-                }
+            group.retain(|c| !self.ignored.contains(&c.sym));
+            if let Some(found) = self.in_group(t, group)? {
+                return Ok(found);
             }
-            let unpruned = coherent || self.has_unbounded_var(pt);
-            match self.best_first(&group, (pt, by_name), at, ctx, depth, unpruned)? {
-                BestFirst::Found(tree) => return Ok(tree),
-                BestFirst::Failed if group.len() == 1 => continue,
-                _ => {}
-            }
-            let mut nested_failure = false;
-            let found = self.fitting(&group, |t, c| {
-                let tried = t.tried(c, (pt, by_name), at, ctx, (depth, false));
-                nested_failure |= tried == Err("no implicit argument");
-                tried
-            })?;
-            let winner = match found.as_slice() {
-                [] => continue,
-                [_] if nested_failure && self.has_unbounded_var(pt) => {
-                    return Err("implicit candidate rejected by a search with type variables");
-                }
-                [c] => *c,
-                [c, ..] if coherent => {
-                    if !existence
-                        && (!self.is_fully_defined(pt)
-                            || !self.found_one_type(&found, (pt, by_name), at, ctx, depth)?)
-                    {
-                        return Err("several CanEqual instances, tried in an order of a hash table");
-                    }
-                    *c
-                }
-                _ => self.most_specific(&found, ctx).ok_or(AMBIGUOUS)?,
-            };
-            return self.tried(winner, (pt, by_name), at, ctx, (depth, false));
         }
-        match self.synthesized(pt, at, ctx, depth)? {
+        match t.synthesized(pt, self.at, ctx, self.depth)? {
             Some(tree) => Ok(tree),
             None => Err("no implicit argument"),
         }
     }
 
-    /// Candidate `c`, an implicit that may fit, as an argument of type `pt`: referenced, applied
-    /// to type variables and to its own implicit arguments, eta-expanded if it is a method and
-    /// `pt` a function type. If `shallow`, the reference once its type fits.
-    pub fn try_implicit(
-        &mut self,
-        c: Candidate,
-        pt: TypeId,
-        at: Span,
-        ctx: Ctx,
-        (depth, shallow): (u32, bool),
-    ) -> Result<TNodeId, &'static str> {
-        let from = self.constraint.count();
-        let tree = self.candidate_ref(c, at, ctx)?;
-        let tree = self.with_type_vars(tree)?;
-        let t = self.tpd.tpe(tree);
-        let info = match *self.u.types().get(t) {
-            Type::Sym(_, s) if self.u.is_type_symbol(s) => t,
-            _ => self.method_info(t).unwrap_or(t),
+    /// The argument the candidates of one group give, `None` to go on with the next group.
+    fn in_group(&self, t: &mut Typer<'_>, group: Vec<Candidate>) -> Result<Option<TNodeId>, &'static str> {
+        let (pt, coherent) = (self.pt, self.coherent);
+        let group = fitting(t, &group, |t, c| self.tried(t, c, true))?;
+        let existence = self.ctx.mode.is(Mode::EXISTENCE);
+        if coherent && existence && !t.types().is_fully_defined(pt) {
+            return self.first_fitting(t, &group);
+        }
+        let unpruned = coherent || has_unbounded_var(&mut t.types(), pt);
+        match self.best_first(t, &group, unpruned)? {
+            BestFirst::Found(tree) => return Ok(Some(tree)),
+            BestFirst::Failed if group.len() == 1 => return Ok(None),
+            _ => {}
+        }
+        let mut nested_failure = false;
+        let found = fitting(t, &group, |t, c| {
+            let tried = self.tried(t, c, false);
+            nested_failure |= tried == Err("no implicit argument");
+            tried
+        })?;
+        let winner = match found.as_slice() {
+            [] => return Ok(None),
+            [_] if nested_failure && has_unbounded_var(&mut t.types(), pt) => {
+                return Err("implicit candidate rejected by a search with type variables");
+            }
+            [c] => *c,
+            [c, ..] if coherent => {
+                if !existence && (!t.types().is_fully_defined(pt) || !self.found_one_type(t, &found)?) {
+                    return Err("several CanEqual instances, tried in an order of a hash table");
+                }
+                *c
+            }
+            _ => most_specific(t, &found, self.ctx).ok_or(AMBIGUOUS)?,
         };
-        let stripped = self.strip_implicit(info);
-        let method = matches!(self.u.types().get(stripped), Type::Method { .. });
-        let contextual = self.context_function_parts(pt).is_some();
-        let direct = self.implicit_fit(info, c.sym, pt).ok_or("implicit of another type")?;
-        if shallow {
-            return Ok(tree);
-        }
-        if self.implicit_budget == 0 {
-            return Err("implicit search too costly");
-        }
-        self.implicit_budget -= 1;
-        if contextual {
-            return self.contextual_implicit(tree, pt, ctx);
-        }
-        let applied = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
-        if applied != tree {
-            self.interpolate_zonked(applied, Pt::Type(pt), from)?;
-        }
-        let tree = match (method, direct) {
-            (true, _) => self.eta_expanded_implicit(applied, pt, ctx)?,
-            (false, false) => self.context_applied_implicit(applied, pt, ctx)?,
-            (false, true) => applied,
-        };
-        let tree = self.inlined_transparent(tree, Pt::Type(pt), ctx).unwrap_or(tree);
-        self.record_inline_call(tree, ctx);
-        self.record_implicit_type_quote(tree, ctx);
-        let t = self.tpd.tpe(tree);
-        let info = self.method_info(t).unwrap_or(t);
-        if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
-            return Err("not an implicit value");
-        }
-        let fits = self.conforms(t, pt);
-        fits.then(|| self.gadt_adapted(tree, pt, ctx)).ok_or("implicit of another type")
+        self.tried(t, winner, false).map(Some)
     }
 }

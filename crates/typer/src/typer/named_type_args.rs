@@ -4,7 +4,7 @@
 //! Named type arguments `f[T = A]` (dotty's `typedNamedArgs` and the named case of
 //! `assignType` of a `TypeApply`): the parameters not named get type variables.
 
-use super::poly_alternatives::PolyProto;
+use super::protos::PolyProto;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};

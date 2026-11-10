@@ -5,6 +5,9 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName};
 use tasty::{SymbolId, Type, TypeId};
 
+/// How many aliases of the owner `expand_owner_aliases` expands at most.
+const MAX_EXPANSIONS: usize = 64;
+
 impl Typer<'_> {
     /// Projection `id`, `qual#name`, of type alias `sym` of `alias`: the alias seen from `qual`
     /// with the aliases of its owner it refers to expanded, dealiased, its class its symbol;
@@ -73,7 +76,7 @@ impl Typer<'_> {
     /// `t` with each type alias of class `owner` it refers to replaced by its alias; `None` if it
     /// refers to `this` or to another member of `owner`.
     fn expand_owner_aliases(&mut self, mut t: TypeId, owner: Option<SymbolId>) -> Option<TypeId> {
-        for _ in 0..64 {
+        for _ in 0..MAX_EXPANSIONS {
             let (mut this, mut member) = (false, None);
             self.u.map_type(t, &mut |u, part| {
                 match *u.types().get(part) {

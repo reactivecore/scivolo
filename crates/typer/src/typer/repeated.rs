@@ -4,6 +4,8 @@
 //! `SeqLiteral`s typed `<repeated>[T]` (dotty's `typedArgs` for `RepeatedParamClass`).
 
 use super::Typer;
+use super::type_ops::TypeOps;
+use crate::defn::{ARRAY, IMMUTABLE_SEQ, INLINE_PARAM};
 use crate::special::entered;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -25,7 +27,7 @@ impl Typer<'_> {
                 Type::Applied(_, args) if args.len() == 1 => Some(args[0]),
                 _ => None,
             },
-            Type::Annotated(t, _) if self.is_inline_param_type(p) => self.repeated_elem(t),
+            Type::Annotated(t, _) if self.types().is_inline_param_type(p) => self.repeated_elem(t),
             Type::Applied(c, args) if args.len() == 1 => {
                 let class = self.u.class_symbol(c);
                 (class.is_some() && class == self.syms.repeated_class).then_some(args[0])
@@ -117,10 +119,9 @@ impl Typer<'_> {
         let syntax::ast::Tree::Typed { expr, tpt } = *self.ast.tree(a) else {
             return self.unsupported(a, "sequence argument");
         };
-        let (Some(seq_class), Some(array_class)) = (
-            self.resolve_full_name("scala.collection.immutable.Seq", true),
-            self.resolve_full_name("scala.Array", true),
-        ) else {
+        let (Some(seq_class), Some(array_class)) =
+            (self.resolve_full_name(IMMUTABLE_SEQ, true), self.resolve_full_name(ARRAY, true))
+        else {
             return self.unsupported(a, "sequence argument");
         };
         let pt = elem.map_or(super::Pt::Any, |elem| {
@@ -178,9 +179,18 @@ impl Typer<'_> {
         if self.tpd.get(tree).tpe.is_some() {
             return;
         }
-        let Some(seq) = self.resolve_full_name("scala.collection.immutable.Seq", true) else { return };
+        let Some(seq) = self.resolve_full_name(IMMUTABLE_SEQ, true) else { return };
         let elem = self.tpd.tpe(elemtpt);
         let seq = crate::defn::type_ref(self.u, seq);
         self.tpd.get_mut(tree).tpe = Some(self.u.intern_type(Type::Applied(seq, vec![elem])));
+    }
+}
+
+impl TypeOps<'_> {
+    /// Tells whether parameter type `p` is annotated `@InlineParam`, as the type of an
+    /// `inline` parameter of an inline method is.
+    pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
+        let Type::Annotated(_, annot) = *self.u.types().get(p) else { return false };
+        self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == INLINE_PARAM)
     }
 }

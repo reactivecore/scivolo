@@ -9,16 +9,6 @@ use tasty::tags::OBJECT;
 use tasty::{Const, Kind, SymbolId, Type, TypeId, constant};
 
 impl Typer<'_> {
-    /// The parts of `t`, `t` included.
-    pub fn type_parts(&mut self, t: TypeId) -> Vec<TypeId> {
-        let mut parts = Vec::new();
-        self.u.map_type(t, &mut |_, part| {
-            parts.push(part);
-            None
-        });
-        parts
-    }
-
     /// Whether no two of the classes and type definitions `types` mention share a name, which
     /// dotty's message would tell apart with a `where` clause.
     pub fn distinct_names(&mut self, types: &[TypeId]) -> bool {
@@ -121,7 +111,7 @@ impl Typer<'_> {
     /// `C.this` for the `this` of class reference `class`, a named class that is not an object and
     /// has no type parameters.
     fn this_path(&mut self, class: TypeId) -> Option<String> {
-        let c = self.direct_class(class)?;
+        let c = self.types().direct_class(class)?;
         let name = self.u.symbol(c).name.clone();
         if self.u.symbol(c).flags.has(OBJECT) || !self.u.type_params(c).is_empty() || name.contains('$') {
             return None;

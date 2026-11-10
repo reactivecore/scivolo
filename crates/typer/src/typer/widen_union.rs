@@ -4,22 +4,14 @@
 //! Unions of inferred types joined or hardened (dotty's `widenUnion`, `hardenUnions`).
 
 use super::Typer;
+use super::type_ops::TypeOps;
 use tasty::{Type, TypeId, TypeVars};
 
 impl Typer<'_> {
-    /// `t` widened, a by-name type as its result.
-    pub fn widened(&mut self, t: TypeId) -> TypeId {
-        let widened = self.u.widen(t);
-        match *self.u.types().get(widened) {
-            Type::ByName(r) => r,
-            _ => widened,
-        }
-    }
-
     /// `t` with top-level soft unions joined, hard ones simplified, type variables constrained to
     /// simplify them, under explicit nulls a top-level `| Null` kept (dotty's `widenUnion`).
     pub fn widen_union(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
-        let w = self.widened(t);
+        let w = self.types().widened(t);
         if !self.explicit_nulls || !matches!(self.u.types().get(w), Type::Or(..)) {
             return self.widen_union_without_null(t);
         }
@@ -37,7 +29,50 @@ impl Typer<'_> {
         Ok(self.u.intern_type(Type::Or(wide, null, soft)))
     }
 
-    /// `t` without the `Null` parts of its top-level unions (dotty's `stripNull`).
+    fn widen_union_without_null(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
+        let t = self.types().widened(t);
+        Ok(match self.u.types().get(t).clone() {
+            Type::And(a, b) => {
+                let (wa, wb) = (self.widen_union_without_null(a)?, self.widen_union_without_null(b)?);
+                if (wa, wb) == (a, b) { t } else { self.u.intern_type(Type::And(wa, wb)) }
+            }
+            Type::Refined(parent, name, info) => {
+                let wide = self.widen_union(parent)?;
+                if wide == parent { t } else { self.u.intern_type(Type::Refined(wide, name, info)) }
+            }
+            Type::Rec(binder, parent) => {
+                let wide = self.widen_union(parent)?;
+                if wide == parent { t } else { self.u.intern_type(Type::Rec(binder, wide)) }
+            }
+            Type::Lambda { binder, params, result } => {
+                let wide = self.widen_union(result)?;
+                if wide == result {
+                    t
+                } else {
+                    self.u.intern_type(Type::Lambda { binder, params, result: wide })
+                }
+            }
+            Type::Or(a, b, soft) => {
+                let (wa, wb) = (self.widen_union_without_null(a)?, self.widen_union_without_null(b)?);
+                let union =
+                    if soft { self.types().constraining_lub(wa, wb) } else { self.u.lub_as(wa, wb, false) };
+                match *self.u.types().get(union) {
+                    Type::Or(..) if soft => self.types().join(union)?,
+                    _ => union,
+                }
+            }
+            Type::Flexible(hi) => {
+                let wide = self.widen_union_without_null(hi)?;
+                self.u.flexible(wide)
+            }
+            _ => t,
+        })
+    }
+}
+
+impl TypeOps<'_> {
+    /// Drops the `Null` parts of the top-level unions of `t`, widened and dealiased, also inside
+    /// intersections and flexible types; `t` itself if there are none (dotty's `stripNull`).
     pub fn strip_null(&mut self, t: TypeId) -> TypeId {
         let widened = self.u.widen(t);
         let w = self.u.dealias(widened);
@@ -64,49 +99,10 @@ impl Typer<'_> {
         if stripped != w { stripped } else { t }
     }
 
-    /// Whether `t` is a reference to `Null` (dotty's `isNullType`).
+    /// Checks whether `t` is a reference to `Null`, dealiased (dotty's `isNullType`).
     pub fn is_null_type(&mut self, t: TypeId) -> bool {
         let d = self.u.dealias(t);
         self.u.is_null_ref(d)
-    }
-
-    fn widen_union_without_null(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
-        let t = self.widened(t);
-        Ok(match self.u.types().get(t).clone() {
-            Type::And(a, b) => {
-                let (wa, wb) = (self.widen_union_without_null(a)?, self.widen_union_without_null(b)?);
-                if (wa, wb) == (a, b) { t } else { self.u.intern_type(Type::And(wa, wb)) }
-            }
-            Type::Refined(parent, name, info) => {
-                let wide = self.widen_union(parent)?;
-                if wide == parent { t } else { self.u.intern_type(Type::Refined(wide, name, info)) }
-            }
-            Type::Rec(binder, parent) => {
-                let wide = self.widen_union(parent)?;
-                if wide == parent { t } else { self.u.intern_type(Type::Rec(binder, wide)) }
-            }
-            Type::Lambda { binder, params, result } => {
-                let wide = self.widen_union(result)?;
-                if wide == result {
-                    t
-                } else {
-                    self.u.intern_type(Type::Lambda { binder, params, result: wide })
-                }
-            }
-            Type::Or(a, b, soft) => {
-                let (wa, wb) = (self.widen_union_without_null(a)?, self.widen_union_without_null(b)?);
-                let union = if soft { self.constraining_lub(wa, wb) } else { self.u.lub_as(wa, wb, false) };
-                match *self.u.types().get(union) {
-                    Type::Or(..) if soft => self.join(union)?,
-                    _ => union,
-                }
-            }
-            Type::Flexible(hi) => {
-                let wide = self.widen_union_without_null(hi)?;
-                self.u.flexible(wide)
-            }
-            _ => t,
-        })
     }
 
     /// The join of union `t`; an error where it is not known or intersects a function class.
@@ -166,7 +162,8 @@ impl Typer<'_> {
         ok
     }
 
-    /// `t` with its top-level unions made hard (dotty's `hardenUnions`).
+    /// Makes the top-level unions of `t` hard, also inside intersections, refinements and type
+    /// lambda results (dotty's `hardenUnions`).
     pub fn harden_unions(&mut self, t: TypeId) -> TypeId {
         let widened = self.widened(t);
         match self.u.types().get(widened).clone() {

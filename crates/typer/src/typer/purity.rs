@@ -4,8 +4,9 @@
 //! How far evaluating a tree has effects (dotty's `exprPurity`, `statPurity`, `refPurity`).
 
 use super::Typer;
-use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Kind, SymbolId, Type};
+use super::java_classes::is_java_member;
+use crate::tpd::{TNodeId, Tpd, Tree as T};
+use tasty::{Kind, SymbolId, Type, Universe};
 
 /// dotty's `PurityLevel` bits: evaluating twice gives the same, evaluating has no effect, the
 /// tree is a path; the weaker of two levels is their intersection.
@@ -23,13 +24,15 @@ const PURE_TYPE_APPLIES: [&str; 4] = [
 ];
 
 impl Typer<'_> {
-    /// Whether evaluating `tree` has no effect.
+    /// Tells whether evaluating `tree` has no effect, as for a literal, a `val` or `new C` of a
+    /// class whose construction runs no code.
     pub fn is_pure_expr(&mut self, tree: TNodeId) -> bool {
-        self.expr_purity(tree) & PURE == PURE
+        expr_purity(self, tree) & PURE == PURE
     }
 
-    /// Whether `rhs` of an inline value of a constant type is pure once `FirstTransform` makes it a
-    /// literal: idempotent if it refers to a final or inline value (dotty's `constToLiteral`).
+    /// Tells whether `rhs` of an inline value of a constant type is pure once `FirstTransform`
+    /// makes it a literal: idempotent if it refers to a final or inline value (dotty's
+    /// `constToLiteral`).
     pub fn is_inline_value_rhs(&mut self, rhs: TNodeId) -> bool {
         use tasty::tags::{FINAL, INLINE, MUTABLE};
         let inline_val = matches!(self.tpd.tree(rhs), T::Ident { .. } | T::Select { .. })
@@ -40,155 +43,156 @@ impl Typer<'_> {
         if inline_val { self.is_idempotent_expr(rhs) } else { self.is_pure_expr(rhs) }
     }
 
-    /// Whether evaluating `tree` twice has the effect of evaluating it once.
+    /// Tells whether evaluating `tree` twice has the effect of evaluating it once, as for a
+    /// `lazy val`.
     pub fn is_idempotent_expr(&mut self, tree: TNodeId) -> bool {
-        self.expr_purity(tree) & IDEMPOTENT == IDEMPOTENT
+        expr_purity(self, tree) & IDEMPOTENT == IDEMPOTENT
     }
 
-    /// Whether `tree` is a path whose evaluation has no effect (dotty's `isPurePath`).
+    /// Tells whether `tree` is a path whose evaluation has no effect, as `a.b` of stable values
+    /// (dotty's `isPurePath`).
     pub fn is_pure_path(&mut self, tree: TNodeId) -> bool {
-        self.expr_purity(tree) == PURE_PATH
+        expr_purity(self, tree) == PURE_PATH
     }
+}
 
-    fn expr_purity(&mut self, tree: TNodeId) -> u8 {
-        match self.tpd.tree(tree).clone() {
-            T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => PURE_PATH,
-            T::New { .. } | T::Closure { .. } => PURE,
-            T::NamedArg { arg, .. } => self.expr_purity(arg),
-            T::Ident { .. } => self.ref_purity(tree),
-            T::Select { qualifier, .. } => self.ref_purity(tree) & self.expr_purity(qualifier),
-            T::TypeApply { fun, .. } if self.is_method_typed(tree) => self.expr_purity(fun),
-            T::TypeApply { fun, .. } => {
-                let name = self.tpd.sym(fun).map(|s| self.u.full_name(s));
-                let qualifier = match *self.tpd.tree(fun) {
-                    T::Select { qualifier, .. } => Some(qualifier),
-                    _ => None,
-                };
-                match (name.as_deref(), qualifier) {
-                    (Some("scala.Any.$asInstanceOf$"), Some(q)) => self.expr_purity(q) & PURE,
-                    (Some("scala.compiletime.package$package$.erasedValue"), _)
-                        if self.has_constant_type(tree) =>
-                    {
-                        PURE
-                    }
-                    (Some(n), _) if PURE_TYPE_APPLIES.contains(&n) => PURE,
-                    _ => IMPURE,
+fn expr_purity(t: &mut Typer, tree: TNodeId) -> u8 {
+    match t.tpd.tree(tree).clone() {
+        T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => PURE_PATH,
+        T::New { .. } | T::Closure { .. } => PURE,
+        T::NamedArg { arg, .. } => expr_purity(t, arg),
+        T::Ident { .. } => ref_purity(t, tree),
+        T::Select { qualifier, .. } => ref_purity(t, tree) & expr_purity(t, qualifier),
+        T::TypeApply { fun, .. } if is_method_typed(t, tree) => expr_purity(t, fun),
+        T::TypeApply { fun, .. } => {
+            let name = t.tpd.sym(fun).map(|s| t.u.full_name(s));
+            let qualifier = match *t.tpd.tree(fun) {
+                T::Select { qualifier, .. } => Some(qualifier),
+                _ => None,
+            };
+            match (name.as_deref(), qualifier) {
+                (Some("scala.Any.$asInstanceOf$"), Some(q)) => expr_purity(t, q) & PURE,
+                (Some("scala.compiletime.package$package$.erasedValue"), _)
+                    if has_constant_type(&t.tpd, t.u, tree) =>
+                {
+                    PURE
                 }
+                (Some(n), _) if PURE_TYPE_APPLIES.contains(&n) => PURE,
+                _ => IMPURE,
             }
-            T::Apply { fun, args } => {
-                let args = self.tpd.items(args).to_vec();
-                let factor = args.into_iter().fold(self.expr_purity(fun), |p, a| p & self.expr_purity(a));
-                let callee = self.callee(fun);
-                if self.is_method_typed(tree) || self.is_pure_apply(tree, callee) {
-                    factor & PURE
-                } else if callee.is_some_and(|s| self.is_stable_member(s)) {
-                    factor & IDEMPOTENT
-                } else {
-                    IMPURE
-                }
+        }
+        T::Apply { fun, args } => {
+            let args = t.tpd.items(args).to_vec();
+            let factor = args.into_iter().fold(expr_purity(t, fun), |p, a| p & expr_purity(t, a));
+            let callee = callee(&t.tpd, fun);
+            if is_method_typed(t, tree) || is_pure_apply(t, tree, callee) {
+                factor & PURE
+            } else if callee.is_some_and(|s| t.is_stable_member(s)) {
+                factor & IDEMPOTENT
+            } else {
+                IMPURE
             }
-            T::Typed { expr, .. } => self.expr_purity(expr),
-            T::Block { stats, expr: last } | T::Inlined { bindings: stats, expansion: last, .. } => {
-                let stats = self.tpd.items(stats).to_vec();
-                stats.into_iter().fold(self.expr_purity(last), |p, s| p & self.stat_purity(s))
+        }
+        T::Typed { expr, .. } => expr_purity(t, expr),
+        T::Block { stats, expr: last } | T::Inlined { bindings: stats, expansion: last, .. } => {
+            let stats = t.tpd.items(stats).to_vec();
+            stats.into_iter().fold(expr_purity(t, last), |p, s| p & stat_purity(t, s))
+        }
+        _ => IMPURE,
+    }
+}
+
+fn stat_purity(t: &mut Typer, s: TNodeId) -> u8 {
+    match *t.tpd.tree(s) {
+        T::DefDef { .. } | T::TypeDef { .. } | T::Import { .. } => PURE,
+        T::ValDef { rhs, .. } => {
+            let mutable = t.tpd.sym(s).is_some_and(|v| t.u.symbol(v).flags.has(tasty::tags::MUTABLE));
+            match rhs {
+                _ if mutable => IMPURE,
+                Some(r) => expr_purity(t, r) & PURE,
+                None => PURE,
             }
-            _ => IMPURE,
         }
+        _ => IMPURE,
     }
+}
 
-    fn stat_purity(&mut self, s: TNodeId) -> u8 {
-        match *self.tpd.tree(s) {
-            T::DefDef { .. } | T::TypeDef { .. } | T::Import { .. } => PURE,
-            T::ValDef { rhs, .. } => {
-                let mutable =
-                    self.tpd.sym(s).is_some_and(|v| self.u.symbol(v).flags.has(tasty::tags::MUTABLE));
-                match rhs {
-                    _ if mutable => IMPURE,
-                    Some(r) => self.expr_purity(r) & PURE,
-                    None => PURE,
-                }
-            }
-            _ => IMPURE,
-        }
+/// The purity of reference `tree`: a path if it is to a method not applied yet, of a constant
+/// type, or to a stable value; an idempotent path for a package, a lazy value or an object that
+/// runs code when created.
+fn ref_purity(t: &mut Typer, tree: TNodeId) -> u8 {
+    if is_method_typed(t, tree) || has_constant_type(&t.tpd, t.u, tree) {
+        return PURE_PATH;
     }
-
-    /// The purity of reference `tree`: a path if it is to a method not applied yet, of a
-    /// constant type, or to a stable value; an idempotent path for a package, a lazy value or an
-    /// object that runs code when created.
-    fn ref_purity(&mut self, tree: TNodeId) -> u8 {
-        if self.is_method_typed(tree) || self.has_constant_type(tree) {
-            return PURE_PATH;
-        }
-        let Some(s) = self.tpd.sym(tree) else { return IMPURE };
-        if self.u.symbol(s).kind == Kind::Package {
-            return IDEMPOTENT_PATH;
-        }
-        if !self.is_stable_member(s) {
-            return IMPURE;
-        }
-        if self.u.is_module(s) {
-            let no_inits = self.u.module_class(s).is_some_and(|c| {
-                let bases = self.u.linearization(c);
-                self.u.is_assured_no_inits(c) || bases.iter().all(|&b| self.is_no_inits(b))
-            });
-            return if no_inits { PURE_PATH } else { IDEMPOTENT_PATH };
-        }
-        if self.u.symbol(s).flags.has(tasty::tags::LAZY) { IDEMPOTENT_PATH } else { PURE_PATH }
+    let Some(s) = t.tpd.sym(tree) else { return IMPURE };
+    if t.u.symbol(s).kind == Kind::Package {
+        return IDEMPOTENT_PATH;
     }
-
-    /// Whether `tree` has a method type or refers to a method with parameters, unapplied.
-    fn is_method_typed(&mut self, tree: TNodeId) -> bool {
-        let tpe = self.tpd.tpe(tree);
-        let info = self.method_info(tpe).unwrap_or(tpe);
-        matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+    if !t.is_stable_member(s) {
+        return IMPURE;
     }
-
-    /// dotty's `isPureApply`: a constant operation of a primitive class, `String` or a pure member
-    /// of `Any`, a stable constructor of a class outside the JDK, or the synthetic `apply` of a
-    /// case class that initializes nothing.
-    fn is_pure_apply(&mut self, tree: TNodeId, callee: Option<SymbolId>) -> bool {
-        let Some(s) = callee else { return false };
-        if self.u.symbol(s).name == "<init>" {
-            return self.is_stable_member(s) && !self.is_java_member(s);
-        }
-        if self.is_pure_case_apply(s) {
-            return true;
-        }
-        self.has_constant_type(tree) && self.u.is_known_pure_op(s)
+    if t.u.is_module(s) {
+        let no_inits = t.u.module_class(s).is_some_and(|c| {
+            let bases = t.u.linearization(c);
+            t.u.is_assured_no_inits(c) || bases.iter().all(|&b| t.is_no_inits(b))
+        });
+        return if no_inits { PURE_PATH } else { IDEMPOTENT_PATH };
     }
+    if t.u.symbol(s).flags.has(tasty::tags::LAZY) { IDEMPOTENT_PATH } else { PURE_PATH }
+}
 
-    /// dotty's `isPureSyntheticCaseApply`.
-    fn is_pure_case_apply(&mut self, s: SymbolId) -> bool {
-        let sym = self.u.symbol(s);
-        if sym.name != "apply" || !sym.flags.has(tasty::tags::SYNTHETIC) {
-            return false;
-        }
-        let Some(module) = sym.owner else { return false };
-        let Some(name) = tasty::module_name(&self.u.symbol(module).name).map(str::to_owned) else {
-            return false;
-        };
-        let Some(owner) = self.u.symbol(module).owner else { return false };
-        let classes = self.u.decl(owner, &name).unwrap_or_default();
-        classes.into_iter().any(|c| {
-            let flags = self.u.symbol(c).flags;
-            self.u.symbol(c).kind == Kind::Class
-                && flags.has(tasty::tags::CASE)
-                && !flags.has(tasty::tags::TRAIT)
-                && (self.is_no_inits(c) || self.u.is_assured_no_inits(c))
-        })
+/// Whether `tree` has a method type or refers to a method with parameters, unapplied.
+fn is_method_typed(t: &mut Typer, tree: TNodeId) -> bool {
+    let tpe = t.tpd.tpe(tree);
+    let info = t.method_info(tpe).unwrap_or(tpe);
+    matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+}
+
+/// dotty's `isPureApply`: a constant operation of a primitive class, `String` or a pure member
+/// of `Any`, a stable constructor of a class outside the JDK, or the synthetic `apply` of a case
+/// class that initializes nothing.
+fn is_pure_apply(t: &mut Typer, tree: TNodeId, callee: Option<SymbolId>) -> bool {
+    let Some(s) = callee else { return false };
+    if t.u.symbol(s).name == "<init>" {
+        return t.is_stable_member(s) && !is_java_member(t.u, s);
     }
-
-    fn has_constant_type(&self, tree: TNodeId) -> bool {
-        let tpe = self.tpd.get(tree).tpe;
-        tpe.is_some_and(|t| matches!(self.u.types().get(t), Type::Constant(..) | Type::Str(_)))
+    if is_pure_case_apply(t, s) {
+        return true;
     }
+    has_constant_type(&t.tpd, t.u, tree) && t.u.is_known_pure_op(s)
+}
 
-    /// The method a function tree refers to.
-    fn callee(&self, fun: TNodeId) -> Option<SymbolId> {
-        match *self.tpd.tree(fun) {
-            T::Ident { .. } | T::Select { .. } => self.tpd.sym(fun),
-            T::TypeApply { fun, .. } => self.callee(fun),
-            _ => None,
-        }
+/// dotty's `isPureSyntheticCaseApply`.
+fn is_pure_case_apply(t: &mut Typer, s: SymbolId) -> bool {
+    let sym = t.u.symbol(s);
+    if sym.name != "apply" || !sym.flags.has(tasty::tags::SYNTHETIC) {
+        return false;
+    }
+    let Some(module) = sym.owner else { return false };
+    let Some(name) = tasty::module_name(&t.u.symbol(module).name).map(str::to_owned) else {
+        return false;
+    };
+    let Some(owner) = t.u.symbol(module).owner else { return false };
+    let classes = t.u.decl(owner, &name).unwrap_or_default();
+    classes.into_iter().any(|c| {
+        let flags = t.u.symbol(c).flags;
+        t.u.symbol(c).kind == Kind::Class
+            && flags.has(tasty::tags::CASE)
+            && !flags.has(tasty::tags::TRAIT)
+            && (t.is_no_inits(c) || t.u.is_assured_no_inits(c))
+    })
+}
+
+fn has_constant_type(tpd: &Tpd, u: &Universe, tree: TNodeId) -> bool {
+    let tpe = tpd.get(tree).tpe;
+    tpe.is_some_and(|x| matches!(u.types().get(x), Type::Constant(..) | Type::Str(_)))
+}
+
+/// The method a function tree refers to.
+fn callee(tpd: &Tpd, fun: TNodeId) -> Option<SymbolId> {
+    match *tpd.tree(fun) {
+        T::Ident { .. } | T::Select { .. } => tpd.sym(fun),
+        T::TypeApply { fun, .. } => callee(tpd, fun),
+        _ => None,
     }
 }

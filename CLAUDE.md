@@ -36,7 +36,11 @@ Minimal. State only what code does, never why — no rationale, history,
 alternatives, or reviewer notes. Every `unsafe` block carries a concise
 `// SAFETY:` justification (mandatory). A module comment (`//!`) only where
 the file name and items do not already say what it holds, a line or two.
-Rationale goes in `docs/adr/`, one decision per file. A file with translated
+Public structs and members carry a doc comment that gives a feeling of what
+they do, short but more than the result: it starts with a verb
+("Determines the last accessor of a type"), not with the result ("Last
+accessor of a type"), except for getter-like items. The more an item is used,
+the more it is documented. Rationale goes in `docs/adr/`, one decision per file. A file with translated
 code starts with its license notice, which lists its upstream files:
 
 ```rust
@@ -68,6 +72,14 @@ code starts with its license notice, which lists its upstream files:
   `crates/libimage/src/image.rs` (maps the library image). The callback
   slot table (ADR 0002), the collector (ADR 0004) and the SIGINT counter
   (ADR 0013) are the only state outside `Vm`.
+- A bounded computation with its own state is a component (ADR 0113): a struct
+  that owns that state, created, run with its services (`&mut Typer`,
+  `&mut Universe`) as arguments, and dropped; its helpers are its methods or
+  free functions, not `impl Typer` methods. A component lives in its own module
+  directory: `mod.rs` holds the struct and its entry; its other files are
+  private submodules exposing one entry each.
+- Public signatures take and return concrete types: no tuples of more than two
+  values; the more an item is used, the more its data gets a named type.
 - No magic numbers: a limit or depth is a named constant with a doc comment;
   limits that mean the same share one constant.
 - A well-known symbol has one home (`Universe::builtins`, `Defn`); code

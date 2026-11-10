@@ -3,7 +3,7 @@
 //! Structural refinements `{ val a: T; def m(x: A): R }` and selections of their members
 //! (dotty's `handleStructural`).
 
-use super::implicits::conversions::Goal;
+use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};

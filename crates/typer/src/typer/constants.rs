@@ -172,7 +172,7 @@ impl Typer<'_> {
                     _ => None,
                 }
             }
-            _ => self.direct_class(pt),
+            _ => self.types().direct_class(pt),
         }
     }
 }

@@ -121,4 +121,15 @@ impl Typer<'_> {
         }
         None
     }
+
+    /// Per value parameter of method `m`, over all its clauses, whether it is inline.
+    pub fn inline_params(&mut self, m: SymbolId) -> Vec<bool> {
+        self.complete(m);
+        let params: Vec<SymbolId> = match self.syms.param_clauses.get(&m) {
+            Some(clauses) => clauses.iter().flatten().copied().collect(),
+            None => self.u.symbol(m).decls.clone(),
+        };
+        let params = params.into_iter().filter(|&p| self.u.symbol(p).kind == tasty::Kind::Param);
+        params.map(|p| self.u.symbol(p).flags.has(INLINE)).collect()
+    }
 }

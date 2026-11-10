@@ -79,7 +79,7 @@ impl Reflect<'_> {
     /// `Repeated(elems, elemtpt)`: a sequence literal of type `Seq[T]` (dotty's `seqLitType`).
     pub fn repeated(&mut self, elems: &[TNodeId], elemtpt: TNodeId) -> TNodeId {
         let span = self.span;
-        let seq = self.u.class_ref("scala.collection.immutable.Seq");
+        let seq = self.u.class_ref(crate::defn::IMMUTABLE_SEQ);
         let tpe = self.u.intern_type(Type::Applied(seq, vec![self.tpd.tpe(elemtpt)]));
         let elems = self.tpd.list(elems);
         self.tpd.node(T::SeqLiteral { elems, elemtpt }, span, Some(tpe), None)

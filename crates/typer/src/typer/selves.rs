@@ -107,7 +107,7 @@ impl Typer<'_> {
                     return Err("anonymous class or object not conforming to a parent's self type");
                 }
                 let (own_s, s) = (self.u.show_user(own), self.u.show_user(s));
-                let (c, p) = (self.described(cls), self.described(pc));
+                let (c, p) = (self.syms.described(self.u, cls), self.syms.described(self.u, pc));
                 let msg = format!(
                     "illegal inheritance: self type {own_s} of {c} does not conform to self type {s}\nof parent {p}"
                 );

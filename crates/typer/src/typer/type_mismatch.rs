@@ -6,7 +6,7 @@
 
 use super::Typer;
 use super::constants::{is_numeric, of_type};
-use super::implicits::conversions::Goal;
+use super::implicits::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -63,7 +63,7 @@ impl Typer<'_> {
     /// whose base type dotty may compute otherwise or reject.
     fn inherits_twice(&mut self, widened: TypeId, pt: TypeId) -> bool {
         let pt = self.u.dealias(pt);
-        let (Some(from), Some(to)) = (self.u.class_symbol(widened), self.direct_class(pt)) else {
+        let (Some(from), Some(to)) = (self.u.class_symbol(widened), self.types().direct_class(pt)) else {
             return true;
         };
         for base in self.u.linearization(from) {
@@ -97,7 +97,7 @@ impl Typer<'_> {
             return true;
         }
         let pt = self.u.dealias(pt);
-        let Some(to) = self.direct_class(pt) else { return true };
+        let Some(to) = self.types().direct_class(pt) else { return true };
         let full = self.u.full_name(to);
         UNSPECIFIC.contains(&&*full) || full.starts_with("scala.ContextFunction")
     }
@@ -116,7 +116,7 @@ impl Typer<'_> {
     /// import suggestions search may convert `from` to `to`.
     fn view_may_apply(&mut self, from: TypeId, to: TypeId, ctx: Ctx) -> bool {
         let dealiased = self.u.dealias(from);
-        let Some(q) = self.direct_class(dealiased) else { return true };
+        let Some(q) = self.types().direct_class(dealiased) else { return true };
         let goal = Goal::Conform(to);
         let (Ok(mut scope), Ok(to_scope)) = (self.implicit_scope(from), self.implicit_scope(to)) else {
             return true;

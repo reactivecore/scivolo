@@ -49,7 +49,7 @@ impl Matcher<'_> {
     fn type_of(&mut self, t: TNodeId) -> Option<TypeId> {
         match *self.tpd.tree(t) {
             T::SeqLiteral { elemtpt, .. } if self.tpd.get(t).tpe.is_none() => {
-                let seq = self.u.class_ref("scala.collection.immutable.Seq");
+                let seq = self.u.class_ref(crate::defn::IMMUTABLE_SEQ);
                 let elem = self.tpd.get(elemtpt).tpe?;
                 let tpe = self.u.intern_type(Type::Applied(seq, vec![elem]));
                 self.tpd.get_mut(t).tpe = Some(tpe);

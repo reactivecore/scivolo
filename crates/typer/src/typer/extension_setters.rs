@@ -3,6 +3,7 @@
 //! Assignments to extension getters, `q.x = v` as `x_=(q)(v)` (the extension case of dotty's
 //! `typedAssign`).
 
+use super::paths::MAX_PATH_DEPTH;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
@@ -65,7 +66,7 @@ impl Typer<'_> {
                     }
                     (_, Some(p)) => {
                         let span = self.tpd.span(tree).start_pos();
-                        let qualifier = self.path_tree_from(p, span, 8, Some(ctx))?;
+                        let qualifier = self.path_tree_from(p, span, MAX_PATH_DEPTH, Some(ctx))?;
                         Tree::Select { qualifier: self.spliced(qualifier), name }
                     }
                     _ => Tree::Ident { name },

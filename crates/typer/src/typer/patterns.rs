@@ -10,6 +10,9 @@ use syntax::ast::{NodeId, Span, TName, Tree, modifiers::Modifiers};
 use syntax::names::is_var_pattern_name;
 use tasty::{Kind, Type, TypeId};
 
+/// How many type aliases a pattern's type or a match-type reference is followed through at most.
+pub const MAX_ALIAS_STEPS: usize = 8;
+
 impl Typer<'_> {
     pub fn typed_typed(&mut self, id: NodeId, expr: NodeId, tpt: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         if ctx.mode.is(Mode::PATTERN)
@@ -137,7 +140,7 @@ impl Typer<'_> {
     /// `t` with its aliases, also those of script symbols, followed.
     pub fn dealiased(&mut self, t: TypeId) -> TypeId {
         let mut t = self.u.dealias(t);
-        for _ in 0..8 {
+        for _ in 0..MAX_ALIAS_STEPS {
             let Type::Sym(_, s) = *self.u.types().get(t) else { break };
             if self.u.symbol(s).kind != Kind::Type {
                 break;

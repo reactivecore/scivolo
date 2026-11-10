@@ -115,7 +115,7 @@ impl Typer<'_> {
         let info = self.u.info(dcl);
         let target = self.u.as_seen_from(info, this, owner);
         let accessors: Vec<(String, SymbolId)> = (self.u.decls(cls).unwrap_or_default().into_iter())
-            .filter(|&a| self.flags_of(a).is_all_of(f::PARAM_ACCESSOR.or(f::GIVEN)))
+            .filter(|&a| self.syms.flags_of(a).is_all_of(f::PARAM_ACCESSOR.or(f::GIVEN)))
             .map(|a| (self.u.symbol(a).name.clone(), a))
             .collect();
         let ids: Vec<SymbolId> = accessors.iter().map(|&(_, a)| a).collect();
@@ -125,7 +125,7 @@ impl Typer<'_> {
         let rhs = self.implicit_arg(target, at, search, 0)?;
         let name = self.u.symbol(dcl).name.clone();
         if self.is_member_ref(rhs, cls, &name) {
-            let (d, o) = (self.u.symbol(dcl).name.clone(), self.described(owner));
+            let (d, o) = (self.u.symbol(dcl).name.clone(), self.syms.described(self.u, owner));
             let msg = format!(
                 "Inferred implementation of the deferred given instance {d} in {o} is self-recursive.\nAn implementing given needs to be written explicitly."
             );

@@ -4,7 +4,7 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::TypeId;
+use tasty::{MAX_IMPLEMENTED_ARITY, TypeId};
 
 impl Typer<'_> {
     /// The type a closure of parameter types `params` and result `result` implementing single
@@ -36,7 +36,7 @@ impl Typer<'_> {
         if self.u.is_subtype(tpe, pt) {
             return None;
         }
-        let n = (0..=22).find(|&n| self.function_parts(tpe, n).is_some())?;
+        let n = (0..=MAX_IMPLEMENTED_ARITY).find(|&n| self.function_parts(tpe, n).is_some())?;
         if !self.function_params(pt).is_empty() || self.function_parts(pt, 0).is_some() {
             return None;
         }

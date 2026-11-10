@@ -4,6 +4,8 @@
 //! Function types `A => B` and `A ?=> B` (dotty's `typedFunctionType`) and the parts of function
 //! types.
 
+use super::dependent_params::mentions_params;
+use super::type_ops::TypeOps;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
@@ -29,41 +31,6 @@ impl Typer<'_> {
     fn class_of_full_name(&mut self, full_name: &str) -> Option<TypeId> {
         let c = self.resolve_full_name(full_name, true)?;
         Some(crate::defn::type_ref(self.u, c))
-    }
-
-    /// The parameter and result types of `t` if it is a `FunctionN` of `n` parameters.
-    pub fn function_parts(&mut self, t: TypeId, n: usize) -> Option<Parts> {
-        self.applied_function(t, "scala.Function").filter(|(params, _)| params.len() == n)
-    }
-
-    /// Whether `t` is a `FunctionN` type.
-    pub fn is_function_type(&mut self, t: TypeId) -> bool {
-        self.applied_function(t, "scala.Function").is_some()
-    }
-
-    /// The parameter and result types of `t` if it is a `ContextFunctionN`, possibly refined by
-    /// an `apply` whose result does not refer to its parameters (dotty's `dropDependentRefinement`).
-    pub fn context_function_parts(&mut self, t: TypeId) -> Option<Parts> {
-        let z = self.zonk(t);
-        let d = self.u.dealias(z);
-        if let Type::Refined(parent, name, info) = self.u.types().get(d).clone()
-            && name == "apply"
-            && let Type::Method { binder, result, .. } = *self.u.types().get(info)
-            && !self.mentions_params(result, binder, None)
-        {
-            return self.applied_function(parent, "scala.ContextFunction");
-        }
-        self.applied_function(t, "scala.ContextFunction")
-    }
-
-    /// The parameter and result types of `t` if it is an application of class `{base}N`.
-    fn applied_function(&mut self, t: TypeId, base: &str) -> Option<Parts> {
-        let t = self.zonk(t);
-        let t = self.u.dealias(t);
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
-        let class = self.u.class_symbol(tycon)?;
-        let (&result, params) = args.split_last()?;
-        (self.u.full_name(class) == format!("{base}{}", params.len())).then(|| (params.to_vec(), result))
     }
 
     /// The expected parameter and result types of function value `id` of `n` parameters, a
@@ -108,34 +75,6 @@ impl Typer<'_> {
             Ok(None) => Ok((None, None)),
             Err(what) => Err(self.unsupported(id, what)),
         }
-    }
-
-    /// Whether `t` has a part left open by an expected type (dotty's `WildcardType`).
-    pub fn has_proto_wildcard(&mut self, t: TypeId) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            found |= matches!(u.types().get(part), Type::Wildcard(_));
-            None
-        });
-        found
-    }
-
-    /// Type `t` as dotty's messages show it: function types as `(A, B) => R` or `A ?=> R`.
-    pub fn show_type(&mut self, t: TypeId) -> String {
-        let t = self.zonk(t);
-        let (parts, arrow) = match self.context_function_parts(t) {
-            Some(parts) => (Some(parts), "?=>"),
-            None => (self.applied_function(t, "scala.Function"), "=>"),
-        };
-        if let Some((params, result)) = parts {
-            let params: Vec<String> = params.iter().map(|&p| self.show_type(p)).collect();
-            let result = self.show_type(result);
-            return match params.as_slice() {
-                [p] if !p.contains("=>") => format!("{p} {arrow} {result}"),
-                _ => format!("({}) {arrow} {result}", params.join(", ")),
-            };
-        }
-        self.u.show(t)
     }
 
     /// Function type `(args) => body` as `FunctionN[args, body]`, `(args) ?=> body` of modifiers
@@ -199,5 +138,57 @@ impl Typer<'_> {
         let tpe = self.u.intern_type(Type::Applied(class, arg_types));
         let args = self.tpd.list(&typed);
         self.tpd.node(T::AppliedTypeTree { tpt: tycon, args }, span, Some(tpe), None)
+    }
+}
+
+impl TypeOps<'_> {
+    /// Splits `t` into its parameter and result types if it is a `FunctionN` of `n` parameters,
+    /// zonked and dealiased.
+    pub fn function_parts(&mut self, t: TypeId, n: usize) -> Option<Parts> {
+        self.applied_function(t, "scala.Function").filter(|(params, _)| params.len() == n)
+    }
+
+    /// Splits `t` into its parameter and result types if it is a `ContextFunctionN`, possibly
+    /// refined by an `apply` whose result does not refer to its parameters (dotty's
+    /// `dropDependentRefinement`).
+    pub fn context_function_parts(&mut self, t: TypeId) -> Option<Parts> {
+        let z = self.zonk(t);
+        let d = self.u.dealias(z);
+        if let Type::Refined(parent, name, info) = self.u.types().get(d).clone()
+            && name == "apply"
+            && let Type::Method { binder, result, .. } = *self.u.types().get(info)
+            && !mentions_params(self.u, result, binder, None)
+        {
+            return self.applied_function(parent, "scala.ContextFunction");
+        }
+        self.applied_function(t, "scala.ContextFunction")
+    }
+
+    /// Checks whether `t` has a part left open by an expected type (dotty's `WildcardType`).
+    pub fn has_proto_wildcard(&mut self, t: TypeId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, part| {
+            found |= matches!(u.types().get(part), Type::Wildcard(_));
+            None
+        });
+        found
+    }
+
+    /// Shows type `t` as dotty's messages do: function types as `(A, B) => R` or `A ?=> R`.
+    pub fn show_type(&mut self, t: TypeId) -> String {
+        let t = self.zonk(t);
+        let (parts, arrow) = match self.context_function_parts(t) {
+            Some(parts) => (Some(parts), "?=>"),
+            None => (self.applied_function(t, "scala.Function"), "=>"),
+        };
+        if let Some((params, result)) = parts {
+            let params: Vec<String> = params.iter().map(|&p| self.show_type(p)).collect();
+            let result = self.show_type(result);
+            return match params.as_slice() {
+                [p] if !p.contains("=>") => format!("{p} {arrow} {result}"),
+                _ => format!("({}) {arrow} {result}", params.join(", ")),
+            };
+        }
+        self.u.show(t)
     }
 }

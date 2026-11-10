@@ -21,7 +21,7 @@ impl Typer<'_> {
         let dual = self.infix_tuple_elems(id, &arg_ids);
         let using = self.ast.attrs(id).contains(Attrs::USING_APPLY);
         let fun_proto =
-            super::overloads::FunProto { args: arg_ids, ctx, typed: None, pt, deep: false, dual, using };
+            super::protos::FunProto { args: arg_ids, ctx, typed: None, pt, deep: false, dual, using };
         self.protos.push(fun_proto);
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
         let fun_ctx = plain_ctx;
@@ -171,7 +171,7 @@ impl Typer<'_> {
             }
             let by_name =
                 params.get(i).is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
-            let arg_ctx = if by_name { self.retract_mutables(ctx) } else { ctx };
+            let arg_ctx = if by_name { self.nullables.retract_mutables(self.u, ctx) } else { ctx };
             let arg = self.arg_against(a, pre, formal, arg_ctx);
             let arg = if by_name { self.by_name_uncaptured(arg) } else { arg };
             typed_args.push(self.by_name_flow_dropped(arg, i, meth));

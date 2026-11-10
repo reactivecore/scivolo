@@ -5,7 +5,7 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, VarId};
+use tasty::{NOTHING, Type, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {
     /// Instantiates the type variables other than locked ones that type applications in `tree`'s
@@ -44,26 +44,6 @@ impl Typer<'_> {
     fn is_any(&mut self, t: TypeId) -> bool {
         let any_kind = self.u.builtins().any_kind;
         self.is_exactly_any(t) || self.u.class_symbol(t) == Some(any_kind)
-    }
-
-    /// Whether `t` is `Any` (dotty's `isExactlyAny`).
-    pub fn is_exactly_any(&mut self, t: TypeId) -> bool {
-        t == ANY || self.u.class_symbol(t) == Some(self.u.builtins().any)
-    }
-
-    /// The uninstantiated type variables in `t`.
-    pub fn open_vars(&mut self, t: TypeId) -> Vec<VarId> {
-        let t = self.zonk(t);
-        let mut vars = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part)
-                && !vars.contains(&v)
-            {
-                vars.push(v);
-            }
-            None
-        });
-        vars
     }
 
     /// The type variables inferred type arguments in `tree`'s prefixes bind.

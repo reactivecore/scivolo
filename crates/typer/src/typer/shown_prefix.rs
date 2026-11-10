@@ -1,12 +1,37 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/printing/PlainPrinter.scala
 //   compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala
-//! The prefix of a reference as dotty's `RefinedPrinter.toTextPrefixOf` shows it in a message.
+//! The prefix of a reference as dotty's `RefinedPrinter.toTextPrefixOf` shows it in a message,
+//! and the place of a member as `showLocated` shows it.
 
 use super::Typer;
+use tasty::tags::{OBJECT, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
+    /// Where dotty's `showLocated` places a member of `owner`: ` in object O`, or nothing for a
+    /// top-level or local definition.
+    pub fn location(&mut self, owner: SymbolId) -> Option<String> {
+        let o = self.u.symbol(owner);
+        let (name, kind, flags, parent) = (o.name.clone(), o.kind, o.flags, o.owner);
+        Some(match kind {
+            Kind::Def | Kind::Val => String::new(),
+            _ if self.u.is_package_object(owner) || name.starts_with("rs$line$") => {
+                let p = parent?;
+                match p == self.u.root() || self.u.symbol(p).name == "<empty>" {
+                    true => String::new(),
+                    false => return None,
+                }
+            }
+            Kind::Package if name == "<empty>" || owner == self.u.root() => String::new(),
+            Kind::Class if name.contains("$anon") => return None,
+            Kind::Class if flags.has(OBJECT) => format!(" in object {}", tasty::module_name(&name)?),
+            Kind::Class if flags.has(TRAIT) => format!(" in trait {name}"),
+            Kind::Class if !name.contains('$') => format!(" in class {name}"),
+            _ => return None,
+        })
+    }
+
     /// `prefix` shown with its separator, `""` if the printer omits it.
     pub fn shown_prefix(&mut self, prefix: TypeId) -> String {
         let cls = match *self.u.types().get(prefix) {

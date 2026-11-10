@@ -118,7 +118,7 @@ impl Typer<'_> {
         {
             return false;
         }
-        let Some(c) = self.direct_class(formal) else { return false };
+        let Some(c) = self.types().direct_class(formal) else { return false };
         if !self.syms.flags.contains_key(&c) || self.u.is_module_class(c) {
             return false;
         }
@@ -164,7 +164,7 @@ impl Typer<'_> {
         }
         let t = self.u.widen(t);
         let t = self.u.dealias(t);
-        let Some(class) = self.direct_class(t) else { return false };
+        let Some(class) = self.types().direct_class(t) else { return false };
         !self.u.derives_from(class, c) || !poly && self.is_fully_defined(t) && !self.u.is_subtype(t, formal)
     }
 }

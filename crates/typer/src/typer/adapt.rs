@@ -4,7 +4,7 @@
 //! Fitting a typed tree to what its context expects (dotty's `adapt`), as far as the subset
 //! goes: a tree that fits as it is, a numeric constant converted, a value discarded for `Unit`.
 
-use super::implicits::conversions::Goal;
+use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -96,7 +96,7 @@ impl Typer<'_> {
         self.complete_refined_members(tpe, pt);
         let lifts = self.u.opaque_lifts();
         if self.conforms(tpe, pt) || self.complete_unit_classes() && self.conforms(tpe, pt) {
-            if self.u.opaque_lifts() != lifts && !self.conforms_unlifted(tpe, pt) {
+            if self.u.opaque_lifts() != lifts && !self.types().conforms_unlifted(tpe, pt) {
                 let tpt = self.type_tree(pt, span.end_pos(), true);
                 return self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(pt), None);
             }
@@ -149,7 +149,7 @@ impl Typer<'_> {
 
     /// `tree.toTuple` if `tree` is a named tuple and `pt` derives from `Tuple`.
     fn named_tuple_values(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> Option<TNodeId> {
-        let tuple = self.resolve_full_name("scala.Tuple", true)?;
+        let tuple = self.resolve_full_name(crate::defn::TUPLE, true)?;
         if !self.is_named_tuple_type(self.tpd.tpe(tree)) || self.u.base_type(pt, tuple).is_none() {
             return None;
         }

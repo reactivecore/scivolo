@@ -6,8 +6,10 @@
 
 use super::Typer;
 use super::gadt::plain_type_ref;
+use super::gadt_cases::Gadt;
 use super::gadt_full_bounds::is_top;
 use super::stability::is_stable_path;
+use super::type_ops::TypeOps;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Type, TypeId, Universe};
@@ -40,7 +42,7 @@ fn is_concrete(u: &mut Universe, t: TypeId) -> bool {
 }
 
 impl Typer<'_> {
-    /// `tree.$asInstanceOf$[target]`: `pt`, or for a singleton the singleton and its widened type
+    /// Casts `tree` to `pt` with `$asInstanceOf$`; a singleton to itself, its widened type
     /// approximated without the GADT bounds, and `pt` unless that approximation conforms to it.
     pub fn gadt_cast(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(tree);
@@ -56,7 +58,7 @@ impl Typer<'_> {
             _ => tpe,
         };
         let widened = self.u.widen(underlying);
-        let approx = self.approximate_gadt(widened, 1, ctx);
+        let approx = self.gadt.approximate(self.u, widened, 1, ctx);
         let conj = self.u.intern_type(Type::And(tpe, approx));
         let conj = match self.conforms_without_gadt(approx, pt) {
             true => conj,
@@ -80,18 +82,25 @@ impl Typer<'_> {
         self.is_singleton(underlying)
     }
 
-    /// `tree` cast to `pt` if it conforms to it only by GADT bounds (dotty's `gadtAdaptBranch`);
+    /// Tells whether `a` conforms to `b` without the GADT bounds, constraining type variables.
+    fn conforms_without_gadt(&mut self, a: TypeId, b: TypeId) -> bool {
+        let ops = &mut TypeOps { u: self.u, constraint: &mut self.constraint };
+        self.gadt.conforms_without(ops, a, b)
+    }
+
+    /// Casts `tree` to `pt` if it conforms to it only by the bounds of the cases being typed, as
+    /// a case body `i: Int` returned for a `T` known to be `Int` (dotty's `gadtAdaptBranch`);
     /// type variables constrained by the comparison without them first.
     pub fn gadt_adapted(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(tree);
-        match self.gadt_narrowing() && !self.conforms_without_gadt(tpe, pt) && self.conforms(tpe, pt) {
+        match self.gadt.narrowing() && !self.conforms_without_gadt(tpe, pt) && self.conforms(tpe, pt) {
             true => self.gadt_cast(tree, pt, ctx),
             false => tree,
         }
     }
 
-    /// `gadt_adapted` of a block's expression, as dotty adapts it while typing the block; of a
-    /// closure as a whole.
+    /// Applies `gadt_adapted` to a block's expression, as dotty adapts it while typing the
+    /// block; to a closure as a whole.
     pub fn gadt_adapted_in(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> TNodeId {
         let T::Block { stats, expr } = *self.tpd.tree(tree) else { return self.gadt_adapted(tree, pt, ctx) };
         if matches!(self.tpd.tree(expr), T::Closure { .. }) {
@@ -110,62 +119,64 @@ impl Typer<'_> {
         }
     }
 
-    /// Qualifier `qual` cast to its widened type approximated by the GADT bounds if that differs
-    /// (dotty's `tryGadt` in `typedSelect`).
+    /// Casts qualifier `qual` to its widened type approximated by the GADT bounds if that differs,
+    /// so that `b.value` selects on `IntBox` where `b: Box[T]` and `T = Int` (dotty's `tryGadt` in
+    /// `typedSelect`).
     pub fn gadt_healed(&mut self, qual: TNodeId, ctx: Ctx) -> Option<TNodeId> {
-        if !self.gadt_narrowing() {
+        if !self.gadt.narrowing() {
             return None;
         }
         let widened = self.tpd.tpe(qual);
         let widened = self.u.widen(widened);
-        let approx = self.approximate_gadt(widened, 1, ctx);
+        let approx = self.gadt.approximate(self.u, widened, 1, ctx);
         (approx != widened).then(|| self.type_cast(qual, approx))
     }
+}
 
-    /// `t` with each GADT-constrained type replaced by its upper bound where it occurs
-    /// covariantly, by its lower bound where contravariantly, not inside the bounds; a covariant
-    /// application of one without a proper upper bound or made one with another by `Any`.
-    fn approximate_gadt(&mut self, t: TypeId, variance: i8, ctx: Ctx) -> TypeId {
-        let t = self.u.dealias(t);
-        if let Some(s) = plain_type_ref(self.u, t)
+impl Gadt {
+    /// Replaces in `t` each type a case may narrow by its upper bound where it occurs
+    /// covariantly, by its lower bound where contravariantly, not inside the bounds, as `Box[T]`
+    /// becomes `Box[Int]` for `T = Int`; a covariant application of one without a proper upper
+    /// bound or made one with another by `Any`.
+    fn approximate(&self, u: &mut Universe, t: TypeId, variance: i8, ctx: Ctx) -> TypeId {
+        let t = u.dealias(t);
+        if let Some(s) = plain_type_ref(u, t)
             && variance != 0
-            && self.is_gadt_symbol(s, ctx)
+            && self.is_symbol(u, s, ctx)
         {
-            return self.gadt_bound(s, variance);
+            return self.bound(u, s, variance);
         }
-        match self.u.types().get(t).clone() {
+        match u.types().get(t).clone() {
             Type::Applied(tycon, args) => {
-                let variances = self.u.tycon_variances(tycon, args.len());
+                let variances = u.tycon_variances(tycon, args.len());
                 let args = args
                     .iter()
                     .zip(variances)
-                    .map(|(&a, v)| self.approximate_gadt(a, variance * v, ctx))
+                    .map(|(&a, v)| self.approximate(u, a, variance * v, ctx))
                     .collect();
-                let tycon = match plain_type_ref(self.u, tycon) {
-                    Some(s) if variance != 0 && self.is_gadt_symbol(s, ctx) => {
-                        let bound = self.gadt_bound(s, variance);
-                        let made_one = self.u.gadt_bounds(s).is_some_and(|(lo, hi)| {
-                            lo == hi && plain_type_ref(self.u, hi).is_some_and(|r| r != s)
+                let tycon = match plain_type_ref(u, tycon) {
+                    Some(s) if variance != 0 && self.is_symbol(u, s, ctx) => {
+                        let bound = self.bound(u, s, variance);
+                        let made_one = u.gadt_bounds(s).is_some_and(|(lo, hi)| {
+                            lo == hi && plain_type_ref(u, hi).is_some_and(|r| r != s)
                         });
-                        if variance > 0 && (is_top(self.u, bound) || made_one) {
+                        if variance > 0 && (is_top(u, bound) || made_one) {
                             return tasty::ANY;
                         }
-                        let simple = !matches!(self.u.types().get(bound), Type::Lambda { .. });
+                        let simple = !matches!(u.types().get(bound), Type::Lambda { .. });
                         if simple && bound != tasty::ANY && bound != tasty::NOTHING { bound } else { tycon }
                     }
                     _ => tycon,
                 };
-                self.u.intern_type(Type::Applied(tycon, args))
+                u.intern_type(Type::Applied(tycon, args))
             }
             Type::And(a, b) => {
-                let (a, b) =
-                    (self.approximate_gadt(a, variance, ctx), self.approximate_gadt(b, variance, ctx));
-                self.u.intern_type(Type::And(a, b))
+                let (a, b) = (self.approximate(u, a, variance, ctx), self.approximate(u, b, variance, ctx));
+                u.intern_type(Type::And(a, b))
             }
             Type::Or(a, b, soft) => {
-                let (a, b) =
-                    (self.approximate_gadt(a, variance, ctx), self.approximate_gadt(b, variance, ctx));
-                self.u.intern_type(Type::Or(a, b, soft))
+                let (a, b) = (self.approximate(u, a, variance, ctx), self.approximate(u, b, variance, ctx));
+                u.intern_type(Type::Or(a, b, soft))
             }
             _ => t,
         }

@@ -3,12 +3,29 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! References to local symbols escaping their scope (dotty's `escapingRefs`).
 
-use super::Typer;
+use super::type_ops::TypeOps;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
-impl Typer<'_> {
-    /// Whether type `t` refers to one of `locals` as dotty's `namedPartsWith` finds them: the
-    /// prefix of a static member not traversed, the class of a class constant traversed.
+impl TypeOps<'_> {
+    /// Checks whether type `t` mentions one of the definitions `syms` anywhere, also as the prefix
+    /// of a selection or as the class of a `classOf` constant.
+    pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
+        let mut found = false;
+        let mut classes = Vec::new();
+        self.u.map_type(t, &mut |u, part| {
+            match *u.types().get(part) {
+                Type::Sym(_, s) => found |= syms.contains(&s),
+                Type::Constant(tasty::tags::CLASSconst, bits) => classes.push(TypeId(bits as u32)),
+                _ => {}
+            }
+            None
+        });
+        found || classes.into_iter().any(|c| self.refers_to(c, syms))
+    }
+
+    /// Checks whether type `t` mentions one of the definitions `locals` that go out of scope, as
+    /// dotty looks for them: a member of an object reached by its full path does not count its
+    /// prefix, the class of a `classOf` constant does count (dotty's `namedPartsWith`).
     pub fn escapes(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         let mut found = false;
         let mut classes = Vec::new();
@@ -26,15 +43,17 @@ impl Typer<'_> {
         found || classes.into_iter().any(|c| self.escapes(c, locals))
     }
 
-    /// Whether an uninstantiated type variable in `t` has a bound that refers to one of `locals`
-    /// going out of scope, also once the bounds of the variables in `t` avoid them.
+    /// Checks whether a type still to be inferred in `t` is bounded by a type mentioning one of
+    /// the definitions `locals` that go out of scope, even after those bounds are approximated
+    /// without them; approximating narrows the bounds in the constraint.
     pub fn var_bounds_escape(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         self.var_bounds_refer_to(t, locals)
             && (!self.constraint.avoid_in_bounds(self.u, t) || self.var_bounds_refer_to(t, locals))
     }
 
-    /// Whether an uninstantiated type variable in `t` made before one of `locals` has a bound
-    /// that refers to one of them, directly or through the bounds of the variables in it.
+    /// Checks whether a type still to be inferred in `t`, introduced outside the scope of the
+    /// definitions `locals`, is bounded by a type mentioning one of them, directly or through the
+    /// bounds of other types still to be inferred.
     pub fn var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         if locals.is_empty() {
             return false;

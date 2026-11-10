@@ -40,7 +40,7 @@ impl Typer<'_> {
                 return self.unsupported(c, "match type case body outside the bound");
             }
             if lub != ANY {
-                let avoided = self.avoid_captures(body, &captures, 1);
+                let avoided = self.types().avoid_captures(body, &captures, 1);
                 lub = if self.is_provisional_type(body) { ANY } else { self.u.lub(lub, avoided) };
             }
             case_types.push(case);

@@ -3,10 +3,10 @@
 //! Capture conversion on paths (dotty's `compareCaptured`): a wildcard argument of a stable
 //! path's type compared as the type parameter selected on the path.
 
-use super::Typer;
+use super::type_ops::TypeOps;
 use tasty::{Type, TypeId};
 
-impl Typer<'_> {
+impl TypeOps<'_> {
     /// Whether stable path `a` conforms to class type `b`, or to each side of intersection `b`,
     /// with the wildcard arguments of its base type in `b`'s class replaced by the type
     /// parameters selected on `a`.
