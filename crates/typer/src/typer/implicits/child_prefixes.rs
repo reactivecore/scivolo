@@ -7,8 +7,8 @@
 use crate::sealed;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
-/// Collects the classes of prefix `pre` if it is a singleton type, those of both sides of an
-/// intersection (dotty's `ownerScope` of `classSymbols`).
+/// Collects the classes of prefix `pre` when it is a path such as `a.b` or `C.this`, both sides
+/// of an intersection type included (dotty's `ownerScope` of `classSymbols`).
 pub fn owner_scope(u: &mut Universe, pre: Option<TypeId>) -> Vec<SymbolId> {
     let Some(p) = pre else { return Vec::new() };
     let singleton = match *u.types().get(p) {
@@ -44,8 +44,9 @@ fn inherits(u: &mut Universe, sym: SymbolId, scope: SymbolId) -> bool {
             || u.symbol(scope).owner.is_some_and(|o| inherits(u, sym, o)))
 }
 
-/// Determines the prefix of child `child` of sealed class `parent` referred to through `pre`: the
-/// part of `pre` the owners of both share, with the child's other owners selected from it.
+/// Determines the path to child `child` of sealed class `parent` when the mirror is summoned for
+/// `pre.Parent`: e.g. `pre.Inner` for a child nested in `Inner`; `None` for a child not
+/// reachable from `pre`.
 pub fn child_prefix(u: &mut Universe, pre: TypeId, parent: SymbolId, child: SymbolId) -> Option<TypeId> {
     let owners = |u: &Universe, s: SymbolId| -> Vec<SymbolId> {
         let mut v: Vec<SymbolId> = std::iter::successors(u.symbol(s).owner, |&o| u.symbol(o).owner).collect();

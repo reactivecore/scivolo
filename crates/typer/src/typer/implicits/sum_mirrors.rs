@@ -13,7 +13,8 @@ use tasty::tags::CASE;
 use tasty::{SymbolId, Type, TypeId, Universe};
 
 impl MirrorSynthesis {
-    /// Synthesizes the sum mirror of the sealed class `source` refers to, if it has one.
+    /// Synthesizes the mirror of a sealed trait, sealed abstract class or enum whose children
+    /// all have mirrors; `None` for another type.
     pub fn sum(self, t: &mut Typer<'_>, source: MirrorSource) -> Result<Option<TNodeId>, &'static str> {
         let MirrorSource::Class(pre, cls) = source else { return Ok(None) };
         let mirrored = self.formal.mirrored;

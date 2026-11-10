@@ -12,7 +12,8 @@ use syntax::ast::{NodeId, TName, Tree};
 use tasty::TypeId;
 
 impl MirrorSynthesis {
-    /// Types the anonymous sum (`sum`) or product mirror of `mono`.
+    /// Types an anonymous class as the sum (`sum`) or product mirror of `mono`, for a class whose
+    /// companion cannot serve as its mirror.
     pub fn anonymous(self, t: &mut Typer<'_>, mono: TypeId, sum: bool) -> Result<TNodeId, &'static str> {
         let object = crate::defn::type_ref(t.u, t.u.builtins().object);
         let serializable = t.resolve_full_name("java.io.Serializable", true).ok_or(MISSING)?;

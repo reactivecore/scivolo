@@ -24,13 +24,15 @@ pub enum MirrorSource {
 }
 
 impl MirrorSource {
-    /// Reduces mirrored type `t` to the source of its mirror; `None` where dotty reports that `t`
-    /// is not mirrored.
+    /// Finds what mirrored type `tpe` stands for: a class, a case object or enum case, or a
+    /// (named) tuple, looking through aliases, upper bounds, refinements and intersections.
+    /// `None` for a type without a mirror, such as a union; refuses a type still to be inferred.
     pub fn of(t: &mut Typer<'_>, tpe: TypeId) -> Result<Option<MirrorSource>, &'static str> {
         reduced_source(t, tpe, MAX_STEPS)
     }
 
-    /// Whether this source is at least as specific as `other` (dotty's `isSub`).
+    /// Whether this source is at least as specific as `other`, as `A` is in `A & B` for an `A`
+    /// extending `B` (dotty's `isSub`).
     fn is_sub(&self, u: &mut Universe, other: &MirrorSource) -> bool {
         use MirrorSource as M;
         match (self, other) {

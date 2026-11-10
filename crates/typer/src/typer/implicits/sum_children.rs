@@ -42,9 +42,10 @@ impl Typer<'_> {
 }
 
 impl MirrorSynthesis {
-    /// Whether sealed class `s` at prefix `pre` has a sum mirror (dotty's `isGenericSum`), its
-    /// children visible from here or through `pre` unless its companion (`companion`) is the
-    /// mirror.
+    /// Whether sealed class `s`, selected from prefix `pre`, gets a sum mirror here (dotty's
+    /// `isGenericSum`): it has children, none anonymous, each an object or a class with a mirror,
+    /// and each visible from here or through `pre` unless its companion serves as the mirror
+    /// (`companion`).
     pub fn is_generic_sum(
         self,
         t: &mut Typer<'_>,
@@ -84,9 +85,10 @@ impl MirrorSynthesis {
     }
 }
 
-/// Solves the type of child `c` of the sum mirrored as `target` (dotty's `solve`), at prefix
-/// `prefix` if given: an object's or value's singleton type, a class with its type parameters
-/// solved from `C[Xs] <: target`, contravariant ones minimized, the others maximized.
+/// Determines the element type of child `c` in the mirror of the sum `target` (dotty's `solve`),
+/// selected from `prefix` if given: an object's singleton type, or the class with type arguments
+/// that make it fit `target`, e.g. `Some[Int]` for `Option[Int]`. Refuses a child whose type
+/// arguments `target` does not determine.
 pub fn child_type(
     t: &mut Typer<'_>,
     c: SymbolId,

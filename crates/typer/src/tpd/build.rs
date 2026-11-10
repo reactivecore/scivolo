@@ -121,7 +121,7 @@ impl<'a> Build<'a> {
         self.tpd.node(T::TypeApply { fun, args }, span, Some(tpe), None)
     }
 
-    /// Builds `tree.$asInstanceOf$[to]` at `span`.
+    /// Builds the cast `tree.asInstanceOf[to]` at `span`, typed as `to`.
     pub fn cast_to(&mut self, tree: TNodeId, to: TypeId, span: Span) -> Result<TNodeId, &'static str> {
         let any = self.u.builtins().any;
         let m = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());

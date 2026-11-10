@@ -12,8 +12,9 @@ use syntax::ast::constant::Constant;
 use tasty::{Type, TypeId};
 
 impl MirrorSynthesis {
-    /// Synthesizes the mirror of a tuple of `elems`, of a named tuple if `names` are given
-    /// (dotty's `makeNamedTupleProductMirror`).
+    /// Synthesizes the mirror of a tuple such as `(Int, String)` with element types `elems`, or of
+    /// a named tuple such as `(x: Int, y: Int)` if `names` are given (dotty's
+    /// `makeNamedTupleProductMirror`). Refuses a mirror of a tuple type constructor.
     pub fn tuple(
         self,
         t: &mut Typer<'_>,
@@ -48,7 +49,8 @@ impl MirrorSynthesis {
 }
 
 impl Typer<'_> {
-    /// Builds `t1 *: t2 *: … *: EmptyTuple` (dotty's `TypeOps.nestedPairs`).
+    /// Builds the generic tuple type `A *: B *: EmptyTuple` of `elems` (dotty's
+    /// `TypeOps.nestedPairs`).
     pub fn nested_pairs(&mut self, elems: &[TypeId]) -> Result<TypeId, &'static str> {
         let pair = self.resolve_full_name("scala.*:", true).ok_or(MISSING)?;
         let empty = self.resolve_full_name("scala.EmptyTuple", false).ok_or(MISSING)?;

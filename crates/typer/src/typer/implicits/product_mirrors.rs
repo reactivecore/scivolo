@@ -14,7 +14,9 @@ use tasty::tags::{CASE, CASEaccessor, PRIVATE, PROTECTED};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Synthesizer {
-    /// Synthesizes the mirror `pt` asks for, if it is a `Mirror` type whose mirrored type has one.
+    /// Synthesizes a `Mirror.Of[T]`, `Mirror.ProductOf[T]` or `Mirror.SumOf[T]` argument for a
+    /// case class, case object, enum, sealed hierarchy or tuple `T`; `None` for another expected
+    /// type or a `T` without a mirror.
     pub fn mirror(self, t: &mut Typer<'_>, pt: TypeId) -> Result<Option<TNodeId>, &'static str> {
         let Some(mut formal) = MirrorFormal::of(t.u, pt) else { return Ok(None) };
         formal.mirrored = t.fully_defined_as(formal.mirrored, true)?;
@@ -122,8 +124,9 @@ impl MirrorSynthesis {
         t.build().cast_to(value, cast, self.at)
     }
 
-    /// Whether `c` is a case class with a product mirror here (dotty's `isGenericProduct`): its
-    /// companion the mirror or its constructor accessible.
+    /// Whether case class `c` gets a product mirror where this one is summoned (dotty's
+    /// `isGenericProduct`): its companion serves as the mirror, or code here may call its
+    /// constructor.
     pub fn is_generic_product(self, t: &mut Typer<'_>, c: SymbolId) -> bool {
         t.complete(c);
         if let Some(&ctor) = t.u.decl(c, "<init>").unwrap_or_default().first() {
@@ -147,7 +150,8 @@ impl MirrorSynthesis {
     }
 }
 
-/// Lists the case accessors of class `c`, in order (dotty's `caseAccessors`).
+/// Lists the fields of the first parameter list of case class `c`, in order (dotty's
+/// `caseAccessors`).
 fn case_accessors(t: &mut Typer<'_>, c: SymbolId) -> Vec<SymbolId> {
     t.complete(c);
     let decls = t.u.decls(c).unwrap_or_default();

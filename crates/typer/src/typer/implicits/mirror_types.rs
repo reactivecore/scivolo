@@ -49,8 +49,9 @@ pub struct MirrorSynthesis {
 }
 
 impl MirrorFormal {
-    /// Reads `pt` as `Mirror`, `Mirror.Product` or `Mirror.Sum` refined by type members, among
-    /// them `MirroredType`; `None` for another type.
+    /// Recognizes an expected type such as `Mirror.Of[T]`, `Mirror.ProductOf[T]` or
+    /// `Mirror.SumOf[T]`, with any further type members it asks for, and the type `T` it mirrors;
+    /// `None` for any other expected type.
     pub fn of(u: &mut Universe, pt: TypeId) -> Option<MirrorFormal> {
         let mut t = u.dealias(pt);
         let mut mirrored = None;
@@ -75,9 +76,10 @@ impl MirrorFormal {
         Some(MirrorFormal { pt, kind, mirrored: mirrored? })
     }
 
-    /// Determines the `MirroredMonoType` and `MirroredElemTypes` of the mirrored type with element
-    /// types `elems`: of a type lambda, its result with each parameter replaced by its bounds, and
-    /// the lambda of the elements (dotty's `mkMirroredMonoType`).
+    /// Determines the mono type and the element types of a mirror whose elements are `elems`. A
+    /// mirror of a type constructor, such as `Mirror.Of[[X] =>> Box[X]]`, gets the constructor
+    /// applied to the bounds of its parameters as mono type and its elements as a type lambda
+    /// (dotty's `mkMirroredMonoType`).
     pub fn mono_and_elems(&self, u: &mut Universe, elems: TypeId) -> (TypeId, TypeId) {
         let Type::Lambda { binder, params, result } = u.types().get(self.mirrored).clone() else {
             return (self.mirrored, elems);
@@ -87,8 +89,9 @@ impl MirrorFormal {
         (mono, u.intern_type(Type::Lambda { binder, params, result: elems }))
     }
 
-    /// Refuses refinements of `MirroredElemTypes` and `MirroredElemLabels` in the expected type
-    /// that do not admit `types` and `labels`.
+    /// Refuses a mirror whose expected type asks for other element types or labels than `types`
+    /// and `labels`, e.g. `Mirror.ProductOf[P] { type MirroredElemTypes = (Int, Int) }` for a
+    /// `case class P(s: String)`.
     pub fn check_elems(
         &self,
         ops: &mut TypeOps<'_>,
@@ -101,9 +104,9 @@ impl MirrorFormal {
 }
 
 impl MirrorSynthesis {
-    /// Builds `parent { MirroredMonoType = mono; MirroredType = mirrored; MirroredLabel = label;
-    /// MirroredElemTypes = …; MirroredElemLabels = … }` intersected with the expected type;
-    /// refused if the expected type refines the element types or labels otherwise.
+    /// Builds the type the synthesized mirror is cast to: the mirror class of `core` with its
+    /// mirrored type, mono type, label and, for a product or sum, its element types and labels,
+    /// combined with the expected type. Refuses an expected type that asks for other elements.
     pub fn mirror_type(self, t: &mut Typer<'_>, core: MirrorCore) -> Result<TypeId, &'static str> {
         let formal = self.formal;
         let parent = t.resolve_full_name(core.parent, true).ok_or(MISSING)?;
@@ -131,7 +134,8 @@ impl MirrorSynthesis {
         })
     }
 
-    /// Creates `new C(args)` of the class of full name `full`.
+    /// Builds the instance creation `new C(args)` of library class `full`, e.g.
+    /// `scala.runtime.TupleMirror`.
     pub fn new_with_args(
         self,
         t: &mut Typer<'_>,
@@ -148,7 +152,7 @@ impl MirrorSynthesis {
         Ok(t.build().apply(select, args, raw, at))
     }
 
-    /// Casts `mirror` to the refined mirror type `to`.
+    /// Casts the mirror object `mirror` to its mirror type `to`, giving the synthesized argument.
     pub fn cast(
         self,
         t: &mut Typer<'_>,
@@ -159,13 +163,14 @@ impl MirrorSynthesis {
     }
 }
 
-/// Makes the labels `labels` a tuple of string constant types.
+/// Builds the tuple type of `labels` as string literal types, e.g. `("x", "y")`.
 pub fn label_pairs(t: &mut Typer<'_>, labels: &[String]) -> Result<TypeId, &'static str> {
     let labels: Vec<TypeId> = labels.iter().map(|l| t.u.intern_type(Type::Str(l.clone()))).collect();
     t.nested_pairs(&labels)
 }
 
-/// Refuses a refinement of `name` in `pt` that does not admit `expected` (dotty reports it).
+/// Refuses a mirror whose expected type `pt` asks for a type member `name` that `expected` does
+/// not fit (dotty reports it).
 fn check_refinement(
     ops: &mut TypeOps<'_>,
     pt: TypeId,
