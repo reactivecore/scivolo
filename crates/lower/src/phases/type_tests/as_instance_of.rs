@@ -9,7 +9,7 @@ use crate::phases::casts::{class_named, conforms, conforms_to_class_file, type_o
 use crate::phases::mixin::is_jdk;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId, Type, TypeId};
+use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Cast `t` of `expr` to `target`: an ascription if `expr`'s type erases to `target`'s primitive,
@@ -115,7 +115,7 @@ fn to_raw_generic(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
     }
     let args: Vec<TypeId> = fs.iter().map(|&p| type_ref(l.u, p)).collect();
     let class = type_ref(l.u, f);
-    let applied = l.u.intern_type(Type::Applied(class, args.clone()));
+    let applied = l.u.intern_applied(class, &args);
     let Some(base) = l.u.base_type(applied, t) else { return true };
     let Some((_, found)) = l.u.applied(base) else { return true };
     let found = found.iter().map(|&a| l.u.annotated(a).map_or(a, |(a, _)| a));

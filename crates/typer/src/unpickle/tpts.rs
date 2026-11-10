@@ -44,8 +44,8 @@ impl Unpickler<'_> {
                 let args = k[1..].iter().map(|&a| self.tpt(a)).collect::<Result<Vec<_>, _>>()?;
                 let tpe = match k[1..].iter().any(|&a| self.tag(a) == BIND) {
                     true => {
-                        let arg_types = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-                        self.u.intern_type(Type::Applied(self.tpd.tpe(tpt), arg_types))
+                        let arg_types: Vec<_> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+                        self.u.intern_applied(self.tpd.tpe(tpt), &arg_types)
                     }
                     false => self.ty(id),
                 };

@@ -41,7 +41,7 @@ fn class(u: &mut Universe, full: &str) -> TypeId {
 }
 
 fn applied(u: &mut Universe, tycon: TypeId, args: &[TypeId]) -> TypeId {
-    u.intern_type(Type::Applied(tycon, args.to_vec()))
+    u.intern_applied(tycon, args)
 }
 
 fn int(u: &mut Universe, n: i64) -> TypeId {
@@ -126,14 +126,12 @@ fn library_match_types_keep_scrutinee_and_cases() {
     ] {
         let t = match_alias(&mut u, pkg, obj, name);
         let Type::Match { cases, .. } = u.types().get(t).clone() else { unreachable!() };
-        assert_eq!(cases.len(), n, "{name}: {}", u.show(t));
+        assert_eq!(u.types_of(cases).len(), n, "{name}: {}", u.show(t));
         assert!(!has_undecoded(&mut u, t), "{name}: {}", u.show(t));
     }
     let head = match_alias(&mut u, "scala", "Tuple", "Head");
     let Type::Match { cases, .. } = u.types().get(head).clone() else { unreachable!() };
-    let Type::Lambda { params, result, .. } = u.types().get(cases[0]).clone() else {
-        panic!("{}", u.show(head))
-    };
-    assert_eq!(params.len(), 2);
-    assert!(matches!(u.types().get(result), Type::MatchCase(..)));
+    let Some(lambda) = u.lambda(u.types_of(cases)[0]) else { panic!("{}", u.show(head)) };
+    assert_eq!(lambda.params.len(), 2);
+    assert!(matches!(u.types().get(lambda.result), Type::MatchCase(..)));
 }

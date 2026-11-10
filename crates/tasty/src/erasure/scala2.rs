@@ -48,7 +48,7 @@ impl Universe {
                 arrays.iter().filter_map(|&p| self.applied(p)?.1.first().copied()).collect();
             let Type::Applied(tycon, _) = *self.ty(first) else { unreachable!("an array type") };
             let element = self.dominator(&elements);
-            return self.intern_type(Type::Applied(tycon, vec![element]));
+            return self.intern_applied(tycon, &[element]);
         }
         let unshadowed: Vec<bool> = psyms
             .iter()

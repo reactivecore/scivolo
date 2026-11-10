@@ -17,8 +17,9 @@ impl Universe {
         let mut own = None;
         if let (Type::Poly { binder, params, .. }, Type::Poly { binder: b2, params: p2, .. }) =
             (self.ty(a).clone(), self.ty(b).clone())
-            && params.len() == p2.len()
+            && self.params_of(params).len() == self.params_of(p2).len()
         {
+            let p2 = self.params_of(p2).to_vec();
             rb = self.with_binder(rb, (b2, &p2), binder);
             own = Some(binder);
         }

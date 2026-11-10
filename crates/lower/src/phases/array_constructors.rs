@@ -75,7 +75,7 @@ fn new_array(l: &mut Lower, elem: TypeId, n: TNodeId, span: Span) -> Option<TNod
     let array = l.u.class_ref("scala.Array");
     let class = l.u.class_symbol(array)?;
     let ctor = *l.u.decl(class, "<init>").ok()?.first()?;
-    let tpe = l.u.intern_type(Type::Applied(array, vec![elem]));
+    let tpe = l.u.intern_applied(array, &[elem]);
     let tpt = l.type_tree(tpe, span);
     let new = l.tpd.node(Tree::New { tpt }, span, Some(tpe), None);
     let sel = l.select(new, ctor, span);
@@ -104,7 +104,7 @@ fn new_arrays(l: &mut Lower, elem: TypeId, result: TypeId, dims: &[TNodeId], spa
     let int = l.u.class_ref("scala.Int");
     let elemtpt = l.type_tree(int, span);
     let array = l.u.class_ref("scala.Array");
-    let ints = l.u.intern_type(Type::Applied(array, vec![int]));
+    let ints = l.u.intern_applied(array, &[int]);
     let elems = l.tpd.list(dims);
     let dims = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, span, Some(ints), None);
     Some(l.apply(fun, &[elem_class, result_class, dims], result, span))

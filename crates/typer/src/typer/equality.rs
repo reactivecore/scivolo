@@ -169,12 +169,10 @@ impl Typer<'_> {
             Type::Refined(parent, ..) => self.lifted(parent, depth),
             Type::Applied(tycon, args) => {
                 let variances = self.u.class_symbol(tycon).map(|c| self.u.variances(c)).unwrap_or_default();
-                let args = args
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &a)| if variances.get(i) == Some(&1) { self.lifted(a, depth) } else { a })
+                let args: Vec<_> = (self.u.types_of(args).to_vec().into_iter().enumerate())
+                    .map(|(i, a)| if variances.get(i) == Some(&1) { self.lifted(a, depth) } else { a })
                     .collect();
-                self.u.intern_type(Type::Applied(tycon, args))
+                self.u.intern_applied(tycon, &args)
             }
             _ => t,
         }

@@ -108,7 +108,7 @@ fn value_clauses(
     loop {
         match t.u.ty(info).clone() {
             Type::Method { params, result, implicit: false, .. } if !setter => {
-                clauses.push(params);
+                clauses.push(t.u.params_of(params).to_vec());
                 info = result;
             }
             Type::Method { .. } | Type::Poly { .. } => {
@@ -167,8 +167,8 @@ fn passing_tpt(t: &mut Typer<'_>, tpe: TypeId, locals: &[SymbolId], span: Span) 
         }
         Type::Applied(tycon, args) => {
             let tpt = passing_tpt(t, tycon, locals, span)?;
-            let args =
-                (args.into_iter().map(|a| passing_tpt(t, a, locals, span))).collect::<Option<Vec<_>>>()?;
+            let args = (t.u.types_of(args).to_vec().into_iter().map(|a| passing_tpt(t, a, locals, span)))
+                .collect::<Option<Vec<_>>>()?;
             let args = t.ast.list(&args);
             Some(t.ast.node(Tree::AppliedTypeTree { tpt, args }))
         }

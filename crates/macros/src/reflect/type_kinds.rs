@@ -13,7 +13,9 @@ use tasty::{SymbolId, Type, TypeId};
 impl Host {
     pub fn type_parts(&mut self, t: TypeId) -> Fallible<Vec<TypeId>> {
         Ok(match self.u.ty(t).clone() {
-            Type::Applied(tycon, args) => [tycon].into_iter().chain(args).collect(),
+            Type::Applied(tycon, args) => {
+                [tycon].into_iter().chain(self.u.types_of(args).iter().copied()).collect()
+            }
             Type::Annotated(inner, _) | Type::This(inner) | Type::ByName(inner) | Type::Rec(_, inner) => {
                 vec![inner]
             }
@@ -27,7 +29,9 @@ impl Host {
             Type::Super(this, parent) | Type::MatchCase(this, parent) => vec![this, parent],
             Type::Alias(a) => vec![a, a],
             Type::Refined(parent, _, info) => vec![parent, info],
-            Type::Match { bound, scrutinee, cases } => [bound, scrutinee].into_iter().chain(cases).collect(),
+            Type::Match { bound, scrutinee, cases } => {
+                [bound, scrutinee].into_iter().chain(self.u.types_of(cases).iter().copied()).collect()
+            }
             _ => return Err("the parts of a type of another kind"),
         })
     }
@@ -42,7 +46,7 @@ impl Host {
             (12, &[a, b]) => Type::And(a, b),
             (13, &[a, b]) => Type::Or(a, b, false),
             (17, &[bound, scrutinee, ref cases @ ..]) => {
-                Type::Match { bound, scrutinee, cases: cases.to_vec() }
+                Type::Match { bound, scrutinee, cases: self.u.intern_types(cases) }
             }
             (20, &[pattern, body]) => Type::MatchCase(pattern, body),
             _ => return Err("a type of another kind or number of parts"),
@@ -66,6 +70,7 @@ impl Host {
             }
             _ => return Err("the parts of a type other than a method, polymorphic type or type lambda"),
         };
+        let params = self.u.params_of(params).to_vec();
         let mut parts: Vec<i32> = flags.iter().map(|&f| f as i32).chain([params.len() as i32]).collect();
         parts.extend(params.iter().map(|&(_, t)| self.add_type(t) as i32));
         parts.push(self.add_type(result) as i32);

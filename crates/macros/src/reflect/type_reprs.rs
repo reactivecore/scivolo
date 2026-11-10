@@ -40,7 +40,7 @@ impl Host {
         match targs.is_empty() {
             true => tycon,
             false => {
-                let t = self.u.intern_type(Type::Applied(tycon, targs));
+                let t = self.u.intern_applied(tycon, &targs);
                 self.u.beta_reduced(t)
             }
         }

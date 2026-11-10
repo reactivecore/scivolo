@@ -17,8 +17,8 @@ fn class(u: &mut Universe, pkg: &str, name: &str) -> SymbolId {
 
 fn applied(u: &mut Universe, c: SymbolId, args: &[SymbolId]) -> TypeId {
     let tycon = u.intern_type(Type::Sym(None, c));
-    let args = args.iter().map(|&a| u.intern_type(Type::Sym(None, a))).collect();
-    u.intern_type(Type::Applied(tycon, args))
+    let args: Vec<_> = args.iter().map(|&a| u.intern_type(Type::Sym(None, a))).collect();
+    u.intern_applied(tycon, &args)
 }
 
 #[test]

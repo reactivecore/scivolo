@@ -72,7 +72,8 @@ pub fn var_upper_bound(ty: &mut TypeOps<'_>, tpe: TypeId) -> Option<TypeId> {
     let hi = ty.zonk(hi);
     let Some(args) = args else { return Some(hi) };
     let class = ty.u.class_symbol(hi).filter(|_| ty.u.sym_of(hi).is_some())?;
-    (ty.u.type_params(class).len() == args.len()).then(|| ty.u.intern_type(Type::Applied(hi, args)))
+    (ty.u.type_params(class).len() == ty.u.types_of(args).len())
+        .then(|| ty.u.intern_type(Type::Applied(hi, args)))
 }
 
 /// `tpe` with its type variables whose bounds are equal up to aliases instantiated to them, or
@@ -141,7 +142,9 @@ fn open_union_within(ty: &mut TypeOps<'_>, tpe: TypeId, depth: u32) -> bool {
     match ty.u.ty(tpe).clone() {
         Type::Or(..) => !ty.open_vars(tpe).is_empty(),
         Type::And(a, b) => open_union_within(ty, a, depth) || open_union_within(ty, b, depth),
-        Type::Applied(_, args) => args.into_iter().any(|a| open_union_within(ty, a, depth)),
+        Type::Applied(_, args) => {
+            ty.u.types_of(args).to_vec().into_iter().any(|a| open_union_within(ty, a, depth))
+        }
         Type::Annotated(a, _) | Type::ByName(a) => open_union_within(ty, a, depth),
         Type::Bounds(lo, hi) => open_union_within(ty, lo, depth) || open_union_within(ty, hi, depth),
         _ => false,

@@ -7,7 +7,7 @@
 
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The classes whose arrays `ScalaRunTime` wraps by their own method.
@@ -74,7 +74,7 @@ pub fn wrap_array(l: &mut Lower, array: TNodeId, elem: TypeId, tpe: TypeId, span
 
 pub fn array_of(l: &mut Lower, elem: TypeId) -> TypeId {
     let array = l.u.class_ref("scala.Array");
-    l.u.intern_type(Type::Applied(array, vec![elem]))
+    l.u.intern_applied(array, &[elem])
 }
 
 /// The `ScalaRunTime` method wrapping an array of `elem` (dotty's `wrapArrayMethodName`).

@@ -29,9 +29,8 @@ impl Typer<'_> {
         let fun = self.build().ident(spread, fun_tpe, at);
         let targ = self.type_tree(elem, at, true);
         let binder = self.u.fresh_binder();
-        let params = vec![(self.u.intern_name("x$0"), ANY)];
-        let info = Type::Method { binder, params, result: elem, implicit: false, contextual: false };
-        let info = self.u.intern_type(info);
+        let params = [(self.u.intern_name("x$0"), ANY)];
+        let info = self.u.intern_method(binder, &params, elem, false, false);
         let fun = self.build().type_apply(fun, &[targ], info, at);
         self.build().apply(fun, &[expr], elem, span.to_synthetic())
     }
@@ -168,7 +167,7 @@ impl Typer<'_> {
             return ("addSeq", xs_node);
         }
         let array = self.u.class_ref(ARRAY);
-        let array = self.u.intern_type(Type::Applied(array, vec![elem]));
+        let array = self.u.intern_applied(array, &[elem]);
         if self.conforms(tpe, array) {
             return ("addArray", xs_node);
         }

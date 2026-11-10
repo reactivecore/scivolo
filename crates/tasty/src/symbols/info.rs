@@ -91,8 +91,9 @@ impl Universe {
             _ => hi,
         };
         let Some(args) = args else { return Some(hi) };
-        let Type::Lambda { binder, params, result } = self.ty(hi).clone() else { return Some(ANY) };
-        let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
+        let Some((binder, names, result)) = self.lambda(hi).map(|l| (l.binder, l.names(), l.result)) else {
+            return Some(ANY);
+        };
         Some(self.subst(result, binder, &names, &args))
     }
 

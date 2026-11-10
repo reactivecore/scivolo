@@ -11,7 +11,10 @@ use crate::{ANY, NOTHING};
 impl Cmp<'_> {
     pub fn third_try(&mut self, a: TypeId, b: TypeId) -> bool {
         match self.u.ty(b).clone() {
-            Type::Applied(tycon, args) => self.compare_applied2(a, b, tycon, &args),
+            Type::Applied(tycon, args) => {
+                let args = self.u.types_of(args).to_vec();
+                self.compare_applied2(a, b, tycon, &args)
+            }
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(b) {
                 Some(n2) => self.third_try_named(a, b, n2),
                 None => self.fourth_try(a, b),
@@ -31,6 +34,7 @@ impl Cmp<'_> {
             },
             Type::Lambda { binder: b2, params: p2, result: r2 } => match self.u.ty(a).clone() {
                 Type::Lambda { binder: b1, params: p1, result: r1 } => {
+                    let (p1, p2) = (self.u.params_of(p1).to_vec(), self.u.params_of(p2).to_vec());
                     self.compare_binders((b1, &p1, r1), (b2, &p2, r2)) || self.fourth_try(a, b)
                 }
                 _ => match self.eta_expand(a) {
@@ -45,6 +49,7 @@ impl Cmp<'_> {
             Type::Method { binder: b2, params: p2, result: r2, implicit: i2, .. } => {
                 match self.u.ty(a).clone() {
                     Type::Method { binder: b1, params: p1, result: r1, implicit: i1, .. } => {
+                        let (p1, p2) = (self.u.params_of(p1).to_vec(), self.u.params_of(p2).to_vec());
                         if p1.len() != p2.len() || !i1 && i2 {
                             return false;
                         }
@@ -74,13 +79,16 @@ impl Cmp<'_> {
             }
             Type::Poly { binder: b2, params: p2, result: r2 } => match self.u.ty(a).clone() {
                 Type::Poly { binder: b1, params: p1, result: r1 } => {
+                    let (p1, p2) = (self.u.params_of(p1).to_vec(), self.u.params_of(p2).to_vec());
                     self.compare_binders((b1, &p1, r1), (b2, &p2, r2))
                 }
                 _ => false,
             },
             Type::ByName(r2) => match *self.u.ty(a) {
                 Type::ByName(r1) => self.recur(r1, r2),
-                Type::Method { ref params, result, .. } if params.is_empty() => self.recur(result, r2),
+                Type::Method { params, result, .. } if self.u.params_of(params).is_empty() => {
+                    self.recur(result, r2)
+                }
                 _ => self.fourth_try(a, b),
             },
             Type::Bounds(lo2, hi2) => match *self.u.ty(a) {
@@ -111,7 +119,10 @@ impl Cmp<'_> {
             false => {
                 let a = match self.u.ty(a).clone() {
                     Type::ByName(r) => r,
-                    Type::Applied(tycon, args) => self.applied_alias_expansion(tycon, &args).unwrap_or(a),
+                    Type::Applied(tycon, args) => {
+                        let args = self.u.types_of(args).to_vec();
+                        self.applied_alias_expansion(tycon, &args).unwrap_or(a)
+                    }
                     _ => a,
                 };
                 self.vars.add_lower(self.u, v, a)

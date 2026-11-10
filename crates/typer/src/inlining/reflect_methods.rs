@@ -20,7 +20,7 @@ impl Reflect<'_> {
             match self.u.ty(t).clone() {
                 Type::Method { params, result, implicit, contextual, .. } => {
                     let mut clause = Vec::new();
-                    for (name, info) in params {
+                    for (name, info) in self.u.params_of(params).to_vec() {
                         let p = self.new_param(s, name, Kind::Param);
                         self.u.set_info(p, info);
                         let flags = self.u.symbol(p).flags;
@@ -36,7 +36,8 @@ impl Reflect<'_> {
                     t = result;
                 }
                 Type::Poly { binder, params, result } => {
-                    let (names, bounds): (Vec<NameId>, Vec<TypeId>) = params.into_iter().unzip();
+                    let (names, bounds): (Vec<NameId>, Vec<TypeId>) =
+                        self.u.params_of(params).iter().copied().unzip();
                     let syms: Vec<SymbolId> =
                         names.iter().map(|&n| self.new_param(s, n, Kind::TypeParam)).collect();
                     let refs: Vec<TypeId> =
@@ -87,7 +88,7 @@ impl Reflect<'_> {
             match self.u.ty(result).clone() {
                 Type::Method { result: r, .. } => result = r,
                 Type::Poly { binder, params: ps, result: r } => {
-                    let names: Vec<NameId> = ps.into_iter().map(|(n, _)| n).collect();
+                    let names: Vec<NameId> = self.u.params_of(ps).iter().map(|&(n, _)| n).collect();
                     let refs: Vec<TypeId> = (clause.iter())
                         .map(|&p| self.tpd.sym(p).map(|p| self.u.intern_type(Type::Sym(None, p))))
                         .collect::<Option<_>>()

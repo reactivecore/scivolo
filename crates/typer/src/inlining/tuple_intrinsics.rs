@@ -157,7 +157,7 @@ impl Inlining<'_> {
         let mut chain = self.u.intern_type(Type::Sym(None, empty));
         for &e in elems.iter().rev() {
             let t = self.tpd.tpe(e);
-            chain = self.u.intern_type(Type::Applied(pair, vec![t, chain]));
+            chain = self.u.intern_applied(pair, &[t, chain]);
         }
         self.cast(call, chain)
     }
@@ -166,6 +166,6 @@ impl Inlining<'_> {
     fn repeated_object(&mut self, object: TypeId) -> Option<TypeId> {
         let class = self.scala_member("<repeated>", Kind::Class)?;
         let class = crate::defn::type_ref(self.u, class);
-        Some(self.u.intern_type(Type::Applied(class, vec![object])))
+        Some(self.u.intern_applied(class, &[object]))
     }
 }

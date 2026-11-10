@@ -6,7 +6,7 @@
 use super::Cmp;
 use super::refs::Meaning;
 use crate::tags::OBJECT;
-use crate::types::{Type, TypeId};
+use crate::types::{Type, TypeId, TypeList};
 use crate::{Kind, SymbolId};
 
 impl Cmp<'_> {
@@ -24,20 +24,26 @@ impl Cmp<'_> {
                 Some(Meaning::Class(c)) if self.u.is_module_class(c) => self.module_class_below(a, b, c),
                 _ => false,
             },
-            Type::Applied(tycon, args) => self.compare_applied1(a, b, tycon, &args),
+            Type::Applied(tycon, args) => {
+                let args = self.u.types_of(args).to_vec();
+                self.compare_applied1(a, b, tycon, &args)
+            }
             Type::Skolem(x, _) if matches!(*self.u.ty(b), Type::Skolem(y, _) if x == y) => true,
             Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::RecThis(_) | Type::Skolem(..) => {
                 self.below_singleton(a, b)
             }
             Type::Match { bound, scrutinee, cases } => {
-                self.recur(bound, b) || self.match_below(scrutinee, &cases, b)
+                self.recur(bound, b) || self.match_below(scrutinee, cases, b)
             }
             Type::Refined(parent, ..)
             | Type::Rec(_, parent)
             | Type::Annotated(parent, _)
             | Type::Flexible(parent) => self.recur(parent, b),
             Type::And(x, y) => self.and_below(a, b, x, y),
-            Type::Lambda { binder, params, result } => self.lambda_below(binder, params.len(), result, b),
+            Type::Lambda { binder, params, result } => {
+                let n = self.u.params_of(params).len();
+                self.lambda_below(binder, n, result, b)
+            }
             _ => false,
         }
     }
@@ -56,14 +62,15 @@ impl Cmp<'_> {
 
     /// `scrutinee match { cases } <: b` for a match type `b` on the same scrutinee, `scrutinee`
     /// with its skolems widened, and cases below `b`'s (dotty's `compareMatch`).
-    fn match_below(&mut self, mut scrutinee: TypeId, cases: &[TypeId], b: TypeId) -> bool {
-        let Type::Match { scrutinee: other, cases: others, .. } = self.u.ty(b).clone() else {
+    fn match_below(&mut self, mut scrutinee: TypeId, cases: TypeList, b: TypeId) -> bool {
+        let Type::Match { scrutinee: other, cases: others, .. } = *self.u.ty(b) else {
             return false;
         };
         while !(self.recur(scrutinee, other) && self.recur(other, scrutinee)) {
             let Type::Skolem(_, widened) = *self.u.ty(scrutinee) else { return false };
             scrutinee = widened;
         }
+        let (cases, others) = (self.u.types_of(cases).to_vec(), self.u.types_of(others).to_vec());
         cases.len() == others.len() && cases.iter().zip(&others).all(|(&x, &y)| self.recur(x, y))
     }
 

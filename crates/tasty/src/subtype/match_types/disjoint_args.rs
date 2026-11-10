@@ -6,7 +6,7 @@
 use super::super::Cmp;
 use super::disjoint::Pending;
 use crate::tags::{CASE, CASEaccessor};
-use crate::types::{Type, TypeId};
+use crate::types::TypeId;
 use crate::{Kind, NOTHING, SymbolId};
 
 impl Cmp<'_> {
@@ -56,11 +56,10 @@ impl Cmp<'_> {
         let (Some(b1), Some(b2)) = (self.u.base_type(x, base), self.u.base_type(y, base)) else {
             return false;
         };
-        let (Type::Applied(_, args1), Type::Applied(_, args2)) =
-            (self.u.ty(b1).clone(), self.u.ty(b2).clone())
-        else {
+        let (Some((_, args1)), Some((_, args2))) = (self.u.applied(b1), self.u.applied(b2)) else {
             return false;
         };
+        let (args1, args2) = (args1.to_vec(), args2.to_vec());
         let variances = self.u.variances(base);
         for (i, (&a1, &a2)) in args1.iter().zip(&args2).enumerate() {
             let disjoint = match variances.get(i).copied().unwrap_or(0) {

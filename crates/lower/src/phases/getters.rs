@@ -113,9 +113,8 @@ fn param_setter(l: &mut Lower, class: SymbolId, var: SymbolId, name: &str, span:
     let value = l.u.info(var);
     let unit = l.u.class_ref("scala.Unit");
     let binder = l.u.fresh_binder();
-    let params = vec![(l.u.intern_name("x$0"), value)];
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: unit, implicit: false, contextual: false });
+    let params = [(l.u.intern_name("x$0"), value)];
+    let info = l.u.intern_method(binder, &params, unit, false, false);
     l.u.set_info(setter, info);
     let param = l.u.define(symbol("x$0", Kind::Param, setter, Flags::default().with(SYNTHETIC)));
     l.u.set_info(param, value);

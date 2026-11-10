@@ -59,7 +59,7 @@ impl Cmp<'_> {
         };
         let labels: Vec<TypeId> = labels.iter().map(|l| self.u.str_type(l)).collect();
         let (labels, fields) = (self.pairs(&labels)?, self.pairs(&fields)?);
-        Some(self.u.intern_type(Type::Applied(nt, vec![labels, fields])))
+        Some(self.u.intern_applied(nt, &[labels, fields]))
     }
 
     /// The element types of tuple type `t`: a `TupleN` or a `*:` chain ending in `EmptyTuple`.
@@ -67,10 +67,11 @@ impl Cmp<'_> {
         let (mut out, mut t) = (Vec::new(), t);
         for _ in 0..MAX_ELEMENTS {
             let d = self.u.dealias(t);
-            let Type::Applied(tycon, args) = self.u.ty(d).clone() else {
+            let Some((tycon, args)) = self.u.applied(d) else {
                 let class = self.u.class_symbol(d)?;
                 return (self.u.full_name(class) == crate::defn::EMPTY_TUPLE_CLASS).then_some(out);
             };
+            let args = args.to_vec();
             let c = self.u.class_symbol(tycon)?;
             if let Some(pairs) = self.nested_pairs(c, &args) {
                 t = pairs;
@@ -96,7 +97,7 @@ impl Cmp<'_> {
         let pair = self.u.intern_type(Type::Sym(None, pair));
         let mut t = self.u.intern_type(Type::Sym(None, empty));
         for &e in elems.iter().rev() {
-            t = self.u.intern_type(Type::Applied(pair, vec![e, t]));
+            t = self.u.intern_applied(pair, &[e, t]);
         }
         Some(t)
     }

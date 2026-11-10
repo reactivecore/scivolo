@@ -6,7 +6,7 @@
 
 use super::{applied, member, package, symbol, type_ref};
 use tasty::tags::FINAL;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Flags, Kind, SymbolId, TypeId, Universe};
 
 /// The element classes of the specialized `Tuple1` and `Tuple2` classes with their type tags
 /// (dotty's `Tuple1SpecializedParamTypes`, `Tuple2SpecializedParamTypes`, `typeTag`).
@@ -57,10 +57,11 @@ pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str) -> Result<SymbolId, 
     }
     let ctor = u.define(symbol("<init>", Kind::Def, class, Flags::default()));
     let params = tags.chars().zip(elems).enumerate();
-    let params = params.map(|(i, (t, e))| (u.intern_name(&format!("_{}$mc{t}$sp", i + 1)), e)).collect();
+    let params: Vec<_> =
+        params.map(|(i, (t, e))| (u.intern_name(&format!("_{}$mc{t}$sp", i + 1)), e)).collect();
     let result = type_ref(u, class);
     let binder = u.fresh_binder();
-    let info = u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
+    let info = u.intern_method(binder, &params, result, false, false);
     u.set_info(ctor, info);
     Ok(ctor)
 }

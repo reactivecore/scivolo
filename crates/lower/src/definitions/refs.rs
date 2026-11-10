@@ -5,7 +5,7 @@
 
 use super::{java_class, java_static, member, package, type_ref};
 use tasty::tags::MUTABLE;
-use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Erased, Flags, Kind, SymbolId, TypeId, Universe};
 
 /// The class holding a captured variable, its field `elem` and its static method `create`.
 #[derive(Clone, Copy)]
@@ -49,9 +49,8 @@ pub fn ref_class(u: &mut Universe, e: &Erased) -> Result<Ref, String> {
     };
     let ref_type = type_ref(u, class);
     let binder = u.fresh_binder();
-    let params = vec![(u.intern_name("elem"), elem_type)];
-    let info =
-        u.intern_type(Type::Method { binder, params, result: ref_type, implicit: false, contextual: false });
+    let params = [(u.intern_name("elem"), elem_type)];
+    let info = u.intern_method(binder, &params, ref_type, false, false);
     let create = java_static(u, class, "create", Kind::Def, info);
     Ok(Ref { class, elem, create })
 }

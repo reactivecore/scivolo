@@ -160,7 +160,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
         if matches!(u.ty(result), Type::Match { .. }) {
             return None;
         }
-        let eta = matches!(u.ty(result), Type::Applied(_, rargs)
+        let eta = matches!(u.applied(result), Some((_, rargs))
         if rargs.len() == params.len()
             && rargs.iter().enumerate().all(|(i, &a)| match u.ty(a) {
                 Type::Param(b, k) => *b == binder && *k == i as u32,

@@ -114,17 +114,11 @@ impl Typer<'_> {
         let (result_tpe, result_span) = (self.tpd.tpe(result), self.tpd.span(result));
         args.push(self.type_tree(result_tpe, result_span, false));
         let binder = self.syms.fresh_binder();
-        let method = self.u.intern_type(Type::Method {
-            binder,
-            params,
-            result: result_tpe,
-            implicit: true,
-            contextual: true,
-        });
+        let method = self.u.intern_method(binder, &params, result_tpe, true, true);
         self.u.set_info(apply, method);
         let span = self.ast.span(first).union(result_span).to_synthetic();
         let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        let parent = self.u.intern_type(Type::Applied(class, arg_types));
+        let parent = self.u.intern_applied(class, &arg_types);
         let tycon = self.type_tree(class, span.start_pos(), false);
         let args = self.tpd.list(&args);
         let core = self.tpd.node(T::AppliedTypeTree { tpt: tycon, args }, span, Some(parent), None);

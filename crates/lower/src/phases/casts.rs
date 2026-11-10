@@ -8,7 +8,7 @@ use super::function_classes::{erased_derives, erased_function_class};
 use super::mixin::is_jdk;
 use crate::Lower;
 use crate::definitions::type_ref;
-use tasty::{Erased, SymbolId, Type, TypeId};
+use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `t.asInstanceOf[T]` for the type `T` erasing to `to`, a primitive array first made an array of
@@ -38,7 +38,7 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
         Erased::Array(elem) => {
             let elem = type_of(l, elem);
             let array = l.u.class_ref("scala.Array");
-            l.u.intern_type(Type::Applied(array, vec![elem]))
+            l.u.intern_applied(array, &[elem])
         }
         Erased::Prim('R') => l.u.class_ref("scala.scalanative.runtime.RawPtr"),
         Erased::Prim('w') => l.u.class_ref("scala.scalanative.runtime.RawSize"),

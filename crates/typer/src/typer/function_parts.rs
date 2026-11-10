@@ -2,7 +2,7 @@
 
 use super::Typer;
 use tasty::defn::PARTIAL_FUNCTION;
-use tasty::{MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId};
+use tasty::{MAX_IMPLEMENTED_ARITY, SymbolId, TypeId};
 
 impl Typer<'_> {
     /// Finds the parameter types of `t` if it is a function type, else none.
@@ -18,14 +18,14 @@ impl Typer<'_> {
         let result = parts.pop().ok_or("function type")?;
         let class = self.function_class(parts.len()).ok_or("function of that many parameters")?;
         parts.push(result);
-        Ok(self.u.intern_type(Type::Applied(class, parts)))
+        Ok(self.u.intern_applied(class, &parts))
     }
 
     /// Builds `PartialFunction[a, b]`.
     pub fn partial_function_of(&mut self, a: TypeId, b: TypeId) -> Result<TypeId, &'static str> {
         let class = self.resolve_full_name(PARTIAL_FUNCTION, true).ok_or("PartialFunction")?;
         let tycon = crate::defn::type_ref(self.u, class);
-        Ok(self.u.intern_type(Type::Applied(tycon, vec![a, b])))
+        Ok(self.u.intern_applied(tycon, &[a, b]))
     }
 
     /// Checks whether `t` is a `PartialFunction` type.

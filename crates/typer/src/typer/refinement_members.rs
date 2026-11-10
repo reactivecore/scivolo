@@ -139,8 +139,7 @@ impl Typer<'_> {
             _ => {
                 for (params, (implicit, contextual)) in clause_params.into_iter().rev() {
                     let binder = self.u.fresh_binder();
-                    let method = Type::Method { binder, params, result: info, implicit, contextual };
-                    info = self.u.intern_type(method);
+                    info = self.u.intern_method(binder, &params, info, implicit, contextual);
                 }
             }
         }
@@ -154,7 +153,7 @@ impl Typer<'_> {
                 })
                 .collect();
             let result = self.param_refs(info, &tparams, binder);
-            info = self.u.intern_type(Type::Poly { binder, params, result });
+            info = self.u.intern_poly(binder, &params, result);
         }
         self.u.set_info(sym, info);
         let span = self.ast.span(r);

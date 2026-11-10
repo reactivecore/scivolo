@@ -118,8 +118,8 @@ impl Typer<'_> {
             if tparams.is_empty() {
                 class_ref
             } else {
-                let args = tparams.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
-                self.u.intern_type(Type::Applied(class_ref, args))
+                let args: Vec<_> = tparams.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
+                self.u.intern_applied(class_ref, &args)
             }
         } else {
             if !self.is_inferred_tpt(tpt) {
@@ -141,15 +141,15 @@ impl Typer<'_> {
             let params: Vec<(NameId, TypeId)> =
                 clause.iter().map(|&p| (self.u.interned_name(p), self.method_param_type(p))).collect();
             if clause.first().is_some_and(|&p| self.u.is_type_symbol(p)) {
-                let params =
+                let params: Vec<_> =
                     params.into_iter().map(|(n, i)| (n, self.param_refs(i, &clause, binder))).collect();
                 let result = self.param_refs(result, &clause, binder);
-                self.u.intern_type(Type::Poly { binder, params, result })
+                self.u.intern_poly(binder, &params, result)
             } else {
                 let flags = clause.first().and_then(|p| self.syms.flags.get(p)).copied().unwrap_or_default();
                 let contextual = flags.is(syntax::ast::flags::GIVEN);
                 let implicit = contextual || flags.is(syntax::ast::flags::IMPLICIT);
-                self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+                self.u.intern_method(binder, &params, result, implicit, contextual)
             }
         })
     }

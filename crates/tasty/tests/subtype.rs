@@ -92,7 +92,7 @@ impl Parser<'_> {
             args.push(self.infix(u));
         }
         assert!(self.eat("]"), "`]` expected at {}", self.s);
-        u.intern_type(Type::Applied(tycon, args))
+        u.intern_applied(tycon, &args)
     }
 }
 
@@ -353,11 +353,11 @@ fn bounds_locals_and_this_as_atoms() {
     let (any_bounds, below_one) =
         (u.intern_type(Type::Bounds(NOTHING, ANY)), u.intern_type(Type::Bounds(NOTHING, one)));
     let binder = Binder(FileId(u32::MAX), 0);
-    let params = vec![(u.intern_name("X"), any_bounds)];
-    let lambda = u.intern_type(Type::Lambda { binder, params, result: below_one });
+    let params = [(u.intern_name("X"), any_bounds)];
+    let lambda = u.intern_lambda(binder, &params, below_one);
     let f = define(&mut u, "F", Kind::Type, root, lambda);
     let f = sym(&mut u, None, f);
-    let f_int = u.intern_type(Type::Applied(f, vec![int]));
+    let f_int = u.intern_applied(f, &[int]);
     let m = define(&mut u, "m", Kind::Def, root, int);
     let (p, q) = (define(&mut u, "p", Kind::Param, m, int), define(&mut u, "q", Kind::Param, m, int));
     let (p, q) = (sym(&mut u, None, p), sym(&mut u, None, q));

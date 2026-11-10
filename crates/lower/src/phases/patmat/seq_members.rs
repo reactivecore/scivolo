@@ -29,7 +29,7 @@ impl Translator<'_, '_> {
     pub fn seq_members(&mut self, tpe: TypeId) -> Option<SeqMembers> {
         let (apply, elem) = self.seq_member(tpe, "apply", |_, _| true)?;
         let seq = self.l.u.class_ref("scala.collection.Seq");
-        let seq = self.l.u.intern_type(Type::Applied(seq, vec![elem]));
+        let seq = self.l.u.intern_applied(seq, &[elem]);
         let conforms = |t: &mut Self, r| t.l.u.is_subtype(r, seq);
         let is_int = |t: &mut Self, r| t.l.u.is_class_named(r, tasty::defn::INT);
         if self.seq_member(tpe, "lengthCompare", is_int).is_none() {
@@ -69,7 +69,9 @@ impl Translator<'_, '_> {
                 }
                 let info = self.l.u.member_info(tpe, m);
                 let (params, result) = match self.l.u.ty(info).clone() {
-                    Type::Method { params, result, .. } => (Some(params), result),
+                    Type::Method { params, result, .. } => {
+                        (Some(self.l.u.params_of(params).to_vec()), result)
+                    }
                     Type::Poly { .. } => continue,
                     Type::ByName(result) => (None, result),
                     _ => (None, info),

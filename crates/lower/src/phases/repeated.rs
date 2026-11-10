@@ -130,7 +130,10 @@ fn java_varargs(l: &mut Lower, method: SymbolId, clause: usize, i: usize) -> Opt
         match l.u.ty(t).clone() {
             Type::Poly { result, .. } => t = result,
             Type::Method { result, .. } if clauses < clause => (t, clauses) = (result, clauses + 1),
-            Type::Method { params, .. } => return java_array(l, params.get(i)?.1),
+            Type::Method { params, .. } => {
+                let p = l.u.params_of(params).get(i)?.1;
+                return java_array(l, p);
+            }
             _ => return None,
         }
     }

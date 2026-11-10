@@ -76,6 +76,7 @@ fn choose_mapped(t: &mut Typer, mapped: &[Mapped], pt: Pt) -> Result<SymbolId, U
 pub fn strip_implicit_clauses(u: &mut Universe, info: TypeId, meth: SymbolId) -> (TypeId, usize) {
     match u.ty(info).clone() {
         Type::Method { binder, params, result, implicit: true, .. } => {
+            let params = u.params_of(params).to_vec();
             let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
             let wild = u.intern_type(Type::Wildcard(None));
             let wilds = vec![wild; names.len()];
@@ -97,6 +98,7 @@ pub fn strip_implicit_clauses(u: &mut Universe, info: TypeId, meth: SymbolId) ->
         }
         Type::Poly { binder, params, result } => {
             let (result, clauses) = strip_implicit_clauses(u, result, meth);
+            let params = u.params_of(params).to_vec();
             (flattened_poly(u, binder, params, result), clauses)
         }
         _ => (info, 0),
@@ -114,10 +116,11 @@ fn skip_param_clause(
     match t.u.ty(info).clone() {
         Type::Poly { binder, params, result } => {
             let Some(rt) = skip_param_clause(t, result, arg_types)? else { return Ok(None) };
+            let params = t.u.params_of(params).to_vec();
             Ok(Some(flattened_poly(t.u, binder, params, rt)))
         }
         Type::Method { binder, params, result, .. } => {
-            let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
+            let names: Vec<NameId> = t.u.params_of(params).iter().map(|&(n, _)| n).collect();
             let result = t.u.subst(result, binder, &names, arg_types);
             if matches!(t.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
                 return Ok(Some(result));
@@ -136,7 +139,7 @@ fn skip_param_clause(
 /// `PolyType.flatten`).
 fn flattened_poly(u: &mut Universe, binder: Binder, params: Vec<(NameId, TypeId)>, result: TypeId) -> TypeId {
     let Some((inner, more, result)) = u.poly(result).map(|p| (p.binder, p.params.to_vec(), p.result)) else {
-        return u.intern_type(Type::Poly { binder, params, result });
+        return u.intern_poly(binder, &params, result);
     };
     let n = params.len() as u32;
     let mut shift = |t| {
@@ -147,8 +150,8 @@ fn flattened_poly(u: &mut Universe, binder: Binder, params: Vec<(NameId, TypeId)
     };
     let more: Vec<(NameId, TypeId)> = more.into_iter().map(|(name, bounds)| (name, shift(bounds))).collect();
     let result = shift(result);
-    let params = params.into_iter().chain(more).collect();
-    u.intern_type(Type::Poly { binder, params, result })
+    let params: Vec<_> = params.into_iter().chain(more).collect();
+    u.intern_poly(binder, &params, result)
 }
 
 /// Makes a copy of alternative `alt` of type `info`, entered nowhere, its default arguments

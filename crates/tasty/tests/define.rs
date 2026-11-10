@@ -41,7 +41,7 @@ fn script_classes_extend_library_classes() {
     assert_eq!(empty, u.root());
     let shape = u.define(symbol("Shape", Kind::Class, empty));
     let (option_t, int_t) = (sym_type(&mut u, option), sym_type(&mut u, int));
-    let parent = u.intern_type(Type::Applied(option_t, vec![int_t]));
+    let parent = u.intern_applied(option_t, &[int_t]);
     u.set_parents(shape, vec![parent]);
 
     let get = u.define(symbol("get", Kind::Def, shape));
@@ -50,13 +50,7 @@ fn script_classes_extend_library_classes() {
     let x = u.define(symbol("x", Kind::Param, apply));
     u.set_info(x, int_t);
     let x_name = u.intern_name("x");
-    let info = u.intern_type(Type::Method {
-        binder: Binder(FileId(u32::MAX), 0),
-        params: vec![(x_name, int_t)],
-        result: int_t,
-        implicit: false,
-        contextual: false,
-    });
+    let info = u.intern_method(Binder(FileId(u32::MAX), 0), &[(x_name, int_t)], int_t, false, false);
     u.set_info(apply, info);
 
     assert_eq!(u.decl(empty, "Shape").unwrap(), [shape]);

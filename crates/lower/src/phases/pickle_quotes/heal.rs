@@ -81,7 +81,7 @@ pub fn heal(l: &mut Lower, body: TNodeId, tags: &[(SymbolId, TypeId)]) -> Result
                     continue;
                 }
                 let parts: Vec<TypeId> = parts.map(|p| l.tpd.tpe(p)).collect();
-                let applied = l.u.intern_type(Type::Applied(parts[0], parts[1..].to_vec()));
+                let applied = l.u.intern_applied(parts[0], &parts[1..]);
                 l.u.beta_reduced(applied)
             }
             Tree::TypeTree { .. } | Tree::UnApply { .. } => h.healed(l.u, tpe),

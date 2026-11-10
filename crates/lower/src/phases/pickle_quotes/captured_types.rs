@@ -56,8 +56,8 @@ impl Splicer<'_> {
         if self.retyped == before {
             return;
         }
-        let args = l.tpd.items(args).iter().map(|&a| l.tpd.tpe(a)).collect();
-        let applied = l.u.intern_type(Type::Applied(l.tpd.tpe(tpt), args));
+        let args: Vec<_> = l.tpd.items(args).iter().map(|&a| l.tpd.tpe(a)).collect();
+        let applied = l.u.intern_applied(l.tpd.tpe(tpt), &args);
         let applied = l.u.beta_reduced(applied);
         l.tpd.get_mut(t).tpe = Some(applied);
         self.retyped += 1;

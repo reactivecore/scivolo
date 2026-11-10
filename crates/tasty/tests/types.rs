@@ -58,8 +58,8 @@ fn annotated_types_keep_the_annotation_class() {
     };
     let info = u.info(m);
     let shown = u.show(info);
-    let Type::Method { params, .. } = u.types().get(info).clone() else { panic!("{shown}") };
-    let (mut todo, mut annotations) = (vec![params[0].1], Vec::new());
+    let Some(method) = u.method(info) else { panic!("{shown}") };
+    let (mut todo, mut annotations) = (vec![method.params[0].1], Vec::new());
     while let Some(t) = todo.pop() {
         match u.types().get(t).clone() {
             Type::Annotated(inner, a) => {
@@ -68,7 +68,7 @@ fn annotated_types_keep_the_annotation_class() {
             }
             Type::Applied(tycon, args) => {
                 todo.push(tycon);
-                todo.extend(args);
+                todo.extend(u.types_of(args));
             }
             _ => {}
         }

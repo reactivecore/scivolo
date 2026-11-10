@@ -26,9 +26,7 @@ impl Typer<'_> {
         let module = crate::defn::type_ref(self.u, module);
         let tycon = self.u.intern_type(Type::Sym(Some(module), into));
         self.map_into(t, 1, &mut |u, t| match u.annotated(t) {
-            Some((arg, a)) if u.class_symbol(a) == Some(silent) => {
-                Some(u.intern_type(Type::Applied(tycon, vec![arg])))
-            }
+            Some((arg, a)) if u.class_symbol(a) == Some(silent) => Some(u.intern_applied(tycon, &[arg])),
             _ => None,
         })
     }
@@ -63,10 +61,10 @@ impl Typer<'_> {
             }
             Type::Applied(c, args) => {
                 let variances = self.variance_ops().tycon_variances(c);
-                let args = (args.iter().enumerate())
-                    .map(|(i, &a)| self.map_into(a, v * variances.get(i).copied().unwrap_or(0), f))
+                let args: Vec<_> = (self.u.types_of(args).to_vec().into_iter().enumerate())
+                    .map(|(i, a)| self.map_into(a, v * variances.get(i).copied().unwrap_or(0), f))
                     .collect();
-                self.u.intern_type(Type::Applied(c, args))
+                self.u.intern_applied(c, &args)
             }
             _ => t,
         }

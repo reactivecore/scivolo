@@ -116,7 +116,7 @@ impl Expansion<'_, '_> {
             params.into_iter().map(|p| self.i.u.intern_type(Type::Sym(Some(this), p))).collect();
         let applied = match args.is_empty() {
             true => class,
-            false => self.i.u.intern_type(Type::Applied(class, args)),
+            false => self.i.u.intern_applied(class, &args),
         };
         let tpe = self.i.u.as_seen_from(applied, qt, cls);
         let tpt = self.i.tpd.node(T::TypeTree { inferred: false }, span, Some(tpe), None);

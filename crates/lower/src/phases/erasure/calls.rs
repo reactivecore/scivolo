@@ -11,7 +11,7 @@ use crate::phases::casts::is_cast;
 use crate::phases::function_classes::erased_function_class;
 use crate::{Lower, Result};
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId, Type};
+use tasty::{Erased, SymbolId};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Call `t` of `fun` to `args`, its argument lists flattened and its type arguments dropped; at
@@ -90,7 +90,7 @@ fn bunched_args(l: &mut Lower, args: &[TNodeId]) -> TNodeId {
     let object = type_ref(l.u, l.defs.object);
     let elemtpt = l.type_tree(object, Span::NONE);
     let array = l.u.class_ref("scala.Array");
-    let tpe = l.u.intern_type(Type::Applied(array, vec![object]));
+    let tpe = l.u.intern_applied(array, &[object]);
     let elems = l.tpd.list(args);
     l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, span, Some(tpe), None)
 }

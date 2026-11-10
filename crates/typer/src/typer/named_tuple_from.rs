@@ -46,6 +46,6 @@ impl Typer<'_> {
         let names: Vec<TypeId> = names.into_iter().map(|n| self.u.intern_type(Type::Str(n))).collect();
         let nt = self.named_tuple_ref()?;
         let (names, values) = (self.nested_pairs(&names).ok()?, self.nested_pairs(&values).ok()?);
-        Some(self.u.intern_type(Type::Applied(nt, vec![names, values])))
+        Some(self.u.intern_applied(nt, &[names, values]))
     }
 }

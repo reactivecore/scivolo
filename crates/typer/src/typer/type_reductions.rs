@@ -9,7 +9,7 @@ impl Typer<'_> {
     /// Whether compile-time operation `tycon[args]` normalizes or, referring to an abstract type,
     /// a value's singleton type or a wildcard, stays as dotty keeps it.
     pub fn folds(&mut self, tycon: TypeId, args: &[TypeId]) -> bool {
-        let op = self.u.intern_type(Type::Applied(tycon, args.to_vec()));
+        let op = self.u.intern_applied(tycon, args);
         self.u.try_normalize(op).is_some()
             || self.refers_to_abstract(op, true)
             || args.iter().any(|&a| self.u.bounds(a).is_some())

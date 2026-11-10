@@ -150,14 +150,8 @@ impl Typer<'_> {
             return self.unsupported(id, "erased parameter of a closure of a single abstract method type");
         }
         let info_params: Vec<TypeId> = params_syms.iter().map(|&p| self.method_param_type(p)).collect();
-        let method_params = names.into_iter().zip(info_params).collect();
-        let info = self.u.intern_type(Type::Method {
-            binder,
-            params: method_params,
-            result: info_result,
-            implicit: contextual,
-            contextual,
-        });
+        let method_params: Vec<_> = names.into_iter().zip(info_params).collect();
+        let info = self.u.intern_method(binder, &method_params, info_result, contextual, contextual);
         self.u.set_info(anonfun, info);
         self.syms.closure_syms.push(anonfun);
         let sam = match sam.map(|(p, _)| self.closure_parent(p, &param_types, result)).transpose() {
@@ -168,9 +162,7 @@ impl Typer<'_> {
         fun_args.push(result);
         let erased_tpe =
             any_erased.then(|| self.erased_function_of(&params_syms, result, contextual)).flatten();
-        let fun_tpe = erased_tpe
-            .or(dependent_tpe)
-            .unwrap_or_else(|| self.u.intern_type(Type::Applied(class, fun_args)));
+        let fun_tpe = erased_tpe.or(dependent_tpe).unwrap_or_else(|| self.u.intern_applied(class, &fun_args));
         self.closure_tree(id, anonfun, &param_trees, (result, body), sam.unwrap_or(fun_tpe), sam.is_some())
     }
 }

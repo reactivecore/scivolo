@@ -57,7 +57,7 @@ impl Typer<'_> {
                 self.u.type_params(c).iter().map(|&p| self.u.symbol(p).name.clone()).collect()
             }
             Type::Lambda { params, .. } => {
-                params.into_iter().map(|(n, _)| self.u.name(n).to_owned()).collect()
+                self.u.params_of(params).iter().map(|&(n, _)| self.u.name(n).to_owned()).collect()
             }
             _ if self.type_arity(tycon) == 0 => Vec::new(),
             _ => return None,

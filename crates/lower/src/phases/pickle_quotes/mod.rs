@@ -157,7 +157,7 @@ fn unpickled(
     let fun = l.build().type_apply(fun, &[targ], instance, Span::NONE);
     let fun = l.positioned(fun);
     let class = l.u.class_ref(class);
-    let tpe = l.u.intern_type(Type::Applied(class, vec![t]));
+    let tpe = l.u.intern_applied(class, &[t]);
     let call = l.apply(fun, args, tpe, Span::NONE);
     l.positioned(call)
 }
@@ -194,10 +194,10 @@ fn types(l: &mut Lower, refs: &[TNodeId]) -> TNodeId {
     let [class, any_kind, seq] =
         ["quoted.Type", "AnyKind", "collection.immutable.Seq"].map(|c| l.u.class_ref(&format!("scala.{c}")));
     let bounds = l.u.intern_type(Type::Bounds(tasty::NOTHING, any_kind));
-    let elem = l.u.intern_type(Type::Applied(class, vec![bounds]));
+    let elem = l.u.intern_applied(class, &[bounds]);
     let elemtpt = l.type_tree(elem, Span::NONE);
     let elems = l.tpd.list(refs);
-    let tpe = l.u.intern_type(Type::Applied(seq, vec![elem]));
+    let tpe = l.u.intern_applied(seq, &[elem]);
     let literal = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, Span::NONE, Some(tpe), None);
     l.positioned(literal)
 }

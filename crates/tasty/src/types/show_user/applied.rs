@@ -73,7 +73,7 @@ impl Printer<'_> {
     fn assoc_mismatch(&mut self, t: TypeId, right: bool) -> bool {
         match self.u.ty(t).clone() {
             Type::Applied(c, args) => {
-                self.infix_op(c, args.len()).is_some_and(|op| op.ends_with(':') != right)
+                self.infix_op(c, self.u.types_of(args).len()).is_some_and(|op| op.ends_with(':') != right)
             }
             Type::And(..) | Type::Or(..) => right,
             _ => false,
@@ -118,11 +118,13 @@ impl Printer<'_> {
     pub fn as_function(&mut self, t: TypeId) -> String {
         let text = match self.u.ty(t).clone() {
             Type::Method { binder, params, result, implicit, .. } => {
+                let params = self.u.params_of(params).to_vec();
                 self.binders.push((binder, params.iter().map(|&(n, _)| n).collect()));
                 let arrow = if implicit { "?=>" } else { "=>" };
                 format!("({}) {arrow} {}", self.params(&params), self.as_function(result))
             }
             Type::Poly { binder, params, result } => {
+                let params = self.u.params_of(params).to_vec();
                 self.binders.push((binder, params.iter().map(|&(n, _)| n).collect()));
                 format!("[{}] => {}", self.type_params(&params), self.as_function(result))
             }
@@ -136,7 +138,8 @@ impl Printer<'_> {
     /// as a tuple, function, repeated or infix type.
     pub fn eta_contracted(&mut self, t: TypeId) -> Option<TypeId> {
         let Type::Lambda { binder, params, result } = self.u.ty(t).clone() else { return None };
-        let Type::Applied(tycon, args) = self.u.ty(result).clone() else { return None };
+        let (tycon, args) = self.u.applied(result)?;
+        let (params, args) = (self.u.params_of(params).to_vec(), args.to_vec());
         let own = |i: usize, a: &Type| match a {
             Type::Param(b, j) => *b == binder && *j as usize == i,
             Type::Local(_, n) => *n == params[i].0,
@@ -168,7 +171,10 @@ impl Printer<'_> {
         let ("scala.*:", [head, tail]) = (name.as_str(), args) else { return None };
         let mut elems = vec![*head];
         match self.u.ty(*tail).clone() {
-            Type::Applied(c, rest) => elems.extend(self.tuple_elems(c, &rest)?),
+            Type::Applied(c, rest) => {
+                let rest = self.u.types_of(rest).to_vec();
+                elems.extend(self.tuple_elems(c, &rest)?)
+            }
             _ if self.full_name_of(*tail).as_deref() == Some("scala.EmptyTuple") => {}
             _ => return None,
         }

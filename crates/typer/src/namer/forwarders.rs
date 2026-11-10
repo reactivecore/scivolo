@@ -91,6 +91,7 @@ impl Typer<'_> {
                 }
                 _ => return info,
             };
+            let params = self.u.params_of(params).to_vec();
             let mut syms = Vec::new();
             for (n, p) in &params {
                 let original = if poly { types.pop() } else { terms.pop() };
@@ -127,7 +128,7 @@ impl Typer<'_> {
         let annot = self.resolve_full_name("scala.annotation.internal.Repeated", true);
         let (Some(seq), Some(annot)) = (seq, annot) else { return self.u.set_info(s, p) };
         let seq = crate::defn::type_ref(self.u, seq);
-        let seq = self.u.intern_type(Type::Applied(seq, vec![elem]));
+        let seq = self.u.intern_applied(seq, &[elem]);
         let annot = crate::defn::type_ref(self.u, annot);
         let written = self.u.intern_type(Type::Annotated(seq, annot));
         self.syms.repeated_params.insert(s, written);

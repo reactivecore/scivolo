@@ -135,7 +135,7 @@ impl Typer<'_> {
         let tycon = self.type_tree(class, self.ast.span(first).start_pos(), false);
         let arg_types: Vec<TypeId> = typed.iter().map(|&t| self.tpd.tpe(t)).collect();
         let arg_types = self.pattern_bound_args(class, &mut typed, &vars, arg_types, ctx);
-        let tpe = self.u.intern_type(Type::Applied(class, arg_types));
+        let tpe = self.u.intern_applied(class, &arg_types);
         let args = self.tpd.list(&typed);
         self.tpd.node(T::AppliedTypeTree { tpt: tycon, args }, span, Some(tpe), None)
     }

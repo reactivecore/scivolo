@@ -220,9 +220,11 @@ impl Universe {
                 Some(self.glb(m1, m2))
             }
             (Type::Applied(t1, xs), Type::Applied(t2, ys))
-                if xs.len() == ys.len() && (t1 == t2 || self.same_static_class(t1, t2).is_some()) =>
+                if self.types_of(xs).len() == self.types_of(ys).len()
+                    && (t1 == t2 || self.same_static_class(t1, t2).is_some()) =>
             {
                 self.class_symbol(t1)?;
+                let (xs, ys) = (self.types_of(xs).to_vec(), self.types_of(ys).to_vec());
                 let variances = self.constructor_variances(t1);
                 let mut args = Vec::new();
                 for (i, (&p, &q)) in xs.iter().zip(&ys).enumerate() {
@@ -239,7 +241,7 @@ impl Universe {
                         }
                     });
                 }
-                Some(self.intern_type(Type::Applied(t1, args)))
+                Some(self.intern_applied(t1, &args))
             }
             (Type::Sym(p1, s1), Type::Sym(p2, s2)) if s1 == s2 && p1 == p2 => Some(x),
             (Type::Sym(..) | Type::TypeRef(..), Type::Sym(..) | Type::TypeRef(..)) => {

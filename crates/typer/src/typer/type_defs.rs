@@ -98,7 +98,7 @@ impl Typer<'_> {
         };
         let lambda = |u: &mut tasty::Universe, t: TypeId| {
             let result = over_params(u, &syms, binder, t);
-            u.intern_type(Type::Lambda { binder, params: params.clone(), result })
+            u.intern_lambda(binder, &params, result)
         };
         let nothing = self.u.class_symbol(lo) == Some(self.u.defn().nothing);
         let lo = if nothing { lo } else { lambda(self.u, lo) };

@@ -145,7 +145,7 @@ fn empty_varargs(l: &mut Lower, parent: TypeId, ctor: SymbolId) -> Vec<TNodeId> 
     let Some(&[(_, p)]) = l.u.method(info).map(|m| m.params) else { return Vec::new() };
     let Some(elem) = l.u.repeated_elem(p) else { return Vec::new() };
     let repeated = l.u.class_ref("scala.<repeated>");
-    let repeated = l.u.intern_type(Type::Applied(repeated, vec![elem]));
+    let repeated = l.u.intern_applied(repeated, &[elem]);
     let elemtpt = l.type_tree(elem, Span::NONE);
     let elems = l.tpd.list(&[]);
     let literal = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, Span::NONE, None, None);
@@ -156,7 +156,7 @@ fn empty_varargs(l: &mut Lower, parent: TypeId, ctor: SymbolId) -> Vec<TNodeId> 
 /// The type of a method of one empty parameter list and result `result`.
 fn nullary(l: &mut Lower, result: TypeId) -> TypeId {
     let binder = l.u.fresh_binder();
-    l.u.intern_type(Type::Method { binder, params: Vec::new(), result, implicit: false, contextual: false })
+    l.u.intern_method(binder, &[], result, false, false)
 }
 
 /// `new tpe()` through constructor `ctor`.

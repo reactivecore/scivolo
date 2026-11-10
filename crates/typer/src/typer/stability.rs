@@ -135,7 +135,7 @@ fn is_realizable_class(u: &mut Universe, t: TypeId) -> bool {
     let (s, args) = match u.ty(d).clone() {
         Type::Sym(_, s) => (s, Vec::new()),
         Type::Applied(c, args) => match *u.ty(c) {
-            Type::Sym(_, s) => (s, args),
+            Type::Sym(_, s) => (s, u.types_of(args).to_vec()),
             _ => return false,
         },
         _ => return false,

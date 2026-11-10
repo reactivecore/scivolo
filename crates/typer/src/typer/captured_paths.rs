@@ -40,7 +40,7 @@ impl TypeOps<'_> {
                 false => x,
             })
             .collect();
-        let captured = self.u.intern_type(Type::Applied(base_tycon, captured));
+        let captured = self.u.intern_applied(base_tycon, &captured);
         self.conforms(captured, b)
     }
 }

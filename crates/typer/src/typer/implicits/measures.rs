@@ -35,10 +35,11 @@ fn parts(u: &mut Universe, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
     Ok(match u.ty(t).clone() {
         Type::Sym(p, _) => p.into_iter().collect(),
         Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::This(p) => vec![p],
-        Type::Applied(c, args) => [vec![c], args].concat(),
+        Type::Applied(c, args) => [&[c][..], u.types_of(args)].concat(),
         Type::Refined(p, _, i) | Type::Bounds(p, i) | Type::And(p, i) | Type::Or(p, i, _) => vec![p, i],
         Type::ByName(r) | Type::Annotated(r, _) | Type::Alias(r) => vec![r],
         Type::Lambda { params, result, .. } => {
+            let params = u.params_of(params).to_vec();
             if !params.iter().all(|&(_, b)| unbounded(u, b)) {
                 return Err(OUTSIDE);
             }
@@ -96,7 +97,8 @@ fn type_size(ty: &mut TypeOps<'_>, n: u32, tpe: TypeId, seen: &mut Vec<VarId>) -
         Type::Applied(..) if let Some(reduced) = ty.u.try_normalize(tpe).filter(|&r| r != tpe) => {
             type_size(ty, n, reduced, seen)
         }
-        Type::Applied(c, args) if tuple_arity(ty.u, c) == Some(args.len()) => {
+        Type::Applied(c, args) if tuple_arity(ty.u, c) == Some(ty.u.types_of(args).len()) => {
+            let args = ty.u.types_of(args).to_vec();
             let mut n = n + args.len() as u32;
             for a in args {
                 n = type_size(ty, n, a, seen)?;
@@ -160,7 +162,7 @@ fn cover(
 fn folded(u: &mut Universe, t: TypeId) -> Result<Option<Fold>, &'static str> {
     let b = u.defn();
     Ok(Some(match u.ty(t).clone() {
-        Type::Applied(c, args) => ([vec![c], args].concat(), type_symbol(u, c)),
+        Type::Applied(c, args) => ([&[c][..], u.types_of(args)].concat(), type_symbol(u, c)),
         Type::Refined(p, _, i) => (vec![p, i], type_symbol(u, p)),
         Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {
             let (p, s) = match *u.ty(t) {

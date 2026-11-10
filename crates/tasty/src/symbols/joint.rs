@@ -98,6 +98,7 @@ impl Universe {
                 Type::Method { binder, params, result, implicit, contextual },
                 Type::Method { binder: b2, params: p2, result: r2, implicit: i2, .. },
             ) => {
+                let (params, p2) = (self.params_of(params).to_vec(), self.params_of(p2).to_vec());
                 let own = |u: &mut Self, t| u.param_syms_as_refs(t, &params, binder);
                 let theirs = |u: &mut Self, t| {
                     let t = u.param_syms_as_refs(t, &p2, b2);
@@ -112,12 +113,13 @@ impl Universe {
                     return None;
                 }
                 let result = self.info_meet(result, r2)?;
-                let params = merged_names(self, &params, &p2, "x$").into_iter().zip(ours).collect();
-                Some(self.intern_type(Type::Method { binder, params, result, implicit, contextual }))
+                let params: Vec<_> = merged_names(self, &params, &p2, "x$").into_iter().zip(ours).collect();
+                Some(self.intern_method(binder, &params, result, implicit, contextual))
             }
             (Type::Poly { binder, params, result }, Type::Poly { binder: b2, params: p2, result: r2 })
-                if params.len() == p2.len() =>
+                if self.params_of(params).len() == self.params_of(p2).len() =>
             {
+                let (params, p2) = (self.params_of(params).to_vec(), self.params_of(p2).to_vec());
                 let r2 = self.with_binder(r2, (b2, &p2), binder);
                 let result = self.info_meet(result, r2)?;
                 let names = merged_names(self, &params, &p2, "X");
@@ -126,7 +128,7 @@ impl Universe {
                     let y = self.with_binder(y, (b2, &p2), binder);
                     merged.push((n, self.bounds_meet(x, y)));
                 }
-                Some(self.intern_type(Type::Poly { binder, params: merged, result }))
+                Some(self.intern_poly(binder, &merged, result))
             }
             (Type::Method { .. } | Type::Poly { .. }, _) | (_, Type::Method { .. } | Type::Poly { .. }) => {
                 None

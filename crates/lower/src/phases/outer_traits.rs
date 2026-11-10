@@ -167,7 +167,7 @@ fn result_type(l: &mut Lower, class: SymbolId, outer: SymbolId, prefix: TypeId) 
 
 fn method_type(l: &mut Lower, result: TypeId) -> TypeId {
     let binder = l.u.fresh_binder();
-    l.u.intern_type(Type::Method { binder, params: Vec::new(), result, implicit: false, contextual: false })
+    l.u.intern_method(binder, &[], result, false, false)
 }
 
 /// Stable prefix `p` as a tree in `class`: `this` of a class, a static object or one seen from

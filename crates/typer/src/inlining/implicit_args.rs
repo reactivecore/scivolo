@@ -23,6 +23,7 @@ impl Inlining<'_> {
             if !implicit && !contextual {
                 return Ok(t);
             }
+            let params = self.u.params_of(params).to_vec();
             if params.iter().any(|&(_, p)| self.refers_to(p, binder)) || self.refers_to(result, binder) {
                 return Err((span, "implicit arguments of a dependent method type in a macro expansion"));
             }

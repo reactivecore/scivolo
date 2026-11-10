@@ -55,15 +55,17 @@ impl Reflect<'_> {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => self.u.resolve_ref(t),
             Type::Applied(tycon, _) => self.type_symbol(tycon),
-            Type::Lambda { binder, ref params, result } => {
+            Type::Lambda { binder, params, result } => {
                 let types = self.u.types();
-                let eta = match types.get(result) {
-                    Type::Applied(tycon, args) if args.len() == params.len() => {
-                        let own = args
+                let eta = match *types.get(result) {
+                    Type::Applied(tycon, args)
+                        if types.types_of(args).len() == types.params_of(params).len() =>
+                    {
+                        let own = (types.types_of(args))
                             .iter()
                             .enumerate()
                             .all(|(i, &a)| *types.get(a) == Type::Param(binder, i as u32));
-                        own.then_some(*tycon)
+                        own.then_some(tycon)
                     }
                     _ => None,
                 };

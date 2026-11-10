@@ -50,7 +50,7 @@ impl Matcher<'_> {
             T::SeqLiteral { elemtpt, .. } if self.tpd.get(t).tpe.is_none() => {
                 let seq = self.u.class_ref(crate::defn::IMMUTABLE_SEQ);
                 let elem = self.tpd.get(elemtpt).tpe?;
-                let tpe = self.u.intern_type(Type::Applied(seq, vec![elem]));
+                let tpe = self.u.intern_applied(seq, &[elem]);
                 self.tpd.get_mut(t).tpe = Some(tpe);
                 Some(tpe)
             }

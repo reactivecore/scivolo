@@ -101,11 +101,11 @@ fn clause_names(l: &mut Lower, ctor: SymbolId, n: usize) -> Vec<NameId> {
     let mut t = l.u.info(ctor);
     let mut clauses = Vec::new();
     loop {
-        match l.u.ty(t) {
-            Type::Poly { result, .. } => t = *result,
+        match *l.u.ty(t) {
+            Type::Poly { result, .. } => t = result,
             Type::Method { params, result, .. } => {
-                clauses.push(params.iter().map(|&(name, _)| name).collect());
-                t = *result;
+                clauses.push(l.u.params_of(params).iter().map(|&(name, _)| name).collect());
+                t = result;
             }
             _ => break,
         }

@@ -19,7 +19,7 @@ use accessor::accessor_body;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A lazy value's field: its class, the field, its accessor and the accessor's definition span
@@ -154,9 +154,7 @@ pub fn define_members(l: &mut Lower, class: SymbolId, accessor: SymbolId, rhs: T
     let init = l.u.define(symbol("", Kind::Def, class, Flags::default().with(PRIVATE).with(SYNTHETIC)));
     let binder = l.u.fresh_binder();
     let object = object(l);
-    let params = Vec::new();
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: object, implicit: false, contextual: false });
+    let info = l.u.intern_method(binder, &[], object, false, false);
     l.u.set_info(init, info);
     let field = l.u.define(symbol("", Kind::Val, class, Flags::default().with(PRIVATE).with(MUTABLE)));
     l.u.unenter(field);

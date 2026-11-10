@@ -24,13 +24,15 @@ impl Universe {
                 self.intern_type(Type::Poly { binder, params, result })
             }
             Type::Method { binder, params, result, implicit, contextual } => {
-                let params = params
+                let params: Vec<_> = self
+                    .params_of(params)
+                    .to_vec()
                     .into_iter()
                     .enumerate()
                     .map(|(i, (_, p))| (self.intern_name(&format!("x${i}")), p))
                     .collect();
                 let result = self.positional_params(result);
-                self.intern_type(Type::Method { binder, params, result, implicit, contextual })
+                self.intern_method(binder, &params, result, implicit, contextual)
             }
             _ => t,
         }

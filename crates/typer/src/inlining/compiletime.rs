@@ -151,14 +151,8 @@ impl Inlining<'_> {
         let select = self.tpd.node(T::Select { qualifier: new, name }, at, Some(ctor_ref), Some(ctor));
         let applied = crate::defn::applied(self.u, some, vec![elem]);
         let binder = self.u.fresh_binder();
-        let params = vec![(self.u.intern_name("value"), elem)];
-        let method = self.u.intern_type(Type::Method {
-            binder,
-            params,
-            result: applied,
-            implicit: false,
-            contextual: false,
-        });
+        let params = [(self.u.intern_name("value"), elem)];
+        let method = self.u.intern_method(binder, &params, applied, false, false);
         let targ = self.tpd.node(T::TypeTree { inferred: false }, at, Some(elem), None);
         let targs = self.tpd.list(&[targ]);
         let type_apply = self.tpd.node(T::TypeApply { fun: select, args: targs }, at, Some(method), None);

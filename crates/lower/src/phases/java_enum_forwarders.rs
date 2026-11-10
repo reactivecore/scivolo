@@ -10,7 +10,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ENUM, MUTABLE, PRIVATE, STATIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the forwarders to enum class definition `td`, one of `classes`.
@@ -63,13 +63,7 @@ fn clinit(l: &mut Lower, class: SymbolId, stores: &[TNodeId], span: Span) -> TNo
     let sym = l.u.define(symbol("<clinit>", Kind::Def, class, flags));
     let unit = l.u.class_ref("scala.Unit");
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: Vec::new(),
-        result: unit,
-        implicit: false,
-        contextual: false,
-    });
+    let info = l.u.intern_method(binder, &[], unit, false, false);
     l.u.set_info(sym, info);
     let done = l.unit_literal(span);
     let body = l.block(stores, done, span);

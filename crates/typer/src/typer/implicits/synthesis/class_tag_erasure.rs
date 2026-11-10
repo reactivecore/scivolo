@@ -124,6 +124,6 @@ fn opaque_expansion(t: &mut Typer<'_>, tpe: TypeId) -> Option<TypeId> {
     if args.is_empty() {
         return Some(rhs);
     }
-    let applied = t.u.intern_type(Type::Applied(rhs, args));
+    let applied = t.u.intern_applied(rhs, &args);
     Some(t.u.beta_reduced(applied))
 }

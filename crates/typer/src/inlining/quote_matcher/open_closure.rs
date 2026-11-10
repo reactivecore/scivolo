@@ -75,15 +75,14 @@ impl Reflect<'_> {
         let result = self.u.widen(result);
         let result = self.with_syms(result, &syms);
         let binder = self.u.fresh_binder();
-        let method_params =
+        let method_params: Vec<_> =
             params.iter().map(|c| self.u.intern_name(&c.name)).zip(types.iter().copied()).collect();
-        let info = Type::Method { binder, params: method_params, result, implicit: false, contextual: false };
-        let info = self.u.intern_type(info);
+        let info = self.u.intern_method(binder, &method_params, result, false, false);
         let (info, fun_tpe) = match type_params.is_empty() {
             true => {
                 let class = self.u.class_ref(&format!("scala.Function{}", params.len()));
                 types.push(result);
-                (info, self.u.intern_type(Type::Applied(class, types)))
+                (info, self.u.intern_applied(class, &types))
             }
             false => self.poly_function(&type_params, info),
         };
@@ -124,8 +123,8 @@ impl Reflect<'_> {
             _ => None,
         });
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
-        let params = tparams.iter().map(|&p| (self.u.interned_name(p), bounds)).collect();
-        let info = self.u.intern_type(Type::Poly { binder, params, result });
+        let params: Vec<_> = tparams.iter().map(|&p| (self.u.interned_name(p), bounds)).collect();
+        let info = self.u.intern_poly(binder, &params, result);
         let parent = self.u.class_ref(crate::defn::POLY_FUNCTION);
         let apply = self.u.intern_name("apply");
         (info, self.u.intern_type(Type::Refined(parent, apply, info)))

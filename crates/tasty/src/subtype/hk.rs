@@ -41,7 +41,7 @@ impl Cmp<'_> {
             Connective::And => self.glb(applied_a, applied_b),
             Connective::Or(soft) => self.lub_as(applied_a, applied_b, soft),
         };
-        self.u.intern_type(Type::Lambda { binder, params, result })
+        self.u.intern_lambda(binder, &params, result)
     }
 
     /// `a` and `b` combined by `op`, rebalanced if one side has more than one part more than
@@ -110,7 +110,8 @@ impl Cmp<'_> {
     /// arguments fixed, so that `var[args]` is below `other` (above it if `from_below`); the
     /// constraint as before if not.
     fn unify_constructor(&mut self, var: TypeId, args: &[TypeId], other: TypeId, from_below: bool) -> bool {
-        let Type::Applied(tycon, other_args) = self.u.ty(other).clone() else { return false };
+        let Some((tycon, other_args)) = self.u.applied(other) else { return false };
+        let other_args = other_args.to_vec();
         let Some(fixed) = other_args.len().checked_sub(args.len()) else { return false };
         if tycon == var {
             return false;
@@ -122,8 +123,8 @@ impl Cmp<'_> {
                 let mut body_args = other_args[..fixed].to_vec();
                 body_args.extend((0..args.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))));
                 let params = self.remaining_params(tycon, fixed, &body_args);
-                let result = self.u.intern_type(Type::Applied(tycon, body_args));
-                self.u.intern_type(Type::Lambda { binder, params, result })
+                let result = self.u.intern_applied(tycon, &body_args);
+                self.u.intern_lambda(binder, &params, result)
             }
         };
         let mark = self.vars.mark();
@@ -155,9 +156,10 @@ impl Cmp<'_> {
             Type::Lambda { .. } => Some(tycon),
             _ => self.eta_expand(tycon).or_else(|| self.u.referenced_alias(tycon)),
         };
-        let Some(Type::Lambda { binder, params, .. }) = lambda
-            .map(|l| self.u.ty(l).clone())
-            .filter(|l| matches!(l, Type::Lambda { params, .. } if params.len() == body_args.len()))
+        let Some((binder, params)) = lambda
+            .and_then(|l| self.u.lambda(l))
+            .filter(|l| l.params.len() == body_args.len())
+            .map(|l| (l.binder, l.params.to_vec()))
         else {
             let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
             return (0..body_args.len() - fixed)
@@ -188,7 +190,7 @@ impl Cmp<'_> {
         let (pair, mut t) =
             (self.u.intern_type(Type::Sym(None, pair)), self.u.intern_type(Type::Sym(None, empty)));
         for &arg in args.iter().rev() {
-            t = self.u.intern_type(Type::Applied(pair, vec![arg, t]));
+            t = self.u.intern_applied(pair, &[arg, t]);
         }
         Some(t)
     }

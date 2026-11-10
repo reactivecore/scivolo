@@ -68,7 +68,7 @@ impl Typer<'_> {
         let body_tpe = self.tpd.tpe(body);
         let lambda = |u: &mut tasty::Universe, t: TypeId| {
             let result = refs(u, t);
-            u.intern_type(Type::Lambda { binder, params: lambda_params.clone(), result })
+            u.intern_lambda(binder, &lambda_params, result)
         };
         let bounds = self.u.bounds(body_tpe).is_some();
         let opaque = |s: SymbolId| self.syms.flags.get(&s).is_some_and(|fl| fl.is(f::OPAQUE));

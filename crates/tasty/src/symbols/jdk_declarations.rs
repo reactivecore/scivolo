@@ -126,7 +126,7 @@ impl Universe {
                 return None;
             }
             let array = u.class_ref("scala.Array");
-            let array = u.intern_type(Type::Applied(array, args));
+            let array = u.intern_applied(array, &args);
             Some(u.intern_type(Type::Annotated(array, annot)))
         })
     }

@@ -173,6 +173,7 @@ impl Cmp<'_> {
             }
             Type::Applied(tycon, args) => {
                 self.provisional = true;
+                let args = self.u.types_of(args).to_vec();
                 self.applied_atoms(tycon, &args, depth)
             }
             _ => Atoms::Unmodelled,

@@ -23,7 +23,7 @@ impl Typer<'_> {
         }
         let class = self.resolve_full_name(&format!("scala.Tuple{}", elems.len()), true)?;
         let class = self.u.intern_type(Type::Sym(None, class));
-        let to = self.u.intern_type(Type::Applied(class, elems));
+        let to = self.u.intern_applied(class, &elems);
         Some(self.type_cast(qual, to))
     }
 
@@ -79,7 +79,7 @@ impl Typer<'_> {
         let pair = crate::defn::type_ref(self.u, pair);
         let mut t = self.u.intern_type(Type::Sym(None, empty));
         for &e in elems.iter().rev() {
-            t = self.u.intern_type(Type::Applied(pair, vec![e, t]));
+            t = self.u.intern_applied(pair, &[e, t]);
         }
         Ok(t)
     }

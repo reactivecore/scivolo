@@ -182,23 +182,17 @@ fn method_type(u: &mut Universe, owners: &Owners, m: &MemberInfo, text: &str) ->
     if constructor {
         let class = u.types.intern(Type::Sym(None, owners.class));
         let args: Vec<TypeId> = vars[..owners.params.len()].iter().map(|&(_, t, _)| t).collect();
-        result = if args.is_empty() { class } else { u.types.intern(Type::Applied(class, args)) };
+        result = if args.is_empty() { class } else { u.types.intern_applied(class, &args) };
     }
-    let names = param_types
+    let names: Vec<_> = param_types
         .into_iter()
         .enumerate()
         .map(|(i, t)| (u.types.intern_name(&format!("x${i}")), t))
         .collect();
     let mbinder = u.fresh_binder();
-    let method = u.types.intern(Type::Method {
-        binder: mbinder,
-        params: names,
-        result,
-        implicit: false,
-        contextual: false,
-    });
+    let method = u.types.intern_method(mbinder, &names, result, false, false);
     Ok(match bounds.is_empty() {
         true => method,
-        false => u.types.intern(Type::Poly { binder, params: bounds, result: method }),
+        false => u.types.intern_poly(binder, &bounds, method),
     })
 }

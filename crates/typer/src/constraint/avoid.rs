@@ -87,6 +87,7 @@ impl Constraint {
             Type::Applied(tycon, args) => {
                 let class = u.class_symbol(tycon)?;
                 let variances = u.variances(class);
+                let args = u.types_of(args).to_vec();
                 if variances.len() != args.len() || self.refers_to_local(u, tycon, at, 4) {
                     return None;
                 }
@@ -112,7 +113,7 @@ impl Constraint {
                     }
                     out.push(self.avoided(u, a, at, v * i32::from(pv))?);
                 }
-                Some(u.intern_type(Type::Applied(tycon, out)))
+                Some(u.intern_applied(tycon, &out))
             }
             Type::Refined(parent, name, info) => {
                 let parent = self.avoided(u, parent, at, v)?;

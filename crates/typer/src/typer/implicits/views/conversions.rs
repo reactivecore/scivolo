@@ -102,7 +102,7 @@ impl ViewSearch<'_> {
             Goal::Member(_) | Goal::Call(..) | Goal::Typed(..) => t.u.intern_type(Type::Wildcard(None)),
         };
         let function = t.function_class(1).ok_or("Function1")?;
-        let expected = t.u.intern_type(Type::Applied(function, vec![t.tpd.tpe(self.tree), to]));
+        let expected = t.u.intern_applied(function, &[t.tpd.tpe(self.tree), to]);
         if !t.conforms(value, expected) {
             return Err("conversion of another type");
         }

@@ -71,7 +71,10 @@ impl Host {
                 None => self.node(out, "ThisType", &[inner], None)?,
             },
             Type::NoPrefix => out.push_str("NoPrefix()"),
-            Type::Applied(tycon, args) => self.node(out, "AppliedType", &[tycon], Some(&args))?,
+            Type::Applied(tycon, args) => {
+                let args = self.u.types_of(args).to_vec();
+                self.node(out, "AppliedType", &[tycon], Some(&args))?
+            }
             Type::Refined(parent, name, info) => {
                 out.push_str("Refinement(");
                 self.visit_type(parent, out)?;
@@ -87,12 +90,22 @@ impl Host {
             Type::Super(this, sup) => self.node(out, "SuperType", &[this, sup], None)?,
             Type::MatchCase(pat, rhs) => self.node(out, "MatchCase", &[pat, rhs], None)?,
             Type::Match { bound, scrutinee, cases } => {
+                let cases = self.u.types_of(cases).to_vec();
                 self.node(out, "MatchType", &[bound, scrutinee], Some(&cases))?
             }
             Type::Param(_, i) => out.push_str(&format!("ParamRef(binder, {i})")),
-            Type::Method { params, result, .. } => self.lambda(out, "MethodType", &params, result)?,
-            Type::Poly { params, result, .. } => self.lambda(out, "PolyType", &params, result)?,
-            Type::Lambda { params, result, .. } => self.lambda(out, "TypeLambda", &params, result)?,
+            Type::Method { params, result, .. } => {
+                let params = self.u.params_of(params).to_vec();
+                self.lambda(out, "MethodType", &params, result)?
+            }
+            Type::Poly { params, result, .. } => {
+                let params = self.u.params_of(params).to_vec();
+                self.lambda(out, "PolyType", &params, result)?
+            }
+            Type::Lambda { params, result, .. } => {
+                let params = self.u.params_of(params).to_vec();
+                self.lambda(out, "TypeLambda", &params, result)?
+            }
             Type::Annotated(inner, annot) if self.is_synthetic_annotation(annot) => {
                 out.push_str("AnnotatedType(");
                 self.visit_type(inner, out)?;

@@ -31,6 +31,7 @@ pub fn tuple_element_types_up_to(l: &mut Lower, mut t: TypeId, bound: usize) -> 
         let tp = l.u.dealias(normalized);
         match l.u.ty(tp).clone() {
             Type::Applied(tycon, args) => {
+                let args = l.u.types_of(args).to_vec();
                 let name = l.u.class_symbol(tycon).map(|c| l.u.full_name(c))?;
                 if name == "scala.*:" && args.len() == 2 {
                     out.push(args[0]);

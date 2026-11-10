@@ -41,7 +41,7 @@ impl Typer<'_> {
                 }
                 _ => 0,
             },
-            Type::Lambda { params, .. } => params.len(),
+            Type::Lambda { params, .. } => self.u.params_of(params).len(),
             Type::TypeRef(pre, name) => match self.u.refinement_named(pre, name) {
                 Some(info) => self.info_arity(info, depth),
                 None => self.u.resolve_ref(t).map_or(0, |s| {
@@ -118,7 +118,7 @@ impl Typer<'_> {
     fn info_arity(&mut self, info: TypeId, depth: u32) -> usize {
         match *self.u.ty(info) {
             Type::Alias(a) | Type::Bounds(_, a) => self.type_arity_within(a, depth),
-            Type::Lambda { ref params, .. } => params.len(),
+            Type::Lambda { params, .. } => self.u.params_of(params).len(),
             _ => 0,
         }
     }
@@ -132,11 +132,8 @@ impl Typer<'_> {
             Type::Lambda { binder, params, result } => {
                 let (lo, hi) = self.u.bounds(result).unwrap_or((result, result));
                 let bottom = self.u.class_symbol(lo) == Some(self.u.defn().nothing);
-                let arity = params.len();
-                let mut lambda = |result| {
-                    let params = params.clone();
-                    self.u.intern_type(Type::Lambda { binder, params, result })
-                };
+                let arity = self.u.params_of(params).len();
+                let mut lambda = |result| self.u.intern_type(Type::Lambda { binder, params, result });
                 let lo = lambda(lo);
                 ((!bottom).then_some(lo), lambda(hi), arity)
             }

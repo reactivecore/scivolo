@@ -38,10 +38,11 @@ impl Universe {
                     && !seen.contains(&(b, i))
                     && let Some(bounds) = bound(b, i)
                     && let Some((_, hi)) = u.bounds(bounds)
-                    && let Type::Lambda { binder, params, result } = u.ty(hi).clone()
+                    && let Some((binder, names, result)) =
+                        u.lambda(hi).map(|l| (l.binder, l.names(), l.result))
                 {
                     seen.push((b, i));
-                    let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
+                    let args = u.types_of(args).to_vec();
                     applied = u.subst(result, binder, &names, &args);
                 }
                 (applied != x).then(|| u.upper_bound_except(applied, bounds, &seen))

@@ -202,7 +202,7 @@ impl Typer<'_> {
             match self.u.ty(t).clone() {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, result, .. } => {
-                    for (_, p) in params {
+                    for (_, p) in self.u.params_of(params).to_vec() {
                         if let Some(inner) = self.u.by_name(p)
                             && self.repeated_elem(inner).is_some()
                         {

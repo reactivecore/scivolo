@@ -5,7 +5,7 @@
 use crate::phases::tree_copy::{Copier, copy};
 use crate::{Lower, Result};
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A `Quotes` tree, copied at each use, in its owner.
@@ -39,7 +39,7 @@ impl Reflect {
         let as_expr = self.method(l, "TreeMethods", "asExpr")?;
         let expr = call(l, as_expr, &[term]);
         let class = l.u.class_ref("scala.quoted.Expr");
-        let quoted = l.u.intern_type(Type::Applied(class, vec![tpe]));
+        let quoted = l.u.intern_applied(class, &[tpe]);
         Ok(cast(l, expr, quoted))
     }
 

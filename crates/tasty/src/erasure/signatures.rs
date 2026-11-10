@@ -56,12 +56,13 @@ impl Universe {
         loop {
             match self.ty(t).clone() {
                 Type::Poly { binder, params, result } => {
+                    let params = self.params_of(params);
                     parts.push(Err(params.len()));
-                    bounds.push((binder, params.into_iter().map(|(_, b)| b).collect::<Vec<_>>()));
+                    bounds.push((binder, params.iter().map(|&(_, b)| b).collect::<Vec<_>>()));
                     t = result;
                 }
                 Type::Method { params, result, .. } => {
-                    parts.extend(params.into_iter().map(|(_, p)| Ok(p)));
+                    parts.extend(self.params_of(params).iter().map(|&(_, p)| Ok(p)));
                     t = result;
                 }
                 _ => break,

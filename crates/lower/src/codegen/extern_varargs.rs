@@ -17,7 +17,7 @@ impl Gen<'_, '_> {
             match self.l.u.ty(t).clone() {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, result, .. } => {
-                    for (_, param) in params {
+                    for (_, param) in self.l.u.params_of(params).to_vec() {
                         if self.l.u.is_erased_param(param) {
                             continue;
                         }

@@ -55,8 +55,9 @@ impl Universe {
             Type::Applied(tycon, args) => {
                 let java = self.class_symbol(tycon).is_some_and(|c| self.is_jdk_class(c));
                 let inner = Modes { current: !java, result: true };
-                let args = args.into_iter().map(|a| self.nullify(a, inner)).collect();
-                let applied = self.intern_type(Type::Applied(tycon, args));
+                let args: Vec<_> =
+                    self.types_of(args).to_vec().into_iter().map(|a| self.nullify(a, inner)).collect();
+                let applied = self.intern_applied(tycon, &args);
                 self.nullified(applied, modes)
             }
             Type::Annotated(inner, annot) => {
@@ -78,9 +79,14 @@ impl Universe {
             }
             Type::Method { binder, params, result, implicit, contextual } => {
                 let inner = Modes { current: !implicit, result: true };
-                let params = params.into_iter().map(|(n, p)| (n, self.nullify(p, inner))).collect();
+                let params: Vec<_> = self
+                    .params_of(params)
+                    .to_vec()
+                    .into_iter()
+                    .map(|(n, p)| (n, self.nullify(p, inner)))
+                    .collect();
                 let result = self.nullify(result, Modes { current: modes.result, result: true });
-                self.intern_type(Type::Method { binder, params, result, implicit, contextual })
+                self.intern_method(binder, &params, result, implicit, contextual)
             }
             Type::ByName(r) => {
                 let r = self.nullify(r, modes);

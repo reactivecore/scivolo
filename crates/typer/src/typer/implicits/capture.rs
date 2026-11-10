@@ -112,5 +112,5 @@ fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<Type
         let skolem = t.u.fresh_skolem(boxed);
         captured.push(t.u.intern_type(Type::Sym(Some(skolem), cap)));
     }
-    Some(t.u.intern_type(Type::Applied(tycon, captured)))
+    Some(t.u.intern_applied(tycon, &captured))
 }

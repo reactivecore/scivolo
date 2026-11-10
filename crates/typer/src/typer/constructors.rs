@@ -105,9 +105,10 @@ impl Typer<'_> {
             }
             params.push((self.u.interned_name(p), info));
         }
-        let args = (0..params.len()).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
-        let result = self.u.intern_type(Type::Applied(class, args));
-        Ok(self.u.intern_type(Type::Lambda { binder, params, result }))
+        let args: Vec<_> =
+            (0..params.len()).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
+        let result = self.u.intern_applied(class, &args);
+        Ok(self.u.intern_lambda(binder, &params, result))
     }
 
     /// `info` of `s` if `s` is a constructor selected from `prefix`, its `Unit` result replaced by
@@ -133,9 +134,10 @@ impl Typer<'_> {
         };
         match self.u.ty(info).clone() {
             Type::Poly { binder, params, result } => {
-                let args =
-                    (0..params.len()).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
-                let class = self.u.intern_type(Type::Applied(class, args));
+                let arity = self.u.params_of(params).len();
+                let args: Vec<_> =
+                    (0..arity).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
+                let class = self.u.intern_applied(class, &args);
                 let result = self.with_final_result(result, class);
                 self.u.intern_type(Type::Poly { binder, params, result })
             }

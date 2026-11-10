@@ -68,6 +68,7 @@ impl Typer<'_> {
         let Type::Method { params, result, contextual: false, .. } = self.u.ty(info).clone() else {
             return Err("method value");
         };
+        let params = self.u.params_of(params).to_vec();
         if params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some()) {
             return Err("method value with a repeated parameter");
         }

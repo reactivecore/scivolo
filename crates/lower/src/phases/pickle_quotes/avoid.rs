@@ -31,7 +31,10 @@ fn avoided_at(u: &mut Universe, t: TypeId, v: i8) -> Approx {
             let parts = [avoided_at(u, a, v), avoided_at(u, b, v)];
             approx::derived(u, &parts, &[], v, &mut |u, p| u.intern_type(Type::Or(p[0], p[1], soft)))
         }
-        Type::Applied(tycon, args) if u.lambda(tycon).is_none() => avoided_applied(u, t, tycon, &args, v),
+        Type::Applied(tycon, args) if u.lambda(tycon).is_none() => {
+            let args = u.types_of(args).to_vec();
+            avoided_applied(u, t, tycon, &args, v)
+        }
         Type::Bounds(lo, hi) => {
             let (l, h) = (avoided_at(u, lo, -v), avoided_at(u, hi, v));
             approx::bounds(u, l, h, v)
@@ -54,7 +57,10 @@ fn avoided_at(u: &mut Universe, t: TypeId, v: i8) -> Approx {
         Type::Sym(..) | Type::TypeRef(..) => avoided_ref(u, t, v),
         Type::Method { params, result, .. }
         | Type::Poly { params, result, .. }
-        | Type::Lambda { params, result, .. } => avoided_lambda(u, t, &params, result, v),
+        | Type::Lambda { params, result, .. } => {
+            let params = u.params_of(params).to_vec();
+            avoided_lambda(u, t, &params, result, v)
+        }
         _ => Approx::Exact(children_avoided(u, t, v)),
     }
 }
@@ -96,7 +102,8 @@ fn avoided_lambda(u: &mut Universe, t: TypeId, params: &[(NameId, TypeId)], resu
     let node = u.ty(t).clone();
     approx::derived(u, &parts, &flip, v, &mut |u, p| {
         let (ps, r) = p.split_at(params.len());
-        let ps = params.iter().zip(ps).map(|(&(n, _), &x)| (n, x)).collect();
+        let ps: Vec<_> = params.iter().zip(ps).map(|(&(n, _), &x)| (n, x)).collect();
+        let ps = u.intern_params(&ps);
         u.intern_type(match node.clone() {
             Type::Method { binder, implicit, contextual, .. } => {
                 Type::Method { binder, params: ps, result: r[0], implicit, contextual }

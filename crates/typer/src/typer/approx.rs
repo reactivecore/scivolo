@@ -92,12 +92,12 @@ pub fn applied(u: &mut Universe, tycon: Approx, args: &[Approx], variances: &[i8
     }
     let tycon = tycon.hi();
     if !args.iter().any(|a| a.is_range()) {
-        let args = args.iter().map(|a| a.hi()).collect();
-        return Approx::Exact(u.intern_type(Type::Applied(tycon, args)));
+        let args: Vec<_> = args.iter().map(|a| a.hi()).collect();
+        return Approx::Exact(u.intern_applied(tycon, &args));
     }
     let wild = |u: &mut Universe| {
         let wild: Vec<TypeId> = args.iter().map(|a| a.to_bounds(u)).collect();
-        u.intern_type(Type::Applied(tycon, wild))
+        u.intern_applied(tycon, &wild)
     };
     let lambda_sub = u.is_lambda_sub(tycon);
     if v > 0 && !lambda_sub {
@@ -106,7 +106,7 @@ pub fn applied(u: &mut Universe, tycon: Approx, args: &[Approx], variances: &[i8
     let variance = |i: usize| variances.get(i).copied().unwrap_or(0);
     if args.iter().enumerate().all(|(i, a)| !a.is_range() || variance(i) != 0) {
         let flip: Vec<bool> = (0..args.len()).map(|i| variance(i) < 0).collect();
-        return derived(u, args, &flip, v, &mut |u, args| u.intern_type(Type::Applied(tycon, args.to_vec())));
+        return derived(u, args, &flip, v, &mut |u, args| u.intern_applied(tycon, args));
     }
     let hi = match lambda_sub || args.iter().any(|&a| is_range_of_bounds(u, a)) {
         true => ANY,

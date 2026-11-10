@@ -26,9 +26,10 @@ impl Typer<'_> {
                 _ => None,
             },
             Type::Annotated(t, _) if self.types().is_inline_param_type(p) => self.repeated_elem(t),
-            Type::Applied(c, args) if args.len() == 1 => {
+            Type::Applied(c, args) if self.u.types_of(args).len() == 1 => {
+                let arg = self.u.types_of(args)[0];
                 let class = self.u.class_symbol(c);
-                (class.is_some() && class == self.syms.repeated_class).then_some(args[0])
+                (class.is_some() && class == self.syms.repeated_class).then_some(arg)
             }
             _ => None,
         }
@@ -38,10 +39,11 @@ impl Typer<'_> {
     pub fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
         match self.u.ty(t).clone() {
             Type::Method { binder, params, result, implicit, contextual } => {
-                let params =
-                    params.into_iter().map(|(n, p)| (n, self.with_repeated_param_class(p))).collect();
+                let params: Vec<_> = (self.u.params_of(params).to_vec().into_iter())
+                    .map(|(n, p)| (n, self.with_repeated_param_class(p)))
+                    .collect();
                 let result = self.with_repeated_class(result);
-                self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+                self.u.intern_method(binder, &params, result, implicit, contextual)
             }
             Type::Poly { binder, params, result } => {
                 let result = self.with_repeated_class(result);
@@ -67,7 +69,7 @@ impl Typer<'_> {
     pub fn repeated_type(&mut self, elem: TypeId) -> TypeId {
         let class = self.repeated_class();
         let class = crate::defn::type_ref(self.u, class);
-        self.u.intern_type(Type::Applied(class, vec![elem]))
+        self.u.intern_applied(class, &[elem])
     }
 
     /// dotty's `scala.<repeated>`, defined on first use.
@@ -124,10 +126,10 @@ impl Typer<'_> {
         };
         let pt = elem.map_or(super::Pt::Any, |elem| {
             let seq = crate::defn::type_ref(self.u, seq_class);
-            let seq = self.u.intern_type(Type::Applied(seq, vec![elem]));
+            let seq = self.u.intern_applied(seq, &[elem]);
             let array = crate::defn::type_ref(self.u, array_class);
             let below = self.u.intern_type(Type::Bounds(tasty::NOTHING, elem));
-            let array = self.u.intern_type(Type::Applied(array, vec![below]));
+            let array = self.u.intern_applied(array, &[below]);
             super::Pt::Type(self.u.union(seq, array, false))
         });
         let expr = self.typed(expr, pt, ctx);
@@ -177,7 +179,7 @@ impl Typer<'_> {
         let Some(seq) = self.resolve_full_name(IMMUTABLE_SEQ, true) else { return };
         let elem = self.tpd.tpe(elemtpt);
         let seq = crate::defn::type_ref(self.u, seq);
-        self.tpd.get_mut(tree).tpe = Some(self.u.intern_type(Type::Applied(seq, vec![elem])));
+        self.tpd.get_mut(tree).tpe = Some(self.u.intern_applied(seq, &[elem]));
     }
 }
 

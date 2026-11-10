@@ -124,7 +124,9 @@ impl Cmp<'_> {
             Type::Method { .. } | Type::Poly { .. } => self.recur(have, want),
             Type::ByName(want) => self.info_conforms(have, want),
             _ => match self.u.ty(have).clone() {
-                Type::Method { params, result, .. } if params.is_empty() => self.recur(result, want),
+                Type::Method { params, result, .. } if self.u.params_of(params).is_empty() => {
+                    self.recur(result, want)
+                }
                 Type::ByName(result) => self.recur(result, want),
                 Type::Method { .. } | Type::Poly { .. } => false,
                 _ => self.recur(have, want),

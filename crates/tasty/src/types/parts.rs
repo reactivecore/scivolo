@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Borrowed views of the parts of types, in the style of dotty's extractors.
 
-use super::{Binder, NameId, Type, TypeId, VarId};
+use super::{Binder, NameId, ParamList, Type, TypeId, TypeList, VarId};
 use crate::{SymbolId, Universe};
 
 /// The parts a `Method`, `Poly` or `Lambda` type binds; `implicit` and `contextual` are false
@@ -36,6 +36,17 @@ impl Universe {
     pub fn name(&self, id: NameId) -> &str {
         self.types().name(id)
     }
+
+    /// The types of list `list`.
+    pub fn types_of(&self, list: TypeList) -> &[TypeId] {
+        self.types().types_of(list)
+    }
+
+    /// The parameters of list `list`.
+    pub fn params_of(&self, list: ParamList) -> &[(NameId, TypeId)] {
+        self.types().params_of(list)
+    }
+
     /// The prefix and symbol of a `Sym` type.
     pub fn sym_ref(&self, t: TypeId) -> Option<(Option<TypeId>, SymbolId)> {
         match *self.ty(t) {
@@ -122,36 +133,32 @@ impl Universe {
     }
 
     pub fn method(&self, t: TypeId) -> Option<Binding<'_>> {
-        match self.ty(t) {
-            Type::Method { binder, params, result, implicit, contextual } => Some(Binding {
-                binder: *binder,
-                params,
-                result: *result,
-                implicit: *implicit,
-                contextual: *contextual,
-            }),
+        match *self.ty(t) {
+            Type::Method { binder, params, result, implicit, contextual } => {
+                Some(Binding { binder, params: self.params_of(params), result, implicit, contextual })
+            }
             _ => None,
         }
     }
 
     pub fn poly(&self, t: TypeId) -> Option<Binding<'_>> {
-        match self.ty(t) {
-            Type::Poly { binder, params, result } => Some(plain(*binder, params, *result)),
+        match *self.ty(t) {
+            Type::Poly { binder, params, result } => Some(plain(binder, self.params_of(params), result)),
             _ => None,
         }
     }
 
     pub fn lambda(&self, t: TypeId) -> Option<Binding<'_>> {
-        match self.ty(t) {
-            Type::Lambda { binder, params, result } => Some(plain(*binder, params, *result)),
+        match *self.ty(t) {
+            Type::Lambda { binder, params, result } => Some(plain(binder, self.params_of(params), result)),
             _ => None,
         }
     }
 
     /// The type constructor and arguments of an `Applied` type.
     pub fn applied(&self, t: TypeId) -> Option<(TypeId, &[TypeId])> {
-        match self.ty(t) {
-            Type::Applied(tycon, args) => Some((*tycon, args)),
+        match *self.ty(t) {
+            Type::Applied(tycon, args) => Some((tycon, self.types_of(args))),
             _ => None,
         }
     }

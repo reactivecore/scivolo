@@ -37,7 +37,7 @@ impl Universe {
             }
             Type::Constant(CLASSconst, bits) => {
                 let class = self.class_ref("java.lang.Class");
-                self.intern_type(Type::Applied(class, vec![TypeId(bits as u32)]))
+                self.intern_applied(class, &[TypeId(bits as u32)])
             }
             Type::Constant(tag, _) => self.constant_type(tag),
             Type::Str(_) => self.constant_type(STRINGconst),
@@ -68,7 +68,8 @@ impl Universe {
             Type::Annotated(u, _) => u,
             Type::Applied(tycon, args) => match self.ty(tycon).clone() {
                 Type::Lambda { binder, params, result } => {
-                    let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
+                    let names: Vec<_> = self.params_of(params).iter().map(|&(n, _)| n).collect();
+                    let args = self.types_of(args).to_vec();
                     self.subst(result, binder, &names, &args)
                 }
                 _ => Some(self.dealias_step(tycon))
@@ -142,7 +143,7 @@ impl Universe {
             self.type_params(c).into_iter().map(|p| self.intern_type(Type::Sym(Some(this), p))).collect();
         match params.is_empty() {
             true => class,
-            false => self.intern_type(Type::Applied(class, params)),
+            false => self.intern_applied(class, &params),
         }
     }
 

@@ -140,7 +140,7 @@ fn member(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind) -> Result<S
 /// `class[args]`.
 pub fn applied(u: &mut Universe, class: SymbolId, args: Vec<TypeId>) -> TypeId {
     let tycon = type_ref(u, class);
-    u.intern_type(Type::Applied(tycon, args))
+    u.intern_applied(tycon, &args)
 }
 
 /// The type of a reference to `s` from where its owner's members are visible.

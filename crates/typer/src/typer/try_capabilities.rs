@@ -38,7 +38,7 @@ impl Typer<'_> {
             return expr;
         };
         let can_throw = crate::defn::type_ref(self.u, can_throw);
-        let tpe = self.u.intern_type(Type::Applied(can_throw, vec![caught]));
+        let tpe = self.u.intern_applied(can_throw, &[caught]);
         let span = self.ast.span(expr).to_synthetic();
         let at = span.start_pos();
         let typed = self.type_tree(tpe, at, false);
@@ -71,7 +71,7 @@ impl Typer<'_> {
             return Ok(());
         }
         let can_throw = crate::defn::type_ref(self.u, can_throw);
-        let capability = self.u.intern_type(Type::Applied(can_throw, vec![tpe]));
+        let capability = self.u.intern_applied(can_throw, &[tpe]);
         let span = self.tpd.span(thrown);
         match self.implicit_arg(capability, span, ctx, 0) {
             Ok(_) => Ok(()),

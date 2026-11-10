@@ -152,7 +152,7 @@ fn tuple_type(l: &mut Lower, types: &[TypeId]) -> TypeId {
         return type_ref(l.u, module);
     }
     let class = l.u.class_ref(&format!("scala.Tuple{}", types.len()));
-    l.u.intern_type(Type::Applied(class, types.to_vec()))
+    l.u.intern_applied(class, types)
 }
 
 /// Object `scala.EmptyTuple`.
@@ -169,7 +169,7 @@ pub fn nested_pairs(l: &mut Lower, types: &[TypeId]) -> TypeId {
         let s = l.u.decl(module, n).ok().and_then(|d| d.first().copied()).expect("KNil and KCons");
         type_ref(l.u, s)
     });
-    types.iter().rev().fold(nil, |acc, &t| l.u.intern_type(Type::Applied(cons, vec![t, acc])))
+    types.iter().rev().fold(nil, |acc, &t| l.u.intern_applied(cons, &[t, acc]))
 }
 
 /// A reference to method `name` of top-level object class `module`, through the object's `this`.

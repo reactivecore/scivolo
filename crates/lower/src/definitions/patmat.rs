@@ -1,5 +1,5 @@
 use super::{member, package, symbol, type_ref};
-use tasty::{Flags, Kind, SymbolId, Type, Universe};
+use tasty::{Flags, Kind, SymbolId, Universe};
 
 /// What compiled pattern matches refer to beyond `Any`'s, `Object`'s and `Boolean`'s members.
 #[derive(Clone, Copy)]
@@ -33,8 +33,8 @@ pub fn throw(u: &mut Universe) -> Result<SymbolId, String> {
     let nothing = u.defn().nothing;
     let result = type_ref(u, nothing);
     let binder = u.fresh_binder();
-    let params = vec![(u.intern_name("x"), throwable)];
-    let info = u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
+    let params = [(u.intern_name("x"), throwable)];
+    let info = u.intern_method(binder, &params, result, false, false);
     let throw = u.define(symbol("throw", Kind::Def, ops, Flags::default()));
     u.set_info(throw, info);
     Ok(throw)

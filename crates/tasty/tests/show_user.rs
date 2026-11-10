@@ -32,7 +32,7 @@ fn t(u: &mut Universe, full: &str) -> TypeId {
 
 fn app(u: &mut Universe, tycon: &str, args: &[TypeId]) -> TypeId {
     let tycon = u.class_ref(tycon);
-    u.intern_type(Type::Applied(tycon, args.to_vec()))
+    u.intern_applied(tycon, args)
 }
 
 /// The type alias `name` of `Predef`.
@@ -132,7 +132,7 @@ fn classes_print_without_their_standard_prefixes() {
         assert_eq!(u.show_user(ty), shown);
     }
     let map = predef_alias(u, "Map");
-    let map = u.intern_type(Type::Applied(map, vec![string, int]));
+    let map = u.intern_applied(map, &[string, int]);
     assert_eq!(u.show_user(map), "Map[String, Int]");
 }
 
@@ -190,8 +190,8 @@ fn wildcards_constants_singletons_and_lambdas() {
     let list = app(u, "scala.collection.immutable.List", &[x]);
     let list_class = t(u, "scala.collection.immutable.List");
     let lambda = |u: &mut Universe, result| {
-        let params = vec![(u.intern_name("X"), unbounded)];
-        u.intern_type(Type::Lambda { binder, params, result })
+        let params = [(u.intern_name("X"), unbounded)];
+        u.intern_lambda(binder, &params, result)
     };
     let none = u.intern_name("None");
     let cases = [
@@ -231,22 +231,10 @@ fn definitions_of_a_repl_line() {
     let binder = u.fresh_binder();
     let c = u.intern_type(Type::Sym(None, trait_));
     let c_name = u.intern_name("c");
-    let using = u.intern_type(Type::Method {
-        binder,
-        params: vec![(c_name, c)],
-        result: int,
-        implicit: true,
-        contextual: true,
-    });
+    let using = u.intern_method(binder, &[(c_name, c)], int, true, true);
     let binder = u.fresh_binder();
     let x_name = u.intern_name("x");
-    let method = u.intern_type(Type::Method {
-        binder,
-        params: vec![(x_name, point)],
-        result: using,
-        implicit: false,
-        contextual: false,
-    });
+    let method = u.intern_method(binder, &[(x_name, point)], using, false, false);
     for (s, info) in [(lazy_val, int), (var, point), (alias, point), (def, method)] {
         u.set_info(s, info);
     }

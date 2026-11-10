@@ -8,8 +8,8 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName, Tree, flags as f};
+use tasty::SymbolId;
 use tasty::defn::RUNTIME_EXPR;
-use tasty::{SymbolId, Type};
 
 /// The refusal of a source reference to a member of `scala.quoted.runtime.Expr`.
 pub const STAGING_REFERENCE: &str = "reference to scala.quoted.runtime.Expr outside a quote or splice";
@@ -99,7 +99,7 @@ impl Typer<'_> {
             return;
         };
         let Some(class) = self.context_function_class(1) else { return };
-        let tpe = self.u.intern_type(Type::Applied(class, args));
+        let tpe = self.u.intern_applied(class, &args);
         let apply = self.tpd.sym(fun).expect("the apply of a context function");
         let apply_tpe = self.ref_type(Some(tpe), apply);
         self.tpd.get_mut(qualifier).tpe = Some(tpe);

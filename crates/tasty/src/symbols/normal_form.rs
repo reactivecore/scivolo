@@ -21,11 +21,9 @@ impl Universe {
         self.map_type(t, &mut |u, x| match u.ty(x).clone() {
             Type::Annotated(inner, _) => Some(u.normalize_within(inner, depth)),
             Type::Applied(tycon, args) => {
-                let expanded = match u.ty(tycon).clone() {
-                    Type::Lambda { binder, params, result } => {
-                        let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
-                        u.subst(result, binder, &names, &args)
-                    }
+                let args = u.types_of(args).to_vec();
+                let expanded = match u.lambda(tycon).map(|l| (l.binder, l.names(), l.result)) {
+                    Some((binder, names, result)) => u.subst(result, binder, &names, &args),
                     _ => match u.expand(tycon, &args).filter(|&e| u.bounds(e).is_none()) {
                         Some(e) => e,
                         None => {

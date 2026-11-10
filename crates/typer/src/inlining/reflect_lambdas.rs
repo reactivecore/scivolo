@@ -33,7 +33,7 @@ impl Reflect<'_> {
         let mut types: Vec<TypeId> = params.iter().map(|&(_, t)| t).collect();
         let class = self.u.class_ref(&format!("scala.Function{}", types.len()));
         types.push(result);
-        let fun_tpe = self.u.intern_type(Type::Applied(class, types));
+        let fun_tpe = self.u.intern_applied(class, &types);
         let meth_tpe = self.u.intern_type(Type::Sym(None, meth));
         let ident = self.build()?.ident(meth, meth_tpe, span);
         let env = self.tpd.list(&[]);

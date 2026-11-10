@@ -63,7 +63,9 @@ pub fn accessor_tpt(t: &mut Typer<'_>, tpe: TypeId, clauses: &[Clause], span: Sp
         }
         Type::Applied(tycon, args) => {
             let tpt = accessor_tpt(t, tycon, clauses, span)?;
-            let args = args.iter().map(|&a| accessor_tpt(t, a, clauses, span)).collect::<Option<Vec<_>>>()?;
+            let args = (t.u.types_of(args).to_vec().into_iter())
+                .map(|a| accessor_tpt(t, a, clauses, span))
+                .collect::<Option<Vec<_>>>()?;
             let args = t.ast.list(&args);
             Tree::AppliedTypeTree { tpt, args }
         }

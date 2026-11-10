@@ -46,7 +46,7 @@ impl Typer<'_> {
             case_types.push(case);
         }
         let bound = bound.unwrap_or(lub);
-        let tpe = self.u.intern_type(Type::Match { bound, scrutinee, cases: case_types });
+        let tpe = self.u.intern_match(bound, scrutinee, &case_types);
         let tpe = self.u.try_normalize(tpe).unwrap_or(tpe);
         self.type_tree(tpe, self.ast.span(id), false)
     }
@@ -115,7 +115,7 @@ impl Typer<'_> {
             let i = captures.iter().position(|&c| Some(c) == u.sym_of(t))?;
             Some(u.intern_type(Type::Param(binder, i as u32)))
         });
-        Some((self.u.intern_type(Type::Lambda { binder, params, result }), body, captures))
+        Some((self.u.intern_lambda(binder, &params, result), body, captures))
     }
 
     /// A type variable `name` of a match type case, unbounded, entered in `level` if given.

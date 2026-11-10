@@ -9,7 +9,7 @@ use super::reflect::{Reflect, call};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes quote application `t` in `owner` of literal `lit` the call lifting the literal's value.
@@ -53,12 +53,11 @@ pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId, owner: Symbol
     let apply = l.u.member(lifter_class, "apply")[0];
     let fun = l.select(lifter, apply, Span::NONE);
     let expr = l.u.class_ref("scala.quoted.Expr");
-    let expr = l.u.intern_type(Type::Applied(expr, vec![q.tpe]));
+    let expr = l.u.intern_applied(expr, &[q.tpe]);
     let quotes_type = l.tpd.tpe(q.quotes);
     let binder = l.u.fresh_binder();
-    let params = vec![(l.u.intern_name("x$2"), quotes_type)];
-    let using =
-        l.u.intern_type(Type::Method { binder, params, result: expr, implicit: true, contextual: true });
+    let params = [(l.u.intern_name("x$2"), quotes_type)];
+    let using = l.u.intern_method(binder, &params, expr, true, true);
     let first = l.apply(fun, &[lit], using, Span::NONE);
     let first = l.positioned(first);
     let call = l.apply(first, &[q.quotes], expr, Span::NONE);

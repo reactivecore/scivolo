@@ -34,8 +34,8 @@ impl Universe {
                 }
                 _ => u.java_wildcards(a, from_java_object),
             });
-            let args = args.collect();
-            Some(u.intern_type(Type::Applied(tycon, args)))
+            let args: Vec<_> = args.collect();
+            Some(u.intern_applied(tycon, &args))
         })
     }
 }

@@ -79,9 +79,9 @@ fn clause_shape(u: &mut Universe, s: SymbolId) -> Vec<(bool, usize)> {
     let mut t = u.info(s);
     let mut out = Vec::new();
     loop {
-        match u.ty(t) {
-            Type::Poly { params, result, .. } => (out.push((true, params.len())), t = *result),
-            Type::Method { params, result, .. } => (out.push((false, params.len())), t = *result),
+        match *u.ty(t) {
+            Type::Poly { params, result, .. } => (out.push((true, u.params_of(params).len())), t = result),
+            Type::Method { params, result, .. } => (out.push((false, u.params_of(params).len())), t = result),
             _ => return out,
         };
     }
@@ -94,11 +94,11 @@ fn erased_params(u: &mut Universe, site: TypeId, s: SymbolId) -> Vec<Erased> {
     let mut params = Vec::new();
     let mut t = info;
     loop {
-        match u.ty(t) {
-            Type::Poly { result, .. } => t = *result,
+        match *u.ty(t) {
+            Type::Poly { result, .. } => t = result,
             Type::Method { params: ps, result, .. } => {
-                params.extend_from_slice(ps);
-                t = *result;
+                params.extend_from_slice(u.params_of(ps));
+                t = result;
             }
             _ => break,
         }

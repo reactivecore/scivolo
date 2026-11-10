@@ -50,6 +50,7 @@ impl Text<'_> {
                 self.out.push_str("AppliedType(");
                 self.tpe(tycon)?;
                 self.out.push(',');
+                let args = self.h.u.types_of(args).to_vec();
                 self.list(&args)?;
                 self.out.push(')');
             }
@@ -71,12 +72,15 @@ impl Text<'_> {
                     (_, true) => "ImplicitMethodType",
                     _ => "MethodType",
                 };
+                let params = self.h.u.params_of(params).to_vec();
                 self.lambda(what, binder, &params, result, true)?
             }
             Type::Poly { binder, params, result } => {
+                let params = self.h.u.params_of(params).to_vec();
                 self.lambda("PolyType", binder, &params, result, false)?
             }
             Type::Lambda { binder, params, result } => {
+                let params = self.h.u.params_of(params).to_vec();
                 self.lambda("HKTypeLambda", binder, &params, result, false)?
             }
             Type::Param(b, i) => {
@@ -89,6 +93,7 @@ impl Text<'_> {
                 self.out.push_str("MatchType(");
                 self.separated(&[bound, scrutinee], ",")?;
                 self.out.push(',');
+                let cases = self.h.u.types_of(cases).to_vec();
                 self.list(&cases)?;
                 self.out.push(')');
             }

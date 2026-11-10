@@ -142,13 +142,7 @@ impl Inlining<'_> {
 
     fn nullary(&mut self, result: TypeId) -> TypeId {
         let binder = self.u.fresh_binder();
-        self.u.intern_type(Type::Method {
-            binder,
-            params: Vec::new(),
-            result,
-            implicit: false,
-            contextual: false,
-        })
+        self.u.intern_method(binder, &[], result, false, false)
     }
 
     fn param_def(&mut self, s: SymbolId, tpe: TypeId, span: Span) -> TNodeId {

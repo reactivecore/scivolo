@@ -110,9 +110,8 @@ impl Synthesizer {
         let select = t.build().select(new, ctor, at);
         let result = crate::defn::applied(t.u, class, vec![tpe]);
         let binder = t.u.fresh_binder();
-        let params = vec![(t.u.intern_name("value"), tpe)];
-        let method =
-            t.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
+        let params = [(t.u.intern_name("value"), tpe)];
+        let method = t.u.intern_method(binder, &params, result, false, false);
         let targ = t.type_tree(tpe, at, false);
         let fun = t.build().type_apply(select, &[targ], method, at);
         Ok(Some(t.build().apply(fun, &[value], result, at)))

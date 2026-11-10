@@ -25,10 +25,11 @@ impl Typer<'_> {
             true => self.context_function_parts(parent),
             false => self.function_parts(parent, n),
         };
+        let params = self.u.params_of(params);
         if self.u.name(name) != "apply" || params.len() != n || parent_parts.is_none() {
             return None;
         }
-        let (names, types) = params.into_iter().unzip();
+        let (names, types) = params.iter().copied().unzip();
         Some(((types, result), (binder, names)))
     }
 
@@ -37,7 +38,7 @@ impl Typer<'_> {
         let Type::Refined(parent, name, info) = self.u.ty(t).clone() else { return None };
         let Type::Method { params, result, .. } = self.u.ty(info).clone() else { return None };
         self.context_function_parts(parent).filter(|_| self.u.name(name) == "apply")?;
-        Some((params, result))
+        Some((self.u.params_of(params).to_vec(), result))
     }
 
     /// `class[P1, …, B'] { def apply(params): result }` (dotty's `MethodType.toFunctionType`), the
@@ -60,7 +61,7 @@ impl Typer<'_> {
         if self.refers_to(approx, params) {
             return None;
         }
-        let names = params.iter().zip(&types).map(|(&p, &t)| (self.u.interned_name(p), t)).collect();
+        let names: Vec<_> = params.iter().zip(&types).map(|(&p, &t)| (self.u.interned_name(p), t)).collect();
         let result = self.u.map_type(result, &mut |u, part| match *u.ty(part) {
             Type::Sym(None, s) => {
                 let i = params.iter().position(|&p| p == s)?;
@@ -68,11 +69,10 @@ impl Typer<'_> {
             }
             _ => None,
         });
-        let method = Type::Method { binder, params: names, result, implicit: contextual, contextual };
-        let method = self.u.intern_type(method);
+        let method = self.u.intern_method(binder, &names, result, contextual, contextual);
         let mut args = types;
         args.push(approx);
-        let core = self.u.intern_type(Type::Applied(class, args));
+        let core = self.u.intern_applied(class, &args);
         let apply = self.u.intern_name("apply");
         Some(self.u.intern_type(Type::Refined(core, apply, method)))
     }
@@ -118,7 +118,8 @@ impl Typer<'_> {
             },
             Type::Applied(tycon, args) if v > 0 && self.u.class_symbol(tycon).is_none() => {
                 let projected = self.projected(tycon, params, v);
-                match projected != tycon && !args.iter().any(|&a| self.refers_to(a, params)) {
+                let list = self.u.types_of(args).to_vec();
+                match projected != tycon && !list.into_iter().any(|a| self.refers_to(a, params)) {
                     true => self.u.intern_type(Type::Applied(projected, args)),
                     false => t,
                 }
@@ -135,15 +136,13 @@ impl Typer<'_> {
             Type::Applied(tycon, args) if self.u.class_symbol(tycon).is_some() => {
                 let class = self.u.class_symbol(tycon).expect("a class");
                 let variances = self.u.variances(class);
-                let args = args
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &a)| match variances.get(i).copied().unwrap_or(0) {
+                let args: Vec<_> = (self.u.types_of(args).to_vec().into_iter().enumerate())
+                    .map(|(i, a)| match variances.get(i).copied().unwrap_or(0) {
                         0 => a,
                         w => self.projected(a, params, v * w),
                     })
                     .collect();
-                self.u.intern_type(Type::Applied(tycon, args))
+                self.u.intern_applied(tycon, &args)
             }
             Type::Refined(parent, name, info) => {
                 let parent = self.projected(parent, params, v);
@@ -151,9 +150,11 @@ impl Typer<'_> {
                 self.u.intern_type(Type::Refined(parent, name, info))
             }
             Type::Method { binder, params: ps, result, implicit, contextual } => {
-                let ps = ps.into_iter().map(|(n, p)| (n, self.projected(p, params, -v))).collect();
+                let ps: Vec<_> = (self.u.params_of(ps).to_vec().into_iter())
+                    .map(|(n, p)| (n, self.projected(p, params, -v)))
+                    .collect();
                 let result = self.projected(result, params, v);
-                self.u.intern_type(Type::Method { binder, params: ps, result, implicit, contextual })
+                self.u.intern_method(binder, &ps, result, implicit, contextual)
             }
             _ => t,
         }

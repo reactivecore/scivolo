@@ -67,7 +67,7 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
                     Type::Bounds(lo, hi) => {
                         let lambda = |u: &mut Universe, body| {
                             let body = seen(u, body);
-                            u.intern_type(Type::Lambda { binder, params: params.clone(), result: body })
+                            u.intern_type(Type::Lambda { binder, params, result: body })
                         };
                         Meaning::Abstract(lambda(u, lo), lambda(u, hi))
                     }

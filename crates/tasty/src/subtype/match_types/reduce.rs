@@ -117,7 +117,8 @@ impl Cmp<'_> {
             Pattern::TypeTest => true,
             Pattern::BaseTypeTest { class, args, needs_concrete } => {
                 let Some(base) = self.match_base_type(scrut, *class) else { return false };
-                let Type::Applied(_, base_args) = self.u.ty(base).clone() else { return false };
+                let Some((_, base_args)) = self.u.applied(base) else { return false };
+                let base_args = base_args.to_vec();
                 let widened =
                     widened || *needs_concrete && !self.is_concrete(scrut, super::concrete::CONCRETE_DEPTH);
                 let variances = self.u.variances(*class);
@@ -130,9 +131,8 @@ impl Cmp<'_> {
             }
             Pattern::AbstractTypeConstructor { tycon, sym, args } => {
                 let dealiased = self.u.dealias(scrut);
-                let Type::Applied(t, scrut_args) = self.u.ty(dealiased).clone() else {
-                    return false;
-                };
+                let Some((t, scrut_args)) = self.u.applied(dealiased) else { return false };
+                let scrut_args = scrut_args.to_vec();
                 let (Some(n1), Some(n2)) = (self.named(t), self.named(*tycon)) else { return false };
                 let variances = self.u.variances(*sym);
                 n1.sym == Some(*sym)
@@ -167,7 +167,8 @@ impl Cmp<'_> {
         {
             return Some(base);
         }
-        let Type::Applied(tycon, args) = self.u.ty(dealiased).clone() else { return None };
+        let (tycon, args) = self.u.applied(dealiased)?;
+        let args = args.to_vec();
         let tuple = self.named(tycon)?.sym?;
         let pairs = self.nested_pairs(tuple, &args)?;
         self.u.base_type(pairs, c)

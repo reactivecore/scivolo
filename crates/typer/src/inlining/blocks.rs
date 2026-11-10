@@ -155,7 +155,7 @@ impl Inlining<'_> {
                 let class = self.u.class_symbol(tycon).filter(|&c| self.u.is_class(c));
                 let params = class.map(|c| self.u.type_params(c)).unwrap_or_default();
                 let mut found = self.misplaced_local(tycon, locals, 0, depth - 1);
-                for (i, a) in args.into_iter().enumerate() {
+                for (i, a) in self.u.types_of(args).to_vec().into_iter().enumerate() {
                     let flags = params.get(i).map(|&p| self.u.symbol(p).flags);
                     let param = match flags {
                         Some(f) if f.has(COVARIANT) => 1,

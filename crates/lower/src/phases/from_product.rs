@@ -30,13 +30,7 @@ pub fn from_product(
     let product = type_ref(l.u, cc.product);
     let binder = l.u.fresh_binder();
     let x0 = l.u.intern_name("x$0");
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: vec![(x0, product)],
-        result: mono,
-        implicit: false,
-        contextual: false,
-    });
+    let info = l.u.intern_method(binder, &[(x0, product)], mono, false, false);
     let like = l.u.decls_named(cc.mirror_product, "fromProduct");
     let like = like.into_iter().next().expect("`Mirror.Product.fromProduct`");
     if has_mirror_method(l, class, like, info) {
@@ -69,7 +63,7 @@ pub fn from_product(
             let tpe = match repeated {
                 Some(elem) => {
                     let seq = l.u.class_ref("scala.collection.immutable.Seq");
-                    l.u.intern_type(Type::Applied(seq, vec![elem]))
+                    l.u.intern_applied(seq, &[elem])
                 }
                 None => param,
             };

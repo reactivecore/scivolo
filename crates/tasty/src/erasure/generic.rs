@@ -30,26 +30,30 @@ impl Universe {
             Type::And(a, b) => self.is_generic(a) && self.is_generic(b),
             Type::Or(a, b, _) => self.is_generic(a) || self.is_generic(b),
             Type::Match { cases, .. } => {
-                let mut holders = cases.into_iter().map(|c| match self.case_body(c) {
-                    Some(body) => self.holder(body),
-                    None => Holder::None,
-                });
+                let mut holders =
+                    self.types_of(cases).to_vec().into_iter().map(|c| match self.case_body(c) {
+                        Some(body) => self.holder(body),
+                        None => Holder::None,
+                    });
                 let first = holders.next();
                 first.is_some_and(|h| h == Holder::None || holders.any(|x| x != h))
             }
-            Type::Applied(tycon, args) => match self.expand(tycon, &args) {
-                Some(alias) => self.is_generic(alias),
-                None if let Some(alias) = self.overriding_member(tycon) => {
-                    let applied = self.intern_type(Type::Applied(alias, args));
-                    let reduced = self.dealias_step(applied);
-                    self.is_generic(reduced)
+            Type::Applied(tycon, list) => {
+                let args = self.types_of(list).to_vec();
+                match self.expand(tycon, &args) {
+                    Some(alias) => self.is_generic(alias),
+                    None if let Some(alias) = self.overriding_member(tycon) => {
+                        let applied = self.intern_type(Type::Applied(alias, list));
+                        let reduced = self.dealias_step(applied);
+                        self.is_generic(reduced)
+                    }
+                    None if self.is_abstract(tycon) => match self.expand_upper(tycon, &args) {
+                        Some(upper) => self.holder(upper) == Holder::None,
+                        None => true,
+                    },
+                    None => false,
                 }
-                None if self.is_abstract(tycon) => match self.expand_upper(tycon, &args) {
-                    Some(upper) => self.holder(upper) == Holder::None,
-                    None => true,
-                },
-                None => false,
-            },
+            }
             Type::Sym(..) | Type::TypeRef(..) => match self.referenced(t) {
                 _ if let Some(alias) = self.overriding_member(t) => self.is_generic(alias),
                 Some(s) if matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
@@ -103,10 +107,13 @@ impl Universe {
             | Type::Rec(_, u)
             | Type::Alias(u)
             | Type::Bounds(_, u) => self.holder(u),
-            Type::Applied(c, args) => match self.expand(c, &args).or_else(|| self.expand_opaque(c, &args)) {
-                Some(u) => self.holder(u),
-                None => self.holder(c),
-            },
+            Type::Applied(c, args) => {
+                let args = self.types_of(args).to_vec();
+                match self.expand(c, &args).or_else(|| self.expand_opaque(c, &args)) {
+                    Some(u) => self.holder(u),
+                    None => self.holder(c),
+                }
+            }
             Type::And(a, b) => match (self.holder(a), self.holder(b)) {
                 (x, y) if x == y => x,
                 (Holder::None, y) => y,

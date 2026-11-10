@@ -13,7 +13,7 @@ use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::defn::{CHILD, EXPERIMENTAL, SOURCE_FILE};
 use tasty::tags::{ENUM, SEALED};
-use tasty::{Kind, SymbolId, Type, Universe};
+use tasty::{Kind, SymbolId, Universe};
 
 impl Typer<'_> {
     /// Collects the annotation trees of each definition for its TASTy: a sealed class under
@@ -119,7 +119,7 @@ fn child_annotation(t: &mut Typer, c: SymbolId, at: Span) -> Result<TNodeId, &'s
     let ctor = ctor.ok_or("Child without a constructor")?;
     let tycon = type_ref(t.u, class);
     let child = type_ref(t.u, c);
-    let applied = t.u.intern_type(Type::Applied(tycon, vec![child]));
+    let applied = t.u.intern_applied(tycon, &[child]);
     let tpt = t.type_tree(tycon, at, false);
     let new = t.tpd.node(T::New { tpt }, at, Some(tycon), None);
     let select = t.build().select(new, ctor, at);

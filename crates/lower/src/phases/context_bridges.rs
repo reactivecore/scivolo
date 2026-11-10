@@ -49,10 +49,9 @@ pub fn bridge(
     let (mut defs, mut adapteds) = (Vec::new(), Vec::new());
     let mut result = m_result;
     for i in (0..anons.len()).rev() {
-        let (anon, params) = (anons[i].sym, anons[i].params.clone());
+        let anon = anons[i].sym;
         let binder = l.u.fresh_binder();
-        let info =
-            l.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
+        let info = l.u.intern_method(binder, &anons[i].params, result, false, false);
         l.u.set_info(anon, info);
         let inner = anons.get(i + 1);
         defs.push(l.forwarding_def(anon, span, |l, args, result| {
@@ -160,11 +159,11 @@ pub fn bridged(l: &mut Lower, owner: SymbolId, d: SymbolId) -> bool {
 pub fn clauses(l: &Lower, mut t: TypeId) -> Vec<Vec<(NameId, TypeId)>> {
     let mut out = Vec::new();
     loop {
-        match l.u.ty(t) {
-            Type::Poly { result, .. } => t = *result,
+        match *l.u.ty(t) {
+            Type::Poly { result, .. } => t = result,
             Type::Method { params, result, .. } => {
-                out.push(params.clone());
-                t = *result;
+                out.push(l.u.params_of(params).to_vec());
+                t = result;
             }
             _ => return out,
         }

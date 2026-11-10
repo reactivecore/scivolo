@@ -30,10 +30,9 @@ impl Cmp<'_> {
     /// Higher-kinded bounds `[X] =>> >: L <: H` as `>: [X] =>> L <: [X] =>> H`, `Nothing` as
     /// the lower bound for a lower bound `Nothing`.
     fn lambda_bounds(&mut self, t: TypeId) -> TypeId {
-        let Type::Lambda { binder, ref params, result } = *self.u.ty(t) else { return t };
+        let Type::Lambda { binder, params, result } = *self.u.ty(t) else { return t };
         let Type::Bounds(lo, hi) = *self.u.ty(result) else { return t };
-        let params = params.clone();
-        let hi = self.u.intern_type(Type::Lambda { binder, params: params.clone(), result: hi });
+        let hi = self.u.intern_type(Type::Lambda { binder, params, result: hi });
         let lo = match lo == crate::NOTHING {
             true => lo,
             false => self.u.intern_type(Type::Lambda { binder, params, result: lo }),

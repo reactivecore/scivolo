@@ -137,7 +137,8 @@ impl Printer<'_> {
             Type::This(c) => format!("{}.this", self.tpe(c, n)),
             Type::Super(t, p) => format!("{}.super[{}]", self.tpe(t, n), self.tpe(p, n)),
             Type::Applied(c, args) => {
-                let args: Vec<String> = args.iter().map(|&a| self.tpe(a, n)).collect();
+                let args: Vec<String> =
+                    self.u.types_of(args).to_vec().into_iter().map(|a| self.tpe(a, n)).collect();
                 format!("{}[{}]", self.tpe(c, n), args.join(" "))
             }
             Type::Alias(a) => format!("= {}", self.tpe(a, n)),
@@ -162,14 +163,17 @@ impl Printer<'_> {
                     (false, true) => "implicit ",
                     _ => "",
                 };
+                let ps = self.u.params_of(ps).to_vec();
                 let (ps, result) = self.bound(binder, &ps, result, true, n);
                 format!("{using}({ps}){result}")
             }
             Type::Poly { binder, params: ps, result } => {
+                let ps = self.u.params_of(ps).to_vec();
                 let (ps, result) = self.bound(binder, &ps, result, false, n);
                 format!("[{ps}]{result}")
             }
             Type::Lambda { binder, params: ps, result } => {
+                let ps = self.u.params_of(ps).to_vec();
                 let (ps, result) = self.bound(binder, &ps, result, false, n);
                 format!("[{ps}] =>> {result}")
             }

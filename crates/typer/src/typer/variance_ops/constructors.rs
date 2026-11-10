@@ -47,7 +47,9 @@ impl VarianceOps<'_> {
         loop {
             match self.u.ty(info).clone() {
                 Type::Poly { binder: b, params, .. } if b == binder => {
-                    let Some(&(_, bounds)) = params.get(i as usize) else { return Vec::new() };
+                    let Some(&(_, bounds)) = self.u.params_of(params).get(i as usize) else {
+                        return Vec::new();
+                    };
                     let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
                     let Some(lambda) = self.u.lambda(hi).map(|l| l.binder) else {
                         return Vec::new();

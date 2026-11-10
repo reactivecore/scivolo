@@ -32,6 +32,7 @@ fn as_good_in(
 ) -> Option<bool> {
     match t.u.ty(t1).clone() {
         Type::Method { params, .. } => {
+            let params = t.u.params_of(params).to_vec();
             let lambda = matches!(t.u.ty(t2), Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. });
             if params.is_empty() && lambda {
                 return Some(true);
@@ -93,6 +94,7 @@ fn flipped(t: &mut Typer<'_>, tpe: TypeId, v: i32) -> Option<TypeId> {
     }
     match t.u.ty(tpe).clone() {
         Type::Applied(tycon, args) => {
+            let args = t.u.types_of(args).to_vec();
             let class = match t.u.ty(tycon).clone() {
                 Type::Sym(_, s) => Some(s),
                 Type::TypeRef(p, n) => t.u.resolve(p, n, true),
@@ -114,12 +116,12 @@ fn flipped(t: &mut Typer<'_>, tpe: TypeId, v: i32) -> Option<TypeId> {
                     let arg = flipped(t, arg, 1)?;
                     let unit = crate::defn::type_ref(t.u, t.defn.unit);
                     let function = t.function_class(1)?;
-                    t.u.intern_type(Type::Applied(function, vec![arg, unit]))
+                    t.u.intern_applied(function, &[arg, unit])
                 } else {
                     flipped(t, arg, v * pv)?
                 });
             }
-            Some(t.u.intern_type(Type::Applied(tycon, out)))
+            Some(t.u.intern_applied(tycon, &out))
         }
         Type::And(x, y) => {
             let (x, y) = (flipped(t, x, v)?, flipped(t, y, v)?);

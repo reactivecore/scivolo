@@ -79,6 +79,7 @@ impl Cmp<'_> {
             Type::Applied(tycon, args) => match self.named(tycon)?.meaning {
                 Meaning::Class(c) => Some(c == nothing),
                 Meaning::Abstract(_, hi) => {
+                    let args = self.u.types_of(args).to_vec();
                     let upper = self.apply(hi, &args);
                     self.nothing_at(upper, d)
                 }

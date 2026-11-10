@@ -51,9 +51,11 @@ impl Universe {
 
     /// `t`, or the body of type lambda `l` with its parameters replaced if `t` is `l[args]`.
     pub fn beta_reduced(&mut self, t: TypeId) -> TypeId {
-        let Type::Applied(tycon, args) = self.ty(t).clone() else { return t };
-        let Type::Lambda { binder, params, result } = self.ty(tycon).clone() else { return t };
-        let names: Vec<_> = params.into_iter().map(|(n, _)| n).collect();
+        let Some((tycon, args)) = self.applied(t).map(|(c, a)| (c, a.to_vec())) else { return t };
+        let Some((binder, names, result)) = self.lambda(tycon).map(|l| (l.binder, l.names(), l.result))
+        else {
+            return t;
+        };
         self.subst(result, binder, &names, &args)
     }
 
@@ -175,8 +177,8 @@ fn parent_type(d: &mut Decoder, ast: &Ast, id: NodeId) -> TypeId {
             if matches!(d.get(fun), Type::Applied(..)) {
                 return fun;
             }
-            let args = k[1..].iter().map(|&a| d.ty(a)).collect();
-            d.intern(Type::Applied(fun, args))
+            let args: Vec<_> = k[1..].iter().map(|&a| d.ty(a)).collect();
+            d.intern_applied(fun, &args)
         }
         APPLY | TYPEAPPLY | SELECT | SELECTin | BLOCK if !k.is_empty() => parent_type(d, ast, k[0]),
         NEW if !k.is_empty() => d.ty(k[0]),

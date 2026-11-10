@@ -12,7 +12,7 @@ use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, Type, TypeId};
+use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The name of the array parameter (dotty's `nme.ALLARGS`).
@@ -34,7 +34,7 @@ pub fn is_bunched(l: &Lower, f: &Function, n: usize) -> Result<bool> {
 pub fn param(l: &mut Lower) -> (NameId, TypeId) {
     let object = type_ref(l.u, l.defs.object);
     let array = l.u.class_ref("scala.Array");
-    (l.u.intern_name(ALL_ARGS), l.u.intern_type(Type::Applied(array, vec![object])))
+    (l.u.intern_name(ALL_ARGS), l.u.intern_applied(array, &[object]))
 }
 
 /// The symbol of parameter `$allArgs` of `method`.

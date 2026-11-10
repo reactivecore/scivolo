@@ -139,8 +139,8 @@ pub fn without_variant_args(t: &mut Typer, sel: TypeId) -> Option<TypeId> {
         return None;
     }
     let any = t.u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY));
-    let args = args.iter().zip(&variances).map(|(&a, &v)| if v == 0 { a } else { any }).collect();
-    Some(t.u.intern_type(Type::Applied(tycon, args)))
+    let args: Vec<_> = args.iter().zip(&variances).map(|(&a, &v)| if v == 0 { a } else { any }).collect();
+    Some(t.u.intern_applied(tycon, &args))
 }
 
 impl TypeOps<'_> {

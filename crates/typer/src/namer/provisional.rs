@@ -41,9 +41,9 @@ impl Typer<'_> {
                         _ => String::new(),
                     })
                     .collect();
-                let params = names.iter().map(|n| (self.u.intern_name(n), bounds)).collect();
+                let params: Vec<_> = names.iter().map(|n| (self.u.intern_name(n), bounds)).collect();
                 let binder = self.syms.fresh_binder();
-                self.u.intern_type(Type::Lambda { binder, params, result: upper })
+                self.u.intern_lambda(binder, &params, upper)
             }
         }
     }

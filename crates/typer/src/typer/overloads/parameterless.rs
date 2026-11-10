@@ -42,11 +42,15 @@ impl Resolution {
             }
             let result = match *t.u.ty(info) {
                 Type::ByName(r) => r,
-                Type::Poly { result, .. } => match t.u.ty(result) {
-                    Type::Method { params, implicit: false, .. } if !params.is_empty() => continue,
+                Type::Poly { result, .. } => match *t.u.ty(result) {
+                    Type::Method { params, implicit: false, .. } if !t.u.params_of(params).is_empty() => {
+                        continue;
+                    }
                     _ => return Err("overloaded reference with a polymorphic alternative"),
                 },
-                Type::Method { ref params, result, implicit: false, .. } if params.is_empty() => result,
+                Type::Method { params, result, implicit: false, .. } if t.u.params_of(params).is_empty() => {
+                    result
+                }
                 Type::Method { result, implicit: true, .. } => {
                     implicit.push((s, result));
                     continue;

@@ -86,5 +86,5 @@ pub fn inheriting_package_object(u: &mut Universe, pkg: SymbolId, owner: SymbolI
 /// `class[args]`.
 pub fn applied(u: &mut Universe, class: SymbolId, args: Vec<TypeId>) -> TypeId {
     let tycon = type_ref(u, class);
-    u.intern_type(Type::Applied(tycon, args))
+    u.intern_applied(tycon, &args)
 }

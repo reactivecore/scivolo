@@ -37,10 +37,10 @@ impl Universe {
     /// Base types `a` and `b` of class `base` intersected, argument by argument as their
     /// parameters' variances allow; `None` if an invariant argument differs.
     pub fn joined_base_type(&mut self, base: SymbolId, a: TypeId, b: TypeId) -> Option<TypeId> {
-        let (Type::Applied(tycon, xs), Type::Applied(_, ys)) = (self.ty(a).clone(), self.ty(b).clone())
-        else {
+        let (Some((tycon, xs)), Some((_, ys))) = (self.applied(a), self.applied(b)) else {
             return (a == b).then_some(a);
         };
+        let (xs, ys) = (xs.to_vec(), ys.to_vec());
         let params = self.type_params(base);
         let mut args = Vec::with_capacity(xs.len());
         for ((x, y), p) in xs.into_iter().zip(ys).zip(params) {
@@ -57,6 +57,6 @@ impl Universe {
                 _ => self.intern_type(Type::Or(x, y, true)),
             });
         }
-        Some(self.intern_type(Type::Applied(tycon, args)))
+        Some(self.intern_applied(tycon, &args))
     }
 }

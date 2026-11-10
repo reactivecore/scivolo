@@ -52,9 +52,9 @@ fn as_args(u: &Universe, t: TypeId, is_param: &dyn Fn(&Universe, TypeId) -> bool
         return None;
     }
     match *u.ty(t) {
-        Type::Applied(tycon, ref args) => {
+        Type::Applied(tycon, args) => {
             let mut n = as_args(u, tycon, is_param)?;
-            for &a in args {
+            for &a in u.types_of(args) {
                 n += if is_param(u, a) { 1 } else { as_args(u, a, is_param)? };
             }
             Some(n)

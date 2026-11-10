@@ -111,6 +111,6 @@ impl Typer<'_> {
             formals.into_iter().map(|(_, p)| self.u.subst(p, binder, &names, &args)).collect();
         fun_args.push(self.u.subst(restpe, binder, &names, &args));
         let Some(class) = self.function_class(n) else { return Err("function of that many parameters") };
-        Ok(Pt::Type(self.u.intern_type(Type::Applied(class, fun_args))))
+        Ok(Pt::Type(self.u.intern_applied(class, &fun_args)))
     }
 }

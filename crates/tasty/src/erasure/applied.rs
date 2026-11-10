@@ -52,21 +52,20 @@ impl Universe {
     /// side's body, arguments substituted.
     pub fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         let alias = self.referenced(tycon).and_then(|s| self.opaque_alias(s))?;
-        let Type::Lambda { binder, params, result } = self.ty(alias).clone() else { return None };
-        let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
+        let (binder, names, result) = self.lambda(alias).map(|l| (l.binder, l.names(), l.result))?;
         Some(self.subst(result, binder, &names, args))
     }
 
     /// `Array[Unit]` for `t = Array[? <: Unit]`, else `t`: the right-hand side of an opaque type
     /// erases as dotty's `IArray[Unit]` to `BoxedUnit[]`.
     fn without_array_wildcard(&mut self, t: TypeId) -> TypeId {
-        let Type::Applied(tycon, args) = self.ty(t).clone() else { return t };
-        if self.class_name(tycon).as_deref() != Some("scala.Array") || args.len() != 1 {
+        let Some((tycon, &[arg])) = self.applied(t) else { return t };
+        if self.class_name(tycon).as_deref() != Some("scala.Array") {
             return t;
         }
-        let Type::Bounds(_, hi) = *self.ty(args[0]) else { return t };
+        let Type::Bounds(_, hi) = *self.ty(arg) else { return t };
         match self.class_name(hi).as_deref() {
-            Some("scala.Unit") => self.intern_type(Type::Applied(tycon, vec![hi])),
+            Some("scala.Unit") => self.intern_applied(tycon, &[hi]),
             _ => t,
         }
     }
@@ -103,8 +102,10 @@ impl Universe {
     /// (dotty's `tupleArity`).
     fn tuple_arity(&mut self, t: TypeId) -> Option<usize> {
         let module = match self.ty(t).clone() {
-            Type::Applied(c, a) if self.class_name(c).as_deref() == Some("scala.*:") && a.len() == 2 => {
-                return Some(1 + self.tuple_arity(a[1])?);
+            Type::Applied(c, a)
+                if self.class_name(c).as_deref() == Some("scala.*:") && self.types_of(a).len() == 2 =>
+            {
+                return Some(1 + self.tuple_arity(self.types_of(a)[1])?);
             }
             Type::And(a, b) | Type::Or(a, b, _) => {
                 let n = self.tuple_arity(a)?;
@@ -156,8 +157,7 @@ impl Universe {
             (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),
             _ => info,
         };
-        let Type::Lambda { binder, params, result } = self.ty(info).clone() else { return None };
-        let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
+        let (binder, names, result) = self.lambda(info).map(|l| (l.binder, l.names(), l.result))?;
         Some(self.subst(result, binder, &names, args))
     }
 

@@ -132,7 +132,7 @@ impl Typer<'_> {
         let names: Vec<TypeId> = names.iter().map(|n| self.u.str_type(n)).collect();
         let names = self.values_type(&names)?;
         let values = self.values_type(values)?;
-        Some(self.u.intern_type(Type::Applied(nt, vec![names, values])))
+        Some(self.u.intern_applied(nt, &[names, values]))
     }
 
     /// The tuple type of `elems`: `TupleN[elems…]`, above 22 elements their `*:` chain.
@@ -142,7 +142,7 @@ impl Typer<'_> {
         }
         let class = self.resolve_full_name(&format!("scala.Tuple{}", elems.len()), true)?;
         let class = crate::defn::type_ref(self.u, class);
-        Some(self.u.intern_type(Type::Applied(class, elems.to_vec())))
+        Some(self.u.intern_applied(class, elems))
     }
 
     /// The element types of tuple type `t`: a `TupleN` or a `*:` chain, normalized at each step.

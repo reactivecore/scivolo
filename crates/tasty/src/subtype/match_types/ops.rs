@@ -44,7 +44,8 @@ impl Cmp<'_> {
 
     /// The constant type operation application `t` folds to.
     pub fn fold_compiletime(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Applied(tycon, args) = self.u.ty(t).clone() else { return None };
+        let (tycon, args) = self.u.applied(t)?;
+        let args = args.to_vec();
         if let [arg] = args[..]
             && self.is_named_tuple_from(tycon)
         {
@@ -92,7 +93,8 @@ impl Cmp<'_> {
     /// `op <: other` (or `other <: op` if `from_below`) for an operation application `op`:
     /// `S[n]` as `n + 1`, `S[x]` against `n` as `x` against `n - 1`, others folded.
     pub fn compare_compiletime(&mut self, op: TypeId, other: TypeId, from_below: bool) -> bool {
-        let Type::Applied(tycon, args) = self.u.ty(op).clone() else { return false };
+        let Some((tycon, args)) = self.u.applied(op) else { return false };
+        let args = args.to_vec();
         let (x, y) = if self.is_succ(tycon) {
             let [arg] = args[..] else { return false };
             match self.nat_value(arg) {

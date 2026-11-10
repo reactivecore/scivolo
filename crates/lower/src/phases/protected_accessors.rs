@@ -11,7 +11,7 @@ use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{OVERRIDE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::protected_access::{self, host_for_accessor_of, needs_accessor_if_not_in_subclass};
 use typer::tpd::{TNodeId, Tree};
 
@@ -111,9 +111,8 @@ fn use_setter(l: &mut Lower, t: TNodeId, lhs: TNodeId, rhs: TNodeId, made: &mut 
     let getter_info = l.u.info(getter);
     let value = l.u.result_type(getter_info);
     let binder = l.u.fresh_binder();
-    let params = vec![(l.u.intern_name("x$0"), value)];
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: unit, implicit: false, contextual: false });
+    let params = [(l.u.intern_name("x$0"), value)];
+    let info = l.u.intern_method(binder, &params, unit, false, false);
     let acc = accessor(l, host, &name, info, (accessed, true), made);
     let qualifier = match *l.tpd.tree(lhs) {
         Tree::Select { qualifier, .. } => Some(qualifier),

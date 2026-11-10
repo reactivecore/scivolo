@@ -23,9 +23,9 @@ pub fn enter(u: &mut Universe, scala: SymbolId) {
             let mut params: Vec<_> =
                 (0..n).map(|i| (u.types.intern_name(&format!("X{i}")), bounds)).collect();
             params.push((u.types.intern_name("R"), bounds));
-            let args = (0..=n).map(|i| u.types.intern(Type::Param(binder, i as u32))).collect();
-            let result = u.types.intern(Type::Applied(class, args));
-            let info = u.types.intern(Type::Lambda { binder, params, result });
+            let args: Vec<_> = (0..=n).map(|i| u.types.intern(Type::Param(binder, i as u32))).collect();
+            let result = u.types.intern_applied(class, &args);
+            let info = u.types.intern_lambda(binder, &params, result);
             let alias = synthetic(u, scala, &format!("Impure{base}{n}"), Kind::Type, &[]);
             u.infos.insert(alias, info);
         }

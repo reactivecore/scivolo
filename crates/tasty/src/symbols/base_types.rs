@@ -20,7 +20,7 @@ impl Universe {
     fn base_type_within(&mut self, t: TypeId, base: SymbolId, depth: u32) -> Option<TypeId> {
         let depth = depth.checked_sub(1)?;
         let (tycon, args) = match self.ty(t).clone() {
-            Type::Applied(tycon, args) => (tycon, args),
+            Type::Applied(tycon, args) => (tycon, self.types_of(args).to_vec()),
             Type::And(a, b) => {
                 return match (self.base_type_within(a, base, depth), self.base_type_within(b, base, depth)) {
                     (Some(x), Some(y)) => self.merged_bases(t, base, (x, y), true),
@@ -72,7 +72,7 @@ impl Universe {
             let applied = match (args.is_empty(), self.ty(underlying)) {
                 (true, _) => underlying,
                 (false, Type::Lambda { .. }) => {
-                    let applied = self.intern_type(Type::Applied(underlying, args));
+                    let applied = self.intern_applied(underlying, &args);
                     self.beta_reduced(applied)
                 }
                 _ => return None,

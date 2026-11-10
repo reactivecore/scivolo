@@ -55,7 +55,7 @@ pub fn seq_elem_type(t: &mut Typer<'_>, tpe: TypeId) -> Option<TypeId> {
     let elem = int_method_results(t, tpe, "apply").into_iter().next()?;
     let seq_class = t.resolve_full_name(SEQ, true)?;
     let seq_class = crate::defn::type_ref(t.u, seq_class);
-    let seq = t.u.intern_type(Type::Applied(seq_class, vec![elem]));
+    let seq = t.u.intern_applied(seq_class, &[elem]);
 
     let length = int_method_results(t, tpe, "lengthCompare").into_iter().any(|r| is_int(t, r))
         || parameterless_results(t, tpe, "length").into_iter().any(|r| is_int(t, r));

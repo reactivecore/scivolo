@@ -23,7 +23,7 @@ impl Translator<'_, '_> {
         let Some(&last) = selectors.last() else { return Ok(None) };
         let info = self.l.u.member_info(tpe, last);
         let last = match *self.l.u.ty(info) {
-            Type::Method { ref params, result, .. } if params.is_empty() => result,
+            Type::Method { params, result, .. } if self.l.u.params_of(params).is_empty() => result,
             Type::ByName(result) => result,
             _ => info,
         };

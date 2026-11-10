@@ -147,7 +147,7 @@ impl Splicer<'_> {
         let owner = l.u.symbol(s).owner.expect("a local definition's owner");
         let param = l.u.define(symbol(&name, Kind::Val, owner, Flags::default()));
         let class = l.u.class_ref(class);
-        let info = l.u.intern_type(Type::Applied(class, vec![tpe]));
+        let info = l.u.intern_applied(class, &[tpe]);
         l.u.set_info(param, info);
         c.args.push(original);
         c.params.push(param);

@@ -14,9 +14,10 @@ impl Typer<'_> {
     pub fn dependent_match_cases(&mut self, pt: Pt, sel: TNodeId, cases: &[NodeId]) -> Option<Vec<TypeId>> {
         let Pt::Type(pt) = pt else { return None };
         let m = self.u.underlying_match(pt)?;
-        let Type::Match { scrutinee, cases: case_types, .. } = self.u.ty(m).clone() else {
+        let Type::Match { scrutinee, cases: case_types, .. } = *self.u.ty(m) else {
             return None;
         };
+        let case_types = self.u.types_of(case_types).to_vec();
         if case_types.len() != cases.len() || !cases.iter().all(|&c| self.is_dependent_case_shape(c)) {
             return None;
         }
@@ -52,6 +53,7 @@ impl Typer<'_> {
         };
         let case = match self.u.ty(case).clone() {
             Type::Lambda { binder, params, result } => {
+                let params = self.u.params_of(params).to_vec();
                 let mut bound = Vec::new();
                 self.pattern_types(pat, &mut bound, false);
                 if bound.len() != params.len() {

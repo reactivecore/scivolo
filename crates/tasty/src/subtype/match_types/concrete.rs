@@ -34,6 +34,7 @@ impl Cmp<'_> {
                 }
             }
             Type::Applied(tycon, args) => {
+                let args = self.u.types_of(args).to_vec();
                 self.is_concrete(tycon, depth)
                     && match self.applied_super_type(tycon, &args) {
                         Some(sup) => self.is_concrete(sup, depth),

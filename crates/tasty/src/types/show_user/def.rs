@@ -67,6 +67,7 @@ impl Printer<'_> {
             | Type::Lambda { binder, params, result } => (binder, params, result),
             _ => return self.text(t, GLOBAL),
         };
+        let params = self.u.params_of(params).to_vec();
         self.binders.push((binder, params.iter().map(|&(n, _)| n).collect()));
         let nested = matches!(self.u.ty(result), Type::Method { .. } | Type::Poly { .. });
         let colon = if nested { "" } else { ": " };
@@ -160,6 +161,7 @@ impl Printer<'_> {
         let Type::Lambda { binder, params, result } = self.u.ty(t).clone() else {
             return (t, String::new());
         };
+        let params = self.u.params_of(params).to_vec();
         let texts: Vec<String> = params
             .iter()
             .enumerate()

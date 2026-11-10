@@ -34,6 +34,7 @@ impl Cmp<'_> {
         match self.u.ty(t).clone() {
             Type::Applied(tycon, args) => {
                 let b = self.bound(tycon, upper)?;
+                let args = self.u.types_of(args).to_vec();
                 Some(self.apply(b, &args))
             }
             Type::TypeRef(..) | Type::Sym(..) => match self.named(t)?.meaning {

@@ -89,6 +89,6 @@ fn tagged(l: &mut Lower, q: &TypeQuote, owner: SymbolId) -> Result<TNodeId> {
     let repr = call(l, of, &[class_of]);
     let as_type = call(l, as_type, &[repr]);
     let class = l.u.class_ref("scala.quoted.Type");
-    let quoted = l.u.intern_type(Type::Applied(class, vec![tpe]));
+    let quoted = l.u.intern_applied(class, &[tpe]);
     Ok(l.ensure_conforms(as_type, quoted))
 }

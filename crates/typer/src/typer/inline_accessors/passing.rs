@@ -154,9 +154,10 @@ fn with_receiver_named(u: &mut Universe, info: TypeId) -> TypeId {
             let result = with_receiver_named(u, result);
             u.intern_type(Type::Poly { binder, params, result })
         }
-        Type::Method { binder, mut params, result, implicit, contextual } => {
+        Type::Method { binder, params, result, implicit, contextual } => {
+            let mut params = u.params_of(params).to_vec();
             params[0].0 = u.intern_name("x$0");
-            u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+            u.intern_method(binder, &params, result, implicit, contextual)
         }
         _ => info,
     }

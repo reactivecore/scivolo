@@ -100,17 +100,15 @@ pub fn lambda(l: &mut Lower, contents: &[(TNodeId, Vec<SymbolId>)], owner: Symbo
     let [int, any, quotes, seq, expr, function] =
         ["Int", "Any", "quoted.Quotes", "collection.immutable.Seq", "quoted.Expr", "Function3"]
             .map(|c| l.u.class_ref(&format!("scala.{c}")));
-    let seq = l.u.intern_type(Type::Applied(seq, vec![any]));
-    let result = l.u.intern_type(Type::Applied(expr, vec![any]));
-    let params = [("idx", int), ("contents", seq), ("quotes", quotes)]
-        .map(|(n, t)| {
-            let n = fresh(l, n);
-            (l.u.intern_name(&n), t)
-        })
-        .to_vec();
+    let seq = l.u.intern_applied(seq, &[any]);
+    let result = l.u.intern_applied(expr, &[any]);
+    let params = [("idx", int), ("contents", seq), ("quotes", quotes)].map(|(n, t)| {
+        let n = fresh(l, n);
+        (l.u.intern_name(&n), t)
+    });
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, Flags::default().with(SYNTHETIC)));
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
+    let info = l.u.intern_method(binder, &params, result, false, false);
     l.u.set_info(anon, info);
     for (c, _) in contents {
         reown(l, *c, anon);
@@ -150,7 +148,7 @@ pub fn lambda(l: &mut Lower, contents: &[(TNodeId, Vec<SymbolId>)], owner: Symbo
         l.positioned(m)
     });
     let def = l.positioned(def);
-    let function = l.u.intern_type(Type::Applied(function, vec![int, seq, quotes, result]));
+    let function = l.u.intern_applied(function, &[int, seq, quotes, result]);
     let meth = l.ident(anon, Span::NONE);
     let env = l.tpd.list(&[]);
     let closure = l.tpd.node(Tree::Closure { env, meth, tpt: None }, Span::NONE, Some(function), None);

@@ -51,7 +51,7 @@ impl UnapplyPattern {
         let Tree::Ident { name } = *t.ast.tree(expr) else { return Err("sequence pattern") };
         let seq_class = t.resolve_full_name(crate::defn::IMMUTABLE_SEQ, true).ok_or("sequence pattern")?;
         let seq_class = crate::defn::type_ref(t.u, seq_class);
-        let seq = t.u.intern_type(Type::Applied(seq_class, vec![elem]));
+        let seq = t.u.intern_applied(seq_class, &[elem]);
         let repeated = t.repeated_type(elem);
 
         let text = t.text(name.name).to_owned();

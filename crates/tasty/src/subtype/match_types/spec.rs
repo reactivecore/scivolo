@@ -67,6 +67,7 @@ impl Cmp<'_> {
                 let Type::MatchCase(pat, body) = *self.u.ty(result) else {
                     return Spec::Unsupported;
                 };
+                let params = self.u.params_of(params).to_vec();
                 let mut unaccounted = vec![true; params.len()];
                 let names: Vec<_> = params.iter().map(|&(n, _)| n).collect();
                 if self.missing_captures(pat, binder, params.len()) {
@@ -115,6 +116,7 @@ impl Cmp<'_> {
                 Some(Pattern::Capture(i, name == "_" || name.starts_with("_$")))
             }
             Type::Applied(tycon, args) if variance == 1 => {
+                let args = self.u.types_of(args).to_vec();
                 if matches!(self.u.ty(tycon), Type::Param(b, _) if *b == captures.0) {
                     return None;
                 }

@@ -6,7 +6,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::dependent_params::applied_result;
 use crate::typer::type_apply::instantiate_poly;
 use tasty::tags::PRIVATE;
-use tasty::{NameId, SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// Makes selection `t` of `name` from retyped `qualifier` select the member dotty's retyping
@@ -71,16 +71,12 @@ impl Inlining<'_> {
         let info = self.tpd.tpe(fun);
         let info = self.u.widen(info);
         let args: Vec<TypeId> = self.tpd.items(args).iter().map(|&a| self.tpd.tpe(a)).collect();
-        let tpe = match self.u.ty(info).clone() {
-            Type::Method { binder, params, result, .. } if applied && params.len() == args.len() => {
-                let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
-                applied_result(self.u, result, (binder, &names), meth, &args)
-            }
-            Type::Poly { binder, params, result } if !applied && params.len() == args.len() => {
-                let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
-                instantiate_poly(self.u, result, (binder, &names), &args, meth)
-            }
-            _ => return,
+        let binding = if applied { self.u.method(info) } else { self.u.poly(info) };
+        let Some(b) = binding.filter(|b| b.params.len() == args.len()) else { return };
+        let (binder, names, result) = (b.binder, b.names(), b.result);
+        let tpe = match applied {
+            true => applied_result(self.u, result, (binder, &names), meth, &args),
+            false => instantiate_poly(self.u, result, (binder, &names), &args, meth),
         };
         self.tpd.get_mut(t).tpe = Some(tpe);
     }

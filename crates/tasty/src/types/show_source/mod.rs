@@ -101,7 +101,10 @@ impl SourcePrinter<'_> {
                 self.print(this)?;
                 self.paint(Highlight::Type, ".super");
             }
-            Type::Applied(tycon, args) => self.applied(tycon, &args)?,
+            Type::Applied(tycon, args) => {
+                let args = self.u.types_of(args).to_vec();
+                self.applied(tycon, &args)?
+            }
             Type::And(a, b) => self.infix(a, Highlight::Type, " & ", b)?,
             Type::Or(a, b, _) => self.infix(a, Highlight::Type, " | ", b)?,
             Type::ByName(r) => {
@@ -120,7 +123,10 @@ impl SourcePrinter<'_> {
                 self.binding(tpe)?
             }
             Type::Refined(..) => self.refinement(t)?,
-            Type::Match { scrutinee, cases, .. } => self.match_type(scrutinee, &cases)?,
+            Type::Match { scrutinee, cases, .. } => {
+                let cases = self.u.types_of(cases).to_vec();
+                self.match_type(scrutinee, &cases)?
+            }
             Type::MatchCase(pat, body) => {
                 self.out.push_str("case ");
                 self.infix(pat, Highlight::Plain, " => ", body)?;

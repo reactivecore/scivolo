@@ -25,6 +25,7 @@ impl Host {
         let Type::Method { params, .. } = self.u.ty(info).clone() else {
             return self.reflect().apply(fun, terms);
         };
+        let params = self.u.params_of(params).to_vec();
         let names: Vec<String> = params.iter().map(|&(n, _)| self.u.name(n).to_owned()).collect();
         let named = |h: &Host, t: TNodeId| matches!(h.tpd.tree(t), T::NamedArg { .. });
         if terms.len() == names.len() && !terms.iter().any(|&t| named(self, t)) {

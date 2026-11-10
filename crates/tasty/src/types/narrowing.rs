@@ -16,7 +16,8 @@ impl Universe {
             (
                 Type::Poly { binder, params: p, result: r },
                 Type::Poly { binder: b2, params: q, result: s },
-            ) if p.len() == q.len() => {
+            ) if self.params_of(p).len() == self.params_of(q).len() => {
+                let (p, q) = (self.params_of(p).to_vec(), self.params_of(q).to_vec());
                 let own = self.type_params(m);
                 let ours = |u: &mut Self, t| {
                     u.map_type(t, &mut |u, t| {
@@ -49,6 +50,7 @@ impl Universe {
         else {
             return false;
         };
+        let (p, q) = (self.params_of(p).to_vec(), self.params_of(q).to_vec());
         p.len() == q.len()
             && p.iter().zip(&q).all(|((_, x), (_, y))| self.is_same(*x, *y))
             && self.is_subtype(r, s)

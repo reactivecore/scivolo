@@ -57,7 +57,12 @@ impl Universe {
             match self.ty(t).clone() {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, .. } => {
-                    break params.into_iter().filter(|&(_, p)| !self.is_erased_param(p)).count();
+                    break self
+                        .params_of(params)
+                        .to_vec()
+                        .into_iter()
+                        .filter(|&(_, p)| !self.is_erased_param(p))
+                        .count();
                 }
                 _ => break 0,
             }

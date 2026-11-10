@@ -108,7 +108,10 @@ impl<'u> Printer<'u> {
                 format!("{}.type", self.path(t).shown)
             }
             Type::Local(_, n) => simple(self.u.name(n)).to_owned(),
-            Type::Applied(c, args) => self.applied(c, &args, prec),
+            Type::Applied(c, args) => {
+                let args = self.u.types_of(args).to_vec();
+                self.applied(c, &args, prec)
+            }
             Type::Alias(_) | Type::Bounds(..) => self.rhs(t),
             Type::And(a, b) => self.infix("&", a, b, prec),
             Type::Or(a, b, _) => self.infix("|", a, b, prec),

@@ -133,7 +133,7 @@ impl Typer<'_> {
         let info = self.u.info(s);
         let (_, hi) = self.u.bounds(info)?;
         self.u.lambda(hi)?;
-        let applied = self.u.intern_type(Type::Applied(hi, args));
+        let applied = self.u.intern_applied(hi, &args);
         Some(self.u.beta_reduced(applied))
     }
 

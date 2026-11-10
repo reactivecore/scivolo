@@ -42,15 +42,15 @@ impl Lower<'_> {
         let mut has_clause = false;
         let mut bounds = Vec::new();
         loop {
-            match self.u.ty(t) {
+            match *self.u.ty(t) {
                 Type::Poly { binder, params, result } => {
-                    bounds.push((*binder, params.iter().map(|&(_, b)| b).collect()));
-                    t = *result;
+                    bounds.push((binder, self.u.params_of(params).iter().map(|&(_, b)| b).collect()));
+                    t = result;
                 }
                 Type::Method { params: ps, result, .. } => {
-                    params.extend_from_slice(ps);
+                    params.extend_from_slice(self.u.params_of(ps));
                     has_clause = true;
-                    t = *result;
+                    t = result;
                 }
                 _ => break,
             }

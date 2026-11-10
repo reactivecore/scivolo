@@ -75,7 +75,10 @@ impl Universe {
                     None => object(),
                 },
             },
-            Type::Applied(tycon, args) => self.erase_applied(tycon, &args),
+            Type::Applied(tycon, args) => {
+                let args = self.types_of(args).to_vec();
+                self.erase_applied(tycon, &args)
+            }
             Type::This(c)
             | Type::Alias(c)
             | Type::Bounds(_, c)

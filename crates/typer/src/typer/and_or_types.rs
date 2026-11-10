@@ -20,11 +20,11 @@ impl Typer<'_> {
                 self.syms.define(self.u, name, Kind::Type, self.defn.scala, syntax::ast::flags::SYNTHETIC);
             let binder = self.u.fresh_binder();
             let bounds = self.u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY));
-            let params = vec![(self.u.intern_name("X0"), bounds), (self.u.intern_name("X1"), bounds)];
+            let params = [(self.u.intern_name("X0"), bounds), (self.u.intern_name("X1"), bounds)];
             let (a, b) =
                 (self.u.intern_type(Type::Param(binder, 0)), self.u.intern_type(Type::Param(binder, 1)));
             let result = self.u.intern_type(if and { Type::And(a, b) } else { Type::Or(a, b, false) });
-            let lambda = self.u.intern_type(Type::Lambda { binder, params, result });
+            let lambda = self.u.intern_lambda(binder, &params, result);
             let alias = self.u.intern_type(Type::Alias(lambda));
             self.u.set_info(s, alias);
         }

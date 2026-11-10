@@ -28,7 +28,7 @@ impl Host {
         let Type::Method { binder, params, result, .. } = self.u.ty(info).clone() else {
             return Ok(None);
         };
-        if params.iter().any(|&(_, p)| self.refers_to(p, binder)) {
+        if self.u.params_of(params).to_vec().into_iter().any(|(_, p)| self.refers_to(p, binder)) {
             return Ok(None);
         }
         let result = match self.u.ty(result) {
@@ -62,11 +62,12 @@ impl Host {
         }
         let result = self.function_type(result)?;
         let context = if contextual { "Context" } else { "" };
+        let params = self.u.params_of(params).to_vec();
         let class = self.u.class_ref(&format!("scala.{context}Function{}", params.len()));
         let mut args: Vec<TypeId> =
             params.into_iter().map(|(_, p)| self.translated_from_repeated(p)).collect();
         args.push(result);
-        Ok(self.u.intern_type(Type::Applied(class, args)))
+        Ok(self.u.intern_applied(class, &args))
     }
 
     /// Whether `t` refers to a parameter of method type binder `binder`.

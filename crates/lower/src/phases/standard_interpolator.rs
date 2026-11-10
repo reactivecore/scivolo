@@ -9,7 +9,7 @@ use crate::definitions::{applied, symbol};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Rewrites interpolation `t`, of `raw` if `raw`, in `owner`.
@@ -87,9 +87,7 @@ fn process(
     let param = l.u.define(param);
     l.u.set_info(param, string);
     let binder = l.u.fresh_binder();
-    let params = vec![(name, string)];
-    let method = Type::Method { binder, params, result: string, implicit: false, contextual: false };
-    let method = l.u.intern_type(method);
+    let method = l.u.intern_method(binder, &[(name, string)], string, false, false);
     l.u.set_info(anon, method);
     let param_def = l.param_def(param, Span::NONE);
     let arg = l.ident(param, Span::NONE);

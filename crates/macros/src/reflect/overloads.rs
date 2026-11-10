@@ -131,7 +131,7 @@ impl Host {
             Type::ByName(r) => r,
             _ => p,
         };
-        Some(params.iter().map(|&(_, p)| by_value(p)).collect())
+        Some(types.params_of(*params).iter().map(|&(_, p)| by_value(p)).collect())
     }
 
     /// Whether the result of the first clause of the method type of `fun`, a method as its

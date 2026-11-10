@@ -11,7 +11,7 @@ use super::sam::adaptation_needed;
 use crate::Lower;
 use crate::definitions::{procedure, specialized, symbol, type_ref};
 use syntax::ast::Span;
-use tasty::{Erased, Flags, Kind, NameId, SymbolId, Type, TypeId};
+use tasty::{Erased, Flags, Kind, NameId, SymbolId, TypeId};
 use typer::tpd::TNodeId;
 
 /// Whether a function of erased parameters `params` and result `result` has a specialized
@@ -76,8 +76,7 @@ pub fn erased_adapted_def(
         .collect();
     let adapted_result = if needed.1 { object } else { result };
     let binder = l.u.fresh_binder();
-    let method = Type::Method { binder, params, result: adapted_result, implicit: false, contextual: false };
-    let method = l.u.intern_type(method);
+    let method = l.u.intern_method(binder, &params, adapted_result, false, false);
     l.u.set_info(adapted, method);
     l.forwarding_def(adapted, span, |l, args, _| {
         let args: Vec<TNodeId> = args

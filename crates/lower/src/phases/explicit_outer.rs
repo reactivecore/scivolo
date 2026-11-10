@@ -201,13 +201,7 @@ pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
     let m = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(FINAL)));
     let result = type_ref(l.u, outer);
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: Vec::new(),
-        result,
-        implicit: false,
-        contextual: false,
-    });
+    let info = l.u.intern_method(binder, &[], result, false, false);
     l.u.set_info(m, info);
     l.u.set_deferred(m, l.u.is_trait(class));
     l.outer_accessors.insert(class, m);

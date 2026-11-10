@@ -102,6 +102,7 @@ impl Cmp<'_> {
                     if self.compiletime_op(tycon).is_some() || self.is_named_tuple_from(tycon) {
                         return Some(t);
                     }
+                    let args = self.u.types_of(args).to_vec();
                     self.applied_super_type(tycon, &args)?
                 }
                 _ => return None,
@@ -138,9 +139,9 @@ impl Cmp<'_> {
             Type::Lambda { .. } => Some(self.apply(tycon, args)),
             Type::Var(v) => {
                 let t = self.vars.instance(v)?;
-                Some(self.u.intern_type(Type::Applied(t, args.to_vec())))
+                Some(self.u.intern_applied(t, args))
             }
-            Type::Annotated(inner, _) => Some(self.u.intern_type(Type::Applied(inner, args.to_vec()))),
+            Type::Annotated(inner, _) => Some(self.u.intern_applied(inner, args)),
             Type::Sym(..) | Type::TypeRef(..) => self.u.expand_upper(tycon, args),
             _ => None,
         }
@@ -163,6 +164,7 @@ impl Cmp<'_> {
         let scrutinee = self.u.dealias(scrutinee);
         let scrutinee = self.fixed(scrutinee);
         let scrutinee = self.normal(scrutinee);
+        let cases = self.u.types_of(cases).to_vec();
         let reduced = self.match_cases(scrutinee, &cases);
         self.frozen = frozen;
         self.reductions -= 1;

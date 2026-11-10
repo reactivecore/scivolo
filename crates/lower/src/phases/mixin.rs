@@ -282,12 +282,14 @@ pub fn java_named(l: &mut Lower, member: SymbolId, info: TypeId) -> TypeId {
 pub fn with_java_param_names(l: &mut Lower, info: TypeId) -> TypeId {
     match l.u.ty(info).clone() {
         Type::Method { binder, params, result, implicit, contextual } => {
-            let params = params
-                .into_iter()
-                .enumerate()
-                .map(|(i, (_, t))| (l.u.intern_name(&format!("x${i}")), t))
-                .collect();
-            l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+            let params: Vec<_> =
+                l.u.params_of(params)
+                    .to_vec()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, (_, t))| (l.u.intern_name(&format!("x${i}")), t))
+                    .collect();
+            l.u.intern_method(binder, &params, result, implicit, contextual)
         }
         Type::Poly { binder, params, result } => {
             let result = with_java_param_names(l, result);

@@ -108,16 +108,12 @@ impl Typer<'_> {
             .collect();
         let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let method = self.tpd.sym(self.tpd.meth_part(f));
-        let inner_params = gaps
+        let inner_params: Vec<_> = gaps
             .iter()
             .map(|&g| (names[g], self.instantiate_poly(params[g].1, binder, &names, &refs, method)))
             .collect();
         let inner_result = self.instantiate_poly(result, binder, &names, &refs, method);
-        let inner_tpe = self.u.intern_type(Type::Poly {
-            binder: inner_binder,
-            params: inner_params,
-            result: inner_result,
-        });
+        let inner_tpe = self.u.intern_poly(inner_binder, &inner_params, inner_result);
         let inner = self.tpd.node(T::TypeApply { fun: f, args: named_list }, span, Some(inner_tpe), None);
         let gap_trees: Vec<TNodeId> = vars.iter().map(|&v| self.type_tree(v, span, true)).collect();
         let gap_list = self.tpd.list(&gap_trees);

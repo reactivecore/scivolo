@@ -1,12 +1,13 @@
 //! Types as text, close to Scala syntax: `scala.Option[B]`, `(f: A => B): R`, `[B] => …`.
 
-use super::{NameId, Type, TypeId};
+use super::{ParamList, Type, TypeId};
 use crate::Universe;
 
 impl Universe {
     pub fn show(&self, t: TypeId) -> String {
-        let params = |ps: &[(NameId, TypeId)]| {
-            ps.iter()
+        let params = |ps: &ParamList| {
+            self.params_of(*ps)
+                .iter()
                 .map(|&(n, t)| format!("{}: {}", self.name(n), self.show(t)))
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -31,7 +32,7 @@ impl Universe {
                 format!(
                     "{}[{}]",
                     self.show(*c),
-                    args.iter().map(|a| self.show(*a)).collect::<Vec<_>>().join(", ")
+                    self.types_of(*args).iter().map(|a| self.show(*a)).collect::<Vec<_>>().join(", ")
                 )
             }
             Type::Alias(a) => format!("= {}", self.show(*a)),
@@ -57,7 +58,7 @@ impl Universe {
             Type::Lambda { params: ps, result, .. } => format!("[{}] =>> {}", params(ps), self.show(*result)),
             Type::Param(_, i) => format!("<param {i}>"),
             Type::Match { bound, scrutinee, cases } => {
-                let cases: Vec<String> = cases.iter().map(|&c| self.show(c)).collect();
+                let cases: Vec<String> = self.types_of(*cases).iter().map(|&c| self.show(c)).collect();
                 format!(
                     "({} match {{ {} }} <: {})",
                     self.show(*scrutinee),

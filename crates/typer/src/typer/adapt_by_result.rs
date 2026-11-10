@@ -87,12 +87,13 @@ impl Typer<'_> {
         let depth = depth.checked_sub(1)?;
         match self.u.ty(t).clone() {
             Type::Poly { binder, params, result } => {
-                let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
+                let names: Vec<NameId> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
                 let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
                 let result = self.instantiate_poly(result, binder, &names, &vars, None);
                 self.proto_normalized((result, meth), pt, true, depth)
             }
             Type::Method { binder, params, result, implicit: true, .. } => {
+                let params = self.u.params_of(params);
                 let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
                 let infos: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
                 let result = self.u.subst(result, binder, &names, &infos);
@@ -115,11 +116,11 @@ impl Typer<'_> {
                     return None;
                 }
                 let rt = self.proto_normalized((result, meth), pt, true, depth)?;
-                let mut args: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+                let mut args: Vec<TypeId> = self.u.params_of(params).iter().map(|&(_, p)| p).collect();
                 let empty = args.is_empty();
                 args.push(rt);
-                let class = self.function_class(params.len())?;
-                let ft = self.u.intern_type(Type::Applied(class, args));
+                let class = self.function_class(args.len() - 1)?;
+                let ft = self.u.intern_applied(class, &args);
                 Some(if !empty || self.u.is_subtype(ft, pt) { ft } else { rt })
             }
             Type::ByName(r) => self.proto_normalized((r, meth), pt, true, depth),

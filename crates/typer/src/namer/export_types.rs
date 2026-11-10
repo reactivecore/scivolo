@@ -97,9 +97,10 @@ impl Typer<'_> {
             };
             let params: Vec<(tasty::NameId, TypeId)> =
                 params.into_iter().map(|(n, b)| (n, rebind(self.u, b))).collect();
-            let args = (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
-            let result = self.u.intern_type(Type::Applied(target, args));
-            self.u.intern_type(Type::Lambda { binder, params, result })
+            let args: Vec<_> =
+                (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
+            let result = self.u.intern_applied(target, &args);
+            self.u.intern_lambda(binder, &params, result)
         };
         let owner = self.u.symbol(m).owner?;
         let lambda = self.u.as_seen_from(lambda, path, owner);

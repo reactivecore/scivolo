@@ -70,7 +70,7 @@ impl MirrorFormal {
         let Type::Lambda { binder, params, result } = u.ty(self.mirrored).clone() else {
             return (self.mirrored, elems);
         };
-        let (names, bounds): (Vec<NameId>, Vec<TypeId>) = params.iter().copied().unzip();
+        let (names, bounds): (Vec<NameId>, Vec<TypeId>) = u.params_of(params).iter().copied().unzip();
         let mono = u.subst(result, binder, &names, &bounds);
         (mono, u.intern_type(Type::Lambda { binder, params, result: elems }))
     }

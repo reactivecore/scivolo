@@ -35,6 +35,7 @@ impl Avoid<'_> {
             }
             Type::Applied(tycon, args) => {
                 let c = m(t, tycon, v)?;
+                let args = t.u.types_of(args).to_vec();
                 let variances = t.u.tycon_variances(tycon, args.len());
                 let mut mapped = Vec::with_capacity(args.len());
                 for (&arg, &pv) in args.iter().zip(&variances) {
@@ -168,10 +169,10 @@ impl Avoid<'_> {
     /// A method, polymorphic or lambda type with its parameters approximated contravariantly
     /// and its result covariantly (dotty's `derivedLambdaType`).
     fn lambda(self, t: &mut Typer, tpe: TypeId, v: i8) -> Option<Approx> {
-        let (params, result) = match t.u.ty(tpe) {
+        let (params, result) = match *t.u.ty(tpe) {
             Type::Method { params, result, .. }
             | Type::Poly { params, result, .. }
-            | Type::Lambda { params, result, .. } => (params.clone(), *result),
+            | Type::Lambda { params, result, .. } => (t.u.params_of(params).to_vec(), result),
             _ => return Some(Approx::Exact(tpe)),
         };
         let mut parts = Vec::with_capacity(params.len() + 1);
@@ -183,7 +184,8 @@ impl Avoid<'_> {
         let node = t.u.ty(tpe).clone();
         Some(approx::derived(t.u, &parts, &flip, v, &mut |u, p| {
             let (ps, r) = p.split_at(params.len());
-            let ps = params.iter().zip(ps).map(|(&(n, _), &t)| (n, t)).collect();
+            let ps: Vec<_> = params.iter().zip(ps).map(|(&(n, _), &t)| (n, t)).collect();
+            let ps = u.intern_params(&ps);
             u.intern_type(match node.clone() {
                 Type::Method { binder, implicit, contextual, .. } => {
                     Type::Method { binder, params: ps, result: r[0], implicit, contextual }

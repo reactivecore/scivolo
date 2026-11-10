@@ -128,7 +128,8 @@ impl Typer<'_> {
         let class = self.resolve_full_name(crate::defn::POLY_FUNCTION, true)?;
         let core = crate::defn::type_ref(self.u, class);
         let binder = self.syms.fresh_binder();
-        let names = params.iter().map(|&p| (self.u.interned_name(p), self.method_param_type(p))).collect();
+        let names: Vec<_> =
+            params.iter().map(|&p| (self.u.interned_name(p), self.method_param_type(p))).collect();
         let result = self.u.map_type(result, &mut |u, part| match *u.ty(part) {
             Type::Sym(None, s) => {
                 let i = params.iter().position(|&p| p == s)?;
@@ -136,8 +137,7 @@ impl Typer<'_> {
             }
             _ => None,
         });
-        let method = Type::Method { binder, params: names, result, implicit: contextual, contextual };
-        let method = self.u.intern_type(method);
+        let method = self.u.intern_method(binder, &names, result, contextual, contextual);
         let apply = self.u.intern_name("apply");
         Some(self.u.intern_type(Type::Refined(core, apply, method)))
     }

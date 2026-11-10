@@ -12,6 +12,7 @@ mod refinements;
 mod show;
 mod show_source;
 mod show_user;
+mod type_lists;
 mod widen;
 
 use crate::{FileId, SymbolId};
@@ -22,6 +23,8 @@ pub use name_table::NameId;
 use name_table::NameTable;
 pub use parts::Binding;
 pub use show_source::{Highlight, escape};
+use type_lists::ListTable;
+pub use type_lists::{ParamList, TypeList};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TypeId(pub u32);
@@ -53,7 +56,7 @@ pub enum Type {
     This(TypeId),
     /// `C.super[P]`: the `this` type of `C` and the parent type `P`, or all parents intersected.
     Super(TypeId, TypeId),
-    Applied(TypeId, Vec<TypeId>),
+    Applied(TypeId, TypeList),
     Alias(TypeId),
     Bounds(TypeId, TypeId),
     And(TypeId, TypeId),
@@ -73,7 +76,7 @@ pub enum Type {
     /// for a `using` one.
     Method {
         binder: Binder,
-        params: Vec<(NameId, TypeId)>,
+        params: ParamList,
         result: TypeId,
         implicit: bool,
         contextual: bool,
@@ -81,12 +84,12 @@ pub enum Type {
     /// Type parameters named, with their bounds.
     Poly {
         binder: Binder,
-        params: Vec<(NameId, TypeId)>,
+        params: ParamList,
         result: TypeId,
     },
     Lambda {
         binder: Binder,
-        params: Vec<(NameId, TypeId)>,
+        params: ParamList,
         result: TypeId,
     },
     Param(Binder, u32),
@@ -95,7 +98,7 @@ pub enum Type {
     Match {
         bound: TypeId,
         scrutinee: TypeId,
-        cases: Vec<TypeId>,
+        cases: TypeList,
     },
     /// A match type's case: its pattern and body (dotty's `MatchCase[P, B]`).
     MatchCase(TypeId, TypeId),
@@ -122,6 +125,8 @@ pub struct Types {
     all: Vec<Type>,
     ids: FxHashMap<Type, TypeId>,
     names: NameTable,
+    lists: ListTable<TypeId>,
+    params: ListTable<(NameId, TypeId)>,
 }
 
 impl Types {

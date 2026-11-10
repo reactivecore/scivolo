@@ -166,9 +166,9 @@ pub fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
     let Some(m) = l.u.method(t) else { return t };
     let (binder, result, implicit, contextual) = (m.binder, m.result, m.implicit, m.contextual);
     let params = m.params.to_vec();
-    let params =
+    let params: Vec<_> =
         params.into_iter().enumerate().map(|(i, (_, p))| (l.u.intern_name(&format!("x${i}")), p)).collect();
-    l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+    l.u.intern_method(binder, &params, result, implicit, contextual)
 }
 
 /// Method type `t` with its final result `result`.

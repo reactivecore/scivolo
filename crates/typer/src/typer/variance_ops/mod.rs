@@ -118,7 +118,7 @@ impl VarianceOps<'_> {
                     _ => self.tycon_variances(tycon),
                 };
                 go(self, tycon, v).or_else(|| {
-                    args.iter().enumerate().find_map(|(i, &a)| {
+                    self.u.types_of(args).to_vec().into_iter().enumerate().find_map(|(i, a)| {
                         let av = match self.u.ty(a) {
                             Type::Bounds(..) | Type::Wildcard(_) => v,
                             _ => v * variances.get(i).copied().unwrap_or(0),
@@ -137,15 +137,17 @@ impl VarianceOps<'_> {
             }
             (Type::Refined(p, _, info), _) => go(self, p, v).or_else(|| go(self, info, v)),
             (Type::Method { params, result, .. } | Type::Poly { params, result, .. }, _) => {
-                params.iter().find_map(|&(_, p)| go(self, p, -v)).or_else(|| go(self, result, v))
+                let params = self.u.params_of(params).to_vec();
+                params.into_iter().find_map(|(_, p)| go(self, p, -v)).or_else(|| go(self, result, v))
             }
             (Type::Lambda { params, result, .. }, _) => {
                 let pv = if matches!(self.u.ty(result), Type::MatchCase(..)) { 0 } else { -v };
-                params.iter().find_map(|&(_, p)| go(self, p, pv)).or_else(|| go(self, result, v))
+                let params = self.u.params_of(params).to_vec();
+                params.into_iter().find_map(|(_, p)| go(self, p, pv)).or_else(|| go(self, result, v))
             }
             (Type::Match { bound, scrutinee, cases }, _) => go(self, bound, v)
                 .or_else(|| go(self, scrutinee, 0))
-                .or_else(|| cases.iter().find_map(|&c| go(self, c, v))),
+                .or_else(|| self.u.types_of(cases).to_vec().into_iter().find_map(|c| go(self, c, v))),
             (Type::MatchCase(pat, body), _) => go(self, pat, 0).or_else(|| go(self, body, v)),
             (
                 Type::Flexible(x)
@@ -181,20 +183,5 @@ impl VarianceOps<'_> {
             }
         }
         prefix.and_then(|p| self.misplaced(checked, p, v.max(0), depth + 1))
-    }
-
-    /// `tvar` with the variance required of it where it occurs at variance `v` in the type of
-    /// `base`, if its own is not that (dotty's `checkVarianceOfSymbol`).
-    fn misplaced_symbol(&mut self, tvar: SymbolId, base: SymbolId, v: i8) -> Option<Misplaced> {
-        let relative = self.relative_variance(tvar, base, COVARIANT);
-        if relative == BIVARIANT {
-            return None;
-        }
-        let required = match v {
-            1 => relative,
-            -1 => flip(relative),
-            _ => INVARIANT,
-        };
-        (declared(self.u, tvar) & required == 0).then_some(Misplaced::Class(tvar, required))
     }
 }

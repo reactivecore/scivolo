@@ -16,13 +16,14 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
     loop {
         match u.ty(t).clone() {
             Type::Poly { binder, params, result } => {
+                let params = u.params_of(params).to_vec();
                 parts.push(params.len().to_string());
                 let his = params.iter().map(|&(_, b)| upper_bound(u, b)).collect();
                 bounds.push((binder, his));
                 t = result;
             }
             Type::Method { params, result, .. } => {
-                for (_, p) in params {
+                for (_, p) in u.params_of(params).to_vec() {
                     if u.is_erased_param(p) {
                         continue;
                     }

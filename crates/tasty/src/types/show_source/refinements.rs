@@ -70,15 +70,15 @@ impl SourcePrinter<'_> {
     /// The type of a refined method or value (dotty's `printMethodicType`).
     fn methodic(&mut self, t: TypeId) -> Shown {
         match self.u.ty(t).clone() {
-            Type::Method { binder, params, result, .. } => self.bind(binder, &params, |p| {
+            Type::Method { binder, params, result, .. } => self.bind(binder, params, |p| {
                 p.out.push('(');
-                p.params(&params)?;
+                p.params(params)?;
                 p.out.push(')');
                 p.methodic(result)
             }),
-            Type::Lambda { binder, params, result } => self.bind(binder, &params, |p| {
+            Type::Lambda { binder, params, result } => self.bind(binder, params, |p| {
                 p.out.push('[');
-                p.params(&params)?;
+                p.params(params)?;
                 p.out.push(']');
                 p.methodic(result)
             }),

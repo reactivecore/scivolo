@@ -63,8 +63,8 @@ impl Cmp<'_> {
     /// `a & b`, merged into one application of a common constructor where the merged arguments
     /// give a type below both.
     fn and_type(&mut self, a: TypeId, b: TypeId) -> TypeId {
-        if let (Type::Applied(c1, args1), Type::Applied(c2, args2)) =
-            (self.u.ty(a).clone(), self.u.ty(b).clone())
+        if let (Some((c1, args1)), Some((c2, args2))) = (self.u.applied(a), self.u.applied(b))
+            && let (args1, args2) = (args1.to_vec(), args2.to_vec())
             && args1.len() == args2.len()
             && self.same_constructor(c1, c2)
         {
@@ -72,7 +72,7 @@ impl Cmp<'_> {
             let args: Option<Vec<TypeId>> =
                 (0..args1.len()).map(|i| self.glb_arg(args1[i], args2[i], variances[i])).collect();
             if let Some(args) = args {
-                let merged = self.u.intern_type(Type::Applied(c1, args));
+                let merged = self.u.intern_applied(c1, &args);
                 if self.recur_frozen(merged, a) && self.recur_frozen(merged, b) {
                     return merged;
                 }

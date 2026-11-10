@@ -150,7 +150,7 @@ fn derived_takes_explicit_params(t: &mut Typer<'_>, module: SymbolId) -> bool {
     loop {
         match *t.u.ty(info) {
             Type::Poly { result, .. } => info = result,
-            Type::Method { implicit: false, ref params, .. } if !params.is_empty() => return true,
+            Type::Method { implicit: false, params, .. } if !t.u.params_of(params).is_empty() => return true,
             Type::Method { result, .. } => info = result,
             _ => return false,
         }

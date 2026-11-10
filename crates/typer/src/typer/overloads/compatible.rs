@@ -8,7 +8,7 @@ use crate::ctx::Ctx;
 use crate::tpd::Tree as T;
 use crate::typer::Typer;
 use crate::typer::implicits::Goal;
-use tasty::{MAX_IMPLEMENTED_ARITY, Type, TypeId};
+use tasty::{MAX_IMPLEMENTED_ARITY, TypeId};
 
 /// Checks whether an argument of type `arg` fits a parameter of type `param` in `ctx`, through
 /// an implicit conversion if `views` (dotty's `isCompatible`, else its direct applicability):
@@ -72,6 +72,6 @@ fn sam_arg_ok(t: &mut Typer, arg: TypeId, param: TypeId, views: bool) -> Result<
     let class = t.function_class(n).ok_or("function class")?;
     let mut args = sam.params;
     args.push(sam.result);
-    let fun = t.u.intern_type(Type::Applied(class, args));
+    let fun = t.u.intern_applied(class, &args);
     Ok(Some(t.conforms(arg, fun)))
 }

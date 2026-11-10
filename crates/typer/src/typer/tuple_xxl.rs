@@ -92,7 +92,7 @@ impl Typer<'_> {
         for (i, &e) in elems.iter().enumerate().rev() {
             let elem_span = self.tpd.span(e);
             let tpt = self.type_tree(pair, elem_span.start_pos(), false);
-            let tpe = self.u.intern_type(Type::Applied(pair, vec![self.tpd.tpe(e), self.tpd.tpe(acc)]));
+            let tpe = self.u.intern_applied(pair, &[self.tpd.tpe(e), self.tpd.tpe(acc)]);
             let args = self.tpd.list(&[e, acc]);
             let at = match i {
                 0 => span,

@@ -8,7 +8,7 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
-use tasty::{SymbolId, Type};
+use tasty::SymbolId;
 
 impl Typer<'_> {
     /// Whether `c` is `java.lang.Enum`.
@@ -32,9 +32,7 @@ impl Typer<'_> {
         let select = self.tpd.node(T::Select { qualifier: new, name }, span, Some(ctor_tpe), Some(ctor));
         let targs: Vec<TNodeId> = args.iter().map(|&a| self.type_tree(a, span.start_pos(), false)).collect();
         let binder = self.syms.fresh_binder();
-        let method =
-            Type::Method { binder, params: Vec::new(), result: tpe, implicit: false, contextual: false };
-        let method = self.u.intern_type(method);
+        let method = self.u.intern_method(binder, &[], tpe, false, false);
         let fun = self.build().type_apply(select, &targs, method, span);
         Some(self.build().apply(fun, &[], tpe, span))
     }

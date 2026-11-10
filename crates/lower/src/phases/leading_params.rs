@@ -34,15 +34,16 @@ pub fn with_leading_params(l: &mut Lower, info: tasty::TypeId, params: &[SymbolI
             l.u.intern_type(Type::Poly { binder, params: tparams, result })
         }
         Type::Method { binder, params: old, result, implicit, contextual } => {
+            let old = l.u.params_of(old).to_vec();
             let new = params.iter().map(|&p| (l.u.interned_name(p), l.u.info(p)));
-            let params = new.chain(old).collect();
-            l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+            let params: Vec<_> = new.chain(old).collect();
+            l.u.intern_method(binder, &params, result, implicit, contextual)
         }
         other => {
             let result = if let Type::ByName(r) = other { r } else { info };
-            let params = params.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
+            let params: Vec<_> = params.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
             let binder = l.u.fresh_binder();
-            l.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false })
+            l.u.intern_method(binder, &params, result, false, false)
         }
     }
 }

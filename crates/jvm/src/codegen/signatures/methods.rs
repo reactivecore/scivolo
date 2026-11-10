@@ -13,8 +13,12 @@ impl Sig<'_> {
         loop {
             match self.u.ty(t).clone() {
                 Type::Poly { binder, params, result } => {
-                    let encoded: Vec<(String, TypeId)> =
-                        params.iter().map(|&(n, b)| (tasty::encode(self.u.name(n)), b)).collect();
+                    let encoded: Vec<(String, TypeId)> = self
+                        .u
+                        .params_of(params)
+                        .iter()
+                        .map(|&(n, b)| (tasty::encode(self.u.name(n)), b))
+                        .collect();
                     if top && !self.constructor {
                         tparams.extend(encoded.iter().cloned());
                     }
@@ -22,11 +26,12 @@ impl Sig<'_> {
                     t = result;
                 }
                 Type::Method { params, result, .. } => {
+                    let params = self.u.params_of(params);
                     let names: Vec<&str> = params.iter().map(|&(n, _)| self.u.name(n)).collect();
                     let java_enum = self.constructor && names.ends_with(&["_$name", "_$ordinal"]);
                     let keep = params.len() - if java_enum { 2 } else { 0 };
                     let outer = usize::from(self.constructor && names.first() == Some(&"$outer"));
-                    vparams.extend(params.into_iter().take(keep).skip(outer).map(|(_, p)| p));
+                    vparams.extend(params.iter().take(keep).skip(outer).map(|&(_, p)| p));
                     t = self.context_result(result, &mut vparams);
                 }
                 _ => break,
@@ -46,7 +51,8 @@ impl Sig<'_> {
     /// else `t` (dotty's `collectMethodParams`).
     fn context_result(&mut self, t: TypeId, vparams: &mut Vec<TypeId>) -> TypeId {
         let d = self.u.dealias(t);
-        let Type::Applied(tycon, mut args) = self.u.ty(d).clone() else { return t };
+        let Some((tycon, args)) = self.u.applied(d) else { return t };
+        let mut args = args.to_vec();
         let name = self.u.class_symbol(tycon).map(|c| self.u.symbol(c).name.clone());
         let Some(arity) = name.as_deref().and_then(|n| n.strip_prefix("ContextFunction")) else { return t };
         if arity.is_empty() || !arity.bytes().all(|b| b.is_ascii_digit()) {

@@ -29,7 +29,7 @@ pub fn upper_pairs(t: &mut Typer, hi: TypeId) -> TypeId {
     let pair = crate::defn::type_ref(t.u, pair);
     let mut ty = t.u.intern_type(Type::Sym(None, empty));
     for &a in args.iter().rev() {
-        ty = t.u.intern_type(Type::Applied(pair, vec![a, ty]));
+        ty = t.u.intern_applied(pair, &[a, ty]);
     }
     ty
 }

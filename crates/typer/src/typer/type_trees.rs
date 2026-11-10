@@ -7,7 +7,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Binding, Kind, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_type(&mut self, id: NodeId, ctx: Ctx) -> TNodeId {
@@ -174,8 +174,8 @@ impl Typer<'_> {
             self.complete(s);
             let info = self.u.info(s);
             let alias = self.u.type_alias(info).unwrap_or(info);
-            if let Type::Lambda { binder, ref params, result } = *self.u.ty(alias)
-                && let Type::Applied(inner, ref inner_args) = *self.u.ty(result)
+            if let Some(Binding { binder, params, result, .. }) = self.u.lambda(alias)
+                && let Some((inner, inner_args)) = self.u.applied(result)
                 && inner_args.len() == params.len()
                 && args.len() == params.len()
                 && inner_args.iter().enumerate().all(|(i, &a)| match self.u.ty(a) {
@@ -184,10 +184,10 @@ impl Typer<'_> {
                     _ => false,
                 })
             {
-                return self.u.intern_type(Type::Applied(inner, args));
+                return self.u.intern_applied(inner, &args);
             }
         }
-        self.u.intern_type(Type::Applied(tycon, args))
+        self.u.intern_applied(tycon, &args)
     }
 
     /// A type tree of type `tpe` that no source tree gave (dotty's `TypeTree(tpe)`).

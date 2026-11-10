@@ -103,7 +103,7 @@ impl Universe {
         let mut out = Vec::new();
         while let Type::Poly { result, .. } | Type::Method { result, .. } = self.ty(t) {
             if let Type::Method { binder, params, .. } = self.ty(t) {
-                out.push((*binder, params.clone()));
+                out.push((*binder, self.params_of(*params).to_vec()));
             }
             t = *result;
         }
@@ -141,7 +141,7 @@ impl Universe {
         let mut out = Vec::new();
         while let Type::Poly { result, .. } | Type::Method { result, .. } = self.ty(t) {
             if let Type::Poly { binder, params, .. } = self.ty(t) {
-                out.push((*binder, params.len()));
+                out.push((*binder, self.params_of(*params).len()));
             }
             t = *result;
         }
@@ -156,7 +156,7 @@ impl Universe {
             match self.ty(t) {
                 Type::Poly { result, .. } => t = *result,
                 Type::Method { params, result, implicit, .. } => {
-                    out.push((*implicit, params.iter().map(|(_, p)| *p).collect()));
+                    out.push((*implicit, self.params_of(*params).iter().map(|(_, p)| *p).collect()));
                     t = *result;
                 }
                 _ => return out,

@@ -22,11 +22,11 @@ impl Host {
         loop {
             match self.u.ty(t).clone() {
                 Type::Poly { params, result, .. } => {
-                    numbers.push(params.len() as i32);
+                    numbers.push(self.u.params_of(params).len() as i32);
                     t = result;
                 }
                 Type::Method { params, result, .. } => {
-                    for (_, p) in params {
+                    for (_, p) in self.u.params_of(params).to_vec() {
                         numbers.push(-1);
                         names.push(self.sig_name(p));
                     }

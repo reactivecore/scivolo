@@ -116,7 +116,7 @@ fn applied_to_seq(l: &mut Lower, fun: TNodeId, args: &[TNodeId], span: Span) -> 
     let [any, seq] = ["scala.Any", "scala.collection.immutable.Seq"].map(|c| l.u.class_ref(c));
     let elemtpt = l.type_tree(any, Span::NONE);
     let elems = l.tpd.list(args);
-    let tpe = l.u.intern_type(Type::Applied(seq, vec![any]));
+    let tpe = l.u.intern_applied(seq, &[any]);
     let literal = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, Span::NONE, Some(tpe), None);
     let literal = l.positioned(literal);
     let method = l.u.widen(l.tpd.tpe(fun));

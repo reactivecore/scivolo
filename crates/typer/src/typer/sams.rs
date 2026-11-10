@@ -98,7 +98,7 @@ impl Typer<'_> {
             self.occurrences(info, p, 1, &mut seen).then_some(())?;
             new_args.push(if seen == (false, true) { lo } else { hi });
         }
-        Some(self.u.intern_type(Type::Applied(tycon, new_args)))
+        Some(self.u.intern_applied(tycon, &new_args))
     }
 
     /// Records in `seen` whether type parameter `p` occurs in `t` at variance `v` covariantly and
@@ -113,13 +113,13 @@ impl Typer<'_> {
             Type::Applied(tycon, args) => {
                 let Some(class) = self.u.class_symbol(tycon) else { return !self.refers_to(t, &[p]) };
                 let variances = self.u.variances(class);
-                args.iter().enumerate().all(|(i, &a)| {
+                self.u.types_of(args).to_vec().into_iter().enumerate().all(|(i, a)| {
                     let w = variances.get(i).copied().unwrap_or(0);
                     self.occurrences(a, p, v * w, seen)
                 })
             }
             Type::Method { params, result, .. } => {
-                params.iter().all(|&(_, q)| self.occurrences(q, p, -v, seen))
+                (self.u.params_of(params).to_vec().into_iter()).all(|(_, q)| self.occurrences(q, p, -v, seen))
                     && self.occurrences(result, p, v, seen)
             }
             Type::Bounds(lo, hi) => self.occurrences(lo, p, -v, seen) && self.occurrences(hi, p, v, seen),

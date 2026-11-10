@@ -154,7 +154,8 @@ impl Typer<'_> {
                     return None;
                 };
                 let args = self.ast.items(args).to_vec();
-                if args.len() != params.len() {
+                let names: Vec<NameId> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
+                if args.len() != names.len() {
                     return None;
                 }
                 let mut targs = Vec::new();
@@ -163,7 +164,6 @@ impl Typer<'_> {
                     self.typed_ahead(a, typed, ctx);
                     targs.push(self.tpd.tpe(typed));
                 }
-                let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
                 Some((self.instantiate_poly(result, binder, &names, &targs, sym), None))
             }
             _ => None,

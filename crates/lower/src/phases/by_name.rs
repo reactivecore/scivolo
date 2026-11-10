@@ -122,10 +122,12 @@ fn formals(l: &mut Lower, mut fun: TNodeId) -> (Vec<tasty::TypeId>, bool) {
     };
     let mut t = l.u.widen(method);
     loop {
-        match l.u.ty(t) {
-            Type::Poly { result, .. } => t = *result,
-            Type::Method { result, .. } if clause > 0 => (t, clause) = (*result, clause - 1),
-            Type::Method { params, .. } => return (params.iter().map(|&(_, p)| p).collect(), false),
+        match *l.u.ty(t) {
+            Type::Poly { result, .. } => t = result,
+            Type::Method { result, .. } if clause > 0 => (t, clause) = (result, clause - 1),
+            Type::Method { params, .. } => {
+                return (l.u.params_of(params).iter().map(|&(_, p)| p).collect(), false);
+            }
             _ => return (Vec::new(), false),
         }
     }
@@ -140,13 +142,7 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
     let owner = l.lazy_members.get(&owner).map_or(owner, |m| m.init);
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, flags));
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: Vec::new(),
-        result,
-        implicit: false,
-        contextual: false,
-    });
+    let info = l.u.intern_method(binder, &[], result, false, false);
     l.u.set_info(anon, info);
     let defined: Vec<SymbolId> = subtrees(l.tpd, arg)
         .into_iter()
@@ -174,7 +170,7 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
     }
     let def = l.method_def(anon, &[], tpt, arg, from_start(def_span));
     let function = l.u.class_ref("scala.Function0");
-    let function = l.u.intern_type(Type::Applied(function, vec![result]));
+    let function = l.u.intern_applied(function, &[result]);
     let meth = l.ident(anon, span);
     let env = l.tpd.list(&[]);
     let target = Some(l.type_tree(function, Span::NONE));

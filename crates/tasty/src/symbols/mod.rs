@@ -305,6 +305,51 @@ impl Universe {
         self.types.intern_name(text)
     }
 
+    pub fn intern_types(&mut self, list: &[TypeId]) -> crate::TypeList {
+        self.types.intern_types(list)
+    }
+
+    pub fn intern_params(&mut self, list: &[(crate::NameId, TypeId)]) -> crate::ParamList {
+        self.types.intern_params(list)
+    }
+
+    pub fn intern_applied(&mut self, tycon: TypeId, args: &[TypeId]) -> TypeId {
+        self.types.intern_applied(tycon, args)
+    }
+
+    pub fn intern_method(
+        &mut self,
+        binder: crate::Binder,
+        params: &[(crate::NameId, TypeId)],
+        result: TypeId,
+        implicit: bool,
+        contextual: bool,
+    ) -> TypeId {
+        self.types.intern_method(binder, params, result, implicit, contextual)
+    }
+
+    pub fn intern_poly(
+        &mut self,
+        binder: crate::Binder,
+        params: &[(crate::NameId, TypeId)],
+        result: TypeId,
+    ) -> TypeId {
+        self.types.intern_poly(binder, params, result)
+    }
+
+    pub fn intern_lambda(
+        &mut self,
+        binder: crate::Binder,
+        params: &[(crate::NameId, TypeId)],
+        result: TypeId,
+    ) -> TypeId {
+        self.types.intern_lambda(binder, params, result)
+    }
+
+    pub fn intern_match(&mut self, bound: TypeId, scrutinee: TypeId, cases: &[TypeId]) -> TypeId {
+        self.types.intern_match(bound, scrutinee, cases)
+    }
+
     /// The name of symbol `s`, interned.
     pub fn interned_name(&mut self, s: SymbolId) -> crate::NameId {
         self.types.intern_name(&self.symbols[s.0 as usize].name)

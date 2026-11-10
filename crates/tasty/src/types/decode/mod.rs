@@ -66,6 +66,10 @@ impl<'a> Decoder<'a> {
         self.types.intern(t)
     }
 
+    pub fn intern_applied(&mut self, tycon: TypeId, args: &[TypeId]) -> TypeId {
+        self.types.intern_applied(tycon, args)
+    }
+
     pub fn get(&self, t: TypeId) -> &Type {
         self.types.get(t)
     }
@@ -145,7 +149,7 @@ impl<'a> Decoder<'a> {
                 match (self.and_or(tycon), &args[..]) {
                     (Some(true), &[a, b]) => Type::And(a, b),
                     (Some(false), &[a, b]) => Type::Or(a, b, false),
-                    _ => Type::Applied(tycon, args),
+                    _ => Type::Applied(tycon, self.types.intern_types(&args)),
                 }
             }
             TYPEBOUNDS | TYPEBOUNDStpt => {
@@ -171,7 +175,8 @@ impl<'a> Decoder<'a> {
             REFINEDtype => Type::Refined(self.kid(id, 0), self.name(id), self.kid(id, 1)),
             MATCHtype if k.len() > 1 => {
                 let (bound, scrutinee) = (self.ty(k[0]), self.ty(k[1]));
-                Type::Match { bound, scrutinee, cases: k[2..].iter().map(|&c| self.ty(c)).collect() }
+                let cases: Vec<_> = k[2..].iter().map(|&c| self.ty(c)).collect();
+                Type::Match { bound, scrutinee, cases: self.types.intern_types(&cases) }
             }
             MATCHCASEtype => Type::MatchCase(self.kid(id, 0), self.kid(id, 1)),
             MATCHtpt => self.match_tpt(id),

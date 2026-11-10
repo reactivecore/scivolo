@@ -1,6 +1,6 @@
 //! Rebuilding a type with parts replaced.
 
-use super::{NameId, Type, TypeId};
+use super::{ParamList, Type, TypeId};
 use crate::Universe;
 
 impl Universe {
@@ -13,10 +13,10 @@ impl Universe {
             return r;
         }
         let mut m = |u: &mut Self, x: TypeId| u.map_type(x, f);
-        let params =
-            |u: &mut Self, ps: Vec<(NameId, TypeId)>, m: &mut dyn FnMut(&mut Self, TypeId) -> TypeId| {
-                ps.into_iter().map(|(n, p)| (n, m(u, p))).collect::<Vec<_>>()
-            };
+        let params = |u: &mut Self, ps: ParamList, m: &mut dyn FnMut(&mut Self, TypeId) -> TypeId| {
+            let ps: Vec<_> = u.params_of(ps).to_vec().into_iter().map(|(n, p)| (n, m(u, p))).collect();
+            u.intern_params(&ps)
+        };
         let mapped = match self.ty(t).clone() {
             Type::TypeRef(p, n) => Type::TypeRef(m(self, p), n),
             Type::TermRef(p, n) => Type::TermRef(m(self, p), n),
@@ -31,8 +31,8 @@ impl Universe {
                 if mapped != c && mapped == crate::NOTHING {
                     return mapped;
                 }
-                let applied = Type::Applied(mapped, args.into_iter().map(|a| m(self, a)).collect());
-                let applied = self.intern_type(applied);
+                let args: Vec<_> = self.types_of(args).to_vec().into_iter().map(|a| m(self, a)).collect();
+                let applied = self.intern_applied(mapped, &args);
                 let lambda = self.lambda(mapped).is_some();
                 return if mapped != c && lambda { self.beta_reduced(applied) } else { applied };
             }
@@ -59,7 +59,8 @@ impl Universe {
             Type::Rec(b, a) => Type::Rec(b, m(self, a)),
             Type::Match { bound, scrutinee, cases } => {
                 let (bound, scrutinee) = (m(self, bound), m(self, scrutinee));
-                Type::Match { bound, scrutinee, cases: cases.into_iter().map(|c| m(self, c)).collect() }
+                let cases: Vec<_> = self.types_of(cases).to_vec().into_iter().map(|c| m(self, c)).collect();
+                return self.intern_match(bound, scrutinee, &cases);
             }
             Type::MatchCase(p, b) => Type::MatchCase(m(self, p), m(self, b)),
             Type::Wildcard(Some(b)) => Type::Wildcard(Some(m(self, b))),

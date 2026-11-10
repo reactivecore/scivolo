@@ -85,7 +85,7 @@ pub fn child_type(
     let mark = t.constraint.mark();
     let vars: Vec<TypeId> = params.iter().map(|_| t.constraint.fresh(t.u)).collect();
     let bounded = bound_child_vars(t, &params, &vars);
-    let applied = t.u.intern_type(Type::Applied(raw, vars.clone()));
+    let applied = t.u.intern_applied(raw, &vars);
     let before = t.constraint.mark();
     if !t.conforms(applied, target) {
         t.constraint.rollback(before);

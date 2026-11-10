@@ -22,7 +22,7 @@ impl Typer<'_> {
             _ => self.u.intern_type(Type::Wildcard(None)),
         };
         let function = self.function_class(1).ok_or("scala.Function1")?;
-        let function = self.u.intern_type(Type::Applied(function, vec![throwable, result]));
+        let function = self.u.intern_applied(function, &[throwable, result]);
         let typed = self.typed(handler, Pt::Type(function), ctx);
         let whole = self.ast.span(handler).to_synthetic();
         let end = whole.end_pos().to_synthetic();

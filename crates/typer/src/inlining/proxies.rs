@@ -176,7 +176,7 @@ impl Inlining<'_> {
             return None;
         }
         let seq = self.u.class_ref(crate::defn::IMMUTABLE_SEQ);
-        Some(self.u.intern_type(Type::Applied(seq, args)))
+        Some(self.u.intern_applied(seq, &args))
     }
 
     /// Whether parameter type `p` is annotated `@InlineParam`, also inside a by-name type.

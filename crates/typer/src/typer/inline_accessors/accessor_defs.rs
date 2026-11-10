@@ -96,7 +96,7 @@ fn method_clauses(u: &Universe, info: &mut TypeId) -> Vec<Clause> {
             Type::Method { implicit: true, .. } => f::TERM_PARAM.or(f::IMPLICIT),
             _ => f::TERM_PARAM,
         };
-        clauses.push(Clause { binder: Some(binder), params, flags });
+        clauses.push(Clause { binder: Some(binder), params: u.params_of(params).to_vec(), flags });
         *info = r;
     }
     clauses

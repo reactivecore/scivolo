@@ -65,6 +65,7 @@ fn forwarder(
     if !l.u.param_clauses(result).is_empty() {
         return unsupported(span, "varargs forwarders of polymorphic or curried methods");
     }
+    let params = l.u.params_of(params).to_vec();
     let Some(&(_, repeated)) = params.last().filter(|&&(_, p)| l.u.is_class_named(p, "scala.<repeated>"))
     else {
         return unsupported(span, "@varargs on a method whose last parameter is not repeated");
@@ -83,7 +84,7 @@ fn forwarder(
         params.iter().zip(names).map(|(&(n, t), m)| (m.unwrap_or(n), t)).collect();
     fparams.last_mut().expect("a repeated parameter").1 = array;
     let binder = l.u.fresh_binder();
-    let finfo = l.u.intern_type(Type::Method { binder, params: fparams, result, implicit, contextual });
+    let finfo = l.u.intern_method(binder, &fparams, result, implicit, contextual);
     let name = l.u.symbol(meth).name.clone();
     if conflicts(l, class, &name, finfo, java) {
         return unsupported(span, "a varargs forwarder conflicting with a member of its signature");

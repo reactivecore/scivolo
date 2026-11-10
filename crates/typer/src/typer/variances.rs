@@ -135,13 +135,13 @@ impl TypeOps<'_> {
             },
             Type::Applied(tycon, args) => {
                 let variances = self.u.constructor_variances(tycon);
-                for (i, a) in args.into_iter().enumerate() {
+                for (i, a) in self.u.types_of(args).to_vec().into_iter().enumerate() {
                     go(self, a, v * variances.get(i).copied().unwrap_or(0));
                 }
                 go(self, tycon, v);
             }
             Type::Method { params, result, .. } => {
-                for (_, p) in params {
+                for (_, p) in self.u.params_of(params).to_vec() {
                     go(self, p, -v);
                 }
                 go(self, result, v);

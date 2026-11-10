@@ -73,7 +73,7 @@ impl Unpickler<'_> {
         match self.u.ty(t).clone() {
             Type::Method { binder, params, result, implicit, contextual } => {
                 let mut mapped = Vec::new();
-                for (n, p) in params {
+                for (n, p) in self.u.params_of(params).to_vec() {
                     let elem = match self.u.annotated(p) {
                         Some((seq, annot)) if self.is_repeated_annot(annot) => match self.u.applied(seq) {
                             Some((_, args)) if args.len() == 1 => Some(args[0]),
@@ -84,7 +84,7 @@ impl Unpickler<'_> {
                     mapped.push((n, elem.map_or(p, |e| self.repeated_type(e))));
                 }
                 let result = self.with_repeated_class(result);
-                self.u.intern_type(Type::Method { binder, params: mapped, result, implicit, contextual })
+                self.u.intern_method(binder, &mapped, result, implicit, contextual)
             }
             Type::Poly { binder, params, result } => {
                 let result = self.with_repeated_class(result);
@@ -104,7 +104,7 @@ impl Unpickler<'_> {
         let synthetic = Flags::default().with(SYNTHETIC);
         let class = crate::special::special(self.u, scala, "<repeated>", Kind::Class, synthetic);
         let class = type_ref(self.u, class);
-        self.u.intern_type(Type::Applied(class, vec![elem]))
+        self.u.intern_applied(class, &[elem])
     }
 
     /// The type of `fun(args)`: the result of `fun`'s method type, its parameters replaced by the

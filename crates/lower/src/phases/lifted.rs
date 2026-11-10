@@ -170,8 +170,7 @@ pub fn define(
         proxies.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
     typed.extend(params.iter().copied());
     let binder = l.u.fresh_binder();
-    let info =
-        l.u.intern_type(Type::Method { binder, params: typed, result, implicit: false, contextual: false });
+    let info = l.u.intern_method(binder, &typed, result, false, false);
     l.u.set_info(sym, info);
     Method { sym, proxies, all_args: None }
 }

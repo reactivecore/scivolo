@@ -9,7 +9,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Makes the `@static` values among `stats` of object class `module` with template body `body`
@@ -145,13 +145,7 @@ fn clinit(
     let sym = l.u.define(symbol("<clinit>", Kind::Def, class, flags));
     let unit = l.u.class_ref("scala.Unit");
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: Vec::new(),
-        result: unit,
-        implicit: false,
-        contextual: false,
-    });
+    let info = l.u.intern_method(binder, &[], unit, false, false);
     l.u.set_info(sym, info);
     let stores: Vec<TNodeId> = inits
         .iter()

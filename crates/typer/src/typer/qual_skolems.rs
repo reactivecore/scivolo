@@ -43,6 +43,7 @@ fn approximated(u: &mut Universe, t: TypeId, v: i8, (p, owner): (TypeId, SymbolI
         Type::Sym(Some(pre), s) if v <= 0 && is_owner_this(u, pre, owner) => not_forwarded(u, p, s),
         Type::Sym(Some(pre), _) => m(u, pre, v.max(0)),
         Type::Applied(tycon, args) => {
+            let args = u.types_of(args).to_vec();
             let variances = u.tycon_variances(tycon, args.len());
             m(u, tycon, v)
                 || args.iter().zip(variances).any(|(&a, pv)| {
@@ -54,7 +55,9 @@ fn approximated(u: &mut Universe, t: TypeId, v: i8, (p, owner): (TypeId, SymbolI
         Type::Bounds(lo, hi) => m(u, lo, -v) || m(u, hi, v),
         Type::Method { params, result, .. }
         | Type::Poly { params, result, .. }
-        | Type::Lambda { params, result, .. } => params.iter().any(|&(_, x)| m(u, x, -v)) || m(u, result, v),
+        | Type::Lambda { params, result, .. } => {
+            u.params_of(params).to_vec().into_iter().any(|(_, x)| m(u, x, -v)) || m(u, result, v)
+        }
         Type::And(x, y) | Type::Or(x, y, _) | Type::Refined(x, _, y) => m(u, x, v) || m(u, y, v),
         Type::ByName(x) | Type::Annotated(x, _) | Type::Rec(_, x) | Type::Skolem(_, x) => m(u, x, v),
         Type::Sym(None, _) | Type::Constant(..) | Type::Str(_) | Type::Param(..) => false,

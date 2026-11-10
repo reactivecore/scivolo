@@ -27,8 +27,9 @@ fn substituted(u: &mut Universe, c: &Constraint, t: TypeId, changed: &mut bool, 
             Some(u.intern_type(Type::Skolem(b, info)))
         }
         Type::Applied(tycon, args) if keep && lambda_instance(u, c, tycon).is_some() => {
-            let args = args.iter().map(|&a| substituted(u, c, a, changed, keep)).collect();
-            Some(u.intern_type(Type::Applied(tycon, args)))
+            let args: Vec<_> =
+                u.types_of(args).to_vec().into_iter().map(|a| substituted(u, c, a, changed, keep)).collect();
+            Some(u.intern_applied(tycon, &args))
         }
         _ => None,
     })
@@ -54,8 +55,8 @@ fn with_lambda_instances(u: &mut Universe, c: &Constraint, t: TypeId) -> TypeId 
     u.map_type(t, &mut |u, part| {
         let (tycon, args) = u.applied(part).map(|(tycon, args)| (tycon, args.to_vec()))?;
         let inst = lambda_instance(u, c, tycon)?;
-        let args = args.iter().map(|&a| with_lambda_instances(u, c, a)).collect();
-        Some(u.intern_type(Type::Applied(inst, args)))
+        let args: Vec<_> = args.iter().map(|&a| with_lambda_instances(u, c, a)).collect();
+        Some(u.intern_applied(inst, &args))
     })
 }
 

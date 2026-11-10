@@ -64,8 +64,10 @@ impl Typer<'_> {
         }
         let (mut info, mut n) = (self.u.info(s), 0);
         loop {
-            match self.u.ty(info) {
-                Type::Method { params, result, .. } if params.is_empty() => (info, n) = (*result, n + 1),
+            match *self.u.ty(info) {
+                Type::Method { params, result, .. } if self.u.params_of(params).is_empty() => {
+                    (info, n) = (result, n + 1)
+                }
                 Type::Method { .. } | Type::Poly { .. } => return None,
                 _ => return Some(n),
             }

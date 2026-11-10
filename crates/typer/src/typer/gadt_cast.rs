@@ -142,11 +142,12 @@ impl Gadt {
         }
         match u.ty(t).clone() {
             Type::Applied(tycon, args) => {
+                let args = u.types_of(args).to_vec();
                 let variances = u.tycon_variances(tycon, args.len());
-                let args = args
-                    .iter()
+                let args: Vec<_> = args
+                    .into_iter()
                     .zip(variances)
-                    .map(|(&a, v)| self.approximate(u, a, variance * v, ctx))
+                    .map(|(a, v)| self.approximate(u, a, variance * v, ctx))
                     .collect();
                 let tycon = match plain_type_ref(u, tycon) {
                     Some(s) if variance != 0 && self.is_symbol(u, s, ctx) => {
@@ -162,7 +163,7 @@ impl Gadt {
                     }
                     _ => tycon,
                 };
-                u.intern_type(Type::Applied(tycon, args))
+                u.intern_applied(tycon, &args)
             }
             Type::And(a, b) => {
                 let (a, b) = (self.approximate(u, a, variance, ctx), self.approximate(u, b, variance, ctx));

@@ -7,7 +7,7 @@
 
 use super::{member, package, symbol, type_ref};
 use tasty::tags::TRAIT;
-use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Erased, Flags, Kind, SymbolId, TypeId, Universe};
 
 /// `JProcedure{arity}`, with abstract method `applyVoid` of object parameters.
 pub fn procedure(u: &mut Universe, arity: usize) -> Result<SymbolId, String> {
@@ -134,10 +134,10 @@ fn interface(
 /// Method `name` of `owner`.
 fn method(u: &mut Universe, owner: SymbolId, name: &str, params: &[TypeId], result: TypeId) -> SymbolId {
     let m = u.define(symbol(name, Kind::Def, owner, Flags::default()));
-    let params =
+    let params: Vec<_> =
         params.iter().enumerate().map(|(i, &t)| (u.intern_name(&format!("v{}", i + 1)), t)).collect();
     let binder = u.fresh_binder();
-    let info = u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
+    let info = u.intern_method(binder, &params, result, false, false);
     u.set_info(m, info);
     m
 }

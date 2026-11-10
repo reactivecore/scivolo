@@ -48,7 +48,8 @@ impl Cmp<'_> {
         }
         match (self.u.ty(x).clone(), self.u.ty(y).clone()) {
             (Type::Lambda { params: p1, result: r1, .. }, Type::Lambda { params: p2, result: r2, .. }) => {
-                return p1.len() != p2.len() || self.disjoint_in(r1, r2, pending);
+                return self.u.params_of(p1).len() != self.u.params_of(p2).len()
+                    || self.disjoint_in(r1, r2, pending);
             }
             (Type::Lambda { .. }, _) | (_, Type::Lambda { .. }) => return true,
             _ => {}
@@ -96,10 +97,13 @@ impl Cmp<'_> {
                     Some(s) if self.u.symbol(s).kind == Kind::Class => return t,
                     _ => match self.fold_compiletime(t) {
                         Some(folded) => return folded,
-                        None => match self.applied_super_type(tycon, &args) {
-                            Some(sup) => self.normal(sup),
-                            None => return ANY,
-                        },
+                        None => {
+                            let args = self.u.types_of(args).to_vec();
+                            match self.applied_super_type(tycon, &args) {
+                                Some(sup) => self.normal(sup),
+                                None => return ANY,
+                            }
+                        }
                     },
                 },
                 Type::And(..) | Type::Or(..) | Type::Constant(..) | Type::Str(_) | Type::Lambda { .. } => {

@@ -8,7 +8,7 @@ use crate::tpd::{MatchKind, Slot, TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName};
 use tasty::tags::{INLINEPROXY, SYNTHETIC};
-use tasty::{ANY, Kind, SymbolId, Type, TypeId};
+use tasty::{ANY, Kind, SymbolId, TypeId};
 
 impl Reflect<'_> {
     /// `Term.underlying` (dotty's `MapToUnderlying`): `t` and its subtrees without the inlined
@@ -80,7 +80,7 @@ impl Reflect<'_> {
     pub fn repeated(&mut self, elems: &[TNodeId], elemtpt: TNodeId) -> TNodeId {
         let span = self.span;
         let seq = self.u.class_ref(crate::defn::IMMUTABLE_SEQ);
-        let tpe = self.u.intern_type(Type::Applied(seq, vec![self.tpd.tpe(elemtpt)]));
+        let tpe = self.u.intern_applied(seq, &[self.tpd.tpe(elemtpt)]);
         let elems = self.tpd.list(elems);
         self.tpd.node(T::SeqLiteral { elems, elemtpt }, span, Some(tpe), None)
     }

@@ -45,7 +45,7 @@ impl Typer<'_> {
                 continue;
             }
             let tycon = type_ref(self.u, class);
-            let pt = self.u.intern_type(Type::Applied(tycon, vec![arg]));
+            let pt = self.u.intern_applied(tycon, &[arg]);
             let found = self.implicit_arg(pt, self.tpd.span(body), ctx, 0).map(|tag| self.tpd.tpe(tag));
             match (found, self.tpd.pattern_given(s)) {
                 (Ok(path), _) if self.u.sym_of(path).is_some_and(|t| self.u.symbol(t).kind.is_term()) => {
@@ -74,7 +74,7 @@ impl Typer<'_> {
             let given = self.syms.define(self.u, &name, Kind::Val, ctx.owner, GIVEN.or(CASE));
             let arg = self.u.intern_type(Type::Sym(None, t));
             let tycon = type_ref(self.u, class);
-            let info = self.u.intern_type(Type::Applied(tycon, vec![arg]));
+            let info = self.u.intern_applied(tycon, &[arg]);
             self.u.set_info(given, info);
             self.tpd.set_pattern_given(t, given);
         }

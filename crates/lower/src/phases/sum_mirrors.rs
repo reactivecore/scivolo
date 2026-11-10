@@ -70,9 +70,8 @@ pub fn enum_ordinal(
     let cc = l.case_classes()?;
     let int = l.u.class_ref("scala.Int");
     let binder = l.u.fresh_binder();
-    let params = vec![(l.u.intern_name("x$0"), param)];
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
+    let params = [(l.u.intern_name("x$0"), param)];
+    let info = l.u.intern_method(binder, &params, int, false, false);
     let like = l.u.decls_named(cc.mirror_sum, "ordinal");
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     if has_mirror_method(l, class, like, info) {
@@ -103,9 +102,8 @@ pub fn ordinal(
     let children = children(l, root, sealed);
     let int = l.u.class_ref("scala.Int");
     let binder = l.u.fresh_binder();
-    let params = vec![(l.u.intern_name("x$0"), param)];
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
+    let params = [(l.u.intern_name("x$0"), param)];
+    let info = l.u.intern_method(binder, &params, int, false, false);
     let like = l.u.decls_named(cc.mirror_sum, "ordinal");
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     if has_mirror_method(l, class, like, info) {

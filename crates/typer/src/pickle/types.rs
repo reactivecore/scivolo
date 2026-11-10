@@ -7,7 +7,7 @@ use super::sharing::BY_NAME;
 use super::{Refusal, TreePickler};
 use tasty::tags::*;
 use tasty::write::{Addr, Name};
-use tasty::{Binder, NameId, Type, TypeId};
+use tasty::{Binder, ParamList, Type, TypeId};
 
 impl TreePickler<'_> {
     fn types(&mut self, ts: &[TypeId], rich: bool) -> Result<(), Refusal> {
@@ -16,10 +16,13 @@ impl TreePickler<'_> {
 
     pub fn new_type(&mut self, t: TypeId, rich: bool, at: Addr) -> Result<(), Refusal> {
         match self.u.ty(t).clone() {
-            Type::Applied(tycon, args) => self.with_length(APPLIEDtype, &mut |p| {
-                p.ty(tycon, false)?;
-                p.types(&args, false)
-            }),
+            Type::Applied(tycon, args) => {
+                let args = self.u.types_of(args).to_vec();
+                self.with_length(APPLIEDtype, &mut |p| {
+                    p.ty(tycon, false)?;
+                    p.types(&args, false)
+                })
+            }
             Type::MatchCase(pat, body) => {
                 self.with_length(MATCHCASEtype, &mut |p| p.types(&[pat, body], false))
             }
@@ -94,18 +97,18 @@ impl TreePickler<'_> {
                 self.ty(result, false)
             }
             Type::Lambda { binder, params, result } => {
-                self.methodic(TYPELAMBDAtype, (binder, at), &params, result, None)
+                self.methodic(TYPELAMBDAtype, (binder, at), params, result, None)
             }
-            Type::Match { bound, scrutinee, cases } => self.with_length(MATCHtype, &mut |p| {
-                p.types(&[bound, scrutinee], false)?;
-                p.types(&cases, false)
-            }),
+            Type::Match { bound, scrutinee, cases } => {
+                let parts = [&[bound, scrutinee][..], self.u.types_of(cases)].concat();
+                self.with_length(MATCHtype, &mut |p| p.types(&parts, false))
+            }
             Type::Poly { binder, params, result } if rich => {
-                self.methodic(POLYtype, (binder, at), &params, result, None)
+                self.methodic(POLYtype, (binder, at), params, result, None)
             }
             Type::Method { binder, params, result, implicit, contextual } if rich => {
                 let mods = if contextual { Some(GIVEN) } else { implicit.then_some(IMPLICIT) };
-                self.methodic(METHODtype, (binder, at), &params, result, mods)
+                self.methodic(METHODtype, (binder, at), params, result, mods)
             }
             Type::Annotated(underlying, class) if self.is_inferred_mark(class) => {
                 self.with_length(ANNOTATEDtype, &mut |p| {
@@ -133,16 +136,17 @@ impl TreePickler<'_> {
         &mut self,
         tag: u8,
         (binder, at): (Binder, Addr),
-        params: &[(NameId, TypeId)],
+        params: ParamList,
         result: TypeId,
         modifier: Option<u8>,
     ) -> Result<(), Refusal> {
+        let params = self.u.params_of(params).to_vec();
         self.binders.insert(binder, at);
         self.params.insert(binder, params.iter().map(|&(n, _)| n).collect());
         self.open.push(binder);
         let pickled = self.with_length(tag, &mut |p| {
             p.ty(result, true)?;
-            for &(name, t) in params {
+            for &(name, t) in &params {
                 p.ty(t, false)?;
                 let name = param_name(p.u.name(name));
                 p.name(&name);

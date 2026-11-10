@@ -29,7 +29,7 @@ impl Host {
             (None, &T::SeqLiteral { elemtpt, .. }) => {
                 let seq = self.u.class_ref("scala.collection.immutable.Seq");
                 let elem = self.tpd.tpe(elemtpt);
-                Ok(self.u.intern_type(tasty::Type::Applied(seq, vec![elem])))
+                Ok(self.u.intern_applied(seq, &[elem]))
             }
             _ => Err("the type of a tree without one"),
         }

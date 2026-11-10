@@ -72,13 +72,7 @@ impl Typer<'_> {
         let names: Vec<(NameId, TypeId)> =
             params.iter().map(|&p| (self.u.interned_name(p), self.u.info(p))).collect();
         let result = self.param_refs(result, &params, binder);
-        let method = self.u.intern_type(Type::Method {
-            binder,
-            params: names,
-            result,
-            implicit: false,
-            contextual: false,
-        });
+        let method = self.u.intern_method(binder, &names, result, false, false);
         let tpe = self.poly_function_of(&tparams, method);
         let Type::Refined(parent, _, info) = *self.u.ty(tpe) else { unreachable!("a refined type") };
         self.u.set_info(owner, info);
@@ -134,7 +128,7 @@ impl Typer<'_> {
             })
             .collect();
         let result = self.param_refs(method, tparams, binder);
-        let info = self.u.intern_type(Type::Poly { binder, params, result });
+        let info = self.u.intern_poly(binder, &params, result);
         let parent = self.u.class_ref(crate::defn::POLY_FUNCTION);
         let apply = self.u.intern_name("apply");
         self.u.intern_type(Type::Refined(parent, apply, info))

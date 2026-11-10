@@ -92,13 +92,7 @@ pub fn method(l: &mut Lower, c: SymbolId, name: &str, span: Span) -> Result<Symb
 pub fn method_symbol(l: &mut Lower, name: &str, owner: SymbolId, result: TypeId) -> SymbolId {
     let s = l.u.define(symbol(name, Kind::Def, owner, Flags::default().with(SYNTHETIC)));
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: Vec::new(),
-        result,
-        implicit: false,
-        contextual: false,
-    });
+    let info = l.u.intern_method(binder, &[], result, false, false);
     l.u.set_info(s, info);
     s
 }

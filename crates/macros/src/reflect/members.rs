@@ -56,7 +56,7 @@ impl Host {
         while let Type::Poly { params, result, .. } | Type::Method { params, result, .. } =
             self.u.ty(t).clone()
         {
-            sizes.push(params.len());
+            sizes.push(self.u.params_of(params).len());
             t = result;
         }
         let mut params = self.u.symbol(s).decls.clone();

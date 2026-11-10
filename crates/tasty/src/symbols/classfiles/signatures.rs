@@ -87,7 +87,7 @@ impl<'a> Sig<'a> {
                 let plain_var = vars.iter().any(|&(_, t, plain)| t == elem && plain);
                 let elem = if plain_var { u.types.intern(Type::And(object, elem)) } else { elem };
                 let array = u.class_ref("scala.Array");
-                Ok(u.types.intern(Type::Applied(array, vec![elem])))
+                Ok(u.types.intern_applied(array, &[elem]))
             }
             b'T' => {
                 let name = self.name(b";")?;
@@ -112,7 +112,7 @@ impl<'a> Sig<'a> {
                     args.push(self.arg(u, vars)?);
                 }
                 self.at += 1;
-                u.types.intern(Type::Applied(class, args))
+                u.types.intern_applied(class, &args)
             }
             _ if name == "java/lang/Object" => u.types.intern(Type::Sym(None, u.defn().from_java_object)),
             _ if self.skip => class,
@@ -208,7 +208,7 @@ pub fn cooked(u: &mut Universe, internal: &str) -> TypeId {
         return class;
     }
     let wildcard = u.types.intern(Type::Bounds(NOTHING, ANY));
-    u.types.intern(Type::Applied(class, vec![wildcard; n]))
+    u.types.intern_applied(class, &vec![wildcard; n])
 }
 
 /// A reference to the class of internal name `internal`, a nested class `A$B` as `A.B`.

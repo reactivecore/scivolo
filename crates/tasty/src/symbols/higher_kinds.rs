@@ -55,7 +55,8 @@ impl Universe {
     /// The variances of the parameters of type lambda `t`; bivariant for a lambda of `pending`,
     /// whose variances are being computed.
     pub fn lambda_variance_flags(&mut self, t: TypeId, pending: &[Binder]) -> Option<Vec<i32>> {
-        let Type::Lambda { binder, params, result } = self.ty(t).clone() else { return None };
+        let l = self.lambda(t)?;
+        let (binder, params, result) = (l.binder, l.params.to_vec(), l.result);
         if let Some(declared) = self.declared_variances(binder).filter(|v| v.len() == params.len()) {
             return Some(declared.into_iter().map(flags).collect());
         }
@@ -100,6 +101,7 @@ impl Narrowing {
             }
             Type::Applied(tycon, args) => {
                 self.go(u, tycon, v);
+                let args = u.types_of(args).to_vec();
                 let signs = self.tycon_variances(u, tycon, args.len());
                 for (arg, s) in args.into_iter().zip(signs) {
                     let bounds = matches!(u.ty(arg), Type::Bounds(..) | Type::Wildcard(_));
@@ -122,7 +124,7 @@ impl Narrowing {
             | Type::Poly { params, result, .. }
             | Type::Lambda { params, result, .. } => {
                 let case = matches!(u.ty(result), Type::MatchCase(..));
-                for (_, p) in params {
+                for (_, p) in u.params_of(params).to_vec() {
                     self.go(u, p, if case { 0 } else { -v });
                 }
                 self.go(u, result, v);
@@ -130,7 +132,7 @@ impl Narrowing {
             Type::Match { bound, scrutinee, cases } => {
                 self.go(u, bound, v);
                 self.go(u, scrutinee, 0);
-                for c in cases {
+                for c in u.types_of(cases).to_vec() {
                     self.go(u, c, v);
                 }
             }
