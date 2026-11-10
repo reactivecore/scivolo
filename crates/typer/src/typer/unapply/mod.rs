@@ -4,19 +4,21 @@
 mod extractor;
 mod fun;
 mod implicits;
-mod named;
 mod own_type;
+mod product_patterns;
 mod proto;
 mod seq_patterns;
 mod transparent;
 mod type_args;
 
-use super::unapply_args::UnapplyArgs;
 use super::{Pt, Typer};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{List, NodeId};
+use syntax::ast::{List, NodeId, Tree};
 use tasty::TypeId;
+
+/// The written name of a sequence wildcard's type, `x: _*`.
+const SEQ_WILDCARD: &str = "_*";
 
 /// One extractor pattern `C(p1, ..., pn)` against a value of the scrutinee's type (dotty's
 /// `typedUnApply`): `C.unapply`, or `C.unapplySeq` for `C(p, xs*)`, selected on `C`, applied to
@@ -79,18 +81,18 @@ impl UnapplyPattern {
         self.retype_tuple_arg_types(t);
         let extractor = self.extractor(t, fun)?;
         let unapp = extractor.fun;
-        let method = extractor::method_shape(t, unapp)?;
 
-        let own = self.pattern_type(t, method.arg_type, extractor.vars, unapp)?;
+        let own = self.pattern_type(t, extractor.method.arg_type, extractor.vars, unapp)?;
         let sel = t.zonk(self.sel);
         let (normal_own, normal_sel) = (t.normalized(own), t.normalized(sel));
         let tested = t.stripped(normal_own) != t.stripped(normal_sel);
 
-        let sym = t.tpd.sym(t.tpd.meth_part(unapp));
-        let result = implicits::applied_unapply_result(&mut t.types(), sym, &method, own);
-        let (result, implicits) = self.unapply_implicits(t, unapp, result, own)?;
-        let result = t.simplified(result);
-        let patterns = self.typed_patterns(t, result, extractor.seq)?;
+        let (result, implicits) = self.applied_extractor(t, &extractor, own)?;
+        let patterns = if extractor.seq {
+            self.typed_seq_patterns(t, result)?
+        } else {
+            self.typed_product_patterns(t, result)?
+        };
 
         let (implicits, patterns) = (t.tpd.list(&implicits), t.tpd.list(&patterns));
         let span = t.ast.span(self.id);
@@ -102,35 +104,32 @@ impl UnapplyPattern {
         t.type_tested_unapply(self.id, tree, own, sel, self.ctx)
     }
 
-    /// Types the argument patterns against the types extractor result `result` gives them, as
-    /// those of an `unapplySeq` if `seq`.
-    fn typed_patterns(
-        &mut self,
-        t: &mut Typer<'_>,
-        result: TypeId,
-        seq: bool,
-    ) -> Result<Vec<TNodeId>, &'static str> {
-        let named = self.args.iter().any(|&a| named::is_named_pattern(t, a));
-        if seq {
-            if named {
-                return Err("named pattern of a sequence extractor");
+    /// Types the applied type trees of typed patterns, as `List[Int]` of `(x: List[Int], y)`,
+    /// against a tuple scrutinee of their arity once more, the result unused.
+    fn retype_tuple_arg_types(&self, t: &mut Typer<'_>) {
+        let sel = self.scrutinee;
+        let Some((tycon, n)) = t.u.applied(sel).map(|(c, targs)| (c, targs.len())) else { return };
+        let tuple = format!("scala.Tuple{n}");
+        if n != self.args.len() || t.u.class_symbol(tycon).is_none_or(|c| t.u.full_name(c) != tuple) {
+            return;
+        }
+        for &a in &self.args {
+            if let Tree::Typed { tpt, .. } = *t.ast.tree(a)
+                && matches!(t.ast.tree(tpt), Tree::AppliedTypeTree { .. })
+            {
+                t.typed_type(tpt, self.ctx.with_mode(Mode::PATTERN_TYPE));
             }
-            let types = UnapplyArgs { result, n: self.args.len() }.seq_arg_types(t)?;
-            return self.typed_seq_patterns(t, types);
         }
-
-        let mut values = None;
-        if named {
-            let names;
-            (names, values) = self.named_pattern_elements(t, result)?;
-            self.args = super::named_tuple_patterns::adapt_pattern_args(t, &self.args, &names)?;
-        }
-        let arg_types = match values {
-            Some(values) => values,
-            None => UnapplyArgs { result, n: self.args.len() }.arg_types(t)?,
-        };
-        Ok((self.args.iter().zip(arg_types))
-            .map(|(&a, tpe)| named::typed_pattern_arg(t, a, tpe, self.ctx))
-            .collect())
     }
+}
+
+/// Whether pattern `a` is named, `x = p`.
+fn is_named_pattern(t: &Typer<'_>, a: NodeId) -> bool {
+    matches!(t.ast.tree(a), Tree::NamedArg { .. })
+}
+
+/// Whether pattern `a` is a sequence wildcard `x*` or `_*`.
+fn is_seq_wildcard(t: &Typer<'_>, a: NodeId) -> bool {
+    let Tree::Typed { tpt, .. } = *t.ast.tree(a) else { return false };
+    matches!(*t.ast.tree(tpt), Tree::Ident { name } if name.is_type && t.text(name.name) == SEQ_WILDCARD)
 }

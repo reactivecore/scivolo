@@ -4,7 +4,8 @@
 //! (dotty's `unapplyFn` in `typedUnApply`).
 
 use super::super::Typer;
-use super::{UnapplyPattern, seq_patterns};
+use super::{UnapplyPattern, is_seq_wildcard};
+use crate::ctx::Mode;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
 use tasty::{Binder, Type, TypeId};
@@ -18,6 +19,8 @@ pub struct Extractor {
     pub seq: bool,
     /// The number of type variables of the constraint before those of the extractor.
     pub vars: usize,
+    /// The method type of `fun`.
+    pub method: MethodShape,
 }
 
 /// The method type of an extractor: one scrutinee parameter, then at most implicit clauses.
@@ -35,7 +38,9 @@ pub struct MethodShape {
 impl UnapplyPattern {
     /// Selects the extractor method of `fun`, `C`, `C[Ts]` or `new C[T]`, and applies it to its
     /// type arguments, or type variables for its type parameters, and to the implicit clauses
-    /// before its scrutinee; a transparent inline extractor is expanded.
+    /// before its scrutinee; a transparent inline extractor is expanded. Refuses type arguments
+    /// of other extractors, a sequence wildcard without `unapplySeq`, and methods that take more
+    /// than the scrutinee and implicit clauses.
     pub fn extractor(&self, t: &mut Typer<'_>, fun: NodeId) -> Result<Extractor, &'static str> {
         let applied = fun;
         let type_args = self.unapply_type_args(t, fun);
@@ -56,7 +61,7 @@ impl UnapplyPattern {
             let span = t.tpd.span(qualifier);
             t.tpd.get_mut(qualifier).span = span.to_synthetic();
         }
-        if !seq && self.args.iter().any(|&a| seq_patterns::is_seq_wildcard(t, a)) {
+        if !seq && self.args.iter().any(|&a| is_seq_wildcard(t, a)) {
             return Err("sequence wildcard of an extractor without unapplySeq");
         }
 
@@ -67,13 +72,32 @@ impl UnapplyPattern {
         };
         let unapp = self.leading_implicits_applied(t, unapp)?;
         let unapp = self.transparent_unapply(t, unapp)?;
-        Ok(Extractor { fun: unapp, seq, vars })
+        let method = method_shape(t, unapp)?;
+        Ok(Extractor { fun: unapp, seq, vars, method })
+    }
+
+    /// Applies extractor `unapp` to the arguments the search finds for the implicit clauses
+    /// before its scrutinee, as `unapply(using Ord[T])(x: T)` (dotty's `adapt` of `unapplyFn`
+    /// to `FunProto(dummyArg)`).
+    fn leading_implicits_applied(
+        &self,
+        t: &mut Typer<'_>,
+        mut unapp: TNodeId,
+    ) -> Result<TNodeId, &'static str> {
+        loop {
+            let tpe = t.tpd.tpe(unapp);
+            let info = t.method_info(tpe).unwrap_or(tpe);
+            if !matches!(t.u.types().get(info), Type::Method { implicit: true, .. }) {
+                return Ok(unapp);
+            }
+            unapp = t.implicit_clause_applied(unapp, self.ctx.with_mode(Mode::NONE))?;
+        }
     }
 }
 
-/// The method type of extractor `unapp`; refused unless it takes one parameter and then at most
-/// implicit clauses.
-pub fn method_shape(t: &mut Typer<'_>, unapp: TNodeId) -> Result<MethodShape, &'static str> {
+/// Finds the method type of extractor `unapp`; refused unless it takes one parameter and then
+/// at most implicit clauses.
+fn method_shape(t: &mut Typer<'_>, unapp: TNodeId) -> Result<MethodShape, &'static str> {
     let fun_tpe = t.tpd.tpe(unapp);
     let info = t.method_info(fun_tpe).unwrap_or(fun_tpe);
     let Type::Method { binder, params, result, implicit: false, .. } = t.u.types().get(info).clone() else {
