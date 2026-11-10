@@ -3,23 +3,21 @@
 Status: accepted · Date: 2026-11-10
 
 ## Context
-ADR 0113 makes a bounded computation a component, created, run and dropped. Some state is not
-bounded by one computation: the GADT bounds of the cases being typed (`Gadt`), the not-null
-facts of the flow typing (`Nullables`), the open implicit searches and their budget (`History`).
-It is set on entering a scope and undone on leaving it, while the typer recurses through that
-scope. dotty keeps it in the `Context`.
+Some state is not bounded by one computation (ADR 0113): the GADT bounds of the cases being
+typed (`Gadt`), the not-null facts of the flow typing (`Nullables`), the open implicit searches
+(`History`). It is set on entering a scope and undone on leaving it while the typer recurses
+through that scope. dotty keeps it in the `Context`.
 
 ## Decision
-- Such state is one field of `Typer`, not created and dropped per computation.
-- Its methods are an `impl` of its own struct, not of `Typer`; the services they need (the
-  `Universe`, `TypeOps`, the scope levels) come in as arguments.
-- `Typer` keeps only what must run the typer inside the scope: `in_gadt_case`,
-  `outside_gadt_cases`.
-- A component that works on the state (the narrowing of the GADT bounds by a pattern, `Narrowing`)
-  reaches it through the typer it is passed.
+- Such state is one field of `Typer`, with its methods an `impl` of its own struct; the services
+  they need (the `Universe`, `TypeOps`, the scope levels) come in as arguments.
+- `Typer` keeps only the methods that need the typer: running it inside the scope
+  (`in_gadt_case`, `outside_gadt_cases`) or rewriting typed trees (`gadt_cast`, `gadt_adapted`,
+  `gadt_healed`).
+- A component working on the state (`Narrowing`) reaches it through the typer it is passed.
 
 ## Consequences
-- `Gadt` owns the type parameters narrowed by the cases being typed, the types they bind, and the
-  owners of polymorphic function values, whose type parameters it may narrow too.
-- A method of the state cannot take `&mut Typer`; one that needs a typing callback is a method of
-  a component or of `Typer`.
+- `Gadt` also owns the owners of polymorphic function values, whose type parameters a case
+  inside them may narrow.
+- A method of the state cannot take `&mut Typer`; one that needs the typer is a method of a
+  component or of `Typer`.
