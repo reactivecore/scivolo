@@ -6,7 +6,7 @@
 //! refutable patterns (dotty's `typedMatch` rewrite, `Checking.checkIrrefutable`,
 //! `Space.isIrrefutable`).
 
-use super::Typer;
+use super::super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Const, Type, TypeId, constant};
 

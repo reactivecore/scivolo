@@ -3,7 +3,7 @@
 //! Extractors `C[Ts](p1, ..., pn)` whose `C.unapply` takes the type arguments `Ts` (dotty's
 //! `tryWithTypeArgs` in `trySelectUnapply`).
 
-use super::Typer;
+use super::super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Span, Tree};

@@ -5,8 +5,8 @@
 //! against a tuple selector, named patterns reordered by the case accessors or named tuple
 //! elements (dotty's `adaptPatternArgs`).
 
-use super::small_tuples::MAX_TUPLE_ARITY;
-use super::{Pt, Typer};
+use super::super::small_tuples::MAX_TUPLE_ARITY;
+use super::super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, TName, Tree};

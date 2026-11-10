@@ -3,7 +3,7 @@
 //! The implicit clause of an extractor, `unapply(x)(using …)` (dotty's `typedUnApply` typing
 //! `unapplyFn(dummyArg)` and its `unapplyImplicits`).
 
-use super::Typer;
+use super::super::Typer;
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;

@@ -3,8 +3,8 @@
 //! dotty's migration warnings about refutable patterns of definitions (the messages of
 //! `Checking.checkIrrefutable`).
 
-use super::Typer;
-use super::irrefutable::{RUNTIME_CHECKED, Refutable, UNCHECKED};
+use super::super::Typer;
+use super::check::{RUNTIME_CHECKED, Refutable, UNCHECKED};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::TypeId;
 

@@ -4,7 +4,7 @@
 //! `UnapplyArgs`): those of the product selectors before a sequence of their types, the others of
 //! the element type, a last `x*` of the sequence.
 
-use super::{Pt, Typer};
+use super::super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};

@@ -3,6 +3,8 @@
 //! The result types of extractors (dotty's `UnapplyArgs`, `extractorMemberType`): product
 //! selectors, `get` of an `isEmpty`/`get` result, Boolean results, generic tuples.
 
+mod seq;
+
 use super::Typer;
 use super::dependent_params::applied_result;
 use crate::symbols::Completion;

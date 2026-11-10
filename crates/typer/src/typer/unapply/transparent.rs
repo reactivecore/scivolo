@@ -3,7 +3,7 @@
 //! Extractors that call transparent inline methods, wrapped and expanded while typing (dotty's
 //! `inlinedUnapplyFnAndApp`).
 
-use super::Typer;
+use super::super::Typer;
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
 use rustc_hash::FxHashMap;

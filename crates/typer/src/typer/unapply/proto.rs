@@ -3,8 +3,8 @@
 //! The prototype selecting among overloaded extractor methods: an application to one argument
 //! of the scrutinee's type (dotty's `specialProto` in `trySelectUnapply`).
 
-use super::overloads::FunProto;
-use super::{Pt, Typer};
+use super::super::overloads::FunProto;
+use super::super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::Tree as T;
 use syntax::ast::{Span, Tree};

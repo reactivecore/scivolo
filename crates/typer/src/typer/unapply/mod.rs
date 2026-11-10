@@ -3,6 +3,13 @@
 //! Extractor patterns `C(p1, ..., pn)` (dotty's `typedUnApply`): `C.unapply` applied to the
 //! matched value, its result's product selectors or `get` the expected types of the patterns.
 
+mod fun;
+mod implicits;
+mod named;
+mod proto;
+mod transparent;
+mod type_args;
+
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
