@@ -2,14 +2,21 @@
 //   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! Implicit arguments the compiler makes instead of finding them (dotty's `Synthesizer`): a
 //! `CanEqual` (`can_equal.rs`), a `ClassTag` (`class_tags.rs`), a `Mirror`
-//! (`product_mirrors.rs`), a `TypeTest` (`type_test_synthesis.rs`), a `TupledFunction`
+//! (`product_mirrors.rs`), a `TypeTest` (`type_tests.rs`), a `TupledFunction`
 //! (`tupled_functions.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
 
-use super::super::Typer;
-use super::super::constants::of_type;
-use super::manifests::ManifestKind;
+mod can_equal;
+mod class_tag_erasure;
+mod class_tags;
+mod manifests;
+mod tupled_functions;
+mod type_tests;
+
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use crate::typer::Typer;
+use crate::typer::constants::of_type;
+use manifests::ManifestKind;
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::{SymbolId, Type, TypeId};
@@ -23,7 +30,7 @@ pub struct Synthesizer {
     /// The context its trees are typed and its searches run in.
     pub ctx: Ctx,
     /// How deep the search that asks for the argument nests; its own searches nest one deeper.
-    pub depth: u32,
+    depth: u32,
 }
 
 impl Typer<'_> {
@@ -104,7 +111,7 @@ impl Synthesizer {
     }
 
     /// Adds untyped `tree` at `at` to the typer's syntax tree.
-    pub fn node(self, t: &mut Typer<'_>, tree: Tree) -> NodeId {
+    fn node(self, t: &mut Typer<'_>, tree: Tree) -> NodeId {
         let id = t.ast.node(tree);
         t.ast.with_span(id, self.at);
         id

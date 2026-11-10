@@ -6,12 +6,12 @@
 //! `ClassTag.apply[T](classOf[C])` for the class `C` that `T` erases to, an opaque type seen
 //! from outside among them.
 
-use super::super::Typer;
-use super::super::type_ops::TypeOps;
-use super::class_tag_erasure::{erased_class_type, has_stable_erasure, is_bottom};
-use super::synthesis::Synthesizer;
+use super::Synthesizer;
+use super::class_tag_erasure::{erased_class_type, has_stable_erasure};
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Kind, Type, TypeId, TypeVars};
+use crate::typer::Typer;
+use crate::typer::type_ops::TypeOps;
+use tasty::{Kind, Type, TypeId, TypeVars, Universe};
 
 /// How many type variables instantiating the argument of a class tag passes at most.
 const MAX_INSTANTIATIONS: u32 = 8;
@@ -139,5 +139,19 @@ fn is_ground(ty: &mut TypeOps<'_>, t: TypeId) -> bool {
         Type::Var(_) => false,
         Type::And(a, b) | Type::Or(a, b, _) => is_ground(ty, a) && is_ground(ty, b),
         _ => true,
+    }
+}
+
+/// Determines whether `t` is `Nothing` or `Null`, an intersection with such a side, or a union of
+/// such sides.
+fn is_bottom(u: &mut Universe, t: TypeId) -> bool {
+    let t = u.dealias(t);
+    match *u.types().get(t) {
+        Type::And(a, b) => is_bottom(u, a) || is_bottom(u, b),
+        Type::Or(a, b, _) => is_bottom(u, a) && is_bottom(u, b),
+        _ => {
+            let b = u.builtins();
+            u.class_symbol(t).is_some_and(|c| c == b.nothing || c == b.null)
+        }
     }
 }

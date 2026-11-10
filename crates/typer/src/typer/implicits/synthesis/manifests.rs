@@ -4,10 +4,10 @@
 //! manifests of primitive and special classes, else calls of `ManifestFactory.arrayType`,
 //! `wildcardType` and `classType`; `NoManifest` for an `OptManifest` of another type.
 
-use super::super::{Pt, Typer};
+use super::Synthesizer;
 use super::class_tag_erasure::{erased_class_type, has_stable_erasure};
-use super::synthesis::Synthesizer;
 use crate::tpd::TNodeId;
+use crate::typer::{Pt, Typer};
 use syntax::ast::{NodeId, TName, Tree};
 use tasty::{Kind, Type, TypeId};
 

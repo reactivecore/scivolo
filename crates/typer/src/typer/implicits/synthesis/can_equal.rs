@@ -4,11 +4,10 @@
 //! The `CanEqual` instances the compiler assumes (dotty's `synthesizedCanEqual`): for predefined
 //! classes that compare, and `CanEqual.canEqualAny` where neither side has a reflexive instance.
 
-use super::super::Typer;
-use super::synthesis::Synthesizer;
-use crate::ctx::{Ctx, Mode};
+use super::Synthesizer;
+use crate::ctx::Mode;
 use crate::tpd::TNodeId;
-use syntax::config::Features;
+use crate::typer::Typer;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 const NUMERIC: [&str; 7] = ["Byte", "Short", "Char", "Int", "Long", "Float", "Double"];
@@ -23,22 +22,6 @@ const BOXED: [(&str, &str); 9] = [
     ("scala.Boolean", "java.lang.Boolean"),
     ("scala.Unit", "scala.runtime.BoxedUnit"),
 ];
-
-impl Typer<'_> {
-    /// Builds the type `CanEqual[l, r]`; `None` if the class path has no `scala.CanEqual`.
-    pub fn can_equal_type(&mut self, l: TypeId, r: TypeId) -> Option<TypeId> {
-        let class = self.resolve_full_name("scala.CanEqual", true)?;
-        Some(crate::defn::applied(self.u, class, vec![l, r]))
-    }
-
-    /// Determines whether `==` in `ctx` needs a `CanEqual` instance: under
-    /// `import scala.language.strictEquality` or its compiler flag, and while checking whether a
-    /// type has a `CanEqual` with itself.
-    pub fn is_strict_equality(&mut self, ctx: Ctx) -> bool {
-        ctx.mode.is(Mode::STRICT_EQUALITY)
-            || self.feature_enabled(Features::STRICT_EQUALITY, "strictEquality", ctx)
-    }
-}
 
 impl Synthesizer {
     /// Synthesizes `CanEqual.canEqualAny[l, r]` for a comparison of `l` with `r` that needs no
