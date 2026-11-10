@@ -21,6 +21,14 @@ run and dropped.
 - `Typer` keeps only the entry points the rest of the typer calls, under their names.
 - A nested computation creates a new component.
 
+One component, one module directory: `<component>/mod.rs` holds the struct, its entry and the
+component's doc comment, which says what it does and which Scala code it handles. Its other files
+are private submodules, each exposing one entry to `mod.rs`, or as few as the call graph forces;
+everything else in them is private, and they may each add an `impl` block of the component.
+Service types (`TypeOps`) and scoped state structs are not components and keep their files. An
+item used from outside the component is re-exported from `mod.rs` only when the call graph forces
+it; such a shared helper rather moves out, to `TypeOps`, a `Symbol` method or a neutral module.
+
 ## When
 - For bounded computations and tree passes with their own state: an implicit search
   (`ImplicitSearch`), an implicit scope (`ImplicitScope`, `Parts`), a divergence measure.
