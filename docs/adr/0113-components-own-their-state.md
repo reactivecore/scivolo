@@ -30,8 +30,8 @@ run and dropped.
 - The core implicit search (`search`, `attempts`, `history`, `divergence`, `measures`, `ranking`,
   `contextual`, `candidates`, `scope`, `parts`, and their helpers) follows this, and so does
   synthesis (`Synthesizer`, `MirrorSynthesis`), the application of an implicit clause
-  (`ImplicitClause`) and the dictionary of by-name implicits (`Dictionary`, which takes them out
-  of `Typer::history`), and so does the search for a view (`ViewSearch`: conversions, extension
+  (`ImplicitClause`), the dictionary of by-name implicits (`Dictionary`, which takes them out
+  of `Typer::history`) and the search for a view (`ViewSearch`: conversions, extension
   containers, the view on a qualifier).
 - State shared across nested searches that run through the typer (the open searches, the by-name
   dictionary, the budget) stays in `Typer::history`, as dotty keeps it in the `Context`.

@@ -63,7 +63,9 @@ impl<'a> Goal<'a> {
 /// What a view search found: a converted tree, or an implicit value with the extension method a
 /// selection names.
 pub enum Viewed {
+    /// The tree with the conversion applied, as `BigInt(1)` for `1`.
     Converted(TNodeId),
+    /// The implicit value whose extension method the selection calls, as `ops` for `"ab".twice`.
     Extension(Candidate),
 }
 
