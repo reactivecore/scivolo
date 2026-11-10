@@ -12,9 +12,9 @@ impl Typer<'_> {
     /// Pattern `p1 | p2 | ...` against a value of type `pt`.
     pub fn typed_alternative(&mut self, id: NodeId, trees: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let ids = self.ast.items(trees).to_vec();
-        let narrowed = self.gadt_narrowed().len();
+        let narrowed = self.gadt.narrowed().len();
         let typed: Vec<TNodeId> = ids.iter().map(|&t| self.typed(t, pt, ctx)).collect();
-        if self.gadt_narrowed().len() != narrowed {
+        if self.gadt.narrowed().len() != narrowed {
             return self.unsupported(id, "GADT bounds from pattern alternatives");
         }
         if typed.iter().any(|&t| self.binds_variable(t)) {

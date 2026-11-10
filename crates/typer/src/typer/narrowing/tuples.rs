@@ -15,24 +15,22 @@ fn tuple_arity(u: &mut Universe, t: TypeId) -> Option<usize> {
     (arity == n).then_some(n)
 }
 
-impl Typer<'_> {
-    /// GADT upper bound `hi` with a tuple class applied as `A *: B *: … *: EmptyTuple.type`
-    /// (dotty's `compareAppliedType2` comparing a type with `toNestedPairs` of a `TupleN`).
-    pub fn gadt_upper_pairs(&mut self, hi: TypeId) -> TypeId {
-        if tuple_arity(self.u, hi).is_none() {
-            return hi;
-        }
-        let Type::Applied(_, args) = self.u.types().get(hi).clone() else { return hi };
-        let (Some(pair), Some(empty)) =
-            (self.resolve_full_name("scala.*:", true), self.resolve_full_name("scala.EmptyTuple", false))
-        else {
-            return hi;
-        };
-        let pair = crate::defn::type_ref(self.u, pair);
-        let mut t = self.u.intern_type(Type::Sym(None, empty));
-        for &a in args.iter().rev() {
-            t = self.u.intern_type(Type::Applied(pair, vec![a, t]));
-        }
-        t
+/// Rewrites GADT upper bound `hi` that applies a tuple class as `A *: B *: … *: EmptyTuple.type`
+/// (dotty's `compareAppliedType2` comparing a type with `toNestedPairs` of a `TupleN`).
+pub fn upper_pairs(t: &mut Typer, hi: TypeId) -> TypeId {
+    if tuple_arity(t.u, hi).is_none() {
+        return hi;
     }
+    let Type::Applied(_, args) = t.u.types().get(hi).clone() else { return hi };
+    let (Some(pair), Some(empty)) =
+        (t.resolve_full_name("scala.*:", true), t.resolve_full_name("scala.EmptyTuple", false))
+    else {
+        return hi;
+    };
+    let pair = crate::defn::type_ref(t.u, pair);
+    let mut ty = t.u.intern_type(Type::Sym(None, empty));
+    for &a in args.iter().rev() {
+        ty = t.u.intern_type(Type::Applied(pair, vec![a, ty]));
+    }
+    ty
 }

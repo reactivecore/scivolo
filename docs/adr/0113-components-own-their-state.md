@@ -46,3 +46,7 @@ run and dropped.
   for aliases and the variables assigned non-locally stay on `Typer`: typing fills them.
 - Avoiding local symbols in a type is a component, `Avoid`, whose methods take the typer: it
   completes the members of approximated prefixes and instantiates type variables.
+- State scoped to what the typer recurses through (`Gadt`, `Nullables`, `History`) stays a field
+  of `Typer` with its methods on its own struct (ADR 0114). The narrowing of the GADT bounds by
+  one pattern is a component, `Narrowing`, whose methods take the typer: comparing types
+  completes aliases.

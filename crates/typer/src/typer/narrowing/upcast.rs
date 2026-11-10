@@ -3,13 +3,14 @@
 //! A pattern type of a class unrelated to the selector's constrained by the base types they
 //! share (dotty's `constrainUpcasted` on a class application).
 
-use super::super::Typer;
+use super::super::type_ops::TypeOps;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
-impl Typer<'_> {
-    /// Whether pattern type `pat`, of a class neither deriving from nor derived by `sel`'s but
-    /// possibly sharing an instance with it, conforms to `sel`'s base types at the parents of its
-    /// class that `pat`'s class derives from, constraining type variables.
+impl TypeOps<'_> {
+    /// Tells whether pattern type `pat`, of a class neither deriving from nor derived by `sel`'s
+    /// but possibly sharing an instance with it, conforms to `sel`'s base types at the parents of
+    /// its class that `pat`'s class derives from, constraining type variables: `case c: C[a]`
+    /// against `B[Int]` where both extend `A[X]`.
     pub fn constrain_upcast(&mut self, pat: TypeId, sel: TypeId) -> bool {
         let widened = self.u.widen(pat);
         let (Some(p), Some(s)) = (self.u.class_symbol(widened), self.u.class_symbol(sel)) else {
@@ -54,6 +55,22 @@ impl Typer<'_> {
             } else {
                 self.shared_parents(k, p, out);
             }
+        }
+    }
+
+    /// Tells whether classes `p` and `s` may have a common instance: a final one derives from the
+    /// other, two classes one from the other; a trait always may (dotty's
+    /// `classesMayBeCompatible`).
+    pub fn classes_may_be_compatible(&mut self, p: SymbolId, s: SymbolId) -> bool {
+        let (pf, sf) = (self.u.symbol(p).flags, self.u.symbol(s).flags);
+        if pf.has(tasty::tags::FINAL) {
+            self.u.derives_from(p, s)
+        } else if sf.has(tasty::tags::FINAL) {
+            self.u.derives_from(s, p)
+        } else if !pf.has(tasty::tags::TRAIT) && !sf.has(tasty::tags::TRAIT) {
+            self.u.derives_from(p, s) || self.u.derives_from(s, p)
+        } else {
+            true
         }
     }
 }

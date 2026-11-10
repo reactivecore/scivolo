@@ -5,10 +5,15 @@
 //! outside them.
 
 use super::Typer;
-use crate::ctx::LevelId;
-use tasty::{SymbolId, Type, TypeId};
+use super::type_ops::TypeOps;
+use crate::ctx::{LevelId, Levels};
+use rustc_hash::FxHashSet;
+use tasty::{SymbolId, Type, TypeId, Universe};
 
-/// The type parameters narrowed by the patterns of the cases being typed.
+/// Holds what the cases being typed know of the type parameters their patterns narrow: in
+/// `def f[T](b: Box[T]): T = b match { case IntBox(i) => i }` the case knows `T = Int` (dotty's
+/// GADT constraint in the `Context`). One field of `Typer`, set on entering a case and undone on
+/// leaving it (ADR 0114).
 #[derive(Default)]
 pub struct Gadt {
     /// Each narrowed symbol with its GADT bounds before, innermost last.
@@ -21,97 +26,148 @@ pub struct Gadt {
     pub cases: u32,
     /// Whether the innermost case being typed is one of an inline match.
     pub inline: bool,
+    /// The owners given to the functions of polymorphic function values, whose type parameters
+    /// a case inside them may narrow.
+    pub poly_owners: FxHashSet<SymbolId>,
+}
+
+/// The state of `Gadt` before a case, restored after it.
+pub struct CaseMark {
+    saved: usize,
+    bound: usize,
+    open: usize,
+    cases: u32,
+    inline: bool,
+}
+
+/// The GADT bounds undone while a definition is typed ahead, restored after it.
+pub struct Suspended {
+    undone: Vec<(SymbolId, Option<(TypeId, TypeId)>)>,
+    cases: u32,
 }
 
 impl Typer<'_> {
-    /// `f` as the typing of a case, of an inline match if `inline`: the bounds its pattern
-    /// narrows restored after.
+    /// Runs `f` as the typing of a case, of an inline match if `inline`, and restores the bounds
+    /// its pattern narrows after it.
     pub fn in_gadt_case<R>(&mut self, inline: bool, f: impl FnOnce(&mut Self) -> R) -> R {
-        let (mark, bound, open) = (self.gadt.saved.len(), self.gadt.bound.len(), self.gadt.open.len());
-        let (cases, outer) = (self.gadt.cases, self.gadt.inline);
-        (self.gadt.cases, self.gadt.inline) = (cases + 1, inline);
+        let mark = self.gadt.enter_case(inline);
         let result = f(self);
-        (self.gadt.cases, self.gadt.inline) = (cases, outer);
-        self.gadt.bound.truncate(bound);
-        self.gadt.open.truncate(open);
-        let narrowed: Vec<_> = self.gadt.saved.drain(mark..).rev().collect();
-        for (s, bounds) in narrowed {
-            self.u.set_gadt_bounds(s, bounds);
-        }
+        self.gadt.leave_case(self.u, mark);
         result
+    }
+
+    /// Runs `f` as the typing ahead of a definition at `level`: without the bounds of the cases
+    /// that do not enclose it, and narrowing nothing outside a case of its own (dotty's completer
+    /// context).
+    pub fn outside_gadt_cases<R>(&mut self, level: LevelId, f: impl FnOnce(&mut Self) -> R) -> R {
+        let suspended = self.gadt.suspend(self.u, &self.levels, level);
+        let result = f(self);
+        self.gadt.resume(self.u, suspended);
+        result
+    }
+}
+
+impl Gadt {
+    /// Enters the typing of a case, of an inline match if `inline`.
+    pub fn enter_case(&mut self, inline: bool) -> CaseMark {
+        let mark = CaseMark {
+            saved: self.saved.len(),
+            bound: self.bound.len(),
+            open: self.open.len(),
+            cases: self.cases,
+            inline: self.inline,
+        };
+        (self.cases, self.inline) = (mark.cases + 1, inline);
+        mark
+    }
+
+    /// Leaves the case entered at `mark`, giving the types its pattern narrowed their bounds
+    /// before.
+    pub fn leave_case(&mut self, u: &mut Universe, mark: CaseMark) {
+        (self.cases, self.inline) = (mark.cases, mark.inline);
+        self.bound.truncate(mark.bound);
+        self.open.truncate(mark.open);
+        for (s, bounds) in self.saved.drain(mark.saved..).rev() {
+            u.set_gadt_bounds(s, bounds);
+        }
+    }
+
+    /// Undoes, for a definition typed ahead at `level`, the bounds of the cases that do not
+    /// enclose it.
+    pub fn suspend(&mut self, u: &mut Universe, levels: &Levels, level: LevelId) -> Suspended {
+        let first = self.open.iter().find(|&&(case, _)| !encloses(levels, case, level));
+        let mark = first.map_or(self.saved.len(), |&(_, mark)| mark);
+        let undone =
+            self.saved[mark..].iter().rev().map(|&(s, old)| (s, u.set_gadt_bounds(s, old))).collect();
+        Suspended { undone, cases: std::mem::replace(&mut self.cases, 0) }
+    }
+
+    /// Restores the bounds `suspend` undid.
+    pub fn resume(&mut self, u: &mut Universe, suspended: Suspended) {
+        self.cases = suspended.cases;
+        for (s, bounds) in suspended.undone.into_iter().rev() {
+            u.set_gadt_bounds(s, bounds);
+        }
     }
 
     /// Records `level` as the scope of the case being typed, before its pattern.
-    pub fn gadt_case_level(&mut self, level: LevelId) {
-        self.gadt.open.push((level, self.gadt.saved.len()));
+    pub fn case_level(&mut self, level: LevelId) {
+        self.open.push((level, self.saved.len()));
     }
 
-    /// `f` as the typing ahead of a definition at `level`: without the bounds of the cases that do
-    /// not enclose it, and narrowing nothing outside a case of its own (dotty's completer context).
-    pub fn outside_gadt_cases<R>(&mut self, level: LevelId, f: impl FnOnce(&mut Self) -> R) -> R {
-        let first = self.gadt.open.iter().find(|&&(case, _)| !self.level_encloses(case, level));
-        let mark = first.map_or(self.gadt.saved.len(), |&(_, mark)| mark);
-        let undone: Vec<_> = self.gadt.saved[mark..]
-            .iter()
-            .rev()
-            .map(|&(s, old)| (s, self.u.set_gadt_bounds(s, old)))
-            .collect();
-        let cases = std::mem::replace(&mut self.gadt.cases, 0);
-        let result = f(self);
-        self.gadt.cases = cases;
-        for (s, bounds) in undone.into_iter().rev() {
-            self.u.set_gadt_bounds(s, bounds);
+    /// Adds the types a pattern binds, `syms`, to those a case may narrow.
+    pub fn bind(&mut self, syms: &[SymbolId]) {
+        if self.cases > 0 {
+            self.bound.extend(syms);
         }
-        result
-    }
-
-    /// Whether scope level `case` is `level` or encloses it.
-    fn level_encloses(&self, case: LevelId, level: LevelId) -> bool {
-        let mut l = Some(level);
-        while let Some(i) = l {
-            if i == case {
-                return true;
-            }
-            l = self.levels.outer(i);
-        }
-        false
     }
 
     /// Gives the pattern-bound types from the `first`th on their GADT bounds as infos (dotty's
     /// `indexPattern`).
-    pub fn index_gadt_binds(&mut self, first: usize) {
-        for i in first..self.gadt.bound.len() {
-            let s = self.gadt.bound[i];
-            let Some((lo, hi)) = self.u.gadt_bounds(s) else { continue };
-            let info = self.u.intern_type(Type::Bounds(lo, hi));
-            self.u.set_info(s, info);
+    pub fn index_binds(&self, u: &mut Universe, first: usize) {
+        for &s in &self.bound[first..] {
+            let Some((lo, hi)) = u.gadt_bounds(s) else { continue };
+            let info = u.intern_type(Type::Bounds(lo, hi));
+            u.set_info(s, info);
         }
     }
 
     /// Narrows `s` to `bounds` while the case is typed.
-    pub fn set_gadt_bounds(&mut self, s: SymbolId, (lo, hi): (TypeId, TypeId)) {
-        let old = self.u.set_gadt_bounds(s, Some((lo, hi)));
-        self.gadt.saved.push((s, old));
+    pub fn narrow(&mut self, u: &mut Universe, s: SymbolId, (lo, hi): (TypeId, TypeId)) {
+        let old = u.set_gadt_bounds(s, Some((lo, hi)));
+        self.saved.push((s, old));
     }
 
-    /// Whether `a` conforms to `b` without the GADT bounds, constraining type variables.
-    pub fn conforms_without_gadt(&mut self, a: TypeId, b: TypeId) -> bool {
-        let narrowed = self.gadt_narrowed();
-        let current: Vec<_> = narrowed.iter().map(|&s| (s, self.u.set_gadt_bounds(s, None))).collect();
-        let ok = self.conforms(a, b);
+    /// Tells whether `a` conforms to `b` without the GADT bounds, constraining type variables.
+    pub fn conforms_without(&self, ops: &mut TypeOps, a: TypeId, b: TypeId) -> bool {
+        let narrowed = self.narrowed();
+        let current: Vec<_> = narrowed.iter().map(|&s| (s, ops.u.set_gadt_bounds(s, None))).collect();
+        let ok = ops.conforms(a, b);
         for (s, bounds) in current.into_iter().rev() {
-            self.u.set_gadt_bounds(s, bounds);
+            ops.u.set_gadt_bounds(s, bounds);
         }
         ok
     }
 
-    /// Whether GADT bounds are in force.
-    pub fn gadt_narrowing(&self) -> bool {
-        !self.gadt.saved.is_empty()
+    /// Tells whether GADT bounds are in force.
+    pub fn narrowing(&self) -> bool {
+        !self.saved.is_empty()
     }
 
-    /// The types GADT bounds narrow.
-    pub fn gadt_narrowed(&self) -> Vec<SymbolId> {
-        self.gadt.saved.iter().map(|&(s, _)| s).collect()
+    /// Lists the types GADT bounds narrow.
+    pub fn narrowed(&self) -> Vec<SymbolId> {
+        self.saved.iter().map(|&(s, _)| s).collect()
     }
+}
+
+/// Whether scope level `case` is `level` or encloses it.
+fn encloses(levels: &Levels, case: LevelId, level: LevelId) -> bool {
+    let mut l = Some(level);
+    while let Some(i) = l {
+        if i == case {
+            return true;
+        }
+        l = levels.outer(i);
+    }
+    false
 }
