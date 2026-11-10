@@ -17,6 +17,9 @@ use tasty::{SymbolId, Type, TypeId, Universe};
 /// The name the receiver parameter of a setter has until it is typed, renamed to `x$0` then.
 const SETTER_RECEIVER: &str = "x$0$receiver";
 
+/// The names and types of one value parameter clause.
+type Params = Vec<(String, TypeId)>;
+
 /// Makes `def name[Ls](x$0: R)(ps): T = x$0.m(ps)` for `access` of member `m` and receivers of
 /// type `R` over the inline method's types `Ls`, or `def name[Ls](x$0: R)(x$0: T): Unit =
 /// x$0.m = x$0` for a setter; `None`, reported at `span`, for a polymorphic or implicit method.
@@ -30,24 +33,8 @@ pub fn passing_def(
     let (accessed, setter, locals) = (access.member, access.setter, &receiver.locals[..]);
     t.complete(accessed);
     let info = t.u.member_info(receiver.tpe, accessed);
-    let mut info = dealiased(t.u, info);
-    let mut clauses: Vec<Vec<(String, TypeId)>> = Vec::new();
-    loop {
-        match t.u.types().get(info).clone() {
-            Type::Method { params, result, implicit: false, .. } if !setter => {
-                clauses.push(params);
-                info = result;
-            }
-            Type::Method { .. } | Type::Poly { .. } => {
-                t.unsupported_at(span, "inline accessor of a polymorphic or implicit method");
-                return None;
-            }
-            _ => break,
-        }
-    }
-    if let Type::ByName(r) = *t.u.types().get(info) {
-        info = r;
-    }
+    let info = dealiased(t.u, info);
+    let (mut clauses, info) = value_clauses(t, info, setter, span)?;
 
     let at = accessor_span(t, accessed, span);
     let mut defs = Vec::new();
@@ -105,6 +92,35 @@ pub fn passing_def(
     let def = t.ast.node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs), mods });
     t.ast.with_span(def, at);
     Some(def)
+}
+
+/// The value parameter clauses of the accessed member's type `info`, none for a setter, and the
+/// result type after them, by-name result unwrapped; `None`, reported at `span`, for a
+/// polymorphic method or one with implicit parameters.
+fn value_clauses(
+    t: &mut Typer<'_>,
+    mut info: TypeId,
+    setter: bool,
+    span: Span,
+) -> Option<(Vec<Params>, TypeId)> {
+    let mut clauses = Vec::new();
+    loop {
+        match t.u.types().get(info).clone() {
+            Type::Method { params, result, implicit: false, .. } if !setter => {
+                clauses.push(params);
+                info = result;
+            }
+            Type::Method { .. } | Type::Poly { .. } => {
+                t.unsupported_at(span, "inline accessor of a polymorphic or implicit method");
+                return None;
+            }
+            _ => break,
+        }
+    }
+    if let Type::ByName(r) = *t.u.types().get(info) {
+        info = r;
+    }
+    Some((clauses, info))
 }
 
 /// Names the receiver of typed passing setter definition `def`, and its reference, `x$0`.
