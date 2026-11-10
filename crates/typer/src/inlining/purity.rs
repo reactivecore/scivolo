@@ -49,6 +49,10 @@ impl Inlining<'_> {
 }
 
 impl Purity<'_> {
+    /// Determines how pure expression `t` is, from `IMPURE` to `PURE_PATH` (dotty's `exprPurity`):
+    /// `this`, literals, `new` and lambdas are pure; references and selections as their symbols;
+    /// calls pure when they fold to a constant or are a case class `apply` without initialization
+    /// code, idempotent on stable members; blocks as their statements and result; else impure.
     pub fn purity(&mut self, t: TNodeId) -> u8 {
         match self.tpd.tree(t).clone() {
             T::This { .. } | T::Super { .. } | T::Literal { .. } | T::ClassLiteral { .. } => PURE_PATH,

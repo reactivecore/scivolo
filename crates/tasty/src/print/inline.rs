@@ -72,6 +72,10 @@ impl Inline<'_> {
         }
     }
 
+    /// Renders TASTy node `id` on one line in Scala-like syntax: types and type trees as `A[B]`,
+    /// `A & B`, `=> A`, `x.type`, references as `prefix.name` with `@address` for local symbols,
+    /// constants and simple terms (`f(x)`, `new C`) as code. Any other tag shows as its name with
+    /// its children in parentheses.
     pub fn render(&self, id: NodeId) -> String {
         let n = self.ast.node(id);
         let k = self.ast.kids(id);

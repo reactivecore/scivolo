@@ -9,7 +9,11 @@ use crate::token::Token;
 use crate::token::sets::MODIFIER_TOKENS;
 
 impl Parser<'_> {
+    /// Parses an extension clause such as `extension [T](x: T)(using Ord[T]) def max(y: T) = ...`
+    /// (dotty's `extension`):
     /// `extension [DefTypeParamClause] {UsingParamClause} (DefTermParam) {UsingParamClause} ExtMethods`.
+    /// The methods follow as one `def`, an `export` clause, or a block in braces or indented.
+    /// Reports a `:` after the parameters and an extension without methods as syntax errors.
     pub fn extension(&mut self) -> NodeId {
         let start = self.s.skip_token();
         let tparams = self.type_param_clause_opt(ParamOwner::ExtensionPrefix);

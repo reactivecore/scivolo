@@ -45,7 +45,8 @@ impl Gen<'_, '_> {
         self.expr_to(b, t, classfile::value_slots(result), Dest::Return)
     }
 
-    /// Generates `t` leaving `slots` slots and sends its value to `dest` (dotty's `genLoadTo`).
+    /// Generates `t` leaving `slots` slots and jumps or returns with it to `dest` (dotty's `genLoadTo`);
+    /// blocks, `if`s, labeled blocks and `match`es pass `dest` on to each branch instead.
     pub fn expr_to(&mut self, b: &mut Body, t: TNodeId, slots: i32, dest: Dest) -> Result<()> {
         if dest == Dest::Fall {
             return self.expr_as(b, t, slots);

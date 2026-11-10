@@ -84,7 +84,10 @@ impl Universe {
         }
     }
 
-    /// The right-hand side of the alias `t` refers to, seen from the reference's prefix.
+    /// Determines the right-hand side of the type alias that reference `t` names, seen from its
+    /// prefix: an alias in a refinement of the prefix (`C { type T = Int }`), an opaque type seen
+    /// from inside its scope, a plain alias, or the alias by which the prefix's class overrides an
+    /// abstract type member. `None` for classes and abstract types.
     pub fn referenced_alias(&mut self, t: TypeId) -> Option<TypeId> {
         let (prefix, s) = match self.types().get(t).clone() {
             Type::Sym(p, s) => (p, s),

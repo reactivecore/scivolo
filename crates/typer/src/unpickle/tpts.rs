@@ -10,7 +10,14 @@ use tasty::tags::*;
 use tasty::{NodeId, Type};
 
 impl Unpickler<'_> {
-    /// The type tree at `id`.
+    /// Reads the type tree at TASTy node `id` of a library inline body as a typed tree (dotty's
+    /// `readTpt`):
+    /// - type names, selections, applications, singleton, by-name, bounds, annotated types and
+    ///   type lambdas keep their shape; an applied type with bound pattern variables (`List[t]`)
+    ///   takes its type from the typed arguments;
+    /// - any other type becomes a plain type tree of its type.
+    ///
+    /// Refuses refinements (`A { def f: Int }`), match types and blocks in type position.
     pub fn tpt(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
         let k = self.kids(id);
         let t = match self.tag(id) {
