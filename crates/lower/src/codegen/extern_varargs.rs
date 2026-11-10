@@ -22,14 +22,8 @@ impl Gen<'_, '_> {
                             continue;
                         }
                         let is_repeated = match *self.l.u.ty(param) {
-                            Type::Applied(c, _) => self
-                                .l
-                                .u
-                                .class_symbol(c)
-                                .is_some_and(|s| self.l.u.full_name(s) == "scala.<repeated>"),
-                            Type::Annotated(_, a) => self.l.u.class_symbol(a).is_some_and(|s| {
-                                self.l.u.full_name(s) == "scala.annotation.internal.Repeated"
-                            }),
+                            Type::Applied(c, _) => self.l.u.is_class_named(c, tasty::defn::REPEATED),
+                            Type::Annotated(_, a) => self.l.u.is_class_named(a, tasty::defn::REPEATED_ANNOT),
                             _ => false,
                         };
                         if is_repeated {

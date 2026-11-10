@@ -66,9 +66,7 @@ fn is_null_stable_field(u: &mut Universe, r: TypeId, sym: SymbolId) -> bool {
     let Some((Some(p), _)) = u.sym_ref(r) else { return false };
     let s = u.symbol(sym);
     let field = s.kind == Kind::Val && s.owner.is_some_and(|o| u.symbol(o).kind == Kind::Class);
-    field
-        && u.annotations(sym).iter().any(|&c| u.full_name(c) == "scala.annotation.stableNull")
-        && is_stable_path(u, p)
+    field && u.has_recorded_annotation(sym, crate::defn::STABLE_NULL) && is_stable_path(u, p)
 }
 
 /// Whether a use of local variable `sym` in `ctx` is in a method, lazy value or class inside

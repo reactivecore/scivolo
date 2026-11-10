@@ -95,9 +95,7 @@ impl Unpickler<'_> {
     }
 
     fn is_repeated_annot(&mut self, annot: TypeId) -> bool {
-        self.u
-            .class_symbol(annot)
-            .is_some_and(|c| self.u.full_name(c) == "scala.annotation.internal.Repeated")
+        self.u.is_class_named(annot, crate::defn::REPEATED_ANNOT)
     }
 
     /// `<repeated>[elem]`.

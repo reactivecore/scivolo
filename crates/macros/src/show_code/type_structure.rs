@@ -104,8 +104,11 @@ impl Host {
     /// whose constructor takes no arguments.
     fn is_synthetic_annotation(&mut self, annot: TypeId) -> bool {
         let Some(c) = self.u.class_symbol(annot) else { return false };
-        let internal =
-            self.u.symbol(c).owner.is_some_and(|o| self.u.full_name(o) == "scala.annotation.internal");
+        let internal = self
+            .u
+            .symbol(c)
+            .owner
+            .is_some_and(|o| self.u.full_name(o) == tasty::defn::SCALA_ANNOTATION_INTERNAL);
         let Some(init) = self.primary_constructor(c).filter(|_| internal) else { return false };
         let info = self.u.info(init);
         self.u.method(info).is_some_and(|m| m.params.is_empty() && self.u.method(m.result).is_none())

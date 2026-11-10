@@ -14,7 +14,7 @@ impl Typer<'_> {
             let any = self.from_java_object(method, hi);
             return if any == hi { p } else { self.u.flexible(any) };
         }
-        let object = self.u.builtins().object;
+        let object = self.u.defn().object;
         let dealiased = self.u.dealias(p);
         let is_object = matches!(self.u.ty(dealiased), Type::Sym(..) | Type::TypeRef(..))
             && self.u.class_symbol(dealiased) == Some(object);
@@ -28,7 +28,7 @@ impl Typer<'_> {
         if self.from_java_object(method, elem) != ANY {
             return elem;
         }
-        let from_java_object = self.u.builtins().from_java_object;
+        let from_java_object = self.u.defn().from_java_object;
         self.u.intern_type(Type::Sym(None, from_java_object))
     }
 }

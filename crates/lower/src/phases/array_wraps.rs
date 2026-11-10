@@ -87,7 +87,7 @@ fn wrapper(l: &mut Lower, elem: TypeId) -> String {
     if let Some(p) = name.strip_prefix("scala.").filter(|p| PRIMITIVES.contains(p)) {
         return format!("wrap{p}Array");
     }
-    let value_class = l.u.builtins().any_val.is_some_and(|v| l.u.derives_from(class, v));
+    let value_class = l.u.defn().any_val.is_some_and(|v| l.u.derives_from(class, v));
     let generic = value_class || NOT_RUNTIME.contains(&name.as_str());
     if generic { "genericWrapArray" } else { "wrapRefArray" }.into()
 }

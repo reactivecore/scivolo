@@ -34,7 +34,7 @@ impl Gen<'_, '_> {
     /// Whether `sym` is method `name` of `scala.reflect.Selectable`.
     fn is_reflective(&self, sym: SymbolId, name: &str) -> bool {
         let s = self.l.u.symbol(sym);
-        s.name == name && s.owner.is_some_and(|o| self.l.u.full_name(o) == "scala.reflect.Selectable")
+        s.name == name && s.owner.is_some_and(|o| self.l.u.full_name(o) == tasty::defn::REFLECTIVE_SELECTABLE)
     }
 
     /// `recv.selectDynamic("name")` of `sym`: the proxy of member `name` of `recv.selectedValue`,

@@ -17,7 +17,8 @@ impl Cmp<'_> {
     pub fn is_named_tuple_from(&mut self, tycon: TypeId) -> bool {
         let Some(s) = self.named(tycon).and_then(|n| n.sym) else { return false };
         let owner = self.u.symbol(s).owner;
-        self.u.symbol(s).name == "From" && owner.is_some_and(|o| self.u.full_name(o) == "scala.NamedTuple$")
+        self.u.symbol(s).name == "From"
+            && owner.is_some_and(|o| self.u.full_name(o) == crate::defn::NAMED_TUPLE_CLASS)
     }
 
     /// `From[arg]` with `from` the reference to `From`, folded if `arg` is known enough.
@@ -32,7 +33,10 @@ impl Cmp<'_> {
             .find(|&d| self.u.symbol(d).kind == Kind::Type)?;
         let nt = self.u.intern_type(Type::Sym(prefix, nt));
         let (labels, fields): (Vec<String>, Vec<TypeId>) = match self.u.class_symbol(arg) {
-            Some(c) if self.u.symbol(c).flags.has(CASE) && self.is_concrete(arg, 32) => {
+            Some(c)
+                if self.u.symbol(c).flags.has(CASE)
+                    && self.is_concrete(arg, super::concrete::CONCRETE_DEPTH) =>
+            {
                 let accessors: Vec<SymbolId> = self.u.symbol(c).decls.clone();
                 let accessors = accessors
                     .into_iter()
@@ -65,7 +69,7 @@ impl Cmp<'_> {
             let d = self.u.dealias(t);
             let Type::Applied(tycon, args) = self.u.ty(d).clone() else {
                 let class = self.u.class_symbol(d)?;
-                return (self.u.full_name(class) == "scala.EmptyTuple$").then_some(out);
+                return (self.u.full_name(class) == crate::defn::EMPTY_TUPLE_CLASS).then_some(out);
             };
             let c = self.u.class_symbol(tycon)?;
             if let Some(pairs) = self.nested_pairs(c, &args) {

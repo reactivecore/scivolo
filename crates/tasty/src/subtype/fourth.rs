@@ -18,8 +18,8 @@ impl Cmp<'_> {
                         || self.gadt_bounds(a).is_some_and(|(_, ghi)| self.recur_frozen(ghi, b))
                         || self.lifted_left(a, b)
                 }
-                Some(Meaning::Class(c)) if c == self.u.builtins().nothing => self.is_value_type(b),
-                Some(Meaning::Class(c)) if c == self.u.builtins().null => self.nullable(b),
+                Some(Meaning::Class(c)) if c == self.u.defn().nothing => self.is_value_type(b),
+                Some(Meaning::Class(c)) if c == self.u.defn().null => self.nullable(b),
                 Some(Meaning::Term(_)) => self.below_singleton(a, b),
                 Some(Meaning::Class(c)) if self.u.is_module_class(c) => self.module_class_below(a, b, c),
                 _ => false,

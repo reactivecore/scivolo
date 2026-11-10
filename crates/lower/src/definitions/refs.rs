@@ -32,7 +32,7 @@ pub fn ref_class(u: &mut Universe, e: &Erased) -> Result<Ref, String> {
     let runtime = package(u, "scala.runtime")?;
     let class = java_class(u, runtime, name);
     let elem_type: TypeId = match elem_class {
-        "" => type_ref(u, u.builtins().object),
+        "" => type_ref(u, u.defn().object),
         c => {
             let scala = package(u, "scala")?;
             let c = member(u, scala, c, Kind::Class)?;

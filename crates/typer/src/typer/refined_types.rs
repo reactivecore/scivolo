@@ -165,8 +165,7 @@ impl Typer<'_> {
             return Err("structural refinement of a member with a target name");
         }
         let poly = matches!(self.u.ty(refined), Type::Refined(_, _, i) if self.u.poly(*i).is_some());
-        let poly_function = name == "apply"
-            && self.u.class_symbol(parent).is_some_and(|c| self.u.full_name(c) == "scala.PolyFunction");
+        let poly_function = name == "apply" && self.u.is_class_named(parent, crate::defn::POLY_FUNCTION);
         if terms.is_empty() && poly && !poly_function {
             return Err("polymorphic refinement without a parent member");
         }

@@ -44,7 +44,7 @@ impl TypeOps<'_> {
         let parents = self.u.parents(c);
         for (i, t) in parents.into_iter().enumerate() {
             let Some(k) = self.u.class_symbol(t) else { continue };
-            if i == 0 && self.u.full_name(k) == "java.lang.Object" {
+            if i == 0 && self.u.full_name(k) == crate::defn::OBJECT {
                 continue;
             }
             if self.u.derives_from(p, k) {

@@ -49,7 +49,7 @@ impl Typer<'_> {
     pub fn is_unbounded(&mut self, p: SymbolId) -> bool {
         let info = self.u.info(p);
         let Some((lo, hi)) = self.u.bounds(info) else { return false };
-        let b = self.u.builtins();
+        let b = self.u.defn();
         self.u.class_symbol(lo) == Some(b.nothing) && self.u.class_symbol(hi) == Some(b.any)
     }
 }

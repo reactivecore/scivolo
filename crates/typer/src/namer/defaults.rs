@@ -93,7 +93,7 @@ impl Typer<'_> {
                 return None;
             }
             let info = u.info(s);
-            let (nothing, any) = (u.builtins().nothing, u.builtins().any);
+            let (nothing, any) = (u.defn().nothing, u.defn().any);
             let trivial = u.bounds(info).is_some_and(|(lo, hi)| {
                 u.class_symbol(lo) == Some(nothing) && u.class_symbol(hi) == Some(any)
             });

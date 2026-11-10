@@ -89,7 +89,7 @@ impl Typer<'_> {
     /// Whether dotty searches no conversion from `widened` to `pt` (dotty's `isUnderspecified`,
     /// `TooUnspecific`), or the expected type has a special adaptation.
     fn unspecific(&mut self, widened: TypeId, pt: TypeId) -> bool {
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let from = self.u.class_symbol(widened);
         if from.is_none_or(|c| c == b.null || c == b.nothing) {
             return true;

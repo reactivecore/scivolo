@@ -82,7 +82,7 @@ impl Typer<'_> {
         }
         let tpe = match self.u.bounds(body_tpe) {
             Some((lo, hi)) => {
-                let nothing = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
+                let nothing = self.u.class_symbol(lo) == Some(self.u.defn().nothing);
                 let lo = if nothing { lo } else { lambda(self.u, lo) };
                 let hi = lambda(self.u, hi);
                 self.u.intern_type(Type::Bounds(lo, hi))

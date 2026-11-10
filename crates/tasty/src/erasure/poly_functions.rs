@@ -9,6 +9,9 @@ use super::special::special;
 use crate::Universe;
 use crate::types::{Type, TypeId};
 
+/// How many types `poly_function_apply_of` looks through.
+const MAX_STEPS: u32 = 16;
+
 impl Universe {
     /// The info of `apply` if `t` is `PolyFunction { def apply: info }` or a refinement of a
     /// subclass of `PolyFunction` (dotty's `PolyFunctionOf.unapply`).
@@ -17,7 +20,7 @@ impl Universe {
         if name != "apply" || !matches!(self.ty(info), Type::Method { .. } | Type::Poly { .. }) {
             return None;
         }
-        let poly_function = self.class_ref("scala.PolyFunction");
+        let poly_function = self.class_ref(crate::defn::POLY_FUNCTION);
         let poly_function = self.class_symbol(poly_function)?;
         let class = self.class_symbol(parent)?;
         self.derives_from(class, poly_function).then_some(info)
@@ -27,7 +30,7 @@ impl Universe {
     /// singletons, aliases, upper bounds and either side of an intersection.
     pub fn poly_function_apply_of(&mut self, t: TypeId) -> Option<TypeId> {
         let mut t = t;
-        for _ in 0..16 {
+        for _ in 0..MAX_STEPS {
             let widened = self.widen(t);
             t = self.dealias(widened);
             match *self.ty(t) {

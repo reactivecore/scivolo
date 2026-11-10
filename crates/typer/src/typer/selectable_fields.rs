@@ -23,7 +23,7 @@ impl Typer<'_> {
         if name.is_type || self.dynamic_lhs == Some(id) {
             return None;
         }
-        let selectable = self.resolve_full_name("scala.Selectable", true)?;
+        let selectable = self.resolve_full_name(crate::defn::SELECTABLE, true)?;
         let widened = self.u.widen(pre);
         let class = self.u.class_symbol(widened)?;
         if !self.u.derives_from(class, selectable) {

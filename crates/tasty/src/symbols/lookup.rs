@@ -102,7 +102,7 @@ impl Universe {
         if let Some((n, contextual)) = super::function_classes::synthetic_arity(name)
             && self.packages.get("scala") == Some(&owner)
         {
-            let object = self.types.intern(crate::Type::Sym(None, self.builtins.object));
+            let object = self.types.intern(crate::Type::Sym(None, self.defn.object));
             return Ok(vec![super::function_classes::enter_class(self, (owner, object), n, contextual)]);
         }
         let objects = self.package_objects(owner)?;

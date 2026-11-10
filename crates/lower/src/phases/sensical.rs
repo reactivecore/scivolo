@@ -20,7 +20,7 @@ pub fn sensical(l: &mut Lower, tpe: TypeId, test: &Erased, unboxed: &Erased) -> 
 }
 
 fn check(l: &mut Lower, found: SymbolId, test: SymbolId, unboxed: SymbolId) -> bool {
-    let b = l.u.builtins();
+    let b = l.u.defn();
     if [b.any, b.object, b.any_ref, b.matchable].contains(&found) {
         return true;
     }
@@ -54,14 +54,14 @@ fn found_classes(l: &mut Lower, tpe: TypeId) -> Vec<SymbolId> {
         Type::And(..) => Vec::new(),
         _ => {
             let mut class = l.u.class_symbol(tpe);
-            if class.is_some_and(|c| l.u.full_name(c) == "scala.*:") {
+            if class.is_some_and(|c| l.u.full_name(c) == tasty::defn::PAIR) {
                 class = match l.u.erase(tpe) {
                     Erased::Class(name) => class_named(l, &name),
                     _ => None,
                 };
             }
-            let any_val = l.u.builtins().any_val;
-            class.map(|c| if Some(c) == any_val { l.u.builtins().any } else { c }).into_iter().collect()
+            let any_val = l.u.defn().any_val;
+            class.map(|c| if Some(c) == any_val { l.u.defn().any } else { c }).into_iter().collect()
         }
     }
 }
@@ -82,6 +82,6 @@ fn is_primitive(l: &Lower, c: SymbolId) -> bool {
 
 /// Whether `c` is a user value class (a subclass of `AnyVal` that is not primitive).
 fn is_value_class(l: &mut Lower, c: SymbolId) -> bool {
-    let Some(any_val) = l.u.builtins().any_val else { return false };
+    let Some(any_val) = l.u.defn().any_val else { return false };
     c != any_val && l.u.derives_from(c, any_val) && !is_primitive(l, c)
 }

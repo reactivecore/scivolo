@@ -9,8 +9,7 @@ use super::Typer;
 use crate::tpd::TNodeId;
 use tasty::{SymbolId, Type, TypeId, Universe};
 
-/// The largest arity of a `TupleN` class.
-pub const MAX_TUPLE_ARITY: usize = 22;
+pub use tasty::defn::MAX_TUPLE_ARITY;
 
 impl Typer<'_> {
     /// `qual.$asInstanceOf$[TupleN[A, B, …]]` when `qual` is an `A *: B *: … *: EmptyTuple` of at

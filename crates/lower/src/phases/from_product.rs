@@ -133,9 +133,7 @@ fn unrolled_getters(
     case_class: SymbolId,
     accessors: &[SymbolId],
 ) -> Result<(SymbolId, Vec<SymbolId>)> {
-    let unroll = |l: &Lower, a: SymbolId| {
-        l.u.annotations(a).iter().any(|&c| l.u.full_name(c) == "scala.annotation.unroll")
-    };
+    let unroll = |l: &Lower, a: SymbolId| l.u.has_recorded_annotation(a, tasty::defn::UNROLL);
     let first = (0..accessors.len()).find(|&i| unroll(l, accessors[i]));
     let module = l.u.companion_module(case_class);
     let (Some(first), Some(module)) = (first, module) else { return Ok((case_class, Vec::new())) };

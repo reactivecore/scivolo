@@ -62,7 +62,7 @@ impl Cmp<'_> {
     /// Whether class `c` has `null` among its values: under safe nulls `Null`, `Any` or
     /// `Matchable`; else not `Nothing`, a value class or an object.
     fn nullable_class(&mut self, c: SymbolId) -> bool {
-        let builtins = self.u.builtins();
+        let builtins = self.u.defn();
         if self.safe_nulls() {
             return c == builtins.null || c == builtins.any || c == builtins.matchable;
         }

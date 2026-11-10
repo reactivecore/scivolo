@@ -107,7 +107,7 @@ fn raw_type_ref(l: &mut Lower, c: SymbolId) -> TypeId {
     if params.is_empty() {
         return type_ref(l.u, c);
     }
-    let any_kind = l.u.builtins().any_kind;
+    let any_kind = l.u.defn().any_kind;
     let any_kind = type_ref(l.u, any_kind);
     let wildcard = l.u.intern_type(Type::Bounds(tasty::NOTHING, any_kind));
     crate::definitions::applied(l.u, c, vec![wildcard; params.len()])

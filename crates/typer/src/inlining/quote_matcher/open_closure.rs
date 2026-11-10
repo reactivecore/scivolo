@@ -125,7 +125,7 @@ impl Reflect<'_> {
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
         let params = tparams.iter().map(|&p| (self.u.symbol(p).name.clone(), bounds)).collect();
         let info = self.u.intern_type(Type::Poly { binder, params, result });
-        let parent = self.u.class_ref("scala.PolyFunction");
+        let parent = self.u.class_ref(crate::defn::POLY_FUNCTION);
         (info, self.u.intern_type(Type::Refined(parent, "apply".into(), info)))
     }
 

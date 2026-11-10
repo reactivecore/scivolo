@@ -56,7 +56,7 @@ impl TypeOps<'_> {
 
     /// Whether `t` is `Any` (dotty's `isExactlyAny`).
     pub fn is_exactly_any(&mut self, t: TypeId) -> bool {
-        t == ANY || self.u.class_symbol(t) == Some(self.u.builtins().any)
+        t == ANY || self.u.class_symbol(t) == Some(self.u.defn().any)
     }
 
     pub fn is_singleton(&mut self, t: TypeId) -> bool {

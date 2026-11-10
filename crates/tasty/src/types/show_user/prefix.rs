@@ -56,7 +56,7 @@ pub fn prefix_text(path: Path) -> String {
 
 /// The classes that type aliases of `Predef` and the `scala` package object name, and `Object`.
 pub fn bare_classes(u: &mut Universe) -> FxHashSet<SymbolId> {
-    let mut bare = FxHashSet::from_iter([u.builtins().object]);
+    let mut bare = FxHashSet::from_iter([u.defn().object]);
     let Some(scala) = u.package("scala") else { return bare };
     for owner in ["Predef$", "package$"] {
         let decls = u.decls_named(scala, owner);

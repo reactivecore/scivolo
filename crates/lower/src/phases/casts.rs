@@ -173,7 +173,8 @@ pub fn is_new_array(l: &Lower, t: TNodeId) -> bool {
     }
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
     let ctor = l.tpd.sym(fun).filter(|&c| l.u.is_constructor(c));
-    let array = ctor.and_then(|c| l.u.symbol(c).owner).is_some_and(|o| l.u.full_name(o) == "scala.Array");
+    let array =
+        ctor.and_then(|c| l.u.symbol(c).owner).is_some_and(|o| l.u.full_name(o) == tasty::defn::ARRAY);
     array && matches!(l.tpd.tree(qualifier), Tree::New { .. })
 }
 

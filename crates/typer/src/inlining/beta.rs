@@ -24,7 +24,7 @@ impl Inlining<'_> {
         let class = self.function_class(qualifier).unwrap_or_default();
         let fits = match targs {
             None => class.strip_prefix("scala.Function").is_some_and(|n| n.parse::<u32>().is_ok()),
-            Some(_) => class == "scala.PolyFunction",
+            Some(_) => class == crate::defn::POLY_FUNCTION,
         };
         if self.names.text(name.name) != "apply" || !fits {
             return Ok(t);
@@ -217,7 +217,7 @@ impl Inlining<'_> {
     ) -> Result<SymbolId, Unsupported> {
         let p_info = self.u.info(p);
         let by_name = self.u.by_name(p_info).is_some();
-        let builtins = self.u.builtins();
+        let builtins = self.u.defn();
         let widened = self.u.widen(arg_tpe);
         let bottom =
             self.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);
@@ -243,7 +243,7 @@ impl Inlining<'_> {
             tree: None,
         });
         self.u.set_info(s, tpe);
-        let unit = self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == "scala.Unit");
+        let unit = self.u.is_class_named(tpe, crate::defn::UNIT);
         if by_name || !((constant || unit) && at_least(self.pure().purity(a), PURE)) {
             let span = self.tpd.span(a);
             let tpt = self.tpd.node(T::TypeTree { inferred: false }, Span::at(span.start()), Some(tpe), None);
@@ -264,7 +264,7 @@ impl Inlining<'_> {
             !type_ref && !matches!(self.tpd.tree(t), T::TypeTree { .. } | T::AppliedTypeTree { .. });
         if is_term && let Some(tpe) = self.tpd.get(t).tpe {
             let value = self.constant_of_type(tpe).or_else(|| {
-                let unit = self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == "scala.Unit");
+                let unit = self.u.is_class_named(tpe, crate::defn::UNIT);
                 unit.then_some(C::Unit)
             });
             if let Some(value) = value

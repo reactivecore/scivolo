@@ -23,7 +23,7 @@ impl Universe {
             Some((file, id)) if self.symbol(c).kind == Kind::Class => self.decode_parents(file, id),
             _ => Vec::new(),
         };
-        if self.full_name(c) == "scala.runtime.BoxedUnit" {
+        if self.full_name(c) == super::defn::BOXED_UNIT {
             parents.retain(|&p| {
                 self.class_symbol(p).is_none_or(|p| self.full_name(p) != "java.io.Serializable")
             });

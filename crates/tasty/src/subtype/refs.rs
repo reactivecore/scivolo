@@ -64,7 +64,7 @@ impl Cmp<'_> {
     pub fn is_bottom(&mut self, t: TypeId) -> bool {
         let t = self.u.widen(t);
         let t = self.u.by_name(t).unwrap_or(t);
-        let nothing = Some(self.u.builtins().nothing);
+        let nothing = Some(self.u.defn().nothing);
         match *self.u.ty(t) {
             Type::Error => true,
             Type::Sym(_, s) => Some(s) == nothing,

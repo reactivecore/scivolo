@@ -42,7 +42,7 @@ impl Cmp<'_> {
             }
             _ => {}
         }
-        let any_kind = self.u.builtins().any_kind;
+        let any_kind = self.u.defn().any_kind;
         if [x, y].iter().any(|&t| self.class_of(t) == Some(any_kind)) {
             return false;
         }
@@ -75,7 +75,7 @@ impl Cmp<'_> {
                     let sym = self.u.symbol(s);
                     let (kind, flags) = (sym.kind, sym.flags);
                     match kind {
-                        Kind::Class if s == self.u.builtins().singleton => return ANY,
+                        Kind::Class if s == self.u.defn().singleton => return ANY,
                         Kind::Class if !self.u.type_params(s).is_empty() => {
                             return self.eta_expand(t).unwrap_or(t);
                         }
@@ -124,7 +124,7 @@ impl Cmp<'_> {
     }
 
     fn is_nothing_class(&mut self, t: TypeId) -> bool {
-        let nothing = self.u.builtins().nothing;
+        let nothing = self.u.defn().nothing;
         self.u.sym_of(t) == Some(nothing)
             || self.u.type_ref(t).is_some() && self.u.resolve_ref(t) == Some(nothing)
     }

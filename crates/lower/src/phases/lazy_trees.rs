@@ -133,7 +133,7 @@ pub fn dup(l: &mut Lower, t: TNodeId) -> TNodeId {
 /// `return expr` from method `from`.
 pub fn return_(l: &mut Lower, from: SymbolId, expr: TNodeId) -> TNodeId {
     let from = l.ident(from, Span::NONE);
-    let nothing = l.u.builtins().nothing;
+    let nothing = l.u.defn().nothing;
     let nothing = type_ref(l.u, nothing);
     let t = l.tpd.node(Tree::Return { expr, from }, Span::NONE, Some(nothing), None);
     l.positioned(t)

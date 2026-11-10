@@ -11,12 +11,9 @@ use crate::sealed;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
+use tasty::defn::{CHILD, EXPERIMENTAL, SOURCE_FILE};
 use tasty::tags::{ENUM, SEALED};
 use tasty::{Kind, SymbolId, Type, Universe};
-
-const CHILD: &str = "scala.annotation.internal.Child";
-const SOURCE_FILE: &str = "scala.annotation.internal.SourceFile";
-const EXPERIMENTAL: &str = "scala.annotation.experimental";
 
 impl Typer<'_> {
     /// Collects the annotation trees of each definition for its TASTy: a sealed class under

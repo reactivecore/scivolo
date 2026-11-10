@@ -103,8 +103,7 @@ impl<'u> Sig<'u> {
 
     fn class_named(&mut self, t: TypeId, name: &str) -> bool {
         let t = self.u.dealias(t);
-        matches!(self.u.ty(t), Type::Sym(..) | Type::TypeRef(..))
-            && self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == name)
+        matches!(self.u.ty(t), Type::Sym(..) | Type::TypeRef(..)) && self.u.is_class_named(t, name)
     }
 
     fn erased_sig(&mut self, e: &Erased, boxing: Boxing) {
@@ -167,7 +166,7 @@ impl<'u> Sig<'u> {
     }
 
     fn is_value(&mut self, t: TypeId) -> bool {
-        let any_val = self.u.builtins().any_val;
+        let any_val = self.u.defn().any_val;
         self.u.class_symbol(t).is_some_and(|c| any_val.is_some_and(|v| self.u.derives_from(c, v)))
     }
 

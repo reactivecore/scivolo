@@ -24,7 +24,7 @@ impl Typer<'_> {
         }
         let class_tycon = self.u.sym_of(tycon).is_some_and(|s| self.u.symbol(s).kind == Kind::Class);
         for (i, &a) in args.iter().enumerate() {
-            if !class_tycon && self.u.class_symbol(a) == Some(self.u.builtins().any_kind) {
+            if !class_tycon && self.u.class_symbol(a) == Some(self.u.defn().any_kind) {
                 return Some("AnyKind argument of a type alias or abstract type");
             }
             let hi = self.u.bounds(a).map(|(_, hi)| hi);
@@ -52,7 +52,7 @@ impl Typer<'_> {
     pub fn wrong_type_arg_count(&mut self, id: NodeId, tycon: TypeId, args: &[NodeId]) -> Option<TNodeId> {
         let dealiased = self.u.dealias(tycon);
         let params: Vec<String> = match self.u.ty(dealiased).clone() {
-            Type::Sym(_, c) if self.u.full_name(c) == "scala.throws" => return None,
+            Type::Sym(_, c) if self.u.full_name(c) == crate::defn::THROWS => return None,
             Type::Sym(_, c) if self.u.symbol(c).kind == Kind::Class => {
                 self.u.type_params(c).iter().map(|&p| self.u.symbol(p).name.clone()).collect()
             }
@@ -98,7 +98,7 @@ impl Typer<'_> {
         let lambda = self.u.dealias(t);
         let Some(bounds) = self.u.lambda(lambda).map(|l| l.param_types()) else { return false };
         bounds.into_iter().any(|b| match self.u.bounds(b) {
-            Some((_, hi)) => hi != tasty::ANY && self.u.class_symbol(hi) != Some(self.u.builtins().any),
+            Some((_, hi)) => hi != tasty::ANY && self.u.class_symbol(hi) != Some(self.u.defn().any),
             None => false,
         })
     }
@@ -152,7 +152,7 @@ impl Typer<'_> {
         }
         let info = self.u.info(p);
         let (_, hi, arity) = self.bounds_of(info);
-        (self.u.class_symbol(hi) != Some(self.u.builtins().any_kind)).then_some(arity)
+        (self.u.class_symbol(hi) != Some(self.u.defn().any_kind)).then_some(arity)
     }
 
     /// The `i`th type parameter tree of script class `c`'s primary constructor.

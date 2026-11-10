@@ -31,8 +31,7 @@ impl Translator<'_, '_> {
         let seq = self.l.u.class_ref("scala.collection.Seq");
         let seq = self.l.u.intern_type(Type::Applied(seq, vec![elem]));
         let conforms = |t: &mut Self, r| t.l.u.is_subtype(r, seq);
-        let is_int =
-            |t: &mut Self, r| t.l.u.class_symbol(r).is_some_and(|c| t.l.u.full_name(c) == "scala.Int");
+        let is_int = |t: &mut Self, r| t.l.u.is_class_named(r, tasty::defn::INT);
         if self.seq_member(tpe, "lengthCompare", is_int).is_none() {
             self.seq_member(tpe, "length", is_int)?;
         }

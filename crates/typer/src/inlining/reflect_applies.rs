@@ -34,7 +34,7 @@ impl Reflect<'_> {
         let span = self.span;
         let refused = "appliedToTypes of a term that takes no such type arguments";
         if let (Some(f), &[arg]) = (self.tpd.sym(fun), args)
-            && self.u.full_name(f) == "scala.Predef$.classOf"
+            && self.u.full_name(f) == crate::defn::CLASS_OF
         {
             let tpe = self.u.intern_type(Type::Constant(CLASSconst, i64::from(arg.0)));
             return Ok(self.tpd.node(T::ClassLiteral { tpe: arg }, span, Some(tpe), None));

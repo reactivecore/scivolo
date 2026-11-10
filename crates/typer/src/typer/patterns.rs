@@ -115,7 +115,7 @@ impl Typer<'_> {
 
     /// Whether `t` is `Nothing`, or `Null` without safe nulls (dotty's `isBottomType`).
     pub fn is_bottom_type(&mut self, t: TypeId) -> bool {
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let (nothing, null) = (b.nothing, b.null);
         let safe = self.u.null_mode().safe;
         matches!(self.u.class_symbol(t), Some(c) if c == nothing || c == null && !safe)

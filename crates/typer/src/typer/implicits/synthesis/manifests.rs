@@ -84,7 +84,7 @@ impl Synthesizer {
             let s = t.u.symbol(s);
             s.kind == Kind::TypeParam || s.kind == Kind::Type && !s.flags.has(tasty::tags::OPAQUE)
         });
-        let b = t.u.builtins();
+        let b = t.u.defn();
         let bottom = class.is_some_and(|c| c == b.nothing || c == b.null);
         if abstract_type || !has_stable_erasure(t, tpe) || top && bottom {
             return Ok(None);

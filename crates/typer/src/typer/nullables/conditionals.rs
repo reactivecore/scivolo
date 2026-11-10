@@ -89,7 +89,7 @@ fn compare_null(f: &mut Flow, fun: TNodeId, args: List) -> Option<(TNodeId, bool
     let u = &mut *f.types.u;
     let m = f.tpd.sym(op)?;
     let (name, owner) = (u.symbol(m).name.clone(), u.symbol(m).owner?);
-    let b = u.builtins();
+    let b = u.defn();
     let known = match (op == fun, name.as_str()) {
         (true, "==" | "!=") => owner == b.any,
         (true, "eq" | "ne") => owner == b.object || owner == f.defn.object,
@@ -114,5 +114,5 @@ pub fn is_null_literal(tpd: &Tpd, t: TNodeId) -> bool {
 fn boolean_op(tpd: &Tpd, u: &Universe, f: TNodeId) -> Option<String> {
     let m = tpd.sym(f)?;
     let owner = u.symbol(m).owner?;
-    (u.full_name(owner) == "scala.Boolean").then(|| u.symbol(m).name.clone())
+    (u.full_name(owner) == crate::defn::BOOLEAN).then(|| u.symbol(m).name.clone())
 }

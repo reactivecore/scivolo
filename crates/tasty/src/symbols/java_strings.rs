@@ -19,7 +19,7 @@ impl Universe {
                 return None;
             }
             let s = u.referenced(part)?;
-            let predef = u.symbol(s).owner.is_some_and(|o| u.full_name(o) == "scala.Predef$");
+            let predef = u.symbol(s).owner.is_some_and(|o| u.full_name(o) == super::defn::PREDEF_CLASS);
             if u.symbol(s).name != "String" || !predef {
                 return None;
             }

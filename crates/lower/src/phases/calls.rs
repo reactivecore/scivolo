@@ -46,7 +46,7 @@ impl Lower<'_> {
     pub fn throw_(&mut self, e: TNodeId) -> TNodeId {
         let throw = self.defs.throw;
         let throw = self.ident(throw, Span::NONE);
-        let nothing = self.u.builtins().nothing;
+        let nothing = self.u.defn().nothing;
         let nothing = type_ref(self.u, nothing);
         let apply = self.apply(throw, &[e], nothing, Span::NONE);
         self.positioned(apply)

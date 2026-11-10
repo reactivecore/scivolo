@@ -9,10 +9,9 @@ use crate::phases::walk::children;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::{Span, TName};
+use tasty::defn::PATTERNS;
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
-
-const PATTERNS: &str = "scala.quoted.runtime.Patterns$";
 
 /// Makes each splice pattern of quote pattern body `body` a hole, `patternHole[T]`, or
 /// `higherOrderHole[T](args)` with arguments; the patterns of the splices in tree order (dotty's

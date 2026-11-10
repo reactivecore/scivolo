@@ -48,7 +48,7 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
 /// Whether `s` is `Predef.classOf`, a constant rather than a call.
 pub fn is_class_of(l: &Lower, s: tasty::SymbolId) -> bool {
     let sym = l.u.symbol(s);
-    sym.name == "classOf" && sym.owner.is_some_and(|o| l.u.full_name(o) == "scala.Predef$")
+    sym.name == "classOf" && sym.owner.is_some_and(|o| l.u.full_name(o) == tasty::defn::PREDEF_CLASS)
 }
 
 /// The erased type of `t` as erasure leaves it: a call's erased result type, a value's erased

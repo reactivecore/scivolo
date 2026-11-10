@@ -120,7 +120,7 @@ impl Typer<'_> {
         let primitive = class.map(|c| self.u.full_name(c)).and_then(|n| {
             PRIMITIVE.iter().find(|&&p| n.strip_prefix("scala.") == Some(p)).map(|p| format!("of{p}"))
         });
-        let object = self.u.builtins().object;
+        let object = self.u.defn().object;
         let reference = class.is_some_and(|c| self.u.derives_from(c, object));
         let module = TName { name: self.name("scala.runtime.VarArgsBuilder"), is_type: false };
         let module = self.ast.node(Tree::TypedSplice { sym: module });

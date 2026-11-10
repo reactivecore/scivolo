@@ -114,7 +114,10 @@ impl Typer<'_> {
             Some(Err(what)) => self.unsupported_at(span, what),
             None => {}
         }
-        if self.u.class_symbol(pt).is_some_and(|c| c == self.defn.unit || self.u.full_name(c) == "scala.Unit")
+        if self
+            .u
+            .class_symbol(pt)
+            .is_some_and(|c| c == self.defn.unit || self.u.full_name(c) == crate::defn::UNIT)
         {
             self.check_unit_purity(tree);
             return self.discarded(tree, span);

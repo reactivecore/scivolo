@@ -30,7 +30,7 @@ impl Inlining<'_> {
         let [(ref param_name, param_type)] = params[..] else {
             return Err((span, "inline extractor of several parameters"));
         };
-        let object = self.u.builtins().object;
+        let object = self.u.defn().object;
         let cls = self.synthetic("$anon", Kind::Class, owner, Flags::default().with(FINAL).with(SYNTHETIC));
         let object_type = type_ref(self.u, object);
         self.u.set_parents(cls, vec![object_type]);

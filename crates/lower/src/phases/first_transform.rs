@@ -22,6 +22,9 @@ use tasty::tags::{
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
+/// How many references `term_ref_underlying` looks through.
+const MAX_REFS: u32 = 64;
+
 /// Folds the references to values of constant type and the constant blocks in class definition
 /// `td`, inner trees first; `inits` are the unit's objects with initialization code.
 pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) {
@@ -97,7 +100,7 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
 /// `t` with references to terms and by-name types replaced by their underlying types, as seen
 /// from their prefixes (dotty's `widenTermRefExpr`).
 fn term_ref_underlying(l: &mut Lower, mut t: TypeId) -> TypeId {
-    for _ in 0..64 {
+    for _ in 0..MAX_REFS {
         let next = match *l.u.ty(t) {
             Type::ByName(r) => Some(r),
             Type::TermRef(..) => l.u.widen_once(t),

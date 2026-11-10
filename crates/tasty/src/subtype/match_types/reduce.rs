@@ -118,7 +118,8 @@ impl Cmp<'_> {
             Pattern::BaseTypeTest { class, args, needs_concrete } => {
                 let Some(base) = self.match_base_type(scrut, *class) else { return false };
                 let Type::Applied(_, base_args) = self.u.ty(base).clone() else { return false };
-                let widened = widened || *needs_concrete && !self.is_concrete(scrut, 32);
+                let widened =
+                    widened || *needs_concrete && !self.is_concrete(scrut, super::concrete::CONCRETE_DEPTH);
                 let variances = self.u.variances(*class);
                 args.len() == base_args.len()
                     && args

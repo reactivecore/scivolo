@@ -127,14 +127,13 @@ impl Typer<'_> {
             let (lo, hi, arity) = self.bounds_of(bounds);
             let unbounded = class_params.get(i).is_some_and(|&p| self.is_unbounded(p));
             let lo = lo.filter(|_| !unbounded);
-            let java_object =
-                unbounded || of_java && self.u.class_symbol(hi) == Some(self.u.builtins().object);
+            let java_object = unbounded || of_java && self.u.class_symbol(hi) == Some(self.u.defn().object);
             let hi = if java_object { ANY } else { hi };
             let var = self.u.var(arg).filter(|_| fresh);
             if var.is_some() {
                 self.constraint.declare(self.u, arg, lo.unwrap_or(tasty::NOTHING), hi);
             }
-            let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
+            let any_kind = self.u.class_symbol(hi) == Some(self.u.defn().any_kind);
             if var.is_none() && !any_kind && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
@@ -142,7 +141,7 @@ impl Typer<'_> {
                 _ if java_object => true,
                 Some(v)
                     if (self.u.dealias(hi) != hi
-                        || hi != ANY && self.u.class_symbol(hi) == Some(self.u.builtins().any))
+                        || hi != ANY && self.u.class_symbol(hi) == Some(self.u.defn().any))
                         && self.open_vars(hi).is_empty() =>
                 {
                     self.constraint.add_upper(self.u, v, hi)

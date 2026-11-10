@@ -34,7 +34,7 @@ impl Constraint {
             return true;
         }
         let hi = u.dealias(self.declared[v.0 as usize].1);
-        let any_kind = u.class_symbol(hi) == Some(u.builtins().any_kind);
+        let any_kind = u.class_symbol(hi) == Some(u.defn().any_kind);
         any_kind || u.lambda(hi).is_some() || !is_constructor(u, t)
     }
 }

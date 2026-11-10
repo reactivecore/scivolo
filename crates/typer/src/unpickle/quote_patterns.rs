@@ -6,6 +6,7 @@
 
 use super::{Refusal, Unpickler};
 use crate::tpd::TNodeId;
+use tasty::defn::PATTERNS;
 use tasty::tags::{ANNOTATION, BLOCK, SYNTHETIC, TYPEAPPLY, TYPED, TYPEDEF};
 use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, TypeId, View, view};
 
@@ -33,7 +34,6 @@ pub enum PatternBody {
 }
 
 const SHAPE: Refusal = "a quote pattern other than a typed term hole";
-const PATTERNS: &str = "scala.quoted.runtime.Patterns$";
 
 impl Unpickler<'_> {
     /// The quote pattern quote body `body` is, if it is one, its spliced type definitions'

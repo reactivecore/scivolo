@@ -1,116 +1,11 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
-//   compiler/src/dotty/tools/dotc/core/Definitions.scala
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //   compiler/src/dotty/tools/dotc/core/TypeUtils.scala
-//! The library symbols the typer refers to by name (dotty's `Definitions`).
+//! The well-known symbols of `tasty::defn`, and the types of references to symbols.
 
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
-pub const ARRAY: &str = "scala.Array";
-pub const INT: &str = "scala.Int";
-pub const SOME: &str = "scala.Some";
-/// The class of tuples, and the prefix of the names of `TupleN`.
-pub const TUPLE: &str = "scala.Tuple";
-pub const IMMUTABLE_SEQ: &str = "scala.collection.immutable.Seq";
-/// The class of case classes and tuples, whose selectors `_1`, ..., `_n` patterns match.
-pub const PRODUCT: &str = "scala.Product";
-pub const EQUALS: &str = "scala.Equals";
-/// The type class of equality evidence.
-pub const CAN_EQUAL: &str = "scala.CanEqual";
-pub const CLASS_TAG: &str = "scala.reflect.ClassTag";
-pub const TYPE_TEST: &str = "scala.reflect.TypeTest";
-pub const MANIFEST: &str = "scala.reflect.Manifest";
-pub const OPT_MANIFEST: &str = "scala.reflect.OptManifest";
-pub const VALUE_OF: &str = "scala.ValueOf";
-pub const TUPLED_FUNCTION: &str = "scala.util.TupledFunction";
-pub const MIRROR: &str = "scala.deriving.Mirror";
-pub const MIRROR_PRODUCT: &str = "scala.deriving.Mirror$.Product";
-pub const MIRROR_SUM: &str = "scala.deriving.Mirror$.Sum";
-/// The annotation of the types of `inline` parameters.
-pub const INLINE_PARAM: &str = "scala.annotation.internal.InlineParam";
-
-/// The symbols every unit needs, and those resolved on first use.
-pub struct Defn {
-    pub scala: SymbolId,
-    pub java_lang: SymbolId,
-    /// The `Predef` object, its value.
-    pub predef: SymbolId,
-    pub unit: SymbolId,
-    pub object: SymbolId,
-    pub string: SymbolId,
-    throwable: Option<SymbolId>,
-    array: Option<SymbolId>,
-    main_annot: Option<SymbolId>,
-    command_line_parser: Option<SymbolId>,
-}
-
-impl Defn {
-    pub fn new(u: &mut Universe) -> Result<Defn, String> {
-        let scala = package(u, "scala")?;
-        let java_lang = package(u, "java.lang")?;
-        Ok(Defn {
-            scala,
-            java_lang,
-            predef: member(u, scala, "Predef", Kind::Val)?,
-            unit: member(u, scala, "Unit", Kind::Class)?,
-            object: member(u, java_lang, "Object", Kind::Class)?,
-            string: member(u, java_lang, "String", Kind::Class)?,
-            throwable: None,
-            array: None,
-            main_annot: None,
-            command_line_parser: None,
-        })
-    }
-
-    pub fn throwable(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
-        resolved(&mut self.throwable, u, self.java_lang, "Throwable", Kind::Class)
-    }
-
-    pub fn array(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
-        resolved(&mut self.array, u, self.scala, "Array", Kind::Class)
-    }
-
-    pub fn main_annot(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
-        resolved(&mut self.main_annot, u, self.scala, "main", Kind::Class)
-    }
-
-    /// The `scala.util.CommandLineParser` object, its value.
-    pub fn command_line_parser(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
-        if let Some(s) = self.command_line_parser {
-            return Ok(s);
-        }
-        let util = package(u, "scala.util")?;
-        resolved(&mut self.command_line_parser, u, util, "CommandLineParser", Kind::Val)
-    }
-}
-
-/// `slot`, else the member `name` of `kind` of `owner`, kept in `slot`.
-fn resolved(
-    slot: &mut Option<SymbolId>,
-    u: &mut Universe,
-    owner: SymbolId,
-    name: &str,
-    kind: Kind,
-) -> Result<SymbolId, String> {
-    if let Some(s) = *slot {
-        return Ok(s);
-    }
-    let s = member(u, owner, name, kind)?;
-    *slot = Some(s);
-    Ok(s)
-}
-
-fn package(u: &Universe, name: &str) -> Result<SymbolId, String> {
-    u.package(name).ok_or_else(|| format!("package {name} missing from the library"))
-}
-
-fn member(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind) -> Result<SymbolId, String> {
-    let found = u.decl(owner, name).map_err(|e| e.to_string())?;
-    found
-        .into_iter()
-        .find(|&s| u.symbol(s).kind == kind)
-        .ok_or_else(|| format!("{}.{name} missing from the library", u.full_name(owner)))
-}
+pub use tasty::defn::*;
 
 /// The prefix of references to members of `owner`: a package, or the `this` of a class.
 pub fn owner_prefix(u: &mut Universe, owner: SymbolId) -> TypeId {

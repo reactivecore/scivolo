@@ -83,7 +83,7 @@ impl<'a> Sig<'a> {
             b'L' => self.class_type(u, vars),
             b'[' => {
                 let elem = self.ty(u, vars)?;
-                let object = u.types.intern(Type::Sym(None, u.builtins().object));
+                let object = u.types.intern(Type::Sym(None, u.defn().object));
                 let plain_var = vars.iter().any(|&(_, t, plain)| t == elem && plain);
                 let elem = if plain_var { u.types.intern(Type::And(object, elem)) } else { elem };
                 let array = u.class_ref("scala.Array");
@@ -114,7 +114,7 @@ impl<'a> Sig<'a> {
                 self.at += 1;
                 u.types.intern(Type::Applied(class, args))
             }
-            _ if name == "java/lang/Object" => u.types.intern(Type::Sym(None, u.builtins().from_java_object)),
+            _ if name == "java/lang/Object" => u.types.intern(Type::Sym(None, u.defn().from_java_object)),
             _ if self.skip => class,
             _ => cooked(u, name),
         };
@@ -126,7 +126,7 @@ impl<'a> Sig<'a> {
     }
 
     fn arg(&mut self, u: &mut Universe, vars: &[Var]) -> Result<TypeId, String> {
-        let from_java_object = u.types.intern(Type::Sym(None, u.builtins().from_java_object));
+        let from_java_object = u.types.intern(Type::Sym(None, u.defn().from_java_object));
         let bounds = match self.peek() {
             Some(b'*') => {
                 self.at += 1;

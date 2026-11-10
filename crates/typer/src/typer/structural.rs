@@ -56,7 +56,7 @@ impl Typer<'_> {
 
     /// `qual`, converted to a `Selectable` if it is none.
     pub fn selectable_qual(&mut self, qual: TNodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        let selectable = self.u.class_ref("scala.Selectable");
+        let selectable = self.u.class_ref(crate::defn::SELECTABLE);
         let qual_tpe = self.zonk(self.tpd.tpe(qual));
         if self.u.is_subtype(qual_tpe, selectable) {
             return Ok(qual);

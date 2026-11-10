@@ -35,7 +35,7 @@ impl Typer<'_> {
         };
         match bounds.and_then(|b| self.u.bounds(b)) {
             Some((lo, _)) => lo,
-            _ => crate::defn::type_ref(self.u, self.u.builtins().nothing),
+            _ => crate::defn::type_ref(self.u, self.u.defn().nothing),
         }
     }
 }

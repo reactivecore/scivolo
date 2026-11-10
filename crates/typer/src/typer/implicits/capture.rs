@@ -71,7 +71,7 @@ impl Typer<'_> {
     /// `tree.$asInstanceOf$[to]`, at `tree`'s span made synthetic, `to` at its end.
     pub fn cast_to_captured(&mut self, tree: TNodeId, to: TypeId) -> Result<TNodeId, &'static str> {
         let span = self.tpd.span(tree).to_synthetic();
-        let any = self.u.builtins().any;
+        let any = self.u.defn().any;
         let found = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
         let fun = self.build().select(tree, found.ok_or("Any.$asInstanceOf$")?, span);
         let tpt = self.tpd.node(T::TypeTree { inferred: false }, span.end_pos(), Some(to), None);
@@ -103,7 +103,7 @@ fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<Type
             captured.push(a);
             continue;
         };
-        let from_java_object = t.u.builtins().from_java_object;
+        let from_java_object = t.u.defn().from_java_object;
         let java_any = hi == tasty::ANY || t.u.sym_of(hi) == Some(from_java_object);
         if java && java_any {
             return None;

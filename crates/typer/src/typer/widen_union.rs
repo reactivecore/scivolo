@@ -22,10 +22,10 @@ impl Typer<'_> {
         let wide = self.widen_union_without_null(stripped)?;
         let d = self.u.dealias(wide);
         let Type::Or(_, _, soft) = *self.u.ty(w) else { unreachable!() };
-        if self.u.sym_of(d) == Some(self.u.builtins().any) {
+        if self.u.sym_of(d) == Some(self.u.defn().any) {
             return Ok(wide);
         }
-        let null = self.u.intern_type(Type::Sym(None, self.u.builtins().null));
+        let null = self.u.intern_type(Type::Sym(None, self.u.defn().null));
         Ok(self.u.intern_type(Type::Or(wide, null, soft)))
     }
 

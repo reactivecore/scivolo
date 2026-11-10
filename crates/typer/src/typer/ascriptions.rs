@@ -25,7 +25,7 @@ impl Typer<'_> {
         if self.u.is_subtype(zonked, tpe) {
             return self.tpd.node(T::Typed { expr, tpt }, span.to_synthetic(), Some(tpe), None);
         }
-        let any = self.u.builtins().any;
+        let any = self.u.defn().any;
         let cast = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
         let Some(cast) = cast else {
             self.unsupported_at(span, "a cast without Any.$asInstanceOf$");

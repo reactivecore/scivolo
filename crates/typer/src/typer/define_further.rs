@@ -36,7 +36,7 @@ impl Typer<'_> {
         }
         let mark = self.constraint.mark();
         let defined = self.fully_defined_as(t, true).ok();
-        let nothing = self.u.builtins().nothing;
+        let nothing = self.u.defn().nothing;
         let bottom = open.iter().any(|&v| {
             let instance = self.constraint.instance(v).map(|i| self.zonk(i));
             instance.is_some_and(|i| i == NOTHING || self.u.class_symbol(i) == Some(nothing))

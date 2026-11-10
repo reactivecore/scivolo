@@ -43,14 +43,14 @@ impl TypeOps<'_> {
         {
             return false;
         }
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let class = self.u.class_symbol(pt);
         class.is_some_and(|c| {
             c == b.any
                 || c == b.object
                 || c == b.matchable
                 || Some(c) == b.any_val
-                || self.u.full_name(c) == "scala.Unit"
+                || self.u.full_name(c) == crate::defn::UNIT
         })
     }
 
@@ -58,7 +58,7 @@ impl TypeOps<'_> {
     /// (`isUnderSpecifiedArgument`).
     pub fn is_underspecified_arg(&mut self, from: TypeId) -> bool {
         let widened = self.u.widen(from);
-        let b = self.u.builtins();
+        let b = self.u.defn();
         self.u.class_symbol(widened).is_some_and(|c| c == b.nothing || c == b.null)
     }
 }

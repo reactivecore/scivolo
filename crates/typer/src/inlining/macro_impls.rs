@@ -131,7 +131,7 @@ impl Inlining<'_> {
         let is_quotes =
             |a: &TNodeId| self.tpd.sym(*a) == Some(quotes) && matches!(self.tpd.tree(*a), T::Ident { .. });
         let context =
-            self.u.symbol(apply).name == "apply" && self.u.full_name(class) == "scala.ContextFunction1";
+            self.u.symbol(apply).name == "apply" && self.u.full_name(class) == crate::defn::CONTEXT_FUNCTION1;
         (context && matches!(args, [a] if is_quotes(a))).then_some(qualifier)
     }
 

@@ -41,8 +41,7 @@ impl Typer<'_> {
             node(t, Tree::Apply { fun, args }, span)
         };
         let widened = self.u.widen(self.tpd.tpe(typed));
-        let partial =
-            self.u.class_symbol(widened).is_some_and(|c| self.u.full_name(c) == "scala.PartialFunction");
+        let partial = self.u.is_class_named(widened, crate::defn::PARTIAL_FUNCTION);
         let handler = self.spliced(typed);
         self.splice_owners.insert(handler, ctx.owner);
         let rhs = if partial {

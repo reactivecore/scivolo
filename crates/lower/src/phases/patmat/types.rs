@@ -85,7 +85,7 @@ impl Translator<'_, '_> {
         let dealiased = self.l.u.dealias(widened);
         let Some((tycon, &[_, values])) = self.l.u.applied(dealiased) else { return None };
         let nt = self.l.u.referenced(tycon)?;
-        (self.l.u.full_name(nt) == "scala.NamedTuple$.NamedTuple").then_some(values)
+        (self.l.u.full_name(nt) == tasty::defn::NAMED_TUPLE).then_some(values)
     }
 
     /// The condition `scrutinee.$isInstanceOf$[T]` of type pattern type `tpt`, for `p.C` of a

@@ -73,7 +73,7 @@ impl Typer<'_> {
         }
         let info = self.u.info(param);
         let Some((_, hi)) = self.u.bounds(info) else { return Ok(None) };
-        let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
+        let any_kind = self.u.class_symbol(hi) == Some(self.u.defn().any_kind);
         let lambda = self.u.lambda(hi).is_some();
         Ok(((any_kind || lambda) && !self.refers_to(info, &params)).then_some(info))
     }
@@ -142,7 +142,7 @@ impl Typer<'_> {
         self.complete(param);
         let info = self.u.info(param);
         let Some((plo, phi)) = self.u.bounds(info) else { return bounds };
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let (any, nothing) = (b.any, b.nothing);
         let independent = |t: &mut Self, x| !t.refers_to(x, params);
         let is = |t: &mut Self, x, c| t.u.class_symbol(x) == Some(c);
@@ -180,7 +180,7 @@ impl Typer<'_> {
     /// which a pattern's type constrains none of its bound types.
     pub fn is_top(&mut self, t: TypeId) -> bool {
         let t = self.u.dealias(t);
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let tops = [b.any, b.matchable, b.object];
         let Some((None, s)) = self.u.sym_ref(t) else {
             return self.u.sym_of(t).is_some_and(|s| tops.contains(&s));

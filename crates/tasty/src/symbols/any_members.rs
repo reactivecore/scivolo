@@ -24,7 +24,7 @@ impl Universe {
         let Some(owner) = self.symbol(m).owner else { return false };
         let name = self.symbol(m).name.as_str();
         let full = self.full_name(owner);
-        let builtins = self.builtins();
+        let builtins = self.defn();
         crate::PRIMITIVE_VALUE_CLASSES.contains(&full.as_str())
             || full == "java.lang.String"
             || owner == builtins.any && PURE_ANY_METHODS.contains(&name)
@@ -34,7 +34,7 @@ impl Universe {
     /// Whether `m` is one of the members `enter` gives `Object`, which are Scala ones.
     pub fn is_entered_object_member(&self, m: SymbolId) -> bool {
         let s = self.symbol(m);
-        s.owner == Some(self.builtins().object) && matches!(s.name.as_str(), "eq" | "ne" | "synchronized")
+        s.owner == Some(self.defn().object) && matches!(s.name.as_str(), "eq" | "ne" | "synchronized")
     }
 }
 

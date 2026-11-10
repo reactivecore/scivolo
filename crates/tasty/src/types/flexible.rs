@@ -33,7 +33,7 @@ impl Universe {
 
     /// Whether `t` refers to class `Null`.
     pub fn is_null_ref(&mut self, t: TypeId) -> bool {
-        let null = self.builtins().null;
+        let null = self.defn().null;
         matches!(self.ty(t), Type::Sym(..) | Type::TypeRef(..)) && self.referenced(t) == Some(null)
     }
 }

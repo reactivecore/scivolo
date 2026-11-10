@@ -158,7 +158,7 @@ impl Typer<'_> {
                 }
             }
             Type::Or(a, b, _) => {
-                let null = self.u.builtins().null;
+                let null = self.u.defn().null;
                 match (self.u.class_symbol(a), self.u.class_symbol(b)) {
                     (_, Some(c)) if c == null => self.class_bound_within(a, depth),
                     (Some(c), _) if c == null => self.class_bound_within(b, depth),

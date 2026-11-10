@@ -73,9 +73,7 @@ pub const EXTERN: &str = "scala.scalanative.unsafe.package$.extern";
 /// Whether `s` or its owner is Scala Native's `@extern`, unless `s` is not extern: an extension
 /// method or implicit class conversion of an extern object (nscplugin's `PrepNativeInterop`).
 pub fn is_extern(u: &mut Universe, s: SymbolId) -> bool {
-    let annotated = |u: &Universe, s: SymbolId| {
-        u.symbol(s).is_extern || u.annotations(s).iter().any(|&c| u.full_name(c) == EXTERN)
-    };
+    let annotated = |u: &Universe, s: SymbolId| u.symbol(s).is_extern || u.has_recorded_annotation(s, EXTERN);
     let in_extern = u.symbol(s).owner.is_some_and(|o| annotated(u, o));
     if !annotated(u, s) && !in_extern {
         return false;

@@ -5,13 +5,11 @@
 
 use super::Typer;
 use super::type_ops::TypeOps;
-use crate::defn::{ARRAY, IMMUTABLE_SEQ, INLINE_PARAM};
+use crate::defn::{ARRAY, IMMUTABLE_SEQ, INLINE_PARAM, REPEATED_ANNOT};
 use crate::special::entered;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId};
-
-const REPEATED_ANNOT: &str = "scala.annotation.internal.Repeated";
 
 impl Typer<'_> {
     /// Whether `annot`, an annotation's class type, marks a repeated parameter.
@@ -135,7 +133,7 @@ impl Typer<'_> {
         let expr = self.typed(expr, pt, ctx);
         let expr_tpe = self.tpd.tpe(expr);
         let null = self.resolve_full_name("scala.Null", true);
-        if self.u.class_symbol(expr_tpe).is_some_and(|c| Some(c) == null || c == self.u.builtins().nothing) {
+        if self.u.class_symbol(expr_tpe).is_some_and(|c| Some(c) == null || c == self.u.defn().nothing) {
             return self.unsupported(a, "sequence argument of a bottom type");
         }
         let widened = self.u.widen(expr_tpe);
@@ -188,6 +186,6 @@ impl TypeOps<'_> {
     /// `inline` parameter of an inline method is.
     pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
         let Some((_, annot)) = self.u.annotated(p) else { return false };
-        self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == INLINE_PARAM)
+        self.u.is_class_named(annot, INLINE_PARAM)
     }
 }

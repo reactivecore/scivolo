@@ -11,7 +11,7 @@ impl Typer<'_> {
     /// `tree` cast to its widened type and `Matchable` if `pt` is bounded by `Matchable`, the
     /// widened type does not derive from it, and the intersection conforms to `pt`.
     pub fn matchable_cast(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
-        let matchable = self.u.builtins().matchable;
+        let matchable = self.u.defn().matchable;
         if !self.is_matchable_bound(pt, 8) {
             return None;
         }
@@ -57,7 +57,7 @@ impl Typer<'_> {
         let hi = hi.map(|h| self.u.bounds(h).map_or(h, |(_, hi)| hi));
         match hi {
             Some(hi) if hi != t => self.is_matchable_bound(hi, depth),
-            _ => class == Some(self.u.builtins().matchable),
+            _ => class == Some(self.u.defn().matchable),
         }
     }
 }

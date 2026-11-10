@@ -126,7 +126,7 @@ impl Typer<'_> {
                 let next = self.constraint.instance(v).unwrap_or(self.constraint.bounds(v).1);
                 self.is_below_singleton(next, depth + 1)
             }
-            Type::Sym(_, c) => self.u.full_name(c) == "scala.Singleton",
+            Type::Sym(_, c) => c == self.u.defn().singleton,
             _ => false,
         }
     }

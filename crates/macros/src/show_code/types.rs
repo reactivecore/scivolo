@@ -157,7 +157,7 @@ impl Code<'_> {
             self.push(" = ");
             return self.bound(lo);
         }
-        let builtins = self.h.u.builtins();
+        let builtins = self.h.u.defn();
         let inferred = |c: &Self, b: Bound| match b {
             Bound::Tree(t) => matches!(c.tree_of(t), T::TypeTree { .. }),
             Bound::Inferred(_) => true,

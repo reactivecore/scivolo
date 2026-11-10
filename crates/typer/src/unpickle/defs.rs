@@ -60,7 +60,7 @@ impl Unpickler<'_> {
         let rhs = body.get(1).map(|&r| self.term(r)).transpose();
         self.owner = outer;
         let clauses: Vec<&[TNodeId]> = paramss.iter().map(Vec::as_slice).collect();
-        let unit = self.class_symbol("scala.Unit")?;
+        let unit = self.class_symbol(crate::defn::UNIT)?;
         let def =
             Build::new(self.tpd, self.u, self.names, unit).def_def(sym, &clauses, tpt, rhs?, Span::NONE);
         Ok(self.positioned(id, def))
@@ -97,7 +97,7 @@ impl Unpickler<'_> {
         let outer = std::mem::replace(&mut self.owner, sym);
         let rhs = rhs.map(|r| self.term(r)).transpose();
         self.owner = outer;
-        let unit = self.class_symbol("scala.Unit")?;
+        let unit = self.class_symbol(crate::defn::UNIT)?;
         let def = Build::new(self.tpd, self.u, self.names, unit).val_def(sym, tpt, rhs?, Span::NONE);
         Ok(self.positioned(id, def))
     }

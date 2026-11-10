@@ -149,7 +149,7 @@ impl Universe {
             _ => {
                 let widened = self.widen(t);
                 let c = self.class_symbol(widened)?;
-                let b = self.builtins();
+                let b = self.defn();
                 if c == b.null && self.null_mode().explicit {
                     return Some(vec![b.null, b.matchable, b.any]);
                 }
@@ -204,8 +204,8 @@ impl Universe {
     /// Whether `t` is of class `Nothing` or `Null` (dotty's `isBottomTypeAfterErasure`).
     fn is_bottom(&mut self, t: TypeId) -> bool {
         let widened = self.widen(t);
-        let c = self.class_symbol(widened);
-        c.is_some_and(|c| c == self.builtins().nothing || self.full_name(c) == "scala.Null")
+        let (c, d) = (self.class_symbol(widened), self.defn());
+        c.is_some_and(|c| c == d.nothing || c == d.null)
     }
 
     /// Applications `x` and `y` of the same class merged, their arguments joined by variance

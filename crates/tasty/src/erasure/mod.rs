@@ -45,10 +45,8 @@ pub enum Erased {
     Value(String, Box<Erased>),
 }
 
-const OBJECT: &str = "java.lang.Object";
-
 fn object() -> Erased {
-    Erased::Class(OBJECT.into())
+    Erased::Class(crate::defn::OBJECT.into())
 }
 
 impl Universe {
@@ -111,7 +109,7 @@ impl Universe {
         if self.symbol(c).flags.has(TRAIT) {
             return None;
         }
-        let any_val = self.builtins().any_val?;
+        let any_val = self.defn().any_val?;
         if !self.parents(c).into_iter().any(|p| self.class_symbol(p) == Some(any_val)) {
             return None;
         }

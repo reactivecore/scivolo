@@ -70,5 +70,5 @@ impl Typer<'_> {
 /// Whether `t` or a type it annotates carries annotation class `name`.
 fn has_annotation(u: &mut Universe, t: TypeId, name: &str) -> bool {
     let Some((inner, annot)) = u.annotated(t) else { return false };
-    u.class_symbol(annot).is_some_and(|c| u.full_name(c) == name) || has_annotation(u, inner, name)
+    u.is_class_named(annot, name) || has_annotation(u, inner, name)
 }

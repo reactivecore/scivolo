@@ -47,7 +47,7 @@ impl Inlining<'_> {
                 if !self.is_constant_value(arg) {
                     return Err((self.tpd.span(arg), "requireConst of a value that is not constant"));
                 }
-                let tpe = self.u.class_ref("scala.Unit");
+                let tpe = self.u.class_ref(crate::defn::UNIT);
                 self.tpd.node(T::Literal { value: C::Unit }, span, Some(tpe), None)
             }
             ("codeOf", Some(arg), _) => self.code_of(arg, span)?,

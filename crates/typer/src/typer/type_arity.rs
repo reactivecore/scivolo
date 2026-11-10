@@ -131,7 +131,7 @@ impl Typer<'_> {
             Type::Bounds(lo, hi) => (Some(lo), hi, self.type_arity(hi)),
             Type::Lambda { binder, params, result } => {
                 let (lo, hi) = self.u.bounds(result).unwrap_or((result, result));
-                let bottom = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
+                let bottom = self.u.class_symbol(lo) == Some(self.u.defn().nothing);
                 let arity = params.len();
                 let mut lambda = |result| {
                     let params = params.clone();

@@ -111,7 +111,7 @@ impl Typer<'_> {
             T::AppliedTypeTree { tpt, args } => {
                 let tycon = self.tpd.tpe(tpt);
                 let args = self.tpd.items(args).to_vec();
-                let and = self.u.sym_of(tycon).is_some_and(|s| self.u.full_name(s) == "scala.&");
+                let and = self.u.sym_of(tycon).is_some_and(|s| self.u.full_name(s) == crate::defn::AND);
                 let variances = match (and, self.u.class_symbol(tycon)) {
                     (true, _) => vec![1; args.len()],
                     (false, Some(c)) => {

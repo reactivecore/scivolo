@@ -80,7 +80,7 @@ impl Typer<'_> {
     /// `t` without its annotation of class `name` (dotty's `dropAnnot`).
     pub fn without_annotation(&mut self, t: TypeId, name: &str) -> TypeId {
         let Some((inner, annot)) = self.u.annotated(t) else { return t };
-        if self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == name) {
+        if self.u.is_class_named(annot, name) {
             return inner;
         }
         let inner = self.without_annotation(inner, name);

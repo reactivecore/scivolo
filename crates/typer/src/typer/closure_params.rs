@@ -30,7 +30,7 @@ impl Typer<'_> {
         let formal = self.zonk(formal);
         let formal = self.without_erased_param(formal);
         let lower = self.u.bounds(formal).map(|(lo, _)| lo);
-        let nothing = Some(self.u.builtins().nothing);
+        let nothing = Some(self.u.defn().nothing);
         if lower.is_some_and(|lo| self.u.class_symbol(lo) == nothing) {
             return Err(self.unsupported(p, "parameter type inferred from the target of a wildcard"));
         }

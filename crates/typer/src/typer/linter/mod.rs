@@ -95,24 +95,24 @@ impl Linter<'_> {
             return true;
         }
         let Some(c) = type_class(u, w) else { return false };
-        let b = u.builtins();
+        let b = u.defn();
         [self.unit, b.nothing, b.null, b.any, b.object].contains(&c)
             || b.any_val == Some(c)
-            || u.full_name(c) == "scala.runtime.BoxedUnit"
+            || u.full_name(c) == crate::defn::BOXED_UNIT
     }
 
     /// dotty's `isJavaApplication`: a call of a Java method not of `Object`.
     fn is_java_application(&self, u: &mut Universe, t: TNodeId) -> bool {
         let T::Apply { fun, .. } = *self.tpd.tree(t) else { return false };
         let Some(f) = self.tpd.sym(fun) else { return false };
-        let b = u.builtins();
+        let b = u.defn();
         let owner = u.symbol(f).owner;
         is_java_member(u, f) && !owner.is_some_and(|o| [b.object, b.any, b.matchable].contains(&o))
     }
 }
 
 fn uninteresting_symbol(u: &mut Universe, s: SymbolId) -> bool {
-    let b = u.builtins();
+    let b = u.defn();
     let sym = u.symbol(s);
     let name = sym.name.trim_end_matches('$');
     name == "<init>"
@@ -121,7 +121,7 @@ fn uninteresting_symbol(u: &mut Universe, s: SymbolId) -> bool {
         || name.ends_with("$package")
         || [b.any, b.any_ref].contains(&s)
         || b.any_val == Some(s)
-        || u.full_name(s) == "scala.runtime.BoxedUnit"
+        || u.full_name(s) == crate::defn::BOXED_UNIT
 }
 
 /// The class `t` names, through aliases but not abstract types (dotty's `typeSymbol`).

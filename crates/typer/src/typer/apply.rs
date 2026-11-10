@@ -51,7 +51,7 @@ impl Typer<'_> {
         if self.is_invalid_infix(id, fun, infix_meth) {
             return self.unsupported(id, "alphanumeric infix operator under -source future");
         }
-        if method.is_some_and(|m| self.u.full_name(m) == "scala.compiletime.package$package$.summonFrom") {
+        if method.is_some_and(|m| self.u.full_name(m) == crate::defn::SUMMON_FROM) {
             return self.summon_from_applied(id, &arg_ids, pt, ctx);
         }
         let using = self.protos[proto].using;

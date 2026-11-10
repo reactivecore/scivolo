@@ -13,7 +13,7 @@ use tasty::{SymbolId, Type};
 impl Typer<'_> {
     /// Whether `c` is `java.lang.Enum`.
     pub fn is_java_enum_class(&self, c: SymbolId) -> bool {
-        self.u.full_name(c) == "java.lang.Enum"
+        self.u.full_name(c) == crate::defn::JAVA_ENUM
     }
 
     /// Whether class `c` derives from `java.lang.Enum`.

@@ -31,8 +31,7 @@ impl TreePickler<'_> {
 
     /// Whether class type `class` is capture checking's `caps.internal.inferred`.
     pub fn is_inferred_mark(&mut self, class: TypeId) -> bool {
-        let class = self.u.class_symbol(class);
-        class.is_some_and(|c| self.u.full_name(c) == "scala.caps.internal$.inferred")
+        self.u.is_class_named(class, crate::defn::INFERRED)
     }
 
     /// `new C()` of class type `class`, an annotation without arguments.

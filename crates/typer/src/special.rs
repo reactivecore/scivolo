@@ -53,7 +53,7 @@ pub fn throw_method(u: &mut Universe) -> SymbolId {
         return t;
     }
     let throwable = u.class_ref("java.lang.Throwable");
-    let nothing = type_ref(u, u.builtins().nothing);
+    let nothing = type_ref(u, u.defn().nothing);
     let binder = u.fresh_binder();
     let params = vec![("x".into(), throwable)];
     let info =

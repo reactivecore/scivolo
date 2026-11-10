@@ -103,7 +103,7 @@ impl TypeOps<'_> {
         }
         let to = self.u.dealias(to);
         let (Some(r), Some(t)) = (self.direct_class(result), self.direct_class(to)) else { return true };
-        let b = self.u.builtins();
+        let b = self.u.defn();
         r == b.nothing || r == b.null || self.u.derives_from(r, t)
     }
 

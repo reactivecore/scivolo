@@ -85,7 +85,7 @@ impl Resolution {
             let tpe = t.u.dealias(p);
             if let Some((tycon, n)) = t.u.applied(tpe).map(|(c, elems)| (c, elems.len()))
                 && n == params.len()
-                && t.u.class_symbol(tycon).is_some_and(|c| t.u.full_name(c) == format!("scala.Tuple{n}"))
+                && t.u.is_class_named(tycon, &format!("{}{n}", crate::defn::TUPLE))
             {
                 return Ok(true);
             }

@@ -44,7 +44,7 @@ impl Expansion<'_, '_> {
         let by_name = i.u.by_name(formal).is_some();
         let inline = i.u.symbol(p).flags.has(INLINE) || i.is_inline_param_type(formal);
         let mut widened = i.u.widen(arg_tpe);
-        let builtins = i.u.builtins();
+        let builtins = i.u.defn();
         let bottom = i.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);
         let skolem = skolem.filter(|_| !bottom);
         if let Some(sk) = skolem {
@@ -183,9 +183,7 @@ impl Inlining<'_> {
     pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
         match *self.u.ty(p) {
             Type::ByName(r) => self.is_inline_param_type(r),
-            Type::Annotated(_, annot) => {
-                self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == INLINE_PARAM)
-            }
+            Type::Annotated(_, annot) => self.u.is_class_named(annot, INLINE_PARAM),
             _ => false,
         }
     }

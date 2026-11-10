@@ -24,13 +24,13 @@ impl Typer<'_> {
         }
         self.conforms(formal, target);
         let defined = self.fully_defined(formal).ok()?;
-        (self.u.class_symbol(defined) != Some(self.u.builtins().nothing)).then_some(defined)
+        (self.u.class_symbol(defined) != Some(self.u.defn().nothing)).then_some(defined)
     }
 
     fn is_bottom_wildcard(&mut self, formal: TypeId) -> bool {
         let formal = self.zonk(formal);
         let Some((lo, _)) = self.u.bounds(formal) else { return false };
-        self.u.class_symbol(lo) == Some(self.u.builtins().nothing)
+        self.u.class_symbol(lo) == Some(self.u.defn().nothing)
     }
 
     /// The types of `params` from the method `body` applies, `f(… x1, …, xN …)` with each

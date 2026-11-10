@@ -44,8 +44,7 @@ pub fn declared(u: &Universe, s: SymbolId) -> u8 {
 
 /// Whether annotation class type `annot` is `@uncheckedVariance`.
 pub fn is_unchecked_variance(u: &mut Universe, annot: TypeId) -> bool {
-    let class = u.class_symbol(annot);
-    class.is_some_and(|c| u.full_name(c) == "scala.annotation.unchecked.uncheckedVariance")
+    u.is_class_named(annot, crate::defn::UNCHECKED_VARIANCE)
 }
 
 /// Converts the variance sign `v` (+1, -1, 0) to a variance.

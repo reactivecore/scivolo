@@ -45,7 +45,7 @@ impl Typer<'_> {
     fn has_scala3_implementation(&mut self, sym: SymbolId) -> bool {
         let Some(owner) = self.u.symbol(sym).owner else { return false };
         if WITHOUT_IMPLEMENTATION.contains(&self.u.full_name(sym).as_str())
-            || self.u.full_name(owner) == "scala.reflect.package$"
+            || self.u.full_name(owner) == crate::defn::REFLECT_PACKAGE_CLASS
         {
             return true;
         }

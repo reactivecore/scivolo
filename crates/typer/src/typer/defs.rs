@@ -116,7 +116,7 @@ impl Typer<'_> {
         }
         if flags.has(tasty::tags::INLINE) {
             self.erasure_diags.items.truncate(erasure_mark);
-            if self.u.annotations(sym).iter().any(|&c| self.u.full_name(c) == "scala.annotation.tailrec") {
+            if self.u.has_recorded_annotation(sym, crate::defn::TAILREC) {
                 return self.unsupported(id, "tailrec inline method");
             }
             if let Some(r) = rhs.filter(|_| flags.has(tasty::tags::MACRO)) {

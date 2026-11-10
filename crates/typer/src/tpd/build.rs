@@ -69,7 +69,7 @@ impl<'a> Build<'a> {
     pub fn literal_type(&mut self, c: &Constant) -> TypeId {
         match c {
             Constant::Unit => type_ref(self.u, self.unit),
-            Constant::Null => type_ref(self.u, self.u.builtins().null),
+            Constant::Null => type_ref(self.u, self.u.defn().null),
             _ => constant_type_of(self.u, c),
         }
     }
@@ -123,7 +123,7 @@ impl<'a> Build<'a> {
 
     /// Builds the cast `tree.asInstanceOf[to]` at `span`, typed as `to`.
     pub fn cast_to(&mut self, tree: TNodeId, to: TypeId, span: Span) -> Result<TNodeId, &'static str> {
-        let any = self.u.builtins().any;
+        let any = self.u.defn().any;
         let m = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
         let m = m.ok_or("cast without Any.asInstanceOf")?;
         let select_tpe = self.u.intern_type(Type::Sym(Some(self.tpd.tpe(tree)), m));
@@ -144,7 +144,7 @@ impl<'a> Build<'a> {
     pub fn return_(&mut self, expr: TNodeId, method: SymbolId, span: Span) -> TNodeId {
         let from_tpe = self.u.intern_type(Type::Sym(None, method));
         let from = self.ident(method, from_tpe, span.end_pos());
-        let nothing = type_ref(self.u, self.u.builtins().nothing);
+        let nothing = type_ref(self.u, self.u.defn().nothing);
         self.tpd.node(T::Return { expr, from }, span, Some(nothing), None)
     }
 

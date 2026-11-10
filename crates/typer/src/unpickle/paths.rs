@@ -15,7 +15,7 @@ impl Unpickler<'_> {
     /// A path, a type or a constant as a tree.
     pub fn path(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
         if let Some(value) = self.constant(id) {
-            let unit = self.class_symbol("scala.Unit")?;
+            let unit = self.class_symbol(crate::defn::UNIT)?;
             return Ok(Build::new(self.tpd, self.u, self.names, unit).literal(value, Span::NONE));
         }
         match self.tag(id) {

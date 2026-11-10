@@ -16,8 +16,6 @@ use tasty::{Kind, SymbolId};
 /// lowering does not. A backend's own annotations are its code generator's to read or refuse.
 const REFUSED: [&str; 3] = ["scala.native", "scala.beans.BeanProperty", "scala.beans.BooleanBeanProperty"];
 
-pub const STATIC: &str = "scala.annotation.static";
-
 impl Typer<'_> {
     /// Records the classes of the annotations of definition `tree` on its symbol `sym` in the
     /// universe, and the annotations to type in `ctx`; a `@targetName` names `sym` at run time.

@@ -25,6 +25,8 @@ pub struct Ast {
 }
 
 const MAX_DEPTH: u32 = 4096;
+/// How many `SHAREDterm`/`SHAREDtype` links `deref` follows.
+const MAX_SHARED_LINKS: u32 = 64;
 
 impl Ast {
     pub fn parse(section: &[u8]) -> Result<Ast> {
@@ -77,7 +79,7 @@ impl Ast {
 
     /// Follows SHAREDterm/SHAREDtype links.
     pub fn deref(&self, mut id: NodeId) -> NodeId {
-        for _ in 0..64 {
+        for _ in 0..MAX_SHARED_LINKS {
             let n = self.node(id);
             if !matches!(n.tag, SHAREDterm | SHAREDtype) {
                 break;

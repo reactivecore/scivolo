@@ -75,9 +75,7 @@ impl Universe {
     /// Whether `t` is `Array[e]`.
     pub fn is_array(&mut self, t: TypeId) -> bool {
         match self.types.get(t).clone() {
-            Type::Applied(c, args) => {
-                args.len() == 1 && self.class_symbol(c).is_some_and(|s| self.full_name(s) == "scala.Array")
-            }
+            Type::Applied(c, args) => args.len() == 1 && self.is_class_named(c, super::defn::ARRAY),
             _ => false,
         }
     }

@@ -11,7 +11,7 @@ use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId, Universe};
 
 /// `JProcedure{arity}`, with abstract method `applyVoid` of object parameters.
 pub fn procedure(u: &mut Universe, arity: usize) -> Result<SymbolId, String> {
-    let object = type_ref(u, u.builtins().object);
+    let object = type_ref(u, u.defn().object);
     let unit = primitive(u, &Erased::Unit)?;
     let params = vec![object; arity];
     interface(u, "scala.runtime.function", &format!("JProcedure{arity}"), "applyVoid", &params, unit)
@@ -126,7 +126,7 @@ fn interface(
     u.set_parents(class, parents);
     let abstract_ = method(u, class, method_name, params, result);
     u.set_deferred(abstract_, true);
-    let object = type_ref(u, u.builtins().object);
+    let object = type_ref(u, u.defn().object);
     method(u, class, "apply", &vec![object; params.len()], object);
     Ok(class)
 }

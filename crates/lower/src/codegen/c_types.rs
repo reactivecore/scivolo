@@ -11,11 +11,14 @@ use nir::{Type, TypeId};
 use syntax::ast::Span;
 use tasty::SymbolId;
 
+/// How many widenings and dealiasings `widen_dealias` makes.
+const MAX_STEPS: u32 = 64;
+
 impl Gen<'_, '_> {
     /// `t` widened and dealiased, opaque types replaced by their aliases (nscplugin's
     /// `DealiasTypeMapper`).
     fn widen_dealias(&mut self, mut t: tasty::TypeId) -> tasty::TypeId {
-        for _ in 0..64 {
+        for _ in 0..MAX_STEPS {
             let w = self.l.u.widen(t);
             let mut d = self.l.u.dealias(w);
             if let Some(s) = self.l.u.sym_of(d)

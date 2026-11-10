@@ -124,7 +124,7 @@ impl Typer<'_> {
     /// `qual.$asInstanceOf$[to]` (dotty's `cast`).
     pub fn type_cast(&mut self, qual: TNodeId, to: TypeId) -> TNodeId {
         let tpe = self.tpd.tpe(qual);
-        let any = self.u.builtins().any;
+        let any = self.u.defn().any;
         let m = self.u.decl(any, "$asInstanceOf$").ok().and_then(|ms| ms.first().copied());
         let Some(m) = m else { return qual };
         let span = self.tpd.span(qual).to_synthetic();

@@ -12,6 +12,7 @@ mod classes;
 mod classfiles;
 mod companions;
 mod define;
+pub mod defn;
 mod enter;
 mod entries;
 mod function_classes;
@@ -56,8 +57,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::io;
 
 pub use bodies::BodyInfo;
-pub use builtin::{ANY, Builtins, NOTHING};
+pub use builtin::{ANY, NOTHING};
 pub use companions::{module_class_name, module_name};
+pub use defn::Defn;
 pub use function_classes::MAX_IMPLEMENTED_ARITY;
 pub use jdk::{defined_name, jdk_name};
 pub use lookup::{decode, encode};
@@ -148,7 +150,7 @@ pub struct Universe {
     resolving: u32,
     /// The intersections and unions whose base types `base_type` is merging, with the base class.
     merging_bases: FxHashSet<(TypeId, SymbolId)>,
-    builtins: Builtins,
+    defn: Defn,
     /// How many binders `fresh_binder` has made.
     binders: u32,
     /// The declared variances of the type lambdas made outside TASTy that declare them.

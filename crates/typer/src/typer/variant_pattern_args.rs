@@ -87,7 +87,7 @@ impl Typer<'_> {
             return false;
         };
         let same = self.u.class_symbol(pc).is_some_and(|c| self.u.class_symbol(sc) == Some(c));
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let (any, nothing) = (b.any, b.nothing);
         same && pargs.len() == sargs.len()
             && pargs.iter().zip(&sargs).all(|(&p, &s)| match self.u.sym_ref(p) {

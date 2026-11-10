@@ -134,7 +134,7 @@ impl Typer<'_> {
             .collect();
         let result = self.param_refs(method, tparams, binder);
         let info = self.u.intern_type(Type::Poly { binder, params, result });
-        let parent = self.u.class_ref("scala.PolyFunction");
+        let parent = self.u.class_ref(crate::defn::POLY_FUNCTION);
         self.u.intern_type(Type::Refined(parent, "apply".into(), info))
     }
 

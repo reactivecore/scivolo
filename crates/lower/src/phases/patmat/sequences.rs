@@ -146,7 +146,7 @@ impl Translator<'_, '_> {
         let Tree::Typed { expr, tpt } = *self.l.tpd.tree(pat) else { return None };
         let tpe = self.l.tpd.tpe(tpt);
         let class = self.l.u.class_symbol(tpe)?;
-        (self.l.u.full_name(class) == "scala.<repeated>").then_some(expr)
+        (self.l.u.full_name(class) == tasty::defn::REPEATED).then_some(expr)
     }
 
     /// `scrutinee.lengthCompare(len) == 0`, or `>= 0` unless `exact`; without `lengthCompare`,

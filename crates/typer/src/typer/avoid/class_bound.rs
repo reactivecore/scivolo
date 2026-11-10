@@ -19,7 +19,7 @@ impl Avoid<'_> {
         let parents = t.u.parents(c);
         let parent = parents.into_iter().fold(tasty::ANY, |acc, p| t.u.glb(acc, p));
         let selectable =
-            t.resolve_full_name("scala.Selectable", true).is_some_and(|s| t.u.derives_from(c, s));
+            t.resolve_full_name(crate::defn::SELECTABLE, true).is_some_and(|s| t.u.derives_from(c, s));
         let decls = t.u.symbol(c).decls.clone();
         let (refinable, missing): (Vec<SymbolId>, Vec<SymbolId>) = decls.into_iter().partition(|&d| {
             let s = t.u.symbol(d);
@@ -122,7 +122,7 @@ fn own_type_members(u: &mut Universe, c: SymbolId, this: TypeId, tpe: TypeId) ->
 /// Whether member `d` of class `c` is the `apply` of a polymorphic function value.
 fn is_poly_function_apply(t: &mut Typer, c: SymbolId, d: SymbolId) -> bool {
     t.u.symbol(d).name == "apply"
-        && t.resolve_full_name("scala.PolyFunction", true).is_some_and(|p| t.u.derives_from(c, p))
+        && t.resolve_full_name(crate::defn::POLY_FUNCTION, true).is_some_and(|p| t.u.derives_from(c, p))
 }
 
 /// The info of term member `d` as a refinement gives it: a parameterless method's by-name.

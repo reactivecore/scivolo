@@ -5,10 +5,9 @@
 //! `unapplySeqTypeElemTp`).
 
 use super::Typer;
+use crate::defn::{BOOLEAN, INT};
 use tasty::{Binding, Kind, Type, TypeId};
 
-/// The result type of an extractor that matches without binding anything.
-pub const BOOLEAN: &str = "scala.Boolean";
 /// The class of generic tuples `A *: B *: EmptyTuple`, whose elements patterns match.
 pub const NON_EMPTY_TUPLE: &str = "scala.NonEmptyTuple";
 /// The class of sequences, whose elements the patterns of an `unapplySeq` match.
@@ -83,7 +82,7 @@ fn int_method_results(t: &mut Typer<'_>, tpe: TypeId, name: &str) -> Vec<TypeId>
 }
 
 fn is_int(t: &mut Typer<'_>, tpe: TypeId) -> bool {
-    t.u.class_symbol(tpe).is_some_and(|c| t.u.full_name(c) == crate::defn::INT)
+    t.u.is_class_named(tpe, INT)
 }
 
 /// The results of the alternatives of member `name` of `tpe` that are parameterless methods.

@@ -70,7 +70,7 @@ fn classes_without_initialization_code() {
         let c = class(&mut u, pkg, name);
         assert_eq!(u.no_inits(c), expected, "{pkg}.{name}");
     }
-    let builtins = u.builtins();
+    let builtins = u.defn();
     assert!(u.no_inits(builtins.any) && u.no_inits(builtins.object));
 }
 

@@ -85,8 +85,10 @@ impl Unions {
 
     /// A test for membership in `ys`, which `queries` tests will use.
     fn members<'a>(&'a self, ys: &'a List, queries: usize) -> impl Fn(TypeId) -> bool + 'a {
+        /// The length of `ys` and number of queries beyond which a hash set answers the tests.
+        const SET_BEYOND: usize = 16;
         let set: Option<FxHashSet<TypeId>> = match ys {
-            List::Own(v) if v.len() > 16 && queries > 16 => Some(v.iter().copied().collect()),
+            List::Own(v) if v.len() > SET_BEYOND && queries > SET_BEYOND => Some(v.iter().copied().collect()),
             _ => None,
         };
         move |x| match (ys, &set) {

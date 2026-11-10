@@ -137,8 +137,7 @@ impl SourcePrinter<'_> {
     }
 
     fn applied(&mut self, tycon: TypeId, args: &[TypeId]) -> Shown {
-        let class = self.u.class_symbol(tycon);
-        if class.is_some_and(|c| self.u.full_name(c) == "scala.<repeated>") {
+        if self.u.is_class_named(tycon, crate::defn::REPEATED) {
             self.out.push_str("_*");
             return Ok(());
         }

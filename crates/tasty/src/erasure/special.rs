@@ -3,7 +3,8 @@
 //   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
 //! Classes the compiler defines itself or erases specially, and the erasure of constants.
 
-use super::{Erased, OBJECT};
+use super::Erased;
+use crate::defn::OBJECT;
 
 /// The primitive value classes (dotty's `ScalaValueClasses`), `Unit` last.
 pub const PRIMITIVE_VALUE_CLASSES: [&str; 9] = [
@@ -51,9 +52,9 @@ fn function(full: &str) -> Option<Erased> {
     let name = name.strip_prefix("Impure").unwrap_or(name);
     let name = name.strip_prefix("Context").unwrap_or(name);
     let arity: u32 = name.strip_prefix("Function")?.parse().ok()?;
-    let class =
-        if arity > 22 { "scala.runtime.FunctionXXL".into() } else { format!("scala.Function{arity}") };
-    (class != full || arity > 22).then_some(Erased::Class(class))
+    let xxl = arity as usize > crate::MAX_IMPLEMENTED_ARITY;
+    let class = if xxl { "scala.runtime.FunctionXXL".into() } else { format!("scala.Function{arity}") };
+    (class != full || xxl).then_some(Erased::Class(class))
 }
 
 /// The box class of the primitive of erased letter `c`.

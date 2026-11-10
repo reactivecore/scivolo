@@ -42,7 +42,7 @@ fn encode(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let Tree::QuotePattern { bindings, body, quotes } = *l.tpd.tree(t) else { unreachable!() };
     let span = l.tpd.span(t);
     let bindings = l.tpd.items(bindings).to_vec();
-    let is_term = l.u.class_symbol(l.tpd.tpe(t)).is_some_and(|c| l.u.full_name(c) == "scala.quoted.Expr");
+    let is_term = l.u.is_class_named(l.tpd.tpe(t), tasty::defn::QUOTED_EXPR);
     let tags = l.tpd.quote_tags(t).to_vec();
     let splices = shape::split(l, body)?;
     let shape = shape::with_bindings(l, body, &bindings, owner);
@@ -133,7 +133,7 @@ fn tuple_pattern(l: &mut Lower, patterns: &[TNodeId], types: &[TypeId], span: Sp
         let module = empty_tuple(l);
         return Ok(l.ident(module, Span::NONE));
     }
-    if patterns.len() > 22 {
+    if patterns.len() > tasty::defn::MAX_TUPLE_ARITY {
         return unsupported(span, "quote patterns of more than 22 splices and type variables");
     }
     let unapply = runtime(l, &format!("scala.Tuple{}$", patterns.len()), "unapply", Span::NONE);

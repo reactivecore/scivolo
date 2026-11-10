@@ -11,6 +11,9 @@ use tasty::tags::{LAZY, MUTABLE};
 use tasty::{Erased, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
+/// How many proxies `type_symbol` looks through.
+const MAX_PROXIES: u32 = 64;
+
 /// The erasure of ascribed type `tpt`: `BoxedUnit` for a type erasing to `Unit` whose type symbol
 /// is not `Unit`, a value class boxed if `tpt` is a boxed ascription's (dotty's `typedTyped`).
 pub fn ascription_type(l: &mut Lower, tpt: TNodeId) -> Erased {
@@ -20,7 +23,7 @@ pub fn ascription_type(l: &mut Lower, tpt: TNodeId) -> Erased {
     }
     match l.u.erase_value(tpe) {
         Erased::Unit if type_symbol(l, tpe) != Some(l.defs.unit) => {
-            Erased::Class("scala.runtime.BoxedUnit".into())
+            Erased::Class(tasty::defn::BOXED_UNIT.into())
         }
         e => e,
     }
@@ -28,7 +31,7 @@ pub fn ascription_type(l: &mut Lower, tpt: TNodeId) -> Erased {
 
 /// The type symbol `t` refers to, through proxies but not aliases (dotty's `typeSymbol`).
 fn type_symbol(l: &mut Lower, mut t: TypeId) -> Option<SymbolId> {
-    for _ in 0..64 {
+    for _ in 0..MAX_PROXIES {
         t = match *l.u.ty(t) {
             Type::Sym(_, s) if l.u.is_type_symbol(s) => return Some(s),
             Type::TypeRef(..) => return l.u.resolve_ref(t),

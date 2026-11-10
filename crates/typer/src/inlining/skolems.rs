@@ -60,7 +60,7 @@ impl Inlining<'_> {
     /// `expr.$asInstanceOf$[to]`, at `expr`'s span made synthetic (dotty's `cast`).
     pub fn cast(&mut self, expr: TNodeId, to: TypeId) -> Result<TNodeId, Unsupported> {
         let span = self.tpd.span(expr).to_synthetic();
-        let any = self.u.builtins().any;
+        let any = self.u.defn().any;
         let found = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
         let m = found.ok_or((span, "a cast without Any.$asInstanceOf$"))?;
         let prefix = self.tpd.tpe(expr);

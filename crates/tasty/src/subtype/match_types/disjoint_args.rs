@@ -83,7 +83,7 @@ impl Cmp<'_> {
     /// Whether type parameter `p` of class `c` is the type of one of its case class fields, or
     /// `c` is a pair class (dotty's `typeparamCorrespondsToField`).
     fn param_is_field(&mut self, c: SymbolId, p: SymbolId) -> bool {
-        if self.u.full_name(c) == "scala.*:" {
+        if self.u.full_name(c) == crate::defn::PAIR {
             return true;
         }
         if !self.u.symbol(c).flags.has(CASE) {

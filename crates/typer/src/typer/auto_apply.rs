@@ -20,7 +20,7 @@ impl Typer<'_> {
         if !self.is_loose_member(s) && !overridden.iter().any(|&m| self.is_loose_member(m)) {
             return false;
         }
-        let any = self.u.builtins().any;
+        let any = self.u.defn().any;
         let scala2 = std::iter::once(owner)
             .chain(overridden.iter().filter_map(|&m| self.u.symbol(m).owner))
             .any(|o| self.u.is_scala2(o));
@@ -69,6 +69,6 @@ impl Typer<'_> {
     /// Scala 2 standard library.
     pub fn is_loose_member(&mut self, s: SymbolId) -> bool {
         let Some(owner) = self.u.symbol(s).owner else { return false };
-        owner == self.u.builtins().any || self.u.is_scala2(owner) || self.is_java_member(s)
+        owner == self.u.defn().any || self.u.is_scala2(owner) || self.is_java_member(s)
     }
 }

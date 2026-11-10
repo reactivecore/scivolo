@@ -33,7 +33,7 @@ impl Cmp<'_> {
             },
             Type::And(x, y) => self.recur(a, x) && self.recur(a, y),
             Type::Or(x, y, _) if x == y => self.recur(a, x),
-            Type::Sym(_, s) if s == self.u.builtins().from_java_object => self.recur(a, crate::ANY),
+            Type::Sym(_, s) if s == self.u.defn().from_java_object => self.recur(a, crate::ANY),
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => self.compare_named(a, b),
             _ => self.second_try(a, b),
         }
@@ -99,7 +99,7 @@ impl Cmp<'_> {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => {
                 match self.named(a).map(|n| n.meaning) {
                     Some(Meaning::Alias(alias)) if self.recur(alias, b) => return true,
-                    Some(Meaning::Class(c)) if c == self.u.builtins().nothing && self.is_value_type(b) => {
+                    Some(Meaning::Class(c)) if c == self.u.defn().nothing && self.is_value_type(b) => {
                         return true;
                     }
                     _ => {}
@@ -151,7 +151,7 @@ impl Cmp<'_> {
                     || self.fourth_try(a, b)
             }
             Meaning::Class(c) if self.u.type_params(c).is_empty() => {
-                let builtins = self.u.builtins();
+                let builtins = self.u.defn();
                 if c == builtins.any_kind || self.is_bottom(a) {
                     return true;
                 }

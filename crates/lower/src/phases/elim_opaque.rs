@@ -16,7 +16,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     for t in subtrees(l.tpd, root) {
         let Tree::Apply { fun, .. } = *l.tpd.tree(t) else { continue };
         let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { continue };
-        let any = Some(l.u.builtins().any);
+        let any = Some(l.u.defn().any);
         let equality = l
             .tpd
             .sym(fun)

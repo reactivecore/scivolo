@@ -160,7 +160,7 @@ impl Universe {
 
     /// Whether `t` refers to `Nothing`, or to `Null` without safe nulls.
     fn is_bottom_ref(&self, t: TypeId) -> bool {
-        let b = self.builtins();
+        let b = self.defn();
         let safe = self.null_mode.safe;
         matches!(*self.ty(t), Type::Sym(_, s) if s == b.nothing || s == b.null && !safe)
     }
@@ -168,7 +168,7 @@ impl Universe {
     /// Whether `c` is `Null` under explicit nulls, whose parents are `Any` and `Matchable`, and
     /// `base` is neither.
     fn is_null_without(&self, c: SymbolId, base: SymbolId) -> bool {
-        let b = self.builtins();
+        let b = self.defn();
         self.null_mode.explicit && c == b.null && base != b.any && base != b.matchable
     }
 

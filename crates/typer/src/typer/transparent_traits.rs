@@ -69,7 +69,7 @@ impl Typer<'_> {
             },
             _ => return false,
         };
-        let b = self.u.builtins();
+        let b = self.u.defn();
         if !trait_only && (c == b.any || c == b.matchable || c == b.object) {
             return true;
         }

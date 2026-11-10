@@ -149,7 +149,7 @@ impl Typer<'_> {
             return None;
         }
         let class = self.u.class_symbol(pt)?;
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let top = class == b.any || Some(class) == b.any_val;
         (self.u.symbol(class).kind == tasty::Kind::Class && !self.u.symbol(class).flags.has(FINAL) && !top)
             .then_some(pt)

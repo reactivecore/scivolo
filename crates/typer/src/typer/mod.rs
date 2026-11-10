@@ -395,7 +395,7 @@ impl<'a> Typer<'a> {
         if !v.is_at_least(SourceVersion::V3_7) || v.migrating {
             return Err("source versions other than 3.7 to 3.9".into());
         }
-        let defn = Defn::new(u)?;
+        let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
         let mut syms = std::mem::take(syms);
         let ops = u.package("<special-ops>");

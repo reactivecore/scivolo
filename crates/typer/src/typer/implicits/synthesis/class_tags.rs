@@ -121,7 +121,7 @@ fn special_class_name(t: &mut Typer<'_>, dealiased: TypeId) -> Option<&'static s
         }
         _ => t.u.class_symbol(dealiased),
     };
-    let b = t.u.builtins();
+    let b = t.u.defn();
     class.and_then(|c| match c {
         _ if c == t.defn.unit => Some("Unit"),
         _ if c == b.any => Some("Any"),
@@ -148,7 +148,7 @@ fn class_tag_arg(t: &mut Typer<'_>, arg: TypeId) -> Result<Option<TypeId>, &'sta
             _ => return Ok(Some(arg)),
         };
         let (lo, hi) = t.constraint.bounds(v);
-        let nothing = t.u.builtins().nothing;
+        let nothing = t.u.defn().nothing;
         let (bound, from_below) = match lo != tasty::NOTHING && t.u.class_symbol(lo) != Some(nothing) {
             true => (lo, true),
             false if !t.is_exactly_any(hi) => (hi, false),
@@ -183,7 +183,7 @@ fn is_bottom(u: &mut Universe, t: TypeId) -> bool {
         Type::And(a, b) => is_bottom(u, a) || is_bottom(u, b),
         Type::Or(a, b, _) => is_bottom(u, a) && is_bottom(u, b),
         _ => {
-            let b = u.builtins();
+            let b = u.defn();
             u.class_symbol(t).is_some_and(|c| c == b.nothing || c == b.null)
         }
     }

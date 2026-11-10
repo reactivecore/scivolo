@@ -86,7 +86,7 @@ impl Cmp<'_> {
 
     /// Whether `top` is `Any` for a type `other` that is not a constructor, or `AnyKind`.
     pub fn is_top(&mut self, top: TypeId, other: TypeId) -> bool {
-        let any_kind = self.u.intern_type(Type::Sym(None, self.u.builtins().any_kind));
+        let any_kind = self.u.intern_type(Type::Sym(None, self.u.defn().any_kind));
         top == ANY && self.constructor_arity(other).is_none() || top == any_kind
     }
 

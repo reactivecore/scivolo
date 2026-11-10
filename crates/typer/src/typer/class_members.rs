@@ -49,7 +49,7 @@ impl Typer<'_> {
     /// without `Object` under explicit nulls.
     fn completed_linearization(&mut self, c: SymbolId) -> Vec<SymbolId> {
         self.complete(c);
-        let b = self.u.builtins();
+        let b = self.u.defn();
         if c == b.null && self.u.null_mode().explicit {
             return vec![b.null, b.matchable, b.any];
         }

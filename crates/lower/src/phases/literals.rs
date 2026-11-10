@@ -49,7 +49,7 @@ impl Lower<'_> {
 
     /// The least upper bound of the types of the bodies of `cases`, the type dotty gives a match.
     pub fn cases_lub(&mut self, cases: List) -> TypeId {
-        let nothing = self.u.builtins().nothing;
+        let nothing = self.u.defn().nothing;
         let mut lub = type_ref(self.u, nothing);
         for c in self.tpd.items(cases).to_vec() {
             let Tree::CaseDef { body, .. } = *self.tpd.tree(c) else { continue };

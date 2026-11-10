@@ -18,7 +18,7 @@ impl Unpickler<'_> {
         let s = self.tpd.sym(meth).ok_or("closure of an unknown method in a library inline body")?;
         let info = self.u.info(s);
         if self.u.poly(info).is_some() || self.u.has_erased_params(info) {
-            let poly_function = self.u.class_ref("scala.PolyFunction");
+            let poly_function = self.u.class_ref(crate::defn::POLY_FUNCTION);
             return Ok(self.u.intern_type(Type::Refined(poly_function, "apply".into(), info)));
         }
         let Some((binder, params, result, contextual)) =

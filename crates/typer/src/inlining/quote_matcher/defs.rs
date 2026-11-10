@@ -58,7 +58,7 @@ impl Matcher<'_> {
         let Some(s) = self.tpd.sym(t) else { return false };
         let info = self.u.info(s);
         let Some((lo, hi)) = self.u.bounds(info) else { return false };
-        let b = self.u.builtins();
+        let b = self.u.defn();
         self.is_class(lo, b.nothing) && self.is_class(hi, b.any)
     }
 

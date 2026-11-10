@@ -10,10 +10,9 @@ use super::tags::{TAG_PATH, encode, tag_ref};
 use super::{pickled, types, unpickled};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
+use tasty::defn::TYPE_OF;
 use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
-
-const TYPE_OF: &str = "scala.quoted.Type$.of";
 
 /// A type quote: `Type.of[body]`, the type application the typer recorded the tags of, and the
 /// `Quotes` it is applied to.

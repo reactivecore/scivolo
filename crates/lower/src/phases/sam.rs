@@ -43,7 +43,7 @@ pub fn abstract_methods(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
                 continue;
             }
             earlier.push((d, base));
-            let any = l.u.builtins().any;
+            let any = l.u.defn().any;
             let object_decls = [object, any].into_iter().flat_map(|c| l.u.decls_named(c, &key.0));
             let in_object =
                 object_decls.collect::<Vec<_>>().into_iter().any(|o| l.u.erased_method(o).0 == key.1);
@@ -66,7 +66,7 @@ pub fn is_platform_sam(l: &mut Lower, c: SymbolId) -> bool {
         return false;
     }
     let bases = l.u.linearization(c);
-    let (object, any) = (l.defs.object, l.u.builtins().any);
+    let (object, any) = (l.defs.object, l.u.defn().any);
     let superclass = bases[1..].iter().copied().find(|&b| !l.u.is_trait(b)).unwrap_or(object);
     if superclass != object {
         return false;

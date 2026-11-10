@@ -25,7 +25,7 @@ impl Typer<'_> {
     ) -> Result<(), &'static str> {
         let Some(sym) = self.tpd.sym(fun) else { return Ok(()) };
         let s = self.u.symbol(sym);
-        if s.owner != Some(self.u.builtins().any) || !matches!(s.name.as_str(), "==" | "!=") {
+        if s.owner != Some(self.u.defn().any) || !matches!(s.name.as_str(), "==" | "!=") {
             return Ok(());
         }
         let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return Err("comparison with this") };

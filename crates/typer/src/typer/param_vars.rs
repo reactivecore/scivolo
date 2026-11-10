@@ -39,7 +39,7 @@ impl Typer<'_> {
 
     /// Whether `t` is `Any` or `AnyKind`.
     fn is_any(&mut self, t: TypeId) -> bool {
-        let any_kind = self.u.builtins().any_kind;
+        let any_kind = self.u.defn().any_kind;
         self.is_exactly_any(t) || self.u.class_symbol(t) == Some(any_kind)
     }
 

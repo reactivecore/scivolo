@@ -125,7 +125,7 @@ impl Typer<'_> {
         result: TypeId,
         contextual: bool,
     ) -> Option<TypeId> {
-        let class = self.resolve_full_name("scala.PolyFunction", true)?;
+        let class = self.resolve_full_name(crate::defn::POLY_FUNCTION, true)?;
         let core = crate::defn::type_ref(self.u, class);
         let binder = self.syms.fresh_binder();
         let names =

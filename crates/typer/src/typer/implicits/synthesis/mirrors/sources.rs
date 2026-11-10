@@ -163,7 +163,7 @@ fn pair_elements(t: &mut Typer<'_>, tpe: TypeId, tycon: TypeId) -> Result<Option
 }
 
 fn is_named_tuple(ops: &mut TypeOps<'_>, tycon: TypeId) -> bool {
-    ops.referenced(tycon).is_some_and(|s| ops.u.full_name(s) == "scala.NamedTuple$.NamedTuple")
+    ops.referenced(tycon).is_some_and(|s| ops.u.full_name(s) == crate::defn::NAMED_TUPLE)
 }
 
 /// The prefix of reference `t`.

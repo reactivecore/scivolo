@@ -67,7 +67,7 @@ fn can_compare_classes(t: &mut Typer<'_>, a: SymbolId, b: SymbolId) -> bool {
     let (na, nb) = (t.u.full_name(a), t.u.full_name(b));
     let primitive = |n: &str| BOXED.iter().any(|(p, _)| *p == n);
     let numeric = |n: &str| NUMERIC.iter().any(|x| n.strip_prefix("scala.") == Some(*x));
-    let builtins = t.u.builtins();
+    let builtins = t.u.defn();
     let with_boxed = |t: &mut Typer<'_>, prim: &str, other: SymbolId, other_name: &str| {
         other == builtins.nothing
             || BOXED.iter().any(|&(p, boxed)| p == prim && boxed == other_name)

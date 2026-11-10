@@ -37,7 +37,7 @@ pub fn enter(u: &mut Universe, pkg: SymbolId, info: &ClassInfo) -> Option<Vec<Sy
     flags.extend((info.access & ACC_FINAL != 0).then_some(FINAL));
     flags.extend(sealed.then_some(SEALED));
     let class = synthetic(u, pkg, simple, Kind::Class, &flags);
-    let object = u.types.intern(Type::Sym(None, u.builtins().object));
+    let object = u.types.intern(Type::Sym(None, u.defn().object));
     let statics = synthetic(u, pkg, &format!("{simple}$"), Kind::Class, &[OBJECT, FINAL]);
     u.parents.insert(statics, vec![object]);
     let module = synthetic(u, pkg, simple, Kind::Val, &[OBJECT, FINAL]);
@@ -63,8 +63,8 @@ fn class_signature<'a>(
     statics: SymbolId,
     info: &'a ClassInfo,
 ) -> Result<Owners<'a>, String> {
-    let object = u.types.intern(Type::Sym(None, u.builtins().object));
-    let from_java_object = u.types.intern(Type::Sym(None, u.builtins().from_java_object));
+    let object = u.types.intern(Type::Sym(None, u.defn().object));
+    let from_java_object = u.types.intern(Type::Sym(None, u.defn().from_java_object));
     let Some(signature) = info.signature.as_deref() else {
         let names = info.superclass.iter().chain(&info.interfaces);
         let parents = names.map(|n| if n == "java/lang/Object" { object } else { cooked(u, n) }).collect();

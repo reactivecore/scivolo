@@ -30,7 +30,7 @@ pub fn throw(u: &mut Universe) -> Result<SymbolId, String> {
     }
     let throwable = member(u, java_lang, "Throwable", Kind::Class)?;
     let throwable = type_ref(u, throwable);
-    let nothing = u.builtins().nothing;
+    let nothing = u.defn().nothing;
     let result = type_ref(u, nothing);
     let binder = u.fresh_binder();
     let info = u.intern_type(Type::Method {

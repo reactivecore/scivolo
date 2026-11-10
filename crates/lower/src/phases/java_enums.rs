@@ -10,13 +10,14 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
+use tasty::defn::JAVA_ENUM;
 use tasty::tags::{ENUM, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether class `c` derives from `java.lang.Enum`.
 pub fn derives_from_java_enum(l: &mut Lower, c: SymbolId) -> bool {
-    l.u.linearization(c).into_iter().any(|b| l.u.full_name(b) == "java.lang.Enum")
+    l.u.linearization(c).into_iter().any(|b| l.u.full_name(b) == JAVA_ENUM)
 }
 
 /// Completes the enum classes of `classes` of unit `root` that extend `java.lang.Enum`, then the
@@ -71,7 +72,7 @@ fn complete_enum_class(l: &mut Lower, td: TNodeId) -> Result<()> {
     let args: Vec<TNodeId> = added.iter().map(|&p| l.ident(p, Span::NONE)).collect();
     let enum_parent = parents.into_iter().find(|&p| {
         let called = called_class(l, p);
-        called.is_some_and(|c| l.u.full_name(c) == "java.lang.Enum")
+        called.is_some_and(|c| l.u.full_name(c) == JAVA_ENUM)
     });
     let Some(parent) = enum_parent else {
         return unsupported(l.tpd.span(td), "an enum extending java.lang.Enum through another class");

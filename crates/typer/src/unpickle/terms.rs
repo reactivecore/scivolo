@@ -49,12 +49,12 @@ impl Unpickler<'_> {
             }
             ASSIGN => {
                 let (lhs, rhs) = (self.term(k[0])?, self.term(k[1])?);
-                let unit = self.class_type("scala.Unit")?;
+                let unit = self.class_type(crate::defn::UNIT)?;
                 self.bare(T::Assign { lhs, rhs }, Some(unit), None)
             }
             WHILE => {
                 let (cond, body) = (self.term(k[0])?, self.term(k[1])?);
-                let unit = self.class_type("scala.Unit")?;
+                let unit = self.class_type(crate::defn::UNIT)?;
                 self.bare(T::WhileDo { cond, body }, Some(unit), None)
             }
             IF => {

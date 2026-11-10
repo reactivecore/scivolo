@@ -1,10 +1,8 @@
 //! Function and partial function types built from their parts, and their parameter types.
 
 use super::Typer;
+use tasty::defn::PARTIAL_FUNCTION;
 use tasty::{MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId};
-
-/// The full name of the class of partial functions.
-const PARTIAL_FUNCTION: &str = "scala.PartialFunction";
 
 impl Typer<'_> {
     /// Finds the parameter types of `t` if it is a function type, else none.

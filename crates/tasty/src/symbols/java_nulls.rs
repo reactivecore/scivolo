@@ -135,9 +135,9 @@ impl Universe {
         match self.ty(t).clone() {
             Type::Sym(..) | Type::TypeRef(..) => {
                 let Some(s) = self.referenced(t) else { return false };
-                let b = self.builtins();
+                let b = self.defn();
                 let special = [b.null, b.nothing, b.any, b.any_kind, b.singleton];
-                let unit = self.full_name(s) == "scala.Unit";
+                let unit = self.full_name(s) == super::defn::UNIT;
                 let value = b.any_val.is_some_and(|v| s == v || self.derives_from(s, v));
                 special.contains(&s) || unit || value || self.symbol(s).kind == Kind::Class && self.is_hk(s)
             }

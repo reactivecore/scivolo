@@ -6,10 +6,9 @@ use super::Matcher;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
 use syntax::ast::constant::Constant;
+use tasty::defn::PATTERNS;
 use tasty::tags::{LAZY, MUTABLE};
 use tasty::{SymbolId, Type, TypeId};
-
-const PATTERNS: &str = "scala.quoted.runtime.Patterns$";
 
 impl Matcher<'_> {
     /// The type tree of term hole `patternHole[T]` at `t`.

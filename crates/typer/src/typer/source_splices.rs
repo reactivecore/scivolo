@@ -8,9 +8,8 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName, Tree, flags as f};
+use tasty::defn::RUNTIME_EXPR;
 use tasty::{SymbolId, Type};
-
-const RUNTIME_EXPR: &str = "scala.quoted.runtime.Expr$";
 
 /// The refusal of a source reference to a member of `scala.quoted.runtime.Expr`.
 pub const STAGING_REFERENCE: &str = "reference to scala.quoted.runtime.Expr outside a quote or splice";

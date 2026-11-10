@@ -16,17 +16,17 @@ impl Universe {
         if !(class.starts_with("java.") || class.starts_with("javax.")) || !self.may_be_java(owner) {
             return t;
         }
-        let from_java_object = self.intern_type(Type::Sym(None, self.builtins().from_java_object));
+        let from_java_object = self.intern_type(Type::Sym(None, self.defn().from_java_object));
         self.java_wildcards(t, from_java_object)
     }
 
     fn java_wildcards(&mut self, t: TypeId, from_java_object: TypeId) -> TypeId {
         self.map_type(t, &mut |u, part| {
             let (tycon, args) = u.applied(part).map(|(c, a)| (c, a.to_vec()))?;
-            if u.class_symbol(tycon).is_some_and(|c| u.full_name(c) == "scala.Array") {
+            if u.is_class_named(tycon, super::defn::ARRAY) {
                 return None;
             }
-            let any = u.builtins().any;
+            let any = u.defn().any;
             let args = args.into_iter().map(|a| match u.ty(a).clone() {
                 Type::Bounds(lo, hi) if hi == ANY || u.referenced(hi) == Some(any) => {
                     let lo = u.java_wildcards(lo, from_java_object);

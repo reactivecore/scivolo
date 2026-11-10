@@ -1,7 +1,7 @@
 //! Opening a universe over the TASTy of jars or of a library image: its packages known, no file
 //! read yet.
 
-use super::{Builtins, Error, Flags, Kind, Symbol, Universe, builtin};
+use super::{Defn, Error, Flags, Kind, Symbol, Universe, builtin};
 use crate::library::Library;
 use crate::types::Types;
 use libimage::Image;
@@ -71,7 +71,7 @@ impl Universe {
             same_run_jar: None,
             resolving: 0,
             merging_bases: Default::default(),
-            builtins: Builtins::PENDING,
+            defn: Defn::PENDING,
             binders: 0,
             lambda_variances: FxHashMap::default(),
             unions: Default::default(),
@@ -103,7 +103,7 @@ impl Universe {
             let pkg = u.enter_package(pkg);
             u.pending.entry(pkg).or_default().push((stem.to_owned(), path.to_owned()));
         }
-        u.builtins = builtin::enter(&mut u);
+        u.defn = builtin::enter(&mut u);
         u
     }
 }

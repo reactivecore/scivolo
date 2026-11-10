@@ -119,9 +119,9 @@ pub fn is_underspecified(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
             let (_, hi) = ty.constraint.bounds(v);
             is_underspecified(ty, hi)
         }
-        Type::Or(a, b, _) if ty.u.class_symbol(b) == Some(ty.u.builtins().null) => is_underspecified(ty, a),
+        Type::Or(a, b, _) if ty.u.class_symbol(b) == Some(ty.u.defn().null) => is_underspecified(ty, a),
         Type::Sym(..) | Type::TypeRef(..) => {
-            let b = ty.u.builtins();
+            let b = ty.u.defn();
             let tpe = ty.u.dealias(tpe);
             let class = match ty.u.ty(tpe).clone() {
                 Type::Sym(_, s) => Some(s),

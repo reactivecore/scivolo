@@ -11,8 +11,7 @@ impl Universe {
     pub fn is_erased_param(&mut self, t: TypeId) -> bool {
         let mut t = self.by_name(t).unwrap_or(t);
         while let Type::Annotated(inner, annot) = *self.ty(t) {
-            let class = self.class_symbol(annot);
-            if class.is_some_and(|c| self.full_name(c) == "scala.annotation.internal.ErasedParam") {
+            if self.is_class_named(annot, crate::defn::ERASED_PARAM) {
                 return true;
             }
             t = inner;

@@ -53,9 +53,7 @@ impl Universe {
                 };
                 match u.symbol(s).kind {
                     Kind::Class | Kind::TypeParam => Some(u.intern_type(Type::Sym(None, s))),
-                    Kind::Type if s == u.builtins().from_java_object => {
-                        Some(u.intern_type(Type::Sym(None, s)))
-                    }
+                    Kind::Type if s == u.defn().from_java_object => Some(u.intern_type(Type::Sym(None, s))),
                     Kind::Type => {
                         let a = match u.alias(s) {
                             Some(a) => a,

@@ -8,7 +8,8 @@
 //! classes and traits, for a method implementing the only method of its name in a trait it
 //! inherits before its superclass, abstract there with another signature.
 
-use super::{Erased, OBJECT};
+use super::Erased;
+use crate::defn::OBJECT;
 use crate::tags::{PRIVATE, TRAIT};
 use crate::types::Type;
 use crate::{Kind, SymbolId, Universe, View, view};

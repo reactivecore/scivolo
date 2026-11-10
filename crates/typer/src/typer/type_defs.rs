@@ -100,7 +100,7 @@ impl Typer<'_> {
             let result = over_params(u, &syms, binder, t);
             u.intern_type(Type::Lambda { binder, params: params.clone(), result })
         };
-        let nothing = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
+        let nothing = self.u.class_symbol(lo) == Some(self.u.defn().nothing);
         let lo = if nothing { lo } else { lambda(self.u, lo) };
         (lo, lambda(self.u, hi))
     }
@@ -142,14 +142,14 @@ impl Typer<'_> {
         let lo = match typed_lo {
             Some(l) => l,
             None => {
-                let nothing = type_ref(self.u, self.u.builtins().nothing);
+                let nothing = type_ref(self.u, self.u.defn().nothing);
                 self.type_tree(nothing, after_lo.unwrap_or(span).start_pos(), false)
             }
         };
         let hi = match typed_hi {
             Some(h) => h,
             None => {
-                let any = type_ref(self.u, self.u.builtins().any);
+                let any = type_ref(self.u, self.u.defn().any);
                 let lo_span = self.tpd.span(lo);
                 let at =
                     if typed_lo.is_some() && lo_span.exists() { lo_span.end_pos() } else { span.start_pos() };

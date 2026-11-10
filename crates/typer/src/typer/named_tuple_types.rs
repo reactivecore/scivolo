@@ -6,9 +6,9 @@
 
 use super::Typer;
 use super::small_tuples::MAX_TUPLE_ARITY;
+use tasty::defn::NAMED_TUPLE;
 use tasty::{Type, TypeId};
 
-const NAMED_TUPLE: &str = "scala.NamedTuple$.NamedTuple";
 /// How many elements a named tuple type may have.
 const MAX_ELEMENTS: usize = 256;
 
@@ -155,7 +155,7 @@ impl Typer<'_> {
             let Some((c, args)) = self.u.applied(d) else { break };
             let args = args.to_vec();
             let class = self.u.class_symbol(c);
-            if class.is_some_and(|c| self.u.full_name(c) == format!("scala.Tuple{}", args.len())) {
+            if class.is_some_and(|c| self.u.full_name(c) == format!("{}{}", crate::defn::TUPLE, args.len())) {
                 elems.extend(args);
                 return Some(elems);
             }

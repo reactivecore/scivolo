@@ -127,7 +127,7 @@ impl Translator<'_, '_> {
                 .collect();
             return self.match_args_plan(&components, args, on_success);
         }
-        if self.l.class_of(unapp_type).is_some_and(|c| self.l.u.full_name(c) == "scala.Boolean") {
+        if self.l.class_of(unapp_type).is_some_and(|c| self.l.u.full_name(c) == tasty::defn::BOOLEAN) {
             return Ok(self.add(Plan::Test { test: Test::Guard, scrutinee: unapp, span, on_success }));
         }
         let arity = args.len();

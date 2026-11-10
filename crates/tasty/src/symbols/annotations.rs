@@ -9,9 +9,14 @@ impl Universe {
     /// Whether an annotation of the class with full name `full` annotates `sym`.
     pub fn is_annotated(&mut self, sym: SymbolId, full: &str) -> bool {
         if self.symbol(sym).tree.is_none() {
-            return self.annotations(sym).iter().any(|&c| self.full_name(c) == full);
+            return self.has_recorded_annotation(sym, full);
         }
         self.annotation_call(sym, full).is_some()
+    }
+
+    /// Whether an annotation class recorded for `sym` has full name `full`.
+    pub fn has_recorded_annotation(&self, sym: SymbolId, full: &str) -> bool {
+        self.annotations(sym).iter().any(|&c| self.full_name(c) == full)
     }
 
     /// Records one more annotation with arguments of class `class` on `sym`, a symbol defined
@@ -110,7 +115,7 @@ impl Universe {
             annotations(ast, mods).filter(|&(ty, _)| names_ref(ast, names, ty, name)).collect();
         named.into_iter().find_map(|(ty, call)| {
             let t = self.type_at(file, ty);
-            self.class_symbol(t).is_some_and(|c| self.full_name(c) == full).then_some((file, call))
+            self.is_class_named(t, full).then_some((file, call))
         })
     }
 }

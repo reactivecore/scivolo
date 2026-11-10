@@ -29,7 +29,7 @@ fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
         let referenced = |l: &mut Lower, t: TypeId| l.u.sym_of(t).or_else(|| l.u.resolve_ref(t));
         return types.into_iter().filter_map(|t| referenced(l, t)).collect();
     }
-    if l.u.full_name(sealed) == "scala.*:" {
+    if l.u.full_name(sealed) == tasty::defn::PAIR {
         let mut tuples: Vec<SymbolId> =
             (1..=22).filter_map(|n| class_named(l, &format!("scala.Tuple{n}"))).collect();
         tuples.sort_by_cached_key(|&c| l.u.pickled_span(c).map(|s| s.start));
@@ -79,7 +79,8 @@ pub fn enum_ordinal(
         return Ok(None);
     }
     let flags = Flags::default().with(SYNTHETIC);
-    let java = l.u.linearization(enum_class).into_iter().find(|&b| l.u.full_name(b) == "java.lang.Enum");
+    let java =
+        l.u.linearization(enum_class).into_iter().find(|&b| l.u.full_name(b) == tasty::defn::JAVA_ENUM);
     let java_ordinal = java.and_then(|j| l.u.decl(j, "ordinal").ok()?.into_iter().next());
     let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let x = l.copy_ident(args[0]);

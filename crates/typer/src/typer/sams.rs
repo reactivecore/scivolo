@@ -192,8 +192,8 @@ impl Typer<'_> {
                 }
             }
         }
-        let object = self.u.builtins().object;
-        let any = self.u.builtins().any;
+        let object = self.u.defn().object;
+        let any = self.u.defn().any;
         let site = crate::defn::type_ref(self.u, c);
         let mut out = Vec::new();
         for name in names {

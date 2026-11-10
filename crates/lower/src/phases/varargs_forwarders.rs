@@ -124,7 +124,7 @@ fn java_varargs(l: &mut Lower, s: SymbolId) -> bool {
 }
 
 fn has_varargs(l: &mut Lower, s: SymbolId) -> bool {
-    l.u.annotations(s).iter().any(|&c| l.u.full_name(c) == "scala.annotation.varargs")
+    l.u.has_recorded_annotation(s, tasty::defn::VARARGS)
 }
 
 /// The non-private methods of the base classes of `def`'s owner that `def` matches.

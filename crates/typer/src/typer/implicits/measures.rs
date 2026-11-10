@@ -58,7 +58,7 @@ fn parts(u: &mut Universe, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
 /// Whether `b` is the bounds `>: Nothing <: Any`.
 fn unbounded(u: &mut Universe, b: TypeId) -> bool {
     let Some((lo, hi)) = u.bounds(b) else { return false };
-    let builtins = u.builtins();
+    let builtins = u.defn();
     u.class_symbol(lo) == Some(builtins.nothing) && u.class_symbol(hi) == Some(builtins.any)
 }
 
@@ -158,7 +158,7 @@ fn cover(
 /// The parts `cover` folds over for `t`, not a type variable, and the symbol it adds; `None` for
 /// `Any` and `Nothing`.
 fn folded(u: &mut Universe, t: TypeId) -> Result<Option<Fold>, &'static str> {
-    let b = u.builtins();
+    let b = u.defn();
     Ok(Some(match u.ty(t).clone() {
         Type::Applied(c, args) => ([vec![c], args].concat(), type_symbol(u, c)),
         Type::Refined(p, _, i) => (vec![p, i], type_symbol(u, p)),

@@ -24,7 +24,7 @@ impl Synthesizer {
         from: TypeId,
         to: TypeId,
     ) -> Result<Option<TNodeId>, &'static str> {
-        let b = t.u.builtins();
+        let b = t.u.defn();
         if t.u.class_symbol(to).is_some_and(|c| c == b.nothing || c == b.null) {
             return Ok(None);
         }

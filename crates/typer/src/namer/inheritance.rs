@@ -74,7 +74,7 @@ impl Typer<'_> {
             owner = sym.owner;
         }
         let Some(o) = owner else { return };
-        let object = self.u.builtins().object;
+        let object = self.u.defn().object;
         if self.u.symbol(o).flags.has(TRAIT) && !self.u.derives_from(o, object) {
             self.unsupported_at(self.ast.span(rhs), "object in a universal trait");
         }

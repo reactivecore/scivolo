@@ -37,7 +37,7 @@ fn not_null(l: &mut Lower, t: TypeId, explicit: bool, depth: u32) -> bool {
             _ => next(l, tycon),
         },
         Type::TypeRef(..) | Type::Sym(..) if let Some(s) = type_symbol(l, t) => match l.u.symbol(s).kind {
-            Kind::Class => !nullable_class(l, s, explicit) && s != l.u.builtins().nothing,
+            Kind::Class => !nullable_class(l, s, explicit) && s != l.u.defn().nothing,
             Kind::Type | Kind::TypeParam => {
                 let info = l.u.info(s);
                 next(l, info)
@@ -61,7 +61,7 @@ fn type_symbol(l: &mut Lower, t: TypeId) -> Option<SymbolId> {
 /// Whether class `c` has `null` among its values: `Null`, `Any` or `Matchable` under explicit
 /// nulls; else not `Nothing`, a value class or an object.
 fn nullable_class(l: &mut Lower, c: SymbolId, explicit: bool) -> bool {
-    let builtins = l.u.builtins();
+    let builtins = l.u.defn();
     if explicit {
         return c == builtins.null || c == builtins.any || c == builtins.matchable;
     }

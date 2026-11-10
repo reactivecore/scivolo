@@ -56,5 +56,5 @@ fn mentions_param(l: &mut Lower, t: TypeId, binder: tasty::Binder, (name, index)
 pub fn repeated_elem(l: &mut Lower, t: TypeId) -> Option<TypeId> {
     let Some((c, &[arg])) = l.u.applied(t) else { return None };
     let class = l.u.class_symbol(c)?;
-    (l.u.full_name(class) == "scala.<repeated>").then_some(arg)
+    (l.u.full_name(class) == tasty::defn::REPEATED).then_some(arg)
 }

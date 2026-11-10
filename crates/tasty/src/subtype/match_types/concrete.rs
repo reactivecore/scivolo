@@ -4,6 +4,9 @@ use super::super::Cmp;
 use crate::types::{Type, TypeId};
 use crate::{Kind, NOTHING};
 
+/// How deep `is_concrete` looks into a type, as its callers start it.
+pub const CONCRETE_DEPTH: u32 = 32;
+
 impl Cmp<'_> {
     /// Whether `t` determines the instances of captures uniquely: no upper bound of an abstract
     /// type followed (dotty's `MatchTypes.isConcrete`).

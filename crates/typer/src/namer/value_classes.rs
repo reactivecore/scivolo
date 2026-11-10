@@ -32,7 +32,7 @@ impl Typer<'_> {
     /// Whether `c` is a class deriving from `AnyVal`, not `AnyVal` or a primitive value class
     /// (dotty's `isDerivedValueClass`).
     pub fn is_derived_value_class(&mut self, c: SymbolId) -> bool {
-        let Some(any_val) = self.u.builtins().any_val else { return false };
+        let Some(any_val) = self.u.defn().any_val else { return false };
         self.u.symbol(c).kind == Kind::Class
             && c != any_val
             && self.u.derives_from(c, any_val)
@@ -195,7 +195,7 @@ impl Typer<'_> {
             return;
         }
         let tpe = self.tpd.tpe(tpt);
-        let any_val = self.u.builtins().any_val;
+        let any_val = self.u.defn().any_val;
         if any_val.is_some() && self.u.class_symbol(tpe) == any_val {
             let name = self.u.symbol(alias).name.clone();
             let msg = format!("A value class cannot extend a type alias (type {name}) of AnyVal");

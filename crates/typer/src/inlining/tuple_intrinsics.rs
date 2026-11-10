@@ -7,10 +7,9 @@
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
+use tasty::defn::MAX_TUPLE_ARITY;
 use tasty::{Binding, Kind, Type, TypeId};
 
-/// The largest arity of a `TupleN` class.
-const MAX_TUPLE_ARITY: usize = 22;
 /// The largest number of tuple elements unrolled.
 const MAX_UNROLLED: usize = 1024;
 
@@ -140,7 +139,7 @@ impl Inlining<'_> {
         let apply_ref = self.u.intern_type(Type::Sym(Some(module_ref), apply));
         let name = self.term_name(apply);
         let fun = self.tpd.node(T::Select { qualifier, name }, at, Some(apply_ref), Some(apply));
-        let object = self.u.builtins().object;
+        let object = self.u.defn().object;
         let object = crate::defn::type_ref(self.u, object);
         let mut cast = Vec::with_capacity(elems.len());
         for &e in elems {
