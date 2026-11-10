@@ -4,42 +4,9 @@
 //! Choosing among overloaded alternatives by their arguments (dotty's `resolveOverloaded`,
 //! `compare`): those applicable without implicit conversions, else those applicable with.
 
-use super::Typer;
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
-use syntax::ast::NodeId;
+use crate::typer::{Pt, Typer};
 use tasty::{SymbolId, TypeId};
-
-/// What the context expects of a tree (dotty's prototypes).
-#[derive(Clone, Copy, Debug)]
-pub enum Pt {
-    Any,
-    Type(TypeId),
-    /// A function applied to the arguments of a `FunProto`, by its index in `Typer::protos`.
-    Fun(usize),
-    /// A polymorphic function applied to type arguments, by the index of its `PolyProto` in
-    /// `Typer::poly_protos`.
-    PolyFun(usize),
-    /// The method of `m _`, to be eta-expanded (dotty's `AnyFunctionProto`).
-    AnyFunction,
-}
-
-/// The arguments of an application, typed once when overloading needs their types, but for
-/// functions left for the chosen alternative (dotty's `FunProto`).
-pub struct FunProto {
-    pub args: Vec<NodeId>,
-    pub ctx: Ctx,
-    pub typed: Option<Vec<Option<TNodeId>>>,
-    /// What the application's result is expected to be (dotty's `resultType`).
-    pub pt: Pt,
-    /// Whether an expected result type takes part in the applicability of alternatives, not
-    /// only ignored (dotty's `deepenProto` of an `IgnoredProto`).
-    pub deep: bool,
-    /// The elements of an infix operation's tuple argument, until it is untupled.
-    pub dual: Option<Vec<NodeId>>,
-    /// Whether the arguments are a `using` clause.
-    pub using: bool,
-}
 
 impl Typer<'_> {
     /// dotty's `compare`: 1 if `a` is better, -1 if `b` is, 0 if neither; `None` if undecided.

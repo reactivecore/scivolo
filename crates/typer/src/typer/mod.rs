@@ -11,16 +11,13 @@ mod adapt;
 mod adapt_by_result;
 mod ahead;
 mod alias_projections;
-mod alternatives;
 mod and_members;
 mod and_or_types;
 mod annotated;
 mod anon_classes;
-mod applicability;
 mod apply;
 mod apply_insertion;
 pub mod approx;
-mod arg_shapes;
 mod ascriptions;
 mod assign;
 mod auto_apply;
@@ -86,6 +83,7 @@ mod extension_setters;
 mod features;
 mod find_ref;
 mod forward_refs;
+mod function_parts;
 mod function_types;
 mod gadt;
 mod gadt_cases;
@@ -116,7 +114,6 @@ mod jdk_members;
 mod lift;
 mod linter;
 mod literals;
-mod mapped_alternatives;
 mod match_type_captures;
 mod match_type_trees;
 mod matchable_cast;
@@ -132,7 +129,6 @@ mod mismatch_context;
 mod mismatch_text;
 mod name_clashes;
 mod named_args;
-mod named_overloads;
 mod named_tuple_from;
 mod named_tuple_trees;
 mod named_tuple_types;
@@ -148,9 +144,6 @@ mod not_found;
 pub(crate) mod nullables;
 mod op_assign;
 mod opaque_paths;
-mod overload_applies;
-mod overload_errors;
-mod overload_values;
 mod overloaded_extractors;
 mod overloads;
 mod override_kinds;
@@ -158,7 +151,6 @@ mod overrides;
 mod overrides_nothing;
 mod package_members;
 mod param_vars;
-mod parameterless;
 mod parent_trees;
 mod parents;
 mod passing_accessors;
@@ -169,12 +161,10 @@ mod pattern_args;
 mod pattern_bounds;
 mod patterns;
 mod plain_trees;
-mod poly_alternatives;
 mod poly_context_bounds;
 mod poly_function_values;
 mod poly_functions;
-mod poly_instances;
-mod pretyped_args;
+mod protos;
 mod purity;
 mod purity_warnings;
 mod qual_skolems;
@@ -279,7 +269,7 @@ use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Universe};
 
 pub use const_ops::{fold_binop, fold_unop};
-pub use overloads::Pt;
+pub use protos::Pt;
 pub use retained::RETAINED_BODY;
 pub use transparent::InlineDef;
 pub use widen_inferred::Widen;
@@ -345,9 +335,9 @@ pub struct Typer<'a> {
     /// The implicit searches in progress, their by-name implicits and budget.
     pub history: implicits::History,
     /// The argument lists of the applications being typed.
-    pub protos: Vec<overloads::FunProto>,
+    pub protos: Vec<protos::FunProto>,
     /// The type argument lists of the type applications being typed.
-    pub poly_protos: Vec<poly_alternatives::PolyProto>,
+    pub poly_protos: Vec<protos::PolyProto>,
     /// The alternatives being resolved with their type parameters instantiated, and the types.
     pub mapped_targs: Option<(Vec<SymbolId>, Vec<tasty::TypeId>)>,
     /// The copies of alternatives resolved by a later clause: the original and how many clauses

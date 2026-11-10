@@ -4,22 +4,13 @@
 //! Choosing among overloaded alternatives applied to type arguments (dotty's `PolyProto` case of
 //! `resolveOverloaded1`, `canInstantiate`, `resolveMapped`).
 
-use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
+use crate::typer::{Pt, Typer};
 use syntax::ast::NodeId;
 use tasty::{SymbolId, Type, TypeId};
 
 const MISS: &str = "overloaded reference with type arguments";
-
-/// The type arguments of a type application, typed once when overloading needs their types, and
-/// what the application is expected to be (dotty's `PolyProto`).
-pub struct PolyProto {
-    pub args: Vec<NodeId>,
-    pub ctx: Ctx,
-    pub pt: Pt,
-    pub typed: Option<Vec<TNodeId>>,
-}
 
 impl Typer<'_> {
     /// The alternative of `syms`, members of `prefix`, that the type arguments of poly proto

@@ -8,7 +8,6 @@
 use super::{Pt, Typer};
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, Tree};
-use tasty::tags::{OBJECT, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -54,8 +53,8 @@ impl Typer<'_> {
         let located = format!("method {name}{}", self.location(owner)?);
         let args = format!("({args})");
         let msg = match ambiguous {
-            Some(_) => super::errors::ambiguous_overload(&located, &types, &args),
-            None => super::errors::no_matching_overload(&located, &types, &args),
+            Some(_) => crate::typer::errors::ambiguous_overload(&located, &types, &args),
+            None => crate::typer::errors::no_matching_overload(&located, &types, &args),
         };
         Some(self.error(id, msg))
     }
@@ -93,7 +92,7 @@ impl Typer<'_> {
             let known = match self.u.types().get(part) {
                 Type::Method { .. } | Type::Poly { .. } | Type::Param(..) | Type::ByName(_) => true,
                 Type::Constant(..) | Type::Str(_) => false,
-                _ => super::not_a_member::is_concrete_part(self.u, part) && self.shown_as_dotty(part),
+                _ => crate::typer::not_a_member::is_concrete_part(self.u, part) && self.shown_as_dotty(part),
             };
             if !known {
                 return None;
@@ -103,29 +102,6 @@ impl Typer<'_> {
             return None;
         }
         Some(self.u.show_user(info)).filter(|text| !text.contains(['<', '?']))
-    }
-
-    /// Where dotty's `showLocated` places a member of `owner`: ` in object O`, or nothing for a
-    /// top-level or local definition.
-    pub fn location(&mut self, owner: SymbolId) -> Option<String> {
-        let o = self.u.symbol(owner);
-        let (name, kind, flags, parent) = (o.name.clone(), o.kind, o.flags, o.owner);
-        Some(match kind {
-            Kind::Def | Kind::Val => String::new(),
-            _ if self.u.is_package_object(owner) || name.starts_with("rs$line$") => {
-                let p = parent?;
-                match p == self.u.root() || self.u.symbol(p).name == "<empty>" {
-                    true => String::new(),
-                    false => return None,
-                }
-            }
-            Kind::Package if name == "<empty>" || owner == self.u.root() => String::new(),
-            Kind::Class if name.contains("$anon") => return None,
-            Kind::Class if flags.has(OBJECT) => format!(" in object {}", tasty::module_name(&name)?),
-            Kind::Class if flags.has(TRAIT) => format!(" in trait {name}"),
-            Kind::Class if !name.contains('$') => format!(" in class {name}"),
-            _ => return None,
-        })
     }
 
     /// The tree for reference `id` when `choose` finds no alternative for `what`: an error tree

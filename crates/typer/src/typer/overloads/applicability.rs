@@ -6,7 +6,7 @@
 //! and with implicit conversions where nothing applies without.
 
 use super::Typer;
-use super::implicits::conversions::Goal;
+use crate::typer::implicits::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::Tree as T;
 use syntax::config::Features;
@@ -26,7 +26,7 @@ impl Typer<'_> {
             Err(_) => return None,
         }
         if let (Some(a), Some(p)) = (self.value_class(arg), self.value_class(param))
-            && super::widening::widens(&a, &p)
+            && crate::typer::widening::widens(&a, &p)
         {
             return Some(true);
         }

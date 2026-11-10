@@ -131,11 +131,4 @@ impl Typer<'_> {
         let necessary = ps.len().saturating_sub(defaults);
         necessary <= n || necessary == n + 1 && varargs
     }
-
-    /// Whether method `s` takes type or value parameters.
-    pub fn has_params(&mut self, s: SymbolId) -> bool {
-        self.complete(s);
-        let info = self.u.info(s);
-        matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
-    }
 }

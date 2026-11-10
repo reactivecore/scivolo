@@ -21,7 +21,7 @@ impl Typer<'_> {
         let dual = self.infix_tuple_elems(id, &arg_ids);
         let using = self.ast.attrs(id).contains(Attrs::USING_APPLY);
         let fun_proto =
-            super::overloads::FunProto { args: arg_ids, ctx, typed: None, pt, deep: false, dual, using };
+            super::protos::FunProto { args: arg_ids, ctx, typed: None, pt, deep: false, dual, using };
         self.protos.push(fun_proto);
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
         let fun_ctx = plain_ctx;
