@@ -9,38 +9,44 @@ use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{SymbolId, Type, TypeId};
 
-/// One approximation of a type by types without references to local symbols (dotty's
-/// `AvoidMap`): the symbols to avoid, those whose bounds are unknown, the local symbols being
-/// expanded and the types whose bounds are; reaching one of the last three fails. A reference to
-/// `own`, the type member whose declared bounds are traversed, gives `Nothing .. Any` (dotty's
-/// `LazyRef` of an F-bound under `isExpandingBounds`). In the bound of a type variable, type
-/// variables stay as they are (dotty's `TypeParamRef`s of a constraint), but not in the info of
-/// a local symbol. A nested part is approximated by a copy with other fields.
+/// One approximation of a type by a type that no longer mentions definitions going out of scope
+/// (dotty's `AvoidMap`), as the type of `{ class C; val c = new C; c }` becomes a type the code
+/// outside the block can name. It gives up when the type mentions an opaque type whose bounds
+/// are unknown, or comes back to a definition or bound it is already expanding, as a local class
+/// whose members mention the class itself. A nested part is approximated by a copy that tracks
+/// what is being expanded there.
 #[derive(Clone, Copy)]
 pub struct Avoid<'a> {
+    /// The definitions going out of scope.
     pub locals: &'a [SymbolId],
+    /// The opaque types whose bounds are unknown.
     pub opaque: &'a [SymbolId],
+    /// The local definitions being expanded.
     pub visiting: &'a [SymbolId],
+    /// The type members whose bounds are being expanded.
     pub expanding: &'a [SymbolId],
+    /// The type member whose own declared bounds are being read: a reference back to it stands
+    /// for any type (dotty's `LazyRef` of an F-bound).
     pub own: Option<SymbolId>,
+    /// Whether the bound of a type variable is being read: type variables in it stay as they are.
     pub in_var_bound: bool,
 }
 
 impl<'a> Avoid<'a> {
-    /// Starts an approximation that avoids `locals` and fails on a reference to `opaque`.
+    /// Starts an approximation that avoids `locals` and gives up on the opaque types `opaque`.
     pub fn new(locals: &'a [SymbolId], opaque: &'a [SymbolId]) -> Self {
         Avoid { locals, opaque, visiting: &[], expanding: &[], own: None, in_var_bound: false }
     }
 
-    /// Copies `self` for a type that is not part of the bounds of `own`.
+    /// Copies the approximation for a part outside the bounds of the member being expanded.
     pub fn elsewhere(self) -> Self {
         Avoid { own: None, ..self }
     }
 }
 
 impl TypeOps<'_> {
-    /// Checks whether type `t` refers to one of `syms` in any part, prefixes and the classes of
-    /// class constants included.
+    /// Checks whether type `t` mentions one of the definitions `syms` anywhere, also as the prefix
+    /// of a selection or as the class of a `classOf` constant.
     pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
         let mut found = false;
         let mut classes = Vec::new();

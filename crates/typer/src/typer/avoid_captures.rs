@@ -9,8 +9,10 @@ use super::type_ops::TypeOps;
 use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId};
 
 impl TypeOps<'_> {
-    /// Approximates `t` at variance `variance` by a type without references to `captures`: a
-    /// capture by its upper bound, its lower bound, or as invariant argument a wildcard of both.
+    /// Approximates the body type `t` of a match type case such as `case List[x] => Option[x]` by
+    /// a type that no longer mentions the bound type variables `captures`: each variable by its
+    /// upper bound where a supertype will do, its lower bound where a subtype will, and a
+    /// wildcard of both as an invariant type argument.
     pub fn avoid_captures(&mut self, t: TypeId, captures: &[SymbolId], variance: i8) -> TypeId {
         if !self.refers_to(t, captures) {
             return t;

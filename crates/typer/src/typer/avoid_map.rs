@@ -8,8 +8,10 @@ use super::avoid::Avoid;
 use tasty::{Kind, NOTHING, SymbolId, Type, TypeId, TypeVars};
 
 impl Avoid<'_> {
-    /// Approximates `tpe` at variance `v` by types without references to `self.locals`; `None`
-    /// if an opaque symbol or a local class whose bound is out of the subset is reached.
+    /// Approximates `tpe` by types that no longer mention the definitions going out of scope:
+    /// from above where the type occurs covariantly (`v` 1), from below contravariantly, by both
+    /// where invariantly. Gives up on a type that mentions an opaque type whose bounds are
+    /// unknown, or a local class whose members the subset cannot describe.
     pub fn at(self, t: &mut Typer, tpe: TypeId, v: i8) -> Option<Approx> {
         let exact = |x| Some(Approx::Exact(x));
         let m = |t: &mut Typer, x, v| self.at(t, x, v);
@@ -117,7 +119,8 @@ impl Avoid<'_> {
         }
     }
 
-    /// Approximates a type whose info is `info` by its alias, or its bounds.
+    /// Approximates a type member by what it stands for: the right-hand side of `type T = R`,
+    /// or the bounds of `type T >: L <: H`; gives up on anything else.
     pub fn info(self, t: &mut Typer, info: TypeId, v: i8) -> Option<Approx> {
         match *t.u.types().get(info) {
             Type::Alias(x) => self.at(t, x, v),

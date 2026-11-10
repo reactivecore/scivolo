@@ -10,9 +10,10 @@ use super::type_ops::TypeOps;
 use tasty::{Kind, NOTHING, SymbolId, Type, TypeId};
 
 impl Avoid<'_> {
-    /// Approximates `tpe`, `pre.s` with prefix `pre` approximated as `p`: by the member's alias,
-    /// bounds or singleton type when it has one, a term's widened type at a positive variance,
-    /// the member of the upper prefix if it has one, `Nothing .. Any` otherwise.
+    /// Approximates a selection such as `x.T` or `x.y.type` whose prefix `x` had to be
+    /// approximated (to `p`): by what the member stands for when that is known, as the alias of
+    /// `type T = Int`, by the type of a value member where a supertype will do, by the same member
+    /// of the approximated prefix if it has one, and by any type at all otherwise.
     pub fn select(
         self,
         t: &mut Typer,
@@ -44,8 +45,9 @@ impl Avoid<'_> {
         Some(approx::range(t.u, Approx::Exact(lo), Approx::Exact(hi), v))
     }
 
-    /// Approximates `tpe`, `pre.s` whose prefix cannot be approximated: by what it is equal to
-    /// or bounded by, or a term's widened type at a positive variance.
+    /// Approximates a selection such as `x.T` whose prefix `x` cannot be approximated: by what the
+    /// member stands for when that is known, or by the type of a value member where a supertype
+    /// will do; gives up otherwise.
     pub fn select_on_failed(
         self,
         t: &mut Typer,

@@ -7,10 +7,11 @@ use super::avoid::Avoid;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Avoid<'_> {
-    /// Determines the bound of local class `c`: the intersection of its parents refined by each
-    /// member narrowing an inherited one, or by any member if a parent is a `Selectable`, closed
-    /// over `c`; `None` for a polymorphic class, or a refinement referring to one of the local
-    /// symbols being expanded, `self.visiting`.
+    /// Determines the type that stands for local class `c` outside its block: for
+    /// `class C extends A with B { def f: Int }` the type `A & B` refined by the members of `C`
+    /// that narrow an inherited one, or by all of them if a parent is a `Selectable`, a member
+    /// mentioning `C` itself through a recursive `this`. Gives up on a generic local class and on
+    /// a class whose members mention a local definition already being expanded.
     pub fn class_bound(self, t: &mut Typer, c: SymbolId) -> Option<TypeId> {
         if !t.u.type_params(c).is_empty() {
             return None;

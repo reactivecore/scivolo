@@ -7,8 +7,9 @@ use super::type_ops::TypeOps;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 impl TypeOps<'_> {
-    /// Checks whether type `t` refers to one of `locals` as dotty's `namedPartsWith` finds them: the
-    /// prefix of a static member not traversed, the class of a class constant traversed.
+    /// Checks whether type `t` mentions one of the definitions `locals` that go out of scope, as
+    /// dotty looks for them: a member of an object reached by its full path does not count its
+    /// prefix, the class of a `classOf` constant does count (dotty's `namedPartsWith`).
     pub fn escapes(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         let mut found = false;
         let mut classes = Vec::new();
@@ -26,16 +27,17 @@ impl TypeOps<'_> {
         found || classes.into_iter().any(|c| self.escapes(c, locals))
     }
 
-    /// Checks whether an uninstantiated type variable in `t` has a bound that refers to one of
-    /// `locals` going out of scope, also once the bounds of the variables in `t` avoid them,
-    /// which narrows those bounds in the constraint.
+    /// Checks whether a type still to be inferred in `t` is bounded by a type mentioning one of
+    /// the definitions `locals` that go out of scope, even after those bounds are approximated
+    /// without them; approximating narrows the bounds in the constraint.
     pub fn var_bounds_escape(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         self.var_bounds_refer_to(t, locals)
             && (!self.constraint.avoid_in_bounds(self.u, t) || self.var_bounds_refer_to(t, locals))
     }
 
-    /// Checks whether an uninstantiated type variable in `t` made before one of `locals` has a bound
-    /// that refers to one of them, directly or through the bounds of the variables in it.
+    /// Checks whether a type still to be inferred in `t`, introduced outside the scope of the
+    /// definitions `locals`, is bounded by a type mentioning one of them, directly or through the
+    /// bounds of other types still to be inferred.
     pub fn var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         if locals.is_empty() {
             return false;
