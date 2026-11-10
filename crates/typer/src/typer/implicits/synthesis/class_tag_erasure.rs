@@ -4,7 +4,7 @@
 //! The class a synthesized `ClassTag[T]` or `Manifest[T]` names: whether `T` erases alike in
 //! every instance and the class it erases to.
 
-use super::super::Typer;
+use crate::typer::Typer;
 use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe};
 
 const EMPTY_TUPLE: &str = "scala.Tuple$package$.EmptyTuple$";
@@ -34,20 +34,6 @@ pub fn has_stable_erasure(t: &mut Typer<'_>, tpe: TypeId) -> bool {
             _ => false,
         },
         _ => false,
-    }
-}
-
-/// Determines whether `t` is `Nothing` or `Null`, an intersection with such a side, or a union of
-/// such sides.
-pub fn is_bottom(u: &mut Universe, t: TypeId) -> bool {
-    let t = u.dealias(t);
-    match *u.types().get(t) {
-        Type::And(a, b) => is_bottom(u, a) || is_bottom(u, b),
-        Type::Or(a, b, _) => is_bottom(u, a) && is_bottom(u, b),
-        _ => {
-            let b = u.builtins();
-            u.class_symbol(t).is_some_and(|c| c == b.nothing || c == b.null)
-        }
     }
 }
 

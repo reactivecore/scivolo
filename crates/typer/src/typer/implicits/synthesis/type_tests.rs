@@ -4,9 +4,9 @@
 //! conforms to `T`, else `(s: S) => if s.isInstanceOf[T] then Some(s.asInstanceOf[s.type & T])
 //! else None`.
 
-use super::super::{Pt, Typer};
-use super::synthesis::Synthesizer;
+use super::Synthesizer;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
+use crate::typer::{Pt, Typer};
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, TName, Tree};
 use tasty::{SymbolId, TypeId, Universe};

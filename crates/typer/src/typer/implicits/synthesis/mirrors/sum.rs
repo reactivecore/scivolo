@@ -3,12 +3,13 @@
 //! Sum mirrors of sealed classes and enums (dotty's `sumMirror`): the companion or an anonymous
 //! class, cast to the mirror type.
 
-use super::super::Typer;
 use super::child_prefixes::child_prefix;
-use super::mirror_sources::MirrorSource;
-use super::mirror_types::{MirrorCore, MirrorSynthesis, label_pairs};
-use super::sum_children::child_type;
+use super::children::child_type;
+use super::formal::MirrorCore;
+use super::sources::MirrorSource;
+use super::{MirrorSynthesis, label_pairs};
 use crate::tpd::TNodeId;
+use crate::typer::Typer;
 use tasty::tags::CASE;
 use tasty::{SymbolId, Type, TypeId, Universe};
 

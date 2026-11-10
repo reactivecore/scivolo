@@ -21,6 +21,14 @@ run and dropped.
 - `Typer` keeps only the entry points the rest of the typer calls, under their names.
 - A nested computation creates a new component.
 
+One component, one module directory: `<component>/mod.rs` holds the struct, its entry and the
+component's doc comment, which says what it does and which Scala code it handles. Its other files
+are private submodules, each exposing one entry to `mod.rs`, or as few as the call graph forces;
+everything else in them is private, and they may each add an `impl` block of the component.
+Service types (`TypeOps`) and scoped state structs are not components and keep their files. An
+item used from outside the component is re-exported from `mod.rs` only when the call graph forces
+it; such a shared helper rather moves out, to `TypeOps`, a `Symbol` method or a neutral module.
+
 ## When
 - For bounded computations and tree passes with their own state: an implicit search
   (`ImplicitSearch`), an implicit scope (`ImplicitScope`, `Parts`), a divergence measure.
@@ -30,10 +38,10 @@ run and dropped.
 - The core implicit search (`search`, `attempts`, `history`, `divergence`, `measures`, `ranking`,
   `contextual`, `candidates`, `scope`, `parts`, and their helpers) follows this, and so does
   synthesis (`Synthesizer`, `MirrorSynthesis`), the application of an implicit clause
-  (`ImplicitClause`) and the dictionary of by-name implicits (`Dictionary`, which takes them out
-  of `Typer::history`), and so does the search for a view (`ViewSearch`: conversions, extension
-  containers, the view on a qualifier), and so do the override checks of a class
-  (`OverrideChecks`), kept in `Typer::macro_annotated` until macro annotations expanded.
+  (`ImplicitClause`), the dictionary of by-name implicits (`Dictionary`, which takes them out
+  of `Typer::history`), the search for a view (`ViewSearch`: conversions, extension
+  containers, the view on a qualifier) and the override checks of a class (`OverrideChecks`),
+  kept in `Typer::macro_annotated` until macro annotations expanded.
 - State shared across nested searches that run through the typer (the open searches, the by-name
   dictionary, the budget) stays in `Typer::history`, as dotty keeps it in the `Context`.
 - Type relations and queries that need only the universe and the constraint (`conforms`, `zonk`,

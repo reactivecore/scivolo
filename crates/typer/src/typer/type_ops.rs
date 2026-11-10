@@ -6,7 +6,7 @@
 
 use super::Typer;
 use crate::constraint::Constraint;
-use tasty::{ANY, SymbolId, Type, TypeId, Universe, VarId};
+use tasty::{ANY, Kind, SymbolId, Type, TypeId, Universe, VarId};
 
 pub struct TypeOps<'a> {
     pub u: &'a mut Universe,
@@ -114,6 +114,20 @@ impl TypeOps<'_> {
         };
         let class = self.u.class_symbol(tycon)?;
         (self.u.full_name(class) == name).then_some(args)
+    }
+
+    /// Finds the class `t` refers to, applied or not; `None` for other types.
+    pub fn direct_class(&mut self, t: TypeId) -> Option<SymbolId> {
+        let tycon = match self.u.types().get(t) {
+            Type::Applied(tycon, _) => *tycon,
+            _ => t,
+        };
+        let c = match self.u.types().get(tycon).clone() {
+            Type::Sym(_, c) => c,
+            Type::TypeRef(p, n) => self.u.resolve(p, &n, true)?,
+            _ => return None,
+        };
+        (self.u.symbol(c).kind == Kind::Class).then_some(c)
     }
 
     /// Whether `t` is a `FunctionN` type.

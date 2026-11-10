@@ -1,11 +1,13 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeOps.scala
 //   compiler/src/dotty/tools/dotc/core/TypeUtils.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! Selections on small generic tuples (dotty's `trySmallGenericTuple`) and their element types.
+//! Selections on small generic tuples (dotty's `trySmallGenericTuple`), their element types, and
+//! the generic tuple types of elements.
 
 use super::Typer;
 use crate::tpd::TNodeId;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, Universe};
 
 /// The largest arity of a `TupleN` class.
 pub const MAX_TUPLE_ARITY: usize = 22;
@@ -69,6 +71,20 @@ impl Typer<'_> {
         }
     }
 
+    /// Builds the generic tuple type `A *: B *: EmptyTuple` of `elems` (dotty's
+    /// `TypeOps.nestedPairs`).
+    pub fn nested_pairs(&mut self, elems: &[TypeId]) -> Result<TypeId, &'static str> {
+        const MISSING: &str = "Mirror without its library classes";
+        let pair = self.resolve_full_name("scala.*:", true).ok_or(MISSING)?;
+        let empty = self.resolve_full_name("scala.EmptyTuple", false).ok_or(MISSING)?;
+        let pair = crate::defn::type_ref(self.u, pair);
+        let mut t = self.u.intern_type(Type::Sym(None, empty));
+        for &e in elems.iter().rev() {
+            t = self.u.intern_type(Type::Applied(pair, vec![e, t]));
+        }
+        Ok(t)
+    }
+
     /// Whether `c` is class `scala.TupleN` of arity `n`.
     fn is_tuple_class(&self, c: SymbolId, n: usize) -> bool {
         self.u.full_name(c) == format!("scala.Tuple{n}")
@@ -103,4 +119,13 @@ impl Typer<'_> {
         }
         false
     }
+}
+
+/// Lists the element types of a tuple written with its class, such as `Tuple2[Int, String]` or
+/// an alias of it; `None` for another type.
+pub fn tuple_class_args(u: &mut Universe, t: TypeId) -> Option<Vec<TypeId>> {
+    let d = u.dealias(t);
+    let Type::Applied(f, args) = u.types().get(d).clone() else { return None };
+    let c = u.class_symbol(f)?;
+    (u.full_name(c) == format!("scala.Tuple{}", args.len())).then_some(args)
 }

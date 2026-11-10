@@ -62,20 +62,6 @@ impl Typer<'_> {
 }
 
 impl TypeOps<'_> {
-    /// Finds the class `t` refers to, applied or not; `None` for other types.
-    pub fn direct_class(&mut self, t: TypeId) -> Option<SymbolId> {
-        let tycon = match self.u.types().get(t) {
-            Type::Applied(tycon, _) => *tycon,
-            _ => t,
-        };
-        let c = match self.u.types().get(tycon).clone() {
-            Type::Sym(_, c) => c,
-            Type::TypeRef(p, n) => self.u.resolve(p, &n, true)?,
-            _ => return None,
-        };
-        (self.u.symbol(c).kind == Kind::Class).then_some(c)
-    }
-
     /// Whether class `q`, whose base classes the universe knows, may conform or widen
     /// numerically (only to a wider class if `widening`) to view parameter type `param`; not to a
     /// class of a package the universe lacks.

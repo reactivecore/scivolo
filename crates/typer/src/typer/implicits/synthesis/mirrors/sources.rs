@@ -3,8 +3,8 @@
 //! What a mirrored type reduces to (dotty's `MirrorSource.reduce`): a class with its prefix, a
 //! singleton, or the elements of a generic tuple.
 
-use super::super::Typer;
-use super::super::type_ops::TypeOps;
+use crate::typer::Typer;
+use crate::typer::type_ops::TypeOps;
 use tasty::tags::{CASE, ENUM};
 use tasty::{SymbolId, Type, TypeId, Universe};
 
