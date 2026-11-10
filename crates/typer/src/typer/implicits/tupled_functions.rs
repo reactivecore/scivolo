@@ -6,6 +6,7 @@
 use super::super::Typer;
 use super::super::small_tuples::MAX_TUPLE_ARITY;
 use super::synthesis::Synthesizer;
+use super::tuple_mirrors::tuple_class_args;
 use crate::tpd::TNodeId;
 use tasty::{Kind, Type, TypeId};
 
@@ -61,7 +62,7 @@ fn tupled_arity(t: &mut Typer<'_>, fun: TypeId, tupled: TypeId) -> Result<Option
     let [arg] = parts.params[..] else { return Ok(None) };
     let widened = t.u.widen(arg);
     let Some(mut elems) =
-        t.tuple_class_args(widened).or_else(|| t.tuple_elements_within(widened, usize::MAX))
+        tuple_class_args(t.u, widened).or_else(|| t.tuple_elements_within(widened, usize::MAX))
     else {
         return Ok(None);
     };

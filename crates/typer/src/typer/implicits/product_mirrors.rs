@@ -9,6 +9,7 @@ use super::super::Typer;
 use super::mirror_sources::MirrorSource;
 use super::mirror_types::{MirrorCore, MirrorFormal, MirrorKind, MirrorSynthesis, label_pairs};
 use super::synthesis::Synthesizer;
+use super::tuple_mirrors::tuple_class_args;
 use crate::tpd::TNodeId;
 use tasty::tags::{CASE, CASEaccessor, PRIVATE, PROTECTED};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
@@ -26,6 +27,8 @@ impl Synthesizer {
 }
 
 impl MirrorSynthesis {
+    /// Synthesizes the product or sum mirror of `source` the expected type asks for; for a plain
+    /// `Mirror.Of[T]` the product mirror if `T` has one, else its sum mirror.
     fn run(self, t: &mut Typer<'_>, source: MirrorSource) -> Result<Option<TNodeId>, &'static str> {
         match self.formal.kind {
             MirrorKind::Product => self.product(t, source),
@@ -41,6 +44,8 @@ impl MirrorSynthesis {
         }
     }
 
+    /// Synthesizes the product mirror of a tuple, a case object, an enum value or a case class;
+    /// `None` for another class.
     fn product(self, t: &mut Typer<'_>, source: MirrorSource) -> Result<Option<TNodeId>, &'static str> {
         let (at, mirrored) = (self.at, self.formal.mirrored);
         let (pre, cls) = match source {
@@ -49,7 +54,7 @@ impl MirrorSynthesis {
             MirrorSource::Singleton(s, path) => return self.singleton(t, s, path).map(Some),
             MirrorSource::Class(pre, cls) => (pre, cls),
         };
-        if let Some(args) = t.tuple_class_args(mirrored).filter(|a| !a.is_empty()) {
+        if let Some(args) = tuple_class_args(t.u, mirrored).filter(|a| !a.is_empty()) {
             return self.tuple(t, &args, None);
         }
         if !self.is_generic_product(t, cls) {

@@ -9,7 +9,7 @@ use super::super::small_tuples::MAX_TUPLE_ARITY;
 use super::mirror_types::{MISSING, MirrorCore, MirrorSynthesis, label_pairs};
 use crate::tpd::TNodeId;
 use syntax::ast::constant::Constant;
-use tasty::{Type, TypeId};
+use tasty::{Type, TypeId, Universe};
 
 impl MirrorSynthesis {
     /// Synthesizes the mirror of a tuple such as `(Int, String)` with element types `elems`, or of
@@ -61,12 +61,13 @@ impl Typer<'_> {
         }
         Ok(t)
     }
+}
 
-    /// The element types of `t` if it is `TupleN[…]`.
-    pub fn tuple_class_args(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
-        let d = self.u.dealias(t);
-        let Type::Applied(f, args) = self.u.types().get(d).clone() else { return None };
-        let c = self.u.class_symbol(f)?;
-        (self.u.full_name(c) == format!("scala.Tuple{}", args.len())).then_some(args)
-    }
+/// Lists the element types of a tuple written with its class, such as `Tuple2[Int, String]` or
+/// an alias of it; `None` for another type.
+pub fn tuple_class_args(u: &mut Universe, t: TypeId) -> Option<Vec<TypeId>> {
+    let d = u.dealias(t);
+    let Type::Applied(f, args) = u.types().get(d).clone() else { return None };
+    let c = u.class_symbol(f)?;
+    (u.full_name(c) == format!("scala.Tuple{}", args.len())).then_some(args)
 }
