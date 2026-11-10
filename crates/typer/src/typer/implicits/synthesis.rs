@@ -29,7 +29,8 @@ pub struct Synthesizer {
 impl Typer<'_> {
     /// Synthesizes the argument of type `pt` at `at` in `ctx` if `pt` is one the compiler makes:
     /// a `Mirror`, `CanEqual`, `ClassTag`, `ValueOf`, `Manifest`, `OptManifest`, `TypeTest` or
-    /// `TupledFunction`; `None` for any other type, or at depth 0 under `Mode::NO_SYNTHESIS`.
+    /// `TupledFunction`; `None` for any other type, and for a search whose context turns
+    /// synthesis off.
     pub fn synthesized(
         &mut self,
         pt: TypeId,

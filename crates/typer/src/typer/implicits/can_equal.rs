@@ -25,14 +25,15 @@ const BOXED: [(&str, &str); 9] = [
 ];
 
 impl Typer<'_> {
-    /// Builds the type `CanEqual[l, r]`; `None` without the class `scala.CanEqual`.
+    /// Builds the type `CanEqual[l, r]`; `None` if the class path has no `scala.CanEqual`.
     pub fn can_equal_type(&mut self, l: TypeId, r: TypeId) -> Option<TypeId> {
         let class = self.resolve_full_name("scala.CanEqual", true)?;
         Some(crate::defn::applied(self.u, class, vec![l, r]))
     }
 
-    /// Determines whether `ctx` compares under `strictEquality`, by the language feature or while
-    /// searching for a reflexive instance (dotty's `Mode.StrictEquality`).
+    /// Determines whether `==` in `ctx` needs a `CanEqual` instance: under
+    /// `import scala.language.strictEquality` or its compiler flag, and while checking whether a
+    /// type has a `CanEqual` with itself.
     pub fn is_strict_equality(&mut self, ctx: Ctx) -> bool {
         ctx.mode.is(Mode::STRICT_EQUALITY)
             || self.feature_enabled(Features::STRICT_EQUALITY, "strictEquality", ctx)
@@ -40,7 +41,10 @@ impl Typer<'_> {
 }
 
 impl Synthesizer {
-    /// Synthesizes `CanEqual.canEqualAny[l, r]` if `CanEqual[l, r]` may be assumed.
+    /// Synthesizes `CanEqual.canEqualAny[l, r]` for a comparison of `l` with `r` that needs no
+    /// given instance: of two numbers, a value class and its box, `null` and a reference, or,
+    /// without `strictEquality`, of types that always compare or of which neither has a
+    /// `CanEqual` with itself.
     pub fn can_equal(self, t: &mut Typer<'_>, l: TypeId, r: TypeId) -> Result<Option<TNodeId>, &'static str> {
         let at = self.at;
         let (l, r) = (t.fully_defined_as(l, true)?, t.fully_defined_as(r, true)?);
