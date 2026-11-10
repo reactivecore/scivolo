@@ -15,10 +15,12 @@ use syntax::ast::{NodeId, Span, Tree};
 use tasty::{SymbolId, Type, TypeId};
 
 /// Makes one implicit argument the compiler synthesizes instead of finding it (dotty's
-/// `Synthesizer`); its trees are placed at `at` and typed in `ctx`.
+/// `Synthesizer`).
 #[derive(Clone, Copy)]
 pub struct Synthesizer {
+    /// Where its trees are placed.
     pub at: Span,
+    /// The context its trees are typed and its searches run in.
     pub ctx: Ctx,
     /// How deep the search that asks for the argument nests; its own searches nest one deeper.
     pub depth: u32,
@@ -27,7 +29,8 @@ pub struct Synthesizer {
 impl Typer<'_> {
     /// Synthesizes the argument of type `pt` at `at` in `ctx` if `pt` is one the compiler makes:
     /// a `Mirror`, `CanEqual`, `ClassTag`, `ValueOf`, `Manifest`, `OptManifest`, `TypeTest` or
-    /// `TupledFunction`; `None` for any other type, or at depth 0 under `Mode::NO_SYNTHESIS`.
+    /// `TupledFunction`; `None` for any other type, and for a search whose context turns
+    /// synthesis off.
     pub fn synthesized(
         &mut self,
         pt: TypeId,

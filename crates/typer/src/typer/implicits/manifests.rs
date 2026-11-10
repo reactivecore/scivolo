@@ -23,7 +23,8 @@ pub enum ManifestKind {
 }
 
 impl Synthesizer {
-    /// Synthesizes a manifest of `kind` for `arg`, made fully defined.
+    /// Synthesizes the manifest of `kind` for `arg`, inferring the type arguments still open in
+    /// `arg`; `None` for a `Manifest` of a type without a runtime class, e.g. a type parameter.
     pub fn manifest(
         self,
         t: &mut Typer<'_>,

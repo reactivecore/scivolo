@@ -14,7 +14,9 @@ use tasty::{SymbolId, TypeId, Universe};
 const NO_TEST: [&str; 3] = ["scala.AnyVal", "scala.AnyRef", "java.lang.Object"];
 
 impl Synthesizer {
-    /// Synthesizes `TypeTest[from, to]`, its trees at the synthetic form of `at`.
+    /// Synthesizes `TypeTest[from, to]` as in the module comment, at a synthetic position; `None`
+    /// for a test against `Nothing` or `Null`, and against `AnyVal`, `AnyRef` or `Object` unless
+    /// every `from` already is one.
     pub fn type_test(
         self,
         t: &mut Typer<'_>,

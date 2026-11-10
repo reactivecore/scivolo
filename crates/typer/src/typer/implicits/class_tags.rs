@@ -17,7 +17,8 @@ use tasty::{Kind, Type, TypeId, TypeVars};
 const MAX_INSTANTIATIONS: u32 = 8;
 
 impl Synthesizer {
-    /// Synthesizes `ClassTag[arg]`.
+    /// Synthesizes `ClassTag[arg]`, inferring the type arguments still open in `arg`; `None` where
+    /// `arg` has no single runtime class, e.g. an abstract type or an unbounded type parameter.
     pub fn class_tag(self, t: &mut Typer<'_>, arg: TypeId) -> Result<Option<TNodeId>, &'static str> {
         let at = self.at;
         let Some(arg) = class_tag_arg(t, arg)? else { return Ok(None) };

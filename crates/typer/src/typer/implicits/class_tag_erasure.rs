@@ -9,8 +9,8 @@ use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe};
 
 const EMPTY_TUPLE: &str = "scala.Tuple$package$.EmptyTuple$";
 
-/// Determines whether every instance of `t` erases alike (dotty's `hasStableErasure`), completing
-/// the opaque types it sees through.
+/// Determines whether all values of `tpe` share one runtime class, seeing through opaque types
+/// (dotty's `hasStableErasure`); not so for a type parameter or an abstract type member.
 pub fn has_stable_erasure(t: &mut Typer<'_>, tpe: TypeId) -> bool {
     let tpe = translucent(t, tpe);
     if let Type::Applied(tycon, args) = t.u.types().get(tpe).clone()
