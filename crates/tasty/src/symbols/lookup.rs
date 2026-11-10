@@ -110,6 +110,11 @@ impl Universe {
         Ok(if found.is_empty() { self.jdk_decl(owner, name) } else { found })
     }
 
+    /// The declarations `decl` finds, none where a file fails to load.
+    pub fn decls_named(&mut self, owner: SymbolId, name: &str) -> Vec<SymbolId> {
+        self.decl(owner, name).unwrap_or_default()
+    }
+
     /// The classes of the package objects of package `pkg`, loading only their files.
     pub fn package_objects(&mut self, pkg: SymbolId) -> Result<Vec<SymbolId>, Error> {
         self.load_pending(pkg, |file| file == "package" || file.ends_with("$package"))?;
