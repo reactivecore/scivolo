@@ -1,52 +1,22 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/SymUtils.scala
 //   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
-//! A `Mirror` search (dotty's `synthesizedMirror`), and the product mirrors of case classes and
-//! singletons (`productMirror`): the companion, the singleton or an anonymous class, cast to the
-//! mirror type.
+//! The product mirrors of case classes and singletons (dotty's `productMirror`): the companion,
+//! the singleton or an anonymous class, cast to the mirror type.
 
-use super::super::Typer;
-use super::mirror_sources::MirrorSource;
-use super::mirror_types::{MirrorCore, MirrorFormal, MirrorKind, MirrorSynthesis, label_pairs};
-use super::synthesis::Synthesizer;
-use super::tuple_mirrors::tuple_class_args;
+use super::formal::MirrorCore;
+use super::sources::MirrorSource;
+use super::{MirrorSynthesis, label_pairs};
 use crate::tpd::TNodeId;
+use crate::typer::Typer;
+use crate::typer::small_tuples::tuple_class_args;
 use tasty::tags::{CASE, CASEaccessor, PRIVATE, PROTECTED};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
-impl Synthesizer {
-    /// Synthesizes a `Mirror.Of[T]`, `Mirror.ProductOf[T]` or `Mirror.SumOf[T]` argument for a
-    /// case class, case object, enum, sealed hierarchy or tuple `T`; `None` for another expected
-    /// type or a `T` without a mirror.
-    pub fn mirror(self, t: &mut Typer<'_>, pt: TypeId) -> Result<Option<TNodeId>, &'static str> {
-        let Some(mut formal) = MirrorFormal::of(t.u, pt) else { return Ok(None) };
-        formal.mirrored = t.fully_defined_as(formal.mirrored, true)?;
-        let Some(source) = MirrorSource::of(t, formal.mirrored)? else { return Ok(None) };
-        MirrorSynthesis { formal, at: self.at, ctx: self.ctx }.run(t, source)
-    }
-}
-
 impl MirrorSynthesis {
-    /// Synthesizes the product or sum mirror of `source` the expected type asks for; for a plain
-    /// `Mirror.Of[T]` the product mirror if `T` has one, else its sum mirror.
-    fn run(self, t: &mut Typer<'_>, source: MirrorSource) -> Result<Option<TNodeId>, &'static str> {
-        match self.formal.kind {
-            MirrorKind::Product => self.product(t, source),
-            MirrorKind::Sum => self.sum(t, source),
-            MirrorKind::Any => match self.product(t, source.clone()) {
-                Ok(Some(m)) => Ok(Some(m)),
-                Ok(None) => self.sum(t, source),
-                Err(what) => match self.sum(t, source) {
-                    Ok(Some(m)) => Ok(Some(m)),
-                    _ => Err(what),
-                },
-            },
-        }
-    }
-
     /// Synthesizes the product mirror of a tuple, a case object, an enum value or a case class;
     /// `None` for another class.
-    fn product(self, t: &mut Typer<'_>, source: MirrorSource) -> Result<Option<TNodeId>, &'static str> {
+    pub fn product(self, t: &mut Typer<'_>, source: MirrorSource) -> Result<Option<TNodeId>, &'static str> {
         let (at, mirrored) = (self.at, self.formal.mirrored);
         let (pre, cls) = match source {
             MirrorSource::Tuple(elems) => return self.tuple(t, &elems, None),

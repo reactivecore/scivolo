@@ -2,13 +2,14 @@
 //   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! Implicit arguments the compiler makes instead of finding them (dotty's `Synthesizer`): a
 //! `CanEqual` (`can_equal.rs`), a `ClassTag` (`class_tags.rs`), a `Mirror`
-//! (`product_mirrors.rs`), a `TypeTest` (`type_tests.rs`), a `TupledFunction`
+//! (`mirrors/`), a `TypeTest` (`type_tests.rs`), a `TupledFunction`
 //! (`tupled_functions.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
 
 mod can_equal;
 mod class_tag_erasure;
 mod class_tags;
 mod manifests;
+mod mirrors;
 mod tupled_functions;
 mod type_tests;
 
@@ -24,11 +25,11 @@ use tasty::{SymbolId, Type, TypeId};
 /// Makes one implicit argument the compiler synthesizes instead of finding it (dotty's
 /// `Synthesizer`).
 #[derive(Clone, Copy)]
-pub struct Synthesizer {
+struct Synthesizer {
     /// Where its trees are placed.
-    pub at: Span,
+    at: Span,
     /// The context its trees are typed and its searches run in.
-    pub ctx: Ctx,
+    ctx: Ctx,
     /// How deep the search that asks for the argument nests; its own searches nest one deeper.
     depth: u32,
 }

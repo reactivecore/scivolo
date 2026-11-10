@@ -3,9 +3,9 @@
 //! Anonymous mirrors (dotty's `anonymousMirror`): `new Object with Serializable { type
 //! MirroredMonoType = M }`, marked for the lowering to add the mirror's parent and methods.
 
-use super::super::{Pt, Typer};
-use super::mirror_types::{MISSING, MirrorSynthesis};
+use super::{MISSING, MirrorSynthesis};
 use crate::tpd::{AnonMirror, TNodeId, Tree as T};
+use crate::typer::{Pt, Typer};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, TName, Tree};

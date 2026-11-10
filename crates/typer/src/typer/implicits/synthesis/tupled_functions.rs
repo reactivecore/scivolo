@@ -3,11 +3,10 @@
 //! Synthesized `TupledFunction[F, G]` (dotty's `synthesizedTupleFunction`):
 //! `TupledFunctions.tupledFunctionN[F, G]`, `tupledFunctionXXL` above 22 parameters.
 
-use super::super::tuple_mirrors::tuple_class_args;
 use super::Synthesizer;
 use crate::tpd::TNodeId;
 use crate::typer::Typer;
-use crate::typer::small_tuples::MAX_TUPLE_ARITY;
+use crate::typer::small_tuples::{MAX_TUPLE_ARITY, tuple_class_args};
 use tasty::{Kind, Type, TypeId};
 
 /// The parts of a `FunctionN` or `ContextFunctionN` type.

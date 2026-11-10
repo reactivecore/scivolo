@@ -1,18 +1,12 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
-//! The component that makes one `Mirror` argument, the expected types of the mirrors it makes and
-//! the refined types it casts them to (dotty's `makeMirror`, `checkFormal`, `mirrorCore`,
-//! `checkRefinement`).
+//! The expected types of the mirrors and the refined types they are cast to (dotty's
+//! `checkFormal`, `mirrorCore`, `checkRefinement`).
 
-use super::super::Typer;
-use super::super::type_ops::TypeOps;
-use crate::ctx::Ctx;
-use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::Span;
+use super::{MISSING, MirrorSynthesis};
+use crate::typer::Typer;
+use crate::typer::type_ops::TypeOps;
 use tasty::{Type, TypeId, Universe};
-
-/// The refusal when the library lacks a class a mirror needs.
-pub const MISSING: &str = "Mirror without its library classes";
 
 /// The mirrors an expected type admits.
 #[derive(Clone, Copy, PartialEq)]
@@ -37,15 +31,6 @@ pub struct MirrorCore<'a> {
     pub label: &'a str,
     /// `MirroredElemTypes` and `MirroredElemLabels`.
     pub elems: Option<(TypeId, TypeId)>,
-}
-
-/// Makes the `Mirror` argument `formal` asks for (dotty's `synthesizedMirror` and what it calls);
-/// its trees are placed at `at` and typed in `ctx`.
-#[derive(Clone, Copy)]
-pub struct MirrorSynthesis {
-    pub formal: MirrorFormal,
-    pub at: Span,
-    pub ctx: Ctx,
 }
 
 impl MirrorFormal {
@@ -133,40 +118,6 @@ impl MirrorSynthesis {
             }
         })
     }
-
-    /// Builds the instance creation `new C(args)` of library class `full`, e.g.
-    /// `scala.runtime.TupleMirror`.
-    pub fn new_with_args(
-        self,
-        t: &mut Typer<'_>,
-        full: &str,
-        args: &[TNodeId],
-    ) -> Result<TNodeId, &'static str> {
-        let at = self.at;
-        let class = t.resolve_full_name(full, true).ok_or(MISSING)?;
-        let ctor = t.u.decl(class, "<init>").ok().and_then(|d| d.first().copied()).ok_or(MISSING)?;
-        let raw = crate::defn::type_ref(t.u, class);
-        let tpt = t.tpd.node(T::TypeTree { inferred: false }, at, Some(raw), None);
-        let new = t.tpd.node(T::New { tpt }, at, Some(raw), None);
-        let select = t.build().select(new, ctor, at);
-        Ok(t.build().apply(select, args, raw, at))
-    }
-
-    /// Casts the mirror object `mirror` to its mirror type `to`, giving the synthesized argument.
-    pub fn cast(
-        self,
-        t: &mut Typer<'_>,
-        mirror: TNodeId,
-        to: TypeId,
-    ) -> Result<Option<TNodeId>, &'static str> {
-        t.build().cast_to(mirror, to, self.at).map(Some)
-    }
-}
-
-/// Builds the tuple type of `labels` as string literal types, e.g. `("x", "y")`.
-pub fn label_pairs(t: &mut Typer<'_>, labels: &[String]) -> Result<TypeId, &'static str> {
-    let labels: Vec<TypeId> = labels.iter().map(|l| t.u.intern_type(Type::Str(l.clone()))).collect();
-    t.nested_pairs(&labels)
 }
 
 /// Refuses a mirror whose expected type `pt` asks for a type member `name` that `expected` does

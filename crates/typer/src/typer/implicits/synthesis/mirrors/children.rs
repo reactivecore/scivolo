@@ -1,45 +1,14 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
-//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //   compiler/src/dotty/tools/dotc/core/SymUtils.scala
-//! The children of a sealed class (dotty's `children`, `isGenericSum`), and their types as the
-//! elements of its sum mirror.
+//! Whether the children of a sealed class make a sum mirror (dotty's `isGenericSum`), and their
+//! types as the elements of that mirror.
 
-use super::super::Typer;
+use super::MirrorSynthesis;
 use super::child_prefixes::{is_visible_to_scope, owner_scope};
-use super::mirror_types::MirrorSynthesis;
 use crate::sealed;
-use tasty::tags::{ABSTRACT, CONTRAVARIANT, ENUM, SEALED};
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe};
-
-impl Typer<'_> {
-    /// Lists the direct subclasses of sealed class or trait `s` in the order of their
-    /// definitions, an object by its value; for an enum, its cases. For a sealed class of the
-    /// library, the children its TASTy names.
-    pub fn sealed_children(&mut self, s: SymbolId) -> Result<Vec<SymbolId>, &'static str> {
-        if self.u.symbol(s).flags.has(ENUM) {
-            return Ok(sealed::enum_cases(self.u, s));
-        }
-        let Some(&def) = self.syms.def_trees.get(&s) else {
-            let types = self.u.decoded_children(s).ok_or("sum Mirror of a sealed class without TASTy")?;
-            return types
-                .into_iter()
-                .map(|t| self.referenced(t).ok_or("sealed child outside the subset"))
-                .collect();
-        };
-        let file = self.file_of(self.ast.span(def));
-        let defs: Vec<(SymbolId, syntax::ast::NodeId)> =
-            self.syms.def_trees.iter().map(|(&k, &v)| (k, v)).collect();
-        let mut classes = Vec::new();
-        for (c, node) in defs {
-            let span = self.ast.span(node);
-            if self.u.symbol(c).kind == Kind::Class && self.file_of(span) == file {
-                self.complete(c);
-                classes.push((span.start(), c));
-            }
-        }
-        Ok(sealed::direct_children(self.u, s, &classes))
-    }
-}
+use crate::typer::Typer;
+use tasty::tags::{ABSTRACT, CONTRAVARIANT, SEALED};
+use tasty::{SymbolId, Type, TypeId, TypeVars, Universe};
 
 impl MirrorSynthesis {
     /// Whether sealed class `s`, selected from prefix `pre`, gets a sum mirror here (dotty's
