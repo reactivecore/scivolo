@@ -4,6 +4,7 @@
 //! `typeclassInstance`).
 
 use super::super::Typer;
+use super::super::paths::MAX_PATH_DEPTH;
 use super::kinds::Instance;
 use super::trees::{node, tc_applied};
 use super::{DerivedInstance, Deriver, Problem};
@@ -14,9 +15,6 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// How many aliases and type lambdas the class reference under a type class may lie below.
 const CLASS_REF_DEPTH: u32 = 16;
-
-/// How many prefixes the path to a type class's companion may have.
-const PATH_DEPTH: u32 = 8;
 
 /// The type class of a `derives` clause entry, its aliases expanded.
 struct TypeClass {
@@ -79,7 +77,7 @@ fn derived_rhs(
     };
 
     let module_ref = t.u.intern_type(Type::Sym(tc.prefix, module));
-    let Some(qualifier) = t.path_tree(module_ref, span, PATH_DEPTH) else {
+    let Some(qualifier) = t.path_tree(module_ref, span, MAX_PATH_DEPTH) else {
         t.unsupported(d, "derives clause of a type class without a stable path");
         return None;
     };

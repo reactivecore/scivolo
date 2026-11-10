@@ -10,6 +10,7 @@ use super::sources::MirrorSource;
 use super::{MirrorSynthesis, label_pairs};
 use crate::tpd::TNodeId;
 use crate::typer::Typer;
+use crate::typer::paths::MAX_PATH_DEPTH;
 use tasty::tags::CASE;
 use tasty::{SymbolId, Type, TypeId, Universe};
 
@@ -56,7 +57,7 @@ impl MirrorSynthesis {
         let mirror = match companion {
             Some(module) => {
                 let path = t.u.intern_type(Type::Sym(pre, module));
-                t.path_tree(path, self.at, 8).ok_or("Mirror companion outside the subset")?
+                t.path_tree(path, self.at, MAX_PATH_DEPTH).ok_or("Mirror companion outside the subset")?
             }
             None => self.anonymous(t, mono, true)?,
         };

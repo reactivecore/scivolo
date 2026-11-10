@@ -4,6 +4,7 @@
 
 use super::super::Typer;
 use super::super::did_you_mean::is_jdk;
+use super::super::paths::MAX_PATH_DEPTH;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
@@ -171,7 +172,7 @@ pub fn candidate_ref(t: &mut Typer<'_>, c: Candidate, span: Span, ctx: Ctx) -> R
         _ => t.types().ref_type(c.prefix, c.sym),
     };
     let through_path = !t.term_prefix_is_elidable(c.prefix, c.sym, ctx);
-    if through_path && c.prefix.and_then(|p| t.path_tree_from(p, span, 8, Some(ctx))).is_none() {
+    if through_path && c.prefix.and_then(|p| t.path_tree_from(p, span, MAX_PATH_DEPTH, Some(ctx))).is_none() {
         return Err("implicit through a path");
     }
     Ok(t.ref_(c.prefix, c.sym, tpe, span, ctx))

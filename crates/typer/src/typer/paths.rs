@@ -8,6 +8,9 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
 use tasty::{SymbolId, Type, TypeId};
 
+/// How many prefixes a path tree may have.
+pub const MAX_PATH_DEPTH: u32 = 8;
+
 impl Typer<'_> {
     /// `path_tree_from` without a context.
     pub fn path_tree(&mut self, prefix: TypeId, span: Span, depth: u32) -> Option<TNodeId> {
@@ -79,7 +82,7 @@ impl Typer<'_> {
     /// its prefix (dotty's `ref(tpe)`).
     pub fn this_select(&mut self, span: Span, name: TName, tpe: TypeId, sym: SymbolId, ctx: Ctx) -> TNodeId {
         let Type::Sym(Some(prefix), _) = *self.u.types().get(tpe) else { unreachable!("a member reference") };
-        let Some(qualifier) = self.path_tree_from(prefix, span.start_pos(), 8, Some(ctx)) else {
+        let Some(qualifier) = self.path_tree_from(prefix, span.start_pos(), MAX_PATH_DEPTH, Some(ctx)) else {
             self.unsupported_at(span, "reference through a path");
             return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym));
         };

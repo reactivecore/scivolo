@@ -6,6 +6,7 @@
 
 use super::dependent_results::has_wildcard;
 use super::implicits::is_misfit;
+use super::patterns::MAX_ALIAS_STEPS;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -98,7 +99,7 @@ impl Typer<'_> {
 
     /// The match-type alias that `t`, or an alias `t` refers to, is or applies.
     fn match_alias(&mut self, mut t: TypeId) -> Option<TypeId> {
-        for _ in 0..8 {
+        for _ in 0..MAX_ALIAS_STEPS {
             let tycon = match *self.u.types().get(t) {
                 Type::Applied(tycon, _) => tycon,
                 _ => t,

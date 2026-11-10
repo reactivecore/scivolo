@@ -17,6 +17,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::Typer;
 use crate::typer::constants::of_type;
+use crate::typer::paths::MAX_PATH_DEPTH;
 use manifests::ManifestKind;
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{NodeId, Span, Tree};
@@ -89,8 +90,8 @@ impl Synthesizer {
             Type::Constant(tag, bits) => of_type(tag, bits).map(|c| t.build().literal(c, at)),
             Type::Str(s) => Some(t.build().literal(C::String(s.encode_utf16().collect()), at)),
             Type::Sym(_, s) if s == t.defn.unit => Some(t.build().literal(C::Unit, at)),
-            Type::Sym(_, s) if t.u.symbol(s).kind.is_term() => t.path_tree(dealiased, at, 8),
-            Type::This(_) => t.path_tree(dealiased, at, 8),
+            Type::Sym(_, s) if t.u.symbol(s).kind.is_term() => t.path_tree(dealiased, at, MAX_PATH_DEPTH),
+            Type::This(_) => t.path_tree(dealiased, at, MAX_PATH_DEPTH),
             Type::TermRef(..) | Type::Skolem(..) => None,
             _ => return Ok(None),
         };

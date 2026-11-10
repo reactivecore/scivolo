@@ -9,6 +9,7 @@ use super::sources::MirrorSource;
 use super::{MirrorSynthesis, label_pairs};
 use crate::tpd::TNodeId;
 use crate::typer::Typer;
+use crate::typer::paths::MAX_PATH_DEPTH;
 use crate::typer::small_tuples::tuple_class_args;
 use tasty::tags::{CASE, CASEaccessor, PRIVATE, PROTECTED};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
@@ -62,7 +63,8 @@ impl MirrorSynthesis {
         let mirror = match product_companion(t.u, cls) {
             Some(module) => {
                 let path = t.u.intern_type(Type::Sym(pre, module));
-                let tree = t.path_tree(path, at, 8).ok_or("Mirror companion outside the subset")?;
+                let tree =
+                    t.path_tree(path, at, MAX_PATH_DEPTH).ok_or("Mirror companion outside the subset")?;
                 let class =
                     t.u.module_class(module)
                         .filter(|&c| crate::sealed::is_contained_in(t.u, self.ctx.owner, c));
@@ -92,7 +94,8 @@ impl MirrorSynthesis {
         self.formal.check_elems(&mut t.types(), empty, empty)?;
         let core = MirrorCore { parent, mono: self.formal.mirrored, label: &label, elems: None };
         let cast = self.mirror_type(t, core)?;
-        let mut value = t.path_tree(path, self.at, 8).ok_or("Mirror of a singleton outside the subset")?;
+        let mut value =
+            t.path_tree(path, self.at, MAX_PATH_DEPTH).ok_or("Mirror of a singleton outside the subset")?;
         if scala2 {
             value = self.new_with_args(t, parent, &[value])?;
         }

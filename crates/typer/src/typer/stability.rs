@@ -7,6 +7,9 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
+/// How many widening and dealiasing steps `widen_dealias` takes at most.
+const MAX_WIDEN_STEPS: usize = 64;
+
 impl TypeOps<'_> {
     /// Checks whether term `s` denotes the same value each time: not a `var`, an inline or
     /// by-name parameter, and not a method unless a stable one (dotty's `isStableMember`).
@@ -16,7 +19,7 @@ impl TypeOps<'_> {
 
     /// Widens and dealiases `t` until neither changes it (dotty's `widenDealias`).
     pub fn widen_dealias(&mut self, mut t: TypeId) -> TypeId {
-        for _ in 0..64 {
+        for _ in 0..MAX_WIDEN_STEPS {
             let widened = self.u.widen(t);
             let next = self.u.dealias(widened);
             if next == t {
