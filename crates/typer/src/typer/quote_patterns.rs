@@ -41,7 +41,7 @@ impl Typer<'_> {
         }
         let base = self.u.base_type(pt, class).and_then(|b| self.u.applied(b));
         let quoted_pt = match base {
-            Some((_, &[arg, ..])) if self.u.bounds(arg).is_none() => arg,
+            Some((_, args)) if self.u.bounds(args[0]).is_none() => args[0],
             _ => ANY,
         };
         let body = self.adapted_to_expected(body, quoted_pt);
