@@ -75,7 +75,9 @@ code starts with its license notice, which lists its upstream files:
 - A bounded computation with its own state is a component (ADR 0113): a struct
   that owns that state, created, run with its services (`&mut Typer`,
   `&mut Universe`) as arguments, and dropped; its helpers are its methods or
-  free functions, not `impl Typer` methods.
+  free functions, not `impl Typer` methods. A component lives in its own module
+  directory: `mod.rs` holds the struct and its entry; its other files are
+  private submodules exposing one entry each.
 - Public signatures take and return concrete types: no tuples of more than two
   values; the more an item is used, the more its data gets a named type.
 - Documentation is short: one home per fact.
