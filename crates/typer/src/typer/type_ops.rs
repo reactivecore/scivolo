@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //   compiler/src/dotty/tools/dotc/typer/Inferencing.scala
 //! Type relations and queries over the universe and the constraint (dotty's `TypeComparer`), for
-//! completed symbols; `Typer`'s methods of the same names forward to them.
+//! completed symbols; `Typer`'s methods of the same names forward to the much-used ones.
 
 use super::Typer;
 use crate::constraint::Constraint;
@@ -148,10 +148,6 @@ impl Typer<'_> {
 
     pub fn conforms(&mut self, a: TypeId, b: TypeId) -> bool {
         self.types().conforms(a, b)
-    }
-
-    pub fn conforms_captured_path(&mut self, a: TypeId, b: TypeId) -> bool {
-        self.types().conforms_captured_path(a, b)
     }
 
     pub fn zonk(&mut self, t: TypeId) -> TypeId {
