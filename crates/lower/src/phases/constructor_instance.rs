@@ -54,7 +54,7 @@ fn mentions_param(l: &mut Lower, t: TypeId, binder: tasty::Binder, (name, index)
 
 /// The element type `T` of repeated parameter type `<repeated>[T]`.
 pub fn repeated_elem(l: &mut Lower, t: TypeId) -> Option<TypeId> {
-    let Some((c, &[arg])) = l.u.applied(t) else { return None };
+    let (c, args) = l.u.applied(t).map(|(c, a)| (c, a.to_vec()))?;
     let class = l.u.class_symbol(c)?;
-    (l.u.full_name(class) == tasty::defn::REPEATED).then_some(arg)
+    (args.len() == 1 && l.u.full_name(class) == tasty::defn::REPEATED).then(|| args[0])
 }
