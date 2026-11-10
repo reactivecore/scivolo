@@ -10,7 +10,7 @@ use syntax::ast::{NodeId, Span, TName, Tree, modifiers::Modifiers};
 use syntax::names::is_var_pattern_name;
 use tasty::{Kind, Type, TypeId};
 
-/// How many aliases of script symbols a pattern's type follows at most.
+/// How many type aliases a pattern's type or a match-type reference is followed through at most.
 pub const MAX_ALIAS_STEPS: usize = 8;
 
 impl Typer<'_> {
