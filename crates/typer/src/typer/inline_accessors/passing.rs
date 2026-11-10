@@ -16,7 +16,9 @@ use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 /// The receiver a passing accessor takes: its type, aliases expanded, and the types defined in
 /// the inline method that it refers to, which become the accessor's type parameters.
 pub struct Receiver {
+    /// The widened type of the selection's qualifier, aliases expanded.
     pub tpe: TypeId,
+    /// The types defined in the inline method that `tpe` refers to.
     pub locals: Vec<SymbolId>,
 }
 
