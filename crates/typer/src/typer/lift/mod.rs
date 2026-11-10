@@ -13,9 +13,7 @@ use tasty::{SymbolId, Type, TypeId};
 /// Lifts the parts of one application into local values, evaluated once and in order: in
 /// `f().x += 1` the qualifier `f()` becomes a local value whose `x` is read and then set, and a
 /// call with named or default arguments evaluates them in the order written (dotty's `Lifter`:
-/// `LiftComplex` if `complex`, else `LiftImpure`). Its methods
-/// take the typer: deciding purity completes the methods trees refer to, and each lifted value
-/// is a new local symbol.
+/// `LiftComplex` if `complex`, else `LiftImpure`). Its methods take the typer (ADR 0113).
 pub struct Lifter {
     /// Whether only pure paths stay in place (`LiftComplex`), not every pure expression.
     complex: bool,
