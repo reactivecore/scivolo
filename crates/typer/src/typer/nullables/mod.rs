@@ -4,6 +4,13 @@
 //! Flow typing under explicit nulls: the references known not to be null after a tree or when a
 //! condition holds, and the contexts that carry them.
 
+mod assignments;
+mod cases;
+mod conditionals;
+mod infos;
+mod loops;
+mod tracked;
+
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
@@ -83,7 +90,7 @@ pub fn union(mut a: Vec<TypeId>, b: &[TypeId]) -> Vec<TypeId> {
 pub struct Nullables {
     chain: Vec<(Option<u32>, NotNullInfo)>,
     pub infos: FxHashMap<TNodeId, NotNullInfo>,
-    pub assignments: Option<super::null_assignments::Assignments>,
+    pub assignments: Option<assignments::Assignments>,
 }
 
 impl Typer<'_> {

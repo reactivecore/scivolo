@@ -3,7 +3,7 @@
 //! The function part of an application with its prefix and arguments lifted into local values
 //! (dotty's `Lifter.liftApp`).
 
-use super::Typer;
+use super::super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Type, TypeId};

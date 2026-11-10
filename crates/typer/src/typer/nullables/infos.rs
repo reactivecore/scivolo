@@ -3,8 +3,8 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! The not-null infos of typed trees (dotty's `notNullInfo` and the infos `Typer` attaches).
 
-use super::Typer;
-use super::nullables::NotNullInfo;
+use super::super::Typer;
+use super::NotNullInfo;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::Type;

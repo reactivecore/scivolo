@@ -3,6 +3,8 @@
 //! Parts of applications lifted into local values, evaluated once and in order (dotty's
 //! `Lifter`, `LiftComplex` if `complex`, else `LiftImpure`).
 
+mod app;
+
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};

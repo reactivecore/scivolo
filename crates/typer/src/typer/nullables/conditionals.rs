@@ -2,8 +2,8 @@
 //   compiler/src/dotty/tools/dotc/typer/Nullables.scala
 //! The conditionals of null tests (dotty's `notNullConditional`, `CompareNull`).
 
-use super::Typer;
-use super::nullables::union;
+use super::super::Typer;
+use super::union;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use tasty::TypeId;

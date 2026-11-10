@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Nullables.scala
 //! The references flow typing tracks (dotty's `TrackedRef`, `usedOutOfOrder`).
 
-use super::Typer;
+use super::super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::{Kind, SymbolId, Type, TypeId, tags};
@@ -25,7 +25,7 @@ impl Typer<'_> {
     pub fn tracked(&mut self, t: TNodeId) -> Option<TypeId> {
         let r = self.tpd.tpe(t);
         let sym = self.term_ref_sym(r)?;
-        if super::stability::is_stable_path(self.u, r) || self.is_null_stable_field(r, sym) {
+        if super::super::stability::is_stable_path(self.u, r) || self.is_null_stable_field(r, sym) {
             return Some(r);
         }
         self.assignment_spans(sym).is_some().then_some(r)
@@ -38,7 +38,7 @@ impl Typer<'_> {
         let field = s.kind == Kind::Val && s.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Class);
         field
             && self.u.annotations(sym).iter().any(|&c| self.u.full_name(c) == "scala.annotation.stableNull")
-            && super::stability::is_stable_path(self.u, p)
+            && super::super::stability::is_stable_path(self.u, p)
     }
 
     /// Whether a use of local variable `sym` in `ctx` is in a method, lazy value or class inside

@@ -3,7 +3,7 @@
 //! The local variables flow typing tracks and the spans of their assignments (dotty's
 //! `assignmentSpans`).
 
-use super::Typer;
+use super::super::Typer;
 use rustc_hash::FxHashMap;
 use syntax::ast::flags as f;
 use syntax::ast::{Ast, Attrs, NodeId, Span, Tree};

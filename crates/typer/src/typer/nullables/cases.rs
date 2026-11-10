@@ -5,8 +5,8 @@
 //! selector known not null where its patterns exclude it (dotty's `typedCases`, `matchesNull`,
 //! `caseContext`, `afterPatternContext`).
 
-use super::nullables::NotNullInfo;
-use super::{Pt, Typer};
+use super::super::{Pt, Typer};
+use super::NotNullInfo;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::NodeId;

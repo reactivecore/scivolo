@@ -4,8 +4,8 @@
 //! The facts about variables that loops and by-name arguments drop (dotty's `whileContext`,
 //! `retractMutables`, `postProcessByNameArgs`).
 
-use super::Typer;
-use super::nullables::NotNullInfo;
+use super::super::Typer;
+use super::NotNullInfo;
 use crate::ctx::Ctx;
 use crate::tpd::{Node, TNodeId, Tree as T};
 use syntax::ast::Span;
