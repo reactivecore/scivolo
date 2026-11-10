@@ -1,4 +1,4 @@
-//! The names that types refer to, interned: texts one after another in one buffer.
+//! The names that types refer to and declarations are looked up by, interned: texts one after another in one buffer.
 
 use hashbrown::HashTable;
 use rustc_hash::FxBuildHasher;

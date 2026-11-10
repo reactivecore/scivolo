@@ -55,8 +55,7 @@ impl Cmp<'_> {
             return false;
         }
         let Some(class) = self.u.class_symbol(t) else { return false };
-        let name = self.u.name(name).to_owned();
-        let members = self.u.member(class, &name);
+        let members = self.u.member(class, name);
         let site = match self.is_stable(a) {
             true => a,
             false => {

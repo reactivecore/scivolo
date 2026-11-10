@@ -19,10 +19,12 @@ impl Universe {
     /// entered from the JDK, if it has it in a `java.*` or `javax.*` package and the universe has
     /// a JDK and the package lacks the class and its object; nested classes and annotations are
     /// not entered.
-    pub fn jdk_decl(&mut self, pkg: SymbolId, name: &str) -> Vec<SymbolId> {
+    pub fn jdk_decl(&mut self, pkg: SymbolId, name: crate::NameId) -> Vec<SymbolId> {
         if self.jdk.is_none() {
             return Vec::new();
         }
+        let name = self.name(name).to_owned();
+        let name = name.as_str();
         let outer = self.full_name(pkg).replace('.', "/");
         let full = if outer.is_empty() { name.to_owned() } else { format!("{outer}/{name}") };
         let java = ["java", "javax"].iter().any(|p| full == *p || full.starts_with(&format!("{p}/")));

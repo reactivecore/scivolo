@@ -30,13 +30,12 @@ impl Universe {
             return None;
         }
         self.resolving += 1;
-        let name = self.name(name).to_owned();
-        let found = self.resolve_in(prefix, &name, ty);
+        let found = self.resolve_in(prefix, name, ty);
         self.resolving -= 1;
         found
     }
 
-    fn resolve_in(&mut self, prefix: TypeId, name: &str, ty: bool) -> Option<SymbolId> {
+    fn resolve_in(&mut self, prefix: TypeId, name: NameId, ty: bool) -> Option<SymbolId> {
         let owner = self.prefix_owner(prefix)?;
         let wanted = move |u: &Self, s: SymbolId| u.is_type_symbol(s) == ty;
         let found = match self.symbol(owner).kind {
