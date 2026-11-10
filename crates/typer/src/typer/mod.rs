@@ -2,7 +2,6 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Typing untyped trees into `tpd` trees (dotty's `Typer`): the dispatch over tree classes.
 
-mod abstract_members;
 mod access;
 mod accessible;
 mod accessor_defs;
@@ -110,7 +109,6 @@ mod import_tree;
 mod imports;
 mod infer;
 mod infix_tuples;
-mod inherited_conflicts;
 mod inline_accessors;
 mod inline_host;
 mod inline_refs;
@@ -138,7 +136,6 @@ mod members;
 mod migrations;
 mod mismatch_context;
 mod mismatch_text;
-mod name_clashes;
 mod named_args;
 mod named_overloads;
 mod named_tuple_from;
@@ -164,9 +161,7 @@ mod overload_errors;
 mod overload_values;
 mod overloaded_extractors;
 mod overloads;
-mod override_kinds;
 mod overrides;
-mod overrides_nothing;
 mod package_members;
 mod param_vars;
 mod parameterless;

@@ -3,7 +3,7 @@
 //! dotty's `checkAllOverrides` step 4, a member with an `override` modifier overrides some member,
 //! where no base member matches it without differing in a repeated parameter.
 
-use super::Typer;
+use super::super::Typer;
 use syntax::ast::flags as f;
 use tasty::{SymbolId, TypeId};
 

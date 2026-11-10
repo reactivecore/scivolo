@@ -3,7 +3,7 @@
 //! The kinds of members dotty's `checkOverride` lets override one another: finality, variables,
 //! stability and laziness.
 
-use super::Typer;
+use super::super::Typer;
 use tasty::tags::{FINAL, LAZY, MUTABLE, OBJECT, OVERRIDE};
 use tasty::{Kind, SymbolId};
 

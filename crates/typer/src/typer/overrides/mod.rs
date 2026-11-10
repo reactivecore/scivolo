@@ -3,6 +3,12 @@
 //! What dotty's `RefChecks.checkAllOverrides` rejects and the typer does not port yet, made to fall
 //! back: a member overriding a concrete one without `override` or by an abstract one.
 
+mod abstract_members;
+mod inherited_conflicts;
+mod name_clashes;
+mod override_kinds;
+mod overrides_nothing;
+
 use super::Typer;
 use syntax::ast::Span;
 use syntax::ast::flags as f;

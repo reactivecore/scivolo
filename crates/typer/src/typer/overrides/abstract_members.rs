@@ -4,7 +4,7 @@
 //! Concrete classes with abstract members left unimplemented, which dotty's
 //! `checkNoAbstractMembers` rejects, made to fall back.
 
-use super::Typer;
+use super::super::Typer;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, ARTIFACT, CASE, ENUM, MUTABLE, PRIVATE, TRAIT};

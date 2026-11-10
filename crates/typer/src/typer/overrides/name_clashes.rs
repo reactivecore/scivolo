@@ -3,7 +3,7 @@
 //! Members with the same run-time name and erased signature (dotty's
 //! `ElimErasedValueType.checkNoClashes`).
 
-use super::Typer;
+use super::super::Typer;
 use crate::symbols::Completion;
 use syntax::ast::{Span, Tree};
 use tasty::tags::{ERASED, INLINE, MACRO, PRIVATE};

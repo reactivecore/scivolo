@@ -3,7 +3,7 @@
 //! Concrete members of traits inherited in conflict, which dotty's `RefChecks.checkAllOverrides`
 //! rejects, made to fall back.
 
-use super::Typer;
+use super::super::Typer;
 use syntax::ast::Span;
 use syntax::ast::flags as f;
 use tasty::{SymbolId, Type, TypeId};
