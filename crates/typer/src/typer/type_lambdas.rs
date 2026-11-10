@@ -15,7 +15,7 @@ impl Typer<'_> {
     /// Type lambda `id` of type parameters `tparams` and `body`, typed in `ctx`: its parameters
     /// entered in a scope of their own, its type a lambda over them, bounds of lambdas for bounds.
     pub fn typed_lambda_type(&mut self, id: NodeId, tparams: List, body: NodeId, ctx: Ctx) -> TNodeId {
-        let derived = self.derived_lambdas.get(&id).and_then(|d| self.syms.by_tree.get(d)).copied();
+        let derived = self.derivations.lambda_owner(id).and_then(|d| self.syms.by_tree.get(&d)).copied();
         let type_def = self.type_def_with_rhs(id).or(derived);
         let owner = type_def.unwrap_or(ctx.owner);
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));

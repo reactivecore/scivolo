@@ -180,4 +180,16 @@ impl Typer<'_> {
             _ => class,
         }
     }
+
+    /// The primary constructor of the companion class of object class `module`.
+    pub fn companion_constructor(&mut self, module: SymbolId) -> Option<SymbolId> {
+        let name = tasty::module_name(&self.u.symbol(module).name)?.to_owned();
+        let owner = self.u.symbol(module).owner?;
+        let decls = self.u.symbol(owner).decls.clone();
+        let companion = decls
+            .into_iter()
+            .find(|&d| self.u.symbol(d).kind == Kind::Class && self.u.symbol(d).name == name)?;
+        self.complete(companion);
+        self.syms.primary_ctors.get(&companion).copied()
+    }
 }

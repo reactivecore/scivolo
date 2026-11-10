@@ -183,4 +183,18 @@ impl Typer<'_> {
     pub fn is_named_package_object(&self, c: SymbolId) -> bool {
         crate::defn::is_named_package_object(self.u, c)
     }
+
+    /// Makes a reference to member `m` from inside its class: an identifier if the class is a
+    /// static owner, else a selection from its `this` (dotty's `ref`).
+    pub fn member_ref(&mut self, m: SymbolId, span: syntax::ast::Span) -> TNodeId {
+        let cls = self.u.symbol(m).owner.expect("a member");
+        if self.is_static_owner(cls) {
+            let prefix = crate::defn::owner_prefix(self.u, cls);
+            let tpe = self.u.intern_type(Type::Sym(Some(prefix), m));
+            return self.build().ident(m, tpe, span);
+        }
+        let class_type = crate::defn::type_ref(self.u, cls);
+        let this = self.build().this(class_type, span);
+        self.build().select(this, m, span)
+    }
 }

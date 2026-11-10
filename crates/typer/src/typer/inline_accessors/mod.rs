@@ -1,15 +1,13 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/inlines/PrepareInlineable.scala
 //   compiler/src/dotty/tools/dotc/transform/AccessProxies.scala
-//! Inline accessors: the members an inline method's body refers to that are not public where it
-//! expands, reached through public synthetic methods of a class that sees them (dotty's
-//! `PrepareInlineable.MakeInlineableDirect`, `AccessProxies`).
 
 mod accessor_defs;
 mod accessor_types;
 mod passing;
 mod passing_defs;
 mod retained;
+mod rewire;
 
 pub use retained::RETAINED_BODY;
 
@@ -17,28 +15,58 @@ use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
-use syntax::ast::{NodeId, Span};
+use syntax::ast::NodeId;
 use tasty::{SymbolId, Type};
 
+/// Makes the body of one inline method inlineable (dotty's `PrepareInlineable.makeInlineable`):
+/// the members it refers to that are not public where it expands, as `x` in
+/// `class C { private var x = 0; inline def inc() = x += 1 }`, are reached through public
+/// synthetic accessors of a class that sees them, `inline$x` and `inline$x_=`, or, if no class
+/// around the method sees them, through accessors of the method's class that take the member's
+/// receiver as their first parameter. Refuses private constructors, accessors in a class whose
+/// body is typed already, members of generic base classes and accessed types it cannot rebuild.
+pub struct MakeInlineable {
+    /// The inline method whose body is made inlineable.
+    meth: SymbolId,
+    /// The context of the method's body.
+    ctx: Ctx,
+}
+
+/// The inline accessors of the unit: made while the bodies of inline methods are typed, typed
+/// and appended to their classes' bodies once those are typed.
 #[derive(Default)]
 pub struct Accessors {
-    /// Each accessor made, by its class, the member it accesses and whether it is a setter.
-    made: FxHashMap<(SymbolId, SymbolId, bool), SymbolId>,
+    /// Each accessor made, by its class and what it accesses.
+    made: FxHashMap<(SymbolId, Access), SymbolId>,
     /// The definitions of the accessors still to type, by class, with the context to type them in.
-    pub pending: FxHashMap<SymbolId, Vec<(NodeId, Ctx)>>,
+    pending: FxHashMap<SymbolId, Vec<(NodeId, Ctx)>>,
     /// The classes whose bodies are typed.
-    pub closed: FxHashSet<SymbolId>,
+    closed: FxHashSet<SymbolId>,
+}
+
+/// The member an accessor reaches, and whether it assigns it.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Access {
+    member: SymbolId,
+    setter: bool,
+}
+
+impl Accessors {
+    /// Whether `s` is one of the inline accessors made.
+    fn is_accessor(&self, s: SymbolId) -> bool {
+        self.made.values().any(|&a| a == s)
+    }
 }
 
 impl Typer<'_> {
     /// Class body `body` of `cls`, typed in `ctx`, with the body retainers of its retained inline
     /// methods and its inline accessors (dotty's `inlineExpansion`, `addAccessorDefs`).
     pub fn with_inline_members(&mut self, cls: SymbolId, body: Vec<TNodeId>, ctx: Ctx) -> Vec<TNodeId> {
-        let mut body = self.with_retainers(body, ctx);
+        let mut body = retained::with_retainers(self, body, ctx);
         for (def, def_ctx) in self.accessors.pending.remove(&cls).unwrap_or_default() {
             let def = self.typed_stat(def, def_ctx);
-            self.with_type_trees(def);
-            self.with_setter_receiver(def);
+            accessor_types::with_type_trees(&mut self.tpd, def);
+            passing_defs::with_setter_receiver(self, def);
             body.push(def);
         }
         self.accessors.closed.insert(cls);
@@ -48,141 +76,62 @@ impl Typer<'_> {
     /// Replaces in `t`, in the body of inline method `meth`, the references that need inline
     /// accessors by references to them, and the assignments to such variables by setter calls.
     pub fn make_inlineable(&mut self, t: TNodeId, meth: SymbolId, ctx: Ctx) {
-        if let T::Assign { lhs, rhs } = *self.tpd.tree(t)
-            && let Some(var) = self.tpd.sym(lhs)
-            && self.needs_inline_accessor_from(var, meth)
+        MakeInlineable { meth, ctx }.run(self, t);
+    }
+}
+
+impl MakeInlineable {
+    /// Rewrites `tree` and its children, children first.
+    fn run(&self, t: &mut Typer<'_>, tree: TNodeId) {
+        if let T::Assign { lhs, .. } = *t.tpd.tree(tree)
+            && let Some(var) = t.tpd.sym(lhs)
+            && t.needs_inline_accessor_from(var, self.meth)
         {
-            if self.pass_receiver(lhs, var, meth, ctx) {
-                for c in self.tpd.children(t) {
-                    self.make_inlineable(c, meth, ctx);
-                }
-                self.pass_setter(t, var, meth, ctx);
-                return;
-            }
-            for c in self.tpd.children(lhs) {
-                self.make_inlineable(c, meth, ctx);
-            }
-            self.make_inlineable(rhs, meth, ctx);
-            if self.rewire(lhs, var, ctx).is_some() {
-                let span = self.tpd.span(lhs);
-                let Some(setter) = self.inline_accessor(var, true, span, ctx) else { return };
-                let fun = self.retarget(lhs, setter, span);
-                let unit = self.tpd.tpe(t);
-                let args = self.tpd.list(&[rhs]);
-                let node = self.tpd.get_mut(t);
-                (node.tree, node.tpe) = (T::Apply { fun, args }, Some(unit));
-            }
-            return;
+            return self.assignment(t, tree, var);
         }
-        if let Some(sym) = self.tpd.sym(t)
-            && self.needs_inline_accessor_from(sym, meth)
-            && self.pass_receiver(t, sym, meth, ctx)
+        if let Some(sym) = t.tpd.sym(tree)
+            && t.needs_inline_accessor_from(sym, self.meth)
+            && self.pass_receiver(t, tree, sym)
         {
-            for c in self.tpd.children(t) {
-                self.make_inlineable(c, meth, ctx);
-            }
-            return;
+            return self.children(t, tree);
         }
-        let before = self.tpd.get(t).tpe;
-        let block_expr = match *self.tpd.tree(t) {
-            T::Block { expr, .. } => Some((expr, self.tpd.get(expr).tpe)),
+
+        let before = t.tpd.get(tree).tpe;
+        let block_expr = match *t.tpd.tree(tree) {
+            T::Block { expr, .. } => Some((expr, t.tpd.get(expr).tpe)),
             _ => None,
         };
-        for c in self.tpd.children(t) {
-            self.make_inlineable(c, meth, ctx);
-        }
+        self.children(t, tree);
         if let Some((expr, old)) = block_expr
             && old == before
         {
-            self.tpd.get_mut(t).tpe = self.tpd.get(expr).tpe;
+            t.tpd.get_mut(tree).tpe = t.tpd.get(expr).tpe;
         }
-        if let T::Select { qualifier, .. } = *self.tpd.tree(t)
+        if let T::Select { qualifier, .. } = *t.tpd.tree(tree)
             && let Some(tpe) = before
-            && let Type::Sym(Some(_), m) = *self.u.types().get(tpe)
-            && self.rewired(qualifier)
+            && let Type::Sym(Some(_), m) = *t.u.types().get(tpe)
+            && t.tpd.sym(qualifier).is_some_and(|s| t.accessors.is_accessor(s))
         {
-            let accessor = self.tpd.sym(qualifier).expect("an accessor");
-            self.complete(accessor);
-            let mut prefix = self.u.info(accessor);
-            if let Type::ByName(r) = *self.u.types().get(prefix) {
+            let accessor = t.tpd.sym(qualifier).expect("an accessor");
+            t.complete(accessor);
+            let mut prefix = t.u.info(accessor);
+            if let Type::ByName(r) = *t.u.types().get(prefix) {
                 prefix = r;
             }
-            self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(prefix), m)));
+            t.tpd.get_mut(tree).tpe = Some(t.u.intern_type(Type::Sym(Some(prefix), m)));
         }
-        if matches!(self.tpd.tree(t), T::Ident { .. } | T::Select { .. })
-            && let Some(sym) = self.tpd.sym(t)
-            && self.needs_inline_accessor_from(sym, meth)
+        if matches!(t.tpd.tree(tree), T::Ident { .. } | T::Select { .. })
+            && let Some(sym) = t.tpd.sym(tree)
+            && t.needs_inline_accessor_from(sym, self.meth)
         {
-            self.rewire(t, sym, ctx);
+            self.rewire(t, tree, sym);
         }
     }
 
-    /// Whether `t` refers to an inline accessor.
-    fn rewired(&self, t: TNodeId) -> bool {
-        self.tpd.sym(t).is_some_and(|s| self.accessors.made.values().any(|&a| a == s))
-    }
-
-    /// Makes reference `t` to `sym` refer to its accessor; the accessor.
-    fn rewire(&mut self, t: TNodeId, sym: SymbolId, ctx: Ctx) -> Option<SymbolId> {
-        let span = self.tpd.span(t);
-        if self.u.is_constructor(sym) {
-            self.unsupported_at(span, "private constructor in an inline method");
-            return None;
+    /// Rewrites the children of `tree`.
+    fn children(&self, t: &mut Typer<'_>, tree: TNodeId) {
+        for c in t.tpd.children(tree) {
+            self.run(t, c);
         }
-        let accessor = self.inline_accessor(sym, false, span, ctx)?;
-        let new = self.retarget(t, accessor, span);
-        let n = self.tpd.get(new);
-        let (tree, tpe, sym) = (n.tree.clone(), n.tpe, n.sym);
-        let node = self.tpd.get_mut(t);
-        (node.tree, node.tpe, node.sym) = (tree, tpe, sym);
-        Some(accessor)
-    }
-
-    /// A reference to `accessor` in place of reference `t`: a selection from its qualifier if
-    /// the qualifier's type derives from the accessor's class (dotty's `rewire`).
-    fn retarget(&mut self, t: TNodeId, accessor: SymbolId, span: Span) -> TNodeId {
-        let host = self.u.symbol(accessor).owner.expect("a member");
-        if let T::Select { qualifier, .. } = *self.tpd.tree(t)
-            && let widened = self.u.widen(self.tpd.tpe(qualifier))
-            && let Some(c) = self.u.class_symbol(widened)
-            && self.u.derives_from(c, host)
-        {
-            return self.build().select(qualifier, accessor, span);
-        }
-        self.member_ref(accessor, span)
-    }
-
-    /// The accessor of `accessed`, a setter if `setter`, for a reference at `span` in `ctx`, made
-    /// and entered unless it exists (dotty's `useAccessor`); `None` if no class can host it or it
-    /// cannot be made.
-    fn inline_accessor(
-        &mut self,
-        accessed: SymbolId,
-        setter: bool,
-        span: Span,
-        ctx: Ctx,
-    ) -> Option<SymbolId> {
-        let host = self.accessor_host(accessed, ctx.owner)?;
-        if let Some(&made) = self.accessors.made.get(&(host, accessed, setter)) {
-            return Some(made);
-        }
-        let owner = self.u.symbol(accessed).owner.expect("a member");
-        let generic_base = owner != host && !self.u.type_params(owner).is_empty();
-        if self.accessors.closed.contains(&host) {
-            self.unsupported_at(span, "inline accessor in a class whose body is typed already");
-            return None;
-        }
-        if generic_base {
-            self.unsupported_at(span, "inline accessor of a member of a generic base class");
-            return None;
-        }
-        let name = self.accessor_name(accessed, host, setter);
-        let def = self.accessor_def(&name, host, accessed, setter, span)?;
-        let actx = Ctx { owner: host, ..ctx };
-        self.index(&[def], actx);
-        let sym = self.syms.by_tree[&def];
-        self.accessors.made.insert((host, accessed, setter), sym);
-        self.accessors.pending.entry(host).or_default().push((def, actx));
-        Some(sym)
     }
 }

@@ -386,14 +386,10 @@ pub struct Typer<'a> {
     pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// The forwarders of each export clause in a class body.
     pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
-    /// The definitions of the instances of each module class's `derives` clause, entered and
-    /// not typed yet.
-    pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving::Problem>)>>,
+    pub derivations: deriving::Derivations,
     /// The types typed patterns bind whose bounds the selector gave.
     pub known_pattern_types: FxHashSet<SymbolId>,
     pub gadt: gadt_cases::Gadt,
-    /// The type lambdas of derived instances' types, by the instances that own their parameters.
-    pub derived_lambdas: FxHashMap<NodeId, NodeId>,
     /// The pending dynamic calls, by their placeholder trees.
     pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
     /// The selections of structural methods not rewritten to `applyDynamic` calls yet.
@@ -495,10 +491,9 @@ impl<'a> Typer<'a> {
             accessors: Default::default(),
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
-            derived_instances: FxHashMap::default(),
+            derivations: Default::default(),
             known_pattern_types: FxHashSet::default(),
             gadt: Default::default(),
-            derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
             structural_selects: FxHashSet::default(),
             dynamic_lhs: None,
