@@ -43,8 +43,9 @@ impl Typer<'_> {
         Ok(f)
     }
 
-    /// Partial application `tree` of a call whose arguments were lifted into `defs`; `Err` unless
-    /// applied further or only implicit or `using` clauses follow, without open type variables.
+    /// Checks `tree`, the partial application of a call whose arguments were lifted into `defs`,
+    /// as `f(g())` of `def f(a: A)(b: B)`: it is kept where a function is expected or only an
+    /// implicit or `using` clause follows with its type fully defined, and refused otherwise.
     pub fn lifted_partial(
         &mut self,
         tree: TNodeId,
