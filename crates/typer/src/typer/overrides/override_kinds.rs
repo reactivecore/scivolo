@@ -9,8 +9,8 @@ use tasty::tags::{FINAL, LAZY, MUTABLE, OBJECT, OVERRIDE};
 use tasty::{Kind, SymbolId};
 
 /// Why member `d` may not override member `m` of a base class, if it may not: `m` is final or an
-/// overridden `var`, or `d` is a `def` overriding a `val`, an `object` overriding a concrete `val`,
-/// or a `lazy val` overriding a `val` or the other way round.
+/// overridden `var`, or `d` is a `def` or `var` overriding a `val`, an `object` overriding a
+/// concrete `val`, or a `lazy val` overriding a `val` or the other way round.
 pub fn kind_refusal(t: &mut Typer<'_>, d: SymbolId, m: SymbolId) -> Option<&'static str> {
     let (fd, fm) = (t.u.symbol(d).flags, t.u.symbol(m).flags);
     let m_value = t.u.symbol(m).kind != Kind::Def;
