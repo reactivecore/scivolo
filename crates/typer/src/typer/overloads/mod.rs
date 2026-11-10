@@ -30,6 +30,13 @@ const UNDECIDED: &str = "overload resolution with implicit conversions";
 const VALUE_APPLY: &str = "overloaded value with an apply method";
 /// Why a function argument with modifiers is not resolved against the alternatives.
 const MODIFIED_FUNCTION: &str = "function argument with modifiers of an overload";
+/// The error of arguments no alternative applies to, as `f(true)` among `def f(x: Int)` and
+/// `def f(x: String)`.
+pub const NO_APPLICABLE: &str = "no applicable alternative";
+/// The error of arguments no alternative may take as many of.
+pub const NO_SIZE: &str = "no alternative with that many arguments";
+/// The error of arguments several alternatives apply to equally well.
+pub const AMBIGUOUS: &str = "ambiguous overload";
 
 /// Chooses the alternative an overloaded name denotes by what the context expects of it (dotty's
 /// `resolveOverloaded`). Applied to arguments, as `f(1)` with `def f(x: Int)` and
@@ -50,6 +57,7 @@ pub struct Resolution {
 /// Why an overloaded name denotes no alternative: the construct outside the subset or the error
 /// dotty reports.
 pub struct Unchosen {
+    /// The construct outside the subset, or `NO_APPLICABLE`, `NO_SIZE` or `AMBIGUOUS`.
     pub what: &'static str,
     /// The alternatives that apply equally well, if the application is ambiguous.
     pub ambiguous: Option<Vec<SymbolId>>,

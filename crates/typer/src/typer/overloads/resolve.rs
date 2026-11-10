@@ -5,7 +5,7 @@
 //! `compare`, `adaptByResult`).
 
 use super::named::applicable_to_proto;
-use super::{Resolution, UNDECIDED, Unchosen, applicability};
+use super::{AMBIGUOUS, NO_APPLICABLE, Resolution, UNDECIDED, Unchosen, applicability};
 use crate::ctx::Ctx;
 use crate::typer::type_ops::TypeOps;
 use crate::typer::{Pt, Typer};
@@ -26,7 +26,7 @@ impl Resolution {
         let (applicable, views) = self.applicable_alts(t, alts, proto, ctx)?;
 
         let Some((&first, rest)) = applicable.split_first() else {
-            return Err("no applicable alternative".into());
+            return Err(NO_APPLICABLE.into());
         };
         let mut best = first;
         for &alt in rest {
@@ -127,7 +127,7 @@ impl Resolution {
             t.protos[proto].deep = false;
             return deeper;
         }
-        Err(Unchosen { what: "ambiguous overload", ambiguous: Some(applicable) })
+        Err(Unchosen { what: AMBIGUOUS, ambiguous: Some(applicable) })
     }
 
     /// Compares alternatives `a` and `b` (dotty's `compare`): 1 if `a` is better, -1 if `b` is, 0

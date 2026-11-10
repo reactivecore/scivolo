@@ -9,6 +9,8 @@ use crate::typer::type_ops::TypeOps;
 use crate::typer::{Pt, Typer};
 use tasty::{Kind, MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId, Universe};
 
+/// Why a reference against a function or single abstract method type selects no alternative,
+/// or several.
 const AGAINST_FUNCTION: &str = "overloaded reference against a function type";
 
 impl Resolution {

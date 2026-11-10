@@ -6,11 +6,13 @@
 
 use super::applies::ApplyMember;
 use super::mapped::leading_implicit;
-use super::{Resolution, Unchosen, VALUE_APPLY};
+use super::{NO_SIZE, Resolution, Unchosen, VALUE_APPLY};
 use crate::typer::{Pt, Typer};
 use tasty::tags::EXTENSION;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
+/// Why a method among parameterless alternatives whose results have `apply` methods, as
+/// `def f(x: Int)` beside `def f: Int => Int`, is not resolved.
 const RESULT_APPLY: &str = "overloaded method whose result has an apply method";
 
 impl Resolution {
@@ -81,7 +83,7 @@ impl Resolution {
         let (fitting, applies) = by_size(t, methods, n)?;
         let chosen = match fitting.as_slice() {
             [s] => *s,
-            [] if applies.is_empty() => return Err("no alternative with that many arguments".into()),
+            [] if applies.is_empty() => return Err(NO_SIZE.into()),
             [] => return Err(RESULT_APPLY.into()),
             _ => self.resolve_overloaded(t, &fitting, proto)?,
         };

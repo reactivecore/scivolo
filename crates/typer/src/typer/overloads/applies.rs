@@ -13,6 +13,7 @@ use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 /// `def f: Int => Int`.
 #[derive(Clone, Copy)]
 pub struct ApplyMember {
+    /// The `apply` method.
     pub apply: SymbolId,
     /// The result type `apply` is a member of.
     pub value: TypeId,

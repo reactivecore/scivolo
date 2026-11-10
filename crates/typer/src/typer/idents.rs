@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Identifiers (dotty's `typedIdent`) and the references they make.
 
-use super::overloads::Unchosen;
+use super::overloads::{AMBIGUOUS, NO_APPLICABLE, NO_SIZE, Unchosen};
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -89,13 +89,9 @@ impl Typer<'_> {
         }
         let sym = match self.choose(&found.syms, found.prefix, pt) {
             Ok(sym) => sym,
-            Err(Unchosen {
-                what:
-                    what @ ("no applicable alternative"
-                    | "no alternative with that many arguments"
-                    | "ambiguous overload"),
-                ambiguous,
-            }) if !self.unusable_for_inference(pt) => {
+            Err(Unchosen { what: what @ (NO_APPLICABLE | NO_SIZE | AMBIGUOUS), ambiguous })
+                if !self.unusable_for_inference(pt) =>
+            {
                 return match self.overload_error(id, (&found.syms, found.prefix), pt, ambiguous) {
                     Some(error) => error,
                     None => self.unsupported(id, what),

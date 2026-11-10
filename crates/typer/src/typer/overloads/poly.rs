@@ -10,6 +10,7 @@ use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
 use tasty::{SymbolId, Type, TypeId, Universe};
 
+/// Why type arguments select no alternative, or several.
 const MISS: &str = "overloaded reference with type arguments";
 
 impl Resolution {
