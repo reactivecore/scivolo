@@ -90,18 +90,13 @@ impl OverrideChecks {
             || sd.flags.has(EXTENSION) != sm.flags.has(EXTENSION);
         let this = t.u.intern_type(Type::This(self.site));
         let (rd, rm) = (t.u.own_member_info(this, d), t.u.own_member_info(this, m));
-        let binder = match *t.u.types().get(rd) {
-            Type::Poly { binder, .. } => Some(binder),
-            _ => None,
-        };
+        let binder = t.u.poly(rd).map(|p| p.binder);
         let (rd, mut rm) = t.u.aligned_results((d, rd), (m, rm));
         let params = t.u.type_params(d);
         if let Some(binder) = binder {
-            rm = t.u.map_type(rm, &mut |u, x| match *u.types().get(x) {
-                Type::Sym(None, s) => {
-                    params.iter().position(|&p| p == s).map(|i| u.intern_type(Type::Param(binder, i as u32)))
-                }
-                _ => None,
+            rm = t.u.map_type(rm, &mut |u, x| {
+                let Some((None, s)) = u.sym_ref(x) else { return None };
+                params.iter().position(|&p| p == s).map(|i| u.intern_type(Type::Param(binder, i as u32)))
             });
         }
         refused || !t.conforms(rd, rm)

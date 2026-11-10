@@ -7,7 +7,7 @@
 use super::{Refusal, Unpickler};
 use crate::tpd::TNodeId;
 use tasty::tags::{ANNOTATION, BLOCK, SYNTHETIC, TYPEAPPLY, TYPED, TYPEDEF};
-use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, Type, TypeId, View, view};
+use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, TypeId, View, view};
 
 /// A quote pattern: what it matches, its type bindings, each with whether it is approximated
 /// from above (`@fromAbove`), and its spliced type symbols with the types they stand for.
@@ -65,8 +65,8 @@ impl Unpickler<'_> {
         let tpt = self.tpt(inner)?;
         let hole = self.tpd.tpe(tpt);
         self.check(hole)?;
-        let hole = self.u.map_type(hole, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
+        let hole = self.u.map_type(hole, &mut |u, part| match u.sym_ref(part) {
+            Some((None, s)) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
             _ => None,
         });
         Ok(Some(QuotePattern { body: PatternBody::Type(hole), bindings, spliced: Vec::new() }))

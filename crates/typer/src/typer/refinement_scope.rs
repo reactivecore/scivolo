@@ -23,12 +23,12 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> (TypeId, Ctx) {
         let this = crate::defn::owner_prefix(self.u, class);
-        let parent = match *self.u.types().get(parent) {
+        let parent = match *self.u.ty(parent) {
             Type::Rec(binder, p) => self.u.rec_this_replaced(p, &[binder], this),
             _ => parent,
         };
         let mut class_parent = parent;
-        while let Type::Refined(p, ..) | Type::Annotated(p, _) = *self.u.types().get(class_parent) {
+        while let Type::Refined(p, ..) | Type::Annotated(p, _) = *self.u.ty(class_parent) {
             class_parent = p;
         }
         self.u.set_parents(class, vec![class_parent]);
@@ -47,10 +47,10 @@ impl Typer<'_> {
 
     /// Whether `info` of refinement member `sym` is an alias referring to `sym`.
     pub fn aliases_itself(&mut self, sym: SymbolId, info: TypeId) -> bool {
-        let Type::Alias(a) = *self.u.types().get(info) else { return false };
+        let Some(a) = self.u.type_alias(info) else { return false };
         let mut cyclic = false;
         self.u.map_type(a, &mut |u, x| {
-            cyclic |= matches!(*u.types().get(x), Type::Sym(_, s) if s == sym);
+            cyclic |= u.sym_of(x) == Some(sym);
             None
         });
         cyclic
@@ -64,7 +64,7 @@ impl Typer<'_> {
         let rec_this = self.u.intern_type(Type::RecThis(binder));
         let mut found = false;
         let closed = self.u.map_type(t, &mut |u, part| {
-            let replaced = match *u.types().get(part) {
+            let replaced = match *u.ty(part) {
                 _ if part == this => rec_this,
                 Type::Sym(Some(p), s) if p == this => {
                     let name = u.symbol(s).name.clone();

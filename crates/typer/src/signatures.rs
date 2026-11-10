@@ -14,7 +14,7 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
     let mut parts = Vec::new();
     let mut bounds: Vec<(Binder, Vec<TypeId>)> = Vec::new();
     loop {
-        match u.types().get(t).clone() {
+        match u.ty(t).clone() {
             Type::Poly { binder, params, result } => {
                 parts.push(params.len().to_string());
                 let his = params.iter().map(|&(_, b)| upper_bound(u, b)).collect();
@@ -26,15 +26,14 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
                     if u.is_erased_param(p) {
                         continue;
                     }
-                    let p = match u.types().get(p) {
-                        Type::Param(..) => bounded(u, p, &bounds),
-                        _ => u.map_type(p, &mut |u, x| match *u.types().get(x) {
-                            Type::Param(..) => {
-                                let hi = bounded(u, x, &bounds);
-                                Some(u.intern_type(Type::Bounds(tasty::NOTHING, hi)))
-                            }
-                            _ => None,
-                        }),
+                    let p = if u.param_ref(p).is_some() {
+                        bounded(u, p, &bounds)
+                    } else {
+                        u.map_type(p, &mut |u, x| {
+                            u.param_ref(x)?;
+                            let hi = bounded(u, x, &bounds);
+                            Some(u.intern_type(Type::Bounds(tasty::NOTHING, hi)))
+                        })
                     };
                     let e = match u.erase(p) {
                         Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
@@ -54,8 +53,8 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
 pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
     let mut t = u.info(s);
     let mut method = false;
-    while let Type::Poly { result, .. } | Type::Method { result, .. } = *u.types().get(t) {
-        (t, method) = (result, true);
+    while let Some(b) = u.poly(t).or_else(|| u.method(t)) {
+        (t, method) = (b.result, true);
     }
     if !method {
         return None;
@@ -102,10 +101,10 @@ fn sig_name(u: &mut Universe, t: TypeId, e: &Erased) -> String {
 
 /// The class of the right-hand side of the type alias `t` applies, through its type lambda.
 fn alias_class(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
-    let Type::Applied(tycon, _) = *u.types().get(t) else { return None };
+    let (tycon, _) = u.applied(t)?;
     let d = u.dealias(tycon);
-    let Type::Lambda { mut result, .. } = *u.types().get(d) else { return None };
-    while let Type::Refined(parent, ..) = *u.types().get(result) {
+    let mut result = u.lambda(d)?.result;
+    while let Type::Refined(parent, ..) = *u.ty(result) {
         result = parent;
     }
     u.class_symbol(result)
@@ -117,7 +116,7 @@ fn class_in(u: &mut Universe, t: TypeId, binary: &str, depth: u32) -> Option<Sym
     let depth = depth.checked_sub(1)?;
     let mut syms = Vec::new();
     u.map_type(t, &mut |u, x| {
-        if let Type::Sym(_, s) = *u.types().get(x) {
+        if let Some(s) = u.sym_of(x) {
             syms.push(s);
         }
         None
@@ -154,22 +153,17 @@ fn prim_name(c: char) -> &'static str {
 }
 
 fn upper_bound(u: &Universe, b: TypeId) -> TypeId {
-    match u.types().get(b) {
-        Type::Bounds(_, hi) => *hi,
-        _ => b,
-    }
+    u.bounds(b).map_or(b, |(_, hi)| hi)
 }
 
 /// `t` with references to the type parameters of polymorphic types `bounds` replaced by their
 /// upper bounds, as erasure sees them.
 fn bounded(u: &mut Universe, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
-    u.map_type(t, &mut |u, x| match *u.types().get(x) {
-        Type::Param(b, i) => {
-            let his = &bounds.iter().find(|(binder, _)| *binder == b)?.1;
-            let hi = *his.get(i as usize)?;
-            Some(bounded(u, hi, &[]))
-        }
-        _ => None,
+    u.map_type(t, &mut |u, x| {
+        let (b, i) = u.param_ref(x)?;
+        let his = &bounds.iter().find(|(binder, _)| *binder == b)?.1;
+        let hi = *his.get(i as usize)?;
+        Some(bounded(u, hi, &[]))
     })
 }
 
@@ -179,14 +173,14 @@ pub fn method_binders(u: &mut Universe, s: SymbolId, terms: bool) -> Vec<Binder>
     let mut info = u.info(s);
     let mut binders = Vec::new();
     loop {
-        let (binder, result, method) = match *u.types().get(info) {
-            Type::Poly { binder, result, .. } => (binder, result, false),
-            Type::Method { binder, result, .. } => (binder, result, true),
+        let (b, method) = match (u.poly(info), u.method(info)) {
+            (Some(b), _) => (b, false),
+            (_, Some(b)) => (b, true),
             _ => return binders,
         };
         if method == terms {
-            binders.push(binder);
+            binders.push(b.binder);
         }
-        info = result;
+        info = b.result;
     }
 }

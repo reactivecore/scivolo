@@ -62,7 +62,7 @@ fn plain_arg_types(t: &mut Typer<'_>, proto: usize) -> Option<Vec<TypeId>> {
             let typed = t.typed(a, Pt::Any, arg_ctx);
             let tpe = t.zonk(t.tpd.tpe(typed));
             let info = t.method_info(tpe).unwrap_or(tpe);
-            if matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
+            if matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. }) {
                 return None;
             }
             types.push(tpe);
@@ -98,8 +98,8 @@ fn member_fits(
         let r = t.ref_type(Some(tpe), m);
         let info = t.method_info(r).unwrap_or(r);
         let Some(pt) = pt else { return Some(true) };
-        match t.u.types().get(info).clone() {
-            Type::Method { result, .. } if !matches!(t.u.types().get(result), Type::Method { .. }) => {
+        match t.u.method(info).map(|m| m.result) {
+            Some(result) if t.u.method(result).is_none() => {
                 if t.conforms(result, pt) {
                     return Some(true);
                 }

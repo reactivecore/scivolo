@@ -28,9 +28,9 @@ impl Unpickler<'_> {
     fn method_type(&mut self, fun: TNodeId) -> (TypeId, Option<SymbolId>) {
         let tpe = self.tpd.tpe(fun);
         let meth = self.tpd.sym(self.tpd.meth_part(fun));
-        match *self.u.types().get(tpe) {
+        match *self.u.ty(tpe) {
             Type::Sym(p, s) if self.u.symbol(s).kind == Kind::Def => {
-                let info = match p.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_))) {
+                let info = match p.filter(|&p| !matches!(self.u.ty(p), Type::Package(_))) {
                     Some(p) => {
                         let p = self.aliased_object(p);
                         self.u.member_info(p, s)
@@ -52,13 +52,13 @@ impl Unpickler<'_> {
     /// as `scala.package.List`), stands for; `p` otherwise (as `Typer::method_info`).
     fn aliased_object(&mut self, mut p: TypeId) -> TypeId {
         for _ in 0..8 {
-            let Type::Sym(_, s) = *self.u.types().get(p) else { break };
+            let Some(s) = self.u.sym_of(p) else { break };
             let sym = self.u.symbol(s);
             if sym.kind != Kind::Val || sym.flags.has(OBJECT) || sym.flags.has(MUTABLE) {
                 break;
             }
             let info = self.u.info(s);
-            match *self.u.types().get(info) {
+            match *self.u.ty(info) {
                 Type::Sym(_, o) if self.u.symbol(o).flags.has(OBJECT) => p = info,
                 Type::TermRef(..) => p = info,
                 _ => break,
@@ -70,17 +70,15 @@ impl Unpickler<'_> {
     /// Method type `t` with its repeated parameters, `Seq[T] @Repeated` in TASTy, typed
     /// `<repeated>[T]`, in each clause.
     fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Method { binder, params, result, implicit, contextual } => {
                 let mut mapped = Vec::new();
                 for (n, p) in params {
-                    let elem = match self.u.types().get(p).clone() {
-                        Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => {
-                            match self.u.types().get(seq).clone() {
-                                Type::Applied(_, args) if args.len() == 1 => Some(args[0]),
-                                _ => None,
-                            }
-                        }
+                    let elem = match self.u.annotated(p) {
+                        Some((seq, annot)) if self.is_repeated_annot(annot) => match self.u.applied(seq) {
+                            Some((_, args)) if args.len() == 1 => Some(args[0]),
+                            _ => None,
+                        },
                         _ => None,
                     };
                     mapped.push((n, elem.map_or(p, |e| self.repeated_type(e))));
@@ -115,14 +113,16 @@ impl Unpickler<'_> {
     /// arguments' types.
     pub fn apply_type(&mut self, fun: TNodeId, args: &[TNodeId]) -> Result<TypeId, Refusal> {
         let (info, meth) = self.method_type(fun);
-        let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
+        let Some((binder, params, result)) =
+            self.u.method(info).map(|m| (m.binder, m.params.to_vec(), m.result))
+        else {
             return Err("application of a value in a library inline body");
         };
         if params.len() != args.len() {
             return Err("application with missing arguments in a library inline body");
         }
         let part = self.tpd.meth_part(fun);
-        let curried = matches!(self.u.types().get(result), Type::Method { .. });
+        let curried = self.u.method(result).is_some();
         let mut result = result;
         if self.tpd.sym(part).is_some_and(|s| self.u.symbol(s).name == "<init>") {
             match *self.tpd.tree(part) {
@@ -144,7 +144,9 @@ impl Unpickler<'_> {
     /// The type of `fun[args]`: the result of `fun`'s polymorphic type instantiated.
     pub fn type_apply_type(&mut self, fun: TNodeId, args: &[TNodeId]) -> Result<TypeId, Refusal> {
         let (info, meth) = self.method_type(fun);
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+        let Some((binder, params, result)) =
+            self.u.poly(info).map(|p| (p.binder, p.params.to_vec(), p.result))
+        else {
             return Err("type application of a value in a library inline body");
         };
         if params.len() != args.len() {
@@ -158,7 +160,7 @@ impl Unpickler<'_> {
 
 /// Constructor clauses `t` with the constructed `class` as their final result.
 fn constructed(u: &mut tasty::Universe, t: TypeId, class: TypeId) -> TypeId {
-    match u.types().get(t).clone() {
+    match u.ty(t).clone() {
         Type::Method { binder, params, result, implicit, contextual } => {
             let result = constructed(u, result, class);
             u.intern_type(Type::Method { binder, params, result, implicit, contextual })

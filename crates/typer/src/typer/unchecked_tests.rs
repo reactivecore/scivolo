@@ -28,7 +28,7 @@ impl Typer<'_> {
             return None;
         }
         let p = self.dealiased(p);
-        match self.u.types().get(p).clone() {
+        match self.u.ty(p).clone() {
             Type::And(a, b) | Type::Or(a, b, _) => {
                 self.unchecked_reason(x, a).or_else(|| self.unchecked_reason(x, b))
             }

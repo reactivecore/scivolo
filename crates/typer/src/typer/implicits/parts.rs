@@ -18,7 +18,7 @@ pub struct Parts {
 impl TypeOps<'_> {
     /// The symbol reference `t` refers to.
     pub fn referenced(&mut self, t: TypeId) -> Option<SymbolId> {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
             Type::TermRef(p, n) => self.u.resolve(p, &n, false),
@@ -46,7 +46,7 @@ impl Parts {
         }
         self.seen.push(tpe);
         let tpe = ty.u.dealias(tpe);
-        let prefix = match *ty.u.types().get(tpe) {
+        let prefix = match *ty.u.ty(tpe) {
             Type::Sym(p, _) => p,
             Type::TypeRef(p, _) | Type::TermRef(p, _) => Some(p),
             Type::This(c) => return self.collect(ty, c),
@@ -116,17 +116,17 @@ impl Parts {
                         (Some(p), Some(o)) => ty.u.as_seen_from(parent, p, o),
                         _ => parent,
                     };
-                    let tycon = match ty.u.types().get(parent).clone() {
-                        Type::Applied(tycon, args) => {
+                    let tycon = match ty.u.applied(parent).map(|(tycon, args)| (tycon, args.to_vec())) {
+                        Some((tycon, args)) => {
                             for arg in args {
                                 self.collect(ty, arg);
                             }
                             tycon
                         }
-                        _ => parent,
+                        None => parent,
                     };
                     let tycon = ty.u.dealias(tycon);
-                    let p = match *ty.u.types().get(tycon) {
+                    let p = match *ty.u.ty(tycon) {
                         Type::Sym(p, _) => p,
                         Type::TypeRef(p, _) => Some(p),
                         _ => continue,

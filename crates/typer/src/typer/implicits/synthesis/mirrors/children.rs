@@ -70,7 +70,7 @@ pub fn child_type(
                 true => t.u.source_module(c).unwrap_or(c),
                 false => c,
             };
-            let p = (!matches!(t.u.types().get(p), Type::NoPrefix)).then_some(p);
+            let p = (!matches!(t.u.ty(p), Type::NoPrefix)).then_some(p);
             t.u.intern_type(Type::Sym(p, s))
         }
         None => reachable_ref(t.u, c),
@@ -122,11 +122,10 @@ fn bound_child_vars(t: &mut Typer<'_>, params: &[SymbolId], vars: &[TypeId]) -> 
     for (&p, &v) in params.iter().zip(vars) {
         t.complete(p);
         let info = t.u.info(p);
-        let Type::Bounds(lo, hi) = *t.u.types().get(info) else { continue };
+        let Some((lo, hi)) = t.u.bounds(info) else { continue };
         let subst = |u: &mut Universe, x: TypeId| {
-            u.map_type(x, &mut |u, x| match *u.types().get(x) {
-                Type::Sym(_, s) => params.iter().position(|&q| q == s).map(|i| vars[i]),
-                _ => None,
+            u.map_type(x, &mut |u, x| {
+                u.sym_of(x).and_then(|s| params.iter().position(|&q| q == s).map(|i| vars[i]))
             })
         };
         let (lo, hi) = (subst(t.u, lo), subst(t.u, hi));
@@ -142,7 +141,7 @@ fn instantiate_child_vars(
     vars: &[TypeId],
 ) -> Result<(), &'static str> {
     for (&p, &v) in params.iter().zip(vars) {
-        let Type::Var(v) = *t.u.types().get(v) else { continue };
+        let Some(v) = t.u.var(v) else { continue };
         if t.constraint.instance(v).is_none() {
             let below = t.u.symbol(p).flags.has(CONTRAVARIANT);
             t.instantiate_var(v, below)?;

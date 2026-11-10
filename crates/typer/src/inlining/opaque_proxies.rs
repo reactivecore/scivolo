@@ -52,10 +52,8 @@ impl Expansion<'_, '_> {
         let module_ref = crate::defn::type_ref(self.i.u, source);
         let point = Span::at(self.i.tpd.span(self.call).point());
         let at = self.opaque_refs.len();
-        let existing = self.opaque_refs.iter().find_map(|&(r, p)| match *self.i.u.types().get(r) {
-            Type::Sym(_, s) if s == source => Some(p),
-            _ => None,
-        });
+        let existing =
+            self.opaque_refs.iter().find_map(|&(r, p)| (self.i.u.sym_of(r) == Some(source)).then_some(p));
         let opaque = match existing {
             Some(p) => p,
             None => {
@@ -83,7 +81,7 @@ impl Expansion<'_, '_> {
     fn open_class_this(&mut self, meth: SymbolId, proxy: SymbolId) -> Result<(), Unsupported> {
         let refused = self.err("inline method of a class with opaque types through a prefix that is no path");
         let path = self.i.u.info(proxy);
-        if !matches!(*self.i.u.types().get(path), Type::Sym(_, s) if self.i.u.symbol(s).kind.is_term()) {
+        if !self.i.u.sym_of(path).is_some_and(|s| self.i.u.symbol(s).kind.is_term()) {
             return Err(refused);
         }
         let call_span = self.i.tpd.span(self.call);

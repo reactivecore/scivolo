@@ -17,21 +17,18 @@ impl TypeOps<'_> {
         if !self.refers_to(t, captures) {
             return t;
         }
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Sym(_, s) if captures.contains(&s) => {
                 let info = self.u.info(s);
-                let (lo, hi) = match *self.u.types().get(info) {
-                    Type::Bounds(lo, hi) => (lo, hi),
-                    _ => (NOTHING, ANY),
-                };
+                let (lo, hi) = self.u.bounds(info).unwrap_or((NOTHING, ANY));
                 match variance {
                     1 => hi,
                     -1 => lo,
                     _ => self.u.intern_type(Type::Bounds(lo, hi)),
                 }
             }
-            Type::Applied(tycon, args) => match *self.u.types().get(tycon) {
-                Type::Sym(_, c) if self.u.symbol(c).kind == Kind::Class => {
+            Type::Applied(tycon, args) => match self.u.sym_of(tycon) {
+                Some(c) if self.u.symbol(c).kind == Kind::Class => {
                     let variances = self.u.variances(c);
                     let args = args
                         .iter()
@@ -69,15 +66,8 @@ impl TypeOps<'_> {
             return a;
         }
         let (lo, hi) = (self.avoid_captures(a, captures, -1), self.avoid_captures(a, captures, 1));
-        let bound = |t: &mut Self, x: TypeId, at_lo: bool| match *t.u.types().get(x) {
-            Type::Bounds(l, h) => {
-                if at_lo {
-                    l
-                } else {
-                    h
-                }
-            }
-            _ => x,
+        let bound = |t: &mut Self, x: TypeId, at_lo: bool| {
+            t.u.bounds(x).map_or(x, |(l, h)| if at_lo { l } else { h })
         };
         let (lo, hi) = (bound(self, lo, true), bound(self, hi, false));
         self.u.intern_type(Type::Bounds(lo, hi))

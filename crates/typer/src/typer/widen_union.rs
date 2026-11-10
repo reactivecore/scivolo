@@ -12,7 +12,7 @@ impl Typer<'_> {
     /// simplify them, under explicit nulls a top-level `| Null` kept (dotty's `widenUnion`).
     pub fn widen_union(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
         let w = self.types().widened(t);
-        if !self.explicit_nulls || !matches!(self.u.types().get(w), Type::Or(..)) {
+        if !self.explicit_nulls || !matches!(self.u.ty(w), Type::Or(..)) {
             return self.widen_union_without_null(t);
         }
         let stripped = self.strip_null(w);
@@ -21,8 +21,8 @@ impl Typer<'_> {
         }
         let wide = self.widen_union_without_null(stripped)?;
         let d = self.u.dealias(wide);
-        let Type::Or(_, _, soft) = *self.u.types().get(w) else { unreachable!() };
-        if matches!(*self.u.types().get(d), Type::Sym(_, s) if s == self.u.builtins().any) {
+        let Type::Or(_, _, soft) = *self.u.ty(w) else { unreachable!() };
+        if self.u.sym_of(d) == Some(self.u.builtins().any) {
             return Ok(wide);
         }
         let null = self.u.intern_type(Type::Sym(None, self.u.builtins().null));
@@ -31,7 +31,7 @@ impl Typer<'_> {
 
     fn widen_union_without_null(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
         let t = self.types().widened(t);
-        Ok(match self.u.types().get(t).clone() {
+        Ok(match self.u.ty(t).clone() {
             Type::And(a, b) => {
                 let (wa, wb) = (self.widen_union_without_null(a)?, self.widen_union_without_null(b)?);
                 if (wa, wb) == (a, b) { t } else { self.u.intern_type(Type::And(wa, wb)) }
@@ -56,7 +56,7 @@ impl Typer<'_> {
                 let (wa, wb) = (self.widen_union_without_null(a)?, self.widen_union_without_null(b)?);
                 let union =
                     if soft { self.types().constraining_lub(wa, wb) } else { self.u.lub_as(wa, wb, false) };
-                match *self.u.types().get(union) {
+                match *self.u.ty(union) {
                     Type::Or(..) if soft => self.types().join(union)?,
                     _ => union,
                 }
@@ -76,7 +76,7 @@ impl TypeOps<'_> {
     pub fn strip_null(&mut self, t: TypeId) -> TypeId {
         let widened = self.u.widen(t);
         let w = self.u.dealias(widened);
-        let stripped = match *self.u.types().get(w) {
+        let stripped = match *self.u.ty(w) {
             Type::Or(a, b, soft) => {
                 let (sa, sb) = (self.strip_null(a), self.strip_null(b));
                 match (self.is_null_type(sa), self.is_null_type(sb)) {
@@ -108,12 +108,12 @@ impl TypeOps<'_> {
     /// The join of union `t`; an error where it is not known or intersects a function class.
     fn join(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
         let joined = self.u.join(t).ok_or("union widening")?;
-        if !matches!(self.u.types().get(joined), Type::And(..)) {
+        if !matches!(self.u.ty(joined), Type::And(..)) {
             return Ok(joined);
         }
         let mut parts = vec![joined];
         while let Some(p) = parts.pop() {
-            let tycon = match *self.u.types().get(p) {
+            let tycon = match *self.u.ty(p) {
                 Type::And(a, b) => {
                     parts.extend([a, b]);
                     continue;
@@ -146,7 +146,7 @@ impl TypeOps<'_> {
     }
 
     fn union_parts(&self, t: TypeId) -> Vec<TypeId> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Or(a, b, _) => [self.union_parts(a), self.union_parts(b)].concat(),
             _ => vec![t],
         }
@@ -166,7 +166,7 @@ impl TypeOps<'_> {
     /// lambda results (dotty's `hardenUnions`).
     pub fn harden_unions(&mut self, t: TypeId) -> TypeId {
         let widened = self.widened(t);
-        match self.u.types().get(widened).clone() {
+        match self.u.ty(widened).clone() {
             Type::And(a, b) => {
                 let (ha, hb) = (self.harden_unions(a), self.harden_unions(b));
                 self.u.intern_type(Type::And(ha, hb))

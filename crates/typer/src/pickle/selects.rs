@@ -33,7 +33,7 @@ impl TreePickler<'_> {
         tpe: TypeId,
         sym: Option<SymbolId>,
     ) -> Result<(), Refusal> {
-        if let Type::This(class) = *self.u.types().get(tpe) {
+        if let Some(class) = self.u.this_of(tpe) {
             return self.class_this(id, None, class);
         }
         if self.is_term_ref(tpe) && self.names.text(name.name) != "_" {

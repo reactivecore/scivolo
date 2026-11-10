@@ -45,8 +45,7 @@ impl Typer<'_> {
         }
         let value = self.strip_implicit(info);
         let mut value = self.u.widen(value);
-        while let Type::Refined(t, ..) | Type::Rec(_, t) | Type::Annotated(t, _) = *self.u.types().get(value)
-        {
+        while let Type::Refined(t, ..) | Type::Rec(_, t) | Type::Annotated(t, _) = *self.u.ty(value) {
             value = t;
         }
         let Some(c) = self.u.class_symbol(value) else { return true };
@@ -56,7 +55,7 @@ impl Typer<'_> {
             return true;
         }
         let is_view = is_view_type(self, value);
-        let identity = matches!(self.u.types().get(value), Type::Applied(_, args) if args.len() == 2 && args[0] == args[1]);
+        let identity = self.u.applied(value).is_some_and(|(_, args)| args.len() == 2 && args[0] == args[1]);
         is_view && !(identity && ["scala.<:<", "scala.=:="].contains(&&*self.u.full_name(c)))
     }
 }
@@ -68,17 +67,14 @@ impl TypeOps<'_> {
     fn may_accept(&mut self, param: TypeId, q: SymbolId, widening: bool) -> bool {
         let param = self.u.widen(param);
         let param = self.u.dealias(param);
-        match *self.u.types().get(param) {
+        match *self.u.ty(param) {
             Type::Or(a, b, _) => return self.may_accept(a, q, widening) || self.may_accept(b, q, widening),
             Type::Annotated(t, _) => return self.may_accept(t, q, widening),
             _ => {}
         }
-        let tycon = match self.u.types().get(param) {
-            Type::Applied(tycon, _) => *tycon,
-            _ => param,
-        };
-        if let Type::TypeRef(p, n) = self.u.types().get(tycon).clone()
-            && matches!(self.u.types().get(p), Type::Package(_) | Type::PackageName(_))
+        let tycon = self.u.applied(param).map_or(param, |(tycon, _)| tycon);
+        if let Some((p, n)) = self.u.type_ref(tycon).map(|(p, n)| (p, n.to_owned()))
+            && matches!(self.u.ty(p), Type::Package(_) | Type::PackageName(_))
             && self.u.resolve(p, &n, true).is_none()
         {
             return false;
@@ -92,7 +88,7 @@ impl TypeOps<'_> {
     /// Whether result type `result` of a view of parameter type `param` may have member `name`.
     fn may_have(&mut self, result: TypeId, param: TypeId, name: &str) -> bool {
         let result = self.u.dealias(result);
-        if result == param && matches!(self.u.types().get(result), Type::Param(..)) {
+        if result == param && self.u.param_ref(result).is_some() {
             return false;
         }
         let Some(c) = self.direct_class(result) else { return true };
@@ -102,7 +98,7 @@ impl TypeOps<'_> {
     /// Whether result type `result` of a view of parameter type `param` may conform to `to`.
     fn may_conform(&mut self, result: TypeId, param: TypeId, to: TypeId) -> bool {
         let result = self.u.dealias(result);
-        if result == param && matches!(self.u.types().get(result), Type::Param(..)) {
+        if result == param && self.u.param_ref(result).is_some() {
             return false;
         }
         let to = self.u.dealias(to);
@@ -141,12 +137,9 @@ impl TypeOps<'_> {
 
     /// The qualified name of the class type `t` refers to, applied or not, by a package prefix.
     fn class_ref_name(&mut self, t: TypeId) -> Option<String> {
-        let tycon = match self.u.types().get(t) {
-            Type::Applied(tycon, _) => *tycon,
-            _ => t,
-        };
-        let Type::TypeRef(prefix, name) = self.u.types().get(tycon) else { return None };
-        match self.u.types().get(*prefix) {
+        let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
+        let (prefix, name) = self.u.type_ref(tycon)?;
+        match self.u.ty(prefix) {
             Type::Package(p) => Some(format!("{}.{name}", self.u.full_name(*p))),
             Type::PackageName(p) => Some(format!("{p}.{name}")),
             _ => None,

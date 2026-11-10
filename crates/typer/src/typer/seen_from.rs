@@ -28,9 +28,9 @@ impl Typer<'_> {
         if let Some(info) = self.poly_apply_info(fun_tpe) {
             return Some(info);
         }
-        let Type::Sym(prefix, s) = *self.u.types().get(fun_tpe) else { return None };
+        let (prefix, s) = self.u.sym_ref(fun_tpe)?;
         self.complete(s);
-        let seen_from_prefix = prefix.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_)));
+        let seen_from_prefix = prefix.filter(|&p| !matches!(self.u.ty(p), Type::Package(_)));
         let seen_from_prefix = seen_from_prefix.map(|p| self.aliased_object(p));
         let seen_from_prefix = seen_from_prefix.map(|p| self.qual_skolem(p, s));
         let info = match seen_from_prefix {
@@ -46,7 +46,7 @@ impl Typer<'_> {
     /// as `scala.package.List`), stands for; `p` otherwise.
     fn aliased_object(&mut self, mut p: TypeId) -> TypeId {
         for _ in 0..8 {
-            let Type::Sym(_, s) = *self.u.types().get(p) else { break };
+            let Some(s) = self.u.sym_of(p) else { break };
             let sym = self.u.symbol(s);
             if sym.kind != Kind::Val
                 || sym.flags.has(tasty::tags::OBJECT)
@@ -56,7 +56,7 @@ impl Typer<'_> {
             }
             self.complete(s);
             let info = self.u.info(s);
-            match *self.u.types().get(info) {
+            match *self.u.ty(info) {
                 Type::Sym(_, o) if self.u.symbol(o).flags.has(tasty::tags::OBJECT) => p = info,
                 Type::TermRef(..) => p = info,
                 _ => break,
@@ -88,7 +88,7 @@ impl TypeOps<'_> {
 pub fn resolve_class_params(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     let t = u.map_type(t, &mut |u, part| {
         let arg = class_param_arg(u, part)?;
-        (!matches!(u.types().get(arg), Type::Bounds(..))).then_some(arg)
+        u.bounds(arg).is_none().then_some(arg)
     });
     normalized(u, t)
 }
@@ -96,7 +96,7 @@ pub fn resolve_class_params(u: &mut tasty::Universe, t: TypeId) -> TypeId {
 /// The argument, a wildcard's bounds among them, that the base type of prefix `pre` gives class
 /// type parameter `p` if `t` is `pre.p`, `pre` other than `this`.
 pub fn class_param_arg(u: &mut tasty::Universe, t: TypeId) -> Option<TypeId> {
-    let Type::Sym(Some(pre), p) = *u.types().get(t) else { return None };
+    let Some((Some(pre), p)) = u.sym_ref(t) else { return None };
     u.arg_for_param(pre, p)
 }
 
@@ -108,13 +108,13 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     };
     let mut again = false;
     let out = u.map_type(t, &mut |u, part| {
-        if let Type::Annotated(inner, a) = *u.types().get(part)
+        if let Some((inner, a)) = u.annotated(part)
             && retains(u, a)
         {
             return Some(inner);
         }
-        let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
-        let alias = match *u.types().get(tycon) {
+        let (tycon, args) = u.applied(part).map(|(tycon, args)| (tycon, args.to_vec()))?;
+        let alias = match *u.ty(tycon) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => u.resolve_ref(tycon),
             _ => None,
@@ -125,7 +125,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
                 let mut annotated = false;
                 for &a in &args {
                     u.map_type(a, &mut |u, x| {
-                        if let Type::Annotated(_, an) = *u.types().get(x) {
+                        if let Some((_, an)) = u.annotated(x) {
                             annotated |= retains(u, an);
                         }
                         None
@@ -139,7 +139,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
             }
             Some(s) if u.symbol(s).kind == Kind::Type && !u.symbol(s).flags.has(tasty::tags::OPAQUE) => {
                 let info = u.info(s);
-                let prefix = match *u.types().get(tycon) {
+                let prefix = match *u.ty(tycon) {
                     Type::Sym(p, _) => p,
                     Type::TypeRef(p, _) => Some(p),
                     _ => None,
@@ -148,7 +148,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
                     (Some(p), Some(o)) if u.symbol(o).kind == Kind::Class => u.as_seen_from(info, p, o),
                     _ => info,
                 };
-                match *u.types().get(info) {
+                match *u.ty(info) {
                     Type::Alias(a) => a,
                     Type::Lambda { .. } => info,
                     _ => return None,
@@ -157,12 +157,12 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
             _ => tycon,
         };
         let Binding { binder, params, result, .. } = u.lambda(lambda)?;
-        if matches!(u.types().get(result), Type::Match { .. }) {
+        if matches!(u.ty(result), Type::Match { .. }) {
             return None;
         }
-        let eta = matches!(u.types().get(result), Type::Applied(_, rargs)
+        let eta = matches!(u.ty(result), Type::Applied(_, rargs)
         if rargs.len() == params.len()
-            && rargs.iter().enumerate().all(|(i, &a)| match u.types().get(a) {
+            && rargs.iter().enumerate().all(|(i, &a)| match u.ty(a) {
                 Type::Param(b, k) => *b == binder && *k == i as u32,
                 Type::Local(b, name) => b.0 == binder.0 && *name == params[i].0,
                 _ => false,

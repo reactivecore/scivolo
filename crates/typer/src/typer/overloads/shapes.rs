@@ -8,7 +8,7 @@ use super::applicability::{applicable, rigid_param_types};
 use super::{MODIFIED_FUNCTION, Resolution, UNDECIDED};
 use crate::typer::Typer;
 use syntax::ast::{Ast, NodeId, Tree};
-use tasty::{ANY, NOTHING, SymbolId, Type, TypeId};
+use tasty::{ANY, NOTHING, SymbolId, TypeId};
 
 impl Resolution {
     /// Narrows `alts` to those that apply to the shapes of the arguments of `proto` if one is a
@@ -75,7 +75,7 @@ impl Resolution {
 
         for (alt, p) in unary {
             let p = t.zonk(p);
-            if matches!(*t.u.types().get(p), Type::Sym(_, s) if t.u.symbol(s).owner == Some(alt)) {
+            if t.u.sym_of(p).is_some_and(|s| t.u.symbol(s).owner == Some(alt)) {
                 return Err("tupled function argument against a type parameter");
             }
             if params.iter().any(|&q| !t.is_untyped_param(q)) {

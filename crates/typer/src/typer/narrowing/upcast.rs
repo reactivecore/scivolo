@@ -16,8 +16,7 @@ impl TypeOps<'_> {
         let (Some(p), Some(s)) = (self.u.class_symbol(widened), self.u.class_symbol(sel)) else {
             return false;
         };
-        if !self.u.is_class(p) || !self.u.is_class(s) || !matches!(self.u.types().get(sel), Type::Applied(..))
-        {
+        if !self.u.is_class(p) || !self.u.is_class(s) || self.u.applied(sel).is_none() {
             return false;
         }
         if self.u.derives_from(p, s) || self.u.derives_from(s, p) || !self.classes_may_be_compatible(p, s) {

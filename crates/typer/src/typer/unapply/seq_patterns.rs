@@ -29,7 +29,7 @@ impl UnapplyPattern {
         let mut out = Vec::new();
         let mut wildcards = 0;
         for (i, (&a, tpe)) in self.args.iter().zip(types).enumerate() {
-            if i >= leading && matches!(t.u.types().get(tpe), Type::Bounds(..)) {
+            if i >= leading && t.u.bounds(tpe).is_some() {
                 return Err("sequence extractor of a wildcard element type");
             }
             out.push(if !is_seq_wildcard(t, a) {

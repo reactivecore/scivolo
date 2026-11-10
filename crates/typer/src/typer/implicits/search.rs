@@ -19,7 +19,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::defn::CAN_EQUAL;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 
 /// How deep implicit arguments of implicit arguments may nest.
 const MAX_DEPTH: u32 = 12;
@@ -114,7 +114,7 @@ impl ImplicitSearch {
 
     /// The argument of the first group of candidates that gives one, else a synthesized one.
     fn search(&mut self, t: &mut Typer<'_>) -> Result<TNodeId, &'static str> {
-        if let Type::ByName(r) = *t.u.types().get(self.pt) {
+        if let Some(r) = t.u.by_name(self.pt) {
             (self.pt, self.by_name) = (r, true);
         }
         self.pt = determined(&mut t.types(), self.pt);

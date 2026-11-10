@@ -8,7 +8,7 @@ use super::Typer;
 use crate::ctx::{Ctx, Mode};
 use crate::defn::type_ref;
 use syntax::ast::{NodeId, Tree};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
     /// The type tree of a parent: the class of a constructor call, whose `new` it records as a
@@ -94,11 +94,8 @@ impl Typer<'_> {
                 });
             }
             let tpe = self.u.dealias(tpe);
-            let tycon = match *self.u.types().get(tpe) {
-                Type::Applied(tycon, _) => tycon,
-                _ => tpe,
-            };
-            let alias = matches!(*self.u.types().get(tycon), Type::Sym(_, s) if !self.u.is_class(s));
+            let tycon = self.u.applied(tpe).map_or(tpe, |(tycon, _)| tycon);
+            let alias = self.u.sym_of(tycon).is_some_and(|s| !self.u.is_class(s));
             if alias && self.is_completing_type(tycon) {
                 self.unsupported(p, "cyclic reference");
             }

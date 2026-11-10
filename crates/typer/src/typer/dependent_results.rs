@@ -15,18 +15,16 @@ use tasty::{Binder, Kind, SymbolId, Type, TypeId, TypeVars};
 impl Typer<'_> {
     /// Whether parameter type `p` is by-name or refers to a parameter it does not bind.
     pub fn is_special_param(&mut self, p: TypeId) -> bool {
-        let mut special = matches!(self.u.types().get(p), Type::ByName(_));
+        let mut special = self.u.by_name(p).is_some();
         let mut bound = Vec::new();
         self.u.map_type(p, &mut |u, part| {
-            if let Type::Poly { binder, .. } | Type::Method { binder, .. } | Type::Lambda { binder, .. } =
-                *u.types().get(part)
-            {
-                bound.push(binder);
+            if let Some(b) = u.poly(part).or_else(|| u.method(part)).or_else(|| u.lambda(part)) {
+                bound.push(b.binder);
             }
             None
         });
         self.u.map_type(p, &mut |u, part| {
-            special |= matches!(*u.types().get(part), Type::Param(b, _) if !bound.contains(&b));
+            special |= u.param_ref(part).is_some_and(|(b, _)| !bound.contains(&b));
             None
         });
         special
@@ -102,7 +100,7 @@ impl Typer<'_> {
     pub fn lifted_result(&mut self, f: TNodeId, method: Option<SymbolId>) -> Option<TypeId> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let Type::Method { binder, result, .. } = *self.u.types().get(info) else { return None };
+        let (binder, result) = self.u.method(info).map(|m| (m.binder, m.result))?;
         let result = self.without_false_deps(result, binder, method);
         (!self.mentions_params(result, binder, method)).then_some(result)
     }
@@ -118,7 +116,7 @@ impl Typer<'_> {
         for _ in 0..8 {
             self.complete_type_members(current);
             let next = self.u.map_type(current, &mut |u, part| {
-                let Type::Sym(Some(pre), s) = *u.types().get(part) else { return None };
+                let Some((Some(pre), s)) = u.sym_ref(part) else { return None };
                 if u.symbol(s).kind != Kind::Type || !mentions_params(u, pre, binder, method) {
                     return None;
                 }
@@ -165,7 +163,7 @@ impl Typer<'_> {
     /// refinement of its prefix aliases as the alias.
     fn zonked_upper(&mut self, t: TypeId) -> TypeId {
         let mut t = self.zonk(t);
-        if let Type::Var(v) = *self.u.types().get(t) {
+        if let Some(v) = self.u.var(t) {
             let (_, hi) = self.constraint.bounds(v);
             t = self.zonk(hi);
         }
@@ -176,7 +174,7 @@ impl Typer<'_> {
     pub fn complete_type_members(&mut self, t: TypeId) {
         let mut members = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(Some(_), s) = *u.types().get(part)
+            if let Some((Some(_), s)) = u.sym_ref(part)
                 && u.symbol(s).kind == Kind::Type
             {
                 members.push(s);
@@ -191,7 +189,7 @@ impl Typer<'_> {
 pub fn has_wildcard(u: &mut tasty::Universe, t: TypeId) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, part| {
-        found |= matches!(u.types().get(part), Type::Bounds(..) | Type::Wildcard(_));
+        found |= matches!(u.ty(part), Type::Bounds(..) | Type::Wildcard(_));
         None
     });
     found

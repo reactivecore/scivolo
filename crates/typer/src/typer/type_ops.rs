@@ -44,7 +44,7 @@ impl TypeOps<'_> {
         let t = self.zonk(t);
         let mut vars = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part)
+            if let Some(v) = u.var(part)
                 && !vars.contains(&v)
             {
                 vars.push(v);
@@ -60,7 +60,7 @@ impl TypeOps<'_> {
     }
 
     pub fn is_singleton(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Constant(..) | Type::Str(_) | Type::This(_) | Type::TermRef(..) | Type::Skolem(..) => true,
             Type::Sym(_, s) => !self.u.is_type_symbol(s),
             _ => false,
@@ -81,10 +81,7 @@ impl TypeOps<'_> {
     /// Widens `t` to the underlying type of a singleton, a by-name type to its result.
     pub fn widened(&mut self, t: TypeId) -> TypeId {
         let widened = self.u.widen(t);
-        match *self.u.types().get(widened) {
-            Type::ByName(r) => r,
-            _ => widened,
-        }
+        self.u.by_name(widened).unwrap_or(widened)
     }
 
     /// The parts of `t`, `t` included.
@@ -99,7 +96,7 @@ impl TypeOps<'_> {
 
     /// The result of method type `t` after all its clauses.
     pub fn final_result(&mut self, t: TypeId) -> TypeId {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Method { result, .. } | Type::Poly { result, .. } => self.final_result(result),
             Type::ByName(r) => r,
             _ => t,
@@ -109,7 +106,7 @@ impl TypeOps<'_> {
     /// The type after the leading implicit parameter clauses of `t`, references to their
     /// parameters kept (dotty's `stripInferrable` of a method type).
     pub fn strip_implicit(&mut self, mut t: TypeId) -> TypeId {
-        while let Type::Method { result, implicit: true, .. } = *self.u.types().get(t) {
+        while let Type::Method { result, implicit: true, .. } = *self.u.ty(t) {
             t = result;
         }
         t
@@ -117,21 +114,15 @@ impl TypeOps<'_> {
 
     /// The type arguments of `t` if it refers to class `name`.
     pub fn class_args(&mut self, t: TypeId, name: &str) -> Option<Vec<TypeId>> {
-        let (tycon, args) = match self.u.types().get(t).clone() {
-            Type::Applied(tycon, args) => (tycon, args),
-            _ => (t, Vec::new()),
-        };
+        let (tycon, args) = self.u.applied(t).map_or((t, Vec::new()), |(tycon, args)| (tycon, args.to_vec()));
         let class = self.u.class_symbol(tycon)?;
         (self.u.full_name(class) == name).then_some(args)
     }
 
     /// Finds the class `t` refers to, applied or not; `None` for other types.
     pub fn direct_class(&mut self, t: TypeId) -> Option<SymbolId> {
-        let tycon = match self.u.types().get(t) {
-            Type::Applied(tycon, _) => *tycon,
-            _ => t,
-        };
-        let c = match self.u.types().get(tycon).clone() {
+        let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
+        let c = match self.u.ty(tycon).clone() {
             Type::Sym(_, c) => c,
             Type::TypeRef(p, n) => self.u.resolve(p, &n, true)?,
             _ => return None,
@@ -148,7 +139,7 @@ impl TypeOps<'_> {
     pub fn applied_function(&mut self, t: TypeId, base: &str) -> Option<(Vec<TypeId>, TypeId)> {
         let t = self.zonk(t);
         let t = self.u.dealias(t);
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
+        let (tycon, args) = self.u.applied(t).map(|(tycon, args)| (tycon, args.to_vec()))?;
         let class = self.u.class_symbol(tycon)?;
         let (&result, params) = args.split_last()?;
         (self.u.full_name(class) == format!("{base}{}", params.len())).then(|| (params.to_vec(), result))

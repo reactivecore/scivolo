@@ -11,7 +11,7 @@ use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 /// of an intersection type included (dotty's `ownerScope` of `classSymbols`).
 pub fn owner_scope(u: &mut Universe, pre: Option<TypeId>) -> Vec<SymbolId> {
     let Some(p) = pre else { return Vec::new() };
-    let singleton = match *u.types().get(p) {
+    let singleton = match *u.ty(p) {
         Type::This(_) => true,
         Type::Sym(_, s) => u.symbol(s).kind.is_term(),
         _ => false,
@@ -19,7 +19,7 @@ pub fn owner_scope(u: &mut Universe, pre: Option<TypeId>) -> Vec<SymbolId> {
     let mut todo = if singleton { vec![u.widen(p)] } else { Vec::new() };
     let mut classes = Vec::new();
     while let Some(t) = todo.pop() {
-        match *u.types().get(t) {
+        match *u.ty(t) {
             Type::And(a, b) => todo.extend([b, a]),
             _ => classes.extend(u.class_symbol(t)),
         }
@@ -61,7 +61,7 @@ pub fn child_prefix(u: &mut Universe, pre: TypeId, parent: SymbolId, child: Symb
             true => u.source_module(s)?,
             false => s,
         };
-        let p = (!matches!(u.types().get(prefix), Type::NoPrefix)).then_some(prefix);
+        let p = (!matches!(u.ty(prefix), Type::NoPrefix)).then_some(prefix);
         prefix = u.intern_type(Type::Sym(p, s));
     }
     Some(prefix)
@@ -72,7 +72,7 @@ fn sub_prefix_at(u: &mut Universe, pre: TypeId, limit: usize) -> Option<TypeId> 
     if limit == 0 {
         return Some(pre);
     }
-    match *u.types().get(pre) {
+    match *u.ty(pre) {
         Type::Sym(Some(p), s) if u.symbol(s).kind.is_term() => sub_prefix_at(u, p, limit - 1),
         Type::Sym(None, s) if u.symbol(s).kind.is_term() && limit == 1 => Some(u.intern_type(Type::NoPrefix)),
         _ => None,

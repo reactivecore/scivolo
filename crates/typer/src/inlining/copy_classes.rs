@@ -78,8 +78,8 @@ impl Inlining<'_> {
 
 /// `t` with the members of copied classes selected through a prefix renamed to their copies.
 pub fn rename_members(u: &mut Universe, syms: &FxHashMap<SymbolId, SymbolId>, t: TypeId) -> TypeId {
-    u.map_type(t, &mut |u, part| match *u.types().get(part) {
-        Type::Sym(Some(p), s) if syms.contains_key(&s) => {
+    u.map_type(t, &mut |u, part| match u.sym_ref(part) {
+        Some((Some(p), s)) if syms.contains_key(&s) => {
             let p = rename_members(u, syms, p);
             Some(u.intern_type(Type::Sym(Some(p), syms[&s])))
         }

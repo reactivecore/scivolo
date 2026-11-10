@@ -22,7 +22,7 @@ impl Typer<'_> {
         values: &[TNodeId],
         span: Span,
     ) -> TNodeId {
-        let Type::Applied(nt, ref args) = *self.u.types().get(tpe) else {
+        let Some((nt, args)) = self.u.applied(tpe) else {
             return self.type_tree(tpe, span, false);
         };
         let [names_tpe, values_tpe] = args[..] else { return self.type_tree(tpe, span, false) };
@@ -94,10 +94,7 @@ impl Typer<'_> {
 
     /// `TupleN[args]` of type `tpe` at `span`, its constructor at `at`.
     fn tuple_type_tree(&mut self, tpe: TypeId, at: Span, args: &[TNodeId], span: Span) -> TNodeId {
-        let tycon = match *self.u.types().get(tpe) {
-            Type::Applied(tycon, _) => tycon,
-            _ => tpe,
-        };
+        let tycon = self.u.applied(tpe).map_or(tpe, |(tycon, _)| tycon);
         let tpt = self.type_tree(tycon, at, false);
         let args = self.tpd.list(args);
         self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)

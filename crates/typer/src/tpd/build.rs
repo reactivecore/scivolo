@@ -38,7 +38,7 @@ pub fn constant_type_of(u: &mut Universe, c: &Constant) -> TypeId {
 
 /// The constant of constant type `t` (dotty's `ConstantType.unapply`).
 pub fn constant_of(u: &Universe, t: TypeId) -> Option<Constant> {
-    Some(match *u.types().get(t) {
+    Some(match *u.ty(t) {
         Type::Constant(UNITconst, _) => Constant::Unit,
         Type::Constant(TRUEconst, _) => Constant::Boolean(true),
         Type::Constant(FALSEconst, _) => Constant::Boolean(false),

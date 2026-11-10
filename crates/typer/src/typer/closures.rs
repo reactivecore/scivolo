@@ -95,7 +95,7 @@ impl Typer<'_> {
         let params_syms: Vec<tasty::SymbolId> = entries.iter().map(|&(_, s)| s).collect();
         let level = self.levels.push(Some(ctx.level), Level::Scope(entries));
         let bctx = Ctx { owner: anonfun, level, ..ctx };
-        let expected_result = expected.map(|(_, r)| r).and_then(|r| match *self.u.types().get(r) {
+        let expected_result = expected.map(|(_, r)| r).and_then(|r| match *self.u.ty(r) {
             Type::Wildcard(_) => None,
             Type::Bounds(_, hi) => Some(hi),
             _ => Some(r),
@@ -139,7 +139,7 @@ impl Typer<'_> {
             },
             false => None,
         };
-        let info_result = self.u.map_type(result, &mut |u, part| match *u.types().get(part) {
+        let info_result = self.u.map_type(result, &mut |u, part| match *u.ty(part) {
             Type::Sym(None, s) => {
                 let i = params_syms.iter().position(|&p| p == s)?;
                 Some(u.intern_type(Type::Param(binder, i as u32)))

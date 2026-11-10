@@ -50,11 +50,11 @@ impl Inlining<'_> {
     fn unrolled_tuple(&mut self, t: TypeId, depth: usize) -> Option<Vec<TypeId>> {
         let depth = depth.checked_sub(1)?;
         let d = self.u.dealias(t);
-        if let Type::Match { .. } = self.u.types().get(d) {
+        if let Type::Match { .. } = self.u.ty(d) {
             let n = self.u.try_normalize(d)?;
             return self.unrolled_tuple(n, depth);
         }
-        if let Type::Applied(tycon, args) = self.u.types().get(d).clone() {
+        if let Some((tycon, args)) = self.u.applied(d).map(|(c, a)| (c, a.to_vec())) {
             let name = self.u.class_symbol(tycon).map(|c| self.u.full_name(c));
             return match name.as_deref() {
                 Some(n) if n == format!("scala.Tuple{}", args.len()) => Some(args),
@@ -106,7 +106,7 @@ impl Inlining<'_> {
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         let method =
             crate::typer::type_apply::instantiate_poly(self.u, result, (binder, &names), &types, Some(apply));
-        let Type::Method { result: applied, .. } = *self.u.types().get(method) else { return Err(missing) };
+        let Some(applied) = self.u.method(method).map(|m| m.result) else { return Err(missing) };
         let targs: Vec<TNodeId> = types
             .iter()
             .map(|&t| self.tpd.node(T::TypeTree { inferred: false }, at, Some(t), None))
@@ -128,7 +128,7 @@ impl Inlining<'_> {
         let apply =
             self.u.decl(module_class, "apply").ok().and_then(|d| d.first().copied()).ok_or(missing)?;
         let info = self.u.info(apply);
-        let Type::Method { result, .. } = *self.u.types().get(info) else { return Err(missing) };
+        let Some(result) = self.u.method(info).map(|m| m.result) else { return Err(missing) };
         let (Some(pair), Some(empty)) =
             (self.scala_member("*:", Kind::Class), self.scala_member("EmptyTuple", Kind::Val))
         else {

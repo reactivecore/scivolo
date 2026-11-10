@@ -12,7 +12,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, TName, Tree};
-use tasty::{Type, TypeId, TypeVars};
+use tasty::{TypeId, TypeVars};
 
 /// How many nested context function results or variable bounds are followed.
 const MAX_NESTING: u32 = 32;
@@ -53,10 +53,7 @@ impl Typer<'_> {
             let tpt = self.ast.node(Tree::TypeTree);
             self.ast.with_span(tpt, at);
             if !wildcard {
-                let formal = match *self.u.types().get(formal) {
-                    Type::Bounds(lo, _) => lo,
-                    _ => formal,
-                };
+                let formal = self.u.bounds(formal).map_or(formal, |(lo, _)| lo);
                 let typed = self.type_tree(formal, at, true);
                 self.splices.insert(tpt, typed);
             }
@@ -111,7 +108,7 @@ impl Typer<'_> {
     pub fn var_upper(&mut self, t: TypeId) -> TypeId {
         let mut t = self.zonk(t);
         for _ in 0..MAX_NESTING {
-            let Type::Var(v) = *self.u.types().get(t) else { break };
+            let Some(v) = self.u.var(t) else { break };
             t = self.constraint.bounds(v).1;
             t = self.zonk(t);
         }

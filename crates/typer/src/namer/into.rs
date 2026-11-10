@@ -10,8 +10,8 @@ impl Typer<'_> {
     /// `t` with its covariant occurrences of `into[T]` as `T @$into`.
     pub fn suppress_into(&mut self, t: TypeId) -> TypeId {
         let Some((into, silent)) = self.conversion_into() else { return t };
-        self.map_into(t, 1, &mut |u, t| match u.types().get(t).clone() {
-            Type::Applied(c, args) if args.len() == 1 && u.referenced(c) == Some(into) => {
+        self.map_into(t, 1, &mut |u, t| match u.applied(t).map(|(c, a)| (c, a.to_vec())) {
+            Some((c, args)) if args.len() == 1 && u.referenced(c) == Some(into) => {
                 let annot = crate::defn::type_ref(u, silent);
                 Some(u.intern_type(Type::Annotated(args[0], annot)))
             }
@@ -25,8 +25,8 @@ impl Typer<'_> {
         let Some(module) = self.resolve_full_name("scala.Conversion", false) else { return t };
         let module = crate::defn::type_ref(self.u, module);
         let tycon = self.u.intern_type(Type::Sym(Some(module), into));
-        self.map_into(t, 1, &mut |u, t| match u.types().get(t).clone() {
-            Type::Annotated(arg, a) if u.class_symbol(a) == Some(silent) => {
+        self.map_into(t, 1, &mut |u, t| match u.annotated(t) {
+            Some((arg, a)) if u.class_symbol(a) == Some(silent) => {
                 Some(u.intern_type(Type::Applied(tycon, vec![arg])))
             }
             _ => None,
@@ -52,7 +52,7 @@ impl Typer<'_> {
         if let Some(mapped) = f(self.u, t) {
             return mapped;
         }
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::ByName(r) => {
                 let r = self.map_into(r, v, f);
                 self.u.intern_type(Type::ByName(r))

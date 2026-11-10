@@ -131,7 +131,7 @@ impl Typer<'_> {
         }
         let tpe = self.u.intern_type(Type::Sym(None, s));
         let dealiased = self.u.dealias(tpe);
-        if !matches!(self.u.types().get(dealiased), Type::Sym(..) | Type::TypeRef(..)) {
+        if !matches!(self.u.ty(dealiased), Type::Sym(..) | Type::TypeRef(..)) {
             return None;
         }
         let c = self.u.class_symbol(dealiased)?;
@@ -158,7 +158,7 @@ impl Typer<'_> {
         }
         let module = self.tpd.sym(f)?;
         let is_module = self.u.module_class(module) == Some(module_class);
-        let tpe = match *self.u.types().get(tpe) {
+        let tpe = match *self.u.ty(tpe) {
             _ if self.is_static_owner(owner) => crate::defn::type_ref(self.u, class),
             Type::Sym(prefix, _) if is_module => self.ref_type(prefix, class),
             Type::This(_) => crate::defn::type_ref(self.u, class),

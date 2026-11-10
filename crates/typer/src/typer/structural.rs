@@ -31,13 +31,10 @@ impl Typer<'_> {
             recursive |= part == pre;
             None
         });
-        if recursive
-            && matches!(self.u.types().get(pre), Type::TermRef(..))
-            && self.u.resolve_ref(pre).is_none()
-        {
+        if recursive && matches!(self.u.ty(pre), Type::TermRef(..)) && self.u.resolve_ref(pre).is_none() {
             return Some(self.unsupported(id, "structural member referring to a structural prefix"));
         }
-        let method = match self.u.types().get(info) {
+        let method = match self.u.ty(info) {
             Type::Poly { .. } => return Some(self.unsupported(id, "polymorphic structural method")),
             Type::Method { .. } => true,
             _ => false,
@@ -71,7 +68,7 @@ impl Typer<'_> {
     /// Whether `t` widens to a value class or a by-name one.
     pub fn is_value_class_type(&mut self, t: TypeId) -> bool {
         let widened = self.u.widen(t);
-        let value = if let Type::ByName(r) = *self.u.types().get(widened) { r } else { widened };
+        let value = self.u.by_name(widened).unwrap_or(widened);
         self.u.value_class(value).is_some()
     }
 
@@ -103,7 +100,7 @@ impl Typer<'_> {
     /// `new V(call.$asInstanceOf$[U])` for value class type `tpe`, `V`, of underlying type `U`.
     fn structural_box(&mut self, call: TNodeId, tpe: TypeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let widened = self.u.widen(tpe);
-        let value = if let Type::ByName(r) = *self.u.types().get(widened) { r } else { widened };
+        let value = self.u.by_name(widened).unwrap_or(widened);
         let value = self.u.dealias(value);
         let class = self.u.value_class(value).ok_or("structural member of an intersected value class")?;
         let field = self.u.underlying(class).ok_or("value class without an underlying value")?;
@@ -119,7 +116,7 @@ impl Typer<'_> {
         let init = TName { name: self.name("<init>"), is_type: false };
         let mut fun = self.ast.node(Tree::Select { qualifier: new, name: init });
         self.ast.with_span(fun, start);
-        if let Type::Applied(_, targs) = self.u.types().get(value).clone() {
+        if let Some(targs) = self.u.applied(value).map(|(_, targs)| targs.to_vec()) {
             let targs: Vec<NodeId> = targs
                 .into_iter()
                 .map(|a| {

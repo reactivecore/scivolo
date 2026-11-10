@@ -27,7 +27,7 @@ impl Narrowing {
         (pat, from): (TypeId, usize),
         sel: TypeId,
     ) -> Result<Option<Vec<GadtVar>>, &'static str> {
-        if let Type::Sym(None, s) = *t.u.types().get(sel)
+        if let Some((None, s)) = t.u.sym_ref(sel)
             && let Some((_, hi)) = t.u.gadt_bounds(s)
         {
             let mark = t.constraint.mark();
@@ -38,7 +38,7 @@ impl Narrowing {
         }
         fn class_type(u: &mut tasty::Universe, t: TypeId) -> bool {
             let t = u.dealias(t);
-            match *u.types().get(t) {
+            match *u.ty(t) {
                 Type::Applied(tycon, _) => u.class_symbol(tycon).is_some_and(|c| u.is_class(c)),
                 Type::Sym(_, c) => u.is_class(c),
                 Type::Or(a, b, _) => class_type(u, a) && class_type(u, b),
@@ -46,10 +46,7 @@ impl Narrowing {
             }
         }
         let sel = this_widened(t.u, sel);
-        let core = match *t.u.types().get(sel) {
-            Type::Annotated(t, _) => t,
-            _ => sel,
-        };
+        let core = t.u.annotated(sel).map_or(sel, |(inner, _)| inner);
         let core = t.u.dealias(core);
         if !class_type(t.u, core) {
             return Ok(None);
@@ -95,7 +92,7 @@ impl Narrowing {
             .collect();
         let mut narrowed: Vec<GadtVar> = syms.into_iter().zip(vars.iter().copied()).collect();
         for (i, &r) in reps.iter().enumerate() {
-            let Type::Var(p) = *t.u.types().get(r) else { continue };
+            let Some(p) = t.u.var(r) else { continue };
             let shared =
                 r != vars[i] || reps.iter().filter(|&&x| x == r).count() > 1 || pattern_reps.contains(&r);
             if !shared || reps[..i].contains(&r) {
@@ -106,7 +103,7 @@ impl Narrowing {
                     continue;
                 }
                 let fixed = t.constraint.fresh(t.u);
-                let Type::Var(f) = *t.u.types().get(fixed) else { unreachable!("a fresh variable") };
+                let Some(f) = t.u.var(fixed) else { unreachable!("a fresh variable") };
                 t.constraint.instantiate(f, ty);
                 narrowed[i].1 = fixed;
             }
@@ -122,9 +119,9 @@ impl Narrowing {
 pub fn narrow(t: &mut Typer, vars: &[GadtVar]) -> Result<(), &'static str> {
     let mut bounds = Vec::new();
     for &(s, v) in vars {
-        let Type::Var(mut id) = *t.u.types().get(v) else { continue };
+        let Some(mut id) = t.u.var(v) else { continue };
         let (lo, hi) = loop {
-            match t.constraint.instance(id).map(|ty| (ty, t.u.types().get(ty).clone())) {
+            match t.constraint.instance(id).map(|ty| (ty, t.u.ty(ty).clone())) {
                 Some((_, Type::Var(next))) => id = next,
                 Some((ty, _)) if plain_type_ref(t.u, ty) != Some(s) => break (ty, ty),
                 _ => break t.constraint.bounds(id),
@@ -133,7 +130,7 @@ pub fn narrow(t: &mut Typer, vars: &[GadtVar]) -> Result<(), &'static str> {
         bounds.push((s, lo, hi));
     }
     for &(s, v) in vars {
-        let Type::Var(id) = *t.u.types().get(v) else { continue };
+        let Some(id) = t.u.var(v) else { continue };
         if t.constraint.instance(id).is_none() {
             let sym = gadt_ref(t.u, s);
             t.constraint.instantiate(id, sym);
@@ -165,9 +162,9 @@ pub fn narrow(t: &mut Typer, vars: &[GadtVar]) -> Result<(), &'static str> {
 impl TypeOps<'_> {
     /// Follows type variable `t` to the last variable it was made one with, else gives `t`.
     fn var_root(&mut self, mut t: TypeId) -> TypeId {
-        while let Type::Var(id) = *self.u.types().get(t)
+        while let Some(id) = self.u.var(t)
             && let Some(next) = self.constraint.instance(id)
-            && matches!(self.u.types().get(next), Type::Var(_))
+            && self.u.var(next).is_some()
         {
             t = next;
         }
@@ -179,19 +176,16 @@ impl TypeOps<'_> {
 fn has_abstract_type(u: &mut tasty::Universe, t: TypeId) -> bool {
     let mut parts = Vec::new();
     u.map_type(t, &mut |u, p| {
-        if matches!(u.types().get(p), Type::Sym(..) | Type::TypeRef(..)) {
+        if matches!(u.ty(p), Type::Sym(..) | Type::TypeRef(..)) {
             parts.push(p);
         }
         None
     });
     parts.into_iter().any(|p| {
-        let s = match *u.types().get(p) {
-            Type::Sym(_, s) => Some(s),
-            _ => u.resolve_ref(p),
-        };
+        let s = u.sym_of(p).or_else(|| u.resolve_ref(p));
         s.is_some_and(|s| {
             let info = u.info(s);
-            u.is_type_symbol(s) && matches!(u.types().get(info), Type::Bounds(..))
+            u.is_type_symbol(s) && u.bounds(info).is_some()
         })
     })
 }

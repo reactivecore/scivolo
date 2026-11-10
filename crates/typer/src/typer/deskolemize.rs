@@ -11,7 +11,7 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
     if !has_skolem(u, t) {
         return Some(t);
     }
-    Some(match u.types().get(t).clone() {
+    Some(match u.ty(t).clone() {
         Type::Skolem(_, info) => {
             let hi = deskolemized(u, info, 1)?;
             match v {
@@ -21,7 +21,7 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
             }
         }
         Type::Sym(Some(p), s) if u.symbol(s).kind == Kind::Class && is_skolem(u, p) => {
-            let Type::Skolem(_, info) = *u.types().get(p) else { return None };
+            let Type::Skolem(_, info) = *u.ty(p) else { return None };
             let hi = deskolemized(u, info, 1)?;
             let hi = u.intern_type(Type::Sym(Some(hi), s));
             match v {
@@ -31,13 +31,13 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
             }
         }
         Type::Sym(Some(p), s) if u.symbol(s).kind == Kind::Type && is_skolem(u, p) => {
-            let Type::Skolem(_, info) = *u.types().get(p) else { return None };
+            let Type::Skolem(_, info) = *u.ty(p) else { return None };
             let info = deskolemized(u, info, 1)?;
             let member = match u.refinement_info(info, s) {
                 Some(refined) => refined,
                 None => u.member_info(info, s),
             };
-            let bounds = match *u.types().get(member) {
+            let bounds = match *u.ty(member) {
                 Type::Bounds(lo, hi) => (lo, hi),
                 Type::Alias(a) => return deskolemized(u, a, v),
                 _ => return None,
@@ -49,10 +49,10 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
             }
         }
         Type::Sym(Some(p), s) if u.symbol(s).kind == Kind::TypeParam && is_skolem(u, p) => {
-            let Type::Skolem(_, info) = *u.types().get(p) else { return None };
+            let Type::Skolem(_, info) = *u.ty(p) else { return None };
             let info = deskolemized(u, info, 1)?;
             let arg = u.arg_for_param(info, s)?;
-            let Type::Bounds(lo, hi) = *u.types().get(arg) else { return deskolemized(u, arg, v) };
+            let Some((lo, hi)) = u.bounds(arg) else { return deskolemized(u, arg, v) };
             match v {
                 1 => hi,
                 -1 => lo,
@@ -61,16 +61,16 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
         }
         Type::Sym(Some(p), s) if v == 1 => {
             let p = deskolemized(u, p, 1)?;
-            match u.refinement_info(p, s).map(|i| u.types().get(i).clone()) {
-                Some(Type::Alias(a)) => a,
-                _ => u.intern_type(Type::Sym(Some(p), s)),
+            match u.refinement_info(p, s).and_then(|i| u.type_alias(i)) {
+                Some(a) => a,
+                None => u.intern_type(Type::Sym(Some(p), s)),
             }
         }
         Type::TypeRef(p, name) if v == 1 => {
             let p = deskolemized(u, p, 1)?;
-            match u.refinement_named(p, &name).map(|i| u.types().get(i).clone()) {
-                Some(Type::Alias(a)) => a,
-                _ => u.intern_type(Type::TypeRef(p, name)),
+            match u.refinement_named(p, &name).and_then(|i| u.type_alias(i)) {
+                Some(a) => a,
+                None => u.intern_type(Type::TypeRef(p, name)),
             }
         }
         Type::TermRef(p, name) if v == 1 => {
@@ -102,7 +102,7 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
 /// `t` with each skolem replaced by its type (as dotty's `TreePickler` writes it); `None` unless
 /// that is also `t` approximated covariantly.
 pub fn skolems_widened(u: &mut Universe, t: TypeId) -> Option<TypeId> {
-    let widened = u.map_type(t, &mut |u, x| match *u.types().get(x) {
+    let widened = u.map_type(t, &mut |u, x| match *u.ty(x) {
         Type::Skolem(_, info) => Some(info),
         _ => None,
     });
@@ -120,5 +120,5 @@ pub fn has_skolem(u: &mut Universe, t: TypeId) -> bool {
 }
 
 fn is_skolem(u: &Universe, t: TypeId) -> bool {
-    matches!(u.types().get(t), Type::Skolem(..))
+    matches!(u.ty(t), Type::Skolem(..))
 }

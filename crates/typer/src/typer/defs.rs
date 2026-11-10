@@ -34,8 +34,7 @@ impl Typer<'_> {
             let s = self.u.symbol(s);
             s.flags.has(tasty::tags::INLINE) && s.kind == tasty::Kind::Val
         });
-        let constant =
-            info.is_some_and(|t| matches!(self.u.types().get(t), Type::Constant(..) | Type::Str(_)));
+        let constant = info.is_some_and(|t| matches!(self.u.ty(t), Type::Constant(..) | Type::Str(_)));
         let in_inline_method = std::iter::successors(Some(ctx.owner), |&o| self.u.symbol(o).owner).any(|o| {
             self.u.symbol(o).kind == tasty::Kind::Def && self.u.symbol(o).flags.has(tasty::tags::INLINE)
         });
@@ -60,10 +59,7 @@ impl Typer<'_> {
         });
         match (field, info) {
             (Some(_), Some(tpe)) => {
-                let named = match *self.u.types().get(tpe) {
-                    Type::Sym(_, s) => Some(s),
-                    _ => None,
-                };
+                let named = self.u.sym_of(tpe);
                 self.tpd.node(T::Ident { name }, self.ast.span(rhs), Some(tpe), named)
             }
             _ => self.unsupported(vdef, "`_` other than as a variable field's value"),

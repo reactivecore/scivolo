@@ -18,10 +18,9 @@ impl Unpickler<'_> {
         let tpe = self.resolved(tpe);
         let name = self.tname(id, false);
         if self.name(id) == "_" {
-            let sym = match self.u.types().get(tpe).clone() {
-                Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
-                Type::Sym(_, s) => Some(s),
-                _ => None,
+            let sym = match self.u.type_ref(tpe).map(|(p, n)| (p, n.to_owned())) {
+                Some((p, n)) => self.u.resolve(p, &n, true),
+                None => self.u.sym_of(tpe),
             };
             return Ok(self.bare(T::Ident { name }, Some(tpe), sym));
         }
@@ -36,7 +35,7 @@ impl Unpickler<'_> {
         let tpe = self.tpd.tpe(qual);
         let prefix = self.widen_if_unstable(tpe);
         let name = self.name(id);
-        let found = match *self.u.types().get(prefix) {
+        let found = match *self.u.ty(prefix) {
             Type::Package(p) => self.u.decl(p, &name).unwrap_or_default(),
             _ => self.u.member_of_type(prefix, &name),
         };
@@ -61,9 +60,9 @@ impl Unpickler<'_> {
         let k = self.kids(id);
         let qual = self.term(k[0])?;
         let owner = self.ty(k[1]);
-        let owner = match self.u.types().get(owner).clone() {
-            Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
-            _ => self.u.class_symbol(owner),
+        let owner = match self.u.type_ref(owner).map(|(p, n)| (p, n.to_owned())) {
+            Some((p, n)) => self.u.resolve(p, &n, true),
+            None => self.u.class_symbol(owner),
         };
         let owner = owner.ok_or("selection in an unknown class in a library inline body")?;
         let tpe = self.tpd.tpe(qual);
@@ -124,7 +123,7 @@ impl Unpickler<'_> {
     fn is_method_with_params(&mut self, s: SymbolId) -> bool {
         let info = self.u.info(s);
         self.u.symbol(s).kind == Kind::Def
-            && matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+            && matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. })
     }
 
     /// `C.this`, its qualifier the untyped name of the class.
@@ -144,10 +143,12 @@ impl Unpickler<'_> {
     /// (dotty's `widenIfUnstable`), an inline parameter counting as stable, unlike in dotty's
     /// `isStableMember`, as dotty's prefixes of selections in inline bodies show.
     fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
-        match self.u.types().get(t).clone() {
-            Type::ByName(r) => self.widen_if_unstable(r),
-            Type::Sym(p, s) if self.u.symbol(s).kind.is_term() && !self.is_stable(s) => {
-                let info = match p.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_))) {
+        if let Some(r) = self.u.by_name(t) {
+            return self.widen_if_unstable(r);
+        }
+        match self.u.sym_ref(t) {
+            Some((p, s)) if self.u.symbol(s).kind.is_term() && !self.is_stable(s) => {
+                let info = match p.filter(|&p| !matches!(self.u.ty(p), Type::Package(_))) {
                     Some(p) => self.u.member_info(p, s),
                     None => self.u.info(s),
                 };
@@ -162,7 +163,7 @@ impl Unpickler<'_> {
         let inline_param = sym.kind == Kind::Param && sym.flags.has(INLINE);
         if inline_param {
             let info = self.u.info(s);
-            return !matches!(self.u.types().get(info), Type::ByName(_));
+            return self.u.by_name(info).is_none();
         }
         is_stable_member(self.u, s)
     }

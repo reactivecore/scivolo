@@ -30,7 +30,7 @@ impl Typer<'_> {
         let sym = self.syms.by_tree[&r];
         let mctx = Ctx { owner: sym, ..ctx };
         let info = self.type_def_info(rhs, mctx);
-        let info = match *self.u.types().get(info) {
+        let info = match *self.u.ty(info) {
             Type::Error => return Err(self.unsupported(r, "refinement of an unsupported type")),
             Type::Lambda { .. } => self.u.intern_type(Type::Alias(info)),
             _ => info,
@@ -38,7 +38,7 @@ impl Typer<'_> {
         if self.aliases_itself(sym, info) {
             return Err(self.unsupported(r, "refinement alias referring to itself"));
         }
-        if let Type::Bounds(lo, hi) = *self.u.types().get(info)
+        if let Some((lo, hi)) = self.u.bounds(info)
             && !self.u.is_subtype(lo, hi)
         {
             return Err(self.unsupported(r, "refinement with conflicting bounds"));
@@ -106,7 +106,7 @@ impl Typer<'_> {
                 }
                 let typed = self.typed_type(tpt, mctx);
                 let tpe = self.tpd.tpe(typed);
-                if matches!(self.u.types().get(tpe), Type::Error) {
+                if matches!(self.u.ty(tpe), Type::Error) {
                     return Err("structural refinement of an unsupported type");
                 }
                 let ptext = self.text(name.name).to_owned();
@@ -129,7 +129,7 @@ impl Typer<'_> {
         }
         let result = self.typed_type(tpt, mctx);
         let mut info = self.tpd.tpe(result);
-        if matches!(self.u.types().get(info), Type::Error) {
+        if matches!(self.u.ty(info), Type::Error) {
             return Err("structural refinement of an unsupported type");
         }
         match clauses {
@@ -173,7 +173,7 @@ impl Typer<'_> {
     pub fn complete_refined_members(&mut self, t: TypeId, pt: TypeId) {
         let mut names = Vec::new();
         let mut r = pt;
-        while let Type::Refined(parent, name, _) = self.u.types().get(r).clone() {
+        while let Type::Refined(parent, name, _) = self.u.ty(r).clone() {
             names.push(name);
             r = parent;
         }
@@ -181,7 +181,7 @@ impl Typer<'_> {
         let mut wanted: Vec<(SymbolId, String)> =
             names.into_iter().filter_map(|n| Some((class?, n))).collect();
         for side in [t, pt] {
-            if let Type::Sym(Some(p), s) = *self.u.types().get(side)
+            if let Some((Some(p), s)) = self.u.sym_ref(side)
                 && self.u.symbol(s).kind == Kind::Type
             {
                 let widened = self.u.widen(p);

@@ -41,8 +41,8 @@ impl MirrorFormal {
     pub fn of(u: &mut Universe, pt: TypeId) -> Option<MirrorFormal> {
         let mut t = u.dealias(pt);
         let mut mirrored = None;
-        while let Type::Refined(parent, name, info) = u.types().get(t).clone() {
-            let info = match *u.types().get(info) {
+        while let Type::Refined(parent, name, info) = u.ty(t).clone() {
+            let info = match *u.ty(info) {
                 Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => return None,
                 Type::Alias(a) | Type::Bounds(a, _) => a,
                 _ => info,
@@ -67,7 +67,7 @@ impl MirrorFormal {
     /// applied to the bounds of its parameters as mono type and its elements as a type lambda
     /// (dotty's `mkMirroredMonoType`).
     pub fn mono_and_elems(&self, u: &mut Universe, elems: TypeId) -> (TypeId, TypeId) {
-        let Type::Lambda { binder, params, result } = u.types().get(self.mirrored).clone() else {
+        let Type::Lambda { binder, params, result } = u.ty(self.mirrored).clone() else {
             return (self.mirrored, elems);
         };
         let (names, bounds): (Vec<String>, Vec<TypeId>) = params.iter().cloned().unzip();
@@ -130,7 +130,7 @@ fn check_refinement(
     expected: TypeId,
 ) -> Result<(), &'static str> {
     let Some(info) = ops.u.refinement_named(pt, name) else { return Ok(()) };
-    let (lo, hi) = match *ops.u.types().get(info) {
+    let (lo, hi) = match *ops.u.ty(info) {
         Type::Alias(a) => (a, a),
         Type::Bounds(lo, hi) => (lo, hi),
         _ => (info, info),

@@ -117,7 +117,7 @@ impl Typer<'_> {
     /// `qual.name` for a type member only a refinement of `qual`'s path type `pre` has (one of
     /// a library's refined types: `MirroredElemTypes` of a `Mirror.Of[T]`); `None` otherwise.
     pub fn refined_select(&mut self, id: NodeId, qual: TNodeId, pre: TypeId, name: TName) -> Option<TNodeId> {
-        let stable = match *self.u.types().get(pre) {
+        let stable = match *self.u.ty(pre) {
             Type::Sym(_, s) => !self.u.is_type_symbol(s),
             Type::This(_) | Type::TermRef(..) => true,
             Type::Refined(..) | Type::Rec(..) => {
@@ -138,7 +138,7 @@ impl Typer<'_> {
     /// Whether `t` is a refinement of `Mirror` or one of its subtraits, whose type members
     /// `MirroredType` and `MirroredElemTypes` exist only as refinements.
     fn is_mirror_type(&mut self, mut t: TypeId) -> bool {
-        while let Type::Refined(parent, ..) = *self.u.types().get(t) {
+        while let Type::Refined(parent, ..) = *self.u.ty(t) {
             t = parent;
         }
         self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c).starts_with("scala.deriving.Mirror"))
@@ -164,7 +164,7 @@ impl Typer<'_> {
         if terms.iter().any(|&m| self.u.symbol(m).target.is_some()) {
             return Err("structural refinement of a member with a target name");
         }
-        let poly = matches!(self.u.types().get(refined), Type::Refined(_, _, i) if matches!(self.u.types().get(*i), Type::Poly { .. }));
+        let poly = matches!(self.u.ty(refined), Type::Refined(_, _, i) if self.u.poly(*i).is_some());
         let poly_function = name == "apply"
             && self.u.class_symbol(parent).is_some_and(|c| self.u.full_name(c) == "scala.PolyFunction");
         if terms.is_empty() && poly && !poly_function {

@@ -25,7 +25,7 @@ impl Typer<'_> {
         if let Some((names, _)) = self.named_tuple_args(t) {
             return Some(names);
         }
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Or(a, b, _) => {
                 let left = self.named_tuple_names(a)?;
                 (self.named_tuple_names(b)? == left).then_some(left)
@@ -40,16 +40,13 @@ impl Typer<'_> {
 
     /// The upper bound of abstract type `t`, `None` if `t` is none or its own bound.
     fn abstract_upper_bound(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Sym(pre, s) = *self.u.types().get(t) else { return None };
+        let (pre, s) = self.u.sym_ref(t)?;
         if !self.u.is_type_symbol(s) || self.u.symbol(s).kind == tasty::Kind::Class {
             return None;
         }
         self.complete(s);
         let hi = match pre.and_then(|p| self.u.arg_for_param(p, s)) {
-            Some(arg) => match *self.u.types().get(arg) {
-                Type::Bounds(_, hi) => hi,
-                _ => arg,
-            },
+            Some(arg) => self.u.bounds(arg).map_or(arg, |(_, hi)| hi),
             None => crate::sealed::upper_bound(self.u, s),
         };
         (hi != t).then_some(hi)
@@ -83,7 +80,7 @@ impl Typer<'_> {
             .iter()
             .map(|&n| {
                 let n = self.u.dealias(n);
-                match self.u.types().get(n) {
+                match self.u.ty(n) {
                     Type::Str(s) => Some(s.clone()),
                     _ => None,
                 }
@@ -101,7 +98,7 @@ impl Typer<'_> {
         if let Some(parts) = self.named_tuple_parts(t) {
             return Some(parts);
         }
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Sym(..) => {
                 let hi = self.abstract_upper_bound(t)?;
                 self.derived_named_tuple_parts(hi)
@@ -155,7 +152,8 @@ impl Typer<'_> {
         for _ in 0..MAX_ELEMENTS {
             t = self.u.normalized(t);
             let d = self.u.dealias(t);
-            let Type::Applied(c, args) = self.u.types().get(d).clone() else { break };
+            let Some((c, args)) = self.u.applied(d) else { break };
+            let args = args.to_vec();
             let class = self.u.class_symbol(c);
             if class.is_some_and(|c| self.u.full_name(c) == format!("scala.Tuple{}", args.len())) {
                 elems.extend(args);

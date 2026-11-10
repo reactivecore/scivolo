@@ -23,7 +23,7 @@ impl Unpickler<'_> {
 fn refusal(u: &mut Universe, t: TypeId, bound: &[(tasty::FileId, String)]) -> Option<Refusal> {
     let mut found = None;
     u.map_type(t, &mut |u, part| {
-        let refused = match u.types().get(part).clone() {
+        let refused = match u.ty(part).clone() {
             Type::Lambda { binder, params, result } => {
                 let mut inner = bound.to_vec();
                 inner.extend(params.iter().map(|(n, _)| (binder.0, n.clone())));
@@ -36,11 +36,11 @@ fn refusal(u: &mut Universe, t: TypeId, bound: &[(tasty::FileId, String)]) -> Op
                 Some("undecoded type in a library inline body")
             }
             Type::TypeRef(p, n) | Type::TermRef(p, n) => {
-                let is_type = matches!(u.types().get(part), Type::TypeRef(..));
+                let is_type = u.type_ref(part).is_some();
                 match u.resolve(p, &n, is_type) {
                     Some(_) => None,
                     None if is_type && u.refinement_named(p, &n).is_some() => None,
-                    None if matches!(u.types().get(p), Type::Param(..)) => None,
+                    None if u.param_ref(p).is_some() => None,
                     None if !is_type && n == "apply" && u.poly_function_apply_of(p).is_some() => None,
                     None => Some("unresolved reference in a library inline body"),
                 }

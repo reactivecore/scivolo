@@ -5,7 +5,7 @@
 use super::super::Typer;
 use super::UnapplyPattern;
 use crate::tpd::TNodeId;
-use tasty::{Kind, Type, TypeId, TypeVars, Universe};
+use tasty::{Kind, TypeId, TypeVars, Universe};
 
 impl UnapplyPattern {
     /// Infers the type of the pattern whose extractor `unapp` takes `arg_type`: the scrutinee's
@@ -64,16 +64,16 @@ impl UnapplyPattern {
 /// other than an opaque one, which no GADT bounds narrow.
 fn has_abstract_arg(u: &mut Universe, t: TypeId) -> bool {
     let widened = u.widen(t);
-    let Type::Applied(_, args) = u.types().get(widened).clone() else { return false };
+    let Some(args) = u.applied(widened).map(|(_, args)| args.to_vec()) else { return false };
     let mut found = false;
     for a in args {
         u.map_type(a, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part) {
+            if let Some(s) = u.sym_of(part) {
                 found |= match u.symbol(s).kind {
                     Kind::TypeParam => true,
                     Kind::Type => {
                         let info = u.info(s);
-                        !matches!(u.types().get(info), Type::Alias(_)) && !u.symbol(s).is_opaque()
+                        u.type_alias(info).is_none() && !u.symbol(s).is_opaque()
                     }
                     _ => false,
                 };

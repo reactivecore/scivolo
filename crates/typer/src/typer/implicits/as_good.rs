@@ -30,10 +30,9 @@ fn as_good_in(
     (b, t2): (Candidate, TypeId),
     ctx: Ctx,
 ) -> Option<bool> {
-    match t.u.types().get(t1).clone() {
+    match t.u.ty(t1).clone() {
         Type::Method { params, .. } => {
-            let lambda =
-                matches!(t.u.types().get(t2), Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. });
+            let lambda = matches!(t.u.ty(t2), Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. });
             if params.is_empty() && lambda {
                 return Some(true);
             }
@@ -47,7 +46,7 @@ fn as_good_in(
             let full_b = t.types().ref_type(b.prefix, b.sym);
             let full_b = t.method_info(full_b).unwrap_or(full_b);
             let full_b = t.poly_instance(full_b, b.sym, false);
-            if !matches!(t.u.types().get(full_b), Type::Method { .. }) {
+            if t.u.method(full_b).is_none() {
                 return Some(false);
             }
             t.applicable(b.sym, b.prefix, &args, false, ctx)
@@ -56,9 +55,9 @@ fn as_good_in(
             let t1 = t.poly_instance(t1, a.sym, true);
             as_good_in(t, (a, t1), (b, t2), ctx)
         }
-        _ => match *t.u.types().get(t2) {
+        _ => match *t.u.ty(t2) {
             Type::Method { .. } => Some(true),
-            Type::Poly { result, .. } if matches!(t.u.types().get(result), Type::Method { .. }) => Some(true),
+            Type::Poly { result, .. } if t.u.method(result).is_some() => Some(true),
             Type::Poly { .. } => {
                 let t2 = t.poly_instance(t2, b.sym, false);
                 as_good_value(t, t1, t2, a)
@@ -82,7 +81,7 @@ fn as_good_value(t: &mut Typer<'_>, t1: TypeId, t2: TypeId, a: Candidate) -> Opt
 
 /// `a <: b`, or numeric widening between value classes (dotty's `relaxed_<:<`).
 pub fn relaxed_conforms(ty: &mut TypeOps<'_>, a: TypeId, b: TypeId) -> bool {
-    ty.conforms(a, b) || matches!(ty.u.types().get(b), Type::Sym(..)) && ty.widens_to(a, b)
+    ty.conforms(a, b) || ty.u.sym_of(b).is_some() && ty.widens_to(a, b)
 }
 
 /// `tpe` at variance `v` with each argument of a contravariant parameter in a covariant
@@ -92,15 +91,15 @@ fn flipped(t: &mut Typer<'_>, tpe: TypeId, v: i32) -> Option<TypeId> {
     if v == 0 {
         return Some(tpe);
     }
-    match t.u.types().get(tpe).clone() {
+    match t.u.ty(tpe).clone() {
         Type::Applied(tycon, args) => {
-            let class = match t.u.types().get(tycon).clone() {
+            let class = match t.u.ty(tycon).clone() {
                 Type::Sym(_, s) => Some(s),
                 Type::TypeRef(p, n) => t.u.resolve(p, &n, true),
                 _ => None,
             };
             let Some(class) = class else {
-                let open = matches!(t.u.types().get(tycon), Type::Var(_) | Type::Param(..));
+                let open = matches!(t.u.ty(tycon), Type::Var(_) | Type::Param(..));
                 return open.then_some(tpe);
             };
             t.complete(class);
@@ -146,7 +145,7 @@ fn flipped(t: &mut Typer<'_>, tpe: TypeId, v: i32) -> Option<TypeId> {
         _ => {
             let mut applied = false;
             t.u.map_type(tpe, &mut |u, part| {
-                applied |= matches!(u.types().get(part), Type::Applied(..));
+                applied |= matches!(u.ty(part), Type::Applied(..));
                 None
             });
             (!applied).then_some(tpe)

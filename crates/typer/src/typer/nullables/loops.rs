@@ -43,9 +43,8 @@ impl Typer<'_> {
             return arg;
         };
         let info = self.u.info(m);
-        let Type::Method { params, .. } = self.u.types().get(info) else { return arg };
-        let Some(&(_, p)) = params.get(i) else { return arg };
-        let Type::ByName(formal) = *self.u.types().get(p) else { return arg };
+        let Some(&(_, p)) = self.u.method(info).and_then(|m| m.params.get(i)) else { return arg };
+        let Some(formal) = self.u.by_name(p) else { return arg };
         let mut casts = Vec::new();
         var_not_null_casts(self, arg, Some(formal), &mut casts);
         for c in &casts {
@@ -92,10 +91,7 @@ impl Nullables {
     /// run after they changed (dotty's `retractMutables`).
     pub fn retract_mutables(&mut self, u: &Universe, ctx: Ctx) -> Ctx {
         let mut retracted = self.asserted_refs(ctx);
-        retracted.retain(|&r| match *u.types().get(r) {
-            Type::Sym(_, s) => u.symbol(s).is_mutable_var(),
-            _ => false,
-        });
+        retracted.retain(|&r| u.sym_of(r).is_some_and(|s| u.symbol(s).is_mutable_var()));
         self.with_not_null(ctx, NotNullInfo::retracting(retracted))
     }
 }
@@ -110,9 +106,9 @@ fn var_not_null_casts(t: &mut Typer, tree: TNodeId, expected: Option<TypeId>, ou
         T::TypeApply { fun, .. } => {
             if let T::Select { qualifier, .. } = *t.tpd.tree(fun)
                 && let Some(s) = t.tpd.sym(qualifier).filter(|&s| t.u.symbol(s).is_mutable_var())
-                && let Type::And(a, _) = *t.u.types().get(t.tpd.tpe(tree))
+                && let Type::And(a, _) = *t.u.ty(t.tpd.tpe(tree))
                 && a == t.tpd.tpe(qualifier)
-                && matches!(t.u.types().get(a), Type::Sym(_, x) if *x == s)
+                && t.u.sym_of(a) == Some(s)
             {
                 out.push(FlowCast { cast: tree, qualifier, expected });
                 return;
@@ -124,10 +120,7 @@ fn var_not_null_casts(t: &mut Typer, tree: TNodeId, expected: Option<TypeId>, ou
             let params = t.u.method(info).map(|m| m.param_types()).unwrap_or_default();
             var_not_null_casts(t, fun, None, out);
             for (j, a) in t.tpd.items(args).to_vec().into_iter().enumerate() {
-                let param = params.get(j).map(|&p| match *t.u.types().get(p) {
-                    Type::ByName(r) => r,
-                    _ => p,
-                });
+                let param = params.get(j).map(|&p| t.u.by_name(p).unwrap_or(p));
                 var_not_null_casts(t, a, param, out);
             }
             return;

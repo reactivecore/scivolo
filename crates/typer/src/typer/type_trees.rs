@@ -75,8 +75,8 @@ impl Typer<'_> {
                         Ok(types) => types,
                         Err(what) => return self.unsupported(id, what),
                     };
-                let and_or = match (self.u.types().get(tycon), &arg_types[..]) {
-                    (&Type::Sym(_, s), &[a, b]) => self.and_or_applied(s, a, b),
+                let and_or = match (self.u.sym_of(tycon), &arg_types[..]) {
+                    (Some(s), &[a, b]) => self.and_or_applied(s, a, b),
                     _ => None,
                 };
                 if and_or.is_some() {
@@ -84,11 +84,11 @@ impl Typer<'_> {
                         self.check_simple_kinded(t, a);
                     }
                 }
-                let wildcard = !ctx.mode.is(Mode::PATTERN_TYPE)
-                    && arg_types.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)));
+                let wildcard =
+                    !ctx.mode.is(Mode::PATTERN_TYPE) && arg_types.iter().any(|&a| self.u.bounds(a).is_some());
                 let mut reduced = false;
                 if wildcard
-                    && let Type::Sym(_, s) = *self.u.types().get(tycon)
+                    && let Some(s) = self.u.sym_of(tycon)
                     && self.u.symbol(s).kind == Kind::Type
                     && self.syms.flags.contains_key(&s)
                 {
@@ -98,8 +98,8 @@ impl Typer<'_> {
                     reduced = true;
                 }
                 let arg_types = self.pattern_bound_args(tycon, &mut typed_args, &vars, arg_types, ctx);
-                let and_or = match (and_or, self.u.types().get(tycon), &arg_types[..]) {
-                    (Some(_), &Type::Sym(_, s), &[a, b]) => self.and_or_applied(s, a, b),
+                let and_or = match (and_or, self.u.sym_of(tycon), &arg_types[..]) {
+                    (Some(_), Some(s), &[a, b]) => self.and_or_applied(s, a, b),
                     _ => None,
                 };
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
@@ -168,20 +168,17 @@ impl Typer<'_> {
     /// `tycon[args]`; an alias that eta-expands a type constructor, `type F[X] = G[X]`, applied
     /// as that constructor (dotty's `appliedTo`).
     pub fn applied_to(&mut self, tycon: TypeId, args: Vec<TypeId>) -> TypeId {
-        if let Type::Sym(_, s) = *self.u.types().get(tycon)
+        if let Some(s) = self.u.sym_of(tycon)
             && self.u.symbol(s).kind == Kind::Type
         {
             self.complete(s);
             let info = self.u.info(s);
-            let alias = match *self.u.types().get(info) {
-                Type::Alias(a) => a,
-                _ => info,
-            };
-            if let Type::Lambda { binder, ref params, result } = *self.u.types().get(alias)
-                && let Type::Applied(inner, ref inner_args) = *self.u.types().get(result)
+            let alias = self.u.type_alias(info).unwrap_or(info);
+            if let Type::Lambda { binder, ref params, result } = *self.u.ty(alias)
+                && let Type::Applied(inner, ref inner_args) = *self.u.ty(result)
                 && inner_args.len() == params.len()
                 && args.len() == params.len()
-                && inner_args.iter().enumerate().all(|(i, &a)| match self.u.types().get(a) {
+                && inner_args.iter().enumerate().all(|(i, &a)| match self.u.ty(a) {
                     Type::Param(b, k) => *b == binder && *k == i as u32,
                     Type::Local(b, name) => b.0 == binder.0 && *name == params[i].0,
                     _ => false,

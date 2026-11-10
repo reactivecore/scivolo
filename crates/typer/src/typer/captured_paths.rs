@@ -11,22 +11,24 @@ impl TypeOps<'_> {
     /// with the wildcard arguments of its base type in `b`'s class replaced by the type
     /// parameters selected on `a`.
     pub fn conforms_captured_path(&mut self, a: TypeId, b: TypeId) -> bool {
-        if !matches!(self.u.types().get(a), Type::Sym(..) | Type::TermRef(..))
+        if !matches!(self.u.ty(a), Type::Sym(..) | Type::TermRef(..))
             || !super::stability::is_stable_path(self.u, a)
         {
             return false;
         }
         let b = self.zonk(b);
-        if let Type::And(x, y) = *self.u.types().get(b) {
+        if let Type::And(x, y) = *self.u.ty(b) {
             return self.conforms(a, x) && self.conforms(a, y);
         }
-        let Type::Applied(tycon, _) = *self.u.types().get(b) else { return false };
+        let Some((tycon, _)) = self.u.applied(b) else { return false };
         let Some(class) = self.u.class_symbol(tycon) else { return false };
         let widened = self.u.widen(a);
         let Some(base) = self.u.base_type(widened, class) else { return false };
-        let Type::Applied(base_tycon, args) = self.u.types().get(base).clone() else { return false };
+        let Some((base_tycon, args)) = self.u.applied(base).map(|(c, a)| (c, a.to_vec())) else {
+            return false;
+        };
         let params = self.u.type_params(class);
-        let wildcard = |t: &Self, x: TypeId| matches!(t.u.types().get(x), Type::Bounds(..));
+        let wildcard = |t: &Self, x: TypeId| t.u.bounds(x).is_some();
         if params.len() != args.len() || !args.iter().any(|&x| wildcard(self, x)) {
             return false;
         }

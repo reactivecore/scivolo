@@ -67,6 +67,6 @@ impl Typer<'_> {
     /// Whether the type of tree `t`, widened, is the error type.
     pub fn is_error(&mut self, t: TNodeId) -> bool {
         let tpe = self.u.widen(self.tpd.tpe(t));
-        *self.u.types().get(tpe) == Type::Error
+        *self.u.ty(tpe) == Type::Error
     }
 }

@@ -111,11 +111,11 @@ fn by_size(
             continue;
         };
         let method = t.u.strip_poly(info);
-        let Type::Method { binder, .. } = *t.u.types().get(method) else { continue };
+        let Some(binder) = t.u.method(method).map(|m| m.binder) else { continue };
         let dependent = ps.iter().any(|&p| {
             let mut found = false;
             t.u.map_type(p, &mut |u, part| {
-                found |= matches!(u.types().get(part), Type::Param(b, _) if *b == binder);
+                found |= u.param_ref(part).is_some_and(|(b, _)| b == binder);
                 None
             });
             found
@@ -133,7 +133,7 @@ fn by_size(
 /// Finds the `apply` members of the result of parameterless method type `info` whose first
 /// clause may take `n` arguments.
 fn result_applies(t: &mut Typer, info: TypeId, n: usize) -> Vec<ApplyMember> {
-    let value = match *t.u.types().get(info) {
+    let value = match *t.u.ty(info) {
         Type::Poly { result, .. } | Type::ByName(result) => result,
         _ => info,
     };

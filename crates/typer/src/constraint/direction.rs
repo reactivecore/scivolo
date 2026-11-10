@@ -10,7 +10,7 @@ use tasty::{ANY, Kind, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 impl Constraint {
     /// Records `lo` and `hi` as the declared bounds of `t` if it is a variable.
     pub fn declare(&mut self, u: &Universe, t: TypeId, lo: TypeId, hi: TypeId) {
-        if let Type::Var(v) = *u.types().get(t) {
+        if let Some(v) = u.var(t) {
             self.declared.resize(self.vars.len(), (NOTHING, ANY));
             self.declared[v.0 as usize] = (lo, hi);
             self.declared_vars.insert(v.0);
@@ -35,7 +35,7 @@ impl Constraint {
         }
         let hi = u.dealias(self.declared[v.0 as usize].1);
         let any_kind = u.class_symbol(hi) == Some(u.builtins().any_kind);
-        any_kind || matches!(u.types().get(hi), Type::Lambda { .. }) || !is_constructor(u, t)
+        any_kind || u.lambda(hi).is_some() || !is_constructor(u, t)
     }
 }
 
@@ -43,12 +43,12 @@ impl Constraint {
 /// parameters.
 fn is_constructor(u: &mut Universe, t: TypeId) -> bool {
     let t = u.dealias(t);
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::Lambda { .. } => true,
         Type::Sym(_, s) if u.symbol(s).kind == Kind::Class => !u.type_params(s).is_empty(),
         Type::Sym(_, s) if u.symbol(s).kind == Kind::TypeParam => {
             let info = u.info(s);
-            matches!(*u.types().get(info), Type::Bounds(_, hi) if matches!(u.types().get(hi), Type::Lambda { .. }))
+            u.bounds(info).is_some_and(|(_, hi)| u.lambda(hi).is_some())
         }
         _ => false,
     }

@@ -113,7 +113,7 @@ impl Typer<'_> {
         let Some((root, _)) = self.checked_code else { return false };
         let Some(flags) = meth.map(|m| self.u.symbol(m).flags) else { return false };
         if [GIVEN, IMPLICIT, EXTENSION].into_iter().any(|f| flags.has(f))
-            || matches!(self.u.types().get(formal), Type::ByName(_))
+            || self.u.by_name(formal).is_some()
             || !self.is_fully_defined(formal)
         {
             return false;
@@ -153,7 +153,7 @@ impl Typer<'_> {
     fn cannot_supply(&mut self, s: SymbolId, c: SymbolId, formal: TypeId) -> bool {
         let (mut t, mut poly) = (self.u.info(s), false);
         loop {
-            t = match *self.u.types().get(t) {
+            t = match *self.u.ty(t) {
                 Type::Poly { result, .. } => {
                     poly = true;
                     result

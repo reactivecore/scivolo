@@ -35,7 +35,7 @@ impl Typer<'_> {
             Ok(t) => t,
             Err(what) => return self.unsupported(id, what),
         };
-        let constant = matches!(self.u.types().get(sel_tpe), Type::Constant(..) | Type::Str(_));
+        let constant = matches!(self.u.ty(sel_tpe), Type::Constant(..) | Type::Str(_));
         let sel_tpe = match repeated {
             Some(annotated) => annotated,
             None if constant => sel_tpe,

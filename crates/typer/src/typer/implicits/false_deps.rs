@@ -5,7 +5,7 @@
 
 use super::super::dependent_params::{clause_param, mentions_clause_params};
 use super::super::type_ops::TypeOps;
-use tasty::{Binder, Kind, SymbolId, Type, TypeId};
+use tasty::{Binder, Kind, SymbolId, TypeId};
 
 impl TypeOps<'_> {
     /// Dealiases the result `t` of a clause of binder `binder` and parameters `params` of method
@@ -22,16 +22,13 @@ impl TypeOps<'_> {
             return t;
         }
         let dealiased = self.u.map_type(t, &mut |u, part| {
-            let Type::Sym(Some(pre), s) = *u.types().get(part) else { return None };
+            let Some((Some(pre), s)) = u.sym_ref(part) else { return None };
             if u.symbol(s).kind != Kind::Type {
                 return None;
             }
             let i = clause_param(u, pre, (binder, &names), meth)?;
             let info = u.member_info(params.get(i)?.1, s);
-            match *u.types().get(info) {
-                Type::Alias(alias) => Some(alias),
-                _ => None,
-            }
+            u.type_alias(info)
         });
         match mentions_clause_params(self.u, dealiased, (binder, &names), meth) {
             true => t,

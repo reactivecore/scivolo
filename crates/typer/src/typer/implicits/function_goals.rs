@@ -15,7 +15,7 @@ use tasty::{SymbolId, Type, TypeId};
 /// references to their parameters made wildcards, a method as a function type if `pt` is a
 /// `FunctionN` type (dotty's `normalize`); `None` if it stays a method.
 pub fn implicit_value_type(t: &mut Typer<'_>, tpe: TypeId, sym: SymbolId, pt: TypeId) -> Option<TypeId> {
-    let tpe = match t.u.types().get(tpe).clone() {
+    let tpe = match t.u.ty(tpe).clone() {
         Type::Method { binder, params, result, implicit: true, contextual } => {
             let result = t.types().without_false_deps_in(result, (binder, &params), Some(sym));
             let tpe = t.u.intern_type(Type::Method { binder, params, result, implicit: true, contextual });
@@ -24,12 +24,12 @@ pub fn implicit_value_type(t: &mut Typer<'_>, tpe: TypeId, sym: SymbolId, pt: Ty
         }
         _ => tpe,
     };
-    let method = matches!(t.u.types().get(tpe), Type::Method { .. });
+    let method = t.u.method(tpe).is_some();
     let tpe = match method && t.types().is_function_type(pt) {
         true => t.proto_normalized((tpe, Some(sym)), pt, true, 8)?,
         false => tpe,
     };
-    (!matches!(t.u.types().get(tpe), Type::Method { .. } | Type::Poly { .. })).then_some(tpe)
+    (!matches!(t.u.ty(tpe), Type::Method { .. } | Type::Poly { .. })).then_some(tpe)
 }
 
 /// Whether implicit `sym` of type `tpe` fits `pt`: `Some(true)` if its value type conforms,
@@ -59,12 +59,12 @@ impl ImplicitSearch {
         let tree = candidate_ref(t, c, at, ctx)?;
         let tree = t.with_type_vars(tree)?;
         let tpe = t.tpd.tpe(tree);
-        let info = match *t.u.types().get(tpe) {
-            Type::Sym(_, s) if t.u.is_type_symbol(s) => tpe,
+        let info = match t.u.sym_of(tpe) {
+            Some(s) if t.u.is_type_symbol(s) => tpe,
             _ => t.method_info(tpe).unwrap_or(tpe),
         };
         let stripped = t.types().strip_implicit(info);
-        let method = matches!(t.u.types().get(stripped), Type::Method { .. });
+        let method = t.u.method(stripped).is_some();
         let contextual = t.context_function_parts(pt).is_some();
         let direct = implicit_fit(t, info, c.sym, pt).ok_or("implicit of another type")?;
         if shallow {
@@ -91,7 +91,7 @@ impl ImplicitSearch {
         t.record_implicit_type_quote(tree, ctx);
         let tpe = t.tpd.tpe(tree);
         let info = t.method_info(tpe).unwrap_or(tpe);
-        if matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
+        if matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. }) {
             return Err("not an implicit value");
         }
         let fits = t.types().conforms(tpe, pt);
@@ -157,10 +157,10 @@ fn typed_as_implicit<'a>(
 /// `WildcardType` prefix).
 fn wildcard_selections(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, x| {
-        let (Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::Sym(Some(p), _)) = *u.types().get(x) else {
+        let (Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::Sym(Some(p), _)) = *u.ty(x) else {
             return None;
         };
         let p = wildcard_selections(u, p);
-        matches!(u.types().get(p), Type::Wildcard(_)).then(|| u.intern_type(Type::Wildcard(None)))
+        matches!(u.ty(p), Type::Wildcard(_)).then(|| u.intern_type(Type::Wildcard(None)))
     })
 }

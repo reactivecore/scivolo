@@ -5,7 +5,7 @@
 use super::{Matched, Matcher};
 use crate::tpd::{Clauses, TNodeId, Tree as T};
 use tasty::tags::ERASED;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 
 impl Matcher<'_> {
     /// `def` `s` of parameters `ps` and result `st`, `sr` against `p` of `pp`, `pt`, `pr`: the
@@ -57,7 +57,7 @@ impl Matcher<'_> {
     fn unbounded(&mut self, t: TNodeId) -> bool {
         let Some(s) = self.tpd.sym(t) else { return false };
         let info = self.u.info(s);
-        let Type::Bounds(lo, hi) = *self.u.types().get(info) else { return false };
+        let Some((lo, hi)) = self.u.bounds(info) else { return false };
         let b = self.u.builtins();
         self.is_class(lo, b.nothing) && self.is_class(hi, b.any)
     }
@@ -65,9 +65,9 @@ impl Matcher<'_> {
     /// Whether `t` dealiased is a reference to class `c`.
     fn is_class(&mut self, t: TypeId, c: SymbolId) -> bool {
         let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
-            Type::Sym(_, s) => s == c,
-            _ => self.u.class_symbol(t) == Some(c),
+        match self.u.sym_of(t) {
+            Some(s) => s == c,
+            None => self.u.class_symbol(t) == Some(c),
         }
     }
 

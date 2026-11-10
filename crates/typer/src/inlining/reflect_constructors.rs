@@ -22,7 +22,8 @@ impl Reflect<'_> {
         let ctor = self.constructor(class)?;
         let (mut t, mut clauses, mut binder) = (info, Vec::new(), None);
         let (mut class_refs, mut ctor_refs) = (Vec::new(), Vec::new());
-        if let Type::Poly { binder: b, params, result } = self.u.types().get(info).clone() {
+        if let Some((b, params, result)) = self.u.poly(info).map(|p| (p.binder, p.params.to_vec(), p.result))
+        {
             let mut defs = Vec::new();
             for (name, bounds) in params {
                 if refers_to(self.u, bounds, b) {
@@ -41,7 +42,7 @@ impl Reflect<'_> {
             clauses.push(defs);
             (t, binder) = (result, Some(b));
         }
-        while let Type::Method { params, result, .. } = self.u.types().get(t).clone() {
+        while let Some((params, result)) = self.u.method(t).map(|m| (m.params.to_vec(), m.result)) {
             let mut defs = Vec::new();
             for (name, tpe) in params {
                 let field = self.define(&name, Kind::Val, class, Flags::default().with(PARAMsetter));
@@ -67,14 +68,11 @@ impl Reflect<'_> {
 
     /// Whether `t` is the type of `class`, applied to the `n` parameters of `binder` if it has any.
     fn is_class_result(&mut self, t: TypeId, class: SymbolId, binder: Option<Binder>, n: usize) -> bool {
-        let (tycon, args) = match self.u.types().get(t).clone() {
-            Type::Applied(tycon, args) => (tycon, args),
-            _ => (t, Vec::new()),
-        };
+        let (tycon, args) = self.u.applied(t).map_or((t, Vec::new()), |(c, a)| (c, a.to_vec()));
         let param = |i: usize| binder.map(|b| Type::Param(b, i as u32));
-        let applied = args.len() == n
-            && args.iter().enumerate().all(|(i, &a)| Some(self.u.types().get(a)) == param(i).as_ref());
-        applied && matches!(*self.u.types().get(tycon), Type::Sym(_, c) if c == class)
+        let applied =
+            args.len() == n && args.iter().enumerate().all(|(i, &a)| Some(self.u.ty(a)) == param(i).as_ref());
+        applied && self.u.sym_of(tycon) == Some(class)
     }
 }
 
@@ -82,7 +80,7 @@ impl Reflect<'_> {
 fn refers_to(u: &mut Universe, t: TypeId, binder: Binder) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, x| {
-        found |= matches!(*u.types().get(x), Type::Param(b, _) if b == binder);
+        found |= matches!(u.param_ref(x), Some((b, _)) if b == binder);
         None
     });
     found
@@ -91,8 +89,8 @@ fn refers_to(u: &mut Universe, t: TypeId, binder: Binder) -> bool {
 /// `t` with the references to the parameters of `binder` replaced by `refs`.
 fn substituted(u: &mut Universe, t: TypeId, binder: Option<Binder>, refs: &[TypeId]) -> TypeId {
     let Some(binder) = binder else { return t };
-    u.map_type(t, &mut |u, x| match *u.types().get(x) {
-        Type::Param(b, i) if b == binder => refs.get(i as usize).copied(),
+    u.map_type(t, &mut |u, x| match u.param_ref(x) {
+        Some((b, i)) if b == binder => refs.get(i as usize).copied(),
         _ => None,
     })
 }

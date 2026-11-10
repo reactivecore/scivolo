@@ -8,7 +8,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{ANY, SymbolId, Type, TypeId};
+use tasty::{ANY, SymbolId, TypeId};
 
 /// The quote pattern being typed: the context of the pattern and its type variables by name.
 pub struct QuotePatternScope {
@@ -39,11 +39,9 @@ impl Typer<'_> {
             let msg = format!("Quote pattern can only match scrutinees of type {class_name}");
             self.error_at(span, msg);
         }
-        let base = self.u.base_type(pt, class).map(|b| self.u.types().get(b).clone());
+        let base = self.u.base_type(pt, class).and_then(|b| self.u.applied(b));
         let quoted_pt = match base {
-            Some(Type::Applied(_, args)) if !matches!(self.u.types().get(args[0]), Type::Bounds(..)) => {
-                args[0]
-            }
+            Some((_, &[arg, ..])) if self.u.bounds(arg).is_none() => arg,
             _ => ANY,
         };
         let body = self.adapted_to_expected(body, quoted_pt);

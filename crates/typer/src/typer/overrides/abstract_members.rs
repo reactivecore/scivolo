@@ -79,7 +79,7 @@ fn clause_shape(u: &mut Universe, s: SymbolId) -> Vec<(bool, usize)> {
     let mut t = u.info(s);
     let mut out = Vec::new();
     loop {
-        match u.types().get(t) {
+        match u.ty(t) {
             Type::Poly { params, result, .. } => (out.push((true, params.len())), t = *result),
             Type::Method { params, result, .. } => (out.push((false, params.len())), t = *result),
             _ => return out,
@@ -94,7 +94,7 @@ fn erased_params(u: &mut Universe, site: TypeId, s: SymbolId) -> Vec<Erased> {
     let mut params = Vec::new();
     let mut t = info;
     loop {
-        match u.types().get(t) {
+        match u.ty(t) {
             Type::Poly { result, .. } => t = *result,
             Type::Method { params: ps, result, .. } => {
                 params.extend_from_slice(ps);
@@ -104,7 +104,7 @@ fn erased_params(u: &mut Universe, site: TypeId, s: SymbolId) -> Vec<Erased> {
         }
     }
     let info = u.map_type(info, &mut |u, x| {
-        let &Type::Sym(None, p) = u.types().get(x) else { return None };
+        let Some((None, p)) = u.sym_ref(x) else { return None };
         let param = u.symbol(p);
         let own = param.kind == Kind::Param && param.owner == Some(s);
         own.then(|| params.iter().find(|(n, _)| *n == param.name).map(|&(_, t)| t)).flatten()

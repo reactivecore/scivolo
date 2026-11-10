@@ -29,16 +29,16 @@ impl Typer<'_> {
     fn opaque_through_object(&mut self, t: TypeId) -> Option<TypeId> {
         let w = self.u.widen(t);
         let mut d = self.u.dealias(w);
-        if let Type::Applied(tycon, _) = *self.u.types().get(d) {
+        if let Some((tycon, _)) = self.u.applied(d) {
             d = tycon;
         }
-        let (prefix, s) = match *self.u.types().get(d) {
+        let (prefix, s) = match *self.u.ty(d) {
             Type::Sym(Some(p), s) => (p, Some(s)),
             Type::TypeRef(p, _) => (p, self.u.resolve_ref(d)),
             _ => return None,
         };
         let alias = self.u.opaque_alias(s?)?;
-        let module = match *self.u.types().get(prefix) {
+        let module = match *self.u.ty(prefix) {
             Type::Sym(_, m) if self.u.symbol(m).kind.is_term() => Some(m),
             Type::TermRef(..) => self.u.resolve_ref(prefix),
             _ => None,

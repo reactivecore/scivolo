@@ -24,7 +24,7 @@ impl Constraint {
         if !self.refers_to_local(u, t, at, 4) {
             return Some(t);
         }
-        match u.types().get(t).clone() {
+        match u.ty(t).clone() {
             Type::Var(x) => match self.vars[x.0 as usize].instance {
                 Some(i) => self.avoided(u, i, at, v),
                 None if v > 0 => {
@@ -50,9 +50,9 @@ impl Constraint {
                         return self.avoided(u, dealiased, at, v);
                     }
                     let info = u.member_info(pre, s);
-                    match *u.types().get(info) {
-                        Type::Bounds(_, hi) if v > 0 => self.avoided(u, hi, at, v),
-                        Type::Bounds(lo, _) if v < 0 => self.avoided(u, lo, at, v),
+                    match u.bounds(info) {
+                        Some((_, hi)) if v > 0 => self.avoided(u, hi, at, v),
+                        Some((lo, _)) if v < 0 => self.avoided(u, lo, at, v),
                         _ => None,
                     }
                 }
@@ -69,7 +69,7 @@ impl Constraint {
             },
             Type::Sym(None, s) if u.symbol(s).kind == Kind::Type => {
                 let info = u.info(s);
-                match *u.types().get(info) {
+                match *u.ty(info) {
                     Type::Alias(a) => self.avoided(u, a, at, v),
                     Type::Bounds(_, hi) if v > 0 => self.avoided(u, hi, at, v),
                     Type::Bounds(lo, _) if v < 0 => self.avoided(u, lo, at, v),
@@ -97,9 +97,9 @@ impl Constraint {
                         continue;
                     }
                     if pv == 0 && self.refers_to_local(u, a, at, 4) {
-                        let (bounds, wildcard) = match *u.types().get(a) {
-                            Type::Bounds(lo, hi) => ((lo, hi), true),
-                            _ => ((a, a), false),
+                        let (bounds, wildcard) = match u.bounds(a) {
+                            Some(bounds) => (bounds, true),
+                            None => ((a, a), false),
                         };
                         let lo = self.avoided(u, bounds.0, at, -1)?;
                         let hi = self.avoided(u, bounds.1, at, 1)?;
@@ -116,7 +116,7 @@ impl Constraint {
             }
             Type::Refined(parent, name, info) => {
                 let parent = self.avoided(u, parent, at, v)?;
-                let info = match u.types().get(info).clone() {
+                let info = match u.ty(info).clone() {
                     _ if !self.refers_to_local(u, info, at, 4) => info,
                     Type::Alias(_) if v > 0 => return Some(parent),
                     Type::Bounds(lo, hi) if v > 0 => {
@@ -142,10 +142,7 @@ impl Constraint {
     /// Value reference `t` widened and dealiased, then `avoided`.
     fn widened(&mut self, u: &mut Universe, t: TypeId, at: At, v: i32) -> Option<TypeId> {
         let widened = u.widen(t);
-        let widened = match *u.types().get(widened) {
-            Type::ByName(r) => r,
-            _ => widened,
-        };
+        let widened = u.by_name(widened).unwrap_or(widened);
         let widened = u.dealias(widened);
         if widened == t { None } else { self.avoided(u, widened, at, v) }
     }
@@ -156,10 +153,7 @@ impl Constraint {
 fn class_param_bounds(u: &mut Universe, pre: TypeId, p: SymbolId) -> Option<(TypeId, TypeId)> {
     let selected = u.intern_type(Type::Sym(Some(pre), p));
     let arg = crate::typer::seen_from::class_param_arg(u, selected)?;
-    match *u.types().get(arg) {
-        Type::Bounds(lo, hi) => Some((lo, hi)),
-        _ => Some((arg, arg)),
-    }
+    Some(u.bounds(arg).unwrap_or((arg, arg)))
 }
 
 fn owned_by_term(u: &Universe, s: SymbolId) -> bool {

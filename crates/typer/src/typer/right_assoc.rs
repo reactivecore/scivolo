@@ -8,7 +8,6 @@ use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::Type;
 
 impl Typer<'_> {
     /// Whether application `id` is a right-associative infix operation desugared to a call.
@@ -34,7 +33,7 @@ impl Typer<'_> {
             T::Apply { fun, args } => {
                 let fun_tpe = self.tpd.tpe(fun);
                 let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-                let Type::Method { params, .. } = self.u.types().get(info).clone() else { return tree };
+                let Some(params) = self.u.method(info).map(|m| m.params.to_vec()) else { return tree };
                 let items = self.tpd.items(args).to_vec();
                 if items.len() != params.len() {
                     return tree;

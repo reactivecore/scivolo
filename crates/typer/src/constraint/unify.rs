@@ -40,7 +40,7 @@ impl Constraint {
 
 /// `t` without the variable `v` among the parts of its top-level intersection, if `v` is one.
 fn without_var(u: &mut Universe, t: TypeId, v: VarId) -> Option<TypeId> {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::Var(x) if x == v => Some(ANY),
         Type::And(x, y) => match (without_var(u, x, v), without_var(u, y, v)) {
             (Some(x), _) => Some(meet(u, x, y)),
@@ -55,7 +55,7 @@ fn without_var(u: &mut Universe, t: TypeId, v: VarId) -> Option<TypeId> {
 pub fn has_var(u: &mut Universe, t: TypeId) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, part| {
-        found |= matches!(u.types().get(part), Type::Var(_));
+        found |= u.var(part).is_some();
         None
     });
     found

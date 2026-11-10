@@ -9,7 +9,7 @@ use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
 use tasty::tags::{ABSTRACT, FINAL, OBJECT, PARAMsetter, TRAIT};
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, Symbol, SymbolId, TypeId};
 
 impl Reflect<'_> {
     /// `Symbol.newClass(owner, name, ..)` with class flags `flags`: a class with a constructor,
@@ -133,8 +133,7 @@ impl Reflect<'_> {
         let ctors = self.u.decl(c, "<init>").unwrap_or_default();
         let no_args = |r: &mut Self, k: SymbolId| {
             let info = r.u.info(k);
-            matches!(r.u.types().get(info), Type::Method { params, result, .. }
-                if params.is_empty() && !matches!(r.u.types().get(*result), Type::Method { .. }))
+            r.u.method(info).is_some_and(|m| m.params.is_empty() && r.u.method(m.result).is_none())
         };
         let ctor = ctors.into_iter().find(|&k| no_args(self, k));
         let ctor =

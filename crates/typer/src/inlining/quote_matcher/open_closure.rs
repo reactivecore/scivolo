@@ -106,8 +106,8 @@ impl Reflect<'_> {
 
     /// `t` with the references to the symbols of `syms` replaced by references to those they map to.
     fn with_syms(&mut self, t: TypeId, syms: &FxHashMap<SymbolId, SymbolId>) -> TypeId {
-        self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
+        self.u.map_type(t, &mut |u, part| match u.sym_ref(part) {
+            Some((None, s)) => syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
             _ => None,
         })
     }
@@ -115,8 +115,8 @@ impl Reflect<'_> {
     /// The polymorphic method type over `tparams` of `method` and the `PolyFunction` of it.
     fn poly_function(&mut self, tparams: &[SymbolId], method: TypeId) -> (TypeId, TypeId) {
         let binder = self.u.fresh_binder();
-        let result = self.u.map_type(method, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => {
+        let result = self.u.map_type(method, &mut |u, part| match u.sym_ref(part) {
+            Some((None, s)) => {
                 let i = tparams.iter().position(|&p| p == s)?;
                 Some(u.intern_type(Type::Param(binder, i as u32)))
             }

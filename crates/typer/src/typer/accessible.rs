@@ -24,7 +24,7 @@ impl Typer<'_> {
         if !(flags.has(PROTECTED) || flags.has(PROTECTEDqualified)) {
             return false;
         }
-        match prefix.map(|p| self.u.types().get(p)) {
+        match prefix.map(|p| self.u.ty(p)) {
             Some(Type::This(_)) => true,
             None | Some(Type::Super(..)) => self.enclosing_sub_class(sym, ctx).is_some(),
             Some(_) => self.is_protected_access_ok(sym, prefix, ctx),
@@ -165,7 +165,7 @@ impl Typer<'_> {
     ) -> Result<(), &'static str> {
         let flags = self.u.symbol(sym).flags;
         if !(flags.has(PROTECTED) || flags.has(PROTECTEDqualified))
-            || matches!(self.u.types().get(qual_tpe), Type::This(_) | Type::Super(..))
+            || matches!(self.u.ty(qual_tpe), Type::This(_) | Type::Super(..))
             || self.is_within_boundary(sym, ctx)
         {
             return Ok(());

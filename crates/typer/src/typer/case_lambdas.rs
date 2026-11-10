@@ -11,7 +11,6 @@ use syntax::ast::flags;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::tree::MatchKind;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
-use tasty::Type;
 
 impl Typer<'_> {
     /// `{ cases }` as `(x$1, ..., x$n) => (x$1, ..., x$n) match { cases }`, `n` the arity of the
@@ -69,9 +68,6 @@ impl Typer<'_> {
         }
         let Some(method) = self.u.class_symbol(t).and_then(|c| self.sam_method(c)) else { return 1 };
         let info = self.u.info(method);
-        match self.u.types().get(info) {
-            Type::Method { params, .. } => params.len(),
-            _ => 1,
-        }
+        self.u.method(info).map_or(1, |m| m.params.len())
     }
 }

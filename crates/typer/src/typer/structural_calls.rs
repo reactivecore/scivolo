@@ -27,7 +27,7 @@ impl Typer<'_> {
             return tree;
         }
         let Some(tpe) = self.tpd.get(tree).tpe else { return tree };
-        if matches!(self.u.types().get(tpe), Type::Method { .. } | Type::Poly { .. }) {
+        if matches!(self.u.ty(tpe), Type::Method { .. } | Type::Poly { .. }) {
             return tree;
         }
         let (mut f, mut clauses) = (tree, Vec::new());
@@ -42,7 +42,9 @@ impl Typer<'_> {
         let span = self.tpd.span(tree);
         let mut method = self.tpd.tpe(f);
         let mut params = Vec::new();
-        while let Type::Method { binder, params: ps, result, .. } = self.u.types().get(method).clone() {
+        while let Some((binder, ps, result)) =
+            self.u.method(method).map(|m| (m.binder, m.params.to_vec(), m.result))
+        {
             for (_, p) in ps {
                 let owner = self.param_owner(p);
                 let p = self.without_false_deps(p, binder, owner);
@@ -92,7 +94,7 @@ impl Typer<'_> {
     fn param_owner(&mut self, t: TypeId) -> Option<tasty::SymbolId> {
         let mut owner = None;
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part)
+            if let Some(s) = u.sym_of(part)
                 && u.symbol(s).kind == tasty::Kind::Param
             {
                 owner = owner.or(u.symbol(s).owner);

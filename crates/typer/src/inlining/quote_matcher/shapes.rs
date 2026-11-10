@@ -35,8 +35,8 @@ impl Matcher<'_> {
     pub fn conforms(&mut self, s: TNodeId, p: TNodeId) -> bool {
         let (Some(a), Some(b)) = (self.type_of(s), self.tpd.get(p).tpe) else { return false };
         let env = &self.env;
-        let a = self.u.map_type(a, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, x) if u.symbol(x).kind.is_type() => {
+        let a = self.u.map_type(a, &mut |u, part| match u.sym_ref(part) {
+            Some((None, x)) if u.symbol(x).kind.is_type() => {
                 env.iter().find(|&&(e, _)| e == x).map(|&(_, y)| u.intern_type(Type::Sym(None, y)))
             }
             _ => None,
@@ -88,11 +88,11 @@ impl Matcher<'_> {
     /// matches (dotty's `tpd.ref(qual)` in `=?=`): the value it is a member of, or the object
     /// of the module class whose `this` it is; `None` for other prefixes.
     pub fn prefix_ref(&mut self, s: TNodeId) -> Option<TNodeId> {
-        let prefix = match *self.u.types().get(self.tpd.get(s).tpe?) {
+        let prefix = match *self.u.ty(self.tpd.get(s).tpe?) {
             Type::Sym(Some(p), _) | Type::TermRef(p, _) => p,
             _ => return None,
         };
-        let (sym, tpe) = match *self.u.types().get(prefix) {
+        let (sym, tpe) = match *self.u.ty(prefix) {
             Type::Sym(_, v) if self.u.symbol(v).kind.is_term() => (v, prefix),
             Type::This(c) => {
                 let c = self.u.class_symbol(c).filter(|&c| self.u.is_module_class(c))?;
@@ -151,8 +151,8 @@ impl Matcher<'_> {
     /// The class or package `this` tree `t` refers to.
     pub fn this_class(&mut self, t: TNodeId) -> Option<SymbolId> {
         let tpe = self.tpd.get(t).tpe?;
-        let Type::This(c) = *self.u.types().get(tpe) else { return None };
-        match *self.u.types().get(c) {
+        let c = self.u.this_of(tpe)?;
+        match *self.u.ty(c) {
             Type::Package(p) => Some(p),
             _ => self.u.class_symbol(c),
         }

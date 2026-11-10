@@ -6,7 +6,6 @@
 use super::super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::Type;
 
 impl Typer<'_> {
     /// Interpolates the type variables of id `from` or later again and zonks the type if
@@ -53,13 +52,13 @@ impl Typer<'_> {
         pt: Pt,
     ) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(tree);
-        if defs.is_empty() || !matches!(self.u.types().get(tpe), Type::Method { .. }) {
+        if defs.is_empty() || self.u.method(tpe).is_none() {
             return Ok(tree);
         }
         if matches!(pt, Pt::Fun(_)) {
             return Ok(tree);
         }
-        let implicit = matches!(self.u.types().get(tpe), Type::Method { implicit: true, .. });
+        let implicit = self.u.method(tpe).is_some_and(|m| m.implicit);
         if matches!(pt, Pt::PolyFun(_)) || !(implicit || self.takes_using(tree)) || self.is_open(tpe) {
             return Err("lifted call of a curried method");
         }
@@ -70,9 +69,7 @@ impl Typer<'_> {
     /// as `lifted_partial` leaves it, or none and `f`.
     pub fn lifted_fun(&mut self, f: TNodeId) -> (Vec<TNodeId>, TNodeId) {
         match *self.tpd.tree(f) {
-            T::Block { stats, expr }
-                if matches!(self.u.types().get(self.tpd.tpe(expr)), Type::Method { .. }) =>
-            {
+            T::Block { stats, expr } if self.u.method(self.tpd.tpe(expr)).is_some() => {
                 (self.tpd.items(stats).to_vec(), expr)
             }
             _ => (Vec::new(), f),
@@ -83,6 +80,6 @@ impl Typer<'_> {
     pub fn takes_using(&mut self, f: TNodeId) -> bool {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        matches!(self.u.types().get(info), Type::Method { contextual: true, .. })
+        self.u.method(info).is_some_and(|m| m.contextual)
     }
 }

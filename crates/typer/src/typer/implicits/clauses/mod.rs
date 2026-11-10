@@ -11,7 +11,7 @@ use super::search::AMBIGUOUS;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{Binder, Binding, SymbolId, Type, TypeId};
+use tasty::{Binder, Binding, SymbolId, TypeId};
 
 /// The application of one implicit parameter clause of a tree to the arguments the searches find
 /// for it, as `summon[Ordering[Int]]` gets `(using Ordering.Int)` (dotty's `addImplicitArgs` in
@@ -93,10 +93,8 @@ impl ImplicitClause {
     fn of(t: &mut Typer<'_>, tree: TNodeId, (at, span): (Span, Span), ctx: Ctx, depth: u32) -> Option<Self> {
         let tpe = t.tpd.tpe(tree);
         let info = t.method_info(tpe).unwrap_or(tpe);
-        let Type::Method { binder, params, result, implicit: true, .. } = t.u.types().get(info).clone()
-        else {
-            return None;
-        };
+        let m = t.u.method(info).filter(|m| m.implicit)?;
+        let (binder, params, result) = (m.binder, m.params.to_vec(), m.result);
         let names = params.iter().map(|(n, _)| n.clone()).collect();
         let meth = t.tpd.sym(t.tpd.meth_part(tree));
         Some(ImplicitClause { tree, meth, binder, params, names, result, at, span, ctx, depth })

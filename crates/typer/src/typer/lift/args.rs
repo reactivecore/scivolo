@@ -5,14 +5,14 @@
 use super::super::Typer;
 use super::Lifter;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 impl Lifter {
     /// Gives argument `arg` of parameter `(name, p)` lifted unless it needs not or the parameter
     /// is by-name or inline, named after the parameter unless the name has a `$`; a named
     /// argument or a sequence argument `xs*` keeps its form around the lifted expression.
     pub fn arg(&mut self, t: &mut Typer, arg: TNodeId, (name, p): &(String, TypeId)) -> TNodeId {
-        if matches!(t.u.types().get(*p), Type::ByName(_)) || t.types().is_inline_param_type(*p) {
+        if t.u.by_name(*p).is_some() || t.types().is_inline_param_type(*p) {
             return arg;
         }
         let prefix = if name.contains('$') { "" } else { name.as_str() };

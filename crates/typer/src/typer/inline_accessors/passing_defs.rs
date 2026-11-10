@@ -105,7 +105,7 @@ fn value_clauses(
 ) -> Option<(Vec<Params>, TypeId)> {
     let mut clauses = Vec::new();
     loop {
-        match t.u.types().get(info).clone() {
+        match t.u.ty(info).clone() {
             Type::Method { params, result, implicit: false, .. } if !setter => {
                 clauses.push(params);
                 info = result;
@@ -117,7 +117,7 @@ fn value_clauses(
             _ => break,
         }
     }
-    if let Type::ByName(r) = *t.u.types().get(info) {
+    if let Some(r) = t.u.by_name(info) {
         info = r;
     }
     Some((clauses, info))
@@ -159,7 +159,7 @@ fn passing_tpt(t: &mut Typer<'_>, tpe: TypeId, locals: &[SymbolId], span: Span) 
     if !refers_to(t.u, tpe, locals) {
         return Some(t.splice_type(tpe));
     }
-    match t.u.types().get(tpe).clone() {
+    match t.u.ty(tpe).clone() {
         Type::Sym(_, s) if locals.contains(&s) => {
             let name = TName { name: t.name(&t.u.symbol(s).name.clone()), is_type: true };
             Some(t.ast.node(Tree::Ident { name }))
@@ -194,7 +194,7 @@ pub fn dealiased(u: &mut Universe, t: TypeId) -> TypeId {
 fn refers_to(u: &mut Universe, t: TypeId, locals: &[SymbolId]) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, p| {
-        found |= matches!(*u.types().get(p), Type::Sym(_, s) if locals.contains(&s));
+        found |= u.sym_of(p).is_some_and(|s| locals.contains(&s));
         None
     });
     found

@@ -52,14 +52,14 @@ impl Narrowing {
         let from = t.constraint.count();
         let vars: Vec<TypeId> = syms.iter().map(|_| t.constraint.fresh(t.u)).collect();
         let subst = |u: &mut Universe, t: TypeId| {
-            u.map_type(t, &mut |u, x| match *u.types().get(x) {
-                Type::Sym(None, s) => syms.iter().position(|&b| b == s).map(|i| vars[i]),
-                _ => None,
+            u.map_type(t, &mut |u, x| {
+                let Some((None, s)) = u.sym_ref(x) else { return None };
+                syms.iter().position(|&b| b == s).map(|i| vars[i])
             })
         };
         for (&s, &v) in syms.iter().zip(&vars) {
             let info = t.u.info(s);
-            if let Type::Bounds(lo, hi) = *t.u.types().get(info) {
+            if let Some((lo, hi)) = t.u.bounds(info) {
                 let (lo, hi) = (subst(t.u, lo), subst(t.u, hi));
                 t.constraint.declare(t.u, v, lo, hi);
             }
@@ -74,7 +74,7 @@ impl Narrowing {
         };
         let mut bounds = Vec::new();
         for (&s, &v) in syms.iter().zip(&vars) {
-            let Type::Var(id) = *t.u.types().get(v) else { continue };
+            let Some(id) = t.u.var(v) else { continue };
             let own = t.u.intern_type(Type::Sym(None, s));
             match t.constraint.instance(id) {
                 Some(ty) => bounds.push((s, ty, ty)),
@@ -132,7 +132,7 @@ impl Narrowing {
 
 /// Widens `this` of a generic class to the class applied to its type parameters, else gives `t`.
 pub fn this_widened(u: &mut Universe, t: TypeId) -> TypeId {
-    let Type::This(c) = *u.types().get(t) else { return t };
+    let Some(c) = u.this_of(t) else { return t };
     match u.class_symbol(c) {
         Some(class) if !u.type_params(class).is_empty() => u.this_type(class),
         _ => t,

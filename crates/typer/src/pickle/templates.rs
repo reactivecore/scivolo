@@ -80,7 +80,7 @@ impl TreePickler<'_> {
         if self.names.text(name.name).is_empty() {
             return self.ty(tpe, false);
         }
-        let Type::This(class) = *self.u.types().get(tpe) else { return Err("a this of another type") };
+        let Some(class) = self.u.this_of(tpe) else { return Err("a this of another type") };
         self.class_this(qual, Some(qual), class)
     }
 
@@ -111,7 +111,7 @@ impl TreePickler<'_> {
     pub fn super_(&mut self, qual: TNodeId, mix: TNodeId, tpe: TypeId) -> Result<(), Refusal> {
         let T::Ident { name } = *self.tpd.tree(mix) else { return Err("a super of another kind") };
         let name = self.names.text(name.name).to_owned();
-        let Type::Super(_, mixin) = *self.u.types().get(tpe) else { return Err("a super of another type") };
+        let Type::Super(_, mixin) = *self.u.ty(tpe) else { return Err("a super of another type") };
         self.with_length(SUPER, &mut |p| {
             p.tree(qual)?;
             if !name.is_empty() {

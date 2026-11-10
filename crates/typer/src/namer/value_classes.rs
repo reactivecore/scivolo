@@ -10,7 +10,7 @@ use crate::typer::Typer;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, Tree};
 use syntax::diag::{Message, MessageId};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 
 const PRIMITIVES: [&str; 9] = [
     "scala.Boolean",
@@ -81,10 +81,7 @@ impl Typer<'_> {
         let params = self.value_class_params(cls);
         let wrapped = params.first().and_then(|&p| {
             let info = self.u.info(p);
-            let info = match *self.u.types().get(info) {
-                Type::ByName(result) => result,
-                _ => info,
-            };
+            let info = self.u.by_name(info).unwrap_or(info);
             self.u.class_symbol(info)
         });
         if wrapped.is_some_and(|c| self.is_derived_value_class(c)) {
@@ -141,7 +138,7 @@ impl Typer<'_> {
         if flags.is(f::MUTABLE) {
             self.error_at(span, syntax_msg(77, true, "A value class parameter may not be a var"));
         }
-        if matches!(self.u.types().get(info), Type::ByName(_)) {
+        if self.u.by_name(info).is_some() {
             let name = self.u.symbol(param).name.clone();
             let msg = format!("Value class parameter `{name}` may not be call-by-name");
             self.error_at(span, syntax_msg(126, false, msg));

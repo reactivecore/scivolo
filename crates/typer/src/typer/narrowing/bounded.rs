@@ -48,15 +48,15 @@ impl Narrowing {
         let mark = t.constraint.mark();
         let vars: Vec<TypeId> = syms.iter().map(|_| t.constraint.fresh(t.u)).collect();
         let subst = |u: &mut tasty::Universe, t: TypeId| {
-            u.map_type(t, &mut |u, x| match *u.types().get(x) {
-                Type::Sym(None, s) => syms.iter().position(|&b| b == s).map(|i| vars[i]),
-                _ => None,
+            u.map_type(t, &mut |u, x| {
+                let Some((None, s)) = u.sym_ref(x) else { return None };
+                syms.iter().position(|&b| b == s).map(|i| vars[i])
             })
         };
         let mut ok = true;
         for (&s, &v) in syms.iter().zip(&vars) {
             let info = t.u.info(s);
-            if let Type::Bounds(lo, hi) = *t.u.types().get(info) {
+            if let Some((lo, hi)) = t.u.bounds(info) {
                 let (lo, hi) = (subst(t.u, lo), subst(t.u, hi));
                 t.constraint.declare(t.u, v, lo, hi);
                 ok &= t.conforms(lo, v) && t.conforms(v, hi);
@@ -98,7 +98,7 @@ impl Narrowing {
 /// arguments otherwise left unconstrained); never for an opaque type seen from outside.
 pub fn refines_invariantly(t: &mut Typer, pat: TypeId, sel: TypeId) -> bool {
     let sel = t.dealiased(sel);
-    if let Type::Or(a, b, _) = *t.u.types().get(sel) {
+    if let Type::Or(a, b, _) = *t.u.ty(sel) {
         return match (t.types().is_null_type(a), t.types().is_null_type(b)) {
             (true, _) => refines_invariantly(t, pat, b),
             (_, true) => refines_invariantly(t, pat, a),
@@ -129,7 +129,7 @@ pub fn without_variant_args(t: &mut Typer, sel: TypeId) -> Option<TypeId> {
     if has_wildcard(t.u, sel) {
         return None;
     }
-    let Type::Applied(tycon, args) = t.u.types().get(sel).clone() else { return None };
+    let (tycon, args) = t.u.applied(sel).map(|(tycon, args)| (tycon, args.to_vec()))?;
     let class = match t.is_opaque_ref(tycon) {
         true => t.referenced(tycon)?,
         false => t.u.class_symbol(tycon)?,
@@ -146,7 +146,7 @@ pub fn without_variant_args(t: &mut Typer, sel: TypeId) -> Option<TypeId> {
 impl TypeOps<'_> {
     /// Gives the bounds of type variable `v` zonked, both its instance if it has one.
     fn var_bounds_of(&mut self, v: TypeId) -> (TypeId, TypeId) {
-        let Type::Var(id) = *self.u.types().get(v) else { return (v, v) };
+        let Some(id) = self.u.var(v) else { return (v, v) };
         let (lo, hi) = match self.constraint.instance(id) {
             Some(t) => (t, t),
             None => self.constraint.bounds(id),

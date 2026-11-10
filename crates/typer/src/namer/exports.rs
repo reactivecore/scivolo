@@ -188,8 +188,8 @@ impl Typer<'_> {
 
     /// Whether path type `t` refers to a private term (dotty's `refersToPrivate`).
     pub fn refers_to_private(&self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
-            Type::Sym(p, s) if self.u.symbol(s).kind.is_term() => {
+        match self.u.sym_ref(t) {
+            Some((p, s)) if self.u.symbol(s).kind.is_term() => {
                 self.u.symbol(s).flags.has(t::PRIVATE) || p.is_some_and(|p| self.refers_to_private(p))
             }
             _ => false,
@@ -199,11 +199,11 @@ impl Typer<'_> {
     /// Whether method type `t` has a parameter of type `=> T*` in a clause.
     fn has_by_name_repeated_param(&mut self, mut t: TypeId) -> bool {
         loop {
-            match self.u.types().get(t).clone() {
+            match self.u.ty(t).clone() {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, result, .. } => {
                     for (_, p) in params {
-                        if let Type::ByName(inner) = *self.u.types().get(p)
+                        if let Some(inner) = self.u.by_name(p)
                             && self.repeated_elem(inner).is_some()
                         {
                             return true;

@@ -34,7 +34,7 @@ impl TreePickler<'_> {
         let local = owner_kind.is_some_and(|(_, k)| k.is_term());
         let prefix = match (prefix, owner_kind) {
             (_, _) if local && self.file.is_some() && self.is_defined_here(s) => return self.direct_ref(s),
-            (Some(p), _) if matches!(*self.u.types().get(p), Type::Package(r) if r == root) => {
+            (Some(p), _) if matches!(*self.u.ty(p), Type::Package(r) if r == root) => {
                 Prefix::PackageThis(root)
             }
             (Some(p), _) => Prefix::Type(p),
@@ -81,7 +81,7 @@ impl TreePickler<'_> {
     /// Prefix `p` of static member `s` of a Java class, the class's `this` as a reference to its
     /// companion object.
     fn java_statics_ref(&mut self, p: TypeId, s: SymbolId) -> Prefix {
-        let Type::This(class) = *self.u.types().get(p) else { return Prefix::Type(p) };
+        let Some(class) = self.u.this_of(p) else { return Prefix::Type(p) };
         let Some(c) = self.u.class_symbol(class) else { return Prefix::Type(p) };
         let module = match self.u.is_java_statics(c) {
             true => self.u.source_module(c),
@@ -115,8 +115,7 @@ impl TreePickler<'_> {
     pub fn method_params(&mut self, m: SymbolId, clauses: &[Vec<TNodeId>]) {
         let mut t = self.u.info(m);
         for clause in clauses {
-            let (Type::Poly { binder, result, .. } | Type::Method { binder, result, .. }) =
-                *self.u.types().get(t)
+            let (Type::Poly { binder, result, .. } | Type::Method { binder, result, .. }) = *self.u.ty(t)
             else {
                 return;
             };
@@ -155,7 +154,7 @@ impl TreePickler<'_> {
         }
         let info = (!is_type).then(|| self.u.term_refinement_named(prefix, name));
         if let Some(info) = info
-            && info.is_none_or(|i| matches!(self.u.types().get(i), Type::Method { .. } | Type::Poly { .. }))
+            && info.is_none_or(|i| matches!(self.u.ty(i), Type::Method { .. } | Type::Poly { .. }))
         {
             return Err("an unresolved term reference, its signature not known");
         }

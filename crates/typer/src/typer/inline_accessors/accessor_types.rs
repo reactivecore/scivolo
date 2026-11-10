@@ -53,7 +53,7 @@ pub fn accessor_tpt(t: &mut Typer<'_>, tpe: TypeId, clauses: &[Clause], span: Sp
     if !refers_to_params(t.u, tpe, clauses) {
         return Some(t.splice_type(tpe));
     }
-    let tree = match t.u.types().get(tpe).clone() {
+    let tree = match t.u.ty(tpe).clone() {
         Type::Param(..) => {
             let (name, reference) = param_ref(t, tpe, clauses)?;
             return Some(match name.is_type {
@@ -93,7 +93,7 @@ pub fn accessor_tpt(t: &mut Typer<'_>, tpe: TypeId, clauses: &[Clause], span: Sp
 
 /// The path tree of term reference `p` in an accessor with parameter clauses `clauses`.
 fn path(t: &mut Typer<'_>, p: TypeId, clauses: &[Clause], span: Span) -> Option<NodeId> {
-    let (qualifier, name) = match t.u.types().get(p).clone() {
+    let (qualifier, name) = match t.u.ty(p).clone() {
         Type::Param(..) => return param_ref(t, p, clauses).map(|(_, r)| r),
         Type::Sym(Some(q), s) if !t.u.is_type_symbol(s) => (q, t.u.symbol(s).name.clone()),
         Type::TermRef(q, n) => (q, n),
@@ -106,7 +106,7 @@ fn path(t: &mut Typer<'_>, p: TypeId, clauses: &[Clause], span: Span) -> Option<
 
 /// The name of parameter reference `p` to one of `clauses` and an identifier of it.
 fn param_ref(t: &mut Typer<'_>, p: TypeId, clauses: &[Clause]) -> Option<(TName, NodeId)> {
-    let Type::Param(b, i) = *t.u.types().get(p) else { return None };
+    let (b, i) = t.u.param_ref(p)?;
     let clause = clauses.iter().find(|c| c.binder == Some(b))?;
     let is_type = clause.flags.is(f::TYPE_PARAM);
     let name = TName { name: t.name(&clause.params[i as usize].0), is_type };
@@ -122,8 +122,7 @@ fn unsupported(t: &mut Typer<'_>, span: Span) -> Option<NodeId> {
 fn refers_to_params(u: &mut Universe, tpe: TypeId, clauses: &[Clause]) -> bool {
     let mut refers = false;
     u.map_type(tpe, &mut |u, part| {
-        refers |=
-            matches!(*u.types().get(part), Type::Param(b, _) if clauses.iter().any(|c| c.binder == Some(b)));
+        refers |= u.param_ref(part).is_some_and(|(b, _)| clauses.iter().any(|c| c.binder == Some(b)));
         None
     });
     refers

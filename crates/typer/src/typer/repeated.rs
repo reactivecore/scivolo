@@ -22,9 +22,9 @@ impl Typer<'_> {
     /// The element type `T` of repeated parameter type `p`: `<repeated>[T]`, or `Seq[T] @Repeated`
     /// as TASTy and parameter type trees give it, also annotated `@InlineParam`.
     pub fn repeated_elem(&mut self, p: TypeId) -> Option<TypeId> {
-        match self.u.types().get(p).clone() {
-            Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => match self.u.types().get(seq) {
-                Type::Applied(_, args) if args.len() == 1 => Some(args[0]),
+        match self.u.ty(p).clone() {
+            Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => match self.u.applied(seq) {
+                Some((_, &[arg])) => Some(arg),
                 _ => None,
             },
             Type::Annotated(t, _) if self.types().is_inline_param_type(p) => self.repeated_elem(t),
@@ -38,7 +38,7 @@ impl Typer<'_> {
 
     /// Method type `t` with its repeated parameters typed `<repeated>[T]`, in each clause.
     pub fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Method { binder, params, result, implicit, contextual } => {
                 let params =
                     params.into_iter().map(|(n, p)| (n, self.with_repeated_param_class(p))).collect();
@@ -59,8 +59,8 @@ impl Typer<'_> {
         if !self.syms.repeated_params.contains_key(&p) {
             return info;
         }
-        match *self.u.types().get(info) {
-            Type::Applied(_, ref args) if args.len() == 1 => self.repeated_type(args[0]),
+        match self.u.applied(info) {
+            Some((_, &[arg])) => self.repeated_type(arg),
             _ => info,
         }
     }
@@ -146,10 +146,7 @@ impl Typer<'_> {
         let Some((_, args)) = base.and_then(|b| self.u.applied(b)) else {
             return self.unsupported(a, "sequence argument");
         };
-        let arg = match *self.u.types().get(args[0]) {
-            Type::Bounds(_, hi) => hi,
-            _ => args[0],
-        };
+        let arg = self.u.bounds(args[0]).map_or(args[0], |(_, hi)| hi);
         let repeated = self.repeated_type(arg);
         let tpt = self.type_tree(repeated, self.ast.span(tpt), false);
         self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(repeated), None)
@@ -190,7 +187,7 @@ impl TypeOps<'_> {
     /// Tells whether parameter type `p` is annotated `@InlineParam`, as the type of an
     /// `inline` parameter of an inline method is.
     pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
-        let Type::Annotated(_, annot) = *self.u.types().get(p) else { return false };
+        let Some((_, annot)) = self.u.annotated(p) else { return false };
         self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == INLINE_PARAM)
     }
 }

@@ -30,7 +30,7 @@ impl TypeOps<'_> {
 
 fn approx(u: &mut Universe, constraint: &Constraint, t: TypeId, seen: &mut Vec<VarId>) -> TypeId {
     u.map_type(t, &mut |u, part| {
-        let Type::Var(v) = *u.types().get(part) else { return None };
+        let v = u.var(part)?;
         if let Some(inst) = constraint.instance(v) {
             return Some(approx(u, constraint, inst, seen));
         }

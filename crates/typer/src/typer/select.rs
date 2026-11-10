@@ -10,7 +10,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName, Tree as S};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -177,7 +177,7 @@ impl Typer<'_> {
         if projection && self.u.symbol(sym).kind == Kind::Type {
             self.complete(sym);
             let info = self.u.info(sym);
-            if let Type::Alias(alias) = *self.u.types().get(info) {
+            if let Some(alias) = self.u.type_alias(info) {
                 return self.alias_projection(id, (qual, name), sym, alias);
             }
         }

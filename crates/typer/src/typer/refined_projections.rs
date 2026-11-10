@@ -5,7 +5,7 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName};
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 impl Typer<'_> {
     /// Projection `qual#name` of refined type tree `qual`, of type `pre`, whose refinement makes
@@ -22,10 +22,7 @@ impl Typer<'_> {
         }
         let text = self.text(name.name).to_owned();
         let alias = self.u.lookup_refined(pre, &text)?;
-        let sym = match *self.u.types().get(alias) {
-            Type::Sym(_, s) => Some(s),
-            _ => None,
-        };
+        let sym = self.u.sym_of(alias);
         let span = self.ast.span(id);
         Some(self.tpd.node(T::Select { qualifier: qual, name }, span, Some(alias), sym))
     }

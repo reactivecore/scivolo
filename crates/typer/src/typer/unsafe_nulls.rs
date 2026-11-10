@@ -23,7 +23,7 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(tree);
         let widened = self.u.widen(tpe);
         let dealiased = self.u.dealias(widened);
-        let stripped = match *self.u.types().get(dealiased) {
+        let stripped = match *self.u.ty(dealiased) {
             Type::Flexible(hi) => self.strip_null(hi),
             _ => self.strip_null(tpe),
         };

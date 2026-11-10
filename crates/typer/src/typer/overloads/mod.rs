@@ -174,7 +174,7 @@ impl Typer<'_> {
             && args.into_iter().flatten().any(|a| {
                 let tpe = self.tpd.tpe(a);
                 let tpe = self.zonk(tpe);
-                self.type_parts(tpe).into_iter().any(|p| *self.u.types().get(p) == Type::Error)
+                self.type_parts(tpe).into_iter().any(|p| *self.u.ty(p) == Type::Error)
             })
     }
 }

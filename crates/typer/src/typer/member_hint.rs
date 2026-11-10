@@ -72,7 +72,7 @@ impl Typer<'_> {
     /// What dotty's hint writes before a suggested member of `site`: a named type's name and a
     /// dot; `None` for other types.
     fn hint_prefix(&mut self, site: TypeId) -> Option<String> {
-        let name = match self.u.types().get(site) {
+        let name = match self.u.ty(site) {
             Type::TermRef(_, n) | Type::TypeRef(_, n) => n.clone(),
             &Type::Sym(_, s) => self.u.symbol(s).name.clone(),
             _ => return None,

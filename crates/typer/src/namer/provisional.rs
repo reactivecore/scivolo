@@ -69,7 +69,7 @@ impl Typer<'_> {
         let diags = self.diags.items.len();
         let typed = self.typed_type(b, ctx);
         let tpe = self.tpd.tpe(typed);
-        let failed = self.diags.items.len() > diags || matches!(self.u.types().get(tpe), Type::Error);
+        let failed = self.diags.items.len() > diags || matches!(self.u.ty(tpe), Type::Error);
         let span = self.ast.span(b);
         let mut i = 0;
         self.diags.items.retain(|d| {
@@ -89,7 +89,7 @@ impl Typer<'_> {
     pub fn is_provisional_type(&mut self, t: TypeId) -> bool {
         let mut refs = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part)
+            if let Some(s) = u.sym_of(part)
                 && u.is_type_symbol(s)
                 && !u.is_class(s)
             {

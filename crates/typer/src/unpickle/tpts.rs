@@ -20,10 +20,9 @@ impl Unpickler<'_> {
             }
             IDENTtpt => {
                 let tpe = self.ty(id);
-                let (tpe, sym) = match self.u.types().get(tpe).clone() {
-                    Type::TypeRef(p, n) => (tpe, self.u.resolve(p, &n, true)),
-                    Type::Sym(_, s) => (tpe, Some(s)),
-                    _ => (tpe, None),
+                let sym = match self.u.type_ref(tpe).map(|(p, n)| (p, n.to_owned())) {
+                    Some((p, n)) => self.u.resolve(p, &n, true),
+                    None => self.u.sym_of(tpe),
                 };
                 let name = self.tname(id, true);
                 self.bare(T::Ident { name }, Some(tpe), sym)

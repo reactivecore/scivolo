@@ -34,9 +34,9 @@ impl Typer<'_> {
 
     /// `prefix` shown with its separator, `""` if the printer omits it.
     pub fn shown_prefix(&mut self, prefix: TypeId) -> String {
-        let cls = match *self.u.types().get(prefix) {
+        let cls = match *self.u.ty(prefix) {
             Type::Package(p) => Some(p),
-            Type::This(c) => match *self.u.types().get(c) {
+            Type::This(c) => match *self.u.ty(c) {
                 Type::Package(p) => Some(p),
                 _ => self.u.class_symbol(c),
             },

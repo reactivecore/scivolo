@@ -33,7 +33,7 @@ impl Typer<'_> {
             return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym));
         }
         let info = match pt {
-            Pt::Type(p) if matches!(self.u.types().get(p), Type::Bounds(..)) => p,
+            Pt::Type(p) if self.u.bounds(p).is_some() => p,
             _ => self.u.intern_type(Type::Bounds(NOTHING, ANY)),
         };
         let sym = self.syms.define(self.u, &text, Kind::Type, outer.owner, SYNTHETIC.or(CASE));
@@ -55,7 +55,7 @@ impl Typer<'_> {
     /// to no other parameter.
     pub fn quoted_type_arg_bounds(&mut self, tycon: TypeId, i: usize) -> TypeId {
         let empty = self.u.intern_type(Type::Bounds(NOTHING, ANY));
-        let class = match self.u.types().get(tycon).clone() {
+        let class = match self.u.ty(tycon).clone() {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
             _ => None,
@@ -63,22 +63,18 @@ impl Typer<'_> {
         let params = match class {
             Some(c) if self.u.symbol(c).kind == Kind::Class => self.u.type_params(c),
             Some(a) => {
-                let lambda = self.u.alias_of(a).map(|t| self.u.types().get(t).clone());
-                let Some(Type::Lambda { params, .. }) = lambda else { return empty };
+                let lambda = self.u.alias_of(a).and_then(|t| self.u.lambda(t));
+                let Some(params) = lambda.map(|l| l.params.to_vec()) else { return empty };
                 let refers = |u: &mut tasty::Universe, t| {
                     let mut found = false;
                     u.map_type(t, &mut |u, x| {
-                        found |= matches!(u.types().get(x), Type::Param(..) | Type::Local(..));
+                        found |= matches!(u.ty(x), Type::Param(..) | Type::Local(..));
                         None
                     });
                     found
                 };
                 return match params.get(i) {
-                    Some(&(_, b))
-                        if matches!(self.u.types().get(b), Type::Bounds(..)) && !refers(self.u, b) =>
-                    {
-                        b
-                    }
+                    Some(&(_, b)) if self.u.bounds(b).is_some() && !refers(self.u, b) => b,
                     _ => empty,
                 };
             }
@@ -87,7 +83,7 @@ impl Typer<'_> {
         let Some(&param) = params.get(i) else { return empty };
         self.complete(param);
         let info = self.u.info(param);
-        let bounds = matches!(self.u.types().get(info), Type::Bounds(..));
+        let bounds = self.u.bounds(info).is_some();
         if bounds && !self.refers_to(info, &params) { info } else { empty }
     }
 
@@ -115,8 +111,7 @@ impl Typer<'_> {
             T::AppliedTypeTree { tpt, args } => {
                 let tycon = self.tpd.tpe(tpt);
                 let args = self.tpd.items(args).to_vec();
-                let and =
-                    matches!(*self.u.types().get(tycon), Type::Sym(_, s) if self.u.full_name(s) == "scala.&");
+                let and = self.u.sym_of(tycon).is_some_and(|s| self.u.full_name(s) == "scala.&");
                 let variances = match (and, self.u.class_symbol(tycon)) {
                     (true, _) => vec![1; args.len()],
                     (false, Some(c)) => {
@@ -126,7 +121,7 @@ impl Typer<'_> {
                 };
                 let mut changed = false;
                 for (i, &a) in args.iter().enumerate() {
-                    let bounds = matches!(self.u.types().get(self.tpd.tpe(a)), Type::Bounds(..));
+                    let bounds = self.u.bounds(self.tpd.tpe(a)).is_some();
                     let v = if bounds { variance } else { variances.get(i).copied().unwrap_or(0) * variance };
                     changed |= self.extract_type_bindings(a, v, out);
                 }

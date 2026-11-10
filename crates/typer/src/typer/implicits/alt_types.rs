@@ -14,15 +14,12 @@ pub fn alt_type(t: &mut Typer<'_>, c: Candidate) -> TypeId {
     t.complete(c.sym);
     let tpe = t.types().ref_type(c.prefix, c.sym);
     let info = t.method_info(tpe).unwrap_or(tpe);
-    let info = match *t.u.types().get(info) {
-        Type::ByName(r) => r,
-        _ => info,
-    };
+    let info = t.u.by_name(info).unwrap_or(info);
     widen_given(t.u, info, c.sym)
 }
 
 fn widen_given(u: &mut Universe, t: TypeId, alt: SymbolId) -> TypeId {
-    match u.types().get(t).clone() {
+    match u.ty(t).clone() {
         Type::Method { binder, params, result, implicit: true, contextual } => {
             let result = widen_given(u, result, alt);
             u.intern_type(Type::Method { binder, params, result, implicit: true, contextual })
@@ -49,7 +46,7 @@ fn is_co_defined_given(u: &Universe, alt: SymbolId, cls: SymbolId) -> bool {
 pub fn prepared(ty: &mut TypeOps<'_>, tpe: TypeId) -> TypeId {
     let tpe = ty.zonk(tpe);
     let u = &mut *ty.u;
-    let Type::Sym(_, c) = *u.types().get(tpe) else { return tpe };
+    let Some(c) = u.sym_of(tpe) else { return tpe };
     let given_object = u.is_module_class(c) && u.source_module(c).is_some_and(|m| u.symbol(m).is_given());
     if given_object { parents_of(u, tpe, c) } else { tpe }
 }

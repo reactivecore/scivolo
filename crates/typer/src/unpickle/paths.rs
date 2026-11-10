@@ -36,7 +36,7 @@ impl Unpickler<'_> {
                 let prefix = self.ty(self.kids(id)[0]);
                 let prefix = self.resolved(prefix);
                 let name = self.name(id);
-                let found = match *self.u.types().get(prefix) {
+                let found = match *self.u.ty(prefix) {
                     Type::Package(p) => self.u.decl(p, &name).unwrap_or_default(),
                     _ => self.u.member_of_type(prefix, &name),
                 };
@@ -80,7 +80,7 @@ impl Unpickler<'_> {
 
     /// `this` of type `tpe`, its qualifier empty.
     fn this_tree(&mut self, tpe: TypeId) -> Result<TNodeId, Refusal> {
-        let Type::This(c) = *self.u.types().get(tpe) else {
+        let Some(c) = self.u.this_of(tpe) else {
             return Err("this of another kind in a library inline body");
         };
         let cls = self.u.class_symbol(c);
@@ -92,7 +92,7 @@ impl Unpickler<'_> {
     /// A reference to path `tpe`: the `this` of an object the body is in, an identifier if its
     /// prefix can be elided, else a selection from its prefix.
     fn ref_tree(&mut self, tpe: TypeId) -> Result<TNodeId, Refusal> {
-        let (prefix, s) = match *self.u.types().get(tpe) {
+        let (prefix, s) = match *self.u.ty(tpe) {
             Type::Package(p) => (None, p),
             Type::Sym(p, s) => (p, s),
             _ => return Err("a path of another kind in a library inline body"),
@@ -109,7 +109,7 @@ impl Unpickler<'_> {
         let Some(p) = prefix.filter(|&p| !self.is_elidable(p, s)) else {
             return Ok(self.bare(T::Ident { name }, Some(tpe), Some(s)));
         };
-        let qualifier = match *self.u.types().get(p) {
+        let qualifier = match *self.u.ty(p) {
             Type::This(_) => self.this_tree(p)?,
             Type::Sym(..) | Type::Package(_) => self.ref_tree(p)?,
             _ => return Err("a path through a prefix of another kind in a library inline body"),
@@ -123,7 +123,7 @@ impl Unpickler<'_> {
             u.symbol(c).kind == Kind::Package || u.is_module_class(c) && u.is_static_symbol(c)
         };
         self.u.symbol(s).flags.has(STATIC)
-            || match *self.u.types().get(prefix) {
+            || match *self.u.ty(prefix) {
                 Type::NoPrefix | Type::Package(_) => true,
                 Type::This(c) => self.u.class_symbol(c).is_some_and(|c| {
                     let accessor =
@@ -152,7 +152,7 @@ impl Unpickler<'_> {
     /// Path type `t` with its references by name resolved to symbols, the classes of its `this`
     /// types referred to from where they are visible.
     pub fn resolved(&mut self, t: TypeId) -> TypeId {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::TermRef(p, n) => {
                 let p = self.resolved(p);
                 match self.u.resolve(p, &n, false) {
@@ -178,7 +178,7 @@ impl Unpickler<'_> {
 
     /// The symbol path type `t` refers to.
     pub fn symbol_of(&mut self, t: TypeId) -> Option<SymbolId> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Sym(_, s) | Type::Package(s) => Some(s),
             Type::This(c) => self.u.class_symbol(c),
             _ => None,

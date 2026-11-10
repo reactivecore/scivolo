@@ -96,7 +96,7 @@ fn extractor_result(t: &mut Typer<'_>, fun: TNodeId) -> TypeId {
 /// Whether `tpe` is the constant type `true` or `false` of `value`.
 fn is_bool_constant(u: &mut Universe, tpe: TypeId, value: bool) -> bool {
     let tpe = u.dealias(tpe);
-    matches!(*u.types().get(tpe), Type::Constant(tag, bits) if constant(tag, bits) == Some(Const::Bool(value)))
+    matches!(*u.ty(tpe), Type::Constant(tag, bits) if constant(tag, bits) == Some(Const::Bool(value)))
 }
 
 /// The types extractor `fun` gives its `n` patterns (dotty's `UnapplyArgs.argTypes`).

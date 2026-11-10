@@ -41,9 +41,7 @@ impl ViewSearch<'_> {
             return Err("not a conversion");
         };
         let [(_, mut param)] = params[..] else { return Err("not a conversion") };
-        if let Type::ByName(p) = *t.u.types().get(param) {
-            param = p;
-        }
+        param = t.u.by_name(param).unwrap_or(param);
         let arg_tpe = t.tpd.tpe(tree);
         let arg = if t.conforms(arg_tpe, param) {
             t.gadt_adapted(tree, param, ctx)
@@ -55,7 +53,7 @@ impl ViewSearch<'_> {
             return Err("conversion of another type");
         };
         let converted = t.build().apply(fun, &[arg], result, span.to_synthetic());
-        if let Type::Method { params, implicit: true, .. } = t.u.types().get(result).clone() {
+        if let Some(params) = t.u.method(result).filter(|m| m.implicit).map(|m| m.params.to_vec()) {
             if let Goal::Conform(pt) = goal {
                 let value = t.strip_implicit(result);
                 let (fits, _, _) = t.speculatively(|t| t.conforms(value, pt));
@@ -96,7 +94,7 @@ impl ViewSearch<'_> {
         let tpe = t.tpd.tpe(fun);
         let info = t.method_info(tpe).unwrap_or(tpe);
         let mut value = t.strip_implicit(info);
-        if let Type::ByName(r) = *t.u.types().get(value) {
+        if let Some(r) = t.u.by_name(value) {
             value = r;
         }
         let to = match self.goal {

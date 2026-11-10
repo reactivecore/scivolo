@@ -149,14 +149,14 @@ pub fn candidate_ref(t: &mut Typer<'_>, c: Candidate, span: Span, ctx: Ctx) -> R
     let package_object = t.u.symbol(c.sym).owner.filter(|&o| crate::defn::is_named_package_object(t.u, o));
     let through_object = |t: &mut Typer<'_>, p: Option<Type>, o: SymbolId| match p {
         Some(Type::Package(_)) => true,
-        Some(Type::This(c)) => match *t.u.types().get(c) {
+        Some(Type::This(c)) => match *t.u.ty(c) {
             Type::Package(_) => true,
             Type::Sym(_, s) => s == o || t.u.symbol(s).is_package(),
             _ => false,
         },
         _ => false,
     };
-    let prefix = c.prefix.map(|p| t.u.types().get(p).clone());
+    let prefix = c.prefix.map(|p| t.u.ty(p).clone());
     let owner = t.u.symbol(c.sym).owner.filter(|&o| t.u.is_class(o));
     if let (Some(Type::Package(p)), Some(owner)) = (&prefix, owner)
         && crate::defn::inheriting_package_object(t.u, *p, owner).is_some()

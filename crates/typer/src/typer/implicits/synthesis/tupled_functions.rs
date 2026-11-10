@@ -77,7 +77,7 @@ fn any_function_parts(t: &mut Typer<'_>, tpe: TypeId) -> Option<FunctionParts> {
         return Some(FunctionParts { params, result, contextual: true });
     }
     let d = t.u.dealias(tpe);
-    let Type::Applied(_, args) = t.u.types().get(d) else { return None };
+    let (_, args) = t.u.applied(d)?;
     let n = args.len().checked_sub(1)?;
     t.function_parts(tpe, n).map(|(params, result)| FunctionParts { params, result, contextual: false })
 }

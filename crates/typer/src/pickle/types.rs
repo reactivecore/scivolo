@@ -15,7 +15,7 @@ impl TreePickler<'_> {
     }
 
     pub fn new_type(&mut self, t: TypeId, rich: bool, at: Addr) -> Result<(), Refusal> {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Applied(tycon, args) => self.with_length(APPLIEDtype, &mut |p| {
                 p.ty(tycon, false)?;
                 p.types(&args, false)
@@ -29,7 +29,7 @@ impl TreePickler<'_> {
                 if self.keying {
                     self.byte(BY_NAME);
                 }
-                self.named_ref(prefix, &name, matches!(self.u.types().get(t), Type::TypeRef(..)))
+                self.named_ref(prefix, &name, self.u.type_ref(t).is_some())
             }
             Type::Package(p) => {
                 self.package_ref(p);
@@ -40,7 +40,7 @@ impl TreePickler<'_> {
                 self.name(&qualified(&n));
                 Ok(())
             }
-            Type::This(class) => match *self.u.types().get(class) {
+            Type::This(class) => match *self.u.ty(class) {
                 Type::Package(p) => {
                     self.new_package_this(p);
                     Ok(())
@@ -168,7 +168,7 @@ impl TreePickler<'_> {
 
     /// Constant type `t` (dotty's `pickleConstant`).
     pub fn constant(&mut self, t: TypeId) -> Result<(), Refusal> {
-        let (tag, bits) = match self.u.types().get(t).clone() {
+        let (tag, bits) = match self.u.ty(t).clone() {
             Type::Constant(tag, bits) => (tag, bits),
             Type::Str(s) => {
                 self.byte(STRINGconst);

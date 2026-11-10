@@ -71,7 +71,7 @@ impl Typer<'_> {
         }
         let result = self.tpd.tpe(result_tree);
         let tpe = self.erased_function_of(&syms, result, contextual)?;
-        let Type::Refined(core, _, info) = *self.u.types().get(tpe) else { unreachable!("a refined type") };
+        let Type::Refined(core, _, info) = *self.u.ty(tpe) else { unreachable!("a refined type") };
         self.u.set_info(owner, info);
         let span = self.ast.span(id);
         let apply = self.build().def_def(owner, &[&trees], result_tree, None, span);
@@ -113,7 +113,7 @@ impl Typer<'_> {
     /// Parameter type `t` without its `@ErasedParam` (dotty's `stripAnnots` of an inferred
     /// parameter type).
     pub fn without_erased_param(&mut self, t: TypeId) -> TypeId {
-        let Type::Annotated(inner, _) = *self.u.types().get(t) else { return t };
+        let Some((inner, _)) = self.u.annotated(t) else { return t };
         if self.u.is_erased_param(t) { inner } else { t }
     }
 
@@ -130,7 +130,7 @@ impl Typer<'_> {
         let binder = self.syms.fresh_binder();
         let names =
             params.iter().map(|&p| (self.u.symbol(p).name.clone(), self.method_param_type(p))).collect();
-        let result = self.u.map_type(result, &mut |u, part| match *u.types().get(part) {
+        let result = self.u.map_type(result, &mut |u, part| match *u.ty(part) {
             Type::Sym(None, s) => {
                 let i = params.iter().position(|&p| p == s)?;
                 Some(u.intern_type(Type::Param(binder, i as u32)))

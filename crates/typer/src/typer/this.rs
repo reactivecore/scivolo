@@ -55,12 +55,12 @@ impl Typer<'_> {
 
     /// Whether a reference of type `tpe` from `ctx` can be an identifier, its prefix implicit.
     pub fn prefix_is_elidable(&mut self, tpe: TypeId, ctx: Ctx) -> bool {
-        let Type::Sym(prefix, sym) = *self.u.types().get(tpe) else { return true };
+        let Some((prefix, sym)) = self.u.sym_ref(tpe) else { return true };
         if self.u.symbol(sym).flags.has(STATIC) {
             return true;
         }
         if self.u.is_type_symbol(sym) {
-            return match prefix.map(|p| self.u.types().get(p)) {
+            return match prefix.map(|p| self.u.ty(p)) {
                 Some(&Type::Sym(_, s)) => {
                     self.u.symbol(s).flags.has(tasty::tags::OBJECT) && self.is_static_term(s)
                 }
@@ -74,7 +74,7 @@ impl Typer<'_> {
     /// Whether a reference to term `sym` through `prefix` from `ctx` can be an identifier.
     pub fn term_prefix_is_elidable(&mut self, prefix: Option<TypeId>, sym: SymbolId, ctx: Ctx) -> bool {
         let Some(prefix) = prefix else { return true };
-        match *self.u.types().get(prefix) {
+        match *self.u.ty(prefix) {
             Type::This(c) => {
                 let Some(cls) = self.u.class_symbol(c) else { return true };
                 let owner_is_trait =

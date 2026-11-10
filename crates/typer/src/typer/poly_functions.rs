@@ -80,7 +80,7 @@ impl Typer<'_> {
             contextual: false,
         });
         let tpe = self.poly_function_of(&tparams, method);
-        let Type::Refined(parent, _, info) = *self.u.types().get(tpe) else { unreachable!("a refined type") };
+        let Type::Refined(parent, _, info) = *self.u.ty(tpe) else { unreachable!("a refined type") };
         self.u.set_info(owner, info);
         let first = tparam_trees.first().map_or(self.tpd.span(result_tree), |&t| self.tpd.span(t));
         let def_span = first.union(self.tpd.span(result_tree)).to_synthetic();
@@ -107,7 +107,7 @@ impl Typer<'_> {
 
     /// The info of `pre.apply` referred to by `fun_tpe` if `pre` is of a polymorphic function type.
     pub fn poly_apply_info(&mut self, fun_tpe: TypeId) -> Option<TypeId> {
-        let Type::TermRef(pre, ref name) = *self.u.types().get(fun_tpe) else { return None };
+        let (pre, name) = self.u.term_ref(fun_tpe)?;
         if name != "apply" {
             return None;
         }
@@ -167,7 +167,7 @@ impl Typer<'_> {
         for (&p, &s) in params.iter().zip(&syms) {
             let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { continue };
             let info = self.type_def_info(rhs, lctx.with_owner(s));
-            if matches!(self.u.types().get(info), Type::Error) {
+            if matches!(self.u.ty(info), Type::Error) {
                 return Err(self.error_tree(self.ast.span(p)));
             }
             self.u.set_info(s, info);

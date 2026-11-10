@@ -16,8 +16,7 @@ impl Inlining<'_> {
         loop {
             let Some(tpe) = self.tpd.get(t).tpe else { return Ok(t) };
             let widened = self.u.widen(tpe);
-            let Type::Method { binder, params, result, implicit, contextual } =
-                self.u.types().get(widened).clone()
+            let Type::Method { binder, params, result, implicit, contextual } = self.u.ty(widened).clone()
             else {
                 return Ok(t);
             };
@@ -39,7 +38,7 @@ impl Inlining<'_> {
     fn refers_to(&mut self, t: TypeId, binder: Binder) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |u, part| {
-            found |= matches!(*u.types().get(part), Type::Param(b, _) if b == binder);
+            found |= matches!(u.param_ref(part), Some((b, _)) if b == binder);
             None
         });
         found

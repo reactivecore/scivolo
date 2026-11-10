@@ -42,7 +42,7 @@ impl Typer<'_> {
             dropped.push(t);
             return tasty::ANY;
         }
-        let Type::And(a, b) = *self.u.types().get(t) else { return t };
+        let Type::And(a, b) = *self.u.ty(t) else { return t };
         let a2 = self.drop_one_transparent(a, kept, dropped);
         if a2 != a {
             return self.u.glb(a2, b);
@@ -54,14 +54,14 @@ impl Typer<'_> {
     /// Whether `t` is a transparent class or trait, or an intersection of them (dotty's
     /// `isTransparent`); `Any`, `Matchable` and `Object` count unless `trait_only`.
     pub fn is_transparent(&mut self, t: TypeId, trait_only: bool) -> bool {
-        let tycon = match *self.u.types().get(t) {
+        let tycon = match *self.u.ty(t) {
             Type::And(a, b) => {
                 return self.is_transparent(a, trait_only) && self.is_transparent(b, trait_only);
             }
             Type::Applied(c, _) => c,
             _ => t,
         };
-        let c = match *self.u.types().get(tycon) {
+        let c = match *self.u.ty(tycon) {
             Type::Sym(_, c) => c,
             Type::TypeRef(..) => match self.u.class_symbol(tycon) {
                 Some(c) => c,

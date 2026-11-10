@@ -78,7 +78,7 @@ fn equivalent(t: &mut Typer<'_>, a: Candidate, b: Candidate) -> bool {
 /// Whether method or value types `a` and `b` are the same, their parameters matched by position.
 fn same_signature(ty: &mut TypeOps<'_>, a: TypeId, b: TypeId) -> bool {
     let (a, b) = (ty.zonk(a), ty.zonk(b));
-    let sides = (ty.u.types().get(a).clone(), ty.u.types().get(b).clone());
+    let sides = (ty.u.ty(a).clone(), ty.u.ty(b).clone());
     let ((ba, pa, ra), (bb, pb, rb)) = match sides {
         (
             Type::Poly { binder: ba, params: pa, result: ra },
@@ -108,8 +108,7 @@ fn same_signature(ty: &mut TypeOps<'_>, a: TypeId, b: TypeId) -> bool {
 
 /// `x` with the parameters of binder `from` referring to those of `to`.
 fn rebound(u: &mut tasty::Universe, x: TypeId, from: Binder, to: Binder) -> TypeId {
-    u.map_type(x, &mut |u, part| match *u.types().get(part) {
-        Type::Param(b, i) if b == from => Some(u.intern_type(Type::Param(to, i))),
-        _ => None,
+    u.map_type(x, &mut |u, part| {
+        u.param_ref(part).filter(|&(b, _)| b == from).map(|(_, i)| u.intern_type(Type::Param(to, i)))
     })
 }

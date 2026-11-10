@@ -12,9 +12,7 @@ impl Typer<'_> {
         let Some(from) = self.resolve_full_name("scala.NamedTuple$.From", true) else { return t };
         let mut applied = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Applied(tycon, ref args) = *u.types().get(part)
-                && let [arg] = args[..]
-            {
+            if let Some((tycon, &[arg])) = u.applied(part) {
                 applied.push((part, tycon, arg));
             }
             None

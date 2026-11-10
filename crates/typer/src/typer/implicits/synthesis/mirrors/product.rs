@@ -34,20 +34,14 @@ impl MirrorSynthesis {
         }
         let accessors = case_accessors(t, cls);
         let labels: Vec<String> = accessors.iter().map(|&a| t.u.symbol(a).name.clone()).collect();
-        let site = match *t.u.types().get(mirrored) {
-            Type::Lambda { result, .. } => result,
-            _ => mirrored,
-        };
+        let site = t.u.lambda(mirrored).map_or(mirrored, |l| l.result);
         let elems: Vec<TypeId> = accessors
             .iter()
             .map(|&a| {
                 t.complete(a);
                 let info = t.u.info(a);
                 let tpe = t.u.as_seen_from(info, site, cls);
-                match *t.u.types().get(tpe) {
-                    Type::ByName(r) => r,
-                    _ => tpe,
-                }
+                t.u.by_name(tpe).unwrap_or(tpe)
             })
             .collect();
         let nested = t.nested_pairs(&elems)?;

@@ -86,10 +86,7 @@ fn applicable_with_vars(
 
 /// Gives the result type of by-name type `x`, else `x`.
 fn by_name_result(u: &Universe, x: TypeId) -> TypeId {
-    match *u.types().get(x) {
-        Type::ByName(r) => r,
-        _ => x,
-    }
+    u.by_name(x).unwrap_or(x)
 }
 
 /// Finds `param_types` of `alt` with its type parameters, if any, replaced by fresh abstract
@@ -101,7 +98,7 @@ pub fn rigid_param_types(
 ) -> Option<(Vec<TypeId>, bool)> {
     let tpe = t.u.intern_type(Type::Sym(prefix, alt));
     let info = t.method_info(tpe)?;
-    if !matches!(t.u.types().get(info), Type::Poly { .. }) {
+    if t.u.poly(info).is_none() {
         return param_types(t, alt, prefix, false);
     }
     let info = poly_instance(t, info, alt, true);
@@ -119,7 +116,7 @@ pub fn param_types(
 ) -> Option<(Vec<TypeId>, bool)> {
     let tpe = t.u.intern_type(Type::Sym(prefix, alt));
     let mut info = t.method_info(tpe)?;
-    if matches!(t.u.types().get(info), Type::Poly { .. }) {
+    if t.u.poly(info).is_some() {
         if !poly {
             return None;
         }

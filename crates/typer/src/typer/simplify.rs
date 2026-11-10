@@ -36,7 +36,7 @@ impl Typer<'_> {
 }
 
 fn simplify(u: &mut tasty::Universe, t: TypeId, keep: bool) -> TypeId {
-    u.map_type(t, &mut |u, part| match u.types().get(part).clone() {
+    u.map_type(t, &mut |u, part| match u.ty(part).clone() {
         Type::Annotated(inner, annot) if !keep => {
             let class = u.class_symbol(annot);
             class
@@ -54,7 +54,7 @@ fn simplify(u: &mut tasty::Universe, t: TypeId, keep: bool) -> TypeId {
         Type::Super(..) | Type::Skolem(..) => Some(part),
         Type::Sym(Some(p), s) if u.symbol(s).kind == tasty::Kind::Type && is_class_type(u, p) => {
             let alias = u.referenced_alias(part)?;
-            let lambda = matches!(u.types().get(alias), Type::Lambda { .. });
+            let lambda = u.lambda(alias).is_some();
             (!lambda).then(|| {
                 let dealiased = u.dealias(alias);
                 simplify(u, dealiased, keep)
@@ -67,7 +67,7 @@ fn simplify(u: &mut tasty::Universe, t: TypeId, keep: bool) -> TypeId {
 /// Whether `t` is a class type and not a path: a projection `t#X` of an alias `X` is its alias
 /// (dotty's `reduceProjection`).
 fn is_class_type(u: &mut tasty::Universe, t: TypeId) -> bool {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::Sym(_, c) => u.symbol(c).kind == tasty::Kind::Class,
         Type::Applied(tycon, _) => {
             u.class_symbol(tycon).is_some_and(|c| u.symbol(c).kind == tasty::Kind::Class)
@@ -90,14 +90,12 @@ fn normalize_outside(
     cyclic: &mut bool,
 ) -> TypeId {
     u.map_type(t, &mut |u, part| {
-        let reduced = match *u.types().get(part) {
+        let reduced = match *u.ty(part) {
             _ if reducing.contains(&part) => {
                 *cyclic = true;
                 return Some(part);
             }
-            Type::Applied(tycon, _) if matches!(u.types().get(tycon), Type::Lambda { .. }) => {
-                u.beta_reduced(part)
-            }
+            Type::Applied(tycon, _) if u.lambda(tycon).is_some() => u.beta_reduced(part),
             Type::Applied(..) | Type::Match { .. } => u.try_normalize(part)?,
             _ => return None,
         };

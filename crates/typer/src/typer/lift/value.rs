@@ -47,7 +47,7 @@ impl Lifter {
 /// Whether `tpe` is a stable type (dotty's `isStable`): a reference to a stable member through a
 /// stable prefix, a `this`, a package, a constant.
 fn is_stable_type(ops: &mut TypeOps, tpe: TypeId) -> bool {
-    match *ops.u.types().get(tpe) {
+    match *ops.u.ty(tpe) {
         Type::This(_) | Type::Package(_) | Type::Constant(..) | Type::Str(_) => true,
         Type::Sym(prefix, s) => {
             let kind = ops.u.symbol(s).kind;

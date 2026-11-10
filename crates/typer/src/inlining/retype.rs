@@ -114,7 +114,7 @@ impl Inlining<'_> {
                 self.reselect(t, qualifier, self.names.text(name.name).to_owned())?;
                 if let Some(prefix) = before.and_then(|b| self.local_prefix(b))
                     && let Some(tpe) = self.tpd.get(t).tpe
-                    && let Type::Sym(Some(_), s) = *self.u.types().get(tpe)
+                    && let Some((Some(_), s)) = self.u.sym_ref(tpe)
                 {
                     self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(prefix), s)));
                 }

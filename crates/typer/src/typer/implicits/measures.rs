@@ -32,7 +32,7 @@ impl Measure {
 
 /// The parts of `t` a size or covering set folds over: its prefix, arguments and operands.
 fn parts(u: &mut Universe, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
-    Ok(match u.types().get(t).clone() {
+    Ok(match u.ty(t).clone() {
         Type::Sym(p, _) => p.into_iter().collect(),
         Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::This(p) => vec![p],
         Type::Applied(c, args) => [vec![c], args].concat(),
@@ -57,7 +57,7 @@ fn parts(u: &mut Universe, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
 
 /// Whether `b` is the bounds `>: Nothing <: Any`.
 fn unbounded(u: &mut Universe, b: TypeId) -> bool {
-    let Type::Bounds(lo, hi) = *u.types().get(b) else { return false };
+    let Some((lo, hi)) = u.bounds(b) else { return false };
     let builtins = u.builtins();
     u.class_symbol(lo) == Some(builtins.nothing) && u.class_symbol(hi) == Some(builtins.any)
 }
@@ -65,15 +65,12 @@ fn unbounded(u: &mut Universe, b: TypeId) -> bool {
 /// `t` dealiased if it is a reference to an alias other than a match type alias (dotty's
 /// `isTypeAlias`), `None` if not.
 fn alias_of(u: &mut Universe, t: TypeId) -> Option<TypeId> {
-    if !matches!(u.types().get(t), Type::Sym(..) | Type::TypeRef(..)) {
+    if !matches!(u.ty(t), Type::Sym(..) | Type::TypeRef(..)) {
         return None;
     }
     let d = u.dealias(t);
-    let body = match *u.types().get(d) {
-        Type::Lambda { result, .. } => result,
-        _ => d,
-    };
-    (d != t && !matches!(u.types().get(body), Type::Match { .. })).then_some(d)
+    let body = u.lambda(d).map_or(d, |l| l.result);
+    (d != t && !matches!(u.ty(body), Type::Match { .. })).then_some(d)
 }
 
 /// The bounds of type variable `v`, match types in them reduced.
@@ -89,7 +86,7 @@ fn type_size(ty: &mut TypeOps<'_>, n: u32, tpe: TypeId, seen: &mut Vec<VarId>) -
     if let Some(d) = alias_of(ty.u, tpe) {
         return type_size(ty, n, d, seen);
     }
-    match ty.u.types().get(tpe).clone() {
+    match ty.u.ty(tpe).clone() {
         Type::Var(v) if seen.contains(&v) => Ok(n),
         Type::Var(v) => {
             seen.push(v);
@@ -139,9 +136,9 @@ fn cover(
     if let Some(d) = alias_of(ty.u, tpe) {
         return cover(ty, cs, d, seen);
     }
-    let (fold, own) = match *ty.u.types().get(tpe) {
-        Type::Var(v) => (reduced_bounds(ty, v).to_vec(), None),
-        _ => match folded(ty.u, tpe)? {
+    let (fold, own) = match ty.u.var(tpe) {
+        Some(v) => (reduced_bounds(ty, v).to_vec(), None),
+        None => match folded(ty.u, tpe)? {
             Some(folded) => folded,
             None => return Ok(()),
         },
@@ -162,11 +159,11 @@ fn cover(
 /// `Any` and `Nothing`.
 fn folded(u: &mut Universe, t: TypeId) -> Result<Option<Fold>, &'static str> {
     let b = u.builtins();
-    Ok(Some(match u.types().get(t).clone() {
+    Ok(Some(match u.ty(t).clone() {
         Type::Applied(c, args) => ([vec![c], args].concat(), type_symbol(u, c)),
         Type::Refined(p, _, i) => (vec![p, i], type_symbol(u, p)),
         Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {
-            let (p, s) = match *u.types().get(t) {
+            let (p, s) = match *u.ty(t) {
                 Type::Sym(p, s) => (p, s),
                 Type::TypeRef(p, _) | Type::TermRef(p, _) => (Some(p), u.resolve_ref(t).ok_or(OUTSIDE)?),
                 _ => return Err(OUTSIDE),
@@ -185,7 +182,7 @@ fn folded(u: &mut Universe, t: TypeId) -> Result<Option<Fold>, &'static str> {
 
 /// The symbol a reference or applied type refers to.
 fn type_symbol(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::Sym(_, s) => Some(s),
         Type::Applied(c, _) => type_symbol(u, c),
         _ => u.class_symbol(t),

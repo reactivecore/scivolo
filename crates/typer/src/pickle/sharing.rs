@@ -13,7 +13,7 @@ pub const BY_NAME: u8 = 0;
 impl TreePickler<'_> {
     /// Type `t`, a `SHAREDtype` if pickled before; `rich` admits method types.
     pub fn ty(&mut self, t: TypeId, rich: bool) -> Result<(), Refusal> {
-        if let Type::Skolem(_, info) = *self.u.types().get(t) {
+        if let Type::Skolem(_, info) = *self.u.ty(t) {
             return self.ty(info, rich);
         }
         let at = self.buf.buf.current_addr();

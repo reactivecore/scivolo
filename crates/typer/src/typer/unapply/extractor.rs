@@ -87,7 +87,7 @@ impl UnapplyPattern {
         loop {
             let tpe = t.tpd.tpe(unapp);
             let info = t.method_info(tpe).unwrap_or(tpe);
-            if !matches!(t.u.types().get(info), Type::Method { implicit: true, .. }) {
+            if t.u.method(info).is_none_or(|m| !m.implicit) {
                 return Ok(unapp);
             }
             unapp = t.implicit_clause_applied(unapp, self.ctx.with_mode(Mode::NONE))?;
@@ -100,12 +100,11 @@ impl UnapplyPattern {
 fn method_shape(t: &mut Typer<'_>, unapp: TNodeId) -> Result<MethodShape, &'static str> {
     let fun_tpe = t.tpd.tpe(unapp);
     let info = t.method_info(fun_tpe).unwrap_or(fun_tpe);
-    let Type::Method { binder, params, result, implicit: false, .. } = t.u.types().get(info).clone() else {
-        return Err("not an extractor");
-    };
+    let m = t.u.method(info).filter(|m| !m.implicit).ok_or("not an extractor")?;
+    let (binder, params, result) = (m.binder, m.params.to_vec(), m.result);
     let [(ref param, arg_type)] = params[..] else { return Err("not an extractor") };
-    let implicit = matches!(t.u.types().get(result), Type::Method { implicit: true, .. });
-    if !implicit && matches!(t.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+    let implicit = t.u.method(result).is_some_and(|m| m.implicit);
+    if !implicit && matches!(t.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
         return Err("extractor with more parameters");
     }
     Ok(MethodShape { binder, param: param.clone(), arg_type, result })

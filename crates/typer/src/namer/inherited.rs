@@ -48,13 +48,15 @@ impl Typer<'_> {
     /// of that name that class sees.
     fn rebound(&mut self, t: TypeId, site: TypeId, cls: SymbolId) -> TypeId {
         self.u.map_type(t, &mut |u, x| {
-            let &Type::Sym(p, s) = u.types().get(x) else { return None };
+            let (p, s) = u.sym_ref(x)?;
             let owner = u.symbol(s).owner?;
-            let (site, cls) = match p.map(|p| u.types().get(p).clone()) {
+            let (site, cls) = match p {
                 None => (site, cls),
                 Some(_) if p == Some(site) => (site, cls),
-                Some(Type::This(c)) => (p?, u.class_symbol(c)?),
-                Some(_) => return None,
+                Some(pre) => {
+                    let c = u.this_of(pre)?;
+                    (pre, u.class_symbol(c)?)
+                }
             };
             let bases = u.linearization(cls);
             if u.symbol(s).kind != Kind::Type || !bases.contains(&owner) {
@@ -123,9 +125,7 @@ impl Typer<'_> {
         let (mut targs, mut refs) = (Vec::new(), Vec::new());
         for (types, clause) in clauses {
             if *types {
-                let Type::Poly { binder, params: ps, result } = self.u.types().get(t).clone() else {
-                    return None;
-                };
+                let (binder, ps, result) = self.u.poly(t).map(|b| (b.binder, b.params.to_vec(), b.result))?;
                 if ps.len() != clause.len() {
                     return None;
                 }
@@ -138,9 +138,7 @@ impl Typer<'_> {
                 t = self.u.map_type(t, &mut |u, x| Some(u.beta_reduced(x)).filter(|&r| r != x));
                 continue;
             }
-            let Type::Method { binder, params: ps, result, .. } = self.u.types().get(t).clone() else {
-                return None;
-            };
+            let (binder, ps, result) = self.u.method(t).map(|b| (b.binder, b.params.to_vec(), b.result))?;
             if ps.len() != clause.len() {
                 return None;
             }
@@ -160,13 +158,13 @@ impl Typer<'_> {
         }
         t = self.subst_syms(t, &their_types, &targs);
         t = self.subst_syms(t, &their_values, &refs);
-        match self.u.types().get(t) {
+        match self.u.ty(t) {
             Type::Method { .. } | Type::Poly { .. } => None,
             Type::ByName(r) => Some(*r),
             _ => {
                 let mut depends = false;
                 self.u.map_type(t, &mut |u, x| {
-                    depends |= matches!(u.types().get(x), Type::Param(..));
+                    depends |= u.param_ref(x).is_some();
                     None
                 });
                 (!depends).then_some(t)
@@ -179,8 +177,8 @@ impl Typer<'_> {
         if from.len() != to.len() {
             return t;
         }
-        self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
-            Type::Sym(None, s) => from.iter().position(|&p| p == s).map(|i| to[i]),
+        self.u.map_type(t, &mut |u, x| match u.sym_ref(x) {
+            Some((None, s)) => from.iter().position(|&p| p == s).map(|i| to[i]),
             _ => None,
         })
     }

@@ -143,7 +143,7 @@ impl Reflect<'_> {
         let local = |u: &mut tasty::Universe, t: TypeId| {
             let mut found = false;
             u.map_type(t, &mut |u, part| {
-                found |= matches!(*u.types().get(part), Type::Sym(_, s) if defined.contains(&s));
+                found |= u.sym_of(part).is_some_and(|s| defined.contains(&s));
                 None
             });
             found

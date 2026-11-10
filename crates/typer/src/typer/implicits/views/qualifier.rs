@@ -50,7 +50,7 @@ impl Typer<'_> {
                 let typed = t.typed(a, Pt::Any, arg_ctx);
                 let tpe = t.zonk(t.tpd.tpe(typed));
                 let info = t.method_info(tpe).unwrap_or(tpe);
-                if matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
+                if matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. }) {
                     return (true, types);
                 }
                 types.push(tpe);

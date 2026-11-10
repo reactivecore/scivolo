@@ -11,7 +11,7 @@ use tasty::tags::{
     TYPEPARAM,
 };
 use tasty::write::Name;
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, Symbol, SymbolId, TypeId};
 
 impl TreePickler<'_> {
     /// Super accessor `acc`, declared without a body.
@@ -26,7 +26,9 @@ impl TreePickler<'_> {
             p.name(&name);
             let mut t = p.accessor_type_params(acc, info)?;
             let mut term_before = false;
-            while let Type::Method { params, result, implicit, contextual, .. } = p.u.types().get(t).clone() {
+            while let Some((params, result, implicit, contextual)) =
+                p.u.method(t).map(|m| (m.params.to_vec(), m.result, m.implicit, m.contextual))
+            {
                 if implicit || contextual {
                     return Err("a super call of a method with implicit parameters");
                 }
@@ -43,7 +45,7 @@ impl TreePickler<'_> {
                 }
                 (t, term_before) = (result, !params.is_empty());
             }
-            if matches!(p.u.types().get(t), Type::Poly { .. }) {
+            if p.u.poly(t).is_some() {
                 return Err("a super call of a method with type parameters after its parameters");
             }
             let tpt = p.synthetic.len();
@@ -91,7 +93,11 @@ impl TreePickler<'_> {
     /// The type parameters of super accessor `acc` of type `info`, a type parameter for each of
     /// a polymorphic type's (dotty's `polyDefDef`); and the method type they are of.
     fn accessor_type_params(&mut self, acc: SymbolId, info: TypeId) -> Result<TypeId, Refusal> {
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else { return Ok(info) };
+        let Some((binder, params, result)) =
+            self.u.poly(info).map(|b| (b.binder, b.params.to_vec(), b.result))
+        else {
+            return Ok(info);
+        };
         let mut syms = Vec::new();
         for (name, _) in &params {
             let symbol = Symbol {

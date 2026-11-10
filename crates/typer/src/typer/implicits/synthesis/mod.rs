@@ -61,7 +61,9 @@ impl Synthesizer {
             return Ok(Some(mirror));
         }
         let pt = t.u.dealias(pt);
-        let Type::Applied(tycon, args) = t.u.types().get(pt).clone() else { return Ok(None) };
+        let Some((tycon, args)) = t.u.applied(pt).map(|(tycon, args)| (tycon, args.to_vec())) else {
+            return Ok(None);
+        };
         let Some(class) = t.u.class_symbol(tycon) else { return Ok(None) };
         match (t.u.full_name(class).as_str(), &args[..]) {
             (CAN_EQUAL, &[l, r]) => self.can_equal(t, l, r),
@@ -87,7 +89,7 @@ impl Synthesizer {
         let tpe = t.fully_defined_as(tpe, true)?;
         let normalized = t.u.normalized(tpe);
         let dealiased = t.u.dealias(normalized);
-        let value = match t.u.types().get(dealiased).clone() {
+        let value = match t.u.ty(dealiased).clone() {
             Type::Constant(tag, bits) => of_type(tag, bits).map(|c| t.build().literal(c, at)),
             Type::Str(s) => Some(t.build().literal(C::String(s.encode_utf16().collect()), at)),
             Type::Sym(_, s) if s == t.defn.unit => Some(t.build().literal(C::Unit, at)),

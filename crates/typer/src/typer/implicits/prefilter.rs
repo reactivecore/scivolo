@@ -54,7 +54,7 @@ impl ImplicitSearch {
 pub fn cannot_fit(t: &mut Typer<'_>, sym: SymbolId, pt: TypeId) -> bool {
     let mut tpe = t.u.info(sym);
     loop {
-        tpe = match *t.u.types().get(tpe) {
+        tpe = match *t.u.ty(tpe) {
             Type::Poly { result, .. }
             | Type::Method { result, implicit: true, .. }
             | Type::ByName(result) => result,
@@ -112,21 +112,15 @@ fn related(u: &mut Universe, sub: SymbolId, sup: SymbolId) -> bool {
 
 /// The type variable `tpe` is, if not instantiated.
 fn open_var(t: &Typer<'_>, tpe: TypeId) -> Option<VarId> {
-    match *t.u.types().get(tpe) {
-        Type::Var(v) if t.constraint.instance(v).is_none() => Some(v),
-        _ => None,
-    }
+    t.u.var(tpe).filter(|&v| t.constraint.instance(v).is_none())
 }
 
 /// The class `tpe` refers to and its type arguments, if it is a class other than a special one
 /// whose base classes are known.
 fn nominal(t: &mut Typer<'_>, tpe: TypeId) -> Option<(SymbolId, Vec<TypeId>)> {
     let tpe = t.u.dealias(tpe);
-    let (tycon, args) = match t.u.types().get(tpe) {
-        Type::Applied(tycon, args) => (*tycon, args.clone()),
-        _ => (tpe, Vec::new()),
-    };
-    let c = match *t.u.types().get(tycon) {
+    let (tycon, args) = t.u.applied(tpe).map_or((tpe, Vec::new()), |(tycon, args)| (tycon, args.to_vec()));
+    let c = match *t.u.ty(tycon) {
         Type::Sym(_, s) => s,
         Type::TypeRef(..) => t.u.resolve_ref(tycon)?,
         _ => return None,

@@ -58,15 +58,12 @@ impl Nullables {
 
 /// Finds the term `r` refers to.
 pub fn term_ref_sym(u: &Universe, r: TypeId) -> Option<SymbolId> {
-    match *u.types().get(r) {
-        Type::Sym(_, s) if u.symbol(s).kind.is_term() => Some(s),
-        _ => None,
-    }
+    u.sym_of(r).filter(|&s| u.symbol(s).kind.is_term())
 }
 
 /// Whether `r` selects field `sym` annotated `@stableNull` from a stable prefix.
 fn is_null_stable_field(u: &mut Universe, r: TypeId, sym: SymbolId) -> bool {
-    let Type::Sym(Some(p), _) = *u.types().get(r) else { return false };
+    let Some((Some(p), _)) = u.sym_ref(r) else { return false };
     let s = u.symbol(sym);
     let field = s.kind == Kind::Val && s.owner.is_some_and(|o| u.symbol(o).kind == Kind::Class);
     field

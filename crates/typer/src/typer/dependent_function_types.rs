@@ -17,8 +17,8 @@ impl Typer<'_> {
     pub fn dependent_function_parts(&mut self, t: TypeId, n: usize, contextual: bool) -> Option<ApplyParts> {
         let t = self.zonk(t);
         let t = self.u.dealias(t);
-        let Type::Refined(parent, name, info) = self.u.types().get(t).clone() else { return None };
-        let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
+        let Type::Refined(parent, name, info) = self.u.ty(t).clone() else { return None };
+        let Type::Method { binder, params, result, .. } = self.u.ty(info).clone() else {
             return None;
         };
         let parent_parts = match contextual {
@@ -34,8 +34,8 @@ impl Typer<'_> {
 
     /// The parameters and result of the `apply` of dependent context function type `t`.
     pub fn dependent_context_function(&mut self, t: TypeId) -> Option<(Vec<(String, TypeId)>, TypeId)> {
-        let Type::Refined(parent, name, info) = self.u.types().get(t).clone() else { return None };
-        let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { return None };
+        let Type::Refined(parent, name, info) = self.u.ty(t).clone() else { return None };
+        let Type::Method { params, result, .. } = self.u.ty(info).clone() else { return None };
         self.context_function_parts(parent).filter(|_| name == "apply")?;
         Some((params, result))
     }
@@ -61,7 +61,7 @@ impl Typer<'_> {
             return None;
         }
         let names = params.iter().zip(&types).map(|(&p, &t)| (self.u.symbol(p).name.clone(), t)).collect();
-        let result = self.u.map_type(result, &mut |u, part| match *u.types().get(part) {
+        let result = self.u.map_type(result, &mut |u, part| match *u.ty(part) {
             Type::Sym(None, s) => {
                 let i = params.iter().position(|&p| p == s)?;
                 Some(u.intern_type(Type::Param(binder, i as u32)))
@@ -81,17 +81,17 @@ impl Typer<'_> {
     fn refined_by_dependent_method(&mut self, t: TypeId, params: &[SymbolId]) -> bool {
         let mut found = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Refined(_, _, info) = *u.types().get(part)
-                && let Type::Method { binder, result, .. } = *u.types().get(info)
+            if let Type::Refined(_, _, info) = *u.ty(part)
+                && let Some(m) = u.method(info)
             {
-                found.push((info, binder, result));
+                found.push((info, m.binder, m.result));
             }
             None
         });
         found.into_iter().any(|(info, binder, result)| {
             let mut own = false;
             self.u.map_type(result, &mut |u, part| {
-                own |= matches!(*u.types().get(part), Type::Param(b, _) if b == binder);
+                own |= u.param_ref(part).is_some_and(|(b, _)| b == binder);
                 None
             });
             own && self.refers_to(info, params)
@@ -102,21 +102,19 @@ impl Typer<'_> {
     /// arguments, refinements and methods: by projections from the parameters' types where they
     /// occur covariantly, by their bounds' intersection contravariantly.
     fn projected(&mut self, t: TypeId, params: &[SymbolId], v: i8) -> TypeId {
-        match self.u.types().get(t).clone() {
-            Type::Sym(Some(pre), s) if self.u.symbol(s).kind == Kind::Type => {
-                match *self.u.types().get(pre) {
-                    Type::Sym(None, p) if params.contains(&p) => {
-                        let info = self.u.info(p);
-                        let bounds = self.u.member_info(info, s);
-                        match *self.u.types().get(bounds) {
-                            _ if v > 0 => self.u.intern_type(Type::Sym(Some(info), s)),
-                            Type::Bounds(lo, hi) if v < 0 => self.u.intern_type(Type::And(lo, hi)),
-                            _ => t,
-                        }
+        match self.u.ty(t).clone() {
+            Type::Sym(Some(pre), s) if self.u.symbol(s).kind == Kind::Type => match self.u.sym_ref(pre) {
+                Some((None, p)) if params.contains(&p) => {
+                    let info = self.u.info(p);
+                    let bounds = self.u.member_info(info, s);
+                    match self.u.bounds(bounds) {
+                        _ if v > 0 => self.u.intern_type(Type::Sym(Some(info), s)),
+                        Some((lo, hi)) if v < 0 => self.u.intern_type(Type::And(lo, hi)),
+                        _ => t,
                     }
-                    _ => t,
                 }
-            }
+                _ => t,
+            },
             Type::Applied(tycon, args) if v > 0 && self.u.class_symbol(tycon).is_none() => {
                 let projected = self.projected(tycon, params, v);
                 match projected != tycon && !args.iter().any(|&a| self.refers_to(a, params)) {

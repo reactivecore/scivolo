@@ -21,12 +21,9 @@ impl Typer<'_> {
     pub fn interpolate(&mut self, tree: TNodeId, pt: Pt, from: usize) -> Result<(), &'static str> {
         let Some(unwidened) = self.tpd.get(tree).tpe else { return Ok(()) };
         let tpe = self.u.widen(unwidened);
-        let tpe = match *self.u.types().get(tpe) {
-            Type::ByName(r) => r,
-            _ => tpe,
-        };
+        let tpe = self.u.by_name(tpe).unwrap_or(tpe);
         if from >= self.constraint.count()
-            || matches!(self.u.types().get(tpe), Type::Method { .. } | Type::Poly { .. })
+            || matches!(self.u.ty(tpe), Type::Method { .. } | Type::Poly { .. })
         {
             return Ok(());
         }
@@ -96,14 +93,11 @@ impl Typer<'_> {
     /// (dotty's `constrainResult`).
     fn constrain_result(&mut self, tree: TNodeId, tpe: TypeId, pt: TypeId) {
         let unit = crate::defn::type_ref(self.u, self.defn.unit);
-        if self.u.widen(pt) == unit || matches!(self.u.types().get(pt), Type::Error) {
+        if self.u.widen(pt) == unit || matches!(self.u.ty(pt), Type::Error) {
             return;
         }
         let pt = self.result_pt(self.tpd.get(tree).sym, pt);
-        let tpe = match *self.u.types().get(tpe) {
-            Type::ByName(r) => r,
-            _ => tpe,
-        };
+        let tpe = self.u.by_name(tpe).unwrap_or(tpe);
         let mark = self.constraint.mark();
         if !self.conforms(tpe, pt) {
             self.constraint.rollback(mark);
@@ -165,9 +159,8 @@ impl TypeOps<'_> {
         });
         let (lo, hi) = self.constraint.bounds(v);
         referenced
-            || self.any_factor(if co { hi } else { lo }, !co, &mut |f| match *self.u.types().get(f) {
-                Type::Var(w) => !except.contains(&w) && self.constraint.is_pending(w),
-                _ => false,
+            || self.any_factor(if co { hi } else { lo }, !co, &mut |f| {
+                self.u.var(f).is_some_and(|w| !except.contains(&w) && self.constraint.is_pending(w))
             })
     }
 
@@ -176,7 +169,7 @@ impl TypeOps<'_> {
     /// `isLess`).
     pub fn is_less(&self, a: VarId, b: VarId) -> bool {
         let (hi, lo) = (self.constraint.bounds(a).1, self.constraint.bounds(b).0);
-        self.any_factor(hi, false, &mut |f| *self.u.types().get(f) == Type::Var(b))
-            || self.any_factor(lo, true, &mut |f| *self.u.types().get(f) == Type::Var(a))
+        self.any_factor(hi, false, &mut |f| self.u.var(f) == Some(b))
+            || self.any_factor(lo, true, &mut |f| self.u.var(f) == Some(a))
     }
 }

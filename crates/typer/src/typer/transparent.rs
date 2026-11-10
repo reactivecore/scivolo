@@ -46,7 +46,7 @@ impl Typer<'_> {
         let meth = self.tpd.sym(self.tpd.meth_part(tree))?;
         let widened = self.u.widen(self.tpd.get(tree).tpe?);
         if !self.is_transparent_inline(meth)
-            || matches!(self.u.types().get(widened), Type::Method { .. } | Type::Poly { .. })
+            || matches!(self.u.ty(widened), Type::Method { .. } | Type::Poly { .. })
             || ctx.mode.is(Mode::PATTERN)
             || ctx.staging != 0
             || self.enclosing_inline(ctx.owner).is_some()
@@ -99,7 +99,7 @@ impl Typer<'_> {
     fn has_compiletime_op(&mut self, t: tasty::TypeId) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part) {
+            if let Some(s) = u.sym_of(part) {
                 found |= u.full_name(s).starts_with("scala.compiletime.ops.");
             }
             None

@@ -27,11 +27,8 @@ impl Typer<'_> {
         let new_tpe = self.tpd.tpe(new_tree);
         let new_tpe = self.u.dealias(new_tpe);
         let class_tpe = self.u.base_type(new_tpe, class).ok_or("default argument")?;
-        let tycon = match *self.u.types().get(class_tpe) {
-            Type::Applied(t, _) => t,
-            _ => class_tpe,
-        };
-        let prefix = match *self.u.types().get(tycon) {
+        let tycon = self.u.applied(class_tpe).map_or(class_tpe, |(t, _)| t);
+        let prefix = match *self.u.ty(tycon) {
             Type::Sym(prefix, _) => prefix,
             Type::TypeRef(prefix, _) => Some(prefix),
             _ => return Err("default argument of a class of another type"),

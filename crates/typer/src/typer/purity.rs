@@ -145,7 +145,7 @@ fn ref_purity(t: &mut Typer, tree: TNodeId) -> u8 {
 fn is_method_typed(t: &mut Typer, tree: TNodeId) -> bool {
     let tpe = t.tpd.tpe(tree);
     let info = t.method_info(tpe).unwrap_or(tpe);
-    matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+    matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. })
 }
 
 /// dotty's `isPureApply`: a constant operation of a primitive class, `String` or a pure member
@@ -185,7 +185,7 @@ fn is_pure_case_apply(t: &mut Typer, s: SymbolId) -> bool {
 
 fn has_constant_type(tpd: &Tpd, u: &Universe, tree: TNodeId) -> bool {
     let tpe = tpd.get(tree).tpe;
-    tpe.is_some_and(|x| matches!(u.types().get(x), Type::Constant(..) | Type::Str(_)))
+    tpe.is_some_and(|x| matches!(u.ty(x), Type::Constant(..) | Type::Str(_)))
 }
 
 /// The method a function tree refers to.

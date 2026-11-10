@@ -84,7 +84,7 @@ impl Inlining<'_> {
     fn typed_as_class_of(&mut self, found: TNodeId, pt: TypeId, span: Span) -> TNodeId {
         let own = self.u.widen(self.tpd.tpe(found));
         if self.u.class_symbol(own) == self.u.class_symbol(pt)
-            || matches!(self.u.types().get(own), Type::Refined(..) | Type::And(..))
+            || matches!(self.u.ty(own), Type::Refined(..) | Type::And(..))
         {
             return found;
         }

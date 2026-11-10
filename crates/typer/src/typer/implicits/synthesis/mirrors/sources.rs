@@ -50,9 +50,9 @@ impl MirrorSource {
 
 fn reduced_source(t: &mut Typer<'_>, tpe: TypeId, depth: u32) -> Result<Option<MirrorSource>, &'static str> {
     let Some(depth) = depth.checked_sub(1) else { return Err("Mirror of a type too deep to reduce") };
-    let next = match t.u.types().get(tpe).clone() {
+    let next = match t.u.ty(tpe).clone() {
         Type::TypeRef(p, n) if t.referenced(tpe).is_none() => {
-            match t.u.refinement_named(p, &n).map(|i| t.u.types().get(i)) {
+            match t.u.refinement_named(p, &n).map(|i| t.u.ty(i)) {
                 Some(&Type::Alias(a) | &Type::Bounds(_, a)) => Some(a),
                 _ => return Err("Mirror of an unresolved type"),
             }
@@ -91,9 +91,9 @@ fn reduced_source(t: &mut Typer<'_>, tpe: TypeId, depth: u32) -> Result<Option<M
                 _ => Some(tycon),
             }
         }
-        Type::Lambda { result, .. } => match t.u.types().get(result) {
-            Type::Lambda { .. } => return Ok(None),
-            _ => Some(result),
+        Type::Lambda { result, .. } => match t.u.lambda(result) {
+            Some(_) => return Ok(None),
+            None => Some(result),
         },
         Type::This(_) | Type::Skolem(..) | Type::Constant(..) | Type::Str(_) => t.u.widen_once(tpe),
         Type::Annotated(p, _) | Type::Refined(p, ..) | Type::Rec(_, p) => Some(p),
@@ -146,10 +146,7 @@ fn upper_type(ops: &mut TypeOps<'_>, t: TypeId) -> Option<TypeId> {
         Some(p) => ops.u.member_info(p, s),
         None => ops.u.info(s),
     };
-    match *ops.u.types().get(info) {
-        Type::Bounds(_, hi) => Some(hi),
-        _ => None,
-    }
+    ops.u.bounds(info).map(|(_, hi)| hi)
 }
 
 /// The elements of `t` if it is an application of `*:` (`tycon`); refused for one that is no
@@ -171,7 +168,7 @@ fn is_named_tuple(ops: &mut TypeOps<'_>, tycon: TypeId) -> bool {
 
 /// The prefix of reference `t`.
 fn prefix_of(u: &Universe, t: TypeId) -> Option<TypeId> {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::Sym(p, _) => p,
         Type::TypeRef(p, _) | Type::TermRef(p, _) => Some(p),
         _ => None,

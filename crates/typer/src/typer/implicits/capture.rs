@@ -23,9 +23,7 @@ impl Typer<'_> {
     /// `java.util.List[?]` whose parameter has no upper bound (dotty's `FromJavaObject`).
     pub fn captured_args(&mut self, t: TypeId) -> Option<TypeId> {
         let t = self.zonk(t);
-        if matches!(self.u.types().get(t), Type::Sym(..))
-            && super::super::stability::is_stable_path(self.u, t)
-        {
+        if self.u.sym_of(t).is_some() && super::super::stability::is_stable_path(self.u, t) {
             return None;
         }
         captured(self, t, false)
@@ -42,13 +40,14 @@ impl Typer<'_> {
     /// `checkNoWildcardCaptureForCBN`).
     pub fn by_name_uncaptured(&mut self, arg: TNodeId) -> TNodeId {
         let tpe = self.tpd.tpe(arg);
-        let Type::Applied(_, args) = self.u.types().get(tpe).clone() else { return arg };
-        if !args.iter().any(|&a| matches!(self.u.types().get(a), Type::Sym(..))) {
+        let Some(args) = self.u.applied(tpe).map(|(_, args)| args.to_vec()) else { return arg };
+        if !args.iter().any(|&a| self.u.sym_of(a).is_some()) {
             return arg;
         }
         let cap =
             self.resolve_full_name("scala.runtime.TypeBox", true).and_then(|b| self.u.decl(b, "CAP").ok());
-        let is_cap = |t: &Self, a: TypeId| matches!(t.u.types().get(a), Type::Sym(_, s) if cap.as_ref().is_some_and(|c| c.contains(s)));
+        let is_cap =
+            |t: &Self, a: TypeId| t.u.sym_of(a).is_some_and(|s| cap.as_ref().is_some_and(|c| c.contains(&s)));
         if !args.iter().any(|&a| is_cap(self, a)) {
             return arg;
         }
@@ -86,8 +85,8 @@ fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<Type
     let tpe = t.zonk(tpe);
     let tpe = t.u.widen(tpe);
     let tpe = t.u.dealias(tpe);
-    let Type::Applied(tycon, args) = t.u.types().get(tpe).clone() else { return None };
-    if !args.iter().any(|&a| matches!(t.u.types().get(a), Type::Bounds(..))) {
+    let (tycon, args) = t.u.applied(tpe).map(|(tycon, args)| (tycon, args.to_vec()))?;
+    if !args.iter().any(|&a| t.u.bounds(a).is_some()) {
         return None;
     }
     let params = t.u.class_symbol(tycon).map(|c| t.u.type_params(c)).unwrap_or_default();
@@ -100,13 +99,12 @@ fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<Type
     let mut captured = Vec::new();
     for (a, &p) in args.into_iter().zip(&params) {
         let a = t.with_param_bounds(a, Some(p), &params);
-        let Type::Bounds(lo, hi) = *t.u.types().get(a) else {
+        let Some((lo, hi)) = t.u.bounds(a) else {
             captured.push(a);
             continue;
         };
         let from_java_object = t.u.builtins().from_java_object;
-        let java_any =
-            hi == tasty::ANY || matches!(t.u.types().get(hi), Type::Sym(_, s) if *s == from_java_object);
+        let java_any = hi == tasty::ANY || t.u.sym_of(hi) == Some(from_java_object);
         if java && java_any {
             return None;
         }

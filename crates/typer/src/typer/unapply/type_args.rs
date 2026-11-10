@@ -7,7 +7,7 @@ use super::super::Typer;
 use super::UnapplyPattern;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Span, Tree};
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 impl UnapplyPattern {
     /// Splits `C[Ts]` into the extractor `C` and its type arguments `Ts` if `C`'s extractor
@@ -20,7 +20,7 @@ impl UnapplyPattern {
             let (unapp, _) = self.unapply_fun(t, qual).ok()?;
             let tpe = t.tpd.tpe(unapp);
             let info = t.method_info(tpe).unwrap_or(tpe);
-            Some(matches!(t.u.types().get(info), Type::Poly { params, .. } if params.len() == n))
+            Some(t.u.poly(info).is_some_and(|p| p.params.len() == n))
         });
         t.retract_diags(reported);
         (clean && found == Some(true)).then_some((qual, args))

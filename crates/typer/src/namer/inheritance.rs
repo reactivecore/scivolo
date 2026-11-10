@@ -22,18 +22,13 @@ impl Typer<'_> {
                     fl.has(CASE) && !fl.has(TRAIT)
                 })
             };
-            let tycon = match *self.u.types().get(p) {
-                tasty::Type::Applied(t, _) => t,
-                _ => p,
+            let tycon = self.u.applied(p).map_or(p, |(t, _)| t);
+            let prefix = match self.u.sym_ref(tycon) {
+                Some((pre, _)) => pre,
+                None => self.u.type_ref(tycon).map(|(pre, _)| pre),
             };
-            let prefix = match *self.u.types().get(tycon) {
-                tasty::Type::Sym(pre, _) => pre,
-                tasty::Type::TypeRef(pre, _) => Some(pre),
-                _ => None,
-            };
-            let projection = prefix.is_some_and(|pre| {
-                matches!(*self.u.types().get(pre), tasty::Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class)
-            });
+            let projection = prefix
+                .is_some_and(|pre| self.u.sym_of(pre).is_some_and(|s| self.u.symbol(s).kind == Kind::Class));
             let def_span = |t: &Self, s: SymbolId| t.syms.def_trees.get(&s).map(|&d| t.ast.span(d));
             if flags.has(SEALED)
                 && let (Some(parent), Some(at)) = (def_span(self, c), def_span(self, cls))

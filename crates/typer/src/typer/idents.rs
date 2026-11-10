@@ -127,9 +127,9 @@ impl Typer<'_> {
         let span = self.ast.span(id);
         let overloaded_accessor = found.syms.len() > 1
             && self.is_param_or_accessor(sym)
-            && found.prefix.is_some_and(|p| match *self.u.types().get(p) {
-                Type::This(c) => self.u.class_symbol(c).is_some_and(|c| !self.is_static_owner(c)),
-                _ => false,
+            && found.prefix.is_some_and(|p| {
+                let class = self.u.this_of(p).and_then(|c| self.u.class_symbol(c));
+                class.is_some_and(|c| !self.is_static_owner(c))
             });
         if overloaded_accessor || !self.prefix_is_elidable(tpe, ctx) {
             if name.is_type {

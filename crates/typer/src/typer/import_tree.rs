@@ -43,12 +43,11 @@ impl Typer<'_> {
     /// the path's packages (dotty's `TermRef` of each `Select`).
     pub fn import_qual(&mut self, path: TNodeId) -> TypeId {
         let tpe = self.tpd.tpe(path);
-        let (Type::Sym(Some(p), s), &T::Select { qualifier, .. }) =
-            (self.u.types().get(tpe).clone(), self.tpd.tree(path))
+        let (Some((Some(p), s)), &T::Select { qualifier, .. }) = (self.u.sym_ref(tpe), self.tpd.tree(path))
         else {
             return tpe;
         };
-        if !matches!(self.u.types().get(p), Type::Package(_)) {
+        if !matches!(self.u.ty(p), Type::Package(_)) {
             return tpe;
         }
         let prefix = self.package_path(qualifier);
@@ -58,9 +57,9 @@ impl Typer<'_> {
     /// The type of `path`, its packages selected from packages as `TermRef`s of their prefixes.
     fn package_path(&mut self, path: TNodeId) -> TypeId {
         let tpe = self.tpd.tpe(path);
-        let Type::Package(p) = *self.u.types().get(tpe) else { return tpe };
+        let Type::Package(p) = *self.u.ty(tpe) else { return tpe };
         let T::Select { qualifier, .. } = *self.tpd.tree(path) else { return tpe };
-        if !matches!(self.u.types().get(self.tpd.tpe(qualifier)), Type::Package(_)) {
+        if !matches!(self.u.ty(self.tpd.tpe(qualifier)), Type::Package(_)) {
             return tpe;
         }
         let prefix = self.package_path(qualifier);

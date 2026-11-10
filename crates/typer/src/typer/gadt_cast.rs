@@ -18,7 +18,7 @@ pub const GADT_HEALED_VIEW: &str = "implicit conversion of a GADT-approximated q
 
 /// Whether `t` is stable (dotty's `isStable`), `annot` marking a type `@uncheckedStable`.
 fn is_stable(u: &mut Universe, t: TypeId, annot: TypeId) -> bool {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::Annotated(p, a) => a == annot || is_stable(u, p, annot),
         Type::And(a, b) => {
             is_stable(u, a, annot) && is_concrete(u, b) || is_stable(u, b, annot) && is_concrete(u, a)
@@ -30,7 +30,7 @@ fn is_stable(u: &mut Universe, t: TypeId, annot: TypeId) -> bool {
 /// Whether `t` is a class type or made of them (`isConcrete` of dotty's `realizability`).
 fn is_concrete(u: &mut Universe, t: TypeId) -> bool {
     let t = u.dealias(t);
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::Sym(_, s) => u.is_class(s),
         Type::TypeRef(..) => u.resolve_ref(t).is_some_and(|s| u.is_class(s)),
         Type::Applied(tycon, _) => is_concrete(u, tycon),
@@ -53,10 +53,7 @@ impl Typer<'_> {
             let span = self.tpd.span(tree);
             return self.unsupported_tree(span, "GADT cast of a singleton in an inline match case");
         }
-        let underlying = match *self.u.types().get(tpe) {
-            Type::Annotated(t, _) => t,
-            _ => tpe,
-        };
+        let underlying = self.u.annotated(tpe).map_or(tpe, |(t, _)| t);
         let widened = self.u.widen(underlying);
         let approx = self.gadt.approximate(self.u, widened, 1, ctx);
         let conj = self.u.intern_type(Type::And(tpe, approx));
@@ -75,10 +72,7 @@ impl Typer<'_> {
     /// Whether the type of `tree`, an annotation dropped, is a singleton.
     fn is_singleton_tree(&mut self, tree: TNodeId) -> bool {
         let tpe = self.tpd.tpe(tree);
-        let underlying = match *self.u.types().get(tpe) {
-            Type::Annotated(t, _) => t,
-            _ => tpe,
-        };
+        let underlying = self.u.annotated(tpe).map_or(tpe, |(t, _)| t);
         self.is_singleton(underlying)
     }
 
@@ -146,7 +140,7 @@ impl Gadt {
         {
             return self.bound(u, s, variance);
         }
-        match u.types().get(t).clone() {
+        match u.ty(t).clone() {
             Type::Applied(tycon, args) => {
                 let variances = u.tycon_variances(tycon, args.len());
                 let args = args
@@ -163,7 +157,7 @@ impl Gadt {
                         if variance > 0 && (is_top(u, bound) || made_one) {
                             return tasty::ANY;
                         }
-                        let simple = !matches!(u.types().get(bound), Type::Lambda { .. });
+                        let simple = u.lambda(bound).is_none();
                         if simple && bound != tasty::ANY && bound != tasty::NOTHING { bound } else { tycon }
                     }
                     _ => tycon,

@@ -99,17 +99,14 @@ impl Typer<'_> {
         }
         for &tree in parents {
             let p = self.tpd.tpe(tree);
-            let tycon = match *self.u.types().get(p) {
-                Type::Applied(t, _) => t,
-                _ => p,
-            };
-            let prefix = match *self.u.types().get(tycon) {
+            let tycon = self.u.applied(p).map_or(p, |(t, _)| t);
+            let prefix = match *self.u.ty(tycon) {
                 Type::Sym(Some(pre), _) | Type::TypeRef(pre, _) => pre,
                 _ => continue,
             };
             let mut own = false;
             self.u.map_type(prefix, &mut |u, part| {
-                if let Type::Sym(_, s) = *u.types().get(part) {
+                if let Some(s) = u.sym_of(part) {
                     own |= u.symbol(s).kind.is_term() && u.symbol(s).owner == Some(cls);
                 }
                 None

@@ -130,7 +130,7 @@ impl<'a> VarianceCheck<'a> {
             }
             _ => {
                 let mut info = ops.u.info(sym);
-                while let Type::Method { result, .. } | Type::Poly { result, .. } = *ops.u.types().get(info) {
+                while let Type::Method { result, .. } | Type::Poly { result, .. } = *ops.u.ty(info) {
                     info = result;
                 }
                 ops.misplaced(checked, info, variance, 0)
@@ -154,7 +154,7 @@ impl<'a> VarianceCheck<'a> {
             {
                 p = q;
             }
-            if let Type::Annotated(inner, annot) = *ops.u.types().get(self.tpd.tpe(p))
+            if let Some((inner, annot)) = ops.u.annotated(self.tpd.tpe(p))
                 && is_unchecked_variance(ops.u, annot)
             {
                 out.push(ops.u.dealias(inner));

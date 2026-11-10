@@ -102,7 +102,7 @@ impl VarianceOps<'_> {
             return None;
         }
         let go = |s: &mut Self, t, v| s.misplaced(checked, t, v, depth + 1);
-        match (self.u.types().get(t).clone(), checked) {
+        match (self.u.ty(t).clone(), checked) {
             (Type::Param(b, i), Checked::Lambda(binder, variances)) if b == binder => {
                 let own = variances.get(i as usize).copied().unwrap_or(0);
                 (own != 0 && own != v).then_some(Misplaced::Lambda(i as usize, of_sign(v)))
@@ -114,13 +114,13 @@ impl VarianceOps<'_> {
             }
             (Type::TypeRef(p, _) | Type::TermRef(p, _), _) => go(self, p, v.max(0)),
             (Type::Applied(tycon, args), _) => {
-                let variances = match (self.u.types().get(tycon).clone(), checked) {
-                    (Type::Param(b, i), Checked::Definition(base)) => self.poly_param_variances(base, b, i),
+                let variances = match (self.u.param_ref(tycon), checked) {
+                    (Some((b, i)), Checked::Definition(base)) => self.poly_param_variances(base, b, i),
                     _ => self.tycon_variances(tycon),
                 };
                 go(self, tycon, v).or_else(|| {
                     args.iter().enumerate().find_map(|(i, &a)| {
-                        let av = match self.u.types().get(a) {
+                        let av = match self.u.ty(a) {
                             Type::Bounds(..) | Type::Wildcard(_) => v,
                             _ => v * variances.get(i).copied().unwrap_or(0),
                         };
@@ -141,7 +141,7 @@ impl VarianceOps<'_> {
                 params.iter().find_map(|&(_, p)| go(self, p, -v)).or_else(|| go(self, result, v))
             }
             (Type::Lambda { params, result, .. }, _) => {
-                let pv = if matches!(self.u.types().get(result), Type::MatchCase(..)) { 0 } else { -v };
+                let pv = if matches!(self.u.ty(result), Type::MatchCase(..)) { 0 } else { -v };
                 params.iter().find_map(|&(_, p)| go(self, p, pv)).or_else(|| go(self, result, v))
             }
             (Type::Match { bound, scrutinee, cases }, _) => go(self, bound, v)
@@ -176,7 +176,7 @@ impl VarianceOps<'_> {
                 return self.misplaced_symbol(s, base, v);
             }
             if let Some(alias) = self.u.alias_of(s)
-                && !matches!(self.u.types().get(alias), Type::Match { .. })
+                && !matches!(self.u.ty(alias), Type::Match { .. })
             {
                 return self.misplaced(checked, alias, v, depth + 1);
             }

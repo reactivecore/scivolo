@@ -153,10 +153,10 @@ impl Typer<'_> {
     /// Whether `t`'s type refers to a value named `name` through a prefix of class `cls`.
     fn is_member_ref(&mut self, t: TNodeId, cls: SymbolId, name: &str) -> bool {
         let tpe = self.tpd.tpe(t);
-        let Type::Sym(Some(prefix), s) = *self.u.types().get(tpe) else { return false };
-        let prefix_class = match *self.u.types().get(prefix) {
-            Type::This(c) => self.u.class_symbol(c),
-            _ => {
+        let Some((Some(prefix), s)) = self.u.sym_ref(tpe) else { return false };
+        let prefix_class = match self.u.this_of(prefix) {
+            Some(c) => self.u.class_symbol(c),
+            None => {
                 let widened = self.u.widen(prefix);
                 self.u.class_symbol(widened)
             }

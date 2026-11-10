@@ -91,7 +91,7 @@ impl Linter<'_> {
 
     fn uninteresting_type(&self, u: &mut Universe, t: TypeId) -> bool {
         let w = u.widen(t);
-        if w == tasty::NOTHING || matches!(u.types().get(w), Type::Error) {
+        if w == tasty::NOTHING || matches!(u.ty(w), Type::Error) {
             return true;
         }
         let Some(c) = type_class(u, w) else { return false };
@@ -126,7 +126,7 @@ fn uninteresting_symbol(u: &mut Universe, s: SymbolId) -> bool {
 
 /// The class `t` names, through aliases but not abstract types (dotty's `typeSymbol`).
 fn type_class(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
-    let s = match *u.types().get(t) {
+    let s = match *u.ty(t) {
         Type::Sym(_, s) => s,
         Type::TypeRef(..) => u.resolve_ref(t)?,
         Type::Applied(inner, _) | Type::Annotated(inner, _) => return type_class(u, inner),
@@ -136,10 +136,7 @@ fn type_class(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
         Kind::Class => Some(s),
         Kind::Type => {
             let info = u.info(s);
-            match *u.types().get(info) {
-                Type::Alias(a) => type_class(u, a),
-                _ => None,
-            }
+            u.type_alias(info).and_then(|a| type_class(u, a))
         }
         _ => None,
     }

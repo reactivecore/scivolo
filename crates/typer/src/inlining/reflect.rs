@@ -28,7 +28,7 @@ impl Reflect<'_> {
     /// widened, a by-name type's result for a by-name type a term reference widens to.
     pub fn widen_term_ref_by_name(&mut self, mut t: TypeId) -> TypeId {
         loop {
-            let term_ref = match *self.u.types().get(t) {
+            let term_ref = match *self.u.ty(t) {
                 Type::TermRef(..) => true,
                 Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
                 _ => false,
@@ -36,17 +36,14 @@ impl Reflect<'_> {
             let Some(w) = term_ref.then(|| self.u.widen_once(t)).flatten().filter(|&w| w != t) else {
                 return t;
             };
-            t = match *self.u.types().get(w) {
-                Type::ByName(r) => r,
-                _ => w,
-            };
+            t = self.u.by_name(w).unwrap_or(w);
         }
     }
 
     /// `TypeRepr.typeSymbol`: the symbol a type reference names, an alias's own; through the
     /// underlying type of other proxies; none for other types.
     pub fn type_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => {
                 let widened = self.u.widen_once(t)?;
                 self.type_symbol(widened)
@@ -81,7 +78,7 @@ impl Reflect<'_> {
     /// `TypeRepr.termSymbol`: the symbol a term reference names, through annotations; none for
     /// class references, applied, constant and `this` types; a refusal for other types.
     pub fn term_symbol(&mut self, t: TypeId) -> Result<Option<SymbolId>, &'static str> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => Ok(Some(s)),
             Type::TermRef(..) => Ok(self.u.resolve_ref(t)),
             Type::Annotated(inner, _) => self.term_symbol(inner),
@@ -93,10 +90,7 @@ impl Reflect<'_> {
 
     /// `TypeRepr.typeArgs`: the arguments of an applied type, none for other types.
     pub fn type_args(&mut self, t: TypeId) -> Vec<TypeId> {
-        match self.u.types().get(t) {
-            Type::Applied(_, args) => args.clone(),
-            _ => Vec::new(),
-        }
+        self.u.applied(t).map_or_else(Vec::new, |(_, args)| args.to_vec())
     }
 
     /// `Symbol.companionModule`: the object of class `s`, its constructor proxy object if it has
@@ -137,7 +131,7 @@ impl Reflect<'_> {
 
     /// `TermRef(qual, name)`: the reference to the only term member `name` of `qual`.
     pub fn term_ref(&mut self, qual: TypeId, name: &str) -> Result<TypeId, &'static str> {
-        let found = match *self.u.types().get(crate::defn::package_ref(self.u, qual)) {
+        let found = match *self.u.ty(crate::defn::package_ref(self.u, qual)) {
             Type::Package(p) => self.u.decl(p, name).unwrap_or_default(),
             _ => self.u.member_of_type(qual, name),
         };

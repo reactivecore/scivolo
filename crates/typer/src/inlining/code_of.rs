@@ -12,7 +12,6 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant as C;
 use syntax::scan::is_operator_part;
-use tasty::Type;
 
 const REFUSED: &str = "codeOf an argument the frontend does not print";
 
@@ -30,8 +29,8 @@ impl Inlining<'_> {
             T::Literal { value } => constant_text(&value),
             T::Ident { name } => {
                 let tpe = self.tpd.tpe(t);
-                let (prefix, s) = match *self.u.types().get(tpe) {
-                    Type::Sym(p, s) if self.u.symbol(s).name == self.names.text(name.name) => (p, s),
+                let (prefix, s) = match self.u.sym_ref(tpe) {
+                    Some((p, s)) if self.u.symbol(s).name == self.names.text(name.name) => (p, s),
                     _ => return None,
                 };
                 let text = self.names.text(name.name).to_owned();
@@ -54,7 +53,7 @@ impl Inlining<'_> {
                 self.block_code(&trees)
             }
             T::TypeDef { name, rhs } if !local && matches!(self.tpd.tree(rhs), T::TypeTree { .. }) => {
-                let Type::Alias(alias) = *self.u.types().get(self.tpd.tpe(rhs)) else { return None };
+                let alias = self.u.type_alias(self.tpd.tpe(rhs))?;
                 let s = self.tpd.sym(t)?;
                 if self.u.symbol(s).flags.0 != 0 {
                     return None;
@@ -78,9 +77,8 @@ impl Inlining<'_> {
             }
             T::Apply { fun, args } => {
                 let widened = self.tpd.get(fun).tpe.map(|f| self.u.widen(f));
-                let implicit = widened.is_some_and(|f| {
-                    matches!(*self.u.types().get(f), Type::Method { implicit, contextual, .. } if implicit || contextual)
-                });
+                let implicit =
+                    widened.is_some_and(|f| self.u.method(f).is_some_and(|m| m.implicit || m.contextual));
                 if implicit {
                     return None;
                 }

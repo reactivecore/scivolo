@@ -48,7 +48,7 @@ impl Typer<'_> {
             let pt = self.u.intern_type(Type::Applied(tycon, vec![arg]));
             let found = self.implicit_arg(pt, self.tpd.span(body), ctx, 0).map(|tag| self.tpd.tpe(tag));
             match (found, self.tpd.pattern_given(s)) {
-                (Ok(path), _) if matches!(*self.u.types().get(path), Type::Sym(_, t) if self.u.symbol(t).kind.is_term()) => {
+                (Ok(path), _) if self.u.sym_of(path).is_some_and(|t| self.u.symbol(t).kind.is_term()) => {
                     tags.push((s, path))
                 }
                 (_, Some(given)) => tags.push((s, self.u.intern_type(Type::Sym(None, given)))),
@@ -127,9 +127,9 @@ impl Typer<'_> {
 
 /// The symbol `t` refers to without a prefix or through its owner's `this`.
 pub fn this_or_local(u: &Universe, t: TypeId) -> Option<SymbolId> {
-    match *u.types().get(t) {
-        Type::Sym(None, s) => Some(s),
-        Type::Sym(Some(p), s) if matches!(u.types().get(p), Type::This(_)) => Some(s),
+    match u.sym_ref(t) {
+        Some((None, s)) => Some(s),
+        Some((Some(p), s)) if u.this_of(p).is_some() => Some(s),
         _ => None,
     }
 }

@@ -64,8 +64,7 @@ impl Typer<'_> {
         let Some(Binding { binder, params, result, implicit: false, .. }) = self.u.method(info) else {
             return Ok(None);
         };
-        if params.len() != n || matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
-        {
+        if params.len() != n || matches!(self.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
             return Ok(None);
         }
         let (names, params) = params.iter().cloned().unzip();
@@ -77,8 +76,10 @@ impl Typer<'_> {
     /// by their upper bound where it occurs at most as the result type (dotty's `samParent`);
     /// `None` otherwise or if `method` is not declared in `c`.
     fn without_wildcard_args(&mut self, parent: TypeId, c: SymbolId, method: SymbolId) -> Option<TypeId> {
-        let Type::Applied(tycon, args) = self.u.types().get(parent).clone() else { return Some(parent) };
-        if !args.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..))) {
+        let Some((tycon, args)) = self.u.applied(parent).map(|(tycon, args)| (tycon, args.to_vec())) else {
+            return Some(parent);
+        };
+        if !args.iter().any(|&a| self.u.bounds(a).is_some()) {
             return Some(parent);
         }
         if self.u.symbol(method).owner != Some(c) {
@@ -88,7 +89,7 @@ impl Typer<'_> {
         let info = self.u.info(method);
         let mut new_args = Vec::new();
         for (i, &a) in args.iter().enumerate() {
-            let Type::Bounds(lo, hi) = *self.u.types().get(a) else {
+            let Some((lo, hi)) = self.u.bounds(a) else {
                 new_args.push(a);
                 continue;
             };
@@ -103,7 +104,7 @@ impl Typer<'_> {
     /// Records in `seen` whether type parameter `p` occurs in `t` at variance `v` covariantly and
     /// whether contravariantly, an invariant occurrence as both; `false` for a form not followed.
     fn occurrences(&mut self, t: TypeId, p: SymbolId, v: i8, seen: &mut (bool, bool)) -> bool {
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Sym(_, s) if s == p => {
                 seen.0 |= v >= 0;
                 seen.1 |= v <= 0;
@@ -165,13 +166,15 @@ impl Typer<'_> {
             self.complete(ctor);
             let info = self.u.info(ctor);
             let info = self.u.strip_poly(info);
-            let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { continue };
+            let Some((params, result)) = self.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
+                continue;
+            };
             let no_args = match params[..] {
                 [] => true,
                 [(_, p)] => self.repeated_elem(p).is_some(),
                 _ => false,
             };
-            applicable += usize::from(no_args && !matches!(self.u.types().get(result), Type::Method { .. }));
+            applicable += usize::from(no_args && self.u.method(result).is_none());
         }
         ctors.is_empty() || applicable == 1
     }

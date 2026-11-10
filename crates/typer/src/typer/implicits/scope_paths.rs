@@ -17,7 +17,7 @@ impl ImplicitScope {
     /// Adds the implicit members of `p` if it is a static object other than a package object, or
     /// the `this` of one (dotty's `addPath` of a module).
     pub fn add_static_module(&mut self, t: &mut Typer<'_>, p: TypeId) {
-        let s = match *t.u.types().get(p) {
+        let s = match *t.u.ty(p) {
             Type::This(c) => match t.u.class_symbol(c).filter(|&c| t.u.is_module_class(c)) {
                 Some(c) => t.u.source_module(c),
                 None => return,
@@ -47,7 +47,7 @@ impl ImplicitScope {
                 self.implicits.push(Candidate { sym, prefix: Some(prefix) });
             }
         }
-        if let Type::Sym(p, sym) = *t.u.types().get(key)
+        if let Some((p, sym)) = t.u.sym_ref(key)
             && !self.containers.contains(&Candidate { sym, prefix: p })
         {
             self.containers.push(Candidate { sym, prefix: p });
@@ -57,7 +57,7 @@ impl ImplicitScope {
     /// Adds the implicit members of the stable values that are not static objects on path `p`
     /// (dotty's `addPath`).
     pub fn add_path(&mut self, t: &mut Typer<'_>, p: TypeId) -> Result<(), &'static str> {
-        let outer = match *t.u.types().get(p) {
+        let outer = match *t.u.ty(p) {
             Type::Sym(outer, _) => outer,
             Type::TermRef(outer, _) => Some(outer),
             _ => return Ok(()),
@@ -68,7 +68,7 @@ impl ImplicitScope {
         }
         t.complete(s);
         let info = t.u.info(s);
-        if matches!(t.u.types().get(info), Type::Sym(_, x) if t.u.symbol(*x).is_term()) {
+        if t.u.sym_of(info).is_some_and(|x| t.u.symbol(x).is_term()) {
             return self.add_path(t, info);
         }
         let widened = t.u.widen(p);
@@ -85,8 +85,8 @@ impl ImplicitScope {
 
 /// Reference `t` to a member of a package through the package, as `type_ref` refers to it.
 fn static_form(u: &mut Universe, t: TypeId) -> TypeId {
-    match *u.types().get(t) {
-        Type::Sym(Some(p), s) if matches!(u.types().get(p), Type::Package(_)) => crate::defn::type_ref(u, s),
+    match *u.ty(t) {
+        Type::Sym(Some(p), s) if matches!(u.ty(p), Type::Package(_)) => crate::defn::type_ref(u, s),
         _ => t,
     }
 }
@@ -98,8 +98,8 @@ fn bound_classes(ty: &mut TypeOps<'_>, tpe: TypeId, steps: u32) -> Option<Vec<Sy
         return Some(vec![c]);
     }
     let steps = steps.checked_sub(1)?;
-    match ty.u.types().get(tpe).clone() {
-        Type::TypeRef(p, name) => match ty.u.refinement_named(p, &name).map(|i| ty.u.types().get(i)) {
+    match ty.u.ty(tpe).clone() {
+        Type::TypeRef(p, name) => match ty.u.refinement_named(p, &name).map(|i| ty.u.ty(i)) {
             Some(&Type::Bounds(_, hi) | &Type::Alias(hi)) => bound_classes(ty, hi, steps),
             _ => None,
         },
@@ -111,7 +111,7 @@ fn bound_classes(ty: &mut TypeOps<'_>, tpe: TypeId, steps: u32) -> Option<Vec<Sy
         }
         Type::Sym(prefix, s) if ty.u.is_type_symbol(s) => {
             let info = ty.refined_info(prefix, s);
-            let hi = match *ty.u.types().get(info) {
+            let hi = match *ty.u.ty(info) {
                 Type::Bounds(_, hi) | Type::Alias(hi) => hi,
                 _ => return None,
             };

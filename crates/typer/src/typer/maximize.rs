@@ -78,7 +78,7 @@ impl Typer<'_> {
     /// bound is `var` or an intersection with it (dotty's `fullLowerBound`).
     fn with_gadt_params_below(&mut self, mut lo: TypeId, var: TypeId, gadt: &[GadtVar]) -> TypeId {
         for &(g, gv) in gadt {
-            let Type::Var(id) = *self.u.types().get(gv) else { continue };
+            let Some(id) = self.u.var(gv) else { continue };
             let (_, hi) = self.constraint.bounds(id);
             if !and_parts(self.u, hi).contains(&var) {
                 continue;
@@ -98,10 +98,7 @@ impl Typer<'_> {
         let args = self.tpd.items(args).to_vec();
         args.iter()
             .zip(poly.params)
-            .filter_map(|(&a, (name, _))| match *self.u.types().get(self.tpd.tpe(a)) {
-                Type::Var(v) => Some((v, name.clone())),
-                _ => None,
-            })
+            .filter_map(|(&a, (name, _))| self.u.var(self.tpd.tpe(a)).map(|v| (v, name.clone())))
             .collect()
     }
 
@@ -113,7 +110,7 @@ impl Typer<'_> {
         for a in &mut args {
             let tpe = self.tpd.tpe(*a);
             let tpe = self.zonk(tpe);
-            let Type::Sym(None, s) = *self.u.types().get(tpe) else { continue };
+            let Some((None, s)) = self.u.sym_ref(tpe) else { continue };
             let Some(i) = remain.iter().position(|&r| r == s) else { continue };
             remain.swap_remove(i);
             let text = self.u.symbol(s).name.clone();
@@ -129,7 +126,7 @@ impl Typer<'_> {
 
 /// The parts of intersection `t`, or `t`.
 fn and_parts(u: &mut tasty::Universe, t: TypeId) -> Vec<TypeId> {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::And(a, b) => [and_parts(u, a), and_parts(u, b)].concat(),
         _ => vec![t],
     }

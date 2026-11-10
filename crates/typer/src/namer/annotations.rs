@@ -10,7 +10,7 @@ use crate::typer::Typer;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 
 /// The annotation classes refused: those whose meaning dotty's later phases implement and the
 /// lowering does not. A backend's own annotations are its code generator's to read or refuse.
@@ -78,7 +78,7 @@ impl Typer<'_> {
         let typed = self.typed_type(tpt, ctx);
         let mut tpe = self.tpd.tpe(typed);
         let mut metas = Vec::new();
-        while let Type::Annotated(inner, meta) = *self.u.types().get(tpe) {
+        while let Some((inner, meta)) = self.u.annotated(tpe) {
             metas.extend(self.u.class_symbol(meta));
             tpe = inner;
         }

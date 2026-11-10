@@ -53,17 +53,15 @@ pub fn receiver_type(t: &mut Typer<'_>, method: SymbolId, info: TypeId) -> Optio
     let tparams = t.u.type_params(method);
     let mut binders = Vec::new();
     let receiver = loop {
-        match t.u.types().get(tpe).clone() {
+        match t.u.ty(tpe).clone() {
             Type::Poly { binder, params, result } => {
                 let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
                 let vars: Vec<TypeId> = names.iter().map(|_| t.constraint.fresh(t.u)).collect();
                 let inst = |t: &mut Typer<'_>, x: TypeId| {
                     let x = t.u.subst(x, binder, &names, &vars);
-                    t.u.map_type(x, &mut |u, part| match *u.types().get(part) {
-                        Type::Sym(_, s) => {
-                            tparams.iter().position(|&p| p == s).and_then(|i| vars.get(i).copied())
-                        }
-                        _ => None,
+                    t.u.map_type(x, &mut |u, part| {
+                        let s = u.sym_of(part)?;
+                        tparams.iter().position(|&p| p == s).and_then(|i| vars.get(i).copied())
                     })
                 };
                 for (&(_, bounds), &v) in params.iter().zip(&vars) {
@@ -88,5 +86,5 @@ pub fn receiver_type(t: &mut Typer<'_>, method: SymbolId, info: TypeId) -> Optio
             _ => return None,
         }
     };
-    (!matches!(t.u.types().get(receiver), Type::ByName(_))).then_some(receiver)
+    t.u.by_name(receiver).is_none().then_some(receiver)
 }

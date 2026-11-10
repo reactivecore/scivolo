@@ -12,13 +12,13 @@ const MAX_DEPTH: u32 = 14;
 /// or the `this` of a package or object.
 fn is_static_prefix(u: &mut Universe, p: Option<TypeId>) -> bool {
     let Some(p) = p else { return true };
-    match u.types().get(p).clone() {
+    match u.ty(p).clone() {
         Type::NoPrefix | Type::Package(_) | Type::PackageName(_) => true,
         Type::Sym(_, s) => u.symbol(s).kind == Kind::Package,
         Type::TermRef(q, name) => {
             u.resolve(q, &name, false).is_some_and(|s| u.symbol(s).kind == Kind::Package)
         }
-        Type::This(c) => match u.types().get(c) {
+        Type::This(c) => match u.ty(c) {
             Type::Sym(_, c) => {
                 let c = u.symbol(*c);
                 c.kind == Kind::Package || c.flags.has(tasty::tags::OBJECT)
@@ -46,7 +46,7 @@ impl Printer<'_> {
         let shown: Vec<String> = ps
             .iter()
             .map(|(name, p)| {
-                let bounds = matches!(self.u.types().get(*p), Type::Bounds(..));
+                let bounds = self.u.bounds(*p).is_some();
                 format!("{name}{}{}", if bounds { " " } else { ": " }, self.tpe(*p, n))
             })
             .collect();
@@ -93,7 +93,7 @@ impl Printer<'_> {
             return "…".into();
         }
         let n = d + 1;
-        match self.u.types().get(t).clone() {
+        match self.u.ty(t).clone() {
             Type::Sym(p, s)
                 if is_static_prefix(self.u, p)
                     && let Some(shown) = self.bound_param(s) =>
@@ -110,7 +110,7 @@ impl Printer<'_> {
                 }
             }
             Type::TypeRef(p, name) | Type::TermRef(p, name) => {
-                let ty = matches!(self.u.types().get(t), Type::TypeRef(..));
+                let ty = self.u.type_ref(t).is_some();
                 match self.u.resolve(p, &name, ty) {
                     Some(s) => {
                         let sym = self.u.intern_type(Type::Sym(Some(p), s));

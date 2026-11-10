@@ -30,7 +30,7 @@ fn collect_variances(
         return;
     }
     let mut go = |u: &mut Universe, t, v| collect_variances(u, t, v, binds, found, depth + 1);
-    match u.types().get(t).clone() {
+    match u.ty(t).clone() {
         Type::Sym(None, s) if binds.contains(&s) => {
             let entry = found.entry(s).or_insert(v);
             if *entry != v {
@@ -38,9 +38,9 @@ fn collect_variances(
             }
         }
         Type::Applied(tycon, args) => {
-            let variances = match *u.types().get(tycon) {
-                Type::Sym(_, c) => u.variances(c),
-                _ => Vec::new(),
+            let variances = match u.sym_of(tycon) {
+                Some(c) => u.variances(c),
+                None => Vec::new(),
             };
             for (i, a) in args.into_iter().enumerate() {
                 go(u, a, v * variances.get(i).copied().unwrap_or(0));
@@ -58,7 +58,7 @@ fn collect_variances(
         _ => {
             let mut parts = Vec::new();
             u.map_type(t, &mut |u, part| {
-                if matches!(*u.types().get(part), Type::Sym(None, s) if binds.contains(&s)) {
+                if matches!(u.sym_ref(part), Some((None, s)) if binds.contains(&s)) {
                     parts.push(part);
                 }
                 None
@@ -136,13 +136,13 @@ impl Bindings {
         let mut b = Bindings { c: Constraint::default(), vars: Vec::new(), subst: spliced.to_vec() };
         for &(s, from_above) in binds {
             let v = c.fresh(u);
-            let Type::Var(id) = *u.types().get(v) else { unreachable!("a type variable") };
+            let Some(id) = u.var(v) else { unreachable!("a type variable") };
             b.vars.push((s, id, from_above));
             b.subst.push((s, v));
         }
         for &(s, id, _) in &b.vars.clone() {
             let info = u.info(s);
-            if let Type::Bounds(lo, hi) | Type::Alias(lo @ hi) = *u.types().get(info) {
+            if let Type::Bounds(lo, hi) | Type::Alias(lo @ hi) = *u.ty(info) {
                 let (lo, hi) = (b.bound(u, lo), b.bound(u, hi));
                 let ok = (lo == NOTHING || c.add_lower(u, id, lo)) && (hi == ANY || c.add_upper(u, id, hi));
                 if !ok {
@@ -156,8 +156,8 @@ impl Bindings {
 
     /// Pattern type `t` with the bindings' variables and the spliced types.
     pub fn bound(&self, u: &mut Universe, t: TypeId) -> TypeId {
-        u.map_type(t, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => self.subst.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
+        u.map_type(t, &mut |u, part| match u.sym_ref(part) {
+            Some((None, s)) => self.subst.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
             _ => None,
         })
     }

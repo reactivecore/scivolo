@@ -60,7 +60,7 @@ impl DerivedTypeTree {
         };
         let mut siblings = Vec::new();
         t.u.map_type(info, &mut |u, p| {
-            if let Type::Sym(_, s) = *u.types().get(p)
+            if let Some(s) = u.sym_of(p)
                 && u.symbol(s).owner == Some(owner)
             {
                 siblings.push(s);
@@ -74,9 +74,8 @@ impl DerivedTypeTree {
             let local = self.param_or_accessor(t, &n, ty)?;
             replacements.push((s, local));
         }
-        Some(t.u.map_type(info, &mut |u, p| match *u.types().get(p) {
-            Type::Sym(_, s) => replacements.iter().find(|&&(o, _)| o == s).map(|&(_, l)| l),
-            _ => None,
+        Some(t.u.map_type(info, &mut |u, p| {
+            u.sym_of(p).and_then(|s| replacements.iter().find(|&&(o, _)| o == s).map(|&(_, l)| l))
         }))
     }
 

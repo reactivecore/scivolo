@@ -96,7 +96,9 @@ impl Typer<'_> {
         if !matches!(self.tpd.tree(qualifier), T::Apply { .. }) {
             return;
         }
-        let Type::Applied(_, args) = self.u.types().get(self.tpd.tpe(qualifier)).clone() else { return };
+        let Some(args) = self.u.applied(self.tpd.tpe(qualifier)).map(|(_, args)| args.to_vec()) else {
+            return;
+        };
         let Some(class) = self.context_function_class(1) else { return };
         let tpe = self.u.intern_type(Type::Applied(class, args));
         let apply = self.tpd.sym(fun).expect("the apply of a context function");

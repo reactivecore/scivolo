@@ -57,10 +57,7 @@ impl MirrorSynthesis {
         children: &[SymbolId],
     ) -> Result<Vec<TypeId>, &'static str> {
         let mirrored = self.formal.mirrored;
-        let target = match *t.u.types().get(mirrored) {
-            Type::Lambda { result, .. } => result,
-            _ => mirrored,
-        };
+        let target = t.u.lambda(mirrored).map_or(mirrored, |l| l.result);
         let mut types = Vec::new();
         for &c in children {
             let prefix = match path {
@@ -94,7 +91,7 @@ fn sum_companion(t: &mut Typer<'_>, c: SymbolId) -> Option<SymbolId> {
 /// Whether `p` refers to an object whose class is not `owner`, or is the `this` of a subclass of
 /// class `owner`, which it inherits from.
 fn is_inheriting_module(u: &mut Universe, p: TypeId, owner: Option<SymbolId>) -> bool {
-    match *u.types().get(p) {
+    match *u.ty(p) {
         Type::Sym(_, s) => u.module_class(s) != owner,
         Type::This(c) => match (u.class_symbol(c), owner) {
             (Some(c), Some(o)) => c != o && u.is_class(o) && u.derives_from(c, o),
@@ -107,7 +104,7 @@ fn is_inheriting_module(u: &mut Universe, p: TypeId, owner: Option<SymbolId>) ->
 /// Whether prefix `p` is a package or the `this` of a class, under which the children's types are
 /// their own references.
 fn is_plain_prefix(u: &mut Universe, p: TypeId) -> bool {
-    match *u.types().get(p) {
+    match *u.ty(p) {
         Type::Package(_) | Type::PackageName(_) | Type::This(_) | Type::NoPrefix => true,
         Type::Sym(p, s) => u.is_module(s) && p.is_none_or(|p| is_plain_prefix(u, p)),
         _ => false,

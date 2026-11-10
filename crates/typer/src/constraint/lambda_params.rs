@@ -20,7 +20,7 @@ pub fn avoid_lambda_params(u: &mut Universe, t: TypeId, from_below: bool) -> Opt
 fn refers_to_compared(u: &mut Universe, t: TypeId) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, x| {
-        found |= matches!(u.types().get(x), Type::Param(b, _) if b.0 == Universe::COMPARED_BINDERS);
+        found |= matches!(u.param_ref(x), Some((b, _)) if b.0 == Universe::COMPARED_BINDERS);
         None
     });
     found
@@ -30,14 +30,14 @@ fn approx_at(u: &mut Universe, t: TypeId, v: i8) -> Option<Approx> {
     if !refers_to_compared(u, t) {
         return Some(Approx::Exact(t));
     }
-    match u.types().get(t).clone() {
+    match u.ty(t).clone() {
         Type::Param(..) => Some(approx::range(u, Approx::Exact(NOTHING), Approx::Exact(ANY), v)),
         Type::Applied(tycon, args) => {
             let c = approx_at(u, tycon, v)?;
             let variances = u.tycon_variances(tycon, args.len());
             let mut mapped = Vec::with_capacity(args.len());
             for (&arg, &pv) in args.iter().zip(&variances) {
-                let wildcard = matches!(u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));
+                let wildcard = matches!(u.ty(arg), Type::Bounds(..) | Type::Wildcard(_));
                 mapped.push(approx_at(u, arg, if wildcard { v } else { v * pv })?);
             }
             Some(approx::applied(u, c, &mapped, &variances, v))

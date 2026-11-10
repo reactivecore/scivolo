@@ -37,12 +37,12 @@ impl Resolution {
             let tpe = t.ref_type(self.prefix, s);
             let info = t.method_info(tpe).unwrap_or(tpe);
             let info = mapped_info(t, info, s);
-            if !matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
+            if !matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. }) {
                 parameterless.push(s);
             }
-            let result = match *t.u.types().get(info) {
+            let result = match *t.u.ty(info) {
                 Type::ByName(r) => r,
-                Type::Poly { result, .. } => match t.u.types().get(result) {
+                Type::Poly { result, .. } => match t.u.ty(result) {
                     Type::Method { params, implicit: false, .. } if !params.is_empty() => continue,
                     _ => return Err("overloaded reference with a polymorphic alternative"),
                 },
@@ -151,14 +151,14 @@ fn most_specific_result(u: &mut Universe, alts: &[(SymbolId, TypeId)]) -> Option
 /// of `v`'s class or a base class of it.
 fn value_beats(u: &mut Universe, v: SymbolId, m: SymbolId) -> bool {
     let info = u.info(m);
-    let empty = matches!(u.types().get(info), Type::Method { params, .. } if params.is_empty());
+    let empty = u.method(info).is_some_and(|m| m.params.is_empty());
     let (Some(a), Some(b)) = (u.symbol(v).owner, u.symbol(m).owner) else { return false };
     u.symbol(m).kind == Kind::Def && empty && u.derives_from(a, b)
 }
 
 /// Checks whether an alternative of result type `result` is a value that may conform to `pt`.
 fn result_fits(types: &mut TypeOps, result: TypeId, pt: Pt) -> bool {
-    if matches!(types.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+    if matches!(types.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
         return false;
     }
     match pt {

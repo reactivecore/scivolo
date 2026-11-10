@@ -8,8 +8,7 @@ use tasty::{Type, TypeId, Universe};
 
 /// Gives the arity of `scala.TupleN` if `t` applies it to as many arguments.
 fn tuple_arity(u: &mut Universe, t: TypeId) -> Option<usize> {
-    let Type::Applied(_, ref args) = *u.types().get(t) else { return None };
-    let n = args.len();
+    let n = u.applied(t)?.1.len();
     let c = u.class_symbol(t)?;
     let arity: usize = u.full_name(c).strip_prefix(crate::defn::TUPLE)?.parse().ok()?;
     (arity == n).then_some(n)
@@ -21,7 +20,7 @@ pub fn upper_pairs(t: &mut Typer, hi: TypeId) -> TypeId {
     if tuple_arity(t.u, hi).is_none() {
         return hi;
     }
-    let Type::Applied(_, args) = t.u.types().get(hi).clone() else { return hi };
+    let Some(args) = t.u.applied(hi).map(|(_, args)| args.to_vec()) else { return hi };
     let (Some(pair), Some(empty)) =
         (t.resolve_full_name("scala.*:", true), t.resolve_full_name("scala.EmptyTuple", false))
     else {

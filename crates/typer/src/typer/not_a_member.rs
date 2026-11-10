@@ -122,7 +122,7 @@ impl Typer<'_> {
     /// Whether `show_user` shows type reference `part` as dotty's error messages do: by its name
     /// alone, or through objects from the root package.
     pub fn shown_as_dotty(&mut self, part: TypeId) -> bool {
-        let sym = match self.u.types().get(part).clone() {
+        let sym = match self.u.ty(part).clone() {
             Type::Sym(_, s) => s,
             Type::TypeRef(p, n) => match self.u.resolve(p, &n, true) {
                 Some(s) => s,
@@ -153,7 +153,7 @@ impl Typer<'_> {
 /// Whether type `part` is a class, an alias, a package, an object, `this` or a constant, applied
 /// or not.
 pub fn is_concrete_part(u: &mut Universe, part: TypeId) -> bool {
-    let sym = match u.types().get(part).clone() {
+    let sym = match u.ty(part).clone() {
         Type::Sym(_, s) => s,
         Type::TypeRef(p, n) => match u.resolve(p, &n, true) {
             Some(s) => s,
@@ -172,7 +172,7 @@ pub fn is_concrete_part(u: &mut Universe, part: TypeId) -> bool {
         Kind::Val => u.symbol(sym).flags.has(OBJECT),
         Kind::Type => {
             let info = u.info(sym);
-            !u.symbol(sym).flags.has(OPAQUE) && !matches!(u.types().get(info), Type::Bounds(..))
+            !u.symbol(sym).flags.has(OPAQUE) && u.bounds(info).is_none()
         }
         _ => false,
     }

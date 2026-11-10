@@ -6,7 +6,7 @@
 use super::super::Typer;
 use super::Lifter;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 impl Lifter {
     /// Gives call `f` with its prefix lifted unless idempotent, or for a method with default
@@ -20,7 +20,9 @@ impl Lifter {
                 let lifted = self.app(t, fun)?;
                 let tpe = t.tpd.tpe(fun);
                 let info = t.method_info(tpe).unwrap_or(tpe);
-                let Type::Method { params, binder, result, .. } = t.u.types().get(info).clone() else {
+                let Some((params, binder, result)) =
+                    t.u.method(info).map(|m| (m.params.to_vec(), m.binder, m.result))
+                else {
                     return Err("lifting of a call of a function value");
                 };
                 let args = t.tpd.items(args).to_vec();
@@ -97,12 +99,6 @@ impl Lifter {
 /// The result type of method reference `f`.
 fn result_of(t: &mut Typer, f: TNodeId) -> Option<TypeId> {
     let tpe = t.tpd.tpe(f);
-    let info = match t.u.types().get(tpe) {
-        Type::Method { .. } => tpe,
-        _ => t.method_info(tpe)?,
-    };
-    match *t.u.types().get(info) {
-        Type::Method { result, .. } => Some(result),
-        _ => None,
-    }
+    let info = if t.u.method(tpe).is_some() { tpe } else { t.method_info(tpe)? };
+    Some(t.u.method(info)?.result)
 }

@@ -12,8 +12,8 @@ impl Inlining<'_> {
             return Ok(());
         }
         let tpe = self.tpd.tpe(arg);
-        let singleton = matches!(*self.u.types().get(tpe), Type::And(a, _)
-            if matches!(*self.u.types().get(a), Type::Sym(_, s) if self.u.symbol(s).kind.is_term()));
+        let singleton = matches!(*self.u.ty(tpe), Type::And(a, _)
+            if self.u.sym_of(a).is_some_and(|s| self.u.symbol(s).kind.is_term()));
         match singleton || skolem {
             true => Err("inline argument cast by GADT bounds of a singleton or referred to by a skolem"),
             false => Ok(()),

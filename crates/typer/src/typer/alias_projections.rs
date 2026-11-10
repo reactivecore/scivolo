@@ -26,10 +26,7 @@ impl Typer<'_> {
             false => {
                 let pre = self.tpd.tpe(qual);
                 let info = self.u.member_info(pre, sym);
-                match *self.u.types().get(info) {
-                    Type::Alias(a) => a,
-                    _ => alias,
-                }
+                self.u.type_alias(info).unwrap_or(alias)
             }
         };
         let span = self.ast.span(id);
@@ -42,20 +39,17 @@ impl Typer<'_> {
             return self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         };
         let tpe = self.u.dealias(alias);
-        let class = match *self.u.types().get(tpe) {
-            Type::Sym(_, s) => Some(s),
-            _ => None,
-        };
+        let class = self.u.sym_of(tpe);
         self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), class)
     }
 
     /// Whether `t` refers to the `this` of a class other than to select a type parameter.
     fn refers_to_this(&mut self, t: TypeId) -> bool {
         let mut this = false;
-        self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
+        self.u.map_type(t, &mut |u, part| match *u.ty(part) {
             Type::Sym(Some(_), s) if u.symbol(s).kind == tasty::Kind::TypeParam => Some(part),
             Type::This(c) => {
-                this |= !matches!(u.types().get(c), Type::Package(_));
+                this |= !matches!(u.ty(c), Type::Package(_));
                 None
             }
             _ => None,
@@ -67,7 +61,7 @@ impl Typer<'_> {
     fn refers_to_member_of(&mut self, t: TypeId, owner: Option<SymbolId>) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |u, part| {
-            found |= matches!(*u.types().get(part), Type::Sym(_, s) if u.symbol(s).owner == owner);
+            found |= u.sym_of(part).is_some_and(|s| u.symbol(s).owner == owner);
             None
         });
         found
@@ -79,8 +73,8 @@ impl Typer<'_> {
         for _ in 0..MAX_EXPANSIONS {
             let (mut this, mut member) = (false, None);
             self.u.map_type(t, &mut |u, part| {
-                match *u.types().get(part) {
-                    Type::This(c) => this |= !matches!(u.types().get(c), Type::Package(_)),
+                match *u.ty(part) {
+                    Type::This(c) => this |= !matches!(u.ty(c), Type::Package(_)),
                     Type::Sym(_, s) if u.symbol(s).owner == owner => member = member.or(Some(s)),
                     _ => {}
                 }
@@ -89,10 +83,7 @@ impl Typer<'_> {
             let Some(member) = member else { return (!this).then_some(t) };
             self.complete(member);
             let alias = self.u.alias_of(member)?;
-            t = self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-                Type::Sym(_, s) if s == member => Some(alias),
-                _ => None,
-            });
+            t = self.u.map_type(t, &mut |u, part| (u.sym_of(part) == Some(member)).then_some(alias));
         }
         None
     }

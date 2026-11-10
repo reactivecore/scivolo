@@ -92,7 +92,7 @@ fn can_compare_classes(t: &mut Typer<'_>, a: SymbolId, b: SymbolId) -> bool {
 fn class_symbols(u: &mut Universe, t: TypeId) -> Vec<SymbolId> {
     let t = u.widen(t);
     let t = u.dealias(t);
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::And(a, b) => [class_symbols(u, a), class_symbols(u, b)].concat(),
         Type::Or(a, b, _) => {
             let right = class_symbols(u, b);

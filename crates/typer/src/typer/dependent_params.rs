@@ -45,7 +45,7 @@ pub fn clause_param(
     (binder, names): (Binder, &[String]),
     method: Option<SymbolId>,
 ) -> Option<usize> {
-    match *u.types().get(part) {
+    match *u.ty(part) {
         Type::Param(b, i) if b == binder => Some(i as usize),
         Type::Sym(None, p) if u.symbol(p).kind == Kind::Param && u.symbol(p).owner == method => {
             names.iter().position(|n| *n == u.symbol(p).name)
@@ -82,7 +82,7 @@ pub fn has_false_dependency(
 ) -> bool {
     let mut selections = Vec::new();
     u.map_type(t, &mut |u, part| {
-        let (pre, name) = match u.types().get(part).clone() {
+        let (pre, name) = match u.ty(part).clone() {
             Type::TypeRef(pre, name) => (pre, name),
             Type::Sym(Some(pre), s) if u.symbol(s).kind == Kind::Type => (pre, u.symbol(s).name.clone()),
             _ => return None,
@@ -92,7 +92,7 @@ pub fn has_false_dependency(
     });
     selections.into_iter().any(|(formal, name)| {
         let Some(info) = u.refinement_named(formal, &name) else { return false };
-        let Type::Alias(alias) = *u.types().get(info) else { return false };
+        let Some(alias) = u.type_alias(info) else { return false };
         let mut recursive = false;
         u.map_type(alias, &mut |_, part| {
             recursive |= part == formal;
@@ -114,17 +114,15 @@ fn substituted(
         if let Some(i) = param(u, part) {
             return replacements.get(i).copied();
         }
-        if let Type::TypeRef(pre, name) = u.types().get(part).clone() {
+        if let Some((pre, name)) = u.type_ref(part).map(|(pre, name)| (pre, name.to_owned())) {
             let new_pre = substituted(u, pre, param, replacements);
-            if new_pre == pre || !matches!(u.types().get(new_pre), Type::Skolem(..) | Type::Refined(..)) {
+            if new_pre == pre || !matches!(u.ty(new_pre), Type::Skolem(..) | Type::Refined(..)) {
                 return None;
             }
-            return match u.refinement_named(new_pre, &name).map(|i| u.types().get(i)) {
-                Some(&Type::Alias(alias)) => Some(alias),
-                _ => Some(u.intern_type(Type::TypeRef(new_pre, name))),
-            };
+            let alias = u.refinement_named(new_pre, &name).and_then(|i| u.type_alias(i));
+            return Some(alias.unwrap_or_else(|| u.intern_type(Type::TypeRef(new_pre, name))));
         }
-        let Type::Sym(Some(pre), s) = *u.types().get(part) else { return None };
+        let Some((Some(pre), s)) = u.sym_ref(part) else { return None };
         if u.symbol(s).kind.is_term() {
             let new_pre = substituted(u, pre, param, replacements);
             let selected = u.intern_type(Type::Sym(Some(new_pre), s));
@@ -138,9 +136,9 @@ fn substituted(
             return None;
         }
         let new_pre = refined_path(u, new_pre).unwrap_or(new_pre);
-        if matches!(u.types().get(new_pre), Type::Skolem(..) | Type::Refined(..))
+        if matches!(u.ty(new_pre), Type::Skolem(..) | Type::Refined(..))
             && let Some(info) = u.refinement_info(new_pre, s)
-            && let Type::Alias(alias) = *u.types().get(info)
+            && let Some(alias) = u.type_alias(info)
         {
             return Some(alias);
         }
@@ -153,13 +151,13 @@ fn substituted(
 
 /// The path a refinement of skolem `s`'s type gives term member `m` for selection `s.m`.
 fn refined_path(u: &mut Universe, t: TypeId) -> Option<TypeId> {
-    let Type::Sym(Some(pre), m) = *u.types().get(t) else { return None };
-    if !matches!(u.types().get(pre), Type::Skolem(..)) || !u.symbol(m).kind.is_term() {
+    let Some((Some(pre), m)) = u.sym_ref(t) else { return None };
+    if !matches!(u.ty(pre), Type::Skolem(..)) || !u.symbol(m).kind.is_term() {
         return None;
     }
     let name = u.symbol(m).name.clone();
     let info = u.term_refinement_named(pre, &name)?;
-    match *u.types().get(info) {
+    match *u.ty(info) {
         Type::Sym(_, p) if u.symbol(p).kind.is_term() => Some(info),
         Type::TermRef(..) => Some(info),
         _ => None,
@@ -183,7 +181,7 @@ pub fn mentions_params_except(
 ) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, part| {
-        match *u.types().get(part) {
+        match *u.ty(part) {
             Type::Param(b, _) if b == binder => found = true,
             Type::Sym(_, s)
                 if u.symbol(s).kind == Kind::Param && method.is_some() && !applied.contains(&s) =>

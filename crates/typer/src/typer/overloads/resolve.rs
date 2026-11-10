@@ -173,7 +173,7 @@ impl Resolution {
 fn result_is_method(types: &mut TypeOps, s: SymbolId) -> bool {
     let info = types.u.info(s);
     let info = types.u.strip_poly(info);
-    let tasty::Type::Method { result, .. } = *types.u.types().get(info) else { return false };
+    let Some(result) = types.u.method(info).map(|m| m.result) else { return false };
     let result = types.strip_implicit(result);
-    matches!(types.u.types().get(result), tasty::Type::Method { .. })
+    types.u.method(result).is_some()
 }

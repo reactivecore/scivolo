@@ -41,7 +41,7 @@ pub fn extractor_member(t: &mut Typer<'_>, tpe: TypeId, name: &str) -> Result<Op
     let [sym] = found.syms[..] else { return Err("overloaded extractor member") };
     let member = t.ref_type(Some(tpe), sym);
     let info = t.method_info(member).unwrap_or(member);
-    Ok(match *t.u.types().get(info) {
+    Ok(match *t.u.ty(info) {
         Type::Method { .. } | Type::Poly { .. } => None,
         Type::Bounds(..) => return Err("extractor member typed by a wildcard argument"),
         Type::ByName(r) => Some(r),
@@ -74,7 +74,7 @@ fn int_method_results(t: &mut Typer<'_>, tpe: TypeId, name: &str) -> Vec<TypeId>
         let Some(Binding { params, result, .. }) = t.u.method(info) else { continue };
         if let [(_, index)] = params[..]
             && is_int(t, index)
-            && !matches!(t.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
+            && !matches!(t.u.ty(result), Type::Method { .. } | Type::Poly { .. })
         {
             out.push(result);
         }
@@ -95,7 +95,7 @@ fn parameterless_results(t: &mut Typer<'_>, tpe: TypeId, name: &str) -> Vec<Type
         }
         let member = t.ref_type(Some(tpe), s);
         let info = t.method_info(member).unwrap_or(member);
-        match *t.u.types().get(info) {
+        match *t.u.ty(info) {
             Type::Method { .. } | Type::Poly { .. } => {}
             Type::ByName(r) => out.push(r),
             _ => out.push(info),

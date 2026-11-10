@@ -27,7 +27,7 @@ impl Typer<'_> {
         depth: u32,
         ctx: Option<Ctx>,
     ) -> Option<TNodeId> {
-        match self.u.types().get(prefix).clone() {
+        match self.u.ty(prefix).clone() {
             Type::This(class) => Some(self.build().this(class, span)),
             Type::TermRef(p, _) => {
                 let s = self.u.resolve_ref(prefix)?;
@@ -37,19 +37,18 @@ impl Typer<'_> {
             Type::Sym(p, s) if !self.u.is_type_symbol(s) && self.is_stable_member(s) && depth > 0 => {
                 let static_class =
                     |t: &mut Self, c| t.u.class_symbol(c).is_some_and(|cls| t.is_static_owner(cls));
-                let elidable =
-                    match p.map(|p| self.u.types().get(crate::defn::package_ref(self.u, p)).clone()) {
-                        None | Some(Type::NoPrefix | Type::Package(_)) => true,
-                        Some(Type::This(c)) if self.is_param_or_accessor(s) => match ctx {
-                            Some(ctx) => self.term_prefix_is_elidable(p, s, ctx),
-                            None => static_class(self, c).then_some(true)?,
-                        },
-                        Some(Type::This(c)) => static_class(self, c),
-                        Some(Type::Sym(_, o)) => {
-                            self.u.symbol(o).flags.has(tasty::tags::OBJECT) && self.is_static_term(o)
-                        }
-                        _ => return None,
-                    };
+                let elidable = match p.map(|p| self.u.ty(crate::defn::package_ref(self.u, p)).clone()) {
+                    None | Some(Type::NoPrefix | Type::Package(_)) => true,
+                    Some(Type::This(c)) if self.is_param_or_accessor(s) => match ctx {
+                        Some(ctx) => self.term_prefix_is_elidable(p, s, ctx),
+                        None => static_class(self, c).then_some(true)?,
+                    },
+                    Some(Type::This(c)) => static_class(self, c),
+                    Some(Type::Sym(_, o)) => {
+                        self.u.symbol(o).flags.has(tasty::tags::OBJECT) && self.is_static_term(o)
+                    }
+                    _ => return None,
+                };
                 if elidable {
                     return Some(self.build().ident(s, prefix, span));
                 }
@@ -81,14 +80,14 @@ impl Typer<'_> {
     /// `p.name` of type `tpe`, a reference to `sym` at `span` from `ctx` through the path `p` of
     /// its prefix (dotty's `ref(tpe)`).
     pub fn this_select(&mut self, span: Span, name: TName, tpe: TypeId, sym: SymbolId, ctx: Ctx) -> TNodeId {
-        let Type::Sym(Some(prefix), _) = *self.u.types().get(tpe) else { unreachable!("a member reference") };
+        let Some((Some(prefix), _)) = self.u.sym_ref(tpe) else { unreachable!("a member reference") };
         let Some(qualifier) = self.path_tree_from(prefix, span.start_pos(), MAX_PATH_DEPTH, Some(ctx)) else {
             self.unsupported_at(span, "reference through a path");
             return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym));
         };
-        let name = match self.u.types().get(prefix) {
-            Type::This(_) => name,
-            _ => TName { is_type: name.is_type, ..self.build().term_name(sym) },
+        let name = match self.u.this_of(prefix) {
+            Some(_) => name,
+            None => TName { is_type: name.is_type, ..self.build().term_name(sym) },
         };
         self.tpd.node(T::Select { qualifier, name }, span, Some(tpe), Some(sym))
     }

@@ -25,7 +25,7 @@ impl Typer<'_> {
     pub fn java_enum_constr_call(&mut self, parent: TNodeId, psym: SymbolId, span: Span) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(parent);
         let ctor = self.u.decl(psym, "<init>").ok()?.into_iter().next()?;
-        let Type::Applied(_, args) = self.u.types().get(tpe).clone() else { return None };
+        let args = self.u.applied(tpe).map(|(_, args)| args.to_vec())?;
         let new = self.tpd.node(T::New { tpt: parent }, span, Some(tpe), None);
         let name = TName { name: self.name("<init>"), is_type: false };
         let ctor_tpe = self.ref_type(Some(tpe), ctor);
@@ -76,9 +76,9 @@ impl Typer<'_> {
         if flags.has(ENUM) && !flags.has(CASE) {
             let this = crate::defn::type_ref(self.u, cls);
             let base = self.u.linearization(cls).into_iter().find(|&b| self.is_java_enum_class(b));
-            let arg = base.and_then(|b| self.u.base_type(this, b)).map(|t| self.u.types().get(t).clone());
-            let own = matches!(arg, Some(Type::Applied(_, ref args)) if args.len() == 1
-                && self.u.class_symbol(args[0]) == Some(cls));
+            let applied = base.and_then(|b| self.u.base_type(this, b)).and_then(|t| self.u.applied(t));
+            let arg = applied.and_then(|(_, args)| if let [arg] = args { Some(*arg) } else { None });
+            let own = arg.is_some_and(|a| self.u.class_symbol(a) == Some(cls));
             if !own || !self.u.type_params(cls).is_empty() {
                 return Some("enum extending java.lang.Enum of another type or with type parameters");
             }

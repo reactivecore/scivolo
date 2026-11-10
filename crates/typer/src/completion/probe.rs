@@ -62,7 +62,7 @@ impl Typer<'_> {
     fn has_unknowns(&mut self, t: TypeId) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |u, part| {
-            found |= matches!(u.types().get(part), Type::Error | Type::Var(_));
+            found |= matches!(u.ty(part), Type::Error | Type::Var(_));
             None
         });
         found

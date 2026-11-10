@@ -13,7 +13,7 @@ impl TypeOps<'_> {
         let mut found = false;
         let mut classes = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            match *u.types().get(part) {
+            match *u.ty(part) {
                 Type::Sym(_, s) => found |= syms.contains(&s),
                 Type::Constant(tasty::tags::CLASSconst, bits) => classes.push(TypeId(bits as u32)),
                 _ => {}
@@ -29,7 +29,7 @@ impl TypeOps<'_> {
     pub fn escapes(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         let mut found = false;
         let mut classes = Vec::new();
-        self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
+        self.u.map_type(t, &mut |u, part| match *u.ty(part) {
             Type::Sym(pre, s) => {
                 found |= locals.contains(&s);
                 pre.filter(|_| u.is_static_symbol(s)).map(|_| part)
@@ -63,7 +63,7 @@ impl TypeOps<'_> {
         while let Some(t) = todo.pop() {
             let mut vars = Vec::new();
             self.u.map_type(t, &mut |u, part| {
-                if let Type::Var(v) = *u.types().get(part) {
+                if let Some(v) = u.var(part) {
                     vars.push(v);
                 }
                 None

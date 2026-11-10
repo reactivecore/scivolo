@@ -92,7 +92,7 @@ impl Typer<'_> {
         if kind == tasty::Kind::Val && !flags.has(tasty::tags::MUTABLE) {
             self.complete(sym);
             let info = self.u.info(sym);
-            if matches!(self.u.types().get(info), tasty::Type::Constant(..) | tasty::Type::Str(_)) {
+            if matches!(self.u.ty(info), tasty::Type::Constant(..) | tasty::Type::Str(_)) {
                 return false;
             }
         }

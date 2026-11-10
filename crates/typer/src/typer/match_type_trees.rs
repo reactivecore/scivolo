@@ -82,7 +82,7 @@ impl Typer<'_> {
         };
         let mut captures: Vec<SymbolId> = Vec::new();
         self.u.map_type(pat, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part)
+            if let Some(s) = u.sym_of(part)
                 && s.0 >= first.0
                 && u.symbol(s).kind == Kind::Type
                 && u.symbol(s).tree.is_none()
@@ -100,7 +100,7 @@ impl Typer<'_> {
         }
         let mut body = self.tpd.tpe(body);
         if let Some(bound) = outer.filter(|_| unbounded)
-            && let Type::Match { scrutinee, cases, .. } = self.u.types().get(body).clone()
+            && let Type::Match { scrutinee, cases, .. } = self.u.ty(body).clone()
         {
             body = self.u.intern_type(Type::Match { bound, scrutinee, cases });
         }
@@ -111,12 +111,9 @@ impl Typer<'_> {
         let binder = self.syms.fresh_binder();
         let params: Vec<(String, TypeId)> =
             captures.iter().map(|&s| (self.u.symbol(s).name.clone(), self.u.info(s))).collect();
-        let result = self.u.map_type(case, &mut |u, t| match *u.types().get(t) {
-            Type::Sym(_, s) => {
-                let i = captures.iter().position(|&c| c == s)?;
-                Some(u.intern_type(Type::Param(binder, i as u32)))
-            }
-            _ => None,
+        let result = self.u.map_type(case, &mut |u, t| {
+            let i = captures.iter().position(|&c| Some(c) == u.sym_of(t))?;
+            Some(u.intern_type(Type::Param(binder, i as u32)))
         });
         Some((self.u.intern_type(Type::Lambda { binder, params, result }), body, captures))
     }

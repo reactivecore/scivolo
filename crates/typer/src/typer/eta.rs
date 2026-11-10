@@ -65,16 +65,13 @@ impl Typer<'_> {
     ) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(tree);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let Type::Method { params, result, contextual: false, .. } = self.u.types().get(info).clone() else {
+        let Type::Method { params, result, contextual: false, .. } = self.u.ty(info).clone() else {
             return Err("method value");
         };
         if params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some()) {
             return Err("method value with a repeated parameter");
         }
-        let last = match self.u.types().get(result) {
-            Type::Method { implicit, .. } => *implicit,
-            _ => true,
-        };
+        let last = self.u.method(result).is_none_or(|m| m.implicit);
         let below = match pt {
             Pt::Type(p) => Some(self.var_upper(p)),
             _ => None,
@@ -94,10 +91,8 @@ impl Typer<'_> {
         let lifted = self.lift_app(&mut defs, tree, false, ctx)?;
         let lifted_tpe = self.tpd.tpe(lifted);
         let lifted_info = self.method_info(lifted_tpe).unwrap_or(lifted_tpe);
-        let params = match self.u.types().get(lifted_info).clone() {
-            Type::Method { params: lifted_params, .. } if lifted_params.len() == params.len() => {
-                lifted_params
-            }
+        let params = match self.u.method(lifted_info) {
+            Some(m) if m.params.len() == params.len() => m.params.to_vec(),
             _ => params,
         };
         let java = self.tpd.sym(tree).is_some_and(|s| self.is_java_member(s));

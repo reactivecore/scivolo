@@ -4,7 +4,7 @@
 
 use super::Typer;
 use tasty::tags::PRIVATE;
-use tasty::{Kind, SymbolId, Type, Universe};
+use tasty::{Kind, SymbolId, Universe};
 
 impl Typer<'_> {
     /// Whether concrete `m` of a base class replaces abstract `o` found before it in class `c`.
@@ -26,8 +26,7 @@ impl Typer<'_> {
 /// match.
 fn empty_param_list(u: &mut Universe, s: SymbolId) -> bool {
     let info = u.info(s);
-    u.symbol(s).kind == Kind::Def
-        && matches!(u.types().get(info), Type::Method { params, .. } if params.is_empty())
+    u.symbol(s).kind == Kind::Def && u.method(info).is_some_and(|m| m.params.is_empty())
 }
 
 /// Whether `o`, a member of class `c` and not private, hides `m` of a base class of its class:

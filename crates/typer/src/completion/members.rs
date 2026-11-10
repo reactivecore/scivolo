@@ -15,7 +15,7 @@ impl Typer<'_> {
     /// The names starting with `prefix` of the members of `qual` that a selection in `ctx`
     /// offers; `None` where the universe may not know them all.
     pub fn member_completions(&mut self, qual: TypeId, prefix: &str, ctx: Ctx) -> Option<Vec<String>> {
-        let this = matches!(self.u.types().get(qual), Type::This(_));
+        let this = self.u.this_of(qual).is_some();
         let site = self.widen_if_unstable(qual);
         let owners = self.member_owners(site)?;
         let mut names: Vec<String> = Vec::new();
@@ -34,7 +34,7 @@ impl Typer<'_> {
     /// The package or the base classes whose declarations are the members of `site`; `None` for
     /// the root package, whose members dotty takes from its classpath and the JDK.
     fn member_owners(&mut self, site: TypeId) -> Option<Vec<SymbolId>> {
-        let package = match *self.u.types().get(site) {
+        let package = match *self.u.ty(site) {
             Type::Package(p) => Some(p),
             Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Package => Some(s),
             _ => None,
@@ -49,7 +49,7 @@ impl Typer<'_> {
         }
         let widened = self.u.widen(site);
         let t = self.u.dealias(widened);
-        let class = match *self.u.types().get(t) {
+        let class = match *self.u.ty(t) {
             Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class => Some(s),
             Type::Applied(..) | Type::This(_) | Type::TypeRef(..) => self.u.class_symbol(t),
             _ => None,

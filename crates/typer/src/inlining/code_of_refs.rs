@@ -18,7 +18,7 @@ impl Inlining<'_> {
             return Some(format!("{}.", self.shown_full_name(owner)));
         };
         let p = crate::defn::package_ref(self.u, p);
-        let omitted = match *self.u.types().get(p) {
+        let omitted = match *self.u.ty(p) {
             Type::Package(s) | Type::Sym(_, s) => self.is_omitted(s),
             Type::This(c) => self.u.class_symbol(c).is_some_and(|c| self.is_omitted(c)),
             _ => false,
@@ -31,7 +31,7 @@ impl Inlining<'_> {
 
     /// Singleton type `p` as a path (dotty's `RefinedPrinter.toTextRef`).
     fn ref_code(&mut self, p: TypeId) -> Option<String> {
-        match *self.u.types().get(p) {
+        match *self.u.ty(p) {
             Type::Package(s) => Some(self.shown_full_name(s)),
             Type::This(c) => {
                 let c = self.u.class_symbol(c)?;
@@ -56,7 +56,7 @@ impl Inlining<'_> {
 
     /// Type `t` as dotty's `PlainPrinter.toText` shows it, if it refers to a class or alias.
     pub fn type_code(&mut self, t: TypeId) -> Option<String> {
-        let Type::Sym(prefix, s) = *self.u.types().get(t) else { return None };
+        let (prefix, s) = self.u.sym_ref(t)?;
         if !self.u.is_type_symbol(s) || self.u.is_module_class(s) {
             return None;
         }

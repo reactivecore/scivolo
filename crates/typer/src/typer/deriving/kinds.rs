@@ -173,7 +173,7 @@ fn class_type_params(t: &mut Typer<'_>, cls: SymbolId) -> Vec<SymbolId> {
 
 /// The parameters of higher-kinded type `info`, a type lambda or bounds over one.
 fn hk_params(u: &Universe, info: TypeId) -> Option<Vec<(String, TypeId)>> {
-    match u.types().get(info) {
+    match u.ty(info) {
         Type::Lambda { params, .. } => Some(params.clone()),
         &Type::Bounds(_, hi) => hk_params(u, hi),
         _ => None,

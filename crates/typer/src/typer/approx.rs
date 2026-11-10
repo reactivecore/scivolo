@@ -33,14 +33,8 @@ impl Approx {
         match self {
             Approx::Exact(t) => t,
             Approx::Range(lo, hi) => {
-                let lo = match *u.types().get(lo) {
-                    Type::Bounds(l, _) => l,
-                    _ => lo,
-                };
-                let hi = match *u.types().get(hi) {
-                    Type::Bounds(_, h) => h,
-                    _ => hi,
-                };
+                let lo = u.bounds(lo).map_or(lo, |(l, _)| l);
+                let hi = u.bounds(hi).map_or(hi, |(_, h)| h);
                 u.intern_type(Type::Bounds(lo, hi))
             }
         }
@@ -124,7 +118,7 @@ pub fn applied(u: &mut Universe, tycon: Approx, args: &[Approx], variances: &[i8
 /// Whether `a` is a range with bounds or an alias as one of its ends (dotty's
 /// `isRangeOfNonTermTypes`).
 fn is_range_of_bounds(u: &Universe, a: Approx) -> bool {
-    let bounds = |t| matches!(u.types().get(t), Type::Bounds(..) | Type::Alias(_) | Type::Wildcard(_));
+    let bounds = |t| matches!(u.ty(t), Type::Bounds(..) | Type::Alias(_) | Type::Wildcard(_));
     a.is_range() && (bounds(a.lo()) || bounds(a.hi()))
 }
 
@@ -167,8 +161,8 @@ pub fn refined(u: &mut Universe, parent: Approx, name: &str, info: Approx, v: i8
     let Approx::Range(lo, hi) = info else {
         return Approx::Exact(u.intern_type(Type::Refined(parent, name.to_owned(), info.hi())));
     };
-    let is_alias = |u: &Universe, t| matches!(u.types().get(t), Type::Alias(_));
-    let is_bounds = |u: &Universe, t| matches!(u.types().get(t), Type::Alias(_) | Type::Bounds(..));
+    let is_alias = |u: &Universe, t| u.type_alias(t).is_some();
+    let is_bounds = |u: &Universe, t| matches!(u.ty(t), Type::Alias(_) | Type::Bounds(..));
     if is_bounds(u, lo) && is_bounds(u, hi) && (is_alias(u, lo) || is_alias(u, hi)) {
         return range(u, Approx::Exact(NOTHING), Approx::Exact(parent), v);
     }

@@ -109,11 +109,11 @@ impl Inlining<'_> {
         if self.is_static_object(owner) {
             return Some((m, owner));
         }
-        let prefix = match *self.u.types().get(self.tpd.tpe(t)) {
+        let prefix = match *self.u.ty(self.tpd.tpe(t)) {
             Type::Sym(Some(p), _) | Type::TermRef(p, _) => p,
             _ => return None,
         };
-        let object = match *self.u.types().get(prefix) {
+        let object = match *self.u.ty(prefix) {
             Type::Sym(_, v) if self.u.is_module(v) => self.u.module_class(v)?,
             Type::This(c) => self.u.class_symbol(c)?,
             _ => return None,
@@ -140,9 +140,7 @@ impl Inlining<'_> {
     fn erased_params(&mut self, m: SymbolId) -> Vec<bool> {
         let (mut t, mut erased) = (self.u.info(m), Vec::new());
         loop {
-            if let Type::Poly { result, .. } = *self.u.types().get(t) {
-                t = result;
-            }
+            t = self.u.strip_poly(t);
             let Some(binding) = self.u.method(t) else { return erased };
             let (params, result) = (binding.param_types(), binding.result);
             erased.extend(params.into_iter().map(|p| self.u.is_erased_param(p)));

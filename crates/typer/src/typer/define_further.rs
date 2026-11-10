@@ -4,7 +4,7 @@
 //! `canDefineFurther` with `ForceDegree.failBottom`).
 
 use super::Typer;
-use tasty::{NOTHING, Type, TypeId, TypeVars, VarId};
+use tasty::{NOTHING, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {
     /// Whether `tpe` conforms to `pt` once the type variables in `tpe` are instantiated; the
@@ -24,7 +24,7 @@ impl Typer<'_> {
         let zonked = self.zonk(t);
         let mut open: Vec<VarId> = Vec::new();
         self.u.map_type(zonked, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part)
+            if let Some(v) = u.var(part)
                 && !open.contains(&v)
             {
                 open.push(v);

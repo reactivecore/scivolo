@@ -151,10 +151,7 @@ impl Constraint {
         checked: TypeId,
     ) -> bool {
         let mark = self.mark();
-        let propagated = match *u.types().get(other) {
-            Type::Var(w) => self.propagated(u, w, t, lower),
-            _ => true,
-        };
+        let propagated = u.var(other).is_none_or(|w| self.propagated(u, w, t, lower));
         let ok = propagated && self.narrow(u, v, lo, hi, checked);
         if !ok {
             self.rollback(mark);
@@ -170,10 +167,10 @@ impl Constraint {
         if lo == hi {
             let mut open = false;
             u.map_type(lo, &mut |u, part| {
-                open |= matches!(*u.types().get(part), Type::Var(w) if self.vars[w.0 as usize].instance.is_none());
+                open |= matches!(u.var(part), Some(w) if self.vars[w.0 as usize].instance.is_none());
                 None
             });
-            let tycon = matches!(*u.types().get(lo), Type::Sym(_, s) if !u.type_params(s).is_empty());
+            let tycon = matches!(u.sym_of(lo), Some(s) if !u.type_params(s).is_empty());
             if !open && !tycon {
                 self.instantiate(v, lo);
                 return true;
@@ -182,8 +179,8 @@ impl Constraint {
         let mark = self.mark();
         self.set(v, lo, hi);
         let ok = hi == ANY
-            || match u.types().get(hi).clone() {
-                Type::Var(w) if self.vars[w.0 as usize].instance.is_none() && !has_var(u, checked) => {
+            || match u.var(hi) {
+                Some(w) if self.vars[w.0 as usize].instance.is_none() && !has_var(u, checked) => {
                     let lo_w = self.vars[w.0 as usize].lo;
                     u.is_subtype(checked, lo_w) || self.propagated(u, w, checked, true)
                 }
@@ -206,7 +203,7 @@ impl TypeVars for Constraint {
         if let Some(t) = e.instance {
             return self.satisfiable(u, lo, t);
         }
-        if *u.types().get(lo) == Type::Var(v) {
+        if u.var(lo) == Some(v) {
             return true;
         }
         let lo = lambda_params::avoid_lambda_params(u, lo, true).filter(|&t| self.kind_compatible(u, v, t));
@@ -218,7 +215,7 @@ impl TypeVars for Constraint {
                 lo
             }
         };
-        let incoming_union = matches!(u.types().get(lo), Type::Or(_, _, false));
+        let incoming_union = matches!(u.ty(lo), Type::Or(_, _, false));
         let (lo, unchecked) = if let Some(joined) = u.atoms_lub(e.lo, lo) {
             (joined, lo)
         } else if u.is_subtype(lo, e.lo) {
@@ -246,12 +243,12 @@ impl TypeVars for Constraint {
         if let Some(t) = e.instance {
             return self.satisfiable(u, t, hi);
         }
-        if *u.types().get(hi) == Type::Var(v) {
+        if u.var(hi) == Some(v) {
             return true;
         }
         let hi = lambda_params::avoid_lambda_params(u, hi, false).filter(|&t| self.kind_compatible(u, v, t));
         let Some(hi) = hi else { return false };
-        if let Type::Var(w) = *u.types().get(hi)
+        if let Some(w) = u.var(hi)
             && self.unifiable(v, w)
             && self.unify(u, v, w)
         {

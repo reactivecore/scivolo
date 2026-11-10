@@ -41,7 +41,7 @@ impl UnapplyPattern {
         result: TypeId,
         own: TypeId,
     ) -> Result<(TypeId, Vec<TNodeId>), &'static str> {
-        if !matches!(t.u.types().get(result), Type::Method { implicit: true, .. }) {
+        if t.u.method(result).is_none_or(|m| !m.implicit) {
             return Ok((result, Vec::new()));
         }
 
@@ -60,7 +60,7 @@ impl UnapplyPattern {
             }
             implicits.extend_from_slice(t.tpd.items(args));
             let tpe = t.tpd.tpe(applied);
-            match t.u.types().get(tpe) {
+            match t.u.ty(tpe) {
                 Type::Method { implicit: true, .. } => app = applied,
                 Type::Method { .. } | Type::Poly { .. } => return Err("extractor with more parameters"),
                 _ => return Ok((tpe, implicits)),
@@ -80,12 +80,12 @@ fn applied_unapply_result(
 ) -> TypeId {
     let names = [method.param.clone()];
     let applied = applied_result(t.u, method.result, (method.binder, &names), sym, &[own]);
-    let skolem = |u: &Universe, x| match *u.types().get(x) {
+    let skolem = |u: &Universe, x| match *u.ty(x) {
         Type::Skolem(_, w) => Some(w),
         _ => None,
     };
     let result = t.u.map_type(applied, &mut |u, part| {
-        let Type::And(a, b) = *u.types().get(part) else { return None };
+        let Type::And(a, b) = *u.ty(part) else { return None };
         match (skolem(u, a), skolem(u, b)) {
             (Some(w), None) => Some(u.glb(w, b)),
             (None, Some(w)) => Some(u.glb(a, w)),

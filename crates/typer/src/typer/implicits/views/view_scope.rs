@@ -35,8 +35,11 @@ impl TypeOps<'_> {
     pub fn is_top_like(&mut self, pt: TypeId) -> bool {
         let pt = self.zonk(pt);
         let pt = self.u.dealias(pt);
-        if matches!(*self.u.types().get(pt), Type::Flexible(_))
-            || matches!(*self.u.types().get(pt), Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam))
+        if matches!(self.u.ty(pt), Type::Flexible(_))
+            || self
+                .u
+                .sym_of(pt)
+                .is_some_and(|s| matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam))
         {
             return false;
         }

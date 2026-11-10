@@ -18,7 +18,7 @@ impl TreePickler<'_> {
         let parameterless = self.tpd.sym(fun).is_some_and(|s| {
             let info = self.u.info(s);
             self.u.symbol(s).kind == Kind::Def
-                && !matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+                && !matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. })
         });
         if parameterless && self.tpd.items(args).is_empty() {
             return self.tree(fun);
@@ -48,7 +48,7 @@ impl TreePickler<'_> {
             return Err("named type arguments");
         }
         let info = self.u.widen(self.tpd.tpe(tycon));
-        let Type::Poly { params, .. } = self.u.types().get(info).clone() else {
+        let Some(params) = self.u.poly(info).map(|p| p.params.to_vec()) else {
             return Err("named type arguments of a method that is not polymorphic");
         };
         let named = self.tpd.items(named).to_vec();
@@ -74,16 +74,16 @@ impl TreePickler<'_> {
         let T::New { tpt } = *self.tpd.tree(qualifier) else { return None };
         let ctor = self.tpd.sym(fun).filter(|&c| self.u.is_constructor(c))?;
         let info = self.u.info(ctor);
-        let Type::Poly { params, .. } = self.u.types().get(info).clone() else { return None };
+        let params = self.u.poly(info).map(|p| p.params.to_vec())?;
         let tpe = self.tpd.tpe(tpt);
-        match self.u.types().get(tpe) {
-            Type::Applied(_, targs) => Some(targs.clone()),
-            _ => Some(params.iter().map(|&(_, b)| self.upper_bound(b)).collect()),
+        match self.u.applied(tpe) {
+            Some((_, targs)) => Some(targs.to_vec()),
+            None => Some(params.iter().map(|&(_, b)| self.upper_bound(b)).collect()),
         }
     }
 
     fn upper_bound(&self, bounds: TypeId) -> TypeId {
-        match *self.u.types().get(bounds) {
+        match *self.u.ty(bounds) {
             Type::Bounds(_, hi) | Type::Alias(hi) => hi,
             _ => bounds,
         }

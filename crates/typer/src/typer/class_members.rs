@@ -21,10 +21,10 @@ impl Typer<'_> {
     /// private (dotty's `nonPrivateMember`).
     pub fn non_private_members(&mut self, t: TypeId, name: &str) -> Vec<SymbolId> {
         let mut widened = self.u.widen(t);
-        if matches!(self.u.types().get(widened), Type::Or(..)) {
+        if matches!(self.u.ty(widened), Type::Or(..)) {
             widened = self.u.join(widened).unwrap_or(widened);
         }
-        if let Type::And(a, b) = *self.u.types().get(widened) {
+        if let Type::And(a, b) = *self.u.ty(widened) {
             let mut out = self.non_private_members(a, name);
             for m in self.non_private_members(b, name) {
                 if !out.contains(&m) {

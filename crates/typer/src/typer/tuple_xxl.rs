@@ -117,7 +117,7 @@ impl Typer<'_> {
     /// the `TupleXXL` class and `pt` a tuple type (dotty's `typedBind`).
     pub fn binds_tuple_pt(&mut self, body: TypeId, pt: TypeId) -> bool {
         let xxl = self.resolve_full_name("scala.runtime.TupleXXL", true);
-        let class = matches!(self.u.types().get(body), Type::Sym(..) | Type::TypeRef(..));
+        let class = matches!(self.u.ty(body), Type::Sym(..) | Type::TypeRef(..));
         class && xxl.is_some() && self.u.class_symbol(body) == xxl && self.tuple_element_types(pt).is_some()
     }
 

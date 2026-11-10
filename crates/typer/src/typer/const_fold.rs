@@ -25,7 +25,7 @@ impl Typer<'_> {
     /// The constant of type `t`, also through a reference to a constant.
     pub fn constant_of_type(&mut self, mut t: TypeId) -> Option<C> {
         loop {
-            t = match self.u.types().get(t) {
+            t = match self.u.ty(t) {
                 Type::ByName(r) => *r,
                 Type::Sym(_, s) if !self.u.is_type_symbol(*s) => match self.method_info(t) {
                     Some(info) if info != t => info,
@@ -80,12 +80,12 @@ impl Typer<'_> {
     /// Whether `tree` has the type of a class constant, `classOf[C]`.
     fn is_class_constant(&self, tree: TNodeId) -> bool {
         let tpe = self.tpd.get(tree).tpe;
-        tpe.is_some_and(|t| matches!(self.u.types().get(t), Type::Constant(CLASSconst, _)))
+        tpe.is_some_and(|t| matches!(self.u.ty(t), Type::Constant(CLASSconst, _)))
     }
 
     /// Whether `t` is a reference to a primitive value class (dotty's `isPrimitiveValueType`).
     fn is_primitive_value_type(&mut self, t: TypeId) -> bool {
-        if !matches!(self.u.types().get(t), Type::Sym(..) | Type::TypeRef(..)) {
+        if !matches!(self.u.ty(t), Type::Sym(..) | Type::TypeRef(..)) {
             return false;
         }
         let Some(class) = self.u.class_symbol(t) else { return false };

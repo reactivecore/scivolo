@@ -26,11 +26,7 @@ impl Typer<'_> {
             _ => self.widen_if_unstable(tpe),
         };
         let expr = match *self.tpd.tree(arg) {
-            T::Typed { expr, tpt }
-                if matches!(self.u.types().get(self.tpd.tpe(tpt)), Type::Annotated(..)) =>
-            {
-                expr
-            }
+            T::Typed { expr, tpt } if self.u.annotated(self.tpd.tpe(tpt)).is_some() => expr,
             _ => arg,
         };
         let annotated = self.u.intern_type(Type::Annotated(arg_tpe, annot_tpe));
@@ -63,7 +59,7 @@ impl Typer<'_> {
 
     /// `t` without its annotations (dotty's `stripped`).
     pub fn stripped(&self, mut t: TypeId) -> TypeId {
-        while let Type::Annotated(inner, _) = *self.u.types().get(t) {
+        while let Some((inner, _)) = self.u.annotated(t) {
             t = inner;
         }
         t
@@ -83,7 +79,7 @@ impl Typer<'_> {
 
     /// `t` without its annotation of class `name` (dotty's `dropAnnot`).
     pub fn without_annotation(&mut self, t: TypeId, name: &str) -> TypeId {
-        let Type::Annotated(inner, annot) = *self.u.types().get(t) else { return t };
+        let Some((inner, annot)) = self.u.annotated(t) else { return t };
         if self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == name) {
             return inner;
         }

@@ -10,7 +10,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, map_children};
 use rustc_hash::FxHashMap;
 use tasty::tags::{CASE, INLINE, MUTABLE, SYNTHETIC, TRAIT};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
     /// `bindings` without the unused elideable ones and the inline ones, and `expansion`, owned by
@@ -70,7 +70,7 @@ impl Inlining<'_> {
             && let Some(tpe) = self.tpd.get(t).tpe
         {
             self.u.map_type(tpe, &mut |u, part| {
-                if let Type::Sym(_, s) = *u.types().get(part)
+                if let Some(s) = u.sym_of(part)
                     && u.symbol(s).kind.is_term()
                 {
                     count.entry(s).and_modify(|x| *x += 2);

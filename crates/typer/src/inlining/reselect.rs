@@ -71,7 +71,7 @@ impl Inlining<'_> {
         let info = self.tpd.tpe(fun);
         let info = self.u.widen(info);
         let args: Vec<TypeId> = self.tpd.items(args).iter().map(|&a| self.tpd.tpe(a)).collect();
-        let tpe = match self.u.types().get(info).clone() {
+        let tpe = match self.u.ty(info).clone() {
             Type::Method { binder, params, result, .. } if applied && params.len() == args.len() => {
                 let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
                 applied_result(self.u, result, (binder, &names), meth, &args)
@@ -94,17 +94,14 @@ impl Inlining<'_> {
     /// a reference to a stable local term or a `this`, the result type if it is one to a by-name
     /// local term.
     pub fn local_prefix(&mut self, t: TypeId) -> Option<TypeId> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::This(_) => Some(t),
             Type::Sym(None, s) if self.u.symbol(s).kind.is_term() => {
                 if self.pure().is_stable_member(s) {
                     return Some(t);
                 }
                 let info = self.u.info(s);
-                match *self.u.types().get(info) {
-                    Type::ByName(r) => Some(r),
-                    _ => None,
-                }
+                self.u.by_name(info)
             }
             _ => None,
         }

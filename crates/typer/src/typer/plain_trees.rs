@@ -20,7 +20,7 @@ impl Typer<'_> {
             T::Apply { fun, .. } => {
                 let fun_tpe = self.tpd.tpe(fun);
                 let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-                let explicit = matches!(self.u.types().get(info), Type::Method { implicit: false, .. });
+                let explicit = self.u.method(info).is_some_and(|m| !m.implicit);
                 let new = match *self.tpd.tree(fun) {
                     T::Select { qualifier, .. } if matches!(self.tpd.tree(qualifier), T::New { .. }) => {
                         let class = self.tpd.tpe(qualifier);
@@ -47,8 +47,8 @@ impl Typer<'_> {
         if self.u.symbol(owner).kind.is_term() || self.u.symbol(owner).kind == Kind::Package {
             return true;
         }
-        let prefix = match *self.u.types().get(self.tpd.tpe(tree)) {
-            Type::Sym(Some(p), _) if !matches!(self.u.types().get(p), Type::Package(_)) => Some(p),
+        let prefix = match self.u.sym_ref(self.tpd.tpe(tree)) {
+            Some((Some(p), _)) if !matches!(self.u.ty(p), Type::Package(_)) => Some(p),
             _ => None,
         };
         let class = match prefix {

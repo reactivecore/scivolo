@@ -68,23 +68,20 @@ impl Resolution {
             return false;
         }
 
-        let poly = match t.u.types().get(info) {
-            Type::Poly { binder, params, .. } => Some((*binder, params.clone())),
-            _ => None,
-        };
-        let alt_param = |u: &mut Universe, x: TypeId| match *u.types().get(x) {
+        let poly = t.u.poly(info).map(|p| (p.binder, p.params.to_vec()));
+        let alt_param = |u: &mut Universe, x: TypeId| match *u.ty(x) {
             Type::Sym(None, s) if u.symbol(s).kind == Kind::TypeParam => {
                 u.symbol(s).owner.is_some_and(|o| u.info(o) == info).then(|| u.info(s))
             }
             _ => None,
         };
         for (&p, &a) in pm.iter().zip(&pa) {
-            let bounds = match *t.u.types().get(a) {
-                Type::Param(b, i) => poly.as_ref().filter(|(pb, _)| *pb == b).map(|(_, ps)| ps[i as usize].1),
-                _ => alt_param(t.u, a),
+            let bounds = match t.u.param_ref(a) {
+                Some((b, i)) => poly.as_ref().filter(|(pb, _)| *pb == b).map(|(_, ps)| ps[i as usize].1),
+                None => alt_param(t.u, a),
             };
             if let Some(bounds) = bounds {
-                let Type::Bounds(_, hi) = *t.u.types().get(bounds) else { return false };
+                let Some((_, hi)) = t.u.bounds(bounds) else { return false };
                 if !t.is_exactly_any(hi) {
                     return false;
                 }
@@ -92,8 +89,9 @@ impl Resolution {
             }
             let mut mentions = false;
             t.u.map_type(a, &mut |u, part| {
-                mentions |= matches!(u.types().get(part), Type::Param(b, _) if poly.as_ref().is_some_and(|(pb, _)| pb == b))
-                    || alt_param(u, part).is_some();
+                mentions |=
+                    u.param_ref(part).is_some_and(|(b, _)| poly.as_ref().is_some_and(|(pb, _)| *pb == b))
+                        || alt_param(u, part).is_some();
                 None
             });
             if mentions || !t.types().conforms_unlifted(p, a) {

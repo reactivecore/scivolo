@@ -38,14 +38,14 @@ impl Typer<'_> {
     pub fn drops_empty_args(&mut self, tree: TNodeId) -> bool {
         let tpe = self.tpd.tpe(tree);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
+        if matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
             return false;
         }
         let Some(s) = self.tpd.sym(tree) else { return false };
         let Some(owner) = self.u.symbol(s).owner else { return false };
         self.overridden_members(s, owner).into_iter().any(|m| {
             let info = self.u.info(m);
-            matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty())
+            self.u.method(info).is_some_and(|m| m.params.is_empty())
         })
     }
 

@@ -61,9 +61,10 @@ impl Typer<'_> {
         };
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+        let Some(poly) = self.u.poly(info) else {
             return self.unsupported(id, "named type arguments of a non-polymorphic method");
         };
+        let (binder, result, params) = (poly.binder, poly.result, poly.params.to_vec());
         let span = self.ast.span(id);
         let mut args: Vec<Option<TypeId>> = vec![None; params.len()];
         let mut named_trees = Vec::new();

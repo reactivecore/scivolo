@@ -31,10 +31,7 @@ impl Typer<'_> {
         };
         let info = self.u.member_info(path, m);
         let info = self.resolve_class_params(info);
-        let info = match *self.u.types().get(info) {
-            Type::ByName(r) => r,
-            _ => info,
-        };
+        let info = self.u.by_name(info).unwrap_or(info);
         let tpe = self.forwarder_clauses(fwd, m, info, &mut clauses, &mut pairs);
         let renamed: Vec<SymbolId> = clauses.iter().flatten().copied().collect();
         for &s in &renamed {
@@ -82,7 +79,7 @@ impl Typer<'_> {
         let taken: Vec<String> = clauses.iter().flatten().map(|&p| self.u.symbol(p).name.clone()).collect();
         let fresh = |n: &str| if taken.iter().any(|t| t == n) { format!("{n}$1") } else { n.to_owned() };
         loop {
-            let (binder, params, result, poly, flags) = match self.u.types().get(info).clone() {
+            let (binder, params, result, poly, flags) = match self.u.ty(info).clone() {
                 Type::Poly { binder, params, result } => (binder, params, result, true, f::TYPE_PARAM),
                 Type::Method { binder, params, result, implicit, contextual } => {
                     let flags = match (contextual, implicit) {
@@ -141,8 +138,8 @@ impl Typer<'_> {
         if pairs.is_empty() {
             return t;
         }
-        self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
-            Type::Sym(None, s) => {
+        self.u.map_type(t, &mut |u, x| match u.sym_ref(x) {
+            Some((None, s)) => {
                 pairs.iter().find(|&&(o, _)| o == s).map(|&(_, r)| u.intern_type(Type::Sym(None, r)))
             }
             _ => None,

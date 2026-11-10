@@ -72,7 +72,7 @@ impl Typer<'_> {
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe).or(Some(fun_tpe));
         let Some(Type::Method { binder, mut params, result, implicit, contextual }) =
-            info.map(|i| self.u.types().get(i).clone())
+            info.map(|i| self.u.ty(i).clone())
         else {
             return self.unsupported(id, "application of a non-method");
         };
@@ -91,8 +91,8 @@ impl Typer<'_> {
             return self.unsupported(id, what);
         }
         let repeated = params.last().and_then(|&(_, p)| self.repeated_param_elem(p));
-        let by_name_repeated = repeated.is_some()
-            && params.last().is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
+        let by_name_repeated =
+            repeated.is_some() && params.last().is_some_and(|&(_, p)| self.u.by_name(p).is_some());
         if repeated.is_some() {
             params.pop();
         }
@@ -106,15 +106,8 @@ impl Typer<'_> {
             Ok(aligned) => aligned,
             Err(what) => return self.unsupported(id, what),
         };
-        let formals: Vec<TypeId> = params
-            .iter()
-            .map(|&(_, p)| p)
-            .chain(repeated)
-            .map(|p| match *self.u.types().get(p) {
-                Type::ByName(r) => r,
-                _ => p,
-            })
-            .collect();
+        let formals: Vec<TypeId> =
+            params.iter().map(|&(_, p)| p).chain(repeated).map(|p| self.u.by_name(p).unwrap_or(p)).collect();
         let in_order = aligned.is_none() && pretyped.is_none() && repeated.is_none();
         let clause = ((binder, &names[..]), meth);
         let applied = self.applied_params(f, meth);
@@ -169,8 +162,7 @@ impl Typer<'_> {
                 typed_args.push(spread);
                 continue;
             }
-            let by_name =
-                params.get(i).is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
+            let by_name = params.get(i).is_some_and(|&(_, p)| self.u.by_name(p).is_some());
             let arg_ctx = if by_name { self.nullables.retract_mutables(self.u, ctx) } else { ctx };
             let arg = self.arg_against(a, pre, formal, arg_ctx);
             let arg = if by_name { self.by_name_uncaptured(arg) } else { arg };
@@ -183,7 +175,7 @@ impl Typer<'_> {
         let Some(result) = result else { return self.unsupported(id, "dependent result type") };
         let erroneous = typed_args.iter().any(|&a| {
             let tpe = self.zonk(self.tpd.tpe(a));
-            *self.u.types().get(tpe) == Type::Error
+            *self.u.ty(tpe) == Type::Error
         });
         if let Some(elem) = repeated {
             let arg = match seq_arg {
@@ -227,15 +219,13 @@ impl Typer<'_> {
             return self.unsupported(id, what);
         }
         let callee = self.tpd.meth_part(f);
-        let partial = matches!(self.u.types().get(result), Type::Method { .. });
-        let tpe = match *self.u.types().get(self.tpd.tpe(callee)) {
+        let partial = self.u.method(result).is_some();
+        let tpe = match *self.u.ty(self.tpd.tpe(callee)) {
             _ if erroneous => self.u.intern_type(Type::Error),
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>
             {
-                if let Type::This(_) = *self.u.types().get(class) {
-                    result
-                } else if partial {
+                if self.u.this_of(class).is_some() || partial {
                     result
                 } else {
                     self.constructor_result(s, class, result)

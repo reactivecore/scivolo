@@ -24,7 +24,7 @@ pub fn call_skolems(
 ) -> Option<Vec<Option<TypeId>>> {
     let mut skolems = Vec::new();
     u.map_type(actual, &mut |u, part| {
-        if matches!(u.types().get(part), Type::Skolem(..)) && !skolems.contains(&part) {
+        if matches!(u.ty(part), Type::Skolem(..)) && !skolems.contains(&part) {
             skolems.push(part);
         }
         None
@@ -36,7 +36,7 @@ pub fn call_skolems(
         let found: Vec<TypeId> = skolems
             .iter()
             .copied()
-            .filter(|&s| matches!(*u.types().get(s), Type::Skolem(_, i) if i == w || i == n))
+            .filter(|&s| matches!(*u.ty(s), Type::Skolem(_, i) if i == w || i == n))
             .collect();
         chosen.push(match found[..] {
             [s] if !is_stable_path(u, a) => Some(s),
@@ -44,7 +44,7 @@ pub fn call_skolems(
         });
     }
     let substituted = u.map_type(result, &mut |u, part| {
-        let i = match *u.types().get(part) {
+        let i = match *u.ty(part) {
             Type::Param(b, i) if b == binder => i as usize,
             Type::Sym(None, s) => params.iter().position(|&p| p == s)?,
             _ => return None,
@@ -89,7 +89,7 @@ impl Inlining<'_> {
                 let targs = self.tpd.items(args);
                 stack.extend(children.into_iter().filter(|c| !targs.contains(c)));
                 dropped |= targs.iter().any(is_inferred)
-                    && matches!(self.u.types().get(self.tpd.tpe(t)), Type::Method { .. });
+                    && matches!(self.u.ty(self.tpd.tpe(t)), Type::Method { .. });
             } else {
                 let avoided = matches!(self.tpd.tree(t), T::Typed { .. }) && self.tpd.span(t).is_synthetic();
                 other |= !avoided && children.iter().any(is_inferred);
@@ -115,17 +115,14 @@ impl Inlining<'_> {
         let mut skolems = Vec::new();
         for &b in bindings {
             let info = self.u.info(b);
-            let info = match *self.u.types().get(info) {
-                Type::ByName(r) => r,
-                _ => info,
-            };
-            if let Type::Skolem(binder, _) = *self.u.types().get(info) {
+            let info = self.u.by_name(info).unwrap_or(info);
+            if let Type::Skolem(binder, _) = *self.u.ty(info) {
                 skolems.push(binder);
             }
         }
         let mut mentioned = false;
         self.u.map_type(tpe, &mut |u, part| {
-            mentioned |= matches!(*u.types().get(part), Type::Skolem(b, _) if skolems.contains(&b));
+            mentioned |= matches!(*u.ty(part), Type::Skolem(b, _) if skolems.contains(&b));
             None
         });
         if !mentioned {

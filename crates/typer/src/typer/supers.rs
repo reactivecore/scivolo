@@ -52,10 +52,7 @@ impl Typer<'_> {
         if found.next().is_some() {
             return None;
         }
-        Some(match *self.u.types().get(p) {
-            Type::Applied(tycon, _) => tycon,
-            _ => p,
-        })
+        Some(self.u.applied(p).map_or(p, |(tycon, _)| tycon))
     }
 
     /// The parents of `cls` intersected from the left, `Any` if it has none.

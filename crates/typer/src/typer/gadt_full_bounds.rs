@@ -41,7 +41,7 @@ impl Gadt {
     /// conforms to by the part of its upper bound that is no GADT-constrained type, as dotty's
     /// constraint propagates it.
     fn without_bound_above(&self, u: &mut Universe, own: TypeId, hi: TypeId) -> TypeId {
-        match *u.types().get(hi) {
+        match *u.ty(hi) {
             Type::And(a, b) => {
                 let (a, b) = (self.without_bound_above(u, own, a), self.without_bound_above(u, own, b));
                 u.glb(a, b)
@@ -59,7 +59,7 @@ impl Gadt {
     /// Drops the GADT-constrained types from `t` and from the operands of an intersection `t`,
     /// giving `Any` if none is left.
     fn without_gadt_params(&self, u: &mut Universe, t: TypeId) -> TypeId {
-        match *u.types().get(t) {
+        match *u.ty(t) {
             Type::And(a, b) => {
                 let (a, b) = (self.without_gadt_params(u, a), self.without_gadt_params(u, b));
                 u.glb(a, b)
@@ -75,8 +75,5 @@ impl Gadt {
 
 /// Tells whether `t` is `Any` or a type lambda of result `Any`.
 pub fn is_top(u: &mut Universe, t: TypeId) -> bool {
-    match *u.types().get(t) {
-        Type::Lambda { result, .. } => result == tasty::ANY,
-        _ => t == tasty::ANY,
-    }
+    u.lambda(t).map_or(t, |l| l.result) == tasty::ANY
 }

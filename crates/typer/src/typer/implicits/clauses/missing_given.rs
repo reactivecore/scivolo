@@ -9,7 +9,7 @@ use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use syntax::ast::{Ast, NodeId, Tree};
 use tasty::tags::{EXTENSION, GIVEN, HASDEFAULT, IMPLICIT};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, TypeId};
 
 impl ImplicitClause {
     /// Reports that no implicit argument was found for parameter `param` of type `formal` of an
@@ -61,7 +61,7 @@ impl ImplicitClause {
 /// Whether no implicit can have type `formal`: a fully defined class type of the unit, in a
 /// unit that defines and derives no implicit and annotates nothing with `implicitNotFound`.
 fn surely_unsupplied(t: &mut Typer<'_>, formal: TypeId) -> bool {
-    if matches!(t.u.types().get(formal), Type::ByName(_)) || !t.types().is_fully_defined(formal) {
+    if t.u.by_name(formal).is_some() || !t.types().is_fully_defined(formal) {
         return false;
     }
     let Some(c) = t.types().direct_class(formal) else { return false };

@@ -88,10 +88,8 @@ impl Typer<'_> {
         }
         let mut call = self.splice_ref(fun);
         let info = self.u.info(fun);
-        match self.u.types().get(info).clone() {
-            Type::Method { params, result, implicit: false, .. }
-                if !matches!(self.u.types().get(result), Type::Method { .. }) =>
-            {
+        match self.u.ty(info).clone() {
+            Type::Method { params, result, implicit: false, .. } if self.u.method(result).is_none() => {
                 let mut args = Vec::new();
                 for (i, &(_, p)) in params.iter().enumerate() {
                     let repeated = self.repeated_elem(p);

@@ -71,7 +71,7 @@ impl Synthesizer {
         (module, module_tpe): (SymbolId, TypeId),
         special: &str,
     ) -> Result<TNodeId, &'static str> {
-        if !matches!(t.u.types().get(arg), Type::Sym(..) | Type::TypeRef(..))
+        if !matches!(t.u.ty(arg), Type::Sym(..) | Type::TypeRef(..))
             || t.referenced(arg).is_none_or(|s| t.u.symbol(s).kind != Kind::Class)
         {
             return Err("class tag of an alias of a special class");
@@ -103,9 +103,7 @@ impl Synthesizer {
         let targ = t.type_tree(arg, at, false);
         let method = t.instantiated(select, &[arg])?;
         let fun = t.build().type_apply(select, &[targ], method, at);
-        let Type::Method { result, .. } = *t.u.types().get(method) else {
-            return Err("ClassTag.apply");
-        };
+        let result = t.u.method(method).ok_or("ClassTag.apply")?.result;
         let class = t.resolve_full_name("java.lang.Class", true).ok_or("java.lang.Class")?;
         let class_tpe = crate::defn::applied(t.u, class, vec![erased]);
         let literal = t.tpd.node(T::ClassLiteral { tpe: erased }, at, Some(class_tpe), None);
@@ -116,7 +114,7 @@ impl Synthesizer {
 /// The name of the member of `ClassTag`'s companion that tags `dealiased`'s class: `Unit`, `Any`
 /// or `AnyVal`; `None` for another class, an intersection, a union, or an applied alias.
 fn special_class_name(t: &mut Typer<'_>, dealiased: TypeId) -> Option<&'static str> {
-    let class = match t.u.types().get(dealiased).clone() {
+    let class = match t.u.ty(dealiased).clone() {
         Type::And(..) | Type::Or(..) => None,
         Type::Applied(tycon, _) if t.referenced(tycon).is_some_and(|s| t.u.symbol(s).kind != Kind::Class) => {
             None
@@ -140,7 +138,7 @@ fn class_tag_arg(t: &mut Typer<'_>, arg: TypeId) -> Result<Option<TypeId>, &'sta
     for _ in 0..MAX_INSTANTIATIONS {
         let arg = t.zonk(arg);
         let dealiased = t.u.dealias(arg);
-        let tpe = t.u.types().get(dealiased).clone();
+        let tpe = t.u.ty(dealiased).clone();
         let v = match tpe {
             Type::And(a, b) | Type::Or(a, b, _) if a == b => return class_tag_arg(t, a),
             Type::And(..) | Type::Or(..) if !t.open_vars(dealiased).is_empty() => {
@@ -170,7 +168,7 @@ fn class_tag_arg(t: &mut Typer<'_>, arg: TypeId) -> Result<Option<TypeId>, &'sta
 fn is_ground(ty: &mut TypeOps<'_>, t: TypeId) -> bool {
     let t = ty.zonk(t);
     let t = ty.u.dealias(t);
-    match *ty.u.types().get(t) {
+    match *ty.u.ty(t) {
         Type::Var(_) => false,
         Type::And(a, b) | Type::Or(a, b, _) => is_ground(ty, a) && is_ground(ty, b),
         _ => true,
@@ -181,7 +179,7 @@ fn is_ground(ty: &mut TypeOps<'_>, t: TypeId) -> bool {
 /// such sides.
 fn is_bottom(u: &mut Universe, t: TypeId) -> bool {
     let t = u.dealias(t);
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::And(a, b) => is_bottom(u, a) || is_bottom(u, b),
         Type::Or(a, b, _) => is_bottom(u, a) && is_bottom(u, b),
         _ => {

@@ -63,7 +63,7 @@ impl Typer<'_> {
         }
         let method = self.u.info(anonfun);
         let tpe = self.poly_function_of(&tparams, method);
-        let Type::Refined(_, _, info) = *self.u.types().get(tpe) else { unreachable!("a refined type") };
+        let Type::Refined(_, _, info) = *self.u.ty(tpe) else { unreachable!("a refined type") };
         self.u.set_info(anonfun, info);
         let mut clauses = vec![self.tpd.list(&typed_tparams)];
         clauses.extend_from_slice(self.tpd.clause_items(paramss));
@@ -94,14 +94,10 @@ impl Typer<'_> {
         let Pt::Type(t) = pt else { return Ok(Pt::Any) };
         let dealiased = self.u.dealias(t);
         let Some(info) = self.u.poly_function_apply(dealiased) else { return Ok(Pt::Any) };
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
-            return Ok(Pt::Any);
-        };
-        let Type::Method { binder: mb, params: formals, result: restpe, .. } =
-            self.u.types().get(result).clone()
-        else {
-            return Ok(Pt::Any);
-        };
+        let Some(poly) = self.u.poly(info) else { return Ok(Pt::Any) };
+        let (binder, result, params) = (poly.binder, poly.result, poly.params.to_vec());
+        let Some(method) = self.u.method(result) else { return Ok(Pt::Any) };
+        let (mb, restpe, formals) = (method.binder, method.result, method.params.to_vec());
         if params.len() != tparams.len() || formals.len() != n {
             return Err("polymorphic function value of other arities than its expected type");
         }

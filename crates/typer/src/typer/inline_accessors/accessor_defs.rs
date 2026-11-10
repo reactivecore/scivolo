@@ -23,7 +23,7 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
     t.complete(accessed);
     let mut info = t.u.info(accessed);
     if t.u.is_module(accessed)
-        && let Type::Sym(prefix, _) = *t.u.types().get(info)
+        && let Some((prefix, _)) = t.u.sym_ref(info)
     {
         info = t.u.intern_type(Type::Sym(prefix, accessed));
     }
@@ -87,9 +87,9 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
 fn method_clauses(u: &Universe, info: &mut TypeId) -> Vec<Clause> {
     let mut clauses = Vec::new();
     while let Type::Poly { binder, params, result: r } | Type::Method { binder, params, result: r, .. } =
-        u.types().get(*info).clone()
+        u.ty(*info).clone()
     {
-        let flags = match *u.types().get(*info) {
+        let flags = match *u.ty(*info) {
             Type::Poly { .. } => f::TYPE_PARAM,
             Type::Method { contextual: true, .. } => f::TERM_PARAM.or(f::GIVEN),
             Type::Method { implicit: true, .. } => f::TERM_PARAM.or(f::IMPLICIT),

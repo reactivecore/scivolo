@@ -109,13 +109,13 @@ impl MakeInlineable {
         }
         if let T::Select { qualifier, .. } = *t.tpd.tree(tree)
             && let Some(tpe) = before
-            && let Type::Sym(Some(_), m) = *t.u.types().get(tpe)
+            && let Some((Some(_), m)) = t.u.sym_ref(tpe)
             && t.tpd.sym(qualifier).is_some_and(|s| t.accessors.is_accessor(s))
         {
             let accessor = t.tpd.sym(qualifier).expect("an accessor");
             t.complete(accessor);
             let mut prefix = t.u.info(accessor);
-            if let Type::ByName(r) = *t.u.types().get(prefix) {
+            if let Some(r) = t.u.by_name(prefix) {
                 prefix = r;
             }
             t.tpd.get_mut(tree).tpe = Some(t.u.intern_type(Type::Sym(Some(prefix), m)));

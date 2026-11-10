@@ -52,7 +52,7 @@ impl Typer<'_> {
     /// and refer to no other parameter (dotty's `isLambdaSub`); an error while the parameter
     /// with bounds is being completed.
     fn lambda_sub_param_bounds(&mut self, tycon: TypeId, i: usize) -> Result<Option<TypeId>, &'static str> {
-        let Type::Sym(_, c) = *self.u.types().get(tycon) else { return Ok(None) };
+        let Some(c) = self.u.sym_of(tycon) else { return Ok(None) };
         if self.u.symbol(c).kind != Kind::Class {
             return Ok(None);
         }
@@ -72,9 +72,9 @@ impl Typer<'_> {
             _ => {}
         }
         let info = self.u.info(param);
-        let Type::Bounds(_, hi) = *self.u.types().get(info) else { return Ok(None) };
+        let Some((_, hi)) = self.u.bounds(info) else { return Ok(None) };
         let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
-        let lambda = matches!(self.u.types().get(hi), Type::Lambda { .. });
+        let lambda = self.u.lambda(hi).is_some();
         Ok(((any_kind || lambda) && !self.refers_to(info, &params)).then_some(info))
     }
 
@@ -92,7 +92,7 @@ impl Typer<'_> {
         if !ctx.mode.is(Mode::PATTERN_TYPE) {
             return types;
         }
-        let class = match self.u.types().get(tycon).clone() {
+        let class = match self.u.ty(tycon).clone() {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
             _ => None,
@@ -136,12 +136,12 @@ impl Typer<'_> {
         param: Option<SymbolId>,
         params: &[SymbolId],
     ) -> TypeId {
-        let (Some(param), &Type::Bounds(lo, hi)) = (param, self.u.types().get(bounds)) else {
+        let (Some(param), Some((lo, hi))) = (param, self.u.bounds(bounds)) else {
             return bounds;
         };
         self.complete(param);
         let info = self.u.info(param);
-        let Type::Bounds(plo, phi) = *self.u.types().get(info) else { return bounds };
+        let Some((plo, phi)) = self.u.bounds(info) else { return bounds };
         let b = self.u.builtins();
         let (any, nothing) = (b.any, b.nothing);
         let independent = |t: &mut Self, x| !t.refers_to(x, params);
@@ -182,8 +182,8 @@ impl Typer<'_> {
         let t = self.u.dealias(t);
         let b = self.u.builtins();
         let tops = [b.any, b.matchable, b.object];
-        let Type::Sym(None, s) = *self.u.types().get(t) else {
-            return matches!(*self.u.types().get(t), Type::Sym(_, s) if tops.contains(&s));
+        let Some((None, s)) = self.u.sym_ref(t) else {
+            return self.u.sym_of(t).is_some_and(|s| tops.contains(&s));
         };
         if tops.contains(&s) {
             return true;
@@ -192,9 +192,9 @@ impl Typer<'_> {
             return false;
         }
         let info = self.u.info(s);
-        match *self.u.types().get(info) {
-            Type::Bounds(_, hi) => self.is_top(hi),
-            _ => false,
+        match self.u.bounds(info) {
+            Some((_, hi)) => self.is_top(hi),
+            None => false,
         }
     }
 }

@@ -57,10 +57,7 @@ pub fn is_product_shape(u: &mut Universe, c: SymbolId, value_class: bool) -> boo
 /// The upper bound of type parameter `p`.
 pub fn upper_bound(u: &mut Universe, p: SymbolId) -> tasty::TypeId {
     let info = u.info(p);
-    match *u.types().get(info) {
-        Type::Bounds(_, hi) => hi,
-        _ => info,
-    }
+    u.bounds(info).map_or(info, |(_, hi)| hi)
 }
 
 /// The number of parameter lists of the primary constructor of class `c`.
@@ -69,7 +66,7 @@ fn param_lists(u: &mut Universe, c: SymbolId) -> usize {
     let mut t = u.info(ctor);
     let mut lists = 0;
     loop {
-        match u.types().get(t) {
+        match u.ty(t) {
             Type::Poly { result, .. } => t = *result,
             Type::Method { result, .. } => (t, lists) = (*result, lists + 1),
             _ => return lists,

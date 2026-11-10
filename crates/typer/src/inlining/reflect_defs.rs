@@ -36,10 +36,7 @@ impl Reflect<'_> {
                 if self.u.is_class(owner) && in_package {
                     allowed.push(STATIC);
                 }
-                match *self.u.types().get(info) {
-                    Type::ByName(result) => (flags & !(1 << METHOD), result),
-                    _ => (flags & !(1 << METHOD), info),
-                }
+                (flags & !(1 << METHOD), self.u.by_name(info).unwrap_or(info))
             }
         };
         if flags & !allowed.iter().fold(0, |b, &t| b | 1u64 << t) != 0 {
@@ -60,7 +57,7 @@ impl Reflect<'_> {
         if flags & !allowed.iter().fold(0, |b, &t| b | 1u64 << t) != 0 {
             return Err("Symbol.newTypeAlias with flags other than modifiers of type aliases");
         }
-        if matches!(self.u.types().get(alias), Type::Bounds(..) | Type::Alias(_)) {
+        if matches!(self.u.ty(alias), Type::Bounds(..) | Type::Alias(_)) {
             return Err("Symbol.newTypeAlias of type bounds");
         }
         let info = self.u.intern_type(Type::Alias(alias));
@@ -87,7 +84,7 @@ impl Reflect<'_> {
     /// `TypeDef(s)` of type alias `s`, its right-hand side a type tree of the alias.
     pub fn type_def(&mut self, s: SymbolId) -> Result<TNodeId, &'static str> {
         let info = self.u.info(s);
-        let (Kind::Type, &Type::Alias(alias)) = (self.u.symbol(s).kind, self.u.types().get(info)) else {
+        let (Kind::Type, Some(alias)) = (self.u.symbol(s).kind, self.u.type_alias(info)) else {
             return Err("TypeDef.apply of a symbol other than a type alias");
         };
         let rhs = self.type_tree(alias);

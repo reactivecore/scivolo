@@ -29,10 +29,7 @@ impl Typer<'_> {
         let Some(formal) = formal else { return Ok(None) };
         let formal = self.zonk(formal);
         let formal = self.without_erased_param(formal);
-        let lower = match *self.u.types().get(formal) {
-            Type::Bounds(lo, _) => Some(lo),
-            _ => None,
-        };
+        let lower = self.u.bounds(formal).map(|(lo, _)| lo);
         let nothing = Some(self.u.builtins().nothing);
         if lower.is_some_and(|lo| self.u.class_symbol(lo) == nothing) {
             return Err(self.unsupported(p, "parameter type inferred from the target of a wildcard"));
@@ -52,7 +49,7 @@ impl Typer<'_> {
     pub fn function_type_in(&mut self, t: TypeId) -> Option<TypeId> {
         let z = self.zonk(t);
         let d = self.u.dealias(z);
-        let (a, b, and) = match *self.u.types().get(d) {
+        let (a, b, and) = match *self.u.ty(d) {
             Type::Or(a, b, _) => (a, b, false),
             Type::And(a, b) => (a, b, true),
             Type::Flexible(u) => return self.function_type_in(u),
@@ -71,7 +68,7 @@ impl Typer<'_> {
     pub fn instantiatable_var(&mut self, t: TypeId) -> Option<TypeId> {
         let z = self.zonk(t);
         let d = self.u.dealias(z);
-        match *self.u.types().get(d) {
+        match *self.u.ty(d) {
             Type::Or(a, b, _) | Type::And(a, b) => {
                 self.instantiatable_var(a).or_else(|| self.instantiatable_var(b))
             }
@@ -87,7 +84,7 @@ impl Typer<'_> {
     fn has_function_type(&mut self, t: TypeId) -> bool {
         let z = self.zonk(t);
         let d = self.u.dealias(z);
-        match *self.u.types().get(d) {
+        match *self.u.ty(d) {
             Type::Or(a, b, _) | Type::And(a, b) => self.has_function_type(a) || self.has_function_type(b),
             Type::Flexible(u) => self.has_function_type(u),
             _ => self.is_function_like(d),

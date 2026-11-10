@@ -63,14 +63,14 @@ impl Typer<'_> {
     /// Whether type `t` derives from class `cls`, or one part of it if an intersection.
     fn has_members_of(&mut self, t: TypeId, cls: SymbolId) -> bool {
         let t = self.u.widen(t);
-        if let Type::Sym(_, s) = *self.u.types().get(t) {
+        if let Some(s) = self.u.sym_of(t) {
             self.complete(s);
         }
         let dealiased = self.u.dealias_step(t);
         if dealiased != t {
             return self.has_members_of(dealiased, cls);
         }
-        if let Type::And(a, b) = *self.u.types().get(t) {
+        if let Type::And(a, b) = *self.u.ty(t) {
             return self.has_members_of(a, cls) || self.has_members_of(b, cls);
         }
         let Some(own) = self.u.class_symbol(t) else { return false };

@@ -102,7 +102,7 @@ impl Typer<'_> {
         let &[arg] = self.tpd.items(*args) else { return };
         let mut t = self.tpd.tpe(arg);
         loop {
-            let term = match *self.u.types().get(t) {
+            let term = match *self.u.ty(t) {
                 Type::TermRef(..) => true,
                 Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
                 _ => false,
@@ -112,7 +112,7 @@ impl Typer<'_> {
                 _ => break,
             }
         }
-        if !matches!(self.u.types().get(t), Type::Constant(..) | Type::Str(_)) {
+        if !matches!(self.u.ty(t), Type::Constant(..) | Type::Str(_)) {
             self.error_at(
                 self.tpd.span(arg),
                 format!("@{short} requires constant expressions as a parameter"),
