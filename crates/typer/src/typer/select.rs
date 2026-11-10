@@ -103,7 +103,7 @@ impl Typer<'_> {
                 return self.extension_select(id, qual, name, pt, ctx);
             }
             match self.viewed(qual, Goal::of_select(&text, pt), ctx) {
-                Ok(None) if !healed && self.gadt_narrowing() => {
+                Ok(None) if !healed && self.gadt.narrowing() => {
                     (qual, healed) = (self.gadt_healed(qual, ctx).unwrap_or(qual), true);
                     continue;
                 }
@@ -141,7 +141,7 @@ impl Typer<'_> {
         };
         let sym = match self.choose(&syms, Some(qual_tpe), pt) {
             Ok(sym) => self.jdk_inherited(sym),
-            Err(what) => return self.unchosen(id, what, pt),
+            Err(e) => return self.unchosen(id, e.what, pt),
         };
         if !converted && !self.is_accessible_from(sym, Some(qual_tpe), ctx) {
             if self.extension_visible(&text, ctx) {

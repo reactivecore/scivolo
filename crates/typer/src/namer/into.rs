@@ -62,7 +62,7 @@ impl Typer<'_> {
                 self.u.intern_type(Type::Annotated(r, a))
             }
             Type::Applied(c, args) => {
-                let variances = self.tycon_variances(c);
+                let variances = self.variance_ops().tycon_variances(c);
                 let args = (args.iter().enumerate())
                     .map(|(i, &a)| self.map_into(a, v * variances.get(i).copied().unwrap_or(0), f))
                     .collect();

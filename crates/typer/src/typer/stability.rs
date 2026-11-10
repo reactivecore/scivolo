@@ -2,15 +2,47 @@
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 use super::Typer;
+use super::type_ops::TypeOps;
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
-impl Typer<'_> {
+impl TypeOps<'_> {
+    /// Checks whether term `s` denotes the same value each time: not a `var`, an inline or
+    /// by-name parameter, and not a method unless a stable one (dotty's `isStableMember`).
     pub fn is_stable_member(&mut self, s: SymbolId) -> bool {
         is_stable_member(self.u, s)
     }
 
+    /// Widens and dealiases `t` until neither changes it (dotty's `widenDealias`).
+    pub fn widen_dealias(&mut self, mut t: TypeId) -> TypeId {
+        for _ in 0..64 {
+            let widened = self.u.widen(t);
+            let next = self.u.dealias(widened);
+            if next == t {
+                break;
+            }
+            t = next;
+        }
+        t
+    }
+
+    /// Returns `t`, or the result type of the by-name parameter it refers to, as the parts of a
+    /// `try` take it.
+    pub fn by_name_result(&mut self, t: TypeId) -> TypeId {
+        let Type::Sym(_, s) = *self.u.types().get(t) else { return t };
+        if self.u.symbol(s).kind != Kind::Param {
+            return t;
+        }
+        let info = self.u.info(s);
+        match *self.u.types().get(info) {
+            Type::ByName(r) => r,
+            _ => t,
+        }
+    }
+}
+
+impl Typer<'_> {
     /// Whether `tree` is a literal, `this`, or a path of stable members.
     pub fn is_stable_path(&mut self, tree: TNodeId) -> bool {
         let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
@@ -33,19 +65,6 @@ impl Typer<'_> {
             && !(sym.kind == Kind::Param && sym.flags.has(tasty::tags::INLINE))
     }
 
-    /// `t` widened and dealiased until neither changes it (dotty's `widenDealias`).
-    pub fn widen_dealias(&mut self, mut t: TypeId) -> TypeId {
-        for _ in 0..64 {
-            let widened = self.u.widen(t);
-            let next = self.u.dealias(widened);
-            if next == t {
-                break;
-            }
-            t = next;
-        }
-        t
-    }
-
     /// `t` widened while it is a by-name type or a reference to an unstable term (dotty's
     /// `widenIfUnstable`).
     pub fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
@@ -60,20 +79,6 @@ impl Typer<'_> {
                     _ => t,
                 }
             }
-            _ => t,
-        }
-    }
-
-    /// `t`, or the result type of the by-name parameter it refers to, as the parts of a `try`
-    /// take it.
-    pub fn by_name_result(&mut self, t: TypeId) -> TypeId {
-        let Type::Sym(_, s) = *self.u.types().get(t) else { return t };
-        if self.u.symbol(s).kind != Kind::Param {
-            return t;
-        }
-        let info = self.u.info(s);
-        match *self.u.types().get(info) {
-            Type::ByName(r) => r,
             _ => t,
         }
     }

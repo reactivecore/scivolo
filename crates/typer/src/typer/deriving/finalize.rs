@@ -36,7 +36,7 @@ fn report(t: &mut Typer<'_>, d: NodeId, problem: Problem) {
         Some(&r) => r,
         None => t.u.info(sym),
     };
-    let shown = t.show_type(result);
+    let shown = t.types().show_type(result);
     let msg = match problem {
         Problem::NoCompanion(tc) => format!("{shown} cannot be derived since {tc} has no companion object"),
         Problem::ExplicitParams(module) => format!(

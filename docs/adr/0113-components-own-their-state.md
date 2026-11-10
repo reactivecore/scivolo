@@ -50,6 +50,26 @@ it; such a shared helper rather moves out, to `TypeOps`, a `Symbol` method or a 
   dictionary, the budget) stays in `Typer::history`, as dotty keeps it in the `Context`.
 - Type relations and queries that need only the universe and the constraint (`conforms`, `zonk`,
   `open_vars`, `wild_approx`, …) are a service type, `TypeOps` from `Typer::types()` (dotty's
-  `TypeComparer`), for completed symbols; helpers that need no more take it, and `Typer`'s methods
-  of the same names forward to it. Flag and kind checks are methods on `tasty::Symbol`
-  (`is_implicit`, `is_given`). Helpers that complete symbols, type trees or search take the typer.
+  `TypeComparer`), for completed symbols; helpers that need no more take it. So do the inference
+  queries that need no completion (variances, widening, `seen_from`, simplification, escaping
+  references). `Typer` keeps methods of the same names that forward to it only where many
+  callers use them; the others call `t.types()`. Flag and kind checks are methods on
+  `tasty::Symbol` (`is_implicit`, `is_given`). Helpers that complete symbols, type trees or
+  search take the typer.
+- The checks after typing are components that collect their errors for `Typer` to report:
+  `VarianceCheck` (over the `VarianceOps` service), `ForwardRefs`; so are the top-level
+  annotations (`TopLevel`) and the `-Wnonunit-statement` lint (`Linter`). The variances inferred
+  for aliases and the variables assigned non-locally stay on `Typer`: typing fills them.
+- Avoiding local symbols in a type is a component, `Avoid`, whose methods take the typer: it
+  completes the members of approximated prefixes and instantiates type variables.
+- The narrowing of the GADT bounds by one pattern is a component, `Narrowing`, whose methods
+  take the typer: comparing types completes aliases. The GADT bounds themselves are scoped
+  state (ADR 0114).
+- Overload resolution is a component, `Resolution` (the prefix and the expected type), whose
+  methods take the typer: it types arguments while comparing alternatives. It returns the
+  ambiguous alternatives with its error. The prototypes (`protos`, `poly_protos`), the copies of
+  alternatives (`mapped_alts`) and the type arguments of the resolution of `f[Int]` in progress
+  (`mapped_targs`, read while completing and searching implicits inside it) stay on `Typer`.
+- Lifting the parts of one application into local values is a component, `Lifter`, whose
+  methods take the typer: deciding purity completes methods. Purity has no state of its own; its
+  helpers are free functions taking the typer.

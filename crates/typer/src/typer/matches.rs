@@ -123,11 +123,11 @@ impl Typer<'_> {
             return self.unsupported(id, "case");
         };
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
-        self.gadt_case_level(level);
+        self.gadt.case_level(level);
         let cctx = Ctx { level, mode: ctx.mode.without(Mode::INLINE_CASE), ..ctx };
         let first = self.gadt.bound.len();
         let pat = self.typed(pat, Pt::Type(selector), cctx.with_mode(ctx.mode.with(Mode::PATTERN)));
-        self.index_gadt_binds(first);
+        self.gadt.index_binds(self.u, first);
         self.check_duplicate_binds(pat, &mut Vec::new());
         let body_pt = case.map(|c| self.dependent_case_body_pt(pat, c));
         let pt = match body_pt {

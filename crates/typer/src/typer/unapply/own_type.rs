@@ -32,7 +32,7 @@ impl UnapplyPattern {
             let class = t.u.symbol(c);
             !class.is_final() && !class.is_case()
         });
-        let variances = t.variances(arg_type, None, vars);
+        let variances = t.types().variances(arg_type, None, vars);
         let unconstrained = open && !variances.is_empty();
         if unconstrained && variances.values().any(|&v| v == 0) {
             return Err("invariant type arguments of a pattern of an open class");
@@ -54,7 +54,7 @@ impl UnapplyPattern {
 
         let bound = t.maximize_type(arg_type, (vars, &gadt), unapp, self.ctx)?;
         t.narrow_gadt(&gadt)?;
-        t.gadt_bind(&bound);
+        t.gadt.bind(&bound);
         t.add_binders(unapp, &bound);
         Ok(t.zonk(arg_type))
     }

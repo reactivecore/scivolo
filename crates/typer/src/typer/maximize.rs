@@ -5,6 +5,7 @@
 //! extractor's type arguments (`addBinders`).
 
 use super::Typer;
+use super::gadt::gadt_ref;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
@@ -26,9 +27,9 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<Vec<SymbolId>, &'static str> {
         let t = self.zonk(t);
-        let variances = self.variances(t, None, vars);
+        let variances = self.types().variances(t, None, vars);
         let names = self.type_var_names(unapp);
-        let gadt_bounds = self.gadt_var_bounds(gadt);
+        let gadt_bounds = self.types().gadt_var_bounds(gadt);
         let mut bound = Vec::new();
         for i in vars..self.constraint.count() {
             let v = VarId(i as u32);
@@ -40,7 +41,7 @@ impl Typer<'_> {
             if gadt.iter().any(|&(_, g)| g == var) {
                 continue;
             }
-            if variance != 0 && !gadt_bounds.iter().any(|&b| self.refers_to_type(b, var)) {
+            if variance != 0 && !gadt_bounds.iter().any(|&b| self.types().refers_to_type(b, var)) {
                 self.instantiate_var(v, variance == -1)?;
                 continue;
             }
@@ -81,7 +82,7 @@ impl Typer<'_> {
             if !and_parts(self.u, hi).contains(&var) {
                 continue;
             }
-            let below = self.gadt_ref(g);
+            let below = gadt_ref(self.u, g);
             lo = self.u.lub(lo, below);
         }
         lo

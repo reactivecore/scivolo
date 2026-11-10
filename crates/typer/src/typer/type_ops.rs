@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //   compiler/src/dotty/tools/dotc/typer/Inferencing.scala
 //! Type relations and queries over the universe and the constraint (dotty's `TypeComparer`), for
-//! completed symbols; `Typer`'s methods of the same names forward to them.
+//! completed symbols; `Typer`'s methods of the same names forward to the much-used ones.
 
 use super::Typer;
 use crate::constraint::Constraint;
@@ -76,6 +76,15 @@ impl TypeOps<'_> {
     pub fn refined_info(&mut self, pre: Option<TypeId>, s: SymbolId) -> TypeId {
         let refined = pre.and_then(|p| self.u.refinement_info(p, s));
         refined.unwrap_or_else(|| self.u.info(s))
+    }
+
+    /// Widens `t` to the underlying type of a singleton, a by-name type to its result.
+    pub fn widened(&mut self, t: TypeId) -> TypeId {
+        let widened = self.u.widen(t);
+        match *self.u.types().get(widened) {
+            Type::ByName(r) => r,
+            _ => widened,
+        }
     }
 
     /// The parts of `t`, `t` included.
@@ -155,10 +164,6 @@ impl Typer<'_> {
         self.types().conforms(a, b)
     }
 
-    pub fn conforms_captured_path(&mut self, a: TypeId, b: TypeId) -> bool {
-        self.types().conforms_captured_path(a, b)
-    }
-
     pub fn zonk(&mut self, t: TypeId) -> TypeId {
         self.types().zonk(t)
     }
@@ -221,5 +226,41 @@ impl Typer<'_> {
 
     pub fn class_args(&mut self, t: TypeId, name: &str) -> Option<Vec<TypeId>> {
         self.types().class_args(t, name)
+    }
+
+    pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
+        self.types().refers_to(t, syms)
+    }
+
+    pub fn function_parts(&mut self, t: TypeId, n: usize) -> Option<(Vec<TypeId>, TypeId)> {
+        self.types().function_parts(t, n)
+    }
+
+    pub fn context_function_parts(&mut self, t: TypeId) -> Option<(Vec<TypeId>, TypeId)> {
+        self.types().context_function_parts(t)
+    }
+
+    pub fn has_proto_wildcard(&mut self, t: TypeId) -> bool {
+        self.types().has_proto_wildcard(t)
+    }
+
+    pub fn is_stable_member(&mut self, s: SymbolId) -> bool {
+        self.types().is_stable_member(s)
+    }
+
+    pub fn strip_null(&mut self, t: TypeId) -> TypeId {
+        self.types().strip_null(t)
+    }
+
+    pub fn simplified(&mut self, t: TypeId) -> TypeId {
+        self.types().simplified(t)
+    }
+
+    pub fn normalized(&mut self, t: TypeId) -> TypeId {
+        self.types().normalized(t)
+    }
+
+    pub fn resolve_class_params(&mut self, t: TypeId) -> TypeId {
+        self.types().resolve_class_params(t)
     }
 }

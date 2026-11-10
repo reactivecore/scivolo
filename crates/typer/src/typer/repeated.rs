@@ -4,6 +4,7 @@
 //! `SeqLiteral`s typed `<repeated>[T]` (dotty's `typedArgs` for `RepeatedParamClass`).
 
 use super::Typer;
+use super::type_ops::TypeOps;
 use crate::special::entered;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -25,7 +26,7 @@ impl Typer<'_> {
                 Type::Applied(_, args) if args.len() == 1 => Some(args[0]),
                 _ => None,
             },
-            Type::Annotated(t, _) if self.is_inline_param_type(p) => self.repeated_elem(t),
+            Type::Annotated(t, _) if self.types().is_inline_param_type(p) => self.repeated_elem(t),
             Type::Applied(c, args) if args.len() == 1 => {
                 let class = self.u.class_symbol(c);
                 (class.is_some() && class == self.syms.repeated_class).then_some(args[0])
@@ -182,5 +183,16 @@ impl Typer<'_> {
         let elem = self.tpd.tpe(elemtpt);
         let seq = crate::defn::type_ref(self.u, seq);
         self.tpd.get_mut(tree).tpe = Some(self.u.intern_type(Type::Applied(seq, vec![elem])));
+    }
+}
+
+impl TypeOps<'_> {
+    /// Tells whether parameter type `p` is annotated `@InlineParam`, as the type of an
+    /// `inline` parameter of an inline method is.
+    pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
+        let Type::Annotated(_, annot) = *self.u.types().get(p) else { return false };
+        self.u
+            .class_symbol(annot)
+            .is_some_and(|c| self.u.full_name(c) == "scala.annotation.internal.InlineParam")
     }
 }

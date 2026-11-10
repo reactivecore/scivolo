@@ -126,6 +126,11 @@ impl Symbol {
         self.kind == Kind::Val && !self.flags.has(MUTABLE)
     }
 
+    /// A `var`.
+    pub fn is_mutable_var(&self) -> bool {
+        self.kind == Kind::Val && self.flags.has(MUTABLE)
+    }
+
     /// A term member of a class: a term other than a parameter.
     pub fn is_term_member(&self) -> bool {
         self.is_term() && self.kind != Kind::Param

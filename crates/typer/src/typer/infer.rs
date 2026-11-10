@@ -4,6 +4,7 @@
 //! Instantiating type variables (dotty's `instanceType`, `isFullyDefined`), and substituting
 //! their instances.
 
+use super::type_ops::TypeOps;
 use super::{Typer, Widen};
 use crate::constraint::Constraint;
 use crate::symbols::SCRIPT_BINDERS;
@@ -66,9 +67,9 @@ fn lambda_instance(u: &mut Universe, c: &Constraint, t: TypeId) -> Option<TypeId
     matches!(u.types().get(inst), Type::Lambda { .. }).then_some(inst)
 }
 
-impl Typer<'_> {
-    /// Whether `a` conforms to `b` frozen, no reference lifted to the `this` of an enclosing
-    /// object with opaque types (dotty's test under the root owner).
+impl TypeOps<'_> {
+    /// Checks whether `a` conforms to `b` frozen, both zonked, no reference lifted to the `this`
+    /// of an enclosing object with opaque types (dotty's test under the root owner).
     pub fn conforms_unlifted(&mut self, a: TypeId, b: TypeId) -> bool {
         let (a, b) = (self.zonk(a), self.zonk(b));
         let owner = self.u.set_comparison_owner(None);
@@ -77,12 +78,14 @@ impl Typer<'_> {
         ok
     }
 
-    /// `zonk`, an application of a type variable instantiated to a type lambda unreduced (dotty's
-    /// tree types keep the `TypeVar`).
+    /// Zonks `t` as `zonk` does, but keeps an application of a type variable instantiated to a
+    /// type lambda unreduced (dotty's tree types keep the `TypeVar`).
     pub fn zonk_kept(&mut self, t: TypeId) -> TypeId {
-        zonked(self.u, &self.constraint, t, true)
+        zonked(self.u, self.constraint, t, true)
     }
+}
 
+impl Typer<'_> {
     /// `v`'s lower bound widened below `v`, which may constrain `v`, or its upper bound (dotty's
     /// `instanceType`).
     pub fn instance_type(&mut self, v: VarId, from_below: bool) -> Result<TypeId, &'static str> {
@@ -106,7 +109,7 @@ impl Typer<'_> {
             && matches!(self.u.types().get(hi), Type::Var(_))
             && !self.is_below_singleton(hi, 0)
             && let widened = self.widen_singletons(inst, false)
-            && self.module_ref(widened) != inst
+            && self.types().module_ref(widened) != inst
         {
             return Err("singleton instance below another type variable");
         }
@@ -157,7 +160,7 @@ impl Typer<'_> {
             if open.is_empty() {
                 return Ok(t);
             }
-            let variances = if bottom_ok { self.occurrence_variances(t) } else { Default::default() };
+            let variances = if bottom_ok { self.types().occurrence_variances(t) } else { Default::default() };
             for v in open {
                 if self.constraint.instance(v).is_some() {
                     continue;

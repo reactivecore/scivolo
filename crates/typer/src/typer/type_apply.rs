@@ -5,7 +5,7 @@
 //! polymorphic function gets when applied without them (`constrained` in `adaptNoArgs`), their
 //! bounds checked or added to the constraint.
 
-use super::poly_alternatives::PolyProto;
+use super::protos::PolyProto;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};

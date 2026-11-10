@@ -4,7 +4,7 @@
 //! parameters and result (`toFunctionType`, `nonDependentResultApprox`), and taken apart.
 
 use super::Typer;
-use super::avoid::Avoided;
+use super::avoid::Avoid;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId};
 
 /// The parameter types and result of an `apply`, and the binder and names of its parameters.
@@ -55,7 +55,7 @@ impl Typer<'_> {
         if self.refined_by_dependent_method(projected, params) {
             return None;
         }
-        let approx = self.avoid_at(projected, 1, Avoided::new(params, &[]))?.hi();
+        let approx = Avoid::new(params, &[]).at(self, projected, 1)?.hi();
         let approx = self.normalized(approx);
         if self.refers_to(approx, params) {
             return None;

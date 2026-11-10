@@ -83,17 +83,19 @@ impl Typer<'_> {
         let expr = self.typed(expr, pt, ctx);
         let mut all = vec![expr];
         let expr_info = self.not_null_info(expr).retracted_info();
-        let cases_ctx = self.with_not_null(ctx, expr_info);
+        let cases_ctx = self.nullables.with_not_null(ctx, expr_info);
         all.extend(cases.iter().map(|&c| self.typed_case(c, throwable, pt, cases_ctx)));
         let all = match self.harmonic(all, pt, Some(before), ctx) {
             Ok(h) => h,
             Err(what) => return self.unsupported(id, what),
         };
         let (expr, typed_cases) = (all[0], &all[1..]);
-        let mut types: Vec<TypeId> = vec![self.by_name_result(self.tpd.tpe(expr))];
+        let expr_tpe = self.tpd.tpe(expr);
+        let mut types: Vec<TypeId> = vec![self.types().by_name_result(expr_tpe)];
         for &c in typed_cases {
             let T::CaseDef { body, .. } = *self.tpd.tree(c) else { return self.unsupported(id, "case") };
-            types.push(self.by_name_result(self.tpd.tpe(body)));
+            let body_tpe = self.tpd.tpe(body);
+            types.push(self.types().by_name_result(body_tpe));
         }
         let tpe = types.iter().fold(NOTHING, |acc, &t| self.u.lub_in(acc, t, &mut self.constraint));
         let unit = crate::defn::type_ref(self.u, self.defn.unit);

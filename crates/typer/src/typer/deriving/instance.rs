@@ -38,7 +38,7 @@ impl Deriver {
             return None;
         }
         let Some(tc_type) = underlying_class_ref(t, original, CLASS_REF_DEPTH) else {
-            let shown = t.show_type(original);
+            let shown = t.types().show_type(original);
             t.error(d, format!("{shown} is not a class type"));
             return None;
         };
@@ -139,7 +139,7 @@ fn ref_text(t: &mut Typer<'_>, p: TypeId) -> String {
             format!("{}.{}", ref_text(t, q), t.u.symbol(s).name)
         }
         Type::Sym(_, s) => t.u.symbol(s).name.clone(),
-        _ => t.show_type(p),
+        _ => t.types().show_type(p),
     }
 }
 

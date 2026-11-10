@@ -3,11 +3,12 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! The type parameters a case's pattern may narrow and their current bounds.
 
-use super::Typer;
+use super::gadt_cases::Gadt;
+use super::type_ops::TypeOps;
 use crate::ctx::Ctx;
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe};
 
-/// The type `t` refers to plainly or seen from `this` of its owner.
+/// Finds the type `t` refers to plainly, as `T`, or seen from `this` of its owner.
 pub fn plain_type_ref(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
     match *u.types().get(t) {
         Type::Sym(None, s) => Some(s),
@@ -19,71 +20,86 @@ pub fn plain_type_ref(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
     }
 }
 
-impl Typer<'_> {
-    /// Adds pattern-bound types `syms` to the GADT-constrained types of the case being typed.
-    pub fn gadt_bind(&mut self, syms: &[SymbolId]) {
-        if self.gadt.cases > 0 {
-            self.gadt.bound.extend(syms);
-        }
-    }
+/// Makes a reference to type `s`, a class's type parameter seen from `this`.
+pub fn gadt_ref(u: &mut Universe, s: SymbolId) -> TypeId {
+    let class = u.symbol(s).owner.filter(|&o| u.symbol(s).kind == Kind::TypeParam && u.is_class(o));
+    let prefix = class.map(|c| {
+        let class = u.intern_type(Type::Sym(None, c));
+        u.intern_type(Type::This(class))
+    });
+    u.intern_type(Type::Sym(prefix, s))
+}
 
-    /// Whether `s` is a GADT-constrained type: a type parameter of a method enclosing `ctx`'s
-    /// owner, of a polymorphic function value's closure enclosing it, or of a class enclosing
-    /// one (dotty's `addToConstraint` in `typedDefDef`), or a pattern-bound type of a case
-    /// being typed.
-    pub fn is_gadt_symbol(&mut self, s: SymbolId, ctx: Ctx) -> bool {
-        if self.gadt.bound.contains(&s) {
+/// Gives the bounds of type `s`: those a case narrowed it to, else its declared ones.
+pub fn current_bounds(u: &mut Universe, s: SymbolId) -> Option<(TypeId, TypeId)> {
+    if let Some(b) = u.gadt_bounds(s) {
+        return Some(b);
+    }
+    let info = u.info(s);
+    match *u.types().get(info) {
+        Type::Bounds(lo, hi) => Some((lo, hi)),
+        _ => None,
+    }
+}
+
+impl Gadt {
+    /// Tells whether a case may narrow `s`: a type parameter of a method enclosing `ctx`'s owner,
+    /// of a polymorphic function value's closure enclosing it, or of a class enclosing one
+    /// (dotty's `addToConstraint` in `typedDefDef`), or a type bound by a pattern of a case being
+    /// typed.
+    pub fn is_symbol(&self, u: &mut Universe, s: SymbolId, ctx: Ctx) -> bool {
+        if self.bound.contains(&s) {
             return true;
         }
-        let Some(of) = self.u.symbol(s).owner.filter(|_| self.u.symbol(s).kind == Kind::TypeParam) else {
+        let Some(of) = u.symbol(s).owner.filter(|_| u.symbol(s).kind == Kind::TypeParam) else {
             return false;
         };
-        let poly = self.poly_owners.contains(&of).then(|| self.u.symbol(of).owner);
+        let poly = self.poly_owners.contains(&of).then(|| u.symbol(of).owner);
         let (mut owner, mut in_method) = (Some(ctx.owner), false);
         while let Some(o) = owner {
-            match self.u.symbol(o).kind {
+            match u.symbol(o).kind {
                 Kind::Def => in_method = true,
                 Kind::Class if in_method => {}
                 _ => {
-                    owner = self.u.symbol(o).owner;
+                    owner = u.symbol(o).owner;
                     continue;
                 }
             }
-            if o == of || poly.is_some_and(|p| self.u.symbol(o).owner == p) {
+            if o == of || poly.is_some_and(|p| u.symbol(o).owner == p) {
                 return true;
             }
-            owner = self.u.symbol(o).owner;
+            owner = u.symbol(o).owner;
         }
         false
     }
 
-    /// The type parameters in `t` a pattern may narrow; none if `t` has a part outside the
+    /// Lists the type parameters in `t` a pattern may narrow; none if `t` has a part outside the
     /// subset: a refinement, a singleton, a class's higher-kinded parameter or an abstract type
     /// constructor applied.
-    pub fn gadt_symbols(&mut self, t: TypeId, ctx: Ctx) -> Vec<SymbolId> {
-        if self.gadt.cases == 0 {
+    pub fn symbols(&self, u: &mut Universe, t: TypeId, ctx: Ctx) -> Vec<SymbolId> {
+        if self.cases == 0 {
             return Vec::new();
         }
         let mut params = Vec::new();
-        if !self.first_order_params(t, &mut params) {
+        if !self.first_order_params(u, t, &mut params) {
             return Vec::new();
         }
-        params.into_iter().filter(|&s| self.is_gadt_symbol(s, ctx)).collect()
+        params.into_iter().filter(|&s| self.is_symbol(u, s, ctx)).collect()
     }
 
-    /// `syms` with the narrowable type parameters of pattern type `pat`, of its base type at class
-    /// `base`, and those the bounds of each refer to, transitively (dotty's GADT constraint
+    /// Extends `syms` by the narrowable type parameters of pattern type `pat`, of its base type at
+    /// class `base`, and those the bounds of each refer to, transitively (dotty's GADT constraint
     /// relating its symbols).
-    pub fn gadt_related(
-        &mut self,
+    pub fn related(
+        &self,
+        u: &mut Universe,
         mut syms: Vec<SymbolId>,
-        pat: TypeId,
-        base: Option<SymbolId>,
+        (pat, base): (TypeId, Option<SymbolId>),
         ctx: Ctx,
     ) -> Vec<SymbolId> {
-        let mut todo = self.gadt_symbols(pat, ctx);
-        if let Some(b) = base.and_then(|c| self.u.base_type(pat, c)) {
-            todo.extend(self.gadt_symbols(b, ctx));
+        let mut todo = self.symbols(u, pat, ctx);
+        if let Some(b) = base.and_then(|c| u.base_type(pat, c)) {
+            todo.extend(self.symbols(u, b, ctx));
         }
         let mut i = 0;
         while i < syms.len() || !todo.is_empty() {
@@ -93,9 +109,9 @@ impl Typer<'_> {
                 }
                 continue;
             }
-            if let Some((lo, hi)) = self.current_bounds(syms[i]) {
-                todo.extend(self.gadt_symbols(lo, ctx));
-                todo.extend(self.gadt_symbols(hi, ctx));
+            if let Some((lo, hi)) = current_bounds(u, syms[i]) {
+                todo.extend(self.symbols(u, lo, ctx));
+                todo.extend(self.symbols(u, hi, ctx));
             }
             i += 1;
         }
@@ -105,13 +121,13 @@ impl Typer<'_> {
     /// Adds the type parameters `t` refers to outside prefixes to `params`; false if `t` has a
     /// refinement, a singleton, a class's higher-kinded type parameter or an abstract type
     /// constructor applied.
-    fn first_order_params(&mut self, t: TypeId, params: &mut Vec<SymbolId>) -> bool {
-        match self.u.types().get(t).clone() {
-            Type::Sym(_, s) if self.u.symbol(s).kind == Kind::TypeParam || self.gadt.bound.contains(&s) => {
-                let info = self.u.info(s);
-                let Type::Bounds(_, hi) = *self.u.types().get(info) else { return false };
-                let of_class = self.u.symbol(s).owner.is_some_and(|o| self.u.is_class(o));
-                if of_class && matches!(self.u.types().get(hi), Type::Lambda { .. }) {
+    fn first_order_params(&self, u: &mut Universe, t: TypeId, params: &mut Vec<SymbolId>) -> bool {
+        match u.types().get(t).clone() {
+            Type::Sym(_, s) if u.symbol(s).kind == Kind::TypeParam || self.bound.contains(&s) => {
+                let info = u.info(s);
+                let Type::Bounds(_, hi) = *u.types().get(info) else { return false };
+                let of_class = u.symbol(s).owner.is_some_and(|o| u.is_class(o));
+                if of_class && matches!(u.types().get(hi), Type::Lambda { .. }) {
                     return false;
                 }
                 if !params.contains(&s) {
@@ -119,48 +135,25 @@ impl Typer<'_> {
                 }
                 true
             }
-            Type::Sym(_, s) => !self.u.symbol(s).kind.is_term(),
+            Type::Sym(_, s) => !u.symbol(s).kind.is_term(),
             Type::Applied(tycon, args) => {
-                self.u.class_symbol(tycon).is_some_and(|c| self.u.is_class(c))
-                    && args.iter().all(|&a| self.first_order_params(a, params))
+                u.class_symbol(tycon).is_some_and(|c| u.is_class(c))
+                    && args.iter().all(|&a| self.first_order_params(u, a, params))
             }
             Type::And(a, b) | Type::Or(a, b, _) | Type::Bounds(a, b) => {
-                self.first_order_params(a, params) && self.first_order_params(b, params)
+                self.first_order_params(u, a, params) && self.first_order_params(u, b, params)
             }
-            Type::Annotated(a, _) | Type::Alias(a) => self.first_order_params(a, params),
-            Type::Lambda { result, .. } => self.first_order_params(result, params),
+            Type::Annotated(a, _) | Type::Alias(a) => self.first_order_params(u, a, params),
+            Type::Lambda { result, .. } => self.first_order_params(u, result, params),
             Type::TypeRef(..) | Type::This(_) | Type::Package(_) | Type::Param(..) => true,
             _ => false,
         }
     }
+}
 
-    /// A reference to type `s`, a class's type parameter seen from `this`.
-    pub fn gadt_ref(&mut self, s: SymbolId) -> TypeId {
-        let class = self
-            .u
-            .symbol(s)
-            .owner
-            .filter(|&o| self.u.symbol(s).kind == Kind::TypeParam && self.u.is_class(o));
-        let prefix = class.map(|c| {
-            let class = self.u.intern_type(Type::Sym(None, c));
-            self.u.intern_type(Type::This(class))
-        });
-        self.u.intern_type(Type::Sym(prefix, s))
-    }
-
-    /// The bounds of type `s`: its GADT bounds, else its declared ones.
-    pub fn current_bounds(&mut self, s: SymbolId) -> Option<(TypeId, TypeId)> {
-        if let Some(b) = self.u.gadt_bounds(s) {
-            return Some(b);
-        }
-        let info = self.u.info(s);
-        match *self.u.types().get(info) {
-            Type::Bounds(lo, hi) => Some((lo, hi)),
-            _ => None,
-        }
-    }
-
-    /// The bounds of the GADT variables `vars`, zonked.
+impl TypeOps<'_> {
+    /// Lists the lower and upper bounds of the type variables standing for the type parameters
+    /// an extractor pattern narrows, zonked.
     pub fn gadt_var_bounds(&mut self, vars: &[(SymbolId, TypeId)]) -> Vec<TypeId> {
         let mut bounds = Vec::new();
         for &(_, v) in vars {
@@ -171,7 +164,17 @@ impl Typer<'_> {
         bounds
     }
 
-    /// Whether `t` refers to type `part`.
+    /// Tells whether `t` refers to a type variable.
+    pub fn has_type_var(&mut self, t: TypeId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, p| {
+            found |= matches!(u.types().get(p), Type::Var(_));
+            None
+        });
+        found
+    }
+
+    /// Tells whether `t` refers to type `part`.
     pub fn refers_to_type(&mut self, t: TypeId, part: TypeId) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |_, p| {

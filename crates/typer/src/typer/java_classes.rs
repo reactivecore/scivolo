@@ -3,27 +3,39 @@
 //! or member is a Java one; the JDK's functional interfaces.
 
 use super::Typer;
-use tasty::SymbolId;
+use tasty::{SymbolId, Universe};
+
+/// Whether `s` is a member of a `java.*` or `javax.*` class or a Java class of the Scala
+/// library, its parameter names unknown.
+pub fn is_java_member(u: &mut Universe, s: SymbolId) -> bool {
+    u.symbol(s).owner.is_some_and(|owner| is_java_class_name(u, owner))
+}
+
+/// Whether `c`, from TASTy, is named as a `java.*` or `javax.*` class or a Java class of the
+/// Scala library; a class of the unit, or of javalib when compiling it, is a Scala one.
+pub fn is_java_class_name(u: &mut Universe, c: SymbolId) -> bool {
+    if !u.may_be_java(c) && u.symbol(c).kind != tasty::Kind::Package {
+        return false;
+    }
+    let name = u.full_name(c);
+    let library_java = name.rsplit_once('.').is_some_and(|(pkg, simple)| {
+        let simple = tasty::module_name(simple).unwrap_or(simple);
+        java_classes(pkg).any(|c| c == simple)
+    });
+    name.starts_with("java.") || name.starts_with("javax.") || library_java
+}
 
 impl Typer<'_> {
-    /// Whether `s` is a member of a `java.*` or `javax.*` class or a Java class of the Scala
-    /// library, its parameter names unknown.
+    /// Whether `s` is a member of a Java class, as `String.length` is (the free function of this
+    /// name).
     pub fn is_java_member(&mut self, s: SymbolId) -> bool {
-        self.u.symbol(s).owner.is_some_and(|owner| self.is_java_class_name(owner))
+        is_java_member(self.u, s)
     }
 
-    /// Whether `c`, from TASTy, is named as a `java.*` or `javax.*` class or a Java class of the
-    /// Scala library; a class of the unit, or of javalib when compiling it, is a Scala one.
+    /// Whether `c` is named as a Java class, as `java.util.List` is (the free function of this
+    /// name).
     pub fn is_java_class_name(&mut self, c: SymbolId) -> bool {
-        if !self.u.may_be_java(c) && self.u.symbol(c).kind != tasty::Kind::Package {
-            return false;
-        }
-        let name = self.u.full_name(c);
-        let library_java = name.rsplit_once('.').is_some_and(|(pkg, simple)| {
-            let simple = tasty::module_name(simple).unwrap_or(simple);
-            java_classes(pkg).any(|c| c == simple)
-        });
-        name.starts_with("java.") || name.starts_with("javax.") || library_java
+        is_java_class_name(self.u, c)
     }
 
     /// The type parameters of the class of constructor `ctor`, whose bounds may be the JDK's
