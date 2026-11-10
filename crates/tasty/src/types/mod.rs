@@ -38,6 +38,8 @@ pub struct VarId(pub u32);
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Binder(pub FileId, pub u32);
 
+/// One node of a type, a small value whose parts are ids into [`Types`]; matched by value
+/// (`match *u.ty(t)`).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Type {
     /// The prefix of a reference to a local symbol.
@@ -122,6 +124,8 @@ pub enum Type {
 
 const _: () = assert!(size_of::<Type>() <= 24);
 
+/// Holds the hash-consed types of a universe with their names and lists; an interned type
+/// never changes.
 #[derive(Default)]
 pub struct Types {
     all: Vec<Type>,
@@ -132,6 +136,7 @@ pub struct Types {
 }
 
 impl Types {
+    /// Returns the id of type `t`, adding it when it is new: equal types share one id.
     pub fn intern(&mut self, t: Type) -> TypeId {
         if let Some(&id) = self.ids.get(&t) {
             return id;
@@ -142,6 +147,7 @@ impl Types {
         id
     }
 
+    /// The type with id `id`.
     pub fn get(&self, id: TypeId) -> &Type {
         &self.all[id.0 as usize]
     }
