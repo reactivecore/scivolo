@@ -20,20 +20,49 @@ impl MirrorSynthesis {
     /// all have mirrors; `None` for another type.
     pub fn sum(self, t: &mut Typer<'_>, source: MirrorSource) -> Result<Option<TNodeId>, &'static str> {
         let MirrorSource::Class(pre, cls) = source else { return Ok(None) };
-        let mirrored = self.formal.mirrored;
         let companion = sum_companion(t, cls);
         if !self.is_generic_sum(t, cls, companion.is_some(), pre)? {
             return Ok(None);
         }
+
         let owner = t.u.symbol(cls).owner;
         let path = pre.filter(|&p| !is_plain_prefix(t.u, p) || is_inheriting_module(t.u, p, owner));
         let children = t.sealed_children(cls)?;
+        let types = self.child_types(t, (path, cls), &children)?;
+        let labels: Vec<String> = children.iter().map(|&c| t.u.symbol(c).name.clone()).collect();
+        let nested = t.nested_pairs(&types)?;
+        let (mono, elem_types) = self.formal.mono_and_elems(t.u, nested);
+        let elem_labels = label_pairs(t, &labels)?;
+        let label = t.u.symbol(cls).name.clone();
+        let core =
+            MirrorCore { parent: MIRROR_SUM, mono, label: &label, elems: Some((elem_types, elem_labels)) };
+        let cast = self.mirror_type(t, core)?;
+
+        let mirror = match companion {
+            Some(module) => {
+                let path = t.u.intern_type(Type::Sym(pre, module));
+                t.path_tree(path, self.at, MAX_PATH_DEPTH).ok_or("Mirror companion outside the subset")?
+            }
+            None => self.anonymous(t, mono, true)?,
+        };
+        self.cast(t, mirror, cast)
+    }
+
+    /// The types of `children` of sealed class `cls` as elements of its mirror, each selected
+    /// from `path` if the class is.
+    fn child_types(
+        self,
+        t: &mut Typer<'_>,
+        (path, cls): (Option<TypeId>, SymbolId),
+        children: &[SymbolId],
+    ) -> Result<Vec<TypeId>, &'static str> {
+        let mirrored = self.formal.mirrored;
         let target = match *t.u.types().get(mirrored) {
             Type::Lambda { result, .. } => result,
             _ => mirrored,
         };
         let mut types = Vec::new();
-        for &c in &children {
+        for &c in children {
             let prefix = match path {
                 Some(p) => {
                     let prefix = child_prefix(t.u, p, cls, c);
@@ -43,22 +72,7 @@ impl MirrorSynthesis {
             };
             types.push(child_type(t, c, target, prefix)?);
         }
-        let labels: Vec<String> = children.iter().map(|&c| t.u.symbol(c).name.clone()).collect();
-        let nested = t.nested_pairs(&types)?;
-        let (mono, elem_types) = self.formal.mono_and_elems(t.u, nested);
-        let elem_labels = label_pairs(t, &labels)?;
-        let label = t.u.symbol(cls).name.clone();
-        let core =
-            MirrorCore { parent: MIRROR_SUM, mono, label: &label, elems: Some((elem_types, elem_labels)) };
-        let cast = self.mirror_type(t, core)?;
-        let mirror = match companion {
-            Some(module) => {
-                let path = t.u.intern_type(Type::Sym(pre, module));
-                t.path_tree(path, self.at, MAX_PATH_DEPTH).ok_or("Mirror companion outside the subset")?
-            }
-            None => self.anonymous(t, mono, true)?,
-        };
-        self.cast(t, mirror, cast)
+        Ok(types)
     }
 }
 
