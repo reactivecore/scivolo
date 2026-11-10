@@ -3,7 +3,7 @@
 //   compiler/src/dotty/tools/dotc/typer/VarianceChecker.scala
 //! The variances of the parameters of type constructors.
 
-use super::variance_types::{Checked, VarianceOps};
+use super::{Checked, VarianceOps};
 use tasty::{Binder, SymbolId, Type, TypeId};
 
 impl VarianceOps<'_> {

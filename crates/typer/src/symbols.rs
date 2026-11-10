@@ -149,6 +149,24 @@ impl Syms {
         self.flags.get(&s).copied().unwrap_or_default()
     }
 
+    /// Names `sym` as dotty's messages do, by its kind and name: `trait T`, `method f`,
+    /// `parameter x`, `lazy value v`.
+    pub fn described(&self, u: &Universe, sym: SymbolId) -> String {
+        let s = u.symbol(sym);
+        let flags = self.flags_of(sym);
+        let kind = match s.kind {
+            Kind::Class if flags.is(f::TRAIT) => "trait",
+            Kind::Class => "class",
+            Kind::Type | Kind::TypeParam => "type",
+            Kind::Def => "method",
+            Kind::Param if s.owner.is_some_and(|o| u.symbol(o).kind == Kind::Def) => "parameter",
+            _ if flags.is(f::MUTABLE) => "variable",
+            _ if flags.is(f::LAZY) => "lazy value",
+            _ => "value",
+        };
+        format!("{kind} {}", s.name)
+    }
+
     /// A binder no other method or type lambda has, of file `SCRIPT_BINDERS`.
     pub fn fresh_binder(&mut self) -> Binder {
         self.binders += 1;

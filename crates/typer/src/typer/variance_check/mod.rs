@@ -4,8 +4,11 @@
 //! Variance checks of the definitions of classes (dotty's `VarianceChecker` as `PostTyper` runs
 //! it).
 
+mod lambdas;
+mod messages;
+
 use super::Typer;
-use super::variance_types::{BIVARIANT, Checked, Misplaced, VarianceOps, flip, is_unchecked_variance};
+use super::variance_ops::{Checked, Misplaced, VarianceOps, is_unchecked_variance};
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
@@ -17,11 +20,11 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 /// `class C[+A]`, and each type lambda whose body breaks the variances of its parameters, as
 /// `type F[+X] = X => Int`.
 pub struct VarianceCheck<'a> {
-    pub tpd: &'a Tpd,
+    tpd: &'a Tpd,
     /// The private variables assigned other than through their owner's `this`.
-    pub assigned_non_locally: &'a FxHashSet<SymbolId>,
+    assigned_non_locally: &'a FxHashSet<SymbolId>,
     /// The errors found, with dotty's messages.
-    pub errors: Vec<(Span, String)>,
+    errors: Vec<(Span, String)>,
 }
 
 impl Typer<'_> {
@@ -55,12 +58,12 @@ impl Typer<'_> {
 impl<'a> VarianceCheck<'a> {
     /// Starts a check of the trees of `tpd`, in which the variables `assigned_non_locally` are
     /// assigned other than through their owner's `this`.
-    pub fn new(tpd: &'a Tpd, assigned_non_locally: &'a FxHashSet<SymbolId>) -> Self {
+    fn new(tpd: &'a Tpd, assigned_non_locally: &'a FxHashSet<SymbolId>) -> Self {
         VarianceCheck { tpd, assigned_non_locally, errors: Vec::new() }
     }
 
     /// Checks the class and type definitions in tree `t` and its subtrees.
-    pub fn variances_in(&mut self, ops: &mut VarianceOps, t: TNodeId) {
+    fn variances_in(&mut self, ops: &mut VarianceOps, t: TNodeId) {
         if self.tpd.is_type_tree(t) {
             return;
         }
@@ -134,7 +137,7 @@ impl<'a> VarianceCheck<'a> {
             }
         };
         let Some(Misplaced::Class(tvar, required)) = found else { return };
-        let msg = ops.variance_message(sym, tvar, required, &unchecked);
+        let msg = messages::variance_message(ops, sym, tvar, required, &unchecked);
         self.errors.push((self.tpd.span(t), msg));
     }
 
@@ -158,41 +161,5 @@ impl<'a> VarianceCheck<'a> {
             }
         }
         out
-    }
-}
-
-impl VarianceOps<'_> {
-    /// Determines the variance of an occurrence of type parameter `tvar` in the type of `base`,
-    /// seen from the definition of `tvar`: `v` changed along the owners of `base` up to the owner
-    /// of `tvar` (dotty's `relativeVariance`). A parameter of a method of class `C[+A]` is seen
-    /// contravariantly; a private local member's type is not checked, so bivariant.
-    pub fn relative_variance(&mut self, tvar: SymbolId, mut base: SymbolId, mut v: u8) -> u8 {
-        let towner = self.u.symbol(tvar).owner;
-        loop {
-            if Some(base) == towner {
-                return v;
-            }
-            let Some(owner) = self.u.symbol(base).owner else { return BIVARIANT };
-            let (kind, owner_kind) = (self.u.symbol(base).kind, self.u.symbol(owner).kind);
-            let param = matches!(kind, Kind::Param | Kind::TypeParam);
-            if param && owner_kind.is_term() && !self.syms.flags_of(owner).is_all_of(f::PRIVATE_LOCAL) {
-                let outer = self.u.symbol(owner).owner;
-                let ctor = self.u.symbol(owner).name == "<init>";
-                let outer = if ctor { outer.and_then(|o| self.u.symbol(o).owner) } else { outer };
-                let Some(outer) = outer else { return BIVARIANT };
-                (base, v) = (outer, flip(v));
-            } else if owner_kind.is_term()
-                || owner_kind == Kind::Package
-                || self.syms.flags_of(base).is_all_of(f::PRIVATE_LOCAL)
-            {
-                return BIVARIANT;
-            } else if kind == Kind::Type
-                && (self.syms.flags_of(base).is(f::OPAQUE) || self.u.alias_of(base).is_some())
-            {
-                (base, v) = (owner, 0);
-            } else {
-                base = owner;
-            }
-        }
     }
 }

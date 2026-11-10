@@ -4,6 +4,9 @@
 //! The type parameter occurring in a type where its variance does not allow it (dotty's
 //! `VarianceChecker.Validator` and `checkLambda`, over `TypeAccumulator.foldOver`).
 
+mod constructors;
+mod relative;
+
 use super::Typer;
 use crate::sealed::is_contained_in;
 use crate::symbols::Syms;

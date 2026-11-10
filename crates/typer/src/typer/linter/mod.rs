@@ -3,6 +3,8 @@
 //   compiler/src/dotty/tools/dotc/typer/Linter.scala
 //! dotty's `Linter.warnOnInterestingResultInStatement`: `-Wnonunit-statement`.
 
+mod this_type_results;
+
 use super::Typer;
 use super::type_ops::TypeOps;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
@@ -14,9 +16,9 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 /// result of a call such as `list.map(f)` is, while `()`, `sb.append(x)` returning its receiver,
 /// `x += 1`, a constructor call and a call of a Java method are not.
 pub struct Linter<'a> {
-    pub tpd: &'a Tpd,
+    tpd: &'a Tpd,
     /// The class `scala.Unit`.
-    pub unit: SymbolId,
+    unit: SymbolId,
 }
 
 impl Typer<'_> {
@@ -57,7 +59,7 @@ impl Typer<'_> {
 impl Linter<'_> {
     /// Whether statement `t`, or a branch or the result of a block it is, has an interesting
     /// result.
-    pub fn interesting_shape(&self, ty: &mut TypeOps, t: TNodeId) -> bool {
+    fn interesting_shape(&self, ty: &mut TypeOps, t: TNodeId) -> bool {
         match *self.tpd.tree(t) {
             T::If { thenp, elsep, .. } => {
                 self.interesting_shape(ty, thenp) || self.interesting_shape(ty, elsep)

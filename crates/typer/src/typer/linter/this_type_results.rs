@@ -3,8 +3,8 @@
 //! Calls that return their receiver or an argument (dotty's `isThisTypeResult`), whose values
 //! `-Wnonunit-statement` does not warn about.
 
-use super::linter::Linter;
-use super::type_ops::TypeOps;
+use super::super::type_ops::TypeOps;
+use super::Linter;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 

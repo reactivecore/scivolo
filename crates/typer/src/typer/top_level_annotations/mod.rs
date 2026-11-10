@@ -24,11 +24,11 @@ const NOT_VIRAL: [&str; 4] = ["captureChecking", "separationChecking", "safe", "
 /// package object count as top-level definitions.
 #[derive(Default)]
 pub struct TopLevel {
-    pub defs: Vec<SymbolId>,
+    defs: Vec<SymbolId>,
     /// Each class with the span of its definition.
-    pub classes: Vec<(SymbolId, Span)>,
+    classes: Vec<(SymbolId, Span)>,
     /// The experimental language imports, as dotty shows them.
-    pub imports: Vec<String>,
+    imports: Vec<String>,
 }
 
 impl Typer<'_> {
@@ -45,14 +45,14 @@ impl Typer<'_> {
 
 impl TopLevel {
     /// Collects the top-level definitions of typed source file `root`.
-    pub fn of(t: &Typer, root: TNodeId) -> TopLevel {
+    fn of(t: &Typer, root: TNodeId) -> TopLevel {
         let mut top = TopLevel::default();
         top.collect(t, root);
         top
     }
 
     /// Annotates the definitions, of a source file named `path`.
-    pub fn annotate(self, t: &mut Typer, path: &str) {
+    fn annotate(self, t: &mut Typer, path: &str) {
         let why = match self.imports.first() {
             Some(import) => Some(format!("Added by top level {import}")),
             None => t.experimental.map(|setting| format!("Added by {setting}")),

@@ -19,11 +19,11 @@ struct Level {
 /// One check of a typed unit for references in a block that reach over a value definition to a
 /// later definition, as `x` in `{ def f = x; val y = f; val x = 1 }`.
 pub struct ForwardRefs<'a> {
-    pub tpd: &'a Tpd,
+    tpd: &'a Tpd,
     /// The blocks around the tree being checked, innermost last.
     levels: Vec<Level>,
     /// The errors found, with dotty's messages.
-    pub errors: Vec<(Span, String)>,
+    errors: Vec<(Span, String)>,
 }
 
 impl Typer<'_> {
@@ -39,12 +39,12 @@ impl Typer<'_> {
 
 impl<'a> ForwardRefs<'a> {
     /// Starts a check of the trees of `tpd`.
-    pub fn new(tpd: &'a Tpd) -> Self {
+    fn new(tpd: &'a Tpd) -> Self {
         ForwardRefs { tpd, levels: Vec::new(), errors: Vec::new() }
     }
 
     /// Checks tree `t` and its subtrees.
-    pub fn refs_in(&mut self, u: &mut Universe, t: TNodeId) {
+    fn refs_in(&mut self, u: &mut Universe, t: TNodeId) {
         let tpd = self.tpd;
         let sym = tpd.sym(t);
         match *tpd.tree(t) {
