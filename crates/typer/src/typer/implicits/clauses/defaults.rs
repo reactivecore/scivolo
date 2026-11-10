@@ -3,8 +3,8 @@
 //! Implicit clauses whose missing arguments are left to defaults (the fallback of dotty's
 //! `addImplicitArgs` in `adaptNoArgsImplicitMethod`).
 
-use super::super::{Pt, Typer};
-use super::implicit_clause::ImplicitClause;
+use super::super::super::{Pt, Typer};
+use super::ImplicitClause;
 use crate::tpd::TNodeId;
 use syntax::ast::{Attrs, NodeId, TName, Tree};
 use tasty::TypeId;

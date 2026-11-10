@@ -3,9 +3,8 @@
 //! Implicit arguments no candidate can supply (dotty's `MissingImplicitArgument` without an
 //! addendum), reported where neither the unit nor the library defines an implicit of the type.
 
-use super::super::Typer;
-use super::super::errors;
-use super::implicit_clause::ImplicitClause;
+use super::super::super::{Typer, errors};
+use super::ImplicitClause;
 use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use syntax::ast::{Ast, NodeId, Tree};

@@ -2,46 +2,92 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 
+mod defaults;
+mod missing_given;
+
 use super::super::Typer;
 use super::super::dependent_params::{applied_result, mentions_clause_params};
 use super::search::AMBIGUOUS;
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{Binder, SymbolId, Type, TypeId};
+use tasty::{Binder, Binding, SymbolId, Type, TypeId};
 
 /// The application of one implicit parameter clause of a tree to the arguments the searches find
-/// for it, as `summon[Ordering[Int]]` gets `(using Ordering.Int)` (dotty's `addImplicitArgs`).
+/// for it, as `summon[Ordering[Int]]` gets `(using Ordering.Int)` (dotty's `addImplicitArgs` in
+/// `adaptNoArgsImplicitMethod`).
 pub struct ImplicitClause {
     /// The tree whose first parameter clause is implicit.
-    pub tree: TNodeId,
+    tree: TNodeId,
     /// The method the tree refers to, if any.
-    pub meth: Option<SymbolId>,
-    pub binder: Binder,
+    meth: Option<SymbolId>,
+    binder: Binder,
     /// The parameters of the clause, by name and type.
-    pub params: Vec<(String, TypeId)>,
-    pub names: Vec<String>,
+    params: Vec<(String, TypeId)>,
+    names: Vec<String>,
     /// The type after the clause, referring to its parameters.
-    pub result: TypeId,
+    result: TypeId,
     /// Where the arguments are searched.
-    pub at: Span,
+    at: Span,
     /// Where the application is placed.
-    pub span: Span,
-    pub ctx: Ctx,
+    span: Span,
+    ctx: Ctx,
     /// How deep the searches nest in implicit arguments of implicit arguments.
-    pub depth: u32,
+    depth: u32,
+}
+
+impl Typer<'_> {
+    /// Applies `tree` to the arguments of its leading implicit clauses, searched at the first of
+    /// `spans` and applied at the second, as `f` becomes `f(using a)(using b)`.
+    pub fn with_implicit_args(
+        &mut self,
+        mut tree: TNodeId,
+        spans: (Span, Span),
+        ctx: Ctx,
+        depth: u32,
+    ) -> Result<TNodeId, &'static str> {
+        while let Some(clause) = ImplicitClause::of(self, tree, spans, ctx, depth) {
+            tree = clause.applied(self)?;
+        }
+        Ok(tree)
+    }
+
+    /// Applies `tree`, a method reference such as `summon[Ordering[Int]]`, to the arguments of its
+    /// first clause if that is implicit, searched in `ctx` after the type variables of its
+    /// parameter types are instantiated; a block's definitions stay around the application.
+    pub fn implicit_clause_applied(&mut self, tree: TNodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
+        if let T::Block { stats, expr } = *self.tpd.tree(tree) {
+            let mut stats = self.tpd.items(stats).to_vec();
+            let mut applied = self.implicit_clause_applied(expr, ctx)?;
+            if let T::Block { stats: inner, expr } = *self.tpd.tree(applied) {
+                stats.extend_from_slice(self.tpd.items(inner));
+                applied = expr;
+            }
+            if applied != expr {
+                self.tpd.get_mut(applied).span = self.tpd.span(applied).to_synthetic();
+            }
+            return Ok(self.wrap_defs(stats, applied));
+        }
+        let tpe = self.tpd.tpe(tree);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        let Some(Binding { params, implicit: true, .. }) = self.u.method(info) else {
+            return Ok(tree);
+        };
+        let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+        self.instantiate_param_vars(tree, &formals)?;
+        let args_ctx = self.implicit_args_ctx(tree, ctx);
+        let span = self.tpd.span(tree);
+        match ImplicitClause::of(self, tree, (span.end_pos(), span.to_synthetic()), args_ctx, 0) {
+            Some(clause) => clause.applied(self),
+            None => Ok(tree),
+        }
+    }
 }
 
 impl ImplicitClause {
     /// Prepares the application of the first parameter clause of `tree`, searched at the first of
     /// `spans` and applied at the second; `None` if that clause is not implicit.
-    pub fn of(
-        t: &mut Typer<'_>,
-        tree: TNodeId,
-        (at, span): (Span, Span),
-        ctx: Ctx,
-        depth: u32,
-    ) -> Option<Self> {
+    fn of(t: &mut Typer<'_>, tree: TNodeId, (at, span): (Span, Span), ctx: Ctx, depth: u32) -> Option<Self> {
         let tpe = t.tpd.tpe(tree);
         let info = t.method_info(tpe).unwrap_or(tpe);
         let Type::Method { binder, params, result, implicit: true, .. } = t.u.types().get(info).clone()
@@ -56,7 +102,7 @@ impl ImplicitClause {
     /// Applies the tree to an argument per parameter: the one found, else its default, else an
     /// error tree for a `given` no definition of the program can supply; fails when an argument
     /// is missing or ambiguous in a way dotty would report otherwise.
-    pub fn applied(self, t: &mut Typer<'_>) -> Result<TNodeId, &'static str> {
+    fn applied(self, t: &mut Typer<'_>) -> Result<TNodeId, &'static str> {
         let mut found: Vec<Option<TNodeId>> = Vec::new();
         let mut ambiguous = false;
         for (i, (name, p)) in self.params.iter().enumerate() {
