@@ -87,7 +87,7 @@ pub fn emitted(
     ctx: Ctx,
 ) -> Result<TNodeId, &'static str> {
     match found {
-        Ok(tree) => Dictionary::take(t, at, ctx).around(t, tree),
+        Ok(tree) => Dictionary::take(t, at, ctx.owner).around(t, tree),
         Err(what) if t.history.lazies.is_empty() => Err(what),
         Err(_) => {
             t.history.lazies.clear();

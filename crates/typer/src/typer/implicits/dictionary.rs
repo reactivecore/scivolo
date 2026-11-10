@@ -5,7 +5,6 @@
 
 use super::super::Typer;
 use super::history::Lazy;
-use crate::ctx::Ctx;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -21,20 +20,21 @@ pub struct Dictionary {
     lazies: Vec<Lazy>,
     /// Where the definitions are placed.
     at: Span,
-    ctx: Ctx,
+    /// The owner of the definitions.
+    owner: SymbolId,
 }
 
 impl Dictionary {
     /// Takes the by-name implicits linked so far out of the history, for a dictionary at `at`
-    /// owned by the owner of `ctx`.
-    pub fn take(t: &mut Typer<'_>, at: Span, ctx: Ctx) -> Self {
-        Dictionary { lazies: std::mem::take(&mut t.history.lazies), at, ctx }
+    /// owned by `owner`.
+    pub fn take(t: &mut Typer<'_>, at: Span, owner: SymbolId) -> Self {
+        Dictionary { lazies: std::mem::take(&mut t.history.lazies), at, owner }
     }
 
     /// Wraps `tree`, the result of the search, in a block with the dictionary of the by-name
     /// implicits it refers to, if any; fails if one of them was never defined.
     pub fn around(self, t: &mut Typer<'_>, tree: TNodeId) -> Result<TNodeId, &'static str> {
-        let (at, owner) = (self.at, self.ctx.owner);
+        let (at, owner) = (self.at, self.owner);
         let pruned = self.pruned(&t.tpd, tree);
         if pruned.is_empty() {
             return Ok(tree);
@@ -113,7 +113,7 @@ impl Dictionary {
         let serializable = t.resolve_full_name("java.io.Serializable", true).ok_or("Serializable")?;
         t.history.names += 1;
         let name = format!("$_lazy_implicit_${}", t.history.names);
-        let cls = t.syms.define(t.u, &name, Kind::Class, self.ctx.owner, f::FINAL.or(f::SYNTHETIC));
+        let cls = t.syms.define(t.u, &name, Kind::Class, self.owner, f::FINAL.or(f::SYNTHETIC));
         let parents = vec![type_ref(t.u, t.defn.object), type_ref(t.u, serializable)];
         t.u.set_parents(cls, parents);
         t.syms.no_inits.insert(cls, false);
