@@ -5,6 +5,7 @@
 
 use super::super::Typer;
 use super::candidates::Candidate;
+use super::dictionary::Dictionary;
 use super::measures::Measure;
 use super::prefilter::cannot_fit;
 use super::search::ImplicitSearch;
@@ -86,7 +87,7 @@ pub fn emitted(
     ctx: Ctx,
 ) -> Result<TNodeId, &'static str> {
     match found {
-        Ok(tree) => t.with_dictionary(tree, at, ctx),
+        Ok(tree) => Dictionary::take(t, at, ctx).around(t, tree),
         Err(what) if t.history.lazies.is_empty() => Err(what),
         Err(_) => {
             t.history.lazies.clear();

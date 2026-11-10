@@ -10,16 +10,17 @@ use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
-    /// `t` with each top-level wildcard argument `_ >: lo <: hi`, bounded also by its type
-    /// parameter, replaced by the `CAP` member of a fresh skolem of type
-    /// `scala.runtime.TypeBox[lo, hi]`; `None` if `t` has none.
+    /// Captures the wildcards of `t`: `List[? <: Number]` becomes `List[x.CAP]` for a fresh
+    /// skolem `x` of type `scala.runtime.TypeBox[Nothing, Number]`, each wildcard bounded also by
+    /// its type parameter; `None` if `t` has no top-level wildcard argument.
     pub fn captured_wildcards(&mut self, t: TypeId) -> Option<TypeId> {
-        self.captured_through(t, true)
+        captured(self, t, true)
     }
 
-    /// `captured_wildcards` of an argument or adapted tree's type `t`; `None` for a stable path,
-    /// which dotty's `compareCaptured` captures by selecting the type parameters on it, and for
-    /// a Java class whose parameter has no upper bound (dotty's `FromJavaObject`).
+    /// Captures the wildcards of `t`, the type of an argument or adapted tree, as
+    /// `captured_wildcards` does; `None` for a stable path, which dotty's `compareCaptured`
+    /// captures by selecting the type parameters on it, and for a Java class such as
+    /// `java.util.List[?]` whose parameter has no upper bound (dotty's `FromJavaObject`).
     pub fn captured_args(&mut self, t: TypeId) -> Option<TypeId> {
         let t = self.zonk(t);
         if matches!(self.u.types().get(t), Type::Sym(..))
@@ -27,42 +28,7 @@ impl Typer<'_> {
         {
             return None;
         }
-        self.captured_through(t, false)
-    }
-
-    fn captured_through(&mut self, t: TypeId, java_unbounded: bool) -> Option<TypeId> {
-        let t = self.zonk(t);
-        let t = self.u.widen(t);
-        let t = self.u.dealias(t);
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
-        if !args.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..))) {
-            return None;
-        }
-        let params = self.u.class_symbol(tycon).map(|c| self.u.type_params(c)).unwrap_or_default();
-        if params.len() != args.len() {
-            return None;
-        }
-        let type_box = self.resolve_full_name("scala.runtime.TypeBox", true)?;
-        let cap = self.u.decl(type_box, "CAP").ok()?.first().copied()?;
-        let java = !java_unbounded && self.u.class_symbol(tycon).is_some_and(|c| self.is_java_class_name(c));
-        let mut captured = Vec::new();
-        for (a, &p) in args.into_iter().zip(&params) {
-            let a = self.with_param_bounds(a, Some(p), &params);
-            let Type::Bounds(lo, hi) = *self.u.types().get(a) else {
-                captured.push(a);
-                continue;
-            };
-            let from_java_object = self.u.builtins().from_java_object;
-            let java_any = hi == tasty::ANY
-                || matches!(self.u.types().get(hi), Type::Sym(_, s) if *s == from_java_object);
-            if java && java_any {
-                return None;
-            }
-            let boxed = crate::defn::applied(self.u, type_box, vec![lo, hi]);
-            let skolem = self.u.fresh_skolem(boxed);
-            captured.push(self.u.intern_type(Type::Sym(Some(skolem), cap)));
-        }
-        Some(self.u.intern_type(Type::Applied(tycon, captured)))
+        captured(self, t, false)
     }
 
     /// `tree` cast to its type with wildcards captured if that conforms to `pt` (dotty's
@@ -112,4 +78,41 @@ impl Typer<'_> {
         let tpt = self.tpd.node(T::TypeTree { inferred: false }, span.end_pos(), Some(to), None);
         Ok(self.build().type_apply(fun, &[tpt], to, span))
     }
+}
+
+/// `captured_wildcards` of `tpe`; `None` also for a Java class whose parameter has no upper
+/// bound unless `java_unbounded`.
+fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<TypeId> {
+    let tpe = t.zonk(tpe);
+    let tpe = t.u.widen(tpe);
+    let tpe = t.u.dealias(tpe);
+    let Type::Applied(tycon, args) = t.u.types().get(tpe).clone() else { return None };
+    if !args.iter().any(|&a| matches!(t.u.types().get(a), Type::Bounds(..))) {
+        return None;
+    }
+    let params = t.u.class_symbol(tycon).map(|c| t.u.type_params(c)).unwrap_or_default();
+    if params.len() != args.len() {
+        return None;
+    }
+    let type_box = t.resolve_full_name("scala.runtime.TypeBox", true)?;
+    let cap = t.u.decl(type_box, "CAP").ok()?.first().copied()?;
+    let java = !java_unbounded && t.u.class_symbol(tycon).is_some_and(|c| t.is_java_class_name(c));
+    let mut captured = Vec::new();
+    for (a, &p) in args.into_iter().zip(&params) {
+        let a = t.with_param_bounds(a, Some(p), &params);
+        let Type::Bounds(lo, hi) = *t.u.types().get(a) else {
+            captured.push(a);
+            continue;
+        };
+        let from_java_object = t.u.builtins().from_java_object;
+        let java_any =
+            hi == tasty::ANY || matches!(t.u.types().get(hi), Type::Sym(_, s) if *s == from_java_object);
+        if java && java_any {
+            return None;
+        }
+        let boxed = crate::defn::applied(t.u, type_box, vec![lo, hi]);
+        let skolem = t.u.fresh_skolem(boxed);
+        captured.push(t.u.intern_type(Type::Sym(Some(skolem), cap)));
+    }
+    Some(t.u.intern_type(Type::Applied(tycon, captured)))
 }

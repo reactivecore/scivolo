@@ -4,10 +4,10 @@
 //! `addImplicitArgs` in `adaptNoArgsImplicitMethod`).
 
 use super::super::{Pt, Typer};
-use crate::ctx::Ctx;
+use super::implicit_clause::ImplicitClause;
 use crate::tpd::TNodeId;
 use syntax::ast::{Attrs, NodeId, TName, Tree};
-use tasty::{SymbolId, TypeId};
+use tasty::TypeId;
 
 /// The classes whose instances dotty's `Synthesizer` makes.
 const SYNTHESIZED: &[&str] = &[
@@ -25,42 +25,39 @@ const SYNTHESIZED: &[&str] = &[
     "scala.Precise",
 ];
 
-impl Typer<'_> {
-    /// Whether parameter `n` of the implicit clause `tree` applies, of type `formal`, has a default
-    /// argument that applies when no implicit is found, `formal` a class the compiler does not
-    /// synthesize.
-    pub fn defaultable(&mut self, tree: TNodeId, meth: Option<SymbolId>, n: usize, formal: TypeId) -> bool {
-        let Some(m) = meth else { return false };
-        let dealiased = self.u.dealias(formal);
-        let class = self.direct_class(dealiased);
-        let synthesized = class.is_some_and(|c| SYNTHESIZED.contains(&self.u.full_name(c).as_str()));
-        class.is_some() && !synthesized && self.is_fully_defined(formal) && self.may_default(tree, m, n)
+impl ImplicitClause {
+    /// Whether parameter `n` of type `formal` may take its default argument when no implicit is
+    /// found, as `(using o: Options = Options())` does, unless `formal` is a type the compiler
+    /// synthesizes, such as `ClassTag[T]`.
+    pub fn defaultable(&self, t: &mut Typer<'_>, n: usize, formal: TypeId) -> bool {
+        let Some(m) = self.meth else { return false };
+        let dealiased = t.u.dealias(formal);
+        let class = t.direct_class(dealiased);
+        let synthesized = class.is_some_and(|c| SYNTHESIZED.contains(&t.u.full_name(c).as_str()));
+        class.is_some()
+            && !synthesized
+            && t.types().is_fully_defined(formal)
+            && t.may_default(self.tree, m, n)
     }
 
-    /// `tree` applied to its implicit clause, of parameters `names`, by an application typed anew
-    /// with the arguments `found` named and the others left to their defaults.
-    pub fn with_default_implicits(
-        &mut self,
-        tree: TNodeId,
-        names: &[String],
-        found: &[Option<TNodeId>],
-        ctx: Ctx,
-    ) -> TNodeId {
-        let span = self.tpd.span(tree);
+    /// Types the tree applied anew to the clause, the arguments `found` passed by name and the
+    /// others left to their defaults, as `f(using a = x)`.
+    pub fn with_defaults(&self, t: &mut Typer<'_>, found: &[Option<TNodeId>]) -> TNodeId {
+        let span = t.tpd.span(self.tree);
         let mut named: Vec<NodeId> = Vec::new();
-        for (n, &arg) in names.iter().zip(found) {
+        for (n, &arg) in self.names.iter().zip(found) {
             let Some(arg) = arg else { continue };
-            let arg = self.spliced(arg);
-            let name = TName { name: self.name(n), is_type: false };
-            let node = self.ast.node(Tree::NamedArg { name, arg });
-            self.ast.with_span(node, self.ast.span(arg));
+            let arg = t.spliced(arg);
+            let name = TName { name: t.name(n), is_type: false };
+            let node = t.ast.node(Tree::NamedArg { name, arg });
+            t.ast.with_span(node, t.ast.span(arg));
             named.push(node);
         }
-        let fun = self.spliced(tree);
-        let args = self.ast.list(&named);
-        let app = self.ast.node(Tree::Apply { fun, args });
-        self.ast.with_span(app, span);
-        self.ast.add_attrs(app, Attrs::USING_APPLY);
-        self.typed(app, Pt::Any, ctx)
+        let fun = t.spliced(self.tree);
+        let args = t.ast.list(&named);
+        let app = t.ast.node(Tree::Apply { fun, args });
+        t.ast.with_span(app, span);
+        t.ast.add_attrs(app, Attrs::USING_APPLY);
+        t.typed(app, Pt::Any, self.ctx)
     }
 }

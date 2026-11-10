@@ -5,15 +5,15 @@
 //! `adaptNoArgsImplicitMethod`).
 
 use super::super::{Pt, Typer};
-use super::search::AMBIGUOUS;
+use super::implicit_clause::ImplicitClause;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use tasty::{Binding, Type, TypeId};
 
 impl Typer<'_> {
-    /// `tree` applied to the arguments of its leading implicit clauses, searched at `at` and
-    /// applied at `span`.
+    /// Applies `tree` to the arguments of its leading implicit clauses, searched at the first of
+    /// `spans` and applied at the second, as `f` becomes `f(using a)(using b)`.
     pub fn with_implicit_args(
         &mut self,
         mut tree: TNodeId,
@@ -21,80 +21,15 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
-        while let Some(applied) = self.with_implicit_clause(tree, spans, ctx, depth)? {
-            tree = applied;
+        while let Some(clause) = ImplicitClause::of(self, tree, spans, ctx, depth) {
+            tree = clause.applied(self)?;
         }
         Ok(tree)
     }
 
-    /// `tree` applied to the arguments of its first parameter clause, searched at `at` and applied
-    /// at `span`; `None` if that clause is not implicit.
-    pub fn with_implicit_clause(
-        &mut self,
-        tree: TNodeId,
-        (at, span): (Span, Span),
-        ctx: Ctx,
-        depth: u32,
-    ) -> Result<Option<TNodeId>, &'static str> {
-        let t = self.tpd.tpe(tree);
-        let info = self.method_info(t).unwrap_or(t);
-        let Type::Method { binder, params, result, implicit: true, .. } = self.u.types().get(info).clone()
-        else {
-            return Ok(None);
-        };
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        let meth = self.tpd.sym(self.tpd.meth_part(tree));
-        let mut found: Vec<Option<TNodeId>> = Vec::new();
-        let mut ambiguous = false;
-        for (i, (name, p)) in params.iter().enumerate() {
-            if ambiguous && self.mentions_clause_params(*p, (binder, &names), meth) {
-                break;
-            }
-            if found.contains(&None) && self.mentions_clause_params(*p, (binder, &names), meth) {
-                return Err("implicit parameter depending on a defaulted one");
-            }
-            let before: Vec<TypeId> = found.iter().flatten().map(|&a| self.tpd.tpe(a)).collect();
-            let formal = self.applied_result(*p, (binder, &names), meth, &before);
-            match self.implicit_arg(formal, at, ctx, depth) {
-                Err("no implicit argument") if self.defaultable(tree, meth, i, formal) => found.push(None),
-                Err("no implicit argument")
-                    if depth > 0 && meth.is_some_and(|m| self.may_default(tree, m, i)) =>
-                {
-                    return Err("nested implicit argument left to its default");
-                }
-                Err(what @ "no implicit argument") if depth == 0 => {
-                    if let Some(error) = self.missing_given(tree, (name, formal), at, ctx) {
-                        return Ok(Some(error));
-                    }
-                    if self.history.open.is_empty() && self.unsupplied_in_checked_code(formal, meth, ctx) {
-                        let shown = self.plain_text(formal).unwrap_or_default();
-                        let place = format!("parameter {name}");
-                        self.error_at(at, super::super::errors::missing_given(&shown, &place));
-                        return Ok(Some(self.error_tree(self.tpd.span(tree))));
-                    }
-                    return Err(what);
-                }
-                Err(AMBIGUOUS) if depth > 0 => ambiguous = true,
-                arg => found.push(Some(arg?)),
-            }
-        }
-        if ambiguous {
-            return Err(AMBIGUOUS);
-        }
-        if found.contains(&None) {
-            return Ok(Some(self.with_default_implicits(tree, &names, &found, ctx)));
-        }
-        let args: Vec<TNodeId> = found.into_iter().flatten().collect();
-        let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        if self.without_false_deps_in(result, (binder, &params), meth) != result {
-            return Err("implicit method type with a false dependency");
-        }
-        let result = self.applied_result(result, (binder, &names), meth, &arg_types);
-        Ok(Some(self.build().apply(tree, &args, result, span)))
-    }
-
-    /// `tree`, a method reference whose first clause is implicit, applied to that clause's
-    /// arguments searched in `ctx`, its type variables in them instantiated first.
+    /// Applies `tree`, a method reference such as `summon[Ordering[Int]]`, to the arguments of its
+    /// first clause if that is implicit, searched in `ctx` after the type variables of its
+    /// parameter types are instantiated; a block's definitions stay around the application.
     pub fn implicit_clause_applied(&mut self, tree: TNodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
         if let T::Block { stats, expr } = *self.tpd.tree(tree) {
             let mut stats = self.tpd.items(stats).to_vec();
@@ -117,8 +52,10 @@ impl Typer<'_> {
         self.instantiate_param_vars(tree, &formals)?;
         let args_ctx = self.implicit_args_ctx(tree, ctx);
         let span = self.tpd.span(tree);
-        let applied = self.with_implicit_clause(tree, (span.end_pos(), span.to_synthetic()), args_ctx, 0)?;
-        Ok(applied.unwrap_or(tree))
+        match ImplicitClause::of(self, tree, (span.end_pos(), span.to_synthetic()), args_ctx, 0) {
+            Some(clause) => clause.applied(self),
+            None => Ok(tree),
+        }
     }
 
     /// Interpolates the type variables of id `from` or later again and zonks the type if
@@ -139,8 +76,9 @@ impl Typer<'_> {
         }
     }
 
-    /// Function `f` applied to the arguments of its leading `using` clauses unless the
-    /// application of `f` passes them, `using` (dotty's `adaptToArgs` without a `matchingApply`).
+    /// Applies function `f` to the arguments of its leading `using` clauses, unless the call
+    /// passes them itself as in `f(using x)`, flagged by `using` (dotty's `adaptToArgs` without a
+    /// `matchingApply`).
     pub fn with_using_args(
         &mut self,
         mut f: TNodeId,

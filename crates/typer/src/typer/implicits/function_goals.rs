@@ -17,7 +17,7 @@ use tasty::{SymbolId, Type, TypeId};
 pub fn implicit_value_type(t: &mut Typer<'_>, tpe: TypeId, sym: SymbolId, pt: TypeId) -> Option<TypeId> {
     let tpe = match t.u.types().get(tpe).clone() {
         Type::Method { binder, params, result, implicit: true, contextual } => {
-            let result = t.without_false_deps_in(result, (binder, &params), Some(sym));
+            let result = t.types().without_false_deps_in(result, (binder, &params), Some(sym));
             let tpe = t.u.intern_type(Type::Method { binder, params, result, implicit: true, contextual });
             let stripped = t.strip_implicit_clauses(tpe, sym).0;
             wildcard_selections(t.u, stripped)

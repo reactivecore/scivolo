@@ -23,6 +23,7 @@ mod extension_views;
 mod false_deps;
 mod function_goals;
 mod history;
+mod implicit_clause;
 mod manifests;
 mod measures;
 mod mirror_sources;
