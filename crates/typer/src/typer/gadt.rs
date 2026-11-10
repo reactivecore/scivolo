@@ -4,6 +4,7 @@
 //! The type parameters a case's pattern may narrow and their current bounds.
 
 use super::gadt_cases::Gadt;
+use super::narrowing::GadtVar;
 use super::type_ops::TypeOps;
 use crate::ctx::Ctx;
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe};
@@ -154,7 +155,7 @@ impl Gadt {
 impl TypeOps<'_> {
     /// Lists the lower and upper bounds of the type variables standing for the type parameters
     /// an extractor pattern narrows, zonked.
-    pub fn gadt_var_bounds(&mut self, vars: &[(SymbolId, TypeId)]) -> Vec<TypeId> {
+    pub fn gadt_var_bounds(&mut self, vars: &[GadtVar]) -> Vec<TypeId> {
         let mut bounds = Vec::new();
         for &(_, v) in vars {
             let Type::Var(id) = *self.u.types().get(v) else { continue };

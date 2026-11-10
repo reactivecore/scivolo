@@ -6,6 +6,7 @@
 
 use super::Typer;
 use super::gadt::gadt_ref;
+use super::narrowing::GadtVar;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
@@ -22,7 +23,7 @@ impl Typer<'_> {
     pub fn maximize_type(
         &mut self,
         t: TypeId,
-        (vars, gadt): (usize, &[(SymbolId, TypeId)]),
+        (vars, gadt): (usize, &[GadtVar]),
         unapp: TNodeId,
         ctx: Ctx,
     ) -> Result<Vec<SymbolId>, &'static str> {
@@ -75,7 +76,7 @@ impl Typer<'_> {
 
     /// Lower bound `lo` of type variable `var` joined with each GADT variable of `gadt` whose upper
     /// bound is `var` or an intersection with it (dotty's `fullLowerBound`).
-    fn with_gadt_params_below(&mut self, mut lo: TypeId, var: TypeId, gadt: &[(SymbolId, TypeId)]) -> TypeId {
+    fn with_gadt_params_below(&mut self, mut lo: TypeId, var: TypeId, gadt: &[GadtVar]) -> TypeId {
         for &(g, gv) in gadt {
             let Type::Var(id) = *self.u.types().get(gv) else { continue };
             let (_, hi) = self.constraint.bounds(id);

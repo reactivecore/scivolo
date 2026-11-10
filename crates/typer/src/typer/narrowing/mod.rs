@@ -20,6 +20,10 @@ pub struct Narrowing {
     ctx: Ctx,
 }
 
+/// A type parameter a pattern narrows, with the type variable standing for it while the pattern
+/// is compared with the selector.
+pub type GadtVar = (SymbolId, TypeId);
+
 impl Typer<'_> {
     /// Types pattern type tree `tpt` against `pt`, bounding the types it binds by what the
     /// pattern conforming to the selector requires of them, those then known.
@@ -49,13 +53,13 @@ impl Typer<'_> {
         (pat, from): (TypeId, usize),
         sel: TypeId,
         ctx: Ctx,
-    ) -> Result<Option<Vec<(SymbolId, TypeId)>>, &'static str> {
+    ) -> Result<Option<Vec<GadtVar>>, &'static str> {
         Narrowing { ctx }.vars(self, (pat, from), sel)
     }
 
     /// Narrows each type parameter of `vars` to the bounds its variable got while the case is
     /// typed; refused for a bound the comparison left undetermined.
-    pub fn narrow_gadt(&mut self, vars: &[(SymbolId, TypeId)]) -> Result<(), &'static str> {
+    pub fn narrow_gadt(&mut self, vars: &[GadtVar]) -> Result<(), &'static str> {
         vars::narrow(self, vars)
     }
 }

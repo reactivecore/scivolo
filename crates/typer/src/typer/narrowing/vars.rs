@@ -7,11 +7,11 @@
 use super::super::Typer;
 use super::super::gadt::{current_bounds, gadt_ref, plain_type_ref};
 use super::super::type_ops::TypeOps;
-use super::Narrowing;
 use super::constrain::constrain_pattern;
 use super::order::{Narrowed, order};
 use super::tuples::upper_pairs;
 use super::typed_pattern::this_widened;
+use super::{GadtVar, Narrowing};
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 impl Narrowing {
@@ -26,7 +26,7 @@ impl Narrowing {
         t: &mut Typer,
         (pat, from): (TypeId, usize),
         sel: TypeId,
-    ) -> Result<Option<Vec<(SymbolId, TypeId)>>, &'static str> {
+    ) -> Result<Option<Vec<GadtVar>>, &'static str> {
         if let Type::Sym(None, s) = *t.u.types().get(sel)
             && let Some((_, hi)) = t.u.gadt_bounds(s)
         {
@@ -93,7 +93,7 @@ impl Narrowing {
                 t.types().var_root(v)
             })
             .collect();
-        let mut narrowed: Vec<(SymbolId, TypeId)> = syms.into_iter().zip(vars.iter().copied()).collect();
+        let mut narrowed: Vec<GadtVar> = syms.into_iter().zip(vars.iter().copied()).collect();
         for (i, &r) in reps.iter().enumerate() {
             let Type::Var(p) = *t.u.types().get(r) else { continue };
             let shared =
@@ -119,7 +119,7 @@ impl Narrowing {
 
 /// Gives each symbol of `vars` its variable's bounds, which must be known, while the case is
 /// typed; the variables instantiated to their symbols.
-pub fn narrow(t: &mut Typer, vars: &[(SymbolId, TypeId)]) -> Result<(), &'static str> {
+pub fn narrow(t: &mut Typer, vars: &[GadtVar]) -> Result<(), &'static str> {
     let mut bounds = Vec::new();
     for &(s, v) in vars {
         let Type::Var(mut id) = *t.u.types().get(v) else { continue };

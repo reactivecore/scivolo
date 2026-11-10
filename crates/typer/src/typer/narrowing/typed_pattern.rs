@@ -7,11 +7,11 @@
 
 use super::super::Typer;
 use super::super::gadt::{current_bounds, plain_type_ref};
-use super::Narrowing;
 use super::bounded::{refines_invariantly, without_variant_args};
 use super::constrain::constrain_pattern;
 use super::order::ordered_bound_type;
 use super::vars::narrow;
+use super::{GadtVar, Narrowing};
 use tasty::{SymbolId, Type, TypeId, TypeVars, Universe};
 
 impl Narrowing {
@@ -140,7 +140,7 @@ pub fn this_widened(u: &mut Universe, t: TypeId) -> TypeId {
 }
 
 /// Lists the parameters of `narrowed` whose GADT bounds are another of them, and those others.
-fn params_made_one(u: &mut Universe, narrowed: &[(SymbolId, TypeId)]) -> Vec<SymbolId> {
+fn params_made_one(u: &mut Universe, narrowed: &[GadtVar]) -> Vec<SymbolId> {
     let params: Vec<SymbolId> = narrowed.iter().map(|&(s, _)| s).collect();
     let mut made_one = Vec::new();
     for &s in &params {
