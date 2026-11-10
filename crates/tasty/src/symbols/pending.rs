@@ -113,9 +113,8 @@ impl Universe {
             self.load(&path)?;
             let Some(files) = self.pending.get_mut(&pkg) else { continue };
             let (stem, _) = files.remove(i);
-            if self.pending_stems.contains_key(&pkg) {
-                let id = self.types.intern_name(&stem);
-                self.pending_stems.get_mut(&pkg).expect("stems").add((id, &stem), -1);
+            if let Some(stems) = self.pending_stems.get_mut(&pkg) {
+                stems.add((self.types.intern_name(&stem), &stem), -1);
             }
         }
     }
