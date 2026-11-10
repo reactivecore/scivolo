@@ -68,6 +68,14 @@ code starts with its license notice, which lists its upstream files:
   `crates/libimage/src/image.rs` (maps the library image). The callback
   slot table (ADR 0002), the collector (ADR 0004) and the SIGINT counter
   (ADR 0013) are the only state outside `Vm`.
+- No magic numbers: a limit or depth is a named constant with a doc comment;
+  limits that mean the same share one constant.
+- A well-known symbol has one home (`Universe::builtins`, `Defn`); code
+  compares symbols, not full-name strings. A name string used more than once
+  is a named constant.
+- A function that becomes complicated (several cases with logic of their own,
+  deep nesting) is split into documented helpers; the steps of a function are
+  separated by blank lines.
 - Documentation is short: one home per fact.
 - Translated code gets the license notice in its file; a new upstream project
   also goes into `NOTICE` and `acknowledges.md`. Designs and ideas taken from
