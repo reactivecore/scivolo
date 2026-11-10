@@ -13,7 +13,7 @@ impl Typer<'_> {
     /// `meth` is a transparent inline method (dotty's `constrainResult(meth, mt, pt)`).
     pub fn result_pt(&mut self, meth: Option<SymbolId>, pt: TypeId) -> TypeId {
         match meth {
-            Some(m) if self.is_transparent_inline(m) => self.wild_approx(pt),
+            Some(m) if self.is_transparent_inline(m) => self.types().wild_approx(pt),
             _ => pt,
         }
     }

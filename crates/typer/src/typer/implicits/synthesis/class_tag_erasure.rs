@@ -44,7 +44,7 @@ pub fn has_stable_erasure(t: &mut Typer<'_>, tpe: TypeId) -> bool {
 pub fn erased_class_type(t: &mut Typer<'_>, tpe: TypeId) -> Option<TypeId> {
     let tpe = translucent(t, tpe);
     let tpe = t.normalized_tuple_type(tpe);
-    if t.class_args(tpe, ARRAY).is_some() {
+    if t.types().class_args(tpe, ARRAY).is_some() {
         return Some(tpe);
     }
     let mut classes = Vec::new();

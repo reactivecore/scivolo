@@ -26,7 +26,7 @@ impl Synthesizer {
 
         let array_elem = match t.is_opaque_ref(dealiased) {
             true => None,
-            false => t.class_args(dealiased, ARRAY),
+            false => t.types().class_args(dealiased, ARRAY),
         };
         if let Some(&[elem]) = array_elem.as_deref() {
             return self.array_tag(t, elem).map(Some);

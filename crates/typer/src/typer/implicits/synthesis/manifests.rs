@@ -64,7 +64,7 @@ impl Synthesizer {
         top: bool,
     ) -> Result<Option<TNodeId>, &'static str> {
         let tpe = t.u.dealias(tpe);
-        if let Some(&[elem]) = t.class_args(tpe, ARRAY).as_deref() {
+        if let Some(&[elem]) = t.types().class_args(tpe, ARRAY).as_deref() {
             let elem_kind = if kind == ManifestKind::Full { kind } else { ManifestKind::Clss };
             let Some(e) = self.manifest_or_none(t, elem, elem_kind, top)? else { return Ok(None) };
             return self.factory_manifest(t, kind, "arrayType", elem, &[e]).map(Some);

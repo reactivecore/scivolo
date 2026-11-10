@@ -156,7 +156,7 @@ impl ViewSearch<'_> {
         if t.conforms(from, receiver) {
             return Ok(());
         }
-        if t.constant_of(self.tree).is_some() && t.widens_to(from, receiver) {
+        if t.constant_of(self.tree).is_some() && t.types().widens_to(from, receiver) {
             return Err("extension method of an implicit value on a widened constant");
         }
         Err("implicit of another type")

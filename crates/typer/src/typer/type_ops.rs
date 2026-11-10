@@ -176,10 +176,6 @@ impl Typer<'_> {
         self.types().open_vars(t)
     }
 
-    pub fn wild_approx(&mut self, t: TypeId) -> TypeId {
-        self.types().wild_approx(t)
-    }
-
     pub fn is_exactly_any(&mut self, t: TypeId) -> bool {
         self.types().is_exactly_any(t)
     }
@@ -192,20 +188,12 @@ impl Typer<'_> {
         self.types().ref_type(prefix, sym)
     }
 
-    pub fn refined_info(&mut self, pre: Option<TypeId>, s: SymbolId) -> TypeId {
-        self.types().refined_info(pre, s)
-    }
-
     pub fn referenced(&mut self, t: TypeId) -> Option<SymbolId> {
         self.types().referenced(t)
     }
 
     pub fn value_class(&mut self, t: TypeId) -> Option<String> {
         self.types().value_class(t)
-    }
-
-    pub fn widens_to(&mut self, from: TypeId, to: TypeId) -> bool {
-        self.types().widens_to(from, to)
     }
 
     pub fn type_parts(&mut self, t: TypeId) -> Vec<TypeId> {
@@ -218,14 +206,6 @@ impl Typer<'_> {
 
     pub fn strip_implicit(&mut self, t: TypeId) -> TypeId {
         self.types().strip_implicit(t)
-    }
-
-    pub fn is_function_type(&mut self, t: TypeId) -> bool {
-        self.types().is_function_type(t)
-    }
-
-    pub fn class_args(&mut self, t: TypeId, name: &str) -> Option<Vec<TypeId>> {
-        self.types().class_args(t, name)
     }
 
     pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {

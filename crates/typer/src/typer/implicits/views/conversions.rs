@@ -49,7 +49,7 @@ impl ViewSearch<'_> {
             t.gadt_adapted(tree, param, ctx)
         } else if let Some(c) = t.captured_wildcards(arg_tpe).filter(|&c| t.conforms(c, param)) {
             t.cast_to_captured(tree, c)?
-        } else if widen && t.widens_to(arg_tpe, param) {
+        } else if widen && t.types().widens_to(arg_tpe, param) {
             t.converted_constant(tree, param).ok_or("conversion of another type")?
         } else {
             return Err("conversion of another type");
