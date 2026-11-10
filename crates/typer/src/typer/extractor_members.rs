@@ -7,7 +7,6 @@
 use super::Typer;
 use tasty::{Binding, Kind, Type, TypeId};
 
-pub const PRODUCT: &str = "scala.Product";
 pub const BOOLEAN: &str = "scala.Boolean";
 pub const NON_EMPTY_TUPLE: &str = "scala.NonEmptyTuple";
 pub const SEQ: &str = "scala.collection.Seq";

@@ -14,6 +14,7 @@ use super::as_good::relaxed_conforms;
 use super::candidates::Candidate;
 use super::function_goals::implicit_value_type;
 use super::search::ImplicitSearch;
+use crate::defn::PRODUCT;
 use crate::symbols::Completion;
 use tasty::{SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
@@ -29,7 +30,7 @@ const SPECIAL: [&str; 9] = [
     "scala.Singleton",
     "scala.Nothing",
     "scala.Null",
-    "scala.Product",
+    PRODUCT,
 ];
 
 impl ImplicitSearch {

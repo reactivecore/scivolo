@@ -5,22 +5,10 @@
 
 use super::super::Typer;
 use super::{OverrideChecks, overridable};
+use crate::case_members::is_synthesized_override;
 use syntax::ast::flags as f;
 use tasty::tags::{CASE, OVERRIDE, TRAIT};
 use tasty::{SymbolId, Universe};
-
-/// The members the synthesized members of a case class override where `Any`, `Object`,
-/// `Product` or `Equals` declares them.
-const SYNTHESIZED: [&str; 8] = [
-    "hashCode",
-    "equals",
-    "toString",
-    "canEqual",
-    "productArity",
-    "productPrefix",
-    "productElement",
-    "productElementName",
-];
 
 impl OverrideChecks {
     /// Whether the class inherits two concrete members of its base classes and neither overrides
@@ -89,8 +77,5 @@ impl OverrideChecks {
 /// Whether case class `cls` gets a synthetic member `name` overriding the inherited ones, the
 /// first of which `owner` declares (dotty's `SyntheticMembers.existingDef`).
 fn is_synthesized_case_member(u: &Universe, cls: SymbolId, owner: SymbolId, name: &str) -> bool {
-    let original = ["scala.Any", "java.lang.Object", "scala.Product", "scala.Equals"];
-    u.symbol(cls).flags.has(CASE)
-        && SYNTHESIZED.contains(&name)
-        && original.contains(&u.full_name(owner).as_str())
+    u.symbol(cls).flags.has(CASE) && is_synthesized_override(u, name, owner)
 }

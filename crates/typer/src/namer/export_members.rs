@@ -4,22 +4,11 @@
 //! be forwarded at all (dotty's `addWildcardForwarders`, `canForward`), and default getters.
 
 use super::exports::Export;
+use crate::case_members::is_synthesized_override;
 use crate::typer::Typer;
 use syntax::ast::Span;
 use tasty::tags as t;
 use tasty::{Kind, SymbolId, Type, TypeId};
-
-/// The members of a case class path that dotty's `PostTyper` synthesizes.
-const CASE_SYNTHESIZED: [&str; 8] = [
-    "hashCode",
-    "equals",
-    "toString",
-    "canEqual",
-    "productArity",
-    "productPrefix",
-    "productElement",
-    "productElementName",
-];
 
 impl Typer<'_> {
     /// Adds the forwarders of a wildcard selector at `span` of `e`, of givens if `given`, of the
@@ -111,9 +100,8 @@ impl Typer<'_> {
     }
 
     fn is_case_synthesized(&self, m: SymbolId) -> bool {
-        let owner = self.u.symbol(m).owner.map(|o| self.u.full_name(o)).unwrap_or_default();
-        CASE_SYNTHESIZED.contains(&self.u.symbol(m).name.as_str())
-            && ["scala.Any", "java.lang.Object", "scala.Product", "scala.Equals"].contains(&owner.as_str())
+        let s = self.u.symbol(m);
+        s.owner.is_some_and(|o| is_synthesized_override(self.u, &s.name, o))
     }
 
     /// Whether member `m` gets a forwarder named `alias` in `e` (dotty's `canForward`); `None`

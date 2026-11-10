@@ -6,6 +6,7 @@
 
 use super::super::Typer;
 use super::OverrideChecks;
+use crate::defn::{EQUALS, PRODUCT};
 use crate::symbols::Syms;
 use rustc_hash::FxHashMap;
 use tasty::tags::{ARTIFACT, CASE, ENUM, MUTABLE, PRIVATE};
@@ -23,7 +24,7 @@ impl OverrideChecks {
         let site = t.u.intern_type(Type::This(self.site));
         for base in bases {
             let synthesized = match t.u.full_name(base).as_str() {
-                "scala.Product" | "scala.Equals" => case,
+                PRODUCT | EQUALS => case,
                 "scala.reflect.Enum" => enum_,
                 _ => false,
             };

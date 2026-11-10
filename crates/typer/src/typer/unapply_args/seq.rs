@@ -4,8 +4,9 @@
 //! `isProductSeqMatch`, `isNonEmptyTupleSeqMatch`).
 
 use super::super::Typer;
-use super::super::extractor_members::{NON_EMPTY_TUPLE, PRODUCT, product_selectors, seq_elem_type};
+use super::super::extractor_members::{NON_EMPTY_TUPLE, product_selectors, seq_elem_type};
 use super::{SeqArgs, UnapplyArgs};
+use crate::defn::PRODUCT;
 use tasty::TypeId;
 
 impl UnapplyArgs {

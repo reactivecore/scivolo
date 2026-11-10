@@ -7,6 +7,8 @@
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 pub const ARRAY: &str = "scala.Array";
+pub const PRODUCT: &str = "scala.Product";
+pub const EQUALS: &str = "scala.Equals";
 /// The type class of equality evidence.
 pub const CAN_EQUAL: &str = "scala.CanEqual";
 pub const CLASS_TAG: &str = "scala.reflect.ClassTag";

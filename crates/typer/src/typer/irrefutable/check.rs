@@ -5,11 +5,10 @@
 //! `Checking.checkIrrefutable`, `Space.isIrrefutable`).
 
 use super::super::Typer;
-use super::super::extractor_members::{
-    NON_EMPTY_TUPLE, PRODUCT, extractor_member, product_selectors, seq_elem_type,
-};
+use super::super::extractor_members::{NON_EMPTY_TUPLE, extractor_member, product_selectors, seq_elem_type};
 use super::super::unapply_args::UnapplyArgs;
 use super::{RUNTIME_CHECKED, Refutable, UNCHECKED, has_annotation};
+use crate::defn::PRODUCT;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Const, Type, TypeId, Universe, constant};
 

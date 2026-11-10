@@ -3,10 +3,11 @@
 //! Argument patterns of extractors: the type trees `typedUnApply` types against a tuple
 //! selector, named patterns and the elements they name (dotty's `productUnapplySelectors`).
 
-use super::super::extractor_members::{PRODUCT, SEQ, get_match, product_selectors};
+use super::super::extractor_members::{SEQ, get_match, product_selectors};
 use super::super::{Pt, Typer};
 use super::UnapplyPattern;
 use crate::ctx::{Ctx, Mode};
+use crate::defn::PRODUCT;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, TypeId};
