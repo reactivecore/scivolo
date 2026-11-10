@@ -27,6 +27,7 @@ impl Binding<'_> {
 }
 
 impl Universe {
+    /// The type `t` stands for.
     pub fn ty(&self, t: TypeId) -> &Type {
         self.types().get(t)
     }
@@ -44,6 +45,7 @@ impl Universe {
         self.sym_ref(t).map(|(_, s)| s)
     }
 
+    /// The prefix and name of a `TypeRef` type.
     pub fn type_ref(&self, t: TypeId) -> Option<(TypeId, &str)> {
         match self.ty(t) {
             Type::TypeRef(p, n) => Some((*p, n)),
@@ -51,6 +53,7 @@ impl Universe {
         }
     }
 
+    /// The prefix and name of a `TermRef` type.
     pub fn term_ref(&self, t: TypeId) -> Option<(TypeId, &str)> {
         match self.ty(t) {
             Type::TermRef(p, n) => Some((*p, n)),
@@ -98,6 +101,7 @@ impl Universe {
         }
     }
 
+    /// The binder and index of a `Param` type.
     pub fn param_ref(&self, t: TypeId) -> Option<(Binder, u32)> {
         match *self.ty(t) {
             Type::Param(b, i) => Some((b, i)),
@@ -105,6 +109,7 @@ impl Universe {
         }
     }
 
+    /// The type variable of a `Var` type.
     pub fn var(&self, t: TypeId) -> Option<VarId> {
         match *self.ty(t) {
             Type::Var(v) => Some(v),
@@ -139,6 +144,7 @@ impl Universe {
         }
     }
 
+    /// The type constructor and arguments of an `Applied` type.
     pub fn applied(&self, t: TypeId) -> Option<(TypeId, &[TypeId])> {
         match self.ty(t) {
             Type::Applied(tycon, args) => Some((*tycon, args)),
