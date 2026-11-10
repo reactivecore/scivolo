@@ -4,64 +4,57 @@
 //! MirroredMonoType = M }`, marked for the lowering to add the mirror's parent and methods.
 
 use super::super::{Pt, Typer};
-use super::mirror_types::MISSING;
-use crate::ctx::Ctx;
+use super::mirror_types::{MISSING, MirrorSynthesis};
 use crate::tpd::{AnonMirror, TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
-use syntax::ast::{NodeId, Span, TName, Tree};
+use syntax::ast::{NodeId, TName, Tree};
 use tasty::TypeId;
 
-impl Typer<'_> {
-    /// The anonymous sum (`sum`) or product mirror of `mono` at `at`.
-    pub fn anonymous_mirror(
-        &mut self,
-        mono: TypeId,
-        sum: bool,
-        at: Span,
-        ctx: Ctx,
-    ) -> Result<TNodeId, &'static str> {
-        let object = crate::defn::type_ref(self.u, self.u.builtins().object);
-        let serializable = self.resolve_full_name("java.io.Serializable", true).ok_or(MISSING)?;
-        let serializable = crate::defn::type_ref(self.u, serializable);
-        let parents = [self.spliced_type(object, at), self.spliced_type(serializable, at)];
-        let parents = self.ast.list(&parents);
-        let rhs = self.spliced_type(mono, at);
-        let name = TName { name: self.name("MirroredMonoType"), is_type: true };
-        let mods = self.ast.mods(Modifiers::with_flags(f::EMPTY));
-        let mono_def = self.mirror_node(Tree::TypeDef { name, rhs, mods }, at);
-        let body = self.ast.list(&[mono_def]);
-        let init = TName { name: self.name("<init>"), is_type: false };
-        let clause = self.ast.list(&[]);
-        let paramss = self.ast.clauses(&[clause]);
-        let tpt = self.mirror_node(Tree::TypeTree, at);
-        let mods = self.ast.mods(Modifiers::with_flags(f::EMPTY));
-        let constr = self.mirror_node(Tree::DefDef { name: init, paramss, tpt, rhs: None, mods }, at);
+impl MirrorSynthesis {
+    /// Types the anonymous sum (`sum`) or product mirror of `mono`.
+    pub fn anonymous(self, t: &mut Typer<'_>, mono: TypeId, sum: bool) -> Result<TNodeId, &'static str> {
+        let object = crate::defn::type_ref(t.u, t.u.builtins().object);
+        let serializable = t.resolve_full_name("java.io.Serializable", true).ok_or(MISSING)?;
+        let serializable = crate::defn::type_ref(t.u, serializable);
+        let parents = [self.spliced_type(t, object), self.spliced_type(t, serializable)];
+        let parents = t.ast.list(&parents);
+        let rhs = self.spliced_type(t, mono);
+        let name = TName { name: t.name("MirroredMonoType"), is_type: true };
+        let mods = t.ast.mods(Modifiers::with_flags(f::EMPTY));
+        let mono_def = self.node(t, Tree::TypeDef { name, rhs, mods });
+        let body = t.ast.list(&[mono_def]);
+        let init = TName { name: t.name("<init>"), is_type: false };
+        let clause = t.ast.list(&[]);
+        let paramss = t.ast.clauses(&[clause]);
+        let tpt = self.node(t, Tree::TypeTree);
+        let mods = t.ast.mods(Modifiers::with_flags(f::EMPTY));
+        let constr = self.node(t, Tree::DefDef { name: init, paramss, tpt, rhs: None, mods });
         let template =
             Tree::Template { constr, parents_or_derived: parents, self_: None, body, derived: None };
-        let template = self.mirror_node(template, at);
-        let new = self.mirror_node(Tree::New { tpt: template }, at);
-        let typed = self.typed(new, Pt::Any, ctx);
-        let T::Block { stats, .. } = *self.tpd.tree(typed) else {
+        let template = self.node(t, template);
+        let new = self.node(t, Tree::New { tpt: template });
+        let typed = t.typed(new, Pt::Any, self.ctx);
+        let T::Block { stats, .. } = *t.tpd.tree(typed) else {
             return Err("anonymous Mirror outside the subset");
         };
-        let class = self.tpd.items(stats).first().and_then(|&d| self.tpd.sym(d));
+        let class = t.tpd.items(stats).first().and_then(|&d| t.tpd.sym(d));
         let class = class.ok_or("anonymous Mirror outside the subset")?;
         let kind = if sum { AnonMirror::Sum } else { AnonMirror::Product };
-        self.tpd.mark_anon_mirror(class, kind);
+        t.tpd.mark_anon_mirror(class, kind);
         Ok(typed)
     }
 
-    /// An untyped node standing for a type tree of `t` at `at`.
-    fn spliced_type(&mut self, t: TypeId, at: Span) -> NodeId {
-        let tree = self.type_tree(t, at, false);
-        self.spliced(tree)
+    /// Adds an untyped node standing for a type tree of `tpe`.
+    fn spliced_type(self, t: &mut Typer<'_>, tpe: TypeId) -> NodeId {
+        let tree = t.type_tree(tpe, self.at, false);
+        t.spliced(tree)
     }
 
-    /// A new untyped node of `tree` at `at`.
-    fn mirror_node(&mut self, tree: Tree, at: Span) -> NodeId {
-        let node = self.ast.node(tree);
-        self.ast.with_span(node, at);
+    /// Adds untyped `tree` to the typer's syntax tree.
+    fn node(self, t: &mut Typer<'_>, tree: Tree) -> NodeId {
+        let node = t.ast.node(tree);
+        t.ast.with_span(node, self.at);
         node
     }
 }

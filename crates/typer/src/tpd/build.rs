@@ -121,6 +121,19 @@ impl<'a> Build<'a> {
         self.tpd.node(T::TypeApply { fun, args }, span, Some(tpe), None)
     }
 
+    /// Builds `tree.$asInstanceOf$[to]` at `span`.
+    pub fn cast_to(&mut self, tree: TNodeId, to: TypeId, span: Span) -> Result<TNodeId, &'static str> {
+        let any = self.u.builtins().any;
+        let m = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
+        let m = m.ok_or("Mirror without its library classes")?;
+        let select_tpe = self.u.intern_type(Type::Sym(Some(self.tpd.tpe(tree)), m));
+        let name = TName { name: self.names.intern("$asInstanceOf$"), is_type: false };
+        let fun = self.tpd.node(T::Select { qualifier: tree, name }, span, Some(select_tpe), Some(m));
+        let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(to), None);
+        let args = self.tpd.list(&[tpt]);
+        Ok(self.tpd.node(T::TypeApply { fun, args }, span, Some(to), None))
+    }
+
     /// `{ stats; expr }`, of the type of `expr`.
     pub fn block(&mut self, stats: List, expr: TNodeId, span: Span) -> TNodeId {
         let tpe = self.tpd.tpe(expr);

@@ -44,7 +44,7 @@ impl Synthesizer {
         if self.depth == 0 && self.ctx.mode.is(Mode::NO_SYNTHESIS) {
             return Ok(None);
         }
-        if let Some(mirror) = t.synthesized_mirror(pt, self.at, self.ctx)? {
+        if let Some(mirror) = self.mirror(t, pt)? {
             return Ok(Some(mirror));
         }
         let pt = t.u.dealias(pt);

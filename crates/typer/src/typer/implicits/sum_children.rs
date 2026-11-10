@@ -5,10 +5,11 @@
 //! elements of its sum mirror.
 
 use super::super::Typer;
-use crate::ctx::Ctx;
+use super::child_prefixes::{is_visible_to_scope, owner_scope};
+use super::mirror_types::MirrorSynthesis;
 use crate::sealed;
 use tasty::tags::{ABSTRACT, CONTRAVARIANT, ENUM, SEALED};
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
+use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe};
 
 impl Typer<'_> {
     /// The children of sealed class `s` in the order of their definitions: classes, and objects
@@ -38,135 +39,143 @@ impl Typer<'_> {
         }
         Ok(sealed::direct_children(self.u, s, &classes))
     }
+}
 
+impl MirrorSynthesis {
     /// Whether sealed class `s` at prefix `pre` has a sum mirror (dotty's `isGenericSum`), its
-    /// children visible from `ctx` or through `pre` unless its companion is the mirror.
+    /// children visible from here or through `pre` unless its companion (`companion`) is the
+    /// mirror.
     pub fn is_generic_sum(
-        &mut self,
+        self,
+        t: &mut Typer<'_>,
         s: SymbolId,
-        (companion, pre): (bool, Option<TypeId>),
-        ctx: Ctx,
+        companion: bool,
+        pre: Option<TypeId>,
     ) -> Result<bool, &'static str> {
-        let flags = self.u.symbol(s).flags;
-        if !flags.has(SEALED) || !(flags.has(ABSTRACT) || self.u.is_trait(s)) {
+        let flags = t.u.symbol(s).flags;
+        if !flags.has(SEALED) || !(flags.has(ABSTRACT) || t.u.is_trait(s)) {
             return Ok(false);
         }
-        let children = self.sealed_children(s)?;
+        let children = t.sealed_children(s)?;
         if children.is_empty() {
             return Ok(false);
         }
-        let scope = self.owner_scope(pre);
+        let scope = owner_scope(t.u, pre);
         for c in children {
-            if self.u.symbol(c).name.starts_with("$anon") {
+            if t.u.symbol(c).name.starts_with("$anon") {
                 return Ok(false);
             }
-            let owner = self.u.symbol(c).owner.ok_or("sealed child without owner")?;
-            if !sealed::visible_to_parent(self.u, s, owner)
-                || !companion && !self.is_visible_to_scope(owner, ctx.owner, &scope)
+            let owner = t.u.symbol(c).owner.ok_or("sealed child without owner")?;
+            if !sealed::visible_to_parent(t.u, s, owner)
+                || !companion && !is_visible_to_scope(t.u, owner, self.ctx.owner, &scope)
             {
                 return Ok(false);
             }
-            if !self.u.is_class(c) {
+            if !t.u.is_class(c) {
                 continue;
             }
-            let fits = self.is_generic_product(c, ctx)
-                || self.u.symbol(c).flags.has(SEALED) && self.is_generic_sum(c, (companion, pre), ctx)?;
+            let fits = self.is_generic_product(t, c)
+                || t.u.symbol(c).flags.has(SEALED) && self.is_generic_sum(t, c, companion, pre)?;
             if !fits {
                 return Ok(false);
             }
         }
         Ok(true)
     }
+}
 
-    /// The type of child `c` of the sum mirrored as `target` (dotty's `solve`), at prefix
-    /// `prefix` if given: an object's or value's singleton type, a class with its type parameters
-    /// solved from `C[Xs] <: target`, contravariant ones minimized, the others maximized.
-    pub fn child_type(
-        &mut self,
-        c: SymbolId,
-        target: TypeId,
-        prefix: Option<TypeId>,
-    ) -> Result<TypeId, &'static str> {
-        let raw = match prefix {
-            Some(p) => {
-                let s = match self.u.is_module_class(c) {
-                    true => self.u.source_module(c).unwrap_or(c),
-                    false => c,
-                };
-                let p = (!matches!(self.u.types().get(p), Type::NoPrefix)).then_some(p);
-                self.u.intern_type(Type::Sym(p, s))
-            }
-            None => self.reachable_ref(c),
-        };
-        let params = match self.u.is_class(c) {
-            true => self.u.type_params(c),
-            false => Vec::new(),
-        };
-        if params.is_empty() {
-            return Ok(raw);
-        }
-        let mark = self.constraint.mark();
-        let vars: Vec<TypeId> = params.iter().map(|_| self.constraint.fresh(self.u)).collect();
-        let bounded = self.bound_child_vars(&params, &vars);
-        let applied = self.u.intern_type(Type::Applied(raw, vars.clone()));
-        let before = self.constraint.mark();
-        if !self.conforms(applied, target) {
-            self.constraint.rollback(before);
-        }
-        let solved = bounded && self.instantiate_child_vars(&params, &vars).is_ok();
-        let t = self.zonk(applied);
-        self.constraint.rollback(mark);
-        match solved && self.is_fully_defined(t) {
-            true => Ok(t),
-            false => Err("sum Mirror of a child whose type parameters are not solved"),
-        }
-    }
-
-    /// A reference to `s` reachable from outside its owners (dotty's `reachableTermRef`): through
-    /// the paths of the objects that are not static it is nested in.
-    fn reachable_ref(&mut self, s: SymbolId) -> TypeId {
-        let owner = self.u.symbol(s).owner;
-        match owner.filter(|&o| self.u.is_module_class(o) && !self.u.is_static_symbol(o)) {
-            Some(o) => match self.u.source_module(o) {
-                Some(module) => {
-                    let prefix = self.reachable_ref(module);
-                    self.u.intern_type(Type::Sym(Some(prefix), s))
-                }
-                None => crate::defn::type_ref(self.u, s),
-            },
-            None => crate::defn::type_ref(self.u, s),
-        }
-    }
-
-    /// Constrains `vars` by the declared bounds of type parameters `params` (dotty's
-    /// `constrained` of the primary constructor's type); `false` if they contradict.
-    fn bound_child_vars(&mut self, params: &[SymbolId], vars: &[TypeId]) -> bool {
-        let mut ok = true;
-        for (&p, &v) in params.iter().zip(vars) {
-            self.complete(p);
-            let info = self.u.info(p);
-            let Type::Bounds(lo, hi) = *self.u.types().get(info) else { continue };
-            let subst = |u: &mut tasty::Universe, t: TypeId| {
-                u.map_type(t, &mut |u, x| match *u.types().get(x) {
-                    Type::Sym(_, s) => params.iter().position(|&q| q == s).map(|i| vars[i]),
-                    _ => None,
-                })
+/// Solves the type of child `c` of the sum mirrored as `target` (dotty's `solve`), at prefix
+/// `prefix` if given: an object's or value's singleton type, a class with its type parameters
+/// solved from `C[Xs] <: target`, contravariant ones minimized, the others maximized.
+pub fn child_type(
+    t: &mut Typer<'_>,
+    c: SymbolId,
+    target: TypeId,
+    prefix: Option<TypeId>,
+) -> Result<TypeId, &'static str> {
+    let raw = match prefix {
+        Some(p) => {
+            let s = match t.u.is_module_class(c) {
+                true => t.u.source_module(c).unwrap_or(c),
+                false => c,
             };
-            let (lo, hi) = (subst(self.u, lo), subst(self.u, hi));
-            self.constraint.declare(self.u, v, lo, hi);
-            ok &= self.conforms(lo, v) && self.conforms(v, hi);
+            let p = (!matches!(t.u.types().get(p), Type::NoPrefix)).then_some(p);
+            t.u.intern_type(Type::Sym(p, s))
         }
-        ok
+        None => reachable_ref(t.u, c),
+    };
+    let params = match t.u.is_class(c) {
+        true => t.u.type_params(c),
+        false => Vec::new(),
+    };
+    if params.is_empty() {
+        return Ok(raw);
     }
+    let mark = t.constraint.mark();
+    let vars: Vec<TypeId> = params.iter().map(|_| t.constraint.fresh(t.u)).collect();
+    let bounded = bound_child_vars(t, &params, &vars);
+    let applied = t.u.intern_type(Type::Applied(raw, vars.clone()));
+    let before = t.constraint.mark();
+    if !t.conforms(applied, target) {
+        t.constraint.rollback(before);
+    }
+    let solved = bounded && instantiate_child_vars(t, &params, &vars).is_ok();
+    let tpe = t.zonk(applied);
+    t.constraint.rollback(mark);
+    match solved && t.is_fully_defined(tpe) {
+        true => Ok(tpe),
+        false => Err("sum Mirror of a child whose type parameters are not solved"),
+    }
+}
 
-    fn instantiate_child_vars(&mut self, params: &[SymbolId], vars: &[TypeId]) -> Result<(), &'static str> {
-        for (&p, &v) in params.iter().zip(vars) {
-            let Type::Var(v) = *self.u.types().get(v) else { continue };
-            if self.constraint.instance(v).is_none() {
-                let below = self.u.symbol(p).flags.has(CONTRAVARIANT);
-                self.instantiate_var(v, below)?;
+/// A reference to `s` reachable from outside its owners (dotty's `reachableTermRef`): through the
+/// paths of the objects that are not static it is nested in.
+fn reachable_ref(u: &mut Universe, s: SymbolId) -> TypeId {
+    let owner = u.symbol(s).owner;
+    match owner.filter(|&o| u.is_module_class(o) && !u.is_static_symbol(o)) {
+        Some(o) => match u.source_module(o) {
+            Some(module) => {
+                let prefix = reachable_ref(u, module);
+                u.intern_type(Type::Sym(Some(prefix), s))
             }
-        }
-        Ok(())
+            None => crate::defn::type_ref(u, s),
+        },
+        None => crate::defn::type_ref(u, s),
     }
+}
+
+/// Constrains `vars` by the declared bounds of type parameters `params` (dotty's `constrained` of
+/// the primary constructor's type); `false` if they contradict.
+fn bound_child_vars(t: &mut Typer<'_>, params: &[SymbolId], vars: &[TypeId]) -> bool {
+    let mut ok = true;
+    for (&p, &v) in params.iter().zip(vars) {
+        t.complete(p);
+        let info = t.u.info(p);
+        let Type::Bounds(lo, hi) = *t.u.types().get(info) else { continue };
+        let subst = |u: &mut Universe, x: TypeId| {
+            u.map_type(x, &mut |u, x| match *u.types().get(x) {
+                Type::Sym(_, s) => params.iter().position(|&q| q == s).map(|i| vars[i]),
+                _ => None,
+            })
+        };
+        let (lo, hi) = (subst(t.u, lo), subst(t.u, hi));
+        t.constraint.declare(t.u, v, lo, hi);
+        ok &= t.conforms(lo, v) && t.conforms(v, hi);
+    }
+    ok
+}
+
+fn instantiate_child_vars(
+    t: &mut Typer<'_>,
+    params: &[SymbolId],
+    vars: &[TypeId],
+) -> Result<(), &'static str> {
+    for (&p, &v) in params.iter().zip(vars) {
+        let Type::Var(v) = *t.u.types().get(v) else { continue };
+        if t.constraint.instance(v).is_none() {
+            let below = t.u.symbol(p).flags.has(CONTRAVARIANT);
+            t.instantiate_var(v, below)?;
+        }
+    }
+    Ok(())
 }

@@ -4,102 +4,98 @@
 //! class, cast to the mirror type.
 
 use super::super::Typer;
+use super::child_prefixes::child_prefix;
 use super::mirror_sources::MirrorSource;
-use super::mirror_types::{MirrorCore, MirrorFormal};
-use crate::ctx::Ctx;
+use super::mirror_types::{MirrorCore, MirrorSynthesis, label_pairs};
+use super::sum_children::child_type;
 use crate::tpd::TNodeId;
-use syntax::ast::Span;
 use tasty::tags::CASE;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, Universe};
 
-impl Typer<'_> {
-    pub fn sum_mirror(
-        &mut self,
-        formal: &MirrorFormal,
-        source: MirrorSource,
-        at: Span,
-        ctx: Ctx,
-    ) -> Result<Option<TNodeId>, &'static str> {
+impl MirrorSynthesis {
+    /// Synthesizes the sum mirror of the sealed class `source` refers to, if it has one.
+    pub fn sum(self, t: &mut Typer<'_>, source: MirrorSource) -> Result<Option<TNodeId>, &'static str> {
         let MirrorSource::Class(pre, cls) = source else { return Ok(None) };
-        let companion = self.sum_companion(cls);
-        if !self.is_generic_sum(cls, (companion.is_some(), pre), ctx)? {
+        let mirrored = self.formal.mirrored;
+        let companion = sum_companion(t, cls);
+        if !self.is_generic_sum(t, cls, companion.is_some(), pre)? {
             return Ok(None);
         }
-        let owner = self.u.symbol(cls).owner;
-        let path = pre.filter(|&p| !self.is_plain_prefix(p) || self.is_inheriting_module(p, owner));
-        let children = self.sealed_children(cls)?;
-        let target = match *self.u.types().get(formal.mirrored) {
+        let owner = t.u.symbol(cls).owner;
+        let path = pre.filter(|&p| !is_plain_prefix(t.u, p) || is_inheriting_module(t.u, p, owner));
+        let children = t.sealed_children(cls)?;
+        let target = match *t.u.types().get(mirrored) {
             Type::Lambda { result, .. } => result,
-            _ => formal.mirrored,
+            _ => mirrored,
         };
         let mut types = Vec::new();
         for &c in &children {
             let prefix = match path {
                 Some(p) => {
-                    let prefix = self.child_prefix(p, cls, c);
+                    let prefix = child_prefix(t.u, p, cls, c);
                     Some(prefix.ok_or("sum Mirror of a class selected from a path")?)
                 }
                 None => None,
             };
-            types.push(self.child_type(c, target, prefix)?);
+            types.push(child_type(t, c, target, prefix)?);
         }
-        let labels: Vec<String> = children.iter().map(|&c| self.u.symbol(c).name.clone()).collect();
-        let nested = self.nested_pairs(&types)?;
-        let (mono, elem_types) = self.mono_and_elems(formal.mirrored, nested);
-        let elem_labels = self.label_pairs(&labels)?;
-        let label = self.u.symbol(cls).name.clone();
+        let labels: Vec<String> = children.iter().map(|&c| t.u.symbol(c).name.clone()).collect();
+        let nested = t.nested_pairs(&types)?;
+        let (mono, elem_types) = self.formal.mono_and_elems(t.u, nested);
+        let elem_labels = label_pairs(t, &labels)?;
+        let label = t.u.symbol(cls).name.clone();
         let core = MirrorCore {
             parent: "scala.deriving.Mirror$.Sum",
             mono,
             label: &label,
             elems: Some((elem_types, elem_labels)),
         };
-        let cast = self.mirror_type(formal, core)?;
+        let cast = self.mirror_type(t, core)?;
         let mirror = match companion {
             Some(module) => {
-                let path = self.u.intern_type(Type::Sym(pre, module));
-                self.path_tree(path, at, 8).ok_or("Mirror companion outside the subset")?
+                let path = t.u.intern_type(Type::Sym(pre, module));
+                t.path_tree(path, self.at, 8).ok_or("Mirror companion outside the subset")?
             }
-            None => self.anonymous_mirror(mono, true, at, ctx)?,
+            None => self.anonymous(t, mono, true)?,
         };
-        self.cast_to(mirror, cast, at).map(Some)
+        self.cast(t, mirror, cast)
     }
+}
 
-    /// The companion of sealed class `c` if it is its sum mirror (dotty's
-    /// `useCompanionAsSumMirror`): for a class of the library, one extending `Mirror.Sum`.
-    fn sum_companion(&mut self, c: SymbolId) -> Option<SymbolId> {
-        let module = self.u.companion_module(c)?;
-        let module_class = self.u.module_class(module)?;
-        if self.u.symbol(module_class).flags.has(CASE) {
-            return None;
-        }
-        if self.syms.def_trees.contains_key(&c) {
-            return Some(module);
-        }
-        let sum = self.resolve_full_name("scala.deriving.Mirror$.Sum", true)?;
-        self.u.derives_from(module_class, sum).then_some(module)
+/// The companion of sealed class `c` if it is its sum mirror (dotty's `useCompanionAsSumMirror`):
+/// for a class of the library, one extending `Mirror.Sum`.
+fn sum_companion(t: &mut Typer<'_>, c: SymbolId) -> Option<SymbolId> {
+    let module = t.u.companion_module(c)?;
+    let module_class = t.u.module_class(module)?;
+    if t.u.symbol(module_class).flags.has(CASE) {
+        return None;
     }
+    if t.syms.def_trees.contains_key(&c) {
+        return Some(module);
+    }
+    let sum = t.resolve_full_name("scala.deriving.Mirror$.Sum", true)?;
+    t.u.derives_from(module_class, sum).then_some(module)
+}
 
-    /// Whether `p` refers to an object whose class is not `owner`, or is the `this` of a
-    /// subclass of class `owner`, which it inherits from.
-    fn is_inheriting_module(&mut self, p: TypeId, owner: Option<SymbolId>) -> bool {
-        match *self.u.types().get(p) {
-            Type::Sym(_, s) => self.u.module_class(s) != owner,
-            Type::This(c) => match (self.u.class_symbol(c), owner) {
-                (Some(c), Some(o)) => c != o && self.u.is_class(o) && self.u.derives_from(c, o),
-                _ => false,
-            },
+/// Whether `p` refers to an object whose class is not `owner`, or is the `this` of a subclass of
+/// class `owner`, which it inherits from.
+fn is_inheriting_module(u: &mut Universe, p: TypeId, owner: Option<SymbolId>) -> bool {
+    match *u.types().get(p) {
+        Type::Sym(_, s) => u.module_class(s) != owner,
+        Type::This(c) => match (u.class_symbol(c), owner) {
+            (Some(c), Some(o)) => c != o && u.is_class(o) && u.derives_from(c, o),
             _ => false,
-        }
+        },
+        _ => false,
     }
+}
 
-    /// Whether prefix `p` is a package or the `this` of a class, under which the children's
-    /// types are their own references.
-    fn is_plain_prefix(&mut self, p: TypeId) -> bool {
-        match *self.u.types().get(p) {
-            Type::Package(_) | Type::PackageName(_) | Type::This(_) | Type::NoPrefix => true,
-            Type::Sym(p, s) => self.u.is_module(s) && p.is_none_or(|p| self.is_plain_prefix(p)),
-            _ => false,
-        }
+/// Whether prefix `p` is a package or the `this` of a class, under which the children's types are
+/// their own references.
+fn is_plain_prefix(u: &mut Universe, p: TypeId) -> bool {
+    match *u.types().get(p) {
+        Type::Package(_) | Type::PackageName(_) | Type::This(_) | Type::NoPrefix => true,
+        Type::Sym(p, s) => u.is_module(s) && p.is_none_or(|p| is_plain_prefix(u, p)),
+        _ => false,
     }
 }

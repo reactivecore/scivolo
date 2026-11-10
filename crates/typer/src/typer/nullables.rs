@@ -171,7 +171,7 @@ impl Typer<'_> {
         let to = self.u.intern_type(Type::And(r, stripped));
         let span = self.tpd.span(tree);
         let cast_span = if select { span } else { span.to_synthetic() };
-        match self.cast_to(tree, to, cast_span) {
+        match self.build().cast_to(tree, to, cast_span) {
             Ok(t) => {
                 if let T::TypeApply { fun, args } = *self.tpd.tree(t) {
                     let tpt = self.tpd.items(args)[0];
