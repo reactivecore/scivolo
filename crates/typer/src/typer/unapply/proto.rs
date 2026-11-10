@@ -10,8 +10,9 @@ use crate::tpd::Tree as T;
 use syntax::ast::{Span, Tree};
 use tasty::TypeId;
 
-/// For member `name` of `qual` with several alternatives, an application to a value of type
-/// `sel`, else `Pt::Any`.
+/// Builds the prototype that selects among the alternatives of an overloaded member `name` of
+/// `qual`: an application to a value of type `sel`; no prototype for a member without
+/// alternatives.
 pub fn scrutinee_proto(t: &mut Typer<'_>, qual: TypeId, name: &str, sel: TypeId, ctx: Ctx) -> Pt {
     if t.members_found(qual, name, false).is_none_or(|f| f.syms.len() < 2) {
         return Pt::Any;

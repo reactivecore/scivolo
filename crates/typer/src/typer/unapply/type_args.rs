@@ -10,8 +10,8 @@ use syntax::ast::{List, NodeId, Span, Tree};
 use tasty::{Type, TypeId};
 
 impl UnapplyPattern {
-    /// The extractor and type arguments of `C[Ts]` if `C`'s extractor method has as many type
-    /// parameters as `Ts` are.
+    /// Splits `C[Ts]` into the extractor `C` and its type arguments `Ts` if `C`'s extractor
+    /// method, selected speculatively, has as many type parameters as `Ts` are.
     pub fn unapply_type_args(&self, t: &mut Typer<'_>, fun: NodeId) -> Option<(NodeId, List)> {
         let Tree::TypeApply { fun: qual, args } = *t.ast.tree(fun) else { return None };
         let n = t.ast.items(args).len();
@@ -26,7 +26,7 @@ impl UnapplyPattern {
         (clean && found == Some(true)).then_some((qual, args))
     }
 
-    /// Extractor method `unapp` applied to type arguments `args` of type application `id`, at
+    /// Applies extractor method `unapp` to type arguments `args` of type application `id`, at
     /// the span from `unapp` to the last argument.
     pub fn with_unapply_type_args(
         &self,

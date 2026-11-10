@@ -8,10 +8,10 @@ use crate::tpd::TNodeId;
 use tasty::{Kind, Type, TypeId, TypeVars, Universe};
 
 impl UnapplyPattern {
-    /// The type of the pattern whose extractor `unapp` takes `arg_type`: the scrutinee's type if
-    /// it conforms, else `arg_type` constrained by it, unless only variant type arguments of an
-    /// open class would be, and maximized with the binders added to `unapp`; type variables from
-    /// id `vars` on instantiated. Refuses patterns that would constrain invariant type arguments
+    /// Infers the type of the pattern whose extractor `unapp` takes `arg_type`: the scrutinee's
+    /// type if it conforms, else `arg_type` constrained by it, unless only variant type arguments
+    /// of an open class would be, and maximized with the binders added to `unapp`; type variables
+    /// from id `vars` on instantiated. Refuses patterns that would constrain invariant type arguments
     /// of an open class or type parameters no GADT bounds narrow.
     pub fn pattern_type(
         &self,

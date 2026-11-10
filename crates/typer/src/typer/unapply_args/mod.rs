@@ -22,6 +22,7 @@ pub struct UnapplyArgs {
 
 /// The types of the patterns of a sequence extractor.
 pub struct SeqArgs {
+    /// The expected type of each pattern.
     pub types: Vec<TypeId>,
     /// How many of them are those of product selectors before the sequence.
     pub leading: usize,
