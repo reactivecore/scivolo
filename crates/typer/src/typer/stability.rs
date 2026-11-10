@@ -8,7 +8,8 @@ use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl TypeOps<'_> {
-    /// Checks whether term `s` denotes the same value each time, as `is_stable_member` does.
+    /// Checks whether term `s` denotes the same value each time: not a `var`, an inline or
+    /// by-name parameter, and not a method unless a stable one (dotty's `isStableMember`).
     pub fn is_stable_member(&mut self, s: SymbolId) -> bool {
         is_stable_member(self.u, s)
     }

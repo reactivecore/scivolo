@@ -84,7 +84,8 @@ impl TypeOps<'_> {
         vars
     }
 
-    /// Checks whether `p` holds for an operand of the top-level unions (`or`) or intersections of `t`.
+    /// Checks whether `p` holds for an operand of the top-level unions (`or`) or intersections of
+    /// `t`.
     pub fn any_factor(&self, t: TypeId, or: bool, p: &mut impl FnMut(TypeId) -> bool) -> bool {
         match *self.u.types().get(t) {
             Type::Or(a, b, _) if or => self.any_factor(a, or, p) || self.any_factor(b, or, p),

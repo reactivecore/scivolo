@@ -67,8 +67,9 @@ impl Typer<'_> {
 }
 
 impl TypeOps<'_> {
-    /// Replaces each class type parameter of `t` selected on a prefix other than `this` by the
-    /// argument the prefix's base type gives it, then normalizes, as `resolve_class_params` does.
+    /// Replaces each type parameter of a class `C` in `t`, selected on a prefix other than `this`,
+    /// by the argument the prefix's base type `C[..]` gives it, as `A` of `xs: List[Int]` becomes
+    /// `Int`, and normalizes the result.
     pub fn resolve_class_params(&mut self, t: TypeId) -> TypeId {
         resolve_class_params(self.u, t)
     }
