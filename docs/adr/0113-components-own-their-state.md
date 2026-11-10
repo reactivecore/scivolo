@@ -57,6 +57,11 @@ it; such a shared helper rather moves out, to `TypeOps`, a `Symbol` method or a 
 - The narrowing of the GADT bounds by one pattern is a component, `Narrowing`, whose methods
   take the typer: comparing types completes aliases. The GADT bounds themselves are scoped
   state (ADR 0114).
+- Overload resolution is a component, `Resolution` (the prefix and the expected type), whose
+  methods take the typer: it types arguments while comparing alternatives. It returns the
+  ambiguous alternatives with its error. The prototypes (`protos`, `poly_protos`), the copies of
+  alternatives (`mapped_alts`) and the type arguments of the resolution of `f[Int]` in progress
+  (`mapped_targs`, read while completing and searching implicits inside it) stay on `Typer`.
 - Lifting the parts of one application into local values is a component, `Lifter`, whose
   methods take the typer: deciding purity completes methods. Purity has no state of its own; its
   helpers are free functions taking the typer.

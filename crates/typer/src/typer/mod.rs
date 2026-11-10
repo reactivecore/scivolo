@@ -338,13 +338,12 @@ pub struct Typer<'a> {
     pub protos: Vec<protos::FunProto>,
     /// The type argument lists of the type applications being typed.
     pub poly_protos: Vec<protos::PolyProto>,
-    /// The alternatives being resolved with their type parameters instantiated, and the types.
+    /// The alternatives being resolved with their type parameters instantiated, and the types, in
+    /// scope while the resolution of `f[Int]` runs.
     pub mapped_targs: Option<(Vec<SymbolId>, Vec<tasty::TypeId>)>,
     /// The copies of alternatives resolved by a later clause: the original and how many clauses
     /// the copy skips.
     pub mapped_alts: FxHashMap<SymbolId, (SymbolId, usize)>,
-    /// The applicable alternatives of the last overload resolution found ambiguous.
-    pub ambiguous: Vec<SymbolId>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
     /// The code of `typeChecks` being typed, and the number of diagnostics at its first construct
@@ -468,7 +467,6 @@ impl<'a> Typer<'a> {
             poly_protos: Vec::new(),
             mapped_targs: None,
             mapped_alts: FxHashMap::default(),
-            ambiguous: Vec::new(),
             unsupported: None,
             checked_code: None,
             expansion_errors: Vec::new(),

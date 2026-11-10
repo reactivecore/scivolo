@@ -2,38 +2,13 @@
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! The expected result type of an application: the result constrained by it (dotty's
-//! `constrainResult`), overload resolution revisited by it (`adaptByResult`, `resultConforms`).
+//! `constrainResult`), the results of alternatives compared with it (`resultConforms`).
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// `chosen`, or if its result does not conform to the expected result type of `proto`, the
-    /// one alternative of `alts` whose result does, or the one resolution picks among them.
-    pub fn adapted_by_result(
-        &mut self,
-        chosen: SymbolId,
-        alts: &[SymbolId],
-        prefix: Option<TypeId>,
-        proto: usize,
-    ) -> SymbolId {
-        let (Pt::Type(pt), ctx) = (self.protos[proto].pt, self.protos[proto].ctx) else { return chosen };
-        if self.result_conforms(chosen, prefix, pt, (true, ctx)) != Some(false) {
-            return chosen;
-        }
-        let conforming: Vec<SymbolId> = alts
-            .iter()
-            .copied()
-            .filter(|&a| a != chosen && self.result_conforms(a, prefix, pt, (true, ctx)) == Some(true))
-            .collect();
-        match conforming[..] {
-            [] => chosen,
-            [alt] => alt,
-            _ => self.resolve_overloaded(&conforming, prefix, proto).unwrap_or(chosen),
-        }
-    }
-
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`
     /// (dotty's `constrainResult`), only necessary constraints kept: normalized against a fully
     /// defined `pt`, not at all against `Unit`, else a value result after the implicit clauses

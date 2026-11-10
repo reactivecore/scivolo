@@ -142,7 +142,7 @@ impl Typer<'_> {
         };
         let sym = match self.choose(&syms, Some(qual_tpe), pt) {
             Ok(sym) => self.jdk_inherited(sym),
-            Err(what) => return self.unchosen(id, what, pt),
+            Err(e) => return self.unchosen(id, e.what, pt),
         };
         if !converted && !self.is_accessible_from(sym, Some(qual_tpe), ctx) {
             if self.extension_visible(&text, ctx) {

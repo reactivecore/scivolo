@@ -4,108 +4,67 @@
 //! Alternatives narrowed by the shapes of function arguments without parameter types (dotty's
 //! `typeShape`, `normArg`, `narrowByShapes`).
 
-use super::Typer;
-use syntax::ast::{NodeId, Tree};
+use super::applicability::{applicable, rigid_param_types};
+use super::{MODIFIED_FUNCTION, Resolution, UNDECIDED};
+use crate::typer::Typer;
+use syntax::ast::{Ast, NodeId, Tree};
 use tasty::{ANY, NOTHING, SymbolId, Type, TypeId};
 
-const UNDECIDED: &str = "overload resolution with implicit conversions";
-
-impl Typer<'_> {
-    /// The function value or case lambda that argument `arg` is if a parameter of it has no type
-    /// (dotty's `functionWithUnknownParamType`).
-    pub fn unknown_param_function(&self, arg: NodeId) -> Option<NodeId> {
-        match *self.ast.tree(arg) {
-            Tree::Function { args, .. } => {
-                self.ast.items(args).iter().any(|&p| self.is_untyped_param(p)).then_some(arg)
-            }
-            Tree::Match { selector: None, .. } => Some(arg),
-            Tree::NamedArg { arg, .. } => self.unknown_param_function(arg),
-            _ => self.unblocked(arg).and_then(|e| self.unknown_param_function(e)),
-        }
-    }
-
-    /// The expression of block `arg` of no statements.
-    fn unblocked(&self, arg: NodeId) -> Option<NodeId> {
-        match *self.ast.tree(arg) {
-            Tree::Block { stats, expr: Some(e) } if self.ast.items(stats).is_empty() => Some(e),
-            _ => None,
-        }
-    }
-
-    /// `arg` without enclosing blocks of no statements (dotty's `normArg` of `{ expr }`).
-    pub fn unblocked_all(&self, mut arg: NodeId) -> NodeId {
-        while let Some(e) = self.unblocked(arg) {
-            arg = e;
-        }
-        arg
-    }
-
-    /// The alternatives of `alts`, members of `prefix`, that apply to the shapes of the arguments
-    /// of `proto` if one is a function without parameter types, else `alts` (dotty's
-    /// `narrowByShapes`).
+impl Resolution {
+    /// Narrows `alts` to those that apply to the shapes of the arguments of `proto` if one is a
+    /// function without parameter types, as `x => x` has the shape `Any => Nothing`, else keeps
+    /// them all (dotty's `narrowByShapes`).
     pub fn narrow_by_shapes(
-        &mut self,
+        self,
+        t: &mut Typer,
         alts: &[SymbolId],
-        prefix: Option<TypeId>,
         proto: usize,
         views: bool,
     ) -> Result<Vec<SymbolId>, &'static str> {
-        let (args, ctx) = (self.protos[proto].args.clone(), self.protos[proto].ctx);
-        if !args.iter().any(|&a| self.unknown_param_function(a).is_some()) {
+        let (args, ctx) = (t.protos[proto].args.clone(), t.protos[proto].ctx);
+        if !args.iter().any(|&a| unknown_param_function(t, a).is_some()) {
             return Ok(alts.to_vec());
         }
-        if args.iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. })) {
+        if args.iter().any(|&a| matches!(t.ast.tree(a), Tree::NamedArg { .. })) {
             return Err("overloads with named and function arguments");
         }
+
         let mut shapes = Vec::new();
         for (i, &a) in args.iter().enumerate() {
-            let a = self.unblocked_all(a);
-            let tupled = self.tupled_arg(a, i, alts, prefix)?;
-            shapes.push(self.type_shape(a, tupled)?);
+            let a = unblocked_all(t.ast, a);
+            let tupled = self.tupled_arg(t, a, i, alts)?;
+            shapes.push(type_shape(t, a, tupled)?);
         }
+
         let mut narrowed = Vec::new();
         for &alt in alts {
-            if self.applicable(alt, prefix, &shapes, views, ctx).ok_or(UNDECIDED)? {
+            if applicable(t, alt, self.prefix, &shapes, views, ctx).ok_or(UNDECIDED)? {
                 narrowed.push(alt);
             }
         }
         Ok(narrowed)
     }
 
-    /// The shape of argument `arg` as a type, a function of several parameters taking one tuple
-    /// if `tupled` (dotty's `typeShape`).
-    fn type_shape(&mut self, arg: NodeId, tupled: bool) -> Result<TypeId, &'static str> {
-        match *self.ast.tree(arg) {
-            Tree::Function { mods: Some(_), .. } => Err("function argument with modifiers of an overload"),
-            Tree::Function { args, body, .. } => {
-                let n = if tupled { 1 } else { self.ast.items(args).len() };
-                let mut parts = vec![ANY; n];
-                parts.push(self.type_shape(body, false)?);
-                self.function_of(parts)
-            }
-            Tree::Match { selector: None, .. } => self.partial_function_of(ANY, NOTHING),
-            _ => Ok(NOTHING),
-        }
-    }
-
-    /// Whether function argument `arg` at position `i` takes its parameters as one tuple: no
-    /// alternative of `alts` takes a function of as many parameters there and one takes a
-    /// function of a tuple of that many (dotty's `normArg` with `ptIsCorrectProduct`).
+    /// Checks whether function argument `arg` at position `i` takes its parameters as one tuple:
+    /// no alternative of `alts` takes a function of as many parameters there and one takes a
+    /// function of a tuple of that many (dotty's `normArg` with `ptIsCorrectProduct`), as
+    /// `(a, b) => a + b` against `((Int, Int)) => Int`.
     fn tupled_arg(
-        &mut self,
+        self,
+        t: &mut Typer,
         arg: NodeId,
         i: usize,
         alts: &[SymbolId],
-        prefix: Option<TypeId>,
     ) -> Result<bool, &'static str> {
-        let Tree::Function { args, .. } = *self.ast.tree(arg) else { return Ok(false) };
-        let params = self.ast.items(args).to_vec();
+        let Tree::Function { args, .. } = *t.ast.tree(arg) else { return Ok(false) };
+        let params = t.ast.items(args).to_vec();
         if params.len() < 2 {
             return Ok(false);
         }
+
         let mut unary = Vec::new();
         for &alt in alts {
-            let ps = self.formal_at(alt, i, prefix).map_or_else(Vec::new, |f| self.function_params(f));
+            let ps = formal_at(t, alt, i, self.prefix).map_or_else(Vec::new, |f| t.function_params(f));
             if ps.len() == params.len() {
                 return Ok(false);
             }
@@ -113,36 +72,80 @@ impl Typer<'_> {
                 unary.push((alt, p));
             }
         }
+
         for (alt, p) in unary {
-            let p = self.zonk(p);
-            if matches!(*self.u.types().get(p), Type::Sym(_, s) if self.u.symbol(s).owner == Some(alt)) {
+            let p = t.zonk(p);
+            if matches!(*t.u.types().get(p), Type::Sym(_, s) if t.u.symbol(s).owner == Some(alt)) {
                 return Err("tupled function argument against a type parameter");
             }
-            if params.iter().any(|&q| !self.is_untyped_param(q)) {
+            if params.iter().any(|&q| !t.is_untyped_param(q)) {
                 return Err("tupled function argument with parameter types");
             }
-            let p = self.fully_defined(p)?;
-            let t = self.u.dealias(p);
-            if let Some((tycon, n)) = self.u.applied(t).map(|(c, elems)| (c, elems.len()))
+            let p = t.fully_defined(p)?;
+            let tpe = t.u.dealias(p);
+            if let Some((tycon, n)) = t.u.applied(tpe).map(|(c, elems)| (c, elems.len()))
                 && n == params.len()
-                && self
-                    .u
-                    .class_symbol(tycon)
-                    .is_some_and(|c| self.u.full_name(c) == format!("scala.Tuple{n}"))
+                && t.u.class_symbol(tycon).is_some_and(|c| t.u.full_name(c) == format!("scala.Tuple{n}"))
             {
                 return Ok(true);
             }
         }
         Ok(false)
     }
+}
 
-    /// The parameter type of the first clause of alternative `alt` at position `i`, its type
-    /// parameters rigid; none for a repeated parameter (dotty's `firstParamTypes`).
-    pub fn formal_at(&mut self, alt: SymbolId, i: usize, prefix: Option<TypeId>) -> Option<TypeId> {
-        let (formals, repeated) = self.rigid_param_types(alt, prefix)?;
-        if repeated && i + 1 >= formals.len() {
-            return None;
+/// Finds the function value or case lambda that argument `arg` is if a parameter of it has no
+/// type (dotty's `functionWithUnknownParamType`): `x => x + 1` or `{ case 1 => "one" }`, also
+/// named or in braces.
+pub fn unknown_param_function(t: &Typer, arg: NodeId) -> Option<NodeId> {
+    match *t.ast.tree(arg) {
+        Tree::Function { args, .. } => {
+            t.ast.items(args).iter().any(|&p| t.is_untyped_param(p)).then_some(arg)
         }
-        formals.get(i).copied()
+        Tree::Match { selector: None, .. } => Some(arg),
+        Tree::NamedArg { arg, .. } => unknown_param_function(t, arg),
+        _ => unblocked(t.ast, arg).and_then(|e| unknown_param_function(t, e)),
     }
+}
+
+/// Finds the expression of block `arg` of no statements.
+fn unblocked(ast: &Ast, arg: NodeId) -> Option<NodeId> {
+    match *ast.tree(arg) {
+        Tree::Block { stats, expr: Some(e) } if ast.items(stats).is_empty() => Some(e),
+        _ => None,
+    }
+}
+
+/// Strips `arg` of enclosing blocks of no statements (dotty's `normArg` of `{ expr }`).
+pub fn unblocked_all(ast: &Ast, mut arg: NodeId) -> NodeId {
+    while let Some(e) = unblocked(ast, arg) {
+        arg = e;
+    }
+    arg
+}
+
+/// Gives the shape of argument `arg` as a type, a function of several parameters taking one
+/// tuple if `tupled` (dotty's `typeShape`).
+fn type_shape(t: &mut Typer, arg: NodeId, tupled: bool) -> Result<TypeId, &'static str> {
+    match *t.ast.tree(arg) {
+        Tree::Function { mods: Some(_), .. } => Err(MODIFIED_FUNCTION),
+        Tree::Function { args, body, .. } => {
+            let n = if tupled { 1 } else { t.ast.items(args).len() };
+            let mut parts = vec![ANY; n];
+            parts.push(type_shape(t, body, false)?);
+            t.function_of(parts)
+        }
+        Tree::Match { selector: None, .. } => t.partial_function_of(ANY, NOTHING),
+        _ => Ok(NOTHING),
+    }
+}
+
+/// Finds the parameter type of the first clause of alternative `alt` at position `i`, its type
+/// parameters rigid; none for a repeated parameter (dotty's `firstParamTypes`).
+pub fn formal_at(t: &mut Typer, alt: SymbolId, i: usize, prefix: Option<TypeId>) -> Option<TypeId> {
+    let (formals, repeated) = rigid_param_types(t, alt, prefix)?;
+    if repeated && i + 1 >= formals.len() {
+        return None;
+    }
+    formals.get(i).copied()
 }

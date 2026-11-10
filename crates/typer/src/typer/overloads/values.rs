@@ -3,53 +3,59 @@
 //! Overloads among methods and a value with `apply` methods (dotty's `resolveOverloaded` with
 //! `applyMembers` and `retract`).
 
-use super::Typer;
+use super::applicability::{applicable, param_types};
+use super::mapped::leading_implicit;
+use super::named::applicable_to_proto;
+use super::shapes::unknown_param_function;
+use super::{Resolution, VALUE_APPLY};
+use crate::ctx::Ctx;
+use crate::typer::Typer;
 use syntax::ast::Tree;
 use tasty::{Kind, SymbolId, TypeId};
 
-const VALUE_APPLY: &str = "overloaded value with an apply method";
+/// An alternative and the type it is a member of.
+type Member = (SymbolId, Option<TypeId>);
 
-impl Typer<'_> {
-    /// The alternative of `methods` and value `value`, whose `apply` methods stand for it, that
-    /// the arguments of `proto` select; `None` if no `apply` method takes them, leaving the
-    /// choice to the methods.
+impl Resolution {
+    /// Chooses among `methods` and value `value`, whose `apply` methods stand for it, the
+    /// alternative the arguments of `proto` select, as `f(1)` among `def f(s: String)` and
+    /// `val f: Int => Int`; `None` if no `apply` method takes them, leaving the choice to the
+    /// methods.
     pub fn applied_value(
-        &mut self,
+        self,
+        t: &mut Typer,
         value: SymbolId,
         methods: &[SymbolId],
-        prefix: Option<TypeId>,
         proto: usize,
     ) -> Result<Option<SymbolId>, &'static str> {
-        let (args, ctx) = (self.protos[proto].args.clone(), self.protos[proto].ctx);
+        let (args, ctx) = (t.protos[proto].args.clone(), t.protos[proto].ctx);
         let simple = args.iter().all(|&a| {
-            self.unknown_param_function(a).is_none() && !matches!(self.ast.tree(a), Tree::NamedArg { .. })
+            unknown_param_function(t, a).is_none() && !matches!(t.ast.tree(a), Tree::NamedArg { .. })
         });
-        if !simple || self.protos[proto].using || methods.iter().any(|&m| self.leading_implicit(m).is_some())
-        {
+        if !simple || t.protos[proto].using || methods.iter().any(|&m| leading_implicit(t.u, m).is_some()) {
             return Err(VALUE_APPLY);
         }
-        let vt = self.ref_type(prefix, value);
-        let applies: Vec<SymbolId> = self
-            .type_members(vt, "apply")
-            .into_iter()
-            .filter(|&s| self.u.symbol(s).kind == Kind::Def)
-            .collect();
-        let arg_types = self.proto_arg_types(proto, methods, prefix)?;
-        let alts = methods.iter().map(|&m| (m, prefix)).chain(applies.iter().map(|&a| (a, Some(vt))));
+
+        let vt = t.ref_type(self.prefix, value);
+        let applies: Vec<SymbolId> =
+            t.type_members(vt, "apply").into_iter().filter(|&s| t.u.symbol(s).kind == Kind::Def).collect();
+        let arg_types = self.proto_arg_types(t, proto, methods)?;
+        let alts = methods.iter().map(|&m| (m, self.prefix)).chain(applies.iter().map(|&a| (a, Some(vt))));
         let mut fitting = Vec::new();
         for (alt, pre) in alts.collect::<Vec<_>>() {
-            if self.applicable_to_proto(alt, pre, (proto, &arg_types), false, ctx).ok_or(VALUE_APPLY)? {
+            if applicable_to_proto(t, alt, pre, (proto, &arg_types), false, ctx).ok_or(VALUE_APPLY)? {
                 fitting.push((alt, pre));
             }
         }
         if !fitting.iter().any(|&(_, pre)| pre == Some(vt)) {
             return if fitting.is_empty() { Err(VALUE_APPLY) } else { Ok(None) };
         }
+
         let mut best = None;
         for &a in &fitting {
             let mut beats_all = true;
             for &b in fitting.iter().filter(|&&b| b != a) {
-                beats_all &= self.as_good(a, b, ctx)? && !self.as_good(b, a, ctx)?;
+                beats_all &= as_good(t, a, b, ctx)? && !as_good(t, b, a, ctx)?;
             }
             if beats_all {
                 best = Some(a);
@@ -61,31 +67,25 @@ impl Typer<'_> {
             None => Err(VALUE_APPLY),
         }
     }
+}
 
-    /// Whether method `a` is as good as `b` (dotty's `isAsGood` of methods): `b` takes the
-    /// parameter types of `a`, both of owners neither of which, nor of their companion classes
-    /// if modules, derives from the other (dotty's `compareOwner` 0).
-    fn as_good(
-        &mut self,
-        (a, pa): (SymbolId, Option<TypeId>),
-        (b, pb): (SymbolId, Option<TypeId>),
-        ctx: crate::ctx::Ctx,
-    ) -> Result<bool, &'static str> {
-        let (Some(oa), Some(ob)) = (self.u.symbol(a).owner, self.u.symbol(b).owner) else {
-            return Err(VALUE_APPLY);
+/// Checks whether method `a` is as good as `b` (dotty's `isAsGood` of methods): `b` takes the
+/// parameter types of `a`, both of owners neither of which, nor of their companion classes if
+/// modules, derives from the other (dotty's `compareOwner` 0).
+fn as_good(t: &mut Typer, (a, pa): Member, (b, pb): Member, ctx: Ctx) -> Result<bool, &'static str> {
+    let (Some(oa), Some(ob)) = (t.u.symbol(a).owner, t.u.symbol(b).owner) else {
+        return Err(VALUE_APPLY);
+    };
+    if oa != ob {
+        let classes = |t: &mut Typer, o: SymbolId| {
+            let companion = t.u.is_module_class(o).then(|| t.u.companion_class(o)).flatten();
+            [Some(o), companion].into_iter().flatten().collect::<Vec<_>>()
         };
-        if oa != ob {
-            let classes = |t: &mut Self, o: SymbolId| {
-                let companion = t.u.is_module_class(o).then(|| t.u.companion_class(o)).flatten();
-                [Some(o), companion].into_iter().flatten().collect::<Vec<_>>()
-            };
-            let (ca, cb) = (classes(self, oa), classes(self, ob));
-            if ca.iter().any(|&x| cb.iter().any(|&y| self.u.derives_from(x, y) || self.u.derives_from(y, x)))
-            {
-                return Err(VALUE_APPLY);
-            }
+        let (ca, cb) = (classes(t, oa), classes(t, ob));
+        if ca.iter().any(|&x| cb.iter().any(|&y| t.u.derives_from(x, y) || t.u.derives_from(y, x))) {
+            return Err(VALUE_APPLY);
         }
-        let Some((formals, false)) = self.param_types(a, pa, false) else { return Err(VALUE_APPLY) };
-        self.applicable(b, pb, &formals, false, ctx).ok_or(VALUE_APPLY)
     }
+    let Some((formals, false)) = param_types(t, a, pa, false) else { return Err(VALUE_APPLY) };
+    applicable(t, b, pb, &formals, false, ctx).ok_or(VALUE_APPLY)
 }

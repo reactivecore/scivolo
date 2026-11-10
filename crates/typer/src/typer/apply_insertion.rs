@@ -74,7 +74,7 @@ impl Typer<'_> {
         }
         let sym = match self.choose(&found.syms, Some(tpe), pt) {
             Err(_) if self.unusable_for_inference(pt) => return Ok(self.error_tree(self.tpd.span(f))),
-            chosen => chosen?,
+            chosen => chosen.map_err(|e| e.what)?,
         };
         self.check_reference(sym, Some(tpe), ctx)?;
         let name = syntax::ast::TName { name: self.name("apply"), is_type: false };
