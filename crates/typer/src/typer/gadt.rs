@@ -132,7 +132,10 @@ impl Gadt {
             Type::Sym(_, s) => !u.symbol(s).kind.is_term(),
             Type::Applied(tycon, args) => {
                 u.class_symbol(tycon).is_some_and(|c| u.is_class(c))
-                    && u.types_of(args).to_vec().into_iter().all(|a| self.first_order_params(u, a, params))
+                    && (0..u.types_of(args).len()).all(|i| {
+                        let a = u.types_of(args)[i];
+                        self.first_order_params(u, a, params)
+                    })
             }
             Type::And(a, b) | Type::Or(a, b, _) | Type::Bounds(a, b) => {
                 self.first_order_params(u, a, params) && self.first_order_params(u, b, params)

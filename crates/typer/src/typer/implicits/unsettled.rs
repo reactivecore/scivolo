@@ -144,9 +144,10 @@ fn open_union_within(ty: &mut TypeOps<'_>, tpe: TypeId, depth: u32) -> bool {
     match *ty.u.ty(tpe) {
         Type::Or(..) => !ty.open_vars(tpe).is_empty(),
         Type::And(a, b) => open_union_within(ty, a, depth) || open_union_within(ty, b, depth),
-        Type::Applied(_, args) => {
-            ty.u.types_of(args).to_vec().into_iter().any(|a| open_union_within(ty, a, depth))
-        }
+        Type::Applied(_, args) => (0..ty.u.types_of(args).len()).any(|i| {
+            let a = ty.u.types_of(args)[i];
+            open_union_within(ty, a, depth)
+        }),
         Type::Annotated(a, _) | Type::ByName(a) => open_union_within(ty, a, depth),
         Type::Bounds(lo, hi) => open_union_within(ty, lo, depth) || open_union_within(ty, hi, depth),
         _ => false,

@@ -40,8 +40,11 @@ impl Typer<'_> {
     pub fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
         match *self.u.ty(t) {
             Type::Method { binder, params, result, implicit, contextual } => {
-                let params: Vec<_> = (self.u.params_of(params).to_vec().into_iter())
-                    .map(|(n, p)| (n, self.with_repeated_param_class(p)))
+                let params: Vec<_> = (0..self.u.params_of(params).len())
+                    .map(|i| {
+                        let (n, p) = self.u.params_of(params)[i];
+                        (n, self.with_repeated_param_class(p))
+                    })
                     .collect();
                 let result = self.with_repeated_class(result);
                 self.u.intern_method(binder, &params, result, implicit, contextual)

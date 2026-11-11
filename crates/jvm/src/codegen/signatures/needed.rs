@@ -26,7 +26,10 @@ pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
         Type::ByName(r) => return may_need(u, r),
         Type::Method { params, result, .. } => {
             return may_need(u, result)
-                || u.params_of(params).to_vec().into_iter().any(|(_, p)| may_need(u, p));
+                || (0..u.params_of(params).len()).any(|i| {
+                    let p = u.params_of(params)[i].1;
+                    may_need(u, p)
+                });
         }
         Type::Sym(_, s) => Some(s),
         Type::TypeRef(..) => u.resolve_ref(t),

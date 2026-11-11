@@ -25,10 +25,12 @@ fn refusal(u: &mut Universe, t: TypeId, bound: &[(tasty::FileId, NameId)]) -> Op
     u.map_type(t, &mut |u, part| {
         let refused = match *u.ty(part) {
             Type::Lambda { binder, params, result } => {
-                let params = u.params_of(params).to_vec();
                 let mut inner = bound.to_vec();
-                inner.extend(params.iter().map(|&(n, _)| (binder.0, n)));
-                let in_params = params.into_iter().find_map(|(_, p)| refusal(u, p, &inner));
+                inner.extend(u.params_of(params).iter().map(|&(n, _)| (binder.0, n)));
+                let in_params = (0..u.params_of(params).len()).find_map(|i| {
+                    let p = u.params_of(params)[i].1;
+                    refusal(u, p, &inner)
+                });
                 found = found.or(in_params).or_else(|| refusal(u, result, &inner));
                 return Some(part);
             }

@@ -139,7 +139,7 @@ impl Printer<'_> {
             Type::Super(t, p) => format!("{}.super[{}]", self.tpe(t, n), self.tpe(p, n)),
             Type::Applied(c, args) => {
                 let args: Vec<String> =
-                    self.u.types_of(args).to_vec().into_iter().map(|a| self.tpe(a, n)).collect();
+                    (0..self.u.types_of(args).len()).map(|i| self.tpe(self.u.types_of(args)[i], n)).collect();
                 format!("{}[{}]", self.tpe(c, n), args.join(" "))
             }
             Type::Alias(a) => format!("= {}", self.tpe(a, n)),

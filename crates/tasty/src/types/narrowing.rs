@@ -17,7 +17,6 @@ impl Universe {
                 Type::Poly { binder, params: p, result: r },
                 Type::Poly { binder: b2, params: q, result: s },
             ) if self.params_of(p).len() == self.params_of(q).len() => {
-                let (p, q) = (self.params_of(p).to_vec(), self.params_of(q).to_vec());
                 let own = self.type_params(m);
                 let ours = |u: &mut Self, t| {
                     u.map_type(t, &mut |u, t| {
@@ -30,8 +29,14 @@ impl Universe {
                     })
                 };
                 let s = ours(self, s);
-                let bounds: Vec<TypeId> = q.iter().map(|&(_, b)| ours(self, b)).collect();
-                let same_bounds = p.iter().zip(bounds).all(|(&(_, a), b)| self.same_bounds(a, b));
+                let n = self.params_of(q).len();
+                let bounds: Vec<TypeId> = (0..n)
+                    .map(|i| {
+                        let b = self.params_of(q)[i].1;
+                        ours(self, b)
+                    })
+                    .collect();
+                let same_bounds = (0..n).all(|i| self.same_bounds(self.params_of(p)[i].1, bounds[i]));
                 (same_bounds && self.method_narrows(r, s), refined)
             }
             (Type::ByName(r), Type::ByName(s)) => (self.is_subtype(r, s), refined),
@@ -50,9 +55,9 @@ impl Universe {
         else {
             return false;
         };
-        let (p, q) = (self.params_of(p).to_vec(), self.params_of(q).to_vec());
-        p.len() == q.len()
-            && p.iter().zip(&q).all(|((_, x), (_, y))| self.is_same(*x, *y))
+        let n = self.params_of(p).len();
+        n == self.params_of(q).len()
+            && (0..n).all(|i| self.is_same(self.params_of(p)[i].1, self.params_of(q)[i].1))
             && self.is_subtype(r, s)
     }
 

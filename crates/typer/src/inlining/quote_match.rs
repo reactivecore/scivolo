@@ -42,7 +42,8 @@ fn collect_variances(
                 Some(c) => u.variances(c),
                 None => Vec::new(),
             };
-            for (i, a) in u.types_of(args).to_vec().into_iter().enumerate() {
+            for i in 0..u.types_of(args).len() {
+                let a = u.types_of(args)[i];
                 go(u, a, v * variances.get(i).copied().unwrap_or(0));
             }
             go(u, tycon, v);

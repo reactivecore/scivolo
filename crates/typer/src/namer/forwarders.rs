@@ -91,21 +91,21 @@ impl Typer<'_> {
                 }
                 _ => return info,
             };
-            let params = self.u.params_of(params).to_vec();
             let mut syms = Vec::new();
-            for (n, p) in &params {
+            for i in 0..self.u.params_of(params).len() {
+                let (n, p) = self.u.params_of(params)[i];
                 let original = if poly { types.pop() } else { terms.pop() };
                 let default = original.is_some_and(|o| self.u.symbol(o).flags.has(t::HASDEFAULT));
                 let flags = if default { flags.or(f::HAS_DEFAULT) } else { flags };
                 let inline = original.is_some_and(|o| self.u.symbol(o).flags.has(t::INLINE));
                 let flags = if inline { flags.or(f::INLINE) } else { flags };
                 let kind = if poly { Kind::TypeParam } else { Kind::Param };
-                let name = fresh(self.u.name(*n));
+                let name = fresh(self.u.name(n));
                 let s = self.syms.define(self.u, &name, kind, fwd, flags);
                 pairs.extend(original.map(|o| (o, s)));
-                syms.push((s, *p));
+                syms.push((s, p));
             }
-            let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
+            let names: Vec<NameId> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
             let args: Vec<TypeId> =
                 syms.iter().map(|&(s, _)| self.u.intern_type(Type::Sym(None, s))).collect();
             for &(s, p) in &syms {

@@ -118,7 +118,8 @@ impl VarianceOps<'_> {
                     _ => self.tycon_variances(tycon),
                 };
                 go(self, tycon, v).or_else(|| {
-                    self.u.types_of(args).to_vec().into_iter().enumerate().find_map(|(i, a)| {
+                    (0..self.u.types_of(args).len()).find_map(|i| {
+                        let a = self.u.types_of(args)[i];
                         let av = match *self.u.ty(a) {
                             Type::Bounds(..) | Type::Wildcard(_) => v,
                             _ => v * variances.get(i).copied().unwrap_or(0),

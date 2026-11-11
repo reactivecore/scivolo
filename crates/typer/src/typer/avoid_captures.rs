@@ -30,10 +30,13 @@ impl TypeOps<'_> {
             Type::Applied(tycon, args) => match self.u.sym_of(tycon) {
                 Some(c) if self.u.symbol(c).kind == Kind::Class => {
                     let variances = self.u.variances(c);
-                    let args: Vec<_> = (self.u.types_of(args).to_vec().into_iter().enumerate())
-                        .map(|(i, a)| match variances.get(i).copied().unwrap_or(0) {
-                            0 => self.avoid_invariant(a, captures),
-                            v => self.avoid_captures(a, captures, v * variance),
+                    let args: Vec<_> = (0..self.u.types_of(args).len())
+                        .map(|i| {
+                            let a = self.u.types_of(args)[i];
+                            match variances.get(i).copied().unwrap_or(0) {
+                                0 => self.avoid_invariant(a, captures),
+                                v => self.avoid_captures(a, captures, v * variance),
+                            }
                         })
                         .collect();
                     self.u.intern_applied(tycon, &args)

@@ -22,12 +22,15 @@ impl Inlining<'_> {
             if !implicit && !contextual {
                 return Ok(t);
             }
-            let params = self.u.params_of(params).to_vec();
-            if params.iter().any(|&(_, p)| self.refers_to(p, binder)) || self.refers_to(result, binder) {
+            let n = self.u.params_of(params).len();
+            if (0..n).any(|i| self.refers_to(self.u.params_of(params)[i].1, binder))
+                || self.refers_to(result, binder)
+            {
                 return Err((span, "implicit arguments of a dependent method type in a macro expansion"));
             }
             let mut args = Vec::new();
-            for (_, p) in params {
+            for i in 0..n {
+                let p = self.u.params_of(params)[i].1;
                 args.push(self.summon(p, span)?.ok_or((span, "no implicit argument"))?);
             }
             let args = self.tpd.list(&args);

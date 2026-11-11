@@ -32,15 +32,14 @@ fn as_good_in(
 ) -> Option<bool> {
     match *t.u.ty(t1) {
         Type::Method { params, .. } => {
-            let params = t.u.params_of(params).to_vec();
+            let args: Vec<TypeId> = t.u.params_of(params).iter().map(|&(_, p)| p).collect();
             let lambda = matches!(t.u.ty(t2), Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. });
-            if params.is_empty() && lambda {
+            if args.is_empty() && lambda {
                 return Some(true);
             }
             if t.u.symbol(a.sym).is_extension() && !t.u.symbol(b.sym).is_extension() {
                 return Some(false);
             }
-            let args: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
             if args.last().is_some_and(|&p| t.repeated_elem(p).is_some()) {
                 return None;
             }
@@ -94,7 +93,6 @@ fn flipped(t: &mut Typer<'_>, tpe: TypeId, v: i32) -> Option<TypeId> {
     }
     match *t.u.ty(tpe) {
         Type::Applied(tycon, args) => {
-            let args = t.u.types_of(args).to_vec();
             let class = match *t.u.ty(tycon) {
                 Type::Sym(_, s) => Some(s),
                 Type::TypeRef(p, n) => t.u.resolve(p, n, true),
@@ -106,11 +104,12 @@ fn flipped(t: &mut Typer<'_>, tpe: TypeId, v: i32) -> Option<TypeId> {
             };
             t.complete(class);
             let params = t.u.type_params(class);
-            if params.len() != args.len() {
+            if params.len() != t.u.types_of(args).len() {
                 return (t.u.symbol(class).kind == Kind::TypeParam).then_some(tpe);
             }
             let mut out = Vec::new();
-            for (&arg, &p) in args.iter().zip(&params) {
+            for (i, &p) in params.iter().enumerate() {
+                let arg = t.u.types_of(args)[i];
                 let pv = t.u.symbol(p).variance();
                 out.push(if v > 0 && pv < 0 {
                     let arg = flipped(t, arg, 1)?;

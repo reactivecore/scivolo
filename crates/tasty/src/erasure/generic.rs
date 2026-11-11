@@ -31,7 +31,7 @@ impl Universe {
             Type::Or(a, b, _) => self.is_generic(a) || self.is_generic(b),
             Type::Match { cases, .. } => {
                 let mut holders =
-                    self.types_of(cases).to_vec().into_iter().map(|c| match self.case_body(c) {
+                    (0..self.types_of(cases).len()).map(|i| match self.case_body(self.types_of(cases)[i]) {
                         Some(body) => self.holder(body),
                         None => Holder::None,
                     });

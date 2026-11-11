@@ -167,7 +167,11 @@ fn passing_tpt(t: &mut Typer<'_>, tpe: TypeId, locals: &[SymbolId], span: Span) 
         }
         Type::Applied(tycon, args) => {
             let tpt = passing_tpt(t, tycon, locals, span)?;
-            let args = (t.u.types_of(args).to_vec().into_iter().map(|a| passing_tpt(t, a, locals, span)))
+            let args = (0..t.u.types_of(args).len())
+                .map(|i| {
+                    let a = t.u.types_of(args)[i];
+                    passing_tpt(t, a, locals, span)
+                })
                 .collect::<Option<Vec<_>>>()?;
             let args = t.ast.list(&args);
             Some(t.ast.node(Tree::AppliedTypeTree { tpt, args }))

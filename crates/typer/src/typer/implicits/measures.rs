@@ -39,11 +39,14 @@ fn parts(u: &mut Universe, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
         Type::Refined(p, _, i) | Type::Bounds(p, i) | Type::And(p, i) | Type::Or(p, i, _) => vec![p, i],
         Type::ByName(r) | Type::Annotated(r, _) | Type::Alias(r) => vec![r],
         Type::Lambda { params, result, .. } => {
-            let params = u.params_of(params).to_vec();
-            if !params.iter().all(|&(_, b)| unbounded(u, b)) {
+            let all_unbounded = (0..u.params_of(params).len()).all(|i| {
+                let b = u.params_of(params)[i].1;
+                unbounded(u, b)
+            });
+            if !all_unbounded {
                 return Err(OUTSIDE);
             }
-            params.into_iter().map(|(_, b)| b).chain([result]).collect()
+            u.params_of(params).iter().map(|&(_, b)| b).chain([result]).collect()
         }
         Type::Param(..)
         | Type::Local(..)
@@ -99,9 +102,9 @@ fn type_size(ty: &mut TypeOps<'_>, n: u32, tpe: TypeId, seen: &mut Vec<VarId>) -
             type_size(ty, n, reduced, seen)
         }
         Type::Applied(c, args) if tuple_arity(ty.u, c) == Some(ty.u.types_of(args).len()) => {
-            let args = ty.u.types_of(args).to_vec();
-            let mut n = n + args.len() as u32;
-            for a in args {
+            let mut n = n + ty.u.types_of(args).len() as u32;
+            for i in 0..ty.u.types_of(args).len() {
+                let a = ty.u.types_of(args)[i];
                 n = type_size(ty, n, a, seen)?;
             }
             Ok(n)

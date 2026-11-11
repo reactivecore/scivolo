@@ -76,12 +76,12 @@ fn choose_mapped(t: &mut Typer, mapped: &[Mapped], pt: Pt) -> Result<SymbolId, U
 pub fn strip_implicit_clauses(u: &mut Universe, info: TypeId, meth: SymbolId) -> (TypeId, usize) {
     match *u.ty(info) {
         Type::Method { binder, params, result, implicit: true, .. } => {
-            let params = u.params_of(params).to_vec();
-            let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
+            let names: Vec<NameId> = u.params_of(params).iter().map(|&(n, _)| n).collect();
             let wild = u.intern_type(Type::Wildcard(None));
             let wilds = vec![wild; names.len()];
             let mut approx = Vec::new();
-            for &(_, p) in &params {
+            for i in 0..names.len() {
+                let p = u.params_of(params)[i].1;
                 let p = u.subst(p, binder, &names, &wilds);
                 let bounds = u.intern_type(Type::Bounds(p, p));
                 approx.push(u.intern_type(Type::Wildcard(Some(bounds))));
