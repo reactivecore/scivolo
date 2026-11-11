@@ -18,9 +18,9 @@ use tasty::{Kind, SymbolId, Universe};
 
 impl Typer<'_> {
     /// Collects the annotation trees of each definition for its TASTy: a sealed class under
-    /// `root` gets `@Child[C]()` for each child `C` after the annotations `PostTyper` adds, the
-    /// children last defined first, the class itself for a child local to a method or anonymous.
-    /// A sealed class with annotations of its own is not supported.
+    /// `root` gets `@Child[C]()` for each child `C` after the annotations `PostTyper` adds and
+    /// before its own, the children last defined first, the class itself for a child local to a
+    /// method or anonymous.
     pub fn with_child_annotations(
         &mut self,
         root: TNodeId,
@@ -36,14 +36,14 @@ impl Typer<'_> {
                 continue;
             }
             let annots = out.entry(s).or_insert_with(|| self.tpd.annotations(s).to_vec());
-            let added_later = annots.iter().all(|&a| {
-                let class = self.u.class_symbol(self.tpd.tpe(a)).map(|c| self.u.full_name(c));
-                class.as_deref() == Some(SOURCE_FILE)
-                    || class.as_deref() == Some(EXPERIMENTAL) && !self.tpd.span(a).exists()
-            });
-            if !added_later {
-                return Err("an annotated sealed class");
-            }
+            let added_later = annots
+                .iter()
+                .take_while(|&&a| {
+                    let class = self.u.class_symbol(self.tpd.tpe(a)).map(|c| self.u.full_name(c));
+                    class.as_deref() == Some(SOURCE_FILE)
+                        || class.as_deref() == Some(EXPERIMENTAL) && !self.tpd.span(a).exists()
+                })
+                .count();
             let at = Span::at(self.tpd.span(t).point());
             let mut children = Vec::new();
             for (i, c) in self.sealed_children(s)?.into_iter().enumerate() {
@@ -57,7 +57,7 @@ impl Typer<'_> {
             children.sort_by_key(|&(start, _)| std::cmp::Reverse(start));
             let trees: Vec<TNodeId> =
                 children.into_iter().map(|(_, c)| child_annotation(self, c, at)).collect::<Result<_, _>>()?;
-            out.get_mut(&s).expect("the entry made above").extend(trees);
+            out.get_mut(&s).expect("the entry made above").splice(added_later..added_later, trees);
         }
         Ok(out)
     }

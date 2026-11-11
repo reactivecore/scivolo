@@ -27,6 +27,10 @@ class Old:
   @throws[java.io.IOException]
   def generic[T](t: T): T = t
 
+@SerialVersionUID(7L)
+sealed abstract class Shape
+final class Square extends Shape
+
 class Thrower[E <: Exception]:
   @throws[E]
   def typed[T](t: T): T = t
