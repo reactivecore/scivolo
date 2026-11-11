@@ -5,6 +5,7 @@
 //! References to symbols and packages as `TypeRepr.toString` shows them.
 
 use super::type_string::{REFUSED, Shown, Text};
+use names::nme;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// The reference to package `name` owned by package `owner`, as its `TermRef` (dotty's
@@ -21,7 +22,7 @@ fn package_ref(owner: &str, name: &str, this: bool) -> String {
 pub fn package_named(name: &str, this: bool) -> String {
     match name.rsplit_once('.') {
         Some((owner, last)) => package_ref(owner.rsplit('.').next().unwrap_or(owner), last, this),
-        None => package_ref("<root>", name, this),
+        None => package_ref(nme::ROOT, name, this),
     }
 }
 
@@ -30,11 +31,11 @@ impl Text<'_> {
     pub fn package(&mut self, p: SymbolId, this: bool) -> Shown {
         let root = self.h.u.root();
         if p == root {
-            self.out.push_str(&package_ref("<root>", "<empty>", true));
+            self.out.push_str(&package_ref(nme::ROOT, nme::EMPTY_PACKAGE, true));
             return Ok(());
         }
         let owner = self.h.u.symbol(p).owner.ok_or(REFUSED)?;
-        let owner = if owner == root { "<root>" } else { &self.h.u.symbol(owner).name };
+        let owner = if owner == root { nme::ROOT } else { &self.h.u.symbol(owner).name };
         let text = package_ref(owner, &self.h.u.symbol(p).name, this);
         self.out.push_str(&text);
         Ok(())
@@ -67,7 +68,8 @@ impl Text<'_> {
             self.out.push_str(&format!("{what}("));
             match owner {
                 Some(o) if self.h.u.symbol(o).kind == Kind::Package => {
-                    let name = if o == self.h.u.root() { "<empty>" } else { &self.h.u.symbol(o).name };
+                    let name =
+                        if o == self.h.u.root() { nme::EMPTY_PACKAGE } else { &self.h.u.symbol(o).name };
                     let text = format!("ThisType(TypeRef(NoPrefix,module class {name}))");
                     self.out.push_str(&text);
                 }

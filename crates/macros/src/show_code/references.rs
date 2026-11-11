@@ -3,13 +3,14 @@
 //! References of `Printer.TreeCode`: identifiers, selections, `this` and `super`.
 
 use super::{Code, REFUSED, Shown};
+use names::nme;
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Code<'_> {
     /// Reference `t`.
     pub fn reference(&mut self, t: TNodeId) -> Shown {
         match self.tree_of(t) {
-            T::Ident { name } if self.name(name) == "_" => self.push("_"),
+            T::Ident { name } if self.name(name) == nme::WILDCARD => self.push("_"),
             T::Ident { .. } => match self.h.tpd.sym(t).filter(|&s| self.h.u.is_local(s)) {
                 Some(s) => {
                     let name = self.spliced_name(s);
@@ -20,7 +21,7 @@ impl Code<'_> {
             T::Select { qualifier, name } => {
                 self.qual_tree(qualifier)?;
                 let name = self.name(name);
-                if name != "<init>" && name != "package" {
+                if name != nme::CONSTRUCTOR && name != nme::PACKAGE {
                     self.push(".");
                     self.push(&name);
                 }

@@ -8,13 +8,14 @@ use crate::ast::{Attrs, NodeId, Span, TName, Tree};
 use crate::diag::Message;
 use crate::source::Offset;
 use crate::token::Token;
+use names::nme;
 
 impl Parser<'_> {
     /// Accept an identifier and return its term name, or `<error>`.
     pub fn ident(&mut self) -> TName {
         if self.is_ident() {
             let name = self.s.cur.name.expect("an identifier has a name");
-            if matches!(self.s.names.text(name), "<init>" | "<clinit>") {
+            if matches!(self.s.names.text(name), nme::CONSTRUCTOR | nme::STATIC_CONSTRUCTOR) {
                 let o = self.offset();
                 let msg = "Illegal backquoted identifier: `<init>` and `<clinit>` are forbidden";
                 self.s.diags.error(o, Message::syntax(230, msg));
@@ -28,7 +29,7 @@ impl Parser<'_> {
         } else {
             let msg = Self::expected_but_found(Token::Identifier, self.tok(), "", "");
             self.syntax_error_or_incomplete(msg, self.offset());
-            self.term("<error>")
+            self.term(nme::ERROR)
         }
     }
 
@@ -50,7 +51,7 @@ impl Parser<'_> {
             self.ast.add_attrs(t, Attrs::BACKQUOTED);
         }
         let error_offset = offset.min(self.last_offset().saturating_sub(1));
-        if self.s.names.text(name.name) == "<error>" && !self.ast.span(t).exists() {
+        if self.s.names.text(name.name) == nme::ERROR && !self.ast.span(t).exists() {
             self.ast.with_span(t, Span::synthetic(error_offset, error_offset));
             t
         } else {

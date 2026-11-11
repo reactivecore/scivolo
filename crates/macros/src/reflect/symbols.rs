@@ -5,6 +5,7 @@
 
 use super::Fallible;
 use crate::host::Host;
+use names::nme;
 use tasty::{Flags, Kind, Symbol, SymbolId, TypeId, Universe};
 
 /// The flag bit of `Method`.
@@ -25,14 +26,16 @@ impl Host {
     pub fn empty_package(&mut self) -> SymbolId {
         let root = self.u.root();
         let made = &mut self.made.empty_package;
-        *made.get_or_insert_with(|| local(&mut self.u, "<empty>", Kind::Package, root, Flags::default()))
+        *made.get_or_insert_with(|| {
+            local(&mut self.u, nme::EMPTY_PACKAGE, Kind::Package, root, Flags::default())
+        })
     }
 
     /// The value `_root_` whose module class is the root (dotty's `RootPackage`).
     pub fn root_package(&mut self) -> SymbolId {
         let root = self.u.root();
         let made = &mut self.made.root_package;
-        *made.get_or_insert_with(|| local(&mut self.u, "_root_", Kind::Package, root, Flags::default()))
+        *made.get_or_insert_with(|| local(&mut self.u, nme::ROOT_PKG, Kind::Package, root, Flags::default()))
     }
 
     pub fn companion_module(&mut self, s: Option<SymbolId>) -> Option<SymbolId> {
@@ -53,14 +56,14 @@ impl Host {
     }
 
     pub fn any_ref_alias(&mut self) -> Fallible<SymbolId> {
-        let aliases = self.u.package("scala").and_then(|p| self.u.decl(p, "AnyRef").ok());
+        let aliases = self.u.package(nme::SCALA).and_then(|p| self.u.decl(p, "AnyRef").ok());
         let alias = aliases.into_iter().flatten().find(|&a| self.u.symbol(a).kind == Kind::Type);
         alias.ok_or("a library without scala.AnyRef")
     }
 
     pub fn predef_class_of(&mut self) -> Fallible<SymbolId> {
-        let predef = self.u.package("scala").and_then(|p| self.u.module_class_in(p, "Predef"));
-        let class_of = predef.and_then(|c| self.u.decl(c, "classOf").ok()?.first().copied());
+        let predef = self.u.package(nme::SCALA).and_then(|p| self.u.module_class_in(p, "Predef"));
+        let class_of = predef.and_then(|c| self.u.decl(c, nme::CLASS_OF).ok()?.first().copied());
         class_of.ok_or("a library without scala.Predef.classOf")
     }
 
@@ -78,8 +81,8 @@ impl Host {
     pub fn name(&self, s: SymbolId) -> String {
         let name = self.u.symbol(s).name.to_string();
         match name.is_empty() {
-            true if s == self.u.root() => "<root>".into(),
-            true => "<empty>".into(),
+            true if s == self.u.root() => nme::ROOT.into(),
+            true => nme::EMPTY_PACKAGE.into(),
             false => name,
         }
     }
@@ -97,7 +100,7 @@ impl Host {
         }
         match encl == self.u.root()
             || self.u.symbol(encl).name.is_empty()
-            || self.u.symbol(encl).name == "<empty>"
+            || self.u.symbol(encl).name == nme::EMPTY_PACKAGE
         {
             true => format!("{filler}{}", sym.name),
             false => format!("{}.{filler}{}", self.full_name(encl), sym.name),

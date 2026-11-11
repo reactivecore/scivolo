@@ -6,6 +6,7 @@
 use super::Desugar;
 use crate::ast::tree::GenCheckMode;
 use crate::ast::{Attrs, NodeId, TName, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     /// The expansion of a `for` with `enums` and `body`; an empty tree for erroneous input.
@@ -49,7 +50,7 @@ impl Desugar<'_> {
                 }
             }
             Tree::GenFrom { pat, check_mode, .. } if !rest.is_empty() => {
-                let with_filter = self.term("withFilter");
+                let with_filter = self.term(nme::WITH_FILTER);
                 let fun = self.rhs_select(first, with_filter);
                 let lambda = self.make_lambda(first, rest[0]);
                 let filtered = self.apply(fun, &[lambda]);
@@ -111,7 +112,7 @@ impl Desugar<'_> {
         self.ast.add_attrs(tuple, Attrs::FOR_ARTIFACT);
         let stats = self.list(&pdefs);
         let block = self.ast.node(Tree::Block { stats, expr: Some(tuple) });
-        let (map1, flat_map1) = (self.term("map"), self.term("flatMap"));
+        let (map1, flat_map1) = (self.term(nme::MAP), self.term(nme::FLAT_MAP));
         let rhs1 = self.make_for(map1, flat_map1, &[gen1], block);
         let allpats = self.make_tuple(&[&[pat][..], &pats].concat());
         let vfrom1 =

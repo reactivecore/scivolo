@@ -6,6 +6,7 @@
 use super::{Desugar, Owner};
 use crate::ast::flags::{self, FlagSet};
 use crate::ast::{NodeId, TName, Tree};
+use names::nme;
 
 /// The kinds of enum cases, in order (dotty's `CaseKind`).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -49,7 +50,7 @@ impl Desugar<'_> {
         match (class, self.scope.terms) {
             (None, 0) => name.to_string(),
             (Some(c), 0) => format!("{c}.{name}"),
-            (c, t) => format!("{}.{}{name}", c.unwrap_or("<empty>"), "_$".repeat(t as usize)),
+            (c, t) => format!("{}.{}{name}", c.unwrap_or(nme::EMPTY_PACKAGE), "_$".repeat(t as usize)),
         }
     }
 

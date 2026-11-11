@@ -5,6 +5,7 @@
 
 use crate::ast::{NodeId, Tree};
 use crate::parse::Parser;
+use names::nme;
 
 impl Parser<'_> {
     /// `new tpt()`.
@@ -15,14 +16,14 @@ impl Parser<'_> {
     /// `new scala.annotation.internal.<name>()`.
     pub fn internal_annot(&mut self, name: &str) -> NodeId {
         let name = self.type_name(name);
-        let tpt = self.scala_path(&["annotation", "internal"], name);
+        let tpt = self.scala_path(&[nme::ANNOTATION, nme::INTERNAL], name);
         self.new_annot(tpt)
     }
 
     /// `new scala.annotation.internal.onlyCapability[qid]()`.
     pub fn only_annot(&mut self, qid: NodeId) -> NodeId {
-        let name = self.type_name("onlyCapability");
-        let tycon = self.scala_path(&["annotation", "internal"], name);
+        let name = self.type_name(nme::ONLY_CAPABILITY);
+        let tycon = self.scala_path(&[nme::ANNOTATION, nme::INTERNAL], name);
         let args = self.ast.list(&[qid]);
         let tpt = self.ast.node(Tree::AppliedTypeTree { tpt: tycon, args });
         self.new_annot(tpt)
@@ -30,22 +31,22 @@ impl Parser<'_> {
 
     /// `new scala.caps.internal.consume()`.
     pub fn consume_annot(&mut self) -> NodeId {
-        let name = self.type_name("consume");
-        let tpt = self.scala_path(&["caps", "internal"], name);
+        let name = self.type_name(nme::CONSUME);
+        let tpt = self.scala_path(&[nme::CAPS, nme::INTERNAL], name);
         self.new_annot(tpt)
     }
 
     /// `parent @retains[refs]`, or `parent @retainsCap` without `refs` (dotty's `makeRetaining`).
     pub fn make_retaining(&mut self, parent: NodeId, refs: Option<&[NodeId]>) -> NodeId {
-        let annot = if refs.is_some() { "retains" } else { "retainsCap" };
+        let annot = if refs.is_some() { nme::RETAINS } else { nme::RETAINS_CAP };
         self.ast.make_retaining(self.s.names, parent, refs.unwrap_or_default(), annot)
     }
 
     /// `{caps.any} tp`, the result of an impure by-name type `=> tp` (dotty's
     /// `ImpureByNameTypeTree`).
     pub fn impure_result(&mut self, tp: NodeId) -> NodeId {
-        let any = self.term("any");
-        let root = self.scala_path(&["caps"], any);
+        let any = self.term(nme::ANY);
+        let root = self.scala_path(&[nme::CAPS], any);
         let at = self.ast.span(tp).start_pos();
         self.ast.with_span(root, at);
         let refs = self.ast.list(&[root]);
@@ -54,8 +55,8 @@ impl Parser<'_> {
 
     /// `scala.caps.CapSet`.
     fn cap_set(&mut self) -> NodeId {
-        let name = self.type_name("CapSet");
-        self.scala_path(&["caps"], name)
+        let name = self.type_name(nme::CAP_SET);
+        self.scala_path(&[nme::CAPS], name)
     }
 
     /// `CapSet @retains[refs]` (dotty's `concreteCapsType`).

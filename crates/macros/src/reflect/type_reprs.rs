@@ -5,6 +5,7 @@
 use super::Fallible;
 use crate::host::Host;
 use crate::show_code::printed::Printed;
+use names::nme;
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
 
@@ -151,7 +152,10 @@ impl Host {
             if let Some(m) = self.u.method(t)
                 && let Some(&(_, p)) = m.params.iter().find(|&&(n, _)| self.u.name(n) == name)
             {
-                let repeated = self.u.class_symbol(p).is_some_and(|c| self.u.symbol(c).name == "<repeated>");
+                let repeated = self
+                    .u
+                    .class_symbol(p)
+                    .is_some_and(|c| self.u.symbol(c).name == nme::REPEATED_PARAM_CLASS);
                 return match (repeated, poly) {
                     (true, true) => Err("memberType of a repeated parameter of a polymorphic method"),
                     _ => Ok(repeated.then_some(p)),

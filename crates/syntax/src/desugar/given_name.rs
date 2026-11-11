@@ -6,6 +6,7 @@ use super::Desugar;
 use crate::ast::children::Child;
 use crate::ast::{Ast, NodeId, TName, Tree};
 use crate::names::Names;
+use names::nme;
 
 impl Desugar<'_> {
     /// `given_` followed by the name of type `tpt`, or of the parents of template `tpt`.
@@ -20,7 +21,7 @@ impl Desugar<'_> {
                         tpt,
                         "anonymous instance must implement a type or have at least one extension method",
                     );
-                    "<error>".to_string()
+                    nme::ERROR.to_string()
                 } else {
                     let parents: Vec<String> = parents.iter().map(|&p| names.of(p, true)).collect();
                     format!("given_{}", parents.join("_"))
@@ -54,7 +55,7 @@ impl TypeNames<'_> {
             _ => String::new(),
         };
         match *self.ast.tree(t) {
-            Tree::Select { qualifier, name } if !name.is_type && self.text(name) == "<init>" => {
+            Tree::Select { qualifier, name } if !name.is_type && self.text(name) == nme::CONSTRUCTOR => {
                 self.first_child_name(qualifier, follow_args)
             }
             Tree::Ident { name } | Tree::Select { name, .. } if name.is_type => self.text(name).to_string(),

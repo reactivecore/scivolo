@@ -10,6 +10,7 @@ use crate::token::Token;
 use crate::token::sets::{
     CAN_START_CAPTURE_SET_CONTENTS_TOKENS, CAN_START_INFIX_TYPE_TOKENS, DCL_INTRO_TOKENS,
 };
+use names::nme;
 
 impl Parser<'_> {
     /// Whether the current token is the pure arrow `name` (`->` or `?->`) under pure functions.
@@ -59,7 +60,7 @@ impl Parser<'_> {
         }
         let start = self.start_offset(r);
         self.next();
-        let annot = self.internal_annot("reachCapability");
+        let annot = self.internal_annot(nme::REACH_CAPABILITY);
         let t = self.ast.node(Tree::Annotated { arg: r, annot });
         self.at_span1(start, t)
     }
@@ -87,7 +88,7 @@ impl Parser<'_> {
         let start = self.start_offset(r);
         self.next();
         self.next();
-        let annot = self.internal_annot("readOnlyCapability");
+        let annot = self.internal_annot(nme::READ_ONLY_CAPABILITY);
         let t = self.ast.node(Tree::Annotated { arg: r, annot });
         self.at_span1(start, t)
     }

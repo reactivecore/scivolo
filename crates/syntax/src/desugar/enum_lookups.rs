@@ -10,6 +10,7 @@ use crate::ast::flags;
 use crate::ast::tree::MatchKind;
 use crate::ast::{Attrs, NodeId, Tree};
 use crate::names::to_utf16;
+use names::nme;
 
 impl Desugar<'_> {
     /// The lookup methods of an enum whose cases range from kind `min` to `max`, with the value
@@ -40,18 +41,18 @@ impl Desugar<'_> {
     fn enum_scaffolding(&mut self, values: &[NodeId]) -> Vec<NodeId> {
         let raw = self.raw_enum_ref();
         let array = self.array_literal(values, raw);
-        let values_name = self.term("$values");
+        let values_name = self.term(nme::DOLLAR_VALUES);
         let tpt = self.type_tree();
         let mods = self.mods(flags::PRIVATE.or(flags::SYNTHETIC));
         let private_values = self.ast.node(Tree::ValDef { name: values_name, tpt, rhs: Some(array), mods });
         let array_type = self.sym_ref("scala.Array", true);
         let args = self.list(&[raw]);
         let values_type = self.ast.node(Tree::AppliedTypeTree { tpt: array_type, args });
-        let clone = self.values_dot("clone");
+        let clone = self.values_dot(nme::CLONE);
         let mods = self.mods(flags::SYNTHETIC);
-        let name = self.term("values");
+        let name = self.term(nme::VALUES);
         let values_def = self.method(name, &[], Some(values_type), clone, mods);
-        let name_param = self.term("$name");
+        let name_param = self.term(nme::NAME_DOLLAR);
         let default =
             self.lookup_error("name", |d| d.ident(name_param), "java.lang.IllegalArgumentException");
         let mut cases: Vec<NodeId> = values
@@ -66,10 +67,10 @@ impl Desugar<'_> {
         let selector = self.ident(name_param);
         let cases = self.list(&cases);
         let body = self.ast.node(Tree::Match { selector: Some(selector), cases, kind: MatchKind::Plain });
-        let param = self.enum_param("$name", "java.lang.String");
+        let param = self.enum_param(nme::NAME_DOLLAR, "java.lang.String");
         let clause = self.list(&[param]);
         let mods = self.mods(flags::SYNTHETIC);
-        let name = self.term("valueOf");
+        let name = self.term(nme::VALUE_OF);
         let value_of = self.method(name, &[clause], None, body, mods);
         vec![private_values, values_def, value_of]
     }
@@ -78,7 +79,7 @@ impl Desugar<'_> {
     fn enum_value_creator(&mut self) -> NodeId {
         let constr = self.empty_constructor();
         let class = self.enum_class_ref();
-        let (runtime, enum_value) = (self.term("runtime"), self.type_name("EnumValue"));
+        let (runtime, enum_value) = (self.term(nme::RUNTIME), self.type_name(nme::ENUM_VALUE));
         let runtime = self.scala_dot(runtime);
         let enum_value = self.select(runtime, enum_value);
         let parents = self.list(&[class, enum_value]);
@@ -87,22 +88,22 @@ impl Desugar<'_> {
         let imp = self.ast.node(imp);
         self.ast.add_attrs(imp, Attrs::SINGLETON_MIRROR);
         let creator = self.ast.node(Tree::New { tpt: imp });
-        let ordinal = self.enum_param("_$ordinal", "scala.Int");
-        let name = self.enum_param("$name", "java.lang.String");
+        let ordinal = self.enum_param(nme::ORDINAL_DOLLAR_, "scala.Int");
+        let name = self.enum_param(nme::NAME_DOLLAR, "java.lang.String");
         let clause = self.list(&[ordinal, name]);
         let mods = self.mods(flags::PRIVATE.or(flags::SYNTHETIC));
-        let name = self.term("$new");
+        let name = self.term(nme::DOLLAR_NEW);
         self.method(name, &[clause], None, creator, mods)
     }
 
     /// `def fromOrdinal(ordinal: Int): E`, looking the value up in `$values` or among `values`,
     /// or throwing without cached values.
     fn lookup_by_ordinal(&mut self, cached: bool, is_enumeration: bool, values: &[(u32, NodeId)]) -> NodeId {
-        let ordinal_name = self.term("ordinal");
-        let param = self.enum_param("ordinal", "scala.Int");
+        let ordinal_name = self.term(nme::ORDINAL);
+        let param = self.enum_param(nme::ORDINAL, "scala.Int");
         let raw = self.raw_enum_ref();
         let ordinal = self.ident(ordinal_name);
-        let to_string = self.term("toString");
+        let to_string = self.term(nme::TO_STRING);
         let body = if !cached {
             let (_, throw) = self.lookup_throw(
                 "ordinal",
@@ -117,7 +118,7 @@ impl Desugar<'_> {
                 "java.util.NoSuchElementException",
             );
             if is_enumeration {
-                let apply = self.values_dot("apply");
+                let apply = self.values_dot(nme::APPLY);
                 let expr = self.apply(apply, &[ordinal]);
                 let cases = self.list(&[default]);
                 self.ast.node(Tree::Try { expr, cases, finalizer: None })
@@ -136,7 +137,7 @@ impl Desugar<'_> {
         };
         let clause = self.list(&[param]);
         let mods = self.mods(flags::SYNTHETIC);
-        let name = self.term("fromOrdinal");
+        let name = self.term(nme::FROM_ORDINAL);
         self.method(name, &[clause], Some(raw), body, mods)
     }
 
@@ -155,7 +156,7 @@ impl Desugar<'_> {
         let full = self.enum_class().map_or(String::new(), |c| self.classes[c].full_name.clone());
         let text = format!("enum {full} has no case with {what}: ");
         let lit = self.literal(Constant::String(to_utf16(&text).into()));
-        let plus = self.term("+");
+        let plus = self.term(nme::ADD);
         let plus = self.select(lit, plus);
         let arg = arg(self);
         let msg = self.apply(plus, &[arg]);
@@ -163,13 +164,13 @@ impl Desugar<'_> {
         let nu = self.make_new(tpt);
         let nu = self.apply(nu, &[msg]);
         let throw = self.ast.node(Tree::Throw { expr: nu });
-        let wildcard = self.term("_");
+        let wildcard = self.term(nme::WILDCARD);
         (self.ident(wildcard), throw)
     }
 
     /// `$values.name`.
     fn values_dot(&mut self, name: &str) -> NodeId {
-        let values = self.term("$values");
+        let values = self.term(nme::DOLLAR_VALUES);
         let values = self.ident(values);
         let name = self.term(name);
         self.select(values, name)

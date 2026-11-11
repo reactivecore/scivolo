@@ -3,6 +3,7 @@
 //! Definitions, parameters and patterns of `Printer.TreeCode`.
 
 use super::{Code, REFUSED, Shown};
+use names::nme;
 use tasty::SymbolId;
 use tasty::tags::{
     CASEaccessor, ERASED, GIVEN, IMPLICIT, LAZY, LOCAL, MUTABLE, OBJECT, OVERRIDE, PARAMsetter,
@@ -37,7 +38,7 @@ impl Code<'_> {
                 }
             }
             T::DefDef { name, paramss, tpt, rhs } => {
-                let constructor = self.name(name) == "<init>";
+                let constructor = self.name(name) == nme::CONSTRUCTOR;
                 self.modifiers(s, true);
                 let name = if constructor { "this".to_owned() } else { self.def_name(s, &self.name(name)) };
                 self.keyword("def ");
@@ -127,7 +128,7 @@ impl Code<'_> {
                 self.push("erased ");
             }
             let owner = s.and_then(|s| self.h.u.symbol(s).owner);
-            if let Some(ctor) = owner.filter(|&o| self.h.u.symbol(o).name == "<init>") {
+            if let Some(ctor) = owner.filter(|&o| self.h.u.symbol(o).name == nme::CONSTRUCTOR) {
                 let cls = self.h.u.symbol(ctor).owner.ok_or(REFUSED)?;
                 let decls = self.h.u.symbol(cls).decls.clone();
                 let accessor = decls.into_iter().find(|&d| {

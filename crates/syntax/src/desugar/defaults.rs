@@ -8,6 +8,7 @@ use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::tree::Clauses;
 use crate::ast::{List, NodeId, Tree};
+use names::{name_kinds, nme};
 
 impl Desugar<'_> {
     /// Method `meth` (dotty's `defDef`): evidence for its context bounds, and a getter for each
@@ -34,8 +35,12 @@ impl Desugar<'_> {
                 continue;
             }
             let getter_paramss = self.getter_paramss(&clauses, n);
-            let base = if self.text(name) == "<init>" { "$lessinit$greater" } else { self.text(name) };
-            let getter_name = self.term(&format!("{base}$default${}", n + 1));
+            let base = if self.text(name) == nme::CONSTRUCTOR {
+                name_kinds::DEFAULT_GETTER_INIT
+            } else {
+                self.text(name)
+            };
+            let getter_name = self.term(&name_kinds::default_getter(base, n + 1));
             let m = self.ast.modifiers(mods);
             let access = m.flags.and(flags::ACCESS_FLAGS.or(flags::SYNTHETIC));
             let inline = self.ast.modifiers(pmods).flags.and(flags::INLINE);

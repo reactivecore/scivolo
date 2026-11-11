@@ -10,6 +10,7 @@ use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::tree::DerivedKind;
 use crate::ast::{NodeId, TName, Tree};
+use names::nme;
 
 pub struct ClassParts {
     pub cdef: NodeId,
@@ -156,7 +157,7 @@ impl Desugar<'_> {
         let mut body = Vec::new();
         for stat in self.ast.items(stats).to_vec() {
             body.push(match *self.ast.tree(stat) {
-                Tree::DefDef { name, .. } if self.text(name) == "<init>" => {
+                Tree::DefDef { name, .. } if self.text(name) == nme::CONSTRUCTOR => {
                     let (ctor, getters) = self.expand_constructor(stat, &constr_tparams, constr1);
                     if !getters.is_empty() {
                         default_getters = getters;

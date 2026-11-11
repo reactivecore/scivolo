@@ -3,6 +3,7 @@
 //! The parents of class definitions in `Printer.TreeCode`.
 
 use super::{Code, REFUSED, Shown};
+use names::nme;
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Code<'_> {
@@ -18,8 +19,8 @@ impl Code<'_> {
             }
             T::Select { qualifier, name } if matches!(&*self.name(name), "Product" | "Serializable") => {
                 matches!(self.tree_of(qualifier), T::Select { qualifier: root, name }
-                    if self.name(name) == "scala"
-                        && matches!(self.tree_of(root), T::Ident { name } if self.name(name) == "_root_"))
+                    if self.name(name) == nme::SCALA
+                        && matches!(self.tree_of(root), T::Ident { name } if self.name(name) == nme::ROOT_PKG))
             }
             _ => false,
         }

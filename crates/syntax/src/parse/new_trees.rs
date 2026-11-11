@@ -5,12 +5,13 @@
 
 use super::Parser;
 use crate::ast::{NodeId, TName, Tree};
+use names::nme;
 
 impl Parser<'_> {
     /// `Select(New(tpt), <init>)` (dotty's `wrapNew`).
     pub fn wrap_new(&mut self, tpt: NodeId) -> NodeId {
         let new = self.ast.node(Tree::New { tpt });
-        let init = self.term("<init>");
+        let init = self.term(nme::CONSTRUCTOR);
         self.ast.node(Tree::Select { qualifier: new, name: init })
     }
 
@@ -22,7 +23,7 @@ impl Parser<'_> {
             _ => (tpt, None),
         };
         let new = self.ast.node(Tree::New { tpt: tycon });
-        let init = self.term("<init>");
+        let init = self.term(nme::CONSTRUCTOR);
         let mut fun = self.ast.node(Tree::Select { qualifier: new, name: init });
         if let Some(targs) = targs {
             fun = self.ast.node(Tree::TypeApply { fun, args: targs });

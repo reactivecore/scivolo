@@ -7,6 +7,7 @@ use crate::ast::{Attrs, NodeId, Span, Tree, flags};
 use crate::diag::rewrite_notice;
 use crate::token::Token;
 use crate::token::sets::LITERAL_TOKENS;
+use names::nme;
 
 impl Parser<'_> {
     pub fn new_line_opt(&mut self) {
@@ -147,7 +148,7 @@ impl Parser<'_> {
             | Tree::TypeDef { name, mods, .. }
             | Tree::ModuleDef { name, mods, .. } => {
                 if !self.s.names.text(name.name).is_empty() {
-                    if self.s.names.text(name.name) == "<init>" {
+                    if self.s.names.text(name.name) == nme::CONSTRUCTOR {
                         tok == Token::This
                     } else {
                         ident_is(name.name)

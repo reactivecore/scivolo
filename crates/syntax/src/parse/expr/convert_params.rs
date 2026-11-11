@@ -9,6 +9,7 @@ use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, TName, Tree};
 use crate::diag::rewrite_notice;
 use crate::token::Token;
+use names::nme;
 
 impl Parser<'_> {
     /// The parameters of a lambda whose parameter part was parsed as expression `t`.
@@ -67,7 +68,7 @@ impl Parser<'_> {
     fn not_a_parameter(&mut self, t: NodeId, mods: Modifiers) -> NodeId {
         let span = self.ast.span(t);
         self.syntax_error_span("not a legal formal parameter for a function literal", span);
-        let name = self.term("<error>");
+        let name = self.term(nme::ERROR);
         self.make_parameter(name, t, mods, false)
     }
 

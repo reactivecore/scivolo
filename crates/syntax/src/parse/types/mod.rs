@@ -17,6 +17,7 @@ use crate::ast::{NodeId, Span, Tree};
 use crate::token::Token;
 use crate::token::sets::CAN_START_INFIX_TYPE_TOKENS;
 use function::FunType;
+use names::nme;
 
 impl Parser<'_> {
     /// `typ`, but a wildcard is an error and becomes `scala.Any`.
@@ -57,7 +58,7 @@ impl Parser<'_> {
                     let arrow = self.s.skip_token();
                     let body = self.toplevel_typ();
                     self.make_poly_function(tparams, body, "type", start, arrow, |p, _| {
-                        let name = p.type_name("<error>");
+                        let name = p.type_name(nme::ERROR);
                         p.ast.node(Tree::Ident { name })
                     })
                 } else {

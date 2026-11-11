@@ -11,6 +11,7 @@ use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::tree::ModsId;
 use crate::ast::{Attrs, NodeId, TName, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     /// The definitions of `variables` from `lowered`, the value of `pat = rhs`.
@@ -87,7 +88,7 @@ impl Desugar<'_> {
             let name = self.term(&format!("_{}", idx + 1));
             self.select(tmp, name)
         } else {
-            let apply = self.term("apply");
+            let apply = self.term(nme::APPLY);
             let fun = self.select(tmp, apply);
             let index = self.literal(Constant::Int(idx as i32));
             self.apply(fun, &[index])

@@ -4,6 +4,7 @@
 //! Colours of an input as dotty's `SyntaxHighlighting`: a token pass, the comments, then the
 //! definitions and types of the parsed statements.
 
+use names::nme;
 use std::ops::Range;
 use std::panic::catch_unwind;
 use syntax::ast::tree::ModsId;
@@ -97,7 +98,7 @@ impl Walk<'_> {
     fn visit(&self, id: NodeId, colors: &mut [&'static str]) {
         let (ast, span) = (self.ast, self.ast.span(id));
         match ast.tree(id) {
-            t if self.name(t).is_some_and(|n| matches!(self.text(n), "<error>" | "<init>")) => {}
+            t if self.name(t).is_some_and(|n| matches!(self.text(n), nme::ERROR | nme::CONSTRUCTOR)) => {}
             Tree::ValDef { name, mods, .. }
             | Tree::DefDef { name, mods, .. }
             | Tree::TypeDef { name, mods, .. }

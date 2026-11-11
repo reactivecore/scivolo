@@ -4,6 +4,7 @@
 
 use super::{Ast, Attrs, NodeId, TName, Tree};
 use crate::names::Names;
+use names::nme;
 
 impl Ast {
     /// `parent @<annot>[r1 | ... | rN]` for capture-set annotation class `annot` of
@@ -18,11 +19,11 @@ impl Ast {
     ) -> NodeId {
         let mut name = |text: &str, is_type| TName { name: names.intern(text), is_type };
         let (root, scala, annotation) =
-            (name("_root_", false), name("scala", false), name("annotation", false));
-        let (constr, init) = (name(annot, true), name("<init>", false));
+            (name(nme::ROOT_PKG, false), name(nme::SCALA, false), name(nme::ANNOTATION, false));
+        let (constr, init) = (name(annot, true), name(nme::CONSTRUCTOR, false));
         let (nothing, or) = (name("scala.Nothing", true), name("scala.|", true));
         let trefs = match refs {
-            _ if annot == "retainsCap" => None,
+            _ if annot == nme::RETAINS_CAP => None,
             [] => Some(self.node(Tree::TypedSplice { sym: nothing })),
             _ => {
                 let singletons: Vec<NodeId> =

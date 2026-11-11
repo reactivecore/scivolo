@@ -5,13 +5,14 @@
 
 use super::{Answer, Fallible};
 use crate::host::Host;
+use names::nme;
 use tasty::tags::{CASE, CASEaccessor, ENUM, SEALED};
 use tasty::{Kind, SymbolId, Type};
 use typer::tpd::Tree as T;
 
 impl Host {
     pub fn primary_constructor(&mut self, s: SymbolId) -> Option<SymbolId> {
-        self.u.is_class(s).then(|| self.u.decl(s, "<init>").ok()?.first().copied()).flatten()
+        self.u.is_class(s).then(|| self.u.decl(s, nme::CONSTRUCTOR).ok()?.first().copied()).flatten()
     }
 
     pub fn case_fields(&mut self, s: SymbolId) -> Vec<SymbolId> {
@@ -59,7 +60,7 @@ impl Host {
         }
         let mut params = self.u.symbol(s).decls.clone();
         params.retain(|&p| matches!(self.u.symbol(p).kind, Kind::Param | Kind::TypeParam));
-        let constructor = self.u.symbol(s).name == "<init>";
+        let constructor = self.u.symbol(s).name == nme::CONSTRUCTOR;
         let primary =
             self.u.symbol(s).owner.filter(|_| constructor).and_then(|c| self.primary_constructor(c));
         let primary = primary.filter(|&p| p != s);
@@ -95,7 +96,8 @@ impl Host {
         for base in self.u.linearization(class) {
             for d in self.u.symbol(base).decls.clone() {
                 let sym = self.u.symbol(d);
-                let member = sym.kind.is_term() && sym.name != "<init>" && sym.name != "$init$";
+                let member =
+                    sym.kind.is_term() && sym.name != nme::CONSTRUCTOR && sym.name != nme::TRAIT_CONSTRUCTOR;
                 if !member || name.is_some_and(|n| tasty::decode(n) != sym.name) {
                     continue;
                 }

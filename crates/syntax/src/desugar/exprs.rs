@@ -7,6 +7,7 @@ use super::{Desugar, Mode};
 use crate::ast::constant::Constant;
 use crate::ast::span::Span;
 use crate::ast::{Attrs, List, NodeId, TName, Tree};
+use names::nme;
 
 /// The largest arity of `scala.TupleN` (dotty's `MaxTupleArity`).
 pub const MAX_TUPLE_ARITY: usize = 22;
@@ -28,18 +29,18 @@ impl Desugar<'_> {
             Tree::PostfixOp { od, op } => self.postfix_op(od, op),
             Tree::PrefixOp { op, od } => {
                 let Tree::Ident { name } = *self.ast.tree(op) else { unreachable!("an operator") };
-                let text = format!("unary_{}", self.text(name));
+                let text = format!("{}{}", nme::UNARY_PREFIX, self.text(name));
                 let name = if self.mode == Mode::Type { self.type_name(&text) } else { self.term(&text) };
                 self.select(od, name)
             }
             Tree::ForDo { enums, body } => {
-                let foreach = self.term("foreach");
+                let foreach = self.term(nme::FOREACH);
                 let enums = self.ast.items(enums).to_vec();
                 let t = self.make_for(foreach, foreach, &enums, body);
                 if matches!(self.ast.tree(t), Tree::Empty) { id } else { t }
             }
             Tree::ForYield { enums, expr } => {
-                let (map, flat_map) = (self.term("map"), self.term("flatMap"));
+                let (map, flat_map) = (self.term(nme::MAP), self.term(nme::FLAT_MAP));
                 let enums = self.ast.items(enums).to_vec();
                 let t = self.make_for(map, flat_map, &enums, expr);
                 if matches!(self.ast.tree(t), Tree::Empty) { id } else { t }
@@ -90,7 +91,7 @@ impl Desugar<'_> {
             let args = self.list(&[od]);
             let seq = self.ast.node(Tree::AppliedTypeTree { tpt: seq, args });
             let repeated = self.new_annot("scala.annotation.internal.Repeated");
-            let init = self.term("<init>");
+            let init = self.term(nme::CONSTRUCTOR);
             let init = self.select(repeated, init);
             let annot = self.apply(init, &[]);
             self.ast.node(Tree::Annotated { arg: seq, annot })
