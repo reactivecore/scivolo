@@ -129,9 +129,12 @@ impl Gen<'_, '_> {
     /// The source line of `t`, if it has a position.
     pub fn line_of(&self, t: TNodeId) -> Option<u16> {
         let span = self.l.tpd.span(t);
-        span.exists().then(|| {
-            let (file, at) = self.l.sources.locate(span.point());
-            u16::try_from(file.offset_to_line(at) + 1).unwrap_or(u16::MAX)
-        })
+        span.exists().then(|| self.line_at(span.point()))
+    }
+
+    /// The source line of unit offset `offset`.
+    pub fn line_at(&self, offset: u32) -> u16 {
+        let (file, at) = self.l.sources.locate(offset);
+        u16::try_from(file.offset_to_line(at) + 1).unwrap_or(u16::MAX)
     }
 }
