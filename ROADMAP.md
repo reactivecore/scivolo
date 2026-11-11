@@ -65,7 +65,7 @@ inlining (ADR 0006).
 
 Exit criterion (met): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`, 2026-11-05): 1,476 of 1,711 pass; 30 stop at the typer, 32 fail in
+(`just dotty-lower-report`, 2026-11-11): 1,496 of 1,711 pass; 10 stop at the typer, 32 fail in
 the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -100,8 +100,8 @@ libraries work. dotty's `tests/run-macros`: 308 of 321 pass
 ## Phase 5 — precompiled code and wider reach
 
 - **Native executables** (done, #113, [ADR 0028](docs/adr/0028-native-executables-via-cranelift.md)):
-  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 218 of 226
-  test programs from source (2026-10-29) (`just aot-src-all`).
+  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 308 of 318
+  test programs from source (2026-11-11) (`just aot-src-all`).
 - **Third-party libraries** (done): `--dep` loads `_native0.5_3` jars as NIR plus TASTy, fetched
   by Coursier.
 - **AOT for libraries.** Compile hot stdlib NIR ahead of time, callable from interpreted code.
@@ -124,7 +124,7 @@ libraries work. dotty's `tests/run-macros`: 308 of 321 pass
 
 Compatibility first, in order of the tests it unblocks; startup comes last and must not get
 slower meanwhile:
-1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 11 typer
+1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 10 typer
    refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 478 in
    `tests/pos`; implicit candidates with undetermined type variables (#123).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the 13 failing
@@ -134,7 +134,7 @@ slower meanwhile:
    0.9.6, fastparse 3.1.1, mainargs 0.7.8, upickle 4.4.3 (with upickle-core, upickle-implicits,
    ujson and upack) and os-lib 0.11.9-M8; 1,777 of 1,786 NIR files are the same as scala-cli's
    (3 differ only in var order; upickle's own 35 have no scala-cli oracle, as Scala 3.9 reports
-   cyclic references in `Api.scala`); 3 differ also from scala-cli compiling the file alone
+   cyclic references in `Api.scala`); 2 differ also from scala-cli compiling the file alone
    (docs/conformance.md). Their `tests/aot` programs pass on our NIR.
 4. **Lowering and inlining gaps** ([research 42](docs/research/42-lowering-leftovers-after-1029.md)):
    done; `tests/run` has no lowering refusals left.
@@ -152,7 +152,7 @@ slower meanwhile:
    | clib | 21 of 21 | 114 | | 1 |
    | posixlib | 67 of 67 | 270 | | |
    | windowslib | 34 | 130 | | |
-   | scalalib | 645 of 649 | 4,272 | 17 | 18 |
+   | scalalib | 645 of 649 | 4,279 | 17 | 11 |
 
    scalalib is compared with `just lib-oracle`'s build of it. clib, posixlib and scalalib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
    `unsafe/package{,$}` in nativelib differ only as a joint compilation with
