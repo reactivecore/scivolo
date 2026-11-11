@@ -217,13 +217,10 @@ impl Translator<'_, '_> {
     /// `WildcardPattern`): of identifiers, `_` and variable names not back-quoted.
     fn is_wildcard(&self, pat: TNodeId) -> bool {
         match *self.l.tpd.tree(pat) {
-            Tree::Ident { name }
-                if matches!(self.l.names.text(name.name), nme::WILDCARD | nme::WILDCARD_STAR) =>
-            {
-                true
-            }
             Tree::Ident { name } => {
-                is_var_pattern_name(self.l.names.text(name.name)) && !self.l.tpd.is_backquoted(pat)
+                let text = self.l.names.text(name.name);
+                matches!(text, nme::WILDCARD | nme::WILDCARD_STAR)
+                    || is_var_pattern_name(text) && !self.l.tpd.is_backquoted(pat)
             }
             Tree::Bind { name, body } => {
                 self.l.names.text(name.name) == nme::WILDCARD && self.is_wildcard(body)
