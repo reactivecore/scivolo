@@ -13,17 +13,19 @@ const STRING_CONTEXT: &str = "scala.StringContext";
 #[derive(Clone, Copy)]
 pub enum Known {
     Array,
-    /// The `Array` object, its value, and its class.
+    /// The `Array` object, its value.
     ArrayModule,
+    /// The class of the `Array` object.
     ArrayModuleClass,
     /// The class of the `ClassTag` object.
     ClassTagModuleClass,
     /// The class of the `scala.runtime.ScalaRunTime` object.
     ScalaRunTimeClass,
     Enumeration,
-    /// `StringContext`, its object's value and the object's class.
     StringContext,
+    /// The `StringContext` object, its value.
     StringContextModule,
+    /// The class of the `StringContext` object.
     StringContextModuleClass,
     Repeated,
     PredefClass,
@@ -42,7 +44,7 @@ pub enum Known {
 }
 
 /// The number of `Known` symbols.
-pub const COUNT: usize = 19;
+pub const COUNT: usize = Known::ReflectiveSelectable as usize + 1;
 
 impl Known {
     /// Returns the full name and the kind of the symbol.
