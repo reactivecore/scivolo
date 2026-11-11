@@ -128,6 +128,8 @@ pub struct Lower<'a> {
     mixed_in_lazy_names: FxHashMap<(SymbolId, SymbolId), (String, String)>,
     /// The method each forwarder `Mixin` made calls, but for a JDK trait's.
     forwarded: FxHashMap<SymbolId, SymbolId>,
+    /// The JDK trait method each forwarder `Mixin` made calls.
+    jdk_forwarded: FxHashMap<SymbolId, SymbolId>,
     /// The span of each getter's right-hand side as `Getters` made it, its point at its start.
     getter_rhs: FxHashMap<SymbolId, Span>,
     /// The given aliases `UncacheGivenAliases` made methods, lazy values again once lowered.
@@ -292,6 +294,7 @@ impl<'a> Lower<'a> {
             specialized: FxHashSet::default(),
             mixed_in_lazy_names: FxHashMap::default(),
             forwarded: FxHashMap::default(),
+            jdk_forwarded: FxHashMap::default(),
             getter_rhs: FxHashMap::default(),
             uncached_givens: Vec::new(),
             outers: FxHashMap::default(),
@@ -354,6 +357,11 @@ impl<'a> Lower<'a> {
     /// The trait member that mixin accessor or forwarder `m` copies or calls.
     pub fn mixed_in_from(&self, m: SymbolId) -> Option<SymbolId> {
         self.mixed_from.get(&m).or_else(|| self.forwarded.get(&m)).copied()
+    }
+
+    /// The JDK trait method that forwarder `m` calls.
+    pub fn jdk_forwarded_from(&self, m: SymbolId) -> Option<SymbolId> {
+        self.jdk_forwarded.get(&m).copied()
     }
 
     /// Determines the member whose annotations `m` carries: the trait member of a mixin accessor

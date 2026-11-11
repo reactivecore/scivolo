@@ -143,22 +143,30 @@ impl Sig<'_> {
                 self.class_named(lo, "scala.Nothing") && self.class_named(hi, "scala.Any")
             })
         });
-        let dealiased = self.u.dealias(tycon);
-        let class = match *self.u.ty(dealiased) {
-            Type::Sym(_, s) => Some(s),
-            Type::TypeRef(..) => self.u.resolve_ref(dealiased),
-            _ => None,
-        };
         match unbounded {
-            true if class.is_some_and(|c| self.u.symbol(c).kind == Kind::Class) => {
-                self.jsig(tycon, false, Boxing::Unbox)
-            }
+            true if self.class_ref(tycon).is_some() => self.jsig(tycon, false, Boxing::Unbox),
             true => self.out.push('*'),
             false => {
                 let e = self.u.erase(tycon);
                 self.erased_sig(&e, Boxing::Box);
             }
         }
+    }
+
+    /// Whether `t` refers to the class of full name `name`.
+    pub fn class_named(&mut self, t: TypeId, name: &str) -> bool {
+        self.class_ref(t).is_some_and(|c| self.u.full_name(c) == name)
+    }
+
+    /// The class `t` refers to after dealiasing, none for a type parameter or member.
+    pub fn class_ref(&mut self, t: TypeId) -> Option<SymbolId> {
+        let t = self.u.dealias(t);
+        let s = match *self.u.ty(t) {
+            Type::Sym(_, s) => Some(s),
+            Type::TypeRef(..) => self.u.resolve_ref(t),
+            _ => None,
+        };
+        s.filter(|&s| self.u.symbol(s).kind == Kind::Class)
     }
 
     /// The name and bounds of method type parameter `i` of `binder`, if in scope.

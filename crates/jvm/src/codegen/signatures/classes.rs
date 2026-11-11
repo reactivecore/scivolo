@@ -39,6 +39,7 @@ pub fn class(u: &mut Universe, c: SymbolId, top: SymbolId) -> String {
 const MAX_BOUNDS: u32 = 32;
 
 impl Sig<'_> {
+    /// Whether the class `t` stands for is a trait.
     pub fn is_trait(&mut self, t: TypeId) -> bool {
         self.class_of(t, MAX_BOUNDS).is_some_and(|c| self.u.is_trait(c))
     }

@@ -27,7 +27,7 @@ struct Sig<'u> {
     sym0: SymbolId,
     /// The trait member a mixin forwarder `sym0` forwards to, else `sym0`.
     origin: SymbolId,
-    /// The value class of an extension method `sym0`, whose type parameters it takes first.
+    /// The value class of an extension method `sym0`, whose type parameters follow its own.
     extended: Option<SymbolId>,
     /// The top-level classes `sym0` is in, after and before local classes were lifted.
     tops: [SymbolId; 2],
@@ -107,11 +107,6 @@ impl<'u> Sig<'u> {
     fn result(&mut self, t: TypeId) {
         let unit = self.class_named(t, "scala.Unit");
         if unit || self.constructor { self.out.push('V') } else { self.jsig(t, false, Boxing::Unbox) }
-    }
-
-    fn class_named(&mut self, t: TypeId, name: &str) -> bool {
-        let t = self.u.dealias(t);
-        matches!(self.u.ty(t), Type::Sym(..) | Type::TypeRef(..)) && self.u.is_class_named(t, name)
     }
 
     fn erased_sig(&mut self, e: &Erased, boxing: Boxing) {

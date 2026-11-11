@@ -4,7 +4,7 @@
 
 use super::{Boxing, Sig};
 use crate::codegen::descriptors::primitive_box;
-use tasty::{Erased, Kind, SymbolId, Type, TypeId};
+use tasty::{Erased, SymbolId, TypeId};
 
 impl Sig<'_> {
     /// Value class `c` of underlying value `value` referred to by `t`, as the value's type seen
@@ -38,13 +38,6 @@ impl Sig<'_> {
 
     /// Whether `t` is a primitive class (dotty's `isPrimitiveValueType`).
     fn is_primitive(&mut self, t: TypeId) -> bool {
-        let t = self.u.dealias(t);
-        let class = match *self.u.ty(t) {
-            Type::Sym(_, s) => Some(s),
-            Type::TypeRef(..) => self.u.resolve_ref(t),
-            _ => None,
-        };
-        class.is_some_and(|c| self.u.symbol(c).kind == Kind::Class)
-            && matches!(self.u.erase(t), Erased::Prim(_) | Erased::Unit)
+        self.class_ref(t).is_some() && matches!(self.u.erase(t), Erased::Prim(_) | Erased::Unit)
     }
 }

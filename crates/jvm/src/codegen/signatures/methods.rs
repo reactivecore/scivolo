@@ -7,7 +7,7 @@ use names::nme;
 use tasty::{Type, TypeId};
 
 impl Sig<'_> {
-    /// A method type: type parameters at the top, of an extension method first its value
+    /// A method type: type parameters at the top, of an extension method then its value
     /// class's, parameters, result.
     pub fn method(&mut self, mut t: TypeId, top: bool) {
         let mut tparams = Vec::new();
@@ -44,7 +44,7 @@ impl Sig<'_> {
         if let Some(c) = self.extended.filter(|_| top) {
             let class_params = self.u.type_params(c).into_iter();
             let class_params = class_params.map(|p| (tasty::encode(&self.u.symbol(p).name), self.u.info(p)));
-            tparams.splice(0..0, class_params.collect::<Vec<_>>());
+            tparams.extend(class_params.collect::<Vec<_>>());
         }
         self.type_params(&tparams);
         self.out.push('(');

@@ -9,13 +9,12 @@ use super::descriptors::internal;
 use super::signatures::Member;
 use names::name_kinds;
 use tasty::tags::PRIVATE;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, TypeId};
 
 /// A forwarder to a default method of a Java interface.
 #[derive(Clone, Copy)]
 struct JavaForwarded {
-    /// The interface method, if the forwarder's type names its type parameters, else the
-    /// forwarder.
+    /// The interface method.
     target: SymbolId,
     /// The forwarder's type seen from its class.
     info: TypeId,
@@ -104,34 +103,16 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// The forwarder `sym` is to a default method of a Java interface its class `C` implements,
-    /// if it is one: its type refers to `this` of that interface (dotty's `mkMixinForwarderSym`).
+    /// The forwarder `sym` is to a default method of a JDK interface its class implements, if it
+    /// is one (dotty's `mkMixinForwarderSym`).
     fn java_forwarded(&mut self, sym: SymbolId) -> Option<JavaForwarded> {
-        let class = self.l.u.symbol(sym).owner.filter(|&o| self.l.u.is_class(o))?;
-        if self.mixed_origin(sym).is_some() {
-            return None;
-        }
-        let info = self.l.u.info(sym);
-        let (mut this, mut target) = (None, None);
-        self.l.u.map_type(info, &mut |u, t| {
-            match *u.ty(t) {
-                Type::This(c) => _ = this.get_or_insert(c),
-                Type::Sym(_, p) if u.symbol(p).kind == Kind::TypeParam => {
-                    let owner = u.symbol(p).owner.filter(|&o| u.symbol(o).kind.is_term());
-                    target = target.or(owner);
-                }
-                _ => {}
-            }
-            None
-        });
-        let interface = self.l.u.class_symbol(this?)?;
-        let implemented = interface != class
-            && self.l.u.is_trait(interface)
-            && self.is_java_class(interface)
-            && self.l.u.derives_from(class, interface);
+        let target = self.l.jdk_forwarded_from(sym)?;
+        let class = self.l.u.symbol(sym).owner?;
+        let interface = self.l.u.symbol(target).owner?;
         let this = self.l.u.this_type(class);
+        let info = self.l.u.info(sym);
         let info = self.l.u.as_seen_from(info, this, interface);
-        implemented.then_some(JavaForwarded { target: target.unwrap_or(sym), info })
+        Some(JavaForwarded { target, info })
     }
 
     /// The trait member mixin accessor or forwarder `sym` copies, or the field of a mixin getter
