@@ -43,5 +43,5 @@ is `SOURCE` (`shouldEmitAnnotation`).
     read) or of a Scala 3 one without its TASTy file (`TASTY` attribute);
   - a protected or non-static nested class, and selecting a member of a value of a non-static
     one's type (`o.inner().v()`);
-  - a top-level Java class whose name holds a `$`, such as `scala.runtime.java8.JFunction0$mcI$sp`;
+  - a top-level Java class whose name holds a `$`;
   - a package-private Java class, such as `scala.collection.concurrent.INodeBase`.
