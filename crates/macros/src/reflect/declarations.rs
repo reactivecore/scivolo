@@ -6,6 +6,7 @@
 
 use super::Fallible;
 use crate::host::Host;
+use names::nme;
 use tasty::{Kind, SymbolId};
 
 impl Host {
@@ -103,7 +104,7 @@ impl Host {
             return false;
         }
         match what {
-            "methods" => s.kind == Kind::Def && s.name != "<init>",
+            "methods" => s.kind == Kind::Def && s.name != nme::CONSTRUCTOR,
             "fields" => s.kind.is_term() && s.kind != Kind::Def,
             "types" => s.kind.is_type(),
             _ => true,

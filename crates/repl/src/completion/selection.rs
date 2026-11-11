@@ -3,6 +3,7 @@
 //! The selection under the cursor and the prefix of the names it completes (dotty's
 //! `completionMode` and `completionPrefix` for a term `Select`).
 
+use names::nme;
 use syntax::ast::{Ast, NodeId, Tree};
 use syntax::names::Names;
 use syntax::source::SourceFile;
@@ -39,8 +40,8 @@ pub fn selection(
     let point = span.point() as usize;
     let backticked = text[point..].starts_with('`');
     let raw = match names.text(name.name) {
-        "<error>" if backticked => text.get(point..span.end() as usize)?,
-        "<error>" => "",
+        nme::ERROR if backticked => text.get(point..span.end() as usize)?,
+        nme::ERROR => "",
         name => {
             let start = point + usize::from(backticked);
             let len = (cursor as usize).checked_sub(start)?;

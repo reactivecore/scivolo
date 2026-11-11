@@ -12,6 +12,7 @@ use crate::ast::modifiers::Modifiers;
 use crate::ast::tree::ModsId;
 use crate::ast::{List, NodeId, TName, Tree};
 use crate::names::to_utf16;
+use names::nme;
 
 impl Desugar<'_> {
     /// `copy`, an enum case's `ordinal` and the `_N` selectors of case class `c`; and the lookup
@@ -23,7 +24,7 @@ impl Desugar<'_> {
             let int = self.sym_ref("scala.Int", true);
             let lit = self.literal(Constant::Int(ordinal as i32));
             let mods = self.mods(flags::SYNTHETIC);
-            let name = self.term("ordinal");
+            let name = self.term(nme::ORDINAL);
             (vec![self.method(name, &[], Some(int), lit, mods)], scaffolding)
         } else {
             (Vec::new(), Vec::new())
@@ -57,7 +58,7 @@ impl Desugar<'_> {
             let joined = self.join_params(&c.derived_tparams, &clauses);
             let mods = self.synthetic_access_mods(c);
             let creator = self.creator_expr(c);
-            let name = self.term("copy");
+            let name = self.term(nme::COPY);
             meths.push(self.method(name, &joined, None, creator, mods));
         }
         meths.extend(enum_meths);
@@ -112,15 +113,15 @@ impl Desugar<'_> {
             let tparams = self.fresh_type_params(&c.derived_tparams);
             let joined = self.join_params(&tparams, &paramss);
             let creator = self.creator_expr(c);
-            let name = self.term("apply");
+            let name = self.term(nme::APPLY);
             meths.push(self.method(name, &joined, None, creator, mods));
         }
         let repeated = c.constr_vparamss[0].iter().any(|&p| match *self.ast.tree(p) {
             Tree::ValDef { tpt, .. } => self.is_repeated(tpt),
             _ => false,
         });
-        let name = self.term(if repeated { "unapplySeq" } else { "unapply" });
-        let param_name = self.term("x$1");
+        let name = self.term(if repeated { nme::UNAPPLY_SEQ } else { nme::UNAPPLY });
+        let param_name = self.term(nme::X_1);
         let param_mods = self.mods(flags::SYNTHETIC_TERM_PARAM);
         let param = self.ast.node(Tree::ValDef {
             name: param_name,
@@ -142,7 +143,7 @@ impl Desugar<'_> {
         let text: Vec<u16> = to_utf16(self.text(c.name));
         let lit = self.literal(Constant::String(text.into()));
         let mods = self.mods(flags::OVERRIDE.or(flags::SYNTHETIC));
-        let name = self.term("toString");
+        let name = self.term(nme::TO_STRING);
         meths.push(self.method(name, &[], None, lit, mods));
         meths
     }
@@ -167,7 +168,7 @@ impl Desugar<'_> {
         let value = match members[..] {
             [one] => one,
             _ => {
-                let (scala, tuple) = (self.term("scala"), self.term(&format!("Tuple{}", members.len())));
+                let (scala, tuple) = (self.term(nme::SCALA), self.term(&format!("Tuple{}", members.len())));
                 let scala = self.ident(scala);
                 let tuple = self.select(scala, tuple);
                 self.apply(tuple, &members)

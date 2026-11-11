@@ -5,6 +5,7 @@
 use super::literals::constant_structure;
 use super::printed::Printed;
 use crate::host::Host;
+use names::nme;
 use syntax::ast::constant::Constant as C;
 use tasty::{Const, Kind, NameId, SymbolId, Type, TypeId, constant};
 
@@ -135,12 +136,12 @@ impl Host {
     /// root's as the empty package's `this`.
     fn package_ref(&mut self, p: SymbolId, out: &mut Printed) -> Result<(), &'static str> {
         if p == self.u.root() {
-            out.push_str(&package_this("<empty>"));
+            out.push_str(&package_this(nme::EMPTY_PACKAGE));
             return Ok(());
         }
         let owner = self.u.symbol(p).owner.ok_or(STRUCTURE)?;
         let owner = match owner == self.u.root() {
-            true => "<root>",
+            true => nme::ROOT,
             false => &self.u.symbol(owner).name,
         };
         let name = &self.u.symbol(p).name;
@@ -161,7 +162,7 @@ impl Host {
             _ => return None,
         };
         Some(match p == self.u.root() {
-            true => "<empty>".to_owned(),
+            true => nme::EMPTY_PACKAGE.to_owned(),
             false => self.u.symbol(p).name.clone(),
         })
     }

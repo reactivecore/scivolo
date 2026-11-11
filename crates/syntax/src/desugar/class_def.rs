@@ -9,6 +9,7 @@ use super::class_parts::ClassParts;
 use super::{Desugar, Owner};
 use crate::ast::flags;
 use crate::ast::{NodeId, TName, Tree};
+use names::nme;
 
 /// The classes of package `scala` whose `getClass` definitions are dropped (dotty's
 /// `hasProblematicGetClass`).
@@ -91,11 +92,11 @@ impl Desugar<'_> {
             body.push(self.ast.with_mods(d, m));
         }
         let problematic = self.owner == Owner::Package
-            && self.package == "scala"
+            && self.package == nme::SCALA
             && HAS_PROBLEMATIC_GET_CLASS.contains(&self.text(c.name));
         body.extend(c.body.iter().copied().filter(|&s| {
             !(problematic
-                && matches!(*self.ast.tree(s), Tree::DefDef { name, .. } if self.text(name) == "getClass"))
+                && matches!(*self.ast.tree(s), Tree::DefDef { name, .. } if self.text(name) == nme::GET_CLASS))
         }));
         body.extend(case_meths);
         if c.mods.flags.is_all_of(flags::GIVEN.or(flags::INLINE).or(flags::TRANSPARENT)) {
@@ -162,9 +163,9 @@ impl Desugar<'_> {
             Tree::Ident { name } => name.is_type && is_text(name, "AnyVal"),
             Tree::Select { qualifier, name } if name.is_type && is_text(name, "AnyVal") => {
                 match *self.ast.tree(qualifier) {
-                    Tree::Ident { name } => !name.is_type && is_text(name, "scala"),
-                    Tree::Select { qualifier, name } if !name.is_type && is_text(name, "scala") => {
-                        matches!(*self.ast.tree(qualifier), Tree::Ident { name } if is_text(name, "_root_"))
+                    Tree::Ident { name } => !name.is_type && is_text(name, nme::SCALA),
+                    Tree::Select { qualifier, name } if !name.is_type && is_text(name, nme::SCALA) => {
+                        matches!(*self.ast.tree(qualifier), Tree::Ident { name } if is_text(name, nme::ROOT_PKG))
                     }
                     _ => false,
                 }

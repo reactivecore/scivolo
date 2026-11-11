@@ -3,6 +3,7 @@
 //! Cases and patterns of `Printer.TreeCode`.
 
 use super::{Code, REFUSED, Shown};
+use names::nme;
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Code<'_> {
@@ -67,7 +68,7 @@ impl Code<'_> {
                     _ => fun,
                 };
                 let T::Select { qualifier, name } = self.tree_of(fun) else { return Err(REFUSED) };
-                if !matches!(&*self.name(name), "unapply" | "unapplySeq") {
+                if !matches!(&*self.name(name), nme::UNAPPLY | nme::UNAPPLY_SEQ) {
                     return Err(REFUSED);
                 }
                 self.tree(qualifier)?;

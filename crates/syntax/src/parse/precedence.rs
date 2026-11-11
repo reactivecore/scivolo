@@ -4,11 +4,12 @@
 //! Precedence and associativity of infix operators.
 
 use crate::scan::is_operator_part;
+use names::nme;
 use unicode_general_category::{GeneralCategory as G, get_general_category};
 
 /// The precedence of infix operator `op` (SLS 6.12.3), -1 for `<error>`.
 pub fn precedence(op: &str) -> i32 {
-    if op == "<error>" {
+    if op == nme::ERROR {
         return -1;
     }
     let Some(first) = op.chars().next() else { return 10 };
@@ -39,7 +40,7 @@ pub fn precedence(op: &str) -> i32 {
 
 /// `+=` and the like, but not `!=`, `<=`, `>=`.
 pub fn is_op_assignment(op: &str) -> bool {
-    !matches!(op, "!=" | "<=" | ">=" | "")
+    !matches!(op, nme::NE | nme::LE | nme::GE | "")
         && op.ends_with('=')
         && !op.starts_with('=')
         && op.chars().next().is_some_and(is_operator_part)

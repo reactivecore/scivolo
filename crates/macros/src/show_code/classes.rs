@@ -3,6 +3,7 @@
 //! Class definitions of `Printer.TreeCode`.
 
 use super::{Code, REFUSED, Shown};
+use names::nme;
 use tasty::tags::{
     CASE, FIELDaccessor, FINAL, IMPLICIT, LAZY, OBJECT, PARAMsetter, SEALED, SYNTHETIC, TRAIT,
 };
@@ -125,12 +126,12 @@ impl Code<'_> {
             |n: &str| n.strip_prefix('_').is_some_and(|d| !d.starts_with('0') && d.parse::<u32>().is_ok());
         let undecompilable = f.has(SYNTHETIC)
             && matches!(self.tree_of(d), T::DefDef { .. })
-            && ((matches!(name, "apply" | "unapply" | "writeReplace") && owner_has(OBJECT))
+            && ((matches!(name, nme::APPLY | nme::UNAPPLY | nme::WRITE_REPLACE) && owner_has(OBJECT))
                 || (owner_has(CASE)
-                    && (name == "copy"
+                    && (name == nme::COPY
                         || name.strip_prefix("copy$default$").is_some_and(|d| numbered(&format!("_{d}")))
                         || numbered(name)
-                        || name == "productElementName")));
+                        || name == nme::PRODUCT_ELEMENT_NAME)));
         !self.is_param(s)
             && !f.has(PARAMsetter)
             && !f.has(FIELDaccessor)

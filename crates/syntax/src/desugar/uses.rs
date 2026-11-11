@@ -7,6 +7,7 @@
 use super::Desugar;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     /// `m` with an annotation `@retains[r1 | ... | rN]` for the references of `uses` that are
@@ -32,7 +33,7 @@ impl Desugar<'_> {
                 self.ast.node(Tree::AppliedTypeTree { tpt: or, args })
             })
             .expect("a reference");
-        let (annotation, retains) = (self.term("annotation"), self.type_name("retains"));
+        let (annotation, retains) = (self.term(nme::ANNOTATION), self.type_name(nme::RETAINS));
         let package = self.scala_dot(annotation);
         let constr = self.select(package, retains);
         let args = self.list(&[trefs]);

@@ -8,6 +8,7 @@ use super::migration::Migration;
 use crate::ast::{NodeId, Span, Tree};
 use crate::diag::Message;
 use crate::token::Token;
+use names::nme;
 
 impl Parser<'_> {
     /// `AnnotType1 {ParArgumentExprs}`.
@@ -16,7 +17,7 @@ impl Parser<'_> {
         let t = if self.is_wildcard_type(t) {
             let span = self.ast.span(t);
             self.syntax_error_span(Message::syntax(35, "Unbound wildcard type"), span);
-            let error = self.type_name("<error>");
+            let error = self.type_name(nme::ERROR);
             self.ast.node(Tree::Ident { name: error })
         } else {
             t

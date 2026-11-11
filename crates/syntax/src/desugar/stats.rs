@@ -5,6 +5,7 @@
 
 use super::{Desugar, Mode};
 use crate::ast::{List, NodeId, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     /// The statements `l` with definitions expanded, then transformed; a new list unless empty
@@ -30,7 +31,7 @@ impl Desugar<'_> {
                 let stat = self.check_modifiers(stat);
                 self.val_def(stat)
             }
-            Tree::DefDef { name, .. } if self.text(name) != "<init>" => {
+            Tree::DefDef { name, .. } if self.text(name) != nme::CONSTRUCTOR => {
                 let stat = self.check_modifiers(stat);
                 self.def_def(stat, false)
             }

@@ -9,6 +9,7 @@ use crate::diag::Message;
 use crate::source::Offset;
 use crate::token::Token;
 use crate::token::sets::KEYWORDS;
+use names::nme;
 
 impl Parser<'_> {
     /// Report an error at `offset` unless one was reported there or later already.
@@ -161,9 +162,9 @@ impl Parser<'_> {
 
     /// `_root_.scala.<name>`.
     pub fn scala_dot(&mut self, name: crate::ast::TName) -> NodeId {
-        let root = self.term("_root_");
+        let root = self.term(nme::ROOT_PKG);
         let root = self.ast.node(Tree::Ident { name: root });
-        let scala = self.term("scala");
+        let scala = self.term(nme::SCALA);
         let scala = self.ast.node(Tree::Select { qualifier: root, name: scala });
         self.ast.node(Tree::Select { qualifier: scala, name })
     }

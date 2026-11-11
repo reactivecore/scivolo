@@ -6,8 +6,9 @@
 use super::Parser;
 use crate::ast::{NodeId, Tree};
 use crate::config::{Features, SourceVersion};
+use names::nme;
 
-const GLOBAL_FEATURES: [&str; 4] = ["pureFunctions", "captureChecking", "separationChecking", "safe"];
+const GLOBAL_FEATURES: [&str; 4] = ["pureFunctions", nme::CAPTURE_CHECKING, "separationChecking", "safe"];
 
 impl Parser<'_> {
     /// `Some(prefix)` if `path` is `[[_root_.]scala.]language[.prefix]` (dotty's `languageImport`).
@@ -24,16 +25,16 @@ impl Parser<'_> {
         };
         let is_empty = |t: Option<NodeId>| t.is_none_or(|t| matches!(self.ast.tree(t), Tree::Empty));
         if let Tree::Select { qualifier, name } = *self.ast.tree(path)
-            && matches!(text(name), "experimental" | "deprecated")
+            && matches!(text(name), nme::EXPERIMENTAL | nme::DEPRECATED)
         {
             return (self.language_prefix(qualifier).as_deref() == Some("")).then(|| text(name).to_string());
         }
-        let q = named(Some(path), "language")?;
+        let q = named(Some(path), nme::LANGUAGE)?;
         if is_empty(q) {
             return Some(String::new());
         }
-        let q2 = named(q, "scala")?;
-        let root_ok = is_empty(q2) || named(q2, "_root_").is_some_and(|q3| q3.is_none());
+        let q2 = named(q, nme::SCALA)?;
+        let root_ok = is_empty(q2) || named(q2, nme::ROOT_PKG).is_some_and(|q3| q3.is_none());
         root_ok.then(String::new)
     }
 
@@ -45,7 +46,7 @@ impl Parser<'_> {
             let name = self.s.names.text(name.name).to_string();
             let span = self.ast.span(imported);
             let qualified = if prefix.is_empty() { name.clone() } else { format!("{prefix}.{name}") };
-            if prefix == "experimental" && GLOBAL_FEATURES.contains(&name.as_str()) && !outermost {
+            if prefix == nme::EXPERIMENTAL && GLOBAL_FEATURES.contains(&name.as_str()) && !outermost {
                 self.syntax_error_span("this language import is only allowed at the toplevel", span);
             }
             if let Some(f) = Features::named(&qualified) {

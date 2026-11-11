@@ -9,6 +9,7 @@ use crate::ast::flags::{self, FlagSet};
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, TName, Tree};
 use crate::diag::Message;
+use names::nme;
 
 impl Parser<'_> {
     /// `(t)` for one tree (unless a named argument), a tuple otherwise.
@@ -67,7 +68,7 @@ impl Parser<'_> {
 
     /// The primary constructor `def <init>[tparams](vparamss)` (dotty's `makeConstructor`).
     pub fn make_constructor(&mut self, clauses: &[crate::ast::List], rhs: Option<NodeId>) -> NodeId {
-        let name = self.term("<init>");
+        let name = self.term(nme::CONSTRUCTOR);
         let paramss = self.ast.clauses(clauses);
         let tpt = self.type_tree();
         let mods = self.empty_mods();

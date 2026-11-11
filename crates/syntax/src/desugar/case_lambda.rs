@@ -6,6 +6,7 @@ use super::Desugar;
 use crate::ast::flags;
 use crate::ast::tree::MatchKind;
 use crate::ast::{Attrs, NodeId, Tree};
+use names::nme;
 
 /// How the selector of a desugared match is checked (dotty's `MatchCheck`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -34,7 +35,7 @@ impl Desugar<'_> {
 
     /// `x$1 => x$1 match { cases }` (dotty's `makeCaseLambda` of one parameter).
     pub fn make_case_lambda(&mut self, cases: &[NodeId], check: MatchCheck) -> NodeId {
-        let name = self.term("x$1");
+        let name = self.term(nme::X_1);
         let tpt = self.type_tree();
         let mods = self.mods(flags::SYNTHETIC_TERM_PARAM);
         let param = self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods });

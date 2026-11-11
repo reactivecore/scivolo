@@ -4,6 +4,7 @@
 
 use super::Fallible;
 use crate::host::Host;
+use names::nme;
 use tasty::{Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree as T};
 
@@ -50,7 +51,7 @@ impl Host {
     pub fn class_def(&mut self, cls: SymbolId, n: i32, trees: Vec<TNodeId>) -> Fallible<TNodeId> {
         let (parents, body) =
             trees.split_at_checked(n as usize).ok_or("ClassDef.apply without its parents")?;
-        let ctor = self.u.decl(cls, "<init>").ok().and_then(|c| c.first().copied());
+        let ctor = self.u.decl(cls, nme::CONSTRUCTOR).ok().and_then(|c| c.first().copied());
         let params = ctor.and_then(|c| self.made_params.get(&c)).cloned();
         let params = params.ok_or("ClassDef.apply of a class Symbol.newClass did not make")?;
         let class_def = self.reflect().class_def(cls, (&params, parents), body)?;

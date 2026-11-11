@@ -343,6 +343,7 @@ pub const UNARY_TILDE: &str = "unary_~";
 pub const UNARY_PLUS: &str = "unary_+";
 /// The name `unary_-`.
 pub const UNARY_MINUS: &str = "unary_-";
+
 /// The name `!`.
 pub const NOT: &str = "!";
 /// The name `zero`.
@@ -353,3 +354,43 @@ pub const TYPE_: &str = "TYPE";
 pub const TOPLEVEL_SUFFIX: &str = "$package";
 /// The prefix `rs$line$` of a REPL line's wrapper object.
 pub const REPL_SESSION_LINE: &str = "rs$line$";
+/// The name `++`.
+pub const PLUS_PLUS: &str = "++";
+/// The name `zip`.
+pub const ZIP: &str = "zip";
+/// The name `->`.
+pub const PURE_ARROW: &str = "->";
+/// The name `experimental`.
+pub const EXPERIMENTAL: &str = "experimental";
+/// The name `deprecated`.
+pub const DEPRECATED: &str = "deprecated";
+/// The name `onlyCapability`.
+pub const ONLY_CAPABILITY: &str = "onlyCapability";
+/// The name `reachCapability`.
+pub const REACH_CAPABILITY: &str = "reachCapability";
+/// The name `readOnlyCapability`.
+pub const READ_ONLY_CAPABILITY: &str = "readOnlyCapability";
+/// The name `consume`.
+pub const CONSUME: &str = "consume";
+/// The name `any`.
+pub const ANY: &str = "any";
+/// The name `CapSet`.
+pub const CAP_SET: &str = "CapSet";
+/// The name `*`.
+pub const STAR: &str = "*";
+/// The name `-*`.
+pub const MINUS_STAR: &str = "-*";
+/// The name `+*`.
+pub const PLUS_STAR: &str = "+*";
+/// The name `-_`.
+pub const MINUS_USCORE: &str = "-_";
+/// The name `+_`.
+pub const PLUS_USCORE: &str = "+_";
+/// The name `runtimeChecked`.
+pub const RUNTIME_CHECKED: &str = "runtimeChecked";
+/// The name `package`.
+pub const PACKAGE: &str = "package";
+/// The suffix `$assign` of the value the REPL binds after an assignment.
+pub const REPL_ASSIGN_SUFFIX: &str = "$assign";
+/// The prefix `res` of the values the REPL binds expressions to.
+pub const REPL_RES_PREFIX: &str = "res";

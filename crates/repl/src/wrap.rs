@@ -6,6 +6,7 @@
 
 use crate::input::Parsed;
 use crate::show_methods;
+use names::nme;
 use syntax::ast::{Ast, NodeId, Span, TName, Tree};
 use syntax::desugar::Desugar;
 use syntax::diag::Diagnostics;
@@ -49,7 +50,7 @@ pub fn wrap(
     if let Tree::Template { body, .. } = &mut ast.get_mut(imp).tree {
         *body = all;
     }
-    let empty = TName { name: names.intern("<empty>"), is_type: false };
+    let empty = TName { name: names.intern(nme::EMPTY_PACKAGE), is_type: false };
     let pid = ast.node(Tree::Ident { name: empty });
     let stats = ast.list(std::mem::take(&mut outer).as_slice());
     let package = ast.node(Tree::PackageDef { pid, stats });
@@ -90,12 +91,12 @@ fn definitions(ast: &mut Ast, names: &mut Names, stats: &[NodeId], res: &mut u32
         match *ast.tree(s) {
             Tree::Assign { lhs, .. } if matches!(ast.tree(lhs), Tree::Ident { .. }) => {
                 let Tree::Ident { name } = *ast.tree(lhs) else { unreachable!("an identifier") };
-                let assign = format!("{}$assign", names.text(name.name));
+                let assign = format!("{}{}", names.text(name.name), nme::REPL_ASSIGN_SUFFIX);
                 let rhs = ast.node(Tree::Ident { name });
                 out.extend([s, val(ast, names, &assign, rhs)]);
             }
             _ if is_expression(ast, s) => {
-                out.push(val(ast, names, &format!("res{res}"), s));
+                out.push(val(ast, names, &format!("{}{res}", nme::REPL_RES_PREFIX), s));
                 *res += 1;
             }
             _ => {
@@ -145,7 +146,7 @@ fn bump(ast: &Ast, names: &Names, t: NodeId, res: &mut u32) {
         | Tree::Bind { name, .. } => name,
         _ => return,
     };
-    let index = names.text(name.name).strip_prefix("res").and_then(|n| n.parse::<u32>().ok());
+    let index = names.text(name.name).strip_prefix(nme::REPL_RES_PREFIX).and_then(|n| n.parse::<u32>().ok());
     if let Some(n) = index.filter(|&n| n >= *res) {
         *res = n + 1;
     }

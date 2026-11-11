@@ -7,6 +7,7 @@ use crate::ast::{NodeId, Span, TName, Tree};
 use crate::config::KindProjector;
 use crate::parse::Parser;
 use crate::token::Token;
+use names::nme;
 
 impl Parser<'_> {
     pub fn kind_projector(&self) -> KindProjector {
@@ -21,7 +22,7 @@ impl Parser<'_> {
         let start = self.offset();
         let text = if self.tok() == Token::Uscore && !self.in_match_pattern {
             self.next();
-            "_".to_string()
+            nme::WILDCARD.to_string()
         } else if (self.is_ident_named("-") || self.is_ident_named("+"))
             && self.s.lookahead().token == Token::Uscore
         {
@@ -56,8 +57,8 @@ impl Parser<'_> {
             .map(|&t| {
                 let placeholder = match *self.ast.tree(t) {
                     Tree::Ident { name } => match self.s.names.text(name.name) {
-                        "*" | "-*" | "+*" => true,
-                        "_" | "-_" | "+_" => underscores,
+                        nme::STAR | nme::MINUS_STAR | nme::PLUS_STAR => true,
+                        nme::WILDCARD | nme::MINUS_USCORE | nme::PLUS_USCORE => underscores,
                         _ => false,
                     },
                     _ => false,

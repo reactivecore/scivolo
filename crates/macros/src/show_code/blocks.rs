@@ -3,6 +3,7 @@
 //! Applications, ascriptions, lambdas and blocks of `Printer.TreeCode`.
 
 use super::{Code, REFUSED, Shown};
+use names::nme;
 use syntax::ast::constant::Constant;
 use typer::tpd::{TNodeId, Tree as T};
 
@@ -11,14 +12,15 @@ impl Code<'_> {
         let callee = self.h.tpd.sym(self.r(fun));
         let special = callee
             .and_then(|s| self.h.u.symbol(s).owner)
-            .is_some_and(|o| self.h.u.symbol(o).name == "<special-ops>");
-        if special && callee.is_some_and(|s| self.h.u.symbol(s).name == "throw") && args.len() == 1 {
+            .is_some_and(|o| self.h.u.symbol(o).name == nme::OPS_PACKAGE);
+        if special && callee.is_some_and(|s| self.h.u.symbol(s).name == nme::THROW) && args.len() == 1 {
             self.push("throw ");
             return self.tree(args[0]);
         }
         match self.tree_of(fun) {
             T::Select { qualifier, name }
-                if self.name(name) == "<init>" && matches!(self.tree_of(qualifier), T::This { .. }) =>
+                if self.name(name) == nme::CONSTRUCTOR
+                    && matches!(self.tree_of(qualifier), T::This { .. }) =>
             {
                 self.push("this")
             }
