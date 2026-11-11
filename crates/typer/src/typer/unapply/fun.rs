@@ -21,8 +21,8 @@ impl UnapplyPattern {
     /// Selects the extractor method of `qual` as `select_unapply` does or, if that fails with
     /// errors or `qual` has no `unapply` or `unapplySeq` and `qual` names a type alias of a
     /// class, that of the class's companion object, as `Block` for
-    /// `type Block = Trees.Block[Int]`; the errors of the first try if both fail. Each failed try's
-    /// changes to the constraint and the implicit dictionary are undone.
+    /// `type Block = Trees.Block[Int]`; the errors of the first try if both fail. Each failed try
+    /// followed by another has its changes to the constraint and the implicit dictionary undone.
     pub fn unapply_fun(&self, t: &mut Typer<'_>, qual: NodeId) -> Result<(TNodeId, bool), &'static str> {
         let (reported, unsupported) = (t.diags.items.len(), t.unsupported.clone());
         let (before, dictionary) = (t.constraint.attempt(), t.history.snapshot());
@@ -35,12 +35,13 @@ impl UnapplyPattern {
             return first;
         }
 
-        t.constraint.abandon(before);
-        t.history.restore(dictionary.clone());
         let first_diags = t.diags.items[reported..].to_vec();
         t.retract_diags(reported);
         let kept = t.diags.items.len();
-        if let Some(companion) = self.followed_type_alias(t, qual)? {
+        let alias = self.followed_type_alias(t, qual);
+        if let Ok(Some(companion)) = alias {
+            t.constraint.abandon(before);
+            t.history.restore(dictionary.clone());
             let second = self.select_unapply(t, companion, false);
             if second.is_ok() && !has_errors_since(t, kept) && t.unsupported == unsupported {
                 return second;
@@ -53,6 +54,7 @@ impl UnapplyPattern {
         if first == Err(NO_EXTRACTOR_METHOD) {
             return self.select_unapply(t, qual, false);
         }
+        alias?;
 
         let completed = t.diags.items.split_off(kept);
         t.diags.items.truncate(reported);

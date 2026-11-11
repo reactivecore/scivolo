@@ -45,8 +45,11 @@ impl Avoid<'_> {
     }
 
     /// Approximates `tpe`, a reference `pre.name` by name, as the reference to the symbol it
-    /// resolves to; gives up if it resolves to none.
+    /// resolves to if `pre` mentions a local; gives up if it resolves to none.
     pub fn named(self, t: &mut Typer, tpe: TypeId, pre: TypeId, v: i8) -> Option<Approx> {
+        if !t.refers_to(pre, self.locals) {
+            return Some(Approx::Exact(tpe));
+        }
         let s = t.u.resolve_ref(tpe)?;
         let resolved = t.u.intern_type(Type::Sym(Some(pre), s));
         self.at(t, resolved, v)

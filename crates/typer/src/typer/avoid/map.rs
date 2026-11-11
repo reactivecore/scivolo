@@ -27,9 +27,7 @@ impl Avoid<'_> {
                 self.select(t, tpe, pre, p, s, v)
             }
             Type::This(_) | Type::Sym(..) => exact(tpe),
-            Type::TypeRef(pre, _) | Type::TermRef(pre, _) if t.refers_to(pre, self.locals) => {
-                self.named(t, tpe, pre, v)
-            }
+            Type::TypeRef(pre, _) | Type::TermRef(pre, _) => self.named(t, tpe, pre, v),
             Type::Applied(tycon, _)
                 if t.u.referenced(tycon).is_some_and(|s| self.locals.contains(&s))
                     && t.u.dealias(tpe) != tpe =>
