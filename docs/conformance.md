@@ -417,7 +417,10 @@ not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (
 `ToExpr$BigIntToExpr$` and `ToExpr$MapToExpr` differ in quote type sharing (case 1, as in
 **Quote type sharing** above, types shared across the files of the whole-module build);
 scala-cli's build of `ToExpr.scala` alone has the quotes of all 106 classes as ours, up to
-positions.
+positions. Open: `FromExpr$MapFromExpr`'s quotes differ beyond positions, 31 other `FromExpr`
+classes in the positions of their quotes; `CNode` calls `RandomGenerator.nextInt(int, int)`
+where Scala Native, compiling against the JDK, calls `ThreadLocalRandom`'s override, which
+javalib lacks.
 
 ## M5: scala/scala `test/junit`
 
