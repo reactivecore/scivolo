@@ -93,6 +93,7 @@ impl TreePickler<'_> {
             }
             Type::And(a, b) => self.with_length(ANDtype, &mut |p| p.types(&[a, b], rich)),
             Type::Or(a, b, _) => self.with_length(ORtype, &mut |p| p.types(&[a, b], rich)),
+            Type::Flexible(hi) => self.with_length(FLEXIBLEtype, &mut |p| p.ty(hi, rich)),
             Type::ByName(result) => {
                 self.byte(BYNAMEtype);
                 self.ty(result, false)
