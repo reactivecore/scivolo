@@ -1,7 +1,8 @@
-//! The attributes of classes and members read: `Signature` (JVMS §4.7.9), `ConstantValue` and
-//! the annotations (§4.7.16).
+//! The attributes of classes and members read: `Signature` (JVMS §4.7.9), `ConstantValue`, the
+//! annotations (§4.7.16), `InnerClasses` (§4.7.6) and the Scala compilers' markers.
 
 use super::{Bytes, ConstantValue, Constants};
+use crate::InnerClass;
 
 /// The attributes of a class or member read.
 #[derive(Default)]
@@ -9,6 +10,8 @@ pub struct Attributes {
     pub signature: Option<String>,
     pub constant: Option<ConstantValue>,
     pub annotations: Vec<Annotation>,
+    pub inner_classes: Vec<InnerClass>,
+    pub scala: bool,
 }
 
 /// Reads the attributes, skipping those other than `Attributes` holds.
@@ -24,10 +27,26 @@ pub fn attributes(b: &mut Bytes, c: &Constants) -> Result<Attributes, String> {
             Ok("RuntimeVisibleAnnotations" | "RuntimeInvisibleAnnotations") => {
                 a.annotations.extend(annotations(&mut value, c)?)
             }
+            Ok("InnerClasses") => a.inner_classes = inner_classes(&mut value, c)?,
+            Ok("Scala" | "ScalaSig" | "TASTY") => a.scala = true,
             _ => {}
         }
     }
     Ok(a)
+}
+
+fn inner_classes(b: &mut Bytes, c: &Constants) -> Result<Vec<InnerClass>, String> {
+    (0..b.u2()?)
+        .map(|_| {
+            let inner = c.class(b.u2()?)?.ok_or("an inner class without a name")?;
+            let outer = c.class(b.u2()?)?;
+            let name = match b.u2()? {
+                0 => None,
+                i => Some(c.utf8(i)?),
+            };
+            Ok(InnerClass { inner, outer, name, flags: b.u2()? })
+        })
+        .collect()
 }
 
 /// An annotation of a class: its type's descriptor and the elements whose values are enum

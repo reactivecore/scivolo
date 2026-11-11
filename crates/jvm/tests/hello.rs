@@ -205,9 +205,8 @@ fn refuses(name: &str, code: &str, message: &str) {
 
 #[test]
 fn a_definition_the_tasty_pickler_lacks_is_refused() {
-    let code = "trait A { def f(using x: Int): Int = x }\n\
-        trait B extends A { override def f(using x: Int): Int = super.f + 1 }";
-    refuses("refusedtasty", code, "pickling a super call of a method with implicit parameters into TASTy");
+    let code = "trait A { def f(x: Int @deprecated(\"a\", \"1\")) = x }";
+    refuses("refusedtasty", code, "a type annotation without a constructor of no parameters");
 }
 
 #[test]

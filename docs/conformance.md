@@ -376,14 +376,15 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 196 | 1138 |
-| attributes differ | 78 | 417 |
-| code differs | 214 | 1030 |
-| refused | 161 | |
+| same | 199 | 1288 |
+| attributes differ | 77 | 428 |
+| code differs | 243 | 1113 |
+| refused | 130 | |
 
 - **Refused:** member not found (96, of them 86 `scala.runtime.java8` traits calling
-  `BoxesRunTime`, a Java class of the library's jar); TASTy pickling (39: a type outside the
-  subset 18, an annotated sealed class 15); adaptation (9); no applicable alternative (8).
+  `BoxesRunTime`, a Java class of the library's jar); adaptation (9); no applicable alternative
+  (8); TASTy pickling (9: a reference to a local definition outside the pickled trees 6, a type
+  annotation with arguments 3).
 - **Code differs**, by first differing line: a missing `serialVersionUID` field (46), dotty's
   second `athrow` after a call of type `Nothing` (37), generic signatures of trait forwarders and
   extension methods (`compose`, `equals$extension`), field signatures (`underlying`).
@@ -417,7 +418,10 @@ not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (
 `ToExpr$BigIntToExpr$` and `ToExpr$MapToExpr` differ in quote type sharing (case 1, as in
 **Quote type sharing** above, types shared across the files of the whole-module build);
 scala-cli's build of `ToExpr.scala` alone has the quotes of all 106 classes as ours, up to
-positions.
+positions. Open: `FromExpr$MapFromExpr`'s quotes differ beyond positions, 31 other `FromExpr`
+classes in the positions of their quotes; `CNode` calls `RandomGenerator.nextInt(int, int)`
+where Scala Native, compiling against the JDK, calls `ThreadLocalRandom`'s override, which
+javalib lacks.
 
 ## M5: scala/scala `test/junit`
 

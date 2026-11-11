@@ -7,7 +7,7 @@ use super::descriptors::{method_descriptor, with_receiver};
 use super::{Gen, java_flags, method_name, unsupported};
 use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile};
 use lower::Result;
-use names::{name_kinds, nme};
+use names::name_kinds;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
@@ -34,9 +34,6 @@ impl Gen<'_, '_> {
         let static_ = flags & ACC_STATIC != 0;
         let this_class = (!static_ || trait_init).then(|| self.class_name(owner));
         let name = method_name(self.l.u, sym);
-        if name.contains(nme::ANON_FUN) && !self.l.is_bridge_closure(sym) {
-            flags |= ACC_SYNTHETIC;
-        }
         let params = self.l.tpd.clause_items(paramss).iter().flat_map(|&c| self.l.tpd.items(c));
         let params: Vec<TNodeId> =
             params.filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. })).copied().collect();
@@ -49,11 +46,12 @@ impl Gen<'_, '_> {
             && name.ends_with("_$eq")
             && !name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
         let erased = flags & ACC_BRIDGE != 0 || trait_init || self.l.is_lifted(sym) || mixed_setter;
+        let deprecated = self.is_deprecated(sym);
         let Some(rhs) = rhs else {
             let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;
             cf.method(flags, &name, &desc, None, &mut |a, b| self.jvm_lub(a, b));
             self.exceptions(cf, sym);
-            self.method_attributes(cf, sym, &desc, &param_syms, (erased, false));
+            self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, false));
             self.emit_method_annotations(cf, sym);
             return Ok(());
         };
@@ -75,7 +73,7 @@ impl Gen<'_, '_> {
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
         self.exceptions(cf, sym);
-        self.method_attributes(cf, sym, &desc, &param_syms, (erased, trait_init));
+        self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, trait_init));
         if !trait_init {
             self.emit_method_annotations(cf, sym);
         }
