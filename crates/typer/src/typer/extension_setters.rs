@@ -56,10 +56,9 @@ impl Typer<'_> {
                     return None;
                 }
                 let name = TName { name: self.name(&format!("{}_=", self.text(name.name))), is_type: false };
-                let prefix = match *self.u.types().get(self.tpd.tpe(tree)) {
-                    Type::Sym(Some(p), _) if !matches!(self.u.types().get(p), Type::NoPrefix) => Some(p),
-                    _ => None,
-                };
+                let prefix = (self.u.sym_ref(self.tpd.tpe(tree)))
+                    .and_then(|(p, _)| p)
+                    .filter(|&p| !matches!(self.u.ty(p), Type::NoPrefix));
                 match (self.tpd.tree(tree).clone(), prefix) {
                     (T::Select { qualifier, .. }, _) => {
                         Tree::Select { qualifier: self.spliced(qualifier), name }

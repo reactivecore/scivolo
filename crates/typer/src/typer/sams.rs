@@ -16,7 +16,7 @@ pub struct Sam {
     pub clause: SamClause,
 }
 
-pub type SamClause = (tasty::Binder, Vec<String>, SymbolId);
+pub type SamClause = (tasty::Binder, Vec<tasty::NameId>, SymbolId);
 /// `parent` and `clause` of a `Sam`.
 pub type SamParent = (TypeId, SamClause);
 
@@ -64,8 +64,7 @@ impl Typer<'_> {
         let Some(Binding { binder, params, result, implicit: false, .. }) = self.u.method(info) else {
             return Ok(None);
         };
-        if params.len() != n || matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
-        {
+        if params.len() != n || matches!(self.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
             return Ok(None);
         }
         let (names, params) = params.iter().cloned().unzip();
@@ -77,8 +76,10 @@ impl Typer<'_> {
     /// by their upper bound where it occurs at most as the result type (dotty's `samParent`);
     /// `None` otherwise or if `method` is not declared in `c`.
     fn without_wildcard_args(&mut self, parent: TypeId, c: SymbolId, method: SymbolId) -> Option<TypeId> {
-        let Type::Applied(tycon, args) = self.u.types().get(parent).clone() else { return Some(parent) };
-        if !args.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..))) {
+        let Some((tycon, args)) = self.u.applied(parent).map(|(tycon, args)| (tycon, args.to_vec())) else {
+            return Some(parent);
+        };
+        if !args.iter().any(|&a| self.u.bounds(a).is_some()) {
             return Some(parent);
         }
         if self.u.symbol(method).owner != Some(c) {
@@ -88,7 +89,7 @@ impl Typer<'_> {
         let info = self.u.info(method);
         let mut new_args = Vec::new();
         for (i, &a) in args.iter().enumerate() {
-            let Type::Bounds(lo, hi) = *self.u.types().get(a) else {
+            let Some((lo, hi)) = self.u.bounds(a) else {
                 new_args.push(a);
                 continue;
             };
@@ -97,13 +98,13 @@ impl Typer<'_> {
             self.occurrences(info, p, 1, &mut seen).then_some(())?;
             new_args.push(if seen == (false, true) { lo } else { hi });
         }
-        Some(self.u.intern_type(Type::Applied(tycon, new_args)))
+        Some(self.u.intern_applied(tycon, &new_args))
     }
 
     /// Records in `seen` whether type parameter `p` occurs in `t` at variance `v` covariantly and
     /// whether contravariantly, an invariant occurrence as both; `false` for a form not followed.
     fn occurrences(&mut self, t: TypeId, p: SymbolId, v: i8, seen: &mut (bool, bool)) -> bool {
-        match self.u.types().get(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(_, s) if s == p => {
                 seen.0 |= v >= 0;
                 seen.1 |= v <= 0;
@@ -112,13 +113,13 @@ impl Typer<'_> {
             Type::Applied(tycon, args) => {
                 let Some(class) = self.u.class_symbol(tycon) else { return !self.refers_to(t, &[p]) };
                 let variances = self.u.variances(class);
-                args.iter().enumerate().all(|(i, &a)| {
+                self.u.types_of(args).to_vec().into_iter().enumerate().all(|(i, a)| {
                     let w = variances.get(i).copied().unwrap_or(0);
                     self.occurrences(a, p, v * w, seen)
                 })
             }
             Type::Method { params, result, .. } => {
-                params.iter().all(|&(_, q)| self.occurrences(q, p, -v, seen))
+                (self.u.params_of(params).to_vec().into_iter()).all(|(_, q)| self.occurrences(q, p, -v, seen))
                     && self.occurrences(result, p, v, seen)
             }
             Type::Bounds(lo, hi) => self.occurrences(lo, p, -v, seen) && self.occurrences(hi, p, v, seen),
@@ -159,19 +160,21 @@ impl Typer<'_> {
 
     fn takes_no_args(&mut self, c: SymbolId) -> bool {
         self.complete(c);
-        let ctors = self.u.decl(c, "<init>").unwrap_or_default();
+        let ctors = self.u.decls_named(c, "<init>");
         let mut applicable = 0;
         for &ctor in &ctors {
             self.complete(ctor);
             let info = self.u.info(ctor);
             let info = self.u.strip_poly(info);
-            let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { continue };
+            let Some((params, result)) = self.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
+                continue;
+            };
             let no_args = match params[..] {
                 [] => true,
                 [(_, p)] => self.repeated_elem(p).is_some(),
                 _ => false,
             };
-            applicable += usize::from(no_args && !matches!(self.u.types().get(result), Type::Method { .. }));
+            applicable += usize::from(no_args && self.u.method(result).is_none());
         }
         ctors.is_empty() || applicable == 1
     }
@@ -189,8 +192,8 @@ impl Typer<'_> {
                 }
             }
         }
-        let object = self.u.builtins().object;
-        let any = self.u.builtins().any;
+        let object = self.u.defn().object;
+        let any = self.u.defn().any;
         let site = crate::defn::type_ref(self.u, c);
         let mut out = Vec::new();
         for name in names {

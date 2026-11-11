@@ -94,7 +94,7 @@ impl Host {
     /// `TypeDef(name, TypeTree(info))` of type `s`, its info as bounds: an alias's both its type.
     fn type_def_from_symbol(&mut self, s: SymbolId) -> TNodeId {
         let info = self.u.info(s);
-        let (lo, hi) = match *self.u.types().get(info) {
+        let (lo, hi) = match *self.u.ty(info) {
             Type::Bounds(lo, hi) => (lo, hi),
             Type::Alias(t) => (t, t),
             _ => (info, info),

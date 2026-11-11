@@ -55,8 +55,9 @@ pub fn enter_class(
     let args: Vec<TypeId> = (1..=n).map(|i| param(u, format!("{prefix}T{i}"), CONTRAVARIANT)).collect();
     let result = param(u, format!("{prefix}R"), COVARIANT);
     let binder = u.fresh_binder();
-    let params = args.iter().enumerate().map(|(i, &t)| (format!("x${i}"), t)).collect();
-    let info = u.types.intern(Type::Method { binder, params, result, implicit: contextual, contextual });
+    let params: Vec<_> =
+        args.iter().enumerate().map(|(i, &t)| (u.types.intern_name(&format!("x${i}")), t)).collect();
+    let info = u.types.intern_method(binder, &params, result, contextual, contextual);
     let apply = synthetic(u, class, "apply", Kind::Def, &[]);
     u.infos.insert(apply, info);
     u.set_deferred(apply, true);

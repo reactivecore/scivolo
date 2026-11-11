@@ -58,20 +58,15 @@ impl Nullables {
 
 /// Finds the term `r` refers to.
 pub fn term_ref_sym(u: &Universe, r: TypeId) -> Option<SymbolId> {
-    match *u.types().get(r) {
-        Type::Sym(_, s) if u.symbol(s).kind.is_term() => Some(s),
-        _ => None,
-    }
+    u.sym_of(r).filter(|&s| u.symbol(s).kind.is_term())
 }
 
 /// Whether `r` selects field `sym` annotated `@stableNull` from a stable prefix.
 fn is_null_stable_field(u: &mut Universe, r: TypeId, sym: SymbolId) -> bool {
-    let Type::Sym(Some(p), _) = *u.types().get(r) else { return false };
+    let Some((Some(p), _)) = u.sym_ref(r) else { return false };
     let s = u.symbol(sym);
     let field = s.kind == Kind::Val && s.owner.is_some_and(|o| u.symbol(o).kind == Kind::Class);
-    field
-        && u.annotations(sym).iter().any(|&c| u.full_name(c) == "scala.annotation.stableNull")
-        && is_stable_path(u, p)
+    field && u.has_recorded_annotation(sym, crate::defn::STABLE_NULL) && is_stable_path(u, p)
 }
 
 /// Whether a use of local variable `sym` in `ctx` is in a method, lazy value or class inside

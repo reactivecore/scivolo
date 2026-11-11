@@ -8,12 +8,12 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
-use tasty::{SymbolId, Type};
+use tasty::SymbolId;
 
 impl Typer<'_> {
     /// Whether `c` is `java.lang.Enum`.
     pub fn is_java_enum_class(&self, c: SymbolId) -> bool {
-        self.u.full_name(c) == "java.lang.Enum"
+        self.u.full_name(c) == crate::defn::JAVA_ENUM
     }
 
     /// Whether class `c` derives from `java.lang.Enum`.
@@ -25,16 +25,14 @@ impl Typer<'_> {
     pub fn java_enum_constr_call(&mut self, parent: TNodeId, psym: SymbolId, span: Span) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(parent);
         let ctor = self.u.decl(psym, "<init>").ok()?.into_iter().next()?;
-        let Type::Applied(_, args) = self.u.types().get(tpe).clone() else { return None };
+        let args = self.u.applied(tpe).map(|(_, args)| args.to_vec())?;
         let new = self.tpd.node(T::New { tpt: parent }, span, Some(tpe), None);
         let name = TName { name: self.name("<init>"), is_type: false };
         let ctor_tpe = self.ref_type(Some(tpe), ctor);
         let select = self.tpd.node(T::Select { qualifier: new, name }, span, Some(ctor_tpe), Some(ctor));
         let targs: Vec<TNodeId> = args.iter().map(|&a| self.type_tree(a, span.start_pos(), false)).collect();
         let binder = self.syms.fresh_binder();
-        let method =
-            Type::Method { binder, params: Vec::new(), result: tpe, implicit: false, contextual: false };
-        let method = self.u.intern_type(method);
+        let method = self.u.intern_method(binder, &[], tpe, false, false);
         let fun = self.build().type_apply(select, &targs, method, span);
         Some(self.build().apply(fun, &[], tpe, span))
     }
@@ -76,9 +74,9 @@ impl Typer<'_> {
         if flags.has(ENUM) && !flags.has(CASE) {
             let this = crate::defn::type_ref(self.u, cls);
             let base = self.u.linearization(cls).into_iter().find(|&b| self.is_java_enum_class(b));
-            let arg = base.and_then(|b| self.u.base_type(this, b)).map(|t| self.u.types().get(t).clone());
-            let own = matches!(arg, Some(Type::Applied(_, ref args)) if args.len() == 1
-                && self.u.class_symbol(args[0]) == Some(cls));
+            let applied = base.and_then(|b| self.u.base_type(this, b)).and_then(|t| self.u.applied(t));
+            let arg = applied.and_then(|(_, args)| if let [arg] = args { Some(*arg) } else { None });
+            let own = arg.is_some_and(|a| self.u.class_symbol(a) == Some(cls));
             if !own || !self.u.type_params(cls).is_empty() {
                 return Some("enum extending java.lang.Enum of another type or with type parameters");
             }

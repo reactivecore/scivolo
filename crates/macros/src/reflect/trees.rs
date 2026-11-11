@@ -86,7 +86,7 @@ impl Host {
     /// The symbol the named or `this` type of `t` denotes.
     fn denoted(&mut self, t: TNodeId) -> Option<SymbolId> {
         let tpe = self.tpd.get(t).tpe?;
-        match *self.u.types().get(tpe) {
+        match *self.u.ty(tpe) {
             Type::Sym(_, s) | Type::Package(s) => Some(s),
             Type::TypeRef(..) | Type::TermRef(..) => self.u.resolve_ref(tpe),
             Type::This(c) => self.u.class_symbol(c),
@@ -108,7 +108,7 @@ impl Host {
     /// Type trees of the bounds of type tree `t` of a bounds or alias type, at its span.
     fn bounds_trees(&mut self, t: TNodeId) -> [TNodeId; 2] {
         let span = self.tpd.span(t);
-        let (lo, hi) = match *self.u.types().get(self.tpd.tpe(t)) {
+        let (lo, hi) = match *self.u.ty(self.tpd.tpe(t)) {
             Type::Bounds(lo, hi) => (lo, hi),
             Type::Alias(a) => (a, a),
             _ => (tasty::NOTHING, tasty::ANY),

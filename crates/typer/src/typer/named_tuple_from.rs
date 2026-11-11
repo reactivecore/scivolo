@@ -3,7 +3,7 @@
 //! The reduction of `NamedTuple.From[C]` to the named tuple of case class `C`'s fields.
 
 use super::Typer;
-use tasty::{Type, TypeId};
+use tasty::{NameId, Type, TypeId};
 
 impl Typer<'_> {
     /// `t` with each `NamedTuple.From[C]` of a case class `C` reduced to the named tuple of its
@@ -12,9 +12,7 @@ impl Typer<'_> {
         let Some(from) = self.resolve_full_name("scala.NamedTuple$.From", true) else { return t };
         let mut applied = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Applied(tycon, ref args) = *u.types().get(part)
-                && let [arg] = args[..]
-            {
+            if let Some((tycon, &[arg])) = u.applied(part) {
                 applied.push((part, tycon, arg));
             }
             None
@@ -43,11 +41,11 @@ impl Typer<'_> {
                 self.u.symbol(d).kind == tasty::Kind::Val && self.u.symbol(d).flags.has(CASEaccessor)
             })
             .collect();
-        let names: Vec<String> = fields.iter().map(|&f| self.u.symbol(f).name.clone()).collect();
+        let names: Vec<NameId> = fields.iter().map(|&f| self.u.interned_name(f)).collect();
         let values: Vec<TypeId> = fields.iter().map(|&f| self.u.member_info(c, f)).collect();
         let names: Vec<TypeId> = names.into_iter().map(|n| self.u.intern_type(Type::Str(n))).collect();
         let nt = self.named_tuple_ref()?;
         let (names, values) = (self.nested_pairs(&names).ok()?, self.nested_pairs(&values).ok()?);
-        Some(self.u.intern_type(Type::Applied(nt, vec![names, values])))
+        Some(self.u.intern_applied(nt, &[names, values]))
     }
 }

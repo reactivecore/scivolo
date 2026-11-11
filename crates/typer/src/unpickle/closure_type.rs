@@ -6,7 +6,7 @@ use super::{Refusal, Unpickler};
 use crate::tpd::TNodeId;
 use crate::typer::approx::{self, Approx};
 use crate::typer::dependent_params::mentions_params;
-use tasty::{Binder, Kind, NOTHING, SymbolId, Type, TypeId};
+use tasty::{Binder, Kind, NOTHING, NameId, SymbolId, Type, TypeId};
 
 /// The method type whose dependent result is approximated: its binder, parameter types and
 /// method symbol.
@@ -18,10 +18,13 @@ impl Unpickler<'_> {
         let s = self.tpd.sym(meth).ok_or("closure of an unknown method in a library inline body")?;
         let info = self.u.info(s);
         if self.u.poly(info).is_some() || self.u.has_erased_params(info) {
-            let poly_function = self.u.class_ref("scala.PolyFunction");
-            return Ok(self.u.intern_type(Type::Refined(poly_function, "apply".into(), info)));
+            let poly_function = self.u.class_ref(crate::defn::POLY_FUNCTION);
+            let apply = self.u.intern_name("apply");
+            return Ok(self.u.intern_type(Type::Refined(poly_function, apply, info)));
         }
-        let Type::Method { binder, params, result, contextual, .. } = self.u.types().get(info).clone() else {
+        let Some((binder, params, result, contextual)) =
+            self.u.method(info).map(|m| (m.binder, m.params.to_vec(), m.result, m.contextual))
+        else {
             return Err("closure of a method without parameters in a library inline body");
         };
         let types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
@@ -35,7 +38,10 @@ impl Unpickler<'_> {
         let class = self.class_symbol(&format!("scala.{kind}{}", params.len()))?;
         let function = crate::defn::applied(self.u, class, types.into_iter().chain([approx]).collect());
         Ok(match dependent {
-            true => self.u.intern_type(Type::Refined(function, "apply".into(), info)),
+            true => {
+                let apply = self.u.intern_name("apply");
+                self.u.intern_type(Type::Refined(function, apply, info))
+            }
             false => function,
         })
     }
@@ -50,22 +56,23 @@ impl Unpickler<'_> {
         if let Some(param) = self.param_type(t, ps) {
             return Some(approx::range(self.u, Approx::Exact(NOTHING), Approx::Exact(param), v));
         }
-        match self.u.types().get(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(Some(pre), member) => self.member_approx(pre, Ok(member), v, ps),
             Type::TypeRef(pre, name) => self.member_approx(pre, Err(name), v, ps),
             Type::Applied(tycon, args) => {
                 let c = self.approx(tycon, v, ps)?;
+                let args = self.u.types_of(args).to_vec();
                 let variances = self.u.tycon_variances(tycon, args.len());
                 let mut mapped = Vec::with_capacity(args.len());
                 for (&arg, &pv) in args.iter().zip(&variances) {
-                    let wildcard = matches!(self.u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));
+                    let wildcard = matches!(self.u.ty(arg), Type::Bounds(..) | Type::Wildcard(_));
                     mapped.push(self.approx(arg, if wildcard { v } else { v * pv }, ps)?);
                 }
                 Some(approx::applied(self.u, c, &mapped, &variances, v))
             }
             Type::Refined(parent, name, info) => {
                 let (parent, info) = (self.approx(parent, v, ps)?, self.approx(info, v, ps)?);
-                Some(approx::refined(self.u, parent, &name, info, v))
+                Some(approx::refined(self.u, parent, name, info, v))
             }
             Type::Bounds(lo, hi) => {
                 let (lo, hi) = (self.approx(lo, -v, ps)?, self.approx(hi, v, ps)?);
@@ -77,7 +84,7 @@ impl Unpickler<'_> {
             }
             Type::And(x, y) | Type::Or(x, y, _) => {
                 let parts = [self.approx(x, v, ps)?, self.approx(y, v, ps)?];
-                let node = self.u.types().get(t).clone();
+                let node = *self.u.ty(t);
                 Some(approx::derived(self.u, &parts, &[], v, &mut |u, p| match node {
                     Type::Or(_, _, soft) => u.intern_type(Type::Or(p[0], p[1], soft)),
                     _ => u.intern_type(Type::And(p[0], p[1])),
@@ -89,7 +96,7 @@ impl Unpickler<'_> {
 
     /// The type of parameter reference `t` of `ps`.
     fn param_type(&mut self, t: TypeId, (binder, types, method): Params) -> Option<TypeId> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Param(b, i) if b == binder => types.get(i as usize).copied(),
             Type::Sym(None, p)
                 if self.u.symbol(p).kind == Kind::Param && self.u.symbol(p).owner == Some(method) =>
@@ -105,7 +112,7 @@ impl Unpickler<'_> {
     fn member_approx(
         &mut self,
         pre: TypeId,
-        member: Result<SymbolId, String>,
+        member: Result<SymbolId, NameId>,
         v: i8,
         ps: Params,
     ) -> Option<Approx> {
@@ -113,11 +120,12 @@ impl Unpickler<'_> {
         let member = match member {
             Ok(m) => m,
             Err(name) => {
+                let name = self.u.name(name).to_owned();
                 self.u.member_of_type(param, &name).into_iter().find(|&m| self.u.is_type_symbol(m))?
             }
         };
         let info = self.u.member_info(param, member);
-        match *self.u.types().get(info) {
+        match *self.u.ty(info) {
             Type::Alias(x) => Some(Approx::Exact(x)),
             Type::Bounds(lo, hi) => Some(approx::range(self.u, Approx::Exact(lo), Approx::Exact(hi), v)),
             _ if self.u.symbol(member).kind.is_term() => {

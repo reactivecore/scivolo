@@ -9,7 +9,7 @@ use super::super::candidates::{Candidate, candidate_ref};
 use super::super::ranking::most_specific;
 use super::view_kinds::extension_members;
 use super::{Goal, ViewSearch};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 
 const AMBIGUOUS: &str = "ambiguous extension methods of implicit values";
 
@@ -59,10 +59,8 @@ impl ViewSearch<'_> {
             let [m] = members[..] else { return false };
             let tpe = t.ref_type(Some(value), m);
             let info = t.method_info(tpe).unwrap_or(tpe);
-            match t.u.types().get(info).clone() {
-                Type::Method { result, .. } if !matches!(t.u.types().get(result), Type::Method { .. }) => {
-                    t.conforms(result, pt)
-                }
+            match t.u.method(info).map(|m| m.result) {
+                Some(result) if t.u.method(result).is_none() => t.conforms(result, pt),
                 _ => false,
             }
         });

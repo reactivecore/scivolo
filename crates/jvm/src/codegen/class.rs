@@ -5,7 +5,7 @@
 
 use super::body::Body;
 use super::clinit::StaticInit;
-use super::{ClassBytes, Gen, internal, is_static_module, java_flags, method_descriptor, unsupported};
+use super::{ClassBytes, Gen, internal, java_flags, method_descriptor, unsupported};
 use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile, Last};
 use lower::Result;
 use tasty::SymbolId;
@@ -25,7 +25,7 @@ impl Gen<'_, '_> {
         let interfaces: Vec<&str> = interfaces.iter().map(String::as_str).collect();
         let mut cf = ClassFile::new(java_flags(self.l, sym), &name, &superclass, &interfaces);
         self.serial_version_uid(&mut cf, sym)?;
-        let module = is_static_module(self.l.u, sym);
+        let module = self.l.u.is_static_module(sym);
         let module_desc = format!("L{name};");
         if module {
             cf.field(ACC_PUBLIC | ACC_STATIC | ACC_FINAL, "MODULE$", &module_desc);
@@ -73,7 +73,7 @@ impl Gen<'_, '_> {
         self.deserialize_lambda(&mut cf);
         let top = self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.symbol(o).kind == tasty::Kind::Package);
         let companion = self.l.u.companion_module(sym).and_then(|m| self.l.u.module_class(m));
-        if let Some(companion) = companion.filter(|&c| !module && is_static_module(self.l.u, c)) {
+        if let Some(companion) = companion.filter(|&c| !module && self.l.u.is_static_module(c)) {
             self.add_forwarders(&mut cf, companion, Some(sym));
         }
         let signature = super::signatures::class(self.l.u, sym);
@@ -84,7 +84,7 @@ impl Gen<'_, '_> {
         let source = self.source_name(td);
         cf.source_file(&source);
         let mut declared: Vec<SymbolId> = nested.iter().filter_map(|&n| self.l.tpd.sym(n)).collect();
-        if let Some(companion) = companion.filter(|&c| top && !module && is_static_module(self.l.u, c)) {
+        if let Some(companion) = companion.filter(|&c| top && !module && self.l.u.is_static_module(c)) {
             declared.extend(self.member_classes(companion));
         }
         self.nested_attributes(&mut cf, sym, &declared);

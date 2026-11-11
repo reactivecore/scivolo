@@ -42,7 +42,7 @@ impl Cmp<'_> {
             let w = s.u.widen(t);
             !s.explicit_nulls() && w != t && s.nullable_within(w, depth)
         };
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(t).map(|n| n.meaning) {
                 Some(Meaning::Class(c)) => self.nullable_class(c),
                 Some(Meaning::Term(_)) => widened(self),
@@ -62,7 +62,7 @@ impl Cmp<'_> {
     /// Whether class `c` has `null` among its values: under safe nulls `Null`, `Any` or
     /// `Matchable`; else not `Nothing`, a value class or an object.
     fn nullable_class(&mut self, c: SymbolId) -> bool {
-        let builtins = self.u.builtins();
+        let builtins = self.u.defn();
         if self.safe_nulls() {
             return c == builtins.null || c == builtins.any || c == builtins.matchable;
         }

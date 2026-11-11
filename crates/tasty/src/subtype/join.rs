@@ -11,9 +11,9 @@ use crate::{Kind, SymbolId, Universe};
 impl Universe {
     /// The join of union `t`, `t` itself if it is no union; `None` where the parts do not merge.
     pub fn join(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Or(a, b, _) = *self.types().get(t) else { return Some(t) };
+        let Type::Or(a, b, _) = *self.ty(t) else { return Some(t) };
         let (da, db) = (self.dealias(a), self.dealias(b));
-        if let (&Type::Applied(c1, _), &Type::Applied(c2, _)) = (self.types().get(da), self.types().get(db))
+        if let (Type::Applied(c1, _), Type::Applied(c2, _)) = (*self.ty(da), *self.ty(db))
             && c1 == c2
         {
             return self.merged(da, db);
@@ -66,7 +66,7 @@ impl Universe {
 
     /// Whether `t` is a class type, possibly applied.
     fn is_class_ref(&self, t: TypeId) -> bool {
-        match *self.types().get(t) {
+        match *self.ty(t) {
             Type::Sym(_, s) => self.symbol(s).kind == Kind::Class,
             Type::Applied(tycon, _) | Type::Refined(tycon, ..) => self.is_class_ref(tycon),
             _ => false,
@@ -74,7 +74,7 @@ impl Universe {
     }
 
     fn is_singleton_type(&self, t: TypeId) -> bool {
-        match *self.types().get(t) {
+        match *self.ty(t) {
             Type::Sym(_, s) => self.symbol(s).kind.is_term(),
             Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
             _ => false,
@@ -94,17 +94,17 @@ impl Universe {
         if let Some(hi) = self.opaque_upper(t) {
             return hi;
         }
-        match *self.types().get(t) {
+        match *self.ty(t) {
             Type::Match { bound, .. } => return bound,
             Type::Applied(..) => {
                 let dealiased = self.dealias(t);
-                if matches!(self.types().get(dealiased), Type::Match { .. }) {
+                if matches!(self.ty(dealiased), Type::Match { .. }) {
                     return dealiased;
                 }
             }
             _ => {}
         }
-        let Type::Sym(prefix, s) = *self.types().get(t) else { return t };
+        let Type::Sym(prefix, s) = *self.ty(t) else { return t };
         if !matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) {
             return t;
         }
@@ -115,7 +115,7 @@ impl Universe {
             (None, Some(p)) => self.member_info(p, s),
             (None, None) => self.info(s),
         };
-        match *self.types().get(info) {
+        match *self.ty(info) {
             Type::Bounds(_, hi) => hi,
             Type::Alias(a) => a,
             _ => arg.unwrap_or(t),
@@ -125,7 +125,7 @@ impl Universe {
     /// The base classes the parts of union `t` share, in linearization order (dotty's
     /// `orBaseClasses`).
     fn or_base_classes(&mut self, t: TypeId) -> Option<Vec<SymbolId>> {
-        match *self.types().get(t) {
+        match *self.ty(t) {
             Type::Or(a, b, _) => {
                 if let Some(other) = self.non_bottom_part(a, b) {
                     return self.or_base_classes(other);
@@ -149,7 +149,7 @@ impl Universe {
             _ => {
                 let widened = self.widen(t);
                 let c = self.class_symbol(widened)?;
-                let b = self.builtins();
+                let b = self.defn();
                 if c == b.null && self.null_mode().explicit {
                     return Some(vec![b.null, b.matchable, b.any]);
                 }
@@ -160,7 +160,7 @@ impl Universe {
 
     /// The base type of union `t` at class `c`, the parts' base types merged.
     fn or_base_type(&mut self, t: TypeId, c: SymbolId) -> Option<TypeId> {
-        match *self.types().get(t) {
+        match *self.ty(t) {
             Type::Or(a, b, _) => {
                 if let Some(other) = self.non_bottom_part(a, b) {
                     return self.or_base_type(other, c);
@@ -204,8 +204,8 @@ impl Universe {
     /// Whether `t` is of class `Nothing` or `Null` (dotty's `isBottomTypeAfterErasure`).
     fn is_bottom(&mut self, t: TypeId) -> bool {
         let widened = self.widen(t);
-        let c = self.class_symbol(widened);
-        c.is_some_and(|c| c == self.builtins().nothing || self.full_name(c) == "scala.Null")
+        let (c, d) = (self.class_symbol(widened), self.defn());
+        c.is_some_and(|c| c == d.nothing || c == d.null)
     }
 
     /// Applications `x` and `y` of the same class merged, their arguments joined by variance
@@ -214,22 +214,21 @@ impl Universe {
         if x == y {
             return Some(x);
         }
-        match (self.types().get(x).clone(), self.types().get(y).clone()) {
+        match (*self.ty(x), *self.ty(y)) {
             (Type::And(x1, x2), _) => {
                 let (m1, m2) = (self.merged(x1, y)?, self.merged(x2, y)?);
                 Some(self.glb(m1, m2))
             }
             (Type::Applied(t1, xs), Type::Applied(t2, ys))
-                if xs.len() == ys.len() && (t1 == t2 || self.same_static_class(t1, t2).is_some()) =>
+                if self.types_of(xs).len() == self.types_of(ys).len()
+                    && (t1 == t2 || self.same_static_class(t1, t2).is_some()) =>
             {
                 self.class_symbol(t1)?;
+                let (xs, ys) = (self.types_of(xs).to_vec(), self.types_of(ys).to_vec());
                 let variances = self.constructor_variances(t1);
                 let mut args = Vec::new();
                 for (i, (&p, &q)) in xs.iter().zip(&ys).enumerate() {
-                    let interval = |u: &Self, t| match *u.types().get(t) {
-                        Type::Bounds(lo, hi) => (lo, hi, true),
-                        _ => (t, t, false),
-                    };
+                    let interval = |u: &Self, t| u.bounds(t).map_or((t, t, false), |(lo, hi)| (lo, hi, true));
                     let ((plo, phi, pb), (qlo, qhi, qb)) = (interval(self, p), interval(self, q));
                     let same = p == q || !pb && !qb && self.is_subtype(p, q) && self.is_subtype(q, p);
                     args.push(match variances.get(i).copied().unwrap_or(0) {
@@ -242,7 +241,7 @@ impl Universe {
                         }
                     });
                 }
-                Some(self.intern_type(Type::Applied(t1, args)))
+                Some(self.intern_applied(t1, &args))
             }
             (Type::Sym(p1, s1), Type::Sym(p2, s2)) if s1 == s2 && p1 == p2 => Some(x),
             (Type::Sym(..) | Type::TypeRef(..), Type::Sym(..) | Type::TypeRef(..)) => {

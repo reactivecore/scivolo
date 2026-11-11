@@ -9,7 +9,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName, Tree};
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 impl Typer<'_> {
     /// The tree of named tuple type `tpe` at `span`, written with names `names` and value type
@@ -22,7 +22,7 @@ impl Typer<'_> {
         values: &[TNodeId],
         span: Span,
     ) -> TNodeId {
-        let Type::Applied(nt, ref args) = *self.u.types().get(tpe) else {
+        let Some((nt, args)) = self.u.applied(tpe) else {
             return self.type_tree(tpe, span, false);
         };
         let [names_tpe, values_tpe] = args[..] else { return self.type_tree(tpe, span, false) };
@@ -48,7 +48,7 @@ impl Typer<'_> {
         span: Span,
         ctx: Ctx,
     ) -> Option<TNodeId> {
-        let types: Vec<TypeId> = names.iter().map(|n| self.u.intern_type(Type::Str(n.clone()))).collect();
+        let types: Vec<TypeId> = names.iter().map(|n| self.u.str_type(n)).collect();
         let names_tpe = self.values_type(&types)?;
         let names_tree = self.names_tree(names_tpe, names, span);
         let start = span.start_pos().to_synthetic();
@@ -94,10 +94,7 @@ impl Typer<'_> {
 
     /// `TupleN[args]` of type `tpe` at `span`, its constructor at `at`.
     fn tuple_type_tree(&mut self, tpe: TypeId, at: Span, args: &[TNodeId], span: Span) -> TNodeId {
-        let tycon = match *self.u.types().get(tpe) {
-            Type::Applied(tycon, _) => tycon,
-            _ => tpe,
-        };
+        let tycon = self.u.applied(tpe).map_or(tpe, |(tycon, _)| tycon);
         let tpt = self.type_tree(tycon, at, false);
         let args = self.tpd.list(args);
         self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)

@@ -43,7 +43,7 @@ pub fn name_mixed_in(l: &mut Lower, class: SymbolId) {
 /// The lazy object `x = new T$x$(this)` of class `class` for object `getter` of a trait.
 pub fn module_forwarder(l: &mut Lower, class: SymbolId, getter: SymbolId, span: Span) -> Result<TNodeId> {
     let module_class = l.u.module_class(getter);
-    let ctor = module_class.and_then(|c| l.u.decl(c, "<init>").unwrap_or_default().into_iter().next());
+    let ctor = module_class.and_then(|c| l.u.decls_named(c, "<init>").into_iter().next());
     let (Some(module_class), Some(ctor)) = (module_class, ctor) else {
         return unsupported(span, "objects in traits without their class");
     };

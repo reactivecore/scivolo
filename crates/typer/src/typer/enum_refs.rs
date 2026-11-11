@@ -6,7 +6,7 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use tasty::tags::{CONTRAVARIANT, COVARIANT};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, TypeId};
 
 impl Typer<'_> {
     /// The type of full name `full`; for an enum parent `E[...]`, the enum class applied to the
@@ -22,7 +22,7 @@ impl Typer<'_> {
         let mut args = Vec::new();
         for &p in &tparams {
             let info = self.u.info(p);
-            let Type::Bounds(lo, hi) = *self.u.types().get(info) else { return None };
+            let (lo, hi) = self.u.bounds(info)?;
             let flags = self.u.symbol(p).flags;
             let arg = match (flags.has(COVARIANT), flags.has(CONTRAVARIANT)) {
                 (true, false) => lo,
@@ -31,7 +31,7 @@ impl Typer<'_> {
             };
             let mut ground = true;
             self.u.map_type(arg, &mut |u, t| {
-                if let Type::Sym(_, s) = *u.types().get(t) {
+                if let Some(s) = u.sym_of(t) {
                     ground &= !tparams.contains(&s);
                 }
                 None

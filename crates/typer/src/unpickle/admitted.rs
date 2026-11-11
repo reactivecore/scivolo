@@ -2,7 +2,7 @@
 
 use super::{Refusal, Unpickler};
 use crate::tpd::TNodeId;
-use tasty::{Type, TypeId, Universe};
+use tasty::{NameId, Type, TypeId, Universe};
 
 impl Unpickler<'_> {
     /// Refuses tree `t` if its type is not admitted.
@@ -20,13 +20,14 @@ impl Unpickler<'_> {
 }
 
 /// Why type `t` is not admitted, the parameters of the type lambdas around it named by `bound`.
-fn refusal(u: &mut Universe, t: TypeId, bound: &[(tasty::FileId, String)]) -> Option<Refusal> {
+fn refusal(u: &mut Universe, t: TypeId, bound: &[(tasty::FileId, NameId)]) -> Option<Refusal> {
     let mut found = None;
     u.map_type(t, &mut |u, part| {
-        let refused = match u.types().get(part).clone() {
+        let refused = match *u.ty(part) {
             Type::Lambda { binder, params, result } => {
+                let params = u.params_of(params).to_vec();
                 let mut inner = bound.to_vec();
-                inner.extend(params.iter().map(|(n, _)| (binder.0, n.clone())));
+                inner.extend(params.iter().map(|&(n, _)| (binder.0, n)));
                 let in_params = params.into_iter().find_map(|(_, p)| refusal(u, p, &inner));
                 found = found.or(in_params).or_else(|| refusal(u, result, &inner));
                 return Some(part);
@@ -36,12 +37,12 @@ fn refusal(u: &mut Universe, t: TypeId, bound: &[(tasty::FileId, String)]) -> Op
                 Some("undecoded type in a library inline body")
             }
             Type::TypeRef(p, n) | Type::TermRef(p, n) => {
-                let is_type = matches!(u.types().get(part), Type::TypeRef(..));
-                match u.resolve(p, &n, is_type) {
+                let is_type = u.type_ref(part).is_some();
+                match u.resolve(p, n, is_type) {
                     Some(_) => None,
-                    None if is_type && u.refinement_named(p, &n).is_some() => None,
-                    None if matches!(u.types().get(p), Type::Param(..)) => None,
-                    None if !is_type && n == "apply" && u.poly_function_apply_of(p).is_some() => None,
+                    None if is_type && u.refinement_named(p, n).is_some() => None,
+                    None if u.param_ref(p).is_some() => None,
+                    None if !is_type && u.name(n) == "apply" && u.poly_function_apply_of(p).is_some() => None,
                     None => Some("unresolved reference in a library inline body"),
                 }
             }

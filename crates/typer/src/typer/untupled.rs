@@ -11,7 +11,6 @@ use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
-use tasty::Type;
 
 impl Typer<'_> {
     /// Function value `id` of parameters `args` and `body` untupled against `pt`, if `pt` is a
@@ -35,7 +34,7 @@ impl Typer<'_> {
             None => self.sam_parts(p, 1, true).ok()??.params,
         };
         let formal = self.zonk(formals[0]);
-        if matches!(self.u.types().get(formal), Type::Bounds(..)) {
+        if self.u.bounds(formal).is_some() {
             return Some(self.unsupported(id, "untupled parameters of a wildcard formal"));
         }
         let Ok(formal) = self.fully_defined(formal) else { return None };
@@ -44,7 +43,7 @@ impl Typer<'_> {
         let (elems, generic) = match named {
             Some(values) => (values, true),
             None => {
-                let Type::Applied(tycon, args) = self.u.types().get(tuple).clone() else { return None };
+                let (tycon, args) = self.u.applied(tuple).map(|(tycon, args)| (tycon, args.to_vec()))?;
                 let class = self.u.class_symbol(tycon)?;
                 let class = self.u.full_name(class);
                 match class.as_str() {

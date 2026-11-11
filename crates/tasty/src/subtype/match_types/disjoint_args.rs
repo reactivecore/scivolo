@@ -6,7 +6,7 @@
 use super::super::Cmp;
 use super::disjoint::Pending;
 use crate::tags::{CASE, CASEaccessor};
-use crate::types::{Type, TypeId};
+use crate::types::TypeId;
 use crate::{Kind, NOTHING, SymbolId};
 
 impl Cmp<'_> {
@@ -38,10 +38,7 @@ impl Cmp<'_> {
 
     /// Whether `t` passes class `c` as many arguments as it takes.
     fn args_match(&mut self, t: TypeId, c: SymbolId) -> bool {
-        let n = match self.u.types().get(t) {
-            Type::Applied(_, args) => args.len(),
-            _ => 0,
-        };
+        let n = self.u.applied(t).map_or(0, |(_, args)| args.len());
         self.u.type_params(c).len() == n
     }
 
@@ -59,11 +56,10 @@ impl Cmp<'_> {
         let (Some(b1), Some(b2)) = (self.u.base_type(x, base), self.u.base_type(y, base)) else {
             return false;
         };
-        let (Type::Applied(_, args1), Type::Applied(_, args2)) =
-            (self.u.types().get(b1).clone(), self.u.types().get(b2).clone())
-        else {
+        let (Some((_, args1)), Some((_, args2))) = (self.u.applied(b1), self.u.applied(b2)) else {
             return false;
         };
+        let (args1, args2) = (args1.to_vec(), args2.to_vec());
         let variances = self.u.variances(base);
         for (i, (&a1, &a2)) in args1.iter().zip(&args2).enumerate() {
             let disjoint = match variances.get(i).copied().unwrap_or(0) {
@@ -86,7 +82,7 @@ impl Cmp<'_> {
     /// Whether type parameter `p` of class `c` is the type of one of its case class fields, or
     /// `c` is a pair class (dotty's `typeparamCorrespondsToField`).
     fn param_is_field(&mut self, c: SymbolId, p: SymbolId) -> bool {
-        if self.u.full_name(c) == "scala.*:" {
+        if self.u.full_name(c) == crate::defn::PAIR {
             return true;
         }
         if !self.u.symbol(c).flags.has(CASE) {
@@ -102,7 +98,7 @@ impl Cmp<'_> {
             .collect();
         fields.into_iter().any(|f| {
             let info = self.u.info(f);
-            matches!(*self.u.types().get(info), Type::Sym(_, s) if s == p)
+            self.u.sym_of(info) == Some(p)
         })
     }
 

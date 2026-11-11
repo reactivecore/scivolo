@@ -15,11 +15,8 @@ use typer::tpd::{TNodeId, Tree};
 /// `span` if dealiased type `tpe` refers to `Tuple`, `NonEmptyTuple` or `EmptyTuple`, or applies
 /// `*:`.
 pub fn tuple_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Option<TNodeId> {
-    let (tycon, applied) = match *l.u.types().get(tpe) {
-        Type::Applied(tycon, _) => (tycon, true),
-        _ => (tpe, false),
-    };
-    let s = match *l.u.types().get(tycon) {
+    let (tycon, applied) = l.u.applied(tpe).map_or((tpe, false), |(tycon, _)| (tycon, true));
+    let s = match *l.u.ty(tycon) {
         Type::Sym(_, s) => Some(s),
         Type::TypeRef(..) | Type::TermRef(..) => l.u.resolve_ref(tycon),
         _ => None,
@@ -50,7 +47,7 @@ pub fn array_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Resu
     let mut dims = 0;
     loop {
         let dealiased = l.u.dealias(elem);
-        let Type::Applied(tycon, args) = l.u.types().get(dealiased).clone() else { break };
+        let Some((tycon, args)) = l.u.applied(dealiased).map(|(c, a)| (c, a.to_vec())) else { break };
         if l.u.class_symbol(tycon).is_none_or(|c| l.u.full_name(c) != "scala.Array") || args.len() != 1 {
             break;
         }

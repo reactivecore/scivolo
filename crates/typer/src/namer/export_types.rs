@@ -24,11 +24,11 @@ impl Typer<'_> {
             return false;
         }
         let info = self.u.info(s);
-        let Type::Alias(mut target) = *self.u.types().get(info) else { return false };
-        if let Type::Lambda { result, .. } = *self.u.types().get(target) {
-            target = result;
+        let Some(mut target) = self.u.type_alias(info) else { return false };
+        if let Some(lambda) = self.u.lambda(target) {
+            target = lambda.result;
         }
-        if let Type::Applied(tycon, _) = *self.u.types().get(target) {
+        if let Some((tycon, _)) = self.u.applied(target) {
             target = tycon;
         }
         let target = self.u.dealias(target);
@@ -38,8 +38,7 @@ impl Typer<'_> {
     /// The type alias forwarding to type member `m` of `e`'s path.
     pub fn add_type_forwarder(&mut self, e: &mut Export, alias: &str, m: SymbolId, span: Span) {
         let class = self.u.symbol(m).kind == Kind::Class;
-        let taken =
-            self.u.decl(e.cls, alias).unwrap_or_default().into_iter().any(|d| self.u.is_type_symbol(d));
+        let taken = self.u.decls_named(e.cls, alias).into_iter().any(|d| self.u.is_type_symbol(d));
         if taken {
             self.unsupported_at(span, "export of a type whose name the class defines");
             return;
@@ -84,31 +83,29 @@ impl Typer<'_> {
             self.eta_expanded(m, target).ok()?
         } else {
             let info = self.u.info(m);
-            let lambda = match *self.u.types().get(info) {
-                Type::Alias(l) | Type::Bounds(_, l) => l,
-                _ => info,
-            };
-            let Type::Lambda { binder: old, ref params, .. } = *self.u.types().get(lambda) else {
+            let lambda =
+                (self.u.type_alias(info)).or_else(|| self.u.bounds(info).map(|(_, l)| l)).unwrap_or(info);
+            let Some((old, params)) = self.u.lambda(lambda).map(|l| (l.binder, l.params.to_vec())) else {
                 return Some(target);
             };
-            let params = params.clone();
             let binder = self.u.fresh_binder();
             let rebind = |u: &mut tasty::Universe, t: TypeId| {
-                u.map_type(t, &mut |u, x| match *u.types().get(x) {
-                    Type::Param(b, i) if b == old => Some(u.intern_type(Type::Param(binder, i))),
+                u.map_type(t, &mut |u, x| match u.param_ref(x) {
+                    Some((b, i)) if b == old => Some(u.intern_type(Type::Param(binder, i))),
                     _ => None,
                 })
             };
-            let params: Vec<(String, TypeId)> =
+            let params: Vec<(tasty::NameId, TypeId)> =
                 params.into_iter().map(|(n, b)| (n, rebind(self.u, b))).collect();
-            let args = (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
-            let result = self.u.intern_type(Type::Applied(target, args));
-            self.u.intern_type(Type::Lambda { binder, params, result })
+            let args: Vec<_> =
+                (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
+            let result = self.u.intern_applied(target, &args);
+            self.u.intern_lambda(binder, &params, result)
         };
         let owner = self.u.symbol(m).owner?;
         let lambda = self.u.as_seen_from(lambda, path, owner);
         let variances = self.u.variances(m);
-        if let Type::Lambda { binder, .. } = *self.u.types().get(lambda)
+        if let Some(binder) = self.u.lambda(lambda).map(|l| l.binder)
             && variances.iter().any(|&v| v != 0)
         {
             self.u.declare_lambda_variances(binder, variances);

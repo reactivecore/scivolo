@@ -6,10 +6,9 @@ use super::Matcher;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
 use syntax::ast::constant::Constant;
+use tasty::defn::PATTERNS;
 use tasty::tags::{LAZY, MUTABLE};
 use tasty::{SymbolId, Type, TypeId};
-
-const PATTERNS: &str = "scala.quoted.runtime.Patterns$";
 
 impl Matcher<'_> {
     /// The type tree of term hole `patternHole[T]` at `t`.
@@ -35,8 +34,8 @@ impl Matcher<'_> {
     pub fn conforms(&mut self, s: TNodeId, p: TNodeId) -> bool {
         let (Some(a), Some(b)) = (self.type_of(s), self.tpd.get(p).tpe) else { return false };
         let env = &self.env;
-        let a = self.u.map_type(a, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, x) if u.symbol(x).kind.is_type() => {
+        let a = self.u.map_type(a, &mut |u, part| match u.sym_ref(part) {
+            Some((None, x)) if u.symbol(x).kind.is_type() => {
                 env.iter().find(|&&(e, _)| e == x).map(|&(_, y)| u.intern_type(Type::Sym(None, y)))
             }
             _ => None,
@@ -51,7 +50,7 @@ impl Matcher<'_> {
             T::SeqLiteral { elemtpt, .. } if self.tpd.get(t).tpe.is_none() => {
                 let seq = self.u.class_ref(crate::defn::IMMUTABLE_SEQ);
                 let elem = self.tpd.get(elemtpt).tpe?;
-                let tpe = self.u.intern_type(Type::Applied(seq, vec![elem]));
+                let tpe = self.u.intern_applied(seq, &[elem]);
                 self.tpd.get_mut(t).tpe = Some(tpe);
                 Some(tpe)
             }
@@ -65,7 +64,7 @@ impl Matcher<'_> {
 
     pub fn is_repeated(&mut self, tpt: TNodeId) -> bool {
         let Some(t) = self.tpd.get(tpt).tpe else { return false };
-        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == "scala.<repeated>")
+        self.u.is_class_named(t, "scala.<repeated>")
     }
 
     pub fn is_type_tree(&self, t: TNodeId) -> bool {
@@ -88,11 +87,11 @@ impl Matcher<'_> {
     /// matches (dotty's `tpd.ref(qual)` in `=?=`): the value it is a member of, or the object
     /// of the module class whose `this` it is; `None` for other prefixes.
     pub fn prefix_ref(&mut self, s: TNodeId) -> Option<TNodeId> {
-        let prefix = match *self.u.types().get(self.tpd.get(s).tpe?) {
+        let prefix = match *self.u.ty(self.tpd.get(s).tpe?) {
             Type::Sym(Some(p), _) | Type::TermRef(p, _) => p,
             _ => return None,
         };
-        let (sym, tpe) = match *self.u.types().get(prefix) {
+        let (sym, tpe) = match *self.u.ty(prefix) {
             Type::Sym(_, v) if self.u.symbol(v).kind.is_term() => (v, prefix),
             Type::This(c) => {
                 let c = self.u.class_symbol(c).filter(|&c| self.u.is_module_class(c))?;
@@ -115,7 +114,7 @@ impl Matcher<'_> {
         let name = self.u.symbol(a).name.clone();
         let site = self.u.this_type(c);
         for base in self.u.linearization(c) {
-            for d in self.u.decl(base, &name).unwrap_or_default() {
+            for d in self.u.decls_named(base, &name) {
                 if d == a || self.u.symbol(d).kind.is_term() && self.u.matches(site, d, a) {
                     return d;
                 }
@@ -151,8 +150,8 @@ impl Matcher<'_> {
     /// The class or package `this` tree `t` refers to.
     pub fn this_class(&mut self, t: TNodeId) -> Option<SymbolId> {
         let tpe = self.tpd.get(t).tpe?;
-        let Type::This(c) = *self.u.types().get(tpe) else { return None };
-        match *self.u.types().get(c) {
+        let c = self.u.this_of(tpe)?;
+        match *self.u.ty(c) {
             Type::Package(p) => Some(p),
             _ => self.u.class_symbol(c),
         }

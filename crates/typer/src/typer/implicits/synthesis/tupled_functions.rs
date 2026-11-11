@@ -7,7 +7,7 @@ use super::Synthesizer;
 use crate::tpd::TNodeId;
 use crate::typer::Typer;
 use crate::typer::small_tuples::{MAX_TUPLE_ARITY, tuple_class_args};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, TypeId};
 
 /// The parts of a `FunctionN` or `ContextFunctionN` type.
 struct FunctionParts {
@@ -77,7 +77,7 @@ fn any_function_parts(t: &mut Typer<'_>, tpe: TypeId) -> Option<FunctionParts> {
         return Some(FunctionParts { params, result, contextual: true });
     }
     let d = t.u.dealias(tpe);
-    let Type::Applied(_, args) = t.u.types().get(d) else { return None };
+    let (_, args) = t.u.applied(d)?;
     let n = args.len().checked_sub(1)?;
     t.function_parts(tpe, n).map(|(params, result)| FunctionParts { params, result, contextual: false })
 }
@@ -88,7 +88,7 @@ fn function_n_of(t: &mut Typer<'_>, parts: Vec<TypeId>, contextual: bool) -> Res
         return t.function_of(parts);
     }
     let class = t.context_function_class(parts.len() - 1).ok_or("context function of that arity")?;
-    Ok(t.u.intern_type(Type::Applied(class, parts)))
+    Ok(t.u.intern_applied(class, &parts))
 }
 
 /// `TupleN[elems]`, or `e1 *: … *: EmptyTuple` for none or more than 22 (dotty's `tupleType`).

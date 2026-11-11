@@ -4,7 +4,7 @@
 //! where its methods use them, else only in its constructor.
 
 use super::walk::children;
-use crate::symbols::{has, is_static, is_static_module};
+use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
@@ -84,7 +84,7 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
         }
     }
     let l: &Lower = l;
-    let static_outer = is_static_module(l.u, outer) || l.u.symbol(outer).kind == Kind::Package;
+    let static_outer = l.u.is_static_module(outer) || l.u.symbol(outer).kind == Kind::Package;
     let mut free = Free { values: Vec::new(), in_methods: Vec::new(), called: Vec::new() };
     let mut todo = vec![(td, false)];
     while let Some((t, in_method)) = todo.pop() {

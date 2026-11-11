@@ -25,13 +25,13 @@ impl Host {
     fn eta(&mut self, t: TNodeId, owner: SymbolId) -> Fallible<Option<TNodeId>> {
         let info = self.tpd.get(t).tpe.ok_or("Term.etaExpand of a term without a type")?;
         let info = self.u.widen(info);
-        let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
+        let Type::Method { binder, params, result, .. } = *self.u.ty(info) else {
             return Ok(None);
         };
-        if params.iter().any(|&(_, p)| self.refers_to(p, binder)) {
+        if self.u.params_of(params).to_vec().into_iter().any(|(_, p)| self.refers_to(p, binder)) {
             return Ok(None);
         }
-        let result = match self.u.types().get(result) {
+        let result = match *self.u.ty(result) {
             Type::Method { .. } => self.function_type(result)?,
             _ => result,
         };
@@ -54,7 +54,7 @@ impl Host {
     /// The function type of method type `m`, curried for its later clauses (dotty's
     /// `toFunctionType`).
     pub fn function_type(&mut self, m: TypeId) -> Fallible<TypeId> {
-        let Type::Method { binder, params, result, contextual, .. } = self.u.types().get(m).clone() else {
+        let Type::Method { binder, params, result, contextual, .. } = *self.u.ty(m) else {
             return Ok(m);
         };
         if self.refers_to(result, binder) {
@@ -62,18 +62,19 @@ impl Host {
         }
         let result = self.function_type(result)?;
         let context = if contextual { "Context" } else { "" };
+        let params = self.u.params_of(params).to_vec();
         let class = self.u.class_ref(&format!("scala.{context}Function{}", params.len()));
         let mut args: Vec<TypeId> =
             params.into_iter().map(|(_, p)| self.translated_from_repeated(p)).collect();
         args.push(result);
-        Ok(self.u.intern_type(Type::Applied(class, args)))
+        Ok(self.u.intern_applied(class, &args))
     }
 
     /// Whether `t` refers to a parameter of method type binder `binder`.
     fn refers_to(&mut self, t: TypeId, binder: Binder) -> bool {
         let mut refers = false;
         self.u.map_type(t, &mut |u, part| {
-            refers |= matches!(*u.types().get(part), Type::Param(b, _) if b == binder);
+            refers |= u.param_ref(part).is_some_and(|(b, _)| b == binder);
             None
         });
         refers
@@ -82,7 +83,8 @@ impl Host {
     /// Repeated parameter type `p` as a `Seq` (dotty's `translateFromRepeated`), else `p`.
     fn translated_from_repeated(&mut self, p: TypeId) -> TypeId {
         let class_name = |h: &mut Host, t: TypeId| h.u.class_symbol(t).map(|c| h.u.full_name(c));
-        match self.u.types().get(p).clone() {
+        let ty = *self.u.ty(p);
+        match ty {
             Type::Annotated(seq, annot)
                 if class_name(self, annot).as_deref() == Some("scala.annotation.internal.Repeated") =>
             {

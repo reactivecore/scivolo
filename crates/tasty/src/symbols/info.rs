@@ -74,11 +74,8 @@ impl Universe {
     /// The upper bound of `t`, a reference to an opaque type from TASTy, applied to arguments or
     /// not, while opaque types are not elided: the one its definition states, else `Any`.
     pub fn opaque_upper(&mut self, t: TypeId) -> Option<TypeId> {
-        let (tycon, args) = match self.types().get(t).clone() {
-            Type::Applied(tycon, args) => (tycon, Some(args)),
-            _ => (t, None),
-        };
-        let (prefix, s) = match *self.types().get(tycon) {
+        let (tycon, args) = self.applied(t).map_or((t, None), |(c, a)| (c, Some(a.to_vec())));
+        let (prefix, s) = match *self.ty(tycon) {
             Type::Sym(p, s) => (p, s),
             Type::TypeRef(..) => (None, self.referenced(tycon)?),
             _ if args.is_some() => (None, self.referenced(tycon)?),
@@ -94,8 +91,9 @@ impl Universe {
             _ => hi,
         };
         let Some(args) = args else { return Some(hi) };
-        let Type::Lambda { binder, params, result } = self.types().get(hi).clone() else { return Some(ANY) };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let Some((binder, names, result)) = self.lambda(hi).map(|l| (l.binder, l.names(), l.result)) else {
+            return Some(ANY);
+        };
         Some(self.subst(result, binder, &names, &args))
     }
 

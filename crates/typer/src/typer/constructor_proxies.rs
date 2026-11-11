@@ -102,7 +102,7 @@ impl Typer<'_> {
         let [class] = classes[..] else { return None };
         let owner = self.u.symbol(class).owner?;
         let term_exists = self.u.linearization(owner).into_iter().any(|b| {
-            let decls = self.u.decl(b, &text).unwrap_or_default();
+            let decls = self.u.decls_named(b, &text);
             decls.iter().any(|&d| self.u.symbol(d).kind.is_term())
         });
         if term_exists || !exported && !self.needs_constructor_proxies(class) {
@@ -112,7 +112,7 @@ impl Typer<'_> {
             return Some(self.unsupported(id, what));
         }
         let span = self.ast.span(id);
-        let tpe = if self.is_static_owner(owner) {
+        let tpe = if self.u.is_static_owner(owner) {
             crate::defn::type_ref(self.u, class)
         } else {
             self.ref_type(Some(qual_tpe), class)
@@ -131,7 +131,7 @@ impl Typer<'_> {
         }
         let tpe = self.u.intern_type(Type::Sym(None, s));
         let dealiased = self.u.dealias(tpe);
-        if !matches!(self.u.types().get(dealiased), Type::Sym(..) | Type::TypeRef(..)) {
+        if !matches!(self.u.ty(dealiased), Type::Sym(..) | Type::TypeRef(..)) {
             return None;
         }
         let c = self.u.class_symbol(dealiased)?;
@@ -140,7 +140,7 @@ impl Typer<'_> {
             return None;
         }
         let name = self.u.symbol(c).name.clone();
-        let decls = self.u.decl(owner, &name).unwrap_or_default();
+        let decls = self.u.decls_named(owner, &name);
         let companion = decls.iter().any(|&d| self.u.symbol(d).flags.has(OBJECT));
         (!companion).then_some(c)
     }
@@ -158,11 +158,11 @@ impl Typer<'_> {
         }
         let module = self.tpd.sym(f)?;
         let is_module = self.u.module_class(module) == Some(module_class);
-        let tpe = match *self.u.types().get(tpe) {
-            _ if self.is_static_owner(owner) => crate::defn::type_ref(self.u, class),
+        let tpe = match *self.u.ty(tpe) {
+            _ if self.u.is_static_owner(owner) => crate::defn::type_ref(self.u, class),
             Type::Sym(prefix, _) if is_module => self.ref_type(prefix, class),
             Type::This(_) => crate::defn::type_ref(self.u, class),
-            _ if self.is_static_owner(module_class) => crate::defn::type_ref(self.u, class),
+            _ if self.u.is_static_owner(module_class) => crate::defn::type_ref(self.u, class),
             _ => return None,
         };
         let span = self.tpd.span(f);

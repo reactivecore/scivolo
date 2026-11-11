@@ -104,11 +104,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 /// and by `new Array` (dotty's `newArray`, whose span its cast takes).
 fn set(l: &mut Lower, class: tasty::SymbolId, getter: tasty::SymbolId, rhs: TNodeId, span: Span) -> TNodeId {
     let name = l.u.symbol(getter).name.clone();
-    let var_setter =
-        l.u.decl(class, &format!("{name}_=")).unwrap_or_default().into_iter().find(|&s| is_setter(l, s));
+    let var_setter = l.u.decls_named(class, &format!("{name}_=")).into_iter().find(|&s| is_setter(l, s));
     let setter = var_setter.or_else(|| {
         let trait_setter = trait_setter_name(l, class, &super::accessor_names::accessor_name(l, getter));
-        l.u.decl(class, &trait_setter).unwrap_or_default().into_iter().next()
+        l.u.decls_named(class, &trait_setter).into_iter().next()
     });
     let setter = setter.expect("a value's setter");
     let this = l.this(class, Span::NONE);

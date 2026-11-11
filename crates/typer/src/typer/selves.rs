@@ -90,7 +90,7 @@ impl Typer<'_> {
             let s = self.u.as_seen_from(s, this, pc);
             let mut own_parts = false;
             self.u.map_type(s, &mut |u, part| {
-                own_parts |= match *u.types().get(part) {
+                own_parts |= match *u.ty(part) {
                     Type::This(c) => u.class_symbol(c) == Some(pc),
                     Type::Sym(_, t) => u.is_type_symbol(t) && u.symbol(t).owner == Some(pc),
                     _ => false,
@@ -98,7 +98,7 @@ impl Typer<'_> {
                 None
             });
             let module = self.u.is_module_class(cls).then(|| self.u.source_module(cls)).flatten();
-            let own_module = matches!(*self.u.types().get(s), Type::Sym(_, m) if Some(m) == module);
+            let own_module = self.u.sym_of(s).is_some_and(|m| Some(m) == module);
             if own_parts {
                 return Err("class not conforming to a parent's self type");
             }
@@ -138,15 +138,15 @@ impl Typer<'_> {
     pub fn check_self_members(&mut self, sym: SymbolId, prefix: Option<TypeId>) -> Result<(), &'static str> {
         let (Some(prefix), Some(owner)) = (prefix, self.u.symbol(sym).owner) else { return Ok(()) };
         self.ensure_self(owner);
-        if self.u.given_self_type(owner).is_none() || matches!(self.u.types().get(prefix), Type::This(_)) {
+        if self.u.given_self_type(owner).is_none() || self.u.this_of(prefix).is_some() {
             return Ok(());
         }
         self.complete(sym);
         let info = self.u.info(sym);
         let mut parts = Vec::new();
         self.u.map_type(info, &mut |u, part| {
-            if let Type::Sym(Some(q), s) = *u.types().get(part)
-                && let Type::This(c) = *u.types().get(q)
+            if let Some((Some(q), s)) = u.sym_ref(part)
+                && let Some(c) = u.this_of(q)
             {
                 parts.push((c, s));
             }
@@ -166,7 +166,7 @@ impl Typer<'_> {
     /// in `Denotation.meet`).
     pub fn own_type_param_over_self(&mut self, cls: SymbolId, name: &str) -> Vec<SymbolId> {
         let Some(given) = self.u.given_self_type(cls) else { return Vec::new() };
-        let own: Vec<SymbolId> = self.u.decl(cls, name).unwrap_or_default();
+        let own: Vec<SymbolId> = self.u.decls_named(cls, name);
         let own: Vec<SymbolId> =
             own.into_iter().filter(|&p| self.u.symbol(p).kind == Kind::TypeParam).collect();
         if own.is_empty() {

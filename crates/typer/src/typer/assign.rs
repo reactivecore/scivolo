@@ -14,6 +14,7 @@ impl Typer<'_> {
         let q = self.typed(qual, Pt::Any, ctx);
         let pre = self.tpd.tpe(q);
         let pre = self.u.widen(pre);
+        let setter = self.u.intern_name(setter);
         self.u.term_refinement_named(pre, setter).is_some()
     }
 
@@ -44,8 +45,8 @@ impl Typer<'_> {
                 let sym = self.tpd.sym(core).filter(|&s| !self.is_java_member(s))?;
                 let owner = self.u.symbol(sym).owner?;
                 let setter = format!("{}_=", self.text(name.name));
-                if let Type::Sym(Some(pre), _) = *self.u.types().get(self.tpd.tpe(core))
-                    && !matches!(self.u.types().get(pre), Type::This(_))
+                if let Some((Some(pre), _)) = self.u.sym_ref(self.tpd.tpe(core))
+                    && self.u.this_of(pre).is_none()
                 {
                     let [s] = self.members_found(pre, &setter, false)?.syms[..] else { return None };
                     let tpe = self.ref_type(Some(pre), s);
@@ -132,7 +133,7 @@ impl Typer<'_> {
         self.complete(var);
         self.note_assignment(var, lhs);
         let info = match self.tpd.get(lhs).tpe {
-            Some(t) if matches!(self.u.types().get(t), Type::Sym(Some(_), _)) => self.u.widen(t),
+            Some(t) if matches!(self.u.ty(t), Type::Sym(Some(_), _)) => self.u.widen(t),
             _ => self.u.info(var),
         };
         let rhs = self.typed(rhs, Pt::Type(info), ctx);

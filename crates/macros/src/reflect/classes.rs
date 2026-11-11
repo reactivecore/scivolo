@@ -99,7 +99,7 @@ impl Host {
     pub fn overriding_symbol(&mut self, m: SymbolId, cls: SymbolId) -> Option<SymbolId> {
         let name = self.u.symbol(m).name.clone();
         let sig = self.u.method_signature(m);
-        let decls = self.u.decl(cls, &name).unwrap_or_default();
+        let decls = self.u.decls_named(cls, &name);
         decls.into_iter().find(|&d| d != m && sig.is_some() && self.u.method_signature(d) == sig)
     }
 

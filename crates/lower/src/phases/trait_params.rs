@@ -8,7 +8,7 @@ use super::trait_fields::{forwarder, implemented_by};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::{SymbolId, Type};
+use tasty::SymbolId;
 use typer::tpd::{List, TNodeId, Tree};
 
 /// A class's call of a trait's constructor: its span and arguments.
@@ -37,9 +37,8 @@ pub fn strip_params(l: &mut Lower, constr: TNodeId) {
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs };
     let unit = l.u.class_ref("scala.Unit");
     let binder = l.u.fresh_binder();
-    let params = lifted.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: unit, implicit: false, contextual: false });
+    let params: Vec<_> = lifted.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
+    let info = l.u.intern_method(binder, &params, unit, false, false);
     l.u.set_info(ctor, info);
 }
 

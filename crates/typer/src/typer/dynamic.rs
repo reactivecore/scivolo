@@ -119,9 +119,7 @@ impl Typer<'_> {
     /// Refuses class template `rhs` with `parents` extending `scala.Dynamic` where `ctx` does not
     /// enable `scala.language.dynamics`.
     pub fn check_dynamics_enabled(&mut self, rhs: NodeId, parents: &[tasty::TypeId], ctx: Ctx) {
-        let dynamic = parents
-            .iter()
-            .any(|&p| self.u.class_symbol(p).is_some_and(|c| self.u.full_name(c) == "scala.Dynamic"));
+        let dynamic = parents.iter().any(|&p| self.u.is_class_named(p, crate::defn::DYNAMIC));
         if dynamic && !self.feature_enabled(Features::DYNAMICS, "dynamics", ctx) {
             self.unsupported(rhs, "extension of Dynamic without the dynamics feature");
         }

@@ -7,11 +7,11 @@
 
 use super::{member, package, symbol, type_ref};
 use tasty::tags::TRAIT;
-use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Erased, Flags, Kind, SymbolId, TypeId, Universe};
 
 /// `JProcedure{arity}`, with abstract method `applyVoid` of object parameters.
 pub fn procedure(u: &mut Universe, arity: usize) -> Result<SymbolId, String> {
-    let object = type_ref(u, u.builtins().object);
+    let object = type_ref(u, u.defn().object);
     let unit = primitive(u, &Erased::Unit)?;
     let params = vec![object; arity];
     interface(u, "scala.runtime.function", &format!("JProcedure{arity}"), "applyVoid", &params, unit)
@@ -126,7 +126,7 @@ fn interface(
     u.set_parents(class, parents);
     let abstract_ = method(u, class, method_name, params, result);
     u.set_deferred(abstract_, true);
-    let object = type_ref(u, u.builtins().object);
+    let object = type_ref(u, u.defn().object);
     method(u, class, "apply", &vec![object; params.len()], object);
     Ok(class)
 }
@@ -134,9 +134,10 @@ fn interface(
 /// Method `name` of `owner`.
 fn method(u: &mut Universe, owner: SymbolId, name: &str, params: &[TypeId], result: TypeId) -> SymbolId {
     let m = u.define(symbol(name, Kind::Def, owner, Flags::default()));
-    let params = params.iter().enumerate().map(|(i, &t)| (format!("v{}", i + 1), t)).collect();
+    let params: Vec<_> =
+        params.iter().enumerate().map(|(i, &t)| (u.intern_name(&format!("v{}", i + 1)), t)).collect();
     let binder = u.fresh_binder();
-    let info = u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
+    let info = u.intern_method(binder, &params, result, false, false);
     u.set_info(m, info);
     m
 }

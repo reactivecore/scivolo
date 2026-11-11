@@ -47,11 +47,8 @@ fn is_lifted_static(l: &mut Lower, m: SymbolId) -> bool {
 fn is_object_this_ref(l: &mut Lower, t: TNodeId) -> bool {
     let class = match *l.tpd.tree(t) {
         Tree::This { .. } => l.tpd.sym(t),
-        Tree::Ident { name } if !name.is_type => match *l.u.types().get(l.tpd.tpe(t)) {
-            Type::Sym(Some(p), _) | Type::TermRef(p, _) => match *l.u.types().get(p) {
-                Type::This(c) => l.u.class_symbol(c),
-                _ => None,
-            },
+        Tree::Ident { name } if !name.is_type => match *l.u.ty(l.tpd.tpe(t)) {
+            Type::Sym(Some(p), _) | Type::TermRef(p, _) => l.u.this_of(p).and_then(|c| l.u.class_symbol(c)),
             _ => None,
         },
         _ => None,

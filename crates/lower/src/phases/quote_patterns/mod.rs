@@ -42,7 +42,7 @@ fn encode(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let Tree::QuotePattern { bindings, body, quotes } = *l.tpd.tree(t) else { unreachable!() };
     let span = l.tpd.span(t);
     let bindings = l.tpd.items(bindings).to_vec();
-    let is_term = l.u.class_symbol(l.tpd.tpe(t)).is_some_and(|c| l.u.full_name(c) == "scala.quoted.Expr");
+    let is_term = l.u.is_class_named(l.tpd.tpe(t), tasty::defn::QUOTED_EXPR);
     let tags = l.tpd.quote_tags(t).to_vec();
     let splices = shape::split(l, body)?;
     let shape = shape::with_bindings(l, body, &bindings, owner);
@@ -99,7 +99,7 @@ fn quoted_term(l: &mut Lower, shape: TNodeId, quotes: TNodeId) -> TNodeId {
     let quote = runtime(l, "scala.quoted.runtime.Expr$", "quote", Span::NONE);
     let quote = poly_call(l, quote, &[tpe], Span::NONE);
     let method = l.u.widen(l.tpd.tpe(quote));
-    let Type::Method { result, .. } = *l.u.types().get(method) else { panic!("quote") };
+    let Some(result) = l.u.method(method).map(|m| m.result) else { panic!("quote") };
     let quote = l.apply(quote, &[shape], result, Span::NONE);
     let quote = l.positioned(quote);
     let class = l.u.class_symbol(result).expect("ContextFunction1");
@@ -115,13 +115,14 @@ fn quoted_term(l: &mut Lower, shape: TNodeId, quotes: TNodeId) -> TNodeId {
 fn quoted_type(l: &mut Lower, shape: TNodeId, quotes: TNodeId) -> TNodeId {
     let of = runtime(l, "scala.quoted.Type$", "of", Span::NONE);
     let info = l.u.info(l.tpd.sym(of).expect("Type.of"));
-    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else { panic!("Type.of") };
-    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+    let Some((binder, names, result)) = l.u.poly(info).map(|p| (p.binder, p.names(), p.result)) else {
+        panic!("Type.of")
+    };
     let tpe = l.tpd.tpe(shape);
     let instance = l.u.subst(result, binder, &names, &[tpe]);
     let fun = l.build().type_apply(of, &[shape], instance, Span::NONE);
     let fun = l.positioned(fun);
-    let Type::Method { result, .. } = *l.u.types().get(instance) else { panic!("Type.of") };
+    let Some(result) = l.u.method(instance).map(|m| m.result) else { panic!("Type.of") };
     let call = l.apply(fun, &[quotes], result, Span::NONE);
     l.positioned(call)
 }
@@ -132,7 +133,7 @@ fn tuple_pattern(l: &mut Lower, patterns: &[TNodeId], types: &[TypeId], span: Sp
         let module = empty_tuple(l);
         return Ok(l.ident(module, Span::NONE));
     }
-    if patterns.len() > 22 {
+    if patterns.len() > tasty::defn::MAX_TUPLE_ARITY {
         return unsupported(span, "quote patterns of more than 22 splices and type variables");
     }
     let unapply = runtime(l, &format!("scala.Tuple{}$", patterns.len()), "unapply", Span::NONE);
@@ -151,7 +152,7 @@ fn tuple_type(l: &mut Lower, types: &[TypeId]) -> TypeId {
         return type_ref(l.u, module);
     }
     let class = l.u.class_ref(&format!("scala.Tuple{}", types.len()));
-    l.u.intern_type(Type::Applied(class, types.to_vec()))
+    l.u.intern_applied(class, types)
 }
 
 /// Object `scala.EmptyTuple`.
@@ -168,7 +169,7 @@ pub fn nested_pairs(l: &mut Lower, types: &[TypeId]) -> TypeId {
         let s = l.u.decl(module, n).ok().and_then(|d| d.first().copied()).expect("KNil and KCons");
         type_ref(l.u, s)
     });
-    types.iter().rev().fold(nil, |acc, &t| l.u.intern_type(Type::Applied(cons, vec![t, acc])))
+    types.iter().rev().fold(nil, |acc, &t| l.u.intern_applied(cons, &[t, acc]))
 }
 
 /// A reference to method `name` of top-level object class `module`, through the object's `this`.
@@ -188,14 +189,13 @@ fn runtime(l: &mut Lower, module: &str, name: &str, span: Span) -> TNodeId {
 fn poly_call(l: &mut Lower, fun: TNodeId, targs: &[TypeId], span: Span) -> TNodeId {
     let method = l.tpd.sym(fun).expect("a method reference");
     let info = l.u.info(method);
-    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
+    let Some((binder, names, result)) = l.u.poly(info).map(|p| (p.binder, p.names(), p.result)) else {
         panic!("not polymorphic")
     };
-    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
     let instance = l.u.subst(result, binder, &names, targs);
-    let instance = l.u.map_type(instance, &mut |u, x| match *u.types().get(x) {
-        Type::Sym(_, s) if u.symbol(s).owner == Some(method) => {
-            names.iter().position(|n| *n == u.symbol(s).name).map(|i| targs[i])
+    let instance = l.u.map_type(instance, &mut |u, x| match u.sym_of(x) {
+        Some(s) if u.symbol(s).owner == Some(method) => {
+            names.iter().position(|&n| u.name(n) == u.symbol(s).name).map(|i| targs[i])
         }
         _ => None,
     });

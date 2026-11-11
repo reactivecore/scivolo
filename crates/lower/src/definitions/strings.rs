@@ -58,6 +58,6 @@ fn all_with_params(
     name: &str,
     ok: impl Fn(&[Erased]) -> bool,
 ) -> Vec<SymbolId> {
-    let methods = u.decl(owner, name).unwrap_or_default();
+    let methods = u.decls_named(owner, name);
     methods.into_iter().filter(|&m| u.symbol(m).kind == Kind::Def && ok(&u.erased_method(m).0)).collect()
 }

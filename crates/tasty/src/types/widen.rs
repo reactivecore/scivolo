@@ -18,11 +18,7 @@ impl Universe {
     /// underlying types, repeatedly.
     pub fn widen(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..MAX_STEPS {
-            let next = match *self.types().get(t) {
-                Type::ByName(r) => Some(r),
-                _ => self.widen_once(t),
-            };
-            let Some(next) = next else { return t };
+            let Some(next) = self.by_name(t).or_else(|| self.widen_once(t)) else { return t };
             t = next;
         }
         t
@@ -31,17 +27,17 @@ impl Universe {
     /// The underlying type of singleton type, constant or `this` `t`; `None` for other types
     /// and unresolved paths (dotty's `underlying`, `ThisType.underlying` for `this`).
     pub fn widen_once(&mut self, t: TypeId) -> Option<TypeId> {
-        Some(match self.types().get(t).clone() {
+        Some(match *self.ty(t) {
             Type::TermRef(p, name) => match self.resolve_ref(t) {
                 Some(s) => self.term_type(Some(p), s),
-                None => self.term_refinement_named(p, &name)?,
+                None => self.term_refinement_named(p, name)?,
             },
             Type::Sym(p, s) if matches!(self.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def) => {
                 self.term_type(p, s)
             }
             Type::Constant(CLASSconst, bits) => {
                 let class = self.class_ref("java.lang.Class");
-                self.intern_type(Type::Applied(class, vec![TypeId(bits as u32)]))
+                self.intern_applied(class, &[TypeId(bits as u32)])
             }
             Type::Constant(tag, _) => self.constant_type(tag),
             Type::Str(_) => self.constant_type(STRINGconst),
@@ -68,11 +64,12 @@ impl Universe {
 
     /// `t` with its alias followed or its applied type lambda reduced once; `t` if neither.
     pub fn dealias_step(&mut self, t: TypeId) -> TypeId {
-        match self.types().get(t).clone() {
+        match *self.ty(t) {
             Type::Annotated(u, _) => u,
-            Type::Applied(tycon, args) => match self.types().get(tycon).clone() {
+            Type::Applied(tycon, args) => match *self.ty(tycon) {
                 Type::Lambda { binder, params, result } => {
-                    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                    let names: Vec<_> = self.params_of(params).iter().map(|&(n, _)| n).collect();
+                    let args = self.types_of(args).to_vec();
                     self.subst(result, binder, &names, &args)
                 }
                 _ => Some(self.dealias_step(tycon))
@@ -89,19 +86,16 @@ impl Universe {
     /// from inside its scope, a plain alias, or the alias by which the prefix's class overrides an
     /// abstract type member. `None` for classes and abstract types.
     pub fn referenced_alias(&mut self, t: TypeId) -> Option<TypeId> {
-        let (prefix, s) = match self.types().get(t).clone() {
+        let (prefix, s) = match *self.ty(t) {
             Type::Sym(p, s) => (p, s),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => (Some(p), s),
-                None => match self.refinement_named(p, &n).map(|i| self.types().get(i).clone()) {
-                    Some(Type::Alias(a)) => return Some(a),
-                    _ => return None,
-                },
+                None => return self.refinement_named(p, n).and_then(|i| self.type_alias(i)),
             },
             _ => return None,
         };
         if let Some(info) = prefix.and_then(|p| self.refinement_info(p, s))
-            && let Type::Alias(a) = *self.types().get(info)
+            && let Some(a) = self.type_alias(info)
         {
             return Some(a);
         }
@@ -126,10 +120,10 @@ impl Universe {
             return None;
         }
         let info = self.info(s);
-        match *self.types().get(info) {
+        match *self.ty(info) {
             Type::Alias(a) => Some(a),
             Type::Bounds(..) | Type::Other(_) => None,
-            Type::Lambda { result, .. } if matches!(self.types().get(result), Type::Bounds(..)) => None,
+            Type::Lambda { result, .. } if self.bounds(result).is_some() => None,
             _ => Some(info),
         }
     }
@@ -152,7 +146,7 @@ impl Universe {
             self.type_params(c).into_iter().map(|p| self.intern_type(Type::Sym(Some(this), p))).collect();
         match params.is_empty() {
             true => class,
-            false => self.intern_type(Type::Applied(class, params)),
+            false => self.intern_applied(class, &params),
         }
     }
 
@@ -193,9 +187,13 @@ impl Universe {
             None => {
                 let prefix = match self.package(pkg) {
                     Some(p) => self.intern_type(Type::Package(p)),
-                    None => self.intern_type(Type::PackageName(pkg.to_owned())),
+                    None => {
+                        let pkg = self.intern_name(pkg);
+                        self.intern_type(Type::PackageName(pkg))
+                    }
                 };
-                self.intern_type(Type::TypeRef(prefix, name.to_owned()))
+                let name = self.intern_name(name);
+                self.intern_type(Type::TypeRef(prefix, name))
             }
         }
     }

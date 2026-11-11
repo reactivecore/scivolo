@@ -34,15 +34,16 @@ impl Typer<'_> {
         match tparams.is_empty() {
             true => upper,
             false => {
-                let params = tparams
+                let names: Vec<String> = tparams
                     .iter()
                     .map(|&p| match *self.ast.tree(p) {
-                        Tree::TypeDef { name, .. } => (self.text(name.name).to_owned(), bounds),
-                        _ => (String::new(), bounds),
+                        Tree::TypeDef { name, .. } => self.text(name.name).to_owned(),
+                        _ => String::new(),
                     })
                     .collect();
+                let params: Vec<_> = names.iter().map(|n| (self.u.intern_name(n), bounds)).collect();
                 let binder = self.syms.fresh_binder();
-                self.u.intern_type(Type::Lambda { binder, params, result: upper })
+                self.u.intern_lambda(binder, &params, upper)
             }
         }
     }
@@ -69,7 +70,7 @@ impl Typer<'_> {
         let diags = self.diags.items.len();
         let typed = self.typed_type(b, ctx);
         let tpe = self.tpd.tpe(typed);
-        let failed = self.diags.items.len() > diags || matches!(self.u.types().get(tpe), Type::Error);
+        let failed = self.diags.items.len() > diags || matches!(self.u.ty(tpe), Type::Error);
         let span = self.ast.span(b);
         let mut i = 0;
         self.diags.items.retain(|d| {
@@ -89,7 +90,7 @@ impl Typer<'_> {
     pub fn is_provisional_type(&mut self, t: TypeId) -> bool {
         let mut refs = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part)
+            if let Some(s) = u.sym_of(part)
                 && u.is_type_symbol(s)
                 && !u.is_class(s)
             {

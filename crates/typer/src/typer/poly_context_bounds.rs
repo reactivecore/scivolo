@@ -109,27 +109,22 @@ impl Typer<'_> {
             let span = self.ast.span(bound).to_synthetic();
             param_trees.push(self.build().val_def(p, typed, None, span));
             args.push(self.type_tree(tpe, self.tpd.span(typed).to_synthetic(), false));
-            params.push((text, tpe));
+            params.push((self.u.intern_name(&text), tpe));
         }
         let (result_tpe, result_span) = (self.tpd.tpe(result), self.tpd.span(result));
         args.push(self.type_tree(result_tpe, result_span, false));
         let binder = self.syms.fresh_binder();
-        let method = self.u.intern_type(Type::Method {
-            binder,
-            params,
-            result: result_tpe,
-            implicit: true,
-            contextual: true,
-        });
+        let method = self.u.intern_method(binder, &params, result_tpe, true, true);
         self.u.set_info(apply, method);
         let span = self.ast.span(first).union(result_span).to_synthetic();
         let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        let parent = self.u.intern_type(Type::Applied(class, arg_types));
+        let parent = self.u.intern_applied(class, &arg_types);
         let tycon = self.type_tree(class, span.start_pos(), false);
         let args = self.tpd.list(&args);
         let core = self.tpd.node(T::AppliedTypeTree { tpt: tycon, args }, span, Some(parent), None);
         let def = self.build().def_def(apply, &[&param_trees], result, None, result_span);
-        let tpe = self.u.intern_type(Type::Refined(parent, "apply".into(), method));
+        let apply = self.u.intern_name("apply");
+        let tpe = self.u.intern_type(Type::Refined(parent, apply, method));
         let refinements = self.tpd.list(&[def]);
         Ok(self.tpd.node(T::RefinedTypeTree { tpt: core, refinements }, span, Some(tpe), None))
     }

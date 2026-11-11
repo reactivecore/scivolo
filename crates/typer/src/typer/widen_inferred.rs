@@ -45,22 +45,17 @@ impl Typer<'_> {
         };
         let wide = self.without_transparent_traits(wide, bound);
         let module = self.types().module_ref(wide);
-        let wide = match (module, self.u.types().get(inst).clone()) {
-            (m, Type::Sym(Some(p), s))
-                if matches!(*self.u.types().get(m), Type::Sym(_, n) if n == s)
-                    && self.in_package_object(p) =>
-            {
-                inst
-            }
-            (m, _) => m,
+        let wide = match self.u.sym_ref(inst) {
+            Some((Some(p), s)) if self.u.sym_of(module) == Some(s) && self.in_package_object(p) => inst,
+            _ => module,
         };
         Ok(self.without_repeated_annot(wide))
     }
 
     /// `t` without a top-level `@Repeated` annotation (dotty's `dropRepeatedAnnot`).
     fn without_repeated_annot(&mut self, t: TypeId) -> TypeId {
-        match self.u.types().get(t).clone() {
-            Type::Annotated(inner, annot) if self.is_repeated_annot(annot) => inner,
+        match self.u.annotated(t) {
+            Some((inner, annot)) if self.is_repeated_annot(annot) => inner,
             _ => t,
         }
     }
@@ -76,7 +71,8 @@ impl Typer<'_> {
     /// nothing widens (dotty's `widenSingletons`).
     pub fn widen_singletons(&mut self, t: TypeId, skip_soft_unions: bool) -> TypeId {
         let d = self.u.dealias(t);
-        match self.u.types().get(d).clone() {
+        let ty = *self.u.ty(d);
+        match ty {
             Type::Or(a, b, true) if !skip_soft_unions => {
                 let (wa, wb) = (self.widen_singletons(a, false), self.widen_singletons(b, false));
                 if (wa, wb) == (a, b) { t } else { self.u.lub(wa, wb) }
@@ -96,15 +92,15 @@ impl Typer<'_> {
 
     /// Whether `t` is an abstract type or type parameter with a singleton upper bound.
     fn is_singleton_bounded(&mut self, t: TypeId) -> bool {
-        let Type::Sym(_, s) = *self.u.types().get(t) else { return false };
+        let Some(s) = self.u.sym_of(t) else { return false };
         if !matches!(self.u.symbol(s).kind, Kind::TypeParam | Kind::Type) {
             return false;
         }
         self.complete(s);
         let info = self.u.info(s);
-        match *self.u.types().get(info) {
-            Type::Bounds(_, hi) => self.is_singleton(hi),
-            _ => false,
+        match self.u.bounds(info) {
+            Some((_, hi)) => self.is_singleton(hi),
+            None => false,
         }
     }
 
@@ -117,12 +113,12 @@ impl Typer<'_> {
         if depth > 16 {
             return false;
         }
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::And(a, b) => self.is_below_singleton(a, depth + 1) || self.is_below_singleton(b, depth + 1),
             Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::TypeParam | Kind::Type) => {
                 self.complete(s);
                 let info = self.u.info(s);
-                match *self.u.types().get(info) {
+                match *self.u.ty(info) {
                     Type::Bounds(_, hi) | Type::Alias(hi) => self.is_below_singleton(hi, depth + 1),
                     _ => false,
                 }
@@ -131,14 +127,14 @@ impl Typer<'_> {
                 let next = self.constraint.instance(v).unwrap_or(self.constraint.bounds(v).1);
                 self.is_below_singleton(next, depth + 1)
             }
-            Type::Sym(_, c) => self.u.full_name(c) == "scala.Singleton",
+            Type::Sym(_, c) => c == self.u.defn().singleton,
             _ => false,
         }
     }
 
     /// Whether `prefix` is the `this` of a package object.
     fn in_package_object(&mut self, prefix: TypeId) -> bool {
-        let Type::This(c) = *self.u.types().get(prefix) else { return false };
+        let Some(c) = self.u.this_of(prefix) else { return false };
         self.u.class_symbol(c).is_some_and(|c| self.is_named_package_object(c))
     }
 }
@@ -146,7 +142,7 @@ impl Typer<'_> {
 impl TypeOps<'_> {
     /// Replaces a reference to a module class by a reference to its object; `t` otherwise.
     pub fn module_ref(&mut self, t: TypeId) -> TypeId {
-        let Type::Sym(prefix, c) = *self.u.types().get(t) else { return t };
+        let Some((prefix, c)) = self.u.sym_ref(t) else { return t };
         if !self.u.is_module_class(c) {
             return t;
         }

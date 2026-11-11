@@ -155,7 +155,7 @@ impl<'t, 'a> Translator<'t, 'a> {
     ) -> Result<PlanId> {
         let rhs = self.drop_named_tuple(rhs);
         let tpe = tpe.unwrap_or_else(|| self.l.tpd.tpe(rhs));
-        let tpe = match self.l.u.types().get(tpe) {
+        let tpe = match *self.l.u.ty(tpe) {
             tasty::Type::This(_) => self.l.u.widen(tpe),
             _ => self.sanitized(tpe),
         };

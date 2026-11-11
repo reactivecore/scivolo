@@ -4,7 +4,7 @@
 
 use super::macros::{Expanded, Quoted};
 use rustc_hash::FxHashMap;
-use tasty::{SymbolId, Type, TypeId, Universe};
+use tasty::{SymbolId, TypeId, Universe};
 
 /// The type of each spliced type symbol of the quotes of `expanded`, the spliced type symbols
 /// in it replaced by theirs.
@@ -23,8 +23,8 @@ fn spliced_type(u: &mut Universe, spliced: &FxHashMap<SymbolId, TypeId>, t: Type
     if depth > spliced.len() {
         return t;
     }
-    u.map_type(t, &mut |u, part| match *u.types().get(part) {
-        Type::Sym(None, s) => spliced.get(&s).map(|&r| spliced_type(u, spliced, r, depth + 1)),
+    u.map_type(t, &mut |u, part| match u.sym_ref(part) {
+        Some((None, s)) => spliced.get(&s).map(|&r| spliced_type(u, spliced, r, depth + 1)),
         _ => None,
     })
 }

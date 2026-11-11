@@ -42,7 +42,7 @@ impl Inlining<'_> {
     fn dropped_op(&mut self, t: TNodeId) -> Option<TNodeId> {
         match *self.tpd.tree(t) {
             T::Select { qualifier, .. }
-                if matches!(self.u.types().get(self.tpd.tpe(t)), Type::Constant(..) | Type::Str(_)) =>
+                if matches!(self.u.ty(self.tpd.tpe(t)), Type::Constant(..) | Type::Str(_)) =>
             {
                 Some(qualifier)
             }
@@ -87,8 +87,8 @@ impl Inlining<'_> {
 
     /// The constant of type `t`, of a constant type or a reference to a term of one.
     pub fn constant_of_type(&mut self, t: TypeId) -> Option<C> {
-        match self.u.types().get(t).clone() {
-            Type::Str(s) => Some(C::String(s.encode_utf16().collect())),
+        match *self.u.ty(t) {
+            Type::Str(s) => Some(C::String(self.u.name(s).encode_utf16().collect())),
             Type::Constant(tasty::tags::CHARconst, bits) => Some(C::Char(bits as u16)),
             Type::Constant(tag, bits) => Some(match constant(tag, bits)? {
                 Const::Unit => C::Unit,
@@ -105,7 +105,7 @@ impl Inlining<'_> {
             Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => {
                 let info = self.u.info(s);
                 let info = self.u.normalized(info);
-                let constant = matches!(self.u.types().get(info), Type::Constant(..) | Type::Str(_));
+                let constant = matches!(self.u.ty(info), Type::Constant(..) | Type::Str(_));
                 constant.then(|| self.constant_of_type(info))?
             }
             _ => None,
@@ -114,7 +114,7 @@ impl Inlining<'_> {
 
     /// A tree of singleton type `t` at `span`: a literal or a reference to a local term.
     pub fn singleton(&mut self, t: TypeId, span: Span) -> Option<TNodeId> {
-        let tpe = self.u.types().get(t).clone();
+        let tpe = *self.u.ty(t);
         match tpe {
             Type::Constant(..) | Type::Str(_) => {
                 let value = self.constant_of_type(t)?;
@@ -139,7 +139,7 @@ impl Inlining<'_> {
     /// `C.this` of type `t` at the start of `span`, its qualifier the untyped name of the class
     /// (dotty's `This(cls)`).
     pub fn this_tree(&mut self, t: TypeId, span: Span) -> Option<TNodeId> {
-        let Type::This(class) = *self.u.types().get(t) else { return None };
+        let class = self.u.this_of(t)?;
         let cls = self.u.class_symbol(class)?;
         let qual = TName { name: self.names.intern(&self.u.symbol(cls).name.clone()), is_type: true };
         let qual = self.tpd.node(T::Ident { name: qual }, span.start_pos(), None, None);
@@ -149,7 +149,7 @@ impl Inlining<'_> {
     /// Whether `singleton` makes a tree of type `t`: a constant, or a term reference through a
     /// prefix written as an identifier or itself such a reference.
     pub fn is_singleton_path(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Constant(..) | Type::Str(_) | Type::This(_) => true,
             Type::Sym(None, s) => self.u.symbol(s).kind.is_term(),
             Type::Sym(Some(p), s) => {
@@ -164,34 +164,18 @@ impl Inlining<'_> {
     /// static object or the `this` of either, or `s` is a parameter accessor of the `this` of the
     /// class enclosing the call (dotty's `prefixIsElidable`).
     pub fn is_elidable_prefix(&mut self, p: TypeId, s: SymbolId) -> bool {
-        match *self.u.types().get(crate::defn::package_ref(self.u, p)) {
+        match *self.u.ty(crate::defn::package_ref(self.u, p)) {
             Type::Package(_) => true,
             Type::This(c) => self.u.class_symbol(c).is_some_and(|c| {
                 let accessor = self.u.symbol(s).flags.has(PARAMsetter)
                     && !self.u.symbol(c).flags.has(TRAIT)
                     && self.enclosing_class == Some(c);
-                self.is_static_owner(c) || accessor
+                self.u.is_static_owner(c) || accessor
             }),
             Type::Sym(_, m) => {
-                self.u.is_module(m) && self.u.module_class(m).is_some_and(|c| self.is_static_owner(c))
+                self.u.is_module(m) && self.u.module_class(m).is_some_and(|c| self.u.is_static_owner(c))
             }
             _ => false,
         }
-    }
-
-    /// Whether `c` is a package or an object class nested only in packages and objects.
-    pub fn is_static_owner(&self, c: SymbolId) -> bool {
-        let mut o = Some(c);
-        while let Some(x) = o {
-            let s = self.u.symbol(x);
-            if s.kind == Kind::Package {
-                return true;
-            }
-            if !self.u.is_module_class(x) {
-                return false;
-            }
-            o = s.owner;
-        }
-        false
     }
 }

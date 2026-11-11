@@ -7,7 +7,7 @@ use super::{MISSING, MirrorSynthesis};
 use crate::defn::{MIRROR, MIRROR_PRODUCT, MIRROR_SUM};
 use crate::typer::Typer;
 use crate::typer::type_ops::TypeOps;
-use tasty::{Type, TypeId, Universe};
+use tasty::{NameId, Type, TypeId, Universe};
 
 /// The mirrors an expected type admits.
 #[derive(Clone, Copy, PartialEq)]
@@ -41,13 +41,13 @@ impl MirrorFormal {
     pub fn of(u: &mut Universe, pt: TypeId) -> Option<MirrorFormal> {
         let mut t = u.dealias(pt);
         let mut mirrored = None;
-        while let Type::Refined(parent, name, info) = u.types().get(t).clone() {
-            let info = match *u.types().get(info) {
+        while let Type::Refined(parent, name, info) = *u.ty(t) {
+            let info = match *u.ty(info) {
                 Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => return None,
                 Type::Alias(a) | Type::Bounds(a, _) => a,
                 _ => info,
             };
-            if name == "MirroredType" && mirrored.is_none() {
+            if u.name(name) == "MirroredType" && mirrored.is_none() {
                 mirrored = Some(info);
             }
             t = u.dealias(parent);
@@ -67,10 +67,10 @@ impl MirrorFormal {
     /// applied to the bounds of its parameters as mono type and its elements as a type lambda
     /// (dotty's `mkMirroredMonoType`).
     pub fn mono_and_elems(&self, u: &mut Universe, elems: TypeId) -> (TypeId, TypeId) {
-        let Type::Lambda { binder, params, result } = u.types().get(self.mirrored).clone() else {
+        let Type::Lambda { binder, params, result } = *u.ty(self.mirrored) else {
             return (self.mirrored, elems);
         };
-        let (names, bounds): (Vec<String>, Vec<TypeId>) = params.iter().cloned().unzip();
+        let (names, bounds): (Vec<NameId>, Vec<TypeId>) = u.params_of(params).iter().copied().unzip();
         let mono = u.subst(result, binder, &names, &bounds);
         (mono, u.intern_type(Type::Lambda { binder, params, result: elems }))
     }
@@ -96,7 +96,7 @@ impl MirrorSynthesis {
     pub fn mirror_type(self, t: &mut Typer<'_>, core: MirrorCore) -> Result<TypeId, &'static str> {
         let formal = self.formal;
         let parent = t.resolve_full_name(core.parent, true).ok_or(MISSING)?;
-        let label = t.u.intern_type(Type::Str(core.label.to_owned()));
+        let label = t.u.str_type(core.label);
         let mut members = vec![
             ("MirroredMonoType", core.mono),
             ("MirroredType", formal.mirrored),
@@ -109,7 +109,8 @@ impl MirrorSynthesis {
         let mut tpe = crate::defn::type_ref(t.u, parent);
         for (name, member) in members {
             let alias = t.u.intern_type(Type::Alias(member));
-            tpe = t.u.intern_type(Type::Refined(tpe, name.to_owned(), alias));
+            let name = t.u.intern_name(name);
+            tpe = t.u.intern_type(Type::Refined(tpe, name, alias));
         }
         Ok(match t.u.is_subtype(tpe, formal.pt) {
             true => tpe,
@@ -129,8 +130,9 @@ fn check_refinement(
     name: &str,
     expected: TypeId,
 ) -> Result<(), &'static str> {
+    let name = ops.u.intern_name(name);
     let Some(info) = ops.u.refinement_named(pt, name) else { return Ok(()) };
-    let (lo, hi) = match *ops.u.types().get(info) {
+    let (lo, hi) = match *ops.u.ty(info) {
         Type::Alias(a) => (a, a),
         Type::Bounds(lo, hi) => (lo, hi),
         _ => (info, info),

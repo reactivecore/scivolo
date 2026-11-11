@@ -8,10 +8,9 @@ use super::walk::{class_defs, subtrees};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use tasty::SymbolId;
+use tasty::defn::STATIC_ANNOT;
 use tasty::tags::STATIC;
 use typer::tpd::{TNodeId, Tree};
-
-const STATIC_ANNOT: &str = "scala.annotation.static";
 
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let classes = class_defs(l.tpd, root);

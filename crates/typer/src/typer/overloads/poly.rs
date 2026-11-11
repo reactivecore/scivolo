@@ -8,7 +8,7 @@ use super::poly_instances::mapped_info;
 use super::{Resolution, Unchosen};
 use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
-use tasty::{SymbolId, Type, TypeId, Universe};
+use tasty::{NameId, SymbolId, Type, TypeId, Universe};
 
 /// Why type arguments select no alternative, or several.
 const MISS: &str = "overloaded reference with type arguments";
@@ -64,7 +64,7 @@ impl Resolution {
             let info = self.alt_info(t, s);
             let info = mapped_info(t, info, s);
             let matched = instantiable(t.u, info, n)
-                || !matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+                || !matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. })
                     && t.type_members(info, "apply").into_iter().any(|a| {
                         t.complete(a);
                         let apply = t.u.info(a);
@@ -90,7 +90,7 @@ impl Resolution {
 
 /// Checks whether `info` is polymorphic of `n` type parameters (dotty's `canInstantiate`).
 fn instantiable(u: &Universe, info: TypeId, n: usize) -> bool {
-    matches!(u.types().get(info), Type::Poly { params, .. } if params.len() == n)
+    u.poly(info).is_some_and(|p| p.params.len() == n)
 }
 
 /// Gives the types of the arguments of poly proto `poly`, typed once.
@@ -110,8 +110,8 @@ fn poly_arg_types(t: &mut Typer, poly: usize) -> Vec<TypeId> {
 /// Checks whether `targs` are within the bounds of the type parameters of polymorphic type
 /// `info` of `alt`; the constraint unchanged.
 fn within_bounds(t: &mut Typer, info: TypeId, alt: SymbolId, targs: &[TypeId]) -> bool {
-    let Type::Poly { binder, params, .. } = t.u.types().get(info).clone() else { return false };
-    let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+    let Some((binder, params)) = t.u.poly(info).map(|p| (p.binder, p.params.to_vec())) else { return false };
+    let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
     let before = t.constraint.attempt();
     let mut within = true;
     for (&(_, bounds), &arg) in params.iter().zip(targs) {

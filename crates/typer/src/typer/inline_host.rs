@@ -46,7 +46,7 @@ impl Typer<'_> {
         }
         let Some(tpe) = self.tpd.get(tree).tpe else { return };
         let widened = self.u.widen(tpe);
-        if !matches!(self.u.types().get(widened), Type::Method { .. } | Type::Poly { .. })
+        if !matches!(self.u.ty(widened), Type::Method { .. } | Type::Poly { .. })
             && self.enclosing_inline(ctx.owner).is_none()
         {
             self.inline_ctxs.insert(tree, ctx);

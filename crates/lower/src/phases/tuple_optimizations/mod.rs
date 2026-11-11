@@ -62,7 +62,7 @@ fn tuples_method(l: &mut Lower, t: TNodeId) -> Option<SymbolId> {
     let Tree::Apply { fun, .. } = *l.tpd.tree(t) else { return None };
     let s = l.tpd.sym(without_type_args(l.tpd, fun))?;
     let owner = l.u.symbol(s).owner?;
-    (l.u.full_name(owner) == "scala.runtime.Tuples$").then_some(s)
+    (l.u.full_name(owner) == tasty::defn::TUPLES_CLASS).then_some(s)
 }
 
 /// The tree call `t` of `Tuples.name` in `owner` becomes, if any; the copies of its arguments it
@@ -164,7 +164,7 @@ fn tuple_tail(
 fn size(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     let tpe = l.tpd.tpe(t);
     let constant = l.u.try_normalize(tpe)?;
-    let tree = literal(l.u.types().get(constant))?;
+    let tree = literal(l.u, constant)?;
     Some(l.tpd.node(tree, Span::NONE, Some(constant), None))
 }
 
@@ -209,7 +209,7 @@ fn concat(
 /// none of more than 22 elements.
 fn apply(l: &mut Lower, t: TNodeId, tup: TNodeId, index: TNodeId) -> Option<TNodeId> {
     let index_type = l.tpd.tpe(index);
-    let Type::Constant(tag, n) = *l.u.types().get(index_type) else { return None };
+    let Type::Constant(tag, n) = *l.u.ty(index_type) else { return None };
     if tag != INTconst {
         return None;
     }

@@ -36,11 +36,11 @@ pub fn spread_method(u: &mut Universe) -> SymbolId {
     }
     let (poly, method) = (u.fresh_binder(), u.fresh_binder());
     let param = u.intern_type(Type::Param(poly, 0));
-    let params = vec![("x$0".into(), tasty::ANY)];
-    let result = Type::Method { binder: method, params, result: param, implicit: false, contextual: false };
-    let result = u.intern_type(result);
+    let params = [(u.intern_name("x$0"), tasty::ANY)];
+    let result = u.intern_method(method, &params, param, false, false);
     let bounds = u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY));
-    let info = u.intern_type(Type::Poly { binder: poly, params: vec![("T".into(), bounds)], result });
+    let params = [(u.intern_name("T"), bounds)];
+    let info = u.intern_poly(poly, &params, result);
     let spread = special(u, ops, "spread", Kind::Def, Flags::default());
     u.set_info(spread, info);
     spread
@@ -53,11 +53,10 @@ pub fn throw_method(u: &mut Universe) -> SymbolId {
         return t;
     }
     let throwable = u.class_ref("java.lang.Throwable");
-    let nothing = type_ref(u, u.builtins().nothing);
+    let nothing = type_ref(u, u.defn().nothing);
     let binder = u.fresh_binder();
-    let params = vec![("x".into(), throwable)];
-    let info =
-        u.intern_type(Type::Method { binder, params, result: nothing, implicit: false, contextual: false });
+    let params = [(u.intern_name("x"), throwable)];
+    let info = u.intern_method(binder, &params, nothing, false, false);
     let throw = special(u, ops, "throw", Kind::Def, Flags::default());
     u.set_info(throw, info);
     throw

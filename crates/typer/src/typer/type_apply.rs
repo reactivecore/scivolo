@@ -10,7 +10,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId};
-use tasty::{ANY, Binder, SymbolId, Type, TypeId, TypeVars};
+use tasty::{ANY, Binder, NameId, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -49,10 +49,7 @@ impl Typer<'_> {
         };
         if class_of {
             let [arg] = arg_types[..] else { return self.unsupported(id, "classOf") };
-            let module = match self.u.types().get(arg) {
-                Type::Sym(_, s) => self.u.symbol(*s).flags.has(tasty::tags::OBJECT),
-                _ => false,
-            };
+            let module = self.u.sym_of(arg).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::OBJECT));
             if !module && !self.is_class_type(arg, true) {
                 return self.unsupported(id, "classOf of a type that is not a class");
             }
@@ -68,8 +65,8 @@ impl Typer<'_> {
     pub fn with_type_vars(&mut self, f: TNodeId) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let Type::Poly { params, .. } = self.u.types().get(info) else { return Ok(f) };
-        let n = params.len();
+        let Some(poly) = self.u.poly(info) else { return Ok(f) };
+        let n = poly.params.len();
         let span = self.tpd.span(f);
         let (args, trees, fresh) = match self.new_type_args(f) {
             Some((args, at)) => {
@@ -114,13 +111,14 @@ impl Typer<'_> {
     ) -> Result<TypeId, &'static str> {
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+        let Some(poly) = self.u.poly(info) else {
             return Err("type application of a non-polymorphic method");
         };
+        let (binder, result, params) = (poly.binder, poly.result, poly.params.to_vec());
         if args.len() != params.len() {
             return Err("wrong number of type arguments");
         }
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let method = self.tpd.sym(self.tpd.meth_part(f));
         let of_java = method.is_some_and(|m| self.is_java_member(m));
         let class_params = self.java_class_params(method.filter(|_| of_java));
@@ -129,17 +127,13 @@ impl Typer<'_> {
             let (lo, hi, arity) = self.bounds_of(bounds);
             let unbounded = class_params.get(i).is_some_and(|&p| self.is_unbounded(p));
             let lo = lo.filter(|_| !unbounded);
-            let java_object =
-                unbounded || of_java && self.u.class_symbol(hi) == Some(self.u.builtins().object);
+            let java_object = unbounded || of_java && self.u.class_symbol(hi) == Some(self.u.defn().object);
             let hi = if java_object { ANY } else { hi };
-            let var = match *self.u.types().get(arg) {
-                Type::Var(v) if fresh => Some(v),
-                _ => None,
-            };
+            let var = self.u.var(arg).filter(|_| fresh);
             if var.is_some() {
                 self.constraint.declare(self.u, arg, lo.unwrap_or(tasty::NOTHING), hi);
             }
-            let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
+            let any_kind = self.u.class_symbol(hi) == Some(self.u.defn().any_kind);
             if var.is_none() && !any_kind && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
@@ -147,7 +141,7 @@ impl Typer<'_> {
                 _ if java_object => true,
                 Some(v)
                     if (self.u.dealias(hi) != hi
-                        || hi != ANY && self.u.class_symbol(hi) == Some(self.u.builtins().any))
+                        || hi != ANY && self.u.class_symbol(hi) == Some(self.u.defn().any))
                         && self.open_vars(hi).is_empty() =>
                 {
                     self.constraint.add_upper(self.u, v, hi)
@@ -174,7 +168,7 @@ impl Typer<'_> {
         &mut self,
         t: TypeId,
         binder: Binder,
-        names: &[String],
+        names: &[NameId],
         args: &[TypeId],
         method: Option<SymbolId>,
     ) -> TypeId {
@@ -188,15 +182,15 @@ impl Typer<'_> {
 pub fn instantiate_poly(
     u: &mut tasty::Universe,
     t: TypeId,
-    (binder, names): (Binder, &[String]),
+    (binder, names): (Binder, &[NameId]),
     args: &[TypeId],
     method: Option<SymbolId>,
 ) -> TypeId {
     let t = u.subst(t, binder, names, args);
-    u.map_type(t, &mut |u, part| match *u.types().get(part) {
+    u.map_type(t, &mut |u, part| match *u.ty(part) {
         Type::Sym(_, s) if method.is_some() && u.symbol(s).owner == method => {
             let name = &u.symbol(s).name;
-            names.iter().position(|n| n == name).map(|i| args[i])
+            names.iter().position(|&n| u.name(n) == name).map(|i| args[i])
         }
         _ => None,
     })

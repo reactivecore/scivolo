@@ -54,8 +54,8 @@ impl Typer<'_> {
     pub fn default_param_proto(&mut self, getter: SymbolId) -> (Option<(TypeId, TypeId)>, bool) {
         let Some((exact, pt)) = self.default_param_type(getter) else { return (None, false) };
         let types = self.u.types();
-        match (types.get(exact), types.get(pt)) {
-            (&Type::ByName(e), &Type::ByName(p)) => (Some((e, p)), true),
+        match (*types.get(exact), *types.get(pt)) {
+            (Type::ByName(e), Type::ByName(p)) => (Some((e, p)), true),
             _ => (Some((exact, pt)), false),
         }
     }
@@ -80,7 +80,7 @@ impl Typer<'_> {
     fn constructor_of_companion(&mut self, owner: SymbolId, method: &str) -> Vec<SymbolId> {
         let primary = if method == "<init>" { self.companion_constructor(owner) } else { None };
         let class = primary.and_then(|p| self.u.symbol(p).owner);
-        class.map(|c| self.u.decl(c, "<init>").unwrap_or_default()).unwrap_or_default()
+        class.map(|c| self.u.decls_named(c, "<init>")).unwrap_or_default()
     }
 
     /// `t` with its references to type parameters of method `sym` made wildcards (dotty's
@@ -88,18 +88,15 @@ impl Typer<'_> {
     pub fn own_type_params_approximated(&mut self, t: TypeId, sym: SymbolId) -> Option<TypeId> {
         let mut bounded = false;
         let approximated = self.u.map_type(t, &mut |u, x| {
-            let Type::Sym(None, s) = *u.types().get(x) else { return None };
+            let Some((None, s)) = u.sym_ref(x) else { return None };
             if u.symbol(s).owner != Some(sym) || u.symbol(s).kind != Kind::TypeParam {
                 return None;
             }
             let info = u.info(s);
-            let (nothing, any) = (u.builtins().nothing, u.builtins().any);
-            let trivial = match *u.types().get(info) {
-                Type::Bounds(lo, hi) => {
-                    u.class_symbol(lo) == Some(nothing) && u.class_symbol(hi) == Some(any)
-                }
-                _ => false,
-            };
+            let (nothing, any) = (u.defn().nothing, u.defn().any);
+            let trivial = u.bounds(info).is_some_and(|(lo, hi)| {
+                u.class_symbol(lo) == Some(nothing) && u.class_symbol(hi) == Some(any)
+            });
             bounded |= !trivial;
             Some(u.intern_type(Type::Wildcard(None)))
         });
@@ -110,7 +107,7 @@ impl Typer<'_> {
     pub fn mentions_own_type_params(&mut self, t: TypeId, sym: SymbolId) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |u, x| {
-            if let Type::Sym(None, s) = *u.types().get(x) {
+            if let Some((None, s)) = u.sym_ref(x) {
                 found |= u.symbol(s).owner == Some(sym) && u.symbol(s).kind == Kind::TypeParam;
             }
             None
@@ -123,7 +120,7 @@ impl Typer<'_> {
     fn with_getter_type_params(&mut self, t: TypeId, method: SymbolId, getter: SymbolId) -> TypeId {
         let getter_tparams: Vec<SymbolId> = self.u.symbol(getter).decls.clone();
         self.u.map_type(t, &mut |u, x| {
-            let Type::Sym(None, s) = *u.types().get(x) else { return None };
+            let Some((None, s)) = u.sym_ref(x) else { return None };
             if u.symbol(s).owner != Some(method) || u.symbol(s).kind != Kind::TypeParam {
                 return None;
             }
@@ -137,7 +134,7 @@ impl Typer<'_> {
 /// selections on such a wildcard made wildcards and annotations dropped (dotty's `wildApprox` of a
 /// `TermParamRef` and an `AnnotatedType`).
 fn value_params_approximated(u: &mut tasty::Universe, t: TypeId, method: SymbolId) -> TypeId {
-    u.map_type(t, &mut |u, x| match *u.types().get(x) {
+    u.map_type(t, &mut |u, x| match *u.ty(x) {
         Type::Annotated(t, _) => Some(value_params_approximated(u, t, method)),
         Type::Sym(None, s) if u.symbol(s).owner == Some(method) && u.symbol(s).kind == Kind::Param => {
             let info = u.info(s);
@@ -147,7 +144,7 @@ fn value_params_approximated(u: &mut tasty::Universe, t: TypeId, method: SymbolI
         }
         Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::Sym(Some(p), _) => {
             let p1 = value_params_approximated(u, p, method);
-            matches!(u.types().get(p1), Type::Wildcard(_)).then(|| u.intern_type(Type::Wildcard(None)))
+            matches!(u.ty(p1), Type::Wildcard(_)).then(|| u.intern_type(Type::Wildcard(None)))
         }
         _ => None,
     })

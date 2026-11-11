@@ -29,10 +29,9 @@ impl Translator<'_, '_> {
     pub fn seq_members(&mut self, tpe: TypeId) -> Option<SeqMembers> {
         let (apply, elem) = self.seq_member(tpe, "apply", |_, _| true)?;
         let seq = self.l.u.class_ref("scala.collection.Seq");
-        let seq = self.l.u.intern_type(Type::Applied(seq, vec![elem]));
+        let seq = self.l.u.intern_applied(seq, &[elem]);
         let conforms = |t: &mut Self, r| t.l.u.is_subtype(r, seq);
-        let is_int =
-            |t: &mut Self, r| t.l.u.class_symbol(r).is_some_and(|c| t.l.u.full_name(c) == "scala.Int");
+        let is_int = |t: &mut Self, r| t.l.u.is_class_named(r, tasty::defn::INT);
         if self.seq_member(tpe, "lengthCompare", is_int).is_none() {
             self.seq_member(tpe, "length", is_int)?;
         }
@@ -64,18 +63,20 @@ impl Translator<'_, '_> {
         let int = self.l.u.class_ref("scala.Int");
         let int = self.l.u.class_symbol(int);
         for base in self.l.u.linearization(class) {
-            for m in self.l.u.decl(base, name).unwrap_or_default() {
+            for m in self.l.u.decls_named(base, name) {
                 if self.l.u.symbol(m).kind != Kind::Def {
                     continue;
                 }
                 let info = self.l.u.member_info(tpe, m);
-                let (params, result) = match self.l.u.types().get(info).clone() {
-                    Type::Method { params, result, .. } => (Some(params), result),
+                let (params, result) = match *self.l.u.ty(info) {
+                    Type::Method { params, result, .. } => {
+                        (Some(self.l.u.params_of(params).to_vec()), result)
+                    }
                     Type::Poly { .. } => continue,
                     Type::ByName(result) => (None, result),
                     _ => (None, info),
                 };
-                if matches!(self.l.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+                if matches!(self.l.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
                     continue;
                 }
                 let shape = match name {

@@ -55,7 +55,7 @@ impl Gen<'_, '_> {
         if !self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.is_class(o)) {
             return unsupported(span, "calls of methods outside classes");
         }
-        if self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.full_name(o) == "scala.Array") {
+        if self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.full_name(o) == tasty::defn::ARRAY) {
             return unsupported(span, "array operations");
         }
         if self.is_primitive_op(sym) {
@@ -64,7 +64,7 @@ impl Gen<'_, '_> {
         if has(self.l.u, sym, INLINE) || has(self.l.u, sym, MACRO) {
             return unsupported(span, "inline call not expanded");
         }
-        if self.l.u.full_name(sym) == "scala.scalanative.unsafe.package$.extern" {
+        if self.l.u.full_name(sym) == crate::symbols::EXTERN {
             return unsupported(span, "`extern` outside an extern object");
         }
         Ok(())

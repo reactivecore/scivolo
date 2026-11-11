@@ -50,7 +50,7 @@ impl Typer<'_> {
         }
         let mut wildcard = false;
         self.u.map_type(tpe, &mut |u, part| {
-            wildcard |= matches!(u.types().get(part), Type::Wildcard(_));
+            wildcard |= matches!(u.ty(part), Type::Wildcard(_));
             None
         });
         if wildcard && raw_default.is_some() {
@@ -58,9 +58,7 @@ impl Typer<'_> {
         }
         let widened = self.widen_rhs(sym, tpe);
         let widened = self.simplified_inferred_as(widened, raw_default.is_some());
-        if self.keeps_rhs_type(sym)
-            && matches!(self.u.types().get(widened), Type::Constant(..) | Type::Str(_))
-        {
+        if self.keeps_rhs_type(sym) && matches!(self.u.ty(widened), Type::Constant(..) | Type::Str(_)) {
             return self.fully_defined_rhs(widened, rhs);
         }
         let bound = inherited.or(default).or(approx).unwrap_or(tasty::ANY);
@@ -93,7 +91,8 @@ impl Typer<'_> {
     /// `widenRhs`): a constant for a final value, a singleton for an object, else `t` widened.
     fn widen_rhs(&mut self, sym: SymbolId, t: TypeId) -> TypeId {
         let inline_val = self.keeps_rhs_type(sym);
-        match self.u.types().get(t).clone() {
+        let ty = *self.u.ty(t);
+        match ty {
             Type::Constant(..) | Type::Str(_) if inline_val => t,
             Type::Constant(..) | Type::Str(_) => self.u.widen(t),
             Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => seq,

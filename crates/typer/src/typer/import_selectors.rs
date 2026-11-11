@@ -97,9 +97,9 @@ impl Typer<'_> {
         let vars: Vec<tasty::TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
         let result = self.u.subst(result, binder, &names, &vars);
         let tparams = self.u.type_params(sym);
-        let result = self.u.map_type(result, &mut |u, part| match *u.types().get(part) {
-            tasty::Type::Sym(_, s) => tparams.iter().position(|&p| p == s).and_then(|i| vars.get(i).copied()),
-            _ => None,
+        let result = self.u.map_type(result, &mut |u, part| {
+            let s = u.sym_of(part)?;
+            tparams.iter().position(|&p| p == s).and_then(|i| vars.get(i).copied())
         });
         self.final_result(result)
     }

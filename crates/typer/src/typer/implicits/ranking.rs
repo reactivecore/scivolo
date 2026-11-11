@@ -75,18 +75,18 @@ fn compare_with_types(
 /// `t` without the implicit clauses that lead it or its polymorphic result (dotty's
 /// `stripImplicit`); `None` for a result depending on a stripped parameter.
 fn without_implicits(u: &mut Universe, t: TypeId) -> Option<TypeId> {
-    match u.types().get(t).clone() {
+    match *u.ty(t) {
         Type::Method { binder, result, implicit: true, .. } => {
             let mut dependent = false;
             u.map_type(result, &mut |u, p| {
-                dependent |= matches!(u.types().get(p), Type::Param(b, _) if *b == binder);
+                dependent |= u.param_ref(p).is_some_and(|(b, _)| b == binder);
                 None
             });
             if dependent { None } else { without_implicits(u, result) }
         }
         Type::Poly { binder, params, result } => {
             let stripped = without_implicits(u, result)?;
-            match u.types().get(stripped) {
+            match *u.ty(stripped) {
                 _ if stripped == result => Some(t),
                 Type::Poly { .. } => None,
                 _ => Some(u.intern_type(Type::Poly { binder, params, result: stripped })),

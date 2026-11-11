@@ -46,7 +46,8 @@ impl Typer<'_> {
             let Tree::TypeDef { name, rhs, .. } = *self.ast.tree(r) else {
                 match self.term_refinement(class, r, ctx) {
                     Ok((name, info, tree)) => {
-                        let refined = self.u.intern_type(Type::Refined(tpe, name.clone(), info));
+                        let n = self.u.intern_name(&name);
+                        let refined = self.u.intern_type(Type::Refined(tpe, n, info));
                         if let Err(what) = self.refines_member(tpe, refined, &name) {
                             return self.unsupported(r, what);
                         }
@@ -74,6 +75,7 @@ impl Typer<'_> {
                 Ok(refinement) => refinement,
                 Err(refused) => return refused,
             };
+            let text = self.u.intern_name(&text);
             tpe = self.u.intern_type(Type::Refined(tpe, text, info));
             members.push(tree);
         }
@@ -117,7 +119,7 @@ impl Typer<'_> {
     /// `qual.name` for a type member only a refinement of `qual`'s path type `pre` has (one of
     /// a library's refined types: `MirroredElemTypes` of a `Mirror.Of[T]`); `None` otherwise.
     pub fn refined_select(&mut self, id: NodeId, qual: TNodeId, pre: TypeId, name: TName) -> Option<TNodeId> {
-        let stable = match *self.u.types().get(pre) {
+        let stable = match *self.u.ty(pre) {
             Type::Sym(_, s) => !self.u.is_type_symbol(s),
             Type::This(_) | Type::TermRef(..) => true,
             Type::Refined(..) | Type::Rec(..) => {
@@ -127,7 +129,8 @@ impl Typer<'_> {
             _ => false,
         };
         let text = self.text(name.name).to_owned();
-        if !stable || self.u.refinement_named(pre, &text).is_none() {
+        let text = self.u.intern_name(&text);
+        if !stable || self.u.refinement_named(pre, text).is_none() {
             return None;
         }
         let tpe = self.u.intern_type(Type::TypeRef(pre, text));
@@ -138,7 +141,7 @@ impl Typer<'_> {
     /// Whether `t` is a refinement of `Mirror` or one of its subtraits, whose type members
     /// `MirroredType` and `MirroredElemTypes` exist only as refinements.
     fn is_mirror_type(&mut self, mut t: TypeId) -> bool {
-        while let Type::Refined(parent, ..) = *self.u.types().get(t) {
+        while let Type::Refined(parent, ..) = *self.u.ty(t) {
             t = parent;
         }
         self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c).starts_with("scala.deriving.Mirror"))
@@ -164,15 +167,15 @@ impl Typer<'_> {
         if terms.iter().any(|&m| self.u.symbol(m).target.is_some()) {
             return Err("structural refinement of a member with a target name");
         }
-        let poly = matches!(self.u.types().get(refined), Type::Refined(_, _, i) if matches!(self.u.types().get(*i), Type::Poly { .. }));
-        let poly_function = name == "apply"
-            && self.u.class_symbol(parent).is_some_and(|c| self.u.full_name(c) == "scala.PolyFunction");
+        let poly = matches!(self.u.ty(refined), Type::Refined(_, _, i) if self.u.poly(*i).is_some());
+        let poly_function = name == "apply" && self.u.is_class_named(parent, crate::defn::POLY_FUNCTION);
         if terms.is_empty() && poly && !poly_function {
             return Err("polymorphic refinement without a parent member");
         }
         if terms.is_empty() || self.u.is_subtype(parent, refined) {
             return Ok(());
         }
+        let name = self.u.intern_name(name);
         let narrows = terms.into_iter().any(|m| {
             let seen = self.u.member_info(parent, m);
             self.u.term_refinement_named(refined, name) == Some(seen)

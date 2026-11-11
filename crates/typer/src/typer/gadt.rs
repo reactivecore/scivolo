@@ -11,14 +11,10 @@ use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe};
 
 /// Finds the type `t` refers to plainly, as `T`, or seen from `this` of its owner.
 pub fn plain_type_ref(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
-    match *u.types().get(t) {
-        Type::Sym(None, s) => Some(s),
-        Type::Sym(Some(p), s) => match *u.types().get(p) {
-            Type::This(c) => (u.class_symbol(c) == u.symbol(s).owner).then_some(s),
-            _ => None,
-        },
-        _ => None,
-    }
+    let (prefix, s) = u.sym_ref(t)?;
+    let Some(p) = prefix else { return Some(s) };
+    let c = u.this_of(p)?;
+    (u.class_symbol(c) == u.symbol(s).owner).then_some(s)
 }
 
 /// Makes a reference to type `s`, a class's type parameter seen from `this`.
@@ -37,10 +33,7 @@ pub fn current_bounds(u: &mut Universe, s: SymbolId) -> Option<(TypeId, TypeId)>
         return Some(b);
     }
     let info = u.info(s);
-    match *u.types().get(info) {
-        Type::Bounds(lo, hi) => Some((lo, hi)),
-        _ => None,
-    }
+    u.bounds(info)
 }
 
 impl Gadt {
@@ -123,12 +116,12 @@ impl Gadt {
     /// refinement, a singleton, a class's higher-kinded type parameter or an abstract type
     /// constructor applied.
     fn first_order_params(&self, u: &mut Universe, t: TypeId, params: &mut Vec<SymbolId>) -> bool {
-        match u.types().get(t).clone() {
+        match *u.ty(t) {
             Type::Sym(_, s) if u.symbol(s).kind == Kind::TypeParam || self.bound.contains(&s) => {
                 let info = u.info(s);
-                let Type::Bounds(_, hi) = *u.types().get(info) else { return false };
+                let Some((_, hi)) = u.bounds(info) else { return false };
                 let of_class = u.symbol(s).owner.is_some_and(|o| u.is_class(o));
-                if of_class && matches!(u.types().get(hi), Type::Lambda { .. }) {
+                if of_class && u.lambda(hi).is_some() {
                     return false;
                 }
                 if !params.contains(&s) {
@@ -139,7 +132,7 @@ impl Gadt {
             Type::Sym(_, s) => !u.symbol(s).kind.is_term(),
             Type::Applied(tycon, args) => {
                 u.class_symbol(tycon).is_some_and(|c| u.is_class(c))
-                    && args.iter().all(|&a| self.first_order_params(u, a, params))
+                    && u.types_of(args).to_vec().into_iter().all(|a| self.first_order_params(u, a, params))
             }
             Type::And(a, b) | Type::Or(a, b, _) | Type::Bounds(a, b) => {
                 self.first_order_params(u, a, params) && self.first_order_params(u, b, params)
@@ -158,7 +151,7 @@ impl TypeOps<'_> {
     pub fn gadt_var_bounds(&mut self, vars: &[GadtVar]) -> Vec<TypeId> {
         let mut bounds = Vec::new();
         for &(_, v) in vars {
-            let Type::Var(id) = *self.u.types().get(v) else { continue };
+            let Some(id) = self.u.var(v) else { continue };
             let (lo, hi) = self.constraint.bounds(id);
             bounds.extend([self.zonk(lo), self.zonk(hi)]);
         }
@@ -169,7 +162,7 @@ impl TypeOps<'_> {
     pub fn has_type_var(&mut self, t: TypeId) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |u, p| {
-            found |= matches!(u.types().get(p), Type::Var(_));
+            found |= u.var(p).is_some();
             None
         });
         found

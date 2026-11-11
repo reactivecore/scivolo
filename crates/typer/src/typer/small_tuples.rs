@@ -9,8 +9,7 @@ use super::Typer;
 use crate::tpd::TNodeId;
 use tasty::{SymbolId, Type, TypeId, Universe};
 
-/// The largest arity of a `TupleN` class.
-pub const MAX_TUPLE_ARITY: usize = 22;
+pub use tasty::defn::MAX_TUPLE_ARITY;
 
 impl Typer<'_> {
     /// `qual.$asInstanceOf$[TupleN[A, B, …]]` when `qual` is an `A *: B *: … *: EmptyTuple` of at
@@ -24,7 +23,7 @@ impl Typer<'_> {
         }
         let class = self.resolve_full_name(&format!("scala.Tuple{}", elems.len()), true)?;
         let class = self.u.intern_type(Type::Sym(None, class));
-        let to = self.u.intern_type(Type::Applied(class, elems));
+        let to = self.u.intern_applied(class, &elems);
         Some(self.type_cast(qual, to))
     }
 
@@ -47,7 +46,7 @@ impl Typer<'_> {
                 t = tail;
                 continue;
             }
-            if let Type::Applied(f, args) = self.u.types().get(d).clone()
+            if let Some((f, args)) = self.u.applied(d).map(|(f, args)| (f, args.to_vec()))
                 && !elems.is_empty()
                 && self.u.class_symbol(f).is_some_and(|c| self.is_tuple_class(c, args.len()))
             {
@@ -80,7 +79,7 @@ impl Typer<'_> {
         let pair = crate::defn::type_ref(self.u, pair);
         let mut t = self.u.intern_type(Type::Sym(None, empty));
         for &e in elems.iter().rev() {
-            t = self.u.intern_type(Type::Applied(pair, vec![e, t]));
+            t = self.u.intern_applied(pair, &[e, t]);
         }
         Ok(t)
     }
@@ -94,18 +93,18 @@ impl Typer<'_> {
     fn is_empty_tuple(&mut self, t: TypeId) -> bool {
         let mut t = t;
         for _ in 0..4 {
-            if let Type::Sym(_, s) = *self.u.types().get(t)
+            if let Some(s) = self.u.sym_of(t)
                 && self.u.symbol(s).kind == tasty::Kind::Type
             {
                 self.complete(s);
                 let info = self.u.info(s);
-                if let Type::Alias(a) = *self.u.types().get(info) {
+                if let Some(a) = self.u.type_alias(info) {
                     t = a;
                     continue;
                 }
             }
-            let class = match *self.u.types().get(t) {
-                Type::Sym(_, s) if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => {
+            let class = match self.u.sym_of(t) {
+                Some(s) if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => {
                     self.u.module_class(s).or_else(|| self.u.is_class(s).then_some(s))
                 }
                 _ => {
@@ -125,7 +124,7 @@ impl Typer<'_> {
 /// an alias of it; `None` for another type.
 pub fn tuple_class_args(u: &mut Universe, t: TypeId) -> Option<Vec<TypeId>> {
     let d = u.dealias(t);
-    let Type::Applied(f, args) = u.types().get(d).clone() else { return None };
+    let (f, args) = u.applied(d).map(|(f, args)| (f, args.to_vec()))?;
     let c = u.class_symbol(f)?;
     (u.full_name(c) == format!("scala.Tuple{}", args.len())).then_some(args)
 }

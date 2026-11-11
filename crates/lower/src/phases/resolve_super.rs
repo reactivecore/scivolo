@@ -78,9 +78,9 @@ fn own_type_params(l: &mut Lower, sym: SymbolId, acc: SymbolId) {
         return;
     }
     let refs: Vec<TypeId> = fresh.iter().map(|&t| l.u.intern_type(Type::Sym(None, t))).collect();
-    let info = l.u.map_type(info, &mut |u, t| match *u.types().get(t) {
-        Type::Sym(_, s) => old.iter().position(|&p| p == s).map(|i| refs[i]),
-        _ => None,
+    let info = l.u.map_type(info, &mut |u, t| {
+        let s = u.sym_of(t)?;
+        old.iter().position(|&p| p == s).map(|i| refs[i])
     });
     l.u.set_info(sym, info);
 }
@@ -143,7 +143,7 @@ fn rebind_super(l: &mut Lower, base: SymbolId, acc: SymbolId, w: Wanted, span: S
         if !w.mix.is_empty() && l.u.symbol(b).name != w.mix {
             continue;
         }
-        for other in l.u.decl(b, w.name).unwrap_or_default() {
+        for other in l.u.decls_named(b, w.name) {
             let s = l.u.symbol(other);
             let named = s.target.as_deref().unwrap_or(&s.name) == w.target;
             let candidate =

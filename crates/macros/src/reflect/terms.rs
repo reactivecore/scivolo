@@ -29,7 +29,7 @@ impl Host {
             (None, &T::SeqLiteral { elemtpt, .. }) => {
                 let seq = self.u.class_ref("scala.collection.immutable.Seq");
                 let elem = self.tpd.tpe(elemtpt);
-                Ok(self.u.intern_type(tasty::Type::Applied(seq, vec![elem])))
+                Ok(self.u.intern_applied(seq, &[elem]))
             }
             _ => Err("the type of a tree without one"),
         }
@@ -62,11 +62,11 @@ impl Host {
     }
 
     pub fn ident_ref(&mut self, tpe: TypeId) -> Fallible<TNodeId> {
-        let tasty::Type::Sym(prefix, s) = *self.u.types().get(tpe) else {
+        let Some((prefix, s)) = self.u.sym_ref(tpe) else {
             return Err("Ident.apply of a reference the frontend did not resolve");
         };
         if let Some(p) = prefix
-            && let tasty::Type::Sym(_, ps) = *self.u.types().get(p)
+            && let Some(ps) = self.u.sym_of(p)
             && self.u.symbol(ps).kind.is_term()
             && !(self.u.is_module(ps) && self.u.is_static_symbol(ps))
             && self.u.symbol(ps).kind != tasty::Kind::Package

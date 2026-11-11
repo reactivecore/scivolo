@@ -112,7 +112,7 @@ impl Typer<'_> {
 
 /// Checks whether `t` is a singleton type: a path, `this`, a constant or a skolem.
 fn is_path(u: &mut Universe, t: TypeId) -> bool {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::Skolem(..) => true,
         Type::Sym(_, s) => u.symbol(s).kind.is_term(),
         _ => false,

@@ -6,7 +6,7 @@
 use super::Translator;
 use crate::Result;
 use syntax::ast::Span;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, TypeId};
 use typer::tpd::TNodeId;
 
 impl Translator<'_, '_> {
@@ -68,12 +68,12 @@ impl Translator<'_, '_> {
     pub fn member_named(&mut self, tpe: TypeId, name: &str) -> Option<SymbolId> {
         let class = self.l.class_of(tpe)?;
         for base in self.l.u.linearization(class) {
-            let found = self.l.u.decl(base, name).unwrap_or_default();
+            let found = self.l.u.decls_named(base, name);
             let member = |m: &SymbolId| match self.l.u.symbol(*m).kind {
                 Kind::Val | Kind::Param => true,
                 Kind::Def => {
                     let info = self.l.u.info(*m);
-                    !matches!(self.l.u.types().get(info), Type::Method { params, .. } if !params.is_empty())
+                    !self.l.u.method(info).is_some_and(|m| !m.params.is_empty())
                 }
                 _ => false,
             };

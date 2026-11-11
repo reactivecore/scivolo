@@ -5,7 +5,7 @@
 
 use super::casts::class_named;
 use crate::Lower;
-use tasty::{Erased, SymbolId, Type, TypeId};
+use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The function class of the `apply` of polymorphic function type `t`, or of the one `t` is
@@ -23,10 +23,9 @@ pub fn poly_function_member(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> 
     if l.tpd.sym(sel).is_some() || name.is_type {
         return None;
     }
-    let Type::TermRef(_, n) = l.u.types().get(l.tpd.tpe(sel)) else { return None };
-    if n != "apply" {
+    if l.u.name(l.u.term_ref(l.tpd.tpe(sel))?.1) != "apply" {
         return None;
     }
     let class = poly_function_class(l, l.tpd.tpe(qualifier))?;
-    l.u.decl(class, "apply").unwrap_or_default().first().copied()
+    l.u.decls_named(class, "apply").first().copied()
 }

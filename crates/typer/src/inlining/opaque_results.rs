@@ -23,10 +23,10 @@ impl Inlining<'_> {
     ) -> Result<TNodeId, Unsupported> {
         let proxied = locals.iter().copied().find_map(|s| {
             let mut module_ref = self.u.info(s);
-            while let Type::Refined(parent, ..) = *self.u.types().get(module_ref) {
+            while let Type::Refined(parent, ..) = *self.u.ty(module_ref) {
                 module_ref = parent;
             }
-            let Type::Sym(_, m) = *self.u.types().get(module_ref) else { return None };
+            let m = self.u.sym_of(module_ref)?;
             let class = match self.u.module_class(m) {
                 Some(c) => c,
                 None => {
@@ -50,8 +50,8 @@ impl Inlining<'_> {
         let call_tpe = self.tpd.tpe(call);
         let meth = self.tpd.sym(self.tpd.meth_part(call));
         let target = if meth.is_some_and(|m| self.u.symbol(m).flags.has(TRANSPARENT)) {
-            let unpacked = self.u.map_type(expanded, &mut |u, t| match *u.types().get(t) {
-                Type::Sym(None, s) if proxies.contains(&s) => Some(module_ref),
+            let unpacked = self.u.map_type(expanded, &mut |u, t| match u.sym_ref(t) {
+                Some((None, s)) if proxies.contains(&s) => Some(module_ref),
                 _ => None,
             });
             self.u.glb(call_tpe, unpacked)
@@ -61,9 +61,9 @@ impl Inlining<'_> {
         if self.u.is_subtype(self.tpd.tpe(inlined), target) {
             return Ok(inlined);
         }
-        let unstable = match *self.u.types().get(target) {
-            Type::Sym(_, s) => self.u.symbol(s).kind.is_term() && !self.pure().is_stable_member(s),
-            _ => false,
+        let unstable = match self.u.sym_of(target) {
+            Some(s) => self.u.symbol(s).kind.is_term() && !self.pure().is_stable_member(s),
+            None => false,
         };
         let to = if unstable { self.u.widen(target) } else { target };
         let cast = self.cast(inlined, to)?;
@@ -85,7 +85,7 @@ impl Inlining<'_> {
         let widened = self.u.widen(call_tpe);
         let mut found = false;
         self.u.map_type(widened, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part) {
+            if let Some(s) = u.sym_of(part) {
                 let sym = u.symbol(s);
                 found |= sym.kind == Kind::Type
                     && sym.flags.has(OPAQUE)

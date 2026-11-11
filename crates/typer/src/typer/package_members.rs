@@ -21,8 +21,8 @@ impl Typer<'_> {
                 self.complete(o);
             }
         }
-        let mut members = self.u.decl(p, name).unwrap_or_default();
-        let scala = self.u.full_name(p) == "scala";
+        let mut members = self.u.decls_named(p, name);
+        let scala = p == self.defn.scala;
         let own: Vec<bool> = members.iter().map(|&m| self.u.is_type_symbol(m)).collect();
         if scala && own.contains(&true) && own.contains(&false) {
             return members;

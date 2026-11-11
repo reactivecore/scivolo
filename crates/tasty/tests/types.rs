@@ -58,17 +58,17 @@ fn annotated_types_keep_the_annotation_class() {
     };
     let info = u.info(m);
     let shown = u.show(info);
-    let Type::Method { params, .. } = u.types().get(info).clone() else { panic!("{shown}") };
-    let (mut todo, mut annotations) = (vec![params[0].1], Vec::new());
+    let Some(method) = u.method(info) else { panic!("{shown}") };
+    let (mut todo, mut annotations) = (vec![method.params[0].1], Vec::new());
     while let Some(t) = todo.pop() {
-        match u.types().get(t).clone() {
+        match *u.types().get(t) {
             Type::Annotated(inner, a) => {
                 todo.push(inner);
                 annotations.push(a);
             }
             Type::Applied(tycon, args) => {
                 todo.push(tycon);
-                todo.extend(args);
+                todo.extend(u.types_of(args));
             }
             _ => {}
         }
@@ -85,9 +85,7 @@ fn erasure_of_aliases_arrays_and_type_parameters() {
     let erased_result = |u: &mut Universe, pkg, class, name| {
         let m = members(u, pkg, class, name)[0];
         let mut t = u.info(m);
-        while let tasty::Type::Method { result, .. } | tasty::Type::Poly { result, .. } =
-            u.types().get(t).clone()
-        {
+        while let tasty::Type::Method { result, .. } | tasty::Type::Poly { result, .. } = *u.types().get(t) {
             t = result;
         }
         u.erase(t)

@@ -8,7 +8,7 @@ use super::Typer;
 use crate::ctx::{Ctx, Mode};
 use crate::defn::type_ref;
 use syntax::ast::{NodeId, Tree};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
     /// The type tree of a parent: the class of a constructor call, whose `new` it records as a
@@ -94,11 +94,8 @@ impl Typer<'_> {
                 });
             }
             let tpe = self.u.dealias(tpe);
-            let tycon = match *self.u.types().get(tpe) {
-                Type::Applied(tycon, _) => tycon,
-                _ => tpe,
-            };
-            let alias = matches!(*self.u.types().get(tycon), Type::Sym(_, s) if !self.u.is_class(s));
+            let tycon = self.u.applied(tpe).map_or(tpe, |(tycon, _)| tycon);
+            let alias = self.u.sym_of(tycon).is_some_and(|s| !self.u.is_class(s));
             if alias && self.is_completing_type(tycon) {
                 self.unsupported(p, "cyclic reference");
             }
@@ -113,11 +110,7 @@ impl Typer<'_> {
                 if !types.is_empty() && !self.u.is_trait(c) {
                     self.unsupported(p, "class used as a mixin");
                 }
-                let ctors = if self.u.is_trait(c) {
-                    self.u.decl(c, "<init>").unwrap_or_default()
-                } else {
-                    Vec::new()
-                };
+                let ctors = if self.u.is_trait(c) { self.u.decls_named(c, "<init>") } else { Vec::new() };
                 if ctors.into_iter().any(|k| !self.is_accessible(k, ctx)) {
                     self.unsupported(p, "inaccessible trait constructor");
                 }
@@ -126,7 +119,7 @@ impl Typer<'_> {
         }
         let types = self.ensure_first_is_class(types);
         let mut types = self.add_using_traits(cls, types);
-        if self.u.full_name(cls) == "scala.runtime.BoxedUnit" {
+        if self.u.full_name(cls) == crate::defn::BOXED_UNIT {
             types.retain(|&t| {
                 self.u.class_symbol(t).is_none_or(|c| self.u.full_name(c) != "java.io.Serializable")
             });

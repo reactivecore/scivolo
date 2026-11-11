@@ -59,7 +59,7 @@ impl ImplicitScope {
                 true => prefix,
                 false => base_prefix(t.u, class_ref, base),
             };
-            let term_path = prefix.filter(|&p| match *t.u.types().get(p) {
+            let term_path = prefix.filter(|&p| match *t.u.ty(p) {
                 Type::Sym(_, s) => t.u.symbol(s).is_term(),
                 Type::Package(_) => true,
                 _ => false,
@@ -71,7 +71,7 @@ impl ImplicitScope {
                 },
                 None => {
                     let Some(module) = class_companion(t.u, base) else { continue };
-                    let path = prefix.filter(|&p| match *t.u.types().get(p) {
+                    let path = prefix.filter(|&p| match *t.u.ty(p) {
                         Type::This(_) => true,
                         Type::Sym(_, s) => t.u.symbol(s).is_term(),
                         _ => false,
@@ -112,7 +112,7 @@ impl ImplicitScope {
             self.add_path(t, p)?;
         }
         if let Some(m) = anchor_companion(t.u, s).filter(|&m| holds_implicits(t, m)) {
-            let path = prefix.and_then(|p| match *t.u.types().get(p) {
+            let path = prefix.and_then(|p| match *t.u.ty(p) {
                 Type::Sym(_, x) => t.u.symbol(x).is_term().then_some(p),
                 Type::TermRef(pp, _) => {
                     let x = t.types().referenced(p).filter(|&x| t.u.symbol(x).is_term())?;
@@ -144,7 +144,7 @@ fn holds_implicits(t: &mut Typer<'_>, module: SymbolId) -> bool {
 fn base_prefix(u: &mut Universe, class_ref: TypeId, base: SymbolId) -> Option<TypeId> {
     let mut t = u.base_type(class_ref, base)?;
     loop {
-        match *u.types().get(t) {
+        match *u.ty(t) {
             Type::Applied(tycon, _) => t = tycon,
             Type::Sym(p, _) => return p,
             _ => return None,

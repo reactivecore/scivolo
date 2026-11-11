@@ -15,9 +15,9 @@ impl Typer<'_> {
         let mut seen: FxHashMap<String, SymbolId> = FxHashMap::default();
         for &t in types {
             for part in self.type_parts(t) {
-                let sym = match self.u.types().get(part).clone() {
+                let sym = match *self.u.ty(part) {
                     Type::Sym(_, s) => Some(s),
-                    Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
+                    Type::TypeRef(p, n) => self.u.resolve(p, n, true),
                     _ => None,
                 };
                 let Some(s) = sym.filter(|&s| !self.u.symbol(s).kind.is_term()) else { continue };
@@ -32,12 +32,11 @@ impl Typer<'_> {
 
     /// `t` as dotty's message shows it, if `show_user` shows it so and it is not a singleton.
     pub fn plain_text(&mut self, t: TypeId) -> Option<String> {
-        if matches!(self.u.types().get(t), Type::This(_) | Type::TermRef(..)) || self.term_symbol(t).is_some()
-        {
+        if matches!(self.u.ty(t), Type::This(_) | Type::TermRef(..)) || self.term_symbol(t).is_some() {
             return None;
         }
         for part in self.type_parts(t) {
-            let singleton = matches!(self.u.types().get(part), Type::Constant(..) | Type::Str(_));
+            let singleton = matches!(self.u.ty(part), Type::Constant(..) | Type::Str(_));
             if singleton || !is_concrete_part(self.u, part) || !self.shown_as_dotty(part) {
                 return None;
             }
@@ -47,9 +46,9 @@ impl Typer<'_> {
 
     /// The non-module term singleton `t` refers to.
     pub fn term_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
-        let s = match self.u.types().get(t).clone() {
+        let s = match *self.u.ty(t) {
             Type::Sym(_, s) => s,
-            Type::TermRef(p, n) => self.u.resolve(p, &n, false)?,
+            Type::TermRef(p, n) => self.u.resolve(p, n, false)?,
             _ => return None,
         };
         let sym = self.u.symbol(s);
@@ -60,8 +59,8 @@ impl Typer<'_> {
     /// type, `(1 : Int)`, `(x : Int)`, else as `plain_text` does.
     pub fn found_text(&mut self, t: TypeId) -> Option<String> {
         let widened = self.u.widen(t);
-        let literal = match self.u.types().get(t).clone() {
-            Type::Str(s) => format!("\"{}\"", plain_chars(&s)?),
+        let literal = match *self.u.ty(t) {
+            Type::Str(s) => format!("\"{}\"", plain_chars(self.u.name(s))?),
             Type::Constant(tag, bits) => match constant(tag, bits)? {
                 Const::Bool(b) => b.to_string(),
                 Const::Char(c) => format!("'{}'", plain_chars(&c.to_string())?),
@@ -86,9 +85,8 @@ impl Typer<'_> {
     /// a member of a top-level object or class.
     fn singleton_path(&mut self, t: TypeId, s: SymbolId) -> Option<String> {
         let info = self.u.info(s);
-        let info_singleton =
-            matches!(self.u.types().get(info), Type::Constant(..) | Type::Str(_) | Type::This(_))
-                || self.term_symbol(info).is_some();
+        let info_singleton = matches!(self.u.ty(info), Type::Constant(..) | Type::Str(_) | Type::This(_))
+            || self.term_symbol(info).is_some();
         let flags = self.syms.flags.get(&s).copied().unwrap_or_default();
         let pattern_bound = flags.is(f::CASE) && !flags.is(f::ENUM);
         if info_singleton || pattern_bound || !matches!(self.u.symbol(s).kind, Kind::Val | Kind::Param) {

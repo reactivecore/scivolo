@@ -77,7 +77,7 @@ impl TypeOps<'_> {
     fn var_factors(&self, t: TypeId, or: bool) -> Vec<u32> {
         let mut vars = Vec::new();
         self.for_each_factor(t, or, &mut |f| {
-            if let Type::Var(x) = *self.u.types().get(f) {
+            if let Some(x) = self.u.var(f) {
                 vars.push(x.0);
             }
         });
@@ -87,7 +87,7 @@ impl TypeOps<'_> {
     /// Checks whether `p` holds for an operand of the top-level unions (`or`) or intersections of
     /// `t`.
     pub fn any_factor(&self, t: TypeId, or: bool, p: &mut impl FnMut(TypeId) -> bool) -> bool {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Or(a, b, _) if or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
             Type::And(a, b) if !or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
             _ => p(t),
@@ -96,7 +96,7 @@ impl TypeOps<'_> {
 
     /// Calls `f` on each operand of the top-level unions (`or`) or intersections of `t`.
     pub fn for_each_factor(&self, t: TypeId, or: bool, f: &mut impl FnMut(TypeId)) {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Or(a, b, _) if or => {
                 self.for_each_factor(a, or, f);
                 self.for_each_factor(b, or, f);
@@ -122,7 +122,7 @@ impl TypeOps<'_> {
             return;
         }
         let mut go = |s: &mut Self, t, v| s.collect_variances(t, v, out, depth + 1);
-        match self.u.types().get(t).clone() {
+        match *self.u.ty(t) {
             Type::Var(var) => match self.constraint.instance(var) {
                 Some(i) => go(self, i, v),
                 None if !self.constraint.is_pending(var) => {}
@@ -135,13 +135,13 @@ impl TypeOps<'_> {
             },
             Type::Applied(tycon, args) => {
                 let variances = self.u.constructor_variances(tycon);
-                for (i, a) in args.into_iter().enumerate() {
+                for (i, a) in self.u.types_of(args).to_vec().into_iter().enumerate() {
                     go(self, a, v * variances.get(i).copied().unwrap_or(0));
                 }
                 go(self, tycon, v);
             }
             Type::Method { params, result, .. } => {
-                for (_, p) in params {
+                for (_, p) in self.u.params_of(params).to_vec() {
                     go(self, p, -v);
                 }
                 go(self, result, v);
@@ -160,7 +160,7 @@ impl TypeOps<'_> {
             _ => {
                 let mut vars = Vec::new();
                 self.u.map_type(t, &mut |u, part| {
-                    if let Type::Var(var) = *u.types().get(part) {
+                    if let Some(var) = u.var(part) {
                         vars.push(var);
                     }
                     None

@@ -9,10 +9,9 @@ use crate::phases::walk::children;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::{Span, TName};
+use tasty::defn::PATTERNS;
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
-
-const PATTERNS: &str = "scala.quoted.runtime.Patterns$";
 
 /// Makes each splice pattern of quote pattern body `body` a hole, `patternHole[T]`, or
 /// `higherOrderHole[T](args)` with arguments; the patterns of the splices in tree order (dotty's
@@ -117,11 +116,11 @@ fn applied_to_seq(l: &mut Lower, fun: TNodeId, args: &[TNodeId], span: Span) -> 
     let [any, seq] = ["scala.Any", "scala.collection.immutable.Seq"].map(|c| l.u.class_ref(c));
     let elemtpt = l.type_tree(any, Span::NONE);
     let elems = l.tpd.list(args);
-    let tpe = l.u.intern_type(Type::Applied(seq, vec![any]));
+    let tpe = l.u.intern_applied(seq, &[any]);
     let literal = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, Span::NONE, Some(tpe), None);
     let literal = l.positioned(literal);
     let method = l.u.widen(l.tpd.tpe(fun));
-    let Type::Method { result, .. } = *l.u.types().get(method) else { panic!("a hole method") };
+    let Some(result) = l.u.method(method).map(|m| m.result) else { panic!("a hole method") };
     l.apply(fun, &[literal], result, span)
 }
 
@@ -135,5 +134,5 @@ fn is_plain_splice(l: &Lower, t: TNodeId) -> bool {
 fn is_repeated(l: &mut Lower, t: TNodeId) -> bool {
     let tpe = l.u.widen(l.tpd.tpe(t));
     let class = l.u.applied(tpe).map(|(c, _)| c);
-    class.and_then(|c| l.u.class_symbol(c)).is_some_and(|c| l.u.full_name(c) == "scala.<repeated>")
+    class.is_some_and(|c| l.u.is_class_named(c, "scala.<repeated>"))
 }

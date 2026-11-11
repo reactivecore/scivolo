@@ -34,9 +34,9 @@ impl Typer<'_> {
 
     /// `prefix` shown with its separator, `""` if the printer omits it.
     pub fn shown_prefix(&mut self, prefix: TypeId) -> String {
-        let cls = match *self.u.types().get(prefix) {
+        let cls = match *self.u.ty(prefix) {
             Type::Package(p) => Some(p),
-            Type::This(c) => match *self.u.types().get(c) {
+            Type::This(c) => match *self.u.ty(c) {
                 Type::Package(p) => Some(p),
                 _ => self.u.class_symbol(c),
             },
@@ -69,7 +69,7 @@ impl Typer<'_> {
             return format!("{}.this", sym.name);
         }
         let name = tasty::module_name(&sym.name).unwrap_or(&sym.name).to_owned();
-        if self.is_static_owner(cls) {
+        if self.u.is_static_owner(cls) {
             return self.u.source_module(cls).map_or(name.clone(), |m| self.full_name_string(m));
         }
         match sym.owner.filter(|&o| self.u.is_class(o)) {

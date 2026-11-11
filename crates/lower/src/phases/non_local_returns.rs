@@ -66,7 +66,7 @@ fn enclosing_method(l: &Lower, mut owner: SymbolId) -> Option<SymbolId> {
 /// `scala.runtime.NonLocalReturnControl`.
 fn nlrc(l: &mut Lower) -> Result<SymbolId> {
     let runtime = l.u.package("scala.runtime").expect("package scala.runtime");
-    let found = l.u.decl(runtime, "NonLocalReturnControl").unwrap_or_default();
+    let found = l.u.decls_named(runtime, "NonLocalReturnControl");
     match found.into_iter().find(|&c| l.u.symbol(c).kind == Kind::Class) {
         Some(c) => Ok(c),
         None => unsupported(Span::NONE, "scala.runtime.NonLocalReturnControl missing from the library"),
@@ -85,7 +85,7 @@ fn new_key(l: &mut Lower, method: SymbolId) -> SymbolId {
 
 /// The member `name` of class `class`.
 fn member(l: &mut Lower, class: SymbolId, name: &str) -> SymbolId {
-    l.u.decl(class, name).unwrap_or_default().first().copied().expect("a NonLocalReturnControl member")
+    l.u.decls_named(class, name).first().copied().expect("a NonLocalReturnControl member")
 }
 
 /// `qual.f` of value `name` of `class`, typed as seen from `qual`.

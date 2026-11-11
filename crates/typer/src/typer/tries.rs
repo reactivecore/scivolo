@@ -34,7 +34,7 @@ impl Typer<'_> {
         let fun_tpe = self.u.intern_type(Type::Sym(None, throw));
         let at = self.tpd.span(expr).start_pos();
         let fun = self.build().ident(throw, fun_tpe, at);
-        let nothing = type_ref(self.u, self.u.builtins().nothing);
+        let nothing = type_ref(self.u, self.u.defn().nothing);
         self.build().apply(fun, &[expr], nothing, span)
     }
 

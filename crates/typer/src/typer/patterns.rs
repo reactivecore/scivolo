@@ -115,7 +115,7 @@ impl Typer<'_> {
 
     /// Whether `t` is `Nothing`, or `Null` without safe nulls (dotty's `isBottomType`).
     pub fn is_bottom_type(&mut self, t: TypeId) -> bool {
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let (nothing, null) = (b.nothing, b.null);
         let safe = self.u.null_mode().safe;
         matches!(self.u.class_symbol(t), Some(c) if c == nothing || c == null && !safe)
@@ -129,7 +129,7 @@ impl Typer<'_> {
     /// Whether a typed pattern can test for `t`: a class, singleton, or their union or intersection.
     pub fn is_testable_type(&mut self, t: TypeId) -> bool {
         let t = self.dealiased(t);
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::And(a, b) | Type::Or(a, b, _) => self.is_testable_type(a) && self.is_testable_type(b),
             Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
             Type::Sym(_, s) if !self.u.symbol(s).kind.is_type() => true,
@@ -141,13 +141,13 @@ impl Typer<'_> {
     pub fn dealiased(&mut self, t: TypeId) -> TypeId {
         let mut t = self.u.dealias(t);
         for _ in 0..MAX_ALIAS_STEPS {
-            let Type::Sym(_, s) = *self.u.types().get(t) else { break };
+            let Some(s) = self.u.sym_of(t) else { break };
             if self.u.symbol(s).kind != Kind::Type {
                 break;
             }
             self.complete(s);
             let info = self.u.info(s);
-            let Type::Alias(target) = *self.u.types().get(info) else { break };
+            let Some(target) = self.u.type_alias(info) else { break };
             t = target;
         }
         t
@@ -156,17 +156,14 @@ impl Typer<'_> {
     /// Whether `t` is a class type, possibly applied, with wildcard arguments if `wildcards`.
     pub fn is_class_type(&mut self, t: TypeId, wildcards: bool) -> bool {
         let t = self.dealiased(t);
-        let (tycon, args) = match self.u.types().get(t).clone() {
-            Type::Applied(tc, args) => (tc, args),
-            _ => (t, Vec::new()),
-        };
-        let sym = match self.u.types().get(tycon).clone() {
+        let (tycon, args) = self.u.applied(t).map_or((t, Vec::new()), |(tc, args)| (tc, args.to_vec()));
+        let sym = match *self.u.ty(tycon) {
             Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
+            Type::TypeRef(p, name) => self.u.resolve(p, name, true),
             _ => None,
         };
         let class = sym.is_some_and(|s| self.u.symbol(s).kind == Kind::Class);
-        class && (wildcards || args.iter().all(|&a| !matches!(self.u.types().get(a), Type::Bounds(..))))
+        class && (wildcards || args.iter().all(|&a| self.u.bounds(a).is_none()))
     }
 
     /// Whether identifier `id` named `text` is a variable pattern: a lower-case name, not
@@ -192,10 +189,10 @@ impl Typer<'_> {
     /// `_` as a pattern: of the expected type, with that type's class as its symbol.
     pub fn wildcard_pattern(&mut self, id: NodeId, name: TName, pt: Pt) -> TNodeId {
         let Pt::Type(tpe) = pt else { return self.unsupported(id, "wildcard without expected type") };
-        let sym = match self.u.types().get(self.stripped(tpe)).clone() {
+        let sym = match *self.u.ty(self.stripped(tpe)) {
             Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
-            Type::TermRef(p, name) => self.u.resolve(p, &name, false),
+            Type::TypeRef(p, name) => self.u.resolve(p, name, true),
+            Type::TermRef(p, name) => self.u.resolve(p, name, false),
             Type::This(c) => self.u.class_symbol(c),
             _ => None,
         };

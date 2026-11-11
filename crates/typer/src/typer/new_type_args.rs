@@ -21,25 +21,21 @@ impl Typer<'_> {
             _ => return None,
         };
         let tpe = self.u.dealias(tpe);
-        match self.u.types().get(tpe).clone() {
-            Type::Applied(_, args) => {
-                let args = args.into_iter().map(|a| self.lower_bound_of_arg(a)).collect();
-                Some((args, self.tpd.span(qualifier).end_pos()))
-            }
-            _ => None,
-        }
+        let args = self.u.applied(tpe)?.1.to_vec();
+        let args = args.into_iter().map(|a| self.lower_bound_of_arg(a)).collect();
+        Some((args, self.tpd.span(qualifier).end_pos()))
     }
 
     /// Type argument `a`, or its lower bound if it is a wildcard.
     fn lower_bound_of_arg(&mut self, a: TypeId) -> TypeId {
-        let bounds = match *self.u.types().get(a) {
+        let bounds = match *self.u.ty(a) {
             Type::Wildcard(b) => b,
             Type::Bounds(..) => Some(a),
             _ => return a,
         };
-        match bounds.map(|b| self.u.types().get(b)) {
-            Some(&Type::Bounds(lo, _)) => lo,
-            _ => crate::defn::type_ref(self.u, self.u.builtins().nothing),
+        match bounds.and_then(|b| self.u.bounds(b)) {
+            Some((lo, _)) => lo,
+            _ => crate::defn::type_ref(self.u, self.u.defn().nothing),
         }
     }
 }

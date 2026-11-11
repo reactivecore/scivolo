@@ -47,7 +47,7 @@ impl Inlining<'_> {
                 if !self.is_constant_value(arg) {
                     return Err((self.tpd.span(arg), "requireConst of a value that is not constant"));
                 }
-                let tpe = self.u.class_ref("scala.Unit");
+                let tpe = self.u.class_ref(crate::defn::UNIT);
                 self.tpd.node(T::Literal { value: C::Unit }, span, Some(tpe), None)
             }
             ("codeOf", Some(arg), _) => self.code_of(arg, span)?,
@@ -84,7 +84,7 @@ impl Inlining<'_> {
     fn typed_as_class_of(&mut self, found: TNodeId, pt: TypeId, span: Span) -> TNodeId {
         let own = self.u.widen(self.tpd.tpe(found));
         if self.u.class_symbol(own) == self.u.class_symbol(pt)
-            || matches!(self.u.types().get(own), Type::Refined(..) | Type::And(..))
+            || matches!(self.u.ty(own), Type::Refined(..) | Type::And(..))
         {
             return found;
         }
@@ -151,14 +151,8 @@ impl Inlining<'_> {
         let select = self.tpd.node(T::Select { qualifier: new, name }, at, Some(ctor_ref), Some(ctor));
         let applied = crate::defn::applied(self.u, some, vec![elem]);
         let binder = self.u.fresh_binder();
-        let params = vec![("value".to_owned(), elem)];
-        let method = self.u.intern_type(Type::Method {
-            binder,
-            params,
-            result: applied,
-            implicit: false,
-            contextual: false,
-        });
+        let params = [(self.u.intern_name("value"), elem)];
+        let method = self.u.intern_method(binder, &params, applied, false, false);
         let targ = self.tpd.node(T::TypeTree { inferred: false }, at, Some(elem), None);
         let targs = self.tpd.list(&[targ]);
         let type_apply = self.tpd.node(T::TypeApply { fun: select, args: targs }, at, Some(method), None);

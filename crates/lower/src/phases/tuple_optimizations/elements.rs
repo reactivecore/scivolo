@@ -3,10 +3,10 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 
 use crate::Lower;
+use crate::phases::type_tests::singletons::is_singleton;
 use tasty::{Type, TypeId};
 
-/// The largest arity of a `TupleN` class.
-pub const MAX_TUPLE_ARITY: usize = 22;
+pub use tasty::defn::MAX_TUPLE_ARITY;
 /// How many skolems and singletons `tuple_element_types_up_to` looks through at most.
 const MAX_WIDENINGS: usize = 64;
 
@@ -29,8 +29,9 @@ pub fn tuple_element_types_up_to(l: &mut Lower, mut t: TypeId, bound: usize) -> 
         let dealiased = l.u.dealias(t);
         let normalized = l.u.normalized(dealiased);
         let tp = l.u.dealias(normalized);
-        match l.u.types().get(tp).clone() {
+        match *l.u.ty(tp) {
             Type::Applied(tycon, args) => {
+                let args = l.u.types_of(args).to_vec();
                 let name = l.u.class_symbol(tycon).map(|c| l.u.full_name(c))?;
                 if name == "scala.*:" && args.len() == 2 {
                     out.push(args[0]);
@@ -64,32 +65,25 @@ pub fn tuple_element_types_up_to(l: &mut Lower, mut t: TypeId, bound: usize) -> 
 pub fn widen_term_ref_expr(l: &mut Lower, mut t: TypeId) -> TypeId {
     while is_term_ref(l, t) {
         let Some(next) = l.u.widen_once(t) else { return t };
-        t = match *l.u.types().get(next) {
-            Type::ByName(r) => r,
-            _ => next,
-        };
+        t = l.u.by_name(next).unwrap_or(next);
     }
     t
 }
 
 fn is_term_ref(l: &mut Lower, t: TypeId) -> bool {
-    match *l.u.types().get(t) {
+    match *l.u.ty(t) {
         Type::TermRef(..) => true,
         Type::Sym(_, s) => l.u.symbol(s).kind.is_term(),
         _ => false,
     }
 }
 
-fn is_singleton(l: &mut Lower, t: TypeId) -> bool {
-    is_term_ref(l, t) || matches!(l.u.types().get(t), Type::This(_) | Type::Constant(..) | Type::Str(_))
-}
-
 /// Whether `t` refers to the object `EmptyTuple`.
 fn is_empty_tuple_ref(l: &mut Lower, t: TypeId) -> bool {
-    let s = match *l.u.types().get(t) {
+    let s = match *l.u.ty(t) {
         Type::Sym(_, s) => Some(s),
         Type::TermRef(..) => l.u.resolve_ref(t),
         _ => None,
     };
-    s.is_some_and(|s| l.u.is_module(s) && l.u.full_name(s) == "scala.Tuple$package$.EmptyTuple")
+    s.is_some_and(|s| l.u.is_module(s) && l.u.full_name(s) == tasty::defn::EMPTY_TUPLE)
 }

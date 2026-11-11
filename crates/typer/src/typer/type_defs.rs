@@ -21,7 +21,7 @@ impl Typer<'_> {
         self.typed_ahead(rhs, typed, ctx);
         let mut tpe = self.tpd.tpe(typed);
         if !lambda
-            && let Type::Sym(_, c) = *self.u.types().get(tpe)
+            && let Some(c) = self.u.sym_of(tpe)
             && self.u.is_class(c)
             && !self.u.type_params(c).is_empty()
         {
@@ -36,12 +36,11 @@ impl Typer<'_> {
                     return self.u.intern_type(Type::Error);
                 }
             }
-        } else if !lambda && !matches!(self.u.types().get(tpe), Type::Bounds(..)) && self.type_arity(tpe) > 0
-        {
+        } else if !lambda && self.u.bounds(tpe).is_none() && self.type_arity(tpe) > 0 {
             self.unsupported(rhs, "alias of a type constructor");
             return self.u.intern_type(Type::Error);
         }
-        match self.u.types().get(tpe) {
+        match *self.u.ty(tpe) {
             Type::Bounds(..) => tpe,
             Type::Lambda { .. } if lambda => tpe,
             _ if matches!(self.ast.tree(rhs), Tree::DerivedTypeTree { .. }) => tpe,
@@ -69,10 +68,7 @@ impl Typer<'_> {
             T::TypeBoundsTree { lo, hi, .. } => (self.tpd.tpe(lo), self.tpd.tpe(hi)),
             _ => (tasty::NOTHING, tasty::ANY),
         };
-        let (lambda, body) = match *self.u.types().get(alias) {
-            Type::Lambda { result, .. } => (true, result),
-            _ => (false, alias),
-        };
+        let (lambda, body) = self.u.lambda(alias).map_or((false, alias), |l| (true, l.result));
         if self.is_context_function_type(body) {
             self.error_at(self.ast.span(rhs), "context function type cannot have opaque aliases");
         }
@@ -92,7 +88,7 @@ impl Typer<'_> {
     /// the body's declared bounds as lambdas over the same parameters, a lower `Nothing` kept
     /// (dotty's `HKTypeLambda.boundsFromParams`).
     fn lambda_bounds(&mut self, alias: TypeId, tparams: TList, body: TNodeId) -> (TypeId, TypeId) {
-        let Type::Lambda { binder, params, .. } = self.u.types().get(alias).clone() else {
+        let Some((binder, params)) = self.u.lambda(alias).map(|l| (l.binder, l.params.to_vec())) else {
             return (tasty::NOTHING, tasty::ANY);
         };
         let syms: Vec<SymbolId> = self.tpd.items(tparams).iter().filter_map(|&p| self.tpd.sym(p)).collect();
@@ -102,9 +98,9 @@ impl Typer<'_> {
         };
         let lambda = |u: &mut tasty::Universe, t: TypeId| {
             let result = over_params(u, &syms, binder, t);
-            u.intern_type(Type::Lambda { binder, params: params.clone(), result })
+            u.intern_lambda(binder, &params, result)
         };
-        let nothing = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
+        let nothing = self.u.class_symbol(lo) == Some(self.u.defn().nothing);
         let lo = if nothing { lo } else { lambda(self.u, lo) };
         (lo, lambda(self.u, hi))
     }
@@ -116,7 +112,7 @@ impl Typer<'_> {
             self.complete(s);
             let info = self.u.info(s);
             if self.u.symbol(s).kind == tasty::Kind::Type
-                && let Type::Bounds(lo, hi) = *self.u.types().get(info)
+                && let Some((lo, hi)) = self.u.bounds(info)
                 && !self.u.is_subtype(lo, hi)
             {
                 return self.unsupported(id, "type member with conflicting bounds");
@@ -146,14 +142,14 @@ impl Typer<'_> {
         let lo = match typed_lo {
             Some(l) => l,
             None => {
-                let nothing = type_ref(self.u, self.u.builtins().nothing);
+                let nothing = type_ref(self.u, self.u.defn().nothing);
                 self.type_tree(nothing, after_lo.unwrap_or(span).start_pos(), false)
             }
         };
         let hi = match typed_hi {
             Some(h) => h,
             None => {
-                let any = type_ref(self.u, self.u.builtins().any);
+                let any = type_ref(self.u, self.u.defn().any);
                 let lo_span = self.tpd.span(lo);
                 let at =
                     if typed_lo.is_some() && lo_span.exists() { lo_span.end_pos() } else { span.start_pos() };

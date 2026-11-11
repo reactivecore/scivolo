@@ -10,6 +10,9 @@ use crate::Kind;
 use crate::tags::{FALSEconst, INTconst, LONGconst, TRUEconst};
 use crate::types::{Type, TypeId};
 
+/// How many term references `widen_term_refs` widens.
+const MAX_WIDENINGS: u32 = 64;
+
 /// A constant an operation takes or gives.
 #[derive(Clone, Copy, PartialEq)]
 enum C {
@@ -21,7 +24,7 @@ enum C {
 impl Cmp<'_> {
     /// The object of `scala.compiletime.ops` and the name of the operation `tycon` refers to.
     pub fn compiletime_op(&mut self, tycon: TypeId) -> Option<(String, String)> {
-        let s = match *self.u.types().get(tycon) {
+        let s = match *self.u.ty(tycon) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.u.resolve_ref(tycon)?,
             _ => return None,
@@ -41,7 +44,8 @@ impl Cmp<'_> {
 
     /// The constant type operation application `t` folds to.
     pub fn fold_compiletime(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
+        let (tycon, args) = self.u.applied(t)?;
+        let args = args.to_vec();
         if let [arg] = args[..]
             && self.is_named_tuple_from(tycon)
         {
@@ -53,7 +57,7 @@ impl Cmp<'_> {
             let a = self.widen_term_refs(a);
             let a = self.u.dealias(a);
             let a = self.normal(a);
-            values.push(match *self.u.types().get(a) {
+            values.push(match *self.u.ty(a) {
                 Type::Constant(INTconst, n) => C::Int(n as i32),
                 Type::Constant(LONGconst, n) => C::Long(n),
                 Type::Constant(TRUEconst, _) => C::Bool(true),
@@ -72,10 +76,10 @@ impl Cmp<'_> {
 
     /// `t` with term references replaced by their underlying types, repeatedly.
     pub fn widen_term_refs(&mut self, mut t: TypeId) -> TypeId {
-        for _ in 0..64 {
-            let term = match self.u.types().get(t) {
+        for _ in 0..MAX_WIDENINGS {
+            let term = match *self.u.ty(t) {
                 Type::TermRef(..) => true,
-                Type::Sym(_, s) => self.u.symbol(*s).kind.is_term(),
+                Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
                 _ => false,
             };
             match term.then(|| self.u.widen_once(t)).flatten() {
@@ -89,7 +93,8 @@ impl Cmp<'_> {
     /// `op <: other` (or `other <: op` if `from_below`) for an operation application `op`:
     /// `S[n]` as `n + 1`, `S[x]` against `n` as `x` against `n - 1`, others folded.
     pub fn compare_compiletime(&mut self, op: TypeId, other: TypeId, from_below: bool) -> bool {
-        let Type::Applied(tycon, args) = self.u.types().get(op).clone() else { return false };
+        let Some((tycon, args)) = self.u.applied(op) else { return false };
+        let args = args.to_vec();
         let (x, y) = if self.is_succ(tycon) {
             let [arg] = args[..] else { return false };
             match self.nat_value(arg) {

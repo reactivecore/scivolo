@@ -10,7 +10,7 @@ use crate::defn::ARRAY;
 use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
 use syntax::ast::{NodeId, TName, Tree};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, TypeId};
 
 const MANIFEST_FACTORY: &str = "scala.reflect.ManifestFactory";
 
@@ -69,7 +69,7 @@ impl Synthesizer {
             let Some(e) = self.manifest_or_none(t, elem, elem_kind, top)? else { return Ok(None) };
             return self.factory_manifest(t, kind, "arrayType", elem, &[e]).map(Some);
         }
-        if let Type::Bounds(_, hi) = *t.u.types().get(tpe) {
+        if let Some((_, hi)) = t.u.bounds(tpe) {
             if kind != ManifestKind::Full {
                 return Ok(None);
             }
@@ -84,7 +84,7 @@ impl Synthesizer {
             let s = t.u.symbol(s);
             s.kind == Kind::TypeParam || s.kind == Kind::Type && !s.flags.has(tasty::tags::OPAQUE)
         });
-        let b = t.u.builtins();
+        let b = t.u.defn();
         let bottom = class.is_some_and(|c| c == b.nothing || c == b.null);
         if abstract_type || !has_stable_erasure(t, tpe) || top && bottom {
             return Ok(None);
@@ -108,7 +108,7 @@ impl Synthesizer {
         let class_of_t = crate::defn::applied(t.u, class_class, vec![tpe]);
         let mut args = vec![t.type_cast(literal, class_of_t)];
         if kind == ManifestKind::Full
-            && let Type::Applied(_, targs) = t.u.types().get(tpe).clone()
+            && let Some(targs) = t.u.applied(tpe).map(|(_, targs)| targs.to_vec())
         {
             for a in targs {
                 let Some(m) = self.manifest_or_none(t, a, ManifestKind::Full, false)? else {
@@ -150,10 +150,7 @@ impl Synthesizer {
         let qualifier = t.spliced(module_ref);
         let name = TName { name: t.name(name), is_type: false };
         let mut fun = self.node(t, Tree::Select { qualifier, name });
-        let tpe = match *t.u.types().get(tpe) {
-            Type::Bounds(_, hi) => hi,
-            _ => tpe,
-        };
+        let tpe = t.u.bounds(tpe).map_or(tpe, |(_, hi)| hi);
         let targ = t.type_tree(tpe, self.at, false);
         let targs = [t.spliced(targ)];
         let targs = t.ast.list(&targs);

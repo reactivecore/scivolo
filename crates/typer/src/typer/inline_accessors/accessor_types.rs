@@ -6,12 +6,12 @@ use super::super::Typer;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Binder, Type, TypeId, Universe};
+use tasty::{Binder, NameId, Type, TypeId, Universe};
 
 /// A parameter clause of an accessed method: its binder, parameters and their flags.
 pub struct Clause {
     pub binder: Option<Binder>,
-    pub params: Vec<(String, TypeId)>,
+    pub params: Vec<(NameId, TypeId)>,
     pub flags: FlagSet,
 }
 
@@ -53,7 +53,7 @@ pub fn accessor_tpt(t: &mut Typer<'_>, tpe: TypeId, clauses: &[Clause], span: Sp
     if !refers_to_params(t.u, tpe, clauses) {
         return Some(t.splice_type(tpe));
     }
-    let tree = match t.u.types().get(tpe).clone() {
+    let tree = match *t.u.ty(tpe) {
         Type::Param(..) => {
             let (name, reference) = param_ref(t, tpe, clauses)?;
             return Some(match name.is_type {
@@ -63,7 +63,9 @@ pub fn accessor_tpt(t: &mut Typer<'_>, tpe: TypeId, clauses: &[Clause], span: Sp
         }
         Type::Applied(tycon, args) => {
             let tpt = accessor_tpt(t, tycon, clauses, span)?;
-            let args = args.iter().map(|&a| accessor_tpt(t, a, clauses, span)).collect::<Option<Vec<_>>>()?;
+            let args = (t.u.types_of(args).to_vec().into_iter())
+                .map(|a| accessor_tpt(t, a, clauses, span))
+                .collect::<Option<Vec<_>>>()?;
             let args = t.ast.list(&args);
             Tree::AppliedTypeTree { tpt, args }
         }
@@ -74,6 +76,7 @@ pub fn accessor_tpt(t: &mut Typer<'_>, tpe: TypeId, clauses: &[Clause], span: Sp
         }
         Type::TypeRef(p, n) => {
             let qualifier = path(t, p, clauses, span)?;
+            let n = t.u.name(n).to_owned();
             Tree::Select { qualifier, name: TName { name: t.name(&n), is_type: true } }
         }
         Type::Sym(Some(_), _) | Type::TermRef(..) => {
@@ -93,10 +96,10 @@ pub fn accessor_tpt(t: &mut Typer<'_>, tpe: TypeId, clauses: &[Clause], span: Sp
 
 /// The path tree of term reference `p` in an accessor with parameter clauses `clauses`.
 fn path(t: &mut Typer<'_>, p: TypeId, clauses: &[Clause], span: Span) -> Option<NodeId> {
-    let (qualifier, name) = match t.u.types().get(p).clone() {
+    let (qualifier, name) = match *t.u.ty(p) {
         Type::Param(..) => return param_ref(t, p, clauses).map(|(_, r)| r),
         Type::Sym(Some(q), s) if !t.u.is_type_symbol(s) => (q, t.u.symbol(s).name.clone()),
-        Type::TermRef(q, n) => (q, n),
+        Type::TermRef(q, n) => (q, t.u.name(n).to_owned()),
         _ => return unsupported(t, span),
     };
     let qualifier = path(t, qualifier, clauses, span)?;
@@ -106,10 +109,11 @@ fn path(t: &mut Typer<'_>, p: TypeId, clauses: &[Clause], span: Span) -> Option<
 
 /// The name of parameter reference `p` to one of `clauses` and an identifier of it.
 fn param_ref(t: &mut Typer<'_>, p: TypeId, clauses: &[Clause]) -> Option<(TName, NodeId)> {
-    let Type::Param(b, i) = *t.u.types().get(p) else { return None };
+    let (b, i) = t.u.param_ref(p)?;
     let clause = clauses.iter().find(|c| c.binder == Some(b))?;
     let is_type = clause.flags.is(f::TYPE_PARAM);
-    let name = TName { name: t.name(&clause.params[i as usize].0), is_type };
+    let name = t.u.name(clause.params[i as usize].0).to_owned();
+    let name = TName { name: t.name(&name), is_type };
     Some((name, t.ast.node(Tree::Ident { name })))
 }
 
@@ -122,8 +126,7 @@ fn unsupported(t: &mut Typer<'_>, span: Span) -> Option<NodeId> {
 fn refers_to_params(u: &mut Universe, tpe: TypeId, clauses: &[Clause]) -> bool {
     let mut refers = false;
     u.map_type(tpe, &mut |u, part| {
-        refers |=
-            matches!(*u.types().get(part), Type::Param(b, _) if clauses.iter().any(|c| c.binder == Some(b)));
+        refers |= u.param_ref(part).is_some_and(|(b, _)| clauses.iter().any(|c| c.binder == Some(b)));
         None
     });
     refers

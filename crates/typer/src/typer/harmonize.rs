@@ -50,7 +50,7 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let mut vars = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part) {
+            if let Some(v) = u.var(part) {
                 vars.push(v);
             }
             None
@@ -100,7 +100,7 @@ impl Typer<'_> {
 
     /// The numeric value class of `t`, of both sides of a union (dotty's `classSymbol`).
     fn numeric_class(&mut self, t: TypeId) -> Option<String> {
-        if let Type::Or(a, b, _) = *self.u.types().get(t) {
+        if let Type::Or(a, b, _) = *self.u.ty(t) {
             let a = self.numeric_class(a)?;
             return (self.numeric_class(b)? == a).then_some(a);
         }

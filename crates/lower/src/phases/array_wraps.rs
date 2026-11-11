@@ -5,10 +5,9 @@
 //! Arrays wrapped as Scala sequences by `ScalaRunTime.wrapXArray`: those passed to repeated
 //! parameters, sequence literals and arrays ascribed a repeated type outside arguments.
 
-use super::repeated::is_class;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The classes whose arrays `ScalaRunTime` wraps by their own method.
@@ -24,10 +23,10 @@ pub fn repeated_array(l: &mut Lower, t: TNodeId) -> Result<Option<TNodeId>> {
     let Tree::Typed { expr, tpt } = *l.tpd.tree(t) else { return Ok(None) };
     let ascribed = l.tpd.tpe(tpt);
     let tpe = l.u.widen(l.tpd.tpe(expr));
-    if !is_class(l, ascribed, "scala.<repeated>") || !is_class(l, tpe, "scala.Array") {
+    if !l.u.is_class_named(ascribed, "scala.<repeated>") || !l.u.is_class_named(tpe, "scala.Array") {
         return Ok(None);
     }
-    let Type::Applied(_, ref elems) = *l.u.types().get(ascribed) else { return Ok(None) };
+    let Some((_, elems)) = l.u.applied(ascribed) else { return Ok(None) };
     let elem = elems[0];
     let span = l.tpd.span(t);
     wrap_array(l, expr, elem, ascribed, span).map(Some)
@@ -37,7 +36,7 @@ pub fn repeated_array(l: &mut Lower, t: TNodeId) -> Result<Option<TNodeId>> {
 /// its elements' array wrapped (dotty's `SeqLiterals`).
 pub fn seq_value(l: &mut Lower, t: TNodeId, elems: typer::tpd::List, elemtpt: TNodeId) -> Result<()> {
     let Some(tpe) = l.tpd.get(t).tpe else { return Ok(()) };
-    if is_class(l, tpe, "scala.Array") {
+    if l.u.is_class_named(tpe, "scala.Array") {
         return Ok(());
     }
     let elem = l.tpd.tpe(elemtpt);
@@ -65,7 +64,7 @@ pub fn wrap_array(l: &mut Lower, array: TNodeId, elem: TypeId, tpe: TypeId, span
     let wrap = wrapper(l, elem);
     let module = l.scala_run_time()?;
     let class = l.u.module_class(module).expect("ScalaRunTime's class");
-    let Some(&wrap) = l.u.decl(class, &wrap).unwrap_or_default().first() else {
+    let Some(&wrap) = l.u.decls_named(class, &wrap).first() else {
         return unsupported(l.tpd.span(array), format!("ScalaRunTime.{wrap} missing from the library"));
     };
     let qual = l.ident(module, span);
@@ -75,7 +74,7 @@ pub fn wrap_array(l: &mut Lower, array: TNodeId, elem: TypeId, tpe: TypeId, span
 
 pub fn array_of(l: &mut Lower, elem: TypeId) -> TypeId {
     let array = l.u.class_ref("scala.Array");
-    l.u.intern_type(Type::Applied(array, vec![elem]))
+    l.u.intern_applied(array, &[elem])
 }
 
 /// The `ScalaRunTime` method wrapping an array of `elem` (dotty's `wrapArrayMethodName`).
@@ -88,7 +87,7 @@ fn wrapper(l: &mut Lower, elem: TypeId) -> String {
     if let Some(p) = name.strip_prefix("scala.").filter(|p| PRIMITIVES.contains(p)) {
         return format!("wrap{p}Array");
     }
-    let value_class = l.u.builtins().any_val.is_some_and(|v| l.u.derives_from(class, v));
+    let value_class = l.u.defn().any_val.is_some_and(|v| l.u.derives_from(class, v));
     let generic = value_class || NOT_RUNTIME.contains(&name.as_str());
     if generic { "genericWrapArray" } else { "wrapRefArray" }.into()
 }

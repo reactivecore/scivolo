@@ -10,7 +10,6 @@ use super::mirrors::mirror_support;
 use super::value_members::value_members;
 use super::walk::class_defs_inner_first;
 use crate::definitions::{applied, symbol, type_ref};
-use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, SYNTHETIC};
@@ -60,7 +59,7 @@ fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()
 /// `private def writeReplace(): AnyRef = new ModuleSerializationProxy(classOf[C.type])` for a
 /// static object `C` without one (dotty's `serializableObjectMethod`).
 fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TNodeId>> {
-    if !is_static_module(l.u, class) || has_serialization_method(l, class, "writeReplace") {
+    if !l.u.is_static_module(class) || has_serialization_method(l, class, "writeReplace") {
         return Ok(Vec::new());
     }
     let span = if span.exists() { Span::synthetic(span.point(), span.point()) } else { span };
@@ -84,13 +83,7 @@ fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Res
 pub fn private_method(l: &mut Lower, class: SymbolId, name: &str) -> (SymbolId, TypeId) {
     let any_ref = type_ref(l.u, l.defs.any_ref);
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: Vec::new(),
-        result: any_ref,
-        implicit: false,
-        contextual: false,
-    });
+    let info = l.u.intern_method(binder, &[], any_ref, false, false);
     let sym = l.u.define(symbol(name, Kind::Def, class, Flags::default().with(PRIVATE).with(SYNTHETIC)));
     l.u.set_info(sym, info);
     (sym, any_ref)
@@ -121,7 +114,7 @@ pub fn before_synthesized(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let site = l.u.intern_type(Type::This(site));
     let mut deferred = None;
     for base in l.u.linearization(owner).into_iter().skip(1) {
-        for other in l.u.decl(base, &name).unwrap_or_default() {
+        for other in l.u.decls_named(base, &name) {
             if l.u.symbol(other).kind == Kind::Def && l.u.info_matches(site, m, other) {
                 if !crate::codegen::forwarded_members::is_deferred(l, other) {
                     return Some(other);

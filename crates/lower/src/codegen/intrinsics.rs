@@ -6,7 +6,6 @@
 //! `genRawPtrOp`).
 
 use super::Gen;
-use crate::symbols::is_static_owner;
 use crate::{Result, unsupported};
 use nir::{Comp, Conv, MemoryOrder, Op, Type, TypeId, ValId};
 use tasty::SymbolId;
@@ -58,7 +57,7 @@ impl Gen<'_, '_> {
             };
             let Tree::Select { qualifier, .. } = *self.l.tpd.tree(method) else { return Ok(None) };
             let class = self.l.u.symbol(sym).owner.expect("a method's class");
-            let statically = is_static_owner(self.l.u, class);
+            let statically = self.l.u.is_static_owner(class);
             let recv = super::apply::Receiver::Tree(qualifier);
             return self.gen_apply_method(sym, statically, recv, args, span).map(Some);
         }

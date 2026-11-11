@@ -36,21 +36,21 @@ impl SourcePrinter<'_> {
     }
 
     fn refinements(&mut self, t: TypeId) -> Shown {
-        let Type::Refined(parent, name, info) = self.u.types().get(t).clone() else {
+        let Type::Refined(parent, name, info) = *self.u.ty(t) else {
             self.print(t)?;
             self.out.push_str(" {");
             return Ok(());
         };
         self.refinements(parent)?;
+        let name = self.u.name(name).to_owned();
         self.indent += 1;
         self.line_break();
-        let bounds = match *self.u.types().get(info) {
+        let bounds = match *self.u.ty(info) {
             Type::Bounds(lo, hi) => Some((lo, hi)),
             Type::Alias(a) => Some((a, a)),
             _ => None,
         };
-        let def =
-            matches!(self.u.types().get(info), Type::ByName(_) | Type::Method { .. } | Type::Lambda { .. });
+        let def = matches!(self.u.ty(info), Type::ByName(_) | Type::Method { .. } | Type::Lambda { .. });
         let shown = match bounds {
             Some((lo, hi)) => {
                 self.paint(Highlight::Keyword, "type ");
@@ -69,16 +69,16 @@ impl SourcePrinter<'_> {
 
     /// The type of a refined method or value (dotty's `printMethodicType`).
     fn methodic(&mut self, t: TypeId) -> Shown {
-        match self.u.types().get(t).clone() {
-            Type::Method { binder, params, result, .. } => self.bind(binder, &params, |p| {
+        match *self.u.ty(t) {
+            Type::Method { binder, params, result, .. } => self.bind(binder, params, |p| {
                 p.out.push('(');
-                p.params(&params)?;
+                p.params(params)?;
                 p.out.push(')');
                 p.methodic(result)
             }),
-            Type::Lambda { binder, params, result } => self.bind(binder, &params, |p| {
+            Type::Lambda { binder, params, result } => self.bind(binder, params, |p| {
                 p.out.push('[');
-                p.params(&params)?;
+                p.params(params)?;
                 p.out.push(']');
                 p.methodic(result)
             }),

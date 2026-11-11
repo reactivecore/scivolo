@@ -27,7 +27,7 @@ impl Typer<'_> {
         if !params.iter().any(|&q| self.is_untyped_param(q)) || self.may_infer_from_callee(params, body) {
             return pt;
         }
-        let direct = matches!(self.u.types().get(t), Type::Var(_));
+        let direct = self.u.var(t).is_some();
         let Some(var) = (if direct { Some(t) } else { self.instantiatable_var(t) }) else { return pt };
         match self.fully_defined(var) {
             Ok(v) if direct => Pt::Type(v),
@@ -111,13 +111,10 @@ impl Typer<'_> {
     fn is_sam_free_class(&mut self, t: TypeId) -> bool {
         let mut t = self.u.dealias(t);
         for _ in 0..16 {
-            let tycon = match self.u.types().get(t) {
-                Type::Applied(tycon, _) => *tycon,
-                _ => t,
-            };
-            let c = match self.u.types().get(tycon).clone() {
+            let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
+            let c = match *self.u.ty(tycon) {
                 Type::Sym(_, c) => c,
-                Type::TypeRef(p, n) => match self.u.resolve(p, &n, true) {
+                Type::TypeRef(p, n) => match self.u.resolve(p, n, true) {
                     Some(c) => c,
                     None => return false,
                 },
@@ -125,7 +122,7 @@ impl Typer<'_> {
             };
             if self.u.symbol(c).kind == Kind::Type && tycon == t {
                 let info = self.u.info(c);
-                let Type::Alias(alias) = *self.u.types().get(info) else { return false };
+                let Some(alias) = self.u.type_alias(info) else { return false };
                 t = self.u.dealias(alias);
                 continue;
             }

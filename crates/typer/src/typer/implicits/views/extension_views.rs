@@ -43,7 +43,7 @@ impl ViewSearch<'_> {
         let at = t.tpd.span(self.tree).start_pos();
         let tpe = t.ref_type(c.prefix, c.sym);
         let info = t.method_info(tpe).unwrap_or(tpe);
-        match t.u.types().get(info) {
+        match *t.u.ty(info) {
             Type::Method { .. } | Type::Poly { .. } => self.conditional_container(t, c, name),
             _ => candidate_ref(t, c, at, self.ctx),
         }
@@ -63,7 +63,7 @@ impl ViewSearch<'_> {
         }
         let tpe = t.ref_type(c.prefix, c.sym);
         let info = t.method_info(tpe).unwrap_or(tpe);
-        if matches!(t.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
+        if matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. }) {
             return self.conditional_container(t, c, name);
         }
         let at = t.tpd.span(self.tree).start_pos();
@@ -99,14 +99,11 @@ impl ViewSearch<'_> {
         let tpe = t.tpd.tpe(container);
         let info = t.method_info(tpe).unwrap_or(tpe);
         let value = t.strip_implicit(info);
-        if matches!(t.u.types().get(value), Type::Method { .. } | Type::Poly { .. }) {
+        if matches!(t.u.ty(value), Type::Method { .. } | Type::Poly { .. }) {
             return Err("extension method of an implicit method");
         }
         let by_name =
-            t.u.param_clauses(info)
-                .iter()
-                .flat_map(|(_, ps)| ps.clone())
-                .any(|p| matches!(t.u.types().get(p), Type::ByName(_)));
+            t.u.param_clauses(info).iter().flat_map(|(_, ps)| ps.clone()).any(|p| t.u.by_name(p).is_some());
         if by_name {
             return Err("extension method of an implicit method with by-name parameters");
         }
@@ -139,7 +136,7 @@ impl ViewSearch<'_> {
         let select = t.build().select(container, method, at);
         let mut select = t.with_type_vars(select)?;
         let mut info = t.method_info(t.tpd.tpe(select)).unwrap_or(t.tpd.tpe(select));
-        if matches!(t.u.types().get(info), Type::Poly { .. }) {
+        if t.u.poly(info).is_some() {
             select = t.with_type_vars(select)?;
             info = t.method_info(t.tpd.tpe(select)).unwrap_or(t.tpd.tpe(select));
         }
@@ -147,7 +144,7 @@ impl ViewSearch<'_> {
             return Err("extension method with a using clause before its receiver");
         };
         let [(_, mut receiver)] = params[..] else { return Err("extension method of an implicit value") };
-        if let Type::ByName(r) = *t.u.types().get(receiver) {
+        if let Some(r) = t.u.by_name(receiver) {
             receiver = r;
         }
         let from = t.tpd.tpe(self.tree);

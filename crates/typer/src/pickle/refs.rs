@@ -7,7 +7,7 @@ use crate::defn::type_ref;
 use crate::tpd::TNodeId;
 use tasty::tags::*;
 use tasty::write::Name;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 
 /// The prefix of a reference: a type, the `this` of a package, or the companion object of a
 /// Java class of the JDK, which holds its static members.
@@ -34,7 +34,7 @@ impl TreePickler<'_> {
         let local = owner_kind.is_some_and(|(_, k)| k.is_term());
         let prefix = match (prefix, owner_kind) {
             (_, _) if local && self.file.is_some() && self.is_defined_here(s) => return self.direct_ref(s),
-            (Some(p), _) if matches!(*self.u.types().get(p), Type::Package(r) if r == root) => {
+            (Some(p), _) if matches!(*self.u.ty(p), Type::Package(r) if r == root) => {
                 Prefix::PackageThis(root)
             }
             (Some(p), _) => Prefix::Type(p),
@@ -60,8 +60,8 @@ impl TreePickler<'_> {
         let owner = owner.ok_or("a reference to a symbol without owner")?;
         let shadowed = match prefix {
             Prefix::Type(p) if self.u.symbol(s).kind == Kind::Class => {
-                let name = self.u.symbol(s).name.clone();
-                self.u.resolve(p, &name, true) != Some(s)
+                let name = self.u.interned_name(s);
+                self.u.resolve(p, name, true) != Some(s)
             }
             _ => false,
         };
@@ -81,7 +81,7 @@ impl TreePickler<'_> {
     /// Prefix `p` of static member `s` of a Java class, the class's `this` as a reference to its
     /// companion object.
     fn java_statics_ref(&mut self, p: TypeId, s: SymbolId) -> Prefix {
-        let Type::This(class) = *self.u.types().get(p) else { return Prefix::Type(p) };
+        let Some(class) = self.u.this_of(p) else { return Prefix::Type(p) };
         let Some(c) = self.u.class_symbol(class) else { return Prefix::Type(p) };
         let module = match self.u.is_java_statics(c) {
             true => self.u.source_module(c),
@@ -115,8 +115,7 @@ impl TreePickler<'_> {
     pub fn method_params(&mut self, m: SymbolId, clauses: &[Vec<TNodeId>]) {
         let mut t = self.u.info(m);
         for clause in clauses {
-            let (Type::Poly { binder, result, .. } | Type::Method { binder, result, .. }) =
-                *self.u.types().get(t)
+            let (Type::Poly { binder, result, .. } | Type::Method { binder, result, .. }) = *self.u.ty(t)
             else {
                 return;
             };
@@ -149,18 +148,19 @@ impl TreePickler<'_> {
     }
 
     /// `prefix.name`, through the symbol it resolves to if it does.
-    pub fn named_ref(&mut self, prefix: TypeId, name: &str, is_type: bool) -> Result<(), Refusal> {
+    pub fn named_ref(&mut self, prefix: TypeId, name: NameId, is_type: bool) -> Result<(), Refusal> {
         if let Some(s) = self.u.resolve(prefix, name, is_type) {
             return self.sym_ref(Some(prefix), s);
         }
         let info = (!is_type).then(|| self.u.term_refinement_named(prefix, name));
         if let Some(info) = info
-            && info.is_none_or(|i| matches!(self.u.types().get(i), Type::Method { .. } | Type::Poly { .. }))
+            && info.is_none_or(|i| matches!(self.u.ty(i), Type::Method { .. } | Type::Poly { .. }))
         {
             return Err("an unresolved term reference, its signature not known");
         }
         self.byte(if is_type { TYPEREF } else { TERMREF });
-        self.name(&Name::utf8(name));
+        let name = Name::utf8(self.u.name(name));
+        self.name(&name);
         self.ty(prefix, false)
     }
 }

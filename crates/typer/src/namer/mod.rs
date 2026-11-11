@@ -122,7 +122,7 @@ impl Typer<'_> {
         if flags.is(f::PRIVATE) && text != "<init>" && !flags.is(f::PARAM) && !flags.is(f::PARAM_ACCESSOR) {
             flags = flags.or(f::LOCAL);
         }
-        if kind == Kind::Val && flags.is(f::ENUM) && self.is_static_owner(ctx.owner) {
+        if kind == Kind::Val && flags.is(f::ENUM) && self.u.is_static_owner(ctx.owner) {
             flags = flags.or(f::JAVA_STATIC);
         }
         let package_private = flags.is(f::PRIVATE) && self.is_package_level(ctx.owner);
@@ -178,7 +178,7 @@ impl Typer<'_> {
     fn unenter_classpath_members(&mut self, package: SymbolId, name: &str) {
         let base = name.strip_suffix('$').unwrap_or(name);
         for n in [base.to_owned(), format!("{base}$")] {
-            for d in self.u.decl(package, &n).unwrap_or_default() {
+            for d in self.u.decls_named(package, &n) {
                 let tasty = self.u.symbol(d).tree.is_some();
                 if (tasty || self.u.is_library_java_stub(d)) && self.u.symbol(d).name == n {
                     let full = self.u.full_name(d);

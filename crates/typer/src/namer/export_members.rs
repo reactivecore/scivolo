@@ -64,18 +64,15 @@ impl Typer<'_> {
 
     /// The class whose members a path of type `t` has.
     fn path_class(&mut self, t: TypeId) -> Option<SymbolId> {
-        if let Type::Sym(_, s) = *self.u.types().get(t)
+        if let Some(s) = self.u.sym_of(t)
             && self.u.symbol(s).flags.has(t::OBJECT)
         {
             return self.u.module_class(s);
         }
         let widened = self.u.widen(t);
         let widened = self.u.dealias(widened);
-        let tycon = match *self.u.types().get(widened) {
-            Type::Applied(tycon, _) => tycon,
-            _ => widened,
-        };
-        let c = match *self.u.types().get(tycon) {
+        let tycon = self.u.applied(widened).map_or(widened, |(tycon, _)| tycon);
+        let c = match *self.u.ty(tycon) {
             Type::Sym(_, c) => c,
             Type::TypeRef(..) => self.u.resolve_ref(tycon)?,
             _ => return None,
@@ -143,7 +140,7 @@ impl Typer<'_> {
             if !self.u.derives_from(cls, base) {
                 continue;
             }
-            for o in self.u.decl(base, &name).unwrap_or_default() {
+            for o in self.u.decls_named(base, &name) {
                 if !self.u.is_type_symbol(o) && self.is_concrete(o) && self.same_member(site, m, o) {
                     return true;
                 }

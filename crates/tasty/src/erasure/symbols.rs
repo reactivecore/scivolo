@@ -60,7 +60,7 @@ impl Universe {
             }
             Kind::Def => {
                 let info = self.info(s);
-                match *self.types().get(info) {
+                match *self.ty(info) {
                     Type::ByName(result) => self.erase(result),
                     Type::Method { .. } | Type::Poly { .. } => object(),
                     _ => self.erase(info),

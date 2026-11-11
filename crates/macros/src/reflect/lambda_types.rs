@@ -5,7 +5,7 @@
 
 use super::Fallible;
 use crate::host::Host;
-use tasty::{Type, TypeId};
+use tasty::{NameId, Type, TypeId};
 
 /// Lambda kinds: method types plain, implicit and contextual, polymorphic types, type lambdas.
 const POLY: i32 = 3;
@@ -15,38 +15,37 @@ impl Host {
     /// A lambda type of kind `kind` without parameters, whose binder `lambda_type` gives the type
     /// it makes.
     pub fn lambda_binder(&mut self, kind: i32) -> TypeId {
-        let (binder, params, result) =
-            (self.u.fresh_binder(), Vec::new(), self.u.intern_type(Type::NoPrefix));
-        self.u.intern_type(match kind {
-            POLY => Type::Poly { binder, params, result },
-            LAMBDA => Type::Lambda { binder, params, result },
-            _ => Type::Method { binder, params, result, implicit: kind != 0, contextual: kind == 2 },
-        })
+        let (binder, result) = (self.u.fresh_binder(), self.u.intern_type(Type::NoPrefix));
+        match kind {
+            POLY => self.u.intern_poly(binder, &[], result),
+            LAMBDA => self.u.intern_lambda(binder, &[], result),
+            _ => self.u.intern_method(binder, &[], result, kind != 0, kind == 2),
+        }
     }
 
     /// The lambda type of `binder`'s kind and binder with parameters of `names` and types
     /// `types` but the last, and the last as its result type.
     pub fn lambda_type(&mut self, binder: TypeId, types: Vec<TypeId>, names: String) -> Fallible<TypeId> {
         let (&result, params) = types.split_last().ok_or("a lambda type without its result type")?;
-        let names: Vec<String> = names.split('\0').filter(|n| !n.is_empty()).map(str::to_owned).collect();
+        let names: Vec<NameId> =
+            names.split('\0').filter(|n| !n.is_empty()).map(|n| self.u.intern_name(n)).collect();
         if names.len() != params.len() {
             return Err("a lambda type with another number of names than types");
         }
-        let params: Vec<(String, TypeId)> = names.into_iter().zip(params.iter().copied()).collect();
-        let t = match self.u.types().get(binder).clone() {
+        let params: Vec<(NameId, TypeId)> = names.into_iter().zip(params.iter().copied()).collect();
+        Ok(match *self.u.ty(binder) {
             Type::Method { binder, implicit, contextual, .. } => {
-                Type::Method { binder, params, result, implicit, contextual }
+                self.u.intern_method(binder, &params, result, implicit, contextual)
             }
-            Type::Poly { binder, .. } => Type::Poly { binder, params, result },
-            Type::Lambda { binder, .. } => Type::Lambda { binder, params, result },
+            Type::Poly { binder, .. } => self.u.intern_poly(binder, &params, result),
+            Type::Lambda { binder, .. } => self.u.intern_lambda(binder, &params, result),
             _ => return Err("a lambda type of another binder"),
-        };
-        Ok(self.u.intern_type(t))
+        })
     }
 
     /// The reference to parameter `i` of lambda type `t` (dotty's `newParamRef`).
     pub fn param_ref(&mut self, t: TypeId, i: i32) -> Fallible<TypeId> {
-        let binder = match *self.u.types().get(t) {
+        let binder = match *self.u.ty(t) {
             Type::Method { binder, .. } | Type::Poly { binder, .. } | Type::Lambda { binder, .. } => binder,
             _ => return Err("param of a type other than a lambda type"),
         };
@@ -55,10 +54,7 @@ impl Host {
 
     /// Whether each parameter of method type `t` is erased (dotty's `paramErasureStatuses`).
     pub fn erased_params(&mut self, t: TypeId) -> Vec<i32> {
-        let params = match self.u.types().get(t) {
-            Type::Method { params, .. } => params.iter().map(|&(_, p)| p).collect(),
-            _ => Vec::new(),
-        };
+        let params = self.u.method(t).map(|m| m.param_types()).unwrap_or_default();
         params.into_iter().map(|p| self.u.is_erased_param(p) as i32).collect()
     }
 }

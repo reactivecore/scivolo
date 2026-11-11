@@ -8,8 +8,8 @@ use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 /// `C` that `part` refers to, if `this` replaces it and the type gives one.
 pub fn class_param_seen(u: &mut Universe, this: &[(SymbolId, TypeId)], part: TypeId) -> Option<TypeId> {
     let (c, _) = u.class_param(part)?;
-    if let Type::Sym(Some(pre), _) = *u.types().get(part)
-        && !matches!(u.types().get(pre), Type::This(_))
+    if let Some((Some(pre), _)) = u.sym_ref(part)
+        && u.this_of(pre).is_none()
     {
         return None;
     }
@@ -22,8 +22,8 @@ pub fn class_param_seen(u: &mut Universe, this: &[(SymbolId, TypeId)], part: Typ
 /// path's type gives it (dotty's `TypeRef` to a class parameter dereferenced).
 pub fn class_params_seen(u: &mut Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| {
-        let Type::Sym(Some(p), _) = *u.types().get(part) else { return None };
-        if !matches!(u.types().get(p), Type::Sym(None, s) if u.symbol(*s).kind.is_term()) {
+        let Some((Some(p), _)) = u.sym_ref(part) else { return None };
+        if !matches!(u.sym_ref(p), Some((None, s)) if u.symbol(s).kind.is_term()) {
             return None;
         }
         let (c, _) = u.class_param(part)?;
@@ -36,15 +36,12 @@ pub fn class_params_seen(u: &mut Universe, t: TypeId) -> TypeId {
 /// name the path's type defines, if it defines a concrete one.
 pub fn reselected_members(u: &mut Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| {
-        let Type::Sym(Some(p), s) = *u.types().get(part) else { return None };
-        if u.symbol(s).kind != Kind::Type
-            || !matches!(u.types().get(p), Type::Sym(..))
-            || u.alias_of(s).is_some()
-        {
+        let Some((Some(p), s)) = u.sym_ref(part) else { return None };
+        if u.symbol(s).kind != Kind::Type || u.sym_ref(p).is_none() || u.alias_of(s).is_some() {
             return None;
         }
-        let name = u.symbol(s).name.clone();
-        let r = u.resolve(p, &name, true).filter(|&r| r != s && u.alias_of(r).is_some())?;
+        let name = u.interned_name(s);
+        let r = u.resolve(p, name, true).filter(|&r| r != s && u.alias_of(r).is_some())?;
         Some(u.intern_type(Type::Sym(Some(p), r)))
     })
 }

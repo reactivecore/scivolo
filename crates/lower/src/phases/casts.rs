@@ -8,7 +8,7 @@ use super::function_classes::{erased_derives, erased_function_class};
 use super::mixin::is_jdk;
 use crate::Lower;
 use crate::definitions::type_ref;
-use tasty::{Erased, SymbolId, Type, TypeId};
+use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `t.asInstanceOf[T]` for the type `T` erasing to `to`, a primitive array first made an array of
@@ -19,7 +19,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, to: &Erased) -> TNodeId {
         (Erased::Array(e), Erased::Array(p)) if prim(&e) && !prim(p) => {
             let module = l.scala_run_time().expect("`ScalaRunTime`");
             let class = l.u.module_class(module).expect("ScalaRunTime's class");
-            let method = l.u.decl(class, "toObjectArray").unwrap_or_default();
+            let method = l.u.decls_named(class, "toObjectArray");
             let method = *method.first().expect("`ScalaRunTime.toObjectArray`");
             super::adapt::converted(l, t, module, method)
         }
@@ -38,7 +38,7 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
         Erased::Array(elem) => {
             let elem = type_of(l, elem);
             let array = l.u.class_ref("scala.Array");
-            l.u.intern_type(Type::Applied(array, vec![elem]))
+            l.u.intern_applied(array, &[elem])
         }
         Erased::Prim('R') => l.u.class_ref("scala.scalanative.runtime.RawPtr"),
         Erased::Prim('w') => l.u.class_ref("scala.scalanative.runtime.RawSize"),
@@ -135,10 +135,10 @@ fn compacted_member(l: &mut Lower, class: SymbolId, name: &str) -> Option<Symbol
 /// target name.
 fn member_named(l: &mut Lower, owner: SymbolId, rest: &str) -> Option<SymbolId> {
     let classes = |l: &mut Lower, owner: SymbolId, name: &str| -> Vec<SymbolId> {
-        let mut found = l.u.decl(owner, name).unwrap_or_default();
+        let mut found = l.u.decls_named(owner, name);
         let decoded = tasty::decode(name);
         if found.is_empty() && decoded != name {
-            found = l.u.decl(owner, &decoded).unwrap_or_default();
+            found = l.u.decls_named(owner, &decoded);
         }
         if found.is_empty() && l.u.is_class(owner) {
             let decls = l.u.symbol(owner).decls.iter().copied();
@@ -173,7 +173,8 @@ pub fn is_new_array(l: &Lower, t: TNodeId) -> bool {
     }
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
     let ctor = l.tpd.sym(fun).filter(|&c| l.u.is_constructor(c));
-    let array = ctor.and_then(|c| l.u.symbol(c).owner).is_some_and(|o| l.u.full_name(o) == "scala.Array");
+    let array =
+        ctor.and_then(|c| l.u.symbol(c).owner).is_some_and(|o| l.u.full_name(o) == tasty::defn::ARRAY);
     array && matches!(l.tpd.tree(qualifier), Tree::New { .. })
 }
 

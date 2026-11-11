@@ -364,7 +364,7 @@ pub struct Typer<'a> {
     pub dynamic_lhs: Option<NodeId>,
     /// The functions of polymorphic function values, whose results may refer to their
     /// parameters, with the binder and parameter names of an expected `apply` whose result does.
-    pub poly_closures: FxHashMap<NodeId, Option<(tasty::Binder, Vec<String>)>>,
+    pub poly_closures: FxHashMap<NodeId, Option<(tasty::Binder, Vec<tasty::NameId>)>>,
     /// The parameters of context closures named after an expected `apply`'s, not in scope.
     pub hidden_params: FxHashSet<NodeId>,
     /// The override checks of the classes with macro annotations, which check for unimplemented
@@ -395,7 +395,7 @@ impl<'a> Typer<'a> {
         if !v.is_at_least(SourceVersion::V3_7) || v.migrating {
             return Err("source versions other than 3.7 to 3.9".into());
         }
-        let defn = Defn::new(u)?;
+        let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
         let mut syms = std::mem::take(syms);
         let ops = u.package("<special-ops>");

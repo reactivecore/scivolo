@@ -12,7 +12,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
-use tasty::{Erased, Kind, SymbolId, Type};
+use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree, Walk, traverse};
 
 /// Makes the variables in class definition `td` that closures capture shared references.
@@ -93,10 +93,9 @@ fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<Symbo
 fn widen_singletons(l: &mut Lower, td: TNodeId, refs: &FxHashMap<SymbolId, Ref>) {
     for t in subtrees(l.tpd, td) {
         let Some(tpe) = l.tpd.get(t).tpe else { continue };
-        let widened = l.u.map_type(tpe, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(_, s) if refs.contains_key(&s) => Some(u.info(s)),
-            _ => None,
-        });
+        let widened = l
+            .u
+            .map_type(tpe, &mut |u, part| u.sym_of(part).filter(|s| refs.contains_key(s)).map(|s| u.info(s)));
         if widened != tpe {
             l.tpd.get_mut(t).tpe = Some(widened);
         }

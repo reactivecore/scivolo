@@ -70,7 +70,7 @@ impl Code<'_> {
     }
 
     fn def_name(&mut self, s: Option<SymbolId>, name: &str) -> String {
-        match s.filter(|&s| self.is_local(s)) {
+        match s.filter(|&s| self.h.u.is_local(s)) {
             Some(s) => self.spliced_name(s),
             None => name.to_owned(),
         }

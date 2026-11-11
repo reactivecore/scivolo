@@ -7,7 +7,7 @@ mod refs;
 
 pub use defs::param_tree_clauses;
 
-use super::{Binder, Type, TypeId, Types};
+use super::{Binder, NameId, Type, TypeId, Types};
 use crate::tags::*;
 use crate::{Ast, FileId, NodeId, SymbolId};
 use rustc_hash::FxHashMap;
@@ -52,13 +52,23 @@ impl<'a> Decoder<'a> {
         }
     }
 
-    /// The name the node at `id` refers to.
-    pub fn name(&self, id: NodeId) -> String {
-        self.names.get(self.ast.node(id).a as usize).cloned().unwrap_or_default()
+    /// The text of the name the node at `id` refers to.
+    pub fn text(&self, id: NodeId) -> &'a str {
+        self.names.get(self.ast.node(id).a as usize).map_or("", String::as_str)
+    }
+
+    /// The name the node at `id` refers to, interned.
+    pub fn name(&mut self, id: NodeId) -> NameId {
+        self.types.intern_name(self.text(id))
     }
 
     pub fn intern(&mut self, t: Type) -> TypeId {
         self.types.intern(t)
+    }
+
+    /// Interns `tycon[args]`.
+    pub fn intern_applied(&mut self, tycon: TypeId, args: &[TypeId]) -> TypeId {
+        self.types.intern_applied(tycon, args)
     }
 
     pub fn get(&self, t: TypeId) -> &Type {
@@ -82,12 +92,12 @@ impl<'a> Decoder<'a> {
 
     /// Whether `tycon` is `scala.&` (`true`) or `scala.|` (`false`).
     fn and_or(&self, tycon: TypeId) -> Option<bool> {
-        let Type::TypeRef(prefix, name) = self.types.get(tycon) else { return None };
+        let Type::TypeRef(prefix, name) = *self.types.get(tycon) else { return None };
         let scala = self.packages.get("scala");
-        if !matches!(self.types.get(*prefix), Type::Package(p) if Some(p) == scala) {
+        if !matches!(self.types.get(prefix), Type::Package(p) if Some(p) == scala) {
             return None;
         }
-        match name.as_str() {
+        match self.types.name(name) {
             "&" => Some(true),
             "|" => Some(false),
             _ => None,
@@ -122,7 +132,7 @@ impl<'a> Decoder<'a> {
                 self.refining.push(id);
                 let t = self.refined(k[0], &k[1..]);
                 self.refining.pop();
-                self.types.get(t).clone()
+                *self.types.get(t)
             }
             IDENTtpt | IDENT | SINGLETONtpt | INLINED if !k.is_empty() => self.decode(k[0]),
             FLEXIBLEtype if !k.is_empty() => Type::Flexible(self.kid(id, 0)),
@@ -140,7 +150,7 @@ impl<'a> Decoder<'a> {
                 match (self.and_or(tycon), &args[..]) {
                     (Some(true), &[a, b]) => Type::And(a, b),
                     (Some(false), &[a, b]) => Type::Or(a, b, false),
-                    _ => Type::Applied(tycon, args),
+                    _ => Type::Applied(tycon, self.types.intern_types(&args)),
                 }
             }
             TYPEBOUNDS | TYPEBOUNDStpt => {
@@ -166,7 +176,8 @@ impl<'a> Decoder<'a> {
             REFINEDtype => Type::Refined(self.kid(id, 0), self.name(id), self.kid(id, 1)),
             MATCHtype if k.len() > 1 => {
                 let (bound, scrutinee) = (self.ty(k[0]), self.ty(k[1]));
-                Type::Match { bound, scrutinee, cases: k[2..].iter().map(|&c| self.ty(c)).collect() }
+                let cases: Vec<_> = k[2..].iter().map(|&c| self.ty(c)).collect();
+                Type::Match { bound, scrutinee, cases: self.types.intern_types(&cases) }
             }
             MATCHCASEtype => Type::MatchCase(self.kid(id, 0), self.kid(id, 1)),
             MATCHtpt => self.match_tpt(id),

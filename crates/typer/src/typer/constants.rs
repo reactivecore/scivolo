@@ -146,7 +146,7 @@ impl Typer<'_> {
     fn class_bound_within(&mut self, pt: TypeId, depth: u32) -> Option<SymbolId> {
         let depth = depth.checked_sub(1)?;
         let pt = self.u.dealias(pt);
-        match *self.u.types().get(pt) {
+        match *self.u.ty(pt) {
             Type::Var(v) => {
                 if let Some(inst) = self.constraint.instance(v) {
                     return self.class_bound_within(inst, depth);
@@ -158,7 +158,7 @@ impl Typer<'_> {
                 }
             }
             Type::Or(a, b, _) => {
-                let null = self.u.builtins().null;
+                let null = self.u.defn().null;
                 match (self.u.class_symbol(a), self.u.class_symbol(b)) {
                     (_, Some(c)) if c == null => self.class_bound_within(a, depth),
                     (Some(c), _) if c == null => self.class_bound_within(b, depth),
@@ -167,10 +167,7 @@ impl Typer<'_> {
             }
             Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                 let info = self.u.info(s);
-                match *self.u.types().get(info) {
-                    Type::Bounds(lo, _) => self.class_bound_within(lo, depth),
-                    _ => None,
-                }
+                self.u.bounds(info).and_then(|(lo, _)| self.class_bound_within(lo, depth))
             }
             _ => self.types().direct_class(pt),
         }

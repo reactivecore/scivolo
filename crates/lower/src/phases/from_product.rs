@@ -29,19 +29,14 @@ pub fn from_product(
     let cc = l.case_classes()?;
     let product = type_ref(l.u, cc.product);
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: vec![("x$0".into(), product)],
-        result: mono,
-        implicit: false,
-        contextual: false,
-    });
-    let like = l.u.decl(cc.mirror_product, "fromProduct").unwrap_or_default();
+    let x0 = l.u.intern_name("x$0");
+    let info = l.u.intern_method(binder, &[(x0, product)], mono, false, false);
+    let like = l.u.decls_named(cc.mirror_product, "fromProduct");
     let like = like.into_iter().next().expect("`Mirror.Product.fromProduct`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
     }
-    let ctor = l.u.decl(case_class, "<init>").unwrap_or_default();
+    let ctor = l.u.decls_named(case_class, "<init>");
     let ctor = ctor.into_iter().next().expect("a case class constructor");
     let (created_type, param_types) = instantiated_constructor(l, case_class, ctor);
     let flags = Flags::default().with(SYNTHETIC);
@@ -68,7 +63,7 @@ pub fn from_product(
             let tpe = match repeated {
                 Some(elem) => {
                     let seq = l.u.class_ref("scala.collection.immutable.Seq");
-                    l.u.intern_type(Type::Applied(seq, vec![elem]))
+                    l.u.intern_applied(seq, &[elem])
                 }
                 None => param,
             };
@@ -133,9 +128,7 @@ fn unrolled_getters(
     case_class: SymbolId,
     accessors: &[SymbolId],
 ) -> Result<(SymbolId, Vec<SymbolId>)> {
-    let unroll = |l: &Lower, a: SymbolId| {
-        l.u.annotations(a).iter().any(|&c| l.u.full_name(c) == "scala.annotation.unroll")
-    };
+    let unroll = |l: &Lower, a: SymbolId| l.u.has_recorded_annotation(a, tasty::defn::UNROLL);
     let first = (0..accessors.len()).find(|&i| unroll(l, accessors[i]));
     let module = l.u.companion_module(case_class);
     let (Some(first), Some(module)) = (first, module) else { return Ok((case_class, Vec::new())) };
@@ -143,10 +136,9 @@ fn unrolled_getters(
     let mut getters = Vec::new();
     for n in first..accessors.len() {
         let name = format!("<init>$default${}", n + 1);
-        let getter = l.u.decl(class, &name).unwrap_or_default().into_iter().next();
+        let getter = l.u.decls_named(class, &name).into_iter().next();
         let info = getter.map(|g| l.u.info(g));
-        let plain =
-            info.is_some_and(|i| !matches!(l.u.types().get(i), Type::Poly { .. } | Type::Method { .. }));
+        let plain = info.is_some_and(|i| !matches!(l.u.ty(i), Type::Poly { .. } | Type::Method { .. }));
         let Some(g) = getter.filter(|_| plain) else {
             return unsupported(
                 Span::NONE,

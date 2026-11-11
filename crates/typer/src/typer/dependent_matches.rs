@@ -6,7 +6,7 @@
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::{ANY, Type, TypeId};
+use tasty::{ANY, NameId, Type, TypeId};
 
 impl Typer<'_> {
     /// The cases of match type `pt` if a match on `sel` with cases `cases` has its shape: as many
@@ -14,9 +14,10 @@ impl Typer<'_> {
     pub fn dependent_match_cases(&mut self, pt: Pt, sel: TNodeId, cases: &[NodeId]) -> Option<Vec<TypeId>> {
         let Pt::Type(pt) = pt else { return None };
         let m = self.u.underlying_match(pt)?;
-        let Type::Match { scrutinee, cases: case_types, .. } = self.u.types().get(m).clone() else {
+        let Type::Match { scrutinee, cases: case_types, .. } = *self.u.ty(m) else {
             return None;
         };
+        let case_types = self.u.types_of(case_types).to_vec();
         if case_types.len() != cases.len() || !cases.iter().all(|&c| self.is_dependent_case_shape(c)) {
             return None;
         }
@@ -50,8 +51,9 @@ impl Typer<'_> {
             T::Ident { .. } => ANY,
             _ => return None,
         };
-        let case = match self.u.types().get(case).clone() {
+        let case = match *self.u.ty(case) {
             Type::Lambda { binder, params, result } => {
+                let params = self.u.params_of(params).to_vec();
                 let mut bound = Vec::new();
                 self.pattern_types(pat, &mut bound, false);
                 if bound.len() != params.len() {
@@ -59,12 +61,12 @@ impl Typer<'_> {
                 }
                 let args: Vec<TypeId> =
                     bound.iter().map(|&(s, _)| self.u.intern_type(Type::Sym(None, s))).collect();
-                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
                 self.u.subst(result, binder, &names, &args)
             }
             _ => case,
         };
-        let Type::MatchCase(case_pat, body) = *self.u.types().get(case) else { return None };
+        let Type::MatchCase(case_pat, body) = *self.u.ty(case) else { return None };
         let same = self.u.is_subtype(pat_tpe, case_pat) && self.u.is_subtype(case_pat, pat_tpe);
         same.then_some(body)
     }

@@ -10,7 +10,7 @@ use crate::typer::Typer;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, Tree};
 use syntax::diag::{Message, MessageId};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 
 const PRIMITIVES: [&str; 9] = [
     "scala.Boolean",
@@ -32,7 +32,7 @@ impl Typer<'_> {
     /// Whether `c` is a class deriving from `AnyVal`, not `AnyVal` or a primitive value class
     /// (dotty's `isDerivedValueClass`).
     pub fn is_derived_value_class(&mut self, c: SymbolId) -> bool {
-        let Some(any_val) = self.u.builtins().any_val else { return false };
+        let Some(any_val) = self.u.defn().any_val else { return false };
         self.u.symbol(c).kind == Kind::Class
             && c != any_val
             && self.u.derives_from(c, any_val)
@@ -72,7 +72,7 @@ impl Typer<'_> {
             self.error_at(span, syntax_msg(74, false, "Value classes may not be abstract"));
         }
         let owner = self.u.symbol(cls).owner;
-        if !owner.is_some_and(|o| self.is_static_owner(o)) {
+        if !owner.is_some_and(|o| self.u.is_static_owner(o)) {
             let local = owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
             let what = if local { "local class" } else { "member of another class" };
             self.error_at(span, syntax_msg(75, false, format!("Value classes may not be a {what}")));
@@ -81,10 +81,7 @@ impl Typer<'_> {
         let params = self.value_class_params(cls);
         let wrapped = params.first().and_then(|&p| {
             let info = self.u.info(p);
-            let info = match *self.u.types().get(info) {
-                Type::ByName(result) => result,
-                _ => info,
-            };
+            let info = self.u.by_name(info).unwrap_or(info);
             self.u.class_symbol(info)
         });
         if wrapped.is_some_and(|c| self.is_derived_value_class(c)) {
@@ -141,7 +138,7 @@ impl Typer<'_> {
         if flags.is(f::MUTABLE) {
             self.error_at(span, syntax_msg(77, true, "A value class parameter may not be a var"));
         }
-        if matches!(self.u.types().get(info), Type::ByName(_)) {
+        if self.u.by_name(info).is_some() {
             let name = self.u.symbol(param).name.clone();
             let msg = format!("Value class parameter `{name}` may not be call-by-name");
             self.error_at(span, syntax_msg(126, false, msg));
@@ -198,7 +195,7 @@ impl Typer<'_> {
             return;
         }
         let tpe = self.tpd.tpe(tpt);
-        let any_val = self.u.builtins().any_val;
+        let any_val = self.u.defn().any_val;
         if any_val.is_some() && self.u.class_symbol(tpe) == any_val {
             let name = self.u.symbol(alias).name.clone();
             let msg = format!("A value class cannot extend a type alias (type {name}) of AnyVal");

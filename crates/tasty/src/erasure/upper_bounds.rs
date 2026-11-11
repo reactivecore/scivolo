@@ -24,36 +24,34 @@ impl Universe {
     ) -> TypeId {
         let bound =
             |b: Binder, i: u32| bounds.iter().find(|(binder, _)| *binder == b)?.1.get(i as usize).copied();
-        let mut t = self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
+        let mut t = self.map_type(t, &mut |u, x| match *u.ty(x) {
             Type::Param(b, i) if !reduced.contains(&(b, i)) => {
                 let param_bounds = bound(b, i)?;
-                let Type::Bounds(_, hi) = *u.types().get(param_bounds) else { return None };
+                let (_, hi) = u.bounds(param_bounds)?;
                 let seen = [reduced, &[(b, i)]].concat();
                 (!u.is_generic(param_bounds)).then(|| u.upper_bound_except(hi, bounds, &seen))
             }
             Type::Applied(..) => {
                 let (mut applied, mut seen) = (x, reduced.to_vec());
-                while let Type::Applied(tycon, args) = u.types().get(applied).clone()
-                    && let Type::Param(b, i) = *u.types().get(tycon)
+                while let Type::Applied(tycon, args) = *u.ty(applied)
+                    && let Some((b, i)) = u.param_ref(tycon)
                     && !seen.contains(&(b, i))
                     && let Some(bounds) = bound(b, i)
-                    && let Type::Bounds(_, hi) = *u.types().get(bounds)
-                    && let Type::Lambda { binder, params, result } = u.types().get(hi).clone()
+                    && let Some((_, hi)) = u.bounds(bounds)
+                    && let Some((binder, names, result)) =
+                        u.lambda(hi).map(|l| (l.binder, l.names(), l.result))
                 {
                     seen.push((b, i));
-                    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                    let args = u.types_of(args).to_vec();
                     applied = u.subst(result, binder, &names, &args);
                 }
                 (applied != x).then(|| u.upper_bound_except(applied, bounds, &seen))
             }
             _ => None,
         });
-        while let Type::Param(b, i) = *self.types().get(t) {
+        while let Some((b, i)) = self.param_ref(t) {
             let Some(bound) = bound(b, i) else { break };
-            t = match *self.types().get(bound) {
-                Type::Bounds(_, hi) => hi,
-                _ => bound,
-            };
+            t = self.bounds(bound).map_or(bound, |(_, hi)| hi);
         }
         t
     }

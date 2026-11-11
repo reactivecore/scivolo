@@ -9,7 +9,7 @@ use crate::typer::dependent_params::applied_result;
 use crate::typer::seen_from::resolve_class_params;
 use crate::typer::type_apply::instantiate_poly;
 use tasty::tags::{MUTABLE, OBJECT, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 
 impl Unpickler<'_> {
     /// The class of full name `full`.
@@ -28,9 +28,9 @@ impl Unpickler<'_> {
     fn method_type(&mut self, fun: TNodeId) -> (TypeId, Option<SymbolId>) {
         let tpe = self.tpd.tpe(fun);
         let meth = self.tpd.sym(self.tpd.meth_part(fun));
-        match *self.u.types().get(tpe) {
+        match *self.u.ty(tpe) {
             Type::Sym(p, s) if self.u.symbol(s).kind == Kind::Def => {
-                let info = match p.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_))) {
+                let info = match p.filter(|&p| !matches!(self.u.ty(p), Type::Package(_))) {
                     Some(p) => {
                         let p = self.aliased_object(p);
                         self.u.member_info(p, s)
@@ -40,7 +40,7 @@ impl Unpickler<'_> {
                 let info = resolve_class_params(self.u, info);
                 (self.with_repeated_class(info), Some(s))
             }
-            Type::TermRef(pre, ref n) if n == "apply" => match self.u.poly_function_apply_of(pre) {
+            Type::TermRef(pre, n) if self.u.name(n) == "apply" => match self.u.poly_function_apply_of(pre) {
                 Some(info) => (info, meth),
                 None => (tpe, meth),
             },
@@ -52,13 +52,13 @@ impl Unpickler<'_> {
     /// as `scala.package.List`), stands for; `p` otherwise (as `Typer::method_info`).
     fn aliased_object(&mut self, mut p: TypeId) -> TypeId {
         for _ in 0..8 {
-            let Type::Sym(_, s) = *self.u.types().get(p) else { break };
+            let Some(s) = self.u.sym_of(p) else { break };
             let sym = self.u.symbol(s);
             if sym.kind != Kind::Val || sym.flags.has(OBJECT) || sym.flags.has(MUTABLE) {
                 break;
             }
             let info = self.u.info(s);
-            match *self.u.types().get(info) {
+            match *self.u.ty(info) {
                 Type::Sym(_, o) if self.u.symbol(o).flags.has(OBJECT) => p = info,
                 Type::TermRef(..) => p = info,
                 _ => break,
@@ -70,23 +70,21 @@ impl Unpickler<'_> {
     /// Method type `t` with its repeated parameters, `Seq[T] @Repeated` in TASTy, typed
     /// `<repeated>[T]`, in each clause.
     fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
-        match self.u.types().get(t).clone() {
+        match *self.u.ty(t) {
             Type::Method { binder, params, result, implicit, contextual } => {
                 let mut mapped = Vec::new();
-                for (n, p) in params {
-                    let elem = match self.u.types().get(p).clone() {
-                        Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => {
-                            match self.u.types().get(seq).clone() {
-                                Type::Applied(_, args) if args.len() == 1 => Some(args[0]),
-                                _ => None,
-                            }
-                        }
+                for (n, p) in self.u.params_of(params).to_vec() {
+                    let elem = match self.u.annotated(p) {
+                        Some((seq, annot)) if self.is_repeated_annot(annot) => match self.u.applied(seq) {
+                            Some((_, args)) if args.len() == 1 => Some(args[0]),
+                            _ => None,
+                        },
                         _ => None,
                     };
                     mapped.push((n, elem.map_or(p, |e| self.repeated_type(e))));
                 }
                 let result = self.with_repeated_class(result);
-                self.u.intern_type(Type::Method { binder, params: mapped, result, implicit, contextual })
+                self.u.intern_method(binder, &mapped, result, implicit, contextual)
             }
             Type::Poly { binder, params, result } => {
                 let result = self.with_repeated_class(result);
@@ -97,9 +95,7 @@ impl Unpickler<'_> {
     }
 
     fn is_repeated_annot(&mut self, annot: TypeId) -> bool {
-        self.u
-            .class_symbol(annot)
-            .is_some_and(|c| self.u.full_name(c) == "scala.annotation.internal.Repeated")
+        self.u.is_class_named(annot, crate::defn::REPEATED_ANNOT)
     }
 
     /// `<repeated>[elem]`.
@@ -108,21 +104,23 @@ impl Unpickler<'_> {
         let synthetic = Flags::default().with(SYNTHETIC);
         let class = crate::special::special(self.u, scala, "<repeated>", Kind::Class, synthetic);
         let class = type_ref(self.u, class);
-        self.u.intern_type(Type::Applied(class, vec![elem]))
+        self.u.intern_applied(class, &[elem])
     }
 
     /// The type of `fun(args)`: the result of `fun`'s method type, its parameters replaced by the
     /// arguments' types.
     pub fn apply_type(&mut self, fun: TNodeId, args: &[TNodeId]) -> Result<TypeId, Refusal> {
         let (info, meth) = self.method_type(fun);
-        let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
+        let Some((binder, params, result)) =
+            self.u.method(info).map(|m| (m.binder, m.params.to_vec(), m.result))
+        else {
             return Err("application of a value in a library inline body");
         };
         if params.len() != args.len() {
             return Err("application with missing arguments in a library inline body");
         }
         let part = self.tpd.meth_part(fun);
-        let curried = matches!(self.u.types().get(result), Type::Method { .. });
+        let curried = self.u.method(result).is_some();
         let mut result = result;
         if self.tpd.sym(part).is_some_and(|s| self.u.symbol(s).name == "<init>") {
             match *self.tpd.tree(part) {
@@ -136,7 +134,7 @@ impl Unpickler<'_> {
                 _ => return Err("constructor call in a library inline body"),
             }
         }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
         let args: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         Ok(applied_result(self.u, result, (binder, &names), meth, &args))
     }
@@ -144,13 +142,15 @@ impl Unpickler<'_> {
     /// The type of `fun[args]`: the result of `fun`'s polymorphic type instantiated.
     pub fn type_apply_type(&mut self, fun: TNodeId, args: &[TNodeId]) -> Result<TypeId, Refusal> {
         let (info, meth) = self.method_type(fun);
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+        let Some((binder, params, result)) =
+            self.u.poly(info).map(|p| (p.binder, p.params.to_vec(), p.result))
+        else {
             return Err("type application of a value in a library inline body");
         };
         if params.len() != args.len() {
             return Err("type application with missing arguments in a library inline body");
         }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
         let args: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         Ok(instantiate_poly(self.u, result, (binder, &names), &args, meth))
     }
@@ -158,7 +158,7 @@ impl Unpickler<'_> {
 
 /// Constructor clauses `t` with the constructed `class` as their final result.
 fn constructed(u: &mut tasty::Universe, t: TypeId, class: TypeId) -> TypeId {
-    match u.types().get(t).clone() {
+    match *u.ty(t) {
         Type::Method { binder, params, result, implicit, contextual } => {
             let result = constructed(u, result, class);
             u.intern_type(Type::Method { binder, params, result, implicit, contextual })

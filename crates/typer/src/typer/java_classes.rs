@@ -48,8 +48,8 @@ impl Typer<'_> {
     /// Whether type parameter `p` has the bounds `>: Nothing <: Any`.
     pub fn is_unbounded(&mut self, p: SymbolId) -> bool {
         let info = self.u.info(p);
-        let tasty::Type::Bounds(lo, hi) = *self.u.types().get(info) else { return false };
-        let b = self.u.builtins();
+        let Some((lo, hi)) = self.u.bounds(info) else { return false };
+        let b = self.u.defn();
         self.u.class_symbol(lo) == Some(b.nothing) && self.u.class_symbol(hi) == Some(b.any)
     }
 }

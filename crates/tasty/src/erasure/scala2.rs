@@ -27,7 +27,7 @@ impl Universe {
     /// The parents of intersection `t`, nested ones flattened, in order.
     fn flatten(&mut self, t: TypeId, out: &mut Vec<TypeId>) {
         let dealiased = self.dealias(t);
-        match *self.types().get(dealiased) {
+        match *self.ty(dealiased) {
             Type::And(a, b) => {
                 self.flatten(a, out);
                 self.flatten(b, out);
@@ -44,16 +44,11 @@ impl Universe {
         let dealiased: Vec<TypeId> = parents.iter().map(|&p| self.dealias(p)).collect();
         let arrays: Vec<TypeId> = dealiased.into_iter().filter(|&p| self.is_array(p)).collect();
         if let Some(&first) = arrays.first() {
-            let elements: Vec<TypeId> = arrays
-                .iter()
-                .filter_map(|&p| match self.types().get(p) {
-                    Type::Applied(_, args) => args.first().copied(),
-                    _ => None,
-                })
-                .collect();
-            let Type::Applied(tycon, _) = *self.types().get(first) else { unreachable!("an array type") };
+            let elements: Vec<TypeId> =
+                arrays.iter().filter_map(|&p| self.applied(p)?.1.first().copied()).collect();
+            let Type::Applied(tycon, _) = *self.ty(first) else { unreachable!("an array type") };
             let element = self.dominator(&elements);
-            return self.intern_type(Type::Applied(tycon, vec![element]));
+            return self.intern_applied(tycon, &[element]);
         }
         let unshadowed: Vec<bool> = psyms
             .iter()
@@ -63,7 +58,7 @@ impl Universe {
             unshadowed[i]
                 && match psyms[i] {
                     Pseudo::Sym(s) => self.is_class(s) && !self.symbol(s).flags.has(TRAIT),
-                    Pseudo::Type(t) => matches!(self.types().get(t), Type::And(..) | Type::Refined(..)),
+                    Pseudo::Type(t) => matches!(self.ty(t), Type::And(..) | Type::Refined(..)),
                 }
         });
         let first = class.or_else(|| unshadowed.iter().position(|&u| u)).unwrap_or(0);
@@ -74,7 +69,7 @@ impl Universe {
     fn pseudo(&mut self, t: TypeId) -> Pseudo {
         let widened = self.widen(t);
         let t = self.dealias(widened);
-        match *self.types().get(t) {
+        match *self.ty(t) {
             Type::And(..) | Type::Refined(..) => Pseudo::Type(t),
             Type::Sym(..) | Type::TypeRef(..) => self.referenced(t).map_or(Pseudo::Type(t), Pseudo::Sym),
             Type::Applied(u, _)
@@ -100,7 +95,7 @@ impl Universe {
             return true;
         }
         if let Pseudo::Type(t) = that
-            && matches!(self.types().get(t), Type::And(..) | Type::Refined(..))
+            && matches!(self.ty(t), Type::And(..) | Type::Refined(..))
         {
             return false;
         }
@@ -110,7 +105,7 @@ impl Universe {
                 Pseudo::Sym(_) if self.is_class(a) => false,
                 _ => self.upper_bound_is_subclass(a, that),
             },
-            Pseudo::Type(t) => match *self.types().get(t) {
+            Pseudo::Type(t) => match *self.ty(t) {
                 Type::Refined(parent, _, _) => {
                     let q = self.pseudo(parent);
                     self.is_non_bottom_subclass(q, that)
@@ -127,10 +122,10 @@ impl Universe {
     /// Whether abstract type `s` has an upper bound whose pseudo symbol is a subclass of `that`.
     fn upper_bound_is_subclass(&mut self, s: SymbolId, that: Pseudo) -> bool {
         let mut info = self.info(s);
-        while let Type::Lambda { result, .. } = *self.types().get(info) {
+        while let Type::Lambda { result, .. } = *self.ty(info) {
             info = result;
         }
-        let Type::Bounds(_, hi) = *self.types().get(info) else { return false };
+        let Type::Bounds(_, hi) = *self.ty(info) else { return false };
         let q = self.pseudo(hi);
         self.is_non_bottom_subclass(q, that)
     }

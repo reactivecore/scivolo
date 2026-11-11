@@ -10,7 +10,7 @@ use crate::Lower;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, TypeId};
 
 /// Gives the concrete values of library trait `trait_` their getters and setters, once.
 pub fn prepare(l: &mut Lower, trait_: SymbolId) {
@@ -56,9 +56,8 @@ pub fn define_setter(l: &mut Lower, owner: SymbolId, name: &str, value: TypeId) 
     let setter = l.u.define(symbol(name, Kind::Def, owner, Flags::default().with(FIELDaccessor)));
     let unit = l.u.class_ref("scala.Unit");
     let binder = l.u.fresh_binder();
-    let params = vec![("x$0".to_owned(), value)];
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: unit, implicit: false, contextual: false });
+    let params = [(l.u.intern_name("x$0"), value)];
+    let info = l.u.intern_method(binder, &params, unit, false, false);
     l.u.set_info(setter, info);
     l.u.set_deferred(setter, true);
     setter

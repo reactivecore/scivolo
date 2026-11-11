@@ -13,19 +13,17 @@ use tasty::{SymbolId, Type, TypeId};
 pub fn instantiated_constructor(l: &mut Lower, c: SymbolId, ctor: SymbolId) -> (TypeId, Vec<TypeId>) {
     let accessors = case_accessors(l, c);
     let info = l.u.info(ctor);
-    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
+    let Some((binder, names, bounds, result)) =
+        l.u.poly(info).map(|p| (p.binder, p.names(), p.param_types(), p.result))
+    else {
         let types = accessors.into_iter().map(|a| l.u.info(a)).collect();
         return (type_ref(l.u, c), types);
     };
-    let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
     let mut his: Vec<TypeId> = Vec::new();
-    for (i, (_, bounds)) in params.iter().enumerate() {
-        let (lo, hi) = match *l.u.types().get(*bounds) {
-            Type::Bounds(lo, hi) => (lo, hi),
-            _ => (tasty::NOTHING, *bounds),
-        };
+    for (i, &bounds) in bounds.iter().enumerate() {
+        let (lo, hi) = l.u.bounds(bounds).unwrap_or((tasty::NOTHING, bounds));
         let hi = l.u.subst(hi, binder, &names[..i], &his);
-        let inst = match mentions_param(l, hi, binder, (&names[i], i)) {
+        let inst = match mentions_param(l, hi, binder, (names[i], i)) {
             true => l.u.subst(lo, binder, &names[..i], &his),
             false => hi,
         };
@@ -35,20 +33,23 @@ pub fn instantiated_constructor(l: &mut Lower, c: SymbolId, ctor: SymbolId) -> (
         his[i] = l.u.subst(his[i], binder, &names, &his);
     }
     let method = l.u.subst(result, binder, &names, &his);
-    let types = match l.u.types().get(method).clone() {
-        Type::Method { params, .. } => params.into_iter().map(|(_, t)| t).collect(),
-        _ => accessors.into_iter().map(|a| l.u.info(a)).collect(),
-    };
+    let types = l.u.method(method).map(|m| m.param_types());
+    let types = types.unwrap_or_else(|| accessors.into_iter().map(|a| l.u.info(a)).collect());
     (crate::definitions::applied(l.u, c, his), types)
 }
 
 /// Whether `t` mentions parameter `name`, the `index`th, of type lambda `binder`.
-fn mentions_param(l: &mut Lower, t: TypeId, binder: tasty::Binder, (name, index): (&str, usize)) -> bool {
+fn mentions_param(
+    l: &mut Lower,
+    t: TypeId,
+    binder: tasty::Binder,
+    (name, index): (tasty::NameId, usize),
+) -> bool {
     let mut found = false;
     l.u.map_type(t, &mut |u, x| {
-        found |= match u.types().get(x) {
+        found |= match *u.ty(x) {
             Type::Local(b, n) => b.0 == binder.0 && n == name,
-            Type::Param(b, i) => *b == binder && *i as usize == index,
+            Type::Param(b, i) => b == binder && i as usize == index,
             _ => false,
         };
         None
@@ -58,7 +59,7 @@ fn mentions_param(l: &mut Lower, t: TypeId, binder: tasty::Binder, (name, index)
 
 /// The element type `T` of repeated parameter type `<repeated>[T]`.
 pub fn repeated_elem(l: &mut Lower, t: TypeId) -> Option<TypeId> {
-    let Type::Applied(c, args) = l.u.types().get(t).clone() else { return None };
+    let (c, args) = l.u.applied(t).map(|(c, a)| (c, a.to_vec()))?;
     let class = l.u.class_symbol(c)?;
-    (args.len() == 1 && l.u.full_name(class) == "scala.<repeated>").then(|| args[0])
+    (args.len() == 1 && l.u.full_name(class) == tasty::defn::REPEATED).then(|| args[0])
 }

@@ -24,7 +24,7 @@ impl Typer<'_> {
         match self.syms.flags.get(&s) {
             Some(flags) => !flags.is(f::DEFERRED),
             None => {
-                let builtins = self.u.builtins();
+                let builtins = self.u.defn();
                 let builtin = |o| o == builtins.any || o == builtins.object;
                 self.u.body(s).is_some()
                     || self.u.symbol(s).owner.is_some_and(builtin)
@@ -64,8 +64,10 @@ impl Typer<'_> {
         }
         let (mut info, mut n) = (self.u.info(s), 0);
         loop {
-            match self.u.types().get(info) {
-                Type::Method { params, result, .. } if params.is_empty() => (info, n) = (*result, n + 1),
+            match *self.u.ty(info) {
+                Type::Method { params, result, .. } if self.u.params_of(params).is_empty() => {
+                    (info, n) = (result, n + 1)
+                }
                 Type::Method { .. } | Type::Poly { .. } => return None,
                 _ => return Some(n),
             }
@@ -83,7 +85,7 @@ impl Typer<'_> {
     /// member of `Any`, of a Java class (the Scala library's whatever their source) or of the
     /// Scala 2 library, or `Object.clone`.
     fn match_nullary_loosely(&mut self, s: SymbolId, owner: SymbolId) -> bool {
-        let object = self.u.builtins().object;
+        let object = self.u.defn().object;
         let test = |t: &mut Self, x: SymbolId| {
             let owner = t.u.symbol(x).owner;
             let clone = owner == Some(object) && t.u.symbol(x).name == "clone";

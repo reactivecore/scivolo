@@ -83,15 +83,13 @@ impl Typer<'_> {
 
     fn has_vars(&mut self, t: TypeId) -> bool {
         let parts = self.type_parts(t);
-        parts
-            .into_iter()
-            .any(|p| matches!(self.u.types().get(p), Type::Var(_) | Type::Wildcard(_) | Type::Error))
+        parts.into_iter().any(|p| matches!(self.u.ty(p), Type::Var(_) | Type::Wildcard(_) | Type::Error))
     }
 
     /// Whether dotty searches no conversion from `widened` to `pt` (dotty's `isUnderspecified`,
     /// `TooUnspecific`), or the expected type has a special adaptation.
     fn unspecific(&mut self, widened: TypeId, pt: TypeId) -> bool {
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let from = self.u.class_symbol(widened);
         if from.is_none_or(|c| c == b.null || c == b.nothing) {
             return true;
@@ -105,8 +103,8 @@ impl Typer<'_> {
     /// Whether `found` is a numeric constant dotty converts to the primitive class of `pt` (dotty's
     /// `Constant.convertTo`), or `tree`, of a type other than a constant, denotes a constant.
     fn constant_converts(&mut self, tree: TNodeId, found: TypeId, pt: TypeId) -> bool {
-        let Type::Constant(tag, bits) = *self.u.types().get(found) else {
-            return !matches!(self.u.types().get(found), Type::Str(_)) && self.constant_of(tree).is_some();
+        let Type::Constant(tag, bits) = *self.u.ty(found) else {
+            return !matches!(self.u.ty(found), Type::Str(_)) && self.constant_of(tree).is_some();
         };
         let Some(c) = of_type(tag, bits).filter(is_numeric) else { return false };
         self.class_bound(pt).is_none() || self.convert_constant(&c, pt).is_some()

@@ -10,7 +10,7 @@ use crate::tpd::TNodeId;
 use crate::typer::Typer;
 use crate::typer::small_tuples::MAX_TUPLE_ARITY;
 use syntax::ast::constant::Constant;
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 impl MirrorSynthesis {
     /// Synthesizes the mirror of a tuple such as `(Int, String)` with element types `elems`, or of
@@ -22,7 +22,7 @@ impl MirrorSynthesis {
         elems: &[TypeId],
         names: Option<&[String]>,
     ) -> Result<Option<TNodeId>, &'static str> {
-        if matches!(t.u.types().get(self.formal.mirrored), Type::Lambda { .. }) {
+        if t.u.lambda(self.formal.mirrored).is_some() {
             return Err("Mirror of a tuple type lambda");
         }
         let labels: Vec<String> = match names {

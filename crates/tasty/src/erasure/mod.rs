@@ -45,23 +45,21 @@ pub enum Erased {
     Value(String, Box<Erased>),
 }
 
-const OBJECT: &str = "java.lang.Object";
-
 fn object() -> Erased {
-    Erased::Class(OBJECT.into())
+    Erased::Class(crate::defn::OBJECT.into())
 }
 
 impl Universe {
     /// The erasure of type `t`.
     pub fn erase(&mut self, t: TypeId) -> Erased {
-        match self.types().get(t).clone() {
+        match *self.ty(t) {
             Type::Sym(Some(p), s) => self.erase_member(p, s),
             Type::Sym(_, s) => self.erase_symbol(s),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => self.erase_member(p, s),
-                None => match self.refinement_named(p, &n) {
+                None => match self.refinement_named(p, n) {
                     Some(info) => self.erase(info),
-                    None => match self.unresolved_class(p, &n) {
+                    None => match self.unresolved_class(p, self.name(n)) {
                         Some(full) => special(&full).unwrap_or(Erased::Class(full)),
                         None => object(),
                     },
@@ -69,15 +67,18 @@ impl Universe {
             },
             Type::TermRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => self.erase_symbol(s),
-                None => match self.term_refinement_named(p, &n) {
-                    Some(info) => match *self.types().get(info) {
+                None => match self.term_refinement_named(p, n) {
+                    Some(info) => match *self.ty(info) {
                         Type::ByName(r) => self.erase(r),
                         _ => self.erase(info),
                     },
                     None => object(),
                 },
             },
-            Type::Applied(tycon, args) => self.erase_applied(tycon, &args),
+            Type::Applied(tycon, args) => {
+                let args = self.types_of(args).to_vec();
+                self.erase_applied(tycon, &args)
+            }
             Type::This(c)
             | Type::Alias(c)
             | Type::Bounds(_, c)
@@ -111,7 +112,7 @@ impl Universe {
         if self.symbol(c).flags.has(TRAIT) {
             return None;
         }
-        let any_val = self.builtins().any_val?;
+        let any_val = self.defn().any_val?;
         if !self.parents(c).into_iter().any(|p| self.class_symbol(p) == Some(any_val)) {
             return None;
         }
@@ -142,12 +143,13 @@ impl Universe {
     /// The qualified name of a path the universe cannot resolve, and whether it ends in a class
     /// or object (a capitalized term) rather than a package.
     fn path_name(&self, t: TypeId) -> Option<(String, bool)> {
-        match self.types().get(t) {
-            Type::Package(pkg) => Some((self.full_name(*pkg), false)),
-            Type::PackageName(pkg) => Some((pkg.clone(), false)),
+        match *self.ty(t) {
+            Type::Package(pkg) => Some((self.full_name(pkg), false)),
+            Type::PackageName(pkg) => Some((self.name(pkg).to_owned(), false)),
             Type::TermRef(p, n) => {
-                let (path, in_class) = self.path_name(*p)?;
+                let (path, in_class) = self.path_name(p)?;
                 let sep = if in_class { '$' } else { '.' };
+                let n = self.name(n);
                 Some((format!("{path}{sep}{n}"), n.starts_with(char::is_uppercase)))
             }
             _ => None,
@@ -156,12 +158,12 @@ impl Universe {
 
     /// The qualified name of the class `t` refers to, if it names one.
     fn class_name(&mut self, t: TypeId) -> Option<String> {
-        match self.types().get(t).clone() {
+        match *self.ty(t) {
             Type::Sym(_, s) if self.symbol(s).kind == Kind::Class => Some(self.full_name(s)),
             Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) if self.symbol(s).kind == Kind::Class => Some(self.full_name(s)),
                 Some(_) => None,
-                None => self.unresolved_class(p, &n),
+                None => self.unresolved_class(p, self.name(n)),
             },
             _ => None,
         }

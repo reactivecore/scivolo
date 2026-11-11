@@ -93,8 +93,8 @@ impl Typer<'_> {
         if a == b {
             return Some(true);
         }
-        let (Type::Applied(_, xs), Type::Applied(_, ys)) =
-            (self.u.types().get(a).clone(), self.u.types().get(b).clone())
+        let (Some(xs), Some(ys)) =
+            (self.u.applied(a).map(|(_, xs)| xs.to_vec()), self.u.applied(b).map(|(_, ys)| ys.to_vec()))
         else {
             return None;
         };
@@ -117,7 +117,7 @@ impl Typer<'_> {
 
     /// The class that type `t` refers to without arguments.
     fn class_ref(&mut self, t: TypeId) -> Option<SymbolId> {
-        let s = match *self.u.types().get(t) {
+        let s = match *self.u.ty(t) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.u.resolve_ref(t)?,
             _ => return None,

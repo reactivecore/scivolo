@@ -10,7 +10,7 @@ use crate::definitions::applied;
 use crate::phases::eval_once::{eval_once, is_stable_path};
 use crate::phases::tree_copy::{Copier, copy};
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A value evaluated once (dotty's `evalOnce`): the expression itself if it is idempotent, else
@@ -140,7 +140,7 @@ pub fn empty_tuple(l: &mut Lower) -> Option<TNodeId> {
 /// `qual.m`, applied to no arguments if `m` is a method (dotty's `ensureApplied`).
 pub fn select_applied(l: &mut Lower, qual: TNodeId, m: SymbolId) -> TNodeId {
     let info = l.u.info(m);
-    if matches!(l.u.types().get(info), Type::Method { .. }) {
+    if l.u.method(info).is_some() {
         return l.call(qual, m, &[]);
     }
     let select = l.select(qual, m, Span::NONE);

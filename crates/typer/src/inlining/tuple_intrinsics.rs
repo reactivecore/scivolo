@@ -7,10 +7,9 @@
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{Binding, Kind, Type, TypeId};
+use tasty::defn::MAX_TUPLE_ARITY;
+use tasty::{Binding, Kind, NameId, Type, TypeId};
 
-/// The largest arity of a `TupleN` class.
-const MAX_TUPLE_ARITY: usize = 22;
 /// The largest number of tuple elements unrolled.
 const MAX_UNROLLED: usize = 1024;
 
@@ -50,11 +49,11 @@ impl Inlining<'_> {
     fn unrolled_tuple(&mut self, t: TypeId, depth: usize) -> Option<Vec<TypeId>> {
         let depth = depth.checked_sub(1)?;
         let d = self.u.dealias(t);
-        if let Type::Match { .. } = self.u.types().get(d) {
+        if let Type::Match { .. } = *self.u.ty(d) {
             let n = self.u.try_normalize(d)?;
             return self.unrolled_tuple(n, depth);
         }
-        if let Type::Applied(tycon, args) = self.u.types().get(d).clone() {
+        if let Some((tycon, args)) = self.u.applied(d).map(|(c, a)| (c, a.to_vec())) {
             let name = self.u.class_symbol(tycon).map(|c| self.u.full_name(c));
             return match name.as_deref() {
                 Some(n) if n == format!("scala.Tuple{}", args.len()) => Some(args),
@@ -103,10 +102,10 @@ impl Inlining<'_> {
         let Some(Binding { binder, params, result, .. }) = self.u.poly(info) else {
             return Err(missing);
         };
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let method =
             crate::typer::type_apply::instantiate_poly(self.u, result, (binder, &names), &types, Some(apply));
-        let Type::Method { result: applied, .. } = *self.u.types().get(method) else { return Err(missing) };
+        let Some(applied) = self.u.method(method).map(|m| m.result) else { return Err(missing) };
         let targs: Vec<TNodeId> = types
             .iter()
             .map(|&t| self.tpd.node(T::TypeTree { inferred: false }, at, Some(t), None))
@@ -128,7 +127,7 @@ impl Inlining<'_> {
         let apply =
             self.u.decl(module_class, "apply").ok().and_then(|d| d.first().copied()).ok_or(missing)?;
         let info = self.u.info(apply);
-        let Type::Method { result, .. } = *self.u.types().get(info) else { return Err(missing) };
+        let Some(result) = self.u.method(info).map(|m| m.result) else { return Err(missing) };
         let (Some(pair), Some(empty)) =
             (self.scala_member("*:", Kind::Class), self.scala_member("EmptyTuple", Kind::Val))
         else {
@@ -140,7 +139,7 @@ impl Inlining<'_> {
         let apply_ref = self.u.intern_type(Type::Sym(Some(module_ref), apply));
         let name = self.term_name(apply);
         let fun = self.tpd.node(T::Select { qualifier, name }, at, Some(apply_ref), Some(apply));
-        let object = self.u.builtins().object;
+        let object = self.u.defn().object;
         let object = crate::defn::type_ref(self.u, object);
         let mut cast = Vec::with_capacity(elems.len());
         for &e in elems {
@@ -158,7 +157,7 @@ impl Inlining<'_> {
         let mut chain = self.u.intern_type(Type::Sym(None, empty));
         for &e in elems.iter().rev() {
             let t = self.tpd.tpe(e);
-            chain = self.u.intern_type(Type::Applied(pair, vec![t, chain]));
+            chain = self.u.intern_applied(pair, &[t, chain]);
         }
         self.cast(call, chain)
     }
@@ -167,6 +166,6 @@ impl Inlining<'_> {
     fn repeated_object(&mut self, object: TypeId) -> Option<TypeId> {
         let class = self.scala_member("<repeated>", Kind::Class)?;
         let class = crate::defn::type_ref(self.u, class);
-        Some(self.u.intern_type(Type::Applied(class, vec![object])))
+        Some(self.u.intern_applied(class, &[object]))
     }
 }

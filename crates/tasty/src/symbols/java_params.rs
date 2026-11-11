@@ -18,16 +18,21 @@ impl Universe {
     }
 
     fn positional_params(&mut self, t: TypeId) -> TypeId {
-        match self.types().get(t).clone() {
+        match *self.ty(t) {
             Type::Poly { binder, params, result } => {
                 let result = self.positional_params(result);
                 self.intern_type(Type::Poly { binder, params, result })
             }
             Type::Method { binder, params, result, implicit, contextual } => {
-                let params =
-                    params.into_iter().enumerate().map(|(i, (_, p))| (format!("x${i}"), p)).collect();
+                let params: Vec<_> = self
+                    .params_of(params)
+                    .to_vec()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, (_, p))| (self.intern_name(&format!("x${i}")), p))
+                    .collect();
                 let result = self.positional_params(result);
-                self.intern_type(Type::Method { binder, params, result, implicit, contextual })
+                self.intern_method(binder, &params, result, implicit, contextual)
             }
             _ => t,
         }

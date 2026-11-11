@@ -10,13 +10,14 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
+use tasty::defn::JAVA_ENUM;
 use tasty::tags::{ENUM, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether class `c` derives from `java.lang.Enum`.
 pub fn derives_from_java_enum(l: &mut Lower, c: SymbolId) -> bool {
-    l.u.linearization(c).into_iter().any(|b| l.u.full_name(b) == "java.lang.Enum")
+    l.u.linearization(c).into_iter().any(|b| l.u.full_name(b) == JAVA_ENUM)
 }
 
 /// Completes the enum classes of `classes` of unit `root` that extend `java.lang.Enum`, then the
@@ -71,7 +72,7 @@ fn complete_enum_class(l: &mut Lower, td: TNodeId) -> Result<()> {
     let args: Vec<TNodeId> = added.iter().map(|&p| l.ident(p, Span::NONE)).collect();
     let enum_parent = parents.into_iter().find(|&p| {
         let called = called_class(l, p);
-        called.is_some_and(|c| l.u.full_name(c) == "java.lang.Enum")
+        called.is_some_and(|c| l.u.full_name(c) == JAVA_ENUM)
     });
     let Some(parent) = enum_parent else {
         return unsupported(l.tpd.span(td), "an enum extending java.lang.Enum through another class");
@@ -104,7 +105,7 @@ fn complete_value_class(l: &mut Lower, root: TNodeId, td: TNodeId, class: Symbol
     let Some(enum_class) = called_class(l, parent) else {
         return unsupported(span, "an enum value without a call of its enum's constructor");
     };
-    let ctor = l.u.decl(enum_class, "<init>").unwrap_or_default().into_iter().next();
+    let ctor = l.u.decls_named(enum_class, "<init>").into_iter().next();
     let info = ctor.map(|c| l.u.info(c));
     add_args(l, parent, &args, info);
     Ok(())
@@ -152,11 +153,9 @@ fn add_args(l: &mut Lower, call: TNodeId, args: &[TNodeId], info: Option<TypeId>
 
 /// The method type of the last clause of method type `t`.
 fn last_clause(l: &Lower, t: TypeId) -> TypeId {
-    match *l.u.types().get(t) {
+    match *l.u.ty(t) {
         Type::Poly { result, .. } => last_clause(l, result),
-        Type::Method { result, .. } if matches!(l.u.types().get(result), Type::Method { .. }) => {
-            last_clause(l, result)
-        }
+        Type::Method { result, .. } if l.u.method(result).is_some() => last_clause(l, result),
         _ => t,
     }
 }
@@ -164,21 +163,21 @@ fn last_clause(l: &Lower, t: TypeId) -> TypeId {
 /// Method or polymorphic type `t` with `_$name: String, _$ordinal: Int` added to its last
 /// clause (dotty's `addConstrParams`).
 fn with_name_and_ordinal(l: &mut Lower, t: TypeId) -> TypeId {
-    match l.u.types().get(t).clone() {
+    match *l.u.ty(t) {
         Type::Poly { binder, params, result } => {
             let result = with_name_and_ordinal(l, result);
             l.u.intern_type(Type::Poly { binder, params, result })
         }
         Type::Method { binder, params, result, implicit, contextual } => {
-            if matches!(l.u.types().get(result), Type::Method { .. }) {
+            if l.u.method(result).is_some() {
                 let result = with_name_and_ordinal(l, result);
                 return l.u.intern_type(Type::Method { binder, params, result, implicit, contextual });
             }
             let string = l.u.class_ref("java.lang.String");
             let int = l.u.class_ref("scala.Int");
-            let mut params = params;
-            params.extend([("_$name".to_owned(), string), ("_$ordinal".to_owned(), int)]);
-            l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+            let mut params = l.u.params_of(params).to_vec();
+            params.extend([(l.u.intern_name("_$name"), string), (l.u.intern_name("_$ordinal"), int)]);
+            l.u.intern_method(binder, &params, result, implicit, contextual)
         }
         _ => t,
     }

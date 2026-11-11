@@ -22,10 +22,11 @@ impl Host {
     ) -> Fallible<TNodeId> {
         let fun = self.selected(qual, m, targs)?;
         let info = self.u.widen(self.tpd.tpe(fun));
-        let Type::Method { params, .. } = self.u.types().get(info).clone() else {
+        let Type::Method { params, .. } = *self.u.ty(info) else {
             return self.reflect().apply(fun, terms);
         };
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let params = self.u.params_of(params).to_vec();
+        let names: Vec<String> = params.iter().map(|&(n, _)| self.u.name(n).to_owned()).collect();
         let named = |h: &Host, t: TNodeId| matches!(h.tpd.tree(t), T::NamedArg { .. });
         if terms.len() == names.len() && !terms.iter().any(|&t| named(self, t)) {
             return self.reflect().apply(fun, terms);
@@ -55,8 +56,8 @@ impl Host {
                 qual = self.lifted_prefix(qual, &mut defs, complex)?;
             }
             let mut arg_defs = Vec::new();
-            for (i, (arg, (name, p))) in typed.iter_mut().zip(&params).enumerate() {
-                if !self.is_lifted_param(*p) {
+            for (i, (arg, name)) in typed.iter_mut().zip(&names).enumerate() {
+                if !self.is_lifted_param(params[i].1) {
                     continue;
                 }
                 let prefix = if name.contains('$') { "" } else { name.as_str() };
@@ -119,7 +120,7 @@ impl Host {
         let getter = getter.ok_or("Select.overloaded without an argument of a parameter without default")?;
         let sel = self.selected(qual, getter, targs)?;
         let info = self.u.widen(self.tpd.tpe(sel));
-        match self.u.types().get(info) {
+        match *self.u.ty(info) {
             Type::Poly { .. } | Type::Method { .. } => {
                 Err("Select.overloaded of a default getter with parameters")
             }
@@ -185,7 +186,7 @@ impl Host {
     /// Whether the argument of a parameter of type `p` may be lifted: not by-name, not
     /// `@InlineParam`.
     fn is_lifted_param(&mut self, p: TypeId) -> bool {
-        match *self.u.types().get(p) {
+        match *self.u.ty(p) {
             Type::ByName(_) => false,
             Type::Annotated(_, annot) => self
                 .u

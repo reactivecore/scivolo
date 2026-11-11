@@ -24,7 +24,7 @@ impl Universe {
         let Some(owner) = self.symbol(m).owner else { return false };
         let name = self.symbol(m).name.as_str();
         let full = self.full_name(owner);
-        let builtins = self.builtins();
+        let builtins = self.defn();
         crate::PRIMITIVE_VALUE_CLASSES.contains(&full.as_str())
             || full == "java.lang.String"
             || owner == builtins.any && PURE_ANY_METHODS.contains(&name)
@@ -34,7 +34,7 @@ impl Universe {
     /// Whether `m` is one of the members `enter` gives `Object`, which are Scala ones.
     pub fn is_entered_object_member(&self, m: SymbolId) -> bool {
         let s = self.symbol(m);
-        s.owner == Some(self.builtins().object) && matches!(s.name.as_str(), "eq" | "ne" | "synchronized")
+        s.owner == Some(self.defn().object) && matches!(s.name.as_str(), "eq" | "ne" | "synchronized")
     }
 }
 
@@ -57,17 +57,17 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     let this_any = u.types.intern(Type::This(any_ref));
     let get_class_bounds = u.types.intern(Type::Bounds(this_any, ANY));
     poly(u, any, "getClass", get_class_bounds, |u, x0| {
-        let x0 = u.types.intern(x0.clone());
+        let x0 = u.types.intern(*x0);
         let bounds = u.types.intern(Type::Bounds(NOTHING, x0));
-        let result = u.types.intern(Type::Applied(class, vec![bounds]));
+        let result = u.types.intern_applied(class, &[bounds]);
         let binder = u.fresh_binder();
-        u.types.intern(Type::Method { binder, params: vec![], result, implicit: false, contextual: false })
+        u.types.intern_method(binder, &[], result, false, false)
     });
     poly(u, any, "isInstanceOf", any_bounds, |_, _| boolean);
     let type_test = poly(u, any, "$isInstanceOf$", any_bounds, |_, _| boolean);
     u.set_flags(type_test, u.symbol(type_test).flags.with(ARTIFACT));
-    poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(x0.clone()));
-    let type_cast = poly(u, any, "$asInstanceOf$", any_bounds, |u, x0| u.types.intern(x0.clone()));
+    poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(*x0));
+    let type_cast = poly(u, any, "$asInstanceOf$", any_bounds, |u, x0| u.types.intern(*x0));
     u.set_flags(type_cast, u.symbol(type_cast).flags.with(ARTIFACT));
     let hidden: Vec<SymbolId> = (u.symbol(object).decls.iter().copied())
         .filter(|&d| HIDDEN.contains(&u.symbol(d).name.as_str()))
@@ -76,15 +76,10 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     method(u, object, "eq", &[("x$0", object_type)], boolean, &[FINAL, INFIX]);
     method(u, object, "ne", &[("x$0", object_type)], boolean, &[FINAL, INFIX]);
     poly(u, object, "synchronized", any_bounds, |u, x0| {
-        let t = u.types.intern(x0.clone());
+        let t = u.types.intern(*x0);
         let binder = u.fresh_binder();
-        u.types.intern(Type::Method {
-            binder,
-            params: vec![("x$0".into(), t)],
-            result: t,
-            implicit: false,
-            contextual: false,
-        })
+        let x0 = u.types.intern_name("x$0");
+        u.types.intern_method(binder, &[(x0, t)], t, false, false)
     });
     if u.symbol(object).decls.iter().all(|&d| u.symbol(d).name != "clone") {
         method(u, object, "clone", &[], object_type, &[PROTECTED]);
@@ -101,9 +96,13 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
 pub fn class_type(u: &mut Universe, pkg: &str, name: &str) -> TypeId {
     let prefix = match u.package(pkg) {
         Some(p) => u.types.intern(Type::Package(p)),
-        None => u.types.intern(Type::PackageName(pkg.into())),
+        None => {
+            let pkg = u.types.intern_name(pkg);
+            u.types.intern(Type::PackageName(pkg))
+        }
     };
-    u.types.intern(Type::TypeRef(prefix, name.into()))
+    let name = u.types.intern_name(name);
+    u.types.intern(Type::TypeRef(prefix, name))
 }
 
 pub fn method(
@@ -115,8 +114,8 @@ pub fn method(
     flags: &[u8],
 ) {
     let binder = u.fresh_binder();
-    let params = params.iter().map(|&(n, t)| (n.to_owned(), t)).collect();
-    let info = u.types.intern(Type::Method { binder, params, result, implicit: false, contextual: false });
+    let params: Vec<_> = params.iter().map(|&(n, t)| (u.types.intern_name(n), t)).collect();
+    let info = u.types.intern_method(binder, &params, result, false, false);
     let s = synthetic(u, owner, name, Kind::Def, flags);
     u.infos.insert(s, info);
 }
@@ -139,7 +138,8 @@ fn poly(
     let binder = u.fresh_binder();
     let x0 = Type::Param(binder, 0);
     let result = result(u, &x0);
-    let info = u.types.intern(Type::Poly { binder, params: vec![("X0".into(), bounds)], result });
+    let params = [(u.types.intern_name("X0"), bounds)];
+    let info = u.types.intern_poly(binder, &params, result);
     let s = synthetic(u, owner, name, Kind::Def, &[FINAL]);
     u.infos.insert(s, info);
     s

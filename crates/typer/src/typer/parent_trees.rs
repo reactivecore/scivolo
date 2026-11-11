@@ -104,7 +104,7 @@ impl Typer<'_> {
         let called_trait = |t: &mut Self| t.trait_takes_params(psym) && !t.super_derives_from(cls, psym);
         if self.u.is_trait(cls)
             || self.u.is_trait(psym) && !called_trait(self)
-            || self.u.full_name(cls) == "scala.AnyVal"
+            || self.u.full_name(cls) == crate::defn::ANY_VAL
         {
             return parent;
         }

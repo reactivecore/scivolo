@@ -19,15 +19,16 @@ impl Typer<'_> {
         let apply_selected = ctx.mode.is(Mode::APPLY_QUALIFIER);
         let ctx = ctx.with_mode(ctx.mode.without(Mode::APPLY_QUALIFIER));
         let Some(tpe) = self.tpd.get(tree).tpe else { return tree };
-        if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) {
+        if matches!(self.u.ty(tpe), Type::Error) || matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) {
             return tree;
         }
         let span = self.tpd.span(tree);
         let parent = ctx.mode.is(Mode::PARENT_TYPE);
-        let type_member = matches!(*self.u.types().get(tpe), Type::Sym(_, s) if self.u.is_type_symbol(s)
-            && (!self.u.is_class(s) || parent && self.is_pending_plain_class(s)));
+        let type_member = self.u.sym_of(tpe).is_some_and(|s| {
+            self.u.is_type_symbol(s) && (!self.u.is_class(s) || parent && self.is_pending_plain_class(s))
+        });
         let info = if type_member { None } else { self.method_info(tpe) };
-        let method = info.or(Some(tpe)).map(|i| self.u.types().get(i).clone());
+        let method = info.or(Some(tpe)).map(|i| *self.u.ty(i));
         if let Some(Type::Poly { .. }) = method {
             return match self.with_type_vars(tree) {
                 Ok(applied) => self.adapt(applied, pt, ctx),
@@ -65,7 +66,9 @@ impl Typer<'_> {
                     }
                 };
             }
-            if params.is_empty() && (self.is_constructor_ref(tree) || self.is_auto_applicable(tree)) {
+            if self.u.params_of(*params).is_empty()
+                && (self.is_constructor_ref(tree) || self.is_auto_applicable(tree))
+            {
                 let apply = self.build().apply(tree, &[], *result, span.to_synthetic());
                 self.fold_apply(apply);
                 self.settle_adapted(apply, pt, ctx);
@@ -113,7 +116,10 @@ impl Typer<'_> {
             Some(Err(what)) => self.unsupported_at(span, what),
             None => {}
         }
-        if self.u.class_symbol(pt).is_some_and(|c| c == self.defn.unit || self.u.full_name(c) == "scala.Unit")
+        if self
+            .u
+            .class_symbol(pt)
+            .is_some_and(|c| c == self.defn.unit || self.u.full_name(c) == crate::defn::UNIT)
         {
             self.check_unit_purity(tree);
             return self.discarded(tree, span);

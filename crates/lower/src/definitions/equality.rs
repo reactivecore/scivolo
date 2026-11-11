@@ -1,5 +1,5 @@
 use super::{java_class, java_static, member, package, type_ref};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, TypeId, Universe};
 
 /// What `==` on references and `##` call, and the classes whose instances may be boxed values.
 #[derive(Clone, Copy)]
@@ -59,6 +59,7 @@ impl Equality {
 /// The type of a method taking `params` named `x$0`… and returning `result`.
 pub fn method(u: &mut Universe, params: &[TypeId], result: TypeId) -> TypeId {
     let binder = u.fresh_binder();
-    let params = params.iter().enumerate().map(|(i, &t)| (format!("x${i}"), t)).collect();
-    u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false })
+    let params: Vec<_> =
+        params.iter().enumerate().map(|(i, &t)| (u.intern_name(&format!("x${i}")), t)).collect();
+    u.intern_method(binder, &params, result, false, false)
 }

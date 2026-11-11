@@ -28,13 +28,13 @@ pub fn applicable_to_proto(
     let tpe = t.u.intern_type(Type::Sym(prefix, alt));
     let info = t.method_info(tpe)?;
     let info = t.u.strip_poly(info);
-    let Type::Method { params, .. } = t.u.types().get(info).clone() else { return Some(false) };
+    let Some(params) = t.u.method(info).map(|m| m.params.to_vec()) else { return Some(false) };
     let repeated = params.last().is_some_and(|&(_, p)| t.repeated_param_elem(p).is_some());
     if repeated && args.len() > params.len() {
         return None;
     }
 
-    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+    let names: Vec<String> = params.into_iter().map(|(n, _)| t.u.name(n).to_owned()).collect();
     let Ok(aligned) = t.ordered_args(&args, &names) else { return Some(false) };
     let slots: Vec<Option<TypeId>> = aligned
         .iter()

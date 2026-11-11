@@ -13,14 +13,14 @@ use tasty::{Type, TypeId, TypeVars, Universe, VarId};
 /// are incomparable; a union `pat` that does not conform likewise by each operand.
 pub fn constrain_pattern(t: &mut Typer, pat: TypeId, sel: TypeId) -> Result<bool, &'static str> {
     let dealiased = t.dealiased(sel);
-    if let Type::Or(a, b, _) = *t.u.types().get(dealiased) {
+    if let Type::Or(a, b, _) = *t.u.ty(dealiased) {
         return constrain_either(t, (pat, a), (pat, b));
     }
     if t.conforms(pat, sel) {
         return Ok(true);
     }
     let dealiased = t.dealiased(pat);
-    match *t.u.types().get(dealiased) {
+    match *t.u.ty(dealiased) {
         Type::Or(a, b, _) => constrain_either(t, (a, sel), (b, sel)),
         _ => Ok(t.types().constrain_upcast(pat, sel)),
     }

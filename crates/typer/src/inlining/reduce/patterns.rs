@@ -33,7 +33,7 @@ impl Reducer<'_, '_> {
                 for b in extractor.unwrap_or_default() {
                     let mut occurs = false;
                     self.i.u.map_type(tpe, &mut |u, part| {
-                        occurs |= matches!(*u.types().get(part), Type::Sym(None, s) if s == b);
+                        occurs |= matches!(u.sym_ref(part), Some((None, s)) if s == b);
                         None
                     });
                     if occurs && !binds.contains(&b) {
@@ -90,10 +90,7 @@ impl Reducer<'_, '_> {
             T::Ident { .. } | T::Select { .. } => {
                 let tpe = self.i.tpd.tpe(pat);
                 let module = self.i.u.class_symbol(scrut).is_some_and(|c| self.i.u.is_module_class(c));
-                let prefix = match *self.i.u.types().get(scrut) {
-                    Type::Sym(Some(p), _) => Some(p),
-                    _ => None,
-                };
+                let prefix = self.i.u.sym_ref(scrut).and_then(|(p, _)| p);
                 let singleton_prefix = prefix.is_none_or(|p| self.is_singleton(p));
                 self.same_type(scrut, tpe)
                     || module && singleton_prefix && {
@@ -201,39 +198,33 @@ impl Reducer<'_, '_> {
     /// `t` widened through references to terms, not to modules and enum cases (dotty's
     /// `widenInlineScrutinee`).
     fn widen_inline_scrutinee(&mut self, mut t: TypeId) -> TypeId {
-        while let Type::Sym(_, s) = *self.i.u.types().get(t) {
+        while let Some(s) = self.i.u.sym_of(t) {
             let sym = self.i.u.symbol(s);
             let enum_case = sym.flags.has(ENUM) && sym.flags.has(CASE);
             if !sym.kind.is_term() || enum_case || self.i.u.is_module(s) {
                 return t;
             }
             let Some(next) = self.i.u.widen_once(t) else { return t };
-            t = match *self.i.u.types().get(next) {
-                Type::ByName(r) => r,
-                _ => next,
-            };
+            t = self.i.u.by_name(next).unwrap_or(next);
         }
         t
     }
 
     /// `t` widened through references to terms (dotty's `widenTermRefExpr`).
     fn widen_term_ref(&mut self, mut t: TypeId) -> TypeId {
-        while let Type::Sym(_, s) = *self.i.u.types().get(t) {
+        while let Some(s) = self.i.u.sym_of(t) {
             if !self.i.u.symbol(s).kind.is_term() {
                 return t;
             }
             let Some(next) = self.i.u.widen_once(t) else { return t };
-            t = match *self.i.u.types().get(next) {
-                Type::ByName(r) => r,
-                _ => next,
-            };
+            t = self.i.u.by_name(next).unwrap_or(next);
         }
         t
     }
 
     /// Whether `t` is a singleton type: a reference to a term, `this`, a constant or a package.
     fn is_singleton(&mut self, t: TypeId) -> bool {
-        match *self.i.u.types().get(t) {
+        match *self.i.u.ty(t) {
             Type::Sym(_, s) => self.i.u.symbol(s).kind.is_term(),
             Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::Package(_) | Type::Skolem(..) => true,
             _ => false,
@@ -255,8 +246,8 @@ impl Reducer<'_, '_> {
     /// `t` with the type variables bound so far replaced by their types.
     fn with_type_bindings(&mut self, t: TypeId) -> TypeId {
         let bindings = self.type_bindings.clone();
-        self.i.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => bindings.iter().find(|&&(b, _)| b == s).map(|&(_, to)| to),
+        self.i.u.map_type(t, &mut |u, part| match u.sym_ref(part) {
+            Some((None, s)) => bindings.iter().find(|&&(b, _)| b == s).map(|&(_, to)| to),
             _ => None,
         })
     }

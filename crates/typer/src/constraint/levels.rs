@@ -42,7 +42,7 @@ impl Constraint {
         let mut syms = Vec::new();
         let mut vars = Vec::new();
         u.map_type(t, &mut |u, part| {
-            match *u.types().get(part) {
+            match *u.ty(part) {
                 Type::Sym(_, s) => syms.push(s),
                 Type::Var(x) => vars.push(x),
                 _ => {}
@@ -63,7 +63,7 @@ impl Constraint {
 
     /// Whether `t` is a variable without instance.
     pub fn is_open_var(&self, u: &Universe, t: TypeId) -> bool {
-        matches!(*u.types().get(t), Type::Var(x) if self.vars[x.0 as usize].instance.is_none())
+        matches!(u.var(t), Some(x) if self.vars[x.0 as usize].instance.is_none())
     }
 
     /// A fresh variable made `at`, `x` instantiated to it, its bounds those of `x` without the
@@ -90,7 +90,7 @@ impl Constraint {
     pub fn avoid_in_bounds(&mut self, u: &mut Universe, t: TypeId) -> bool {
         let mut vars = Vec::new();
         u.map_type(t, &mut |u, part| {
-            if let Type::Var(x) = *u.types().get(part) {
+            if let Some(x) = u.var(part) {
                 vars.push(x);
             }
             None

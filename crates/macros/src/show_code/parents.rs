@@ -14,7 +14,7 @@ impl Code<'_> {
                 let T::Select { qualifier, .. } = self.tree_of(self.r(fun)) else { return false };
                 let T::New { tpt } = self.tree_of(self.r(qualifier)) else { return false };
                 let tpe = self.h.tpd.tpe(self.r(tpt));
-                self.h.u.class_symbol(tpe).is_some_and(|c| self.h.u.full_name(c) == "java.lang.Object")
+                self.h.u.is_class_named(tpe, tasty::defn::OBJECT)
             }
             T::Select { qualifier, name } if matches!(&*self.name(name), "Product" | "Serializable") => {
                 matches!(self.tree_of(qualifier), T::Select { qualifier: root, name }

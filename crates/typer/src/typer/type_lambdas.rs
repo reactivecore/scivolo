@@ -43,11 +43,11 @@ impl Typer<'_> {
             let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { continue };
             let info = self.type_def_info(rhs, lctx);
             self.u.set_info(s, info);
-            let Type::Bounds(lo, hi) = *self.u.types().get(info) else { continue };
+            let Some((lo, hi)) = self.u.bounds(info) else { continue };
             if self.refers_to(lo, &[s]) {
                 return self.unsupported(p, "lower bound referring to its type parameter");
             }
-            if let Type::Applied(tycon, _) = *self.u.types().get(hi)
+            if let Some((tycon, _)) = self.u.applied(hi)
                 && self.refers_to(tycon, &syms)
                 && self.refers_to(hi, &[s])
             {
@@ -58,21 +58,21 @@ impl Typer<'_> {
         let body = self.typed_type(body, lctx);
         let binder = self.syms.fresh_binder();
         let refs = |u: &mut tasty::Universe, t: TypeId| over_params(u, &syms, binder, t);
-        let lambda_params: Vec<(String, TypeId)> = syms
+        let lambda_params: Vec<(tasty::NameId, TypeId)> = syms
             .iter()
             .map(|&s| {
                 let bounds = self.u.info(s);
-                (self.u.symbol(s).name.clone(), refs(self.u, bounds))
+                (self.u.interned_name(s), refs(self.u, bounds))
             })
             .collect();
         let body_tpe = self.tpd.tpe(body);
         let lambda = |u: &mut tasty::Universe, t: TypeId| {
             let result = refs(u, t);
-            u.intern_type(Type::Lambda { binder, params: lambda_params.clone(), result })
+            u.intern_lambda(binder, &lambda_params, result)
         };
-        let bounds = matches!(self.u.types().get(body_tpe), Type::Bounds(..));
+        let bounds = self.u.bounds(body_tpe).is_some();
         let opaque = |s: SymbolId| self.syms.flags.get(&s).is_some_and(|fl| fl.is(f::OPAQUE));
-        let match_alias = matches!(self.u.types().get(body_tpe), Type::Match { .. });
+        let match_alias = matches!(self.u.ty(body_tpe), Type::Match { .. });
         let declares = type_def.is_some_and(|s| match_alias || opaque(s));
         if bounds || declares || syms.iter().any(|&s| self.u.has_variance(s)) {
             self.u.declare_variances(binder, &syms);
@@ -80,14 +80,14 @@ impl Typer<'_> {
         if bounds && self.leaks_private_type(owner, body_tpe, &syms) {
             return self.unsupported(id, "private type in the bounds of a higher-kinded type");
         }
-        let tpe = match *self.u.types().get(body_tpe) {
-            Type::Bounds(lo, hi) => {
-                let nothing = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
+        let tpe = match self.u.bounds(body_tpe) {
+            Some((lo, hi)) => {
+                let nothing = self.u.class_symbol(lo) == Some(self.u.defn().nothing);
                 let lo = if nothing { lo } else { lambda(self.u, lo) };
                 let hi = lambda(self.u, hi);
                 self.u.intern_type(Type::Bounds(lo, hi))
             }
-            _ => lambda(self.u, body_tpe),
+            None => lambda(self.u, body_tpe),
         };
         let tparams = self.tpd.list(&typed_params);
         self.tpd.node(T::LambdaTypeTree { tparams, body }, self.ast.span(id), Some(tpe), None)
@@ -104,7 +104,7 @@ impl Typer<'_> {
         let mut leaks = false;
         for t in infos {
             self.u.map_type(t, &mut |u, x| {
-                if let Type::Sym(_, s) = *u.types().get(x) {
+                if let Some(s) = u.sym_of(x) {
                     leaks |= u.is_type_symbol(s) && u.symbol(s).kind != Kind::TypeParam && private(s);
                 }
                 None
@@ -116,17 +116,16 @@ impl Typer<'_> {
     /// The type lambda that projection `P#A` of a type alias `A` of a class stands for, as seen
     /// from `P`.
     pub fn projected_alias(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Sym(Some(pre), a) = *self.u.types().get(t) else { return None };
+        let Some((Some(pre), a)) = self.u.sym_ref(t) else { return None };
         let owner = self.u.symbol(a).owner?;
         self.complete(a);
         let info = self.u.info(a);
-        let lambda = match *self.u.types().get(info) {
+        let lambda = match *self.u.ty(info) {
             Type::Alias(lambda) => lambda,
-            Type::Lambda { result, .. } if !matches!(self.u.types().get(result), Type::Bounds(..)) => info,
+            Type::Lambda { result, .. } if self.u.bounds(result).is_none() => info,
             _ => return None,
         };
-        matches!(self.u.types().get(lambda), Type::Lambda { .. })
-            .then(|| self.u.as_seen_from(lambda, pre, owner))
+        self.u.lambda(lambda).is_some().then(|| self.u.as_seen_from(lambda, pre, owner))
     }
 
     /// The type definition whose right-hand side is `rhs`: an alias or abstract type being
@@ -146,11 +145,9 @@ impl Typer<'_> {
 
 /// `t` with references to `params` replaced by the parameters of lambda `binder`.
 pub fn over_params(u: &mut tasty::Universe, params: &[SymbolId], binder: tasty::Binder, t: TypeId) -> TypeId {
-    u.map_type(t, &mut |u, x| match *u.types().get(x) {
-        Type::Sym(_, s) => {
-            let i = params.iter().position(|&p| p == s)?;
-            Some(u.intern_type(Type::Param(binder, i as u32)))
-        }
-        _ => None,
+    u.map_type(t, &mut |u, x| {
+        let s = u.sym_of(x)?;
+        let i = params.iter().position(|&p| p == s)?;
+        Some(u.intern_type(Type::Param(binder, i as u32)))
     })
 }

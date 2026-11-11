@@ -45,10 +45,8 @@ impl Typer<'_> {
     }
 
     fn check_info(&mut self, c: &mut NonCyclic, info: TypeId) -> Result<(), Cycle> {
-        match *self.u.types().get(info) {
-            Type::Lambda { result, .. }
-                if matches!(self.u.types().get(result), Type::Bounds(..) | Type::Alias(_)) =>
-            {
+        match *self.u.ty(info) {
+            Type::Lambda { result, .. } if matches!(self.u.ty(result), Type::Bounds(..) | Type::Alias(_)) => {
                 self.check_info(c, result)
             }
             Type::Lambda { result, .. } => {
@@ -112,7 +110,7 @@ impl Typer<'_> {
     }
 
     fn check_type(&mut self, c: &mut NonCyclic, t: TypeId) -> Result<(), Cycle> {
-        match self.u.types().get(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(pre, s) if self.u.is_type_symbol(s) => self.check_type_ref(c, t, pre, s),
             Type::TypeRef(pre, _) => match self.u.resolve_ref(t) {
                 Some(s) => self.check_type_ref(c, t, Some(pre), s),
@@ -133,7 +131,7 @@ impl Typer<'_> {
             Type::Match { bound, scrutinee, cases } => {
                 self.check_part(c, bound)?;
                 self.at_variance(c, 0, |t, c| t.check_part(c, scrutinee))?;
-                cases.into_iter().try_for_each(|case| self.check_part(c, case))
+                self.u.types_of(cases).to_vec().into_iter().try_for_each(|case| self.check_part(c, case))
             }
             Type::MatchCase(pat, body) => {
                 let nested = c.nested_ok;
@@ -142,13 +140,13 @@ impl Typer<'_> {
             }
             Type::Applied(tycon, args) => {
                 self.check_part(c, tycon)?;
-                let tycon_sym = match *self.u.types().get(tycon) {
+                let tycon_sym = match *self.u.ty(tycon) {
                     Type::Sym(_, s) => Some(s),
                     Type::TypeRef(..) => self.u.resolve_ref(tycon),
                     _ => None,
                 };
                 let signs = tycon_sym.map(|s| self.u.variances(s));
-                for (i, arg) in args.into_iter().enumerate() {
+                for (i, arg) in self.u.types_of(args).to_vec().into_iter().enumerate() {
                     let sign = signs.as_ref().and_then(|v| v.get(i)).copied().unwrap_or(0);
                     let nested = c.nested_ok || c.variance != 0 && c.variance != sign;
                     let (cycle_ok, variance) = (c.nested_ok, c.variance * sign);
@@ -216,7 +214,7 @@ impl Typer<'_> {
     fn is_interesting(&mut self, sym: SymbolId, pre: Option<TypeId>) -> bool {
         let Some(pre) = pre else { return true };
         let owner = self.u.symbol(sym).owner;
-        match self.u.types().get(pre).clone() {
+        match *self.u.ty(pre) {
             Type::NoPrefix => true,
             Type::This(cls) => {
                 let (Some(cls), Some(owner)) = (self.u.class_symbol(cls), owner) else { return false };

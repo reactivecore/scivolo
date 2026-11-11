@@ -14,10 +14,10 @@ impl Cmp<'_> {
         if self.matching_apply(a, tycon, args, &variances) || self.compare_compiletime(b, a, true) {
             return true;
         }
-        match *self.u.types().get(tycon) {
+        match *self.u.ty(tycon) {
             Type::Var(v) => match self.vars.instance(v) {
                 Some(t) => {
-                    let applied = self.u.intern_type(Type::Applied(t, args.to_vec()));
+                    let applied = self.u.intern_applied(t, args);
                     self.recur(a, applied)
                 }
                 None => {
@@ -52,7 +52,7 @@ impl Cmp<'_> {
                 _ => self.fourth_try(a, b),
             },
             Type::Annotated(inner, _) => {
-                let applied = self.u.intern_type(Type::Applied(inner, args.to_vec()));
+                let applied = self.u.intern_applied(inner, args);
                 self.recur(a, applied)
             }
             Type::Lambda { .. } => {
@@ -68,9 +68,10 @@ impl Cmp<'_> {
     /// `args2` (dotty's `isMatchingApply`).
     fn matching_apply(&mut self, a: TypeId, tycon2: TypeId, args2: &[TypeId], variances: &[i8]) -> bool {
         let widened = self.u.widen(a);
-        let Type::Applied(mut tycon1, args1) = self.u.types().get(widened).clone() else { return false };
+        let Some((mut tycon1, args1)) = self.u.applied(widened) else { return false };
+        let args1 = args1.to_vec();
         loop {
-            match *self.u.types().get(tycon1) {
+            match *self.u.ty(tycon1) {
                 Type::Var(v) => match self.vars.instance(v) {
                     Some(t) => tycon1 = t,
                     None => {
@@ -103,10 +104,10 @@ impl Cmp<'_> {
         if self.compare_compiletime(a, b, false) {
             return true;
         }
-        match *self.u.types().get(tycon) {
+        match *self.u.ty(tycon) {
             Type::Var(v) => {
                 let upper = match self.vars.instance(v) {
-                    Some(t) => self.u.intern_type(Type::Applied(t, args.to_vec())),
+                    Some(t) => self.u.intern_applied(t, args),
                     None if self.var_constructor_below(tycon, args, b) => return true,
                     None => {
                         let (_, hi) = self.vars.bounds(v);
@@ -128,7 +129,7 @@ impl Cmp<'_> {
                 _ => false,
             },
             Type::Annotated(inner, _) => {
-                let applied = self.u.intern_type(Type::Applied(inner, args.to_vec()));
+                let applied = self.u.intern_applied(inner, args);
                 self.recur(applied, b)
             }
             Type::Lambda { .. } => {
@@ -161,19 +162,19 @@ impl Cmp<'_> {
 
     /// `tycon[args]` for alias `tycon` of `alias`, a refinement's type lambda if not a symbol's.
     fn expanded(&mut self, tycon: TypeId, alias: TypeId, args: &[TypeId]) -> Option<TypeId> {
-        let lambda = matches!(self.u.types().get(alias), Type::Lambda { .. });
+        let lambda = self.u.lambda(alias).is_some();
         self.u.expand(tycon, args).or_else(|| lambda.then(|| self.apply(alias, args)))
     }
 
     /// `t` applied to `args`: a type lambda's body, `t` itself if it takes no arguments.
     pub fn apply(&mut self, t: TypeId, args: &[TypeId]) -> TypeId {
-        match self.u.types().get(t).clone() {
-            Type::Lambda { binder, params, result } => {
-                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        match self.u.lambda(t) {
+            Some(l) => {
+                let (binder, names, result) = (l.binder, l.names(), l.result);
                 self.u.subst(result, binder, &names, args)
             }
-            _ if args.is_empty() || t == NOTHING || t == ANY => t,
-            _ => self.u.intern_type(Type::Applied(t, args.to_vec())),
+            None if args.is_empty() || t == NOTHING || t == ANY => t,
+            None => self.u.intern_applied(t, args),
         }
     }
 }

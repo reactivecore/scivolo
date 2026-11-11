@@ -15,11 +15,11 @@ impl Universe {
         }
         let mut string = None;
         self.map_type(t, &mut |u, part| {
-            if !matches!(u.types().get(part), Type::Sym(..) | Type::TypeRef(..)) {
+            if !matches!(u.ty(part), Type::Sym(..) | Type::TypeRef(..)) {
                 return None;
             }
             let s = u.referenced(part)?;
-            let predef = u.symbol(s).owner.is_some_and(|o| u.full_name(o) == "scala.Predef$");
+            let predef = u.symbol(s).owner.is_some_and(|o| u.full_name(o) == super::defn::PREDEF_CLASS);
             if u.symbol(s).name != "String" || !predef {
                 return None;
             }

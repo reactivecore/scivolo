@@ -75,14 +75,14 @@ impl Reflect<'_> {
         let result = self.u.widen(result);
         let result = self.with_syms(result, &syms);
         let binder = self.u.fresh_binder();
-        let method_params = params.iter().map(|c| c.name.clone()).zip(types.iter().copied()).collect();
-        let info = Type::Method { binder, params: method_params, result, implicit: false, contextual: false };
-        let info = self.u.intern_type(info);
+        let method_params: Vec<_> =
+            params.iter().map(|c| self.u.intern_name(&c.name)).zip(types.iter().copied()).collect();
+        let info = self.u.intern_method(binder, &method_params, result, false, false);
         let (info, fun_tpe) = match type_params.is_empty() {
             true => {
                 let class = self.u.class_ref(&format!("scala.Function{}", params.len()));
                 types.push(result);
-                (info, self.u.intern_type(Type::Applied(class, types)))
+                (info, self.u.intern_applied(class, &types))
             }
             false => self.poly_function(&type_params, info),
         };
@@ -106,8 +106,8 @@ impl Reflect<'_> {
 
     /// `t` with the references to the symbols of `syms` replaced by references to those they map to.
     fn with_syms(&mut self, t: TypeId, syms: &FxHashMap<SymbolId, SymbolId>) -> TypeId {
-        self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
+        self.u.map_type(t, &mut |u, part| match u.sym_ref(part) {
+            Some((None, s)) => syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
             _ => None,
         })
     }
@@ -115,18 +115,19 @@ impl Reflect<'_> {
     /// The polymorphic method type over `tparams` of `method` and the `PolyFunction` of it.
     fn poly_function(&mut self, tparams: &[SymbolId], method: TypeId) -> (TypeId, TypeId) {
         let binder = self.u.fresh_binder();
-        let result = self.u.map_type(method, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => {
+        let result = self.u.map_type(method, &mut |u, part| match u.sym_ref(part) {
+            Some((None, s)) => {
                 let i = tparams.iter().position(|&p| p == s)?;
                 Some(u.intern_type(Type::Param(binder, i as u32)))
             }
             _ => None,
         });
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
-        let params = tparams.iter().map(|&p| (self.u.symbol(p).name.clone(), bounds)).collect();
-        let info = self.u.intern_type(Type::Poly { binder, params, result });
-        let parent = self.u.class_ref("scala.PolyFunction");
-        (info, self.u.intern_type(Type::Refined(parent, "apply".into(), info)))
+        let params: Vec<_> = tparams.iter().map(|&p| (self.u.interned_name(p), bounds)).collect();
+        let info = self.u.intern_poly(binder, &params, result);
+        let parent = self.u.class_ref(crate::defn::POLY_FUNCTION);
+        let apply = self.u.intern_name("apply");
+        (info, self.u.intern_type(Type::Refined(parent, apply, info)))
     }
 
     /// A copy of `t` with the references to the symbols of `syms` replaced by references to

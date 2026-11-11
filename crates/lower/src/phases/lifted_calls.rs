@@ -8,10 +8,9 @@ use super::lambda_lift::Function;
 use super::lifted::Method;
 use super::local_free::is_method;
 use super::walk::children;
-use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{SymbolId, Type};
+use tasty::SymbolId;
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Makes the calls of the local methods among `functions` in definition `td` of `class`, and the
@@ -35,7 +34,7 @@ pub fn calls(
                     functions[i].captured.iter().map(|&s| l.ident(s, Span::NONE)).collect();
                 let home = l.u.symbol(methods[i].sym).owner.unwrap_or(class);
                 let receiver = match functions[i].into {
-                    Some(c) if around == Some(c) || c == class || is_static_module(l.u, c) => l.this(c, span),
+                    Some(c) if around == Some(c) || c == class || l.u.is_static_module(c) => l.this(c, span),
                     Some(_) if around.is_some() => {
                         return unsupported(span, "local functions narrowed into different classes");
                     }
@@ -107,7 +106,7 @@ pub fn make_call(
     let args = l.tpd.list(&args);
     if !matches!(l.tpd.tree(t), Tree::Apply { .. }) {
         let info = super::lifted::value_info(l, m);
-        let result = if let Type::ByName(r) = *l.u.types().get(info) { r } else { info };
+        let result = l.u.by_name(info).unwrap_or(info);
         (l.tpd.get_mut(t).sym, l.tpd.get_mut(t).tpe) = (None, Some(result));
         l.tpd.get_mut(t).span = from_start(span);
         l.applied_references.insert(t);

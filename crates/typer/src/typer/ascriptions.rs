@@ -25,7 +25,7 @@ impl Typer<'_> {
         if self.u.is_subtype(zonked, tpe) {
             return self.tpd.node(T::Typed { expr, tpt }, span.to_synthetic(), Some(tpe), None);
         }
-        let any = self.u.builtins().any;
+        let any = self.u.defn().any;
         let cast = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
         let Some(cast) = cast else {
             self.unsupported_at(span, "a cast without Any.$asInstanceOf$");
@@ -42,12 +42,12 @@ impl Typer<'_> {
     /// its `this`.
     pub fn without_rec_refinements(&mut self, t: TypeId) -> TypeId {
         self.u.map_type(t, &mut |u, part| {
-            let Type::Rec(binder, mut parent) = *u.types().get(part) else { return None };
+            let Type::Rec(binder, mut parent) = *u.ty(part) else { return None };
             let mut kept = Vec::new();
-            while let Type::Refined(p, name, info) = u.types().get(parent).clone() {
+            while let Type::Refined(p, name, info) = *u.ty(parent) {
                 let mut recursive = false;
                 u.map_type(info, &mut |u, x| {
-                    recursive |= *u.types().get(x) == Type::RecThis(binder);
+                    recursive |= *u.ty(x) == Type::RecThis(binder);
                     None
                 });
                 if !recursive {

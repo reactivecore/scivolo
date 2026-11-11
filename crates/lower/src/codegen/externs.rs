@@ -6,14 +6,13 @@
 //! `genExternMethod`, `genExternMethodSig`, `genExternType`).
 
 use super::Gen;
-use crate::symbols::is_extern;
+use crate::symbols::{EXTERN, is_extern};
 use crate::{Result, unsupported};
 use nir::sig::Sig;
 use nir::{Attr, Defn, DefnKind, GlobalId, PosId, Type, TypeId};
 use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
-const EXTERN_BODY: &str = "scala.scalanative.unsafe.package$.extern";
 const NAME: &str = "scala.scalanative.unsafe.name";
 const BLOCKING: &str = "scala.scalanative.unsafe.package$.blocking";
 
@@ -53,7 +52,7 @@ impl Gen<'_, '_> {
         let attrs = attrs.collect();
         let name = self.type_name(sym);
         let traits = self.class_interfaces(sym);
-        let kind = if crate::symbols::is_static_module(self.l.u, sym) {
+        let kind = if self.l.u.is_static_module(sym) {
             DefnKind::Module { parent: Some(self.pool.top("java.lang.Object")), traits }
         } else if self.l.u.is_trait(sym) {
             DefnKind::Trait { traits }
@@ -109,7 +108,7 @@ impl Gen<'_, '_> {
             Tree::Apply { fun, args } if self.l.tpd.items(args).is_empty() => fun,
             _ => t,
         };
-        self.l.tpd.sym(t).is_some_and(|s| self.l.u.full_name(s) == EXTERN_BODY)
+        self.l.tpd.sym(t).is_some_and(|s| self.l.u.full_name(s) == EXTERN)
     }
 
     /// The name in class `owner` of extern method `m`.

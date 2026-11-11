@@ -5,7 +5,7 @@
 use crate::phases::tree_copy::{Copier, copy};
 use crate::{Lower, Result};
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A `Quotes` tree, copied at each use, in its owner.
@@ -39,7 +39,7 @@ impl Reflect {
         let as_expr = self.method(l, "TreeMethods", "asExpr")?;
         let expr = call(l, as_expr, &[term]);
         let class = l.u.class_ref("scala.quoted.Expr");
-        let quoted = l.u.intern_type(Type::Applied(class, vec![tpe]));
+        let quoted = l.u.intern_applied(class, &[tpe]);
         Ok(cast(l, expr, quoted))
     }
 
@@ -66,7 +66,7 @@ pub fn member(l: &mut Lower, qual: TNodeId, name: &str) -> TNodeId {
 /// `fun(args)`, of the result type of `fun`.
 pub fn call(l: &mut Lower, fun: TNodeId, args: &[TNodeId]) -> TNodeId {
     let method = l.u.widen(l.tpd.tpe(fun));
-    let Type::Method { result, .. } = *l.u.types().get(method) else { panic!("a method") };
+    let Some(result) = l.u.method(method).map(|m| m.result) else { panic!("a method") };
     let call = l.apply(fun, args, result, Span::NONE);
     l.positioned(call)
 }
@@ -74,10 +74,9 @@ pub fn call(l: &mut Lower, fun: TNodeId, args: &[TNodeId]) -> TNodeId {
 /// `fun[targ]`, `fun` a reference to a method of one type parameter.
 pub fn type_applied(l: &mut Lower, fun: TNodeId, targ: TypeId) -> TNodeId {
     let info = l.u.widen(l.tpd.tpe(fun));
-    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
+    let Some((binder, names, result)) = l.u.poly(info).map(|p| (p.binder, p.names(), p.result)) else {
         panic!("a polymorphic method")
     };
-    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
     let instance = l.u.subst(result, binder, &names, &[targ]);
     let tpt = l.type_tree(targ, Span::NONE);
     let applied = l.build().type_apply(fun, &[tpt], instance, Span::NONE);

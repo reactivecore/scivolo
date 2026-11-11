@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/transform/CheckStatic.scala
 //! `@static` members (dotty's `CheckStatic`), kept members of their objects.
 
-use super::annotations::STATIC;
+use crate::defn::STATIC_ANNOT;
 use crate::typer::Typer;
 use syntax::ast::NodeId;
 use syntax::ast::flags as f;
@@ -17,7 +17,7 @@ impl Typer<'_> {
         let Some(companion) = companion else {
             return self.unsupported_at(span, "@static outside an object with a companion class");
         };
-        if !self.is_static_owner(owner) {
+        if !self.u.is_static_owner(owner) {
             return self.unsupported_at(span, "@static in an object that is not static");
         }
         let name = self.u.symbol(sym).name.clone();
@@ -41,6 +41,6 @@ impl Typer<'_> {
     }
 
     fn is_static(&self, s: SymbolId) -> bool {
-        self.u.annotations(s).iter().any(|&c| self.u.full_name(c) == STATIC)
+        self.u.has_recorded_annotation(s, STATIC_ANNOT)
     }
 }

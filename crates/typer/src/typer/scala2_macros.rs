@@ -45,7 +45,7 @@ impl Typer<'_> {
     fn has_scala3_implementation(&mut self, sym: SymbolId) -> bool {
         let Some(owner) = self.u.symbol(sym).owner else { return false };
         if WITHOUT_IMPLEMENTATION.contains(&self.u.full_name(sym).as_str())
-            || self.u.full_name(owner) == "scala.reflect.package$"
+            || self.u.full_name(owner) == crate::defn::REFLECT_PACKAGE_CLASS
         {
             return true;
         }
@@ -55,7 +55,7 @@ impl Typer<'_> {
         let name = self.u.symbol(sym).name.clone();
         let site = self.u.this_type(owner);
         let signature = self.u.signature(site, sym, false);
-        let siblings = self.u.decl(owner, &name).unwrap_or_default();
+        let siblings = self.u.decls_named(owner, &name);
         siblings.iter().for_each(|&p| self.complete(p));
         siblings.into_iter().any(|p| {
             let f = self.u.symbol(p).flags;

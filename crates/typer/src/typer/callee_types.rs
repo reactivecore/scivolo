@@ -6,7 +6,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether the callee's parameter type may give a parameter of expected type `formal` its
@@ -24,13 +24,13 @@ impl Typer<'_> {
         }
         self.conforms(formal, target);
         let defined = self.fully_defined(formal).ok()?;
-        (self.u.class_symbol(defined) != Some(self.u.builtins().nothing)).then_some(defined)
+        (self.u.class_symbol(defined) != Some(self.u.defn().nothing)).then_some(defined)
     }
 
     fn is_bottom_wildcard(&mut self, formal: TypeId) -> bool {
         let formal = self.zonk(formal);
-        let Type::Bounds(lo, _) = *self.u.types().get(formal) else { return false };
-        self.u.class_symbol(lo) == Some(self.u.builtins().nothing)
+        let Some((lo, _)) = self.u.bounds(formal) else { return false };
+        self.u.class_symbol(lo) == Some(self.u.defn().nothing)
     }
 
     /// The types of `params` from the method `body` applies, `f(… x1, …, xN …)` with each
@@ -69,8 +69,8 @@ impl Typer<'_> {
             let local = |s: &mut Self, t: TypeId| {
                 let mut found = false;
                 s.u.map_type(t, &mut |u, part| {
-                    found |= matches!(*u.types().get(part), Type::Param(..) | Type::ByName(_))
-                        || matches!(*u.types().get(part), Type::Sym(_, s) if u.symbol(s).kind == Kind::Param);
+                    found |= matches!(*u.ty(part), Type::Param(..) | Type::ByName(_))
+                        || u.sym_of(part).is_some_and(|s| u.symbol(s).kind == Kind::Param);
                     None
                 });
                 found
@@ -137,24 +137,25 @@ impl Typer<'_> {
                         self.complete(s);
                         Some((self.u.member_info(tpe, s), Some(s)))
                     }
-                    [] => Some((self.u.term_refinement_named(tpe, &text)?, None)),
+                    [] => {
+                        let name = self.u.intern_name(&text);
+                        Some((self.u.term_refinement_named(tpe, name)?, None))
+                    }
                     _ => None,
                 }
             }
             Tree::Apply { fun, .. } => {
                 let (method, _) = self.callee_method(fun, ctx)?;
-                match *self.u.types().get(method) {
-                    Type::Method { result, implicit: false, .. } => Some((result, None)),
-                    _ => None,
-                }
+                self.u.method(method).filter(|m| !m.implicit).map(|m| (m.result, None))
             }
             Tree::TypeApply { fun, args } => {
                 let (method, sym) = self.callee_method(fun, ctx)?;
-                let Type::Poly { binder, params, result } = self.u.types().get(method).clone() else {
+                let Type::Poly { binder, params, result } = *self.u.ty(method) else {
                     return None;
                 };
                 let args = self.ast.items(args).to_vec();
-                if args.len() != params.len() {
+                let names: Vec<NameId> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
+                if args.len() != names.len() {
                     return None;
                 }
                 let mut targs = Vec::new();
@@ -163,7 +164,6 @@ impl Typer<'_> {
                     self.typed_ahead(a, typed, ctx);
                     targs.push(self.tpd.tpe(typed));
                 }
-                let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
                 Some((self.instantiate_poly(result, binder, &names, &targs, sym), None))
             }
             _ => None,

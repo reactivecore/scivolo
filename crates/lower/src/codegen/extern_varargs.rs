@@ -14,22 +14,16 @@ impl Gen<'_, '_> {
         let mut t = self.l.u.info(method);
         let mut index = 0;
         loop {
-            match self.l.u.types().get(t).clone() {
+            match *self.l.u.ty(t) {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, result, .. } => {
-                    for (_, param) in params {
+                    for (_, param) in self.l.u.params_of(params).to_vec() {
                         if self.l.u.is_erased_param(param) {
                             continue;
                         }
-                        let is_repeated = match *self.l.u.types().get(param) {
-                            Type::Applied(c, _) => self
-                                .l
-                                .u
-                                .class_symbol(c)
-                                .is_some_and(|s| self.l.u.full_name(s) == "scala.<repeated>"),
-                            Type::Annotated(_, a) => self.l.u.class_symbol(a).is_some_and(|s| {
-                                self.l.u.full_name(s) == "scala.annotation.internal.Repeated"
-                            }),
+                        let is_repeated = match *self.l.u.ty(param) {
+                            Type::Applied(c, _) => self.l.u.is_class_named(c, tasty::defn::REPEATED),
+                            Type::Annotated(_, a) => self.l.u.is_class_named(a, tasty::defn::REPEATED_ANNOT),
                             _ => false,
                         };
                         if is_repeated {

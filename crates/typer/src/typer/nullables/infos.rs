@@ -143,8 +143,8 @@ impl Nullables {
 /// Whether the type of `t` is a reference to class `Nothing` (dotty's `isNothingType`).
 fn is_nothing_type(f: &mut Flow, t: TNodeId) -> bool {
     let u = &mut *f.types.u;
-    let (nothing, tpe) = (u.builtins().nothing, f.tpd.tpe(t));
-    match *u.types().get(tpe) {
+    let (nothing, tpe) = (u.defn().nothing, f.tpd.tpe(t));
+    match *u.ty(tpe) {
         Type::Sym(_, s) => s == nothing,
         Type::TypeRef(..) => u.resolve_ref(tpe) == Some(nothing),
         _ => false,

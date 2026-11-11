@@ -13,7 +13,7 @@ impl TreePickler<'_> {
     /// Type `parent` annotated with class type `annot`, the annotation `new annot()`.
     pub fn annotated(&mut self, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
         let class = self.u.class_symbol(annot).ok_or("an annotation of no class")?;
-        let ctors = self.u.decl(class, "<init>").unwrap_or_default();
+        let ctors = self.u.decls_named(class, "<init>");
         let ctor = ctors.into_iter().find(|&c| self.u.erased_method(c).0.is_empty());
         let ctor = ctor.ok_or("a type annotation without a constructor of no parameters")?;
         self.with_length(ANNOTATEDtype, &mut |p| {
@@ -31,8 +31,7 @@ impl TreePickler<'_> {
 
     /// Whether class type `class` is capture checking's `caps.internal.inferred`.
     pub fn is_inferred_mark(&mut self, class: TypeId) -> bool {
-        let class = self.u.class_symbol(class);
-        class.is_some_and(|c| self.u.full_name(c) == "scala.caps.internal$.inferred")
+        self.u.is_class_named(class, crate::defn::INFERRED)
     }
 
     /// `new C()` of class type `class`, an annotation without arguments.

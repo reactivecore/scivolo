@@ -10,7 +10,7 @@ use super::walk::children;
 use crate::{Lower, Result};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId, Type};
+use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Rewrites the array and sequence constructions in class definitions `classes`; lifted lambdas
@@ -69,7 +69,7 @@ fn walk(
                 budgets.extend(l.tpd.sym(meth).map(|m| (m, budget)));
             }
             Tree::New { tpt } => {
-                if let Type::Sym(_, c) = *l.u.types().get(l.tpd.tpe(tpt))
+                if let Some(c) = l.u.sym_of(l.tpd.tpe(tpt))
                     && l.local_classes.contains_key(&c)
                 {
                     budgets.insert(c, budget);

@@ -6,12 +6,12 @@
 use super::adapt::adapt;
 use super::adapted::erased_adapted_def;
 use super::context_closures::{closure, function_type, plan, unbunched};
-use super::lift_names::fresh;
+use super::lift_names::fresh_name;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{CASEaccessor, FIELDaccessor, LAZY, OBJECT, PARAMsetter};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::TNodeId;
 
 /// `def m(params): F = closure(m$$anonfun$N)` of the type of `other`, flattened by fewer context
@@ -34,12 +34,12 @@ pub fn bridge(
         return unsupported(span, "bridges of methods with context function results flattened otherwise");
     }
     let m_result = l.u.result_type(m_info);
-    let other_params: Vec<(String, TypeId)> = clauses(l, other_info).concat();
-    let mut captured: Vec<(String, TypeId)> = own_clauses[..own].concat();
-    let originals: Vec<String> = captured.iter().map(|(name, _)| name.clone()).collect();
-    for ((name, tpe), (_, other)) in captured.iter_mut().zip(&other_params) {
-        *name = fresh(l, name);
-        *tpe = *other;
+    let other_params: Vec<(NameId, TypeId)> = clauses(l, other_info).concat();
+    let mut captured: Vec<(NameId, TypeId)> = own_clauses[..own].concat();
+    let originals: Vec<NameId> = captured.iter().map(|&(name, _)| name).collect();
+    for ((name, tpe), &(_, other)) in captured.iter_mut().zip(&other_params) {
+        *name = fresh_name(l, *name);
+        *tpe = other;
     }
     let (erased, others) = (l.u.erased_method(m).0, l.u.erased_method(other).0);
     let value_params = l.u.erased_method_value(m).0;
@@ -49,10 +49,9 @@ pub fn bridge(
     let (mut defs, mut adapteds) = (Vec::new(), Vec::new());
     let mut result = m_result;
     for i in (0..anons.len()).rev() {
-        let (anon, params) = (anons[i].sym, anons[i].params.clone());
+        let anon = anons[i].sym;
         let binder = l.u.fresh_binder();
-        let info =
-            l.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
+        let info = l.u.intern_method(binder, &anons[i].params, result, false, false);
         l.u.set_info(anon, info);
         let inner = anons.get(i + 1);
         defs.push(l.forwarding_def(anon, span, |l, args, result| {
@@ -124,7 +123,7 @@ pub fn overrides_alike(
     let mut related: Vec<SymbolId> = Vec::new();
     for class in classes {
         for base in l.u.linearization(class) {
-            related.extend(l.u.decl(base, &name).unwrap_or_default());
+            related.extend(l.u.decls_named(base, &name));
         }
     }
     let roots = [("java.lang", "Object"), ("scala", "Any")];
@@ -144,7 +143,7 @@ pub fn overrides_alike(
 /// Whether class `class` of package `package` declares a member `name`, or cannot be found.
 fn root_declares(l: &mut Lower, package: &str, class: &str, name: &str) -> bool {
     let Some(pkg) = l.u.package(package) else { return true };
-    let found = l.u.decl(pkg, class).unwrap_or_default();
+    let found = l.u.decls_named(pkg, class);
     let classes: Vec<SymbolId> = found.into_iter().filter(|&c| l.u.symbol(c).kind == Kind::Class).collect();
     classes.is_empty() || classes.into_iter().any(|c| l.u.decl(c, name).map_or(true, |d| !d.is_empty()))
 }
@@ -157,14 +156,14 @@ pub fn bridged(l: &mut Lower, owner: SymbolId, d: SymbolId) -> bool {
 }
 
 /// The parameter clauses of method type `t`, each parameter with its name.
-pub fn clauses(l: &Lower, mut t: TypeId) -> Vec<Vec<(String, TypeId)>> {
+pub fn clauses(l: &Lower, mut t: TypeId) -> Vec<Vec<(NameId, TypeId)>> {
     let mut out = Vec::new();
     loop {
-        match l.u.types().get(t) {
-            Type::Poly { result, .. } => t = *result,
+        match *l.u.ty(t) {
+            Type::Poly { result, .. } => t = result,
             Type::Method { params, result, .. } => {
-                out.push(params.clone());
-                t = *result;
+                out.push(l.u.params_of(params).to_vec());
+                t = result;
             }
             _ => return out,
         }

@@ -47,11 +47,11 @@ impl Universe {
         if s.is_extern || s.owner.is_some_and(|o| self.symbol(o).is_extern) {
             return None;
         }
-        let builtins = self.builtins();
+        let builtins = self.defn();
         let primitive = match s.owner {
             Some(o) if o == builtins.any => true,
             Some(o) if o == builtins.object => matches!(s.name.as_str(), "eq" | "ne" | "synchronized"),
-            Some(o) if s.name == "+" => self.full_name(o) == "java.lang.String",
+            Some(o) if s.name == "+" => self.full_name(o) == crate::defn::STRING,
             _ => false,
         };
         if primitive {
@@ -113,13 +113,13 @@ impl Universe {
         let mut params = Vec::new();
         let mut bounds = Vec::new();
         loop {
-            match self.types().get(t).clone() {
+            match *self.ty(t) {
                 Type::Poly { binder, params: ps, result } => {
-                    bounds.push((binder, ps.into_iter().map(|(_, b)| b).collect::<Vec<_>>()));
+                    bounds.push((binder, self.params_of(ps).iter().map(|&(_, b)| b).collect::<Vec<_>>()));
                     t = result;
                 }
                 Type::Method { params: ps, result, .. } => {
-                    params.extend(ps.into_iter().map(|(_, p)| p));
+                    params.extend(self.params_of(ps).iter().map(|&(_, p)| p));
                     t = result;
                 }
                 _ => break,
@@ -154,7 +154,7 @@ impl Universe {
         let name = self.symbol(def).name.clone();
         let (params, _) = self.erased_method(def);
         for base in self.linearization(owner).into_iter().skip(1) {
-            for m in self.decl(base, &name).unwrap_or_default() {
+            for m in self.decls_named(base, &name) {
                 let f = self.symbol(m).flags;
                 if self.symbol(m).kind == Kind::Def
                     && !f.has(INLINE)

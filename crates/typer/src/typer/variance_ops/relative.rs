@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/VarianceChecker.scala
 
-use super::{BIVARIANT, VarianceOps, flip};
+use super::{BIVARIANT, COVARIANT, INVARIANT, Misplaced, VarianceOps, declared, flip};
 use syntax::ast::flags as f;
 use tasty::{Kind, SymbolId};
 
@@ -38,5 +38,20 @@ impl VarianceOps<'_> {
                 base = owner;
             }
         }
+    }
+
+    /// `tvar` with the variance required of it where it occurs at variance `v` in the type of
+    /// `base`, if its own is not that (dotty's `checkVarianceOfSymbol`).
+    pub fn misplaced_symbol(&mut self, tvar: SymbolId, base: SymbolId, v: i8) -> Option<Misplaced> {
+        let relative = self.relative_variance(tvar, base, COVARIANT);
+        if relative == BIVARIANT {
+            return None;
+        }
+        let required = match v {
+            1 => relative,
+            -1 => flip(relative),
+            _ => INVARIANT,
+        };
+        (declared(self.u, tvar) & required == 0).then_some(Misplaced::Class(tvar, required))
     }
 }

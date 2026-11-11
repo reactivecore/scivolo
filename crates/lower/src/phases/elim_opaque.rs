@@ -16,7 +16,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     for t in subtrees(l.tpd, root) {
         let Tree::Apply { fun, .. } = *l.tpd.tree(t) else { continue };
         let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { continue };
-        let any = Some(l.u.builtins().any);
+        let any = Some(l.u.defn().any);
         let equality = l
             .tpd
             .sym(fun)
@@ -46,7 +46,7 @@ fn resolve_equality(l: &mut Lower, t: TNodeId, s: SymbolId, qualifier: TNodeId) 
         _ => None,
     };
     let name = l.u.symbol(s).name.clone();
-    let method = l.u.decl(class, &name).unwrap_or_default().into_iter().find(|&m| {
+    let method = l.u.decls_named(class, &name).into_iter().find(|&m| {
         let info = l.u.info(m);
         let param = l.u.method(info).and_then(|mt| mt.params.first().map(|&(_, p)| p));
         arg.is_some() && param.is_some_and(|p| l.u.class_symbol(p) == arg)
@@ -71,7 +71,7 @@ fn underlying_class(l: &mut Lower, t: TNodeId) -> Option<SymbolId> {
 fn is_opaque(l: &mut Lower, t: tasty::TypeId) -> bool {
     let t = l.u.widen(t);
     let t = l.u.dealias(t);
-    let s = match *l.u.types().get(t) {
+    let s = match *l.u.ty(t) {
         Type::Sym(_, s) => Some(s),
         Type::TypeRef(..) => l.u.resolve_ref(t),
         _ => None,

@@ -42,7 +42,7 @@ impl Typer<'_> {
         if has_annotation(self.u, sel_tpe, UNCHECKED) || has_annotation(self.u, sel_tpe, RUNTIME_CHECKED) {
             return Ok(sel);
         }
-        if matches!(self.u.types().get(sel_tpe), Type::Annotated(..)) {
+        if self.u.annotated(sel_tpe).is_some() {
             return Err("annotated selector of a pattern definition");
         }
         if let Err(reason) = check::check_irrefutable(self, pat, sel_tpe) {
@@ -69,6 +69,6 @@ impl Typer<'_> {
 
 /// Whether `t` or a type it annotates carries annotation class `name`.
 fn has_annotation(u: &mut Universe, t: TypeId, name: &str) -> bool {
-    let Type::Annotated(inner, annot) = *u.types().get(t) else { return false };
-    u.class_symbol(annot).is_some_and(|c| u.full_name(c) == name) || has_annotation(u, inner, name)
+    let Some((inner, annot)) = u.annotated(t) else { return false };
+    u.is_class_named(annot, name) || has_annotation(u, inner, name)
 }

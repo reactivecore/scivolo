@@ -16,7 +16,9 @@ impl Typer<'_> {
         let sel = self.strip_null(sel);
         let sel = self.dealiased(sel);
         let sel = self.u.widen(sel);
-        let Type::Applied(tycon, sargs) = self.u.types().get(sel).clone() else { return false };
+        let Some((tycon, sargs)) = self.u.applied(sel).map(|(tycon, args)| (tycon, args.to_vec())) else {
+            return false;
+        };
         if has_wildcard(self.u, sel) || self.is_opaque_ref(tycon) {
             return false;
         }
@@ -29,18 +31,17 @@ impl Typer<'_> {
         if self.u.class_symbol(pat) != Some(class) {
             return true;
         }
-        let Type::Applied(_, pargs) = self.u.types().get(pat).clone() else { return false };
+        let Some(pargs) = self.u.applied(pat).map(|(_, args)| args.to_vec()) else { return false };
         if pargs.len() != sargs.len() {
             return false;
         }
         let mut bounds: Vec<(SymbolId, TypeId, TypeId)> = Vec::new();
         for ((&p, &s), &v) in pargs.iter().zip(&sargs).zip(&variances) {
             let s = self.u.dealias(s);
-            let part = self.u.types().get(p).clone();
-            match part {
-                Type::Sym(None, b) if syms.contains(&b) => {
+            match self.u.sym_ref(p) {
+                Some((None, b)) if syms.contains(&b) => {
                     let info = self.u.info(b);
-                    let Type::Bounds(lo, hi) = *self.u.types().get(info) else { return false };
+                    let Some((lo, hi)) = self.u.bounds(info) else { return false };
                     if bounds.iter().any(|&(x, ..)| x == b) {
                         return false;
                     }
@@ -79,21 +80,22 @@ impl Typer<'_> {
             (Some(p), Some(s)) if p != s && self.u.derives_from(p, s) => self.u.base_type(pat, s),
             _ => Some(pat),
         };
-        let (Some(Type::Applied(pc, pargs)), Type::Applied(sc, sargs)) =
-            (base.map(|b| self.u.types().get(b).clone()), self.u.types().get(sel).clone())
-        else {
+        let (Some((pc, pargs)), Some((sc, sargs))) = (
+            base.and_then(|b| self.u.applied(b)).map(|(tycon, args)| (tycon, args.to_vec())),
+            self.u.applied(sel).map(|(tycon, args)| (tycon, args.to_vec())),
+        ) else {
             return false;
         };
         let same = self.u.class_symbol(pc).is_some_and(|c| self.u.class_symbol(sc) == Some(c));
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let (any, nothing) = (b.any, b.nothing);
         same && pargs.len() == sargs.len()
-            && pargs.iter().zip(&sargs).all(|(&p, &s)| match *self.u.types().get(p) {
-                Type::Sym(None, b) if syms.contains(&b) => match *self.u.types().get(s) {
-                    Type::Bounds(lo, hi) => {
+            && pargs.iter().zip(&sargs).all(|(&p, &s)| match self.u.sym_ref(p) {
+                Some((None, b)) if syms.contains(&b) => match self.u.bounds(s) {
+                    Some((lo, hi)) => {
                         self.u.class_symbol(lo) == Some(nothing) && self.u.class_symbol(hi) == Some(any)
                     }
-                    _ => false,
+                    None => false,
                 },
                 _ => !self.refers_to(p, syms),
             })
@@ -107,13 +109,13 @@ impl Typer<'_> {
         if let Some(hi) = self.abstract_upper(sel) {
             return self.has_unapplied_bases(hi);
         }
-        let Type::Sym(_, c) = *self.u.types().get(sel) else { return false };
+        let Some(c) = self.u.sym_of(sel) else { return false };
         self.u.is_class(c) && self.u.linearization(c).into_iter().all(|b| self.u.type_params(b).is_empty())
     }
 
     /// The upper bound of abstract type `sel` without GADT bounds, other than `sel`.
     fn abstract_upper(&mut self, sel: TypeId) -> Option<TypeId> {
-        let Type::Sym(pre, c) = *self.u.types().get(sel) else { return None };
+        let (pre, c) = self.u.sym_ref(sel)?;
         if !matches!(self.u.symbol(c).kind, Kind::TypeParam | Kind::Type) || self.u.gadt_bounds(c).is_some() {
             return None;
         }
@@ -121,7 +123,7 @@ impl Typer<'_> {
             Some(p) => self.u.member_info(p, c),
             None => self.u.info(c),
         };
-        let Type::Bounds(_, hi) = *self.u.types().get(info) else { return None };
+        let (_, hi) = self.u.bounds(info)?;
         (hi != sel).then_some(hi)
     }
 

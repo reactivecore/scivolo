@@ -5,7 +5,6 @@
 
 use super::Gen;
 use super::attrs::canonical;
-use crate::symbols::is_static_module;
 use crate::{Result, unsupported};
 use nir::sig::Sig;
 use nir::{Attr, Defn, DefnKind, Type, Val};
@@ -26,7 +25,7 @@ impl Gen<'_, '_> {
                 continue;
             }
             let span = self.l.tpd.span(stat);
-            if !is_static_module(self.l.u, owner) {
+            if !self.l.u.is_static_module(owner) {
                 return unsupported(span, "@exported members of a class or trait");
             }
             if crate::symbols::has(self.l.u, m, PRIVATE) || crate::symbols::has(self.l.u, m, PROTECTED) {

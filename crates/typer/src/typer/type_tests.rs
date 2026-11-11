@@ -32,10 +32,7 @@ impl Typer<'_> {
     ) -> Result<Option<TNodeId>, &'static str> {
         let Pt::Type(p) = pt else { return Ok(None) };
         let dealiased = self.dealiased(tpe);
-        let tycon = match *self.u.types().get(dealiased) {
-            Type::Applied(tycon, _) => tycon,
-            _ => dealiased,
-        };
+        let tycon = self.u.applied(dealiased).map_or(dealiased, |(tycon, _)| tycon);
         let tycon = self.match_alias(tpe).unwrap_or(tycon);
         let same = self.u.is_subtype(dealiased, p) && self.u.is_subtype(p, dealiased);
         let non_class = self.referenced(tycon).is_some_and(|s| {
@@ -101,22 +98,13 @@ impl Typer<'_> {
     /// The match-type alias that `t`, or an alias `t` refers to, is or applies.
     fn match_alias(&mut self, mut t: TypeId) -> Option<TypeId> {
         for _ in 0..MAX_ALIAS_STEPS {
-            let tycon = match *self.u.types().get(t) {
-                Type::Applied(tycon, _) => tycon,
-                _ => t,
-            };
+            let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
             let s = self.referenced(tycon).filter(|&s| self.u.symbol(s).kind == Kind::Type)?;
             self.complete(s);
             let info = self.u.info(s);
-            let rhs = match *self.u.types().get(info) {
-                Type::Alias(rhs) => rhs,
-                _ => info,
-            };
-            let body = match *self.u.types().get(rhs) {
-                Type::Lambda { result, .. } => result,
-                _ => rhs,
-            };
-            match *self.u.types().get(body) {
+            let rhs = self.u.type_alias(info).unwrap_or(info);
+            let body = self.u.lambda(rhs).map_or(rhs, |l| l.result);
+            match *self.u.ty(body) {
                 Type::Match { .. } => return Some(tycon),
                 _ if tycon == t && rhs != info => t = rhs,
                 _ => return None,
@@ -133,7 +121,7 @@ impl Typer<'_> {
             Kind::Type => {
                 self.complete(s);
                 let info = self.u.info(s);
-                !matches!(self.u.types().get(info), Type::Alias(_))
+                self.u.type_alias(info).is_none()
             }
             _ => false,
         }
@@ -145,7 +133,7 @@ impl Typer<'_> {
     pub fn is_erased_test_type(&mut self, t: TypeId) -> bool {
         let t = self.dealiased(t);
         let side = |s: &mut Self, x| s.is_erased_test_type(x) || s.is_testable_type(x);
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::And(a, b) | Type::Or(a, b, _) => side(self, a) && side(self, b),
             Type::Refined(parent, ..) | Type::Rec(_, parent) => side(self, parent),
             _ => (self.is_abstract_type(t) || self.is_opaque_ref(t)) && !has_wildcard(self.u, t),
@@ -154,10 +142,7 @@ impl Typer<'_> {
 
     /// Whether `t` refers to an opaque type, applied or not, that it does not see through.
     pub fn is_opaque_ref(&mut self, t: TypeId) -> bool {
-        let tycon = match *self.u.types().get(t) {
-            Type::Applied(tycon, _) => tycon,
-            _ => t,
-        };
+        let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
         self.referenced(tycon).is_some_and(|s| self.u.symbol(s).flags.has(OPAQUE))
     }
 

@@ -7,7 +7,7 @@
 use super::{Refusal, Unpickler};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::tags::*;
-use tasty::{NodeId, SymbolId, Type, TypeId, View, view};
+use tasty::{NodeId, SymbolId, TypeId, View, view};
 
 impl Unpickler<'_> {
     /// `BLOCK`: its local values and methods defined first, so that they may refer to each other.
@@ -90,7 +90,7 @@ impl Unpickler<'_> {
         let mentions = |u: &mut tasty::Universe, t: TypeId| {
             let mut found = false;
             u.map_type(t, &mut |u, part| {
-                found |= matches!(*u.types().get(part), Type::Sym(_, x) if locals.contains(&x));
+                found |= u.sym_of(part).is_some_and(|x| locals.contains(&x));
                 None
             });
             found

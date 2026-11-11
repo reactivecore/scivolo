@@ -145,7 +145,7 @@ impl Typer<'_> {
     /// Whether one of `bases` declares a concrete value `name`.
     fn has_value_named(&mut self, bases: &[SymbolId], name: &str) -> bool {
         bases.iter().any(|&b| {
-            let decls = self.u.decl(b, name).unwrap_or_default();
+            let decls = self.u.decls_named(b, name);
             decls.into_iter().any(|m| self.u.symbol(m).kind == Kind::Val && !self.u.is_deferred(m))
         })
     }
@@ -153,10 +153,10 @@ impl Typer<'_> {
     /// Whether `t`'s type refers to a value named `name` through a prefix of class `cls`.
     fn is_member_ref(&mut self, t: TNodeId, cls: SymbolId, name: &str) -> bool {
         let tpe = self.tpd.tpe(t);
-        let Type::Sym(Some(prefix), s) = *self.u.types().get(tpe) else { return false };
-        let prefix_class = match *self.u.types().get(prefix) {
-            Type::This(c) => self.u.class_symbol(c),
-            _ => {
+        let Some((Some(prefix), s)) = self.u.sym_ref(tpe) else { return false };
+        let prefix_class = match self.u.this_of(prefix) {
+            Some(c) => self.u.class_symbol(c),
+            None => {
                 let widened = self.u.widen(prefix);
                 self.u.class_symbol(widened)
             }

@@ -19,7 +19,7 @@ impl Avoid<'_> {
         let parents = t.u.parents(c);
         let parent = parents.into_iter().fold(tasty::ANY, |acc, p| t.u.glb(acc, p));
         let selectable =
-            t.resolve_full_name("scala.Selectable", true).is_some_and(|s| t.u.derives_from(c, s));
+            t.resolve_full_name(crate::defn::SELECTABLE, true).is_some_and(|s| t.u.derives_from(c, s));
         let decls = t.u.symbol(c).decls.clone();
         let (refinable, missing): (Vec<SymbolId>, Vec<SymbolId>) = decls.into_iter().partition(|&d| {
             let s = t.u.symbol(d);
@@ -31,7 +31,7 @@ impl Avoid<'_> {
                 continue;
             }
             let is_type = t.u.is_type_symbol(d);
-            let name = t.u.symbol(d).name.clone();
+            let name = t.u.interned_name(d);
             let info = if is_type { type_info(t.u, d) } else { term_info(t.u, d) };
             let avoided = Avoid { visiting: self.visiting, ..Avoid::new(&missing, &[]) };
             let info = avoided.at(t, info, 1)?.hi();
@@ -48,7 +48,7 @@ fn closed_over(t: &mut Typer, c: SymbolId, tpe: TypeId) -> TypeId {
     let rec_this = t.u.intern_type(Type::RecThis(binder));
     let mut found = false;
     let closed = t.u.map_type(tpe, &mut |u, part| {
-        let ours = match *u.types().get(part) {
+        let ours = match *u.ty(part) {
             Type::Sym(_, s) => s == c,
             Type::This(x) => u.class_symbol(x) == Some(c),
             _ => false,
@@ -79,8 +79,8 @@ fn needs_refinement(t: &mut Typer, c: SymbolId, d: SymbolId, parent: TypeId, sel
     if is_type {
         let own = type_info(t.u, d);
         let theirs = t.u.member_info(parent, inherited[0]);
-        let Type::Bounds(lo, hi) = *t.u.types().get(theirs) else { return false };
-        let (own_lo, own_hi) = match *t.u.types().get(own) {
+        let Some((lo, hi)) = t.u.bounds(theirs) else { return false };
+        let (own_lo, own_hi) = match *t.u.ty(own) {
             Type::Alias(a) => (a, a),
             Type::Bounds(l, h) => (l, h),
             _ => return theirs != own,
@@ -88,7 +88,7 @@ fn needs_refinement(t: &mut Typer, c: SymbolId, d: SymbolId, parent: TypeId, sel
         return !(t.u.is_subtype(own_lo, lo) && t.u.is_subtype(hi, own_hi));
     }
     let info = t.u.info(d);
-    let poly = matches!(t.u.types().get(info), Type::Poly { .. });
+    let poly = matches!(t.u.ty(info), Type::Poly { .. });
     let own = if poly { info } else { t.final_result(info) };
     let class = t.u.intern_type(Type::Sym(None, c));
     let this = t.u.intern_type(Type::This(class));
@@ -107,7 +107,7 @@ fn needs_refinement(t: &mut Typer, c: SymbolId, d: SymbolId, parent: TypeId, sel
 /// that name that overrides it.
 fn own_type_members(u: &mut Universe, c: SymbolId, this: TypeId, tpe: TypeId) -> TypeId {
     u.map_type(tpe, &mut |u, part| {
-        let Type::Sym(Some(pre), m) = *u.types().get(part) else { return None };
+        let Some((Some(pre), m)) = u.sym_ref(part) else { return None };
         if pre != this || u.symbol(m).kind != Kind::Type {
             return None;
         }
@@ -122,13 +122,13 @@ fn own_type_members(u: &mut Universe, c: SymbolId, this: TypeId, tpe: TypeId) ->
 /// Whether member `d` of class `c` is the `apply` of a polymorphic function value.
 fn is_poly_function_apply(t: &mut Typer, c: SymbolId, d: SymbolId) -> bool {
     t.u.symbol(d).name == "apply"
-        && t.resolve_full_name("scala.PolyFunction", true).is_some_and(|p| t.u.derives_from(c, p))
+        && t.resolve_full_name(crate::defn::POLY_FUNCTION, true).is_some_and(|p| t.u.derives_from(c, p))
 }
 
 /// The info of term member `d` as a refinement gives it: a parameterless method's by-name.
 fn term_info(u: &mut Universe, d: SymbolId) -> TypeId {
     let info = u.info(d);
-    let method = matches!(u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::ByName(_));
+    let method = matches!(u.ty(info), Type::Method { .. } | Type::Poly { .. } | Type::ByName(_));
     if u.symbol(d).kind == Kind::Def && !method {
         return u.intern_type(Type::ByName(info));
     }
@@ -138,7 +138,7 @@ fn term_info(u: &mut Universe, d: SymbolId) -> TypeId {
 /// The info of type member `d` as a refinement gives it: an alias or bounds.
 fn type_info(u: &mut Universe, d: SymbolId) -> TypeId {
     let info = u.info(d);
-    match u.types().get(info) {
+    match *u.ty(info) {
         Type::Alias(_) | Type::Bounds(..) => info,
         _ => u.intern_type(Type::Alias(info)),
     }

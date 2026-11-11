@@ -22,10 +22,11 @@ pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
         "scala.Double",
     ];
     let t = u.dealias(t);
-    let class = match u.types().get(t).clone() {
+    let class = match *u.ty(t) {
         Type::ByName(r) => return may_need(u, r),
         Type::Method { params, result, .. } => {
-            return may_need(u, result) || params.into_iter().any(|(_, p)| may_need(u, p));
+            return may_need(u, result)
+                || u.params_of(params).to_vec().into_iter().any(|(_, p)| may_need(u, p));
         }
         Type::Sym(_, s) => Some(s),
         Type::TypeRef(..) => u.resolve_ref(t),

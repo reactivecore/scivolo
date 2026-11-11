@@ -32,7 +32,7 @@ impl Deriver {
     pub fn instance(&mut self, t: &mut Typer<'_>, d: NodeId) -> Option<DerivedInstance> {
         let typed = t.typed_type(d, self.ctx);
         let original = t.tpd.tpe(typed);
-        if matches!(t.u.types().get(original), Type::Error) {
+        if matches!(t.u.ty(original), Type::Error) {
             return None;
         }
         let Some(tc_type) = underlying_class_ref(t, original, CLASS_REF_DEPTH) else {
@@ -40,8 +40,8 @@ impl Deriver {
             t.error(d, format!("{shown} is not a class type"));
             return None;
         };
-        let Type::Sym(prefix, cls) = *t.u.types().get(tc_type) else { unreachable!("a class reference") };
-        let Type::Sym(_, written) = *t.u.types().get(original) else { unreachable!("a type reference") };
+        let Some((prefix, cls)) = t.u.sym_ref(tc_type) else { unreachable!("a class reference") };
+        let Some(written) = t.u.sym_of(original) else { unreachable!("a type reference") };
         let tc = TypeClass { tpe: tc_type, prefix, cls };
 
         let name = format!("derived${}", t.u.symbol(written).name);
@@ -131,9 +131,8 @@ fn instance_def(
 
 /// The text of path type `p` as a reference to it shows it: `a.b.C`.
 fn ref_text(t: &mut Typer<'_>, p: TypeId) -> String {
-    match *t.u.types().get(p) {
-        Type::Sym(Some(q), s) if matches!(t.u.types().get(q), Type::Sym(_, o) if t.u.symbol(*o).kind.is_term()) =>
-        {
+    match *t.u.ty(p) {
+        Type::Sym(Some(q), s) if t.u.sym_of(q).is_some_and(|o| t.u.symbol(o).kind.is_term()) => {
             format!("{}.{}", ref_text(t, q), t.u.symbol(s).name)
         }
         Type::Sym(_, s) => t.u.symbol(s).name.clone(),
@@ -149,9 +148,9 @@ fn derived_takes_explicit_params(t: &mut Typer<'_>, module: SymbolId) -> bool {
     t.complete(m);
     let mut info = t.u.info(m);
     loop {
-        match *t.u.types().get(info) {
+        match *t.u.ty(info) {
             Type::Poly { result, .. } => info = result,
-            Type::Method { implicit: false, ref params, .. } if !params.is_empty() => return true,
+            Type::Method { implicit: false, params, .. } if !t.u.params_of(params).is_empty() => return true,
             Type::Method { result, .. } => info = result,
             _ => return false,
         }
@@ -162,12 +161,12 @@ fn derived_takes_explicit_params(t: &mut Typer<'_>, module: SymbolId) -> bool {
 /// and lambdas deep (dotty's `underlyingClassRef`).
 fn underlying_class_ref(t: &mut Typer<'_>, tpe: TypeId, depth: u32) -> Option<TypeId> {
     let depth = depth.checked_sub(1)?;
-    match *t.u.types().get(tpe) {
+    match *t.u.ty(tpe) {
         Type::Sym(_, s) if t.u.symbol(s).kind == Kind::Class => Some(tpe),
         Type::Sym(_, s) if t.u.symbol(s).kind == Kind::Type => {
             t.complete(s);
             let info = t.u.info(s);
-            match *t.u.types().get(info) {
+            match *t.u.ty(info) {
                 Type::Alias(a) => underlying_class_ref(t, a, depth),
                 Type::Lambda { .. } => underlying_class_ref(t, info, depth),
                 _ => None,

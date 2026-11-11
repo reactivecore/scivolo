@@ -13,7 +13,8 @@ impl VarianceOps<'_> {
     /// `type F[X] = X => Int` they are -1; of a class, its declared ones.
     pub fn tycon_variances(&mut self, tycon: TypeId) -> Vec<i8> {
         let alias = self.u.referenced(tycon).and_then(|s| self.u.alias_of(s));
-        let Some(Type::Lambda { binder, params, result }) = alias.map(|a| self.u.types().get(a).clone())
+        let Some((binder, params, result)) =
+            alias.and_then(|a| self.u.lambda(a)).map(|l| (l.binder, l.params.to_vec(), l.result))
         else {
             return self.u.constructor_variances(tycon);
         };
@@ -44,14 +45,13 @@ impl VarianceOps<'_> {
     pub fn poly_param_variances(&mut self, base: SymbolId, binder: Binder, i: u32) -> Vec<i8> {
         let mut info = self.u.info(base);
         loop {
-            match self.u.types().get(info).clone() {
+            match *self.u.ty(info) {
                 Type::Poly { binder: b, params, .. } if b == binder => {
-                    let Some(&(_, bounds)) = params.get(i as usize) else { return Vec::new() };
-                    let hi = match *self.u.types().get(bounds) {
-                        Type::Bounds(_, hi) => hi,
-                        _ => bounds,
+                    let Some(&(_, bounds)) = self.u.params_of(params).get(i as usize) else {
+                        return Vec::new();
                     };
-                    let Type::Lambda { binder: lambda, .. } = *self.u.types().get(hi) else {
+                    let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
+                    let Some(lambda) = self.u.lambda(hi).map(|l| l.binder) else {
                         return Vec::new();
                     };
                     return self.u.declared_variances(lambda).unwrap_or_default();

@@ -38,7 +38,7 @@ impl Typer<'_> {
             }
             let tpe = self.tpd.tpe(typed);
             spans.push(self.tpd.span(typed));
-            if matches!(self.u.types().get(tpe), Type::Bounds(..)) {
+            if self.u.bounds(tpe).is_some() {
                 return self.unsupported(p, "function type parameter of a wildcard type");
             }
             if self.derives_erased_class(tpe) {
@@ -65,12 +65,12 @@ impl Typer<'_> {
         let Some(tpe) = self.dependent_function_of((class, contextual), &syms, binder, result) else {
             return self.unsupported(id, "dependent function type whose result cannot be approximated");
         };
-        let Type::Refined(core, _, info) = *self.u.types().get(tpe) else { unreachable!("a refined type") };
+        let Type::Refined(core, _, info) = *self.u.ty(tpe) else { unreachable!("a refined type") };
         self.u.set_info(owner, info);
         let span = self.ast.span(id);
         let apply = self.build().def_def(owner, &[&trees], result_tree, None, span);
-        let Type::Applied(_, ref args) = *self.u.types().get(core) else { unreachable!("a function type") };
-        let args = args.clone();
+        let Some((_, args)) = self.u.applied(core) else { unreachable!("a function type") };
+        let args = args.to_vec();
         spans.push(self.tpd.span(result_tree));
         let arg_trees: Vec<TNodeId> =
             args.iter().zip(spans).map(|(&a, s)| self.type_tree(a, s, false)).collect();
@@ -98,7 +98,7 @@ impl Typer<'_> {
             let t = self.zonk(t);
             let t = if i == 0 { t } else { self.widen_singletons(t, false) };
             self.u.map_type(t, &mut |u, part| {
-                dependent |= matches!(*u.types().get(part), Type::Sym(_, s) if params.contains(&s));
+                dependent |= u.sym_of(part).is_some_and(|s| params.contains(&s));
                 None
             });
         }

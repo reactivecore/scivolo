@@ -24,7 +24,7 @@ impl Inlining<'_> {
         let class = self.function_class(qualifier).unwrap_or_default();
         let fits = match targs {
             None => class.strip_prefix("scala.Function").is_some_and(|n| n.parse::<u32>().is_ok()),
-            Some(_) => class == "scala.PolyFunction",
+            Some(_) => class == crate::defn::POLY_FUNCTION,
         };
         if self.names.text(name.name) != "apply" || !fits {
             return Ok(t);
@@ -52,8 +52,8 @@ impl Inlining<'_> {
             t = expansion;
         }
         let mut widened = self.u.widen(self.tpd.get(t).tpe?);
-        while let Type::Refined(parent, ref name, _) = *self.u.types().get(widened)
-            && name == "apply"
+        while let Type::Refined(parent, name, _) = *self.u.ty(widened)
+            && self.u.name(name) == "apply"
         {
             widened = parent;
         }
@@ -147,14 +147,14 @@ impl Inlining<'_> {
                 inner = expansion;
             }
             let arg_tpe = self.tpd.tpe(inner);
-            let direct = match *self.u.types().get(arg_tpe) {
-                Type::Sym(None, s) => {
+            let direct = match self.u.sym_ref(arg_tpe) {
+                Some((None, s)) => {
                     self.u.symbol(s).kind.is_term() && self.pure().purity(a) == super::purity::PURE_PATH
                 }
                 _ => false,
             };
             let to = if direct {
-                let Type::Sym(None, s) = *self.u.types().get(arg_tpe) else { return Ok(None) };
+                let Some((None, s)) = self.u.sym_ref(arg_tpe) else { return Ok(None) };
                 s
             } else {
                 self.arg_binding(ps, (a, arg_tpe), bindings, owner)?
@@ -180,7 +180,7 @@ impl Inlining<'_> {
     ) -> SymbolId {
         let tpe = self.tpd.tpe(a);
         let dealiased = self.u.dealias(tpe);
-        if let Type::Sym(None, s) = *self.u.types().get(dealiased)
+        if let Some((None, s)) = self.u.sym_ref(dealiased)
             && self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind.is_term())
         {
             return s;
@@ -216,17 +216,14 @@ impl Inlining<'_> {
         owner: SymbolId,
     ) -> Result<SymbolId, Unsupported> {
         let p_info = self.u.info(p);
-        let by_name = matches!(self.u.types().get(p_info), Type::ByName(_));
-        let builtins = self.u.builtins();
+        let by_name = self.u.by_name(p_info).is_some();
+        let builtins = self.u.defn();
         let widened = self.u.widen(arg_tpe);
         let bottom =
             self.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);
-        let constant = matches!(self.u.types().get(arg_tpe), Type::Constant(..) | Type::Str(_));
+        let constant = matches!(self.u.ty(arg_tpe), Type::Constant(..) | Type::Str(_));
         let tpe = if bottom {
-            let p_info = match *self.u.types().get(p_info) {
-                Type::ByName(r) => r,
-                _ => p_info,
-            };
+            let p_info = self.u.by_name(p_info).unwrap_or(p_info);
             self.u.widen(p_info)
         } else if constant {
             arg_tpe
@@ -246,7 +243,7 @@ impl Inlining<'_> {
             tree: None,
         });
         self.u.set_info(s, tpe);
-        let unit = self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == "scala.Unit");
+        let unit = self.u.is_class_named(tpe, crate::defn::UNIT);
         if by_name || !((constant || unit) && at_least(self.pure().purity(a), PURE)) {
             let span = self.tpd.span(a);
             let tpt = self.tpd.node(T::TypeTree { inferred: false }, Span::at(span.start()), Some(tpe), None);
@@ -267,7 +264,7 @@ impl Inlining<'_> {
             !type_ref && !matches!(self.tpd.tree(t), T::TypeTree { .. } | T::AppliedTypeTree { .. });
         if is_term && let Some(tpe) = self.tpd.get(t).tpe {
             let value = self.constant_of_type(tpe).or_else(|| {
-                let unit = self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == "scala.Unit");
+                let unit = self.u.is_class_named(tpe, crate::defn::UNIT);
                 unit.then_some(C::Unit)
             });
             if let Some(value) = value

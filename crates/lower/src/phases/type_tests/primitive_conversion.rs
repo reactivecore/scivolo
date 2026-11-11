@@ -38,7 +38,7 @@ pub fn class_cast_exception(l: &mut Lower, message: Option<&str>) -> TNodeId {
     let class = l.u.class_symbol(class).expect("`ClassCastException`");
     let string = l.u.class_ref("java.lang.String");
     let string = l.u.class_symbol(string);
-    let ctors = l.u.decl(class, "<init>").unwrap_or_default();
+    let ctors = l.u.decls_named(class, "<init>");
     let ctor = ctors.into_iter().find(|&c| {
         let info = l.u.info(c);
         match l.u.method(info).map(|m| m.params) {

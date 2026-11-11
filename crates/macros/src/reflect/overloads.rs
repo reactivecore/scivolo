@@ -123,15 +123,15 @@ impl Host {
         let tpe = self.tpd.tpe(fun);
         let info = self.u.widen(tpe);
         let types = self.u.types();
-        let Type::Method { params, result, implicit: false, .. } = types.get(info) else { return None };
-        if matches!(types.get(*result), Type::Method { implicit: true, .. }) {
+        let Type::Method { params, result, implicit: false, .. } = *types.get(info) else { return None };
+        if matches!(types.get(result), Type::Method { implicit: true, .. }) {
             return None;
         }
         let by_value = |p: TypeId| match *types.get(p) {
             Type::ByName(r) => r,
             _ => p,
         };
-        Some(params.iter().map(|&(_, p)| by_value(p)).collect())
+        Some(types.params_of(params).iter().map(|&(_, p)| by_value(p)).collect())
     }
 
     /// Whether the result of the first clause of the method type of `fun`, a method as its
@@ -139,7 +139,7 @@ impl Host {
     fn result_conforms(&mut self, fun: TNodeId, to: TypeId) -> Fallible<bool> {
         let tpe = self.tpd.tpe(fun);
         let info = self.u.widen(tpe);
-        let Type::Method { result, .. } = *self.u.types().get(info) else { return Ok(false) };
+        let Some(result) = self.u.method(info).map(|m| m.result) else { return Ok(false) };
         let normalized = self.function_type(result)?;
         Ok(self.u.is_subtype(normalized, to))
     }

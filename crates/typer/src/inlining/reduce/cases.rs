@@ -31,8 +31,7 @@ impl Reducer<'_, '_> {
         cases: &[TNodeId],
     ) -> Result<Option<(Vec<TNodeId>, TNodeId)>, Unsupported> {
         let tpe = self.i.tpd.tpe(scrutinee);
-        let local =
-            matches!(*self.i.u.types().get(tpe), Type::Sym(None, s) if self.i.u.symbol(s).kind.is_term());
+        let local = matches!(self.i.u.sym_ref(tpe), Some((None, s)) if self.i.u.symbol(s).kind.is_term());
         let (scrut, binding) = if local && self.i.pure().is_pure_expr(scrutinee) {
             (tpe, None)
         } else {

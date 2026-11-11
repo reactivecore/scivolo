@@ -72,7 +72,7 @@ impl Typer<'_> {
 
     /// The term symbol an import's path of type `qual` refers to.
     pub fn import_site(&self, qual: TypeId) -> Option<SymbolId> {
-        match *self.u.types().get(qual) {
+        match *self.u.ty(qual) {
             tasty::Type::Sym(_, s) | tasty::Type::Package(s) => Some(s),
             _ => None,
         }

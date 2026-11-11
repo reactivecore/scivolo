@@ -26,7 +26,7 @@ impl Expansion<'_, '_> {
             _ => self.ident_prefix(fun),
         };
         let impure = prefix.is_some_and(|q| !self.i.pure().is_idempotent_expr(q));
-        if self.i.is_static_owner(cls) {
+        if self.i.u.is_static_owner(cls) {
             return self.bind_static_opaque_this((cls, meth), body, (prefix, impure));
         }
         if self.i.u.symbol(cls).kind.is_term() {
@@ -58,9 +58,8 @@ impl Expansion<'_, '_> {
             };
         }
         let qt = self.i.tpd.tpe(q);
-        let qtv = self.i.u.types().get(qt).clone();
         let mut proxies = Vec::new();
-        let elided = matches!(qtv, Type::This(c) if self.i.u.class_symbol(c) == Some(cls));
+        let elided = self.i.u.this_of(qt).is_some_and(|c| self.i.u.class_symbol(c) == Some(cls));
         if !elided && (uses || impure) {
             proxies.push((cls, self.bind_class_this(cls, q, qt)?));
         }
@@ -72,7 +71,7 @@ impl Expansion<'_, '_> {
 
     /// The proxy of the `this` of class `cls` for call prefix `q` of type `qt`, bound first.
     fn bind_class_this(&mut self, cls: SymbolId, q: TNodeId, qt: TypeId) -> Result<SymbolId, Unsupported> {
-        let stable = match *self.i.u.types().get(qt) {
+        let stable = match *self.i.u.ty(qt) {
             Type::Sym(_, s) => self.i.u.symbol(s).kind.is_term() && self.i.pure().is_stable_member(s),
             Type::This(_) => true,
             _ => false,
@@ -83,9 +82,9 @@ impl Expansion<'_, '_> {
         let point = Span::at(call_span.point());
         let widened = self.i.u.widen(info);
         let widened_cls = self.i.u.class_symbol(widened);
-        let module = widened_cls.filter(|&c| self.i.u.is_module_class(c) && self.i.is_static_owner(c));
+        let module = widened_cls.filter(|&c| self.i.u.is_static_module(c));
         let module = module.and_then(|c| self.i.u.source_module(c));
-        let term_ref = matches!(self.i.u.types().get(qt), Type::Sym(..));
+        let term_ref = self.i.u.sym_ref(qt).is_some();
         let pure_ref = if stable && term_ref && self.i.pure().is_pure_expr(q) {
             self.i.singleton(qt, point)
         } else if let Some(m) = module {
@@ -116,7 +115,7 @@ impl Inlining<'_> {
     /// where the expansion is (dotty's `needsSelect` in `InlineTyper.typedIdent`).
     pub fn ident_as_select(&mut self, t: TNodeId) -> Result<TNodeId, Unsupported> {
         let (&T::Ident { name }, Some(tpe)) = (self.tpd.tree(t), self.tpd.get(t).tpe) else { return Ok(t) };
-        let Type::Sym(Some(p), s) = *self.u.types().get(tpe) else { return Ok(t) };
+        let Some((Some(p), s)) = self.u.sym_ref(tpe) else { return Ok(t) };
         if name.is_type || !self.u.symbol(s).kind.is_term() || self.is_elidable_prefix(p, s) {
             return Ok(t);
         }
@@ -133,7 +132,7 @@ impl Inlining<'_> {
         if leaf && let Some(tpe) = self.tpd.get(t).tpe {
             let mut classes = Vec::new();
             self.u.map_type(tpe, &mut |u, part| {
-                if let Type::This(c) = *u.types().get(part) {
+                if let Some(c) = u.this_of(part) {
                     classes.extend(u.class_symbol(c));
                 }
                 None
@@ -141,7 +140,7 @@ impl Inlining<'_> {
             for c in classes {
                 if c == cls {
                     *uses = true;
-                } else if !self.is_static_owner(c) && !outer.contains(&c) {
+                } else if !self.u.is_static_owner(c) && !outer.contains(&c) {
                     outer.push(c);
                 }
             }
@@ -165,15 +164,9 @@ pub fn replace_this(
     let tpe = i.tpd.get(t).tpe?;
     let proxy_tpe = i.u.intern_type(Type::Sym(None, proxy));
     let is_cls = |i: &mut Inlining<'_>, c| i.u.class_symbol(c) == Some(cls);
-    let prefix_this = match *i.u.types().get(tpe) {
-        Type::Sym(Some(p), _) => match *i.u.types().get(p) {
-            Type::This(c) => Some(c),
-            _ => None,
-        },
-        _ => None,
-    };
+    let prefix_this = i.u.sym_ref(tpe).and_then(|(p, _)| p).and_then(|p| i.u.this_of(p));
     let prefix_is_cls = prefix_this.is_some_and(|c| is_cls(i, c));
-    match (i.tpd.tree(t).clone(), i.u.types().get(tpe).clone()) {
+    match (i.tpd.tree(t).clone(), *i.u.ty(tpe)) {
         (T::This { .. }, Type::This(c)) if is_cls(i, c) => {
             let inner = i.singleton(proxy_tpe, call)?;
             let empty = i.tpd.list(&[]);

@@ -155,7 +155,7 @@ impl Inlining<'_> {
             return Ok(Vec::new());
         }
         let base = self.u.class_ref(MACRO_ANNOTATION);
-        let Type::Sym(_, base) = *self.u.types().get(base) else { return Ok(Vec::new()) };
+        let Some(base) = self.u.sym_of(base) else { return Ok(Vec::new()) };
         let mut trees = self.host.annotations(s);
         trees.retain(|&t| self.u.class_symbol(self.tpd.tpe(t)).is_some_and(|c| self.u.derives_from(c, base)));
         let typed: Vec<_> = trees.iter().map(|&t| self.u.class_symbol(self.tpd.tpe(t))).collect();
@@ -177,10 +177,10 @@ impl Inlining<'_> {
     /// `new c()` at `span`, if class `c` has a constructor without parameters: the annotation
     /// of class `c` without arguments on a definition the typer did not type.
     fn new_annotation(&mut self, c: SymbolId, span: Span) -> Option<TNodeId> {
-        let ctors = self.u.decl(c, "<init>").unwrap_or_default();
+        let ctors = self.u.decls_named(c, "<init>");
         let ctor = ctors.into_iter().find(|&k| {
             let info = self.u.info(k);
-            matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty())
+            self.u.method(info).is_some_and(|m| m.params.is_empty())
         })?;
         let tpe = crate::defn::type_ref(self.u, c);
         let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(tpe), None);

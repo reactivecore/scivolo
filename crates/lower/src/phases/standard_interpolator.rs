@@ -9,7 +9,7 @@ use crate::definitions::{applied, symbol};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Rewrites interpolation `t`, of `raw` if `raw`, in `owner`.
@@ -27,7 +27,7 @@ pub fn transform(l: &mut Lower, t: TNodeId, raw: bool, owner: SymbolId) -> Resul
     let module = string_context(l)?;
     let class = l.u.module_class(module).expect("StringContext's class");
     let member = |l: &mut Lower, owner: SymbolId, name: &str| -> Result<SymbolId> {
-        match l.u.decl(owner, name).unwrap_or_default().first() {
+        match l.u.decls_named(owner, name).first() {
             Some(&m) => Ok(m),
             None => unsupported(span, format!("StringContext.{name} missing from the library")),
         }
@@ -61,7 +61,7 @@ pub fn transform(l: &mut Lower, t: TNodeId, raw: bool, owner: SymbolId) -> Resul
 /// The module `scala.StringContext`.
 fn string_context(l: &mut Lower) -> Result<SymbolId> {
     let scala = l.u.package("scala").expect("package scala");
-    let found = l.u.decl(scala, "StringContext").unwrap_or_default();
+    let found = l.u.decls_named(scala, "StringContext");
     match found.into_iter().find(|&s| l.u.symbol(s).kind == Kind::Val) {
         Some(m) => Ok(m),
         None => unsupported(Span::NONE, "scala.StringContext missing from the library"),
@@ -80,15 +80,14 @@ fn process(
     let string = l.u.class_ref("java.lang.String");
     let info = l.u.info(process_escapes);
     let Some(m) = l.u.method(info) else { unreachable!("a method") };
-    let name = m.params[0].0.clone();
+    let name = m.params[0].0;
     let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, flags));
-    let param = l.u.define(symbol(&name, Kind::Param, anon, Flags::default()));
+    let param = symbol(l.u.name(name), Kind::Param, anon, Flags::default());
+    let param = l.u.define(param);
     l.u.set_info(param, string);
     let binder = l.u.fresh_binder();
-    let params = vec![(name, string)];
-    let method = Type::Method { binder, params, result: string, implicit: false, contextual: false };
-    let method = l.u.intern_type(method);
+    let method = l.u.intern_method(binder, &[(name, string)], string, false, false);
     l.u.set_info(anon, method);
     let param_def = l.param_def(param, Span::NONE);
     let arg = l.ident(param, Span::NONE);

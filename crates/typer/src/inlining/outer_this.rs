@@ -23,11 +23,8 @@ impl Expansion<'_, '_> {
     pub fn prefix_this(&mut self, fun: TNodeId, cls: SymbolId) -> Result<TNodeId, Unsupported> {
         let refused = self.err("inline body referring to an outer this");
         let tpe = self.i.tpd.tpe(fun);
-        let Type::Sym(Some(p), _) = *self.i.u.types().get(tpe) else { return Err(refused) };
-        let this = match *self.i.u.types().get(p) {
-            Type::This(c) => Some(c),
-            _ => None,
-        };
+        let Some((Some(p), _)) = self.i.u.sym_ref(tpe) else { return Err(refused) };
+        let this = self.i.u.this_of(p);
         let is_cls = this.is_some_and(|c| self.i.u.class_symbol(c) == Some(cls));
         let point = Span::at(self.i.tpd.span(self.call).point());
         is_cls.then(|| self.i.this_tree(p, point)).flatten().ok_or(refused)
@@ -36,8 +33,8 @@ impl Expansion<'_, '_> {
     /// The prefix of identifier `fun` as a tree if a path other than a `this` (dotty's
     /// `desugarIdentPrefix`).
     pub fn ident_prefix(&mut self, fun: TNodeId) -> Option<TNodeId> {
-        let Type::Sym(Some(p), _) = *self.i.u.types().get(self.i.tpd.get(fun).tpe?) else { return None };
-        let path = matches!(self.i.u.types().get(p), Type::Sym(_, s) if self.i.u.symbol(*s).kind.is_term());
+        let Some((Some(p), _)) = self.i.u.sym_ref(self.i.tpd.get(fun).tpe?) else { return None };
+        let path = self.i.u.sym_of(p).is_some_and(|s| self.i.u.symbol(s).kind.is_term());
         let point = Span::at(self.i.tpd.span(fun).start());
         path.then(|| self.i.singleton(p, point)).flatten()
     }
@@ -65,9 +62,9 @@ impl Expansion<'_, '_> {
             let class_type = crate::defn::type_ref(self.i.u, c);
             let this = self.i.u.intern_type(Type::This(class_type));
             let seen = self.i.u.as_seen_from(this, qt, cls);
-            let stable = match *self.i.u.types().get(seen) {
-                Type::Sym(_, s) => self.i.pure().is_stable_member(s) && self.i.is_singleton_path(seen),
-                _ => false,
+            let stable = match self.i.u.sym_of(seen) {
+                Some(s) => self.i.pure().is_stable_member(s) && self.i.is_singleton_path(seen),
+                None => false,
             };
             let proxy = self.this_proxy_symbol(c, seen);
             let path = match stable && (last.is_some() || pure) {
@@ -119,7 +116,7 @@ impl Expansion<'_, '_> {
             params.into_iter().map(|p| self.i.u.intern_type(Type::Sym(Some(this), p))).collect();
         let applied = match args.is_empty() {
             true => class,
-            false => self.i.u.intern_type(Type::Applied(class, args)),
+            false => self.i.u.intern_applied(class, &args),
         };
         let tpe = self.i.u.as_seen_from(applied, qt, cls);
         let tpt = self.i.tpd.node(T::TypeTree { inferred: false }, span, Some(tpe), None);
@@ -134,7 +131,7 @@ impl Expansion<'_, '_> {
     fn static_module_ref(&mut self, t: TypeId) -> Option<TypeId> {
         let widened = self.i.u.widen(t);
         let c = self.i.u.class_symbol(widened)?;
-        if !self.i.u.is_module_class(c) || !self.i.is_static_owner(c) {
+        if !self.i.u.is_static_module(c) {
             return None;
         }
         let m = self.i.u.source_module(c)?;

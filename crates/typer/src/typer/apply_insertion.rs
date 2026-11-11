@@ -18,20 +18,18 @@ impl Typer<'_> {
     pub fn with_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        if let Type::Poly { result, .. } = *self.u.types().get(info)
-            && !matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
+        if let Some(result) = self.u.poly(info).map(|p| p.result)
+            && !matches!(self.u.ty(result), Type::Method { .. } | Type::Poly { .. })
             && matches!(pt, Pt::Fun(_))
         {
             let applied = self.with_type_vars(f)?;
             return self.with_apply(applied, pt, ctx);
         }
-        if matches!(pt, Pt::PolyFun(_))
-            && matches!(self.u.types().get(info), Type::Method { implicit: true, .. })
-        {
+        if matches!(pt, Pt::PolyFun(_)) && self.u.method(info).is_some_and(|m| m.implicit) {
             let applied = self.implicit_clause_applied(f, ctx)?;
             return if applied == f { Ok(f) } else { self.with_apply(applied, pt, ctx) };
         }
-        if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
+        if matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
             return Ok(f);
         }
         if let Pt::Fun(p) = pt

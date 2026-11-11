@@ -15,7 +15,7 @@ impl MirrorSynthesis {
     /// Types an anonymous class as the sum (`sum`) or product mirror of `mono`, for a class whose
     /// companion cannot serve as its mirror.
     pub fn anonymous(self, t: &mut Typer<'_>, mono: TypeId, sum: bool) -> Result<TNodeId, &'static str> {
-        let object = crate::defn::type_ref(t.u, t.u.builtins().object);
+        let object = crate::defn::type_ref(t.u, t.u.defn().object);
         let serializable = t.resolve_full_name("java.io.Serializable", true).ok_or(MISSING)?;
         let serializable = crate::defn::type_ref(t.u, serializable);
         let parents = [self.spliced_type(t, object), self.spliced_type(t, serializable)];

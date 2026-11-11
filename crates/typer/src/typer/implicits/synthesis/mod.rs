@@ -61,7 +61,9 @@ impl Synthesizer {
             return Ok(Some(mirror));
         }
         let pt = t.u.dealias(pt);
-        let Type::Applied(tycon, args) = t.u.types().get(pt).clone() else { return Ok(None) };
+        let Some((tycon, args)) = t.u.applied(pt).map(|(tycon, args)| (tycon, args.to_vec())) else {
+            return Ok(None);
+        };
         let Some(class) = t.u.class_symbol(tycon) else { return Ok(None) };
         match (t.u.full_name(class).as_str(), &args[..]) {
             (CAN_EQUAL, &[l, r]) => self.can_equal(t, l, r),
@@ -87,9 +89,12 @@ impl Synthesizer {
         let tpe = t.fully_defined_as(tpe, true)?;
         let normalized = t.u.normalized(tpe);
         let dealiased = t.u.dealias(normalized);
-        let value = match t.u.types().get(dealiased).clone() {
+        let value = match *t.u.ty(dealiased) {
             Type::Constant(tag, bits) => of_type(tag, bits).map(|c| t.build().literal(c, at)),
-            Type::Str(s) => Some(t.build().literal(C::String(s.encode_utf16().collect()), at)),
+            Type::Str(s) => {
+                let s = C::String(t.u.name(s).encode_utf16().collect());
+                Some(t.build().literal(s, at))
+            }
             Type::Sym(_, s) if s == t.defn.unit => Some(t.build().literal(C::Unit, at)),
             Type::Sym(_, s) if t.u.symbol(s).kind.is_term() => t.path_tree(dealiased, at, MAX_PATH_DEPTH),
             Type::This(_) => t.path_tree(dealiased, at, MAX_PATH_DEPTH),
@@ -105,9 +110,8 @@ impl Synthesizer {
         let select = t.build().select(new, ctor, at);
         let result = crate::defn::applied(t.u, class, vec![tpe]);
         let binder = t.u.fresh_binder();
-        let params = vec![("value".to_owned(), tpe)];
-        let method =
-            t.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
+        let params = [(t.u.intern_name("value"), tpe)];
+        let method = t.u.intern_method(binder, &params, result, false, false);
         let targ = t.type_tree(tpe, at, false);
         let fun = t.build().type_apply(select, &[targ], method, at);
         Ok(Some(t.build().apply(fun, &[value], result, at)))

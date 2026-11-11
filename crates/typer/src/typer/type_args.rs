@@ -22,17 +22,15 @@ impl Typer<'_> {
         if arity != args.len() {
             return Some("wrong number of type arguments");
         }
-        let class_tycon =
-            matches!(*self.u.types().get(tycon), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class);
+        let class_tycon = self.u.sym_of(tycon).is_some_and(|s| self.u.symbol(s).kind == Kind::Class);
         for (i, &a) in args.iter().enumerate() {
-            if !class_tycon && self.u.class_symbol(a) == Some(self.u.builtins().any_kind) {
+            if !class_tycon && self.u.class_symbol(a) == Some(self.u.defn().any_kind) {
                 return Some("AnyKind argument of a type alias or abstract type");
             }
-            let hi = if let Type::Bounds(_, hi) = *self.u.types().get(a) { Some(hi) } else { None };
+            let hi = self.u.bounds(a).map(|(_, hi)| hi);
             let n = self.type_arity(hi.unwrap_or(a));
             let wildcard = hi.is_some() && n == 0;
-            let class =
-                matches!(*self.u.types().get(a), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class);
+            let class = self.u.sym_of(a).is_some_and(|s| self.u.symbol(s).kind == Kind::Class);
             let param_arity = self.param_arity(tycon, i);
             match param_arity {
                 Some(m) if m > 0 && wildcard => {
@@ -53,12 +51,15 @@ impl Typer<'_> {
     /// `tycon` takes type parameters and dotty shows it and the arguments as `show_user` does.
     pub fn wrong_type_arg_count(&mut self, id: NodeId, tycon: TypeId, args: &[NodeId]) -> Option<TNodeId> {
         let dealiased = self.u.dealias(tycon);
-        let params: Vec<String> = match self.u.types().get(dealiased).clone() {
-            Type::Sym(_, c) if self.u.full_name(c) == "scala.throws" => return None,
+        let ty = *self.u.ty(dealiased);
+        let params: Vec<String> = match ty {
+            Type::Sym(_, c) if self.u.full_name(c) == crate::defn::THROWS => return None,
             Type::Sym(_, c) if self.u.symbol(c).kind == Kind::Class => {
                 self.u.type_params(c).iter().map(|&p| self.u.symbol(p).name.clone()).collect()
             }
-            Type::Lambda { params, .. } => params.into_iter().map(|(n, _)| n).collect(),
+            Type::Lambda { params, .. } => {
+                self.u.params_of(params).iter().map(|&(n, _)| self.u.name(n).to_owned()).collect()
+            }
             _ if self.type_arity(tycon) == 0 => Vec::new(),
             _ => return None,
         };
@@ -68,11 +69,10 @@ impl Typer<'_> {
             actual.push(self.text(name.name).to_owned());
         }
         let plain = |n: &String| !n.is_empty() && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-        let param = match *self.u.types().get(tycon) {
-            Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
+        let param = match self.u.sym_of(tycon) {
+            Some(s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                 let info = self.u.info(s);
-                matches!(self.u.types().get(info), Type::Bounds(..))
-                    && self.u.show_user(tycon) == self.u.symbol(s).name
+                self.u.bounds(info).is_some() && self.u.show_user(tycon) == self.u.symbol(s).name
             }
             _ => false,
         };
@@ -100,17 +100,17 @@ impl Typer<'_> {
     fn has_bounded_params(&mut self, t: TypeId) -> bool {
         let lambda = self.u.dealias(t);
         let Some(bounds) = self.u.lambda(lambda).map(|l| l.param_types()) else { return false };
-        bounds.into_iter().any(|b| match *self.u.types().get(b) {
-            Type::Bounds(_, hi) => hi != tasty::ANY && self.u.class_symbol(hi) != Some(self.u.builtins().any),
-            _ => false,
+        bounds.into_iter().any(|b| match self.u.bounds(b) {
+            Some((_, hi)) => hi != tasty::ANY && self.u.class_symbol(hi) != Some(self.u.defn().any),
+            None => false,
         })
     }
 
     /// Type argument `arg` as dotty's `adaptType` leaves it: a class constructor eta-expanded.
     pub fn adapted_type_arg(&mut self, arg: TNodeId) -> Result<TypeId, &'static str> {
         let tpe = self.tpd.tpe(arg);
-        let Type::Sym(prefix, c) = *self.u.types().get(tpe) else { return Ok(tpe) };
-        let projection = prefix.is_some_and(|p| matches!(self.u.types().get(p), Type::Applied(..)));
+        let Some((prefix, c)) = self.u.sym_ref(tpe) else { return Ok(tpe) };
+        let projection = prefix.is_some_and(|p| self.u.applied(p).is_some());
         if projection && self.type_arity(tpe) > 0 {
             let lambda = self.projected_alias(tpe).ok_or("type projection constructor argument")?;
             let node = self.tpd.get_mut(arg);
@@ -133,7 +133,7 @@ impl Typer<'_> {
     /// bounds it; while a class's parameter is not completed, that of its tree in the primary
     /// constructor if it has any, else `None`.
     fn param_arity(&mut self, tycon: TypeId, i: usize) -> Option<usize> {
-        let Type::Sym(_, c) = *self.u.types().get(tycon) else { return None };
+        let c = self.u.sym_of(tycon)?;
         if matches!(self.u.symbol(c).kind, Kind::Type | Kind::TypeParam) {
             if let Some(&Completion::Completing(tree)) = self.syms.completions.get(&c) {
                 let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return None };
@@ -142,10 +142,7 @@ impl Typer<'_> {
             }
             self.complete(c);
             let info = self.u.info(c);
-            let lambda = match *self.u.types().get(info) {
-                Type::Bounds(_, hi) => hi,
-                _ => info,
-            };
+            let lambda = self.u.bounds(info).map_or(info, |(_, hi)| hi);
             let bounds = self.u.lambda(lambda)?.params.get(i)?.1;
             return Some(self.bounds_of(bounds).2);
         }
@@ -158,7 +155,7 @@ impl Typer<'_> {
         }
         let info = self.u.info(p);
         let (_, hi, arity) = self.bounds_of(info);
-        (self.u.class_symbol(hi) != Some(self.u.builtins().any_kind)).then_some(arity)
+        (self.u.class_symbol(hi) != Some(self.u.defn().any_kind)).then_some(arity)
     }
 
     /// The `i`th type parameter tree of script class `c`'s primary constructor.

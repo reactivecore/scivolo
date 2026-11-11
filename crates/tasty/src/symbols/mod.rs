@@ -12,6 +12,7 @@ mod classes;
 mod classfiles;
 mod companions;
 mod define;
+pub mod defn;
 mod enter;
 mod entries;
 mod function_classes;
@@ -56,8 +57,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::io;
 
 pub use bodies::BodyInfo;
-pub use builtin::{ANY, Builtins, NOTHING};
+pub use builtin::{ANY, NOTHING};
 pub use companions::{module_class_name, module_name};
+pub use defn::Defn;
 pub use function_classes::MAX_IMPLEMENTED_ARITY;
 pub use jdk::{defined_name, jdk_name};
 pub use lookup::{decode, encode};
@@ -148,7 +150,7 @@ pub struct Universe {
     resolving: u32,
     /// The intersections and unions whose base types `base_type` is merging, with the base class.
     merging_bases: FxHashSet<(TypeId, SymbolId)>,
-    builtins: Builtins,
+    defn: Defn,
     /// How many binders `fresh_binder` has made.
     binders: u32,
     /// The declared variances of the type lambdas made outside TASTy that declare them.
@@ -296,6 +298,74 @@ impl Universe {
 
     pub fn intern_type(&mut self, t: crate::Type) -> TypeId {
         self.types.intern(t)
+    }
+
+    /// The id of name `text` in the name table of the types.
+    pub fn intern_name(&mut self, text: &str) -> crate::NameId {
+        self.types.intern_name(text)
+    }
+
+    /// Interns type list `list` in the types' list table.
+    pub fn intern_types(&mut self, list: &[TypeId]) -> crate::TypeList {
+        self.types.intern_types(list)
+    }
+
+    /// Interns parameter list `list` in the types' parameter table.
+    pub fn intern_params(&mut self, list: &[(crate::NameId, TypeId)]) -> crate::ParamList {
+        self.types.intern_params(list)
+    }
+
+    /// Interns `tycon[args]`.
+    pub fn intern_applied(&mut self, tycon: TypeId, args: &[TypeId]) -> TypeId {
+        self.types.intern_applied(tycon, args)
+    }
+
+    /// Interns the method type of binder `binder`, parameters `params` and result `result`.
+    pub fn intern_method(
+        &mut self,
+        binder: crate::Binder,
+        params: &[(crate::NameId, TypeId)],
+        result: TypeId,
+        implicit: bool,
+        contextual: bool,
+    ) -> TypeId {
+        self.types.intern_method(binder, params, result, implicit, contextual)
+    }
+
+    /// Interns the polymorphic type of binder `binder`, type parameters `params` and `result`.
+    pub fn intern_poly(
+        &mut self,
+        binder: crate::Binder,
+        params: &[(crate::NameId, TypeId)],
+        result: TypeId,
+    ) -> TypeId {
+        self.types.intern_poly(binder, params, result)
+    }
+
+    /// Interns the type lambda of binder `binder`, parameters `params` and body `result`.
+    pub fn intern_lambda(
+        &mut self,
+        binder: crate::Binder,
+        params: &[(crate::NameId, TypeId)],
+        result: TypeId,
+    ) -> TypeId {
+        self.types.intern_lambda(binder, params, result)
+    }
+
+    /// Interns `scrutinee match { cases } <: bound`.
+    pub fn intern_match(&mut self, bound: TypeId, scrutinee: TypeId, cases: &[TypeId]) -> TypeId {
+        self.types.intern_match(bound, scrutinee, cases)
+    }
+
+    /// The name of symbol `s`, interned.
+    pub fn interned_name(&mut self, s: SymbolId) -> crate::NameId {
+        self.types.intern_name(&self.symbols[s.0 as usize].name)
+    }
+
+    /// The constant type of string `text`.
+    pub fn str_type(&mut self, text: &str) -> TypeId {
+        let s = self.types.intern_name(text);
+        self.types.intern(crate::Type::Str(s))
     }
 
     /// The unions built so far and the atoms of unions.

@@ -46,8 +46,8 @@ impl MakeInlineable {
             return false;
         };
 
-        let Type::Method { result, .. } = *t.u.types().get(info) else { return false };
-        let method = matches!(t.u.types().get(result), Type::Method { .. });
+        let Some(result) = t.u.method(info).map(|m| m.result) else { return false };
+        let method = t.u.method(result).is_some();
         let end = t.tpd.span(qualifier).end();
         let args = t.tpd.list(&[qualifier]);
         let node = t.tpd.get_mut(s);
@@ -79,7 +79,7 @@ impl MakeInlineable {
             return;
         };
 
-        let Type::Method { result, .. } = *t.u.types().get(info) else { return };
+        let Some(result) = t.u.method(info).map(|m| m.result) else { return };
         let node = t.tpd.get_mut(lhs);
         (node.tree, node.tpe) = (T::Apply { fun, args }, Some(result));
         let args = t.tpd.list(&[rhs]);
@@ -149,14 +149,15 @@ fn passing_fun(
 
 /// Accessor type `info` with its receiver parameter named `x$0`.
 fn with_receiver_named(u: &mut Universe, info: TypeId) -> TypeId {
-    match u.types().get(info).clone() {
+    match *u.ty(info) {
         Type::Poly { binder, params, result } => {
             let result = with_receiver_named(u, result);
             u.intern_type(Type::Poly { binder, params, result })
         }
-        Type::Method { binder, mut params, result, implicit, contextual } => {
-            params[0].0 = "x$0".to_owned();
-            u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+        Type::Method { binder, params, result, implicit, contextual } => {
+            let mut params = u.params_of(params).to_vec();
+            params[0].0 = u.intern_name("x$0");
+            u.intern_method(binder, &params, result, implicit, contextual)
         }
         _ => info,
     }
@@ -167,7 +168,7 @@ fn with_receiver_named(u: &mut Universe, info: TypeId) -> TypeId {
 fn local_refs(u: &mut Universe, t: TypeId, meth: SymbolId) -> Vec<SymbolId> {
     let mut found = Vec::new();
     u.map_type(t, &mut |u, p| {
-        if let Type::Sym(_, s) = *u.types().get(p)
+        if let Some(s) = u.sym_of(p)
             && u.symbol(s).kind.is_type()
             && crate::sealed::is_contained_in(u, s, meth)
             && !found.contains(&s)

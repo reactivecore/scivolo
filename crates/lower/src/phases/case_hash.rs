@@ -86,7 +86,7 @@ impl Lower<'_> {
             Erased::Prim('i') => value,
             Erased::Prim('s' | 'b' | 'c') => {
                 let class = self.class_of(info).expect("a primitive class");
-                let to_int = self.u.decl(class, "toInt").unwrap_or_default().into_iter().next();
+                let to_int = self.u.decls_named(class, "toInt").into_iter().next();
                 let sel = self.select(value, to_int.expect("`toInt`"), Span::NONE);
                 let int = self.u.class_ref("scala.Int");
                 self.tpd.get_mut(sel).tpe = Some(int);

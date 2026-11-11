@@ -12,15 +12,12 @@ impl Typer<'_> {
     pub fn reduces_with_wildcards(&mut self, s: SymbolId) -> bool {
         self.complete(s);
         let info = self.u.info(s);
-        let lambda = match *self.u.types().get(info) {
-            Type::Alias(a) => a,
-            _ => info,
-        };
-        let Type::Lambda { binder, ref params, result } = *self.u.types().get(lambda) else { return false };
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        let is_param = |u: &Universe, t: TypeId| match u.types().get(t) {
-            Type::Param(b, _) => *b == binder,
-            Type::Local(b, n) => b.0 == binder.0 && names.contains(n),
+        let lambda = self.u.type_alias(info).unwrap_or(info);
+        let Some(lambda) = self.u.lambda(lambda) else { return false };
+        let (binder, result, names) = (lambda.binder, lambda.result, lambda.names());
+        let is_param = |u: &Universe, t: TypeId| match *u.ty(t) {
+            Type::Param(b, _) => b == binder,
+            Type::Local(b, n) => b.0 == binder.0 && names.contains(&n),
             _ => false,
         };
         let mut total = 0;
@@ -40,10 +37,9 @@ impl Typer<'_> {
 
 fn bounded(u: &mut Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| {
-        let Type::Refined(parent, ref name, info) = *u.types().get(part) else { return None };
-        let Type::Alias(b) = *u.types().get(info) else { return None };
-        let Type::Bounds(..) = u.types().get(b) else { return None };
-        let name = name.clone();
+        let Type::Refined(parent, name, info) = *u.ty(part) else { return None };
+        let b = u.type_alias(info)?;
+        u.bounds(b)?;
         let parent = bounded(u, parent);
         Some(u.intern_type(Type::Refined(parent, name, b)))
     })
@@ -55,10 +51,10 @@ fn as_args(u: &Universe, t: TypeId, is_param: &dyn Fn(&Universe, TypeId) -> bool
     if is_param(u, t) {
         return None;
     }
-    match u.types().get(t).clone() {
+    match *u.ty(t) {
         Type::Applied(tycon, args) => {
             let mut n = as_args(u, tycon, is_param)?;
-            for a in args {
+            for &a in u.types_of(args) {
                 n += if is_param(u, a) { 1 } else { as_args(u, a, is_param)? };
             }
             Some(n)
@@ -67,7 +63,7 @@ fn as_args(u: &Universe, t: TypeId, is_param: &dyn Fn(&Universe, TypeId) -> bool
         Type::Annotated(a, _) => as_args(u, a, is_param),
         Type::Refined(parent, _, info) => {
             let n = as_args(u, parent, is_param)?;
-            Some(n + usize::from(matches!(*u.types().get(info), Type::Alias(a) if is_param(u, a))))
+            Some(n + usize::from(u.type_alias(info).is_some_and(|a| is_param(u, a))))
         }
         _ => Some(0),
     }

@@ -25,14 +25,11 @@ impl Typer<'_> {
                 let (lo, hi) = (self.zonk(lo), self.zonk(hi));
                 let direction = self.constraint.direction(self.u, v);
                 if direction <= 0 && lo != NOTHING {
-                    if matches!(self.u.types().get(lo), Type::And(..)) {
+                    if matches!(self.u.ty(lo), Type::And(..)) {
                         return Err("type variable minimized to an intersection before an implicit search");
                     }
                     self.instantiate_var(v, true)?;
-                } else if direction >= 0
-                    && !self.is_any(hi)
-                    && !matches!(self.u.types().get(hi), Type::Var(_))
-                {
+                } else if direction >= 0 && !self.is_any(hi) && self.u.var(hi).is_none() {
                     self.instantiate_var(v, false)?;
                 }
             }
@@ -42,7 +39,7 @@ impl Typer<'_> {
 
     /// Whether `t` is `Any` or `AnyKind`.
     fn is_any(&mut self, t: TypeId) -> bool {
-        let any_kind = self.u.builtins().any_kind;
+        let any_kind = self.u.defn().any_kind;
         self.is_exactly_any(t) || self.u.class_symbol(t) == Some(any_kind)
     }
 
@@ -59,7 +56,7 @@ impl Typer<'_> {
                 for a in self.tpd.items(args).to_vec() {
                     let tpe = self.zonk(self.tpd.tpe(a));
                     if matches!(self.tpd.tree(a), T::TypeTree { inferred: true })
-                        && let Type::Var(v) = *self.u.types().get(tpe)
+                        && let Some(v) = self.u.var(tpe)
                         && v.0 as usize >= self.locked_vars
                     {
                         acc.push(v);

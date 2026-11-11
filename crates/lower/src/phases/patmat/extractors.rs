@@ -14,8 +14,8 @@ use crate::phases::type_tests::not_null::is_not_null;
 use crate::symbols::has;
 use crate::{Result, unsupported};
 use syntax::ast::Span;
+use tasty::SymbolId;
 use tasty::tags::SYNTHETIC;
-use tasty::{SymbolId, Type};
 use typer::tpd::{List, TNodeId};
 
 impl Translator<'_, '_> {
@@ -31,7 +31,7 @@ impl Translator<'_, '_> {
     ) -> Result<PlanId> {
         let span = self.l.tpd.span(pat);
         let fun_type = self.l.u.widen(self.l.tpd.tpe(fun));
-        let Type::Method { params, result, .. } = self.l.u.types().get(fun_type).clone() else {
+        let Some((params, result)) = self.l.u.method(fun_type).map(|m| (m.params.to_vec(), m.result)) else {
             return unsupported(span, "extractors that are not methods");
         };
         let info = self.l.u.info(scrutinee);
@@ -47,9 +47,8 @@ impl Translator<'_, '_> {
             let all = self.l.tpd.items(implicits).to_vec();
             let (mut implicits, mut mt) = (&all[..], result);
             while !implicits.is_empty() {
-                let (n, result) = match self.l.u.types().get(mt) {
-                    Type::Method { params, result, .. } => (params.len(), *result),
-                    _ => return unsupported(span, "extractors with implicit arguments"),
+                let Some((n, result)) = self.l.u.method(mt).map(|m| (m.params.len(), m.result)) else {
+                    return unsupported(span, "extractors with implicit arguments");
                 };
                 let (args, rest) = implicits.split_at(n.min(implicits.len()));
                 let applied = self.l.apply(unapp, args, result, Span::NONE);
@@ -128,7 +127,7 @@ impl Translator<'_, '_> {
                 .collect();
             return self.match_args_plan(&components, args, on_success);
         }
-        if self.l.class_of(unapp_type).is_some_and(|c| self.l.u.full_name(c) == "scala.Boolean") {
+        if self.l.class_of(unapp_type).is_some_and(|c| self.l.u.full_name(c) == tasty::defn::BOOLEAN) {
             return Ok(self.add(Plan::Test { test: Test::Guard, scrutinee: unapp, span, on_success }));
         }
         let arity = args.len();

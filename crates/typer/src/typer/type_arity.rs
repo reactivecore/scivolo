@@ -16,7 +16,7 @@ impl Typer<'_> {
 
     fn type_arity_within(&mut self, t: TypeId, depth: u32) -> usize {
         let Some(depth) = depth.checked_sub(1) else { return 0 };
-        match self.u.types().get(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(pre, s) => match self.u.symbol(s).kind {
                 Kind::Class if self.is_pending_plain_class(s) => 0,
                 Kind::Class => {
@@ -41,8 +41,8 @@ impl Typer<'_> {
                 }
                 _ => 0,
             },
-            Type::Lambda { params, .. } => params.len(),
-            Type::TypeRef(pre, name) => match self.u.refinement_named(pre, &name) {
+            Type::Lambda { params, .. } => self.u.params_of(params).len(),
+            Type::TypeRef(pre, name) => match self.u.refinement_named(pre, name) {
                 Some(info) => self.info_arity(info, depth),
                 None => self.u.resolve_ref(t).map_or(0, |s| {
                     let sym = self.u.intern_type(Type::Sym(Some(pre), s));
@@ -50,7 +50,7 @@ impl Typer<'_> {
                 }),
             },
             Type::Applied(tycon, _) => {
-                if let Type::Sym(_, s) = *self.u.types().get(tycon) {
+                if let Some(s) = self.u.sym_of(tycon) {
                     self.complete(s);
                 }
                 let reduced = self.u.dealias(t);
@@ -62,8 +62,10 @@ impl Typer<'_> {
 
     /// Whether `t` refers to a type symbol being completed.
     pub fn is_completing_type(&mut self, t: TypeId) -> bool {
-        matches!(*self.u.types().get(t), Type::Sym(_, s) if self.u.is_type_symbol(s)
-            && matches!(self.syms.completions.get(&s), Some(crate::symbols::Completion::Completing(_))))
+        self.u.sym_of(t).is_some_and(|s| {
+            self.u.is_type_symbol(s)
+                && matches!(self.syms.completions.get(&s), Some(crate::symbols::Completion::Completing(_)))
+        })
     }
 
     /// Whether `s` is a class without type parameters not completed yet.
@@ -114,9 +116,9 @@ impl Typer<'_> {
 
     /// How many type parameters a type member of info `info` takes.
     fn info_arity(&mut self, info: TypeId, depth: u32) -> usize {
-        match *self.u.types().get(info) {
+        match *self.u.ty(info) {
             Type::Alias(a) | Type::Bounds(_, a) => self.type_arity_within(a, depth),
-            Type::Lambda { ref params, .. } => params.len(),
+            Type::Lambda { params, .. } => self.u.params_of(params).len(),
             _ => 0,
         }
     }
@@ -125,19 +127,13 @@ impl Typer<'_> {
     /// of a higher-kinded one, `[X] =>> >: L <: H`, `[X] =>> L` and `[X] =>> H`, the lower one
     /// `None` for `Nothing`.
     pub fn bounds_of(&mut self, bounds: TypeId) -> (Option<TypeId>, TypeId, usize) {
-        match self.u.types().get(bounds).clone() {
+        match *self.u.ty(bounds) {
             Type::Bounds(lo, hi) => (Some(lo), hi, self.type_arity(hi)),
             Type::Lambda { binder, params, result } => {
-                let (lo, hi) = match *self.u.types().get(result) {
-                    Type::Bounds(lo, hi) => (lo, hi),
-                    _ => (result, result),
-                };
-                let bottom = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
-                let arity = params.len();
-                let mut lambda = |result| {
-                    let params = params.clone();
-                    self.u.intern_type(Type::Lambda { binder, params, result })
-                };
+                let (lo, hi) = self.u.bounds(result).unwrap_or((result, result));
+                let bottom = self.u.class_symbol(lo) == Some(self.u.defn().nothing);
+                let arity = self.u.params_of(params).len();
+                let mut lambda = |result| self.u.intern_type(Type::Lambda { binder, params, result });
                 let lo = lambda(lo);
                 ((!bottom).then_some(lo), lambda(hi), arity)
             }

@@ -141,7 +141,7 @@ impl Typer<'_> {
             return Some(s);
         }
         let class = match found.prefix {
-            Some(p) if !matches!(self.u.types().get(p), Type::Package(_)) => {
+            Some(p) if !matches!(self.u.ty(p), Type::Package(_)) => {
                 let widened = self.u.widen(p);
                 self.u.class_symbol(widened)?
             }
@@ -159,7 +159,7 @@ impl Typer<'_> {
             return false;
         };
         let params: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
-        let curried = matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. });
+        let curried = matches!(self.u.ty(result), Type::Method { .. } | Type::Poly { .. });
         params.len() == arity && !curried && params.into_iter().all(|p| self.repeated_elem(p).is_none())
     }
 

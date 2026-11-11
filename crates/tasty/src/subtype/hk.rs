@@ -7,7 +7,7 @@
 //! (`liftIfHK`), and tuple classes as nested pairs.
 
 use super::Cmp;
-use crate::types::{Binder, Type, TypeId};
+use crate::types::{Binder, NameId, Type, TypeId};
 use crate::{ANY, FileId, Kind, NOTHING, SymbolId};
 
 /// The files of the binders of adapted constructors (numbered by the constructor they apply)
@@ -32,7 +32,8 @@ impl Cmp<'_> {
         };
         let binder = Binder(FileId(LIFTED), a.0.wrapping_mul(0x9e37_79b9) ^ b.0);
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
-        let params: Vec<(String, TypeId)> = (0..combined).map(|i| (format!("X{i}"), bounds)).collect();
+        let params: Vec<(NameId, TypeId)> =
+            (0..combined).map(|i| (self.u.intern_name(&format!("X{i}")), bounds)).collect();
         let refs: Vec<TypeId> =
             (0..combined as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
         let (applied_a, applied_b) = (self.apply(a, &refs), self.apply(b, &refs));
@@ -40,7 +41,7 @@ impl Cmp<'_> {
             Connective::And => self.glb(applied_a, applied_b),
             Connective::Or(soft) => self.lub_as(applied_a, applied_b, soft),
         };
-        self.u.intern_type(Type::Lambda { binder, params, result })
+        self.u.intern_lambda(binder, &params, result)
     }
 
     /// `a` and `b` combined by `op`, rebalanced if one side has more than one part more than
@@ -60,7 +61,7 @@ impl Cmp<'_> {
     }
 
     fn flattened(&self, t: TypeId, out: &mut Vec<TypeId>) {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::And(x, y) => [x, y].into_iter().for_each(|p| self.flattened(p, out)),
             _ => out.push(t),
         }
@@ -86,7 +87,7 @@ impl Cmp<'_> {
             return true;
         }
         let Some(class) = self.u.class_symbol(widened) else { return false };
-        let Type::Var(v) = *self.u.types().get(var) else { return false };
+        let Some(v) = self.u.var(var) else { return false };
         let class_bounds = self.class_symbols(self.vars.bounds(v).1);
         for base in self.u.linearization(class) {
             if (class_bounds.is_empty() || class_bounds.iter().any(|&c| self.u.derives_from(base, c)))
@@ -109,7 +110,8 @@ impl Cmp<'_> {
     /// arguments fixed, so that `var[args]` is below `other` (above it if `from_below`); the
     /// constraint as before if not.
     fn unify_constructor(&mut self, var: TypeId, args: &[TypeId], other: TypeId, from_below: bool) -> bool {
-        let Type::Applied(tycon, other_args) = self.u.types().get(other).clone() else { return false };
+        let Some((tycon, other_args)) = self.u.applied(other) else { return false };
+        let other_args = other_args.to_vec();
         let Some(fixed) = other_args.len().checked_sub(args.len()) else { return false };
         if tycon == var {
             return false;
@@ -121,8 +123,8 @@ impl Cmp<'_> {
                 let mut body_args = other_args[..fixed].to_vec();
                 body_args.extend((0..args.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))));
                 let params = self.remaining_params(tycon, fixed, &body_args);
-                let result = self.u.intern_type(Type::Applied(tycon, body_args));
-                self.u.intern_type(Type::Lambda { binder, params, result })
+                let result = self.u.intern_applied(tycon, &body_args);
+                self.u.intern_lambda(binder, &params, result)
             }
         };
         let mark = self.vars.mark();
@@ -149,19 +151,22 @@ impl Cmp<'_> {
         tycon: TypeId,
         fixed: usize,
         body_args: &[TypeId],
-    ) -> Vec<(String, TypeId)> {
-        let lambda = match self.u.types().get(tycon) {
+    ) -> Vec<(NameId, TypeId)> {
+        let lambda = match *self.u.ty(tycon) {
             Type::Lambda { .. } => Some(tycon),
             _ => self.eta_expand(tycon).or_else(|| self.u.referenced_alias(tycon)),
         };
-        let Some(Type::Lambda { binder, params, .. }) = lambda
-            .map(|l| self.u.types().get(l).clone())
-            .filter(|l| matches!(l, Type::Lambda { params, .. } if params.len() == body_args.len()))
+        let Some((binder, params)) = lambda
+            .and_then(|l| self.u.lambda(l))
+            .filter(|l| l.params.len() == body_args.len())
+            .map(|l| (l.binder, l.params.to_vec()))
         else {
             let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
-            return (0..body_args.len() - fixed).map(|i| (format!("X{i}"), bounds)).collect();
+            return (0..body_args.len() - fixed)
+                .map(|i| (self.u.intern_name(&format!("X{i}")), bounds))
+                .collect();
         };
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<_> = params.iter().map(|&(n, _)| n).collect();
         let remaining = params.into_iter().skip(fixed);
         remaining.map(|(n, b)| (n, self.u.subst(b, binder, &names, body_args))).collect()
     }
@@ -185,7 +190,7 @@ impl Cmp<'_> {
         let (pair, mut t) =
             (self.u.intern_type(Type::Sym(None, pair)), self.u.intern_type(Type::Sym(None, empty)));
         for &arg in args.iter().rev() {
-            t = self.u.intern_type(Type::Applied(pair, vec![arg, t]));
+            t = self.u.intern_applied(pair, &[arg, t]);
         }
         Some(t)
     }

@@ -5,7 +5,6 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::Type;
 
 impl Typer<'_> {
     /// Copies of arguments `args` of a call of `fun` for the default getter of a later clause: a
@@ -17,7 +16,7 @@ impl Typer<'_> {
         let params = self.u.method(info).map_or(Vec::new(), |m| m.param_types());
         let mut out = Vec::new();
         for (i, &a) in args.iter().enumerate() {
-            let by_name = params.get(i).is_some_and(|&p| matches!(self.u.types().get(p), Type::ByName(_)));
+            let by_name = params.get(i).is_some_and(|&p| self.u.by_name(p).is_some());
             out.push(match self.is_copyable(a) {
                 true => self.copied_path(a),
                 false if by_name => self

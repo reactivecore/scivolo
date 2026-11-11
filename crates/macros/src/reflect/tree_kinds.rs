@@ -119,7 +119,7 @@ impl Host {
     /// Whether the type of `t` is a bounds or an alias type.
     pub fn has_bounds(&self, t: TNodeId) -> bool {
         let tpe = self.tpd.get(t).tpe;
-        tpe.is_some_and(|tpe| matches!(self.u.types().get(tpe), Type::Bounds(..) | Type::Alias(_)))
+        tpe.is_some_and(|tpe| matches!(self.u.ty(tpe), Type::Bounds(..) | Type::Alias(_)))
     }
 
     /// The kind of `t`; every `TypeTree` is dotty's `Inferred` but for one of bounds.

@@ -11,21 +11,21 @@ use crate::{Kind, NOTHING, SymbolId};
 
 impl Cmp<'_> {
     pub fn first_try(&mut self, a: TypeId, b: TypeId) -> bool {
-        if matches!(self.u.types().get(a), Type::Error) {
+        if matches!(self.u.ty(a), Type::Error) {
             return true;
         }
-        match *self.u.types().get(b) {
+        match *self.u.ty(b) {
             Type::Error => true,
             Type::Var(v) => match self.vars.instance(v) {
                 Some(t) => self.recur(a, t),
                 None => self.second_try(a, b),
             },
-            Type::Wildcard(bounds) => match bounds.map(|t| self.u.types().get(t).clone()) {
+            Type::Wildcard(bounds) => match bounds.map(|t| *self.u.ty(t)) {
                 Some(Type::Bounds(_, hi)) => self.recur(a, hi),
                 _ => true,
             },
             Type::Annotated(p, _) => self.recur(a, p),
-            Type::This(c2) => match *self.u.types().get(a) {
+            Type::This(c2) => match *self.u.ty(a) {
                 Type::This(c1) => {
                     self.path_symbol(c1).is_some() && self.path_symbol(c1) == self.path_symbol(c2)
                 }
@@ -33,7 +33,7 @@ impl Cmp<'_> {
             },
             Type::And(x, y) => self.recur(a, x) && self.recur(a, y),
             Type::Or(x, y, _) if x == y => self.recur(a, x),
-            Type::Sym(_, s) if s == self.u.builtins().from_java_object => self.recur(a, crate::ANY),
+            Type::Sym(_, s) if s == self.u.defn().from_java_object => self.recur(a, crate::ANY),
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => self.compare_named(a, b),
             _ => self.second_try(a, b),
         }
@@ -95,11 +95,11 @@ impl Cmp<'_> {
     }
 
     pub fn second_try(&mut self, a: TypeId, b: TypeId) -> bool {
-        match *self.u.types().get(a) {
+        match *self.u.ty(a) {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => {
                 match self.named(a).map(|n| n.meaning) {
                     Some(Meaning::Alias(alias)) if self.recur(alias, b) => return true,
-                    Some(Meaning::Class(c)) if c == self.u.builtins().nothing && self.is_value_type(b) => {
+                    Some(Meaning::Class(c)) if c == self.u.defn().nothing && self.is_value_type(b) => {
                         return true;
                     }
                     _ => {}
@@ -110,7 +110,7 @@ impl Cmp<'_> {
                 Some(t) => self.recur(t, b),
                 None => self.var_below(a, v, b),
             },
-            Type::Wildcard(bounds) => match bounds.map(|t| self.u.types().get(t).clone()) {
+            Type::Wildcard(bounds) => match bounds.map(|t| *self.u.ty(t)) {
                 Some(Type::Bounds(lo, _)) => self.recur(lo, b),
                 _ => true,
             },
@@ -151,11 +151,11 @@ impl Cmp<'_> {
                     || self.fourth_try(a, b)
             }
             Meaning::Class(c) if self.u.type_params(c).is_empty() => {
-                let builtins = self.u.builtins();
+                let builtins = self.u.defn();
                 if c == builtins.any_kind || self.is_bottom(a) {
                     return true;
                 }
-                if matches!(self.u.types().get(a), Type::Lambda { .. }) {
+                if self.u.lambda(a).is_some() {
                     return false;
                 }
                 if c == builtins.any || c == builtins.singleton && self.is_stable(a) {
@@ -179,8 +179,8 @@ impl Cmp<'_> {
         let widened = self.u.widen(a);
         match self.u.base_type(widened, c) {
             Some(base) if base != a => {
-                let and = matches!(self.u.types().get(widened), Type::And(..));
-                match and || matches!(self.u.types().get(base), Type::Or(..)) {
+                let and = matches!(self.u.ty(widened), Type::And(..));
+                match and || matches!(self.u.ty(base), Type::Or(..)) {
                     true => self.either(|s| s.recur(base, b), |s| s.fourth_try(a, b)),
                     false => self.recur(base, b),
                 }

@@ -170,9 +170,9 @@ fn avoid_field_clashes(l: &mut Lower, stats: &[TNodeId]) {
 fn null_test(l: &mut Lower, param: SymbolId, span: Span) -> TNodeId {
     let npe = l.u.class_ref("java.lang.NullPointerException");
     let npe = l.u.class_symbol(npe).expect("`NullPointerException`");
-    let ctor = l.u.decl(npe, "<init>").unwrap_or_default().into_iter().find(|&c| {
+    let ctor = l.u.decls_named(npe, "<init>").into_iter().find(|&c| {
         let info = l.u.info(c);
-        matches!(l.u.types().get(info), tasty::Type::Method { params, .. } if params.is_empty())
+        l.u.method(info).is_some_and(|m| m.params.is_empty())
     });
     let ctor = ctor.expect("`NullPointerException()`");
     let read = l.ident(param, Span::NONE);

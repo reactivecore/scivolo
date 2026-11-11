@@ -3,7 +3,7 @@
 use super::symbols::full_name;
 use syntax::ast::constant::Constant;
 use syntax::ast::print::quote;
-use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId, Universe};
 
 /// The deepest type nesting printed.
 const MAX_DEPTH: u32 = 14;
@@ -12,15 +12,15 @@ const MAX_DEPTH: u32 = 14;
 /// or the `this` of a package or object.
 fn is_static_prefix(u: &mut Universe, p: Option<TypeId>) -> bool {
     let Some(p) = p else { return true };
-    match u.types().get(p).clone() {
+    match *u.ty(p) {
         Type::NoPrefix | Type::Package(_) | Type::PackageName(_) => true,
         Type::Sym(_, s) => u.symbol(s).kind == Kind::Package,
         Type::TermRef(q, name) => {
-            u.resolve(q, &name, false).is_some_and(|s| u.symbol(s).kind == Kind::Package)
+            u.resolve(q, name, false).is_some_and(|s| u.symbol(s).kind == Kind::Package)
         }
-        Type::This(c) => match u.types().get(c) {
+        Type::This(c) => match *u.ty(c) {
             Type::Sym(_, c) => {
-                let c = u.symbol(*c);
+                let c = u.symbol(c);
                 c.kind == Kind::Package || c.flags.has(tasty::tags::OBJECT)
             }
             Type::Package(_) => true,
@@ -42,12 +42,13 @@ struct Printer<'a> {
 }
 
 impl Printer<'_> {
-    fn params(&mut self, ps: &[(String, TypeId)], n: u32) -> String {
+    fn params(&mut self, ps: &[(NameId, TypeId)], n: u32) -> String {
         let shown: Vec<String> = ps
             .iter()
-            .map(|(name, p)| {
-                let bounds = matches!(self.u.types().get(*p), Type::Bounds(..));
-                format!("{name}{}{}", if bounds { " " } else { ": " }, self.tpe(*p, n))
+            .map(|&(name, p)| {
+                let name = self.u.name(name).to_owned();
+                let bounds = self.u.bounds(p).is_some();
+                format!("{name}{}{}", if bounds { " " } else { ": " }, self.tpe(p, n))
             })
             .collect();
         shown.join(", ")
@@ -58,12 +59,13 @@ impl Printer<'_> {
     fn bound(
         &mut self,
         binder: Binder,
-        ps: &[(String, TypeId)],
+        ps: &[(NameId, TypeId)],
         result: TypeId,
         terms: bool,
         n: u32,
     ) -> (String, String) {
-        self.binders.push((binder, ps.iter().map(|(name, _)| name.clone()).collect(), terms));
+        let names = ps.iter().map(|&(name, _)| self.u.name(name).to_owned()).collect();
+        self.binders.push((binder, names, terms));
         let shown = (self.params(ps, n), self.tpe(result, n));
         self.binders.pop();
         shown
@@ -93,7 +95,8 @@ impl Printer<'_> {
             return "…".into();
         }
         let n = d + 1;
-        match self.u.types().get(t).clone() {
+        let ty = *self.u.ty(t);
+        match ty {
             Type::Sym(p, s)
                 if is_static_prefix(self.u, p)
                     && let Some(shown) = self.bound_param(s) =>
@@ -110,16 +113,20 @@ impl Printer<'_> {
                 }
             }
             Type::TypeRef(p, name) | Type::TermRef(p, name) => {
-                let ty = matches!(self.u.types().get(t), Type::TypeRef(..));
-                match self.u.resolve(p, &name, ty) {
+                let ty = self.u.type_ref(t).is_some();
+                match self.u.resolve(p, name, ty) {
                     Some(s) => {
                         let sym = self.u.intern_type(Type::Sym(Some(p), s));
                         self.tpe(sym, d)
                     }
-                    None => format!("{}.{}{name}", self.tpe(p, n), if ty { "T:" } else { "t:" }),
+                    None => {
+                        let name = self.u.name(name).to_owned();
+                        format!("{}.{}{name}", self.tpe(p, n), if ty { "T:" } else { "t:" })
+                    }
                 }
             }
             Type::Local(b, name) => {
+                let name = self.u.name(name).to_owned();
                 let found = self.binders.iter().rev().find(|(binder, _, t)| binder.0 == b.0 && !t);
                 match found.and_then(|(_, names, _)| names.iter().position(|n| *n == name)) {
                     Some(i) => format!("{name}#{i}"),
@@ -127,11 +134,12 @@ impl Printer<'_> {
                 }
             }
             Type::Package(p) => format!("t:{}", full_name(self.u, p)),
-            Type::PackageName(p) => format!("t:{p}"),
+            Type::PackageName(p) => format!("t:{}", self.u.name(p)),
             Type::This(c) => format!("{}.this", self.tpe(c, n)),
             Type::Super(t, p) => format!("{}.super[{}]", self.tpe(t, n), self.tpe(p, n)),
             Type::Applied(c, args) => {
-                let args: Vec<String> = args.iter().map(|&a| self.tpe(a, n)).collect();
+                let args: Vec<String> =
+                    self.u.types_of(args).to_vec().into_iter().map(|a| self.tpe(a, n)).collect();
                 format!("{}[{}]", self.tpe(c, n), args.join(" "))
             }
             Type::Alias(a) => format!("= {}", self.tpe(a, n)),
@@ -144,7 +152,10 @@ impl Printer<'_> {
             },
             Type::Flexible(hi) => format!("{}?", self.tpe(hi, n)),
             Type::ByName(r) => format!("=> {}", self.tpe(r, n)),
-            Type::Refined(p, name, info) => format!("{}{{{name} {}}}", self.tpe(p, n), self.tpe(info, n)),
+            Type::Refined(p, name, info) => {
+                let name = self.u.name(name).to_owned();
+                format!("{}{{{name} {}}}", self.tpe(p, n), self.tpe(info, n))
+            }
             Type::Rec(_, p) => format!("rec{{{}}}", self.tpe(p, n)),
             Type::RecThis(_) => "rec.this".into(),
             Type::Method { binder, params: ps, result, implicit, contextual } => {
@@ -153,14 +164,17 @@ impl Printer<'_> {
                     (false, true) => "implicit ",
                     _ => "",
                 };
+                let ps = self.u.params_of(ps).to_vec();
                 let (ps, result) = self.bound(binder, &ps, result, true, n);
                 format!("{using}({ps}){result}")
             }
             Type::Poly { binder, params: ps, result } => {
+                let ps = self.u.params_of(ps).to_vec();
                 let (ps, result) = self.bound(binder, &ps, result, false, n);
                 format!("[{ps}]{result}")
             }
             Type::Lambda { binder, params: ps, result } => {
+                let ps = self.u.params_of(ps).to_vec();
                 let (ps, result) = self.bound(binder, &ps, result, false, n);
                 format!("[{ps}] =>> {result}")
             }
@@ -178,7 +192,7 @@ impl Printer<'_> {
                 format!("#Class:{}", self.tpe(TypeId(bits as u32), n))
             }
             Type::Constant(tag, bits) => constant(tag, bits),
-            Type::Str(s) => format!("#String:{}", quote(&s.encode_utf16().collect::<Vec<_>>())),
+            Type::Str(s) => format!("#String:{}", quote(&self.u.name(s).encode_utf16().collect::<Vec<_>>())),
             Type::Var(v) => format!("?tv{}", v.0),
             Type::Skolem(_, info) => format!("?{}", self.tpe(info, n)),
             Type::Wildcard(None) => "?".into(),

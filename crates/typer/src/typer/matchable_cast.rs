@@ -11,7 +11,7 @@ impl Typer<'_> {
     /// `tree` cast to its widened type and `Matchable` if `pt` is bounded by `Matchable`, the
     /// widened type does not derive from it, and the intersection conforms to `pt`.
     pub fn matchable_cast(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
-        let matchable = self.u.builtins().matchable;
+        let matchable = self.u.defn().matchable;
         if !self.is_matchable_bound(pt, 8) {
             return None;
         }
@@ -20,10 +20,7 @@ impl Typer<'_> {
             return None;
         }
         let tpe = self.tpd.tpe(tree);
-        let expr = match *self.u.types().get(tpe) {
-            Type::ByName(r) => r,
-            _ => tpe,
-        };
+        let expr = self.u.by_name(tpe).unwrap_or(tpe);
         let matchable_ref = crate::defn::type_ref(self.u, matchable);
         let target = self.u.intern_type(Type::And(expr, matchable_ref));
         if !self.conforms(target, pt) {
@@ -44,7 +41,7 @@ impl Typer<'_> {
         let Some(depth) = depth.checked_sub(1) else { return false };
         let t = self.zonk(t);
         let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::And(l, r) => return self.is_matchable_bound(l, depth) || self.is_matchable_bound(r, depth),
             Type::Or(l, r, _) => {
                 return self.is_matchable_bound(l, depth) && self.is_matchable_bound(r, depth);
@@ -52,18 +49,15 @@ impl Typer<'_> {
             _ => {}
         }
         let class = self.u.class_symbol(t);
-        let hi = match *self.u.types().get(t) {
+        let hi = match *self.u.ty(t) {
             Type::Var(v) => Some(self.constraint.bounds(v).1),
             Type::Sym(_, s) if class.is_none() => Some(self.u.info(s)),
             _ => None,
         };
-        let hi = hi.map(|h| match *self.u.types().get(h) {
-            Type::Bounds(_, hi) => hi,
-            _ => h,
-        });
+        let hi = hi.map(|h| self.u.bounds(h).map_or(h, |(_, hi)| hi));
         match hi {
             Some(hi) if hi != t => self.is_matchable_bound(hi, depth),
-            _ => class == Some(self.u.builtins().matchable),
+            _ => class == Some(self.u.defn().matchable),
         }
     }
 }

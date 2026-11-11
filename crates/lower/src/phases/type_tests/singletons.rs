@@ -19,7 +19,7 @@ pub fn is_instance(l: &mut Lower, expr: TNodeId, tp: TypeId, value: Option<TNode
     };
     let object = l.u.class_ref("java.lang.Object");
     let widened = l.u.widen(tp);
-    if matches!(l.u.types().get(tp), Type::Str(_)) || !l.u.is_subtype(widened, object) {
+    if matches!(l.u.ty(tp), Type::Str(_)) || !l.u.is_subtype(widened, object) {
         return Some(l.equal(value, expr));
     }
     let expr = l.ensure_conforms(expr, object);
@@ -28,7 +28,7 @@ pub fn is_instance(l: &mut Lower, expr: TNodeId, tp: TypeId, value: Option<TNode
 
 /// Whether `tp` is the type of one value: a path or a constant.
 pub fn is_singleton(l: &Lower, tp: TypeId) -> bool {
-    match *l.u.types().get(tp) {
+    match *l.u.ty(tp) {
         Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
         Type::Sym(_, s) => l.u.symbol(s).kind.is_term(),
         _ => false,
@@ -38,7 +38,7 @@ pub fn is_singleton(l: &Lower, tp: TypeId) -> bool {
 /// Whether dealiased type `tp` is or has as a part of its union or intersection `this.type` of a
 /// value class, whose value its extension methods take as a parameter.
 pub fn has_value_class_this(l: &mut Lower, tp: TypeId) -> bool {
-    match *l.u.types().get(tp) {
+    match *l.u.ty(tp) {
         Type::Or(a, b, _) | Type::And(a, b) => {
             let (a, b) = (l.u.dealias(a), l.u.dealias(b));
             has_value_class_this(l, a) || has_value_class_this(l, b)
@@ -54,18 +54,18 @@ pub fn singleton(l: &mut Lower, tp: TypeId) -> Option<TNodeId> {
     if !is_singleton(l, tp) {
         return None;
     }
-    match l.u.types().get(tp).clone() {
+    match *l.u.ty(tp) {
         Type::This(c) => {
             let c = l.u.class_symbol(c)?;
             Some(l.this(c, Span::NONE))
         }
         Type::Constant(..) | Type::Str(_) => {
-            let lit = literal(l.u.types().get(tp))?;
+            let lit = literal(l.u, tp)?;
             Some(l.tpd.node(lit, Span::NONE, Some(tp), None))
         }
         Type::Sym(prefix, s) => Some(reference(l, prefix, s)),
         Type::TermRef(prefix, name) => {
-            let s = l.u.resolve(prefix, &name, false)?;
+            let s = l.u.resolve(prefix, name, false)?;
             Some(reference(l, Some(prefix), s))
         }
         _ => None,
@@ -74,9 +74,9 @@ pub fn singleton(l: &mut Lower, tp: TypeId) -> Option<TNodeId> {
 
 /// A reference to term `s` through `prefix` if that is a value (dotty's `ref`).
 fn reference(l: &mut Lower, prefix: Option<TypeId>, s: tasty::SymbolId) -> TNodeId {
-    let qualifier = match prefix.map(|p| (p, l.u.types().get(p))) {
+    let qualifier = match prefix.map(|p| (p, *l.u.ty(p))) {
         Some((p, Type::Sym(..) | Type::TermRef(..))) => singleton(l, p),
-        Some((p, &Type::This(c))) => {
+        Some((p, Type::This(c))) => {
             let package = l.u.class_symbol(c).is_some_and(|c| l.u.symbol(c).kind == Kind::Package);
             (!package && !l.u.is_module(s)).then(|| singleton(l, p)).flatten()
         }
@@ -84,7 +84,7 @@ fn reference(l: &mut Lower, prefix: Option<TypeId>, s: tasty::SymbolId) -> TNode
     };
     match (qualifier, prefix) {
         (Some(q), _) => l.select(q, s, Span::NONE),
-        (None, Some(p)) if l.u.is_module(s) && matches!(l.u.types().get(p), Type::This(_)) => {
+        (None, Some(p)) if l.u.is_module(s) && l.u.this_of(p).is_some() => {
             let id = l.ident(s, Span::NONE);
             l.tpd.get_mut(id).tpe = Some(l.u.intern_type(Type::Sym(Some(p), s)));
             id

@@ -121,8 +121,7 @@ impl Dictionary {
         let ctor = t.syms.define(t.u, "<init>", Kind::Def, cls, f::METHOD.or(f::SYNTHETIC));
         let binder = t.syms.fresh_binder();
         let result = type_ref(t.u, cls);
-        let info = Type::Method { binder, params: Vec::new(), result, implicit: false, contextual: false };
-        let info = t.u.intern_type(info);
+        let info = t.u.intern_method(binder, &[], result, false, false);
         t.u.set_info(ctor, info);
         t.syms.primary_ctors.insert(cls, ctor);
         t.syms.param_clauses.insert(ctor, vec![Vec::new()]);

@@ -95,9 +95,7 @@ impl Inlining<'_> {
             return Ok(None);
         }
         let widened = self.u.widen(tpe);
-        if self.tpd.is_type_tree(t)
-            || matches!(self.u.types().get(widened), Type::Method { .. } | Type::Poly { .. })
-        {
+        if self.tpd.is_type_tree(t) || matches!(self.u.ty(widened), Type::Method { .. } | Type::Poly { .. }) {
             return Ok(None);
         }
         let Some(meth) = self.method_part(t).and_then(|f| self.tpd.sym(f)) else { return Ok(None) };

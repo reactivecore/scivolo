@@ -2,7 +2,8 @@
 //   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
 //! Erasure of intersections (dotty's `erasedGlb`).
 
-use super::{Erased, OBJECT};
+use super::Erased;
+use crate::defn::OBJECT;
 use crate::tags::TRAIT;
 use crate::types::{Type, TypeId};
 use crate::{SymbolId, Universe};
@@ -22,7 +23,7 @@ impl Universe {
     pub fn glb_side(&mut self, a: TypeId, b: TypeId) -> TypeId {
         let pure = |u: &mut Self, t| {
             let t = u.dealias(t);
-            u.class_symbol(t).is_some_and(|c| u.full_name(c) == "scala.caps.Pure")
+            u.is_class_named(t, crate::defn::PURE)
         };
         match pure(self, a) {
             true => b,
@@ -77,7 +78,7 @@ impl Universe {
     /// The class `t` erases to if its erasure is `e`, else the class named by `e`.
     fn side_class(&mut self, t: TypeId, e: &Erased) -> Option<SymbolId> {
         let mut t = t;
-        while let Type::This(p) | Type::Refined(p, ..) | Type::Annotated(p, _) = *self.types().get(t) {
+        while let Type::This(p) | Type::Refined(p, ..) | Type::Annotated(p, _) = *self.ty(t) {
             t = p;
         }
         let class = self.erased_class(t);

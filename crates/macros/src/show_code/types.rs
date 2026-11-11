@@ -32,7 +32,7 @@ impl Code<'_> {
             T::TypeTree { inferred } => {
                 let tpe = tpe.ok_or(REFUSED)?;
                 let tpe = if inferred { tpe } else { self.without_param_annotations(tpe) };
-                match *self.h.u.types().get(tpe) {
+                match *self.h.u.ty(tpe) {
                     Type::Bounds(lo, hi) => {
                         self.push("_ >: ");
                         self.ty(lo)?;
@@ -75,8 +75,7 @@ impl Code<'_> {
                     return Err(REFUSED);
                 }
                 let seq = self.h.tpd.tpe(self.r(arg));
-                let Type::Applied(_, args) = self.h.u.types().get(seq).clone() else { return Err(REFUSED) };
-                let [elem] = args[..] else { return Err(REFUSED) };
+                let Some((_, &[elem])) = self.h.u.applied(seq) else { return Err(REFUSED) };
                 self.ty(elem)?;
                 self.push("*");
             }
@@ -98,7 +97,7 @@ impl Code<'_> {
     /// Whether an inferred type tree of `t` prints with `.type`: a term reference or a module
     /// class.
     pub fn is_singleton(&mut self, t: TypeId) -> bool {
-        match *self.h.u.types().get(t) {
+        match *self.h.u.ty(t) {
             Type::Sym(_, s) => self.h.u.symbol(s).kind.is_term() || self.h.u.is_module_class(s),
             Type::TermRef(..) => true,
             Type::TypeRef(..) => self.h.u.resolve_ref(t).is_some_and(|s| self.h.u.is_module_class(s)),
@@ -140,7 +139,7 @@ impl Code<'_> {
             return Ok(true);
         }
         let inferred = matches!(self.tree_of(rhs), T::TypeTree { .. });
-        let (lo, hi) = match *self.h.u.types().get(self.h.tpd.tpe(rhs)) {
+        let (lo, hi) = match *self.h.u.ty(self.h.tpd.tpe(rhs)) {
             Type::Bounds(lo, hi) => (lo, hi),
             Type::Alias(a) => (a, a),
             _ => return Ok(false),
@@ -158,7 +157,7 @@ impl Code<'_> {
             self.push(" = ");
             return self.bound(lo);
         }
-        let builtins = self.h.u.builtins();
+        let builtins = self.h.u.defn();
         let inferred = |c: &Self, b: Bound| match b {
             Bound::Tree(t) => matches!(c.tree_of(t), T::TypeTree { .. }),
             Bound::Inferred(_) => true,

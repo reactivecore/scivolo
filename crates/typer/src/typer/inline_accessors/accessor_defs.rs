@@ -23,7 +23,7 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
     t.complete(accessed);
     let mut info = t.u.info(accessed);
     if t.u.is_module(accessed)
-        && let Type::Sym(prefix, _) = *t.u.types().get(info)
+        && let Some((prefix, _)) = t.u.sym_ref(info)
     {
         info = t.u.intern_type(Type::Sym(prefix, accessed));
     }
@@ -33,7 +33,7 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
         return None;
     }
     let result = if access.setter {
-        let params = vec![("x$0".to_owned(), info)];
+        let params = vec![(t.u.intern_name("x$0"), info)];
         clauses.push(Clause { binder: None, params, flags: f::TERM_PARAM });
         crate::defn::type_ref(t.u, t.defn.unit)
     } else {
@@ -49,9 +49,10 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
         let is_type = clause.flags.is(f::TYPE_PARAM);
         let mut params = Vec::new();
         let mut args = Vec::new();
-        for (pname, ptype) in &clause.params {
-            let name = TName { name: t.name(pname), is_type };
-            let tpt = accessor_tpt(t, *ptype, &clauses[..=i], span)?;
+        for &(pname, ptype) in &clause.params {
+            let pname = t.u.name(pname).to_owned();
+            let name = TName { name: t.name(&pname), is_type };
+            let tpt = accessor_tpt(t, ptype, &clauses[..=i], span)?;
             let mods = t.ast.mods(Modifiers::with_flags(clause.flags));
             params.push(match is_type {
                 true => t.ast.node(Tree::TypeDef { name, rhs: tpt, mods }),
@@ -87,15 +88,15 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
 fn method_clauses(u: &Universe, info: &mut TypeId) -> Vec<Clause> {
     let mut clauses = Vec::new();
     while let Type::Poly { binder, params, result: r } | Type::Method { binder, params, result: r, .. } =
-        u.types().get(*info).clone()
+        *u.ty(*info)
     {
-        let flags = match *u.types().get(*info) {
+        let flags = match *u.ty(*info) {
             Type::Poly { .. } => f::TYPE_PARAM,
             Type::Method { contextual: true, .. } => f::TERM_PARAM.or(f::GIVEN),
             Type::Method { implicit: true, .. } => f::TERM_PARAM.or(f::IMPLICIT),
             _ => f::TERM_PARAM,
         };
-        clauses.push(Clause { binder: Some(binder), params, flags });
+        clauses.push(Clause { binder: Some(binder), params: u.params_of(params).to_vec(), flags });
         *info = r;
     }
     clauses
@@ -105,7 +106,7 @@ fn method_clauses(u: &Universe, info: &mut TypeId) -> Vec<Clause> {
 /// static object or a parameter accessor outside traits, else a selection (dotty's `ref`).
 fn accessed_ref(t: &mut Typer<'_>, host: SymbolId, accessed: SymbolId, at: Span) -> TNodeId {
     let owner = t.u.symbol(accessed).owner.expect("a member");
-    if t.is_static_owner(owner) {
+    if t.u.is_static_owner(owner) {
         return t.member_ref(accessed, at);
     }
     let host_type = crate::defn::type_ref(t.u, host);

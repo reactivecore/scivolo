@@ -8,7 +8,7 @@ use crate::tpd::{TNodeId, Tpd, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::LAZY;
-use tasty::{SymbolId, Type, Universe};
+use tasty::{SymbolId, Universe};
 
 /// The definitions of one block by index, and its greatest index referred to so far.
 struct Level {
@@ -71,7 +71,7 @@ impl<'a> ForwardRefs<'a> {
                 let mut refs: Vec<SymbolId> = u.class_symbol(tpe).into_iter().collect();
                 let tpe = u.dealias(tpe);
                 u.map_type(tpe, &mut |u, part| {
-                    if let Type::Sym(_, s) = *u.types().get(part)
+                    if let Some(s) = u.sym_of(part)
                         && u.symbol(s).kind.is_term()
                     {
                         refs.push(s);

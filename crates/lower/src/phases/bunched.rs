@@ -12,7 +12,7 @@ use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId};
+use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The name of the array parameter (dotty's `nme.ALLARGS`).
@@ -31,16 +31,16 @@ pub fn is_bunched(l: &Lower, f: &Function, n: usize) -> Result<bool> {
 }
 
 /// The parameter `$allArgs: Array[Object]` by name and type.
-pub fn param(l: &mut Lower) -> (String, TypeId) {
+pub fn param(l: &mut Lower) -> (NameId, TypeId) {
     let object = type_ref(l.u, l.defs.object);
     let array = l.u.class_ref("scala.Array");
-    (ALL_ARGS.to_owned(), l.u.intern_type(Type::Applied(array, vec![object])))
+    (l.u.intern_name(ALL_ARGS), l.u.intern_applied(array, &[object]))
 }
 
 /// The symbol of parameter `$allArgs` of `method`.
 pub fn define(l: &mut Lower, method: SymbolId) -> SymbolId {
-    let (name, info) = param(l);
-    let s = l.u.define(symbol(&name, Kind::Param, method, Flags::default()));
+    let (_, info) = param(l);
+    let s = l.u.define(symbol(ALL_ARGS, Kind::Param, method, Flags::default()));
     l.u.set_info(s, info);
     s
 }

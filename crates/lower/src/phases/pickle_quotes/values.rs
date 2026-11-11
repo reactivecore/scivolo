@@ -9,7 +9,7 @@ use super::reflect::{Reflect, call};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes quote application `t` in `owner` of literal `lit` the call lifting the literal's value.
@@ -33,20 +33,19 @@ pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId, owner: Symbol
     }
     let lifter = format!("{}ToExpr", value.tag());
     let quoted = l.u.package("scala.quoted").expect("scala.quoted");
-    let decls = l.u.decl(quoted, "ToExpr").unwrap_or_default();
+    let decls = l.u.decls_named(quoted, "ToExpr");
     let module = decls.into_iter().find(|&s| l.u.symbol(s).kind == Kind::Val).expect("object ToExpr");
     let class = l.u.module_class(module).expect("ToExpr's class");
-    let decls = l.u.decl(class, &lifter).unwrap_or_default();
+    let decls = l.u.decls_named(class, &lifter);
     let Some(given) = decls.into_iter().find(|&s| l.u.symbol(s).kind.is_term()) else {
         return unsupported(span, format!("quotes without ToExpr.{lifter}"));
     };
     let qual = l.ident(module, Span::NONE);
     let fun = l.select(qual, given, Span::NONE);
     let info = l.u.info(given);
-    let Type::Poly { binder, params, result } = l.u.types().get(info).clone() else {
+    let Some((binder, names, result)) = l.u.poly(info).map(|p| (p.binder, p.names(), p.result)) else {
         return unsupported(span, format!("ToExpr.{lifter} not polymorphic"));
     };
-    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
     let instance = l.u.subst(result, binder, &names, &[q.tpe]);
     let targ = l.type_tree(q.tpe, Span::NONE);
     let lifter = l.build().type_apply(fun, &[targ], instance, Span::NONE);
@@ -54,16 +53,11 @@ pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId, owner: Symbol
     let apply = l.u.member(lifter_class, "apply")[0];
     let fun = l.select(lifter, apply, Span::NONE);
     let expr = l.u.class_ref("scala.quoted.Expr");
-    let expr = l.u.intern_type(Type::Applied(expr, vec![q.tpe]));
+    let expr = l.u.intern_applied(expr, &[q.tpe]);
     let quotes_type = l.tpd.tpe(q.quotes);
     let binder = l.u.fresh_binder();
-    let using = l.u.intern_type(Type::Method {
-        binder,
-        params: vec![("x$2".into(), quotes_type)],
-        result: expr,
-        implicit: true,
-        contextual: true,
-    });
+    let params = [(l.u.intern_name("x$2"), quotes_type)];
+    let using = l.u.intern_method(binder, &params, expr, true, true);
     let first = l.apply(fun, &[lit], using, Span::NONE);
     let first = l.positioned(first);
     let call = l.apply(first, &[q.quotes], expr, Span::NONE);

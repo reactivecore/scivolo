@@ -13,25 +13,32 @@ use tasty::{NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 /// Whether `t` is a type lambda the script made (bound by a `fresh_binder` of the typer or of
 /// the universe).
 fn is_script_lambda(u: &Universe, t: TypeId) -> bool {
-    matches!(u.types().get(t), Type::Lambda { binder, .. }
-        if binder.0 == SCRIPT_BINDERS || binder.0 == Universe::FRESH_BINDERS)
+    u.lambda(t).is_some_and(|l| l.binder.0 == SCRIPT_BINDERS || l.binder.0 == Universe::FRESH_BINDERS)
 }
 
 /// `t` with the type variables that have instances in `constraint` replaced by them once, a
 /// skolem keeping its identity; with `keep`, a variable applied to arguments whose instance is a
 /// type lambda stays, its arguments substituted.
 fn substituted(u: &mut Universe, c: &Constraint, t: TypeId, changed: &mut bool, keep: bool) -> TypeId {
-    u.map_type(t, &mut |u, part| match u.types().get(part).clone() {
-        Type::Var(v) => c.instance(v).inspect(|_| *changed = true),
-        Type::Skolem(b, info) => {
-            let info = substituted(u, c, info, changed, keep);
-            Some(u.intern_type(Type::Skolem(b, info)))
+    u.map_type(t, &mut |u, part| {
+        let node = *u.ty(part);
+        match node {
+            Type::Var(v) => c.instance(v).inspect(|_| *changed = true),
+            Type::Skolem(b, info) => {
+                let info = substituted(u, c, info, changed, keep);
+                Some(u.intern_type(Type::Skolem(b, info)))
+            }
+            Type::Applied(tycon, args) if keep && lambda_instance(u, c, tycon).is_some() => {
+                let args: Vec<_> = u
+                    .types_of(args)
+                    .to_vec()
+                    .into_iter()
+                    .map(|a| substituted(u, c, a, changed, keep))
+                    .collect();
+                Some(u.intern_applied(tycon, &args))
+            }
+            _ => None,
         }
-        Type::Applied(tycon, args) if keep && lambda_instance(u, c, tycon).is_some() => {
-            let args = args.iter().map(|&a| substituted(u, c, a, changed, keep)).collect();
-            Some(u.intern_type(Type::Applied(tycon, args)))
-        }
-        _ => None,
     })
 }
 
@@ -53,18 +60,18 @@ pub fn zonked(u: &mut Universe, c: &Constraint, mut t: TypeId, keep: bool) -> Ty
 /// `t` with each type variable applied to arguments replaced by its instance, a type lambda.
 fn with_lambda_instances(u: &mut Universe, c: &Constraint, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| {
-        let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
+        let (tycon, args) = u.applied(part).map(|(tycon, args)| (tycon, args.to_vec()))?;
         let inst = lambda_instance(u, c, tycon)?;
-        let args = args.iter().map(|&a| with_lambda_instances(u, c, a)).collect();
-        Some(u.intern_type(Type::Applied(inst, args)))
+        let args: Vec<_> = args.iter().map(|&a| with_lambda_instances(u, c, a)).collect();
+        Some(u.intern_applied(inst, &args))
     })
 }
 
 /// The instance of type variable `t`, zonked, if it is a type lambda.
 fn lambda_instance(u: &mut Universe, c: &Constraint, t: TypeId) -> Option<TypeId> {
-    let Type::Var(v) = *u.types().get(t) else { return None };
+    let v = u.var(t)?;
     let inst = zonked(u, c, c.instance(v)?, false);
-    matches!(u.types().get(inst), Type::Lambda { .. }).then_some(inst)
+    u.lambda(inst).is_some().then_some(inst)
 }
 
 impl TypeOps<'_> {
@@ -109,7 +116,7 @@ impl Typer<'_> {
         let hi = self.constraint.bounds(v).1;
         let hi = self.zonk(hi);
         if from_below
-            && matches!(self.u.types().get(hi), Type::Var(_))
+            && self.u.var(hi).is_some()
             && !self.is_below_singleton(hi, 0)
             && let widened = self.widen_singletons(inst, false)
             && self.types().module_ref(widened) != inst
@@ -118,13 +125,13 @@ impl Typer<'_> {
         }
         let mut cyclic = false;
         self.u.map_type(inst, &mut |u, part| {
-            cyclic |= *u.types().get(part) == Type::Var(v);
+            cyclic |= *u.ty(part) == Type::Var(v);
             None
         });
         if cyclic {
             return Err("type variable instantiated to a type containing it");
         }
-        if let Type::And(a, b) | Type::Or(a, b, _) = *self.u.types().get(inst)
+        if let Type::And(a, b) | Type::Or(a, b, _) = *self.u.ty(inst)
             && (self.type_arity(a) > 0 || self.type_arity(b) > 0)
         {
             return Err("type variable instantiated to an intersection or union of type constructors");
@@ -153,7 +160,7 @@ impl Typer<'_> {
             let t = self.zonk(t);
             let mut open = Vec::new();
             self.u.map_type(t, &mut |u, part| {
-                if let Type::Var(v) = *u.types().get(part)
+                if let Some(v) = u.var(part)
                     && !open.contains(&v)
                 {
                     open.push(v);

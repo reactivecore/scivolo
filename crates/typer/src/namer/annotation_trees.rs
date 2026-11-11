@@ -4,8 +4,8 @@
 //! The annotations of definitions typed as `new` expressions once their package's statements
 //! are typed (dotty's `annotContext`, `typedAnnotation`, `Checking.checkAnnotClass`).
 
-use super::annotations::STATIC;
 use crate::ctx::{Ctx, Level};
+use crate::defn::STATIC_ANNOT;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::{Pt, Typer};
 use rustc_hash::FxHashMap;
@@ -64,7 +64,7 @@ impl Typer<'_> {
             };
             let Some(typed) = typed else { continue };
             let tpe = self.tpd.tpe(typed);
-            if self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == STATIC) {
+            if self.u.is_class_named(tpe, STATIC_ANNOT) {
                 self.check_static(sym, annot);
             }
             self.syms.annotations.entry(sym).or_default().push(typed);
@@ -102,7 +102,7 @@ impl Typer<'_> {
         let &[arg] = self.tpd.items(*args) else { return };
         let mut t = self.tpd.tpe(arg);
         loop {
-            let term = match *self.u.types().get(t) {
+            let term = match *self.u.ty(t) {
                 Type::TermRef(..) => true,
                 Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
                 _ => false,
@@ -112,7 +112,7 @@ impl Typer<'_> {
                 _ => break,
             }
         }
-        if !matches!(self.u.types().get(t), Type::Constant(..) | Type::Str(_)) {
+        if !matches!(self.u.ty(t), Type::Constant(..) | Type::Str(_)) {
             self.error_at(
                 self.tpd.span(arg),
                 format!("@{short} requires constant expressions as a parameter"),

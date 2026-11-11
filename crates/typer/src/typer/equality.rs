@@ -25,7 +25,7 @@ impl Typer<'_> {
     ) -> Result<(), &'static str> {
         let Some(sym) = self.tpd.sym(fun) else { return Ok(()) };
         let s = self.u.symbol(sym);
-        if s.owner != Some(self.u.builtins().any) || !matches!(s.name.as_str(), "==" | "!=") {
+        if s.owner != Some(self.u.defn().any) || !matches!(s.name.as_str(), "==" | "!=") {
             return Ok(());
         }
         let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return Err("comparison with this") };
@@ -149,12 +149,13 @@ impl Typer<'_> {
     /// dropped, in covariant positions (dotty's `lift` in `assumedCanEqual`).
     fn lifted(&mut self, t: TypeId, depth: u32) -> TypeId {
         let Some(depth) = depth.checked_sub(1) else { return t };
-        match self.u.types().get(t).clone() {
+        let node = *self.u.ty(t);
+        match node {
             Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                 self.complete(s);
                 let info = self.u.info(s);
-                match *self.u.types().get(info) {
-                    Type::Bounds(lo, hi) if lo != hi && !self.u.symbol(s).flags.has(tasty::tags::OPAQUE) => {
+                match self.u.bounds(info) {
+                    Some((lo, hi)) if lo != hi && !self.u.symbol(s).flags.has(tasty::tags::OPAQUE) => {
                         self.lifted(hi, depth)
                     }
                     _ => t,
@@ -169,12 +170,10 @@ impl Typer<'_> {
             Type::Refined(parent, ..) => self.lifted(parent, depth),
             Type::Applied(tycon, args) => {
                 let variances = self.u.class_symbol(tycon).map(|c| self.u.variances(c)).unwrap_or_default();
-                let args = args
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &a)| if variances.get(i) == Some(&1) { self.lifted(a, depth) } else { a })
+                let args: Vec<_> = (self.u.types_of(args).to_vec().into_iter().enumerate())
+                    .map(|(i, a)| if variances.get(i) == Some(&1) { self.lifted(a, depth) } else { a })
                     .collect();
-                self.u.intern_type(Type::Applied(tycon, args))
+                self.u.intern_applied(tycon, &args)
             }
             _ => t,
         }

@@ -43,7 +43,7 @@ impl Universe {
     /// named `name`.
     fn lub_class(&mut self, t: TypeId, name: &str) -> Option<SymbolId> {
         let mut widened = self.widen(t);
-        while let Type::And(x, y) = *self.types().get(widened) {
+        while let Type::And(x, y) = *self.ty(widened) {
             widened = self.glb_side(x, y);
         }
         let erases_to = |u: &mut Self, c: SymbolId, name: &str| {
@@ -55,7 +55,7 @@ impl Universe {
             _ => None,
         };
         let named = |u: &mut Self, c: SymbolId| erases_to(u, c, name);
-        let found = match (self.erased_class(widened), self.types().get(widened).clone()) {
+        let found = match (self.erased_class(widened), *self.ty(widened)) {
             (None, Type::Or(x, y, _)) => match (side(self, x), side(self, y)) {
                 (Some(cx), Some(cy)) => self.common_base(cx, cy),
                 (cx, cy) => cx.or(cy),

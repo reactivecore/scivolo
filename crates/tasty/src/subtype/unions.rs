@@ -85,8 +85,10 @@ impl Unions {
 
     /// A test for membership in `ys`, which `queries` tests will use.
     fn members<'a>(&'a self, ys: &'a List, queries: usize) -> impl Fn(TypeId) -> bool + 'a {
+        /// The length of `ys` and number of queries beyond which a hash set answers the tests.
+        const SET_BEYOND: usize = 16;
         let set: Option<FxHashSet<TypeId>> = match ys {
-            List::Own(v) if v.len() > 16 && queries > 16 => Some(v.iter().copied().collect()),
+            List::Own(v) if v.len() > SET_BEYOND && queries > SET_BEYOND => Some(v.iter().copied().collect()),
             _ => None,
         };
         move |x| match (ys, &set) {
@@ -163,7 +165,7 @@ impl Unions {
 
     /// The parts of `t` as a union of softness `soft`.
     fn parts_of(&mut self, u: &Universe, t: TypeId, soft: bool) -> List {
-        if !matches!(*u.types().get(t), Type::Or(_, _, s) if s == soft) {
+        if !matches!(*u.ty(t), Type::Or(_, _, s) if s == soft) {
             return List::Own(vec![t]);
         }
         if let Some(p) = self.parts.get(&t) {
@@ -194,7 +196,7 @@ impl Unions {
 }
 
 fn or_parts(u: &Universe, t: TypeId, soft: bool, out: &mut Vec<TypeId>) {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::Or(x, y, s) if s == soft => [x, y].into_iter().for_each(|p| or_parts(u, p, soft, out)),
         _ => out.push(t),
     }

@@ -11,7 +11,7 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, MUTABLE, PARAMalias, PARAMsetter, PRIVATE, PRIVATEqualified, STABLE};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, NameId, SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// A parameter accessor `sym` defined by `stat` of class definition `td`, and the accessor of a
@@ -80,11 +80,11 @@ fn super_param_aliases(l: &mut Lower, td: TNodeId) -> Vec<(TNodeId, SymbolId)> {
             continue;
         }
         let info = l.u.info(sym);
-        if matches!(l.u.types().get(info), Type::ByName(_)) {
+        if l.u.by_name(info).is_some() {
             continue;
         }
         let Some(i) = args.iter().position(|&a| l.tpd.sym(a) == Some(sym)) else { continue };
-        if names.get(i).is_some_and(|n| *n == l.u.symbol(sym).name) {
+        if names.get(i).is_some_and(|&n| l.u.name(n) == l.u.symbol(sym).name) {
             out.push((stat, sym));
         }
     }
@@ -93,19 +93,19 @@ fn super_param_aliases(l: &mut Lower, td: TNodeId) -> Vec<(TNodeId, SymbolId)> {
 
 fn is_primary_constructor(l: &mut Lower, ctor: SymbolId) -> bool {
     let Some(class) = l.u.symbol(ctor).owner else { return false };
-    l.u.decl(class, "<init>").unwrap_or_default().first() == Some(&ctor)
+    l.u.decls_named(class, "<init>").first() == Some(&ctor)
 }
 
 /// The parameter names of clause `n` of constructor `ctor`.
-fn clause_names(l: &mut Lower, ctor: SymbolId, n: usize) -> Vec<String> {
+fn clause_names(l: &mut Lower, ctor: SymbolId, n: usize) -> Vec<NameId> {
     let mut t = l.u.info(ctor);
     let mut clauses = Vec::new();
     loop {
-        match l.u.types().get(t) {
-            Type::Poly { result, .. } => t = *result,
+        match *l.u.ty(t) {
+            Type::Poly { result, .. } => t = result,
             Type::Method { params, result, .. } => {
-                clauses.push(params.iter().map(|(name, _)| name.clone()).collect());
-                t = *result;
+                clauses.push(l.u.params_of(params).iter().map(|&(name, _)| name).collect());
+                t = result;
             }
             _ => break,
         }
@@ -124,7 +124,7 @@ fn inherited_accessor(
     let owner = l.u.symbol(sym).owner?;
     let superclass = superclass(l, owner)?;
     let name = l.u.symbol(sym).name.clone();
-    let decls = l.u.decl(superclass, &name).unwrap_or_default();
+    let decls = l.u.decls_named(superclass, &name);
     let is_accessor = |l: &Lower, c| has(l.u, c, PARAMsetter) || l.u.symbol(c).kind == Kind::Param;
     let candidate = decls.into_iter().find(|&c| is_accessor(l, c) && !has(l.u, c, MUTABLE))?;
     if !has(l.u, candidate, PRIVATE) && is_accessible(l, candidate, class) {
@@ -192,8 +192,8 @@ fn redirect(l: &mut Lower, t: TNodeId, skipped: &[TNodeId], from: SymbolId, to: 
             Tree::Select { qualifier, .. } => Tree::Select { qualifier, name },
             _ => continue,
         };
-        let tpe = match l.tpd.get(t).tpe.map(|tpe| l.u.types().get(tpe).clone()) {
-            Some(Type::Sym(prefix, s)) if s == from => Some(l.u.intern_type(Type::Sym(prefix, to))),
+        let tpe = match l.tpd.get(t).tpe.and_then(|tpe| l.u.sym_ref(tpe)) {
+            Some((prefix, s)) if s == from => Some(l.u.intern_type(Type::Sym(prefix, to))),
             _ => l.tpd.get(t).tpe,
         };
         let node = l.tpd.get_mut(t);

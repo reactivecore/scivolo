@@ -8,7 +8,7 @@ mod value;
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{NameId, SymbolId, TypeId};
 
 /// Lifts the parts of one application into local values, evaluated once and in order: in
 /// `f().x += 1` the qualifier `f()` becomes a local value whose `x` is read and then set, and a
@@ -45,7 +45,7 @@ impl Typer<'_> {
     pub fn lift_args(
         &mut self,
         defs: &mut Vec<(usize, TNodeId)>,
-        params: &[(String, TypeId)],
+        params: &[(NameId, TypeId)],
         args: &[TNodeId],
         complex: bool,
         ctx: Ctx,
@@ -81,15 +81,12 @@ impl Typer<'_> {
     pub fn lifted_formals(&mut self, f: TNodeId, n: usize) -> Option<Vec<TypeId>> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
+        let params = self.u.method(info)?.params.to_vec();
         let last = params.len().checked_sub(1)?;
         let formals: Vec<TypeId> = (params.iter().enumerate())
             .map(|(i, &(_, p))| {
                 let p = if i == last { self.repeated_param_elem(p).unwrap_or(p) } else { p };
-                match *self.u.types().get(p) {
-                    Type::ByName(r) => r,
-                    _ => p,
-                }
+                self.u.by_name(p).unwrap_or(p)
             })
             .collect();
         (formals.len() == n).then_some(formals)

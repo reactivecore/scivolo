@@ -33,35 +33,30 @@ impl Decoder<'_> {
         let result = match clauses.last().filter(|_| constructor && all_given) {
             Some(last) => {
                 let binder = Binder(self.file, ast.node(last[0]).addr | EMPTY_CLAUSE_BINDER);
-                let empty =
-                    Type::Method { binder, params: Vec::new(), result, implicit: false, contextual: false };
-                self.intern(empty)
+                self.types.intern_method(binder, &[], result, false, false)
             }
             None => result,
         };
         clauses.into_iter().enumerate().rev().fold(result, |result, (i, clause)| {
             let binder = Binder(self.file, ast.node(clause[0]).addr);
-            let params = clause
+            let params: Vec<_> = clause
                 .iter()
                 .filter(|&&p| matches!(ast.tag(p), PARAM | TYPEPARAM))
                 .map(|&p| (self.name(p), self.param_type(p)))
                 .collect();
             let t = match ast.tag(clause[0]) {
-                TYPEPARAM => Type::Poly { binder, params, result },
+                TYPEPARAM => self.types.intern_poly(binder, &params, result),
                 _ => {
                     let contextual = has(&clause, GIVEN);
                     let implicit = contextual || has(&clause, IMPLICIT);
-                    Type::Method { binder, params, result, implicit, contextual }
+                    self.types.intern_method(binder, &params, result, implicit, contextual)
                 }
             };
-            let t = self.intern(t);
             if empty_before != Some(i) {
                 return t;
             }
             let binder = Binder(self.file, ast.node(clause[0]).addr | EMPTY_CLAUSE_BINDER);
-            let empty =
-                Type::Method { binder, params: Vec::new(), result: t, implicit: false, contextual: false };
-            self.intern(empty)
+            self.types.intern_method(binder, &[], t, false, false)
         })
     }
 
@@ -80,10 +75,11 @@ impl Decoder<'_> {
     fn annotated_param(&mut self, t: TypeId, annot: &str) -> TypeId {
         let internal = match self.packages.get("scala.annotation.internal") {
             Some(&pkg) => Type::Package(pkg),
-            None => Type::PackageName("scala.annotation.internal".into()),
+            None => Type::PackageName(self.types.intern_name("scala.annotation.internal")),
         };
         let internal = self.intern(internal);
-        let annot = self.intern(Type::TypeRef(internal, annot.into()));
+        let annot = self.types.intern_name(annot);
+        let annot = self.intern(Type::TypeRef(internal, annot));
         match *self.types.get(t) {
             Type::ByName(r) => {
                 let r = self.intern(Type::Annotated(r, annot));
@@ -127,7 +123,8 @@ impl Decoder<'_> {
                 if self.ast.tag(m) == TYPEDEF && !self.is_bounds_or_alias(info) {
                     info = self.intern(Type::Alias(info));
                 }
-                t = self.intern(Type::Refined(t, self.name(m), info));
+                let name = self.name(m);
+                t = self.intern(Type::Refined(t, name, info));
             }
         }
         t
@@ -135,9 +132,9 @@ impl Decoder<'_> {
 
     /// Whether type member info `t` is bounds or an alias, of a type lambda's result too.
     fn is_bounds_or_alias(&self, t: TypeId) -> bool {
-        match self.types.get(t) {
+        match *self.types.get(t) {
             Type::Alias(_) | Type::Bounds(..) => true,
-            Type::Lambda { result, .. } => matches!(self.types.get(*result), Type::Bounds(..)),
+            Type::Lambda { result, .. } => matches!(self.types.get(result), Type::Bounds(..)),
             _ => false,
         }
     }
@@ -154,7 +151,7 @@ impl Decoder<'_> {
         let (lo, hi) = self.bounds_with_alias(*body)?;
         let binder = self.binder(rhs);
         let params: Vec<_> = params.iter().map(|&p| (self.name(p), self.kid(p, 0))).collect();
-        let lambda = |d: &mut Self, result| d.intern(Type::Lambda { binder, params: params.clone(), result });
+        let lambda = |d: &mut Self, result| d.types.intern_lambda(binder, &params, result);
         Some((lambda(self, lo), lambda(self, hi)))
     }
 

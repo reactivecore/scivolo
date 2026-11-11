@@ -57,10 +57,10 @@ fn is_pure_ref(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     let Some(s) = l.tpd.sym(t) else { return false };
     let tpe = l.tpd.tpe(t);
     let info = l.u.widen(tpe);
-    if matches!(l.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) || has(l.u, s, ERASED) {
+    if matches!(l.u.ty(info), Type::Method { .. } | Type::Poly { .. }) || has(l.u, s, ERASED) {
         return true;
     }
-    if matches!(l.u.types().get(tpe), Type::Constant(..) | Type::Str(_)) {
+    if matches!(l.u.ty(tpe), Type::Constant(..) | Type::Str(_)) {
         return true;
     }
     if !is_stable_member(l, s) {
@@ -99,7 +99,7 @@ fn callee(l: &Lower, fun: TNodeId) -> Option<SymbolId> {
 /// initializes nothing.
 fn is_pure_apply(l: &mut Lower, t: TNodeId, fun: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     let Some(s) = callee(l, fun) else { return false };
-    let constant = matches!(l.u.types().get(l.tpd.tpe(t)), Type::Constant(..) | Type::Str(_));
+    let constant = matches!(l.u.ty(l.tpd.tpe(t)), Type::Constant(..) | Type::Str(_));
     if constant && let Some(owner) = l.u.symbol(s).owner {
         let owner = l.u.full_name(owner);
         if PRIMITIVE_VALUE_CLASSES.contains(&owner.as_str()) || owner == "java.lang.String" {

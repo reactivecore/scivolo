@@ -33,12 +33,12 @@ impl<'a> Inlining<'a> {
     pub fn map_type(&mut self, m: &TreeTypeMap, t: TypeId) -> TypeId {
         let mapped = self.u.map_type(t, &mut |u, part| {
             if !m.this.is_empty()
-                && matches!(u.types().get(part), Type::Sym(..))
+                && u.sym_ref(part).is_some()
                 && let Some(seen) = super::prefix_seen::class_param_seen(u, &m.this, part)
             {
                 return Some(seen);
             }
-            match *u.types().get(part) {
+            match *u.ty(part) {
                 Type::Sym(None, s) => match m.refs.get(&s) {
                     Some(&r) => Some(r),
                     None => m.syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),

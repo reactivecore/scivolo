@@ -103,11 +103,11 @@ impl Gen<'_, '_> {
     /// The class of `this` or of the static object that identifier `id`'s prefix stands for
     /// (dotty's `desugarIdent`).
     pub fn ident_prefix(&mut self, id: TNodeId) -> Option<SymbolId> {
-        let p = match *self.l.u.types().get(self.l.tpd.tpe(id)) {
+        let p = match *self.l.u.ty(self.l.tpd.tpe(id)) {
             Type::Sym(Some(p), _) | Type::TermRef(p, _) => p,
             _ => return None,
         };
-        match *self.l.u.types().get(p) {
+        match *self.l.u.ty(p) {
             Type::This(c) => self.l.u.class_symbol(c),
             Type::Sym(_, s) if self.l.u.is_module(s) && self.l.u.is_static_symbol(s) => {
                 self.l.u.module_class(s)

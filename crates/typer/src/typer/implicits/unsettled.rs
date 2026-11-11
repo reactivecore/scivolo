@@ -22,10 +22,7 @@ pub fn unsettled(ty: &mut TypeOps<'_>, tpe: TypeId) -> Option<&'static str> {
     }
     let unbounded = constructor_vars(ty.u, tpe).into_iter().any(|v| {
         let (lo, hi) = ty.constraint.bounds(v);
-        let hi = match *ty.u.types().get(hi) {
-            Type::Lambda { result, .. } => result,
-            _ => hi,
-        };
+        let hi = ty.u.lambda(hi).map_or(hi, |l| l.result);
         lo == tasty::NOTHING && ty.is_exactly_any(hi)
     });
     unbounded.then_some("implicit search for a type with an unbounded higher-kinded type variable")
@@ -35,8 +32,8 @@ pub fn unsettled(ty: &mut TypeOps<'_>, tpe: TypeId) -> Option<&'static str> {
 pub fn constructor_vars(u: &mut Universe, t: TypeId) -> Vec<tasty::VarId> {
     let mut constructors = Vec::new();
     u.map_type(t, &mut |u, part| {
-        if let Type::Applied(c, _) = *u.types().get(part)
-            && let Type::Var(v) = *u.types().get(c)
+        if let Some((c, _)) = u.applied(part)
+            && let Some(v) = u.var(c)
         {
             constructors.push(v);
         }
@@ -56,12 +53,9 @@ pub fn any_open_constructor(c: &Constraint, vars: &[tasty::VarId]) -> bool {
 /// sides with each side so.
 pub fn var_upper_bound(ty: &mut TypeOps<'_>, tpe: TypeId) -> Option<TypeId> {
     let tpe = ty.zonk(tpe);
-    let (var, args) = match ty.u.types().get(tpe).clone() {
+    let (var, args) = match *ty.u.ty(tpe) {
         Type::Var(v) => (v, None),
-        Type::Applied(c, args) => match *ty.u.types().get(c) {
-            Type::Var(v) => (v, Some(args)),
-            _ => return None,
-        },
+        Type::Applied(c, args) => (ty.u.var(c)?, Some(args)),
         Type::And(a, b) => {
             let (x, y) = (var_upper_bound(ty, a), var_upper_bound(ty, b));
             if x.is_none() && y.is_none() {
@@ -77,8 +71,9 @@ pub fn var_upper_bound(ty: &mut TypeOps<'_>, tpe: TypeId) -> Option<TypeId> {
     }
     let hi = ty.zonk(hi);
     let Some(args) = args else { return Some(hi) };
-    let class = ty.u.class_symbol(hi).filter(|_| matches!(ty.u.types().get(hi), Type::Sym(..)))?;
-    (ty.u.type_params(class).len() == args.len()).then(|| ty.u.intern_type(Type::Applied(hi, args)))
+    let class = ty.u.class_symbol(hi).filter(|_| ty.u.sym_of(hi).is_some())?;
+    (ty.u.type_params(class).len() == ty.u.types_of(args).len())
+        .then(|| ty.u.intern_type(Type::Applied(hi, args)))
 }
 
 /// `tpe` with its type variables whose bounds are equal up to aliases instantiated to them, or
@@ -120,18 +115,20 @@ fn dealiased_parts(ty: &mut TypeOps<'_>, tpe: TypeId) -> TypeId {
 /// no search may answer (dotty's `isUnderspecified`).
 pub fn is_underspecified(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
     let tpe = ty.zonk(tpe);
-    match ty.u.types().get(tpe).clone() {
+    let node = *ty.u.ty(tpe);
+    match node {
         Type::Var(v) => {
             let (_, hi) = ty.constraint.bounds(v);
             is_underspecified(ty, hi)
         }
-        Type::Or(a, b, _) if ty.u.class_symbol(b) == Some(ty.u.builtins().null) => is_underspecified(ty, a),
+        Type::Or(a, b, _) if ty.u.class_symbol(b) == Some(ty.u.defn().null) => is_underspecified(ty, a),
         Type::Sym(..) | Type::TypeRef(..) => {
-            let b = ty.u.builtins();
+            let b = ty.u.defn();
             let tpe = ty.u.dealias(tpe);
-            let class = match ty.u.types().get(tpe).clone() {
+            let inner = *ty.u.ty(tpe);
+            let class = match inner {
                 Type::Sym(_, s) => Some(s),
-                Type::TypeRef(p, n) => ty.u.resolve(p, &n, true),
+                Type::TypeRef(p, n) => ty.u.resolve(p, n, true),
                 _ => None,
             };
             class.is_some_and(|c| c == b.any || c == b.object)
@@ -144,10 +141,12 @@ pub fn is_underspecified(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
 fn open_union_within(ty: &mut TypeOps<'_>, tpe: TypeId, depth: u32) -> bool {
     let Some(depth) = depth.checked_sub(1) else { return false };
     let tpe = ty.u.dealias(tpe);
-    match ty.u.types().get(tpe).clone() {
+    match *ty.u.ty(tpe) {
         Type::Or(..) => !ty.open_vars(tpe).is_empty(),
         Type::And(a, b) => open_union_within(ty, a, depth) || open_union_within(ty, b, depth),
-        Type::Applied(_, args) => args.into_iter().any(|a| open_union_within(ty, a, depth)),
+        Type::Applied(_, args) => {
+            ty.u.types_of(args).to_vec().into_iter().any(|a| open_union_within(ty, a, depth))
+        }
         Type::Annotated(a, _) | Type::ByName(a) => open_union_within(ty, a, depth),
         Type::Bounds(lo, hi) => open_union_within(ty, lo, depth) || open_union_within(ty, hi, depth),
         _ => false,

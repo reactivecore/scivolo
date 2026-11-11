@@ -73,14 +73,12 @@ fn candidate_value(t: &mut Typer<'_>, c: Candidate) -> Result<TypeId, usize> {
     t.complete(c.sym);
     let tpe = t.ref_type(c.prefix, c.sym);
     let mut info = t.method_info(tpe).unwrap_or(tpe);
-    if let Type::Poly { result, .. } = *t.u.types().get(info) {
-        info = result;
-    }
-    if let Type::Method { ref params, implicit: false, .. } = *t.u.types().get(info) {
-        return Err(params.len());
+    info = t.u.strip_poly(info);
+    if let Some(m) = t.u.method(info).filter(|m| !m.implicit) {
+        return Err(m.params.len());
     }
     let value = t.strip_implicit(info);
-    match *t.u.types().get(value) {
+    match *t.u.ty(value) {
         Type::ByName(r) => Ok(r),
         Type::Method { .. } | Type::Poly { .. } => Err(0),
         _ => Ok(value),

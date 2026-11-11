@@ -10,7 +10,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Span, TName, Tree};
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 /// Whether `name` is an assignment operator such as `+=` (dotty's `isOpAssignmentName`).
 fn is_op_assignment_name(name: &str) -> bool {
@@ -116,7 +116,7 @@ impl Typer<'_> {
             T::Apply { fun, args } => {
                 let fun_tpe = self.tpd.tpe(fun);
                 let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-                let Type::Method { params, .. } = self.u.types().get(info).clone() else {
+                let Some(params) = self.u.method(info).map(|m| m.params.to_vec()) else {
                     return Err("lifting");
                 };
                 let items = self.tpd.items(args).to_vec();

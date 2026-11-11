@@ -42,7 +42,7 @@ impl Cmp<'_> {
     /// What `t` names, if it is a named type.
     pub fn named(&mut self, t: TypeId) -> Option<Named> {
         let u = &mut *self.u;
-        let (prefix, name) = match u.types().get(t).clone() {
+        let (prefix, name) = match *u.ty(t) {
             Type::TypeRef(p, n) | Type::TermRef(p, n) => (p, n),
             Type::Sym(p, s) => return Some(Named { sym: Some(s), prefix: p, meaning: meaning(u, s, p) }),
             _ => return None,
@@ -50,10 +50,12 @@ impl Cmp<'_> {
         Some(match u.resolve_ref(t) {
             Some(s) => Named { sym: Some(s), prefix: Some(prefix), meaning: meaning(u, s, Some(prefix)) },
             None => {
-                let typeref = matches!(u.types().get(t), Type::TypeRef(..));
-                let meaning = match typeref.then(|| refined_meaning(u, prefix, &name)).flatten() {
+                let typeref = u.type_ref(t).is_some();
+                let meaning = match typeref.then(|| refined_meaning(u, prefix, name)).flatten() {
                     Some(m) => m,
-                    None => u.unresolved_class(prefix, &name).map_or(Meaning::Unknown, Meaning::Unresolved),
+                    None => {
+                        u.unresolved_class(prefix, u.name(name)).map_or(Meaning::Unknown, Meaning::Unresolved)
+                    }
                 };
                 Named { sym: None, prefix: Some(prefix), meaning }
             }
@@ -63,12 +65,9 @@ impl Cmp<'_> {
     /// Whether `t`, widened, is `Nothing` or erroneous.
     pub fn is_bottom(&mut self, t: TypeId) -> bool {
         let t = self.u.widen(t);
-        let t = match *self.u.types().get(t) {
-            Type::ByName(r) => r,
-            _ => t,
-        };
-        let nothing = Some(self.u.builtins().nothing);
-        match *self.u.types().get(t) {
+        let t = self.u.by_name(t).unwrap_or(t);
+        let nothing = Some(self.u.defn().nothing);
+        match *self.u.ty(t) {
             Type::Error => true,
             Type::Sym(_, s) => Some(s) == nothing,
             Type::TypeRef(..) => self.u.resolve_ref(t) == nothing,
@@ -78,15 +77,12 @@ impl Cmp<'_> {
 
     /// Whether `t` is the type of values or a type lambda: not a method type or bounds.
     pub fn is_value_type(&mut self, t: TypeId) -> bool {
-        !matches!(
-            self.u.types().get(t),
-            Type::Method { .. } | Type::Poly { .. } | Type::Bounds(..) | Type::ByName(_)
-        )
+        !matches!(self.u.ty(t), Type::Method { .. } | Type::Poly { .. } | Type::Bounds(..) | Type::ByName(_))
     }
 
     /// Whether `t` is a path or a constant.
     pub fn is_stable(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::TermRef(..)
             | Type::This(_)
             | Type::Constant(..)
@@ -100,7 +96,7 @@ impl Cmp<'_> {
 
     /// The symbol a path or a `this` refers to.
     pub fn path_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Package(p) => Some(p),
             Type::This(c) => self.path_symbol(c),
             _ => self.named(t)?.sym,
@@ -110,7 +106,7 @@ impl Cmp<'_> {
     /// Whether `t` is a path whose value does not depend on another: a package, a `this`, or a
     /// top-level object.
     fn is_static_path(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Package(_) | Type::PackageName(_) | Type::This(_) => true,
             Type::TermRef(..) | Type::Sym(..) => self.named(t).and_then(|n| n.sym).is_some_and(|s| {
                 let owner = self.u.symbol(s).owner;
@@ -154,8 +150,7 @@ impl Cmp<'_> {
             if s1 == s2 || package_object_of(u, s1, s2) || package_object_of(u, s2, s1) {
                 return true;
             }
-            let this =
-                matches!(u.types().get(p1), Type::This(_)) && matches!(u.types().get(p2), Type::This(_));
+            let this = u.this_of(p1).is_some() && u.this_of(p2).is_some();
             let classes = u.symbol(s1).kind == Kind::Class && u.symbol(s2).kind == Kind::Class;
             if this && classes && u.derives_from(s1, s2) && u.derives_from(s2, s1) {
                 return true;

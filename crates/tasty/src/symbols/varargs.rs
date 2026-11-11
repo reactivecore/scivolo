@@ -53,20 +53,21 @@ impl Universe {
     /// `t` with the last parameter of its first clause marked repeated if that clause has one of
     /// `counts` parameters, the last an array.
     fn mark_last_array(&mut self, t: TypeId, counts: &[usize]) -> TypeId {
-        match self.types.get(t).clone() {
+        match *self.types.get(t) {
             Type::Poly { binder, params, result } => {
                 let result = self.mark_last_array(result, counts);
                 self.types.intern(Type::Poly { binder, params, result })
             }
-            Type::Method { binder, mut params, result, implicit, contextual }
-                if counts.contains(&params.len()) =>
+            Type::Method { binder, params, result, implicit, contextual }
+                if counts.contains(&self.types.params_of(params).len()) =>
             {
+                let mut params = self.types.params_of(params).to_vec();
                 let last = params.last_mut().expect("a parameter");
                 if self.is_array(last.1) {
                     let repeated = self.class_ref("scala.annotation.internal.Repeated");
                     last.1 = self.types.intern(Type::Annotated(last.1, repeated));
                 }
-                self.types.intern(Type::Method { binder, params, result, implicit, contextual })
+                self.types.intern_method(binder, &params, result, implicit, contextual)
             }
             _ => t,
         }
@@ -74,9 +75,9 @@ impl Universe {
 
     /// Whether `t` is `Array[e]`.
     pub fn is_array(&mut self, t: TypeId) -> bool {
-        match self.types.get(t).clone() {
+        match *self.types.get(t) {
             Type::Applied(c, args) => {
-                args.len() == 1 && self.class_symbol(c).is_some_and(|s| self.full_name(s) == "scala.Array")
+                self.types.types_of(args).len() == 1 && self.is_class_named(c, super::defn::ARRAY)
             }
             _ => false,
         }

@@ -20,12 +20,14 @@ impl Decoder<'_> {
                 t if is_modifier(t) => {}
                 _ => {
                     let ty = self.ty(c);
-                    let name = rest.next().map_or_else(String::new, |n| self.name(n));
+                    let name = rest.next().map_or("", |n| self.text(n));
+                    let name = self.types.intern_name(name);
                     params.push((name, ty));
                 }
             }
         }
         let binder = self.binder(id);
+        let params = self.types.intern_params(&params);
         match tag {
             POLYtype => Type::Poly { binder, params, result },
             METHODtype => Type::Method { binder, params, result, implicit, contextual },
@@ -37,7 +39,8 @@ impl Decoder<'_> {
     pub fn lambda_tpt(&mut self, id: NodeId) -> Type {
         let k = self.ast.kids(id);
         let (params, body) = k.split_at(k.len() - 1);
-        let params = params.iter().map(|&p| (self.name(p), self.kid(p, 0))).collect();
+        let params: Vec<_> = params.iter().map(|&p| (self.name(p), self.kid(p, 0))).collect();
+        let params = self.types.intern_params(&params);
         Type::Lambda { binder: self.binder(id), params, result: self.ty(body[0]) }
     }
 }

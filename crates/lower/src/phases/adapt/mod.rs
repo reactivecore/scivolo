@@ -19,7 +19,7 @@ use crate::Lower;
 use crate::symbols::{has, is_java_field, is_java_static};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
-use tasty::{Erased, Kind, SymbolId, Type};
+use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 use units::boxed_unit;
 
@@ -39,19 +39,16 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
         && s != l.defs.boxed_unit_unit;
     let method = l.u.symbol(s).kind == Kind::Def || has(l.u, s, FIELDaccessor) || class_value;
     let mut info = l.u.info(s);
-    while let Type::Poly { result, .. } = *l.u.types().get(info) {
-        info = result;
+    while let Some(p) = l.u.poly(info) {
+        info = p.result;
     }
-    method
-        && !l.u.is_constructor(s)
-        && !is_class_of(l, s)
-        && !matches!(l.u.types().get(info), Type::Method { .. })
+    method && !l.u.is_constructor(s) && !is_class_of(l, s) && l.u.method(info).is_none()
 }
 
 /// Whether `s` is `Predef.classOf`, a constant rather than a call.
 pub fn is_class_of(l: &Lower, s: tasty::SymbolId) -> bool {
     let sym = l.u.symbol(s);
-    sym.name == "classOf" && sym.owner.is_some_and(|o| l.u.full_name(o) == "scala.Predef$")
+    sym.name == "classOf" && sym.owner.is_some_and(|o| l.u.full_name(o) == tasty::defn::PREDEF_CLASS)
 }
 
 /// The erased type of `t` as erasure leaves it: a call's erased result type, a value's erased

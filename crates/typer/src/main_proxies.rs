@@ -82,18 +82,16 @@ impl Typer<'_> {
 
     fn main_proxy(&mut self, fun: SymbolId, annot_span: Span) -> Option<NodeId> {
         let owner = self.u.symbol(fun).owner.expect("a member");
-        if !self.is_static_owner(owner) {
+        if !self.u.is_static_owner(owner) {
             self.unsupported_at(annot_span, "@main method not statically accessible");
             return None;
         }
         let mut call = self.splice_ref(fun);
         let info = self.u.info(fun);
-        match self.u.types().get(info).clone() {
-            Type::Method { params, result, implicit: false, .. }
-                if !matches!(self.u.types().get(result), Type::Method { .. }) =>
-            {
+        match *self.u.ty(info) {
+            Type::Method { params, result, implicit: false, .. } if self.u.method(result).is_none() => {
                 let mut args = Vec::new();
-                for (i, &(_, p)) in params.iter().enumerate() {
+                for (i, (_, p)) in self.u.params_of(params).to_vec().into_iter().enumerate() {
                     let repeated = self.repeated_elem(p);
                     let parser = if repeated.is_some() { "parseRemainingArguments" } else { "parseArgument" };
                     let Some(parser) = self.command_line_parser_member(parser, Kind::Def) else {

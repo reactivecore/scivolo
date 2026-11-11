@@ -7,7 +7,7 @@ use super::explicit_outer::terms;
 use super::local_free::{enclosing_class, is_term, within};
 use super::walk::is_type_tree;
 use crate::Lower;
-use crate::symbols::{has, is_static, is_static_owner};
+use crate::symbols::{has, is_static};
 use tasty::tags::{INLINE, LAZY};
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -34,7 +34,7 @@ pub fn references_outer(l: &mut Lower, class: SymbolId, td: TNodeId) -> bool {
 fn contains_outer_refs_anywhere(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
     let (mut singletons, mut aliases) = (Vec::new(), Vec::new());
     l.u.map_type(tpe, &mut |u, part| {
-        match *u.types().get(part) {
+        match *u.ty(part) {
             Type::This(_) | Type::TermRef(..) => singletons.push(part),
             Type::Sym(_, s) if u.symbol(s).kind.is_term() => singletons.push(part),
             Type::Sym(..) | Type::TypeRef(..) => {
@@ -93,14 +93,14 @@ fn is_type_test(l: &Lower, fun: TNodeId) -> bool {
 
 /// Whether `s` is a class properly enclosing `class` that is not a static owner.
 fn is_outer_sym(l: &Lower, class: SymbolId, s: SymbolId) -> bool {
-    !is_static_owner(l.u, s) && class != s && within(l, class, s)
+    !l.u.is_static_owner(s) && class != s && within(l, class, s)
 }
 
 fn is_outer_ref(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
-    match *l.u.types().get(tpe) {
+    match *l.u.ty(tpe) {
         Type::This(c) => l.u.class_symbol(c).is_some_and(|c| is_outer_sym(l, class, c)),
         Type::Sym(_, s) if !l.u.symbol(s).kind.is_term() || is_static(l.u, s) => false,
-        Type::Sym(Some(pre), s) if !matches!(l.u.types().get(pre), Type::NoPrefix) => {
+        Type::Sym(Some(pre), s) if !matches!(l.u.ty(pre), Type::NoPrefix) => {
             !is_static(l.u, s) && is_outer_ref(l, class, pre)
         }
         Type::Sym(_, s) => {
@@ -116,7 +116,7 @@ fn is_outer_ref(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
 }
 
 fn has_outer_prefix(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
-    match *l.u.types().get(tpe) {
+    match *l.u.ty(tpe) {
         Type::Applied(tycon, _) => has_outer_prefix(l, class, tycon),
         Type::Sym(Some(pre), _) | Type::TypeRef(pre, _) => is_outer_ref(l, class, pre),
         _ => false,
@@ -124,7 +124,7 @@ fn has_outer_prefix(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
 }
 
 fn contains_outer_refs_at_top_level(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
-    match *l.u.types().get(tpe) {
+    match *l.u.ty(tpe) {
         Type::And(a, b) | Type::Or(a, b, _) => {
             contains_outer_refs_at_top_level(l, class, a) || contains_outer_refs_at_top_level(l, class, b)
         }

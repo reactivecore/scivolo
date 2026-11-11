@@ -6,7 +6,7 @@
 //! defines it; `Object` extends `Any` and `Matchable`, `java.io.Serializable` and
 //! `java.lang.Cloneable` only `Any`.
 
-use super::{Flags, Kind, Symbol, SymbolId, Universe};
+use super::{Defn, Flags, Kind, Symbol, SymbolId, Universe};
 use crate::tags::{ABSTRACT, FINAL, PRIVATE, PRIVATEqualified, TRAIT};
 use crate::types::{Type, TypeId};
 
@@ -14,43 +14,6 @@ use crate::types::{Type, TypeId};
 pub const NOTHING: TypeId = TypeId(0);
 /// The type `scala.Any`, the second.
 pub const ANY: TypeId = TypeId(1);
-
-/// The symbols of the classes without TASTy.
-#[derive(Clone, Copy)]
-pub struct Builtins {
-    pub any: SymbolId,
-    pub any_kind: SymbolId,
-    pub matchable: SymbolId,
-    pub nothing: SymbolId,
-    pub null: SymbolId,
-    pub singleton: SymbolId,
-    pub any_ref: SymbolId,
-    pub object: SymbolId,
-    /// dotty's `<special-ops>.<FromJavaObject>`, the alias of `Object` that Java signatures have
-    /// for it and that every type conforms to.
-    pub from_java_object: SymbolId,
-    /// `scala.AnyVal`, from the library's TASTy.
-    pub any_val: Option<SymbolId>,
-}
-
-impl Builtins {
-    /// The placeholder until `enter` has run.
-    pub const PENDING: Builtins = {
-        let r = SymbolId(0);
-        Builtins {
-            any: r,
-            any_kind: r,
-            matchable: r,
-            nothing: r,
-            null: r,
-            singleton: r,
-            any_ref: r,
-            object: r,
-            from_java_object: r,
-            any_val: None,
-        }
-    };
-}
 
 /// A symbol of `kind` without TASTy, flagged with the modifier tags `flags`.
 pub fn synthetic(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flags: &[u8]) -> SymbolId {
@@ -69,8 +32,8 @@ pub fn synthetic(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flag
 }
 
 /// Enters the classes without TASTy into `u`, whose libraries' packages are known and which has
-/// interned no type yet.
-pub fn enter(u: &mut Universe) -> Builtins {
+/// interned no type yet, and returns the well-known symbols they make.
+pub fn enter(u: &mut Universe) -> Defn {
     let scala = u.enter_package("scala");
     let nothing = synthetic(u, scala, "Nothing", Kind::Class, &[ABSTRACT, FINAL]);
     let any = synthetic(u, scala, "Any", Kind::Class, &[ABSTRACT]);
@@ -118,7 +81,9 @@ pub fn enter(u: &mut Universe) -> Builtins {
     super::impure_functions::enter(u, scala);
     super::function_classes::enter(u, scala, object_ref);
     super::java_stubs::enter(u, object);
-    Builtins {
+    Defn {
+        scala,
+        java_lang,
         any,
         any_kind,
         matchable,
@@ -129,12 +94,6 @@ pub fn enter(u: &mut Universe) -> Builtins {
         object,
         from_java_object,
         any_val,
-    }
-}
-
-impl Universe {
-    /// The classes without TASTy.
-    pub fn builtins(&self) -> Builtins {
-        self.builtins
+        ..Defn::PENDING
     }
 }

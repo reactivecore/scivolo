@@ -25,7 +25,7 @@ impl Typer<'_> {
         if own.len() != class_params.len() {
             return Vec::new();
         }
-        for ctor in self.u.decl(class, "<init>").unwrap_or_default() {
+        for ctor in self.u.decls_named(class, "<init>") {
             self.complete(ctor);
         }
         let class_ref = self.u.intern_type(Type::Sym(None, class));

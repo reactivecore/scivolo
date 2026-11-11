@@ -5,7 +5,7 @@
 
 use super::Typer;
 use syntax::ast::{Attrs, NodeId};
-use tasty::TypeId;
+use tasty::{NameId, TypeId};
 
 impl Typer<'_> {
     /// Checks arguments `args` of application `id` to a clause of `params`, implicit if
@@ -14,7 +14,7 @@ impl Typer<'_> {
     pub fn check_clause_args(
         &mut self,
         (id, args): (NodeId, &[NodeId]),
-        params: &[(String, TypeId)],
+        params: &[(NameId, TypeId)],
         implicit: bool,
         contextual: bool,
     ) -> Result<(), &'static str> {
@@ -25,7 +25,7 @@ impl Typer<'_> {
         if !implicit || using {
             return Ok(());
         }
-        if params.first().is_some_and(|(n, _)| n.starts_with("evidence$")) {
+        if params.first().is_some_and(|&(n, _)| self.u.name(n).starts_with("evidence$")) {
             return Err("explicit arguments to context bound parameters");
         }
         let Some(span) = args.first().map(|&a| self.ast.span(a)).filter(|s| s.exists()) else {

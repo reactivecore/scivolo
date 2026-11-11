@@ -56,7 +56,7 @@ pub fn param_def_of(t: &mut Typer<'_>, p: SymbolId, span: Span) -> Result<NodeId
 pub fn param_def(t: &mut Typer<'_>, name: &str, info: TypeId, span: Span) -> Result<NodeId, &'static str> {
     let mut dependent = false;
     t.u.map_type(info, &mut |u, p| {
-        dependent |= match *u.types().get(p) {
+        dependent |= match *u.ty(p) {
             Type::Param(..) | Type::Local(..) => true,
             Type::Sym(_, s) => u.symbol(s).kind == Kind::TypeParam,
             _ => false,
@@ -67,22 +67,17 @@ pub fn param_def(t: &mut Typer<'_>, name: &str, info: TypeId, span: Span) -> Res
         return Err("derives clause of a class whose type parameter bounds are dependent");
     }
 
-    let lambda = match t.u.types().get(info).clone() {
-        Type::Bounds(_, hi) => match t.u.types().get(hi).clone() {
-            Type::Lambda { params, result, .. } => Some((params, result)),
-            _ => None,
-        },
-        Type::Lambda { params, result, .. } => Some((params, result)),
-        _ => None,
-    };
+    let inner = t.u.bounds(info).map_or(info, |(_, hi)| hi);
+    let lambda = t.u.lambda(inner).map(|l| (l.params.to_vec(), l.result));
     let rhs = match lambda {
         Some((params, result)) => {
             let mut tparams = Vec::new();
-            for (i, (n, b)) in params.iter().enumerate() {
-                let n = if n == "_" { format!("_${}", i + 1) } else { n.clone() };
-                tparams.push(param_def(t, &n, *b, span)?);
+            for (i, &(n, b)) in params.iter().enumerate() {
+                let n = t.u.name(n);
+                let n = if n == "_" { format!("_${}", i + 1) } else { n.to_owned() };
+                tparams.push(param_def(t, &n, b, span)?);
             }
-            let result = match t.u.types().get(result) {
+            let result = match *t.u.ty(result) {
                 Type::Bounds(..) => result,
                 _ => t.u.intern_type(Type::Bounds(tasty::NOTHING, result)),
             };

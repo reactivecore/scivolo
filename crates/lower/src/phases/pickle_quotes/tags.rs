@@ -32,12 +32,13 @@ pub fn encode(
     let (mut defs, mut holes, mut refs, mut locals) =
         (Vec::new(), Vec::new(), Vec::new(), FxHashMap::default());
     for (index, &tag) in used.iter().enumerate() {
-        let Type::Sym(_, evidence) = *l.u.types().get(tag) else { unreachable!("a tag") };
+        let Some(evidence) = l.u.sym_of(tag) else { unreachable!("a tag") };
         refs.push(tag_ref(l, tag, at).or_else(|()| unsupported(span, TAG_PATH))?);
         let tpe = tags.iter().find(|(_, t)| *t == tag).map(|&(s, _)| s).expect("a tag's type");
         let name = fresh(l, &l.u.symbol(evidence).name.clone());
         let local = l.u.define(symbol(&name, Kind::Type, owner, Flags::default().with(SYNTHETIC)));
-        let underlying = l.u.intern_type(Type::TypeRef(tag, UNDERLYING.into()));
+        let underlying = l.u.intern_name(UNDERLYING);
+        let underlying = l.u.intern_type(Type::TypeRef(tag, underlying));
         let alias = l.u.intern_type(Type::Alias(underlying));
         l.u.set_info(local, alias);
         let bound = l.u.intern_type(Type::Sym(None, tpe));
@@ -64,9 +65,9 @@ pub const TAG_PATH: &str = "quotes whose type tag is not a local value or field"
 
 /// A reference at `at` to tag `tag`, a local value or a field of an enclosing class.
 pub fn tag_ref(l: &mut Lower, tag: TypeId, at: Span) -> std::result::Result<TNodeId, ()> {
-    match *l.u.types().get(tag) {
-        Type::Sym(None, evidence) => Ok(l.ident(evidence, at)),
-        Type::Sym(Some(p), evidence) if let Type::This(c) = *l.u.types().get(p) => {
+    match l.u.sym_ref(tag) {
+        Some((None, evidence)) => Ok(l.ident(evidence, at)),
+        Some((Some(p), evidence)) if let Some(c) = l.u.this_of(p) => {
             let class = l.u.class_symbol(c).ok_or(())?;
             let this = l.this(class, at);
             Ok(l.select(this, evidence, at))

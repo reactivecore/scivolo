@@ -10,7 +10,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
 use syntax::config::Features;
-use tasty::{Type, TypeId};
+use tasty::{NameId, Type, TypeId};
 
 impl Typer<'_> {
     /// Type application `id` of `fun` to `arg_ids` if they are named, or refused if `fun` is
@@ -61,14 +61,15 @@ impl Typer<'_> {
         };
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+        let Some(poly) = self.u.poly(info) else {
             return self.unsupported(id, "named type arguments of a non-polymorphic method");
         };
+        let (binder, result, params) = (poly.binder, poly.result, poly.params.to_vec());
         let span = self.ast.span(id);
         let mut args: Vec<Option<TypeId>> = vec![None; params.len()];
         let mut named_trees = Vec::new();
         for (a, (name, arg)) in arg_ids.iter().zip(named) {
-            let Some(i) = params.iter().position(|(n, _)| *n == name) else {
+            let Some(i) = params.iter().position(|&(n, _)| self.u.name(n) == name) else {
                 return self.unsupported(id, "named type argument of no type parameter");
             };
             if args[i].is_some() {
@@ -105,18 +106,14 @@ impl Typer<'_> {
                 None => types[i],
             })
             .collect();
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let method = self.tpd.sym(self.tpd.meth_part(f));
-        let inner_params = gaps
+        let inner_params: Vec<_> = gaps
             .iter()
-            .map(|&g| (names[g].clone(), self.instantiate_poly(params[g].1, binder, &names, &refs, method)))
+            .map(|&g| (names[g], self.instantiate_poly(params[g].1, binder, &names, &refs, method)))
             .collect();
         let inner_result = self.instantiate_poly(result, binder, &names, &refs, method);
-        let inner_tpe = self.u.intern_type(Type::Poly {
-            binder: inner_binder,
-            params: inner_params,
-            result: inner_result,
-        });
+        let inner_tpe = self.u.intern_poly(inner_binder, &inner_params, inner_result);
         let inner = self.tpd.node(T::TypeApply { fun: f, args: named_list }, span, Some(inner_tpe), None);
         let gap_trees: Vec<TNodeId> = vars.iter().map(|&v| self.type_tree(v, span, true)).collect();
         let gap_list = self.tpd.list(&gap_trees);

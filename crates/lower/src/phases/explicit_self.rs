@@ -22,14 +22,14 @@ fn rewrite(l: &mut Lower, t: TNodeId) {
     match *l.tpd.tree(t) {
         Tree::Ident { name } if !name.is_type => {
             let Some(tpe) = l.tpd.get(t).tpe else { return };
-            match *l.u.types().get(tpe) {
+            match *l.u.ty(tpe) {
                 Type::This(c) => {
                     let Some(c) = l.u.class_symbol(c) else { return };
                     let this = l.this(c, span);
                     l.copy_node(t, this);
                 }
                 Type::Sym(Some(p), _) => {
-                    let Type::This(c) = *l.u.types().get(p) else { return };
+                    let Some(c) = l.u.this_of(p) else { return };
                     let Some(c) = l.u.class_symbol(c).filter(|&c| needs_cast(l, t, c)) else { return };
                     let this = l.this(c, Span::NONE);
                     let qualifier = cast(l, this, c);

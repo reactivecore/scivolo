@@ -32,7 +32,7 @@ impl Typer<'_> {
             let info = self.u.info(s);
             let mut found = false;
             self.u.map_type(info, &mut |u, x| {
-                if let Type::Annotated(_, a) = *u.types().get(x) {
+                if let Some((_, a)) = u.annotated(x) {
                     found |= u
                         .class_symbol(a)
                         .is_some_and(|c| u.full_name(c).starts_with("scala.annotation.retains"));

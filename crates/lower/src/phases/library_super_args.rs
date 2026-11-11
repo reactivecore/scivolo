@@ -30,7 +30,7 @@ pub fn hoisted(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
             arities
         };
         let Some(arities) = arities.into_iter().collect::<Option<Vec<usize>>>() else { continue };
-        let Some(&ctor) = l.u.decl(c, "<init>").unwrap_or_default().first() else { continue };
+        let Some(&ctor) = l.u.decls_named(c, "<init>").first() else { continue };
         let ctor_info = l.u.info(ctor);
         let name = l.u.symbol(c).name.clone();
         for (i, arity) in arities.into_iter().enumerate() {

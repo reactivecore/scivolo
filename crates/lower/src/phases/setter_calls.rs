@@ -8,7 +8,7 @@ use super::getters::is_setter;
 use crate::symbols::{has, is_extern, is_java_field};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{FIELDaccessor, MUTABLE, TRAIT};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes each assignment to a variable in class definition `td` a call of its setter.
@@ -29,7 +29,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         };
         let owner = l.u.symbol(var).owner.expect("a variable's class");
         let setter_name = format!("{}_=", l.u.symbol(var).name);
-        let setter = l.u.decl(owner, &setter_name).unwrap_or_default().into_iter().find(|&s| is_setter(l, s));
+        let setter = l.u.decls_named(owner, &setter_name).into_iter().find(|&s| is_setter(l, s));
         let span = l.tpd.span(t);
         let Some(setter) = setter else {
             return unsupported(span, "an assignment to a value without a setter");
@@ -59,8 +59,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 
 /// The class `C` if reference `id`'s prefix is `C.this` (dotty's `desugarIdentPrefix`).
 fn this_prefix(l: &mut Lower, id: TNodeId) -> Option<SymbolId> {
-    let Type::Sym(Some(prefix), _) = *l.u.types().get(l.tpd.get(id).tpe?) else { return None };
-    let Type::This(c) = *l.u.types().get(prefix) else { return None };
+    let (prefix, _) = l.u.sym_ref(l.tpd.get(id).tpe?)?;
+    let c = l.u.this_of(prefix?)?;
     l.u.class_symbol(c)
 }
 

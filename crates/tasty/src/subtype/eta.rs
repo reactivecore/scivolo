@@ -17,8 +17,8 @@ impl Cmp<'_> {
     /// How many type parameters type constructor `t` takes: a type lambda's, or those of a class
     /// referred to without arguments.
     pub fn constructor_arity(&mut self, t: TypeId) -> Option<usize> {
-        if let Type::Lambda { params, .. } = self.u.types().get(t) {
-            return Some(params.len());
+        if let Some(l) = self.u.lambda(t) {
+            return Some(l.params.len());
         }
         let Some(Meaning::Class(c)) = self.named(t).map(|n| n.meaning) else { return None };
         let n = self.u.type_params(c).len();
@@ -57,20 +57,22 @@ impl Cmp<'_> {
                 Some((owner, i)) if owner == c => refs.get(i).copied(),
                 _ => None,
             });
-            lambda_params.push((self.u.symbol(p).name.clone(), bounds));
+            lambda_params.push((self.u.interned_name(p), bounds));
         }
-        let result = self.u.intern_type(Type::Applied(t, refs));
-        Some(self.u.intern_type(Type::Lambda { binder, params: lambda_params, result }))
+        let result = self.u.intern_applied(t, &refs);
+        Some(self.u.intern_lambda(binder, &lambda_params, result))
     }
 
     fn abstract_eta_expand(&mut self, t: TypeId, hi: TypeId) -> Option<TypeId> {
-        let Type::Lambda { binder: own, params, .. } = self.u.types().get(hi).clone() else { return None };
+        let l = self.u.lambda(hi)?;
+        let (own, params) = (l.binder, l.params.to_vec());
         let binder = Binder(FileId(ETA), t.0);
         let refs: Vec<TypeId> =
             (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        let params = params.into_iter().map(|(n, b)| (n, self.u.subst(b, own, &names, &refs))).collect();
-        let result = self.u.intern_type(Type::Applied(t, refs));
-        Some(self.u.intern_type(Type::Lambda { binder, params, result }))
+        let names: Vec<_> = params.iter().map(|&(n, _)| n).collect();
+        let params: Vec<_> =
+            params.into_iter().map(|(n, b)| (n, self.u.subst(b, own, &names, &refs))).collect();
+        let result = self.u.intern_applied(t, &refs);
+        Some(self.u.intern_lambda(binder, &params, result))
     }
 }

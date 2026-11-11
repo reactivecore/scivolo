@@ -11,7 +11,7 @@ use crate::phases::casts::is_cast;
 use crate::phases::function_classes::erased_function_class;
 use crate::{Lower, Result};
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId, Type};
+use tasty::{Erased, SymbolId};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Call `t` of `fun` to `args`, its argument lists flattened and its type arguments dropped; at
@@ -55,7 +55,7 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
     }
     let any_val_init = l.tpd.sym(sel).filter(|&m| l.u.is_constructor(m)).and_then(|m| l.u.symbol(m).owner);
     if any_val_init == Some(l.defs.any_val) {
-        let init = l.u.decl(l.defs.object, "<init>").unwrap_or_default();
+        let init = l.u.decls_named(l.defs.object, "<init>");
         l.tpd.get_mut(sel).sym = init.first().copied();
     }
     let clone = l.tpd.sym(fun).filter(|&m| l.u.symbol(m).name == "clone");
@@ -90,7 +90,7 @@ fn bunched_args(l: &mut Lower, args: &[TNodeId]) -> TNodeId {
     let object = type_ref(l.u, l.defs.object);
     let elemtpt = l.type_tree(object, Span::NONE);
     let array = l.u.class_ref("scala.Array");
-    let tpe = l.u.intern_type(Type::Applied(array, vec![object]));
+    let tpe = l.u.intern_applied(array, &[object]);
     let elems = l.tpd.list(args);
     l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, span, Some(tpe), None)
 }
@@ -103,7 +103,7 @@ pub fn inherited_by_class(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
         return None;
     }
     let name = s.name.clone();
-    l.u.decl(l.defs.any, &name).unwrap_or_default().first().copied()
+    l.u.decls_named(l.defs.any, &name).first().copied()
 }
 
 /// The member of `FunctionN` or `FunctionXXL` that member `m` of `ContextFunctionN` or of a
@@ -112,7 +112,7 @@ pub fn function_member(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let owner = l.u.symbol(m).owner?;
     let erased = erased_function_class(l, owner).filter(|&c| c != owner)?;
     let name = l.u.symbol(m).name.clone();
-    l.u.decl(erased, &name).unwrap_or_default().first().copied()
+    l.u.decls_named(erased, &name).first().copied()
 }
 
 /// Whether `t` selects `Any.hashCode` without applying it, as `inherited_by_class` leaves

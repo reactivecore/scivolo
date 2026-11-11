@@ -41,20 +41,17 @@ impl Expansion<'_, '_> {
         if let Err(what) = i.check_gadt_arg(arg, skolem.is_some()) {
             return Err(self.err(what));
         }
-        let by_name = matches!(i.u.types().get(formal), Type::ByName(_));
+        let by_name = i.u.by_name(formal).is_some();
         let inline = i.u.symbol(p).flags.has(INLINE) || i.is_inline_param_type(formal);
         let mut widened = i.u.widen(arg_tpe);
-        let builtins = i.u.builtins();
+        let builtins = i.u.defn();
         let bottom = i.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);
         let skolem = skolem.filter(|_| !bottom);
         if let Some(sk) = skolem {
             widened = sk;
         }
         let info = if bottom {
-            widened = match *i.u.types().get(formal) {
-                Type::ByName(r) => r,
-                _ => formal,
-            };
+            widened = i.u.by_name(formal).unwrap_or(formal);
             formal
         } else if by_name {
             i.u.intern_type(Type::ByName(widened))
@@ -122,10 +119,7 @@ pub fn replace_param(
     let s = i.tpd.sym(t)?;
     let &bound = binding.get(&s)?;
     if i.names.text(name.name) == "_" {
-        let sym = match *i.u.types().get(bound) {
-            Type::Sym(_, c) => Some(c),
-            _ => None,
-        };
+        let sym = i.u.sym_of(bound);
         return Some(i.tpd.node(T::Ident { name }, i.tpd.span(t), Some(bound), sym));
     }
     let span = *arg_span.get(&s)?;
@@ -177,21 +171,19 @@ impl Inlining<'_> {
 
     /// `Seq[T]` if `t` is `<repeated>[T]` (dotty's `translateFromRepeated(toArray = false)`).
     fn seq_of_repeated(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Applied(c, args) = self.u.types().get(t).clone() else { return None };
+        let (c, args) = self.u.applied(t).map(|(c, a)| (c, a.to_vec()))?;
         if args.len() != 1 || self.u.class_symbol(c) != Some(self.scala_member("<repeated>", Kind::Class)?) {
             return None;
         }
         let seq = self.u.class_ref(crate::defn::IMMUTABLE_SEQ);
-        Some(self.u.intern_type(Type::Applied(seq, args)))
+        Some(self.u.intern_applied(seq, &args))
     }
 
     /// Whether parameter type `p` is annotated `@InlineParam`, also inside a by-name type.
     pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
-        match *self.u.types().get(p) {
+        match *self.u.ty(p) {
             Type::ByName(r) => self.is_inline_param_type(r),
-            Type::Annotated(_, annot) => {
-                self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == INLINE_PARAM)
-            }
+            Type::Annotated(_, annot) => self.u.is_class_named(annot, INLINE_PARAM),
             _ => false,
         }
     }

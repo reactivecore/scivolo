@@ -112,7 +112,7 @@ impl Host {
         let mut t = self.u.info(s);
         let mut found = Vec::new();
         for clause in clauses {
-            match self.u.types().get(t).clone() {
+            match *self.u.ty(t) {
                 Type::Method { result, implicit, contextual, .. } => {
                     if implicit || contextual {
                         found.extend(clause.into_iter().filter_map(|p| self.tpd.sym(p)));

@@ -9,19 +9,16 @@ use tasty::{Type, TypeId};
 impl Typer<'_> {
     /// The element type of repeated parameter type `p`, by-name or not.
     pub fn repeated_param_elem(&mut self, p: TypeId) -> Option<TypeId> {
-        match *self.u.types().get(p) {
-            Type::ByName(r) => self.repeated_elem(r),
-            _ => self.repeated_elem(p),
-        }
+        self.repeated_elem(self.u.by_name(p).unwrap_or(p))
     }
 
     /// Parameter type `p` with a repeated type, by-name or not, typed `<repeated>[T]`.
     pub fn with_repeated_param_class(&mut self, p: TypeId) -> TypeId {
         let Some(elem) = self.repeated_param_elem(p) else { return p };
         let repeated = self.repeated_type(elem);
-        match *self.u.types().get(p) {
-            Type::ByName(_) => self.u.intern_type(Type::ByName(repeated)),
-            _ => repeated,
+        match self.u.by_name(p) {
+            Some(_) => self.u.intern_type(Type::ByName(repeated)),
+            None => repeated,
         }
     }
 }

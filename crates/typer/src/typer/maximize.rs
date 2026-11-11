@@ -12,7 +12,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
 use syntax::ast::flags::CASE;
 use tasty::tags::FINAL;
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, VarId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {
     /// Instantiates the type variables from id `vars` on that occur in `t`: a covariant one from
@@ -55,7 +55,7 @@ impl Typer<'_> {
                 self.instantiate_var(v, false)?;
                 continue;
             }
-            let param = names.iter().find(|(w, _)| *w == v).map_or("T", |(_, n)| n.as_str());
+            let param = names.iter().find(|(w, _)| *w == v).map_or("T", |&(_, n)| self.u.name(n));
             let name = self.fresh.next(self.names, &format!("{param}$"));
             let text = self.text(name).to_owned();
             let sym = self.syms.define(self.u, &text, Kind::Type, ctx.owner, CASE);
@@ -78,7 +78,7 @@ impl Typer<'_> {
     /// bound is `var` or an intersection with it (dotty's `fullLowerBound`).
     fn with_gadt_params_below(&mut self, mut lo: TypeId, var: TypeId, gadt: &[GadtVar]) -> TypeId {
         for &(g, gv) in gadt {
-            let Type::Var(id) = *self.u.types().get(gv) else { continue };
+            let Some(id) = self.u.var(gv) else { continue };
             let (_, hi) = self.constraint.bounds(id);
             if !and_parts(self.u, hi).contains(&var) {
                 continue;
@@ -90,7 +90,7 @@ impl Typer<'_> {
     }
 
     /// The type variables that are type arguments of `unapp`, with their parameters' names.
-    fn type_var_names(&mut self, unapp: TNodeId) -> Vec<(VarId, String)> {
+    fn type_var_names(&mut self, unapp: TNodeId) -> Vec<(VarId, NameId)> {
         let T::TypeApply { fun, args } = *self.tpd.tree(unapp) else { return Vec::new() };
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
@@ -98,10 +98,7 @@ impl Typer<'_> {
         let args = self.tpd.items(args).to_vec();
         args.iter()
             .zip(poly.params)
-            .filter_map(|(&a, (name, _))| match *self.u.types().get(self.tpd.tpe(a)) {
-                Type::Var(v) => Some((v, name.clone())),
-                _ => None,
-            })
+            .filter_map(|(&a, &(name, _))| self.u.var(self.tpd.tpe(a)).map(|v| (v, name)))
             .collect()
     }
 
@@ -113,7 +110,7 @@ impl Typer<'_> {
         for a in &mut args {
             let tpe = self.tpd.tpe(*a);
             let tpe = self.zonk(tpe);
-            let Type::Sym(None, s) = *self.u.types().get(tpe) else { continue };
+            let Some((None, s)) = self.u.sym_ref(tpe) else { continue };
             let Some(i) = remain.iter().position(|&r| r == s) else { continue };
             remain.swap_remove(i);
             let text = self.u.symbol(s).name.clone();
@@ -129,7 +126,7 @@ impl Typer<'_> {
 
 /// The parts of intersection `t`, or `t`.
 fn and_parts(u: &mut tasty::Universe, t: TypeId) -> Vec<TypeId> {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::And(a, b) => [and_parts(u, a), and_parts(u, b)].concat(),
         _ => vec![t],
     }

@@ -51,7 +51,7 @@ impl Inlining<'_> {
         if let T::Select { qualifier, .. } = *self.tpd.tree(t)
             && matches!(self.tpd.tree(qualifier), T::Inlined { .. })
             && let Some(tpe) = self.tpd.get(t).tpe
-            && let Type::Sym(Some(_), m) = *self.u.types().get(tpe)
+            && let Some((Some(_), m)) = self.u.sym_ref(tpe)
         {
             let prefix = self.tpd.tpe(qualifier);
             self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(prefix), m)));
@@ -67,17 +67,14 @@ impl Inlining<'_> {
     /// `tpe` widened until it refers to none of `locals`; `None` if it cannot be.
     pub fn avoid(&mut self, mut tpe: TypeId, locals: &[SymbolId]) -> Option<TypeId> {
         while locals.iter().any(|&s| self.mentions(tpe, s)) {
-            if let Type::Sym(Some(pre), s) = *self.u.types().get(tpe)
+            if let Some((Some(pre), s)) = self.u.sym_ref(tpe)
                 && let Some(alias) = self.proxy_alias(pre, s, locals)
             {
                 tpe = alias;
                 continue;
             }
             let widened = self.u.widen_once(tpe).unwrap_or(tpe);
-            let widened = match *self.u.types().get(widened) {
-                Type::ByName(r) => r,
-                _ => widened,
-            };
+            let widened = self.u.by_name(widened).unwrap_or(widened);
             let widened = self.u.dealias(widened);
             let widened = crate::typer::simplify::normalize_all(self.u, widened);
             let widened = if widened == tpe { self.avoid_parts(tpe, locals) } else { widened };
@@ -92,18 +89,15 @@ impl Inlining<'_> {
     /// The alias of type member `s` that prefix `pre`, a chain of `locals` ending in a refined
     /// type, exposes (an opaque proxy's refinement).
     fn proxy_alias(&mut self, mut pre: TypeId, s: SymbolId, locals: &[SymbolId]) -> Option<TypeId> {
-        while let Type::Sym(None, p) = *self.u.types().get(pre)
+        while let Some((None, p)) = self.u.sym_ref(pre)
             && locals.contains(&p)
         {
             pre = self.u.info(p);
         }
-        let name = &self.u.symbol(s).name;
-        while let Type::Refined(parent, ref n, info) = *self.u.types().get(pre) {
+        let name = self.u.interned_name(s);
+        while let Type::Refined(parent, n, info) = *self.u.ty(pre) {
             if n == name {
-                return match *self.u.types().get(info) {
-                    Type::Alias(alias) => Some(alias),
-                    _ => None,
-                };
+                return self.u.type_alias(info);
             }
             pre = parent;
         }
@@ -117,7 +111,7 @@ impl Inlining<'_> {
             return tpe;
         }
         self.u.map_type(tpe, &mut |u, part| {
-            let Type::Sym(p, x) = *u.types().get(part) else { return None };
+            let (p, x) = u.sym_ref(part)?;
             if locals.contains(&x) && !u.is_type_symbol(x) {
                 return Some(u.info(x)).filter(|&i| i != part);
             }
@@ -137,7 +131,7 @@ impl Inlining<'_> {
         if depth == 0 {
             return mentions_any(self.u, t, locals);
         }
-        match self.u.types().get(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(p, x) if !self.u.is_type_symbol(x) => {
                 if locals.contains(&x) {
                     let proxy = self.u.symbol(x).flags.has(INLINEPROXY);
@@ -150,7 +144,7 @@ impl Inlining<'_> {
                 if d != t {
                     return self.misplaced_local(d, locals, variance, depth - 1);
                 }
-                let p = match *self.u.types().get(t) {
+                let p = match *self.u.ty(t) {
                     Type::TypeRef(p, _) => Some(p),
                     Type::Sym(p, _) => p,
                     _ => None,
@@ -161,7 +155,7 @@ impl Inlining<'_> {
                 let class = self.u.class_symbol(tycon).filter(|&c| self.u.is_class(c));
                 let params = class.map(|c| self.u.type_params(c)).unwrap_or_default();
                 let mut found = self.misplaced_local(tycon, locals, 0, depth - 1);
-                for (i, a) in args.into_iter().enumerate() {
+                for (i, a) in self.u.types_of(args).to_vec().into_iter().enumerate() {
                     let flags = params.get(i).map(|&p| self.u.symbol(p).flags);
                     let param = match flags {
                         Some(f) if f.has(COVARIANT) => 1,
@@ -190,7 +184,7 @@ impl Inlining<'_> {
 fn mentions_any(u: &mut tasty::Universe, t: TypeId, syms: &[SymbolId]) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, part| {
-        found |= matches!(*u.types().get(part), Type::Sym(_, x) if syms.contains(&x));
+        found |= u.sym_of(part).is_some_and(|x| syms.contains(&x));
         None
     });
     found

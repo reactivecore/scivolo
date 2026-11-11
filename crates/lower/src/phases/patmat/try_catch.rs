@@ -85,10 +85,10 @@ fn is_catch_case(l: &mut Lower, c: TNodeId) -> Result<bool> {
 /// static (dotty's `isSimpleThrowable`).
 fn is_simple_throwable(l: &mut Lower, tpt: TNodeId) -> Result<bool> {
     let mut tpe = l.u.dealias(l.tpd.tpe(tpt));
-    if let Type::Applied(tycon, _) = *l.u.types().get(tpe) {
+    if let Some((tycon, _)) = l.u.applied(tpe) {
         tpe = l.u.dealias(tycon);
     }
-    let c = match *l.u.types().get(tpe) {
+    let c = match *l.u.ty(tpe) {
         Type::Sym(_, c) => c,
         Type::TypeRef(..) => match l.u.class_symbol(tpe) {
             Some(c) => c,

@@ -23,15 +23,15 @@ impl Inlining<'_> {
         if let Some(n) = self.u.try_normalize(t).filter(|&n| n != t) {
             return self.const_value(n);
         }
-        if let Type::And(a, b) = *self.u.types().get(t) {
+        if let Type::And(a, b) = *self.u.ty(t) {
             return match (self.u.is_subtype(a, b), self.u.is_subtype(b, a)) {
                 (true, _) => self.const_value(a),
                 (_, true) => self.const_value(b),
                 _ => None,
             };
         }
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
-        let Type::Sym(_, op) = *self.u.types().get(tycon) else { return None };
+        let (tycon, args) = self.u.applied(t).map(|(c, a)| (c, a.to_vec()))?;
+        let op = self.u.sym_of(tycon)?;
         let owner = self.u.full_name(self.u.symbol(op).owner?);
         let module = owner.strip_prefix("scala.compiletime.ops.")?.strip_suffix('$')?.to_owned();
         let name = self.u.symbol(op).name.clone();

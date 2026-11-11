@@ -7,7 +7,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Attrs, List, NodeId, Tree};
 use syntax::config::Features;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, NameId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, fun_ctx: Ctx) -> TNodeId {
@@ -51,7 +51,7 @@ impl Typer<'_> {
         if self.is_invalid_infix(id, fun, infix_meth) {
             return self.unsupported(id, "alphanumeric infix operator under -source future");
         }
-        if method.is_some_and(|m| self.u.full_name(m) == "scala.compiletime.package$package$.summonFrom") {
+        if method.is_some_and(|m| self.u.full_name(m) == crate::defn::SUMMON_FROM) {
             return self.summon_from_applied(id, &arg_ids, pt, ctx);
         }
         let using = self.protos[proto].using;
@@ -71,11 +71,11 @@ impl Typer<'_> {
         let pretyped = self.protos[proto].typed.take();
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe).or(Some(fun_tpe));
-        let Some(Type::Method { binder, mut params, result, implicit, contextual }) =
-            info.map(|i| self.u.types().get(i).clone())
+        let Some(Type::Method { binder, params, result, implicit, contextual }) = info.map(|i| *self.u.ty(i))
         else {
             return self.unsupported(id, "application of a non-method");
         };
+        let mut params = self.u.params_of(params).to_vec();
         if let Err(what) = self.tuple_args_of_unary(proto, &params, ctx) {
             return self.unsupported(id, what);
         }
@@ -84,15 +84,15 @@ impl Typer<'_> {
             return self.unsupported(id, what);
         }
         let meth = self.tpd.sym(self.tpd.meth_part(f));
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let result = self.without_false_deps(result, binder, meth);
         let dependent = self.mentions_clause_params(result, (binder, &names), meth);
         if !dependent && let Err(what) = self.constrain_applied_result(meth, result, pt) {
             return self.unsupported(id, what);
         }
         let repeated = params.last().and_then(|&(_, p)| self.repeated_param_elem(p));
-        let by_name_repeated = repeated.is_some()
-            && params.last().is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
+        let by_name_repeated =
+            repeated.is_some() && params.last().is_some_and(|&(_, p)| self.u.by_name(p).is_some());
         if repeated.is_some() {
             params.pop();
         }
@@ -100,21 +100,16 @@ impl Typer<'_> {
             .last()
             .copied()
             .filter(|&a| repeated.is_some() && arg_ids.len() == params.len() + 1 && self.is_sequence_arg(a));
-        let named_seq = seq_arg.is_some_and(|a| self.arg_name(a).is_some_and(|n| Some(&n) == names.last()));
+        let named_seq = seq_arg.is_some_and(|a| {
+            self.arg_name(a).is_some_and(|n| names.last().is_some_and(|&l| self.u.name(l) == n))
+        });
         let unnamed = &arg_ids[..arg_ids.len() - usize::from(named_seq)];
         let aligned = match self.aligned_args(unnamed, &params, repeated.is_some()) {
             Ok(aligned) => aligned,
             Err(what) => return self.unsupported(id, what),
         };
-        let formals: Vec<TypeId> = params
-            .iter()
-            .map(|&(_, p)| p)
-            .chain(repeated)
-            .map(|p| match *self.u.types().get(p) {
-                Type::ByName(r) => r,
-                _ => p,
-            })
-            .collect();
+        let formals: Vec<TypeId> =
+            params.iter().map(|&(_, p)| p).chain(repeated).map(|p| self.u.by_name(p).unwrap_or(p)).collect();
         let in_order = aligned.is_none() && pretyped.is_none() && repeated.is_none();
         let clause = ((binder, &names[..]), meth);
         let applied = self.applied_params(f, meth);
@@ -169,8 +164,7 @@ impl Typer<'_> {
                 typed_args.push(spread);
                 continue;
             }
-            let by_name =
-                params.get(i).is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
+            let by_name = params.get(i).is_some_and(|&(_, p)| self.u.by_name(p).is_some());
             let arg_ctx = if by_name { self.nullables.retract_mutables(self.u, ctx) } else { ctx };
             let arg = self.arg_against(a, pre, formal, arg_ctx);
             let arg = if by_name { self.by_name_uncaptured(arg) } else { arg };
@@ -183,7 +177,7 @@ impl Typer<'_> {
         let Some(result) = result else { return self.unsupported(id, "dependent result type") };
         let erroneous = typed_args.iter().any(|&a| {
             let tpe = self.zonk(self.tpd.tpe(a));
-            *self.u.types().get(tpe) == Type::Error
+            *self.u.ty(tpe) == Type::Error
         });
         if let Some(elem) = repeated {
             let arg = match seq_arg {
@@ -227,15 +221,13 @@ impl Typer<'_> {
             return self.unsupported(id, what);
         }
         let callee = self.tpd.meth_part(f);
-        let partial = matches!(self.u.types().get(result), Type::Method { .. });
-        let tpe = match *self.u.types().get(self.tpd.tpe(callee)) {
+        let partial = self.u.method(result).is_some();
+        let tpe = match *self.u.ty(self.tpd.tpe(callee)) {
             _ if erroneous => self.u.intern_type(Type::Error),
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>
             {
-                if let Type::This(_) = *self.u.types().get(class) {
-                    result
-                } else if partial {
+                if self.u.this_of(class).is_some() || partial {
                     result
                 } else {
                     self.constructor_result(s, class, result)

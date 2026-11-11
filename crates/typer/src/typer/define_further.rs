@@ -4,7 +4,7 @@
 //! `canDefineFurther` with `ForceDegree.failBottom`).
 
 use super::Typer;
-use tasty::{NOTHING, Type, TypeId, TypeVars, VarId};
+use tasty::{NOTHING, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {
     /// Whether `tpe` conforms to `pt` once the type variables in `tpe` are instantiated; the
@@ -24,7 +24,7 @@ impl Typer<'_> {
         let zonked = self.zonk(t);
         let mut open: Vec<VarId> = Vec::new();
         self.u.map_type(zonked, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part)
+            if let Some(v) = u.var(part)
                 && !open.contains(&v)
             {
                 open.push(v);
@@ -36,7 +36,7 @@ impl Typer<'_> {
         }
         let mark = self.constraint.mark();
         let defined = self.fully_defined_as(t, true).ok();
-        let nothing = self.u.builtins().nothing;
+        let nothing = self.u.defn().nothing;
         let bottom = open.iter().any(|&v| {
             let instance = self.constraint.instance(v).map(|i| self.zonk(i));
             instance.is_some_and(|i| i == NOTHING || self.u.class_symbol(i) == Some(nothing))

@@ -81,7 +81,7 @@ fn nested_class(u: &mut Universe, full: &str) -> Option<SymbolId> {
     let ends: Vec<usize> = ends.chain((1..rest.len()).filter(|&i| rest.as_bytes()[i - 1] == b'$')).collect();
     let mut todo: Vec<SymbolId> = Vec::new();
     for i in ends {
-        let decls = u.decl(pkg, &rest[..i]).unwrap_or_default();
+        let decls = u.decls_named(pkg, &rest[..i]);
         todo.extend(decls.into_iter().filter(|&c| u.is_class(c)));
     }
     while let Some(c) = todo.pop() {

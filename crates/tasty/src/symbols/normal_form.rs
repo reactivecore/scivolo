@@ -18,25 +18,20 @@ impl Universe {
 
     fn normalize_within(&mut self, t: TypeId, depth: u32) -> TypeId {
         let Some(depth) = depth.checked_sub(1) else { return t };
-        self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
+        self.map_type(t, &mut |u, x| match *u.ty(x) {
             Type::Annotated(inner, _) => Some(u.normalize_within(inner, depth)),
             Type::Applied(tycon, args) => {
-                let expanded = match u.types().get(tycon).clone() {
-                    Type::Lambda { binder, params, result } => {
-                        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
-                        u.subst(result, binder, &names, &args)
-                    }
-                    _ => match u
-                        .expand(tycon, &args)
-                        .filter(|&e| !matches!(u.types().get(e), Type::Bounds(..)))
-                    {
+                let args = u.types_of(args).to_vec();
+                let expanded = match u.lambda(tycon).map(|l| (l.binder, l.names(), l.result)) {
+                    Some((binder, names, result)) => u.subst(result, binder, &names, &args),
+                    _ => match u.expand(tycon, &args).filter(|&e| u.bounds(e).is_none()) {
                         Some(e) => e,
                         None => {
-                            let Type::Sym(Some(prefix), s) = *u.types().get(tycon) else {
+                            let Type::Sym(Some(prefix), s) = *u.ty(tycon) else {
                                 return None;
                             };
-                            let name = u.symbol(s).name.clone();
-                            let member = u.resolve(prefix, &name, true).filter(|&m| m != s)?;
+                            let name = u.interned_name(s);
+                            let member = u.resolve(prefix, name, true).filter(|&m| m != s)?;
                             let tycon = u.intern_type(Type::Sym(Some(prefix), member));
                             u.expand(tycon, &args)?
                         }
@@ -46,28 +41,30 @@ impl Universe {
                 Some(u.normalize_within(expanded, depth))
             }
             Type::Sym(_, _) | Type::TypeRef(_, _) => {
-                let s = match u.types().get(x).clone() {
+                let s = match *u.ty(x) {
                     Type::Sym(_, s) => s,
-                    Type::TypeRef(p, n) => match u.resolve(p, &n, true) {
+                    Type::TypeRef(p, n) => match u.resolve(p, n, true) {
                         Some(s) => s,
-                        None => u.resolve(p, n.strip_prefix("Impure")?, true)?,
+                        None => {
+                            let pure = u.name(n).strip_prefix("Impure")?.to_owned();
+                            let pure = u.intern_name(&pure);
+                            u.resolve(p, pure, true)?
+                        }
                     },
                     _ => return None,
                 };
                 match u.symbol(s).kind {
                     Kind::Class | Kind::TypeParam => Some(u.intern_type(Type::Sym(None, s))),
-                    Kind::Type if s == u.builtins().from_java_object => {
-                        Some(u.intern_type(Type::Sym(None, s)))
-                    }
+                    Kind::Type if s == u.defn().from_java_object => Some(u.intern_type(Type::Sym(None, s))),
                     Kind::Type => {
                         let a = match u.alias(s) {
                             Some(a) => a,
                             None => {
-                                let Type::Sym(Some(prefix), _) = *u.types().get(x) else {
+                                let Type::Sym(Some(prefix), _) = *u.ty(x) else {
                                     return None;
                                 };
-                                let name = u.symbol(s).name.clone();
-                                let member = u.resolve(prefix, &name, true).filter(|&m| m != s)?;
+                                let name = u.interned_name(s);
+                                let member = u.resolve(prefix, name, true).filter(|&m| m != s)?;
                                 if u.symbol(member).kind == Kind::Class {
                                     return Some(u.intern_type(Type::Sym(None, member)));
                                 }
@@ -86,6 +83,6 @@ impl Universe {
     /// The type type alias `s` stands for, unless a type lambda.
     fn alias(&mut self, s: SymbolId) -> Option<TypeId> {
         let a = self.alias_of(s)?;
-        (!matches!(self.types().get(a), Type::Lambda { .. })).then_some(a)
+        self.lambda(a).is_none().then_some(a)
     }
 }

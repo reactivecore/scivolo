@@ -9,7 +9,7 @@ use crate::ctx::{Ctx, Level};
 use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, NameId, Type, TypeId};
 
 impl Typer<'_> {
     /// Function value `(params) => body` against the expected type `pt`, a pattern-matching
@@ -91,11 +91,11 @@ impl Typer<'_> {
         if missing {
             return self.error_tree(self.ast.span(id));
         }
-        let names: Vec<String> = entries.iter().map(|&(_, s)| self.u.symbol(s).name.clone()).collect();
+        let names: Vec<NameId> = entries.iter().map(|&(_, s)| self.u.interned_name(s)).collect();
         let params_syms: Vec<tasty::SymbolId> = entries.iter().map(|&(_, s)| s).collect();
         let level = self.levels.push(Some(ctx.level), Level::Scope(entries));
         let bctx = Ctx { owner: anonfun, level, ..ctx };
-        let expected_result = expected.map(|(_, r)| r).and_then(|r| match *self.u.types().get(r) {
+        let expected_result = expected.map(|(_, r)| r).and_then(|r| match *self.u.ty(r) {
             Type::Wildcard(_) => None,
             Type::Bounds(_, hi) => Some(hi),
             _ => Some(r),
@@ -139,7 +139,7 @@ impl Typer<'_> {
             },
             false => None,
         };
-        let info_result = self.u.map_type(result, &mut |u, part| match *u.types().get(part) {
+        let info_result = self.u.map_type(result, &mut |u, part| match *u.ty(part) {
             Type::Sym(None, s) => {
                 let i = params_syms.iter().position(|&p| p == s)?;
                 Some(u.intern_type(Type::Param(binder, i as u32)))
@@ -150,14 +150,8 @@ impl Typer<'_> {
             return self.unsupported(id, "erased parameter of a closure of a single abstract method type");
         }
         let info_params: Vec<TypeId> = params_syms.iter().map(|&p| self.method_param_type(p)).collect();
-        let method_params = names.into_iter().zip(info_params).collect();
-        let info = self.u.intern_type(Type::Method {
-            binder,
-            params: method_params,
-            result: info_result,
-            implicit: contextual,
-            contextual,
-        });
+        let method_params: Vec<_> = names.into_iter().zip(info_params).collect();
+        let info = self.u.intern_method(binder, &method_params, info_result, contextual, contextual);
         self.u.set_info(anonfun, info);
         self.syms.closure_syms.push(anonfun);
         let sam = match sam.map(|(p, _)| self.closure_parent(p, &param_types, result)).transpose() {
@@ -168,9 +162,7 @@ impl Typer<'_> {
         fun_args.push(result);
         let erased_tpe =
             any_erased.then(|| self.erased_function_of(&params_syms, result, contextual)).flatten();
-        let fun_tpe = erased_tpe
-            .or(dependent_tpe)
-            .unwrap_or_else(|| self.u.intern_type(Type::Applied(class, fun_args)));
+        let fun_tpe = erased_tpe.or(dependent_tpe).unwrap_or_else(|| self.u.intern_applied(class, &fun_args));
         self.closure_tree(id, anonfun, &param_trees, (result, body), sam.unwrap_or(fun_tpe), sam.is_some())
     }
 }

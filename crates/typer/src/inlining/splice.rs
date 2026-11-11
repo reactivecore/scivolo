@@ -9,10 +9,10 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, map_children};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
+use tasty::defn::{RUNTIME_EXPR, TYPE_OF};
 use tasty::tags::INLINEPROXY;
 use tasty::{Kind, SymbolId};
 
-const RUNTIME_EXPR: &str = "scala.quoted.runtime.Expr$";
 /// The implicit searches of one expansion, each a run of the macro.
 const MAX_SEARCHES: usize = 64;
 
@@ -168,7 +168,7 @@ impl Inlining<'_> {
         match *self.tpd.tree(fun) {
             T::Select { qualifier, .. } => self.runtime_call(qualifier, "quote").map(MacroArg::Expr),
             T::TypeApply { fun, args } => {
-                let of = self.tpd.sym(fun).is_some_and(|s| self.u.full_name(s) == "scala.quoted.Type$.of");
+                let of = self.tpd.sym(fun).is_some_and(|s| self.u.full_name(s) == TYPE_OF);
                 let [tpt] = self.tpd.items(args)[..] else { return None };
                 of.then(|| MacroArg::Type(self.tpd.tpe(tpt), self.tpd.span(tpt)))
             }

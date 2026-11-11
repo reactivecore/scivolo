@@ -33,15 +33,12 @@ impl TypeOps<'_> {
     /// Returns `t`, or the result type of the by-name parameter it refers to, as the parts of a
     /// `try` take it.
     pub fn by_name_result(&mut self, t: TypeId) -> TypeId {
-        let Type::Sym(_, s) = *self.u.types().get(t) else { return t };
+        let Some(s) = self.u.sym_of(t) else { return t };
         if self.u.symbol(s).kind != Kind::Param {
             return t;
         }
         let info = self.u.info(s);
-        match *self.u.types().get(info) {
-            Type::ByName(r) => r,
-            _ => t,
-        }
+        self.u.by_name(info).unwrap_or(t)
     }
 }
 
@@ -71,7 +68,8 @@ impl Typer<'_> {
     /// `t` widened while it is a by-name type or a reference to an unstable term (dotty's
     /// `widenIfUnstable`).
     pub fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
-        match self.u.types().get(t).clone() {
+        let ty = *self.u.ty(t);
+        match ty {
             Type::ByName(r) => self.widen_if_unstable(r),
             Type::Sym(_, s) if !self.u.is_type_symbol(s) && !self.is_stable_member(s) => {
                 if let Some(&annotated) = self.syms.repeated_params.get(&s) {
@@ -95,7 +93,7 @@ pub fn is_stable_member(u: &mut Universe, s: SymbolId) -> bool {
         Kind::Param if sym.flags.has(tasty::tags::INLINE) => false,
         Kind::Param => {
             let info = u.info(s);
-            !matches!(u.types().get(info), Type::ByName(_))
+            u.by_name(info).is_none()
         }
         Kind::Val => !sym.flags.has(tasty::tags::MUTABLE),
         Kind::Def => sym.flags.has(tasty::tags::STABLE),
@@ -106,7 +104,7 @@ pub fn is_stable_member(u: &mut Universe, s: SymbolId) -> bool {
 /// Whether `t` is a stable path: a `this`, a constant, a package, or a reference to a stable
 /// member through a stable prefix (dotty's `isStable`).
 pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::This(_)
         | Type::RecThis(_)
         | Type::Constant(..)
@@ -116,7 +114,7 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
         Type::Sym(p, s) if u.symbol(s).kind.is_term() => {
             is_stable_member(u, s)
                 && p.is_none_or(|p| {
-                    matches!(u.types().get(p), Type::NoPrefix | Type::Sym(..) if !is_term_ref(u, p))
+                    matches!(u.ty(p), Type::NoPrefix | Type::Sym(..) if !is_term_ref(u, p))
                         || is_stable_path(u, p)
                 })
         }
@@ -135,22 +133,22 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
 /// (dotty's `realizability`, `boundsRealizability`).
 fn is_realizable_class(u: &mut Universe, t: TypeId) -> bool {
     let d = u.dealias(t);
-    let (s, args) = match u.types().get(d).clone() {
+    let (s, args) = match *u.ty(d) {
         Type::Sym(_, s) => (s, Vec::new()),
-        Type::Applied(c, args) => match *u.types().get(c) {
-            Type::Sym(_, s) => (s, args),
+        Type::Applied(c, args) => match *u.ty(c) {
+            Type::Sym(_, s) => (s, u.types_of(args).to_vec()),
             _ => return false,
         },
         _ => return false,
     };
-    if u.symbol(s).kind != Kind::Class || args.iter().any(|&a| matches!(u.types().get(a), Type::Bounds(..))) {
+    if u.symbol(s).kind != Kind::Class || args.iter().any(|&a| u.bounds(a).is_some()) {
         return false;
     }
     let members: Vec<SymbolId> = u.linearization(s).iter().flat_map(|&c| u.symbol(c).decls.clone()).collect();
     let types: Vec<SymbolId> = members.into_iter().filter(|&m| u.symbol(m).kind == Kind::Type).collect();
     types.into_iter().all(|m| {
         let info = u.info(m);
-        match *u.types().get(info) {
+        match *u.ty(info) {
             Type::Alias(_) => true,
             Type::Bounds(lo, hi) => u.is_subtype(lo, hi),
             _ => false,
@@ -159,5 +157,5 @@ fn is_realizable_class(u: &mut Universe, t: TypeId) -> bool {
 }
 
 fn is_term_ref(u: &Universe, t: TypeId) -> bool {
-    matches!(*u.types().get(t), Type::Sym(_, s) if u.symbol(s).kind.is_term())
+    u.sym_of(t).is_some_and(|s| u.symbol(s).kind.is_term())
 }

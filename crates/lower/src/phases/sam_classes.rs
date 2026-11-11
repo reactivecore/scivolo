@@ -4,13 +4,13 @@
 //! Closures of single abstract method types that are not functional interfaces as anonymous
 //! classes whose method calls the closure's (dotty's `ExpandSAMs.transformBlock`, `tpd.AnonClass`).
 
-use super::anon_class::{class_symbol, def, instance, param, repeated_elem};
+use super::anon_class::{class_symbol, def, instance, param};
 use super::sam::abstract_methods;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{FINAL, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes lambda block `block`, of method definition `fn_def` of `anon`, implementing class type
@@ -35,7 +35,7 @@ pub fn to_anon_class(
     }
     let mut parents = vec![sam];
     if l.u.is_trait(class) {
-        let (object, any) = (l.defs.object, l.u.builtins().any);
+        let (object, any) = (l.defs.object, l.u.defn().any);
         let bases = l.u.linearization(class);
         let sup = bases[1..].iter().copied().find(|&b| !l.u.is_trait(b)).filter(|&b| b != any);
         let sup = sup.unwrap_or(object);
@@ -49,6 +49,7 @@ pub fn to_anon_class(
     let owner = l.u.symbol(anon).owner.expect("a closure's owner");
     let cls = class_symbol(l, owner, parents);
     for (name, info) in aliases {
+        let name = l.u.name(name).to_owned();
         let member = l.u.define(symbol(&name, Kind::Type, cls, Flags::default().with(SYNTHETIC)));
         l.u.set_info(member, info);
     }
@@ -61,10 +62,10 @@ pub fn to_anon_class(
 
 /// `t` without its outer type alias refinements, and these by name, innermost first (dotty's
 /// `collectAndStripRefinements`).
-fn strip_aliases(l: &mut Lower, mut t: TypeId) -> (TypeId, Vec<(String, TypeId)>) {
+fn strip_aliases(l: &mut Lower, mut t: TypeId) -> (TypeId, Vec<(NameId, TypeId)>) {
     let mut aliases = Vec::new();
-    while let Type::Refined(parent, name, info) = l.u.types().get(t).clone() {
-        if !matches!(l.u.types().get(info), Type::Alias(_)) {
+    while let Type::Refined(parent, name, info) = *l.u.ty(t) {
+        if l.u.type_alias(info).is_none() {
             break;
         }
         aliases.insert(0, (name, info));
@@ -78,8 +79,8 @@ fn strip_aliases(l: &mut Lower, mut t: TypeId) -> (TypeId, Vec<(String, TypeId)>
 fn coord(l: &mut Lower, fn_def: TNodeId, anon: SymbolId) -> Span {
     let span = l.tpd.span(fn_def);
     let info = l.u.info(anon);
-    match l.u.types().get(info) {
-        Type::Method { params, .. } if params.is_empty() => Span::at(span.end()),
+    match l.u.method(info) {
+        Some(m) if m.params.is_empty() => Span::at(span.end()),
         _ => Span::at(span.point()),
     }
 }
@@ -90,10 +91,16 @@ fn forwarder(l: &mut Lower, cls: SymbolId, method: SymbolId, anon: SymbolId, spa
     let fwd = l.u.define(symbol(&name, Kind::Def, cls, Flags::default().with(SYNTHETIC).with(FINAL)));
     let info = l.u.info(anon);
     l.u.set_info(fwd, info);
-    let Type::Method { params, result, .. } = l.u.types().get(info).clone() else {
+    let Some((params, result)) = l.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
         return unsupported(span, "polymorphic single abstract methods");
     };
-    let params: Vec<SymbolId> = params.iter().map(|(n, t)| param(l, fwd, n, *t)).collect();
+    let params: Vec<SymbolId> = params
+        .iter()
+        .map(|&(n, t)| {
+            let n = l.u.name(n).to_owned();
+            param(l, fwd, &n, t)
+        })
+        .collect();
     let fun = l.ident(anon, span);
     let args: Vec<TNodeId> = params.iter().map(|&p| l.ident(p, span)).collect();
     let call = l.apply(fun, &args, result, span);
@@ -103,15 +110,17 @@ fn forwarder(l: &mut Lower, cls: SymbolId, method: SymbolId, anon: SymbolId, spa
 
 /// The constructor of class `c` taking no arguments, or only repeated ones.
 fn no_arg_constructor(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
-    l.u.decl(c, "<init>").unwrap_or_default().into_iter().find(|&ctor| {
+    l.u.decls_named(c, "<init>").into_iter().find(|&ctor| {
         let info = l.u.info(ctor);
         let info = l.u.strip_poly(info);
-        let Type::Method { params, result, .. } = l.u.types().get(info).clone() else { return false };
+        let Some((params, result)) = l.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {
+            return false;
+        };
         let no_args = match params[..] {
             [] => true,
-            [(_, p)] => repeated_elem(l, p).is_some(),
+            [(_, p)] => l.u.repeated_elem(p).is_some(),
             _ => false,
         };
-        no_args && !matches!(l.u.types().get(result), Type::Method { .. })
+        no_args && l.u.method(result).is_none()
     })
 }

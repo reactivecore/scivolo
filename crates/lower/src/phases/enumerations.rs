@@ -102,7 +102,7 @@ fn method(
     name: &str,
     keep: impl Fn(&mut Lower, SymbolId) -> bool,
 ) -> Result<SymbolId> {
-    let found = l.u.decl(c, name).unwrap_or_default();
+    let found = l.u.decls_named(c, name);
     let found = found.into_iter().find(|&m| l.u.symbol(m).kind != Kind::Class && keep(l, m));
     found.map_or_else(|| unsupported(Span::NONE, format!("{} without {name}", l.u.full_name(c))), Ok)
 }

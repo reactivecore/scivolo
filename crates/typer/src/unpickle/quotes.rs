@@ -74,8 +74,8 @@ pub fn quoted_type(
     let tpt = p.tpt(body)?;
     let tpe = p.tpd.tpe(tpt);
     p.check(tpe)?;
-    Ok(Ok(p.u.map_type(tpe, &mut |u, part| match *u.types().get(part) {
-        Type::Sym(None, s) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
+    Ok(Ok(p.u.map_type(tpe, &mut |u, part| match u.sym_ref(part) {
+        Some((None, s)) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
         _ => None,
     })))
 }

@@ -10,7 +10,7 @@ impl Code<'_> {
     pub fn reference(&mut self, t: TNodeId) -> Shown {
         match self.tree_of(t) {
             T::Ident { name } if self.name(name) == "_" => self.push("_"),
-            T::Ident { .. } => match self.h.tpd.sym(t).filter(|&s| self.is_local(s)) {
+            T::Ident { .. } => match self.h.tpd.sym(t).filter(|&s| self.h.u.is_local(s)) {
                 Some(s) => {
                     let name = self.spliced_name(s);
                     self.highlight_type(&name);

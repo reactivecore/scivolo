@@ -14,12 +14,12 @@ const EMPTY_TUPLE: &str = "scala.Tuple$package$.EmptyTuple$";
 /// (dotty's `hasStableErasure`); not so for a type parameter or an abstract type member.
 pub fn has_stable_erasure(t: &mut Typer<'_>, tpe: TypeId) -> bool {
     let tpe = translucent(t, tpe);
-    if let Type::Applied(tycon, args) = t.u.types().get(tpe).clone()
+    if let Some((tycon, args)) = t.u.applied(tpe).map(|(tycon, args)| (tycon, args.to_vec()))
         && t.referenced(tycon).is_some_and(|s| t.u.symbol(s).kind != Kind::Class)
     {
         return t.u.expand_upper(tycon, &args).is_some_and(|hi| hi != tpe && has_stable_erasure(t, hi));
     }
-    match *t.u.types().get(tpe) {
+    match *t.u.ty(tpe) {
         Type::And(a, b) | Type::Or(a, b, _) => has_stable_erasure(t, a) && has_stable_erasure(t, b),
         Type::Applied(inner, _)
         | Type::Refined(inner, ..)
@@ -75,7 +75,7 @@ pub fn erased_class_type(t: &mut Typer<'_>, tpe: TypeId) -> Option<TypeId> {
 /// Adds the classes of the sides of intersection or union `tpe`, or of `tpe`, to `out`.
 fn side_classes(t: &mut Typer<'_>, tpe: TypeId, out: &mut Vec<SymbolId>) {
     let tpe = translucent(t, tpe);
-    match *t.u.types().get(tpe) {
+    match *t.u.ty(tpe) {
         Type::And(a, b) | Type::Or(a, b, _) => {
             side_classes(t, a, out);
             side_classes(t, b, out);
@@ -94,7 +94,7 @@ fn side_classes(t: &mut Typer<'_>, tpe: TypeId, out: &mut Vec<SymbolId>) {
 fn translucent(t: &mut Typer<'_>, tpe: TypeId) -> TypeId {
     let mut tpe = t.u.dealias(tpe);
     for _ in 0..16 {
-        let next = match *t.u.types().get(tpe) {
+        let next = match *t.u.ty(tpe) {
             Type::Match { .. } => t.u.try_normalize(tpe),
             Type::Alias(a) => Some(a),
             _ => opaque_expansion(t, tpe),
@@ -109,17 +109,14 @@ fn translucent(t: &mut Typer<'_>, tpe: TypeId) -> TypeId {
 
 /// The right-hand side of opaque type reference `tpe`, applied to its arguments.
 fn opaque_expansion(t: &mut Typer<'_>, tpe: TypeId) -> Option<TypeId> {
-    let (tycon, args) = match t.u.types().get(tpe).clone() {
-        Type::Applied(tycon, args) => (tycon, args),
-        _ => (tpe, Vec::new()),
-    };
+    let (tycon, args) = t.u.applied(tpe).map_or((tpe, Vec::new()), |(tycon, args)| (tycon, args.to_vec()));
     let s = t.referenced(tycon)?;
     if t.u.symbol(s).kind != Kind::Type || !t.u.symbol(s).flags.has(tasty::tags::OPAQUE) {
         return None;
     }
     t.complete(s);
     let rhs = t.u.opaque_alias(s).unwrap_or_else(|| t.u.info(s));
-    let rhs = match *t.u.types().get(rhs) {
+    let rhs = match *t.u.ty(rhs) {
         Type::Alias(a) => a,
         Type::Bounds(..) => return None,
         _ => rhs,
@@ -127,6 +124,6 @@ fn opaque_expansion(t: &mut Typer<'_>, tpe: TypeId) -> Option<TypeId> {
     if args.is_empty() {
         return Some(rhs);
     }
-    let applied = t.u.intern_type(Type::Applied(rhs, args));
+    let applied = t.u.intern_applied(rhs, &args);
     Some(t.u.beta_reduced(applied))
 }

@@ -17,7 +17,7 @@ impl Typer<'_> {
                 T::Apply { fun, args } => {
                     let tpe = self.tpd.tpe(fun);
                     let info = self.method_info(tpe).unwrap_or(tpe);
-                    if matches!(self.u.types().get(info), Type::Method { implicit: true, .. }) {
+                    if self.u.method(info).is_some_and(|m| m.implicit) {
                         implicit_args.extend_from_slice(self.tpd.items(args));
                     }
                     t = fun;
@@ -50,7 +50,7 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let mut vars = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part) {
+            if let Some(v) = u.var(part) {
                 vars.push(v);
             }
             None
@@ -58,8 +58,7 @@ impl Typer<'_> {
         vars.into_iter().any(|v| {
             let (lo, hi) = self.constraint.bounds(v);
             let (lo, hi) = (self.zonk(lo), self.zonk(hi));
-            let term_ref =
-                matches!(*self.u.types().get(lo), Type::Sym(_, s) if self.u.symbol(s).kind.is_term());
+            let term_ref = self.u.sym_of(lo).is_some_and(|s| self.u.symbol(s).kind.is_term());
             lo != tasty::NOTHING && lo != hi && !self.is_exactly_any(hi) && !term_ref
         })
     }
@@ -71,7 +70,7 @@ impl Typer<'_> {
         if let Some(tpe) = self.tpd.get(t).tpe {
             let tpe = self.zonk(tpe);
             self.u.map_type(tpe, &mut |u, part| {
-                if let Type::Var(v) = *u.types().get(part) {
+                if let Some(v) = u.var(part) {
                     vars.push(v);
                 }
                 None
@@ -83,7 +82,7 @@ impl Typer<'_> {
                 let b = self.zonk(b);
                 let w = self.u.widen(b);
                 let d = self.u.dealias(w);
-                if matches!(self.u.types().get(d), Type::Or(..)) {
+                if matches!(self.u.ty(d), Type::Or(..)) {
                     return true;
                 }
             }

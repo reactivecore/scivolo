@@ -29,7 +29,8 @@ impl Typer<'_> {
         if let Some(hi) = self.u.opaque_upper(t) {
             return self.members_within(hi, name, within);
         }
-        match self.u.types().get(t).clone() {
+        let node = *self.u.ty(t);
+        match node {
             Type::Package(p) => self.package_members(p, name),
             Type::This(c) => {
                 let class = self.u.class_symbol(c);
@@ -45,8 +46,8 @@ impl Typer<'_> {
                     None => self.members_within(c, name, within),
                 }
             }
-            Type::Super(this, p) if matches!(self.u.types().get(p), Type::And(..)) => {
-                let Type::This(c) = *self.u.types().get(this) else { return Vec::new() };
+            Type::Super(this, p) if matches!(self.u.ty(p), Type::And(..)) => {
+                let Some(c) = self.u.this_of(this) else { return Vec::new() };
                 self.u.class_symbol(c).map_or_else(Vec::new, |c| self.super_members(c, name))
             }
             Type::Super(_, p) | Type::Skolem(_, p) => self.members_within(p, name, within),
@@ -79,10 +80,7 @@ impl Typer<'_> {
                             .or_else(|| prefix.and_then(|p| self.u.overriding_alias(p, s)))
                             .unwrap_or_else(|| self.u.info(s)),
                     };
-                    let info = match *self.u.types().get(info) {
-                        Type::ByName(r) => r,
-                        _ => info,
-                    };
+                    let info = self.u.by_name(info).unwrap_or(info);
                     self.members_within(info, name, within)
                 }
             },
@@ -113,9 +111,7 @@ impl Typer<'_> {
                 self.and_members(t, (ma, mb), ctx)
             }
             Type::Or(a, b, _) => match self.u.join(t) {
-                Some(j) if !matches!(self.u.types().get(j), Type::Or(..)) => {
-                    self.members_within(j, name, within)
-                }
+                Some(j) if !matches!(self.u.ty(j), Type::Or(..)) => self.members_within(j, name, within),
                 _ if self.u.dealias(a) == self.u.dealias(b) => self.members_within(a, name, within),
                 _ => Vec::new(),
             },
@@ -129,18 +125,16 @@ impl Typer<'_> {
     /// The upper bound of `t`, `F[args]` for an abstract type `F` bounded by a type lambda, applied
     /// to `args`.
     fn abstract_applied_upper(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
+        let (tycon, args) = self.u.applied(t).map(|(tycon, args)| (tycon, args.to_vec()))?;
         let s = self.u.referenced(tycon)?;
         if !matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) {
             return None;
         }
         self.complete(s);
         let info = self.u.info(s);
-        let Type::Bounds(_, hi) = *self.u.types().get(info) else { return None };
-        if !matches!(self.u.types().get(hi), Type::Lambda { .. }) {
-            return None;
-        }
-        let applied = self.u.intern_type(Type::Applied(hi, args));
+        let (_, hi) = self.u.bounds(info)?;
+        self.u.lambda(hi)?;
+        let applied = self.u.intern_applied(hi, &args);
         Some(self.u.beta_reduced(applied))
     }
 
@@ -149,11 +143,11 @@ impl Typer<'_> {
     /// with `ForceDegree.failBottom` in `typedSelect`).
     pub fn instantiated_selected(&mut self, t: TypeId) -> TypeId {
         let t = self.zonk(t);
-        let var = match *self.u.types().get(t) {
+        let var = match *self.u.ty(t) {
             Type::Flexible(inner) => inner,
             _ => t,
         };
-        if let Type::Var(v) = *self.u.types().get(var)
+        if let Some(v) = self.u.var(var)
             && self.constraint.bounds(v).0 != tasty::NOTHING
             && self.instantiate_var(v, true).is_ok()
         {

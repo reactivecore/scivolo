@@ -56,10 +56,10 @@ pub fn prefix_text(path: Path) -> String {
 
 /// The classes that type aliases of `Predef` and the `scala` package object name, and `Object`.
 pub fn bare_classes(u: &mut Universe) -> FxHashSet<SymbolId> {
-    let mut bare = FxHashSet::from_iter([u.builtins().object]);
+    let mut bare = FxHashSet::from_iter([u.defn().object]);
     let Some(scala) = u.package("scala") else { return bare };
     for owner in ["Predef$", "package$"] {
-        let decls = u.decl(scala, owner).unwrap_or_default();
+        let decls = u.decls_named(scala, owner);
         let Some(owner) = decls.into_iter().find(|&c| u.symbol(c).kind == Kind::Class) else { continue };
         for d in u.decls(owner).unwrap_or_default() {
             if u.symbol(d).kind == Kind::Type
@@ -82,10 +82,13 @@ impl Printer<'_> {
 
     /// Path `p`, a package, a value, a module or `this`.
     pub fn path(&mut self, p: TypeId) -> Path {
-        match self.u.types().get(p).clone() {
+        match *self.u.ty(p) {
             Type::Package(s) => self.symbol_path(None, s),
-            Type::PackageName(n) => package_path(&n),
-            Type::TermRef(pp, n) => select(self.path(pp), &n),
+            Type::PackageName(n) => package_path(self.u.name(n)),
+            Type::TermRef(pp, n) => {
+                let path = self.path(pp);
+                select(path, self.u.name(n))
+            }
             Type::Sym(pp, s) => self.symbol_path(pp, s),
             Type::This(c) => match self.u.class_symbol(c) {
                 Some(cls) if self.u.symbol(cls).flags.has(OBJECT) => self.symbol_path(None, cls),

@@ -160,7 +160,7 @@ impl Translator<'_, '_> {
     }
 
     pub fn nothing_type(&mut self) -> TypeId {
-        let nothing = self.l.u.builtins().nothing;
+        let nothing = self.l.u.defn().nothing;
         type_ref(self.l.u, nothing)
     }
 }

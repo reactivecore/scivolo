@@ -40,10 +40,7 @@ impl Lower<'_> {
         let mut sorted = accessors.to_vec();
         sorted.sort_by_key(|&a| {
             let info = self.u.info(a);
-            let symbol = match *self.u.types().get(info) {
-                tasty::Type::Sym(_, s) => Some(s),
-                _ => None,
-            };
+            let symbol = self.u.sym_of(info);
             let primitive = symbol.is_some_and(|s| {
                 let name = self.u.full_name(s);
                 name == "scala.Unit"
@@ -100,10 +97,11 @@ impl Lower<'_> {
         self.call(same, cc.or, &[matched])
     }
 
-    /// `parts` joined by `op`: from the left, halves first beyond 100 parts (dotty's
-    /// `reduceBalanced`).
+    /// `parts` joined by `op`: from the left, halves first beyond `BALANCED_BEYOND` parts
+    /// (dotty's `reduceBalanced`).
     fn reduce_balanced(&mut self, parts: &[TNodeId], op: SymbolId) -> TNodeId {
-        if parts.len() > 100 {
+        const BALANCED_BEYOND: usize = 100;
+        if parts.len() > BALANCED_BEYOND {
             let (leading, trailing) = parts.split_at(parts.len() / 2);
             let leading = self.reduce_balanced(leading, op);
             let trailing = self.reduce_balanced(trailing, op);

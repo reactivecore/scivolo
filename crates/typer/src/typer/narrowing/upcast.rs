@@ -16,8 +16,7 @@ impl TypeOps<'_> {
         let (Some(p), Some(s)) = (self.u.class_symbol(widened), self.u.class_symbol(sel)) else {
             return false;
         };
-        if !self.u.is_class(p) || !self.u.is_class(s) || !matches!(self.u.types().get(sel), Type::Applied(..))
-        {
+        if !self.u.is_class(p) || !self.u.is_class(s) || self.u.applied(sel).is_none() {
             return false;
         }
         if self.u.derives_from(p, s) || self.u.derives_from(s, p) || !self.classes_may_be_compatible(p, s) {
@@ -45,7 +44,7 @@ impl TypeOps<'_> {
         let parents = self.u.parents(c);
         for (i, t) in parents.into_iter().enumerate() {
             let Some(k) = self.u.class_symbol(t) else { continue };
-            if i == 0 && self.u.full_name(k) == "java.lang.Object" {
+            if i == 0 && self.u.full_name(k) == crate::defn::OBJECT {
                 continue;
             }
             if self.u.derives_from(p, k) {

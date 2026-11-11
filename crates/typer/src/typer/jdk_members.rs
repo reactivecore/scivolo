@@ -32,7 +32,7 @@ impl Typer<'_> {
             ("java.util.Set", "equals"),
             ("java.util.List", "equals"),
         ];
-        let b = self.u.builtins();
+        let b = self.u.defn();
         if !self.u.symbol(sym).owner.is_some_and(|o| o == b.any || o == b.object) {
             return false;
         }
@@ -56,7 +56,7 @@ impl Typer<'_> {
         if self.u.full_name(owner) != "java.lang.Class" {
             return sym;
         }
-        let any = self.u.builtins().any;
-        self.u.decl(any, &name).unwrap_or_default().first().copied().unwrap_or(sym)
+        let any = self.u.defn().any;
+        self.u.decls_named(any, &name).first().copied().unwrap_or(sym)
     }
 }

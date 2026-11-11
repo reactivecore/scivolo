@@ -99,7 +99,7 @@ impl Unpickler<'_> {
                     let name = self.tname(k, false);
                     let tpt =
                         self.tpt(self.kids(k).first().copied().ok_or("self definition without a type")?)?;
-                    let own = matches!(*self.u.types().get(self.tpd.tpe(tpt)), Type::Sym(_, c) if c == class);
+                    let own = self.u.sym_of(self.tpd.tpe(tpt)) == Some(class);
                     if !module && !own {
                         return Err("self type of a class in a library inline body");
                     }
@@ -125,7 +125,7 @@ impl Unpickler<'_> {
     /// The parents of local class `c` as one type, if they do not refer to `locals` (dotty's
     /// `avoid` of a local class reference).
     pub fn class_parents_avoiding(&mut self, tpe: TypeId, locals: &[SymbolId]) -> Option<TypeId> {
-        let Type::Sym(None, c) = *self.u.types().get(tpe) else { return None };
+        let Some((None, c)) = self.u.sym_ref(tpe) else { return None };
         if !locals.contains(&c) || self.u.symbol(c).kind != Kind::Class {
             return None;
         }
@@ -134,7 +134,7 @@ impl Unpickler<'_> {
         let joined = rest.iter().fold(first, |a, &b| self.u.intern_type(Type::And(a, b)));
         let mut found = false;
         self.u.map_type(joined, &mut |u, part| {
-            found |= matches!(*u.types().get(part), Type::Sym(_, x) if locals.contains(&x));
+            found |= u.sym_of(part).is_some_and(|x| locals.contains(&x));
             None
         });
         (!found).then_some(joined)

@@ -53,10 +53,8 @@ impl Host {
         }
         let mut sizes = Vec::new();
         let mut t = self.u.info(s);
-        while let Type::Poly { params, result, .. } | Type::Method { params, result, .. } =
-            self.u.types().get(t).clone()
-        {
-            sizes.push(params.len());
+        while let Type::Poly { params, result, .. } | Type::Method { params, result, .. } = *self.u.ty(t) {
+            sizes.push(self.u.params_of(params).len());
             t = result;
         }
         let mut params = self.u.symbol(s).decls.clone();
@@ -131,7 +129,7 @@ impl Host {
     fn is_nullary(&mut self, m: SymbolId) -> bool {
         let info = self.u.info(m);
         let clauses = self.u.param_clauses(info);
-        !matches!(self.u.types().get(info), Type::Poly { .. })
+        self.u.poly(info).is_none()
             && (clauses.is_empty() || clauses.len() == 1 && !clauses[0].0 && clauses[0].1.is_empty())
     }
 
@@ -148,7 +146,7 @@ impl Host {
             return Ok(typer::sealed::enum_cases(&mut self.u, s));
         }
         if let Some(types) = self.u.decoded_children(s) {
-            let symbol = |u: &mut tasty::Universe, t| match *u.types().get(t) {
+            let symbol = |u: &mut tasty::Universe, t| match *u.ty(t) {
                 Type::Sym(_, c) => Some(c),
                 Type::TypeRef(..) | Type::TermRef(..) => u.resolve_ref(t),
                 _ => None,

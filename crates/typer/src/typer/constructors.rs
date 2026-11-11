@@ -18,11 +18,11 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "new with an unstable prefix");
         }
-        if let Type::Sym(_, s) = *self.u.types().get(tpe)
+        if let Some(s) = self.u.sym_of(tpe)
             && self.u.symbol(s).kind == Kind::Type
             && self.syms.flags.contains_key(&s)
             && let info = self.u.info(s)
-            && matches!(self.u.types().get(info), Type::Lambda { .. })
+            && self.u.lambda(info).is_some()
             && !self.parent_news.contains(&id)
         {
             return self.unsupported(id, "new of a parameterized type alias without type arguments");
@@ -41,7 +41,7 @@ impl Typer<'_> {
                 return self.unsupported(id, "new of a class not conforming to its self type");
             }
         }
-        if let Type::Sym(_, c) = *self.u.types().get(tpe)
+        if let Some(c) = self.u.sym_of(tpe)
             && !self.u.type_params(c).is_empty()
         {
             match self.eta_expanded(c, tpe) {
@@ -60,21 +60,19 @@ impl Typer<'_> {
     /// `C` if `t` dealiases to `[Ps] =>> C[Ps]` (dotty's `typeOfNew`).
     fn eta_expansion_tycon(&mut self, t: TypeId) -> Option<TypeId> {
         let dealiased = self.u.dealias(t);
-        let Type::Lambda { binder, ref params, result } = *self.u.types().get(dealiased) else { return None };
-        let n = params.len();
-        let Type::Applied(tycon, ref args) = *self.u.types().get(result) else { return None };
+        let lambda = self.u.lambda(dealiased)?;
+        let n = lambda.params.len();
+        let (tycon, args) = self.u.applied(lambda.result)?;
         let own = args.len() == n
-            && args.iter().enumerate().all(|(i, &a)| *self.u.types().get(a) == Type::Param(binder, i as u32));
+            && args.iter().enumerate().all(|(i, &a)| self.u.param_ref(a) == Some((lambda.binder, i as u32)));
         own.then_some(tycon)
     }
 
     /// `[Ps] =>> C[Ps]` for the type parameters `Ps` of class `c`, referenced by `class`.
     pub fn eta_expanded(&mut self, c: SymbolId, class: TypeId) -> Result<TypeId, &'static str> {
         let tparams = self.u.type_params(c);
-        let prefix = match *self.u.types().get(class) {
-            Type::Sym(Some(p), _) if !matches!(self.u.types().get(p), Type::Package(_)) => Some(p),
-            _ => None,
-        };
+        let prefix =
+            self.u.sym_ref(class).and_then(|(p, _)| p).filter(|&p| !matches!(self.u.ty(p), Type::Package(_)));
         let binder = self.u.fresh_binder();
         let mut params = Vec::new();
         for &p in &tparams {
@@ -84,18 +82,18 @@ impl Typer<'_> {
                 None => self.u.info(p),
             };
             let info = self.u.map_type(info, &mut |u, part| {
-                let Type::Sym(q, s) = *u.types().get(part) else { return None };
+                let (q, s) = u.sym_ref(part)?;
                 let i = tparams.iter().position(|&p| p == s)?;
-                let own = match q.map(|q| u.types().get(q)) {
+                let own = match q.map(|q| u.this_of(q)) {
                     None => true,
-                    Some(&Type::This(t)) => u.class_symbol(t) == Some(c),
-                    Some(_) => false,
+                    Some(Some(t)) => u.class_symbol(t) == Some(c),
+                    Some(None) => false,
                 };
                 own.then(|| u.intern_type(Type::Param(binder, i as u32)))
             });
             let mut dependent = false;
             self.u.map_type(info, &mut |u, part| {
-                dependent |= match *u.types().get(part) {
+                dependent |= match *u.ty(part) {
                     Type::Sym(_, s) => tparams.contains(&s),
                     Type::This(t) => prefix.is_some() && u.class_symbol(t) == Some(c),
                     _ => false,
@@ -105,11 +103,12 @@ impl Typer<'_> {
             if dependent {
                 return Err("type parameter bounds referring to type parameters");
             }
-            params.push((self.u.symbol(p).name.clone(), info));
+            params.push((self.u.interned_name(p), info));
         }
-        let args = (0..params.len()).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
-        let result = self.u.intern_type(Type::Applied(class, args));
-        Ok(self.u.intern_type(Type::Lambda { binder, params, result }))
+        let args: Vec<_> =
+            (0..params.len()).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
+        let result = self.u.intern_applied(class, &args);
+        Ok(self.u.intern_lambda(binder, &params, result))
     }
 
     /// `info` of `s` if `s` is a constructor selected from `prefix`, its `Unit` result replaced by
@@ -125,24 +124,20 @@ impl Typer<'_> {
         let Some(owner) = sym.owner.filter(|_| sym.name == "<init>" && sym.kind == Kind::Def) else {
             return info;
         };
-        let tycon = prefix.map(|p| match *self.u.types().get(p) {
-            Type::Applied(tc, _) => tc,
-            _ => p,
-        });
+        let tycon = prefix.map(|p| self.u.applied(p).map_or(p, |(tc, _)| tc));
         let package = |u: &tasty::Universe, p: Option<TypeId>| {
-            p.is_some_and(|p| matches!(u.types().get(p), Type::Package(_) | Type::PackageName(_)))
+            p.is_some_and(|p| matches!(u.ty(p), Type::Package(_) | Type::PackageName(_)))
         };
         let class = match tycon {
-            Some(tc) if matches!(*self.u.types().get(tc), Type::Sym(p, c) if c == owner && !package(self.u, p)) => {
-                tc
-            }
+            Some(tc) if self.u.sym_ref(tc).is_some_and(|(p, c)| c == owner && !package(self.u, p)) => tc,
             _ => crate::defn::type_ref(self.u, owner),
         };
-        match self.u.types().get(info).clone() {
+        match *self.u.ty(info) {
             Type::Poly { binder, params, result } => {
-                let args =
-                    (0..params.len()).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
-                let class = self.u.intern_type(Type::Applied(class, args));
+                let arity = self.u.params_of(params).len();
+                let args: Vec<_> =
+                    (0..arity).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
+                let class = self.u.intern_applied(class, &args);
                 let result = self.with_final_result(result, class);
                 self.u.intern_type(Type::Poly { binder, params, result })
             }
@@ -152,7 +147,8 @@ impl Typer<'_> {
 
     /// Method type `t` with its final result, if `Unit`, replaced by `class`.
     fn with_final_result(&mut self, t: TypeId, class: TypeId) -> TypeId {
-        match self.u.types().get(t).clone() {
+        let node = *self.u.ty(t);
+        match node {
             Type::Method { binder, params, result, implicit, contextual } => {
                 let result = self.with_final_result(result, class);
                 self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
@@ -167,16 +163,12 @@ impl Typer<'_> {
     /// `class` applies it to arguments.
     pub fn constructor_result(&mut self, ctor: SymbolId, class: TypeId, result: TypeId) -> TypeId {
         let owner = self.u.symbol(ctor).owner;
-        let names_owner = |u: &tasty::Universe, t| match *u.types().get(t) {
-            Type::Sym(_, c) => Some(c) == owner,
-            Type::Applied(c, _) => matches!(*u.types().get(c), Type::Sym(_, c) if Some(c) == owner),
-            _ => false,
+        let names_owner = |u: &tasty::Universe, t| {
+            u.sym_of(u.applied(t).map_or(t, |(c, _)| c)).is_some_and(|c| Some(c) == owner)
         };
         match owner {
             _ if names_owner(self.u, result) => result,
-            Some(o) if !matches!(self.u.types().get(class), Type::Applied(..)) => {
-                crate::defn::type_ref(self.u, o)
-            }
+            Some(o) if self.u.applied(class).is_none() => crate::defn::type_ref(self.u, o),
             _ => class,
         }
     }

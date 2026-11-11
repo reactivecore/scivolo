@@ -4,7 +4,6 @@
 //! (dotty's `moduleClass`, `sourceModule`, `companionClass`, `companionModule`).
 
 use super::{SymbolId, Universe};
-use crate::Type;
 
 /// The name of the class of object `module`: `C$` for `C`.
 pub fn module_class_name(module: &str) -> String {
@@ -23,15 +22,12 @@ impl Universe {
         let owner = self.symbol(module).owner?;
         let name = module_class_name(&self.symbol(module).name);
         let beside: Vec<SymbolId> =
-            self.decl(owner, &name).unwrap_or_default().into_iter().filter(|&c| self.is_class(c)).collect();
+            self.decls_named(owner, &name).into_iter().filter(|&c| self.is_class(c)).collect();
         if let [c] = beside[..] {
             return Some(c);
         }
         let info = self.info(module);
-        match *self.types().get(info) {
-            Type::Sym(_, c) if self.is_class(c) => Some(c),
-            _ => None,
-        }
+        self.sym_of(info).filter(|&c| self.is_class(c))
     }
 
     /// The class of object `module` declared in `owner`.
@@ -48,7 +44,7 @@ impl Universe {
             self.decl(owner, &name).ok()?.into_iter().filter(|&s| self.is_module(s)).collect();
         let typed_c = |u: &mut Self, s: SymbolId| {
             let info = u.info(s);
-            matches!(*u.types().get(info), Type::Sym(_, x) if x == c)
+            u.sym_of(info) == Some(c)
         };
         match found[..] {
             [s] => Some(s),
@@ -67,7 +63,7 @@ impl Universe {
     pub fn companion_module(&mut self, c: SymbolId) -> Option<SymbolId> {
         let owner = self.symbol(c).owner?;
         let name = self.symbol(c).name.clone();
-        let named = self.decl(owner, &name).unwrap_or_default().into_iter().find(|&s| self.is_module(s));
+        let named = self.decls_named(owner, &name).into_iter().find(|&s| self.is_module(s));
         if named.is_some() {
             return named;
         }

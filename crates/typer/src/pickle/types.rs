@@ -7,7 +7,7 @@ use super::sharing::BY_NAME;
 use super::{Refusal, TreePickler};
 use tasty::tags::*;
 use tasty::write::{Addr, Name};
-use tasty::{Binder, Type, TypeId};
+use tasty::{Binder, ParamList, Type, TypeId};
 
 impl TreePickler<'_> {
     fn types(&mut self, ts: &[TypeId], rich: bool) -> Result<(), Refusal> {
@@ -15,11 +15,15 @@ impl TreePickler<'_> {
     }
 
     pub fn new_type(&mut self, t: TypeId, rich: bool, at: Addr) -> Result<(), Refusal> {
-        match self.u.types().get(t).clone() {
-            Type::Applied(tycon, args) => self.with_length(APPLIEDtype, &mut |p| {
-                p.ty(tycon, false)?;
-                p.types(&args, false)
-            }),
+        let ty = *self.u.ty(t);
+        match ty {
+            Type::Applied(tycon, args) => {
+                let args = self.u.types_of(args).to_vec();
+                self.with_length(APPLIEDtype, &mut |p| {
+                    p.ty(tycon, false)?;
+                    p.types(&args, false)
+                })
+            }
             Type::MatchCase(pat, body) => {
                 self.with_length(MATCHCASEtype, &mut |p| p.types(&[pat, body], false))
             }
@@ -29,7 +33,7 @@ impl TreePickler<'_> {
                 if self.keying {
                     self.byte(BY_NAME);
                 }
-                self.named_ref(prefix, &name, matches!(self.u.types().get(t), Type::TypeRef(..)))
+                self.named_ref(prefix, name, self.u.type_ref(t).is_some())
             }
             Type::Package(p) => {
                 self.package_ref(p);
@@ -37,10 +41,11 @@ impl TreePickler<'_> {
             }
             Type::PackageName(n) => {
                 self.byte(TERMREFpkg);
-                self.name(&qualified(&n));
+                let name = qualified(self.u.name(n));
+                self.name(&name);
                 Ok(())
             }
-            Type::This(class) => match *self.u.types().get(class) {
+            Type::This(class) => match *self.u.ty(class) {
                 Type::Package(p) => {
                     self.new_package_this(p);
                     Ok(())
@@ -60,7 +65,8 @@ impl TreePickler<'_> {
             }
             Type::Skolem(_, info) => self.ty(info, false),
             Type::Refined(parent, name, info) => self.with_length(REFINEDtype, &mut |p| {
-                p.name(&Name::utf8(&name));
+                let name = Name::utf8(p.u.name(name));
+                p.name(&name);
                 p.ty(parent, false)?;
                 p.ty(info, true)
             }),
@@ -92,18 +98,18 @@ impl TreePickler<'_> {
                 self.ty(result, false)
             }
             Type::Lambda { binder, params, result } => {
-                self.methodic(TYPELAMBDAtype, (binder, at), &params, result, None)
+                self.methodic(TYPELAMBDAtype, (binder, at), params, result, None)
             }
-            Type::Match { bound, scrutinee, cases } => self.with_length(MATCHtype, &mut |p| {
-                p.types(&[bound, scrutinee], false)?;
-                p.types(&cases, false)
-            }),
+            Type::Match { bound, scrutinee, cases } => {
+                let parts = [&[bound, scrutinee][..], self.u.types_of(cases)].concat();
+                self.with_length(MATCHtype, &mut |p| p.types(&parts, false))
+            }
             Type::Poly { binder, params, result } if rich => {
-                self.methodic(POLYtype, (binder, at), &params, result, None)
+                self.methodic(POLYtype, (binder, at), params, result, None)
             }
             Type::Method { binder, params, result, implicit, contextual } if rich => {
                 let mods = if contextual { Some(GIVEN) } else { implicit.then_some(IMPLICIT) };
-                self.methodic(METHODtype, (binder, at), &params, result, mods)
+                self.methodic(METHODtype, (binder, at), params, result, mods)
             }
             Type::Annotated(underlying, class) if self.is_inferred_mark(class) => {
                 self.with_length(ANNOTATEDtype, &mut |p| {
@@ -131,18 +137,20 @@ impl TreePickler<'_> {
         &mut self,
         tag: u8,
         (binder, at): (Binder, Addr),
-        params: &[(String, TypeId)],
+        params: ParamList,
         result: TypeId,
         modifier: Option<u8>,
     ) -> Result<(), Refusal> {
+        let params = self.u.params_of(params).to_vec();
         self.binders.insert(binder, at);
-        self.params.insert(binder, params.iter().map(|(n, _)| n.clone()).collect());
+        self.params.insert(binder, params.iter().map(|&(n, _)| n).collect());
         self.open.push(binder);
         let pickled = self.with_length(tag, &mut |p| {
             p.ty(result, true)?;
-            for (name, t) in params {
-                p.ty(*t, false)?;
-                p.name(&param_name(name));
+            for &(name, t) in &params {
+                p.ty(t, false)?;
+                let name = param_name(p.u.name(name));
+                p.name(&name);
             }
             modifier.into_iter().for_each(|m| p.byte(m));
             Ok(())
@@ -168,11 +176,12 @@ impl TreePickler<'_> {
 
     /// Constant type `t` (dotty's `pickleConstant`).
     pub fn constant(&mut self, t: TypeId) -> Result<(), Refusal> {
-        let (tag, bits) = match self.u.types().get(t).clone() {
+        let (tag, bits) = match *self.u.ty(t) {
             Type::Constant(tag, bits) => (tag, bits),
             Type::Str(s) => {
                 self.byte(STRINGconst);
-                self.name(&Name::utf8(&s));
+                let s = Name::utf8(self.u.name(s));
+                self.name(&s);
                 return Ok(());
             }
             _ => return Err("a constant of another type"),

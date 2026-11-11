@@ -45,7 +45,7 @@ impl Typer<'_> {
             }
             let parents: Vec<SymbolId> = self.u.linearization(cls).into_iter().skip(1).collect();
             for p in parents {
-                for m in self.u.decl(p, &name).unwrap_or_default() {
+                for m in self.u.decls_named(p, &name) {
                     clashes |= self.is_concrete(m) && self.u.matches(site, d, m);
                 }
             }

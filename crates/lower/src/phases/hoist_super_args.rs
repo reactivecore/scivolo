@@ -14,7 +14,7 @@ use crate::symbols::is_static;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The class whose superclass call is hoisted from, its constructor definition, whether it is
@@ -164,10 +164,9 @@ fn hoist(l: &mut Lower, h: &mut Hoister, arg: TNodeId, lifted: &[SymbolId], span
         params.push(q);
     }
     let result = l.u.widen(l.tpd.tpe(arg));
-    let typed = params.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
+    let typed: Vec<_> = params.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
     let binder = l.u.fresh_binder();
-    let info =
-        l.u.intern_type(Type::Method { binder, params: typed, result, implicit: false, contextual: false });
+    let info = l.u.intern_method(binder, &typed, result, false, false);
     l.u.set_info(m, info);
     let at = l.tpd.span(arg);
     let args: Vec<TNodeId> = originals.iter().map(|&p| l.ident(p, span)).collect();

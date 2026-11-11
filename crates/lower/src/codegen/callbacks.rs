@@ -42,7 +42,7 @@ impl Gen<'_, '_> {
         }
         let target = self.l.tpd.sym(meth).expect("a closure's method");
         let owner = self.l.u.symbol(target).owner.expect("a method's owner");
-        if !is_java_static(self.l.u, target) && !crate::symbols::is_static_module(self.l.u, owner) {
+        if !is_java_static(self.l.u, target) && !self.l.u.is_static_module(owner) {
             return unsupported(span, "a C function pointer to a lambda using `this`");
         }
         let closure = self.gen_closure(f, env, meth, tpt)?;

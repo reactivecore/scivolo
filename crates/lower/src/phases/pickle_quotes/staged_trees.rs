@@ -8,7 +8,7 @@ use crate::Lower;
 use crate::definitions::symbol;
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `Expr.splice[T]((x$0: Quotes) ?=> body)` in `owner`, `body` made from a reference to `x$0`
@@ -20,15 +20,14 @@ pub fn spliced(
     body: impl FnOnce(&mut Lower, TNodeId, SymbolId) -> TNodeId,
 ) -> TNodeId {
     let class = l.u.class_ref("scala.quoted.Expr");
-    let expr = l.u.intern_type(Type::Applied(class, vec![tpe]));
+    let expr = l.u.intern_applied(class, &[tpe]);
     let quotes = l.u.class_ref("scala.quoted.Quotes");
     let function = l.u.class_ref("scala.ContextFunction1");
-    let function = l.u.intern_type(Type::Applied(function, vec![quotes, expr]));
+    let function = l.u.intern_applied(function, &[quotes, expr]);
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, Flags::default().with(SYNTHETIC)));
     let binder = l.u.fresh_binder();
-    let params = vec![("x$0".to_owned(), quotes)];
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: expr, implicit: false, contextual: true });
+    let params = [(l.u.intern_name("x$0"), quotes)];
+    let info = l.u.intern_method(binder, &params, expr, false, true);
     l.u.set_info(anon, info);
     let def = l.forwarding_def(anon, Span::NONE, |l, args, _| body(l, args[0], anon));
     let def = l.positioned(def);
@@ -47,10 +46,10 @@ pub fn spliced(
 pub fn quoted(l: &mut Lower, body: TNodeId, quotes: TNodeId) -> TNodeId {
     let tpe = l.tpd.tpe(body);
     let class = l.u.class_ref("scala.quoted.Expr");
-    let expr = l.u.intern_type(Type::Applied(class, vec![tpe]));
+    let expr = l.u.intern_applied(class, &[tpe]);
     let quotes_type = l.u.class_ref("scala.quoted.Quotes");
     let function = l.u.class_ref("scala.ContextFunction1");
-    let function = l.u.intern_type(Type::Applied(function, vec![quotes_type, expr]));
+    let function = l.u.intern_applied(function, &[quotes_type, expr]);
     let fun = runtime(l, "quote", tpe);
     let quote = l.apply(fun, &[body], function, Span::NONE);
     let quote = l.positioned(quote);

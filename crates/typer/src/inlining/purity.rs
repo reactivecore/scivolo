@@ -62,7 +62,7 @@ impl Purity<'_> {
             T::TypeApply { fun, .. } => {
                 let applied = self.tpd.get(t).tpe.is_none_or(|x| {
                     let w = self.u.widen(x);
-                    !matches!(self.u.types().get(w), Type::Method { .. } | Type::Poly { .. })
+                    !matches!(self.u.ty(w), Type::Method { .. } | Type::Poly { .. })
                 });
                 let callee = self.tpd.sym(fun).map(|s| self.u.full_name(s));
                 match callee.as_deref() {
@@ -116,8 +116,8 @@ impl Purity<'_> {
     pub fn ref_purity(&mut self, t: TNodeId) -> u8 {
         let Some(tpe) = self.tpd.get(t).tpe else { return IMPURE };
         let widened = self.u.widen(tpe);
-        if matches!(self.u.types().get(widened), Type::Method { .. } | Type::Poly { .. })
-            || matches!(self.u.types().get(tpe), Type::Constant(..) | Type::Str(_))
+        if matches!(self.u.ty(widened), Type::Method { .. } | Type::Poly { .. })
+            || matches!(self.u.ty(tpe), Type::Constant(..) | Type::Str(_))
         {
             return PURE_PATH;
         }
@@ -140,7 +140,7 @@ impl Purity<'_> {
             Kind::Param | Kind::Val if sym.flags.has(MUTABLE) => false,
             Kind::Param | Kind::Val => {
                 let info = self.u.info(s);
-                !matches!(self.u.types().get(info), Type::ByName(_))
+                self.u.by_name(info).is_none()
             }
             Kind::Def => sym.flags.has(STABLE),
             _ => true,
@@ -158,7 +158,7 @@ impl Purity<'_> {
             return true;
         }
         let Some(tpe) = self.tpd.get(t).tpe else { return false };
-        let constant = matches!(self.u.types().get(tpe), Type::Constant(..) | Type::Str(_));
+        let constant = matches!(self.u.ty(tpe), Type::Constant(..) | Type::Str(_));
         constant && self.u.is_known_pure_op(s)
     }
 
@@ -197,6 +197,6 @@ impl Purity<'_> {
 
     fn has_constant_type(&self, t: TNodeId) -> bool {
         let tpe = self.tpd.get(t).tpe;
-        tpe.is_some_and(|x| matches!(self.u.types().get(x), Type::Constant(..) | Type::Str(_)))
+        tpe.is_some_and(|x| matches!(self.u.ty(x), Type::Constant(..) | Type::Str(_)))
     }
 }

@@ -7,7 +7,7 @@
 
 use super::special::tuple;
 use super::{Erased, object};
-use crate::types::{Type, TypeId};
+use crate::types::{NameId, Type, TypeId};
 use crate::{Kind, Universe};
 
 impl Universe {
@@ -52,21 +52,20 @@ impl Universe {
     /// side's body, arguments substituted.
     pub fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         let alias = self.referenced(tycon).and_then(|s| self.opaque_alias(s))?;
-        let Type::Lambda { binder, params, result } = self.types().get(alias).clone() else { return None };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let (binder, names, result) = self.lambda(alias).map(|l| (l.binder, l.names(), l.result))?;
         Some(self.subst(result, binder, &names, args))
     }
 
     /// `Array[Unit]` for `t = Array[? <: Unit]`, else `t`: the right-hand side of an opaque type
     /// erases as dotty's `IArray[Unit]` to `BoxedUnit[]`.
     fn without_array_wildcard(&mut self, t: TypeId) -> TypeId {
-        let Type::Applied(tycon, args) = self.types().get(t).clone() else { return t };
-        if self.class_name(tycon).as_deref() != Some("scala.Array") || args.len() != 1 {
+        let Some((tycon, &[arg])) = self.applied(t) else { return t };
+        if self.class_name(tycon).as_deref() != Some("scala.Array") {
             return t;
         }
-        let Type::Bounds(_, hi) = *self.types().get(args[0]) else { return t };
+        let Type::Bounds(_, hi) = *self.ty(arg) else { return t };
         match self.class_name(hi).as_deref() {
-            Some("scala.Unit") => self.intern_type(Type::Applied(tycon, vec![hi])),
+            Some("scala.Unit") => self.intern_applied(tycon, &[hi]),
             _ => t,
         }
     }
@@ -86,7 +85,7 @@ impl Universe {
     /// array of the erased element (`BoxedUnit` for `Unit`, in Scala 2 `Object` for `Nothing` and
     /// `Null`).
     fn erase_array(&mut self, elem: TypeId) -> Erased {
-        let wildcard = matches!(self.types().get(elem), Type::Bounds(..));
+        let wildcard = self.bounds(elem).is_some();
         if self.is_generic(elem) {
             return object();
         }
@@ -102,16 +101,19 @@ impl Universe {
     /// object `EmptyTuple`, not its alias, or a `TupleN`, or a match type that reduces to one
     /// (dotty's `tupleArity`).
     fn tuple_arity(&mut self, t: TypeId) -> Option<usize> {
-        let module = match self.types().get(t).clone() {
-            Type::Applied(c, a) if self.class_name(c).as_deref() == Some("scala.*:") && a.len() == 2 => {
-                return Some(1 + self.tuple_arity(a[1])?);
+        let ty = *self.ty(t);
+        let module = match ty {
+            Type::Applied(c, a)
+                if self.class_name(c).as_deref() == Some("scala.*:") && self.types_of(a).len() == 2 =>
+            {
+                return Some(1 + self.tuple_arity(self.types_of(a)[1])?);
             }
             Type::And(a, b) | Type::Or(a, b, _) => {
                 let n = self.tuple_arity(a)?;
                 return (self.tuple_arity(b)? == n).then_some(n);
             }
             Type::Sym(_, s) => Some(s),
-            Type::TermRef(p, n) => self.resolve(p, &n, false),
+            Type::TermRef(p, n) => self.resolve(p, n, false),
             _ => None,
         };
         if let Some(r) = self.try_normalize(t) {
@@ -139,9 +141,9 @@ impl Universe {
     }
 
     fn applied_info(&mut self, tycon: TypeId, args: &[TypeId], upper: bool) -> Option<TypeId> {
-        let (prefix, alias) = match self.types().get(tycon).clone() {
+        let (prefix, alias) = match *self.ty(tycon) {
             Type::Sym(p, s) => (p, Some(s)),
-            Type::TypeRef(p, n) => (Some(p), self.resolve(p, &n, true)),
+            Type::TypeRef(p, n) => (Some(p), self.resolve(p, n, true)),
             _ => (None, None),
         };
         let alias = alias?;
@@ -150,36 +152,32 @@ impl Universe {
             return None;
         }
         let info = self.info(alias);
-        let info = match *self.types().get(info) {
-            Type::Bounds(_, hi) if upper => hi,
-            _ => info,
-        };
+        let info = self.bounds(info).filter(|_| upper).map_or(info, |(_, hi)| hi);
         let owner = self.symbol(alias).owner;
         let info = match (prefix, owner) {
             (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),
             _ => info,
         };
-        let Type::Lambda { binder, params, result } = self.types().get(info).clone() else { return None };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let (binder, names, result) = self.lambda(info).map(|l| (l.binder, l.names(), l.result))?;
         Some(self.subst(result, binder, &names, args))
     }
 
     /// `t` with the parameters of lambda `binder`, named `names`, replaced by `args`.
-    pub fn subst(&mut self, t: TypeId, binder: crate::Binder, names: &[String], args: &[TypeId]) -> TypeId {
-        self.map_type(t, &mut |u, x| match u.types().get(x) {
+    pub fn subst(&mut self, t: TypeId, binder: crate::Binder, names: &[NameId], args: &[TypeId]) -> TypeId {
+        self.map_type(t, &mut |u, x| match *u.ty(x) {
             Type::Local(b, n) if b.0 == binder.0 => {
-                names.iter().position(|m| m == n).and_then(|i| args.get(i).copied())
+                names.iter().position(|&m| m == n).and_then(|i| args.get(i).copied())
             }
-            Type::Param(b, i) if *b == binder => args.get(*i as usize).copied(),
+            Type::Param(b, i) if b == binder => args.get(i as usize).copied(),
             _ => None,
         })
     }
 
     /// The symbol a `Sym` or `TypeRef` refers to.
     pub fn referenced(&mut self, t: TypeId) -> Option<crate::SymbolId> {
-        match self.types().get(t).clone() {
+        match *self.ty(t) {
             Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, n) => self.resolve(p, &n, true),
+            Type::TypeRef(p, n) => self.resolve(p, n, true),
             _ => None,
         }
     }

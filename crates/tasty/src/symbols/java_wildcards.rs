@@ -16,26 +16,29 @@ impl Universe {
         if !(class.starts_with("java.") || class.starts_with("javax.")) || !self.may_be_java(owner) {
             return t;
         }
-        let from_java_object = self.intern_type(Type::Sym(None, self.builtins().from_java_object));
+        let from_java_object = self.intern_type(Type::Sym(None, self.defn().from_java_object));
         self.java_wildcards(t, from_java_object)
     }
 
     fn java_wildcards(&mut self, t: TypeId, from_java_object: TypeId) -> TypeId {
         self.map_type(t, &mut |u, part| {
-            let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
-            if u.class_symbol(tycon).is_some_and(|c| u.full_name(c) == "scala.Array") {
+            let (tycon, args) = u.applied(part).map(|(c, a)| (c, a.to_vec()))?;
+            if u.is_class_named(tycon, super::defn::ARRAY) {
                 return None;
             }
-            let any = u.builtins().any;
-            let args = args.into_iter().map(|a| match u.types().get(a).clone() {
-                Type::Bounds(lo, hi) if hi == ANY || u.referenced(hi) == Some(any) => {
-                    let lo = u.java_wildcards(lo, from_java_object);
-                    u.intern_type(Type::Bounds(lo, from_java_object))
+            let any = u.defn().any;
+            let args = args.into_iter().map(|a| {
+                let ty = *u.ty(a);
+                match ty {
+                    Type::Bounds(lo, hi) if hi == ANY || u.referenced(hi) == Some(any) => {
+                        let lo = u.java_wildcards(lo, from_java_object);
+                        u.intern_type(Type::Bounds(lo, from_java_object))
+                    }
+                    _ => u.java_wildcards(a, from_java_object),
                 }
-                _ => u.java_wildcards(a, from_java_object),
             });
-            let args = args.collect();
-            Some(u.intern_type(Type::Applied(tycon, args)))
+            let args: Vec<_> = args.collect();
+            Some(u.intern_applied(tycon, &args))
         })
     }
 }

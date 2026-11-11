@@ -26,7 +26,7 @@ pub fn anon_mirror_support(
     kind: AnonMirror,
     span: Span,
 ) -> Result<(SymbolId, Vec<TNodeId>)> {
-    let mono = l.u.decl(class, "MirroredMonoType").unwrap_or_default().first().copied();
+    let mono = l.u.decls_named(class, "MirroredMonoType").first().copied();
     let linked = mono.and_then(|m| l.u.alias_of(m)).and_then(|a| {
         let a = l.u.dealias(a);
         let a = l.u.normalized(a);
@@ -63,7 +63,7 @@ pub fn anon_mirror_support(
 
 /// The class of type `t`; of an intersection, that of the part deriving from the other's.
 fn class_of(l: &mut Lower, t: TypeId) -> Option<SymbolId> {
-    let Type::And(a, b) = *l.u.types().get(t) else { return l.u.class_symbol(t) };
+    let Type::And(a, b) = *l.u.ty(t) else { return l.u.class_symbol(t) };
     match (class_of(l, a), class_of(l, b)) {
         (Some(a), Some(b)) if l.u.derives_from(b, a) => Some(b),
         (Some(a), Some(b)) => l.u.derives_from(a, b).then_some(a),

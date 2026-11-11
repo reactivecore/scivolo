@@ -11,12 +11,11 @@ impl Typer<'_> {
     /// it would put `p` for a `this` where it occurs other than covariantly (dotty's
     /// `maybeSkolemizePrefix` and `asSeenFrom` of a `QualSkolemType`).
     pub fn qual_skolem(&mut self, p: TypeId, s: SymbolId) -> TypeId {
-        let unstable = match *self.u.types().get(p) {
+        let unstable = match *self.u.ty(p) {
             Type::Sym(..) => !super::stability::is_stable_path(self.u, p),
-            Type::TermRef(pre, ref name) => {
-                let name = name.clone();
-                let info = self.u.term_refinement_named(pre, &name);
-                info.is_some_and(|i| matches!(self.u.types().get(i), Type::ByName(_) | Type::Method { .. }))
+            Type::TermRef(pre, name) => {
+                let info = self.u.term_refinement_named(pre, name);
+                info.is_some_and(|i| matches!(self.u.ty(i), Type::ByName(_) | Type::Method { .. }))
             }
             Type::Applied(..) | Type::Refined(..) | Type::And(..) | Type::Or(..) => true,
             _ => false,
@@ -38,16 +37,18 @@ impl Typer<'_> {
 /// Whether seeing `t` at variance `v` from unstable `p` approximates a `this` of class `owner`.
 fn approximated(u: &mut Universe, t: TypeId, v: i8, (p, owner): (TypeId, SymbolId)) -> bool {
     let m = |u: &mut Universe, t, v| approximated(u, t, v, (p, owner));
-    match u.types().get(t).clone() {
+    let ty = *u.ty(t);
+    match ty {
         Type::This(_) => v <= 0 && is_owner_this(u, t, owner),
         Type::Sym(_, s) if u.is_static_symbol(s) => false,
         Type::Sym(Some(pre), s) if v <= 0 && is_owner_this(u, pre, owner) => not_forwarded(u, p, s),
         Type::Sym(Some(pre), _) => m(u, pre, v.max(0)),
         Type::Applied(tycon, args) => {
+            let args = u.types_of(args).to_vec();
             let variances = u.tycon_variances(tycon, args.len());
             m(u, tycon, v)
                 || args.iter().zip(variances).any(|(&a, pv)| {
-                    let wildcard = matches!(u.types().get(a), Type::Bounds(..) | Type::Wildcard(_));
+                    let wildcard = matches!(u.ty(a), Type::Bounds(..) | Type::Wildcard(_));
                     m(u, a, if wildcard { v } else { v * pv })
                 })
         }
@@ -55,7 +56,9 @@ fn approximated(u: &mut Universe, t: TypeId, v: i8, (p, owner): (TypeId, SymbolI
         Type::Bounds(lo, hi) => m(u, lo, -v) || m(u, hi, v),
         Type::Method { params, result, .. }
         | Type::Poly { params, result, .. }
-        | Type::Lambda { params, result, .. } => params.iter().any(|&(_, x)| m(u, x, -v)) || m(u, result, v),
+        | Type::Lambda { params, result, .. } => {
+            u.params_of(params).to_vec().into_iter().any(|(_, x)| m(u, x, -v)) || m(u, result, v)
+        }
         Type::And(x, y) | Type::Or(x, y, _) | Type::Refined(x, _, y) => m(u, x, v) || m(u, y, v),
         Type::ByName(x) | Type::Annotated(x, _) | Type::Rec(_, x) | Type::Skolem(_, x) => m(u, x, v),
         Type::Sym(None, _) | Type::Constant(..) | Type::Str(_) | Type::Param(..) => false,
@@ -72,7 +75,7 @@ fn approximated(u: &mut Universe, t: TypeId, v: i8, (p, owner): (TypeId, SymbolI
 
 /// Whether `t` is the `this` of class `owner` or of a class deriving from it.
 fn is_owner_this(u: &mut Universe, t: TypeId, owner: SymbolId) -> bool {
-    let Type::This(c) = *u.types().get(t) else { return false };
+    let Some(c) = u.this_of(t) else { return false };
     u.class_symbol(c).is_some_and(|c| u.derives_from(c, owner))
 }
 
@@ -84,11 +87,11 @@ fn not_forwarded(u: &mut Universe, p: TypeId, s: SymbolId) -> bool {
         let Some(index) = u.type_params(class).iter().position(|&q| q == s) else { return true };
         let arg =
             u.base_type(p, class).and_then(|b| u.applied(b)).and_then(|(_, args)| args.get(index).copied());
-        return arg.is_none_or(|a| matches!(u.types().get(a), Type::Bounds(..)));
+        return arg.is_none_or(|a| u.bounds(a).is_some());
     }
     let info = u.info(s);
     !matches!(
-        u.types().get(info),
+        u.ty(info),
         Type::Alias(_) | Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::Skolem(..)
-    ) && !matches!(u.types().get(info), Type::Sym(_, x) if u.symbol(*x).kind.is_term())
+    ) && !u.sym_of(info).is_some_and(|x| u.symbol(x).kind.is_term())
 }

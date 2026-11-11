@@ -20,8 +20,8 @@ impl Typer<'_> {
         tparams: &[SymbolId],
         binder: tasty::Binder,
     ) -> tasty::TypeId {
-        self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
-            Type::Sym(None, s) => {
+        self.u.map_type(t, &mut |u, x| match u.sym_ref(x) {
+            Some((None, s)) => {
                 let i = tparams.iter().position(|&p| p == s)?;
                 Some(u.intern_type(Type::Param(binder, i as u32)))
             }
@@ -48,12 +48,12 @@ impl Typer<'_> {
             return t;
         };
         let annot = crate::defn::type_ref(self.u, class);
-        match *self.u.types().get(t) {
-            Type::ByName(r) => {
+        match self.u.by_name(t) {
+            Some(r) => {
                 let r = self.u.intern_type(Type::Annotated(r, annot));
                 self.u.intern_type(Type::ByName(r))
             }
-            _ => self.u.intern_type(Type::Annotated(t, annot)),
+            None => self.u.intern_type(Type::Annotated(t, annot)),
         }
     }
 
@@ -164,8 +164,8 @@ impl Typer<'_> {
                 let info = self.value_type_ahead(tpt, ctx.with_owner(s));
                 let info = self.suppress_into(info);
                 let repeated = self.repeated_elem(info).is_some();
-                match *self.u.types().get(info) {
-                    Type::Annotated(seq, _) if repeated => {
+                match self.u.annotated(info) {
+                    Some((seq, _)) if repeated => {
                         self.syms.repeated_params.insert(s, info);
                         seq
                     }

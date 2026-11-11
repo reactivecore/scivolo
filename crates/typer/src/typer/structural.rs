@@ -25,24 +25,22 @@ impl Typer<'_> {
         if name.is_type {
             return None;
         }
-        let info = self.u.term_refinement_named(pre, &text)?;
+        let n = self.u.intern_name(&text);
+        let info = self.u.term_refinement_named(pre, n)?;
         let mut recursive = false;
         self.u.map_type(info, &mut |_, part| {
             recursive |= part == pre;
             None
         });
-        if recursive
-            && matches!(self.u.types().get(pre), Type::TermRef(..))
-            && self.u.resolve_ref(pre).is_none()
-        {
+        if recursive && matches!(self.u.ty(pre), Type::TermRef(..)) && self.u.resolve_ref(pre).is_none() {
             return Some(self.unsupported(id, "structural member referring to a structural prefix"));
         }
-        let method = match self.u.types().get(info) {
+        let method = match *self.u.ty(info) {
             Type::Poly { .. } => return Some(self.unsupported(id, "polymorphic structural method")),
             Type::Method { .. } => true,
             _ => false,
         };
-        let tpe = self.u.intern_type(Type::TermRef(pre, text.clone()));
+        let tpe = self.u.intern_type(Type::TermRef(pre, n));
         let span = self.ast.span(id);
         if method {
             return Some(self.structural_method(qual, name, info, span));
@@ -59,7 +57,7 @@ impl Typer<'_> {
 
     /// `qual`, converted to a `Selectable` if it is none.
     pub fn selectable_qual(&mut self, qual: TNodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        let selectable = self.u.class_ref("scala.Selectable");
+        let selectable = self.u.class_ref(crate::defn::SELECTABLE);
         let qual_tpe = self.zonk(self.tpd.tpe(qual));
         if self.u.is_subtype(qual_tpe, selectable) {
             return Ok(qual);
@@ -71,7 +69,7 @@ impl Typer<'_> {
     /// Whether `t` widens to a value class or a by-name one.
     pub fn is_value_class_type(&mut self, t: TypeId) -> bool {
         let widened = self.u.widen(t);
-        let value = if let Type::ByName(r) = *self.u.types().get(widened) { r } else { widened };
+        let value = self.u.by_name(widened).unwrap_or(widened);
         self.u.value_class(value).is_some()
     }
 
@@ -103,7 +101,7 @@ impl Typer<'_> {
     /// `new V(call.$asInstanceOf$[U])` for value class type `tpe`, `V`, of underlying type `U`.
     fn structural_box(&mut self, call: TNodeId, tpe: TypeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let widened = self.u.widen(tpe);
-        let value = if let Type::ByName(r) = *self.u.types().get(widened) { r } else { widened };
+        let value = self.u.by_name(widened).unwrap_or(widened);
         let value = self.u.dealias(value);
         let class = self.u.value_class(value).ok_or("structural member of an intersected value class")?;
         let field = self.u.underlying(class).ok_or("value class without an underlying value")?;
@@ -119,7 +117,7 @@ impl Typer<'_> {
         let init = TName { name: self.name("<init>"), is_type: false };
         let mut fun = self.ast.node(Tree::Select { qualifier: new, name: init });
         self.ast.with_span(fun, start);
-        if let Type::Applied(_, targs) = self.u.types().get(value).clone() {
+        if let Some(targs) = self.u.applied(value).map(|(_, targs)| targs.to_vec()) {
             let targs: Vec<NodeId> = targs
                 .into_iter()
                 .map(|a| {

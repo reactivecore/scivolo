@@ -30,7 +30,7 @@ pub fn constant_type_of(u: &mut Universe, c: &Constant) -> TypeId {
         Constant::Long(l) => Type::Constant(LONGconst, l),
         Constant::Float(f) => Type::Constant(FLOATconst, f.to_bits() as i64),
         Constant::Double(d) => Type::Constant(DOUBLEconst, d.to_bits() as i64),
-        Constant::String(ref s) => Type::Str(String::from_utf16_lossy(s)),
+        Constant::String(ref s) => return u.str_type(&String::from_utf16_lossy(s)),
         Constant::Null => Type::Constant(NULLconst, 0),
     };
     u.intern_type(t)
@@ -38,7 +38,7 @@ pub fn constant_type_of(u: &mut Universe, c: &Constant) -> TypeId {
 
 /// The constant of constant type `t` (dotty's `ConstantType.unapply`).
 pub fn constant_of(u: &Universe, t: TypeId) -> Option<Constant> {
-    Some(match *u.types().get(t) {
+    Some(match *u.ty(t) {
         Type::Constant(UNITconst, _) => Constant::Unit,
         Type::Constant(TRUEconst, _) => Constant::Boolean(true),
         Type::Constant(FALSEconst, _) => Constant::Boolean(false),
@@ -50,7 +50,7 @@ pub fn constant_of(u: &Universe, t: TypeId) -> Option<Constant> {
         Type::Constant(FLOATconst, f) => Constant::Float(f32::from_bits(f as u32)),
         Type::Constant(DOUBLEconst, d) => Constant::Double(f64::from_bits(d as u64)),
         Type::Constant(NULLconst, _) => Constant::Null,
-        Type::Str(ref s) => Constant::String(s.encode_utf16().collect()),
+        Type::Str(s) => Constant::String(u.name(s).encode_utf16().collect()),
         _ => return None,
     })
 }
@@ -69,7 +69,7 @@ impl<'a> Build<'a> {
     pub fn literal_type(&mut self, c: &Constant) -> TypeId {
         match c {
             Constant::Unit => type_ref(self.u, self.unit),
-            Constant::Null => type_ref(self.u, self.u.builtins().null),
+            Constant::Null => type_ref(self.u, self.u.defn().null),
             _ => constant_type_of(self.u, c),
         }
     }
@@ -123,7 +123,7 @@ impl<'a> Build<'a> {
 
     /// Builds the cast `tree.asInstanceOf[to]` at `span`, typed as `to`.
     pub fn cast_to(&mut self, tree: TNodeId, to: TypeId, span: Span) -> Result<TNodeId, &'static str> {
-        let any = self.u.builtins().any;
+        let any = self.u.defn().any;
         let m = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
         let m = m.ok_or("cast without Any.asInstanceOf")?;
         let select_tpe = self.u.intern_type(Type::Sym(Some(self.tpd.tpe(tree)), m));
@@ -144,7 +144,7 @@ impl<'a> Build<'a> {
     pub fn return_(&mut self, expr: TNodeId, method: SymbolId, span: Span) -> TNodeId {
         let from_tpe = self.u.intern_type(Type::Sym(None, method));
         let from = self.ident(method, from_tpe, span.end_pos());
-        let nothing = type_ref(self.u, self.u.builtins().nothing);
+        let nothing = type_ref(self.u, self.u.defn().nothing);
         self.tpd.node(T::Return { expr, from }, span, Some(nothing), None)
     }
 

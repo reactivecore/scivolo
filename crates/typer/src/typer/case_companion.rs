@@ -6,7 +6,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{MAX_IMPLEMENTED_ARITY, Type, TypeId};
+use tasty::{MAX_IMPLEMENTED_ARITY, TypeId};
 
 impl Typer<'_> {
     /// `tree.apply` fitted to function type `pt` for a reference `tree` to the companion of a case
@@ -47,8 +47,8 @@ impl Typer<'_> {
                 }
                 _ => "this.".to_string(),
             },
-            None => match *self.u.types().get(self.tpd.tpe(tree)) {
-                Type::Sym(Some(p), _) => self.shown_prefix(p),
+            None => match self.u.sym_ref(self.tpd.tpe(tree)) {
+                Some((Some(p), _)) => self.shown_prefix(p),
                 _ => String::new(),
             },
         };

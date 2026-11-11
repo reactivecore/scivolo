@@ -119,16 +119,14 @@ impl Universe {
             return t;
         }
         self.map_type(t, &mut |u, part| {
-            let Type::Annotated(seq, annot) = *u.types().get(part) else { return None };
-            let Type::Applied(_, ref args) = *u.types().get(seq) else { return None };
-            let args = args.clone();
-            let repeated =
-                u.class_symbol(annot).is_some_and(|c| u.full_name(c) == "scala.annotation.internal.Repeated");
+            let (seq, annot) = u.annotated(part)?;
+            let args = u.applied(seq)?.1.to_vec();
+            let repeated = u.is_class_named(annot, super::defn::REPEATED_ANNOT);
             if !repeated || args.len() != 1 {
                 return None;
             }
             let array = u.class_ref("scala.Array");
-            let array = u.intern_type(Type::Applied(array, args));
+            let array = u.intern_applied(array, &args);
             Some(u.intern_type(Type::Annotated(array, annot)))
         })
     }

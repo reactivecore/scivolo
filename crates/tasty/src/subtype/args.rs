@@ -60,7 +60,7 @@ impl Cmp<'_> {
         args: &[TypeId],
     ) -> Option<(TypeId, TypeId)> {
         let info = self.u.info(p);
-        let Type::Bounds(lo, hi) = *self.u.types().get(info) else { return None };
+        let (lo, hi) = self.u.bounds(info)?;
         if lo == NOTHING && hi == ANY {
             return None;
         }
@@ -70,7 +70,7 @@ impl Cmp<'_> {
             u.map_type(t, &mut |u, x| match u.class_param(x) {
                 Some((owner, i)) if Some(owner) == class && i < tparams.len() => {
                     let arg = args[i];
-                    wild |= matches!(u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));
+                    wild |= matches!(u.ty(arg), Type::Bounds(..) | Type::Wildcard(_));
                     Some(arg)
                 }
                 _ => None,
@@ -93,7 +93,7 @@ impl Cmp<'_> {
 
     /// The bounds of a `?` argument, annotated or not; a `Wildcard` compares as a type.
     fn written_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Bounds(lo, hi) => Some((lo, hi)),
             Type::Annotated(b, _) => self.written_bounds(b),
             _ => None,
@@ -102,7 +102,7 @@ impl Cmp<'_> {
 
     /// The bounds of a wildcard argument, annotated or not.
     pub fn arg_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Bounds(lo, hi) => Some((lo, hi)),
             Type::Wildcard(None) => Some((NOTHING, ANY)),
             Type::Wildcard(Some(b)) | Type::Annotated(b, _) => self.arg_bounds(b),

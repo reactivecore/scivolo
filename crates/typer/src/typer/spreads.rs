@@ -29,9 +29,8 @@ impl Typer<'_> {
         let fun = self.build().ident(spread, fun_tpe, at);
         let targ = self.type_tree(elem, at, true);
         let binder = self.u.fresh_binder();
-        let params = vec![("x$0".to_owned(), ANY)];
-        let info = Type::Method { binder, params, result: elem, implicit: false, contextual: false };
-        let info = self.u.intern_type(info);
+        let params = [(self.u.intern_name("x$0"), ANY)];
+        let info = self.u.intern_method(binder, &params, elem, false, false);
         let fun = self.build().type_apply(fun, &[targ], info, at);
         self.build().apply(fun, &[expr], elem, span.to_synthetic())
     }
@@ -120,7 +119,7 @@ impl Typer<'_> {
         let primitive = class.map(|c| self.u.full_name(c)).and_then(|n| {
             PRIMITIVE.iter().find(|&&p| n.strip_prefix("scala.") == Some(p)).map(|p| format!("of{p}"))
         });
-        let object = self.u.builtins().object;
+        let object = self.u.defn().object;
         let reference = class.is_some_and(|c| self.u.derives_from(c, object));
         let module = TName { name: self.name("scala.runtime.VarArgsBuilder"), is_type: false };
         let module = self.ast.node(Tree::TypedSplice { sym: module });
@@ -168,7 +167,7 @@ impl Typer<'_> {
             return ("addSeq", xs_node);
         }
         let array = self.u.class_ref(ARRAY);
-        let array = self.u.intern_type(Type::Applied(array, vec![elem]));
+        let array = self.u.intern_applied(array, &[elem]);
         if self.conforms(tpe, array) {
             return ("addArray", xs_node);
         }

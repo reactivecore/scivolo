@@ -5,7 +5,7 @@
 
 use super::{Captured, Hole, Matched, Matcher};
 use crate::tpd::{List, TNodeId, Tree as T};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 
 impl Matcher<'_> {
     /// `scrutinee =?= $hole[T, targs](args)`: the scrutinee if it refers to no definition the
@@ -38,8 +38,8 @@ impl Matcher<'_> {
         let mut tparams = Vec::new();
         if let Some(&targs) = self.tpd.items(targs).get(1) {
             for t in self.unrolled(targs) {
-                let p = self.tpd.get(t).tpe.map(|t| self.u.types().get(t).clone());
-                let Some(Type::Sym(None, p)) = p else { return Err(shape) };
+                let p = self.tpd.get(t).tpe.and_then(|t| self.u.sym_ref(t));
+                let Some((None, p)) = p else { return Err(shape) };
                 let Some(&(captured, _)) = self.env.iter().find(|&&(_, b)| b == p) else { return Err(shape) };
                 tparams.push(captured);
             }
@@ -69,7 +69,7 @@ impl Matcher<'_> {
         let mut mentioned = false;
         for t in types {
             self.u.map_type(t, &mut |u, part| {
-                mentioned |= matches!(*u.types().get(part), Type::Sym(None, x) if free(x));
+                mentioned |= matches!(u.sym_ref(part), Some((None, x)) if free(x));
                 None
             });
         }

@@ -780,6 +780,7 @@ dependencies = [
 name = "scivolo-tasty"
 version = "0.1.6"
 dependencies = [
+ "hashbrown 0.17.1",
  "md-5",
  "rustc-hash",
  "scivolo-classfile",

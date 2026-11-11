@@ -46,7 +46,7 @@ impl Typer<'_> {
         let Pt::Type(p) = pt else { return Ok((None, None)) };
         let z = self.zonk(p);
         let p = self.var_upper(z);
-        let p = match *self.u.types().get(p) {
+        let p = match *self.u.ty(p) {
             Type::Or(..) | Type::And(..) | Type::Flexible(_) => match self.function_type_in(p) {
                 Some(f) => f,
                 None => return Ok((None, None)),
@@ -59,7 +59,7 @@ impl Typer<'_> {
         if let Some(parts) = self.function_parts(p, n) {
             return Ok((Some(parts), None));
         }
-        if matches!(self.u.types().get(z), Type::Var(_)) {
+        if self.u.var(z).is_some() {
             return Ok((None, None));
         }
         if self.has_proto_wildcard(p) && !self.is_partial_function(p) {
@@ -135,7 +135,7 @@ impl Typer<'_> {
         let tycon = self.type_tree(class, self.ast.span(first).start_pos(), false);
         let arg_types: Vec<TypeId> = typed.iter().map(|&t| self.tpd.tpe(t)).collect();
         let arg_types = self.pattern_bound_args(class, &mut typed, &vars, arg_types, ctx);
-        let tpe = self.u.intern_type(Type::Applied(class, arg_types));
+        let tpe = self.u.intern_applied(class, &arg_types);
         let args = self.tpd.list(&typed);
         self.tpd.node(T::AppliedTypeTree { tpt: tycon, args }, span, Some(tpe), None)
     }
@@ -154,9 +154,9 @@ impl TypeOps<'_> {
     pub fn context_function_parts(&mut self, t: TypeId) -> Option<Parts> {
         let z = self.zonk(t);
         let d = self.u.dealias(z);
-        if let Type::Refined(parent, name, info) = self.u.types().get(d).clone()
-            && name == "apply"
-            && let Type::Method { binder, result, .. } = *self.u.types().get(info)
+        if let Type::Refined(parent, name, info) = *self.u.ty(d)
+            && self.u.name(name) == "apply"
+            && let Type::Method { binder, result, .. } = *self.u.ty(info)
             && !mentions_params(self.u, result, binder, None)
         {
             return self.applied_function(parent, "scala.ContextFunction");
@@ -168,7 +168,7 @@ impl TypeOps<'_> {
     pub fn has_proto_wildcard(&mut self, t: TypeId) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |u, part| {
-            found |= matches!(u.types().get(part), Type::Wildcard(_));
+            found |= matches!(u.ty(part), Type::Wildcard(_));
             None
         });
         found

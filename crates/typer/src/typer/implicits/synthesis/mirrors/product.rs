@@ -34,20 +34,14 @@ impl MirrorSynthesis {
         }
         let accessors = case_accessors(t, cls);
         let labels: Vec<String> = accessors.iter().map(|&a| t.u.symbol(a).name.clone()).collect();
-        let site = match *t.u.types().get(mirrored) {
-            Type::Lambda { result, .. } => result,
-            _ => mirrored,
-        };
+        let site = t.u.lambda(mirrored).map_or(mirrored, |l| l.result);
         let elems: Vec<TypeId> = accessors
             .iter()
             .map(|&a| {
                 t.complete(a);
                 let info = t.u.info(a);
                 let tpe = t.u.as_seen_from(info, site, cls);
-                match *t.u.types().get(tpe) {
-                    Type::ByName(r) => r,
-                    _ => tpe,
-                }
+                t.u.by_name(tpe).unwrap_or(tpe)
             })
             .collect();
         let nested = t.nested_pairs(&elems)?;
@@ -113,7 +107,7 @@ impl MirrorSynthesis {
     /// constructor.
     pub fn is_generic_product(self, t: &mut Typer<'_>, c: SymbolId) -> bool {
         t.complete(c);
-        if let Some(&ctor) = t.u.decl(c, "<init>").unwrap_or_default().first() {
+        if let Some(&ctor) = t.u.decls_named(c, "<init>").first() {
             t.complete(ctor);
         }
         let value_class = t.is_derived_value_class(c);
@@ -124,7 +118,7 @@ impl MirrorSynthesis {
     /// Whether the primary constructor of `c` is accessible here for an anonymous mirror (dotty's
     /// `canAccessCtor`).
     fn can_access_constructor(self, t: &mut Typer<'_>, c: SymbolId) -> bool {
-        let Some(&ctor) = t.u.decl(c, "<init>").unwrap_or_default().first() else { return true };
+        let Some(&ctor) = t.u.decls_named(c, "<init>").first() else { return true };
         let flags = t.u.symbol(ctor).flags;
         let owners: Vec<SymbolId> =
             std::iter::successors(Some(self.ctx.owner), |&o| t.u.symbol(o).owner).collect();

@@ -18,6 +18,11 @@ impl std::error::Error for Error {}
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// The most bytes of a `Nat`.
+const MAX_NAT_BYTES: usize = 9;
+/// The most bytes of a `LongInt`.
+const MAX_LONG_INT_BYTES: usize = 10;
+
 /// Reader over TASTy micro-syntax: Nat/LongInt are big-endian base-128 with the stop bit (0x80) on the last byte.
 #[derive(Clone)]
 pub struct Cursor<'a> {
@@ -81,7 +86,7 @@ impl<'a> Cursor<'a> {
                 break;
             }
         }
-        if self.pos - start > 9 {
+        if self.pos - start > MAX_NAT_BYTES {
             return self.err("nat too long");
         }
         Ok(x)
@@ -100,7 +105,7 @@ impl<'a> Cursor<'a> {
             b = self.byte()?;
             x = (x << 7) | i64::from(b & 0x7f);
         }
-        if self.pos - start > 10 {
+        if self.pos - start > MAX_LONG_INT_BYTES {
             return self.err("long int too long");
         }
         Ok(x)

@@ -127,14 +127,14 @@ fn is_pure_expr(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool 
 fn is_pure_type_apply(l: &mut Lower, t: TNodeId, fun: TNodeId) -> bool {
     let tpe = l.tpd.tpe(t);
     let wide = l.u.widen(tpe);
-    if matches!(l.u.types().get(wide), Type::Method { .. } | Type::Poly { .. }) || is_cast(l, t) {
+    if matches!(l.u.ty(wide), Type::Method { .. } | Type::Poly { .. }) || is_cast(l, t) {
         return true;
     }
     let Some(s) = l.tpd.sym(fun).filter(|&s| is_erased_sym(l, s) && !has(l.u, s, ERASED)) else {
         return false;
     };
     let tpe = l.u.dealias(tpe);
-    is_caps_erased_value(l, s) || matches!(l.u.types().get(tpe), Type::Constant(..) | Type::Str(_))
+    is_caps_erased_value(l, s) || matches!(l.u.ty(tpe), Type::Constant(..) | Type::Str(_))
 }
 
 fn is_caps_erased_value(l: &Lower, s: SymbolId) -> bool {

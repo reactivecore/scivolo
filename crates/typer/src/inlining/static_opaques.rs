@@ -23,7 +23,7 @@ impl Expansion<'_, '_> {
             let dealiased = self.i.u.dealias(widened);
             let mut refs = Vec::new();
             self.i.u.map_type(dealiased, &mut |u, part| {
-                if let Type::Sym(_, s) = *u.types().get(part)
+                if let Some(s) = u.sym_of(part)
                     && u.symbol(s).kind.is_term()
                     && !refs.contains(&part)
                 {
@@ -65,7 +65,7 @@ impl Expansion<'_, '_> {
         }
         let Some(q) = prefix else { return Ok(Vec::new()) };
         let qt = self.i.tpd.tpe(q);
-        let this_prefix = matches!(self.i.u.types().get(qt), Type::This(_));
+        let this_prefix = self.i.u.this_of(qt).is_some();
         if this_prefix || !self.sees_tasty_opaques(cls) || !encloses(self, cls, meth) {
             return Ok(Vec::new());
         }
@@ -98,7 +98,7 @@ impl Expansion<'_, '_> {
             return Some(p);
         }
         let mut widened = self.i.u.widen(r);
-        while let Type::Refined(parent, ..) = *self.i.u.types().get(widened) {
+        while let Type::Refined(parent, ..) = *self.i.u.ty(widened) {
             widened = self.i.u.widen(parent);
         }
         let class = self.i.u.class_symbol(widened)?;

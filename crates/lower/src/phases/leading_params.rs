@@ -28,21 +28,22 @@ pub fn add_params(l: &mut Lower, constr: TNodeId, ctor: SymbolId, params: &[Symb
 /// Method type `info`, also under type parameters, with `params` first in its first clause; of a
 /// method without parameter lists, a method type of `params`.
 pub fn with_leading_params(l: &mut Lower, info: tasty::TypeId, params: &[SymbolId]) -> tasty::TypeId {
-    match l.u.types().get(info).clone() {
+    match *l.u.ty(info) {
         Type::Poly { binder, params: tparams, result } => {
             let result = with_leading_params(l, result, params);
             l.u.intern_type(Type::Poly { binder, params: tparams, result })
         }
         Type::Method { binder, params: old, result, implicit, contextual } => {
-            let new = params.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p)));
-            let params = new.chain(old).collect();
-            l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+            let old = l.u.params_of(old).to_vec();
+            let new = params.iter().map(|&p| (l.u.interned_name(p), l.u.info(p)));
+            let params: Vec<_> = new.chain(old).collect();
+            l.u.intern_method(binder, &params, result, implicit, contextual)
         }
         other => {
             let result = if let Type::ByName(r) = other { r } else { info };
-            let params = params.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
+            let params: Vec<_> = params.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
             let binder = l.u.fresh_binder();
-            l.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false })
+            l.u.intern_method(binder, &params, result, false, false)
         }
     }
 }

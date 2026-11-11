@@ -9,15 +9,18 @@ use super::special::special;
 use crate::Universe;
 use crate::types::{Type, TypeId};
 
+/// How many types `poly_function_apply_of` looks through.
+const MAX_STEPS: u32 = 16;
+
 impl Universe {
     /// The info of `apply` if `t` is `PolyFunction { def apply: info }` or a refinement of a
     /// subclass of `PolyFunction` (dotty's `PolyFunctionOf.unapply`).
     pub fn poly_function_apply(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Refined(parent, name, info) = self.types().get(t).clone() else { return None };
-        if name != "apply" || !matches!(self.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
+        let Type::Refined(parent, name, info) = *self.ty(t) else { return None };
+        if self.name(name) != "apply" || !matches!(self.ty(info), Type::Method { .. } | Type::Poly { .. }) {
             return None;
         }
-        let poly_function = self.class_ref("scala.PolyFunction");
+        let poly_function = self.class_ref(crate::defn::POLY_FUNCTION);
         let poly_function = self.class_symbol(poly_function)?;
         let class = self.class_symbol(parent)?;
         self.derives_from(class, poly_function).then_some(info)
@@ -27,17 +30,17 @@ impl Universe {
     /// singletons, aliases, upper bounds and either side of an intersection.
     pub fn poly_function_apply_of(&mut self, t: TypeId) -> Option<TypeId> {
         let mut t = t;
-        for _ in 0..16 {
+        for _ in 0..MAX_STEPS {
             let widened = self.widen(t);
             t = self.dealias(widened);
-            match *self.types().get(t) {
+            match *self.ty(t) {
                 Type::Refined(..) => return self.poly_function_apply(t),
                 Type::And(a, b) => {
                     return self.poly_function_apply_of(a).or_else(|| self.poly_function_apply_of(b));
                 }
                 Type::Sym(_, s) if self.is_type_symbol(s) => {
                     let info = self.info(s);
-                    let Type::Bounds(_, hi) = *self.types().get(info) else { return None };
+                    let (_, hi) = self.bounds(info)?;
                     t = hi;
                 }
                 _ => return None,
@@ -51,10 +54,15 @@ impl Universe {
     pub fn erase_refined_function_apply(&mut self, info: TypeId) -> Erased {
         let mut t = info;
         let arity = loop {
-            match self.types().get(t).clone() {
+            match *self.ty(t) {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params, .. } => {
-                    break params.into_iter().filter(|&(_, p)| !self.is_erased_param(p)).count();
+                    break self
+                        .params_of(params)
+                        .to_vec()
+                        .into_iter()
+                        .filter(|&(_, p)| !self.is_erased_param(p))
+                        .count();
                 }
                 _ => break 0,
             }

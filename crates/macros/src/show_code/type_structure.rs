@@ -6,7 +6,7 @@ use super::literals::constant_structure;
 use super::printed::Printed;
 use crate::host::Host;
 use syntax::ast::constant::Constant as C;
-use tasty::{Const, Kind, SymbolId, Type, TypeId, constant};
+use tasty::{Const, Kind, NameId, SymbolId, Type, TypeId, constant};
 
 const STRUCTURE: &str = "Printer.TypeReprStructure of a type the frontend does not print";
 
@@ -24,7 +24,8 @@ impl Host {
     }
 
     fn visit_type(&mut self, t: TypeId, out: &mut Printed) -> Result<(), &'static str> {
-        match self.u.types().get(t).clone() {
+        let ty = *self.u.ty(t);
+        match ty {
             Type::Constant(tag, bits) => {
                 let c = match constant(tag, bits).ok_or(STRUCTURE)? {
                     Const::Unit => C::Unit,
@@ -45,7 +46,7 @@ impl Host {
             }
             Type::Str(s) => {
                 out.push_str("ConstantType(");
-                constant_structure(&C::String(s.encode_utf16().collect()), out)?;
+                constant_structure(&C::String(self.u.name(s).encode_utf16().collect()), out)?;
                 out.push(')');
             }
             Type::Sym(prefix, s) => {
@@ -60,19 +61,25 @@ impl Host {
                 };
                 self.reference(term, prefix, &name, out)?;
             }
-            Type::TypeRef(p, n) => self.reference(false, p, &n, out)?,
-            Type::TermRef(p, n) => self.reference(true, p, &n, out)?,
+            Type::TypeRef(p, n) | Type::TermRef(p, n) => {
+                let term = matches!(self.u.ty(t), Type::TermRef(..));
+                let n = self.u.name(n).to_owned();
+                self.reference(term, p, &n, out)?
+            }
             Type::Package(p) => self.package_ref(p, out)?,
             Type::This(inner) => match self.package_class(inner) {
                 Some(pkg) => out.push_str(&package_this(&pkg)),
                 None => self.node(out, "ThisType", &[inner], None)?,
             },
             Type::NoPrefix => out.push_str("NoPrefix()"),
-            Type::Applied(tycon, args) => self.node(out, "AppliedType", &[tycon], Some(&args))?,
+            Type::Applied(tycon, args) => {
+                let args = self.u.types_of(args).to_vec();
+                self.node(out, "AppliedType", &[tycon], Some(&args))?
+            }
             Type::Refined(parent, name, info) => {
                 out.push_str("Refinement(");
                 self.visit_type(parent, out)?;
-                out.push_str(&format!(", \"{name}\", "));
+                out.push_str(&format!(", \"{}\", ", self.u.name(name)));
                 self.visit_type(info, out)?;
                 out.push(')');
             }
@@ -84,12 +91,22 @@ impl Host {
             Type::Super(this, sup) => self.node(out, "SuperType", &[this, sup], None)?,
             Type::MatchCase(pat, rhs) => self.node(out, "MatchCase", &[pat, rhs], None)?,
             Type::Match { bound, scrutinee, cases } => {
+                let cases = self.u.types_of(cases).to_vec();
                 self.node(out, "MatchType", &[bound, scrutinee], Some(&cases))?
             }
             Type::Param(_, i) => out.push_str(&format!("ParamRef(binder, {i})")),
-            Type::Method { params, result, .. } => self.lambda(out, "MethodType", &params, result)?,
-            Type::Poly { params, result, .. } => self.lambda(out, "PolyType", &params, result)?,
-            Type::Lambda { params, result, .. } => self.lambda(out, "TypeLambda", &params, result)?,
+            Type::Method { params, result, .. } => {
+                let params = self.u.params_of(params).to_vec();
+                self.lambda(out, "MethodType", &params, result)?
+            }
+            Type::Poly { params, result, .. } => {
+                let params = self.u.params_of(params).to_vec();
+                self.lambda(out, "PolyType", &params, result)?
+            }
+            Type::Lambda { params, result, .. } => {
+                let params = self.u.params_of(params).to_vec();
+                self.lambda(out, "TypeLambda", &params, result)?
+            }
             Type::Annotated(inner, annot) if self.is_synthetic_annotation(annot) => {
                 out.push_str("AnnotatedType(");
                 self.visit_type(inner, out)?;
@@ -104,12 +121,14 @@ impl Host {
     /// whose constructor takes no arguments.
     fn is_synthetic_annotation(&mut self, annot: TypeId) -> bool {
         let Some(c) = self.u.class_symbol(annot) else { return false };
-        let internal =
-            self.u.symbol(c).owner.is_some_and(|o| self.u.full_name(o) == "scala.annotation.internal");
+        let internal = self
+            .u
+            .symbol(c)
+            .owner
+            .is_some_and(|o| self.u.full_name(o) == tasty::defn::SCALA_ANNOTATION_INTERNAL);
         let Some(init) = self.primary_constructor(c).filter(|_| internal) else { return false };
         let info = self.u.info(init);
-        matches!(self.u.types().get(info), Type::Method { params, result, .. }
-            if params.is_empty() && !matches!(self.u.types().get(*result), Type::Method { .. }))
+        self.u.method(info).is_some_and(|m| m.params.is_empty() && self.u.method(m.result).is_none())
     }
 
     /// The `TermRef` of package `p` (dotty's `p.termRef`, whose prefix is the owner's `this`); the
@@ -131,11 +150,14 @@ impl Host {
 
     /// The name of the class of the package `t` refers to, `<empty>` for the root.
     fn package_class(&mut self, t: TypeId) -> Option<String> {
-        let p = match self.u.types().get(t).clone() {
+        let p = match *self.u.ty(t) {
             Type::Package(p) => p,
             Type::Sym(_, p) if self.u.symbol(p).kind == Kind::Package => p,
             Type::TermRef(..) => self.u.resolve_ref(t).filter(|&p| self.u.symbol(p).kind == Kind::Package)?,
-            Type::PackageName(n) => return Some(n.rsplit('.').next().unwrap_or(&n).to_owned()),
+            Type::PackageName(n) => {
+                let n = self.u.name(n);
+                return Some(n.rsplit('.').next().unwrap_or(n).to_owned());
+            }
             _ => return None,
         };
         Some(match p == self.u.root() {
@@ -184,10 +206,10 @@ impl Host {
         &mut self,
         out: &mut Printed,
         what: &str,
-        params: &[(String, TypeId)],
+        params: &[(NameId, TypeId)],
         result: TypeId,
     ) -> Result<(), &'static str> {
-        let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
+        let names: Vec<&str> = params.iter().map(|&(n, _)| self.u.name(n)).collect();
         match names.is_empty() {
             true => out.push_str(&format!("{what}(Nil, ")),
             false => out.push_str(&format!("{what}(List({}), ", names.join(", "))),

@@ -48,20 +48,21 @@ impl Universe {
     /// The signature of member `s` as a member of `site`, erased as Scala 2 erases if `scala2`.
     pub fn signature(&mut self, site: TypeId, s: SymbolId, scala2: bool) -> Signature {
         let mut t = self.member_info(site, s);
-        if !matches!(self.types().get(t), Type::Method { .. } | Type::Poly { .. }) {
+        if !matches!(self.ty(t), Type::Method { .. } | Type::Poly { .. }) {
             return None;
         }
         let previous = self.set_scala2_erasure(scala2);
         let (mut parts, mut bounds) = (Vec::new(), Vec::new());
         loop {
-            match self.types().get(t).clone() {
+            match *self.ty(t) {
                 Type::Poly { binder, params, result } => {
+                    let params = self.params_of(params);
                     parts.push(Err(params.len()));
-                    bounds.push((binder, params.into_iter().map(|(_, b)| b).collect::<Vec<_>>()));
+                    bounds.push((binder, params.iter().map(|&(_, b)| b).collect::<Vec<_>>()));
                     t = result;
                 }
                 Type::Method { params, result, .. } => {
-                    parts.extend(params.into_iter().map(|(_, p)| Ok(p)));
+                    parts.extend(self.params_of(params).iter().map(|&(_, p)| Ok(p)));
                     t = result;
                 }
                 _ => break,

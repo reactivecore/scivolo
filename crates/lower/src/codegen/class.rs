@@ -4,7 +4,6 @@
 
 use super::Gen;
 use crate::phases::function_classes::{erased_classes, erased_parent};
-use crate::symbols::is_static_module;
 use crate::{Result, unsupported};
 use nir::{Attr, Defn, DefnKind};
 use tasty::tags::ABSTRACT;
@@ -42,7 +41,7 @@ impl Gen<'_, '_> {
         let attrs = self.class_attrs(sym, attrs);
         let name = self.type_name(sym);
         let traits = self.class_interfaces(sym);
-        let kind = if is_static_module(self.l.u, sym) {
+        let kind = if self.l.u.is_static_module(sym) {
             DefnKind::Module { parent: self.class_parent(sym), traits }
         } else if self.l.u.is_trait(sym) {
             DefnKind::Trait { traits }

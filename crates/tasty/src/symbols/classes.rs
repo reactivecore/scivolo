@@ -23,7 +23,7 @@ impl Universe {
             Some((file, id)) if self.symbol(c).kind == Kind::Class => self.decode_parents(file, id),
             _ => Vec::new(),
         };
-        if self.full_name(c) == "scala.runtime.BoxedUnit" {
+        if self.full_name(c) == super::defn::BOXED_UNIT {
             parents.retain(|&p| {
                 self.class_symbol(p).is_none_or(|p| self.full_name(p) != "java.io.Serializable")
             });
@@ -51,9 +51,11 @@ impl Universe {
 
     /// `t`, or the body of type lambda `l` with its parameters replaced if `t` is `l[args]`.
     pub fn beta_reduced(&mut self, t: TypeId) -> TypeId {
-        let Type::Applied(tycon, args) = self.types().get(t).clone() else { return t };
-        let Type::Lambda { binder, params, result } = self.types().get(tycon).clone() else { return t };
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let Some((tycon, args)) = self.applied(t).map(|(c, a)| (c, a.to_vec())) else { return t };
+        let Some((binder, names, result)) = self.lambda(tycon).map(|l| (l.binder, l.names(), l.result))
+        else {
+            return t;
+        };
         self.subst(result, binder, &names, &args)
     }
 
@@ -123,7 +125,7 @@ impl Universe {
 
     /// The class type parameter reference `t` names: its class and index.
     pub fn class_param(&mut self, t: TypeId) -> Option<(SymbolId, usize)> {
-        let s = match *self.types().get(t) {
+        let s = match *self.ty(t) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.resolve_ref(t)?,
             _ => return None,
@@ -142,7 +144,7 @@ impl Universe {
 
     fn class_symbol_within(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
         let depth = depth.checked_sub(1)?;
-        let s = match *self.types().get(t) {
+        let s = match *self.ty(t) {
             Type::Sym(_, s) => s,
             Type::TypeRef(..) => self.resolve_ref(t)?,
             Type::Applied(inner, _)
@@ -175,8 +177,8 @@ fn parent_type(d: &mut Decoder, ast: &Ast, id: NodeId) -> TypeId {
             if matches!(d.get(fun), Type::Applied(..)) {
                 return fun;
             }
-            let args = k[1..].iter().map(|&a| d.ty(a)).collect();
-            d.intern(Type::Applied(fun, args))
+            let args: Vec<_> = k[1..].iter().map(|&a| d.ty(a)).collect();
+            d.intern_applied(fun, &args)
         }
         APPLY | TYPEAPPLY | SELECT | SELECTin | BLOCK if !k.is_empty() => parent_type(d, ast, k[0]),
         NEW if !k.is_empty() => d.ty(k[0]),

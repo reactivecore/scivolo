@@ -40,7 +40,7 @@ impl TreePickler<'_> {
             T::TypeApply { fun, args } => self.type_apply(fun, args),
             T::Literal { value } => {
                 let t = typed()?;
-                match self.u.types().get(t) {
+                match *self.u.ty(t) {
                     Type::Constant(..) | Type::Str(_) => self.constant(t),
                     _ => {
                         let t = constant_type_of(self.u, &value);
@@ -140,7 +140,7 @@ impl TreePickler<'_> {
 
     /// Whether `t` is a reference to a term or package (dotty's `TermRef`).
     pub fn is_term_ref(&self, t: tasty::TypeId) -> bool {
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
             Type::TermRef(..) | Type::Package(_) | Type::PackageName(_) => true,
             _ => false,

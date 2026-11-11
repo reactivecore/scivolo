@@ -13,7 +13,7 @@ mod refinements;
 pub use annotated::escape;
 pub use highlight::Highlight;
 
-use super::{Binder, Type, TypeId};
+use super::{Binder, NameId, Type, TypeId};
 use crate::Universe;
 use crate::tags::INFIX;
 use crate::view::{Const, constant};
@@ -35,7 +35,7 @@ impl Universe {
 struct SourcePrinter<'u> {
     u: &'u mut Universe,
     /// The parameter names of the enclosing binding types.
-    binders: Vec<(Binder, Vec<String>)>,
+    binders: Vec<(Binder, Vec<NameId>)>,
     out: String,
     indent: usize,
     /// Whether references print with their prefixes.
@@ -45,7 +45,7 @@ struct SourcePrinter<'u> {
 
 impl SourcePrinter<'_> {
     fn print(&mut self, t: TypeId) -> Shown {
-        match self.u.types().get(t).clone() {
+        match *self.u.ty(t) {
             Type::Constant(tag, bits) => {
                 let text = match constant(tag, bits) {
                     Some(Const::Int(n)) => n.to_string(),
@@ -57,11 +57,15 @@ impl SourcePrinter<'_> {
                 };
                 self.paint(Highlight::Literal, &text);
             }
-            Type::Str(s) => self.string(&s),
+            Type::Str(s) => {
+                let s = self.u.name(s).to_owned();
+                self.string(&s)
+            }
             Type::Annotated(inner, annot) => self.annotated(inner, annot)?,
             Type::NoPrefix => self.out.push_str("<NoPrefix() does not have a source representation>"),
             Type::TypeRef(p, n) => {
                 self.type_prefix(p)?;
+                let n = self.u.name(n).to_owned();
                 self.paint(Highlight::Type, n.strip_suffix('$').unwrap_or(&n));
             }
             Type::Sym(p, s) if self.u.symbol(s).kind.is_type() => {
@@ -85,7 +89,10 @@ impl SourcePrinter<'_> {
                     }
                 }
             }
-            Type::TermRef(p, n) => self.term_ref(p, &n)?,
+            Type::TermRef(p, n) => {
+                let n = self.u.name(n).to_owned();
+                self.term_ref(p, &n)?
+            }
             Type::This(c) => self.this(c)?,
             Type::Package(s) if s == self.u.root() => self.paint(Highlight::Type, "_root_"),
             Type::Package(s) if self.full => self.package_name(s, true),
@@ -94,7 +101,10 @@ impl SourcePrinter<'_> {
                 self.print(this)?;
                 self.paint(Highlight::Type, ".super");
             }
-            Type::Applied(tycon, args) => self.applied(tycon, &args)?,
+            Type::Applied(tycon, args) => {
+                let args = self.u.types_of(args).to_vec();
+                self.applied(tycon, &args)?
+            }
             Type::And(a, b) => self.infix(a, Highlight::Type, " & ", b)?,
             Type::Or(a, b, _) => self.infix(a, Highlight::Type, " | ", b)?,
             Type::ByName(r) => {
@@ -113,7 +123,10 @@ impl SourcePrinter<'_> {
                 self.binding(tpe)?
             }
             Type::Refined(..) => self.refinement(t)?,
-            Type::Match { scrutinee, cases, .. } => self.match_type(scrutinee, &cases)?,
+            Type::Match { scrutinee, cases, .. } => {
+                let cases = self.u.types_of(cases).to_vec();
+                self.match_type(scrutinee, &cases)?
+            }
             Type::MatchCase(pat, body) => {
                 self.out.push_str("case ");
                 self.infix(pat, Highlight::Plain, " => ", body)?;
@@ -137,13 +150,11 @@ impl SourcePrinter<'_> {
     }
 
     fn applied(&mut self, tycon: TypeId, args: &[TypeId]) -> Shown {
-        let class = self.u.class_symbol(tycon);
-        if class.is_some_and(|c| self.u.full_name(c) == "scala.<repeated>") {
+        if self.u.is_class_named(tycon, crate::defn::REPEATED) {
             self.out.push_str("_*");
             return Ok(());
         }
-        let infix =
-            matches!(*self.u.types().get(tycon), Type::Sym(_, s) if self.u.symbol(s).flags.has(INFIX));
+        let infix = matches!(*self.u.ty(tycon), Type::Sym(_, s) if self.u.symbol(s).flags.has(INFIX));
         if !self.full && infix && args.len() == 2 {
             self.out.push('(');
             self.print(args[0])?;
@@ -154,7 +165,7 @@ impl SourcePrinter<'_> {
             self.out.push(')');
             return Ok(());
         }
-        if matches!(self.u.types().get(tycon), Type::Lambda { .. }) {
+        if self.u.lambda(tycon).is_some() {
             self.out.push('(');
             self.print(tycon)?;
             self.out.push(')');

@@ -47,15 +47,13 @@ impl Expansion<'_, '_> {
             o = self.i.u.symbol(x).owner;
         }
         let inside = o.is_some();
-        let source = self.i.u.source_module(module).filter(|_| self.i.is_static_owner(module) && !inside);
+        let source = self.i.u.source_module(module).filter(|_| self.i.u.is_static_owner(module) && !inside);
         let Some(source) = source.filter(|_| this.is_empty()) else { return Err(refused) };
         let module_ref = crate::defn::type_ref(self.i.u, source);
         let point = Span::at(self.i.tpd.span(self.call).point());
         let at = self.opaque_refs.len();
-        let existing = self.opaque_refs.iter().find_map(|&(r, p)| match *self.i.u.types().get(r) {
-            Type::Sym(_, s) if s == source => Some(p),
-            _ => None,
-        });
+        let existing =
+            self.opaque_refs.iter().find_map(|&(r, p)| (self.i.u.sym_of(r) == Some(source)).then_some(p));
         let opaque = match existing {
             Some(p) => p,
             None => {
@@ -83,7 +81,7 @@ impl Expansion<'_, '_> {
     fn open_class_this(&mut self, meth: SymbolId, proxy: SymbolId) -> Result<(), Unsupported> {
         let refused = self.err("inline method of a class with opaque types through a prefix that is no path");
         let path = self.i.u.info(proxy);
-        if !matches!(*self.i.u.types().get(path), Type::Sym(_, s) if self.i.u.symbol(s).kind.is_term()) {
+        if !self.i.u.sym_of(path).is_some_and(|s| self.i.u.symbol(s).kind.is_term()) {
             return Err(refused);
         }
         let call_span = self.i.tpd.span(self.call);
@@ -131,7 +129,7 @@ impl Inlining<'_> {
             if s.kind != Kind::Type || !s.flags.has(OPAQUE) {
                 continue;
             }
-            let name = s.name.clone();
+            let name = self.u.interned_name(d);
             let Some(alias) = self.u.opaque_rhs(d) else { continue };
             let seen = self.u.as_seen_from(alias, module_ref, module);
             let info = self.u.intern_type(Type::Alias(seen));

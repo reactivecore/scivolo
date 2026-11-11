@@ -20,7 +20,7 @@ impl Typer<'_> {
         if !self.is_loose_member(s) && !overridden.iter().any(|&m| self.is_loose_member(m)) {
             return false;
         }
-        let any = self.u.builtins().any;
+        let any = self.u.defn().any;
         let scala2 = std::iter::once(owner)
             .chain(overridden.iter().filter_map(|&m| self.u.symbol(m).owner))
             .any(|o| self.u.is_scala2(o));
@@ -38,14 +38,14 @@ impl Typer<'_> {
     pub fn drops_empty_args(&mut self, tree: TNodeId) -> bool {
         let tpe = self.tpd.tpe(tree);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
+        if matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
             return false;
         }
         let Some(s) = self.tpd.sym(tree) else { return false };
         let Some(owner) = self.u.symbol(s).owner else { return false };
         self.overridden_members(s, owner).into_iter().any(|m| {
             let info = self.u.info(m);
-            matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty())
+            self.u.method(info).is_some_and(|m| m.params.is_empty())
         })
     }
 
@@ -55,7 +55,7 @@ impl Typer<'_> {
         let site = crate::defn::type_ref(self.u, owner);
         let mut out = Vec::new();
         for base in self.u.linearization(owner).into_iter().skip(1) {
-            for m in self.u.decl(base, &name).unwrap_or_default() {
+            for m in self.u.decls_named(base, &name) {
                 let private = self.u.symbol(m).flags.has(tasty::tags::PRIVATE);
                 if !private && self.same_member(site, m, s) {
                     out.push(m);
@@ -69,6 +69,6 @@ impl Typer<'_> {
     /// Scala 2 standard library.
     pub fn is_loose_member(&mut self, s: SymbolId) -> bool {
         let Some(owner) = self.u.symbol(s).owner else { return false };
-        owner == self.u.builtins().any || self.u.is_scala2(owner) || self.is_java_member(s)
+        owner == self.u.defn().any || self.u.is_scala2(owner) || self.is_java_member(s)
     }
 }

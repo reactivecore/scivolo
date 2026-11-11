@@ -14,7 +14,7 @@ impl Linter<'_> {
         let tpe = self.tpd.tpe(t);
         let core = self.tpd.meth_part(t);
         let T::Select { qualifier: receiver, .. } = *self.tpd.tree(core) else {
-            return matches!(u.types().get(tpe), Type::This(_));
+            return u.this_of(tpe).is_some();
         };
         let recv = match *self.tpd.tree(receiver) {
             T::This { .. } => singleton_symbol(u, self.tpd.tpe(receiver)),
@@ -26,7 +26,7 @@ impl Linter<'_> {
         let Some(f) = self.tpd.sym(core) else { return false };
         let mut info = u.info(f);
         loop {
-            match *u.types().get(info) {
+            match *u.ty(info) {
                 Type::Method { result, .. } => match singleton_symbol(u, result) {
                     Some(s) => {
                         let applied = matches!(self.tpd.tree(receiver), T::Apply { .. });
@@ -74,7 +74,7 @@ fn check_single(u: &Universe, s: SymbolId, recv: Option<SymbolId>, applied: bool
 
 /// The symbol of `t` if it is a `this` type or a reference to a term.
 fn singleton_symbol(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::This(c) => u.class_symbol(c),
         Type::Sym(_, s) if u.symbol(s).kind.is_term() => Some(s),
         Type::TermRef(..) => u.resolve_ref(t),

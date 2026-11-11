@@ -12,7 +12,7 @@ impl Typer<'_> {
     pub fn class_members(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
         let classes = self.completed_linearization(c);
         if name == "<init>" {
-            return self.u.decl(c, name).unwrap_or_default();
+            return self.u.decls_named(c, name);
         }
         self.members_of_bases(c, &classes, name, true)
     }
@@ -21,10 +21,10 @@ impl Typer<'_> {
     /// private (dotty's `nonPrivateMember`).
     pub fn non_private_members(&mut self, t: TypeId, name: &str) -> Vec<SymbolId> {
         let mut widened = self.u.widen(t);
-        if matches!(self.u.types().get(widened), Type::Or(..)) {
+        if matches!(self.u.ty(widened), Type::Or(..)) {
             widened = self.u.join(widened).unwrap_or(widened);
         }
-        if let Type::And(a, b) = *self.u.types().get(widened) {
+        if let Type::And(a, b) = *self.u.ty(widened) {
             let mut out = self.non_private_members(a, name);
             for m in self.non_private_members(b, name) {
                 if !out.contains(&m) {
@@ -49,7 +49,7 @@ impl Typer<'_> {
     /// without `Object` under explicit nulls.
     fn completed_linearization(&mut self, c: SymbolId) -> Vec<SymbolId> {
         self.complete(c);
-        let b = self.u.builtins();
+        let b = self.u.defn();
         if c == b.null && self.u.null_mode().explicit {
             return vec![b.null, b.matchable, b.any];
         }
@@ -74,7 +74,7 @@ impl Typer<'_> {
         let site = crate::defn::type_ref(self.u, c);
         let mut out: Vec<SymbolId> = Vec::new();
         for &base in classes {
-            let decls: Vec<SymbolId> = self.u.decl(base, name).unwrap_or_default();
+            let decls: Vec<SymbolId> = self.u.decls_named(base, name);
             let decls: Vec<SymbolId> = decls
                 .into_iter()
                 .filter(|&m| base == c && own_private || !self.u.symbol(m).flags.has(tasty::tags::PRIVATE))

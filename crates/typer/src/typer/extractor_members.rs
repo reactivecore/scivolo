@@ -5,10 +5,9 @@
 //! `unapplySeqTypeElemTp`).
 
 use super::Typer;
+use crate::defn::{BOOLEAN, INT};
 use tasty::{Binding, Kind, Type, TypeId};
 
-/// The result type of an extractor that matches without binding anything.
-pub const BOOLEAN: &str = "scala.Boolean";
 /// The class of generic tuples `A *: B *: EmptyTuple`, whose elements patterns match.
 pub const NON_EMPTY_TUPLE: &str = "scala.NonEmptyTuple";
 /// The class of sequences, whose elements the patterns of an `unapplySeq` match.
@@ -41,7 +40,7 @@ pub fn extractor_member(t: &mut Typer<'_>, tpe: TypeId, name: &str) -> Result<Op
     let [sym] = found.syms[..] else { return Err("overloaded extractor member") };
     let member = t.ref_type(Some(tpe), sym);
     let info = t.method_info(member).unwrap_or(member);
-    Ok(match *t.u.types().get(info) {
+    Ok(match *t.u.ty(info) {
         Type::Method { .. } | Type::Poly { .. } => None,
         Type::Bounds(..) => return Err("extractor member typed by a wildcard argument"),
         Type::ByName(r) => Some(r),
@@ -56,7 +55,7 @@ pub fn seq_elem_type(t: &mut Typer<'_>, tpe: TypeId) -> Option<TypeId> {
     let elem = int_method_results(t, tpe, "apply").into_iter().next()?;
     let seq_class = t.resolve_full_name(SEQ, true)?;
     let seq_class = crate::defn::type_ref(t.u, seq_class);
-    let seq = t.u.intern_type(Type::Applied(seq_class, vec![elem]));
+    let seq = t.u.intern_applied(seq_class, &[elem]);
 
     let length = int_method_results(t, tpe, "lengthCompare").into_iter().any(|r| is_int(t, r))
         || parameterless_results(t, tpe, "length").into_iter().any(|r| is_int(t, r));
@@ -74,7 +73,7 @@ fn int_method_results(t: &mut Typer<'_>, tpe: TypeId, name: &str) -> Vec<TypeId>
         let Some(Binding { params, result, .. }) = t.u.method(info) else { continue };
         if let [(_, index)] = params[..]
             && is_int(t, index)
-            && !matches!(t.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
+            && !matches!(t.u.ty(result), Type::Method { .. } | Type::Poly { .. })
         {
             out.push(result);
         }
@@ -83,7 +82,7 @@ fn int_method_results(t: &mut Typer<'_>, tpe: TypeId, name: &str) -> Vec<TypeId>
 }
 
 fn is_int(t: &mut Typer<'_>, tpe: TypeId) -> bool {
-    t.u.class_symbol(tpe).is_some_and(|c| t.u.full_name(c) == crate::defn::INT)
+    t.u.is_class_named(tpe, INT)
 }
 
 /// The results of the alternatives of member `name` of `tpe` that are parameterless methods.
@@ -95,7 +94,7 @@ fn parameterless_results(t: &mut Typer<'_>, tpe: TypeId, name: &str) -> Vec<Type
         }
         let member = t.ref_type(Some(tpe), s);
         let info = t.method_info(member).unwrap_or(member);
-        match *t.u.types().get(info) {
+        match *t.u.ty(info) {
             Type::Method { .. } | Type::Poly { .. } => {}
             Type::ByName(r) => out.push(r),
             _ => out.push(info),

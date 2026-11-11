@@ -92,7 +92,7 @@ impl Typer<'_> {
         for (i, &e) in elems.iter().enumerate().rev() {
             let elem_span = self.tpd.span(e);
             let tpt = self.type_tree(pair, elem_span.start_pos(), false);
-            let tpe = self.u.intern_type(Type::Applied(pair, vec![self.tpd.tpe(e), self.tpd.tpe(acc)]));
+            let tpe = self.u.intern_applied(pair, &[self.tpd.tpe(e), self.tpd.tpe(acc)]);
             let args = self.tpd.list(&[e, acc]);
             let at = match i {
                 0 => span,
@@ -117,14 +117,14 @@ impl Typer<'_> {
     /// the `TupleXXL` class and `pt` a tuple type (dotty's `typedBind`).
     pub fn binds_tuple_pt(&mut self, body: TypeId, pt: TypeId) -> bool {
         let xxl = self.resolve_full_name("scala.runtime.TupleXXL", true);
-        let class = matches!(self.u.types().get(body), Type::Sym(..) | Type::TypeRef(..));
+        let class = matches!(self.u.ty(body), Type::Sym(..) | Type::TypeRef(..));
         class && xxl.is_some() && self.u.class_symbol(body) == xxl && self.tuple_element_types(pt).is_some()
     }
 
     /// `qual.$asInstanceOf$[to]` (dotty's `cast`).
     pub fn type_cast(&mut self, qual: TNodeId, to: TypeId) -> TNodeId {
         let tpe = self.tpd.tpe(qual);
-        let any = self.u.builtins().any;
+        let any = self.u.defn().any;
         let m = self.u.decl(any, "$asInstanceOf$").ok().and_then(|ms| ms.first().copied());
         let Some(m) = m else { return qual };
         let span = self.tpd.span(qual).to_synthetic();

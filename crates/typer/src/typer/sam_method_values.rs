@@ -18,8 +18,7 @@ impl Typer<'_> {
         if java && !super::java_classes::is_functional_interface(&self.u.full_name(class)) {
             return Err(outside);
         }
-        let annotated =
-            self.u.annotations(class).iter().any(|&a| self.u.full_name(a) == "java.lang.FunctionalInterface");
+        let annotated = self.u.has_recorded_annotation(class, crate::defn::FUNCTIONAL_INTERFACE);
         Ok((true, (!java && !annotated).then_some(sam.parent)))
     }
 

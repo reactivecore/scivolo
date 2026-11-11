@@ -193,6 +193,6 @@ fn is_boolean_op(l: &Lower, fun: TNodeId) -> bool {
         let s = l.u.symbol(m);
         s.kind == Kind::Def
             && (s.name == "||" || s.name == "&&")
-            && s.owner.is_some_and(|o| l.u.full_name(o) == "scala.Boolean")
+            && s.owner.is_some_and(|o| l.u.full_name(o) == tasty::defn::BOOLEAN)
     })
 }

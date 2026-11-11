@@ -30,7 +30,7 @@ pub fn is_erased(u: &Universe, s: SymbolId) -> bool {
 /// Whether `tpe` is the type of a single value or an object's class, which `null` does not
 /// conform to (dotty's `isNullableClass`).
 pub fn is_singleton(u: &mut Universe, tpe: tasty::TypeId) -> bool {
-    match *u.types().get(tpe) {
+    match *u.ty(tpe) {
         tasty::Type::Sym(_, s) if u.symbol(s).kind.is_term() => true,
         tasty::Type::TermRef(..) => true,
         _ => u.class_symbol(tpe).is_some_and(|c| u.is_module_class(c)),
@@ -63,14 +63,9 @@ pub fn is_java_field(u: &Universe, s: SymbolId) -> bool {
     javalib || u.is_java_field(s)
 }
 
-/// Whether `s` is a package or an object reachable through static paths.
-pub fn is_static_owner(u: &Universe, s: SymbolId) -> bool {
-    u.symbol(s).kind == Kind::Package || is_static_module(u, s)
-}
-
 /// Whether the owner of `s` is a static owner.
 pub fn is_static(u: &Universe, s: SymbolId) -> bool {
-    u.symbol(s).owner.is_some_and(|o| is_static_owner(u, o))
+    u.symbol(s).owner.is_some_and(|o| u.is_static_owner(o))
 }
 
 pub const EXTERN: &str = "scala.scalanative.unsafe.package$.extern";
@@ -78,9 +73,7 @@ pub const EXTERN: &str = "scala.scalanative.unsafe.package$.extern";
 /// Whether `s` or its owner is Scala Native's `@extern`, unless `s` is not extern: an extension
 /// method or implicit class conversion of an extern object (nscplugin's `PrepNativeInterop`).
 pub fn is_extern(u: &mut Universe, s: SymbolId) -> bool {
-    let annotated = |u: &Universe, s: SymbolId| {
-        u.symbol(s).is_extern || u.annotations(s).iter().any(|&c| u.full_name(c) == EXTERN)
-    };
+    let annotated = |u: &Universe, s: SymbolId| u.symbol(s).is_extern || u.has_recorded_annotation(s, EXTERN);
     let in_extern = u.symbol(s).owner.is_some_and(|o| annotated(u, o));
     if !annotated(u, s) && !in_extern {
         return false;
@@ -95,10 +88,6 @@ fn is_implicit_class_ctor(u: &Universe, m: SymbolId) -> bool {
     let Some(owner) = u.symbol(m).owner.filter(|_| has(u, m, IMPLICIT)) else { return false };
     let name = &u.symbol(m).name;
     u.symbol(owner).decls.iter().any(|&c| u.is_class(c) && has(u, c, IMPLICIT) && u.symbol(c).name == *name)
-}
-
-pub fn is_static_module(u: &Universe, s: SymbolId) -> bool {
-    u.is_module_class(s) && is_static(u, s)
 }
 
 /// The javalib classes that JDK classes extend and the JDK does not, each with the JDK class

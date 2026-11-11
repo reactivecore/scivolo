@@ -25,17 +25,10 @@ pub fn class_prefix(l: &mut Lower, param: TypeId, class: SymbolId) -> Option<Typ
     if l.u.symbol(owner).kind != Kind::Class {
         return None;
     }
-    let mut t = l.u.dealias(param);
-    if let Type::Applied(tycon, _) = *l.u.types().get(t) {
-        t = tycon;
-    }
-    if let Type::This(tref) = *l.u.types().get(t) {
-        t = tref;
-    }
-    match *l.u.types().get(t) {
-        Type::Sym(Some(pre), s) if s == class => Some(pre),
-        _ => None,
-    }
+    let t = l.u.dealias(param);
+    let t = l.u.applied(t).map_or(t, |(tycon, _)| tycon);
+    let t = l.u.this_of(t).unwrap_or(t);
+    l.u.sym_ref(t).filter(|&(_, s)| s == class).and_then(|(pre, _)| pre)
 }
 
 /// The prefix of child `c` of sealed class `sealed` of prefix `pre`, seen from class `from`:
@@ -55,14 +48,11 @@ pub fn child_prefix(
     };
     let (parents, children) = (owners(l, sealed), owners(l, c));
     let common = parents.iter().zip(&children).take_while(|(a, b)| a == b).count();
-    let mut prefix = Some(pre).filter(|&p| *l.u.types().get(p) != Type::NoPrefix);
+    let mut prefix = Some(pre).filter(|&p| *l.u.ty(p) != Type::NoPrefix);
     for _ in common..parents.len() {
-        prefix = match *l.u.types().get(prefix?) {
+        prefix = match *l.u.ty(prefix?) {
             Type::Sym(q, _) => q,
-            Type::This(tref) => match *l.u.types().get(tref) {
-                Type::Sym(q, _) => q,
-                _ => return None,
-            },
+            Type::This(tref) => l.u.sym_ref(tref)?.0,
             _ => return None,
         };
     }

@@ -10,10 +10,9 @@ use super::tags::{TAG_PATH, encode, tag_ref};
 use super::{pickled, types, unpickled};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
+use tasty::defn::TYPE_OF;
 use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
-
-const TYPE_OF: &str = "scala.quoted.Type$.of";
 
 /// A type quote: `Type.of[body]`, the type application the typer recorded the tags of, and the
 /// `Quotes` it is applied to.
@@ -42,15 +41,16 @@ pub fn pickle(l: &mut Lower, t: TNodeId, q: TypeQuote, owner: SymbolId) -> Resul
     let tpe = l.tpd.tpe(q.body);
     let tags = l.tpd.quote_tags(q.of).to_vec();
     let used = heal(l, q.body, &tags)?;
+    let underlying = l.u.intern_name(UNDERLYING);
     if let &[tag] = &used[..]
         && !l.spliced_type_quotes.contains(&q.of)
-        && l.tpd.tpe(q.body) == l.u.intern_type(Type::TypeRef(tag, UNDERLYING.into()))
+        && l.tpd.tpe(q.body) == l.u.intern_type(Type::TypeRef(tag, underlying))
     {
         let tag = tag_ref(l, tag, l.tpd.span(t)).or_else(|()| unsupported(span, TAG_PATH))?;
         l.copy_node(t, tag);
         return Ok(());
     }
-    let class = match *l.u.types().get(tpe) {
+    let class = match *l.u.ty(tpe) {
         Type::Sym(_, c) => Some(c),
         Type::TypeRef(..) => l.u.resolve_ref(tpe),
         _ => None,
@@ -89,6 +89,6 @@ fn tagged(l: &mut Lower, q: &TypeQuote, owner: SymbolId) -> Result<TNodeId> {
     let repr = call(l, of, &[class_of]);
     let as_type = call(l, as_type, &[repr]);
     let class = l.u.class_ref("scala.quoted.Type");
-    let quoted = l.u.intern_type(Type::Applied(class, vec![tpe]));
+    let quoted = l.u.intern_applied(class, &[tpe]);
     Ok(l.ensure_conforms(as_type, quoted))
 }

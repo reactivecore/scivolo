@@ -45,7 +45,7 @@ impl Typer<'_> {
             return matches!(*self.ast.tree(def), Tree::DefDef { paramss, .. } if !self.ast.clause_items(paramss).is_empty());
         }
         let info = self.u.info(s);
-        matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+        matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. })
     }
 
     fn enclosing_package(&self, owner: SymbolId) -> SymbolId {

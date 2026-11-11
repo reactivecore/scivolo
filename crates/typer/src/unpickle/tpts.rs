@@ -27,10 +27,9 @@ impl Unpickler<'_> {
             }
             IDENTtpt => {
                 let tpe = self.ty(id);
-                let (tpe, sym) = match self.u.types().get(tpe).clone() {
-                    Type::TypeRef(p, n) => (tpe, self.u.resolve(p, &n, true)),
-                    Type::Sym(_, s) => (tpe, Some(s)),
-                    _ => (tpe, None),
+                let sym = match self.u.type_ref(tpe) {
+                    Some((p, n)) => self.u.resolve(p, n, true),
+                    None => self.u.sym_of(tpe),
                 };
                 let name = self.tname(id, true);
                 self.bare(T::Ident { name }, Some(tpe), sym)
@@ -52,8 +51,8 @@ impl Unpickler<'_> {
                 let args = k[1..].iter().map(|&a| self.tpt(a)).collect::<Result<Vec<_>, _>>()?;
                 let tpe = match k[1..].iter().any(|&a| self.tag(a) == BIND) {
                     true => {
-                        let arg_types = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-                        self.u.intern_type(Type::Applied(self.tpd.tpe(tpt), arg_types))
+                        let arg_types: Vec<_> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+                        self.u.intern_applied(self.tpd.tpe(tpt), &arg_types)
                     }
                     false => self.ty(id),
                 };

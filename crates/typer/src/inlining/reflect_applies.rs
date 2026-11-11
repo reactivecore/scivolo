@@ -7,7 +7,7 @@ use super::Reflect;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::type_apply::instantiate_poly;
 use tasty::tags::CLASSconst;
-use tasty::{Binding, Type, TypeId};
+use tasty::{Binding, NameId, Type, TypeId};
 
 impl Reflect<'_> {
     /// `Apply(fun, args)` (dotty's `tpd.Apply`), of the result of `fun`'s method type for the
@@ -21,7 +21,7 @@ impl Reflect<'_> {
         if params.len() != args.len() {
             return Err("Apply with another number of arguments than parameters");
         }
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let tpes: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         let meth = self.tpd.sym(self.tpd.meth_part(fun));
         let tpe =
@@ -34,7 +34,7 @@ impl Reflect<'_> {
         let span = self.span;
         let refused = "appliedToTypes of a term that takes no such type arguments";
         if let (Some(f), &[arg]) = (self.tpd.sym(fun), args)
-            && self.u.full_name(f) == "scala.Predef$.classOf"
+            && self.u.full_name(f) == crate::defn::CLASS_OF
         {
             let tpe = self.u.intern_type(Type::Constant(CLASSconst, i64::from(arg.0)));
             return Ok(self.tpd.node(T::ClassLiteral { tpe: arg }, span, Some(tpe), None));
@@ -56,7 +56,7 @@ impl Reflect<'_> {
         if params.len() != tpts.len() {
             return Err(refused);
         }
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let args: Vec<TypeId> = tpts.iter().map(|&t| self.tpd.tpe(t)).collect();
         let tpe = instantiate_poly(self.u, result, (binder, &names), &args, self.tpd.sym(fun));
         let span = self.span;

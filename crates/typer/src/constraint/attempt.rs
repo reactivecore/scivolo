@@ -55,11 +55,11 @@ impl Constraint {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tasty::{Type, Universe};
+    use tasty::Universe;
 
     fn var(c: &mut Constraint, u: &mut Universe) -> VarId {
         let t = c.fresh(u);
-        let Type::Var(v) = *u.types().get(t) else { unreachable!() };
+        let Some(v) = u.var(t) else { unreachable!() };
         v
     }
 

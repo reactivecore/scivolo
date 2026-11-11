@@ -99,7 +99,7 @@ fn has_context_result(l: &mut Lower, s: SymbolId) -> bool {
         return false;
     }
     let mut t = l.u.info(s);
-    while let Type::Poly { result, .. } | Type::Method { result, .. } = *l.u.types().get(t) {
+    while let Type::Poly { result, .. } | Type::Method { result, .. } = *l.u.ty(t) {
         t = result;
     }
     is_context_function(l, t)
@@ -163,16 +163,17 @@ fn integrate(l: &mut Lower, def: TNodeId, m: SymbolId) -> usize {
 
 /// Method type `t` with its parameters named `x$0`, `x$1`, … (a context function's method type).
 pub fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
-    let Type::Method { binder, params, result, implicit, contextual } = l.u.types().get(t).clone() else {
-        return t;
-    };
-    let params = params.into_iter().enumerate().map(|(i, (_, p))| (format!("x${i}"), p)).collect();
-    l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+    let Some(m) = l.u.method(t) else { return t };
+    let (binder, result, implicit, contextual) = (m.binder, m.result, m.implicit, m.contextual);
+    let params = m.params.to_vec();
+    let params: Vec<_> =
+        params.into_iter().enumerate().map(|(i, (_, p))| (l.u.intern_name(&format!("x${i}")), p)).collect();
+    l.u.intern_method(binder, &params, result, implicit, contextual)
 }
 
 /// Method type `t` with its final result `result`.
 pub fn with_result(l: &mut Lower, t: TypeId, result: TypeId) -> TypeId {
-    let t = match l.u.types().get(t).clone() {
+    let t = match *l.u.ty(t) {
         Type::Poly { binder, params, result: r } => {
             Type::Poly { binder, params, result: with_result(l, r, result) }
         }
@@ -226,8 +227,8 @@ fn references(l: &Lower, mut t: TNodeId, f: &Flattened) -> bool {
 /// erased parameters.
 fn is_context_apply(l: &mut Lower, t: TNodeId) -> bool {
     let Some(s) = l.tpd.sym(t) else {
-        let Type::TermRef(prefix, name) = l.u.types().get(l.tpd.tpe(t)).clone() else { return false };
-        return name == "apply" && is_erased_context_function(l, prefix);
+        let Some((prefix, name)) = l.u.term_ref(l.tpd.tpe(t)) else { return false };
+        return l.u.name(name) == "apply" && is_erased_context_function(l, prefix);
     };
     let owner = l.u.symbol(s).owner;
     l.u.symbol(s).name == "apply"
@@ -243,12 +244,12 @@ fn is_annotated(l: &mut Lower, s: SymbolId) -> bool {
 pub fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
     let t = l.u.dealias(t);
     let mut base = t;
-    while let Type::Refined(parent, ref name, _) = *l.u.types().get(base)
-        && name == "apply"
+    while let Type::Refined(parent, name, _) = *l.u.ty(base)
+        && l.u.name(name) == "apply"
     {
         base = parent;
     }
-    let Type::Applied(tycon, _) = *l.u.types().get(base) else { return is_erased_context_function(l, t) };
+    let Some((tycon, _)) = l.u.applied(base) else { return is_erased_context_function(l, t) };
     let class = l.u.class_symbol(tycon);
     class.and_then(|c| function_class_arity(l, c)).is_some_and(|(_, context)| context)
 }

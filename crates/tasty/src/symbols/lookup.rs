@@ -102,12 +102,17 @@ impl Universe {
         if let Some((n, contextual)) = super::function_classes::synthetic_arity(name)
             && self.packages.get("scala") == Some(&owner)
         {
-            let object = self.types.intern(crate::Type::Sym(None, self.builtins.object));
+            let object = self.types.intern(crate::Type::Sym(None, self.defn.object));
             return Ok(vec![super::function_classes::enter_class(self, (owner, object), n, contextual)]);
         }
         let objects = self.package_objects(owner)?;
         let found: Vec<SymbolId> = objects.into_iter().flat_map(|o| self.named(o, name).to_vec()).collect();
         Ok(if found.is_empty() { self.jdk_decl(owner, name) } else { found })
+    }
+
+    /// The declarations `decl` finds, none where a file fails to load.
+    pub fn decls_named(&mut self, owner: SymbolId, name: &str) -> Vec<SymbolId> {
+        self.decl(owner, name).unwrap_or_default()
     }
 
     /// The classes of the package objects of package `pkg`, loading only their files.

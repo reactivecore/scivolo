@@ -14,19 +14,19 @@ impl Host {
     /// numbers and an empty text, for a symbol other than a method with parameters).
     pub fn signature(&mut self, s: SymbolId) -> Reflected {
         let mut t = self.u.info(s);
-        let method = matches!(self.u.types().get(t), Type::Poly { .. } | Type::Method { .. });
+        let method = matches!(self.u.ty(t), Type::Poly { .. } | Type::Method { .. });
         if self.u.symbol(s).kind != Kind::Def || !method {
             return (Vec::new(), Some(Vec::new()));
         }
         let (mut numbers, mut names) = (Vec::new(), Vec::new());
         loop {
-            match self.u.types().get(t).clone() {
+            match *self.u.ty(t) {
                 Type::Poly { params, result, .. } => {
-                    numbers.push(params.len() as i32);
+                    numbers.push(self.u.params_of(params).len() as i32);
                     t = result;
                 }
                 Type::Method { params, result, .. } => {
-                    for (_, p) in params {
+                    for (_, p) in self.u.params_of(params).to_vec() {
                         numbers.push(-1);
                         names.push(self.sig_name(p));
                     }
@@ -61,8 +61,8 @@ impl Host {
             }
             Erased::Array(elem) => {
                 let dealiased = self.u.dealias(t);
-                let name = match self.u.types().get(dealiased).clone() {
-                    Type::Applied(_, args) if args.len() == 1 => self.erased_name(args[0], elem),
+                let name = match self.u.applied(dealiased) {
+                    Some((_, &[arg])) => self.erased_name(arg, elem),
                     _ => plain_name(elem),
                 };
                 format!("{name}[]")

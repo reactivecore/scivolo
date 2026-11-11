@@ -4,13 +4,16 @@ use super::super::Cmp;
 use crate::types::{Type, TypeId};
 use crate::{Kind, NOTHING};
 
+/// How deep `is_concrete` looks into a type, as its callers start it.
+pub const CONCRETE_DEPTH: u32 = 32;
+
 impl Cmp<'_> {
     /// Whether `t` determines the instances of captures uniquely: no upper bound of an abstract
     /// type followed (dotty's `MatchTypes.isConcrete`).
     pub fn is_concrete(&mut self, t: TypeId, depth: u32) -> bool {
         let Some(depth) = depth.checked_sub(1) else { return false };
         let t = self.normal(t);
-        match self.u.types().get(t).clone() {
+        match *self.u.ty(t) {
             Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {
                 let Some(s) = self.named(t).and_then(|n| n.sym) else {
                     let d = self.u.dealias(t);
@@ -31,6 +34,7 @@ impl Cmp<'_> {
                 }
             }
             Type::Applied(tycon, args) => {
+                let args = self.u.types_of(args).to_vec();
                 self.is_concrete(tycon, depth)
                     && match self.applied_super_type(tycon, &args) {
                         Some(sup) => self.is_concrete(sup, depth),

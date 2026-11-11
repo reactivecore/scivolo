@@ -9,7 +9,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Makes the `@static` values among `stats` of object class `module` with template body `body`
@@ -44,7 +44,7 @@ pub fn transform(
     let vars: Vec<SymbolId> = inits.iter().map(|&(s, _)| s).filter(|&s| has(l.u, s, MUTABLE)).collect();
     for var in vars {
         let name = format!("{}_=", l.u.symbol(var).name);
-        let setter = l.u.decl(module, &name).unwrap_or_default().into_iter().next();
+        let setter = l.u.decls_named(module, &name).into_iter().next();
         let def = setter.and_then(|s| body.iter().copied().find(|&d| l.tpd.sym(d) == Some(s)));
         let Some(def) = def else { return unsupported(Span::NONE, "@static variables without a setter") };
         set_setter_body(l, def, source, var);
@@ -145,13 +145,7 @@ fn clinit(
     let sym = l.u.define(symbol("<clinit>", Kind::Def, class, flags));
     let unit = l.u.class_ref("scala.Unit");
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: Vec::new(),
-        result: unit,
-        implicit: false,
-        contextual: false,
-    });
+    let info = l.u.intern_method(binder, &[], unit, false, false);
     l.u.set_info(sym, info);
     let stores: Vec<TNodeId> = inits
         .iter()

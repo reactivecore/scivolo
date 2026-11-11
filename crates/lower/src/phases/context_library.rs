@@ -5,7 +5,7 @@
 
 use super::context_results::{is_context_function, synthetic_names, with_result};
 use crate::Lower;
-use tasty::{SymbolId, Type};
+use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
 /// For reference `t` to annotated library method `m`, flattens its type unless done before,
@@ -32,9 +32,9 @@ pub fn flatten_reference(l: &mut Lower, t: TNodeId, m: SymbolId) -> Option<(usiz
         let args = l.u.applied(function)?.1.to_vec();
         let (&last, params) = args.split_last()?;
         let binder = l.u.fresh_binder();
-        let params = params.iter().map(|&p| (String::new(), p)).collect();
-        let method = Type::Method { binder, params, result: last, implicit: false, contextual: true };
-        let method = l.u.intern_type(method);
+        let empty = l.u.intern_name("");
+        let params: Vec<_> = params.iter().map(|&p| (empty, p)).collect();
+        let method = l.u.intern_method(binder, &params, last, false, true);
         methods.push(synthetic_names(l, method));
         result = last;
     }

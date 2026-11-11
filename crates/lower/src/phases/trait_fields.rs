@@ -18,7 +18,7 @@ use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PARAMsetter, PRIVATE, SYNTHETIC};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether `s` is a getter of a concrete value of a trait: a variable's or one with a trait setter.
@@ -120,7 +120,7 @@ pub fn mixed_in(
     }
     let at = if span.exists() { Span::at(span.point()) } else { span };
     if !l.u.no_inits(mixin) && function_class_arity(l, mixin).is_none() {
-        let init = l.u.decl(mixin, "<init>").unwrap_or_default();
+        let init = l.u.decls_named(mixin, "<init>");
         let init = init.into_iter().next().expect("a trait constructor");
         let at = if call_span.exists() { Span::at(call_span.start()) } else { at };
         let sup = l.super_mix(class, mixin, at);
@@ -145,7 +145,7 @@ pub fn implemented_by(l: &mut Lower, class: SymbolId, getter: SymbolId) -> bool 
     }
     let name = l.u.symbol(getter).name.clone();
     for base in l.u.linearization(class) {
-        for m in l.u.decl(base, &name).unwrap_or_default() {
+        for m in l.u.decls_named(base, &name) {
             let member = matches!(l.u.symbol(m).kind, Kind::Val | Kind::Def)
                 && !has(l.u, m, PRIVATE)
                 && !l.bridges.contains(&m);
@@ -175,13 +175,11 @@ pub fn forwarder(l: &mut Lower, class: SymbolId, member: SymbolId, rhs: Option<T
     l.u.copy_annotations(member, sym, "scala.annotation.tailrec");
     let info = l.u.info(member);
     l.u.set_info(sym, info);
-    let params = match l.u.types().get(info).clone() {
-        Type::Method { params, .. } => params,
-        _ => Vec::new(),
-    };
+    let params = l.u.method(info).map(|m| m.params.to_vec()).unwrap_or_default();
     let defs: Vec<TNodeId> = params
         .into_iter()
         .map(|(n, t)| {
+            let n = l.u.name(n).to_owned();
             let p = l.u.define(symbol(&n, Kind::Param, sym, tasty::Flags::default()));
             l.u.set_info(p, t);
             l.param_def(p, span)

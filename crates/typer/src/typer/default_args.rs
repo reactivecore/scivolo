@@ -37,7 +37,7 @@ impl Typer<'_> {
                     let tpe = self.tpd.tpe(mref);
                     leading = args.is_empty()
                         && !matches!(self.tpd.tree(fun), T::Apply { .. })
-                        && matches!(self.u.types().get(tpe), Type::Method { implicit: true, .. });
+                        && self.u.method(tpe).is_some_and(|m| m.implicit);
                     clauses.push(Clause::Values(self.spliced_args(fun, &args)?));
                     mref = fun;
                 }
@@ -60,7 +60,7 @@ impl Typer<'_> {
         };
         let mut getter_name = format!("{base}$default${}", n + 1);
         let local = matches!(*self.tpd.tree(mref), T::Ident { .. })
-            && matches!(*self.u.types().get(self.tpd.tpe(mref)), Type::Sym(None, _));
+            && matches!(*self.u.ty(self.tpd.tpe(mref)), Type::Sym(None, _));
         let mut getter = if local {
             let getter = self.levels.scope_mate(method, &getter_name, |_| true).ok_or("default getter")?;
             self.complete(getter);
@@ -108,8 +108,7 @@ impl Typer<'_> {
             };
             let t = self.tpd.tpe(getter);
             let info = self.method_info(t).unwrap_or(t);
-            let nullary =
-                matches!(self.u.types().get(info), Type::Method { params, .. } if params.is_empty());
+            let nullary = self.u.method(info).is_some_and(|m| m.params.is_empty());
             if std::mem::take(&mut leading) && ctor && !nullary {
                 if matches!(self.tpd.tree(getter), T::TypeApply { .. }) {
                     return Err(
@@ -143,10 +142,10 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(mref);
-        let Type::Sym(Some(prefix), _) = *self.u.types().get(tpe) else {
+        let Some((Some(prefix), _)) = self.u.sym_ref(tpe) else {
             return Err("default argument of a local method");
         };
-        let module = match *self.u.types().get(prefix) {
+        let module = match *self.u.ty(prefix) {
             Type::This(class) => {
                 let Some(c) = self.u.class_symbol(class) else { return Err("default argument") };
                 match self.package_object(c) {

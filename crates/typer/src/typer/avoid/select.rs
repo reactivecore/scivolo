@@ -66,7 +66,7 @@ impl Avoid<'_> {
         let info = t.u.term_type(Some(pre), s);
         let info = t.u.widen(info);
         let a = self.elsewhere();
-        if matches!(t.u.types().get(info), Type::Bounds(..)) {
+        if t.u.bounds(info).is_some() {
             return a.info(t, info, v);
         }
         a.at(t, info, v)
@@ -91,7 +91,7 @@ impl Avoid<'_> {
             Kind::TypeParam => {
                 let arg =
                     crate::typer::seen_from::class_param_arg(t.u, tpe).map(|x| t.resolve_class_params(x));
-                arg.map(|arg| match *t.u.types().get(arg) {
+                arg.map(|arg| match *t.u.ty(arg) {
                     Type::Bounds(..) if cyclic => None,
                     Type::Bounds(..) => inner.elsewhere().info(t, arg, v),
                     _ => a.at(t, arg, v),
@@ -103,15 +103,12 @@ impl Avoid<'_> {
                     return Some(a.at(t, alias, v));
                 }
                 let info = t.u.member_info(pre, s);
-                let bounds = matches!(t.u.types().get(info), Type::Bounds(..));
+                let bounds = t.u.bounds(info).is_some();
                 bounds.then(|| if cyclic { None } else { inner.info(t, info, v) })
             }
             k if k.is_term() => {
                 let info = t.u.term_type(Some(pre), s);
-                let info = match *t.u.types().get(info) {
-                    Type::ByName(r) => r,
-                    _ => info,
-                };
+                let info = t.u.by_name(info).unwrap_or(info);
                 is_path(t.u, info).then(|| a.at(t, info, v))
             }
             _ => None,

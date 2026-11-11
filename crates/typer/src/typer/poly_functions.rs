@@ -10,7 +10,7 @@ use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::{List, NodeId, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Polymorphic function type `id`: `PolyFunction { def apply[T](x$1: P): R }` (dotty's
@@ -69,18 +69,12 @@ impl Typer<'_> {
         };
         let result = self.tpd.tpe(result_tree);
         let binder = self.syms.fresh_binder();
-        let names: Vec<(String, TypeId)> =
-            params.iter().map(|&p| (self.u.symbol(p).name.clone(), self.u.info(p))).collect();
+        let names: Vec<(NameId, TypeId)> =
+            params.iter().map(|&p| (self.u.interned_name(p), self.u.info(p))).collect();
         let result = self.param_refs(result, &params, binder);
-        let method = self.u.intern_type(Type::Method {
-            binder,
-            params: names,
-            result,
-            implicit: false,
-            contextual: false,
-        });
+        let method = self.u.intern_method(binder, &names, result, false, false);
         let tpe = self.poly_function_of(&tparams, method);
-        let Type::Refined(parent, _, info) = *self.u.types().get(tpe) else { unreachable!("a refined type") };
+        let Type::Refined(parent, _, info) = *self.u.ty(tpe) else { unreachable!("a refined type") };
         self.u.set_info(owner, info);
         let first = tparam_trees.first().map_or(self.tpd.span(result_tree), |&t| self.tpd.span(t));
         let def_span = first.union(self.tpd.span(result_tree)).to_synthetic();
@@ -107,8 +101,8 @@ impl Typer<'_> {
 
     /// The info of `pre.apply` referred to by `fun_tpe` if `pre` is of a polymorphic function type.
     pub fn poly_apply_info(&mut self, fun_tpe: TypeId) -> Option<TypeId> {
-        let Type::TermRef(pre, ref name) = *self.u.types().get(fun_tpe) else { return None };
-        if name != "apply" {
+        let (pre, name) = self.u.term_ref(fun_tpe)?;
+        if self.u.name(name) != "apply" {
             return None;
         }
         self.u.poly_function_apply_of(pre)
@@ -117,7 +111,8 @@ impl Typer<'_> {
     /// `qual.apply` at `span` if `qual`'s type `pre` is a polymorphic function type.
     pub fn poly_apply(&mut self, qual: TNodeId, pre: TypeId, span: syntax::ast::Span) -> Option<TNodeId> {
         self.u.poly_function_apply_of(pre)?;
-        let tpe = self.u.intern_type(Type::TermRef(pre, "apply".into()));
+        let apply = self.u.intern_name("apply");
+        let tpe = self.u.intern_type(Type::TermRef(pre, apply));
         let name = TName { name: self.name("apply"), is_type: false };
         Some(self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), None))
     }
@@ -125,17 +120,18 @@ impl Typer<'_> {
     /// `PolyFunction { def apply: [tparams]method }`, `method` referring to `tparams` by symbol.
     pub fn poly_function_of(&mut self, tparams: &[SymbolId], method: TypeId) -> TypeId {
         let binder = self.syms.fresh_binder();
-        let params: Vec<(String, TypeId)> = tparams
+        let params: Vec<(NameId, TypeId)> = tparams
             .iter()
             .map(|&p| {
                 let bounds = self.u.info(p);
-                (self.u.symbol(p).name.clone(), self.param_refs(bounds, tparams, binder))
+                (self.u.interned_name(p), self.param_refs(bounds, tparams, binder))
             })
             .collect();
         let result = self.param_refs(method, tparams, binder);
-        let info = self.u.intern_type(Type::Poly { binder, params, result });
-        let parent = self.u.class_ref("scala.PolyFunction");
-        self.u.intern_type(Type::Refined(parent, "apply".into(), info))
+        let info = self.u.intern_poly(binder, &params, result);
+        let parent = self.u.class_ref(crate::defn::POLY_FUNCTION);
+        let apply = self.u.intern_name("apply");
+        self.u.intern_type(Type::Refined(parent, apply, info))
     }
 
     /// Type parameters `targs` of a polymorphic function owned by `owner`, entered in a scope of
@@ -167,7 +163,7 @@ impl Typer<'_> {
         for (&p, &s) in params.iter().zip(&syms) {
             let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { continue };
             let info = self.type_def_info(rhs, lctx.with_owner(s));
-            if matches!(self.u.types().get(info), Type::Error) {
+            if matches!(self.u.ty(info), Type::Error) {
                 return Err(self.error_tree(self.ast.span(p)));
             }
             self.u.set_info(s, info);

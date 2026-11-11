@@ -27,13 +27,13 @@ impl Reflect<'_> {
         let Some(Binding { params, result, implicit: false, .. }) = self.u.method(info) else {
             return Err("Lambda.apply of another type than a method type");
         };
-        if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+        if matches!(self.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
             return Err("Lambda.apply of a curried method type");
         }
         let mut types: Vec<TypeId> = params.iter().map(|&(_, t)| t).collect();
         let class = self.u.class_ref(&format!("scala.Function{}", types.len()));
         types.push(result);
-        let fun_tpe = self.u.intern_type(Type::Applied(class, types));
+        let fun_tpe = self.u.intern_applied(class, &types);
         let meth_tpe = self.u.intern_type(Type::Sym(None, meth));
         let ident = self.build()?.ident(meth, meth_tpe, span);
         let env = self.tpd.list(&[]);

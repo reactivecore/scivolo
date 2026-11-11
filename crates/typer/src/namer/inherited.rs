@@ -6,7 +6,7 @@
 use crate::typer::Typer;
 use syntax::ast::Tree;
 use syntax::ast::flags as f;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The intersection of the result types of the members `sym` overrides, as seen from its class,
@@ -48,13 +48,15 @@ impl Typer<'_> {
     /// of that name that class sees.
     fn rebound(&mut self, t: TypeId, site: TypeId, cls: SymbolId) -> TypeId {
         self.u.map_type(t, &mut |u, x| {
-            let &Type::Sym(p, s) = u.types().get(x) else { return None };
+            let (p, s) = u.sym_ref(x)?;
             let owner = u.symbol(s).owner?;
-            let (site, cls) = match p.map(|p| u.types().get(p).clone()) {
+            let (site, cls) = match p {
                 None => (site, cls),
                 Some(_) if p == Some(site) => (site, cls),
-                Some(Type::This(c)) => (p?, u.class_symbol(c)?),
-                Some(_) => return None,
+                Some(pre) => {
+                    let c = u.this_of(pre)?;
+                    (pre, u.class_symbol(c)?)
+                }
             };
             let bases = u.linearization(cls);
             if u.symbol(s).kind != Kind::Type || !bases.contains(&owner) {
@@ -123,50 +125,47 @@ impl Typer<'_> {
         let (mut targs, mut refs) = (Vec::new(), Vec::new());
         for (types, clause) in clauses {
             if *types {
-                let Type::Poly { binder, params: ps, result } = self.u.types().get(t).clone() else {
-                    return None;
-                };
+                let (binder, ps, result) = self.u.poly(t).map(|b| (b.binder, b.params.to_vec(), b.result))?;
                 if ps.len() != clause.len() {
                     return None;
                 }
                 let start = targs.len();
                 targs.extend(clause.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))));
-                let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
+                let names: Vec<NameId> = ps.into_iter().map(|(n, _)| n).collect();
                 t = self.u.subst(result, binder, &names, &targs[start..]);
                 let n = targs.len().min(their_types.len());
                 t = self.subst_syms(t, &their_types[..n], &targs[..n]);
                 t = self.u.map_type(t, &mut |u, x| Some(u.beta_reduced(x)).filter(|&r| r != x));
                 continue;
             }
-            let Type::Method { binder, params: ps, result, .. } = self.u.types().get(t).clone() else {
-                return None;
-            };
+            let (binder, ps, result) = self.u.method(t).map(|b| (b.binder, b.params.to_vec(), b.result))?;
             if ps.len() != clause.len() {
                 return None;
             }
             for (&(_, p), &own) in ps.iter().zip(clause) {
                 let own = self.u.info(own);
                 let same = self.u.is_subtype(p, own) && self.u.is_subtype(own, p);
-                let object_any =
-                    java && self.is_class(p, "java.lang.Object") && self.is_class(own, "scala.Any");
+                let object_any = java
+                    && self.u.is_class_named(p, "java.lang.Object")
+                    && self.u.is_class_named(own, "scala.Any");
                 if !same && !object_any {
                     return None;
                 }
             }
-            let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
+            let names: Vec<NameId> = ps.into_iter().map(|(n, _)| n).collect();
             let start = refs.len();
             refs.extend(clause.iter().map(|&p| self.ref_type(None, p)));
             t = self.u.subst(result, binder, &names, &refs[start..]);
         }
         t = self.subst_syms(t, &their_types, &targs);
         t = self.subst_syms(t, &their_values, &refs);
-        match self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Method { .. } | Type::Poly { .. } => None,
-            Type::ByName(r) => Some(*r),
+            Type::ByName(r) => Some(r),
             _ => {
                 let mut depends = false;
                 self.u.map_type(t, &mut |u, x| {
-                    depends |= matches!(u.types().get(x), Type::Param(..));
+                    depends |= u.param_ref(x).is_some();
                     None
                 });
                 (!depends).then_some(t)
@@ -179,15 +178,10 @@ impl Typer<'_> {
         if from.len() != to.len() {
             return t;
         }
-        self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
-            Type::Sym(None, s) => from.iter().position(|&p| p == s).map(|i| to[i]),
+        self.u.map_type(t, &mut |u, x| match u.sym_ref(x) {
+            Some((None, s)) => from.iter().position(|&p| p == s).map(|i| to[i]),
             _ => None,
         })
-    }
-
-    /// Whether `t` is a reference to the class named `name`.
-    fn is_class(&mut self, t: TypeId, name: &str) -> bool {
-        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == name)
     }
 
     /// Whether `sym` keeps its right-hand side's type over an inherited one: an inline value.

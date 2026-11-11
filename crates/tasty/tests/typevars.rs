@@ -86,7 +86,7 @@ fn t(u: &mut Universe, full: &str, args: &[TypeId]) -> TypeId {
     let c = u.intern_type(Type::Sym(None, c));
     match args.is_empty() {
         true => c,
-        false => u.intern_type(Type::Applied(c, args.to_vec())),
+        false => u.intern_applied(c, args),
     }
 }
 
@@ -206,8 +206,8 @@ fn constructor_variables_take_constructors() {
     let (int, boolean) = (t(&mut u, "scala.Int", &[]), t(&mut u, "scala.Boolean", &[]));
     let f = VarId(0);
     let tf = u.intern_type(Type::Var(f));
-    let f_int = u.intern_type(Type::Applied(tf, vec![int]));
-    let f_bool = u.intern_type(Type::Applied(tf, vec![boolean]));
+    let f_int = u.intern_applied(tf, &[int]);
+    let f_bool = u.intern_applied(tf, &[boolean]);
 
     let list = t(&mut u, "scala.collection.immutable.List", &[]);
     let list_int = t(&mut u, "scala.collection.immutable.List", &[int]);
@@ -240,8 +240,9 @@ fn class_constructors_compare_as_type_lambdas() {
         let binder = u.fresh_binder();
         let bounds = u.intern_type(Type::Bounds(NOTHING, ANY));
         let x = u.intern_type(Type::Param(binder, 0));
-        let result = u.intern_type(Type::Applied(tycon, vec![x]));
-        u.intern_type(Type::Lambda { binder, params: vec![("X".into(), bounds)], result })
+        let result = u.intern_applied(tycon, &[x]);
+        let params = [(u.intern_name("X"), bounds)];
+        u.intern_lambda(binder, &params, result)
     };
     let (to_seq, to_list) = (lambda(&mut u, seq), lambda(&mut u, list));
     assert!(u.is_subtype(list, to_seq));

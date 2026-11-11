@@ -83,11 +83,11 @@ impl<'a> Sig<'a> {
             b'L' => self.class_type(u, vars),
             b'[' => {
                 let elem = self.ty(u, vars)?;
-                let object = u.types.intern(Type::Sym(None, u.builtins().object));
+                let object = u.types.intern(Type::Sym(None, u.defn().object));
                 let plain_var = vars.iter().any(|&(_, t, plain)| t == elem && plain);
                 let elem = if plain_var { u.types.intern(Type::And(object, elem)) } else { elem };
                 let array = u.class_ref("scala.Array");
-                Ok(u.types.intern(Type::Applied(array, vec![elem])))
+                Ok(u.types.intern_applied(array, &[elem]))
             }
             b'T' => {
                 let name = self.name(b";")?;
@@ -112,9 +112,9 @@ impl<'a> Sig<'a> {
                     args.push(self.arg(u, vars)?);
                 }
                 self.at += 1;
-                u.types.intern(Type::Applied(class, args))
+                u.types.intern_applied(class, &args)
             }
-            _ if name == "java/lang/Object" => u.types.intern(Type::Sym(None, u.builtins().from_java_object)),
+            _ if name == "java/lang/Object" => u.types.intern(Type::Sym(None, u.defn().from_java_object)),
             _ if self.skip => class,
             _ => cooked(u, name),
         };
@@ -126,7 +126,7 @@ impl<'a> Sig<'a> {
     }
 
     fn arg(&mut self, u: &mut Universe, vars: &[Var]) -> Result<TypeId, String> {
-        let from_java_object = u.types.intern(Type::Sym(None, u.builtins().from_java_object));
+        let from_java_object = u.types.intern(Type::Sym(None, u.defn().from_java_object));
         let bounds = match self.peek() {
             Some(b'*') => {
                 self.at += 1;
@@ -208,7 +208,7 @@ pub fn cooked(u: &mut Universe, internal: &str) -> TypeId {
         return class;
     }
     let wildcard = u.types.intern(Type::Bounds(NOTHING, ANY));
-    u.types.intern(Type::Applied(class, vec![wildcard; n]))
+    u.types.intern_applied(class, &vec![wildcard; n])
 }
 
 /// A reference to the class of internal name `internal`, a nested class `A$B` as `A.B`.
@@ -219,9 +219,11 @@ fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
     let mut parts: Vec<&str> = name.split('$').filter(|p| !p.is_empty()).collect();
     let last = parts.pop().unwrap_or(name);
     for outer in parts {
-        prefix = u.types.intern(Type::TermRef(prefix, outer.to_owned()));
+        let outer = u.types.intern_name(outer);
+        prefix = u.types.intern(Type::TermRef(prefix, outer));
     }
-    u.types.intern(Type::TypeRef(prefix, last.to_owned()))
+    let last = u.types.intern_name(last);
+    u.types.intern(Type::TypeRef(prefix, last))
 }
 
 /// The type of primitive descriptor `tag`.

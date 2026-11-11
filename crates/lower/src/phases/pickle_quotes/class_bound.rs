@@ -19,7 +19,7 @@ pub fn class_bound(u: &mut Universe, c: SymbolId, args: &[TypeId]) -> TypeId {
         {
             return args.get(i).copied();
         }
-        let s = match *u.types().get(x) {
+        let s = match *u.ty(x) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => u.resolve_ref(x),
             Type::This(t) => u.referenced(t),
@@ -48,14 +48,14 @@ fn refined(u: &mut Universe, c: SymbolId, parent: TypeId) -> TypeId {
         let name = sym.name.clone();
         let mut inherited = None;
         for &b in &bases {
-            for m in u.decl(b, &name).unwrap_or_default() {
+            for m in u.decls_named(b, &name) {
                 if inherited.is_none() && !u.symbol(m).flags.has(PRIVATE) && u.matches(site, d, m) {
                     inherited = Some(m);
                 }
             }
         }
         let info = u.info(d);
-        let info = match *u.types().get(info) {
+        let info = match *u.ty(info) {
             Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => info,
             _ if u.symbol(d).kind == Kind::Def => u.intern_type(Type::ByName(info)),
             _ => info,
@@ -69,6 +69,7 @@ fn refined(u: &mut Universe, c: SymbolId, parent: TypeId) -> TypeId {
             None => selectable,
         };
         if narrows {
+            let name = u.intern_name(&name);
             refined = u.intern_type(Type::Refined(refined, name, info));
         }
     }
@@ -76,8 +77,5 @@ fn refined(u: &mut Universe, c: SymbolId, parent: TypeId) -> TypeId {
 }
 
 fn expr_widened(u: &Universe, t: TypeId) -> TypeId {
-    match *u.types().get(t) {
-        Type::ByName(r) => r,
-        _ => t,
-    }
+    u.by_name(t).unwrap_or(t)
 }

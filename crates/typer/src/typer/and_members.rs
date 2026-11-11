@@ -88,7 +88,7 @@ impl Typer<'_> {
     /// Whether both sides of intersection `t`, or of one nested in it, have members `name`, which
     /// `and_members` cannot merge into one; `t` a `this` stands for its given self type.
     pub fn needs_joint_member(&mut self, t: TypeId, name: &str) -> bool {
-        let t = match *self.u.types().get(t) {
+        let t = match *self.u.ty(t) {
             Type::This(c) => {
                 let Some(k) = self.u.class_symbol(c) else { return false };
                 self.ensure_self(k);
@@ -102,7 +102,7 @@ impl Typer<'_> {
                 self.u.dealias(w)
             }
         };
-        let Type::And(a, b) = *self.u.types().get(t) else { return false };
+        let Type::And(a, b) = *self.u.ty(t) else { return false };
         let (ma, mb) = (self.type_members(a, name), self.type_members(b, name));
         !ma.is_empty() && !mb.is_empty()
             || ma.is_empty() && self.needs_joint_member(a, name)
@@ -155,7 +155,7 @@ impl Typer<'_> {
     /// The base classes of `t`, those of an intersection's right side not in its left side's
     /// first (dotty's `AndType.baseClasses`).
     fn base_classes(&mut self, t: TypeId) -> Vec<SymbolId> {
-        let Type::And(l, r) = *self.u.types().get(t) else {
+        let Type::And(l, r) = *self.u.ty(t) else {
             return self.u.class_symbol(t).map(|c| self.u.linearization(c)).unwrap_or_default();
         };
         let (left, right) = (self.base_classes(l), self.base_classes(r));

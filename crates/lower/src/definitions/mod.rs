@@ -80,7 +80,7 @@ pub struct Definitions {
 
 impl Definitions {
     pub fn new(u: &mut Universe) -> Result<Definitions, String> {
-        let b = u.builtins();
+        let b = u.defn();
         let (scala, java_lang) = (package(u, "scala")?, package(u, "java.lang")?);
         let runtime = package(u, "scala.runtime")?;
         let boolean = member(u, scala, "Boolean", Kind::Class)?;
@@ -134,17 +134,13 @@ fn package(u: &Universe, name: &str) -> Result<SymbolId, String> {
 }
 
 fn member(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind) -> Result<SymbolId, String> {
-    let found = u.decl(owner, name).map_err(|e| e.to_string())?;
-    found
-        .into_iter()
-        .find(|&s| u.symbol(s).kind == kind)
-        .ok_or_else(|| format!("{}.{name} missing from the library", u.full_name(owner)))
+    u.library_member(owner, name, kind)
 }
 
 /// `class[args]`.
 pub fn applied(u: &mut Universe, class: SymbolId, args: Vec<TypeId>) -> TypeId {
     let tycon = type_ref(u, class);
-    u.intern_type(Type::Applied(tycon, args))
+    u.intern_applied(tycon, &args)
 }
 
 /// The type of a reference to `s` from where its owner's members are visible.

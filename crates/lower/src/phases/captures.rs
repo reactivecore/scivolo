@@ -7,7 +7,7 @@ use super::lambda_lift::Function;
 use super::lift_names::Pending;
 use super::narrowed::{encloses, enclosing_instance, narrow_logic_owner, narrow_to};
 use super::walk::{children, is_type_tree};
-use crate::symbols::{has, is_static, is_static_module, is_static_owner};
+use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::MUTABLE;
@@ -61,7 +61,9 @@ pub fn dependencies(
         let Some(i) = enclosure else { continue };
         match (l.tpd.tree(t), l.tpd.sym(t)) {
             (Tree::This { .. }, s) => narrow_to(l, class, &mut functions[i], s),
-            (&Tree::New { tpt }, _) if matches!(l.u.types().get(l.tpd.tpe(tpt)), Type::Sym(_, c) if l.local_classes.contains_key(c)) => {
+            (&Tree::New { tpt }, _)
+                if l.u.sym_of(l.tpd.tpe(tpt)).is_some_and(|c| l.local_classes.contains_key(&c)) =>
+            {
                 functions[i].this |= in_class
             }
             (&Tree::New { tpt }, _) => {
@@ -70,7 +72,7 @@ pub fn dependencies(
                     Some(o) if o == class => functions[i].this = true,
                     Some(o)
                         if enclosing_instance(l, class, o)
-                            || is_static_module(l.u, o) && encloses(l, o, class) =>
+                            || l.u.is_static_module(o) && encloses(l, o, class) =>
                     {
                         _ = narrow_logic_owner(l, &mut functions[i], o)
                     }
@@ -146,14 +148,11 @@ fn steps<'p>(l: &Lower, t: TNodeId, pending: &'p Pending) -> Vec<Step<'p>> {
 /// The class whose `this` the prefix of reference type `tpe` starts with, through non-static
 /// members (dotty's `captureImplicitThis`).
 fn implicit_this(l: &Lower, tpe: Option<TypeId>) -> Option<SymbolId> {
-    match *l.u.types().get(tpe?) {
+    match *l.u.ty(tpe?) {
         Type::Sym(prefix, s) if l.u.symbol(s).kind.is_term() && !is_static(l.u, s) => {
             implicit_this(l, prefix)
         }
-        Type::This(c) => match *l.u.types().get(c) {
-            Type::Sym(_, c) if !is_static_owner(l.u, c) => Some(c),
-            _ => None,
-        },
+        Type::This(c) => l.u.sym_of(c).filter(|&c| !l.u.is_static_owner(c)),
         _ => None,
     }
 }

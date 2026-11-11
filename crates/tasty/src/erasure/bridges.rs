@@ -8,7 +8,8 @@
 //! classes and traits, for a method implementing the only method of its name in a trait it
 //! inherits before its superclass, abstract there with another signature.
 
-use super::{Erased, OBJECT};
+use super::Erased;
+use crate::defn::OBJECT;
 use crate::tags::{PRIVATE, TRAIT};
 use crate::types::Type;
 use crate::{Kind, SymbolId, Universe, View, view};
@@ -34,7 +35,7 @@ impl Universe {
         let site = self.intern_type(Type::This(site));
         let name = self.symbol(def).name.clone();
         for base in self.linearization(c).into_iter().skip(1) {
-            for other in self.decl(base, &name).unwrap_or_default() {
+            for other in self.decls_named(base, &name) {
                 if self.symbol(other).kind != Kind::Def || self.symbol(other).flags.has(PRIVATE) {
                     continue;
                 }

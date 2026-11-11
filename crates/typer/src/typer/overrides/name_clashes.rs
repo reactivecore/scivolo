@@ -39,7 +39,7 @@ impl OverrideChecks {
                 for &d in &own {
                     let same_name = t.u.symbol(m).name == t.u.symbol(d).name;
                     let defs = [m, d].iter().all(|&s| t.u.symbol(s).kind == Kind::Def);
-                    let loose = !defs || b == t.u.builtins().any || t.is_java_member(m);
+                    let loose = !defs || b == t.u.defn().any || t.is_java_member(m);
                     if same_name && loose || t.u.symbol(m).run_name() != t.u.symbol(d).run_name() {
                         continue;
                     }

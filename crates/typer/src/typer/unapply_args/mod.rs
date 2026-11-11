@@ -4,8 +4,8 @@
 mod seq;
 
 use super::Typer;
-use super::extractor_members::{BOOLEAN, NON_EMPTY_TUPLE, SEQ, get_match, product_selectors};
-use crate::defn::PRODUCT;
+use super::extractor_members::{NON_EMPTY_TUPLE, SEQ, get_match, product_selectors};
+use crate::defn::{BOOLEAN, PRODUCT};
 use tasty::TypeId;
 
 /// The expected types of the argument patterns of one extractor (dotty's `UnapplyArgs`): for

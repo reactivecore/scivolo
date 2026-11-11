@@ -12,7 +12,7 @@ use super::explicit_outer::{
 use super::local_free::{enclosing_class, is_term};
 use super::local_outer::needs_outer_if_referenced;
 use crate::definitions::{symbol, type_ref};
-use crate::symbols::{is_static, is_static_owner};
+use crate::symbols::is_static;
 use crate::{Lower, Result, Unsupported, unsupported};
 use syntax::ast::Span;
 use tasty::tags::FINAL;
@@ -28,7 +28,7 @@ pub fn outer_class(l: &Lower, c: SymbolId) -> Option<SymbolId> {
     if is_term(l, owner) {
         return needs_outer_if_referenced(l, c).then(|| enclosing_class(l, owner));
     }
-    let nested = l.u.is_class(owner) && !is_static_owner(l.u, owner) && !is_static(l.u, c);
+    let nested = l.u.is_class(owner) && !l.u.is_static_owner(owner) && !is_static(l.u, c);
     (nested && !is_pure_interface(l.u, c)).then_some(owner)
 }
 
@@ -142,10 +142,9 @@ pub fn append(l: &mut Lower, td: TNodeId, defs: &[TNodeId]) {
 fn prefix(l: &mut Lower, class: SymbolId, m: SymbolId, outer: SymbolId) -> TypeId {
     let this = type_ref(l.u, class);
     let this = l.u.intern_type(Type::This(this));
-    let base =
-        l.u.base_type(this, m).map(|b| if let Type::Applied(t, _) = *l.u.types().get(b) { t } else { b });
-    match base.map(|b| l.u.types().get(b)) {
-        Some(&(Type::Sym(Some(pre), _) | Type::TypeRef(pre, _))) => pre,
+    let base = l.u.base_type(this, m).map(|b| l.u.applied(b).map_or(b, |(t, _)| t));
+    match base.map(|b| *l.u.ty(b)) {
+        Some(Type::Sym(Some(pre), _) | Type::TypeRef(pre, _)) => pre,
         _ => {
             let outer = type_ref(l.u, outer);
             l.u.intern_type(Type::This(outer))
@@ -168,13 +167,13 @@ fn result_type(l: &mut Lower, class: SymbolId, outer: SymbolId, prefix: TypeId) 
 
 fn method_type(l: &mut Lower, result: TypeId) -> TypeId {
     let binder = l.u.fresh_binder();
-    l.u.intern_type(Type::Method { binder, params: Vec::new(), result, implicit: false, contextual: false })
+    l.u.intern_method(binder, &[], result, false, false)
 }
 
 /// Stable prefix `p` as a tree in `class`: `this` of a class, a static object or one seen from
 /// outside it through its value (dotty's `fixThis`), values selected on such paths.
 fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId> {
-    match *l.u.types().get(p) {
+    match *l.u.ty(p) {
         Type::This(c) => {
             let c = l.u.class_symbol(c).expect("a class's this");
             let module = l.u.is_module_class(c).then(|| l.u.source_module(c)).flatten();
@@ -191,7 +190,7 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
             if let Some(call) = super::local_lazy::object_call(l, s, span) {
                 return Ok(call);
             }
-            let qualifier = match q.map(|q| l.u.types().get(q)) {
+            let qualifier = match q.map(|q| *l.u.ty(q)) {
                 _ if static_module => return Ok(l.ident(s, span)),
                 None | Some(Type::Package(_)) => return Ok(l.ident(s, span)),
                 Some(_) => path(l, class, q.expect("a prefix"), span)?,

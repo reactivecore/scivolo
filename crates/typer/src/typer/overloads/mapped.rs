@@ -8,7 +8,7 @@
 
 use super::{Resolution, Unchosen};
 use crate::typer::{Pt, Typer};
-use tasty::{Binder, Kind, Symbol, SymbolId, Type, TypeId, Universe};
+use tasty::{Binder, Kind, NameId, Symbol, SymbolId, Type, TypeId, Universe};
 
 /// An alternative's copy, paired with the alternative.
 type Mapped = (SymbolId, SymbolId);
@@ -56,10 +56,7 @@ impl Resolution {
 pub fn leading_implicit(u: &mut Universe, s: SymbolId) -> Option<bool> {
     let info = u.info(s);
     let info = u.strip_poly(info);
-    match *u.types().get(info) {
-        Type::Method { implicit: true, contextual, .. } => Some(contextual),
-        _ => None,
-    }
+    u.method(info).filter(|m| m.implicit).map(|m| m.contextual)
 }
 
 /// Chooses the original of the alternative of copies `mapped` that `pt` selects, in a nested
@@ -77,9 +74,10 @@ fn choose_mapped(t: &mut Typer, mapped: &[Mapped], pt: Pt) -> Result<SymbolId, U
 /// parameters made wildcards bounded by their types, and counts the clauses stripped (dotty's
 /// `stripImplicit` with `resultTypeApprox`).
 pub fn strip_implicit_clauses(u: &mut Universe, info: TypeId, meth: SymbolId) -> (TypeId, usize) {
-    match u.types().get(info).clone() {
+    match *u.ty(info) {
         Type::Method { binder, params, result, implicit: true, .. } => {
-            let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+            let params = u.params_of(params).to_vec();
+            let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
             let wild = u.intern_type(Type::Wildcard(None));
             let wilds = vec![wild; names.len()];
             let mut approx = Vec::new();
@@ -89,9 +87,9 @@ pub fn strip_implicit_clauses(u: &mut Universe, info: TypeId, meth: SymbolId) ->
                 approx.push(u.intern_type(Type::Wildcard(Some(bounds))));
             }
             let result = u.subst(result, binder, &names, &approx);
-            let result = u.map_type(result, &mut |u, t| match *u.types().get(t) {
+            let result = u.map_type(result, &mut |u, t| match *u.ty(t) {
                 Type::Sym(None, s) if u.symbol(s).kind == Kind::Param && u.symbol(s).owner == Some(meth) => {
-                    names.iter().position(|n| *n == u.symbol(s).name).map(|i| approx[i])
+                    names.iter().position(|&n| u.name(n) == u.symbol(s).name).map(|i| approx[i])
                 }
                 _ => None,
             });
@@ -100,6 +98,7 @@ pub fn strip_implicit_clauses(u: &mut Universe, info: TypeId, meth: SymbolId) ->
         }
         Type::Poly { binder, params, result } => {
             let (result, clauses) = strip_implicit_clauses(u, result, meth);
+            let params = u.params_of(params).to_vec();
             (flattened_poly(u, binder, params, result), clauses)
         }
         _ => (info, 0),
@@ -114,15 +113,16 @@ fn skip_param_clause(
     info: TypeId,
     arg_types: &[TypeId],
 ) -> Result<Option<TypeId>, &'static str> {
-    match t.u.types().get(info).clone() {
+    match *t.u.ty(info) {
         Type::Poly { binder, params, result } => {
             let Some(rt) = skip_param_clause(t, result, arg_types)? else { return Ok(None) };
+            let params = t.u.params_of(params).to_vec();
             Ok(Some(flattened_poly(t.u, binder, params, rt)))
         }
         Type::Method { binder, params, result, .. } => {
-            let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+            let names: Vec<NameId> = t.u.params_of(params).iter().map(|&(n, _)| n).collect();
             let result = t.u.subst(result, binder, &names, arg_types);
-            if matches!(t.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+            if matches!(t.u.ty(result), Type::Method { .. } | Type::Poly { .. }) {
                 return Ok(Some(result));
             }
             match t.u.class_symbol(result) {
@@ -137,21 +137,21 @@ fn skip_param_clause(
 /// Gives the polymorphic type of binder `binder`, parameters `params` and result `result`,
 /// merged with `result` if that is polymorphic too, its parameters appended (dotty's
 /// `PolyType.flatten`).
-fn flattened_poly(u: &mut Universe, binder: Binder, params: Vec<(String, TypeId)>, result: TypeId) -> TypeId {
-    let Type::Poly { binder: inner, params: more, result } = u.types().get(result).clone() else {
-        return u.intern_type(Type::Poly { binder, params, result });
+fn flattened_poly(u: &mut Universe, binder: Binder, params: Vec<(NameId, TypeId)>, result: TypeId) -> TypeId {
+    let Some((inner, more, result)) = u.poly(result).map(|p| (p.binder, p.params.to_vec(), p.result)) else {
+        return u.intern_poly(binder, &params, result);
     };
     let n = params.len() as u32;
     let mut shift = |t| {
-        u.map_type(t, &mut |u, x| match *u.types().get(x) {
-            Type::Param(b, i) if b == inner => Some(u.intern_type(Type::Param(binder, n + i))),
-            _ => None,
+        u.map_type(t, &mut |u, x| {
+            let (_, i) = u.param_ref(x).filter(|&(b, _)| b == inner)?;
+            Some(u.intern_type(Type::Param(binder, n + i)))
         })
     };
-    let more: Vec<(String, TypeId)> = more.into_iter().map(|(name, bounds)| (name, shift(bounds))).collect();
+    let more: Vec<(NameId, TypeId)> = more.into_iter().map(|(name, bounds)| (name, shift(bounds))).collect();
     let result = shift(result);
-    let params = params.into_iter().chain(more).collect();
-    u.intern_type(Type::Poly { binder, params, result })
+    let params: Vec<_> = params.into_iter().chain(more).collect();
+    u.intern_poly(binder, &params, result)
 }
 
 /// Makes a copy of alternative `alt` of type `info`, entered nowhere, its default arguments

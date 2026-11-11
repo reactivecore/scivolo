@@ -24,7 +24,7 @@ impl Universe {
         let mut children = Vec::new();
         for (class, arg) in annotated {
             if let Some(arg) = arg
-                && self.class_symbol(class).is_some_and(|a| self.full_name(a) == CHILD)
+                && self.is_class_named(class, super::defn::CHILD)
             {
                 children.push(arg);
             }
@@ -33,8 +33,6 @@ impl Universe {
         Some(children)
     }
 }
-
-const CHILD: &str = "scala.annotation.internal.Child";
 
 /// The first type argument of the constructor call at `id`, `@Child[C]()`.
 fn type_arg(ast: &Ast, id: NodeId) -> Option<NodeId> {

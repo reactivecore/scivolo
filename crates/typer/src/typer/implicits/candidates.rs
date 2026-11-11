@@ -66,7 +66,7 @@ fn implicit_members_of(
 fn overridden_in(t: &mut Typer<'_>, site: TypeId, bases: &[SymbolId], d: SymbolId) -> bool {
     let name = t.u.symbol(d).name.clone();
     for &b in bases {
-        for m in t.u.decl(b, &name).unwrap_or_default() {
+        for m in t.u.decls_named(b, &name) {
             let s = t.u.symbol(m);
             if m != d && s.is_term_member() && !s.is_private() && t.same_member(site, m, d) {
                 return true;
@@ -149,21 +149,21 @@ pub fn candidate_ref(t: &mut Typer<'_>, c: Candidate, span: Span, ctx: Ctx) -> R
     let package_object = t.u.symbol(c.sym).owner.filter(|&o| crate::defn::is_named_package_object(t.u, o));
     let through_object = |t: &mut Typer<'_>, p: Option<Type>, o: SymbolId| match p {
         Some(Type::Package(_)) => true,
-        Some(Type::This(c)) => match *t.u.types().get(c) {
+        Some(Type::This(c)) => match *t.u.ty(c) {
             Type::Package(_) => true,
             Type::Sym(_, s) => s == o || t.u.symbol(s).is_package(),
             _ => false,
         },
         _ => false,
     };
-    let prefix = c.prefix.map(|p| t.u.types().get(p).clone());
+    let prefix = c.prefix.map(|p| *t.u.ty(p));
     let owner = t.u.symbol(c.sym).owner.filter(|&o| t.u.is_class(o));
     if let (Some(Type::Package(p)), Some(owner)) = (&prefix, owner)
         && crate::defn::inheriting_package_object(t.u, *p, owner).is_some()
     {
         return Err("implicit a package object inherits, through its package");
     }
-    let tpe = match (prefix.clone(), package_object) {
+    let tpe = match (prefix, package_object) {
         (_, Some(o)) if through_object(t, prefix, o) => {
             let class = crate::defn::type_ref(t.u, o);
             let this = t.u.intern_type(Type::This(class));

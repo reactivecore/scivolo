@@ -15,7 +15,8 @@ impl Avoid<'_> {
     pub fn at(self, t: &mut Typer, tpe: TypeId, v: i8) -> Option<Approx> {
         let exact = |x| Some(Approx::Exact(x));
         let m = |t: &mut Typer, x, v| self.at(t, x, v);
-        match t.u.types().get(tpe).clone() {
+        let node = *t.u.ty(tpe);
+        match node {
             Type::Sym(_, s) if self.own == Some(s) => Some(approx::empty(t.u, v)),
             Type::Sym(_, s) if self.opaque.contains(&s) => None,
             Type::Sym(_, s) if self.locals.contains(&s) => self.local(t, s, v),
@@ -35,10 +36,11 @@ impl Avoid<'_> {
             }
             Type::Applied(tycon, args) => {
                 let c = m(t, tycon, v)?;
+                let args = t.u.types_of(args).to_vec();
                 let variances = t.u.tycon_variances(tycon, args.len());
                 let mut mapped = Vec::with_capacity(args.len());
                 for (&arg, &pv) in args.iter().zip(&variances) {
-                    let wildcard = matches!(t.u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));
+                    let wildcard = matches!(t.u.ty(arg), Type::Bounds(..) | Type::Wildcard(_));
                     mapped.push(m(t, arg, if wildcard { v } else { v * pv })?);
                 }
                 Some(approx::applied(t.u, c, &mapped, &variances, v))
@@ -55,11 +57,11 @@ impl Avoid<'_> {
             Type::Refined(parent, name, info) => {
                 let parent = m(t, parent, v)?;
                 let info = m(t, info, v)?;
-                Some(approx::refined(t.u, parent, &name, info, v))
+                Some(approx::refined(t.u, parent, name, info, v))
             }
             Type::And(x, y) | Type::Or(x, y, _) => {
                 let parts = [m(t, x, v)?, m(t, y, v)?];
-                let node = t.u.types().get(tpe).clone();
+                let node = *t.u.ty(tpe);
                 Some(approx::derived(t.u, &parts, &[], v, &mut |u, p| match node {
                     Type::Or(_, _, soft) => u.intern_type(Type::Or(p[0], p[1], soft)),
                     _ => u.intern_type(Type::And(p[0], p[1])),
@@ -97,10 +99,7 @@ impl Avoid<'_> {
         let visiting = [self.visiting, &[s]].concat();
         let a = Avoid { visiting: &visiting, in_var_bound: false, ..self.elsewhere() };
         let info = t.u.info(s);
-        let info = match *t.u.types().get(info) {
-            Type::ByName(r) => r,
-            _ => info,
-        };
+        let info = t.u.by_name(info).unwrap_or(info);
         match t.u.symbol(s).kind {
             Kind::Class => {
                 let bound = a.class_bound(t, s)?;
@@ -122,7 +121,7 @@ impl Avoid<'_> {
     /// Approximates a type member by what it stands for: the right-hand side of `type T = R`,
     /// or the bounds of `type T >: L <: H`; gives up on anything else.
     pub fn info(self, t: &mut Typer, info: TypeId, v: i8) -> Option<Approx> {
-        match *t.u.types().get(info) {
+        match *t.u.ty(info) {
             Type::Alias(x) => self.at(t, x, v),
             Type::Bounds(lo, hi) => {
                 let lo = self.at(t, lo, -v)?;
@@ -171,10 +170,10 @@ impl Avoid<'_> {
     /// A method, polymorphic or lambda type with its parameters approximated contravariantly
     /// and its result covariantly (dotty's `derivedLambdaType`).
     fn lambda(self, t: &mut Typer, tpe: TypeId, v: i8) -> Option<Approx> {
-        let (params, result) = match t.u.types().get(tpe) {
+        let (params, result) = match *t.u.ty(tpe) {
             Type::Method { params, result, .. }
             | Type::Poly { params, result, .. }
-            | Type::Lambda { params, result, .. } => (params.clone(), *result),
+            | Type::Lambda { params, result, .. } => (t.u.params_of(params).to_vec(), result),
             _ => return Some(Approx::Exact(tpe)),
         };
         let mut parts = Vec::with_capacity(params.len() + 1);
@@ -183,11 +182,12 @@ impl Avoid<'_> {
         }
         parts.push(self.at(t, result, v)?);
         let flip: Vec<bool> = (0..parts.len()).map(|i| i < params.len()).collect();
-        let node = t.u.types().get(tpe).clone();
+        let node = *t.u.ty(tpe);
         Some(approx::derived(t.u, &parts, &flip, v, &mut |u, p| {
             let (ps, r) = p.split_at(params.len());
-            let ps = params.iter().zip(ps).map(|((n, _), &t)| (n.clone(), t)).collect();
-            u.intern_type(match node.clone() {
+            let ps: Vec<_> = params.iter().zip(ps).map(|(&(n, _), &t)| (n, t)).collect();
+            let ps = u.intern_params(&ps);
+            u.intern_type(match node {
                 Type::Method { binder, implicit, contextual, .. } => {
                     Type::Method { binder, params: ps, result: r[0], implicit, contextual }
                 }

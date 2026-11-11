@@ -67,13 +67,13 @@ impl Typer<'_> {
         let mut clauses = Vec::new();
         let mut tpe = info;
         loop {
-            let (binder, names, poly, result) = match self.u.types().get(tpe).clone() {
+            let (binder, names, poly, result) = match *self.u.ty(tpe) {
                 Type::Poly { binder, params, result } => (binder, params, true, result),
                 Type::Method { binder, params, result, .. } => (binder, params, false, result),
                 _ => break,
             };
+            let names: Vec<tasty::NameId> = self.u.params_of(names).iter().map(|&(n, _)| n).collect();
             let syms: Vec<_> = params.by_ref().take(names.len()).collect();
-            let names: Vec<String> = names.into_iter().map(|(n, _)| n).collect();
             let refs: Vec<TypeId> = syms.iter().map(|&s| self.u.intern_type(Type::Sym(None, s))).collect();
             tpe = self.u.subst(result, binder, &names, &refs);
             let (defs, args) = self.forwarder_params(&syms, poly, at, path_clauses > 0, path_span);

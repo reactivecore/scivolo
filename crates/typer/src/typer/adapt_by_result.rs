@@ -6,7 +6,7 @@
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`
@@ -32,7 +32,7 @@ impl Typer<'_> {
         let value = match defined {
             true => self.proto_normalized((result, meth), p, follow, 8),
             false => Some(stripped)
-                .filter(|&r| !matches!(self.u.types().get(r), Type::Method { .. } | Type::Poly { .. }))
+                .filter(|&r| !matches!(self.u.ty(r), Type::Method { .. } | Type::Poly { .. }))
                 .filter(|&r| !self.refers_to_implicit_params(result, r, meth))
                 .map(|r| if follow { self.context_result(r) } else { r }),
         };
@@ -52,7 +52,7 @@ impl Typer<'_> {
         }
         let mut found = false;
         self.u.map_type(stripped, &mut |u, part| {
-            found |= matches!(u.types().get(part), Type::TypeRef(..)) && u.resolve_ref(part).is_none();
+            found |= u.type_ref(part).is_some() && u.resolve_ref(part).is_none();
             None
         });
         match found {
@@ -63,7 +63,7 @@ impl Typer<'_> {
 
     /// Whether `stripped` refers to a parameter of the leading implicit clauses of `t`.
     fn refers_to_implicit_params(&mut self, mut t: TypeId, stripped: TypeId, meth: Option<SymbolId>) -> bool {
-        while let Type::Method { binder, result, implicit: true, .. } = *self.u.types().get(t) {
+        while let Type::Method { binder, result, implicit: true, .. } = *self.u.ty(t) {
             if self.mentions_params(stripped, binder, meth) {
                 return true;
             }
@@ -85,21 +85,22 @@ impl Typer<'_> {
         depth: u32,
     ) -> Option<TypeId> {
         let depth = depth.checked_sub(1)?;
-        match self.u.types().get(t).clone() {
+        match *self.u.ty(t) {
             Type::Poly { binder, params, result } => {
-                let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+                let names: Vec<NameId> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
                 let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
                 let result = self.instantiate_poly(result, binder, &names, &vars, None);
                 self.proto_normalized((result, meth), pt, true, depth)
             }
             Type::Method { binder, params, result, implicit: true, .. } => {
-                let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+                let params = self.u.params_of(params);
+                let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
                 let infos: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
                 let result = self.u.subst(result, binder, &names, &infos);
-                let result = self.u.map_type(result, &mut |u, t| match *u.types().get(t) {
+                let result = self.u.map_type(result, &mut |u, t| match *u.ty(t) {
                     Type::Sym(None, s) if u.symbol(s).kind == tasty::Kind::Param && meth.is_some() => {
                         let own = u.symbol(s).owner == meth;
-                        names.iter().position(|n| own && *n == u.symbol(s).name).map(|i| infos[i])
+                        names.iter().position(|n| own && u.name(*n) == u.symbol(s).name).map(|i| infos[i])
                     }
                     _ => None,
                 });
@@ -108,18 +109,18 @@ impl Typer<'_> {
             Type::Method { binder, params, result, .. } => {
                 let mut dependent = false;
                 self.u.map_type(result, &mut |u, p| {
-                    dependent |= matches!(u.types().get(p), Type::Param(b, _) if *b == binder);
+                    dependent |= u.param_ref(p).is_some_and(|(b, _)| b == binder);
                     None
                 });
                 if dependent {
                     return None;
                 }
                 let rt = self.proto_normalized((result, meth), pt, true, depth)?;
-                let mut args: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+                let mut args: Vec<TypeId> = self.u.params_of(params).iter().map(|&(_, p)| p).collect();
                 let empty = args.is_empty();
                 args.push(rt);
-                let class = self.function_class(params.len())?;
-                let ft = self.u.intern_type(Type::Applied(class, args));
+                let class = self.function_class(args.len() - 1)?;
+                let ft = self.u.intern_applied(class, &args);
                 Some(if !empty || self.u.is_subtype(ft, pt) { ft } else { rt })
             }
             Type::ByName(r) => self.proto_normalized((r, meth), pt, true, depth),
@@ -151,13 +152,13 @@ impl Typer<'_> {
             let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
             info = self.instantiate_poly(result, binder, &names, &vars, Some(alt));
         }
-        let fits = match *self.u.types().get(info) {
-            Type::Method { result, .. } => match self.proto_normalized((result, Some(alt)), pt, follow, 8) {
+        let fits = match self.u.method(info).map(|m| m.result) {
+            Some(result) => match self.proto_normalized((result, Some(alt)), pt, follow, 8) {
                 Some(value) if self.u.is_necessary_subtype_in(value, pt, &mut self.constraint) => Some(true),
                 Some(value) => self.compatible(value, pt, views, ctx),
                 None => None,
             },
-            _ => Some(true),
+            None => Some(true),
         };
         self.constraint.abandon(before);
         fits

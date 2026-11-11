@@ -4,12 +4,12 @@
 //! varargs method gets a forwarder taking an array, which calls it with the array wrapped.
 
 use super::array_wraps::{array_of, wrap_array};
-use super::repeated::{is_class, java_array};
+use super::repeated::java_array;
 use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, OVERRIDE, PRIVATE};
-use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Erased, Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the forwarders to class definition `td`, each after its method.
@@ -59,16 +59,18 @@ fn forwarder(
 ) -> Result<TNodeId> {
     let span = l.tpd.span(def);
     let info = l.u.info(meth);
-    let Type::Method { params, result, implicit, contextual, .. } = l.u.types().get(info).clone() else {
+    let Type::Method { params, result, implicit, contextual, .. } = *l.u.ty(info) else {
         return unsupported(span, "varargs forwarders of polymorphic or curried methods");
     };
     if !l.u.param_clauses(result).is_empty() {
         return unsupported(span, "varargs forwarders of polymorphic or curried methods");
     }
-    let Some(&(_, repeated)) = params.last().filter(|&&(_, p)| is_class(l, p, "scala.<repeated>")) else {
+    let params = l.u.params_of(params).to_vec();
+    let Some(&(_, repeated)) = params.last().filter(|&&(_, p)| l.u.is_class_named(p, "scala.<repeated>"))
+    else {
         return unsupported(span, "@varargs on a method whose last parameter is not repeated");
     };
-    let Type::Applied(_, ref elems) = *l.u.types().get(repeated) else { unreachable!("`<repeated>[T]`") };
+    let Some((_, elems)) = l.u.applied(repeated) else { unreachable!("`<repeated>[T]`") };
     let elem = elems[0];
     let array = array_of(l, elem);
     if !matches!(l.u.erase(array), Erased::Array(_)) {
@@ -76,12 +78,13 @@ fn forwarder(
     }
     let Tree::DefDef { paramss, .. } = *l.tpd.tree(def) else { unreachable!("a method definition") };
     let clause = l.tpd.clause_items(paramss).first().map(|&c| l.tpd.items(c).to_vec()).unwrap_or_default();
-    let names = clause.iter().map(|&p| l.tpd.sym(p).map(|s| l.u.symbol(s).name.clone()));
-    let mut fparams: Vec<(String, TypeId)> =
-        params.iter().zip(names).map(|((n, t), m)| (m.unwrap_or_else(|| n.clone()), *t)).collect();
+    let names: Vec<Option<NameId>> =
+        clause.iter().map(|&p| l.tpd.sym(p).map(|s| l.u.interned_name(s))).collect();
+    let mut fparams: Vec<(NameId, TypeId)> =
+        params.iter().zip(names).map(|(&(n, t), m)| (m.unwrap_or(n), t)).collect();
     fparams.last_mut().expect("a repeated parameter").1 = array;
     let binder = l.u.fresh_binder();
-    let finfo = l.u.intern_type(Type::Method { binder, params: fparams, result, implicit, contextual });
+    let finfo = l.u.intern_method(binder, &fparams, result, implicit, contextual);
     let name = l.u.symbol(meth).name.clone();
     if conflicts(l, class, &name, finfo, java) {
         return unsupported(span, "a varargs forwarder conflicting with a member of its signature");
@@ -115,7 +118,7 @@ fn params(l: &mut Lower, s: SymbolId) -> Vec<TypeId> {
 }
 
 fn has_repeated(l: &mut Lower, s: SymbolId) -> bool {
-    params(l, s).into_iter().any(|p| is_class(l, p, "scala.<repeated>"))
+    params(l, s).into_iter().any(|p| l.u.is_class_named(p, "scala.<repeated>"))
 }
 
 fn java_varargs(l: &mut Lower, s: SymbolId) -> bool {
@@ -123,7 +126,7 @@ fn java_varargs(l: &mut Lower, s: SymbolId) -> bool {
 }
 
 fn has_varargs(l: &mut Lower, s: SymbolId) -> bool {
-    l.u.annotations(s).iter().any(|&c| l.u.full_name(c) == "scala.annotation.varargs")
+    l.u.has_recorded_annotation(s, tasty::defn::VARARGS)
 }
 
 /// The non-private methods of the base classes of `def`'s owner that `def` matches.
@@ -134,7 +137,7 @@ fn overridden(l: &mut Lower, def: SymbolId) -> Vec<SymbolId> {
     let site = l.u.intern_type(Type::This(site));
     let mut found = Vec::new();
     for base in l.u.linearization(owner).into_iter().skip(1) {
-        for m in l.u.decl(base, &name).unwrap_or_default() {
+        for m in l.u.decls_named(base, &name) {
             let s = l.u.symbol(m);
             if s.kind == Kind::Def && !s.flags.has(PRIVATE) && l.u.info_matches(site, def, m) {
                 found.push(m);
@@ -149,7 +152,7 @@ fn overridden(l: &mut Lower, def: SymbolId) -> Vec<SymbolId> {
 fn conflicts(l: &mut Lower, class: SymbolId, name: &str, info: TypeId, java: bool) -> bool {
     let erased = l.u.erased_method_type(info);
     for base in l.u.linearization(class) {
-        for m in l.u.decl(base, name).unwrap_or_default() {
+        for m in l.u.decls_named(base, name) {
             let s = l.u.symbol(m);
             if s.kind != Kind::Def || (base != class && s.flags.has(PRIVATE)) {
                 continue;

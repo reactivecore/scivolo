@@ -9,7 +9,7 @@ use crate::ctx::{Ctx, Level};
 use crate::tpd::TNodeId;
 use syntax::ast::flags::{self as f, GIVEN, IMPLICIT, MUTABLE};
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 /// A refinement: its name, its info and its typed definition.
 pub type Refinement = (String, TypeId, TNodeId);
@@ -30,7 +30,7 @@ impl Typer<'_> {
         let sym = self.syms.by_tree[&r];
         let mctx = Ctx { owner: sym, ..ctx };
         let info = self.type_def_info(rhs, mctx);
-        let info = match *self.u.types().get(info) {
+        let info = match *self.u.ty(info) {
             Type::Error => return Err(self.unsupported(r, "refinement of an unsupported type")),
             Type::Lambda { .. } => self.u.intern_type(Type::Alias(info)),
             _ => info,
@@ -38,7 +38,7 @@ impl Typer<'_> {
         if self.aliases_itself(sym, info) {
             return Err(self.unsupported(r, "refinement alias referring to itself"));
         }
-        if let Type::Bounds(lo, hi) = *self.u.types().get(info)
+        if let Some((lo, hi)) = self.u.bounds(info)
             && !self.u.is_subtype(lo, hi)
         {
             return Err(self.unsupported(r, "refinement with conflicting bounds"));
@@ -106,7 +106,7 @@ impl Typer<'_> {
                 }
                 let typed = self.typed_type(tpt, mctx);
                 let tpe = self.tpd.tpe(typed);
-                if matches!(self.u.types().get(tpe), Type::Error) {
+                if matches!(self.u.ty(tpe), Type::Error) {
                     return Err("structural refinement of an unsupported type");
                 }
                 let ptext = self.text(name.name).to_owned();
@@ -122,14 +122,14 @@ impl Typer<'_> {
                 mctx = Ctx { level, ..mctx };
                 let pspan = self.ast.span(p);
                 trees.push(self.build().val_def(psym, typed, None, pspan));
-                params.push((ptext, tpe));
+                params.push((self.u.intern_name(&ptext), tpe));
             }
             clause_trees.push(trees);
             clause_params.push((params, kind));
         }
         let result = self.typed_type(tpt, mctx);
         let mut info = self.tpd.tpe(result);
-        if matches!(self.u.types().get(info), Type::Error) {
+        if matches!(self.u.ty(info), Type::Error) {
             return Err("structural refinement of an unsupported type");
         }
         match clauses {
@@ -139,22 +139,21 @@ impl Typer<'_> {
             _ => {
                 for (params, (implicit, contextual)) in clause_params.into_iter().rev() {
                     let binder = self.u.fresh_binder();
-                    let method = Type::Method { binder, params, result: info, implicit, contextual };
-                    info = self.u.intern_type(method);
+                    info = self.u.intern_method(binder, &params, info, implicit, contextual);
                 }
             }
         }
         if !tparams.is_empty() {
             let binder = self.syms.fresh_binder();
-            let params: Vec<(String, TypeId)> = tparams
+            let params: Vec<(NameId, TypeId)> = tparams
                 .iter()
                 .map(|&p| {
                     let bounds = self.u.info(p);
-                    (self.u.symbol(p).name.clone(), self.param_refs(bounds, &tparams, binder))
+                    (self.u.interned_name(p), self.param_refs(bounds, &tparams, binder))
                 })
                 .collect();
             let result = self.param_refs(info, &tparams, binder);
-            info = self.u.intern_type(Type::Poly { binder, params, result });
+            info = self.u.intern_poly(binder, &params, result);
         }
         self.u.set_info(sym, info);
         let span = self.ast.span(r);
@@ -173,15 +172,15 @@ impl Typer<'_> {
     pub fn complete_refined_members(&mut self, t: TypeId, pt: TypeId) {
         let mut names = Vec::new();
         let mut r = pt;
-        while let Type::Refined(parent, name, _) = self.u.types().get(r).clone() {
+        while let Type::Refined(parent, name, _) = *self.u.ty(r) {
             names.push(name);
             r = parent;
         }
         let class = names.first().and_then(|_| self.u.class_symbol(t));
         let mut wanted: Vec<(SymbolId, String)> =
-            names.into_iter().filter_map(|n| Some((class?, n))).collect();
+            names.into_iter().filter_map(|n| Some((class?, self.u.name(n).to_owned()))).collect();
         for side in [t, pt] {
-            if let Type::Sym(Some(p), s) = *self.u.types().get(side)
+            if let Some((Some(p), s)) = self.u.sym_ref(side)
                 && self.u.symbol(s).kind == Kind::Type
             {
                 let widened = self.u.widen(p);

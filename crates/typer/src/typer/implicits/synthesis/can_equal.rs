@@ -40,7 +40,7 @@ impl Synthesizer {
         }
         let module = t.resolve_full_name(CAN_EQUAL, false).ok_or("CanEqual")?;
         let module_class = t.u.module_class(module).ok_or("CanEqual")?;
-        let any = t.u.decl(module_class, "canEqualAny").unwrap_or_default();
+        let any = t.u.decls_named(module_class, "canEqualAny");
         let any = any.into_iter().find(|&d| t.u.symbol(d).kind == Kind::Def).ok_or("CanEqual.canEqualAny")?;
         let select = t.member_ref(any, at);
         let targs = [t.type_tree(l, at, false), t.type_tree(r, at, false)];
@@ -67,7 +67,7 @@ fn can_compare_classes(t: &mut Typer<'_>, a: SymbolId, b: SymbolId) -> bool {
     let (na, nb) = (t.u.full_name(a), t.u.full_name(b));
     let primitive = |n: &str| BOXED.iter().any(|(p, _)| *p == n);
     let numeric = |n: &str| NUMERIC.iter().any(|x| n.strip_prefix("scala.") == Some(*x));
-    let builtins = t.u.builtins();
+    let builtins = t.u.defn();
     let with_boxed = |t: &mut Typer<'_>, prim: &str, other: SymbolId, other_name: &str| {
         other == builtins.nothing
             || BOXED.iter().any(|&(p, boxed)| p == prim && boxed == other_name)
@@ -92,7 +92,7 @@ fn can_compare_classes(t: &mut Typer<'_>, a: SymbolId, b: SymbolId) -> bool {
 fn class_symbols(u: &mut Universe, t: TypeId) -> Vec<SymbolId> {
     let t = u.widen(t);
     let t = u.dealias(t);
-    match *u.types().get(t) {
+    match *u.ty(t) {
         Type::And(a, b) => [class_symbols(u, a), class_symbols(u, b)].concat(),
         Type::Or(a, b, _) => {
             let right = class_symbols(u, b);

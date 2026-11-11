@@ -22,8 +22,8 @@ impl Translator<'_, '_> {
         let selectors = self.product_selectors(tpe, true)?;
         let Some(&last) = selectors.last() else { return Ok(None) };
         let info = self.l.u.member_info(tpe, last);
-        let last = match *self.l.u.types().get(info) {
-            Type::Method { ref params, result, .. } if params.is_empty() => result,
+        let last = match *self.l.u.ty(info) {
+            Type::Method { params, result, .. } if self.l.u.params_of(params).is_empty() => result,
             Type::ByName(result) => result,
             _ => info,
         };
@@ -146,7 +146,7 @@ impl Translator<'_, '_> {
         let Tree::Typed { expr, tpt } = *self.l.tpd.tree(pat) else { return None };
         let tpe = self.l.tpd.tpe(tpt);
         let class = self.l.u.class_symbol(tpe)?;
-        (self.l.u.full_name(class) == "scala.<repeated>").then_some(expr)
+        (self.l.u.full_name(class) == tasty::defn::REPEATED).then_some(expr)
     }
 
     /// `scrutinee.lengthCompare(len) == 0`, or `>= 0` unless `exact`; without `lengthCompare`,
@@ -173,7 +173,7 @@ impl Translator<'_, '_> {
         let fun = self.l.select(qual, m, Span::NONE);
         self.l.tpd.get_mut(fun).tpe = Some(info);
         let fun = self.l.positioned(fun);
-        match *self.l.u.types().get(info) {
+        match *self.l.u.ty(info) {
             Type::Method { .. } | Type::Poly { .. } => {}
             Type::ByName(result) => {
                 self.l.tpd.get_mut(fun).tpe = Some(result);

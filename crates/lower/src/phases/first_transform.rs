@@ -19,8 +19,11 @@ use tasty::tags::{
     BYTEconst, CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INLINE, INTconst, LAZY, LONGconst,
     MUTABLE, SHORTconst, TRUEconst,
 };
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 use typer::tpd::{TNodeId, Tree, Walk};
+
+/// How many references `term_ref_underlying` looks through.
+const MAX_REFS: u32 = 64;
 
 /// Folds the references to values of constant type and the constant blocks in class definition
 /// `td`, inner trees first; `inits` are the unit's objects with initialization code.
@@ -64,18 +67,18 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
         return;
     }
     if is_constant_op(l, t, inits)
-        && let Some(lit) = literal(l.u.types().get(l.tpd.tpe(t)))
+        && let Some(lit) = literal(l.u, l.tpd.tpe(t))
     {
         l.tpd.get_mut(t).tree = lit;
         l.tpd.get_mut(t).sym = None;
         return;
     }
     if is_constant_block(l, t) {
-        let tpe = match *l.u.types().get(l.tpd.tpe(t)) {
+        let tpe = match *l.u.ty(l.tpd.tpe(t)) {
             Type::Sym(_, s) if l.u.symbol(s).kind == Kind::Val => l.u.info(s),
             _ => l.tpd.tpe(t),
         };
-        if let Some(lit) = literal(l.u.types().get(tpe)) {
+        if let Some(lit) = literal(l.u, tpe) {
             let node = l.tpd.get_mut(t);
             node.tree = lit;
             return;
@@ -86,8 +89,8 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
         return;
     }
     let underlying = term_ref_underlying(l, l.tpd.tpe(t));
-    let info = if literal(l.u.types().get(underlying)).is_some() { underlying } else { l.u.info(s) };
-    let Some(lit) = literal(l.u.types().get(info)) else { return };
+    let info = if literal(l.u, underlying).is_some() { underlying } else { l.u.info(s) };
+    let Some(lit) = literal(l.u, info) else { return };
     let node = l.tpd.get_mut(t);
     node.tree = lit;
     node.tpe = Some(info);
@@ -97,8 +100,8 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
 /// `t` with references to terms and by-name types replaced by their underlying types, as seen
 /// from their prefixes (dotty's `widenTermRefExpr`).
 fn term_ref_underlying(l: &mut Lower, mut t: TypeId) -> TypeId {
-    for _ in 0..64 {
-        let next = match *l.u.types().get(t) {
+    for _ in 0..MAX_REFS {
+        let next = match *l.u.ty(t) {
             Type::ByName(r) => Some(r),
             Type::TermRef(..) => l.u.widen_once(t),
             Type::Sym(_, s) if !l.u.is_type_symbol(s) => l.u.widen_once(t),
@@ -159,7 +162,7 @@ fn is_constant_block(l: &Lower, t: TNodeId) -> bool {
 
 /// Whether parameter `s` is by-name, its type known.
 pub fn is_by_name(l: &Lower, s: tasty::SymbolId) -> bool {
-    l.u.known_info(s).is_some_and(|t| matches!(l.u.types().get(t), Type::ByName(_)))
+    l.u.known_info(s).is_some_and(|t| l.u.by_name(t).is_some())
 }
 
 /// `is_pure` before `ElimByName`: a reference to a by-name parameter evaluates it.
@@ -198,16 +201,16 @@ pub fn is_pure(l: &Lower, t: TNodeId) -> bool {
 }
 
 /// The literal of constant type `t`, if the syntax has one for it.
-pub fn literal(t: &Type) -> Option<Tree> {
-    if let Type::Constant(CLASSconst, bits) = *t {
+pub fn literal(u: &Universe, t: TypeId) -> Option<Tree> {
+    if let Type::Constant(CLASSconst, bits) = *u.ty(t) {
         return Some(Tree::ClassLiteral { tpe: TypeId(bits as u32) });
     }
-    Some(Tree::Literal { value: constant(t)? })
+    Some(Tree::Literal { value: constant(u, t)? })
 }
 
 /// The constant of constant type `t`, if the syntax has one for it.
-fn constant(t: &Type) -> Option<Constant> {
-    Some(match *t {
+fn constant(u: &Universe, t: TypeId) -> Option<Constant> {
+    Some(match *u.ty(t) {
         Type::Constant(TRUEconst, _) => Constant::Boolean(true),
         Type::Constant(FALSEconst, _) => Constant::Boolean(false),
         Type::Constant(BYTEconst, b) => Constant::Byte(b as i8),
@@ -217,7 +220,7 @@ fn constant(t: &Type) -> Option<Constant> {
         Type::Constant(LONGconst, b) => Constant::Long(b),
         Type::Constant(FLOATconst, b) => Constant::Float(f32::from_bits(b as u32)),
         Type::Constant(DOUBLEconst, b) => Constant::Double(f64::from_bits(b as u64)),
-        Type::Str(ref s) => Constant::String(to_utf16(s).into()),
+        Type::Str(s) => Constant::String(to_utf16(u.name(s)).into()),
         _ => return None,
     })
 }
@@ -225,6 +228,6 @@ fn constant(t: &Type) -> Option<Constant> {
 /// The constant value of constant `final` value `s`, as a literal tree at `span`.
 pub fn literal_of(l: &mut Lower, s: tasty::SymbolId, span: syntax::ast::Span) -> Option<TNodeId> {
     let info = l.u.info(s);
-    let lit = literal(l.u.types().get(info))?;
+    let lit = literal(l.u, info)?;
     Some(l.tpd.node(lit, span, Some(info), None))
 }

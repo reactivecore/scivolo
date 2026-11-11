@@ -67,7 +67,7 @@ impl Parser<'_> {
         if let Some(rest) = self.s.strip_prefix('"') {
             let (text, rest) = rest.split_once('"').unwrap();
             self.s = rest;
-            return u.intern_type(Type::Str(text.into()));
+            return u.str_type(text);
         }
         let end = self.s.find(['[', ',', ']', ' ']).unwrap_or(self.s.len());
         let (path, rest) = self.s.split_at(end);
@@ -79,7 +79,8 @@ impl Parser<'_> {
             Some(term) => {
                 let (prefix, name) = term.rsplit_once('.').unwrap();
                 let prefix = path_prefix(u, prefix);
-                u.intern_type(Type::TermRef(prefix, name.into()))
+                let name = u.intern_name(name);
+                u.intern_type(Type::TermRef(prefix, name))
             }
             None => named_type(u, path),
         };
@@ -91,7 +92,7 @@ impl Parser<'_> {
             args.push(self.infix(u));
         }
         assert!(self.eat("]"), "`]` expected at {}", self.s);
-        u.intern_type(Type::Applied(tycon, args))
+        u.intern_applied(tycon, &args)
     }
 }
 
@@ -101,7 +102,8 @@ fn named_type(u: &mut Universe, path: &str) -> TypeId {
     let (prefix, name) = path.rsplit_once('.').unwrap();
     let Some(pkg) = u.package(prefix) else {
         let prefix = path_prefix(u, prefix);
-        return u.intern_type(Type::TypeRef(prefix, name.into()));
+        let name = u.intern_name(name);
+        return u.intern_type(Type::TypeRef(prefix, name));
     };
     let found = u
         .decl(pkg, name)
@@ -122,7 +124,8 @@ fn path_prefix(u: &mut Universe, path: &str) -> TypeId {
     let pkg = u.package(&segments[..packages].join(".")).unwrap();
     let mut t = u.intern_type(Type::Package(pkg));
     for term in &segments[packages..] {
-        t = u.intern_type(Type::TermRef(t, (*term).into()));
+        let term = u.intern_name(term);
+        t = u.intern_type(Type::TermRef(t, term));
     }
     t
 }
@@ -189,10 +192,12 @@ fn paths_to_one_value_are_one_atom() {
     let Some(mut u) = universe() else { return };
     let none_ref = parse(&mut u, "scala.None.type");
     let scala = path_prefix(&mut u, "scala");
-    let none = u.resolve(scala, "None", false).unwrap();
+    let none = u.intern_name("None");
+    let none = u.resolve(scala, none, false).unwrap();
     let none_sym = u.intern_type(Type::Sym(None, none));
     let oracle = path_prefix(&mut u, "oracle");
-    let o = u.resolve(oracle, "O", false).unwrap();
+    let o = u.intern_name("O");
+    let o = u.resolve(oracle, o, false).unwrap();
     let o_class = u.module_class(o).unwrap();
     let o_class = u.intern_type(Type::Sym(None, o_class));
     let o_this = u.intern_type(Type::This(o_class));
@@ -240,7 +245,8 @@ fn stable_methods_are_atoms() {
     u.set_flags(d, Flags::default().with(tasty::tags::STABLE));
     u.enter(d);
     let (package, one) = (u.intern_type(Type::Package(root)), parse(&mut u, "1"));
-    let d_ref = u.intern_type(Type::TermRef(package, "d".into()));
+    let d_name = u.intern_name("d");
+    let d_ref = u.intern_type(Type::TermRef(package, d_name));
     let d_or_1 = u.intern_type(Type::Or(d_ref, one, false));
     let d_sym = u.intern_type(Type::Sym(None, d));
     assert!(u.is_subtype(d_sym, d_or_1));
@@ -347,11 +353,11 @@ fn bounds_locals_and_this_as_atoms() {
     let (any_bounds, below_one) =
         (u.intern_type(Type::Bounds(NOTHING, ANY)), u.intern_type(Type::Bounds(NOTHING, one)));
     let binder = Binder(FileId(u32::MAX), 0);
-    let lambda =
-        u.intern_type(Type::Lambda { binder, params: vec![("X".into(), any_bounds)], result: below_one });
+    let params = [(u.intern_name("X"), any_bounds)];
+    let lambda = u.intern_lambda(binder, &params, below_one);
     let f = define(&mut u, "F", Kind::Type, root, lambda);
     let f = sym(&mut u, None, f);
-    let f_int = u.intern_type(Type::Applied(f, vec![int]));
+    let f_int = u.intern_applied(f, &[int]);
     let m = define(&mut u, "m", Kind::Def, root, int);
     let (p, q) = (define(&mut u, "p", Kind::Param, m, int), define(&mut u, "q", Kind::Param, m, int));
     let (p, q) = (sym(&mut u, None, p), sym(&mut u, None, q));

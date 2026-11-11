@@ -30,7 +30,7 @@ pub fn variance_message(
                 .collect();
             format!("{} {{...}}", parents.join(" with "))
         }
-        Kind::Def if !matches!(ops.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) => {
+        Kind::Def if !matches!(ops.u.ty(info), Type::Method { .. } | Type::Poly { .. }) => {
             format!("=> {}", ops.u.show_user(info))
         }
         _ => ops.u.show_user(info),

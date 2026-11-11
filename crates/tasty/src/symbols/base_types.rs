@@ -19,8 +19,9 @@ impl Universe {
 
     fn base_type_within(&mut self, t: TypeId, base: SymbolId, depth: u32) -> Option<TypeId> {
         let depth = depth.checked_sub(1)?;
-        let (tycon, args) = match self.types().get(t).clone() {
-            Type::Applied(tycon, args) => (tycon, args),
+        let ty = *self.ty(t);
+        let (tycon, args) = match ty {
+            Type::Applied(tycon, args) => (tycon, self.types_of(args).to_vec()),
             Type::And(a, b) => {
                 return match (self.base_type_within(a, base, depth), self.base_type_within(b, base, depth)) {
                     (Some(x), Some(y)) => self.merged_bases(t, base, (x, y), true),
@@ -62,17 +63,17 @@ impl Universe {
             }
             _ => (t, Vec::new()),
         };
-        let (prefix, s) = match *self.types().get(tycon) {
+        let (prefix, s) = match *self.ty(tycon) {
             Type::Sym(p, s) => (p, s),
             Type::TypeRef(p, _) => (Some(p), self.resolve_ref(tycon)?),
             _ => return None,
         };
         if self.symbol(s).kind == Kind::Type && self.symbol(s).flags.has(OPAQUE) {
             let underlying = self.opaque_underlying(s, prefix)?;
-            let applied = match (args.is_empty(), self.types().get(underlying)) {
+            let applied = match (args.is_empty(), self.ty(underlying)) {
                 (true, _) => underlying,
                 (false, Type::Lambda { .. }) => {
-                    let applied = self.intern_type(Type::Applied(underlying, args));
+                    let applied = self.intern_applied(underlying, &args);
                     self.beta_reduced(applied)
                 }
                 _ => return None,
@@ -106,10 +107,7 @@ impl Universe {
                 (true, _) => self.info(s),
                 (false, _) => self.expand_upper(tycon, &args)?,
             };
-            let dealiased = match *self.types().get(dealiased) {
-                Type::ByName(r) if term => r,
-                _ => dealiased,
-            };
+            let dealiased = self.by_name(dealiased).filter(|_| term).unwrap_or(dealiased);
             return self.base_type_within(dealiased, base, depth);
         }
         if s == base {
@@ -163,15 +161,15 @@ impl Universe {
 
     /// Whether `t` refers to `Nothing`, or to `Null` without safe nulls.
     fn is_bottom_ref(&self, t: TypeId) -> bool {
-        let b = self.builtins();
+        let b = self.defn();
         let safe = self.null_mode.safe;
-        matches!(*self.types().get(t), Type::Sym(_, s) if s == b.nothing || s == b.null && !safe)
+        matches!(*self.ty(t), Type::Sym(_, s) if s == b.nothing || s == b.null && !safe)
     }
 
     /// Whether `c` is `Null` under explicit nulls, whose parents are `Any` and `Matchable`, and
     /// `base` is neither.
     fn is_null_without(&self, c: SymbolId, base: SymbolId) -> bool {
-        let b = self.builtins();
+        let b = self.defn();
         self.null_mode.explicit && c == b.null && base != b.any && base != b.matchable
     }
 

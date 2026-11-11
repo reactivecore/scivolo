@@ -93,7 +93,7 @@ impl Typer<'_> {
     ) -> Result<Option<TNodeId>, &'static str> {
         let target = self.u.dealias(pt);
         let value = !matches!(
-            self.u.types().get(target),
+            self.u.ty(target),
             Type::Method { .. } | Type::Poly { .. } | Type::Bounds(..) | Type::ByName(_) | Type::Wildcard(_)
         );
         if !value || !self.is_fully_defined(target) {

@@ -5,7 +5,7 @@
 
 use super::super::Cmp;
 use super::super::refs::Meaning;
-use crate::types::{Binder, Type, TypeId};
+use crate::types::{Binder, NameId, Type, TypeId};
 use crate::{Kind, SymbolId};
 
 /// A legal pattern (dotty's `MatchTypeCasePattern`).
@@ -51,7 +51,7 @@ pub enum Spec {
 
 pub struct Specced {
     pub binder: Binder,
-    pub names: Vec<String>,
+    pub names: Vec<NameId>,
     /// The bounds of each capture.
     pub bounds: Vec<TypeId>,
     pub pattern: Pattern,
@@ -61,14 +61,15 @@ pub struct Specced {
 
 impl Cmp<'_> {
     pub fn analyze(&mut self, case: TypeId) -> Spec {
-        match self.u.types().get(case).clone() {
+        match *self.u.ty(case) {
             Type::MatchCase(pat, body) => Spec::SubTypeTest(pat, body),
             Type::Lambda { binder, params, result } => {
-                let Type::MatchCase(pat, body) = *self.u.types().get(result) else {
+                let Type::MatchCase(pat, body) = *self.u.ty(result) else {
                     return Spec::Unsupported;
                 };
+                let params = self.u.params_of(params).to_vec();
                 let mut unaccounted = vec![true; params.len()];
-                let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+                let names: Vec<_> = params.iter().map(|&(n, _)| n).collect();
                 if self.missing_captures(pat, binder, params.len()) {
                     return Spec::Unsupported;
                 }
@@ -89,7 +90,7 @@ impl Cmp<'_> {
     fn missing_captures(&mut self, pat: TypeId, binder: Binder, n: usize) -> bool {
         let mut present = vec![false; n];
         self.u.map_type(pat, &mut |u, x| {
-            if let Type::Param(b, i) = *u.types().get(x)
+            if let Type::Param(b, i) = *u.ty(x)
                 && b == binder
                 && let Some(p) = present.get_mut(i as usize)
             {
@@ -105,20 +106,21 @@ impl Cmp<'_> {
         &mut self,
         pat: TypeId,
         variance: i8,
-        captures: (Binder, &[String]),
+        captures: (Binder, &[NameId]),
         unaccounted: &mut [bool],
     ) -> Option<Pattern> {
-        match self.u.types().get(pat).clone() {
+        match *self.u.ty(pat) {
             Type::Param(b, i) if b == captures.0 => {
                 *unaccounted.get_mut(i as usize)? = false;
-                let name = captures.1.get(i as usize)?;
+                let name = self.u.name(*captures.1.get(i as usize)?);
                 Some(Pattern::Capture(i, name == "_" || name.starts_with("_$")))
             }
             Type::Applied(tycon, args) if variance == 1 => {
-                if matches!(self.u.types().get(tycon), Type::Param(b, _) if *b == captures.0) {
+                let args = self.u.types_of(args).to_vec();
+                if matches!(self.u.ty(tycon), Type::Param(b, _) if *b == captures.0) {
                     return None;
                 }
-                if !matches!(self.u.types().get(tycon), Type::Sym(..) | Type::TypeRef(..)) {
+                if !matches!(self.u.ty(tycon), Type::Sym(..) | Type::TypeRef(..)) {
                     return Some(Pattern::TypeTest);
                 }
                 let named = self.named(tycon)?;
@@ -154,10 +156,8 @@ impl Cmp<'_> {
                 }
                 None
             }
-            Type::Refined(_, _, info) if variance == 1 => match *self.u.types().get(info) {
-                Type::Alias(a) if matches!(self.u.types().get(a), Type::Param(b, _) if *b == captures.0) => {
-                    None
-                }
+            Type::Refined(_, _, info) if variance == 1 => match *self.u.ty(info) {
+                Type::Alias(a) if matches!(self.u.ty(a), Type::Param(b, _) if *b == captures.0) => None,
                 _ => Some(Pattern::TypeTest),
             },
             _ => Some(Pattern::TypeTest),
@@ -169,7 +169,7 @@ impl Cmp<'_> {
         &mut self,
         args: &[TypeId],
         variances: &[i8],
-        captures: (Binder, &[String]),
+        captures: (Binder, &[NameId]),
         unaccounted: &mut [bool],
     ) -> Option<Vec<Pattern>> {
         if variances.len() != args.len() {

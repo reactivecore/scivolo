@@ -73,11 +73,11 @@ impl Typer<'_> {
         self.ast.with_span(block, span);
         let open = |s: &mut Self, p: TypeId| {
             let mut p = s.zonk(p);
-            while let Type::Annotated(a, _) = *s.u.types().get(p) {
+            while let Some((a, _)) = s.u.annotated(p) {
                 p = a;
             }
-            let var = |s: &Self, t: TypeId| matches!(s.u.types().get(t), Type::Var(_));
-            match *s.u.types().get(p) {
+            let var = |s: &Self, t: TypeId| s.u.var(t).is_some();
+            match *s.u.ty(p) {
                 Type::Or(a, b, _) => var(s, a) || var(s, b),
                 _ => var(s, p),
             }
@@ -109,7 +109,7 @@ impl Typer<'_> {
             }
             let base = self.u.base_type(pt, pt_class);
             let Some(Ok(applied)) = base.map(|b| self.fully_defined(b)) else { continue };
-            let Type::Applied(_, args) = self.u.types().get(applied).clone() else { continue };
+            let Some(args) = self.u.applied(applied).map(|(_, args)| args.to_vec()) else { continue };
             let span = self.ast.span(*p);
             let Ok(lambda) = self.eta_expanded(pt_class, tpe) else { continue };
             let typed = match *self.tpd.tree(typed) {
@@ -144,15 +144,12 @@ impl Typer<'_> {
         if super::deskolemize::has_skolem(self.u, pt) {
             return None;
         }
-        let tycon = match *self.u.types().get(pt) {
-            Type::Applied(tycon, _) => tycon,
-            _ => pt,
-        };
-        if !matches!(self.u.types().get(tycon), Type::Sym(..) | Type::TypeRef(..)) {
+        let tycon = self.u.applied(pt).map_or(pt, |(tycon, _)| tycon);
+        if !matches!(self.u.ty(tycon), Type::Sym(..) | Type::TypeRef(..)) {
             return None;
         }
         let class = self.u.class_symbol(pt)?;
-        let b = self.u.builtins();
+        let b = self.u.defn();
         let top = class == b.any || Some(class) == b.any_val;
         (self.u.symbol(class).kind == tasty::Kind::Class && !self.u.symbol(class).flags.has(FINAL) && !top)
             .then_some(pt)

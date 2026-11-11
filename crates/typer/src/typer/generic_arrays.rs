@@ -35,7 +35,7 @@ impl Typer<'_> {
         let qual = self.build().static_ident(module, span.start_pos());
         let select = self.build().select(qual, method, span);
         let poly = self.instantiated(select, &[elem])?;
-        let Type::Method { result, .. } = *self.u.types().get(poly) else { return Err("newGenericArray") };
+        let result = self.u.method(poly).map(|m| m.result).ok_or("newGenericArray")?;
         let type_apply = self.build().type_apply(select, &[targ], poly, span);
         let args = self.tpd.items(args).to_vec();
         Ok(self.build().apply(type_apply, &args, result, span))
@@ -45,9 +45,9 @@ impl Typer<'_> {
     /// the class `Array`.
     fn is_generic_array_arg(&mut self, t: TypeId, array: SymbolId) -> bool {
         let t = self.u.dealias(t);
-        match self.u.types().get(t).clone() {
-            Type::Applied(tycon, args) if self.u.class_symbol(tycon) == Some(array) => {
-                args.first().is_some_and(|&a| self.is_generic_array_arg(a, array))
+        match self.u.applied(t).map(|(tycon, args)| (tycon, args.first().copied())) {
+            Some((tycon, first)) if self.u.class_symbol(tycon) == Some(array) => {
+                first.is_some_and(|a| self.is_generic_array_arg(a, array))
             }
             _ => self.is_generic(t, 16),
         }
@@ -58,31 +58,25 @@ impl Typer<'_> {
     fn is_generic(&mut self, t: TypeId, depth: u32) -> bool {
         let Some(depth) = depth.checked_sub(1) else { return false };
         let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
+        match *self.u.ty(t) {
             Type::Sym(_, s) if self.u.symbol(s).flags.has(OPAQUE) => {
                 let info = self.u.info(s);
-                let alias = match *self.u.types().get(info) {
-                    Type::Alias(a) => Some(a),
-                    _ => None,
-                };
+                let alias = self.u.type_alias(info);
                 alias.is_some_and(|a| self.is_generic(a, depth))
             }
             Type::Sym(_, s) if self.u.is_type_symbol(s) => self.u.symbol(s).kind != Kind::Class,
             Type::Param(..) | Type::Local(..) => true,
             Type::And(a, b) | Type::Or(a, b, _) => self.is_generic(a, depth) || self.is_generic(b, depth),
             Type::Annotated(a, _) => self.is_generic(a, depth),
-            Type::Applied(tycon, _) => match *self.u.types().get(tycon) {
-                Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
+            Type::Applied(tycon, _) => match self.u.sym_of(tycon) {
+                Some(s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                     self.complete(s);
                     let info = self.u.info(s);
-                    let hi = match *self.u.types().get(info) {
-                        Type::Bounds(_, hi) | Type::Alias(hi) => hi,
-                        _ => return true,
+                    let Some(hi) = self.u.bounds(info).map(|(_, hi)| hi).or_else(|| self.u.type_alias(info))
+                    else {
+                        return true;
                     };
-                    match *self.u.types().get(hi) {
-                        Type::Lambda { result, .. } => self.is_generic(result, depth),
-                        _ => self.is_generic(hi, depth),
-                    }
+                    self.is_generic(self.u.lambda(hi).map_or(hi, |l| l.result), depth)
                 }
                 _ => self.is_generic(tycon, depth),
             },

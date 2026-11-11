@@ -143,7 +143,9 @@ impl<'i, 'a> Expansion<'i, 'a> {
         let args = self.i.tpd.items(args).to_vec();
         let fun_tpe = self.i.tpd.tpe(fun);
         let info = self.i.u.widen(fun_tpe);
-        let Type::Method { binder, params: formals, result, .. } = self.i.u.types().get(info).clone() else {
+        let Some((binder, formals, result)) =
+            self.i.u.method(info).map(|m| (m.binder, m.params.to_vec(), m.result))
+        else {
             return Err(self.err("application of a value"));
         };
         if formals.len() != args.len() || params.len() != args.len() {

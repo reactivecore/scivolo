@@ -68,7 +68,7 @@ impl Gen<'_, '_> {
             },
             Tree::Ident { .. } => {
                 self.check_call(sym, span)?;
-                let prefix = match *self.l.u.types().get(self.l.tpd.tpe(fun)) {
+                let prefix = match *self.l.u.ty(self.l.tpd.tpe(fun)) {
                     tasty::Type::Sym(Some(p), _) | tasty::Type::TermRef(p, _) => p,
                     _ => return unsupported(span, "a call of a local method"),
                 };
@@ -180,7 +180,7 @@ impl Gen<'_, '_> {
 
     /// The value of the prefix `p` of a reference: an object, or `this`.
     fn gen_prefix(&mut self, p: tasty::TypeId, span: Span) -> Result<ValId> {
-        match *self.l.u.types().get(p) {
+        match *self.l.u.ty(p) {
             tasty::Type::This(c) => match self.l.u.class_symbol(c) {
                 Some(c) => self.this_of(c, span),
                 None => unsupported(span, "`this` of a type that is not a class"),

@@ -70,7 +70,7 @@ fn classes_without_initialization_code() {
         let c = class(&mut u, pkg, name);
         assert_eq!(u.no_inits(c), expected, "{pkg}.{name}");
     }
-    let builtins = u.builtins();
+    let builtins = u.defn();
     assert!(u.no_inits(builtins.any) && u.no_inits(builtins.object));
 }
 
@@ -108,7 +108,8 @@ fn members_of_this_through_the_self_type() {
     assert!(u.show(self_type).starts_with("scala.collection.Iterable["), "{}", u.show(self_type));
     let class_ref = u.intern_type(tasty::Type::Sym(None, serializable));
     let this = u.intern_type(tasty::Type::This(class_ref));
-    let found = u.resolve(this, "iterableFactory", false).unwrap();
+    let name = u.intern_name("iterableFactory");
+    let found = u.resolve(this, name, false).unwrap();
     assert_eq!(u.full_name(u.symbol(found).owner.unwrap()), "scala.collection.Iterable");
     let option = class(&mut u, "scala", "Option");
     assert_eq!(u.given_self_type(option), None);

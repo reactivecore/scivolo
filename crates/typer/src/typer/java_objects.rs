@@ -10,13 +10,13 @@ impl Typer<'_> {
     /// `Any` for parameter type `p` of `method` if `p` is `java.lang.Object` and `method` a member
     /// of a Java class, `Any?` if it is `Object?`; `p` otherwise.
     pub fn from_java_object(&mut self, method: Option<SymbolId>, p: TypeId) -> TypeId {
-        if let Type::Flexible(hi) = *self.u.types().get(p) {
+        if let Type::Flexible(hi) = *self.u.ty(p) {
             let any = self.from_java_object(method, hi);
             return if any == hi { p } else { self.u.flexible(any) };
         }
-        let object = self.u.builtins().object;
+        let object = self.u.defn().object;
         let dealiased = self.u.dealias(p);
-        let is_object = matches!(self.u.types().get(dealiased), Type::Sym(..) | Type::TypeRef(..))
+        let is_object = matches!(self.u.ty(dealiased), Type::Sym(..) | Type::TypeRef(..))
             && self.u.class_symbol(dealiased) == Some(object);
         let java = method.is_some_and(|m| !self.u.is_entered_object_member(m) && self.is_java_member(m));
         if is_object && java { ANY } else { p }
@@ -28,7 +28,7 @@ impl Typer<'_> {
         if self.from_java_object(method, elem) != ANY {
             return elem;
         }
-        let from_java_object = self.u.builtins().from_java_object;
+        let from_java_object = self.u.defn().from_java_object;
         self.u.intern_type(Type::Sym(None, from_java_object))
     }
 }

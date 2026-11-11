@@ -12,11 +12,11 @@ impl Typer<'_> {
         let mut at = Vec::new();
         self.u.map_type(pat, &mut |u, part| {
             if let Some((tycon, args)) = u.applied(part)
-                && let Type::Sym(_, c) = *u.types().get(tycon)
+                && let Some(c) = u.sym_of(tycon)
                 && matches!(u.symbol(c).kind, Kind::Class | Kind::Type)
             {
                 for (i, &a) in args.iter().enumerate() {
-                    if let Type::Sym(_, s) = *u.types().get(a)
+                    if let Some(s) = u.sym_of(a)
                         && captures.contains(&s)
                     {
                         at.push((s, c, i));
@@ -44,16 +44,13 @@ impl Typer<'_> {
     /// refer to no parameter.
     fn lambda_param_bounds(&mut self, c: SymbolId, i: usize) -> Option<TypeId> {
         let info = self.u.info(c);
-        let lambda = match *self.u.types().get(info) {
-            Type::Bounds(_, hi) => hi,
-            _ => info,
-        };
+        let lambda = self.u.bounds(info).map_or(info, |(_, hi)| hi);
         let bounds = self.u.lambda(lambda)?.params.get(i)?.1;
         let mut dependent = false;
         self.u.map_type(bounds, &mut |u, t| {
-            dependent |= matches!(u.types().get(t), Type::Param(..));
+            dependent |= u.param_ref(t).is_some();
             None
         });
-        (!dependent && matches!(self.u.types().get(bounds), Type::Bounds(..))).then_some(bounds)
+        (!dependent && self.u.bounds(bounds).is_some()).then_some(bounds)
     }
 }

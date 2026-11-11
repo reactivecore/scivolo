@@ -21,7 +21,7 @@ impl Universe {
         let mut todo = vec![self_type];
         let mut out = Vec::new();
         while let Some(t) = todo.pop() {
-            if let Type::And(x, y) = *self.types().get(t) {
+            if let Type::And(x, y) = *self.ty(t) {
                 todo.extend([x, y]);
             } else if let Some(class) = self.class_symbol(t) {
                 out.extend(self.linearization(class));

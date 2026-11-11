@@ -21,7 +21,7 @@ impl Typer<'_> {
                 continue;
             }
             let name = self.u.symbol(module).name.clone();
-            let decls = self.u.decl(owner, &name).unwrap_or_default();
+            let decls = self.u.decls_named(owner, &name);
             let class = decls.into_iter().find(|&c| self.u.is_class(c) && !self.u.is_module_class(c));
             let Some(&class_tree) = class.and_then(|c| self.syms.def_trees.get(&c)) else { continue };
             if self.file_of(self.ast.span(class_tree)) != self.file_of(self.ast.span(tree)) {

@@ -131,7 +131,7 @@ impl Gen<'_, '_> {
     /// `t`'s singleton type if it refers to `this`, a local value, an object or a field.
     fn singleton(&mut self, t: TNodeId) -> Option<tasty::TypeId> {
         let tpe = self.l.tpd.tpe(t);
-        let singleton = match *self.l.u.types().get(tpe) {
+        let singleton = match *self.l.u.ty(tpe) {
             tasty::Type::This(_) => true,
             tasty::Type::Sym(_, s) if !self.l.u.is_type_symbol(s) => {
                 let in_class = self.l.u.symbol(s).owner.is_some_and(|o| self.l.u.is_class(o));

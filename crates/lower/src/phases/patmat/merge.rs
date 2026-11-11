@@ -96,7 +96,7 @@ impl Translator<'_, '_> {
         let mut class = |t: TypeId| {
             let t = self.l.u.dealias(t);
             let untested = !matches!(outer_test(self.l, t), Some(OuterTest::Is(_) | OuterTest::Has(_)));
-            let plain = matches!(self.l.u.types().get(t), Type::Sym(..) | Type::TypeRef(..))
+            let plain = matches!(self.l.u.ty(t), Type::Sym(..) | Type::TypeRef(..))
                 && !is_singleton(self.l, t)
                 && untested;
             plain.then(|| self.l.u.class_symbol(t)).flatten()

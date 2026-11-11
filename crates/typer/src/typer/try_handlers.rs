@@ -22,7 +22,7 @@ impl Typer<'_> {
             _ => self.u.intern_type(Type::Wildcard(None)),
         };
         let function = self.function_class(1).ok_or("scala.Function1")?;
-        let function = self.u.intern_type(Type::Applied(function, vec![throwable, result]));
+        let function = self.u.intern_applied(function, &[throwable, result]);
         let typed = self.typed(handler, Pt::Type(function), ctx);
         let whole = self.ast.span(handler).to_synthetic();
         let end = whole.end_pos().to_synthetic();
@@ -41,8 +41,7 @@ impl Typer<'_> {
             node(t, Tree::Apply { fun, args }, span)
         };
         let widened = self.u.widen(self.tpd.tpe(typed));
-        let partial =
-            self.u.class_symbol(widened).is_some_and(|c| self.u.full_name(c) == "scala.PartialFunction");
+        let partial = self.u.is_class_named(widened, crate::defn::PARTIAL_FUNCTION);
         let handler = self.spliced(typed);
         self.splice_owners.insert(handler, ctx.owner);
         let rhs = if partial {

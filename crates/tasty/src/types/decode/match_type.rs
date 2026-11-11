@@ -15,8 +15,8 @@ impl Decoder<'_> {
             [scrutinee] => (ANY, self.ty(scrutinee)),
             _ => return Type::Other(MATCHtpt),
         };
-        let cases = cases.into_iter().map(|c| self.case(c)).collect();
-        Type::Match { bound, scrutinee, cases }
+        let cases: Vec<_> = cases.into_iter().map(|c| self.case(c)).collect();
+        Type::Match { bound, scrutinee, cases: self.types.intern_types(&cases) }
     }
 
     /// The capture the `BIND` at `id` stands for.
@@ -38,7 +38,7 @@ impl Decoder<'_> {
         let case = self.intern(case);
         match params.is_empty() {
             true => case,
-            false => self.intern(Type::Lambda { binder, params, result: case }),
+            false => self.types.intern_lambda(binder, &params, case),
         }
     }
 
