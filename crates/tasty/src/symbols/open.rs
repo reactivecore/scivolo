@@ -53,6 +53,7 @@ impl Universe {
             lifted: Default::default(),
             java_stubs: Default::default(),
             jdk: None,
+            java_classes: None,
             classfile_classes: Default::default(),
             classfile_descriptors: Default::default(),
             classfile_annotations: Default::default(),
