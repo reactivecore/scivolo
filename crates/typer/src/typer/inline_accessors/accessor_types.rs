@@ -1,12 +1,13 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/AccessProxies.scala
+//   compiler/src/dotty/tools/dotc/inlines/PrepareInlineable.scala
 //! The parameter, result and type argument trees of inline accessors.
 
 use super::super::Typer;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Binder, NameId, Type, TypeId, Universe};
+use tasty::{Binder, NameId, SymbolId, Type, TypeId, Universe};
 
 /// A parameter clause of an accessed method: its binder, parameters and their flags.
 pub struct Clause {
@@ -123,6 +124,51 @@ fn param_ref(t: &mut Typer<'_>, p: TypeId, clauses: &[Clause]) -> Option<(TName,
 fn unsupported(t: &mut Typer<'_>, span: Span) -> Option<NodeId> {
     t.unsupported_at(span, "inline accessor of a method with a type built of its parameters");
     None
+}
+
+/// Makes the type tree of `tpe` in an accessor with type parameters named as `locals`: each of
+/// them by name, applied types of them part by part, else `tpe` spliced; `None`, reported at
+/// `span`, for another type referring to them.
+pub fn passing_tpt(t: &mut Typer<'_>, tpe: TypeId, locals: &[SymbolId], span: Span) -> Option<NodeId> {
+    if !refers_to_locals(t.u, tpe, locals) {
+        return Some(t.splice_type(tpe));
+    }
+    match *t.u.ty(tpe) {
+        Type::Sym(_, s) if locals.contains(&s) => {
+            let name = TName { name: t.name(&t.u.symbol(s).name.clone()), is_type: true };
+            Some(t.ast.node(Tree::Ident { name }))
+        }
+        Type::Applied(tycon, args) => {
+            let tpt = passing_tpt(t, tycon, locals, span)?;
+            let args = (0..t.u.types_of(args).len())
+                .map(|i| {
+                    let a = t.u.types_of(args)[i];
+                    passing_tpt(t, a, locals, span)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let args = t.ast.list(&args);
+            Some(t.ast.node(Tree::AppliedTypeTree { tpt, args }))
+        }
+        Type::Bounds(lo, hi) => {
+            let lo = Some(passing_tpt(t, lo, locals, span)?);
+            let hi = Some(passing_tpt(t, hi, locals, span)?);
+            Some(t.ast.node(Tree::TypeBoundsTree { lo, hi, alias: None }))
+        }
+        _ => {
+            t.unsupported_at(span, "inline accessor of a type built of the inline method's types");
+            None
+        }
+    }
+}
+
+/// Whether `tpe` refers to one of `locals`.
+fn refers_to_locals(u: &mut Universe, tpe: TypeId, locals: &[SymbolId]) -> bool {
+    let mut found = false;
+    u.map_type(tpe, &mut |u, p| {
+        found |= u.sym_of(p).is_some_and(|s| locals.contains(&s));
+        None
+    });
+    found
 }
 
 /// Whether `tpe` refers to a parameter of `clauses`.

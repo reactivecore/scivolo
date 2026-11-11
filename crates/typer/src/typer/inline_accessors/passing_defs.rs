@@ -7,12 +7,13 @@
 use super::super::Typer;
 use super::Access;
 use super::accessor_defs::accessor_span;
+use super::accessor_types::passing_tpt;
 use super::passing::Receiver;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{SymbolId, Type, TypeId, Universe};
+use tasty::{Type, TypeId, Universe};
 
 /// The name the receiver parameter of a setter has until it is typed, renamed to `x$0` then.
 const SETTER_RECEIVER: &str = "x$0$receiver";
@@ -153,54 +154,10 @@ fn passing_param(t: &mut Typer<'_>, name: &str, tpt: NodeId) -> NodeId {
     t.ast.node(Tree::ValDef { name, tpt, rhs: None, mods })
 }
 
-/// The type tree of `tpe` in an accessor with type parameters named as `locals`: each of them
-/// by name, applied types of them part by part, else `tpe` spliced; `None`, reported at
-/// `span`, for another type referring to them.
-fn passing_tpt(t: &mut Typer<'_>, tpe: TypeId, locals: &[SymbolId], span: Span) -> Option<NodeId> {
-    if !refers_to(t.u, tpe, locals) {
-        return Some(t.splice_type(tpe));
-    }
-    match *t.u.ty(tpe) {
-        Type::Sym(_, s) if locals.contains(&s) => {
-            let name = TName { name: t.name(&t.u.symbol(s).name.clone()), is_type: true };
-            Some(t.ast.node(Tree::Ident { name }))
-        }
-        Type::Applied(tycon, args) => {
-            let tpt = passing_tpt(t, tycon, locals, span)?;
-            let args = (0..t.u.types_of(args).len())
-                .map(|i| {
-                    let a = t.u.types_of(args)[i];
-                    passing_tpt(t, a, locals, span)
-                })
-                .collect::<Option<Vec<_>>>()?;
-            let args = t.ast.list(&args);
-            Some(t.ast.node(Tree::AppliedTypeTree { tpt, args }))
-        }
-        Type::Bounds(lo, hi) => {
-            let lo = Some(passing_tpt(t, lo, locals, span)?);
-            let hi = Some(passing_tpt(t, hi, locals, span)?);
-            Some(t.ast.node(Tree::TypeBoundsTree { lo, hi, alias: None }))
-        }
-        _ => {
-            t.unsupported_at(span, "inline accessor of a type built of the inline method's types");
-            None
-        }
-    }
-}
-
 /// Type `t` with its aliases expanded, part by part.
 pub fn dealiased(u: &mut Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, p| {
         let d = u.dealias(p);
         (d != p).then(|| dealiased(u, d))
     })
-}
-
-fn refers_to(u: &mut Universe, t: TypeId, locals: &[SymbolId]) -> bool {
-    let mut found = false;
-    u.map_type(t, &mut |u, p| {
-        found |= u.sym_of(p).is_some_and(|s| locals.contains(&s));
-        None
-    });
-    found
 }
