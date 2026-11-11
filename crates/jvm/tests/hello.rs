@@ -218,6 +218,8 @@ fn a_java_annotation_with_arguments_is_refused() {
     }
     let code = "class R { @java.beans.Transient(false) def f = 1 }";
     refuses("refusedannotation", code, "Java annotations with arguments on the JVM");
+    let code = "class R { def f(@java.lang.annotation.Documented x: Int) = x }";
+    refuses("refusedparamannotation", code, "Java annotations of parameters on the JVM");
 }
 
 #[test]

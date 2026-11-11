@@ -64,7 +64,9 @@ impl Gen<'_, '_> {
                     if self.l.u.is_annotated(s, "scala.deprecated") {
                         cf.member_deprecated(Last::Field);
                     }
-                    self.emit_annotations(&mut cf, Some(Last::Field), s);
+                    if let Some(holder) = self.field_annotations_of(s) {
+                        self.emit_annotations(&mut cf, Some(Last::Field), holder);
+                    }
                     if self.l.var_handle_field(s).is_some() {
                         init.handles.push(s);
                     }

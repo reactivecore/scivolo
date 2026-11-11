@@ -3,7 +3,7 @@
 //! `new C` (dotty's `typedNew`) and the types of constructors and their calls.
 
 use super::Typer;
-use crate::ctx::{Ctx, Mode};
+use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
 use syntax::ast::NodeId;
@@ -32,7 +32,8 @@ impl Typer<'_> {
             && !self.parent_news.contains(&id)
         {
             let flags = self.u.symbol(c).flags;
-            let java_annotation = ctx.mode.is(Mode::ANNOTATION) && self.u.classfile_retention(c).is_some();
+            let java_annotation =
+                self.annotation_news.contains(&id) && self.u.classfile_retention(c).is_some();
             if (flags.has(TRAIT) || flags.has(ABSTRACT)) && !java_annotation {
                 let name = self.u.symbol(c).name.clone();
                 let span = self.tpd.span(tpt);
