@@ -6,9 +6,7 @@ mod cursor;
 mod erasure;
 mod file;
 mod library;
-pub mod name_kinds;
 mod names;
-pub mod nme;
 mod positions;
 mod print;
 mod subtype;
@@ -19,6 +17,7 @@ mod types;
 mod view;
 pub mod write;
 
+pub use ::names::{name_kinds, nme};
 pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
 pub use positions::{TastySpan, decode_positions, line_sizes};
 pub use subtype::{Changes, Mark, NoVars, NullMode, TypeVars};

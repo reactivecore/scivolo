@@ -13,6 +13,7 @@ name = "lower"
 clap.workspace = true
 libs.workspace = true
 macros.workspace = true
+names.workspace = true
 nir.workspace = true
 rustc-hash.workspace = true
 syntax.workspace = true

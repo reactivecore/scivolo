@@ -12,6 +12,7 @@ name = "syntax"
 [dependencies]
 clap.workspace = true
 hashbrown.workspace = true
+names.workspace = true
 rustc-hash.workspace = true
 unicode-general-category = "1.1"
 

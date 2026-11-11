@@ -679,6 +679,7 @@ dependencies = [
  "scivolo-libs",
  "scivolo-lower",
  "scivolo-macros",
+ "scivolo-names",
  "scivolo-syntax",
  "scivolo-tasty",
  "scivolo-typer",
@@ -712,6 +713,7 @@ dependencies = [
  "rustc-hash",
  "scivolo-libs",
  "scivolo-macros",
+ "scivolo-names",
  "scivolo-nir",
  "scivolo-syntax",
  "scivolo-tasty",
@@ -724,11 +726,16 @@ name = "scivolo-macros"
 version = "0.1.6"
 dependencies = [
  "scivolo-libs",
+ "scivolo-names",
  "scivolo-syntax",
  "scivolo-tasty",
  "scivolo-typer",
  "scivolo-vm",
 ]
+
+[[package]]
+name = "scivolo-names"
+version = "0.1.6"
 
 [[package]]
 name = "scivolo-nir"
@@ -756,6 +763,7 @@ dependencies = [
  "scivolo-libs",
  "scivolo-lower",
  "scivolo-macros",
+ "scivolo-names",
  "scivolo-syntax",
  "scivolo-tasty",
  "scivolo-typer",
@@ -773,6 +781,7 @@ dependencies = [
  "clap",
  "hashbrown 0.17.1",
  "rustc-hash",
+ "scivolo-names",
  "unicode-general-category",
 ]
 
@@ -785,6 +794,7 @@ dependencies = [
  "rustc-hash",
  "scivolo-classfile",
  "scivolo-libimage",
+ "scivolo-names",
  "scivolo-nir",
  "zip",
 ]
@@ -795,6 +805,7 @@ version = "0.1.6"
 dependencies = [
  "clap",
  "rustc-hash",
+ "scivolo-names",
  "scivolo-syntax",
  "scivolo-tasty",
 ]
