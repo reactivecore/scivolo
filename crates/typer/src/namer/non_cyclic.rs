@@ -131,7 +131,8 @@ impl Typer<'_> {
             Type::Match { bound, scrutinee, cases } => {
                 self.check_part(c, bound)?;
                 self.at_variance(c, 0, |t, c| t.check_part(c, scrutinee))?;
-                self.u.types_of(cases).to_vec().into_iter().try_for_each(|case| self.check_part(c, case))
+                (0..self.u.types_of(cases).len())
+                    .try_for_each(|i| self.check_part(c, self.u.types_of(cases)[i]))
             }
             Type::MatchCase(pat, body) => {
                 let nested = c.nested_ok;
@@ -146,7 +147,8 @@ impl Typer<'_> {
                     _ => None,
                 };
                 let signs = tycon_sym.map(|s| self.u.variances(s));
-                for (i, arg) in self.u.types_of(args).to_vec().into_iter().enumerate() {
+                for i in 0..self.u.types_of(args).len() {
+                    let arg = self.u.types_of(args)[i];
                     let sign = signs.as_ref().and_then(|v| v.get(i)).copied().unwrap_or(0);
                     let nested = c.nested_ok || c.variance != 0 && c.variance != sign;
                     let (cycle_ok, variance) = (c.nested_ok, c.variance * sign);

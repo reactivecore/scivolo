@@ -61,8 +61,11 @@ impl Typer<'_> {
             }
             Type::Applied(c, args) => {
                 let variances = self.variance_ops().tycon_variances(c);
-                let args: Vec<_> = (self.u.types_of(args).to_vec().into_iter().enumerate())
-                    .map(|(i, a)| self.map_into(a, v * variances.get(i).copied().unwrap_or(0), f))
+                let args: Vec<_> = (0..self.u.types_of(args).len())
+                    .map(|i| {
+                        let a = self.u.types_of(args)[i];
+                        self.map_into(a, v * variances.get(i).copied().unwrap_or(0), f)
+                    })
                     .collect();
                 self.u.intern_applied(c, &args)
             }

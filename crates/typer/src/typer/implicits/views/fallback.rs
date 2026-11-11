@@ -55,8 +55,7 @@ pub fn receiver_type(t: &mut Typer<'_>, method: SymbolId, info: TypeId) -> Optio
     let receiver = loop {
         match *t.u.ty(tpe) {
             Type::Poly { binder, params, result } => {
-                let params = t.u.params_of(params).to_vec();
-                let names: Vec<tasty::NameId> = params.iter().map(|&(n, _)| n).collect();
+                let names: Vec<tasty::NameId> = t.u.params_of(params).iter().map(|&(n, _)| n).collect();
                 let vars: Vec<TypeId> = names.iter().map(|_| t.constraint.fresh(t.u)).collect();
                 let inst = |t: &mut Typer<'_>, x: TypeId| {
                     let x = t.u.subst(x, binder, &names, &vars);
@@ -65,7 +64,8 @@ pub fn receiver_type(t: &mut Typer<'_>, method: SymbolId, info: TypeId) -> Optio
                         tparams.iter().position(|&p| p == s).and_then(|i| vars.get(i).copied())
                     })
                 };
-                for (&(_, bounds), &v) in params.iter().zip(&vars) {
+                for (i, &v) in vars.iter().enumerate() {
+                    let bounds = t.u.params_of(params)[i].1;
                     let bounds = inst(t, bounds);
                     if let (Some(lo), hi, 0) = t.bounds_of(bounds) {
                         t.constraint.declare(t.u, v, lo, hi);

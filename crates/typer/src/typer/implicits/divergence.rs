@@ -93,11 +93,11 @@ fn same_signature(ty: &mut TypeOps<'_>, a: TypeId, b: TypeId) -> bool {
         }
         _ => return frozen_same(ty, a, b),
     };
-    let (pa, pb) = (ty.u.params_of(pa).to_vec(), ty.u.params_of(pb).to_vec());
-    if pa.len() != pb.len() {
+    if ty.u.params_of(pa).len() != ty.u.params_of(pb).len() {
         return false;
     }
-    for ((_, x), (_, y)) in pa.into_iter().zip(pb) {
+    for i in 0..ty.u.params_of(pa).len() {
+        let (x, y) = (ty.u.params_of(pa)[i].1, ty.u.params_of(pb)[i].1);
         let y = rebound(ty.u, y, bb, ba);
         if !frozen_same(ty, x, y) {
             return false;

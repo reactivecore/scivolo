@@ -14,7 +14,12 @@ impl Universe {
         }
         let mut m = |u: &mut Self, x: TypeId| u.map_type(x, f);
         let params = |u: &mut Self, ps: ParamList, m: &mut dyn FnMut(&mut Self, TypeId) -> TypeId| {
-            let ps: Vec<_> = u.params_of(ps).to_vec().into_iter().map(|(n, p)| (n, m(u, p))).collect();
+            let ps: Vec<_> = (0..u.params_of(ps).len())
+                .map(|i| {
+                    let (n, p) = u.params_of(ps)[i];
+                    (n, m(u, p))
+                })
+                .collect();
             u.intern_params(&ps)
         };
         let mapped = match *self.ty(t) {
@@ -31,7 +36,12 @@ impl Universe {
                 if mapped != c && mapped == crate::NOTHING {
                     return mapped;
                 }
-                let args: Vec<_> = self.types_of(args).to_vec().into_iter().map(|a| m(self, a)).collect();
+                let args: Vec<_> = (0..self.types_of(args).len())
+                    .map(|i| {
+                        let a = self.types_of(args)[i];
+                        m(self, a)
+                    })
+                    .collect();
                 let applied = self.intern_applied(mapped, &args);
                 let lambda = self.lambda(mapped).is_some();
                 return if mapped != c && lambda { self.beta_reduced(applied) } else { applied };
@@ -59,7 +69,12 @@ impl Universe {
             Type::Rec(b, a) => Type::Rec(b, m(self, a)),
             Type::Match { bound, scrutinee, cases } => {
                 let (bound, scrutinee) = (m(self, bound), m(self, scrutinee));
-                let cases: Vec<_> = self.types_of(cases).to_vec().into_iter().map(|c| m(self, c)).collect();
+                let cases: Vec<_> = (0..self.types_of(cases).len())
+                    .map(|i| {
+                        let c = self.types_of(cases)[i];
+                        m(self, c)
+                    })
+                    .collect();
                 return self.intern_match(bound, scrutinee, &cases);
             }
             Type::MatchCase(p, b) => Type::MatchCase(m(self, p), m(self, b)),

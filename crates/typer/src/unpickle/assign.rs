@@ -73,7 +73,8 @@ impl Unpickler<'_> {
         match *self.u.ty(t) {
             Type::Method { binder, params, result, implicit, contextual } => {
                 let mut mapped = Vec::new();
-                for (n, p) in self.u.params_of(params).to_vec() {
+                for i in 0..self.u.params_of(params).len() {
+                    let (n, p) = self.u.params_of(params)[i];
                     let elem = match self.u.annotated(p) {
                         Some((seq, annot)) if self.is_repeated_annot(annot) => match self.u.applied(seq) {
                             Some((_, args)) if args.len() == 1 => Some(args[0]),

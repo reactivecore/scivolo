@@ -69,9 +69,7 @@ impl Translator<'_, '_> {
                 }
                 let info = self.l.u.member_info(tpe, m);
                 let (params, result) = match *self.l.u.ty(info) {
-                    Type::Method { params, result, .. } => {
-                        (Some(self.l.u.params_of(params).to_vec()), result)
-                    }
+                    Type::Method { params, result, .. } => (Some(params), result),
                     Type::Poly { .. } => continue,
                     Type::ByName(result) => (None, result),
                     _ => (None, info),
@@ -81,7 +79,10 @@ impl Translator<'_, '_> {
                 }
                 let shape = match name {
                     "toSeq" | "length" => params.is_none(),
-                    _ => params.is_some_and(|p| p.len() == 1 && self.l.u.class_symbol(p[0].1) == int),
+                    _ => params.is_some_and(|p| {
+                        let p = self.l.u.params_of(p);
+                        p.len() == 1 && self.l.u.class_symbol(p[0].1) == int
+                    }),
                 };
                 if shape && fits(self, result) {
                     return Some((m, result));

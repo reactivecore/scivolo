@@ -25,8 +25,8 @@ impl Host {
         let Type::Method { params, .. } = *self.u.ty(info) else {
             return self.reflect().apply(fun, terms);
         };
-        let params = self.u.params_of(params).to_vec();
-        let names: Vec<String> = params.iter().map(|&(n, _)| self.u.name(n).to_owned()).collect();
+        let names: Vec<String> =
+            self.u.params_of(params).iter().map(|&(n, _)| self.u.name(n).to_owned()).collect();
         let named = |h: &Host, t: TNodeId| matches!(h.tpd.tree(t), T::NamedArg { .. });
         if terms.len() == names.len() && !terms.iter().any(|&t| named(self, t)) {
             return self.reflect().apply(fun, terms);
@@ -57,7 +57,7 @@ impl Host {
             }
             let mut arg_defs = Vec::new();
             for (i, (arg, name)) in typed.iter_mut().zip(&names).enumerate() {
-                if !self.is_lifted_param(params[i].1) {
+                if !self.is_lifted_param(self.u.params_of(params)[i].1) {
                     continue;
                 }
                 let prefix = if name.contains('$') { "" } else { name.as_str() };

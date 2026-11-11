@@ -31,13 +31,13 @@ pub fn tuple_element_types_up_to(l: &mut Lower, mut t: TypeId, bound: usize) -> 
         let tp = l.u.dealias(normalized);
         match *l.u.ty(tp) {
             Type::Applied(tycon, args) => {
-                let args = l.u.types_of(args).to_vec();
                 let name = l.u.class_symbol(tycon).map(|c| l.u.full_name(c))?;
+                let args = l.u.types_of(args);
                 if name == "scala.*:" && args.len() == 2 {
                     out.push(args[0]);
                     t = args[1];
                 } else if args.len() <= MAX_TUPLE_ARITY && name == format!("scala.Tuple{}", args.len()) {
-                    out.extend(args);
+                    out.extend_from_slice(args);
                     return Some(out);
                 } else {
                     return None;

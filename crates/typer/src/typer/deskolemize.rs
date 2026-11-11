@@ -82,7 +82,8 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
             let class = u.class_symbol(tycon)?;
             let variances = u.variances(class);
             let mut mapped = Vec::new();
-            for (i, a) in u.types_of(args).to_vec().into_iter().enumerate() {
+            for i in 0..u.types_of(args).len() {
+                let a = u.types_of(args)[i];
                 mapped.push(deskolemized(u, a, variances.get(i).copied().unwrap_or(0) * v)?);
             }
             u.intern_applied(tycon, &mapped)

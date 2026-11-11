@@ -113,13 +113,14 @@ impl Typer<'_> {
             Type::Applied(tycon, args) => {
                 let Some(class) = self.u.class_symbol(tycon) else { return !self.refers_to(t, &[p]) };
                 let variances = self.u.variances(class);
-                self.u.types_of(args).to_vec().into_iter().enumerate().all(|(i, a)| {
+                (0..self.u.types_of(args).len()).all(|i| {
                     let w = variances.get(i).copied().unwrap_or(0);
-                    self.occurrences(a, p, v * w, seen)
+                    self.occurrences(self.u.types_of(args)[i], p, v * w, seen)
                 })
             }
             Type::Method { params, result, .. } => {
-                (self.u.params_of(params).to_vec().into_iter()).all(|(_, q)| self.occurrences(q, p, -v, seen))
+                (0..self.u.params_of(params).len())
+                    .all(|i| self.occurrences(self.u.params_of(params)[i].1, p, -v, seen))
                     && self.occurrences(result, p, v, seen)
             }
             Type::Bounds(lo, hi) => self.occurrences(lo, p, -v, seen) && self.occurrences(hi, p, v, seen),

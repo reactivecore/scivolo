@@ -36,10 +36,10 @@ impl Avoid<'_> {
             }
             Type::Applied(tycon, args) => {
                 let c = m(t, tycon, v)?;
-                let args = t.u.types_of(args).to_vec();
-                let variances = t.u.tycon_variances(tycon, args.len());
-                let mut mapped = Vec::with_capacity(args.len());
-                for (&arg, &pv) in args.iter().zip(&variances) {
+                let variances = t.u.tycon_variances(tycon, t.u.types_of(args).len());
+                let mut mapped = Vec::with_capacity(variances.len());
+                for (i, &pv) in variances.iter().enumerate() {
+                    let arg = t.u.types_of(args)[i];
                     let wildcard = matches!(t.u.ty(arg), Type::Bounds(..) | Type::Wildcard(_));
                     mapped.push(m(t, arg, if wildcard { v } else { v * pv })?);
                 }

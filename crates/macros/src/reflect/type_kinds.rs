@@ -70,11 +70,11 @@ impl Host {
             }
             _ => return Err("the parts of a type other than a method, polymorphic type or type lambda"),
         };
-        let params = self.u.params_of(params).to_vec();
-        let mut parts: Vec<i32> = flags.iter().map(|&f| f as i32).chain([params.len() as i32]).collect();
-        parts.extend(params.iter().map(|&(_, t)| self.add_type(t) as i32));
+        let n = self.u.params_of(params).len();
+        let mut parts: Vec<i32> = flags.iter().map(|&f| f as i32).chain([n as i32]).collect();
+        parts.extend((0..n).map(|i| self.add_type(self.u.params_of(params)[i].1) as i32));
         parts.push(self.add_type(result) as i32);
-        let names: Vec<&str> = params.iter().map(|&(n, _)| self.u.name(n)).collect();
+        let names: Vec<&str> = self.u.params_of(params).iter().map(|&(n, _)| self.u.name(n)).collect();
         Ok((parts, Some(names.join("\0").encode_utf16().collect())))
     }
 

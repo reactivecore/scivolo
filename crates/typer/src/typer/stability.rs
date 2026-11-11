@@ -134,14 +134,15 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
 fn is_realizable_class(u: &mut Universe, t: TypeId) -> bool {
     let d = u.dealias(t);
     let (s, args) = match *u.ty(d) {
-        Type::Sym(_, s) => (s, Vec::new()),
+        Type::Sym(_, s) => (s, None),
         Type::Applied(c, args) => match *u.ty(c) {
-            Type::Sym(_, s) => (s, u.types_of(args).to_vec()),
+            Type::Sym(_, s) => (s, Some(args)),
             _ => return false,
         },
         _ => return false,
     };
-    if u.symbol(s).kind != Kind::Class || args.iter().any(|&a| u.bounds(a).is_some()) {
+    let bounded = |l| u.types_of(l).iter().any(|&a| u.bounds(a).is_some());
+    if u.symbol(s).kind != Kind::Class || args.is_some_and(bounded) {
         return false;
     }
     let members: Vec<SymbolId> = u.linearization(s).iter().flat_map(|&c| u.symbol(c).decls.clone()).collect();

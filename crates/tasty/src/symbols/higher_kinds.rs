@@ -101,9 +101,10 @@ impl Narrowing {
             }
             Type::Applied(tycon, args) => {
                 self.go(u, tycon, v);
-                let args = u.types_of(args).to_vec();
-                let signs = self.tycon_variances(u, tycon, args.len());
-                for (arg, s) in args.into_iter().zip(signs) {
+                let n = u.types_of(args).len();
+                let signs = self.tycon_variances(u, tycon, n);
+                for (i, s) in signs.into_iter().enumerate() {
+                    let arg = u.types_of(args)[i];
                     let bounds = matches!(u.ty(arg), Type::Bounds(..) | Type::Wildcard(_));
                     self.go(u, arg, if bounds { v } else { v * s });
                 }
@@ -124,7 +125,8 @@ impl Narrowing {
             | Type::Poly { params, result, .. }
             | Type::Lambda { params, result, .. } => {
                 let case = matches!(u.ty(result), Type::MatchCase(..));
-                for (_, p) in u.params_of(params).to_vec() {
+                for i in 0..u.params_of(params).len() {
+                    let p = u.params_of(params)[i].1;
                     self.go(u, p, if case { 0 } else { -v });
                 }
                 self.go(u, result, v);
@@ -132,7 +134,8 @@ impl Narrowing {
             Type::Match { bound, scrutinee, cases } => {
                 self.go(u, bound, v);
                 self.go(u, scrutinee, 0);
-                for c in u.types_of(cases).to_vec() {
+                for i in 0..u.types_of(cases).len() {
+                    let c = u.types_of(cases)[i];
                     self.go(u, c, v);
                 }
             }

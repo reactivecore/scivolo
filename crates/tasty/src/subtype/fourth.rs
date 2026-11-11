@@ -75,8 +75,9 @@ impl Cmp<'_> {
             let Type::Skolem(_, widened) = *self.u.ty(scrutinee) else { return false };
             scrutinee = widened;
         }
-        let (cases, others) = (self.u.types_of(cases).to_vec(), self.u.types_of(others).to_vec());
-        cases.len() == others.len() && cases.iter().zip(&others).all(|(&x, &y)| self.recur(x, y))
+        let n = self.u.types_of(cases).len();
+        n == self.u.types_of(others).len()
+            && (0..n).all(|i| self.recur(self.u.types_of(cases)[i], self.u.types_of(others)[i]))
     }
 
     /// `[X..] =>> result <: b` for a `b` that is no lambda: `result <: b[X..]` if `b` takes as

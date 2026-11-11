@@ -20,7 +20,8 @@ impl Reflect<'_> {
             match *self.u.ty(t) {
                 Type::Method { params, result, implicit, contextual, .. } => {
                     let mut clause = Vec::new();
-                    for (name, info) in self.u.params_of(params).to_vec() {
+                    for i in 0..self.u.params_of(params).len() {
+                        let (name, info) = self.u.params_of(params)[i];
                         let p = self.new_param(s, name, Kind::Param);
                         self.u.set_info(p, info);
                         let flags = self.u.symbol(p).flags;

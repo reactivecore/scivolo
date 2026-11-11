@@ -91,7 +91,8 @@ impl Typer<'_> {
         match *self.u.ty(info) {
             Type::Method { params, result, implicit: false, .. } if self.u.method(result).is_none() => {
                 let mut args = Vec::new();
-                for (i, (_, p)) in self.u.params_of(params).to_vec().into_iter().enumerate() {
+                for i in 0..self.u.params_of(params).len() {
+                    let p = self.u.params_of(params)[i].1;
                     let repeated = self.repeated_elem(p);
                     let parser = if repeated.is_some() { "parseRemainingArguments" } else { "parseArgument" };
                     let Some(parser) = self.command_line_parser_member(parser, Kind::Def) else {

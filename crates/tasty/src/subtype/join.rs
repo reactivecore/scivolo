@@ -224,10 +224,10 @@ impl Universe {
                     && (t1 == t2 || self.same_static_class(t1, t2).is_some()) =>
             {
                 self.class_symbol(t1)?;
-                let (xs, ys) = (self.types_of(xs).to_vec(), self.types_of(ys).to_vec());
                 let variances = self.constructor_variances(t1);
                 let mut args = Vec::new();
-                for (i, (&p, &q)) in xs.iter().zip(&ys).enumerate() {
+                for i in 0..self.types_of(xs).len() {
+                    let (p, q) = (self.types_of(xs)[i], self.types_of(ys)[i]);
                     let interval = |u: &Self, t| u.bounds(t).map_or((t, t, false), |(lo, hi)| (lo, hi, true));
                     let ((plo, phi, pb), (qlo, qhi, qb)) = (interval(self, p), interval(self, q));
                     let same = p == q || !pb && !qb && self.is_subtype(p, q) && self.is_subtype(q, p);

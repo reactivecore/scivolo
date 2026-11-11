@@ -67,10 +67,9 @@ impl Cmp<'_> {
                 let Type::MatchCase(pat, body) = *self.u.ty(result) else {
                     return Spec::Unsupported;
                 };
-                let params = self.u.params_of(params).to_vec();
-                let mut unaccounted = vec![true; params.len()];
-                let names: Vec<_> = params.iter().map(|&(n, _)| n).collect();
-                if self.missing_captures(pat, binder, params.len()) {
+                let names: Vec<_> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
+                let mut unaccounted = vec![true; names.len()];
+                if self.missing_captures(pat, binder, names.len()) {
                     return Spec::Unsupported;
                 }
                 let Some(pattern) = self.spec_pattern(pat, 1, (binder, &names), &mut unaccounted) else {
@@ -79,7 +78,7 @@ impl Cmp<'_> {
                 if unaccounted.contains(&true) {
                     return Spec::Unsupported;
                 }
-                let bounds = params.iter().map(|&(_, b)| b).collect();
+                let bounds = self.u.params_of(params).iter().map(|&(_, b)| b).collect();
                 Spec::Specced(Specced { binder, names, bounds, pattern, pat, body })
             }
             _ => Spec::Unsupported,

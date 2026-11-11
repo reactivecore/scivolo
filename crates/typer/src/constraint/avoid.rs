@@ -88,12 +88,12 @@ impl Constraint {
             Type::Applied(tycon, args) => {
                 let class = u.class_symbol(tycon)?;
                 let variances = u.variances(class);
-                let args = u.types_of(args).to_vec();
-                if variances.len() != args.len() || self.refers_to_local(u, tycon, at, 4) {
+                if variances.len() != u.types_of(args).len() || self.refers_to_local(u, tycon, at, 4) {
                     return None;
                 }
-                let mut out = Vec::with_capacity(args.len());
-                for (&a, &pv) in args.iter().zip(&variances) {
+                let mut out = Vec::with_capacity(variances.len());
+                for (i, &pv) in variances.iter().enumerate() {
+                    let a = u.types_of(args)[i];
                     if pv == 0 && self.is_open_var(u, a) {
                         out.push(self.avoided(u, a, at, 0)?);
                         continue;

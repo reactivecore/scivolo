@@ -26,9 +26,9 @@ impl Host {
                     t = result;
                 }
                 Type::Method { params, result, .. } => {
-                    for (_, p) in self.u.params_of(params).to_vec() {
+                    for i in 0..self.u.params_of(params).len() {
                         numbers.push(-1);
-                        names.push(self.sig_name(p));
+                        names.push(self.sig_name(self.u.params_of(params)[i].1));
                     }
                     t = result;
                 }

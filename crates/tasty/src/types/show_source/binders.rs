@@ -24,7 +24,8 @@ impl SourcePrinter<'_> {
             }),
             Type::Poly { binder, params, result } => self.bind(binder, params, |p| {
                 p.out.push('[');
-                for (i, (name, info)) in p.u.params_of(params).to_vec().into_iter().enumerate() {
+                for i in 0..p.u.params_of(params).len() {
+                    let (name, info) = p.u.params_of(params)[i];
                     p.out.push_str(if i > 0 { ", " } else { "" });
                     p.out.push_str(&format!("{} ", p.u.name(name)));
                     p.print(info)?;
@@ -52,7 +53,8 @@ impl SourcePrinter<'_> {
 
     /// Parameters `params` as `printMethodicTypeParams` shows them.
     pub fn params(&mut self, params: ParamList) -> Shown {
-        for (i, (name, info)) in self.u.params_of(params).to_vec().into_iter().enumerate() {
+        for i in 0..self.u.params_of(params).len() {
+            let (name, info) = self.u.params_of(params)[i];
             self.out.push_str(if i > 0 { ", " } else { "" });
             self.out.push_str(self.u.name(name));
             match *self.u.ty(info) {

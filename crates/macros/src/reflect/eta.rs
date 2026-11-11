@@ -28,7 +28,8 @@ impl Host {
         let Type::Method { binder, params, result, .. } = *self.u.ty(info) else {
             return Ok(None);
         };
-        if self.u.params_of(params).to_vec().into_iter().any(|(_, p)| self.refers_to(p, binder)) {
+        let n = self.u.params_of(params).len();
+        if (0..n).any(|i| self.refers_to(self.u.params_of(params)[i].1, binder)) {
             return Ok(None);
         }
         let result = match *self.u.ty(result) {
@@ -62,10 +63,10 @@ impl Host {
         }
         let result = self.function_type(result)?;
         let context = if contextual { "Context" } else { "" };
-        let params = self.u.params_of(params).to_vec();
-        let class = self.u.class_ref(&format!("scala.{context}Function{}", params.len()));
+        let n = self.u.params_of(params).len();
+        let class = self.u.class_ref(&format!("scala.{context}Function{n}"));
         let mut args: Vec<TypeId> =
-            params.into_iter().map(|(_, p)| self.translated_from_repeated(p)).collect();
+            (0..n).map(|i| self.translated_from_repeated(self.u.params_of(params)[i].1)).collect();
         args.push(result);
         Ok(self.u.intern_applied(class, &args))
     }

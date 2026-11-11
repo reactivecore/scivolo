@@ -53,15 +53,14 @@ impl Typer<'_> {
         };
         let case = match *self.u.ty(case) {
             Type::Lambda { binder, params, result } => {
-                let params = self.u.params_of(params).to_vec();
+                let names: Vec<NameId> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
                 let mut bound = Vec::new();
                 self.pattern_types(pat, &mut bound, false);
-                if bound.len() != params.len() {
+                if bound.len() != names.len() {
                     return None;
                 }
                 let args: Vec<TypeId> =
                     bound.iter().map(|&(s, _)| self.u.intern_type(Type::Sym(None, s))).collect();
-                let names: Vec<NameId> = params.into_iter().map(|(n, _)| n).collect();
                 self.u.subst(result, binder, &names, &args)
             }
             _ => case,
