@@ -4,7 +4,7 @@
 use super::super::{SymbolId, Universe, module_class_name};
 use super::class;
 use crate::types::NameId;
-use classfile::{ACC_MODULE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassInfo};
+use classfile::{ACC_MODULE, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassInfo};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 /// The Java class files of the jars: the jar of each class by internal name, and each class read
@@ -16,10 +16,10 @@ pub struct JavaClasses {
 }
 
 impl Universe {
-    /// Makes the Java classes of the jars' class files known and enters their packages: those of
-    /// no TASTy file, outside `java.*` and `javax.*`.
-    pub fn use_java_classfiles(&mut self) -> std::io::Result<()> {
-        let mut jars = self.library.java_classes()?;
+    /// Makes the Java classes of the class files of the jars of indices `read` known and enters
+    /// their packages: those of no TASTy file, outside `java.*` and `javax.*`.
+    pub fn use_java_classfiles(&mut self, read: &[usize]) -> std::io::Result<()> {
+        let mut jars = self.library.java_classes(read)?;
         jars.retain(|name, _| !name.starts_with("java/") && !name.starts_with("javax/"));
         let packages: FxHashSet<String> =
             jars.keys().filter_map(|n| n.rsplit_once('/')).map(|(p, _)| p.replace('/', ".")).collect();
@@ -55,20 +55,20 @@ impl Universe {
     }
 }
 
-/// Enters class `info` into `owner` as `name` with its public and protected nested classes, a
-/// static one into the object's class (dotty's `enterOwnInnerClasses`): the class, its object's
-/// class and its object, none if its signature is refused.
+/// Enters class `info` into `owner` as `name` with its public static nested classes into the
+/// object's class (dotty's `enterOwnInnerClasses`): the class, its object's class and its object,
+/// none if its signature is refused. Refused: protected and non-static nested classes, not
+/// entered.
 fn enter(u: &mut Universe, owner: SymbolId, name: &str, info: &ClassInfo) -> Vec<SymbolId> {
     let Some(entered) = class::enter(u, owner, name, info) else { return Vec::new() };
     for nested in &info.inner_classes {
         let (Some(outer), Some(simple)) = (&nested.outer, &nested.name) else { continue };
-        let visible = nested.flags & (ACC_PUBLIC | ACC_PROTECTED) != 0 && nested.flags & ACC_SYNTHETIC == 0;
-        if *outer != info.name || !visible {
+        let flags = nested.flags & (ACC_PUBLIC | ACC_STATIC | ACC_SYNTHETIC);
+        if *outer != info.name || flags != ACC_PUBLIC | ACC_STATIC {
             continue;
         }
         let Some(inner) = java_class(u, &nested.inner) else { continue };
-        let owner = if nested.flags & ACC_STATIC != 0 { entered[1] } else { entered[0] };
-        enter(u, owner, simple, &inner);
+        enter(u, entered[1], simple, &inner);
     }
     entered
 }

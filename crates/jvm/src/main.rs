@@ -41,10 +41,13 @@ fn main() {
     let Cli { cp, macro_cp, d: out, main_class, scalalib, scalac_options: mut options, files } = Cli::parse();
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
-    let jars = [&typer::dump::library_jars(&libs)[..], &cp].concat();
+    let library = typer::dump::library_jars(&libs);
+    let jars = [&library[..], &cp].concat();
     let mut u = Universe::open(&jars).unwrap_or_else(|e| fail(&format!("opening the library: {e:?}")));
     u.set_jdk(classfile::Jdk::default());
-    u.use_java_classfiles().unwrap_or_else(|e| fail(&format!("reading the class files of {jars:?}: {e}")));
+    let on_the_jvm: Vec<usize> = std::iter::once(0).chain(library.len()..jars.len()).collect();
+    u.use_java_classfiles(&on_the_jvm)
+        .unwrap_or_else(|e| fail(&format!("reading the class files of {jars:?}: {e}")));
     if scalalib {
         u.set_same_run_jar(0);
     }

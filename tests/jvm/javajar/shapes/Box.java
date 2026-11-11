@@ -45,6 +45,14 @@ public class Box<T> {
         }
     }
 
+    public class Inner {
+        public T value() {
+            return value;
+        }
+    }
+
+    protected static class Hidden {}
+
     public interface Shape {
         double area();
 

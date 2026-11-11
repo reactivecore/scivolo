@@ -198,7 +198,7 @@ pub fn bounded_by_object(bounds: &str) -> bool {
 }
 
 /// A reference to the class of internal name `internal`, applied to wildcards if it is a raw
-/// type, one whose JDK class file has type parameters (dotty's `cook`).
+/// type, one whose Java class file has type parameters (dotty's `cook`).
 pub fn cooked(u: &mut Universe, internal: &str) -> TypeId {
     let class = class_ref(u, internal);
     let signature = match super::classpath::java_class(u, internal) {

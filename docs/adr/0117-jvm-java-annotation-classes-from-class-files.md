@@ -28,14 +28,21 @@ is `SOURCE` (`shouldEmitAnnotation`).
   annotations of parameters (`RuntimeVisibleParameterAnnotations` is not written).
 
 ## Java classes of jars
-- A Java class file of a jar the JVM backend sees (on `--cp`, or the Scala library's own such as
-  `scala.runtime.BoxesRunTime`) whose package lacks a TASTy file of its top-level class's name
+- A Java class file of a jar on the JVM's class path (on `--cp`, or the Scala library's own such
+  as `scala.runtime.BoxesRunTime`) whose package lacks a TASTy file of its top-level class's name
   is entered on lookup as ADR 0107 enters a JDK class, annotation classes included; packages of
-  such class files are entered when the universe is opened. A class file with a `Scala`,
-  `ScalaSig` or `TASTY` attribute is not entered (Scala 2 pickles are not read).
-- Its public and protected nested classes of its `InnerClasses` are entered with it: a static one
-  into its object's class, the others into the class (dotty's `enterOwnInnerClasses`).
+  such class files are entered when the universe is opened. The Native libraries' class files
+  (`scala.scalanative.runtime.UnsupportedFeature`) are not read.
+- Its public static nested classes of its `InnerClasses` are entered with it into its object's
+  class (dotty's `enterOwnInnerClasses`).
 - The Native backend does not read class files; the library's runtime stubs (`Statics`,
-  `BoxedUnit`, the `*Ref` classes) stay ahead of their class files.
-- Refused: a signature naming a non-static inner class (it is referred to as `Outer.Inner`, a
-  member of the object).
+  `BoxedUnit`, the `*Ref` classes) stay ahead of their class files on both backends.
+- Refused, as not found:
+  - a class of a Scala 2 class file (`ScalaSig` or `Scala` attribute; Scala 2 pickles are not
+    read) or of a Scala 3 one without its TASTy file (`TASTY` attribute);
+  - a protected or non-static nested class, and selecting a member of a value of a non-static
+    one's type (`o.inner().v()`);
+  - a top-level Java class whose name holds a `$`, such as `scala.runtime.java8.JFunction0$mcI$sp`;
+  - the members of the runtime stubs' class files they lack (`Statics.pfMarker`, `Statics.ioobe`,
+    `BoxedUnit.TYPE`), their `java.io.Serializable` parent and `Object` parameters taking any
+    value (`Statics.anyHash(1)`).

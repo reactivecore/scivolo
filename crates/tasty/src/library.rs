@@ -89,13 +89,13 @@ impl Library {
         }
     }
 
-    /// Lists the Java class files of the jars, those of a package of no `.tasty` file of their
-    /// top-level class's name: each internal name, e.g. `scala/runtime/BoxesRunTime`, with the
-    /// first jar that has it; none in an image.
-    pub fn java_classes(&self) -> io::Result<FxHashMap<String, usize>> {
+    /// Lists the Java class files of the jars of indices `read`, those of a package of no `.tasty`
+    /// file of their top-level class's name: each internal name, e.g.
+    /// `scala/runtime/BoxesRunTime`, with the first jar that has it; none in an image.
+    pub fn java_classes(&self, read: &[usize]) -> io::Result<FxHashMap<String, usize>> {
         let Library::Jars { jars, files } = self else { return Ok(FxHashMap::default()) };
         let mut classes = FxHashMap::default();
-        for (i, jar) in jars.iter().enumerate() {
+        for (i, jar) in jars.iter().enumerate().filter(|(i, _)| read.contains(i)) {
             let names = match jar {
                 Archive::Zip(zip) => zip
                     .file_names()
