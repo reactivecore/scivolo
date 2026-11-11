@@ -114,7 +114,7 @@ impl Gen<'_, '_> {
             }
             _ => {}
         }
-        self.expr(b, t)?;
+        self.expr_as(b, t, 1)?;
         jump_zero(b, false, Test::Ne, success, failure, fall);
         Ok(())
     }

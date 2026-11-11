@@ -32,7 +32,9 @@ impl Typer<'_> {
             && !self.parent_news.contains(&id)
         {
             let flags = self.u.symbol(c).flags;
-            if flags.has(TRAIT) || flags.has(ABSTRACT) {
+            let java_annotation =
+                self.annotation_news.contains(&id) && self.u.classfile_retention(c).is_some();
+            if (flags.has(TRAIT) || flags.has(ABSTRACT)) && !java_annotation {
                 let name = self.u.symbol(c).name.clone();
                 let span = self.tpd.span(tpt);
                 self.error_at(span, super::errors::cannot_instantiate(&name, flags.has(TRAIT)));

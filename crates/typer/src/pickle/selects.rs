@@ -45,7 +45,8 @@ impl TreePickler<'_> {
         self.ty(tpe, false)
     }
 
-    /// Selection `id`, of a method through its owner unless the qualifier is a hole.
+    /// Selection `id`, of a method through its owner unless the qualifier is a hole; of a Java
+    /// annotation's constructor by its name only.
     pub fn select(
         &mut self,
         id: TNodeId,
@@ -56,7 +57,10 @@ impl TreePickler<'_> {
         if let Some(&acc) = self.super_calls.get(&id) {
             return self.super_accessor_select(id, acc);
         }
+        let java_annotation =
+            |u: &tasty::Universe, s| u.symbol(s).owner.and_then(|c| u.classfile_retention(c));
         let method = sym.filter(|&s| !name.is_type && result_sig(self.u, s).is_some());
+        let method = method.filter(|&s| !(self.u.is_constructor(s) && java_annotation(self.u, s).is_some()));
         let Some(s) = method.filter(|_| !self.holes.contains_key(&qual)) else {
             self.byte(if name.is_type { SELECTtpt } else { SELECT });
             match method {

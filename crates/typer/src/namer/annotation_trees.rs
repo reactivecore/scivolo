@@ -9,7 +9,7 @@ use crate::defn::STATIC_ANNOT;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::{Pt, Typer};
 use rustc_hash::FxHashMap;
-use syntax::ast::NodeId;
+use syntax::ast::{NodeId, Tree as S};
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
@@ -54,6 +54,8 @@ impl Typer<'_> {
             let typed = match typed_trees.get(&annot) {
                 Some(&t) => t,
                 None => {
+                    let new = self.annotation_new(annot);
+                    self.annotation_news.insert(new);
                     let typed = self.typed(annot, Pt::Any, ctx);
                     let t = (!self.is_error(typed) && self.check_annot_class(annot, typed)).then_some(typed);
                     if t.is_some() {
@@ -73,11 +75,24 @@ impl Typer<'_> {
         self.syms.annotation_trees.clear();
     }
 
+    /// The `new` of annotation tree `annot`, the tree itself if it has none.
+    fn annotation_new(&self, annot: NodeId) -> NodeId {
+        let mut t = annot;
+        loop {
+            match *self.ast.tree(t) {
+                S::Apply { fun, .. } | S::TypeApply { fun, .. } => t = fun,
+                S::Select { qualifier, .. } => t = qualifier,
+                _ => return t,
+            }
+        }
+    }
+
     /// Whether typed annotation `typed` of tree `annot` is of a class that extends
-    /// `scala.annotation.Annotation`; reports it if not.
+    /// `scala.annotation.Annotation` or of a Java annotation class; reports it if not.
     fn check_annot_class(&mut self, annot: NodeId, typed: TNodeId) -> bool {
         let tpe = self.tpd.tpe(typed);
-        if self.derives_from_named(tpe, "scala.annotation.Annotation") {
+        let java = self.u.class_symbol(tpe).is_some_and(|c| self.u.classfile_retention(c).is_some());
+        if java || self.derives_from_named(tpe, "scala.annotation.Annotation") {
             return true;
         }
         let name = self.u.class_symbol(tpe).map(|c| self.u.symbol(c).name.clone()).unwrap_or_default();
