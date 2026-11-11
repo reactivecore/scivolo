@@ -73,15 +73,8 @@ fn main() {
     let copies = sources.iter().map(|s| SourceFile::new(s.name.clone(), s.text.clone())).collect();
     let mut runner = vm.as_mut().map(|vm| VmMacros { vm, sources: copies, settings });
     let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
-    let in_backend = std::cell::Cell::new(false);
-    let generate = |l: &mut lower::Lower, root, pickles| {
-        jvmgen::unit(l, root, pickles).inspect_err(|_| in_backend.set(true))
-    };
-    let backend = (lower::Backend::Jvm, generate);
-    let message = |e: &lower::Refusal| match in_backend.get() {
-        true => e.what.replacen("the lowering", "the JVM backend", 1),
-        false => e.what.replace("\n  ", " "),
-    };
+    let backend = (lower::Backend::Jvm, jvmgen::unit);
+    let message = |e: &lower::Refusal| e.what.replace("\n  ", " ");
     let Isolated { out: classes, refused, .. } =
         lower::compile_isolated(&mut open, &sources, config, macros, backend)
             .unwrap_or_else(|e| fail(&message(&e)));

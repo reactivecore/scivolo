@@ -38,7 +38,8 @@ pub fn compile_sources_isolated(
 /// Compiles `files` as `compile_units` does, each attempt in a universe from `open`; a refusal
 /// that lies in some files leaves them out, blanked so that the others keep their offsets, and
 /// the rest is compiled again, so that a file needing a refused one is refused in turn.
-/// Refuses the whole unit where a refusal lies in no file or only in files left out already.
+/// Refuses the whole unit where it has one file, or a refusal lies in no file or only in files
+/// left out already.
 pub fn compile_isolated<R>(
     open: &mut dyn FnMut() -> Universe,
     files: &[SourceFile],
@@ -59,7 +60,8 @@ pub fn compile_isolated<R>(
         match compile_attributed(&mut u, &kept, cfg, lent, generate) {
             Ok((out, diags)) => return Ok(Isolated { out, diags, refused }),
             Err(Attributed { refusal, files: at }) => {
-                if at.is_empty() || at.iter().all(|&i| left_out[i]) {
+                let at: Vec<usize> = at.into_iter().filter(|&i| !left_out[i]).collect();
+                if at.is_empty() || files.len() == 1 {
                     return Err(refusal);
                 }
                 for &i in &at {

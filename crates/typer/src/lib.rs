@@ -143,9 +143,15 @@ impl Units {
         let trees = ast.list(&roots);
         let unit = ast.node(Tree::Thicket { trees });
         let unsupported = |what| Fallback::Unsupported { at: Span::NONE, what };
+        let scala2 = units.first().is_some_and(|unit| unit.cfg.source_version.is_scala2());
         for unit in units {
+            let at = ast.span(unit.root);
             typer::check_source_version(unit.cfg.source_version)
-                .map_err(|what| Fallback::Unsupported { at: ast.span(unit.root), what })?;
+                .map_err(|what| Fallback::Unsupported { at, what })?;
+            if unit.cfg.source_version.is_scala2() != scala2 {
+                let what = "source version `2.13` in some files of a unit only".to_owned();
+                return Err(Fallback::Unsupported { at, what });
+            }
         }
         let cfg = units.first().map_or_else(|| syntax::config::Config::from_options(&[]), |unit| unit.cfg);
         let mut typer =

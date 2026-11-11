@@ -12,7 +12,9 @@ a whole at its first refusal. dotty keeps the source version and the unit-wide f
 ## Decision
 - Each `SourceUnit` carries the `Config` its parser ended with. The typer enters, completes and
   types each definition under the features and source version of its file
-  (`Typer::enter_file`); the other settings are options, the same for all files.
+  (`Typer::enter_file`); the other settings are options, the same for all files. Source
+  version `2.13`, which the lowering and the TASTy attributes read per unit, is refused in
+  some files of a unit only.
 - `compile_isolated` refuses a file, not the run: a refusal that lies in some files blanks
   them (spaces, line breaks kept, so the others keep their offsets) and compiles the rest again
   in a fresh universe. A file needing a refused one is refused in the next attempt, with its

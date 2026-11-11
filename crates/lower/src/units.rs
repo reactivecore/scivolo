@@ -110,14 +110,19 @@ pub fn compile_attributed<R>(
     let located = Sources::new(files).map_err(|e| whole(refused(e)))?;
     let sources = (sources, cfg.explicit_nulls);
     let pickles = std::mem::take(&mut typed.pickles);
-    let generate = (backend, |l: &mut crate::Lower, root| generate(l, root, pickles));
+    let mut in_backend = false;
+    let generate = |l: &mut crate::Lower, root| generate(l, root, pickles).inspect_err(|_| in_backend = true);
     let trees = (&mut typed.tpd, &mut typed.diags);
-    let out = crate::lower_trees(u, trees, typed.root, (&mut names, &mut fresh), sources, generate).map_err(
-        |e| {
-            let what = format!("the lowering does not support {}{}", e.what, at_point(&located, e.at));
-            Attributed { refusal: refused(what), files: file_at(&located, e.at) }
-        },
-    )?;
+    let lowered =
+        crate::lower_trees(u, trees, typed.root, (&mut names, &mut fresh), sources, (backend, generate));
+    let out = lowered.map_err(|e| {
+        let stage = match in_backend && backend == crate::Backend::Jvm {
+            true => "the JVM backend",
+            false => "the lowering",
+        };
+        let what = format!("{stage} does not support {}{}", e.what, at_point(&located, e.at));
+        Attributed { refusal: refused(what), files: file_at(&located, e.at) }
+    })?;
     Ok((out, typed.diags))
 }
 
