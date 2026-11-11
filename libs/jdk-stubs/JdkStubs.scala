@@ -80,6 +80,49 @@ package scala.runtime {
   }
 }
 
+package scala.collection.concurrent {
+  import java.util.concurrent.atomic.{AtomicIntegerFieldUpdater, AtomicReferenceFieldUpdater}
+
+  abstract class BasicNode {
+    def string(x$0: Int): String
+  }
+
+  private[concurrent] abstract class MainNode[K, V] private[concurrent] () extends BasicNode {
+    @volatile var prev: MainNode[K, V] = null
+    def cachedSize(x$0: Object): Int
+    def knownSize(): Int
+    def CAS_PREV(x$0: MainNode[K, V], x$1: MainNode[K, V]): Boolean = false
+    def WRITE_PREV(x$0: MainNode[K, V]): Unit = ()
+    def READ_PREV(): MainNode[K, V] = prev
+  }
+  private[concurrent] object MainNode {
+    @static final val updater: AtomicReferenceFieldUpdater[MainNode[?, ?], MainNode[?, ?]] = null
+  }
+
+  private[concurrent] abstract class CNodeBase[K, V] private[concurrent] () extends MainNode[K, V] {
+    @volatile var csize: Int = -1
+    def CAS_SIZE(x$0: Int, x$1: Int): Boolean = false
+    def WRITE_SIZE(x$0: Int): Unit = ()
+    def READ_SIZE(): Int = csize
+  }
+  private[concurrent] object CNodeBase {
+    @static final val updater: AtomicIntegerFieldUpdater[CNodeBase[?, ?]] = null
+  }
+
+  private[concurrent] abstract class INodeBase[K, V](x$0: Gen) extends BasicNode {
+    @volatile var mainnode: MainNode[K, V] = null
+    final val gen: Gen = x$0
+    def prev(): BasicNode = null
+  }
+  private[concurrent] object INodeBase {
+    @static final val updater: AtomicReferenceFieldUpdater[INodeBase[?, ?], MainNode[?, ?]] = null
+    @static private[concurrent] final val RESTART: Object = null
+    @static private[concurrent] final val NO_SUCH_ELEMENT_SENTINEL: Object = null
+  }
+
+  private[concurrent] final class Gen private[concurrent] ()
+}
+
 package java.lang.reflect {
   trait AnnotatedElement
 }

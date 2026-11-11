@@ -11,13 +11,25 @@ use tasty::Type;
 use tasty::tags::INLINE;
 
 impl Typer<'_> {
-    /// Whether the unit writes a capture set, an annotation, a function or a by-name type.
+    /// Whether the unit writes a capture set, an annotation other than the `@Repeated` of `T*`,
+    /// a function or a by-name type.
     pub fn has_capture_syntax(&self) -> bool {
-        self.ast.exists_subtree(self.unit, &|a, n| match a.tree(n) {
-            Tree::CapturesAndResult { .. } | Tree::UseRef { .. } | Tree::Annotated { .. } => true,
+        self.ast.exists_subtree(self.unit, &|a, n| match *a.tree(n) {
+            Tree::CapturesAndResult { .. } | Tree::UseRef { .. } => true,
+            Tree::Annotated { annot, .. } => !self.is_repeated_syntax(annot),
             Tree::Function { .. } | Tree::ByNameTypeTree { .. } => a.is_type(n),
             _ => false,
         })
+    }
+
+    /// Whether `annot` is `new scala.annotation.internal.Repeated()`, which desugaring writes
+    /// for `T*`.
+    fn is_repeated_syntax(&self, annot: syntax::ast::NodeId) -> bool {
+        let Tree::Apply { fun, .. } = *self.ast.tree(annot) else { return false };
+        let Tree::Select { qualifier, .. } = *self.ast.tree(fun) else { return false };
+        let Tree::New { tpt } = *self.ast.tree(qualifier) else { return false };
+        matches!(*self.ast.tree(tpt), Tree::TypedSplice { sym }
+            if sym.is_type && self.text(sym.name) == crate::defn::REPEATED_ANNOT)
     }
 
     /// Whether a term under quote body `body` outside its splices refers to a member whose type

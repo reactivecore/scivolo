@@ -1,5 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //! Type tests and casts as dotty's `TypeTestsCasts` erases them: `x.isInstanceOf[T]` as a null
 //! check if it holds statically in a match, a constant for a primitive value, else as a test of
 //! `T`'s erased class, a value class itself, the box class for a primitive; casts in
@@ -121,7 +122,7 @@ fn is_instance_of(
     let test_tpe = type_of(l, &test);
     let boxed = found.and_then(boxed_class).map(|b| l.u.class_ref(b));
     let array = matches!(test, Erased::Array(_));
-    if in_match && !array && l.u.is_subtype(boxed.unwrap_or(expr_tpe), test_tpe) {
+    if in_match && !array && conforms_to_test(l, boxed.unwrap_or(expr_tpe), test_tpe) {
         if found.is_some() {
             return unsupported(span, "type tests of primitive values");
         }
@@ -154,6 +155,21 @@ fn is_instance_of(
     let args = l.tpd.list(&[tpt]);
     let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
     Ok(l.tpd.node(Tree::TypeApply { fun, args }, span, Some(boolean), Some(l.defs.is_instance_of)))
+}
+
+/// Whether `tpe` conforms to `test`, an erased class type; a parameterized Java class is a raw
+/// type there, which a type deriving from the class conforms to (dotty's `compareNamed`).
+fn conforms_to_test(l: &mut Lower, tpe: tasty::TypeId, test: tasty::TypeId) -> bool {
+    if l.u.is_subtype(tpe, test) {
+        return true;
+    }
+    let widened = l.u.widen(tpe);
+    if let Type::Or(a, b, _) = *l.u.ty(widened) {
+        return conforms_to_test(l, a, test) && conforms_to_test(l, b, test);
+    }
+    let Some(c) = l.u.class_symbol(test) else { return false };
+    let java = l.u.is_from_jdk_jars(c) || super::mixin::is_jdk(l, c);
+    java && !l.u.type_params(c).is_empty() && l.u.base_type(widened, c).is_some()
 }
 
 /// Boolean `value`, after `expr` unless it is a literal or a pure path (dotty's `constant`).

@@ -1,5 +1,5 @@
 //! Reading class files (JVMS §4.1): the class's names, flags, members, `Signature`
-//! attributes and annotations, other attributes skipped.
+//! attributes, annotations and inner classes, other attributes skipped.
 
 mod attributes;
 mod jdk;
@@ -32,6 +32,9 @@ pub struct ClassInfo {
     pub methods: Vec<MemberInfo>,
     pub signature: Option<String>,
     pub annotations: Vec<Annotation>,
+    pub inner_classes: Vec<crate::InnerClass>,
+    /// Whether a `Scala`, `ScalaSig` or `TASTY` attribute marks it as compiled from Scala.
+    pub scala: bool,
 }
 
 /// The bytes of a class file after an offset.
@@ -176,6 +179,17 @@ pub fn read(bytes: &[u8]) -> Result<ClassInfo, String> {
     let interfaces = interfaces.collect::<Result<_, String>>()?;
     let fields = members(&mut b, &c)?;
     let methods = members(&mut b, &c)?;
-    let Attributes { signature, annotations, .. } = attributes(&mut b, &c)?;
-    Ok(ClassInfo { access, name, superclass, interfaces, fields, methods, signature, annotations })
+    let Attributes { signature, annotations, inner_classes, scala, .. } = attributes(&mut b, &c)?;
+    Ok(ClassInfo {
+        access,
+        name,
+        superclass,
+        interfaces,
+        fields,
+        methods,
+        signature,
+        annotations,
+        inner_classes,
+        scala,
+    })
 }

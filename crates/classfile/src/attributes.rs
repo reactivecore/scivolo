@@ -4,6 +4,7 @@ use crate::{Attribute, ClassFile};
 
 /// A member of the `InnerClasses` attribute: the class, its outer class and simple name (none
 /// for a local or anonymous class), and its flags.
+#[derive(Clone, Debug, PartialEq)]
 pub struct InnerClass {
     pub inner: String,
     pub outer: Option<String>,
