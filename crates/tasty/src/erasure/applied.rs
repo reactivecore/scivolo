@@ -91,7 +91,7 @@ impl Universe {
         }
         Erased::Array(Box::new(match self.erase_boxed(elem) {
             Erased::Unit if wildcard => return object(),
-            Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
+            Erased::Unit => Erased::boxed_unit(),
             Erased::Nothing | Erased::Null if self.scala2_erasure() => object(),
             e => e,
         }))

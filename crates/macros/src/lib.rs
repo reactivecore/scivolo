@@ -51,10 +51,10 @@ impl Macros for VmMacros<'_> {
         });
         let sig = sig.ok_or_else(|| refused("a macro implementation without a method signature"))?;
         let (mut params, _) = u.erased_method(call.method);
-        let quotes = Erased::Class("scala.quoted.Quotes".into());
+        let quotes = Erased::Class(tasty::defn::QUOTES.into());
         params.extend((1..call.context).map(|_| quotes.clone()));
         if call.context > 0 {
-            params.push(if by_name { Erased::Class("scala.Function0".into()) } else { quotes });
+            params.push(if by_name { Erased::function0() } else { quotes });
         }
         if params.len() != call.args.len() {
             return Err(refused("a macro implementation with erased parameters"));

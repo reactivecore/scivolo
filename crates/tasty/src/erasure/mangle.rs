@@ -130,17 +130,14 @@ impl Universe {
             .into_iter()
             .map(|p| {
                 let p = self.upper_bound(p, &bounds);
-                match erase(self, p) {
-                    Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
-                    e => e,
-                }
+                erase(self, p).boxing_unit()
             })
             .collect();
         let dealiased = self.dealias(t);
-        let unit = self.class_name(dealiased).is_some_and(|c| c == "scala.Unit");
+        let unit = self.class_name(dealiased).is_some_and(|c| c == crate::defn::UNIT);
         let t = self.upper_bound(t, &bounds);
         match erase(self, t) {
-            Erased::Unit if val || !unit => (params, Erased::Class("scala.runtime.BoxedUnit".into())),
+            Erased::Unit if val || !unit => (params, Erased::boxed_unit()),
             e => (params, e),
         }
     }
