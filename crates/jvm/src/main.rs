@@ -1,13 +1,14 @@
 use clap::Parser;
 use jvmgen::ClassBytes;
-use lower::Options;
+use lower::{Isolated, Options};
 use macros::{Macros, VmMacros};
 use std::path::{Path, PathBuf};
 use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// Compiles Scala files through the Rust frontend into JVM class files and TASTy files; the
-/// files are typed as one unit, with the options of their `//> using options` directives.
+/// files are typed as one unit, with the options of their `//> using options` directives. A file
+/// the frontend refuses is reported and left out, with the files that need it, and the run fails.
 ///
 /// Environment: SCIVOLO_LIBS holds the library jars (default: ref/libs).
 #[derive(Parser)]
@@ -42,11 +43,14 @@ fn main() {
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = [&typer::dump::library_jars(&libs)[..], &cp].concat();
-    let mut u = Universe::open(&jars).unwrap_or_else(|e| fail(&format!("opening the library: {e:?}")));
-    u.set_jdk(classfile::Jdk::default());
-    if scalalib {
-        u.set_same_run_jar(0);
-    }
+    let mut open = || {
+        let mut u = Universe::open(&jars).unwrap_or_else(|e| fail(&format!("opening the library: {e:?}")));
+        u.set_jdk(classfile::Jdk::default());
+        if scalalib {
+            u.set_same_run_jar(0);
+        }
+        u
+    };
     let sources: Vec<SourceFile> = files
         .iter()
         .map(|f| {
@@ -69,23 +73,29 @@ fn main() {
     let copies = sources.iter().map(|s| SourceFile::new(s.name.clone(), s.text.clone())).collect();
     let mut runner = vm.as_mut().map(|vm| VmMacros { vm, sources: copies, settings });
     let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
-    let in_backend = std::cell::Cell::new(false);
-    let generate = |l: &mut lower::Lower, root, pickles| {
-        jvmgen::unit(l, root, pickles).inspect_err(|_| in_backend.set(true))
-    };
-    let backend = (lower::Backend::Jvm, generate);
-    let classes = match lower::compile_units(&mut u, &sources, config, macros, backend) {
-        Ok((classes, _)) => classes,
-        Err(e) if in_backend.get() => fail(&e.what.replacen("the lowering", "the JVM backend", 1)),
-        Err(e) => fail(&e.what.replace("\n  ", " ")),
-    };
+    let backend = (lower::Backend::Jvm, jvmgen::unit);
+    let message = |e: &lower::Refusal| e.what.replace("\n  ", " ");
+    let Isolated { out: classes, refused, .. } =
+        lower::compile_isolated(&mut open, &sources, config, macros, backend)
+            .unwrap_or_else(|e| fail(&message(&e)));
     let entries = entries(&classes);
+    write(&out, &entries, main_class.as_deref());
+    for r in &refused {
+        eprintln!("{}: {}", r.file, message(&r.refusal));
+    }
+    if !refused.is_empty() {
+        std::process::exit(1);
+    }
+}
+
+/// Writes `entries` into the jar or directory `out`, the jar's manifest naming `main_class`.
+fn write(out: &Path, entries: &[(String, &[u8])], main_class: Option<&str>) {
     if out.extension().is_some_and(|e| e == "jar") {
-        jvmgen::jar::write(&out, &entries, main_class.as_deref())
+        jvmgen::jar::write(out, entries, main_class)
             .unwrap_or_else(|e| fail(&format!("writing {out:?}: {e}")));
         return;
     }
-    for (name, bytes) in entries {
+    for &(ref name, bytes) in entries {
         let path = out.join(name);
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).unwrap_or_else(|e| fail(&format!("creating {dir:?}: {e}")));

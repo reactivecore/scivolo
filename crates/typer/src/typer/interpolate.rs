@@ -38,11 +38,7 @@ impl Typer<'_> {
         }
         let variances = self.types().variances(tpe, pt, from);
         let mut pending = Vec::new();
-        for i in from..self.constraint.count() {
-            let v = VarId(i as u32);
-            if !self.constraint.is_pending(v) {
-                continue;
-            }
+        for v in self.constraint.pending_from(from) {
             let variance = match variances.get(&v.0) {
                 Some(0) => continue,
                 Some(&x) => x,
@@ -136,10 +132,8 @@ impl TypeOps<'_> {
     /// variable not in `except`.
     fn bound_variances(&mut self, except: &[VarId]) -> Vec<BoundVariances> {
         let mut out = Vec::new();
-        for w in (0..self.constraint.count()).map(|i| VarId(i as u32)) {
-            if except.contains(&w) || !self.constraint.is_pending(w) {
-                continue;
-            }
+        let pending: Vec<VarId> = self.constraint.pending_from(0).filter(|w| !except.contains(w)).collect();
+        for w in pending {
             let (lo, hi) = self.constraint.bounds(w);
             if lo != NOTHING || hi != ANY {
                 out.push((self.occurrence_variances(lo), self.occurrence_variances(hi)));

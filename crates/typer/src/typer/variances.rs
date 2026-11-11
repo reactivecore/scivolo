@@ -58,10 +58,7 @@ impl TypeOps<'_> {
     /// lower bounds (the other direction of dotty's `isLess`).
     fn var_bounded_by(&mut self) -> (FxHashMap<u32, Vec<u32>>, FxHashMap<u32, Vec<u32>>) {
         let (mut below, mut above) = (FxHashMap::default(), FxHashMap::<u32, Vec<u32>>::default());
-        for w in 0..self.constraint.count() as u32 {
-            if !self.constraint.is_pending(VarId(w)) {
-                continue;
-            }
+        for VarId(w) in self.constraint.pending_from(0) {
             let (lo, hi) = self.constraint.bounds(VarId(w));
             for x in self.var_factors(hi, false) {
                 below.entry(x).or_insert_with(Vec::new).push(w);
