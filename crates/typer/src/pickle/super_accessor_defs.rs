@@ -12,7 +12,20 @@ use tasty::tags::{
     STRINGconst, TYPEPARAM,
 };
 use tasty::write::Name;
-use tasty::{Flags, Kind, Symbol, SymbolId, TypeId};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
+
+/// The info of the super accessor of `member`, `info` its selection's type with references to
+/// `member`'s type parameters replaced by references to the type's (dotty's `memberInfo`).
+pub fn accessor_info(u: &mut Universe, member: SymbolId, info: TypeId) -> TypeId {
+    let Some((binder, params)) = u.poly(info).map(|b| (b.binder, b.params.to_vec())) else { return info };
+    u.map_type(info, &mut |u, x| {
+        let (None, s) = u.sym_ref(x)? else { return None };
+        let sym = u.symbol(s);
+        let ours = sym.kind == Kind::TypeParam && sym.owner == Some(member);
+        let i = params.iter().position(|&(n, _)| ours && u.name(n) == sym.name)?;
+        Some(u.intern_type(Type::Param(binder, i as u32)))
+    })
+}
 
 impl TreePickler<'_> {
     /// Super accessor `acc`, declared without a body.
