@@ -90,7 +90,13 @@ impl Typer<'_> {
 
     /// Checks that no scope or class outside level `l`, up to the first package, defines `name`
     /// differently from the inherited `found`.
-    pub fn check_no_outer_defs(&mut self, l: LevelId, found: &Found, name: Name) -> Result<(), &'static str> {
+    pub fn check_no_outer_defs(
+        &mut self,
+        l: LevelId,
+        found: &Found,
+        name: Name,
+        ctx: Ctx,
+    ) -> Result<(), &'static str> {
         let mut level = self.levels.outer(l);
         while let Some(o) = level {
             if matches!(*self.levels.get(o), Level::Members(p) if self.u.symbol(p).kind == Kind::Package) {
@@ -100,7 +106,7 @@ impl Typer<'_> {
                 Level::Members(c) if self.u.symbol(c).kind == Kind::Class => Some(c),
                 _ => None,
             };
-            if let Some(outer) = self.defined(o, name)
+            if let Some(outer) = self.defined(o, name, ctx)
                 && outer.syms.iter().any(|&s| {
                     !found.syms.contains(&s) && cls.is_none_or(|c| self.u.symbol(s).owner == Some(c))
                 })

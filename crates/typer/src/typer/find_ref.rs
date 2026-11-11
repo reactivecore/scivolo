@@ -64,7 +64,8 @@ impl Typer<'_> {
             };
             match *self.levels.get(l) {
                 Level::Scope(_) | Level::Members(_) => {
-                    let Some(found) = self.defined(l, name).and_then(|f| self.qualifying(f, l, ctx)) else {
+                    let Some(found) = self.defined(l, name, ctx).and_then(|f| self.qualifying(f, l, ctx))
+                    else {
                         if let Level::Members(owner) = *self.levels.get(l)
                             && !name.is_type
                         {
@@ -73,7 +74,7 @@ impl Typer<'_> {
                                 return Err("intersection member of an intersected type");
                             }
                         }
-                        let classes = self.defined(l, Name { is_type: true, ..name }).map(|f| f.syms);
+                        let classes = self.defined(l, Name { is_type: true, ..name }, ctx).map(|f| f.syms);
                         let classes = classes.unwrap_or_default();
                         let class = classes.iter().any(|&s| self.u.symbol(s).kind == Kind::Class);
                         let proxy = classes
@@ -112,7 +113,7 @@ impl Typer<'_> {
                     let package = matches!(*self.levels.get(l), Level::Members(o) if self.u.symbol(o).kind == Kind::Package);
                     if !package || self.in_unit(&found) {
                         if self.is_inherited(l, &found) {
-                            self.check_no_outer_defs(l, &found, name)?;
+                            self.check_no_outer_defs(l, &found, name, ctx)?;
                         }
                         let hit = Hit { found, prec: Prec::Definition, scope };
                         return self.new_or_shadowed(prev, hit, l, name).map(Some);
@@ -234,16 +235,22 @@ impl Typer<'_> {
             Level::Members(o) => self.u.symbol(o).kind == Kind::Class && !self.is_named_package_object(o),
             Level::Import(_) => false,
         };
-        defines && self.defined(s, name).and_then(|f| self.qualifying(f, s, ctx)).is_some()
+        defines && self.defined(s, name, ctx).and_then(|f| self.qualifying(f, s, ctx)).is_some()
     }
 
-    /// Whether `found` has a symbol this unit defines.
+    /// Whether `found` has a symbol the source file being typed defines (dotty's
+    /// `isDefinedInCurrentUnit`), or one of the unit without a definition tree.
     fn in_unit(&self, found: &Found) -> bool {
-        found.syms.iter().any(|s| self.syms.flags.contains_key(s))
+        found.syms.iter().filter(|s| self.syms.flags.contains_key(s)).any(|s| {
+            match self.syms.def_trees.get(s) {
+                Some(&tree) => self.file_of(self.ast.span(tree)) == self.file,
+                None => true,
+            }
+        })
     }
 
-    /// The symbols named `name` that scope or members level `l` defines.
-    pub fn defined(&mut self, l: LevelId, name: Name) -> Option<Found> {
+    /// The symbols named `name` that scope or members level `l` defines, as selected in `ctx`.
+    pub fn defined(&mut self, l: LevelId, name: Name, ctx: Ctx) -> Option<Found> {
         match self.levels.get(l) {
             Level::Scope(entries) => {
                 let found = entries
@@ -260,7 +267,7 @@ impl Typer<'_> {
                     return Some(Found { prefix: None, syms: vec![s] });
                 }
                 let prefix = crate::defn::owner_prefix(self.u, owner);
-                let mut found = self.members_found(prefix, name.text, name.is_type)?;
+                let mut found = self.members_found_in(prefix, name.text, name.is_type, ctx)?;
                 if self.u.symbol(owner).kind == Kind::Package {
                     found.prefix = Some(self.u.intern_type(Type::This(prefix)));
                 }

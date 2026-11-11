@@ -56,7 +56,7 @@ impl Typer<'_> {
                 None => {
                     let new = self.annotation_new(annot);
                     self.annotation_news.insert(new);
-                    let typed = self.typed(annot, Pt::Any, ctx);
+                    let typed = self.in_file_of(annot, |t| t.typed(annot, Pt::Any, ctx));
                     let t = (!self.is_error(typed) && self.check_annot_class(annot, typed)).then_some(typed);
                     if t.is_some() {
                         self.check_annot_args(typed);

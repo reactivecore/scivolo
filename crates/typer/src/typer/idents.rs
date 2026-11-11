@@ -19,11 +19,20 @@ pub struct Found {
 
 impl Typer<'_> {
     pub fn members_found(&mut self, prefix: TypeId, name: &str, is_type: bool) -> Option<Found> {
-        let syms: Vec<SymbolId> = self
-            .type_members(prefix, name)
-            .into_iter()
-            .filter(|&s| self.u.is_type_symbol(s) == is_type)
-            .collect();
+        let members = self.type_members(prefix, name);
+        self.found_of(prefix, members, is_type)
+    }
+
+    /// `members_found` as selected in `ctx`: of an intersection's matching members, those
+    /// inaccessible in `ctx` hidden.
+    pub fn members_found_in(&mut self, prefix: TypeId, name: &str, is_type: bool, ctx: Ctx) -> Option<Found> {
+        let members = self.type_members_in(prefix, name, ctx);
+        self.found_of(prefix, members, is_type)
+    }
+
+    fn found_of(&self, prefix: TypeId, members: Vec<SymbolId>, is_type: bool) -> Option<Found> {
+        let syms: Vec<SymbolId> =
+            members.into_iter().filter(|&s| self.u.is_type_symbol(s) == is_type).collect();
         (!syms.is_empty()).then_some(Found { prefix: Some(prefix), syms })
     }
 
