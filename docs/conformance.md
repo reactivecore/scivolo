@@ -376,14 +376,13 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 251 | 1995 |
-| attributes differ | 175 | 496 |
-| code differs | 186 | 505 |
-| refused | 37 | |
+| same | 251 | 2017 |
+| attributes differ | 175 | 501 |
+| code differs | 192 | 519 |
+| refused | 31 | |
 
-- **Refused:** no applicable alternative (8); adaptation (8); TASTy pickling (12: a reference to
-  a local definition outside the pickled trees 6, a type annotation with arguments 4, a tree
-  outside the subset 2); member not found (4); ambiguous implicit conversions (2); the
+- **Refused:** no applicable alternative (8); adaptation (8); TASTy pickling (6: a type annotation
+  with arguments 4, a tree outside the subset 2); member not found (4); ambiguous implicit conversions (2); the
   package-private Java class `INodeBase` (1); `@SerialVersionUID` of no constant (1).
 - **Code differs**, by first differing line: branch offsets after dotty's dead second `athrow`
   following an inlined `.nn` (`ifeq`, `ifnonnull`, `goto`; the library oracle inlines from source,
