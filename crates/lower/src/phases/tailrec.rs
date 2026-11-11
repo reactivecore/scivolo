@@ -92,12 +92,12 @@ fn rewrite(l: &mut Lower, stat: TNodeId, class: SymbolId, m: SymbolId, dry: bool
         defs.push(val_def(l, var, read));
     }
     let ret = return_(l, m, rhs);
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let labeled = l.tpd.node(Tree::Labeled { expr: ret }, Span::NONE, Some(unit), Some(label));
     let body = l.positioned(labeled);
     let cond = l.boolean_literal(true);
     let local = l.u.symbol(m).owner.is_some_and(|o| is_term(l, o));
-    let tpe = if local { l.u.class_ref("scala.Nothing") } else { unit };
+    let tpe = if local { tasty::NOTHING } else { unit };
     let looped = l.tpd.node(Tree::WhileDo { cond, body }, Span::NONE, Some(tpe), None);
     let looped = l.positioned(looped);
     l.endless_loops.insert(looped);
@@ -113,7 +113,7 @@ impl TailCalls {
             return label;
         }
         let name = fresh(l, "tailLabel");
-        let unit = l.u.class_ref("scala.Unit");
+        let unit = l.u.class_ref(tasty::defn::UNIT);
         let label = local(l, self.method, &name, unit, false);
         self.label = Some(label);
         label

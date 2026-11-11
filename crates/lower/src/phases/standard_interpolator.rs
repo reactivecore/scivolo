@@ -47,7 +47,7 @@ pub fn transform(l: &mut Lower, t: TNodeId, raw: bool, owner: SymbolId) -> Resul
     let parts = l.positioned(parts);
     let qual = l.ident(module, Span::NONE);
     let fun = l.select(qual, standard, Span::NONE);
-    let string = l.u.class_ref("java.lang.String");
+    let string = l.u.class_ref(tasty::defn::STRING);
     let call = l.apply(fun, &[process, args, parts], string, Span::NONE);
     let mut result = l.positioned(call);
     if let Some(def) = ev {
@@ -77,7 +77,7 @@ fn process(
     module: SymbolId,
     raw: bool,
 ) -> TNodeId {
-    let string = l.u.class_ref("java.lang.String");
+    let string = l.u.class_ref(tasty::defn::STRING);
     let info = l.u.info(process_escapes);
     let Some(m) = l.u.method(info) else { unreachable!("a method") };
     let name = m.params[0].0;

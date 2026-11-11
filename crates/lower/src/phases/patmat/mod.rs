@@ -182,7 +182,7 @@ impl<'t, 'a> Translator<'t, 'a> {
 
     /// The plan `l: { expr(return l) }` for a fresh label `l`.
     fn alts_labeled(&mut self, expr: impl FnOnce(&mut Self, PlanId) -> Result<PlanId>) -> Result<PlanId> {
-        let unit = crate::definitions::type_ref(self.l.u, self.l.defs.unit);
+        let unit = crate::definitions::type_ref(self.l.u, self.l.u.defn().unit);
         let label = self.label("matchAlts", unit);
         let ret = self.add(Plan::Return { label });
         let expr = expr(self, ret)?;

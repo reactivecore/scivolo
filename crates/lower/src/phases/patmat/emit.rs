@@ -156,7 +156,7 @@ impl Translator<'_, '_> {
     }
 
     pub fn unit_type(&mut self) -> TypeId {
-        type_ref(self.l.u, self.l.defs.unit)
+        type_ref(self.l.u, self.l.u.defn().unit)
     }
 
     pub fn nothing_type(&mut self) -> TypeId {

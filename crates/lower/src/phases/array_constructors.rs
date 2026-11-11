@@ -32,7 +32,7 @@ fn expanded(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::TypeApply { fun, args: targs } = *l.tpd.tree(targs_call) else { return None };
     let m = l.tpd.sym(fun)?;
     let owner = l.u.symbol(m).owner?;
-    if l.u.symbol(m).name != "ofDim" || l.u.full_name(owner) != "scala.Array$" {
+    if l.u.symbol(m).name != "ofDim" || !l.is_known(owner, crate::definitions::Known::ArrayModuleClass) {
         return None;
     }
     let (dims, &[targ]) = (l.tpd.items(dims).to_vec(), l.tpd.items(targs)) else { return None };
@@ -72,7 +72,7 @@ fn is_generic(l: &mut Lower, t: TypeId) -> bool {
 
 /// `new Array[elem](n)` at `span`.
 fn new_array(l: &mut Lower, elem: TypeId, n: TNodeId, span: Span) -> Option<TNodeId> {
-    let array = l.u.class_ref("scala.Array");
+    let array = l.u.class_ref(tasty::defn::ARRAY);
     let class = l.u.class_symbol(array)?;
     let ctor = *l.u.decl(class, "<init>").ok()?.first()?;
     let tpe = l.u.intern_applied(array, &[elem]);
@@ -94,16 +94,16 @@ fn new_arrays(l: &mut Lower, elem: TypeId, result: TypeId, dims: &[TNodeId], spa
     let targ = l.type_tree(result, span);
     let info = l.u.member_info(l.tpd.tpe(qual), method);
     let fun = l.build().type_apply(fun, &[targ], info, span);
-    let class_of = l.u.class_ref("java.lang.Class");
+    let class_of = l.u.class_ref(tasty::defn::CLASS);
     let class_of = l.u.class_symbol(class_of)?;
     let literal = |l: &mut Lower, tpe| {
         let class = applied(l.u, class_of, vec![tpe]);
         l.tpd.node(Tree::ClassLiteral { tpe }, span, Some(class), None)
     };
     let (elem_class, result_class) = (literal(l, elem), literal(l, result));
-    let int = l.u.class_ref("scala.Int");
+    let int = l.u.class_ref(tasty::defn::INT);
     let elemtpt = l.type_tree(int, span);
-    let array = l.u.class_ref("scala.Array");
+    let array = l.u.class_ref(tasty::defn::ARRAY);
     let ints = l.u.intern_applied(array, &[int]);
     let elems = l.tpd.list(dims);
     let dims = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, span, Some(ints), None);

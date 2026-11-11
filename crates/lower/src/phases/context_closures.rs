@@ -120,7 +120,7 @@ pub fn closure(l: &mut Lower, anon: &Anon, args: &[TNodeId], span: Span) -> TNod
 /// `FunctionN` of `arity` parameters, `FunctionXXL` beyond the library's arities.
 pub fn function_type(l: &mut Lower, arity: usize) -> TypeId {
     match arity > MAX_IMPLEMENTED_ARITY {
-        true => l.u.class_ref("scala.runtime.FunctionXXL"),
+        true => l.u.class_ref(tasty::defn::FUNCTION_XXL),
         false => l.u.class_ref(&format!("scala.Function{arity}")),
     }
 }

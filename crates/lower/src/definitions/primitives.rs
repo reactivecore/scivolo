@@ -1,15 +1,16 @@
 //! The primitive value classes' objects and their `box` and `unbox` methods, each resolved on
 //! first use.
 
-use super::{member, package};
+use super::member;
 use crate::Lower;
 use tasty::{Kind, SymbolId, Universe};
 
-/// A primitive value class: its erased letter, its object and that object's `box` and `unbox`
-/// methods.
+/// A primitive value class: its erased letter, the class, its object and that object's `box` and
+/// `unbox` methods.
 #[derive(Clone, Copy)]
 pub struct Primitive {
     pub letter: char,
+    pub class: SymbolId,
     pub module: SymbolId,
     pub box_method: SymbolId,
     pub unbox_method: SymbolId,
@@ -85,10 +86,11 @@ impl Lower<'_> {
 
 fn resolve(u: &mut Universe, i: usize) -> Result<Primitive, String> {
     let (name, letter) = PRIMITIVES[i];
-    let scala = package(u, "scala")?;
+    let scala = u.defn().scala;
     let module = member(u, scala, name, Kind::Val)?;
-    let class = u.module_class(module).ok_or_else(|| format!("scala.{name}'s object missing"))?;
-    let box_method = member(u, class, "box", Kind::Def)?;
-    let unbox_method = member(u, class, "unbox", Kind::Def)?;
-    Ok(Primitive { letter, module, box_method, unbox_method })
+    let module_class = u.module_class(module).ok_or_else(|| format!("scala.{name}'s object missing"))?;
+    let box_method = member(u, module_class, "box", Kind::Def)?;
+    let unbox_method = member(u, module_class, "unbox", Kind::Def)?;
+    let class = member(u, scala, name, Kind::Class)?;
+    Ok(Primitive { letter, class, module, box_method, unbox_method })
 }

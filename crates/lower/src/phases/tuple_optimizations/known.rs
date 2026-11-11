@@ -117,7 +117,7 @@ pub fn from_elements(l: &mut Lower, tpes: &[TypeId], elements: &[TNodeId]) -> Op
 /// `TupleN(it.next(), …, it.next())` of 1 to 22 elements (dotty's `knownTupleFromIterator`).
 pub fn from_iterator(l: &mut Lower, size: usize, it: &mut Once) -> Option<TNodeId> {
     tuple_class(l, size)?;
-    let any = l.u.class_ref("scala.Any");
+    let any = tasty::ANY;
     let elements = (0..size).map(|_| next(l, it)).collect::<Option<Vec<_>>>()?;
     from_elements(l, &vec![any; size], &elements)
 }

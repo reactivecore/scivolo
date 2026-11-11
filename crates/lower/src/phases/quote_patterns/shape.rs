@@ -134,5 +134,5 @@ fn is_plain_splice(l: &Lower, t: TNodeId) -> bool {
 fn is_repeated(l: &mut Lower, t: TNodeId) -> bool {
     let tpe = l.u.widen(l.tpd.tpe(t));
     let class = l.u.applied(tpe).map(|(c, _)| c);
-    class.is_some_and(|c| l.u.is_class_named(c, "scala.<repeated>"))
+    class.is_some_and(|c| l.u.is_class_named(c, tasty::defn::REPEATED))
 }

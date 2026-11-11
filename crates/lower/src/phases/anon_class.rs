@@ -31,7 +31,7 @@ pub fn instance(
     let class_ref = type_ref(l.u, cls);
     let info = nullary(l, class_ref);
     l.u.set_info(ctor, info);
-    let unit = type_ref(l.u, l.defs.unit);
+    let unit = type_ref(l.u, l.u.defn().unit);
     let tpt = l.type_tree(unit, Span::NONE);
     let constr = l.build().def_def(ctor, &[&[]], tpt, None, span);
     l.positioned(constr);
@@ -144,7 +144,7 @@ fn empty_varargs(l: &mut Lower, parent: TypeId, ctor: SymbolId) -> Vec<TNodeId> 
     }
     let Some(&[(_, p)]) = l.u.method(info).map(|m| m.params) else { return Vec::new() };
     let Some(elem) = l.u.repeated_elem(p) else { return Vec::new() };
-    let repeated = l.u.class_ref("scala.<repeated>");
+    let repeated = l.u.class_ref(tasty::defn::REPEATED);
     let repeated = l.u.intern_applied(repeated, &[elem]);
     let elemtpt = l.type_tree(elem, Span::NONE);
     let elems = l.tpd.list(&[]);

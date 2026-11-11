@@ -5,6 +5,7 @@
 //! `genJavaSeqLiteral`).
 
 use super::Gen;
+use crate::definitions::Known;
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
 use tasty::SymbolId;
@@ -58,8 +59,7 @@ impl Gen<'_, '_> {
     pub fn gen_array_op(&mut self, app: TNodeId, fun: TNodeId, args: &[TNodeId]) -> Result<Option<ValId>> {
         let span = self.l.tpd.span(app);
         let Some(sym) = self.l.tpd.sym(fun) else { return Ok(None) };
-        let owner = self.l.u.symbol(sym).owner.map(|o| self.l.u.full_name(o));
-        if owner.as_deref() != Some("scala.Array") {
+        if !self.l.u.symbol(sym).owner.is_some_and(|o| self.l.is_known(o, Known::Array)) {
             return Ok(None);
         }
         let name = self.l.u.symbol(sym).name.clone();

@@ -49,7 +49,7 @@ pub fn transform(l: &mut Lower, t: TNodeId) -> Result<()> {
     let ops_type = type_ref(l.u, class);
     let ops = l.apply(ctor, &[literal], ops_type, Span::NONE);
     let fun = l.select(ops, format_method, Span::NONE);
-    let string = l.u.class_ref("java.lang.String");
+    let string = l.u.class_ref(tasty::defn::STRING);
     reposition(l, seq);
     let call = l.apply(fun, &[seq], string, Span::NONE);
     let call = l.positioned(call);

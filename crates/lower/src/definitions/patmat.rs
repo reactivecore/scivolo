@@ -1,4 +1,4 @@
-use super::{member, package, symbol, type_ref};
+use super::{member, symbol, type_ref};
 use tasty::{Flags, Kind, SymbolId, Universe};
 
 /// What compiled pattern matches refer to beyond `Any`'s, `Object`'s and `Boolean`'s members.
@@ -11,7 +11,7 @@ pub struct Patmat {
 
 impl Patmat {
     pub fn new(u: &mut Universe) -> Result<Patmat, String> {
-        let scala = package(u, "scala")?;
+        let scala = u.defn().scala;
         let match_error = member(u, scala, "MatchError", Kind::Class)?;
         Ok(Patmat {
             int: member(u, scala, "Int", Kind::Class)?,
@@ -23,12 +23,11 @@ impl Patmat {
 
 /// `<special-ops>.throw(x: Throwable): Nothing`, defined if the typer has not.
 pub fn throw(u: &mut Universe) -> Result<SymbolId, String> {
-    let java_lang = package(u, "java.lang")?;
     let ops = u.enter_package("<special-ops>");
     if let Ok(found) = member(u, ops, "throw", Kind::Def) {
         return Ok(found);
     }
-    let throwable = member(u, java_lang, "Throwable", Kind::Class)?;
+    let throwable = u.defn().throwable(u)?;
     let throwable = type_ref(u, throwable);
     let nothing = u.defn().nothing;
     let result = type_ref(u, nothing);

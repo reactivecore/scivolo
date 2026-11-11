@@ -54,7 +54,7 @@ fn found_classes(l: &mut Lower, tpe: TypeId) -> Vec<SymbolId> {
         Type::And(..) => Vec::new(),
         _ => {
             let mut class = l.u.class_symbol(tpe);
-            if class.is_some_and(|c| l.u.full_name(c) == tasty::defn::PAIR) {
+            if class.is_some_and(|c| l.is_known(c, crate::definitions::Known::Pair)) {
                 class = match l.u.erase(tpe) {
                     Erased::Class(name) => class_named(l, &name),
                     _ => None,

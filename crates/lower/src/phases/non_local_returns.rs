@@ -78,7 +78,7 @@ fn new_key(l: &mut Lower, method: SymbolId) -> SymbolId {
     let name = l.fresh.next(l.names, "nonLocalReturnKey");
     let name = l.names.text(name).to_owned();
     let key = l.u.define(symbol(&name, Kind::Val, method, Flags::default().with(SYNTHETIC)));
-    let object = type_ref(l.u, l.defs.object);
+    let object = type_ref(l.u, l.u.defn().object);
     l.u.set_info(key, object);
     key
 }
@@ -114,7 +114,7 @@ fn throw(l: &mut Lower, t: TNodeId, expr: TNodeId, key: SymbolId, class: SymbolI
 
 /// `body` of `method` in a block defining `key` and catching the returns with it.
 fn try_(l: &mut Lower, body: TNodeId, key: SymbolId, method: SymbolId, class: SymbolId) -> TNodeId {
-    let object = l.defs.object;
+    let object = l.u.defn().object;
     let new = l.new_(object, Span::NONE);
     let ctor = member(l, object, "<init>");
     let created = l.call(new, ctor, &[]);

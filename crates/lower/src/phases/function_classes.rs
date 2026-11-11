@@ -21,7 +21,7 @@ pub fn function_class_arity(l: &Lower, c: SymbolId) -> Option<(u32, bool)> {
 /// `functionTypeErasure`).
 pub fn erased_function_class(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
     match function_class_arity(l, c) {
-        Some((n, _)) if n as usize > MAX_IMPLEMENTED_ARITY => class_named(l, "scala.runtime.FunctionXXL"),
+        Some((n, _)) if n as usize > MAX_IMPLEMENTED_ARITY => class_named(l, tasty::defn::FUNCTION_XXL),
         Some((n, true)) => class_named(l, &format!("scala.Function{n}")),
         _ => Some(c),
     }

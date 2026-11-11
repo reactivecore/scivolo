@@ -4,6 +4,7 @@
 
 use super::Gen;
 use super::apply::Receiver;
+use crate::definitions::Known;
 use crate::{Result, unsupported};
 use nir::sig::Sig;
 use nir::{Op, Type, TypeId, ValId};
@@ -34,7 +35,7 @@ impl Gen<'_, '_> {
     /// Whether `sym` is method `name` of `scala.reflect.Selectable`.
     fn is_reflective(&self, sym: SymbolId, name: &str) -> bool {
         let s = self.l.u.symbol(sym);
-        s.name == name && s.owner.is_some_and(|o| self.l.u.full_name(o) == tasty::defn::REFLECTIVE_SELECTABLE)
+        s.name == name && s.owner.is_some_and(|o| self.l.is_known(o, Known::ReflectiveSelectable))
     }
 
     /// `recv.selectDynamic("name")` of `sym`: the proxy of member `name` of `recv.selectedValue`,

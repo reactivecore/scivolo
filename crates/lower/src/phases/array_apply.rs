@@ -136,7 +136,7 @@ pub fn wrapped_literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return None };
     let m = l.tpd.sym(fun)?;
     let owner = l.u.symbol(m).owner?;
-    if l.u.full_name(owner) != "scala.runtime.ScalaRunTime$" {
+    if !l.is_known(owner, crate::definitions::Known::ScalaRunTimeClass) {
         return None;
     }
     let &[literal] = l.tpd.items(args) else { return None };

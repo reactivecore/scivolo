@@ -4,6 +4,7 @@
 //! The test types dotty tests by calls of runtime methods: tuple types (`Tuples.isInstanceOf..`)
 //! and arrays of elements that are not of a class (`ScalaRunTime.isArray`).
 
+use crate::definitions::Known;
 use crate::phases::adapt::from_start;
 use crate::phases::first_transform::is_pure;
 use crate::{Lower, Result, unsupported};
@@ -35,7 +36,7 @@ pub fn tuple_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Opti
     let method = *l.u.decl(class, name).ok()?.first()?;
     let module_ref = l.ident(tuples, from_start(l.tpd.span(expr)));
     let fun = l.select(module_ref, method, Span::NONE);
-    let boolean = l.u.class_ref("scala.Boolean");
+    let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
     Some(l.apply(fun, &[expr], boolean, from_start(span)))
 }
 
@@ -48,7 +49,7 @@ pub fn array_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Resu
     loop {
         let dealiased = l.u.dealias(elem);
         let Some((tycon, args)) = l.u.applied(dealiased).map(|(c, a)| (c, a.to_vec())) else { break };
-        if l.u.class_symbol(tycon).is_none_or(|c| l.u.full_name(c) != "scala.Array") || args.len() != 1 {
+        if !l.u.class_symbol(tycon).is_some_and(|c| l.is_known(c, Known::Array)) || args.len() != 1 {
             break;
         }
         (elem, dims) = (args[0], dims + 1);
@@ -67,7 +68,7 @@ pub fn array_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Resu
     let other = l.tpd.node(Tree::Ident { name }, expr_span, tpe, sym);
     let own = super::type_test(l, expr, l.tpd.tpe(expr), false, span)?;
     let array = is_array(l, other, dims, span)?;
-    let boolean = l.u.class_ref("scala.Boolean");
+    let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
     let boolean = l.u.class_symbol(boolean).expect("`Boolean`");
     let and = l.u.decl(boolean, "&&").ok().and_then(|ms| ms.into_iter().next()).expect("`Boolean.&&`");
     Ok(Some(l.call(own, and, &[array])))
@@ -82,6 +83,6 @@ fn is_array(l: &mut Lower, expr: TNodeId, dims: i32, span: Span) -> Result<TNode
     let module_ref = l.ident(module, from_start(l.tpd.span(expr)));
     let fun = l.select(module_ref, method, Span::NONE);
     let dims = l.int_literal(dims);
-    let boolean = l.u.class_ref("scala.Boolean");
+    let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
     Ok(l.apply(fun, &[expr, dims], boolean, from_start(span)))
 }

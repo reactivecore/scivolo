@@ -107,7 +107,7 @@ fn use_setter(l: &mut Lower, t: TNodeId, lhs: TNodeId, rhs: TNodeId, made: &mut 
     };
     let host = l.u.symbol(getter).owner.expect("an accessor's class");
     let name = format!("{}_=", l.u.symbol(getter).name);
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let getter_info = l.u.info(getter);
     let value = l.u.result_type(getter_info);
     let binder = l.u.fresh_binder();

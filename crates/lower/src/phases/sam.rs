@@ -18,7 +18,7 @@ pub fn abstract_methods(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     let mut seen: Vec<(String, Vec<Erased>)> = Vec::new();
     let mut earlier: Vec<(SymbolId, SymbolId)> = Vec::new();
     let mut out = Vec::new();
-    let object = l.defs.object;
+    let object = l.u.defn().object;
     let site = type_ref(l.u, class);
     let site = l.u.intern_type(Type::This(site));
     for base in l.u.linearization(class) {
@@ -66,7 +66,7 @@ pub fn is_platform_sam(l: &mut Lower, c: SymbolId) -> bool {
         return false;
     }
     let bases = l.u.linearization(c);
-    let (object, any) = (l.defs.object, l.u.defn().any);
+    let (object, any) = (l.u.defn().object, l.u.defn().any);
     let superclass = bases[1..].iter().copied().find(|&b| !l.u.is_trait(b)).unwrap_or(object);
     if superclass != object {
         return false;

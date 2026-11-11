@@ -112,7 +112,7 @@ fn set(l: &mut Lower, class: tasty::SymbolId, getter: tasty::SymbolId, rhs: TNod
     let setter = setter.expect("a value's setter");
     let this = l.this(class, Span::NONE);
     let fun = l.select(this, setter, Span::NONE);
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let own = std::mem::replace(&mut l.tpd.get_mut(rhs).span, span);
     let call = l.apply(fun, &[rhs], unit, Span::NONE);
     l.positioned(call);

@@ -53,7 +53,7 @@ pub fn add(l: &mut Lower, td: TNodeId, classes: &[TNodeId]) -> Result<()> {
 /// `f = value`.
 fn assign(l: &mut Lower, f: SymbolId, value: TNodeId) -> TNodeId {
     let lhs = l.ident(f, Span::NONE);
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     l.tpd.node(Tree::Assign { lhs, rhs: value }, Span::NONE, Some(unit), None)
 }
 
@@ -61,7 +61,7 @@ fn assign(l: &mut Lower, f: SymbolId, value: TNodeId) -> TNodeId {
 fn clinit(l: &mut Lower, class: SymbolId, stores: &[TNodeId], span: Span) -> TNodeId {
     let flags = Flags::default().with(STATIC).with(PRIVATE);
     let sym = l.u.define(symbol("<clinit>", Kind::Def, class, flags));
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_method(binder, &[], unit, false, false);
     l.u.set_info(sym, info);

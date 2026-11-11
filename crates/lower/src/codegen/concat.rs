@@ -21,7 +21,7 @@ impl Gen<'_, '_> {
             return false;
         }
         let Some(owner) = s.owner else { return false };
-        if owner == self.l.defs.string {
+        if owner == self.l.u.defn().string {
             return true;
         }
         if !is_primitive(&self.l.u.binary_name(owner)) {
@@ -29,7 +29,7 @@ impl Gen<'_, '_> {
         }
         let info = self.l.u.info(sym);
         let Some(params) = self.l.u.method(info).map(|m| m.param_types()) else { return false };
-        let string = self.l.defs.string;
+        let string = self.l.u.defn().string;
         matches!(params[..], [p] if self.l.u.class_symbol(p) == Some(string))
     }
 
@@ -39,7 +39,7 @@ impl Gen<'_, '_> {
         if let [first, arg] = parts[..]
             && self.is_empty_string(first)
         {
-            return self.gen_apply_static(strings.value_of, Some(self.l.defs.string), &[arg], span);
+            return self.gen_apply_static(strings.value_of, Some(self.l.u.defn().string), &[arg], span);
         }
         let parts: Vec<TNodeId> = parts.into_iter().filter(|&p| !self.is_empty_string(p)).collect();
         let parts: Vec<TNodeId> = parts.into_iter().map(|p| self.unboxed(p)).collect();
@@ -64,13 +64,13 @@ impl Gen<'_, '_> {
             _ => None,
         };
         let s = self.l.strings()?;
-        let as_class = [self.l.defs.string, s.string_buffer, s.char_sequence]
+        let as_class = [self.l.u.defn().string, s.string_buffer, s.char_sequence]
             .into_iter()
             .find(|&c| class.is_some_and(|k| self.l.u.derives_from(k, c)));
         let mut arg_ty = match (as_class, &erased) {
-            (_, Erased::Null | Erased::Nothing) => self.class_ref(self.l.defs.string),
+            (_, Erased::Null | Erased::Nothing) => self.class_ref(self.l.u.defn().string),
             (Some(c), _) => self.class_ref(c),
-            (None, Erased::Class(_) | Erased::Array(_)) => self.class_ref(self.l.defs.object),
+            (None, Erased::Class(_) | Erased::Array(_)) => self.class_ref(self.l.u.defn().object),
             (None, e) => self.erased(e),
         };
         let mut value = self.gen_expr(t)?;

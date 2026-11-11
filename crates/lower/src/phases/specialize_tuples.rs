@@ -6,7 +6,7 @@
 
 use super::elideable::is_elideable;
 use super::walk::walk_class_up;
-use crate::definitions::{specialized_accessor, specialized_tuple_ctor, tuple_tags};
+use crate::definitions::{Known, specialized_accessor, specialized_tuple_ctor, tuple_tags};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use std::ops::ControlFlow;
@@ -129,8 +129,12 @@ fn selection(l: &mut Lower, t: TNodeId, qual: TNodeId) -> Result<()> {
     let Some((tycon, elems)) = l.u.applied(tpe).map(|(c, a)| (c, a.to_vec())) else { return Ok(()) };
     let Some(class) = l.u.class_symbol(tycon) else { return Ok(()) };
     let n = elems.len();
-    let base = format!("scala.Tuple{n}");
-    if (n != 1 && n != 2) || !l.u.linearization(class).iter().any(|&b| l.u.full_name(b) == base) {
+    let base = match n {
+        1 => Known::Tuple1,
+        2 => Known::Tuple2,
+        _ => return Ok(()),
+    };
+    if !l.u.linearization(class).into_iter().any(|b| l.is_known(b, base)) {
         return Ok(());
     }
     let Some(tags) = tags(l, &elems) else { return Ok(()) };

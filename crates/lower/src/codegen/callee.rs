@@ -1,6 +1,7 @@
 //! What the lowering can call: the methods it refuses to call yet.
 
 use super::Gen;
+use crate::definitions::Known;
 use crate::symbols::{has, is_extern};
 use crate::{Result, unsupported};
 use syntax::ast::Span;
@@ -55,7 +56,7 @@ impl Gen<'_, '_> {
         if !self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.is_class(o)) {
             return unsupported(span, "calls of methods outside classes");
         }
-        if self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.full_name(o) == tasty::defn::ARRAY) {
+        if self.l.u.symbol(sym).owner.is_some_and(|o| self.l.is_known(o, Known::Array)) {
             return unsupported(span, "array operations");
         }
         if self.is_primitive_op(sym) {
@@ -84,9 +85,10 @@ impl Gen<'_, '_> {
         let owner_name = self.l.u.binary_name(owner);
         let object_ops = ["eq", "ne", "synchronized", "==", "!=", "##"];
         let any_ops = ["==", "!=", "##", "isInstanceOf", "asInstanceOf"];
-        (owner == self.l.defs.any && any_ops.contains(&name))
+        let defn = self.l.u.defn();
+        (owner == defn.any && any_ops.contains(&name))
             || is_primitive(&owner_name)
-            || (owner == self.l.defs.object && object_ops.contains(&name))
+            || (owner == defn.object && object_ops.contains(&name))
             || (owner_name == "java.lang.String" && name == "+")
     }
 }

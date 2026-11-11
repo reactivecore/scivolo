@@ -127,7 +127,7 @@ fn index_match(l: &mut Lower, index: TNodeId, elems: Vec<TNodeId>, cc: CaseClass
     let error = l.call(new, cc.ioobe_ctor, &[index_ref]);
     l.tpd.get_mut(error).tpe = l.tpd.get(new).tpe;
     let throw = l.throw_(error);
-    let int = l.u.class_ref("scala.Int");
+    let int = l.u.class_ref(tasty::defn::INT);
     let pat = l.wildcard(int);
     cases.push(l.tpd.node(Tree::CaseDef { pat, guard: None, body: throw }, Span::NONE, None, None));
     let cases = l.tpd.list(&cases);

@@ -37,7 +37,7 @@ impl Translator<'_, '_> {
             Some((tuples, *self.l.u.decl(class, "apply").ok()?.first()?))
         });
         let Some((tuples, apply)) = found else { return unsupported(Span::NONE, "`Tuples.apply` not found") };
-        let any = self.l.u.class_ref("scala.Any");
+        let any = tasty::ANY;
         let mut out = Vec::new();
         for i in 0..n {
             let value = self.l.ident(result, Span::NONE);

@@ -65,7 +65,7 @@ impl Gen<'_, '_> {
             let parents: Vec<SymbolId> = parents.into_iter().filter(|&p| self.l.u.is_trait(p)).collect();
             traits.extend(parents.into_iter().map(|p| self.type_name(p)));
         }
-        let parent = Some(self.type_name(self.l.defs.object));
+        let parent = Some(self.type_name(self.l.u.defn().object));
         self.closures.push(Defn {
             name: anon,
             attrs: Vec::new(),

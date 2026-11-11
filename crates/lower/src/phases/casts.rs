@@ -7,7 +7,7 @@ use super::adapt::from_start;
 use super::function_classes::{erased_derives, erased_function_class};
 use super::mixin::is_jdk;
 use crate::Lower;
-use crate::definitions::type_ref;
+use crate::definitions::{Known, type_ref};
 use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -37,7 +37,7 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
     match e {
         Erased::Array(elem) => {
             let elem = type_of(l, elem);
-            let array = l.u.class_ref("scala.Array");
+            let array = l.u.class_ref(tasty::defn::ARRAY);
             l.u.intern_applied(array, &[elem])
         }
         Erased::Prim('R') => l.u.class_ref("scala.scalanative.runtime.RawPtr"),
@@ -52,9 +52,9 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
             Some(c) => type_ref(l.u, c),
             None => l.u.class_ref(name),
         },
-        Erased::Nothing => l.u.class_ref("scala.Nothing"),
+        Erased::Nothing => tasty::NOTHING,
         Erased::Null => l.u.class_ref("scala.Null"),
-        _ => l.u.class_ref("java.lang.Object"),
+        _ => l.u.class_ref(tasty::defn::OBJECT),
     }
 }
 
@@ -66,7 +66,7 @@ pub fn conforms_to_class_file(l: &mut Lower, from: &Erased, to: &Erased) -> bool
         _ => None,
     };
     let (f, t) = (class(l, from), class(l, to));
-    let javalib_only = f.zip(t).is_some_and(|(f, t)| is_jdk(l, f) && !is_jdk(l, t) && t != l.defs.object);
+    let javalib_only = f.zip(t).is_some_and(|(f, t)| is_jdk(l, f) && !is_jdk(l, t) && t != l.u.defn().object);
     !javalib_only && conforms(l, from, to)
 }
 
@@ -173,8 +173,7 @@ pub fn is_new_array(l: &Lower, t: TNodeId) -> bool {
     }
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
     let ctor = l.tpd.sym(fun).filter(|&c| l.u.is_constructor(c));
-    let array =
-        ctor.and_then(|c| l.u.symbol(c).owner).is_some_and(|o| l.u.full_name(o) == tasty::defn::ARRAY);
+    let array = ctor.and_then(|c| l.u.symbol(c).owner).is_some_and(|o| l.is_known(o, Known::Array));
     array && matches!(l.tpd.tree(qualifier), Tree::New { .. })
 }
 

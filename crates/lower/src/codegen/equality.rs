@@ -38,7 +38,7 @@ impl<'l, 'a> Gen<'l, 'a> {
         }
         if op != "==" || self.is_null(left) || self.is_null(right) {
             let comp = if op == "ne" { Comp::Ine } else { Comp::Ieq };
-            let object = self.class_ref(self.l.defs.object);
+            let object = self.class_ref(self.l.u.defn().object);
             let (l, r) = (self.gen_expr(left)?, self.gen_expr(right)?);
             return Ok(self.emit(Op::Comp { comp, ty: object, l, r }));
         }
@@ -63,7 +63,7 @@ impl<'l, 'a> Gen<'l, 'a> {
         any_equals: SymbolId,
         span: Span,
     ) -> Result<ValId> {
-        let object = self.class_ref(self.l.defs.object);
+        let object = self.class_ref(self.l.u.defn().object);
         let bool = self.ty(Type::Bool);
         let l = Cell::new(None);
         let l = &l;
@@ -122,14 +122,13 @@ impl<'l, 'a> Gen<'l, 'a> {
         let Tree::Apply { fun, args } = *self.l.tpd.tree(t) else { return None };
         let &[arg] = self.l.tpd.items(args) else { return None };
         let fun = self.l.tpd.sym(fun)?;
-        let letter = "jdf".chars().find(|&c| self.l.primitive(c).is_some_and(|p| p.box_method == fun))?;
+        let primitive = "jdf".chars().find_map(|c| self.l.primitive(c).filter(|p| p.box_method == fun))?;
         let mut tpe = self.l.tpd.tpe(arg);
         while let Some(next) = self.l.u.widen_once(tpe) {
             tpe = next;
         }
         let class = self.l.u.class_symbol(tpe).filter(|_| self.l.u.dealias(tpe) == tpe)?;
-        let name = ["scala.Long", "scala.Double", "scala.Float"]["jdf".find(letter)?];
-        (self.l.u.full_name(class) == name).then_some((letter, arg))
+        (class == primitive.class).then_some((primitive.letter, arg))
     }
 
     fn negate(&mut self, v: ValId) -> ValId {

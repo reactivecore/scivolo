@@ -46,14 +46,12 @@ pub struct CaseClasses {
 }
 
 impl CaseClasses {
-    pub fn new(
-        u: &mut Universe,
-        any: SymbolId,
-        object: SymbolId,
-        equality: Equality,
-    ) -> Result<CaseClasses, String> {
+    /// Looks up the definitions, with those of `equality`, defining the Java statics the library
+    /// has no TASTy for.
+    pub fn new(u: &mut Universe, equality: Equality) -> Result<CaseClasses, String> {
         let statics = equality.statics;
-        let scala = package(u, "scala")?;
+        let defn = u.defn();
+        let (scala, java_lang, any, object) = (defn.scala, defn.java_lang, defn.any, defn.object);
         let product = member(u, scala, "Product", Kind::Class)?;
         let equals = member(u, scala, "Equals", Kind::Class)?;
         let boolean = member(u, scala, "Boolean", Kind::Class)?;
@@ -63,7 +61,6 @@ impl CaseClasses {
         let hashing = package(u, "scala.util.hashing")?;
         let murmur_hash3 = member(u, hashing, "MurmurHash3", Kind::Val)?;
         let murmur_class = module_class(u, murmur_hash3)?;
-        let java_lang = package(u, "java.lang")?;
         let ioobe = member(u, java_lang, "IndexOutOfBoundsException", Kind::Class)?;
         let deriving = package(u, "scala.deriving")?;
         let mirror = member(u, deriving, "Mirror", Kind::Val)?;

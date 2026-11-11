@@ -32,8 +32,8 @@ pub fn is_bunched(l: &Lower, f: &Function, n: usize) -> Result<bool> {
 
 /// The parameter `$allArgs: Array[Object]` by name and type.
 pub fn param(l: &mut Lower) -> (NameId, TypeId) {
-    let object = type_ref(l.u, l.defs.object);
-    let array = l.u.class_ref("scala.Array");
+    let object = type_ref(l.u, l.u.defn().object);
+    let array = l.u.class_ref(tasty::defn::ARRAY);
     (l.u.intern_name(ALL_ARGS), l.u.intern_applied(array, &[object]))
 }
 
@@ -47,7 +47,7 @@ pub fn define(l: &mut Lower, method: SymbolId) -> SymbolId {
 
 /// `Array.apply`.
 pub fn array_apply(l: &mut Lower) -> Result<SymbolId> {
-    let array = class_named(l, "scala.Array").expect("`scala.Array`");
+    let array = class_named(l, tasty::defn::ARRAY).expect("`scala.Array`");
     method(l, array, "apply", Span::NONE)
 }
 
@@ -60,7 +60,7 @@ pub fn elements(
     types: &[Erased],
     span: Span,
 ) -> Vec<TNodeId> {
-    let object = type_ref(l.u, l.defs.object);
+    let object = type_ref(l.u, l.u.defn().object);
     let mut out = Vec::new();
     for (i, e) in types.iter().enumerate() {
         let qual = l.ident(all_args, span);
@@ -82,7 +82,7 @@ pub fn unpacked(
     rhs: TNodeId,
 ) -> Result<TNodeId> {
     let apply = array_apply(l)?;
-    let object = type_ref(l.u, l.defs.object);
+    let object = type_ref(l.u, l.u.defn().object);
     let mut map = FxHashMap::default();
     let mut defs = Vec::new();
     for (i, &p) in params.iter().enumerate() {

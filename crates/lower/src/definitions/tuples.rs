@@ -4,7 +4,7 @@
 //! specialized accessors `_1$mc<T>$sp` of `Tuple1` and `Tuple2` (dotty's `SpecializedTuple`,
 //! `withSpecMethods`), defined if the library has no TASTy for them.
 
-use super::{applied, member, package, symbol, type_ref};
+use super::{applied, member, symbol, type_ref};
 use tasty::tags::FINAL;
 use tasty::{Flags, Kind, SymbolId, TypeId, Universe};
 
@@ -40,7 +40,7 @@ fn tag_type(u: &mut Universe, tag: char) -> TypeId {
 /// of `Tuple{n}` of the tags' primitive types.
 pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str) -> Result<SymbolId, String> {
     let elems: Vec<TypeId> = tags.chars().map(|t| tag_type(u, t)).collect();
-    let scala = package(u, "scala")?;
+    let scala = u.defn().scala;
     let base = member(u, scala, &format!("Tuple{}", elems.len()), Kind::Class)?;
     let name = format!("Tuple{}$mc{tags}$sp", elems.len());
     let class = match member(u, scala, &name, Kind::Class) {
@@ -69,8 +69,7 @@ pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str) -> Result<SymbolId, 
 /// Accessor `{field}$mc{tag}$sp` of `Tuple{n}`, of the tag's primitive type, entered if missing.
 pub fn specialized_accessor(u: &mut Universe, n: usize, field: &str, tag: char) -> Result<SymbolId, String> {
     let elem = tag_type(u, tag);
-    let scala = package(u, "scala")?;
-    let base = member(u, scala, &format!("Tuple{n}"), Kind::Class)?;
+    let base = member(u, u.defn().scala, &format!("Tuple{n}"), Kind::Class)?;
     let name = format!("{field}$mc{tag}$sp");
     if let Ok(m) = member(u, base, &name, Kind::Def) {
         return Ok(m);

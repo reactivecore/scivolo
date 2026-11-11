@@ -60,7 +60,7 @@ impl Translator<'_, '_> {
         fits: impl Fn(&mut Self, TypeId) -> bool,
     ) -> Option<(SymbolId, TypeId)> {
         let class = self.l.class_of(tpe)?;
-        let int = self.l.u.class_ref("scala.Int");
+        let int = self.l.u.class_ref(tasty::defn::INT);
         let int = self.l.u.class_symbol(int);
         for base in self.l.u.linearization(class) {
             for m in self.l.u.decls_named(base, name) {

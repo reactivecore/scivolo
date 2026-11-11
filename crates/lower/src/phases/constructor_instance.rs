@@ -61,5 +61,5 @@ fn mentions_param(
 pub fn repeated_elem(l: &mut Lower, t: TypeId) -> Option<TypeId> {
     let (c, args) = l.u.applied(t).map(|(c, a)| (c, a.to_vec()))?;
     let class = l.u.class_symbol(c)?;
-    (args.len() == 1 && l.u.full_name(class) == tasty::defn::REPEATED).then(|| args[0])
+    (args.len() == 1 && l.is_known(class, crate::definitions::Known::Repeated)).then(|| args[0])
 }

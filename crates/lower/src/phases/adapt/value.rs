@@ -86,7 +86,7 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
     let null = l.null_literal(Span::NONE);
     let eq = l.select(value, l.defs.eq, Span::NONE);
     let eq = l.positioned(eq);
-    let boolean = l.u.class_ref("scala.Boolean");
+    let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
     let cond = l.apply(eq, &[null], boolean, Span::NONE);
     let cond = l.positioned(cond);
     let null = l.null_literal(Span::NONE);

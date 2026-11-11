@@ -50,7 +50,7 @@ fn named_value(
     let (Some(has_next), Some(next)) = (has_next, next) else {
         return unsupported(Span::NONE, "Enumeration.nextName without hasNext and next");
     };
-    let ne = method(l, l.defs.any, "!=", |_, _| true)?;
+    let ne = method(l, l.u.defn().any, "!=", |_, _| true)?;
     let names = next_name_ref(l, class, next_name);
     let null = l.null_literal(Span::NONE);
     let not_null = call(l, names, ne, &[null]);
@@ -118,7 +118,7 @@ fn unnamed_value(l: &mut Lower, t: TNodeId) -> Option<(SymbolId, Option<TNodeId>
     let s = l.u.symbol(m);
     if s.kind != Kind::Def
         || s.name != "Value"
-        || s.owner.is_none_or(|o| l.u.full_name(o) != "scala.Enumeration")
+        || !s.owner.is_some_and(|o| l.is_known(o, crate::definitions::Known::Enumeration))
     {
         return None;
     }

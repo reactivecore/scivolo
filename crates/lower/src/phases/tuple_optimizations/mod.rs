@@ -62,7 +62,7 @@ fn tuples_method(l: &mut Lower, t: TNodeId) -> Option<SymbolId> {
     let Tree::Apply { fun, .. } = *l.tpd.tree(t) else { return None };
     let s = l.tpd.sym(without_type_args(l.tpd, fun))?;
     let owner = l.u.symbol(s).owner?;
-    (l.u.full_name(owner) == tasty::defn::TUPLES_CLASS).then_some(s)
+    l.is_known(owner, crate::definitions::Known::TuplesClass).then_some(s)
 }
 
 /// The tree call `t` of `Tuples.name` in `owner` becomes, if any; the copies of its arguments it

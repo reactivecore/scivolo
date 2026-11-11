@@ -12,7 +12,7 @@ use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, constant_type_of};
 
 pub fn object(l: &mut Lower) -> TypeId {
-    type_ref(l.u, l.defs.object)
+    type_ref(l.u, l.u.defn().object)
 }
 
 pub fn unit(l: &mut Lower) -> TypeId {

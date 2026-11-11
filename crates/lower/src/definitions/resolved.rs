@@ -18,8 +18,7 @@ pub struct Serialization {
 
 impl Lower<'_> {
     pub fn equality(&mut self) -> Result<Equality> {
-        let (any, object) = (self.defs.any, self.defs.object);
-        resolved(&mut self.defs.equality, self.u, |u| Equality::new(u, any, object))
+        resolved(&mut self.defs.equality, self.u, Equality::new)
     }
 
     pub fn strings(&mut self) -> Result<Strings> {
@@ -32,8 +31,7 @@ impl Lower<'_> {
 
     pub fn case_classes(&mut self) -> Result<CaseClasses> {
         let equality = self.equality()?;
-        let (any, object) = (self.defs.any, self.defs.object);
-        resolved(&mut self.defs.case_classes, self.u, |u| CaseClasses::new(u, any, object, equality))
+        resolved(&mut self.defs.case_classes, self.u, |u| CaseClasses::new(u, equality))
     }
 
     pub fn lazy_vals(&mut self) -> Result<LazyVals> {
@@ -50,7 +48,7 @@ impl Lower<'_> {
 
     pub fn serialization(&mut self) -> Result<Serialization> {
         resolved(&mut self.defs.serialization, self.u, |u| {
-            let class = member(u, package(u, "java.lang")?, "Class", Kind::Class)?;
+            let class = member(u, u.defn().java_lang, "Class", Kind::Class)?;
             let proxy = member(u, package(u, "scala.runtime")?, "ModuleSerializationProxy", Kind::Class)?;
             Ok(Serialization { class, proxy, proxy_ctor: member(u, proxy, "<init>", Kind::Def)? })
         })
@@ -62,7 +60,7 @@ impl Lower<'_> {
 
     /// The trait `scala.Product`.
     pub fn product(&mut self) -> Result<SymbolId> {
-        resolved(&mut self.defs.product, self.u, |u| member(u, package(u, "scala")?, "Product", Kind::Class))
+        resolved(&mut self.defs.product, self.u, |u| member(u, u.defn().scala, "Product", Kind::Class))
     }
 
     /// The object `scala.runtime.ScalaRunTime`.
@@ -75,7 +73,7 @@ impl Lower<'_> {
     /// `Array.clone`, which erasure calls `Object.clone` instead of.
     pub fn array_clone(&mut self) -> Result<SymbolId> {
         resolved(&mut self.defs.array_clone, self.u, |u| {
-            let array = member(u, package(u, "scala")?, "Array", Kind::Class)?;
+            let array = u.defn().array(u)?;
             member(u, array, "clone", Kind::Def)
         })
     }

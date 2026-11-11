@@ -40,7 +40,7 @@ impl Lower<'_> {
         let flags = Flags::default().with(MUTABLE).with(SYNTHETIC);
         let acc = self.u.define(symbol("acc", Kind::Val, class, flags));
         locals.push(acc);
-        let int = self.u.class_ref("scala.Int");
+        let int = self.u.class_ref(tasty::defn::INT);
         self.u.set_info(acc, int);
         let init = self.int_literal(0xcafebabe_u32 as i32);
         let name = self.term_name("acc");
@@ -65,7 +65,7 @@ impl Lower<'_> {
         let lhs = self.ident(acc, Span::NONE);
         let current = self.ident(acc, Span::NONE);
         let rhs = self.static_call(mix, &[current, hash]);
-        let unit = self.u.class_ref("scala.Unit");
+        let unit = self.u.class_ref(tasty::defn::UNIT);
         let assign = self.tpd.node(Tree::Assign { lhs, rhs }, Span::NONE, Some(unit), None);
         self.positioned(assign)
     }
@@ -78,7 +78,7 @@ impl Lower<'_> {
             Erased::Unit | Erased::Null => self.int_literal(0),
             Erased::Prim('z') => {
                 let (yes, no) = (self.int_literal(1231), self.int_literal(1237));
-                let int = self.u.class_ref("scala.Int");
+                let int = self.u.class_ref(tasty::defn::INT);
                 let t = Tree::If { cond: value, thenp: yes, elsep: no, inline: false };
                 let t = self.tpd.node(t, Span::NONE, Some(int), None);
                 self.positioned(t)
@@ -88,7 +88,7 @@ impl Lower<'_> {
                 let class = self.class_of(info).expect("a primitive class");
                 let to_int = self.u.decls_named(class, "toInt").into_iter().next();
                 let sel = self.select(value, to_int.expect("`toInt`"), Span::NONE);
-                let int = self.u.class_ref("scala.Int");
+                let int = self.u.class_ref(tasty::defn::INT);
                 self.tpd.get_mut(sel).tpe = Some(int);
                 self.positioned(sel)
             }

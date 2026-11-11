@@ -66,7 +66,7 @@ fn forwarder(
         return unsupported(span, "varargs forwarders of polymorphic or curried methods");
     }
     let params = l.u.params_of(params).to_vec();
-    let Some(&(_, repeated)) = params.last().filter(|&&(_, p)| l.u.is_class_named(p, "scala.<repeated>"))
+    let Some(&(_, repeated)) = params.last().filter(|&&(_, p)| l.u.is_class_named(p, tasty::defn::REPEATED))
     else {
         return unsupported(span, "@varargs on a method whose last parameter is not repeated");
     };
@@ -118,7 +118,7 @@ fn params(l: &mut Lower, s: SymbolId) -> Vec<TypeId> {
 }
 
 fn has_repeated(l: &mut Lower, s: SymbolId) -> bool {
-    params(l, s).into_iter().any(|p| l.u.is_class_named(p, "scala.<repeated>"))
+    params(l, s).into_iter().any(|p| l.u.is_class_named(p, tasty::defn::REPEATED))
 }
 
 fn java_varargs(l: &mut Lower, s: SymbolId) -> bool {

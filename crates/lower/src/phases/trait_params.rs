@@ -35,7 +35,7 @@ pub fn strip_params(l: &mut Lower, constr: TNodeId) {
     let kept = l.tpd.list(&kept);
     let paramss = l.tpd.clauses(&[kept]);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs };
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let binder = l.u.fresh_binder();
     let params: Vec<_> = lifted.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
     let info = l.u.intern_method(binder, &params, unit, false, false);

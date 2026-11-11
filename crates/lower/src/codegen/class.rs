@@ -73,11 +73,12 @@ impl Gen<'_, '_> {
             return None;
         }
         let parents = self.l.u.parents(c);
+        let defn = self.l.u.defn();
         let superclass = parents
             .first()
             .and_then(|&p| self.l.u.class_symbol(p))
-            .filter(|&s| !self.l.u.is_trait(s) && s != self.l.defs.any_val)
-            .unwrap_or(self.l.defs.object);
+            .filter(|&s| !self.l.u.is_trait(s) && Some(s) != defn.any_val)
+            .unwrap_or(defn.object);
         Some(self.type_name(superclass))
     }
 

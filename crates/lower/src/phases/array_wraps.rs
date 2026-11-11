@@ -23,7 +23,7 @@ pub fn repeated_array(l: &mut Lower, t: TNodeId) -> Result<Option<TNodeId>> {
     let Tree::Typed { expr, tpt } = *l.tpd.tree(t) else { return Ok(None) };
     let ascribed = l.tpd.tpe(tpt);
     let tpe = l.u.widen(l.tpd.tpe(expr));
-    if !l.u.is_class_named(ascribed, "scala.<repeated>") || !l.u.is_class_named(tpe, "scala.Array") {
+    if !l.u.is_class_named(ascribed, tasty::defn::REPEATED) || !l.u.is_class_named(tpe, tasty::defn::ARRAY) {
         return Ok(None);
     }
     let Some((_, elems)) = l.u.applied(ascribed) else { return Ok(None) };
@@ -36,7 +36,7 @@ pub fn repeated_array(l: &mut Lower, t: TNodeId) -> Result<Option<TNodeId>> {
 /// its elements' array wrapped (dotty's `SeqLiterals`).
 pub fn seq_value(l: &mut Lower, t: TNodeId, elems: typer::tpd::List, elemtpt: TNodeId) -> Result<()> {
     let Some(tpe) = l.tpd.get(t).tpe else { return Ok(()) };
-    if l.u.is_class_named(tpe, "scala.Array") {
+    if l.u.is_class_named(tpe, tasty::defn::ARRAY) {
         return Ok(());
     }
     let elem = l.tpd.tpe(elemtpt);
@@ -73,7 +73,7 @@ pub fn wrap_array(l: &mut Lower, array: TNodeId, elem: TypeId, tpe: TypeId, span
 }
 
 pub fn array_of(l: &mut Lower, elem: TypeId) -> TypeId {
-    let array = l.u.class_ref("scala.Array");
+    let array = l.u.class_ref(tasty::defn::ARRAY);
     l.u.intern_applied(array, &[elem])
 }
 

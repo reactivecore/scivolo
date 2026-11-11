@@ -139,7 +139,7 @@ fn weaker_bounds(l: &mut Lower, (prefix, class, p): (TypeId, SymbolId, SymbolId)
 fn universal_to_object(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
     let (Erased::Class(f), Erased::Class(t)) = (from, to) else { return false };
     let Some(f) = class_named(l, f).filter(|_| t == "java.lang.Object") else { return false };
-    let object = l.defs.object;
+    let object = l.u.defn().object;
     l.u.is_trait(f) && !l.u.derives_from(f, object)
 }
 

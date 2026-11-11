@@ -17,7 +17,7 @@ pub fn is_instance(l: &mut Lower, expr: TNodeId, tp: TypeId, value: Option<TNode
         Some(v) => v,
         None => singleton(l, tp)?,
     };
-    let object = l.u.class_ref("java.lang.Object");
+    let object = l.u.class_ref(tasty::defn::OBJECT);
     let widened = l.u.widen(tp);
     if matches!(l.u.ty(tp), Type::Str(_)) || !l.u.is_subtype(widened, object) {
         return Some(l.equal(value, expr));

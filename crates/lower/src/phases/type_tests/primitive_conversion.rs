@@ -36,7 +36,7 @@ pub fn failed_conversion(l: &mut Lower, expr: TNodeId, from: &str, to: char) -> 
 pub fn class_cast_exception(l: &mut Lower, message: Option<&str>) -> TNodeId {
     let class = l.u.class_ref("java.lang.ClassCastException");
     let class = l.u.class_symbol(class).expect("`ClassCastException`");
-    let string = l.u.class_ref("java.lang.String");
+    let string = l.u.class_ref(tasty::defn::STRING);
     let string = l.u.class_symbol(string);
     let ctors = l.u.decls_named(class, "<init>");
     let ctor = ctors.into_iter().find(|&c| {

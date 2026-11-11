@@ -14,6 +14,8 @@ pub const SCALA_ANNOTATION_INTERNAL: &str = "scala.annotation.internal";
 
 pub const OBJECT: &str = "java.lang.Object";
 pub const STRING: &str = "java.lang.String";
+pub const CLASS: &str = "java.lang.Class";
+pub const THROWABLE: &str = "java.lang.Throwable";
 pub const JAVA_ENUM: &str = "java.lang.Enum";
 pub const FUNCTIONAL_INTERFACE: &str = "java.lang.FunctionalInterface";
 
@@ -28,6 +30,9 @@ pub const REPEATED: &str = "scala.<repeated>";
 pub const SOME: &str = "scala.Some";
 pub const DYNAMIC: &str = "scala.Dynamic";
 pub const SELECTABLE: &str = "scala.Selectable";
+pub const FUNCTION0: &str = "scala.Function0";
+/// The class of functions above the library's arities, applied to an array of their arguments.
+pub const FUNCTION_XXL: &str = "scala.runtime.FunctionXXL";
 pub const PARTIAL_FUNCTION: &str = "scala.PartialFunction";
 pub const POLY_FUNCTION: &str = "scala.PolyFunction";
 pub const CONTEXT_FUNCTION1: &str = "scala.ContextFunction1";
@@ -71,6 +76,7 @@ pub const MIRROR_PRODUCT: &str = "scala.deriving.Mirror$.Product";
 pub const MIRROR_SUM: &str = "scala.deriving.Mirror$.Sum";
 
 pub const QUOTED_EXPR: &str = "scala.quoted.Expr";
+pub const QUOTES: &str = "scala.quoted.Quotes";
 pub const TYPE_OF: &str = "scala.quoted.Type$.of";
 /// The class of the `scala.quoted.runtime.Expr` object.
 pub const RUNTIME_EXPR: &str = "scala.quoted.runtime.Expr$";

@@ -30,8 +30,7 @@ pub fn specialized(u: &mut Universe, params: &[Erased], result: &Erased) -> Resu
 /// The specialized `apply$mc<R><Ps>$sp` method of `FunctionN` for erased primitive `params` and
 /// `result`; entered if missing.
 pub fn specialized_apply(u: &mut Universe, params: &[Erased], result: &Erased) -> Result<SymbolId, String> {
-    let scala = package(u, "scala")?;
-    let function = member(u, scala, &format!("Function{}", params.len()), Kind::Class)?;
+    let function = member(u, u.defn().scala, &format!("Function{}", params.len()), Kind::Class)?;
     let name = specialized_name(params, result);
     if let Ok(m) = member(u, function, &name, Kind::Def) {
         return Ok(m);
@@ -98,8 +97,7 @@ fn primitive(u: &mut Universe, e: &Erased) -> Result<TypeId, String> {
         Erased::Prim('d') => "Double",
         _ => return Err("a primitive type".into()),
     };
-    let scala = package(u, "scala")?;
-    let class = member(u, scala, name, Kind::Class)?;
+    let class = member(u, u.defn().scala, name, Kind::Class)?;
     Ok(type_ref(u, class))
 }
 
@@ -117,8 +115,7 @@ fn interface(
     if let Ok(c) = member(u, pkg, name, Kind::Class) {
         return Ok(c);
     }
-    let scala = package(u, "scala")?;
-    let function = member(u, scala, &format!("Function{}", params.len()), Kind::Class)?;
+    let function = member(u, u.defn().scala, &format!("Function{}", params.len()), Kind::Class)?;
     let java_io = package(u, "java.io")?;
     let serializable = member(u, java_io, "Serializable", Kind::Class)?;
     let class = u.define(symbol(name, Kind::Class, pkg, Flags::default().with(TRAIT)));

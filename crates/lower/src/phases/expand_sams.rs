@@ -216,7 +216,7 @@ fn defined_case(l: &mut Lower, c: TNodeId, at: Span) -> Result<(TNodeId, Span)> 
                 (*c, at) = defined_case(l, *c, at)?;
             }
             let cases = l.tpd.list(&cases);
-            let boolean = l.u.class_ref("scala.Boolean");
+            let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
             let m = Tree::Match { selector: Some(selector), cases, kind: MatchKind::Sub };
             let m = l.tpd.node(m, Span::NONE, Some(boolean), None);
             (l.with_span(m, l.tpd.span(body)), None, at)

@@ -38,7 +38,7 @@ impl Reflect {
     pub fn as_expr(self, l: &mut Lower, tpe: TypeId, term: TNodeId) -> Result<TNodeId> {
         let as_expr = self.method(l, "TreeMethods", "asExpr")?;
         let expr = call(l, as_expr, &[term]);
-        let class = l.u.class_ref("scala.quoted.Expr");
+        let class = l.u.class_ref(tasty::defn::QUOTED_EXPR);
         let quoted = l.u.intern_applied(class, &[tpe]);
         Ok(cast(l, expr, quoted))
     }

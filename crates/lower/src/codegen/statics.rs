@@ -68,7 +68,7 @@ impl Gen<'_, '_> {
         existing: &[GlobalId],
         module_class: SymbolId,
     ) -> Result<Vec<Defn>> {
-        let d = &self.l.defs;
+        let d = self.l.u.defn();
         let plain = [d.object, d.any, d.any_ref];
         let bases = self.l.u.linearization(module_class);
         let is_jdk = |l: &crate::Lower, c: SymbolId| {

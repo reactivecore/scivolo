@@ -85,5 +85,5 @@ fn is_empty_tuple_ref(l: &mut Lower, t: TypeId) -> bool {
         Type::TermRef(..) => l.u.resolve_ref(t),
         _ => None,
     };
-    s.is_some_and(|s| l.u.is_module(s) && l.u.full_name(s) == tasty::defn::EMPTY_TUPLE)
+    s.is_some_and(|s| l.is_known(s, crate::definitions::Known::EmptyTuple))
 }

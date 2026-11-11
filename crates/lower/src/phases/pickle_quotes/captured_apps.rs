@@ -137,11 +137,11 @@ fn list_of(l: &mut Lower, elem: TypeId, elems: &[TNodeId]) -> TNodeId {
     let list = l.ident(module, Span::NONE);
     let apply = member(l, list, "apply");
     let fun = type_applied(l, apply, elem);
-    let repeated = l.u.class_ref("scala.<repeated>");
+    let repeated = l.u.class_ref(tasty::defn::REPEATED);
     let repeated = l.u.intern_applied(repeated, &[elem]);
     let elemtpt = l.type_tree(elem, Span::NONE);
     let items = l.tpd.list(elems);
-    let seq = l.u.class_ref("scala.collection.immutable.Seq");
+    let seq = l.u.class_ref(tasty::defn::IMMUTABLE_SEQ);
     let seq = l.u.intern_applied(seq, &[elem]);
     let literal = l.tpd.node(Tree::SeqLiteral { elems: items, elemtpt }, Span::NONE, Some(seq), None);
     let literal = l.positioned(literal);

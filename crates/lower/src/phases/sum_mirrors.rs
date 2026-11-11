@@ -8,7 +8,7 @@ use super::casts::class_named;
 use super::mirror_prefixes::{child_prefix, class_prefix};
 use super::mirrors::{has_mirror_method, is_generic_product};
 use super::walk::class_defs;
-use crate::definitions::type_ref;
+use crate::definitions::{Known, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
@@ -29,7 +29,7 @@ fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
         let referenced = |l: &mut Lower, t: TypeId| l.u.sym_of(t).or_else(|| l.u.resolve_ref(t));
         return types.into_iter().filter_map(|t| referenced(l, t)).collect();
     }
-    if l.u.full_name(sealed) == tasty::defn::PAIR {
+    if l.is_known(sealed, Known::Pair) {
         let mut tuples: Vec<SymbolId> =
             (1..=22).filter_map(|n| class_named(l, &format!("scala.Tuple{n}"))).collect();
         tuples.sort_by_cached_key(|&c| l.u.pickled_span(c).map(|s| s.start));
@@ -68,7 +68,7 @@ pub fn enum_ordinal(
     focus: Span,
 ) -> Result<Option<TNodeId>> {
     let cc = l.case_classes()?;
-    let int = l.u.class_ref("scala.Int");
+    let int = l.u.class_ref(tasty::defn::INT);
     let binder = l.u.fresh_binder();
     let params = [(l.u.intern_name("x$0"), param)];
     let info = l.u.intern_method(binder, &params, int, false, false);
@@ -78,8 +78,7 @@ pub fn enum_ordinal(
         return Ok(None);
     }
     let flags = Flags::default().with(SYNTHETIC);
-    let java =
-        l.u.linearization(enum_class).into_iter().find(|&b| l.u.full_name(b) == tasty::defn::JAVA_ENUM);
+    let java = l.u.linearization(enum_class).into_iter().find(|&b| l.is_known(b, Known::JavaEnum));
     let java_ordinal = java.and_then(|j| l.u.decl(j, "ordinal").ok()?.into_iter().next());
     let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let x = l.copy_ident(args[0]);
@@ -100,7 +99,7 @@ pub fn ordinal(
 ) -> Result<Option<TNodeId>> {
     let cc = l.case_classes()?;
     let children = children(l, root, sealed);
-    let int = l.u.class_ref("scala.Int");
+    let int = l.u.class_ref(tasty::defn::INT);
     let binder = l.u.fresh_binder();
     let params = [(l.u.intern_name("x$0"), param)];
     let info = l.u.intern_method(binder, &params, int, false, false);
