@@ -62,7 +62,7 @@ pub fn from_product(
             let repeated = repeated_elem(l, param);
             let tpe = match repeated {
                 Some(elem) => {
-                    let seq = l.u.class_ref("scala.collection.immutable.Seq");
+                    let seq = l.u.class_ref(tasty::defn::IMMUTABLE_SEQ);
                     l.u.intern_applied(seq, &[elem])
                 }
                 None => param,

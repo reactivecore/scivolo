@@ -1,4 +1,4 @@
-use super::{member, package};
+use super::member;
 use tasty::{Erased, Kind, SymbolId, Universe};
 
 /// What string concatenation calls (nscplugin's `jlStringBuilder*` definitions).
@@ -18,7 +18,7 @@ pub struct Strings {
 
 impl Strings {
     pub fn new(u: &mut Universe) -> Result<Strings, String> {
-        let java_lang = package(u, "java.lang")?;
+        let java_lang = u.defn().java_lang;
         let companion = member(u, java_lang, "String", Kind::Val)?;
         let companion = u.module_class(companion).ok_or("java.lang.String's object missing")?;
         let object = Erased::Class("java.lang.Object".into());

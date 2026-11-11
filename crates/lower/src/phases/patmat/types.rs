@@ -85,7 +85,7 @@ impl Translator<'_, '_> {
         let dealiased = self.l.u.dealias(widened);
         let Some((tycon, &[_, values])) = self.l.u.applied(dealiased) else { return None };
         let nt = self.l.u.referenced(tycon)?;
-        (self.l.u.full_name(nt) == tasty::defn::NAMED_TUPLE).then_some(values)
+        self.l.is_known(nt, crate::definitions::Known::NamedTuple).then_some(values)
     }
 
     /// The condition `scrutinee.$isInstanceOf$[T]` of type pattern type `tpt`, for `p.C` of a
@@ -98,7 +98,7 @@ impl Translator<'_, '_> {
         if let Some(test) = is_instance(self.l, scrutinee, dealiased, written) {
             return test;
         }
-        let boolean = self.l.u.class_ref("scala.Boolean");
+        let boolean = self.l.u.class_ref(tasty::defn::BOOLEAN);
         let test = self.type_apply(scrutinee, self.l.defs.type_test, target, boolean);
         let outer_test = outer_test(self.l, target);
         let (Some(OuterTest::Is(pre)) | Some(OuterTest::Has(pre))) = outer_test else { return test };

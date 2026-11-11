@@ -229,7 +229,7 @@ fn super_call(l: &mut Lower, class: SymbolId, parent: TNodeId) -> Result<TNodeId
 
 /// `super.<init>()` of `Object` for `class`, whose parent `Any` erases to it.
 fn object_init_call(l: &mut Lower, class: SymbolId, span: Span) -> Result<TNodeId> {
-    let object = l.defs.object;
+    let object = l.u.defn().object;
     let ctor = super::lazy_trees::method(l, object, "<init>", span)?;
     let object_type = crate::definitions::type_ref(l.u, object);
     let sup = l.super_(class, object_type, span);

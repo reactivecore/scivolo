@@ -50,7 +50,7 @@ fn both(
     let (expr_span, tpe, sym) = (n.span, n.tpe, n.sym);
     let other = l.tpd.node(Tree::Ident { name }, expr_span, tpe, sym);
     let right = type_test(l, other, parts.1, in_match, span)?;
-    let boolean = l.u.class_ref("scala.Boolean");
+    let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
     let boolean = l.u.class_symbol(boolean).expect("`Boolean`");
     let op = if or { "||" } else { "&&" };
     let op = l.u.decl(boolean, op).ok().and_then(|ms| ms.into_iter().next()).expect("a `Boolean` operator");

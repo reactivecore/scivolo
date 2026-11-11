@@ -40,8 +40,7 @@ impl LazyVals {
             |name| member(u, waiting, name, Kind::Def).or_else(|_| member(u, latch, name, Kind::Def));
         let (count_down, await_) = (lock("countDown")?, lock("await")?);
         let invoke = package(u, "java.lang.invoke")?;
-        let scala = package(u, "scala")?;
-        let boolean = member(u, scala, "Boolean", Kind::Class)?;
+        let boolean = member(u, u.defn().scala, "Boolean", Kind::Class)?;
         Ok(LazyVals {
             evaluating: member(u, lazy_vals, "Evaluating", Kind::Val)?,
             null_value: member(u, lazy_vals, "NullValue", Kind::Val)?,

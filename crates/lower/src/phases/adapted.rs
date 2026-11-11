@@ -66,7 +66,7 @@ pub fn erased_adapted_def(
         unreachable!("a method type")
     };
     let erased = l.u.erased_method_value(anon).0;
-    let object = type_ref(l.u, l.defs.object);
+    let object = type_ref(l.u, l.u.defn().object);
     let first = params.len() - arity;
     let params: Vec<(NameId, TypeId)> = names
         .into_iter()
@@ -106,7 +106,7 @@ pub fn adapted_types(
     let info = l.u.info(sam);
     let declared = l.u.method(info).map(|m| m.params.to_vec()).unwrap_or_default();
     let declared_result = l.u.result_type(info);
-    let object = type_ref(l.u, l.defs.object);
+    let object = type_ref(l.u, l.u.defn().object);
     let as_erased =
         |e: &Erased, t: TypeId| if *e == Erased::Class("java.lang.Object".into()) { object } else { t };
     let mut out: Vec<(NameId, TypeId)> = params.iter().map(|&(p, t)| (l.u.interned_name(p), t)).collect();

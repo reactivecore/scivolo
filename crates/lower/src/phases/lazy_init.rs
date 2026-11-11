@@ -169,7 +169,7 @@ fn not_uninitialized(l: &mut Lower, lazy: &Lazy, s: &Shared, current: SymbolId) 
 
 /// `objCAS(this.x$lzy, expected, value)`.
 fn apply_cas(l: &mut Lower, s: &Shared, expected: TNodeId, value: TNodeId) -> TNodeId {
-    let boolean = l.u.class_ref("scala.Boolean");
+    let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
     let apply = l.apply(s.cas, &[s.field, expected, value], boolean, Span::NONE);
     l.positioned(apply)
 }

@@ -30,8 +30,8 @@ impl Gen<'_, '_> {
             let entry = g.fresh();
             g.label(entry, std::iter::once(this).chain(params.iter().copied()).collect());
             let this = g.val(Val::Local(this.id, self_ty));
-            let object = g.class_ref(g.l.defs.object);
-            let object_name = g.type_name(g.l.defs.object);
+            let object = g.class_ref(g.l.u.defn().object);
+            let object_name = g.type_name(g.l.u.defn().object);
             let object_ctor = g.pool.member(object_name, &Sig::Ctor(Vec::new()));
             let super_ty = g.ty(Type::Function(vec![object], unit));
             let ptr = g.global_ptr(object_ctor);

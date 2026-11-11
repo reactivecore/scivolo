@@ -14,7 +14,7 @@ pub fn array_op(l: &mut Lower, fun: TNodeId) -> Option<(Vec<Erased>, Erased)> {
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };
     let m = l.tpd.sym(fun)?;
     let owner = l.u.symbol(m).owner?;
-    if l.u.full_name(owner) != "scala.Array" {
+    if !l.is_known(owner, crate::definitions::Known::Array) {
         return None;
     }
     let array = l.u.widen(l.tpd.tpe(qualifier));

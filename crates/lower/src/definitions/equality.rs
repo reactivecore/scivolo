@@ -20,12 +20,13 @@ pub struct Equality {
 }
 
 impl Equality {
-    pub fn new(u: &mut Universe, any: SymbolId, object: SymbolId) -> Result<Equality, String> {
+    /// Looks up the definitions, defining the Java statics the library has no TASTy for.
+    pub fn new(u: &mut Universe) -> Result<Equality, String> {
+        let defn = u.defn();
+        let (scala, java_lang, any) = (defn.scala, defn.java_lang, defn.any);
         let runtime = package(u, "scala.runtime")?;
-        let java_lang = package(u, "java.lang")?;
         let java_io = package(u, "java.io")?;
-        let scala = package(u, "scala")?;
-        let object = type_ref(u, object);
+        let object = type_ref(u, defn.object);
         let boolean = member(u, scala, "Boolean", Kind::Class)?;
         let boolean = type_ref(u, boolean);
         let int = member(u, scala, "Int", Kind::Class)?;
@@ -36,8 +37,7 @@ impl Equality {
         let statics = java_class(u, runtime, "Statics");
         let info = method(u, &[object], int);
         let any_hash = java_static(u, statics, "anyHash", Kind::Def, info);
-        let unit = member(u, scala, "Unit", Kind::Class)?;
-        let unit = type_ref(u, unit);
+        let unit = type_ref(u, defn.unit);
         let info = method(u, &[], unit);
         let release_fence = java_static(u, statics, "releaseFence", Kind::Def, info);
         Ok(Equality {

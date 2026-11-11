@@ -22,7 +22,7 @@ pub fn ascription_type(l: &mut Lower, tpt: TNodeId) -> Erased {
         return l.u.erase_boxed(tpe);
     }
     match l.u.erase_value(tpe) {
-        Erased::Unit if type_symbol(l, tpe) != Some(l.defs.unit) => {
+        Erased::Unit if type_symbol(l, tpe) != Some(l.u.defn().unit) => {
             Erased::Class(tasty::defn::BOXED_UNIT.into())
         }
         e => e,

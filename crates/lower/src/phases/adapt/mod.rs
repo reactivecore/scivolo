@@ -16,6 +16,7 @@ use super::casts::{cast, conforms, is_cast, is_new_array};
 use super::select_static::is_static_enum_value;
 use super::type_tests::primitive_conversion::{failed_conversion, primitive_conversion};
 use crate::Lower;
+use crate::definitions::Known;
 use crate::symbols::{has, is_java_field, is_java_static};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
@@ -48,7 +49,7 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
 /// Whether `s` is `Predef.classOf`, a constant rather than a call.
 pub fn is_class_of(l: &Lower, s: tasty::SymbolId) -> bool {
     let sym = l.u.symbol(s);
-    sym.name == "classOf" && sym.owner.is_some_and(|o| l.u.full_name(o) == tasty::defn::PREDEF_CLASS)
+    sym.name == "classOf" && sym.owner.is_some_and(|o| l.is_known(o, Known::PredefClass))
 }
 
 /// The erased type of `t` as erasure leaves it: a call's erased result type, a value's erased
@@ -99,7 +100,7 @@ pub fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
         (Some(s), _) if is_java_static(l.u, s) => l.tpd.span(t),
         _ if l.non_erased.contains_key(&t) => l.non_erased[&t].1,
         (Some(s), &Tree::Select { qualifier, .. })
-            if l.u.symbol(s).name == "##" && l.u.symbol(s).owner == Some(l.defs.any) =>
+            if l.u.symbol(s).name == "##" && l.u.symbol(s).owner == Some(l.u.defn().any) =>
         {
             from_start(l.tpd.span(qualifier))
         }

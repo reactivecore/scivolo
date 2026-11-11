@@ -242,7 +242,7 @@ fn define(
 
 /// `this.f = null` for each field `f` lazy value `lazy` nulls.
 pub fn null_out(l: &mut Lower, lazy: &Lazy) -> Vec<TNodeId> {
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let mut out = Vec::new();
     for &f in &lazy.nulled {
         let this = l.this(lazy.class, Span::NONE);

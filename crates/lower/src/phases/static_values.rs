@@ -93,9 +93,8 @@ fn offsets_start(l: &mut Lower, td: TNodeId) -> Result<Option<Span>> {
         }
         _ => true,
     };
-    let plain = bases
-        .iter()
-        .all(|&b| matches!(l.u.full_name(b).as_str(), "java.lang.Object" | "scala.Matchable" | "scala.Any"));
+    let d = l.u.defn();
+    let plain = bases.iter().all(|b| [d.object, d.matchable, d.any].contains(b));
     if params || !plain || synthetic {
         let span = l.tpd.span(td);
         return unsupported(
@@ -125,7 +124,7 @@ fn store(l: &mut Lower, source: SymbolId, var: SymbolId, value: TNodeId, span: S
     let lhs = l.select(module, var, span);
     let info = l.u.info(var);
     l.tpd.get_mut(lhs).tpe = Some(l.u.widen(info));
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     l.tpd.node(Tree::Assign { lhs, rhs: value }, span, Some(unit), None)
 }
 
@@ -143,7 +142,7 @@ fn clinit(
         flags = flags.with(PRIVATE);
     }
     let sym = l.u.define(symbol("<clinit>", Kind::Def, class, flags));
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_method(binder, &[], unit, false, false);
     l.u.set_info(sym, info);

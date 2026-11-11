@@ -44,7 +44,7 @@ pub fn unmapped(name: &str) -> &str {
 
 impl Gen<'_, '_> {
     pub fn type_name(&mut self, c: SymbolId) -> GlobalId {
-        let d = &self.l.defs;
+        let d = self.l.u.defn();
         if [d.object, d.any, d.any_ref].contains(&c) {
             return self.pool.top("java.lang.Object");
         }

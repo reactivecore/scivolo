@@ -67,7 +67,7 @@ pub fn flag(l: &mut Lower, lazy: &Lazy, tpe: TypeId) -> Option<SymbolId> {
     let name = fresh(l, &format!("{}bitmap$", l.u.symbol(lazy.accessor).name));
     let flags = Flags::default().with(SYNTHETIC).with(MUTABLE).with(PRIVATE);
     let flag = l.u.define(symbol(&name, Kind::Val, lazy.class, flags));
-    let boolean = l.u.class_ref("scala.Boolean");
+    let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
     l.u.set_info(flag, boolean);
     l.fields.insert(flag, flag);
     Some(flag)

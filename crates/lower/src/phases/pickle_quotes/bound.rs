@@ -21,7 +21,7 @@ pub fn bound(
     if params.is_empty() {
         return content;
     }
-    let seq = l.u.class_ref("scala.collection.immutable.Seq");
+    let seq = l.u.class_ref(tasty::defn::IMMUTABLE_SEQ);
     let seq = l.u.class_symbol(seq).expect("Seq");
     let apply = l.u.member(seq, "apply")[0];
     if !at.exists() {

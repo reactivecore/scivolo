@@ -18,7 +18,7 @@ pub struct PartialFunctions {
 
 impl PartialFunctions {
     pub fn new(u: &mut Universe) -> Result<PartialFunctions, String> {
-        let scala = package(u, "scala")?;
+        let scala = u.defn().scala;
         let class = member(u, scala, "PartialFunction", Kind::Class)?;
         let abstract_class = member(u, package(u, "scala.runtime")?, "AbstractPartialFunction", Kind::Class)?;
         let function1 = member(u, scala, "Function1", Kind::Class)?;

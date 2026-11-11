@@ -35,7 +35,7 @@ pub fn to_anon_class(
     }
     let mut parents = vec![sam];
     if l.u.is_trait(class) {
-        let (object, any) = (l.defs.object, l.u.defn().any);
+        let (object, any) = (l.u.defn().object, l.u.defn().any);
         let bases = l.u.linearization(class);
         let sup = bases[1..].iter().copied().find(|&b| !l.u.is_trait(b)).filter(|&b| b != any);
         let sup = sup.unwrap_or(object);

@@ -33,7 +33,8 @@ impl Gen<'_, '_> {
         args: &[TNodeId],
     ) -> Result<Option<ValId>> {
         let Some(owner) = self.l.u.symbol(sym).owner else { return Ok(None) };
-        if [self.l.defs.any, self.l.defs.object].contains(&owner) {
+        let defn = self.l.u.defn();
+        if [defn.any, defn.object].contains(&owner) {
             return self.gen_raw_ptr_equality(sym, fun, args);
         }
         let name = self.l.u.symbol(sym).name.clone();

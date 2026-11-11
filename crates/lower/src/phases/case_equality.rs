@@ -70,7 +70,7 @@ impl Lower<'_> {
         }
         let matching = Tree::CaseDef { pat: pattern, guard: None, body: rhs };
         let matching = self.tpd.node(matching, Span::NONE, None, None);
-        let any = type_ref(self.u, self.defs.any);
+        let any = type_ref(self.u, self.u.defn().any);
         let pat = self.wildcard(any);
         let no = self.boolean_literal(false);
         let default = self.tpd.node(Tree::CaseDef { pat, guard: None, body: no }, Span::NONE, None, None);
@@ -89,7 +89,7 @@ impl Lower<'_> {
         let this = self.this(class, Span::NONE);
         let that_ref = self.copy_ident(that);
         let span = from_start(self.tpd.span(that_ref));
-        let object = self.u.class_ref("java.lang.Object");
+        let object = self.u.class_ref(tasty::defn::OBJECT);
         let fun = self.select(that_ref, self.defs.type_cast, span);
         let tpt = self.type_tree(object, span);
         let that_object = self.build().type_apply(fun, &[tpt], object, Span::NONE);

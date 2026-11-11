@@ -81,7 +81,7 @@ fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Res
 
 /// A new `private def name(): AnyRef` of `class`, and `AnyRef`.
 pub fn private_method(l: &mut Lower, class: SymbolId, name: &str) -> (SymbolId, TypeId) {
-    let any_ref = type_ref(l.u, l.defs.any_ref);
+    let any_ref = type_ref(l.u, l.u.defn().any_ref);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_method(binder, &[], any_ref, false, false);
     let sym = l.u.define(symbol(name, Kind::Def, class, Flags::default().with(PRIVATE).with(SYNTHETIC)));

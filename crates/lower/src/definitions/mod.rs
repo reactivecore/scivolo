@@ -5,6 +5,7 @@ mod case_classes;
 mod defined;
 mod equality;
 mod interfaces;
+mod known;
 mod lazy_vals;
 mod monitors;
 mod partial_functions;
@@ -21,6 +22,7 @@ pub use defined::symbol;
 use defined::{java_class, java_static};
 pub use equality::Equality;
 pub use interfaces::{procedure, specialized, specialized_applies, specialized_apply};
+pub use known::Known;
 pub use lazy_vals::LazyVals;
 pub use monitors::Monitors;
 pub use partial_functions::PartialFunctions;
@@ -29,17 +31,14 @@ pub use primitives::{Primitive, boxed_class, primitive_class_name};
 pub use refs::{Ref, ref_class};
 pub use resolved::Serialization;
 pub use sequences::Sequences;
+use std::cell::Cell;
 pub use strings::Strings;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 pub use tuples::{specialized_accessor, specialized_tuple_ctor, tuple_tags};
 
 pub struct Definitions {
-    pub object: SymbolId,
-    pub any: SymbolId,
-    pub any_ref: SymbolId,
-    pub any_val: SymbolId,
-    pub unit: SymbolId,
-    pub string: SymbolId,
+    /// `scala.Boolean`.
+    pub boolean: SymbolId,
     /// `Any.asInstanceOf`, `Any.isInstanceOf`, and `Any.$isInstanceOf$` that pattern matches
     /// test with.
     pub as_instance_of: SymbolId,
@@ -76,21 +75,18 @@ pub struct Definitions {
     product: Option<SymbolId>,
     scala_run_time: Option<SymbolId>,
     array_clone: Option<SymbolId>,
+    known: [Cell<Option<SymbolId>>; known::COUNT],
 }
 
 impl Definitions {
+    /// Looks up the definitions the lowering needs up front, after entering `Predef`, `Unit` and
+    /// `String` into `Defn`; the others are left to their first use.
     pub fn new(u: &mut Universe) -> Result<Definitions, String> {
-        let b = u.defn();
-        let (scala, java_lang) = (package(u, "scala")?, package(u, "java.lang")?);
+        let b = u.enter_library_defn()?;
         let runtime = package(u, "scala.runtime")?;
-        let boolean = member(u, scala, "Boolean", Kind::Class)?;
+        let boolean = member(u, b.scala, "Boolean", Kind::Class)?;
         Ok(Definitions {
-            object: b.object,
-            any: b.any,
-            any_ref: b.any_ref,
-            any_val: member(u, scala, "AnyVal", Kind::Class)?,
-            unit: member(u, scala, "Unit", Kind::Class)?,
-            string: member(u, java_lang, "String", Kind::Class)?,
+            boolean,
             as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
             is_instance_of: member(u, b.any, "isInstanceOf", Kind::Def)?,
             type_test: member(u, b.any, "$isInstanceOf$", Kind::Def)?,
@@ -120,6 +116,7 @@ impl Definitions {
             product: None,
             scala_run_time: None,
             array_clone: None,
+            known: Default::default(),
         })
     }
 

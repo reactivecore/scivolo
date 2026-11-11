@@ -6,6 +6,7 @@
 
 use super::walk::{walk_class_up, without_type_args};
 use super::{format_interpolator, standard_interpolator};
+use crate::definitions::Known;
 use crate::{Lower, Result, unsupported};
 use std::ops::ControlFlow;
 use syntax::ast::Span;
@@ -58,7 +59,7 @@ fn rewrite(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
 fn interpolator(l: &Lower, t: TNodeId) -> Option<&'static str> {
     let Tree::Apply { fun, .. } = *l.tpd.tree(t) else { return None };
     let method = l.u.symbol(l.tpd.sym(without_type_args(l.tpd, fun))?);
-    if method.owner.map(|o| l.u.full_name(o)).as_deref() != Some("scala.StringContext") {
+    if !method.owner.is_some_and(|o| l.is_known(o, Known::StringContext)) {
         return None;
     }
     ["s", "raw", "f"].into_iter().find(|&n| n == method.name)
@@ -71,11 +72,11 @@ pub fn interpolation(l: &Lower, t: TNodeId) -> Option<(Vec<TNodeId>, Vec<TNodeId
     let Tree::Select { qualifier, .. } = *l.tpd.tree(without_type_args(l.tpd, fun)) else { return None };
     let Tree::Apply { fun: apply, args: parts } = *l.tpd.tree(qualifier) else { return None };
     let Tree::Select { qualifier: module, .. } = *l.tpd.tree(apply) else { return None };
-    let module = l.tpd.sym(module).map(|m| l.u.full_name(m));
+    let module = l.tpd.sym(module);
     let apply = l.u.symbol(l.tpd.sym(apply)?);
     if apply.name != "apply"
-        || apply.owner.map(|o| l.u.full_name(o)).as_deref() != Some("scala.StringContext$")
-        || module.as_deref() != Some("scala.StringContext")
+        || !apply.owner.is_some_and(|o| l.is_known(o, Known::StringContextModuleClass))
+        || !module.is_some_and(|m| l.is_known(m, Known::StringContextModule))
     {
         return None;
     }
@@ -146,8 +147,8 @@ pub fn process_escapes(s: &[u16]) -> Option<Vec<u16>> {
 /// `parts[0] + args[0] + parts[1] + …`, empty parts but the first dropped, each `+` at the span
 /// of what it appends.
 fn concat(l: &mut Lower, parts: &[TNodeId], args: &[TNodeId]) -> TNodeId {
-    let plus = l.u.decls_named(l.defs.string, "+")[0];
-    let tpe = l.u.class_ref("java.lang.String");
+    let plus = l.u.decls_named(l.u.defn().string, "+")[0];
+    let tpe = l.u.class_ref(tasty::defn::STRING);
     let mut result = parts[0];
     for (&arg, &part) in args.iter().zip(&parts[1..]) {
         result = append(l, result, plus, arg, tpe);

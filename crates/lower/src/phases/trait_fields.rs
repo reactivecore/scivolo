@@ -75,7 +75,7 @@ fn trait_setter(l: &mut Lower, trait_: SymbolId, getter: SymbolId, span: Span) -
     let getter_info = l.u.info(getter);
     let value = l.u.result_type(getter_info);
     let setter = define_setter(l, trait_, &name, value);
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let param = l.u.define(symbol("x$0", Kind::Param, setter, tasty::Flags::default()));
     l.u.set_info(param, value);
     let param = l.param_def(param, span);
@@ -125,7 +125,7 @@ pub fn mixed_in(
         let at = if call_span.exists() { Span::at(call_span.start()) } else { at };
         let sup = l.super_mix(class, mixin, at);
         let fun = l.select(sup, init, at);
-        let unit = l.u.class_ref("scala.Unit");
+        let unit = l.u.class_ref(tasty::defn::UNIT);
         let args = super::local_traits::init_args(l, class, init, at)?;
         let call = l.apply(fun, &args, unit, Span::NONE);
         out.push(l.positioned(call));

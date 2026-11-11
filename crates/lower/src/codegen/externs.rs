@@ -140,7 +140,7 @@ impl Gen<'_, '_> {
             return unsupported(span, "extern methods with non-final variable arguments");
         }
         for (i, p) in params.iter().chain([&result]).enumerate() {
-            if matches!(p, Erased::Class(n) if n == "scala.collection.immutable.Seq") && vararg != Some(i) {
+            if matches!(p, Erased::Class(n) if n == tasty::defn::IMMUTABLE_SEQ) && vararg != Some(i) {
                 return unsupported(span, "extern methods with variable arguments");
             }
             if matches!(p, Erased::Class(n) if n == "scala.scalanative.unsafe.CFuncPtr") {

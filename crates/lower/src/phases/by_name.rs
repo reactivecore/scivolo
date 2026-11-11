@@ -95,7 +95,7 @@ fn apply_reference(l: &mut Lower, t: TNodeId) {
     let n = l.tpd.get(t);
     let (tree, tpe) = (n.tree.clone(), n.tpe);
     let qual = l.tpd.node(tree, span, tpe, Some(x));
-    let function = l.u.class_ref("scala.Function0");
+    let function = l.u.class_ref(tasty::defn::FUNCTION0);
     let class = l.u.class_symbol(function).expect("`Function0`");
     let apply = l.u.decls_named(class, "apply");
     let apply = apply.into_iter().next().expect("`Function0.apply`");
@@ -169,7 +169,7 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
         l.inlined_at.insert(anon, span.without_inlined_call().start());
     }
     let def = l.method_def(anon, &[], tpt, arg, from_start(def_span));
-    let function = l.u.class_ref("scala.Function0");
+    let function = l.u.class_ref(tasty::defn::FUNCTION0);
     let function = l.u.intern_applied(function, &[result]);
     let meth = l.ident(anon, span);
     let env = l.tpd.list(&[]);

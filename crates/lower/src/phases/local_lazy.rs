@@ -116,7 +116,7 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let get_value = l.with_span(get_value, span);
     let receiver = dup(l, holder_ref);
     let initialized = holder_call(l, &holder, receiver, "initialized", &[], span)?;
-    l.tpd.get_mut(initialized).tpe = Some(l.u.class_ref("scala.Boolean"));
+    l.tpd.get_mut(initialized).tpe = Some(l.u.class_ref(tasty::defn::BOOLEAN));
     let init_name = fresh(l, &format!("{name}$lzyINIT"));
     let init = method_symbol(l, &init_name, owner, info);
     for s in subtrees(l.tpd, rhs) {

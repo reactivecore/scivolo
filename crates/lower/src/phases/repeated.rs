@@ -41,7 +41,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNodeId> {
     let Tree::Typed { expr: seq, tpt } = *l.tpd.tree(a) else { return Ok(a) };
     let ascribed = l.tpd.tpe(tpt);
-    if !l.u.is_class_named(ascribed, "scala.<repeated>") {
+    if !l.u.is_class_named(ascribed, tasty::defn::REPEATED) {
         return Ok(a);
     }
     let span = l.tpd.span(a);
@@ -55,7 +55,7 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
         if java_varargs(l, method, clause, i).is_some() {
             return to_array(l, seq, elem, span);
         }
-        if l.u.is_class_named(tpe, "scala.Array") {
+        if l.u.is_class_named(tpe, tasty::defn::ARRAY) {
             let wrapped = wrap_array(l, seq, elem, ascribed, Span::NONE)?;
             return Ok(l.positioned(wrapped));
         }
@@ -80,7 +80,7 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
 fn to_array(l: &mut Lower, seq: TNodeId, elem: TypeId, span: Span) -> Result<TNodeId> {
     let array = array_of(l, elem);
     let tpe = l.u.widen(l.tpd.tpe(seq));
-    let adapted = if l.u.is_class_named(tpe, "scala.Array") {
+    let adapted = if l.u.is_class_named(tpe, tasty::defn::ARRAY) {
         seq
     } else {
         let runtime = l.u.package("scala.runtime").expect("package scala.runtime");
@@ -96,7 +96,7 @@ fn to_array(l: &mut Lower, seq: TNodeId, elem: TypeId, span: Span) -> Result<TNo
         let targ = l.type_tree(elem, Span::NONE);
         let info = l.u.member_info(l.tpd.tpe(qual), method);
         let fun = l.build().type_apply(fun, &[targ], info, Span::NONE);
-        let class_of = l.u.class_ref("java.lang.Class");
+        let class_of = l.u.class_ref(tasty::defn::CLASS);
         let class_of = l.u.class_symbol(class_of).expect("`java.lang.Class`");
         let class_of = crate::definitions::applied(l.u, class_of, vec![elem]);
         let literal = l.tpd.node(Tree::ClassLiteral { tpe: elem }, Span::NONE, Some(class_of), None);
@@ -142,7 +142,7 @@ fn java_varargs(l: &mut Lower, method: SymbolId, clause: usize, i: usize) -> Opt
 /// The array of parameter type `p` if it is Java varargs, an array marked repeated.
 pub fn java_array(l: &mut Lower, p: TypeId) -> Option<TypeId> {
     let (inner, annot) = l.u.annotated(p)?;
-    let array = l.u.applied(inner).map(|(c, _)| c).is_some_and(|c| l.u.is_class_named(c, "scala.Array"));
+    let array = l.u.applied(inner).map(|(c, _)| c).is_some_and(|c| l.u.is_class_named(c, tasty::defn::ARRAY));
     let repeated = l.u.is_class_named(annot, "scala.annotation.internal.Repeated");
     (array && repeated).then_some(inner)
 }

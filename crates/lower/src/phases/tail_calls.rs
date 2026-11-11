@@ -191,8 +191,6 @@ impl TailCalls {
 fn is_boolean_op(l: &Lower, fun: TNodeId) -> bool {
     l.tpd.sym(fun).is_some_and(|m| {
         let s = l.u.symbol(m);
-        s.kind == Kind::Def
-            && (s.name == "||" || s.name == "&&")
-            && s.owner.is_some_and(|o| l.u.full_name(o) == tasty::defn::BOOLEAN)
+        s.kind == Kind::Def && (s.name == "||" || s.name == "&&") && s.owner == Some(l.defs.boolean)
     })
 }

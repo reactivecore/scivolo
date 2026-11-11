@@ -54,8 +54,8 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
         l.tpd.get_mut(sel).tree = Tree::Select { qualifier, name };
     }
     let any_val_init = l.tpd.sym(sel).filter(|&m| l.u.is_constructor(m)).and_then(|m| l.u.symbol(m).owner);
-    if any_val_init == Some(l.defs.any_val) {
-        let init = l.u.decls_named(l.defs.object, "<init>");
+    if any_val_init.is_some() && any_val_init == l.u.defn().any_val {
+        let init = l.u.decls_named(l.u.defn().object, "<init>");
         l.tpd.get_mut(sel).sym = init.first().copied();
     }
     let clone = l.tpd.sym(fun).filter(|&m| l.u.symbol(m).name == "clone");
@@ -87,9 +87,9 @@ fn is_bunched(params: &[Erased], n: usize) -> bool {
 /// `args` as the elements of an array of objects (dotty's `JavaSeqLiteral`).
 fn bunched_args(l: &mut Lower, args: &[TNodeId]) -> TNodeId {
     let span = args.iter().fold(Span::NONE, |s, &a| s.union(l.tpd.span(a)));
-    let object = type_ref(l.u, l.defs.object);
+    let object = type_ref(l.u, l.u.defn().object);
     let elemtpt = l.type_tree(object, Span::NONE);
-    let array = l.u.class_ref("scala.Array");
+    let array = l.u.class_ref(tasty::defn::ARRAY);
     let tpe = l.u.intern_applied(array, &[object]);
     let elems = l.tpd.list(args);
     l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, span, Some(tpe), None)
@@ -103,7 +103,7 @@ pub fn inherited_by_class(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
         return None;
     }
     let name = s.name.clone();
-    l.u.decls_named(l.defs.any, &name).first().copied()
+    l.u.decls_named(l.u.defn().any, &name).first().copied()
 }
 
 /// The member of `FunctionN` or `FunctionXXL` that member `m` of `ContextFunctionN` or of a
@@ -118,6 +118,6 @@ pub fn function_member(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
 /// Whether `t` selects `Any.hashCode` without applying it, as `inherited_by_class` leaves
 /// `_Class`'s parameterless `hashCode`.
 pub fn is_unapplied_hash_code(l: &Lower, t: TNodeId) -> bool {
-    let any_hash_code = |m| l.u.symbol(m).name == "hashCode" && l.u.symbol(m).owner == Some(l.defs.any);
+    let any_hash_code = |m| l.u.symbol(m).name == "hashCode" && l.u.symbol(m).owner == Some(l.u.defn().any);
     matches!(l.tpd.tree(t), Tree::Select { .. }) && l.tpd.sym(t).is_some_and(any_hash_code)
 }

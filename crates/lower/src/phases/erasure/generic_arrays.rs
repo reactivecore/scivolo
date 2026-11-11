@@ -3,6 +3,7 @@
 //! Members of arrays of an element type erasure does not know, as `ScalaRunTime`'s
 //! `array_apply`, `array_update`, `array_length` and `array_clone` (dotty's `selectArrayMember`).
 
+use crate::definitions::Known;
 use crate::phases::adapt::from_start;
 use crate::{Lower, Result, unsupported};
 use tasty::Erased;
@@ -15,7 +16,7 @@ pub fn runtime_op(l: &mut Lower, sel: TNodeId) -> Result<Option<(TNodeId, TNodeI
     let Tree::Select { qualifier, .. } = *l.tpd.tree(sel) else { return Ok(None) };
     let Some(m) = l.tpd.sym(sel) else { return Ok(None) };
     let owner = l.u.symbol(m).owner;
-    if owner.is_none_or(|o| l.u.full_name(o) != "scala.Array") || l.u.is_constructor(m) {
+    if !owner.is_some_and(|o| l.is_known(o, Known::Array)) || l.u.is_constructor(m) {
         return Ok(None);
     }
     let array = l.u.widen(l.tpd.tpe(qualifier));

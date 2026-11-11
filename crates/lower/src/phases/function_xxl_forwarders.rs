@@ -68,13 +68,13 @@ fn implements_xxl_apply(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool 
 /// `def apply(args: Array[Object]): Object = this.meth(args(0).asInstanceOf[T1], …)` in `class`.
 fn forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> Result<TNodeId> {
     let (_, array) = param(l);
-    let object = type_ref(l.u, l.defs.object);
+    let object = type_ref(l.u, l.u.defn().object);
     let binder = l.u.fresh_binder();
     let params = [(l.u.intern_name("args"), array)];
     let info = l.u.intern_method(binder, &params, object, false, false);
     let sym = l.u.define(symbol("apply", Kind::Def, class, Flags::default().with(SYNTHETIC)));
     l.u.set_info(sym, info);
-    let array_class = class_named(l, "scala.Array").expect("`scala.Array`");
+    let array_class = class_named(l, tasty::defn::ARRAY).expect("`scala.Array`");
     let array_apply = method(l, array_class, "apply", Span::NONE)?;
     let types = param_types(l, meth);
     let info = l.u.info(meth);

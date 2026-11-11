@@ -134,7 +134,7 @@ fn is_instance_of(
         let null = l.null_literal(Span::NONE);
         let ne = l.select(expr, l.defs.ne, Span::NONE);
         let ne = l.positioned(ne);
-        let boolean = l.u.class_ref("scala.Boolean");
+        let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
         let test = l.apply(ne, &[null], boolean, Span::NONE);
         return Ok(l.positioned(test));
     }
@@ -155,7 +155,7 @@ fn is_instance_of(
     let fun = l.select(expr, l.defs.is_instance_of, l.tpd.span(expr));
     let tpt = l.type_tree(tested, Span::NONE);
     let args = l.tpd.list(&[tpt]);
-    let boolean = l.u.class_ref("scala.Boolean");
+    let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
     Ok(l.tpd.node(Tree::TypeApply { fun, args }, span, Some(boolean), Some(l.defs.is_instance_of)))
 }
 

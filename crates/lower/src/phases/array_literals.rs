@@ -5,6 +5,7 @@
 
 use super::array_apply::{applied, qualifier_symbol, wrapped_literal};
 use crate::Lower;
+use crate::definitions::Known;
 use syntax::ast::Span;
 use typer::tpd::{TNodeId, Tree};
 
@@ -13,7 +14,7 @@ pub fn array_literal(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::Apply { args, .. } = *l.tpd.tree(t) else { return None };
     let (m, qual) = applied(l, t)?;
     let module = qualifier_symbol(l, qual).filter(|&q| l.u.is_module(q))?;
-    if l.u.symbol(m).name != "apply" || l.u.full_name(module) != "scala.Array" {
+    if l.u.symbol(m).name != "apply" || !l.is_known(module, Known::ArrayModule) {
         return None;
     }
     match *l.tpd.items(args) {
@@ -38,7 +39,7 @@ fn is_class_tag_of_literal(l: &Lower, t: TNodeId) -> bool {
     let t = l.tpd.strip_typed(t);
     let Some(m) = l.tpd.sym(l.tpd.meth_part(t)) else { return false };
     let Some(owner) = l.u.symbol(m).owner else { return false };
-    if l.u.full_name(owner) != "scala.reflect.ClassTag$" {
+    if !l.is_known(owner, Known::ClassTagModuleClass) {
         return false;
     }
     let name = l.u.symbol(m).name.as_str();

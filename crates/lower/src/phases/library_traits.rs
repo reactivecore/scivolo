@@ -54,7 +54,7 @@ pub fn has_lazy(l: &mut Lower, trait_: SymbolId) -> bool {
 /// The deferred setter `name(x$0: value): Unit` of class `owner`.
 pub fn define_setter(l: &mut Lower, owner: SymbolId, name: &str, value: TypeId) -> SymbolId {
     let setter = l.u.define(symbol(name, Kind::Def, owner, Flags::default().with(FIELDaccessor)));
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let binder = l.u.fresh_binder();
     let params = [(l.u.intern_name("x$0"), value)];
     let info = l.u.intern_method(binder, &params, unit, false, false);

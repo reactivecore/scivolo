@@ -72,7 +72,7 @@ pub fn typed_branches(
     }
     if nothing && !reference(&expected) && out.iter().any(|&b| erased_type(l, b) != Erased::Nothing) {
         l.tpd.get_mut(t).tpe = Some(match expected {
-            Erased::Unit => l.u.class_ref("scala.Unit"),
+            Erased::Unit => l.u.class_ref(tasty::defn::UNIT),
             ref e => type_of(l, e),
         });
     }

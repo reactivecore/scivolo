@@ -30,7 +30,8 @@ impl Gen<'_, '_> {
         }
         let Some(owner) = self.l.u.symbol(sym).owner else { return Ok(None) };
         let name = self.l.u.symbol(sym).name.clone();
-        let (any, object) = (self.l.defs.any, self.l.defs.object);
+        let defn = self.l.u.defn();
+        let (any, object) = (defn.any, defn.object);
         if sym == self.l.defs.synchronized {
             return self.gen_synchronized(fun, args).map(Some);
         }

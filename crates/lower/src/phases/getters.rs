@@ -111,7 +111,7 @@ fn param_setter(l: &mut Lower, class: SymbolId, var: SymbolId, name: &str, span:
     let flags = l.u.symbol(var).flags.with(FIELDaccessor);
     let setter = l.u.define(symbol(name, Kind::Def, class, flags));
     let value = l.u.info(var);
-    let unit = l.u.class_ref("scala.Unit");
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let binder = l.u.fresh_binder();
     let params = [(l.u.intern_name("x$0"), value)];
     let info = l.u.intern_method(binder, &params, unit, false, false);

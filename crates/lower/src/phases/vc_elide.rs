@@ -57,7 +57,8 @@ fn new_with_arg(l: &Lower, t: TNodeId) -> Option<(SymbolId, TNodeId)> {
 
 /// Whether value class `class` has or inherits an `equals` it did not get synthesized.
 fn has_own_equals(l: &mut Lower, class: SymbolId) -> bool {
-    let plain = [l.defs.any, l.defs.object];
+    let defn = l.u.defn();
+    let plain = [defn.any, defn.object];
     l.u.member(class, "equals").into_iter().any(|m| {
         let s = l.u.symbol(m);
         s.kind == Kind::Def && !s.owner.is_some_and(|o| plain.contains(&o)) && !has(l.u, m, SYNTHETIC)

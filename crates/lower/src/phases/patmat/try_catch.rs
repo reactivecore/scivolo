@@ -26,7 +26,7 @@ pub fn fallback(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<Option<TNo
         return Ok(None);
     }
     let span = l.tpd.span(t);
-    let throwable = l.u.class_ref("java.lang.Throwable");
+    let throwable = l.u.class_ref(tasty::defn::THROWABLE);
     let name = l.fresh.next(l.names, "ex");
     let name = l.names.text(name).to_owned();
     let flags = Flags::default().with(SYNTHETIC).with(CASE);
@@ -96,7 +96,7 @@ fn is_simple_throwable(l: &mut Lower, tpt: TNodeId) -> Result<bool> {
         },
         _ => return Ok(false),
     };
-    let throwable_tpe = l.u.class_ref("java.lang.Throwable");
+    let throwable_tpe = l.u.class_ref(tasty::defn::THROWABLE);
     let throwable = l.u.class_symbol(throwable_tpe).expect("`Throwable`");
     let owner = l.u.symbol(c).owner.expect("a symbol's owner");
     let static_prefix =

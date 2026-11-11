@@ -42,7 +42,7 @@ impl Lower<'_> {
         let fun = self.positioned(fun);
         let tpt = self.type_tree(tpe, Span::NONE);
         let args = self.tpd.list(&[tpt]);
-        let boolean = self.u.class_ref("scala.Boolean");
+        let boolean = self.u.class_ref(tasty::defn::BOOLEAN);
         let test = self.tpd.node(Tree::TypeApply { fun, args }, Span::NONE, Some(boolean), Some(m));
         self.positioned(test)
     }

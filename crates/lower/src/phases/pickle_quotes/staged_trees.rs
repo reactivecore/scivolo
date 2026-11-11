@@ -19,10 +19,10 @@ pub fn spliced(
     owner: SymbolId,
     body: impl FnOnce(&mut Lower, TNodeId, SymbolId) -> TNodeId,
 ) -> TNodeId {
-    let class = l.u.class_ref("scala.quoted.Expr");
+    let class = l.u.class_ref(tasty::defn::QUOTED_EXPR);
     let expr = l.u.intern_applied(class, &[tpe]);
-    let quotes = l.u.class_ref("scala.quoted.Quotes");
-    let function = l.u.class_ref("scala.ContextFunction1");
+    let quotes = l.u.class_ref(tasty::defn::QUOTES);
+    let function = l.u.class_ref(tasty::defn::CONTEXT_FUNCTION1);
     let function = l.u.intern_applied(function, &[quotes, expr]);
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, Flags::default().with(SYNTHETIC)));
     let binder = l.u.fresh_binder();
@@ -45,10 +45,10 @@ pub fn spliced(
 /// `Expr.quote[T](body).apply(quotes)`, `T` the type of `body`.
 pub fn quoted(l: &mut Lower, body: TNodeId, quotes: TNodeId) -> TNodeId {
     let tpe = l.tpd.tpe(body);
-    let class = l.u.class_ref("scala.quoted.Expr");
+    let class = l.u.class_ref(tasty::defn::QUOTED_EXPR);
     let expr = l.u.intern_applied(class, &[tpe]);
-    let quotes_type = l.u.class_ref("scala.quoted.Quotes");
-    let function = l.u.class_ref("scala.ContextFunction1");
+    let quotes_type = l.u.class_ref(tasty::defn::QUOTES);
+    let function = l.u.class_ref(tasty::defn::CONTEXT_FUNCTION1);
     let function = l.u.intern_applied(function, &[quotes_type, expr]);
     let fun = runtime(l, "quote", tpe);
     let quote = l.apply(fun, &[body], function, Span::NONE);

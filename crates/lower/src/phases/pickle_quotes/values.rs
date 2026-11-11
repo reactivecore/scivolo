@@ -52,7 +52,7 @@ pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId, owner: Symbol
     let lifter_class = l.u.class_symbol(instance).expect("a ToExpr class");
     let apply = l.u.member(lifter_class, "apply")[0];
     let fun = l.select(lifter, apply, Span::NONE);
-    let expr = l.u.class_ref("scala.quoted.Expr");
+    let expr = l.u.class_ref(tasty::defn::QUOTED_EXPR);
     let expr = l.u.intern_applied(expr, &[q.tpe]);
     let quotes_type = l.tpd.tpe(q.quotes);
     let binder = l.u.fresh_binder();

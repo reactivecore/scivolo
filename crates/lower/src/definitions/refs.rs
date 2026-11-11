@@ -34,8 +34,7 @@ pub fn ref_class(u: &mut Universe, e: &Erased) -> Result<Ref, String> {
     let elem_type: TypeId = match elem_class {
         "" => type_ref(u, u.defn().object),
         c => {
-            let scala = package(u, "scala")?;
-            let c = member(u, scala, c, Kind::Class)?;
+            let c = member(u, u.defn().scala, c, Kind::Class)?;
             type_ref(u, c)
         }
     };
