@@ -64,6 +64,9 @@ impl Gen<'_, '_> {
                     if self.l.u.is_annotated(s, "scala.deprecated") {
                         cf.member_deprecated(Last::Field);
                     }
+                    if let Some(holder) = self.field_annotations_of(s) {
+                        self.emit_annotations(&mut cf, Some(Last::Field), holder);
+                    }
                     if self.l.var_handle_field(s).is_some() {
                         init.handles.push(s);
                     }
@@ -85,6 +88,7 @@ impl Gen<'_, '_> {
         if self.l.u.is_annotated(sym, "scala.deprecated") {
             cf.deprecated();
         }
+        self.emit_annotations(&mut cf, None, sym);
         let source = self.source_name(td);
         cf.source_file(&source);
         let mut declared: Vec<SymbolId> = nested.iter().filter_map(|&n| self.l.tpd.sym(n)).collect();

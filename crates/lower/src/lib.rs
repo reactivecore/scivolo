@@ -399,6 +399,11 @@ impl<'a> Lower<'a> {
         getter.or_else(|| self.lazy_members.iter().find(|(_, m)| m.field == field).map(|(&a, _)| a))
     }
 
+    /// Whether `Memoize` made a field for getter `getter`.
+    pub fn has_field(&self, getter: SymbolId) -> bool {
+        self.fields.iter().any(|(&f, &g)| g == getter && f != getter)
+    }
+
     /// Whether `s` is the field `x$lzyN` or the flag `xbitmap$N` of a lazy value.
     pub fn is_lazy_storage(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);

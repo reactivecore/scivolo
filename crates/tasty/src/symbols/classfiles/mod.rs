@@ -1,13 +1,16 @@
 //! The JDK's packages and classes of `java.*` and `javax.*` the library lacks, entered from the
 //! JDK's class files when a universe has a JDK (ADR 0107).
 
+mod annotation;
 mod class;
 mod javalib;
 mod signatures;
 
+pub use annotation::Retention;
+
 use super::{Kind, SymbolId, Universe};
 use crate::Erased;
-use classfile::{ACC_ANNOTATION, ACC_MODULE, ACC_PUBLIC};
+use classfile::{ACC_MODULE, ACC_PUBLIC};
 use names::nme;
 
 impl Universe {
@@ -18,8 +21,7 @@ impl Universe {
 
     /// Package or public class `name` of package `pkg` (an object `C$` stands for its class `C`)
     /// entered from the JDK, if it has it in a `java.*` or `javax.*` package and the universe has
-    /// a JDK and the package lacks the class and its object; nested classes and annotations are
-    /// not entered.
+    /// a JDK and the package lacks the class and its object; nested classes are not entered.
     pub fn jdk_decl(&mut self, pkg: SymbolId, name: crate::NameId) -> Vec<SymbolId> {
         if self.jdk.is_none() {
             return Vec::new();
@@ -43,7 +45,7 @@ impl Universe {
         }
         let jdk = self.jdk.as_mut().expect("a JDK");
         let Some(info) = jdk.class(&format!("{outer}/{class}")).cloned() else { return Vec::new() };
-        if info.access & ACC_PUBLIC == 0 || info.access & (ACC_ANNOTATION | ACC_MODULE) != 0 {
+        if info.access & ACC_PUBLIC == 0 || info.access & ACC_MODULE != 0 {
             return Vec::new();
         }
         let entered = class::enter(self, pkg, &info).unwrap_or_default();
@@ -53,6 +55,11 @@ impl Universe {
     /// Whether `s` is a class, object or object's class entered from a JDK class file.
     pub fn is_from_classfile(&self, s: SymbolId) -> bool {
         self.classfile_classes.contains(&s)
+    }
+
+    /// The retention of `c` if it is an annotation class entered from a JDK class file.
+    pub fn classfile_retention(&self, c: SymbolId) -> Option<Retention> {
+        self.classfile_annotations.get(&c).copied()
     }
 
     /// Whether `s` is a concrete member entered from a JDK class file.

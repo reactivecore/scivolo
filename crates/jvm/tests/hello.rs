@@ -154,6 +154,11 @@ fn jdk_classes_javalib_lacks_run_on_the_jvm() {
 }
 
 #[test]
+fn java_annotations_run_on_the_jvm() {
+    runs_on_the_jvm("javaannotations", "Javaannotations");
+}
+
+#[test]
 fn jumps_over_32_kib_run_on_the_jvm() {
     runs_on_the_jvm("widejumps", "Widejumps");
 }
@@ -219,6 +224,18 @@ fn a_javalib_value_the_jdk_lacks_is_refused() {
 fn a_class_nested_in_a_jdk_class_javalib_lacks_is_refused() {
     let code = "object R { def f = java.time.zone.ZoneOffsetTransitionRule.TimeDefinition.UTC }";
     refuses("refusednested", code, "member not found");
+}
+
+#[test]
+fn a_java_annotation_with_arguments_is_refused() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
+    let code = "class R { @java.beans.Transient(false) def f = 1 }";
+    refuses("refusedannotation", code, "Java annotations with arguments on the JVM");
+    let code = "class R { def f(@java.lang.annotation.Documented x: Int) = x }";
+    refuses("refusedparamannotation", code, "Java annotations of parameters on the JVM");
 }
 
 #[test]
