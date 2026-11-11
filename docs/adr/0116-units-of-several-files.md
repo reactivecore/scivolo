@@ -24,3 +24,5 @@ a whole at its first refusal. dotty keeps the source version and the unit-wide f
 
 ## Consequences
 - A run with `n` refused files types the unit up to `n + 1` times.
+- Until fresh names are counted per file (#115), the anonymous class and function names of an
+  accepted file change when a file before it is left out.
