@@ -3,11 +3,12 @@
 //! Literals and the primitives' `box` and `unbox` (dotty's `genConstant`, `genApply` of a box).
 
 use super::body::Body;
-use super::{Gen, class_internal, primitive_box, unsupported};
+use super::descriptors::{class_descriptor, class_internal, method_type, primitive_box};
+use super::{Gen, unsupported};
 use classfile::{FieldOp, Invoke};
 use lower::Result;
 use syntax::ast::constant::Constant;
-use tasty::Erased;
+use tasty::{Erased, nme};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -73,7 +74,7 @@ impl Gen<'_, '_> {
             self.expr(b, t)?;
             let i = "zcbsijfd".find(letter).expect("a primitive letter");
             let class = ["Boolean", "Character", "Byte", "Short", "Integer", "Long", "Float", "Double"][i];
-            let d = format!("({})Ljava/lang/{class};", &"ZCBSIJFD"[i..=i]);
+            let d = method_type(&"ZCBSIJFD"[i..=i], &class_descriptor(&format!("java/lang/{class}")));
             b.code.invoke(Invoke::Static, b.pool, "scala/runtime/BoxesRunTime", &format!("boxTo{class}"), &d);
             return Ok(());
         };
@@ -81,8 +82,8 @@ impl Gen<'_, '_> {
         b.code.new_object(b.pool, &name);
         b.code.dup();
         self.expr(b, t)?;
-        let desc = format!("({})V", self.desc_of(t));
-        b.code.invoke(Invoke::Special, b.pool, &name, "<init>", &desc);
+        let desc = method_type(&self.desc_of(t), "V");
+        b.code.invoke(Invoke::Special, b.pool, &name, nme::CONSTRUCTOR, &desc);
         Ok(())
     }
 
@@ -117,9 +118,11 @@ impl Gen<'_, '_> {
         let (name, d) = match unbox {
             Some(_) => {
                 let short = ["Boolean", "Char", "Byte", "Short", "Int", "Long", "Float", "Double"][i];
-                (format!("unboxTo{short}"), format!("(Ljava/lang/Object;){desc}"))
+                (format!("unboxTo{short}"), method_type("Ljava/lang/Object;", desc))
             }
-            None => (format!("boxTo{class}"), format!("({desc})Ljava/lang/{class};")),
+            None => {
+                (format!("boxTo{class}"), method_type(desc, &class_descriptor(&format!("java/lang/{class}"))))
+            }
         };
         b.code.invoke(Invoke::Static, b.pool, "scala/runtime/BoxesRunTime", &name, &d);
         Ok(Some(classfile::method_slots(&d).1))

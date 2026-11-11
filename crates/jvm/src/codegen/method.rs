@@ -3,10 +3,11 @@
 //! Method bodies: loads of literals, locals, fields and objects (dotty's `genMethod`, `genLoad`).
 
 use super::body::{Body, Operand};
-use super::{Gen, java_flags, method_descriptor, method_name, unsupported};
+use super::descriptors::{method_descriptor, with_receiver};
+use super::{Gen, java_flags, method_name, unsupported};
 use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile};
 use lower::Result;
-use tasty::SymbolId;
+use tasty::{SymbolId, name_kinds, nme};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -26,13 +27,13 @@ impl Gen<'_, '_> {
         let owner = self.l.u.symbol(sym).owner.expect("a method's owner");
         let trait_init = self.l.u.is_constructor(sym) && self.l.u.is_trait(owner);
         if trait_init {
-            desc = format!("(L{};{}", self.class_name(owner), &desc[1..]);
+            desc = with_receiver(&self.class_name(owner), &desc);
             flags = ACC_PUBLIC | ACC_STATIC;
         }
         let static_ = flags & ACC_STATIC != 0;
         let this_class = (!static_ || trait_init).then(|| self.class_name(owner));
         let name = method_name(self.l.u, sym);
-        if name.contains("$anonfun") && !self.l.is_bridge_closure(sym) {
+        if name.contains(nme::ANON_FUN) && !self.l.is_bridge_closure(sym) {
             flags |= ACC_SYNTHETIC;
         }
         let params = self.l.tpd.clause_items(paramss).iter().flat_map(|&c| self.l.tpd.items(c));
@@ -40,8 +41,9 @@ impl Gen<'_, '_> {
             params.filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. })).copied().collect();
         let param_syms: Vec<SymbolId> =
             params.iter().map(|&p| self.l.tpd.sym(p).expect("a parameter's symbol")).collect();
-        let mixed_setter =
-            self.l.mixed_in_from(sym).is_some() && name.ends_with("_$eq") && !name.contains("$_setter_$");
+        let mixed_setter = self.l.mixed_in_from(sym).is_some()
+            && name.ends_with("_$eq")
+            && !name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
         let erased = flags & ACC_BRIDGE != 0 || trait_init || self.l.is_lifted(sym) || mixed_setter;
         let Some(rhs) = rhs else {
             let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;

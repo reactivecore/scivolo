@@ -8,6 +8,7 @@ use super::tries::{nop_if_needed, pending_cleanups};
 use super::{Gen, unsupported};
 use classfile::value_slots;
 use lower::Result;
+use tasty::nme;
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -19,7 +20,7 @@ impl Gen<'_, '_> {
         };
         let Some(s) = self.l.tpd.sym(fun) else { return false };
         let owner = self.l.u.symbol(s).owner;
-        self.l.u.symbol(s).name == "synchronized"
+        self.l.u.symbol(s).name == nme::SYNCHRONIZED
             && owner.is_some_and(|o| self.l.u.binary_name(o) == "java.lang.Object")
     }
 

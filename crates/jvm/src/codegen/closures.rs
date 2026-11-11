@@ -4,7 +4,8 @@
 //! `genInvokeDynamicLambda`).
 
 use super::body::Body;
-use super::{Gen, is_static_member, method_descriptor, method_name, unsupported};
+use super::descriptors::{class_descriptor, method_descriptor, method_type};
+use super::{Gen, is_static_member, method_name, unsupported};
 use classfile::{Constant, Handle};
 use lower::Result;
 use tasty::tags::PRIVATE;
@@ -59,16 +60,17 @@ impl Gen<'_, '_> {
             }
         }
         let owner_name = self.class_name(owner);
-        let receiver = if static_ { String::new() } else { format!("L{owner_name};") };
+        let receiver = if static_ { String::new() } else { class_descriptor(&owner_name) };
         let interface_name = self.class_name(interface);
-        let call_desc = format!("({receiver}{})L{interface_name};", params[..env.len()].concat());
+        let captured = receiver + &params[..env.len()].concat();
+        let call_desc = method_type(&captured, &class_descriptor(&interface_name));
         let sam_desc = method_descriptor(self.l.u, sam);
         let (_, sam_result) = classfile::split_method(&sam_desc);
         let result = match boxed(result) {
-            Some(boxed) if !is_primitive(sam_result) => format!("L{boxed};"),
+            Some(boxed) if !is_primitive(sam_result) => class_descriptor(boxed),
             _ => result.to_owned(),
         };
-        let instantiated = format!("({}){result}", params[env.len()..].concat());
+        let instantiated = method_type(&params[env.len()..].concat(), &result);
         let mut bridges: Vec<String> = Vec::new();
         for d in std::iter::once(instantiated.clone()).chain(self.overridden(sam)) {
             if d != sam_desc && !bridges.contains(&d) {

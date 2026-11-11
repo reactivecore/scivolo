@@ -4,10 +4,11 @@
 //! out (dotty's `genLoadTry`, `pendingCleanups`).
 
 use super::body::Body;
-use super::{Gen, class_internal, descriptor, stash, unsupported};
+use super::descriptors::{class_internal, descriptor};
+use super::{Gen, stash, unsupported};
 use classfile::{Label, value_slots};
 use lower::Result;
-use tasty::SymbolId;
+use tasty::{SymbolId, nme};
 use typer::tpd::{List, TNodeId, Tree};
 
 const THROWABLE: &str = "java/lang/Throwable";
@@ -133,7 +134,7 @@ impl Gen<'_, '_> {
     }
 
     pub fn is_wildcard(&self, t: TNodeId) -> bool {
-        matches!(*self.l.tpd.tree(t), Tree::Ident { name } if self.l.names.text(name.name) == "_")
+        matches!(*self.l.tpd.tree(t), Tree::Ident { name } if self.l.names.text(name.name) == nme::WILDCARD)
     }
 }
 

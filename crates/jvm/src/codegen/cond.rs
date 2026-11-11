@@ -7,7 +7,7 @@ use super::{Gen, unsupported};
 use classfile::Label;
 use lower::Result;
 use syntax::ast::constant::Constant;
-use tasty::Erased;
+use tasty::{Erased, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// A comparison, in the order of the `ifeq` family of opcodes.
@@ -24,7 +24,7 @@ pub enum Test {
 impl Test {
     pub fn of(name: &str) -> Option<Test> {
         Some(match name {
-            "==" | "eq" => Test::Eq,
+            nme::EQ | "eq" => Test::Eq,
             "!=" | "ne" => Test::Ne,
             "<" => Test::Lt,
             ">=" => Test::Ge,
@@ -52,10 +52,10 @@ impl Gen<'_, '_> {
         if let Some((name, receiver, args)) = self.primitive_call(t) {
             match (name.as_str(), &args[..]) {
                 ("unary_!", []) => return self.cond(b, receiver, failure, success, fall),
-                ("&&" | "||", &[right]) => {
+                (nme::ZAND | nme::ZOR, &[right]) => {
                     let next = b.code.new_label();
                     match name.as_str() {
-                        "&&" => self.cond(b, receiver, next, failure, next)?,
+                        nme::ZAND => self.cond(b, receiver, next, failure, next)?,
                         _ => self.cond(b, receiver, success, next, next)?,
                     }
                     b.code.place(next);
@@ -67,7 +67,7 @@ impl Gen<'_, '_> {
                     if mixed || kind == 'L' && !matches!(test, Test::Eq | Test::Ne) {
                         return unsupported(self.l.tpd.span(t), "an ordering of references");
                     }
-                    if kind == 'L' && matches!(op, "==" | "!=") {
+                    if kind == 'L' && matches!(op, nme::EQ | "!=") {
                         let labels = match test {
                             Test::Eq => [success, failure, fall],
                             _ => [failure, success, fall],

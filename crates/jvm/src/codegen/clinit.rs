@@ -6,10 +6,11 @@
 //! of its constructor (dotty's `genPlainClass`); the compare-and-set through those handles.
 
 use super::body::Body;
+use super::descriptors::{class_descriptor, method_type};
 use super::{Gen, unsupported};
 use classfile::{ACC_PRIVATE, ACC_PUBLIC, ACC_STATIC, ClassFile, FieldOp, Invoke};
 use lower::Result;
-use tasty::SymbolId;
+use tasty::{SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 const VAR_HANDLE: &str = "Ljava/lang/invoke/VarHandle;";
@@ -47,8 +48,9 @@ impl Gen<'_, '_> {
         if init.module.is_some() {
             b.code.new_object(b.pool, class);
             b.code.dup();
-            b.code.invoke(Invoke::Special, b.pool, class, "<init>", "()V");
-            b.code.field(FieldOp::PutStatic, b.pool, class, "MODULE$", &format!("L{class};"));
+            b.code.invoke(Invoke::Special, b.pool, class, nme::CONSTRUCTOR, "()V");
+            let desc = class_descriptor(class);
+            b.code.field(FieldOp::PutStatic, b.pool, class, nme::MODULE_INSTANCE_FIELD, &desc);
         }
         for &t in &init.stats {
             self.stat(&mut b, t)?;
@@ -56,7 +58,9 @@ impl Gen<'_, '_> {
         b.code.ret("V");
         let code = b.code;
         let access = if moved { ACC_PRIVATE } else { ACC_PUBLIC };
-        cf.method(access | ACC_STATIC, "<clinit>", "()V", Some(code), &mut |a, b| self.jvm_lub(a, b));
+        cf.method(access | ACC_STATIC, nme::STATIC_CONSTRUCTOR, "()V", Some(code), &mut |a, b| {
+            self.jvm_lub(a, b)
+        });
         Ok(())
     }
 
@@ -66,7 +70,7 @@ impl Gen<'_, '_> {
         let lookup = "java/lang/invoke/MethodHandles$Lookup";
         for &h in handles {
             let field = self.l.var_handle_field(h).expect("a lazy value's field");
-            let lookup_desc = format!("()L{lookup};");
+            let lookup_desc = method_type("", &class_descriptor(lookup));
             b.code.invoke(Invoke::Static, b.pool, "java/lang/invoke/MethodHandles", "lookup", &lookup_desc);
             let this = b.pool.class(class);
             b.code.ldc(this);

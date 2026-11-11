@@ -5,11 +5,12 @@
 
 use super::body::Body;
 use super::clinit::StaticInit;
-use super::{ClassBytes, Gen, internal, java_flags, method_descriptor, unsupported};
+use super::descriptors::{class_descriptor, class_internal, internal, method_descriptor};
+use super::{ClassBytes, Gen, java_flags, unsupported};
 use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile, Last};
 use lower::Result;
-use tasty::SymbolId;
 use tasty::tags::MUTABLE;
+use tasty::{SymbolId, nme};
 use typer::tpd::{TNodeId, Template, Tree};
 
 impl Gen<'_, '_> {
@@ -26,9 +27,9 @@ impl Gen<'_, '_> {
         let mut cf = ClassFile::new(java_flags(self.l, sym), &name, &superclass, &interfaces);
         self.serial_version_uid(&mut cf, sym)?;
         let module = self.l.u.is_static_module(sym);
-        let module_desc = format!("L{name};");
+        let module_desc = class_descriptor(&name);
         if module {
-            cf.field(ACC_PUBLIC | ACC_STATIC | ACC_FINAL, "MODULE$", &module_desc);
+            cf.field(ACC_PUBLIC | ACC_STATIC | ACC_FINAL, nme::MODULE_INSTANCE_FIELD, &module_desc);
         }
         let module_name = module.then(|| name.clone());
         let mut init = StaticInit { module: module_name, constr: Some(constr), ..StaticInit::default() };
@@ -39,9 +40,11 @@ impl Gen<'_, '_> {
                 Tree::DefDef { .. } if stat == constr && module => {
                     init.stats = self.gen_module_constructor(&mut cf, stat, s)?;
                 }
-                &Tree::DefDef { rhs, .. } if self.l.u.symbol(s).name == "<clinit>" => init.statics = rhs,
+                &Tree::DefDef { rhs, .. } if self.l.u.symbol(s).name == nme::STATIC_CONSTRUCTOR => {
+                    init.statics = rhs
+                }
                 Tree::DefDef { rhs: None, .. } if stat == constr && self.l.u.is_trait(sym) => {}
-                Tree::DefDef { .. } if self.l.u.symbol(s).name == "$init$" => {
+                Tree::DefDef { .. } if self.l.u.symbol(s).name == nme::TRAIT_CONSTRUCTOR => {
                     return unsupported(self.l.tpd.span(stat), "trait initializers on the JVM");
                 }
                 Tree::DefDef { .. } => self.gen_method(&mut cf, (td, stat), s)?,
@@ -106,7 +109,7 @@ impl Gen<'_, '_> {
         let mut classes = Vec::new();
         for p in self.l.u.parents(c) {
             if let Some(s) = self.l.u.class_symbol(p) {
-                classes.push((s, super::class_internal(&self.l.u.erase(p))));
+                classes.push((s, class_internal(&self.l.u.erase(p))));
             }
         }
         let (traits, classes): (Vec<_>, Vec<_>) = classes.into_iter().partition(|p| self.l.u.is_trait(p.0));
@@ -160,7 +163,7 @@ impl Gen<'_, '_> {
         self.stat(&mut b, expr)?;
         b.code.ret("V");
         let code = b.code;
-        cf.method(flags, "<init>", &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
+        cf.method(flags, nme::CONSTRUCTOR, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
         Ok(stats[split..].to_vec())
     }
 

@@ -11,7 +11,7 @@ mod refs;
 pub use classes::class;
 pub use needed::erases_to;
 
-use super::descriptor;
+use super::descriptors::descriptor;
 use tasty::{Binder, Erased, Kind, SymbolId, Type, TypeId, Universe};
 
 #[derive(Clone, Copy, PartialEq)]

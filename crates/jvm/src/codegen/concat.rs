@@ -4,12 +4,14 @@
 //! String concatenation as `invokedynamic` of `StringConcatFactory.makeConcatWithConstants`
 //! (dotty's `genStringConcat`, `liftStringConcat`, `genIndyStringConcat`).
 
+use super::Gen;
 use super::body::{Body, Operand};
 use super::closures::BOOTSTRAP;
-use super::{Gen, descriptor};
+use super::descriptors::{descriptor, method_type};
 use classfile::{Constant, Handle, Invoke};
 use lower::Result;
 use syntax::ast::constant::Constant as Literal;
+use tasty::nme;
 use typer::tpd::{TNodeId, Tree};
 
 /// The most argument slots of one `makeConcatWithConstants` call site.
@@ -24,7 +26,7 @@ impl Gen<'_, '_> {
         let Tree::Apply { fun, .. } = *self.l.tpd.tree(t) else { return false };
         let Some(m) = self.l.tpd.sym(fun) else { return false };
         let Some(owner) = self.l.u.symbol(m).owner.map(|o| self.l.u.binary_name(o)) else { return false };
-        if self.l.u.symbol(m).name != "+" {
+        if self.l.u.symbol(m).name != nme::ADD {
             return false;
         }
         let numbers = ["Byte", "Short", "Char", "Int", "Long", "Float", "Double"];
@@ -114,6 +116,6 @@ fn concat_call(b: &mut Body, recipe: &[u16], types: &str, constants: &[Vec<u16>]
         Handle::static_method("java/lang/invoke/StringConcatFactory", "makeConcatWithConstants", &d);
     let args: Vec<Constant> =
         std::iter::once(recipe).chain(constants.iter().map(Vec::as_slice)).map(Constant::String).collect();
-    let desc = format!("({types})Ljava/lang/String;");
+    let desc = method_type(types, "Ljava/lang/String;");
     b.code.invoke_dynamic(b.pool, ("makeConcatWithConstants", &desc), &bootstrap, &args);
 }

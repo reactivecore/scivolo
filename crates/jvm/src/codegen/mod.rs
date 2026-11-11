@@ -13,6 +13,7 @@ mod closures;
 mod concat;
 mod cond;
 mod control;
+mod descriptors;
 mod deserialize;
 mod equality;
 mod jdk_statics;
@@ -34,11 +35,11 @@ mod tries;
 
 pub use class_bytes::ClassBytes;
 
-use lower::{Lower, Result, Unsupported, jdk_class_name};
+use lower::{Lower, Result, Unsupported};
 use std::collections::HashMap;
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, ARTIFACT, ENUM, FIELDaccessor, FINAL, MUTABLE, PRIVATE, STATIC, TRAIT};
-use tasty::{Erased, SymbolId, Universe};
+use tasty::{SymbolId, Universe, name_kinds, nme};
 use typer::pickle::Pickled;
 use typer::tpd::{TNodeId, Tree};
 
@@ -81,75 +82,12 @@ fn unsupported<T>(at: Span, what: impl Into<String>) -> Result<T> {
     Err(Unsupported { at, what: what.into() })
 }
 
-/// The internal name of the class of binary name `binary`, as the JDK names it.
-fn internal(binary: &str) -> String {
-    match binary {
-        "scala.Any" | "scala.AnyRef" => "java/lang/Object".into(),
-        _ => jdk_class_name(binary).replace('.', "/"),
-    }
-}
-
-/// The field descriptor of erased type `e`.
-fn descriptor(e: &Erased) -> String {
-    match e {
-        Erased::Prim(c) => match c {
-            'z' => "Z",
-            'c' => "C",
-            'b' => "B",
-            's' => "S",
-            'i' => "I",
-            'j' => "J",
-            'f' => "F",
-            _ => "D",
-        }
-        .into(),
-        Erased::Unit => "V".into(),
-        Erased::Nothing => "Lscala/runtime/Nothing$;".into(),
-        Erased::Null => "Lscala/runtime/Null$;".into(),
-        Erased::Class(name) | Erased::Value(name, _) => format!("L{};", internal(name)),
-        Erased::Array(elem) => format!("[{}", descriptor(elem)),
-    }
-}
-
-/// The internal name of a class or array type of erased type `e`, as `ldc` and `new` take it.
-fn class_internal(e: &Erased) -> String {
-    match e {
-        Erased::Class(name) | Erased::Value(name, _) => internal(name),
-        Erased::Nothing => "scala/runtime/Nothing$".into(),
-        Erased::Null => "scala/runtime/Null$".into(),
-        e => descriptor(e),
-    }
-}
-
-/// The class whose `TYPE` field holds the class of primitive erased type `e`.
-fn primitive_box(e: &Erased) -> Option<&'static str> {
-    let Erased::Prim(c) = e else { return (*e == Erased::Unit).then_some("java/lang/Void") };
-    Some(match c {
-        'z' => "java/lang/Boolean",
-        'c' => "java/lang/Character",
-        'b' => "java/lang/Byte",
-        's' => "java/lang/Short",
-        'i' => "java/lang/Integer",
-        'j' => "java/lang/Long",
-        'f' => "java/lang/Float",
-        _ => "java/lang/Double",
-    })
-}
-
-/// The method descriptor of method `m`; `V` as the result of a constructor.
-fn method_descriptor(u: &mut Universe, m: SymbolId) -> String {
-    let (params, result) = u.erased_method(m);
-    let result = if u.is_constructor(m) { Erased::Unit } else { result };
-    let params: String = params.iter().map(descriptor).collect();
-    format!("({params}){}", descriptor(&result))
-}
-
 /// The name of method `m` in class files: its `@targetName`, else its name.
 fn method_name(u: &Universe, m: SymbolId) -> String {
     let sym = u.symbol(m);
     match u.is_constructor(m) {
-        true if sym.owner.is_some_and(|o| u.is_trait(o)) => "$init$".into(),
-        true => "<init>".into(),
+        true if sym.owner.is_some_and(|o| u.is_trait(o)) => nme::TRAIT_CONSTRUCTOR.into(),
+        true => nme::CONSTRUCTOR.into(),
         false => tasty::encode(sym.target.as_deref().unwrap_or(&sym.name)),
     }
 }
@@ -189,7 +127,7 @@ fn java_flags(l: &Lower, s: SymbolId) -> u16 {
     flags |= if abstract_ { ACC_ABSTRACT } else { 0 };
     flags |= if has(TRAIT) { ACC_INTERFACE } else { 0 };
     flags |= if is_static_member(l, s) && !class { ACC_STATIC } else { 0 };
-    let outer = !class && (u.symbol(s).name == "$outer" || u.symbol(s).name.ends_with("$$$outer"));
+    let outer = !class && name_kinds::is_outer(&u.symbol(s).name);
     flags |= if has(ARTIFACT) || outer { ACC_SYNTHETIC } else { 0 };
     flags |= if has(ENUM) { ACC_ENUM } else { 0 };
     flags | if class && !has(TRAIT) { ACC_SUPER } else { 0 }

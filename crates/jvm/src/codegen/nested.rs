@@ -5,10 +5,11 @@
 //! The `InnerClasses` and `EnclosingMethod` attributes (dotty's `buildNestedInfo`,
 //! `addInnerClasses`, `enclosingMethodAttribute`).
 
-use super::{Gen, java_flags, method_descriptor, method_name};
+use super::descriptors::method_descriptor;
+use super::{Gen, java_flags, method_name};
 use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ClassFile, InnerClass};
 use std::collections::BTreeMap;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// The flags an `InnerClasses` entry keeps: all but `ACC_SUPER` and `ACC_MODULE`.
@@ -59,7 +60,7 @@ impl Gen<'_, '_> {
             return None;
         }
         let static_ = self.l.u.is_module_class(d) || self.is_static_owner(enclosing);
-        let anonymous = self.l.u.symbol(d).name.contains("$anon");
+        let anonymous = self.l.u.symbol(d).name.contains(nme::ANON_CLASS);
         let outer = (!self.is_local_class(d)).then(|| {
             let name = self.class_name(enclosing);
             let top_module = self.l.u.is_module_class(enclosing)
@@ -97,7 +98,8 @@ impl Gen<'_, '_> {
     /// Whether class `c` is anonymous or defined in a term (dotty's `isAnonymousOrLocalClass`).
     fn is_local_class(&self, c: SymbolId) -> bool {
         let owner = self.l.original_owner(c);
-        self.l.u.symbol(c).name.contains("$anon") || owner.is_some_and(|o| self.l.u.symbol(o).kind.is_term())
+        self.l.u.symbol(c).name.contains(nme::ANON_CLASS)
+            || owner.is_some_and(|o| self.l.u.symbol(o).kind.is_term())
     }
 
     /// The method local class `c` is defined in, if it is in one and not in a field's initializer.
@@ -165,7 +167,7 @@ impl Gen<'_, '_> {
             for cut in cuts.collect::<Vec<_>>() {
                 let seg = &rest[..cut];
                 let mut cands = self.l.u.decls_named(owner, seg);
-                cands.extend(self.l.u.decls_named(owner, &format!("{seg}$")));
+                cands.extend(self.l.u.decls_named(owner, &tasty::module_class_name(seg)));
                 let decls = self.l.u.symbol(owner).decls.iter().copied();
                 let target = |t: String| t.strip_suffix('$').unwrap_or(&t) == seg;
                 cands.extend(decls.filter(|&d| self.l.u.class_target(d).is_some_and(target)));

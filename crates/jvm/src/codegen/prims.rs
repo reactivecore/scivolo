@@ -9,6 +9,7 @@ use super::cond::{Test, kind};
 use super::{Gen, unsupported};
 use lower::Result;
 use syntax::ast::constant::Constant;
+use tasty::nme;
 use typer::tpd::{TNodeId, Tree};
 
 const PRIMITIVES: [&str; 8] = [
@@ -32,7 +33,7 @@ impl Gen<'_, '_> {
         let owner = self.l.u.binary_name(self.l.u.symbol(m).owner?);
         let name = self.l.u.symbol(m).name.clone();
         let reference = matches!(owner.as_str(), "scala.Any" | "scala.AnyRef" | "java.lang.Object")
-            && matches!(name.as_str(), "eq" | "ne" | "==" | "!=");
+            && matches!(name.as_str(), "eq" | "ne" | nme::EQ | "!=");
         if !PRIMITIVES.contains(&owner.as_str()) && !reference {
             return None;
         }
@@ -75,7 +76,7 @@ impl Gen<'_, '_> {
         if name.starts_with("to") {
             return self.conversion(b, &name, receiver, &args, to);
         }
-        let logical = matches!(name.as_str(), "unary_!" | "&&" | "||") || Test::of(&name).is_some();
+        let logical = matches!(name.as_str(), "unary_!" | nme::ZAND | nme::ZOR) || Test::of(&name).is_some();
         match (name.as_str(), &args[..]) {
             _ if logical => {
                 let (success, failure, after) = (b.code.new_label(), b.code.new_label(), b.code.new_label());
@@ -111,7 +112,7 @@ impl Gen<'_, '_> {
                 self.operand(b, receiver, opk)?;
                 self.operand(b, right, if shift { 'I' } else { opk })?;
                 let base = match op {
-                    "+" => 0x60,
+                    nme::ADD => 0x60,
                     "-" => 0x64,
                     "*" => 0x68,
                     "/" => 0x6c,

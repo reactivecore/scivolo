@@ -4,12 +4,13 @@
 //! `genCallMethod`).
 
 use super::body::Body;
-use super::{Gen, descriptor, unsupported};
+use super::descriptors::{class_descriptor, descriptor};
+use super::{Gen, unsupported};
 use classfile::FieldOp;
 use lower::Result;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
-use tasty::{Erased, SymbolId, Type};
+use tasty::{Erased, SymbolId, Type, nme};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// The class or array type a virtual call names.
@@ -19,7 +20,7 @@ pub enum Receiver {
 }
 
 /// `Object`'s methods a trait may override.
-const OBJECT_METHODS: [&str; 5] = ["equals", "hashCode", "toString", "clone", "finalize"];
+const OBJECT_METHODS: [&str; 5] = [nme::EQUALS, nme::HASH_CODE, nme::TO_STRING, nme::CLONE, "finalize"];
 
 /// After a call returning `Nothing$` an `athrow`, after one returning `Null$` a `null` in place
 /// of its value (dotty's `adapt`).
@@ -70,7 +71,7 @@ impl Gen<'_, '_> {
     pub fn is_throw(&self, t: TNodeId) -> bool {
         let Tree::Apply { fun, .. } = *self.l.tpd.tree(t) else { return false };
         let Some(s) = self.l.tpd.sym(fun).map(|m| self.l.u.symbol(m)) else { return false };
-        s.name == "throw" && s.owner.is_some_and(|o| self.l.u.symbol(o).name == "<special-ops>")
+        s.name == nme::THROW && s.owner.is_some_and(|o| self.l.u.symbol(o).name == nme::OPS_PACKAGE)
     }
 
     /// Fails for method `m` of class `owner` that the backend cannot call yet: the primitive
@@ -79,14 +80,14 @@ impl Gen<'_, '_> {
     pub fn check_call(&mut self, m: SymbolId, owner: SymbolId, span: Span) -> Result<()> {
         let name = self.l.u.symbol(m).name.clone();
         let owner_name = self.l.u.binary_name(owner);
-        let object_ops = ["eq", "ne", "synchronized", "==", "!=", "##"];
-        let any_ops = ["==", "!=", "##", "isInstanceOf", "asInstanceOf"];
+        let object_ops = ["eq", "ne", nme::SYNCHRONIZED, nme::EQ, "!=", nme::HASHHASH];
+        let any_ops = [nme::EQ, "!=", nme::HASHHASH, nme::IS_INSTANCE_OF, nme::AS_INSTANCE_OF];
         let primitive = (owner_name == "scala.Any" && any_ops.contains(&name.as_str()))
             || (owner_name == "java.lang.Object" && object_ops.contains(&name.as_str()))
-            || (owner_name == "java.lang.String" && name == "+")
+            || (owner_name == "java.lang.String" && name == nme::ADD)
             || is_primitive(&owner_name)
             || owner_name == "scala.Array"
-            || self.l.u.symbol(owner).name == "<special-ops>";
+            || self.l.u.symbol(owner).name == nme::OPS_PACKAGE;
         if primitive {
             return unsupported(span, format!("primitive operation {name} on the JVM"));
         }
@@ -137,7 +138,7 @@ impl Gen<'_, '_> {
             _ => lower::erased_type(self.l, qualifier),
         };
         match erased {
-            e @ Erased::Array(_) if self.l.u.symbol(m).name == "clone" => {
+            e @ Erased::Array(_) if self.l.u.symbol(m).name == nme::CLONE => {
                 Some(Receiver::Array(descriptor(&e)))
             }
             Erased::Array(_) => Some(Receiver::Array("java/lang/Object".into())),
@@ -165,7 +166,8 @@ impl Gen<'_, '_> {
         match (&b.this_class, &b.module) {
             (_, Some(module)) => {
                 let module = module.clone();
-                b.code.field(FieldOp::GetStatic, b.pool, &module, "MODULE$", &format!("L{module};"));
+                let desc = class_descriptor(&module);
+                b.code.field(FieldOp::GetStatic, b.pool, &module, nme::MODULE_INSTANCE_FIELD, &desc);
             }
             _ => b.code.load("L", 0),
         }
@@ -181,7 +183,10 @@ impl Gen<'_, '_> {
         b.push("L");
         match b.this_class.as_deref() == Some(&name) {
             true => b.code.load("L", 0),
-            false => b.code.field(FieldOp::GetStatic, b.pool, &name, "MODULE$", &format!("L{name};")),
+            false => {
+                let desc = class_descriptor(&name);
+                b.code.field(FieldOp::GetStatic, b.pool, &name, nme::MODULE_INSTANCE_FIELD, &desc)
+            }
         }
         Ok(1)
     }

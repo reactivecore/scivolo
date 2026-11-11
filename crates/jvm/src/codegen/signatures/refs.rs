@@ -4,7 +4,7 @@
 
 use super::applied::Applied;
 use super::{Boxing, Sig};
-use crate::codegen::internal;
+use crate::codegen::descriptors::internal;
 use tasty::{Binder, Erased, Kind, SymbolId, Type, TypeId};
 
 impl Sig<'_> {

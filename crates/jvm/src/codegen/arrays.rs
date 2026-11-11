@@ -3,8 +3,10 @@
 //! Arrays and casts (dotty's `genArrayOp`, `genArrayValue`, `genTypeApply`).
 
 use super::body::Body;
-use super::{Gen, class_internal, descriptor, unsupported};
+use super::descriptors::{class_internal, descriptor};
+use super::{Gen, unsupported};
 use lower::Result;
+use tasty::nme;
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -38,7 +40,7 @@ impl Gen<'_, '_> {
         }
         self.expr(b, array)?;
         Ok(Some(match (name.as_str(), &args[..]) {
-            ("apply", &[i]) => {
+            (nme::APPLY, &[i]) => {
                 self.operand(b, i, 'I')?;
                 b.code.element(&elem, false);
                 classfile::value_slots(&elem)
@@ -103,8 +105,8 @@ impl Gen<'_, '_> {
             false => self.box_value(b, qualifier)?,
         }
         match self.l.u.symbol(m).name.as_str() {
-            "isInstanceOf" => b.code.instance_of(b.pool, &class_internal(&tested)),
-            "asInstanceOf" => {
+            nme::IS_INSTANCE_OF => b.code.instance_of(b.pool, &class_internal(&tested)),
+            nme::AS_INSTANCE_OF => {
                 b.code.checkcast(b.pool, &class_internal(&tested));
                 super::callee::adapt_phantom(b, &to);
             }

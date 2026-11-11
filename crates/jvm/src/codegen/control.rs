@@ -4,7 +4,7 @@
 //! `genLabeledTo`, `genReturn`).
 
 use super::body::{Body, Dest};
-use super::{Gen, descriptor, unsupported};
+use super::{Gen, descriptors::class_descriptor, descriptors::descriptor, unsupported};
 use lower::Result;
 use syntax::ast::constant::Constant;
 use typer::tpd::{TNodeId, Tree};
@@ -28,7 +28,7 @@ impl Gen<'_, '_> {
             -1 if got == 0 => {
                 b.push("L");
                 let unit = "scala/runtime/BoxedUnit";
-                b.code.field(classfile::FieldOp::GetStatic, b.pool, unit, "UNIT", &format!("L{unit};"));
+                b.code.field(classfile::FieldOp::GetStatic, b.pool, unit, "UNIT", &class_descriptor(unit));
             }
             _ if got == 1 && self.desc_of(t) == "Lscala/runtime/Nothing$;" => {
                 b.code.insn(0xbf);
