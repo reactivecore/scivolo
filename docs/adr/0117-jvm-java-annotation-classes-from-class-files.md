@@ -35,14 +35,13 @@ is `SOURCE` (`shouldEmitAnnotation`).
   (`scala.scalanative.runtime.UnsupportedFeature`) are not read.
 - Its public static nested classes of its `InnerClasses` are entered with it into its object's
   class (dotty's `enterOwnInnerClasses`).
-- The Native backend does not read class files; the library's runtime stubs (`Statics`,
-  `BoxedUnit`, the `*Ref` classes) stay ahead of their class files on both backends.
+- The library's runtime stubs (`Statics`, `BoxedUnit`, the `*Ref` classes) give way to their
+  class files, as dotty reads them (`Statics.pfMarker`, `IntRef <: java.io.Serializable`); the
+  Native backend does not read class files and keeps them.
 - Refused, as not found:
   - a class of a Scala 2 class file (`ScalaSig` or `Scala` attribute; Scala 2 pickles are not
     read) or of a Scala 3 one without its TASTy file (`TASTY` attribute);
   - a protected or non-static nested class, and selecting a member of a value of a non-static
     one's type (`o.inner().v()`);
   - a top-level Java class whose name holds a `$`, such as `scala.runtime.java8.JFunction0$mcI$sp`;
-  - the members of the runtime stubs' class files they lack (`Statics.pfMarker`, `Statics.ioobe`,
-    `BoxedUnit.TYPE`), their `java.io.Serializable` parent and `Object` parameters taking any
-    value (`Statics.anyHash(1)`).
+  - a package-private Java class, such as `scala.collection.concurrent.INodeBase`.

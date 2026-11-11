@@ -17,7 +17,8 @@ pub struct JavaClasses {
 
 impl Universe {
     /// Makes the Java classes of the class files of the jars of indices `read` known and enters
-    /// their packages: those of no TASTy file, outside `java.*` and `javax.*`.
+    /// their packages: those of no TASTy file, outside `java.*` and `javax.*`. The library's
+    /// runtime stubs of these classes are dropped.
     pub fn use_java_classfiles(&mut self, read: &[usize]) -> std::io::Result<()> {
         let mut jars = self.library.java_classes(read)?;
         jars.retain(|name, _| !name.starts_with("java/") && !name.starts_with("javax/"));
@@ -25,6 +26,14 @@ impl Universe {
             jars.keys().filter_map(|n| n.rsplit_once('/')).map(|(p, _)| p.replace('/', ".")).collect();
         for p in packages {
             self.enter_package(&p);
+        }
+        let stubs: Vec<SymbolId> = self.java_stubs.iter().copied().collect();
+        for s in stubs {
+            let full = self.full_name(s).replace('.', "/");
+            if jars.contains_key(full.strip_suffix('$').unwrap_or(&full)) {
+                self.unenter(s);
+                self.java_stubs.remove(&s);
+            }
         }
         self.java_classes = Some(JavaClasses { jars, read: FxHashMap::default() });
         Ok(())
