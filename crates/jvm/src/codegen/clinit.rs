@@ -6,8 +6,8 @@
 //! of its constructor (dotty's `genPlainClass`); the compare-and-set through those handles.
 
 use super::body::Body;
-use super::descriptors::{class_descriptor, method_type};
-use super::{Gen, unsupported};
+use super::descriptors::{class_descriptor, method_descriptor, method_type};
+use super::{Gen, java_flags, unsupported};
 use classfile::{ACC_PRIVATE, ACC_PUBLIC, ACC_STATIC, ClassFile, FieldOp, Invoke};
 use lower::Result;
 use names::nme;
@@ -68,6 +68,47 @@ impl Gen<'_, '_> {
             self.jvm_lub(a, b)
         });
         Ok(())
+    }
+
+    /// The constructor of a static object up to its superclass constructor call; returns the
+    /// statements after it, which go to `<clinit>`.
+    pub fn gen_module_constructor(
+        &mut self,
+        cf: &mut ClassFile,
+        dd: TNodeId,
+        sym: SymbolId,
+    ) -> Result<Vec<TNodeId>> {
+        let Tree::DefDef { rhs: Some(rhs), .. } = *self.l.tpd.tree(dd) else { unreachable!("a constructor") };
+        let Tree::Block { stats, expr } = *self.l.tpd.tree(rhs) else {
+            return unsupported(self.l.tpd.span(rhs), "a constructor body that is not a block");
+        };
+        let stats = self.l.tpd.items(stats).to_vec();
+        let split = stats.iter().position(|&s| self.is_super_call(s)).map_or(0, |i| i + 1);
+        let (desc, flags) = (method_descriptor(self.l.u, sym), java_flags(self.l, sym));
+        let class = self.l.u.symbol(sym).owner.expect("a constructor's class");
+        let mut b = Body::new(&mut cf.pool, None, 1);
+        b.this_class = Some(self.class_name(class));
+        for &t in &stats[..split] {
+            self.stat(&mut b, t)?;
+        }
+        self.stat(&mut b, expr)?;
+        b.code.ret("V");
+        let code = b.code;
+        cf.method(flags, nme::CONSTRUCTOR, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
+        Ok(stats[split..].to_vec())
+    }
+
+    /// Whether `t` calls a superclass constructor, last in a block of its lifted arguments (dotty's
+    /// `splitAtSuper`).
+    fn is_super_call(&self, t: TNodeId) -> bool {
+        let t = match *self.l.tpd.tree(t) {
+            Tree::Block { expr, .. } => expr,
+            _ => t,
+        };
+        let Tree::Apply { fun, .. } = *self.l.tpd.tree(t) else { return false };
+        let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else { return false };
+        matches!(self.l.tpd.tree(qualifier), Tree::Super { .. })
+            && self.l.tpd.sym(fun).is_some_and(|m| self.l.u.is_constructor(m))
     }
 
     /// `handle = MethodHandles.lookup().findVarHandle(classOf[C], "x$lzyN", classOf[Object])` for
