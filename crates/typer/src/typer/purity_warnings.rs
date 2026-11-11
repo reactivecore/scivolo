@@ -6,12 +6,13 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
+use tasty::nme;
 
 impl Typer<'_> {
     /// Warns at `at` about pure statement `tree`, unless it is an inline call expanding to `()`.
     pub fn check_statement_purity(&mut self, tree: TNodeId, at: syntax::ast::Span) {
         let callee = self.tpd.meth_part(tree);
-        let constr_call = self.tpd.sym(callee).is_some_and(|s| self.u.symbol(s).name == "<init>")
+        let constr_call = self.tpd.sym(callee).is_some_and(|s| self.u.symbol(s).name == nme::CONSTRUCTOR)
             && matches!(*self.tpd.tree(callee), T::Select { qualifier, .. }
                 if matches!(self.tpd.tree(qualifier), T::This { .. } | T::Super { .. }));
         let unit_inline = matches!(*self.tpd.tree(tree), T::Inlined { bindings, expansion, .. }

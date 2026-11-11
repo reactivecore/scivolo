@@ -11,7 +11,7 @@ use super::{Resolution, VALUE_APPLY};
 use crate::ctx::Ctx;
 use crate::typer::Typer;
 use syntax::ast::Tree;
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{Kind, SymbolId, TypeId, nme};
 
 /// An alternative and the type it is a member of.
 type Member = (SymbolId, Option<TypeId>);
@@ -38,7 +38,7 @@ impl Resolution {
 
         let vt = t.ref_type(self.prefix, value);
         let applies: Vec<SymbolId> =
-            t.type_members(vt, "apply").into_iter().filter(|&s| t.u.symbol(s).kind == Kind::Def).collect();
+            t.type_members(vt, nme::APPLY).into_iter().filter(|&s| t.u.symbol(s).kind == Kind::Def).collect();
         let arg_types = self.proto_arg_types(t, proto, methods)?;
         let alts = methods.iter().map(|&m| (m, self.prefix)).chain(applies.iter().map(|&a| (a, Some(vt))));
         let mut fitting = Vec::new();

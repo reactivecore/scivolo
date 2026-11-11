@@ -8,7 +8,7 @@ use super::poly_instances::mapped_info;
 use super::{Resolution, Unchosen};
 use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
-use tasty::{NameId, SymbolId, Type, TypeId, Universe};
+use tasty::{NameId, SymbolId, Type, TypeId, Universe, nme};
 
 /// Why type arguments select no alternative, or several.
 const MISS: &str = "overloaded reference with type arguments";
@@ -65,7 +65,7 @@ impl Resolution {
             let info = mapped_info(t, info, s);
             let matched = instantiable(t.u, info, n)
                 || !matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. })
-                    && t.type_members(info, "apply").into_iter().any(|a| {
+                    && t.type_members(info, nme::APPLY).into_iter().any(|a| {
                         t.complete(a);
                         let apply = t.u.info(a);
                         instantiable(t.u, apply, n)

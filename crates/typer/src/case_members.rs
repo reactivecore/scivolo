@@ -3,13 +3,13 @@
 //! The members dotty's `PostTyper` synthesizes in case classes (`SyntheticMembers`).
 
 use crate::defn::{EQUALS, PRODUCT};
-use tasty::{SymbolId, Universe};
+use tasty::{SymbolId, Universe, nme};
 
 /// The names of the synthesized members.
 const SYNTHESIZED: [&str; 8] = [
-    "hashCode",
-    "equals",
-    "toString",
+    nme::HASH_CODE,
+    nme::EQUALS,
+    nme::TO_STRING,
     "canEqual",
     "productArity",
     "productPrefix",

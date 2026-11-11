@@ -9,6 +9,7 @@ use crate::typer::Typer;
 use syntax::ast::NodeId;
 use syntax::ast::flags as f;
 use tasty::Kind;
+use tasty::nme;
 
 impl Typer<'_> {
     /// Whether definition `tree` of `name` and `kind` in `ctx` conflicts with a definition this
@@ -16,7 +17,7 @@ impl Typer<'_> {
     /// `ctx`. Two methods are left to `check_overrides`; in a class, a value and a method
     /// conflict only when all clauses of the method are empty.
     pub fn doubly_defined(&mut self, tree: NodeId, name: &str, kind: Kind, ctx: Ctx) -> bool {
-        if name == "$anon" {
+        if name == nme::ANON_CLASS {
             return false;
         }
         let owner = ctx.owner;

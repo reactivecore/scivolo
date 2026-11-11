@@ -11,6 +11,7 @@ use crate::tpd::TNodeId;
 use syntax::ast::constant::Constant;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
 use tasty::TypeId;
+use tasty::nme;
 
 impl Typer<'_> {
     /// The names and values of tuple `trees` if any element is a named argument; `Err` if only
@@ -127,7 +128,7 @@ impl Typer<'_> {
         let widened = self.types().widen_dealias(tpe);
         let (names, values) = self.derived_named_tuple_parts(widened)?;
         let i = names.iter().position(|n| n == self.text(name.name))?;
-        if names.iter().any(|n| n == "apply") {
+        if names.iter().any(|n| n == nme::APPLY) {
             return Some(
                 self.error(id, "Named tuples that define an `apply` field do not allow field selection."),
             );
@@ -140,7 +141,7 @@ impl Typer<'_> {
         let span = self.ast.span(id);
         let module = TName { name: self.name("scala.NamedTuple"), is_type: false };
         let qualifier = self.ast.node(Tree::TypedSplice { sym: module });
-        let name = TName { name: self.name("apply"), is_type: false };
+        let name = TName { name: self.name(nme::APPLY), is_type: false };
         let fun = self.ast.node(Tree::Select { qualifier, name });
         let tuple = self.spliced(qual);
         let args = self.ast.list(&[tuple]);

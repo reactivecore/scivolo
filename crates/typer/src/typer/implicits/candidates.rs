@@ -8,6 +8,7 @@ use super::super::paths::MAX_PATH_DEPTH;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
+use tasty::nme;
 use tasty::{SymbolId, Type, TypeId};
 
 /// An implicit value or method and the prefix it is referenced through.
@@ -105,7 +106,7 @@ pub fn imported_implicits(t: &mut Typer<'_>, i: usize) -> Result<Vec<(Candidate,
         None => return Ok(Vec::new()),
     };
     for &class in &classes {
-        for (name, _) in names.iter().filter(|(n, _)| !n.is_empty() && n != "_") {
+        for (name, _) in names.iter().filter(|(n, _)| !n.is_empty() && n != nme::WILDCARD) {
             for m in t.class_members(class, name) {
                 if matches!(t.syms.completions.get(&m), Some(crate::symbols::Completion::Completing(_))) {
                     return Err("implicit search through a definition being completed");
@@ -113,7 +114,7 @@ pub fn imported_implicits(t: &mut Typer<'_>, i: usize) -> Result<Vec<(Candidate,
             }
         }
     }
-    let wildcard = names.iter().any(|(n, _)| n == "_");
+    let wildcard = names.iter().any(|(n, _)| n == nme::WILDCARD);
     let givens = names.iter().any(|(n, _)| n.is_empty());
     let mut out = Vec::new();
     let members: Vec<_> = classes.into_iter().flat_map(|c| implicit_members(t, c, true)).collect();
@@ -121,7 +122,7 @@ pub fn imported_implicits(t: &mut Typer<'_>, i: usize) -> Result<Vec<(Candidate,
         let name = t.u.symbol(sym).name.clone();
         let given = t.u.symbol(sym).is_given();
         let excluded = (wildcard || givens) && names.iter().any(|(n, r)| *n == name && *r != name);
-        let named = names.iter().find(|(n, r)| *n == name && r != "_").map(|(_, r)| r.clone());
+        let named = names.iter().find(|(n, r)| *n == name && r != nme::WILDCARD).map(|(_, r)| r.clone());
         let wild = if givens { t.imports_given(i, sym) } else { !given && wildcard };
         if !excluded && (named.is_some() || wild) {
             out.push((Candidate { sym, prefix: Some(qual) }, named.unwrap_or(name)));

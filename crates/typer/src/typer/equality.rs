@@ -11,6 +11,7 @@ use crate::defn::CAN_EQUAL;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::Features;
+use tasty::nme;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -46,7 +47,8 @@ impl Typer<'_> {
     /// Checks that a value of type `pt` can be compared with literal or stable identifier
     /// pattern `pat` in `ctx` (dotty's `checkEqualityEvidence`).
     pub fn check_pattern_equality(&mut self, pat: TNodeId, pt: TypeId, ctx: Ctx) -> Result<(), &'static str> {
-        let wildcard = matches!(*self.tpd.tree(pat), T::Ident { name } if self.text(name.name) == "_");
+        let wildcard =
+            matches!(*self.tpd.tree(pat), T::Ident { name } if self.text(name.name) == nme::WILDCARD);
         if !matches!(self.tpd.tree(pat), T::Ident { .. } | T::Select { .. } | T::Literal { .. }) || wildcard {
             return Ok(());
         }

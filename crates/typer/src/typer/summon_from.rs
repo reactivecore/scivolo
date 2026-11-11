@@ -10,6 +10,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::tree::MatchKind;
 use syntax::ast::{List, NodeId, TName, Tree};
+use tasty::nme;
 use tasty::{Flags, Kind, NOTHING, Type, TypeId};
 
 impl Typer<'_> {
@@ -65,7 +66,7 @@ impl Typer<'_> {
         match *self.ast.tree(pat) {
             Tree::Typed { expr, .. } if is_ident(self, expr) => {
                 let Tree::Ident { name } = *self.ast.tree(expr) else { return None };
-                if self.text(name.name) != "_" {
+                if self.text(name.name) != nme::WILDCARD {
                     return Some(pat);
                 }
                 let name = TName { name: self.fresh.next(self.names, "_$"), is_type: false };
@@ -75,7 +76,7 @@ impl Typer<'_> {
                 Some(bind)
             }
             Tree::Bind { body, .. } if self.is_typed_ident(body) => Some(pat),
-            Tree::Ident { name } if self.text(name.name) == "_" => Some(pat),
+            Tree::Ident { name } if self.text(name.name) == nme::WILDCARD => Some(pat),
             _ => None,
         }
     }

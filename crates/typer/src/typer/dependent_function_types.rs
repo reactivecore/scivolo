@@ -5,6 +5,7 @@
 
 use super::Typer;
 use super::avoid::Avoid;
+use tasty::nme;
 use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId};
 
 /// The parameter types and result of an `apply`, and the binder and names of its parameters.
@@ -26,7 +27,7 @@ impl Typer<'_> {
             false => self.function_parts(parent, n),
         };
         let params = self.u.params_of(params);
-        if self.u.name(name) != "apply" || params.len() != n || parent_parts.is_none() {
+        if self.u.name(name) != nme::APPLY || params.len() != n || parent_parts.is_none() {
             return None;
         }
         let (names, types) = params.iter().copied().unzip();
@@ -37,7 +38,7 @@ impl Typer<'_> {
     pub fn dependent_context_function(&mut self, t: TypeId) -> Option<(Vec<(NameId, TypeId)>, TypeId)> {
         let Type::Refined(parent, name, info) = *self.u.ty(t) else { return None };
         let Type::Method { params, result, .. } = *self.u.ty(info) else { return None };
-        self.context_function_parts(parent).filter(|_| self.u.name(name) == "apply")?;
+        self.context_function_parts(parent).filter(|_| self.u.name(name) == nme::APPLY)?;
         Some((self.u.params_of(params).to_vec(), result))
     }
 
@@ -73,7 +74,7 @@ impl Typer<'_> {
         let mut args = types;
         args.push(approx);
         let core = self.u.intern_applied(class, &args);
-        let apply = self.u.intern_name("apply");
+        let apply = self.u.intern_name(nme::APPLY);
         Some(self.u.intern_type(Type::Refined(core, apply, method)))
     }
 

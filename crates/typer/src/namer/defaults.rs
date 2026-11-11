@@ -5,6 +5,7 @@
 
 use crate::typer::Typer;
 use syntax::ast::flags as f;
+use tasty::nme;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -78,9 +79,9 @@ impl Typer<'_> {
     /// The constructors of the class `owner`, an object, accompanies, for `<init>`'s default
     /// getters, which live in the companion.
     fn constructor_of_companion(&mut self, owner: SymbolId, method: &str) -> Vec<SymbolId> {
-        let primary = if method == "<init>" { self.companion_constructor(owner) } else { None };
+        let primary = if method == nme::CONSTRUCTOR { self.companion_constructor(owner) } else { None };
         let class = primary.and_then(|p| self.u.symbol(p).owner);
-        class.map(|c| self.u.decls_named(c, "<init>")).unwrap_or_default()
+        class.map(|c| self.u.decls_named(c, nme::CONSTRUCTOR)).unwrap_or_default()
     }
 
     /// `t` with its references to type parameters of method `sym` made wildcards (dotty's

@@ -10,6 +10,7 @@ use crate::tpd::{TNodeId, Tpd, Tree as T};
 use crate::typer::{Pt, Typer};
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, TName, Tree};
+use tasty::nme;
 use tasty::{SymbolId, TypeId, Universe};
 
 const NO_TEST: [&str; 3] = ["scala.AnyVal", "scala.AnyRef", "java.lang.Object"];
@@ -52,7 +53,7 @@ impl Synthesizer {
         let mods = t.ast.mods(Modifiers::default());
         let param = s.node(t, Tree::ValDef { name, tpt, rhs: None, mods });
         let reference = s.node(t, Tree::Ident { name });
-        let test = s.ast_select(t, reference, "isInstanceOf");
+        let test = s.ast_select(t, reference, nme::IS_INSTANCE_OF);
         let targ = s.type_splice(t, to);
         let cond = s.ast_apply(t, test, targ, true);
         let reference = s.node(t, Tree::Ident { name });
@@ -63,7 +64,7 @@ impl Synthesizer {
         let args = t.ast.list(&[singleton, targ]);
         let both = s.node(t, Tree::AppliedTypeTree { tpt: and, args });
         let reference = s.node(t, Tree::Ident { name });
-        let cast = s.ast_select(t, reference, "asInstanceOf");
+        let cast = s.ast_select(t, reference, nme::AS_INSTANCE_OF);
         let cast = s.ast_apply(t, cast, both, true);
         let some = t.resolve_full_name(crate::defn::SOME, false).ok_or("Some")?;
         let some = s.ref_splice(t, some);

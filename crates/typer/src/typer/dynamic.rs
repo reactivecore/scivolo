@@ -11,6 +11,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
 use syntax::config::Features;
+use tasty::nme;
 
 /// A selection over `Dynamic` left for the application or assignment around it (dotty's
 /// `TryDynamicCallType`).
@@ -75,11 +76,11 @@ impl Typer<'_> {
         if self.is_dynamic_call(f) || !self.derives_dynamic(f) {
             return Ok(None);
         }
-        if self.supplied_otherwise(f, "apply", ctx)? {
+        if self.supplied_otherwise(f, nme::APPLY, ctx)? {
             return Err("apply of a Dynamic value an extension or conversion may supply");
         }
         let call =
-            DynamicCall { qual: f, name: "apply".into(), span: self.adapted_span(f), targs: Vec::new() };
+            DynamicCall { qual: f, name: nme::APPLY.into(), span: self.adapted_span(f), targs: Vec::new() };
         Ok(Some(self.pending_dynamic(call)))
     }
 

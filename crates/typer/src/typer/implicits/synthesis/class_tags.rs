@@ -12,7 +12,7 @@ use crate::defn::{ARRAY, CLASS_TAG};
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::Typer;
 use crate::typer::type_ops::TypeOps;
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe, nme};
 
 /// How many type variables instantiating the argument of a class tag passes at most.
 const MAX_INSTANTIATIONS: u32 = 8;
@@ -93,7 +93,7 @@ impl Synthesizer {
         let erased = erased_class_type(t, arg).ok_or("class tag of a type erasing to no class")?;
         let module_class = t.u.module_class(module).ok_or("ClassTag")?;
         let apply =
-            t.u.decl(module_class, "apply")
+            t.u.decl(module_class, nme::APPLY)
                 .unwrap_or_default()
                 .into_iter()
                 .find(|&d| t.u.symbol(d).kind == Kind::Def)

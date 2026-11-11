@@ -36,7 +36,7 @@ use crate::symbols::Completion;
 use crate::typer::Typer;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, name_kinds, nme};
 
 impl Typer<'_> {
     /// Enters the symbols `stats` define in `ctx`'s owner and, if it is a scope, in its level;
@@ -87,7 +87,7 @@ impl Typer<'_> {
                 (name, mods, Kind::Val, self.val_deferred_flags(rhs, m, ctx))
             }
             Tree::DefDef { name, mods, rhs, .. } => {
-                let constructor = self.text(name.name) == "<init>";
+                let constructor = self.text(name.name) == nme::CONSTRUCTOR;
                 let deferred = rhs.is_none() && !constructor;
                 (name, mods, Kind::Def, if deferred { f::METHOD.or(f::DEFERRED) } else { f::METHOD })
             }
@@ -105,11 +105,13 @@ impl Typer<'_> {
         };
         let written: FlagSet = self.ast.modifiers(mods).flags.or(extra);
         let text = self.text(name.name).to_owned();
-        let text = match text.strip_prefix("$lessinit$greater$default$") {
-            Some(n) => format!("<init>$default${n}"),
+        let encoded = [name_kinds::DEFAULT_GETTER_INIT, name_kinds::DEFAULT_GETTER].concat();
+        let text = match text.strip_prefix(&encoded) {
+            Some(n) => [nme::CONSTRUCTOR, name_kinds::DEFAULT_GETTER, n].concat(),
             None => text,
         };
         self.check_definition(tree, &text, kind, ctx, written);
+        let ctor = text == nme::CONSTRUCTOR;
         let within = self.ast.modifiers(mods).private_within.map(|q| self.text(q).to_owned());
         let within = within.map(|q| self.enclosing_class_named(ctx.owner, &q));
         if within == Some(None) {
@@ -119,7 +121,7 @@ impl Typer<'_> {
         if extra == f::DEFERRED_GIVEN_FLAGS {
             flags = flags.and_not(f::FINAL);
         }
-        if flags.is(f::PRIVATE) && text != "<init>" && !flags.is(f::PARAM) && !flags.is(f::PARAM_ACCESSOR) {
+        if flags.is(f::PRIVATE) && !ctor && !flags.is(f::PARAM) && !flags.is(f::PARAM_ACCESSOR) {
             flags = flags.or(f::LOCAL);
         }
         if kind == Kind::Val && flags.is(f::ENUM) && self.u.is_static_owner(ctx.owner) {
@@ -159,7 +161,7 @@ impl Typer<'_> {
         self.syms.private_within.extend(within.flatten().map(|c| (sym, c)));
         self.u.set_access_qualifier(sym, self.syms.private_within.get(&sym).copied());
         let completion_ctx = match self.levels.outer(ctx.level) {
-            Some(outer) if text == "<init>" => Ctx { level: outer, ..ctx },
+            Some(outer) if ctor => Ctx { level: outer, ..ctx },
             _ => ctx,
         };
         self.syms.completions.insert(sym, Completion::Pending { tree, ctx: completion_ctx });

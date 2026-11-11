@@ -7,6 +7,7 @@ use super::super::Typer;
 use super::candidates::{Candidate, implicit_members, imported_implicits, this_implicit_members};
 use super::too_late::comes_too_late;
 use crate::ctx::{Ctx, Level, LevelId};
+use tasty::nme;
 use tasty::{SymbolId, Type};
 
 /// How a level binds its implicits (dotty's `BindingPrec`).
@@ -151,7 +152,7 @@ fn level_refs(t: &mut Typer<'_>, l: LevelId) -> Result<Option<Refs>, &'static st
         &Level::Import(i) => {
             let cands = imported_implicits(t, i)?;
             let Some(info) = t.import_info(i) else { return Ok(None) };
-            let wildcard = info.selectors.iter().any(|s| s.name == "_" || s.name.is_empty());
+            let wildcard = info.selectors.iter().any(|s| s.name == nme::WILDCARD || s.name.is_empty());
             let prec = if wildcard { Prec::WildImport } else { Prec::NamedImport };
             Refs { cands, prec, owner: info.owner }
         }

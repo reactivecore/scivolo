@@ -8,6 +8,7 @@ use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span};
+use tasty::nme;
 use tasty::{Kind, SymbolId, TypeId};
 
 impl Typer<'_> {
@@ -116,7 +117,7 @@ impl Typer<'_> {
         while let Some(s) = o {
             let sym = self.u.symbol(s);
             match sym.kind {
-                Kind::Def if sym.name != "<init>" && sym.name != "$anonfun" => return Some(s),
+                Kind::Def if sym.name != nme::CONSTRUCTOR && sym.name != nme::ANON_FUN => return Some(s),
                 Kind::Class | Kind::Package => return None,
                 _ => o = sym.owner,
             }

@@ -243,7 +243,7 @@ use syntax::ast::{Ast, NodeId, Span};
 use syntax::config::{Config, Features, Lints, SourceVersion};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
-use tasty::{Kind, SymbolId, Universe};
+use tasty::{Kind, SymbolId, Universe, nme};
 
 pub use const_ops::{fold_binop, fold_unop};
 pub use inline_accessors::RETAINED_BODY;
@@ -398,8 +398,8 @@ impl<'a> Typer<'a> {
         let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
         let mut syms = std::mem::take(syms);
-        let ops = u.package("<special-ops>");
-        syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, "throw", Kind::Def));
+        let ops = u.package(nme::OPS_PACKAGE);
+        syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, nme::THROW, Kind::Def));
         syms.repeated_class =
             syms.repeated_class.or_else(|| entered(u, defn.scala, "<repeated>", Kind::Class));
         let mut typer = Typer {

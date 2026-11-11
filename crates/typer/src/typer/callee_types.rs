@@ -6,6 +6,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use syntax::ast::{NodeId, Tree};
+use tasty::nme;
 use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -102,7 +103,7 @@ impl Typer<'_> {
                 };
                 Some((info, Some(s)))
             }
-            Tree::Select { qualifier, name } if self.text(name.name) == "<init>" => {
+            Tree::Select { qualifier, name } if self.text(name.name) == nme::CONSTRUCTOR => {
                 let Tree::New { tpt } = *self.ast.tree(qualifier) else { return None };
                 let Tree::Ident { name } = *self.ast.tree(tpt) else { return None };
                 let text = self.text(name.name).to_owned();
@@ -112,7 +113,7 @@ impl Typer<'_> {
                 if self.u.symbol(c).kind != Kind::Class || !self.u.type_params(c).is_empty() {
                     return None;
                 }
-                let [init] = self.class_members(c, "<init>")[..] else { return None };
+                let [init] = self.class_members(c, nme::CONSTRUCTOR)[..] else { return None };
                 self.complete(init);
                 let class = match found.prefix {
                     Some(prefix) => self.ref_type(Some(prefix), c),

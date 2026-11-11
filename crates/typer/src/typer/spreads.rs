@@ -11,7 +11,7 @@ use crate::defn::ARRAY;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{ANY, Type, TypeId};
+use tasty::{ANY, Type, TypeId, name_kinds, nme};
 
 /// The builders of `VarArgsBuilder` for elements of a primitive class.
 const PRIMITIVE: [&str; 9] = ["Byte", "Short", "Char", "Int", "Long", "Float", "Double", "Boolean", "Unit"];
@@ -29,7 +29,7 @@ impl Typer<'_> {
         let fun = self.build().ident(spread, fun_tpe, at);
         let targ = self.type_tree(elem, at, true);
         let binder = self.u.fresh_binder();
-        let params = [(self.u.intern_name("x$0"), ANY)];
+        let params = [(self.u.intern_name(&name_kinds::synthetic_param(0)), ANY)];
         let info = self.u.intern_method(binder, &params, elem, false, false);
         let fun = self.build().type_apply(fun, &[targ], info, at);
         self.build().apply(fun, &[expr], elem, span.to_synthetic())
@@ -39,7 +39,7 @@ impl Typer<'_> {
     fn spread_of(&self, t: TNodeId) -> Option<TNodeId> {
         let T::Apply { fun, args } = *self.tpd.tree(t) else { return None };
         let s = self.tpd.sym(self.tpd.meth_part(fun))?;
-        let ops = self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).name == "<special-ops>");
+        let ops = self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).name == nme::OPS_PACKAGE);
         let &[xs] = self.tpd.items(args) else { return None };
         (ops && self.u.symbol(s).name == "spread").then_some(xs)
     }
@@ -171,7 +171,7 @@ impl Typer<'_> {
         if self.conforms(tpe, array) {
             return ("addArray", xs_node);
         }
-        let fun = self.spread_select(xs_node, "asInstanceOf", span.to_synthetic());
+        let fun = self.spread_select(xs_node, nme::AS_INSTANCE_OF, span.to_synthetic());
         ("addArray", self.spread_type_applied(fun, array, span.to_synthetic()))
     }
 

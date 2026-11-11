@@ -11,7 +11,7 @@ use crate::tpd::{List, TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::defn::{EXPERIMENTAL, SOURCE_FILE};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 
 /// The experimental features whose imports do not make the unit experimental (dotty's
 /// `nonViralExperimentalFeatures` and `scala2macros`).
@@ -160,7 +160,7 @@ fn prepend_annotation(t: &mut Typer, s: SymbolId, class: &str, text: &str, span:
     let Some(package) = t.u.package(pkg) else { return };
     let classes = t.u.decls_named(package, name);
     let Some(cls) = classes.into_iter().find(|&c| t.u.is_class(c)) else { return };
-    let ctors = t.u.decls_named(cls, "<init>");
+    let ctors = t.u.decls_named(cls, nme::CONSTRUCTOR);
     let Some(ctor) = ctors.into_iter().find(|&c| t.u.erased_method(c).0.len() == 1) else { return };
     let at = if span.exists() { span.start_pos() } else { span };
     let tpe = type_ref(t.u, cls);

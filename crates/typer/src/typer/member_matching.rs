@@ -8,6 +8,7 @@
 use super::Typer;
 use crate::symbols::Completion;
 use syntax::ast::flags as f;
+use tasty::nme;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -88,7 +89,7 @@ impl Typer<'_> {
         let object = self.u.defn().object;
         let test = |t: &mut Self, x: SymbolId| {
             let owner = t.u.symbol(x).owner;
-            let clone = owner == Some(object) && t.u.symbol(x).name == "clone";
+            let clone = owner == Some(object) && t.u.symbol(x).name == nme::CLONE;
             let name = owner.map(|o| t.u.full_name(o)).unwrap_or_default();
             clone || super::java_classes::is_scala_library_java(&name) || t.is_loose_member(x)
         };

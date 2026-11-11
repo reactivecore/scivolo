@@ -9,14 +9,14 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::tags::{ABSTRACT, CASE, INVISIBLE, OBJECT, SYNTHETIC, TRAIT};
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, Universe};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, Universe, nme};
 
 /// Whether class `c` gets constructor proxies (dotty's `needsConstructorProxies`).
 pub fn needs_constructor_proxies(u: &Universe, c: SymbolId) -> bool {
     let s = u.symbol(c);
     s.kind == Kind::Class
         && ![ABSTRACT, TRAIT, CASE, SYNTHETIC, OBJECT, INVISIBLE].iter().any(|&f| s.flags.has(f))
-        && !s.name.starts_with("$anon")
+        && !s.name.starts_with(nme::ANON_CLASS)
 }
 
 /// The constructor proxy object of class `c`, outside its owner's declarations, if it gets one
@@ -188,7 +188,7 @@ impl Typer<'_> {
         let synthetic = Span::synthetic(span.start(), span.end());
         let new = self.ast.node(Tree::New { tpt: splice });
         self.ast.with_span(new, synthetic);
-        let init = TName { name: self.name("<init>"), is_type: false };
+        let init = TName { name: self.name(nme::CONSTRUCTOR), is_type: false };
         let select = self.ast.node(Tree::Select { qualifier: new, name: init });
         self.ast.with_span(select, synthetic);
         self.typed_select(select, new, init, pt, ctx)

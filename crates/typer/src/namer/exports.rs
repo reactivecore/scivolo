@@ -8,6 +8,7 @@ use crate::typer::Typer;
 use crate::typer::stability::is_stable_path;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{List, NodeId, Span, Tree};
+use tasty::nme;
 use tasty::tags as t;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -77,13 +78,13 @@ impl Typer<'_> {
         let mut e = Export { cls, path, path_method, ctx, targets: Vec::new(), out: Vec::new() };
         let mut seen = Vec::new();
         for sel in &sels {
-            if sel.name.is_empty() || sel.name == "_" {
+            if sel.name.is_empty() || sel.name == nme::WILDCARD {
                 let given = sels.iter().any(|s| s.name.is_empty());
-                let plain = sels.iter().any(|s| s.name == "_");
+                let plain = sels.iter().any(|s| s.name == nme::WILDCARD);
                 self.add_wildcard_forwarders(&mut e, &seen, (given, plain), sel.span);
                 break;
             }
-            if sel.rename != "_" {
+            if sel.rename != nme::WILDCARD {
                 self.add_forwarders_named(&mut e, sel);
             }
             seen.push(sel.name.clone());

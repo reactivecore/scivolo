@@ -9,6 +9,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::tree::NumberKind;
 use syntax::ast::{Attrs, NodeId, TName, Tree};
+use tasty::nme;
 use tasty::tags::{OBJECT, OPAQUE};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
@@ -50,7 +51,7 @@ impl Typer<'_> {
             || !matches!(self.ast.tree(id), Tree::Select { .. })
             || self.ast.attrs(id).contains(Attrs::MULTI_LINE_INFIX)
             || ctx.mode.is(Mode::PATTERN)
-            || self.u.symbol(ctx.owner).name == "<init>"
+            || self.u.symbol(ctx.owner).name == nme::CONSTRUCTOR
             || !self.certain_path(id, ctx)
         {
             return None;

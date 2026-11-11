@@ -12,7 +12,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::OBJECT;
-use tasty::{SymbolId, Type};
+use tasty::{SymbolId, Type, nme};
 
 const MACRO_ANNOTATION: &str = "scala.annotation.MacroAnnotation";
 
@@ -177,7 +177,7 @@ impl Inlining<'_> {
     /// `new c()` at `span`, if class `c` has a constructor without parameters: the annotation
     /// of class `c` without arguments on a definition the typer did not type.
     fn new_annotation(&mut self, c: SymbolId, span: Span) -> Option<TNodeId> {
-        let ctors = self.u.decls_named(c, "<init>");
+        let ctors = self.u.decls_named(c, nme::CONSTRUCTOR);
         let ctor = ctors.into_iter().find(|&k| {
             let info = self.u.info(k);
             self.u.method(info).is_some_and(|m| m.params.is_empty())

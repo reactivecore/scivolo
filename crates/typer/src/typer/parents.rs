@@ -8,6 +8,7 @@ use super::Typer;
 use crate::ctx::{Ctx, Mode};
 use crate::defn::type_ref;
 use syntax::ast::{NodeId, Tree};
+use tasty::nme;
 use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
@@ -16,7 +17,7 @@ impl Typer<'_> {
     fn parent_tpt(&mut self, parent: NodeId) -> NodeId {
         match *self.ast.tree(parent) {
             Tree::Apply { fun, .. } | Tree::TypeApply { fun, .. } => self.parent_tpt(fun),
-            Tree::Select { qualifier, name } if self.text(name.name) == "<init>" => {
+            Tree::Select { qualifier, name } if self.text(name.name) == nme::CONSTRUCTOR => {
                 self.parent_tpt(qualifier)
             }
             Tree::New { tpt } => {
@@ -110,7 +111,8 @@ impl Typer<'_> {
                 if !types.is_empty() && !self.u.is_trait(c) {
                     self.unsupported(p, "class used as a mixin");
                 }
-                let ctors = if self.u.is_trait(c) { self.u.decls_named(c, "<init>") } else { Vec::new() };
+                let ctors =
+                    if self.u.is_trait(c) { self.u.decls_named(c, nme::CONSTRUCTOR) } else { Vec::new() };
                 if ctors.into_iter().any(|k| !self.is_accessible(k, ctx)) {
                     self.unsupported(p, "inaccessible trait constructor");
                 }

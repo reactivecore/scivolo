@@ -9,6 +9,7 @@ use super::super::{Pt, Typer};
 use super::{SEQ_WILDCARD, UnapplyPattern, is_named_pattern, is_seq_wildcard};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
+use tasty::nme;
 use tasty::{Kind, Type, TypeId};
 
 impl UnapplyPattern {
@@ -56,7 +57,7 @@ impl UnapplyPattern {
 
         let text = t.text(name.name).to_owned();
         let star_span = t.ast.span(tpt);
-        let anonymous = text == "_";
+        let anonymous = text == nme::WILDCARD;
         let (ident_span, typed_span, tpt_at) = if anonymous {
             let expr_span = t.ast.span(expr);
             (expr_span, t.ast.span(a), expr_span.end_pos())

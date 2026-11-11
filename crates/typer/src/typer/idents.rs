@@ -7,6 +7,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName};
+use tasty::nme;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// What a name refers to: its prefix (`None` for a local) and the symbols it denotes, several
@@ -28,7 +29,7 @@ impl Typer<'_> {
 
     pub fn typed_ident(&mut self, id: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
         let text = self.text(name.name).to_owned();
-        if ctx.mode.is(Mode::PATTERN) && text == "_" {
+        if ctx.mode.is(Mode::PATTERN) && text == nme::WILDCARD {
             return self.wildcard_pattern(id, name, pt);
         }
         if ctx.mode.is(Mode::PATTERN) && !name.is_type && self.is_var_pattern(id, &text) {
@@ -37,7 +38,7 @@ impl Typer<'_> {
         if self.quoted_type_var(id, ctx).is_some() {
             return self.typed_quoted_type_var(id, name, pt);
         }
-        if (text == "_root_" || text == "<empty>") && !name.is_type {
+        if (text == "_root_" || text == nme::EMPTY_PACKAGE) && !name.is_type {
             let root = self.u.root();
             let tpe = self.u.intern_type(Type::Package(root));
             let span = self.ast.span(id);

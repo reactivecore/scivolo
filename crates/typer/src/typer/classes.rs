@@ -8,6 +8,7 @@ use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags::{PARAM_ACCESSOR, TYPE_PARAM};
 use syntax::ast::{NodeId, Span, Tree};
+use tasty::nme;
 use tasty::{Kind, SymbolId};
 
 /// The parts of a template.
@@ -191,6 +192,6 @@ impl Typer<'_> {
     /// Whether self definition `s` is the `_: O.type` desugaring gives an object's class.
     fn is_module_self(&self, s: NodeId) -> bool {
         matches!(*self.ast.tree(s), Tree::ValDef { name, tpt, .. }
-            if self.text(name.name) == "_" && matches!(self.ast.tree(tpt), Tree::SingletonTypeTree { .. }))
+            if self.text(name.name) == nme::WILDCARD && matches!(self.ast.tree(tpt), Tree::SingletonTypeTree { .. }))
     }
 }

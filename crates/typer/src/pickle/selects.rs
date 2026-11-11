@@ -9,6 +9,7 @@ use crate::defn::type_ref;
 use crate::signatures::result_sig;
 use crate::tpd::TNodeId;
 use syntax::ast::TName;
+use tasty::nme;
 use tasty::tags::*;
 use tasty::write::Name;
 use tasty::{SymbolId, Type, TypeId};
@@ -36,7 +37,7 @@ impl TreePickler<'_> {
         if let Some(class) = self.u.this_of(tpe) {
             return self.class_this(id, None, class);
         }
-        if self.is_term_ref(tpe) && self.names.text(name.name) != "_" {
+        if self.is_term_ref(tpe) && self.names.text(name.name) != nme::WILDCARD {
             return self.ty(tpe, false);
         }
         self.byte(if name.is_type { IDENTtpt } else { IDENT });

@@ -10,6 +10,7 @@ use crate::typer::Typer;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, Tree};
 use syntax::diag::{Message, MessageId};
+use tasty::nme;
 use tasty::{Kind, SymbolId};
 
 const PRIMITIVES: [&str; 9] = [
@@ -166,7 +167,7 @@ impl Typer<'_> {
             Tree::ValDef { .. } if !flags.is(f::PARAM_ACCESSOR) => {
                 (71, "Value classes may not define non-parameter field")
             }
-            Tree::DefDef { name, .. } if self.text(name.name) == "<init>" => {
+            Tree::DefDef { name, .. } if self.text(name.name) == nme::CONSTRUCTOR => {
                 (72, "Value classes may not define a secondary constructor")
             }
             Tree::ValDef { .. }
@@ -207,8 +208,8 @@ impl Typer<'_> {
     fn is_enum_anonym_class(&self, cls: SymbolId) -> bool {
         let Some(owner) = self.u.symbol(cls).owner else { return false };
         let o = self.u.symbol(owner);
-        self.u.symbol(cls).name == "$anon"
-            && (o.name == "$new" || o.kind == Kind::Val && o.flags.has(tasty::tags::CASE))
+        self.u.symbol(cls).name == nme::ANON_CLASS
+            && (o.name == nme::DOLLAR_NEW || o.kind == Kind::Val && o.flags.has(tasty::tags::CASE))
     }
 
     /// Class `cls` as dotty shows a symbol: `class C`, `trait T`, `object O`.

@@ -10,6 +10,7 @@ use crate::inlining::Unsupported;
 use crate::tpd::{MatchKind, TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::NodeId;
+use tasty::nme;
 use tasty::tags::{INLINE, MACRO, TRANSPARENT};
 use tasty::{Kind, SymbolId, Type, TypeVars};
 
@@ -75,7 +76,7 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<TNodeId, Unsupported> {
         let span = self.tpd.span(call);
-        if matches!(self.u.symbol(meth).name.as_str(), "unapply" | "unapplySeq") {
+        if matches!(self.u.symbol(meth).name.as_str(), nme::UNAPPLY | nme::UNAPPLY_SEQ) {
             return Err((span, "transparent inline extractor"));
         }
         if let Pt::Type(p) = pt {

@@ -14,6 +14,7 @@ use syntax::ast::NodeId;
 use syntax::ast::constant::Constant;
 use syntax::names::Names;
 use tasty::TypeId;
+use tasty::nme;
 
 impl Typer<'_> {
     /// Types cases `ids` against selector `sel` of widened type `selector`, each with the body
@@ -85,7 +86,7 @@ fn pattern_matches_null(tpd: &Tpd, names: &Names, pat: TNodeId) -> bool {
         T::Literal { value: Constant::Null } => true,
         T::Bind { body, .. } => pattern_matches_null(tpd, names, body),
         T::Alternative { trees } => tpd.items(trees).iter().any(|&t| pattern_matches_null(tpd, names, t)),
-        T::Ident { name } => !name.is_type && names.text(name.name) == "_",
+        T::Ident { name } => !name.is_type && names.text(name.name) == nme::WILDCARD,
         _ => false,
     }
 }

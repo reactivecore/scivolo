@@ -6,6 +6,7 @@
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, map_children};
+use tasty::nme;
 use tasty::tags::{CASE, PARAMsetter, SYNTHETIC, TRAIT};
 use tasty::{Kind, SymbolId};
 
@@ -72,7 +73,7 @@ impl Inlining<'_> {
             return Some((self.u.class_symbol(self.tpd.tpe(tpt))?, args));
         }
         let s = self.u.symbol(self.tpd.sym(callee)?);
-        if s.name != "apply" || !s.flags.has(SYNTHETIC) {
+        if s.name != nme::APPLY || !s.flags.has(SYNTHETIC) {
             return None;
         }
         let class = s.owner.and_then(|o| self.u.companion_class(o))?;

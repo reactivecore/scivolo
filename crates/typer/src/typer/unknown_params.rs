@@ -9,6 +9,7 @@ use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, Tree};
+use tasty::nme;
 use tasty::tags::{ABSTRACT, FINAL, OBJECT, SEALED, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -140,7 +141,7 @@ impl Typer<'_> {
     /// inherits no type, through blocks, conditionals, cases and function bodies.
     fn expects_nothing(&mut self, id: NodeId, ctx: Ctx) -> bool {
         let mut owner = ctx.owner;
-        while self.u.symbol(owner).name == "$anonfun" {
+        while self.u.symbol(owner).name == nme::ANON_FUN {
             let Some(o) = self.u.symbol(owner).owner else { return false };
             owner = o;
         }

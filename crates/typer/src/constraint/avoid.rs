@@ -4,6 +4,7 @@
 
 use super::unify::meet;
 use super::{At, Constraint};
+use tasty::nme;
 use tasty::tags::PRIVATE;
 use tasty::{ANY, Kind, SymbolId, Type, TypeId, TypeVars, Universe};
 
@@ -163,6 +164,6 @@ fn class_param_bounds(u: &mut Universe, pre: TypeId, p: SymbolId) -> Option<(Typ
 fn declares_members(u: &Universe, c: SymbolId) -> bool {
     u.symbol(c).decls.iter().any(|&d| {
         let s = u.symbol(d);
-        s.name != "<init>" && !s.flags.has(PRIVATE)
+        s.name != nme::CONSTRUCTOR && !s.flags.has(PRIVATE)
     })
 }

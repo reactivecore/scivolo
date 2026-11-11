@@ -8,7 +8,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use tasty::defn::MAX_TUPLE_ARITY;
-use tasty::{Binding, Kind, NameId, Type, TypeId};
+use tasty::{Binding, Kind, NameId, Type, TypeId, nme};
 
 /// The largest number of tuple elements unrolled.
 const MAX_UNROLLED: usize = 1024;
@@ -90,7 +90,7 @@ impl Inlining<'_> {
         let module = self.scala_member(&format!("Tuple{}", elems.len()), Kind::Val).ok_or(missing)?;
         let module_class = self.u.module_class(module).ok_or(missing)?;
         let apply =
-            self.u.decl(module_class, "apply").ok().and_then(|d| d.first().copied()).ok_or(missing)?;
+            self.u.decl(module_class, nme::APPLY).ok().and_then(|d| d.first().copied()).ok_or(missing)?;
         let types: Vec<TypeId> = elems.iter().map(|&e| self.tpd.tpe(e)).collect();
         let at = span.start_pos();
         let module_ref = crate::defn::type_ref(self.u, module);
@@ -125,7 +125,7 @@ impl Inlining<'_> {
         let module = decls.into_iter().find(|&s| self.u.symbol(s).kind == Kind::Val).ok_or(missing)?;
         let module_class = self.u.module_class(module).ok_or(missing)?;
         let apply =
-            self.u.decl(module_class, "apply").ok().and_then(|d| d.first().copied()).ok_or(missing)?;
+            self.u.decl(module_class, nme::APPLY).ok().and_then(|d| d.first().copied()).ok_or(missing)?;
         let info = self.u.info(apply);
         let Some(result) = self.u.method(info).map(|m| m.result) else { return Err(missing) };
         let (Some(pair), Some(empty)) =

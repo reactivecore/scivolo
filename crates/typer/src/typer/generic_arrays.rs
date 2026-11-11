@@ -7,6 +7,7 @@
 use super::Typer;
 use crate::defn::ARRAY;
 use crate::tpd::{TNodeId, Tree as T};
+use tasty::nme;
 use tasty::tags::OPAQUE;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -15,7 +16,7 @@ impl Typer<'_> {
         let T::Apply { fun, args } = *self.tpd.tree(tree) else { return Ok(tree) };
         let T::TypeApply { fun: ctor, args: targs } = *self.tpd.tree(fun) else { return Ok(tree) };
         let &[targ] = self.tpd.items(targs) else { return Ok(tree) };
-        let Some(s) = self.tpd.sym(ctor).filter(|&s| self.u.symbol(s).name == "<init>") else {
+        let Some(s) = self.tpd.sym(ctor).filter(|&s| self.u.symbol(s).name == nme::CONSTRUCTOR) else {
             return Ok(tree);
         };
         let array = self.defn.array(self.u).map_err(|_| ARRAY)?;

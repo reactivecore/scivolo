@@ -10,6 +10,7 @@ use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName, Tree, flags as f};
 use tasty::SymbolId;
 use tasty::defn::RUNTIME_EXPR;
+use tasty::nme;
 
 /// The refusal of a source reference to a member of `scala.quoted.runtime.Expr`.
 pub const STAGING_REFERENCE: &str = "reference to scala.quoted.runtime.Expr outside a quote or splice";
@@ -112,7 +113,7 @@ impl Typer<'_> {
 
     /// Whether `sym` is a member of object `scala.quoted.runtime.Expr` other than its constructor.
     pub fn is_staging_method(&self, sym: SymbolId) -> bool {
-        self.u.symbol(sym).name != "<init>"
+        self.u.symbol(sym).name != nme::CONSTRUCTOR
             && self.u.symbol(sym).owner.is_some_and(|o| self.u.full_name(o) == RUNTIME_EXPR)
     }
 

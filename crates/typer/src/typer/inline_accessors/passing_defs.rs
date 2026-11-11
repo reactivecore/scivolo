@@ -13,7 +13,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Type, TypeId, Universe};
+use tasty::{Type, TypeId, Universe, name_kinds};
 
 /// The name the receiver parameter of a setter has until it is typed, renamed to `x$0` then.
 const SETTER_RECEIVER: &str = "x$0$receiver";
@@ -50,7 +50,8 @@ pub fn passing_def(
         }
         defs.push(t.ast.list(&tparams));
     }
-    let own = if setter { SETTER_RECEIVER } else { "x$0" };
+    let x0 = name_kinds::synthetic_param(0);
+    let own = if setter { SETTER_RECEIVER } else { &x0 };
     let recv_tpt = passing_tpt(t, receiver.tpe, locals, span)?;
     let recv = passing_param(t, own, recv_tpt);
     defs.push(t.ast.list(&[recv]));
@@ -59,7 +60,7 @@ pub fn passing_def(
     let member = TName { name: t.name(&t.u.symbol(accessed).name.clone()), is_type: false };
     let mut rhs = t.ast.node(Tree::Select { qualifier, name: member });
     let result = if setter {
-        clauses.push(vec![(t.u.intern_name("x$0"), info)]);
+        clauses.push(vec![(t.u.intern_name(&x0), info)]);
         crate::defn::type_ref(t.u, t.defn.unit)
     } else {
         info
@@ -137,10 +138,11 @@ pub fn with_setter_receiver(t: &mut Typer<'_>, def: TNodeId) {
     if t.names.text(name.name) != SETTER_RECEIVER {
         return;
     }
-    let name = TName { name: t.name("x$0"), is_type: false };
+    let x0 = name_kinds::synthetic_param(0);
+    let name = TName { name: t.name(&x0), is_type: false };
     t.tpd.get_mut(recv).tree = T::ValDef { name, tpt, rhs: none };
     let sym = t.tpd.sym(recv).expect("a parameter");
-    t.u.rename(sym, "x$0");
+    t.u.rename(sym, &x0);
     if let T::Assign { lhs, .. } = *t.tpd.tree(rhs)
         && let T::Select { qualifier, .. } = *t.tpd.tree(lhs)
     {

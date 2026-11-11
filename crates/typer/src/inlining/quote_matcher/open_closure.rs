@@ -13,7 +13,7 @@ use rustc_hash::FxHashMap;
 use syntax::ast::TName;
 use syntax::names::FreshNames;
 use tasty::tags::SYNTHETIC;
-use tasty::{ANY, Flags, Kind, NOTHING, Symbol, SymbolId, Type, TypeId};
+use tasty::{ANY, Flags, Kind, NOTHING, Symbol, SymbolId, Type, TypeId, nme};
 
 impl Reflect<'_> {
     /// The closure `[X0, ...] => (params) => t` owned by `owner`, its parameters, named as
@@ -38,7 +38,7 @@ impl Reflect<'_> {
             decls: Vec::new(),
             tree: None,
         };
-        let anonfun = self.u.define(symbol("$anonfun", Kind::Def, owner));
+        let anonfun = self.u.define(symbol(nme::ANON_FUN, Kind::Def, owner));
         let (mut syms, mut type_params, mut tparam_trees) = (FxHashMap::default(), Vec::new(), Vec::new());
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
         for (i, &old) in tparams.iter().enumerate() {
@@ -126,7 +126,7 @@ impl Reflect<'_> {
         let params: Vec<_> = tparams.iter().map(|&p| (self.u.interned_name(p), bounds)).collect();
         let info = self.u.intern_poly(binder, &params, result);
         let parent = self.u.class_ref(crate::defn::POLY_FUNCTION);
-        let apply = self.u.intern_name("apply");
+        let apply = self.u.intern_name(nme::APPLY);
         (info, self.u.intern_type(Type::Refined(parent, apply, info)))
     }
 

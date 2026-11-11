@@ -8,6 +8,7 @@ use crate::ctx::{Ctx, Level, LevelId, Mode};
 use crate::tpd::TNodeId;
 use syntax::ast::flags::CASE;
 use syntax::ast::{List, NodeId, Tree};
+use tasty::nme;
 use tasty::{ANY, Kind, NOTHING, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -66,7 +67,7 @@ impl Typer<'_> {
             self.capture_symbol(&v, ctx, Some(level));
         }
         let pat = match *self.ast.tree(pat) {
-            Tree::Ident { name } if self.text(name.name) == "_" => {
+            Tree::Ident { name } if self.text(name.name) == nme::WILDCARD => {
                 let name = self.fresh.next(self.names, "_$");
                 let text = self.text(name).to_owned();
                 let sym = self.capture_symbol(&text, ctx, None);

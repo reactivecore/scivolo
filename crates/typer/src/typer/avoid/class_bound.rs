@@ -4,6 +4,7 @@
 
 use super::Avoid;
 use crate::typer::Typer;
+use tasty::nme;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Avoid<'_> {
@@ -23,7 +24,7 @@ impl Avoid<'_> {
         let decls = t.u.symbol(c).decls.clone();
         let (refinable, missing): (Vec<SymbolId>, Vec<SymbolId>) = decls.into_iter().partition(|&d| {
             let s = t.u.symbol(d);
-            !s.flags.has(tasty::tags::PRIVATE) && s.name != "<init>" && s.kind != Kind::Class
+            !s.flags.has(tasty::tags::PRIVATE) && s.name != nme::CONSTRUCTOR && s.kind != Kind::Class
         });
         let mut bound = parent;
         for d in refinable {
@@ -121,7 +122,7 @@ fn own_type_members(u: &mut Universe, c: SymbolId, this: TypeId, tpe: TypeId) ->
 
 /// Whether member `d` of class `c` is the `apply` of a polymorphic function value.
 fn is_poly_function_apply(t: &mut Typer, c: SymbolId, d: SymbolId) -> bool {
-    t.u.symbol(d).name == "apply"
+    t.u.symbol(d).name == nme::APPLY
         && t.resolve_full_name(crate::defn::POLY_FUNCTION, true).is_some_and(|p| t.u.derives_from(c, p))
 }
 

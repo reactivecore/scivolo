@@ -8,6 +8,7 @@ use super::Typer;
 use syntax::ast::{Attrs, NodeId, Span, Tree};
 use syntax::scan::chars::{is_identifier_part, is_operator_part};
 use tasty::SymbolId;
+use tasty::nme;
 use tasty::tags::{CASE, INFIX};
 
 impl Typer<'_> {
@@ -78,7 +79,8 @@ impl Typer<'_> {
         if sym.flags.has(INFIX) {
             return true;
         }
-        let (Some(owner), true) = (sym.owner, matches!(sym.name.as_str(), "unapply" | "unapplySeq")) else {
+        let (Some(owner), true) = (sym.owner, matches!(sym.name.as_str(), nme::UNAPPLY | nme::UNAPPLY_SEQ))
+        else {
             return false;
         };
         let class = self.u.is_module_class(owner).then(|| self.u.companion_class(owner)).flatten();

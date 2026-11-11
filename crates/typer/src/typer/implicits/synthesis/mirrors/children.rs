@@ -8,7 +8,7 @@ use super::child_prefixes::{is_visible_to_scope, owner_scope};
 use crate::sealed;
 use crate::typer::Typer;
 use tasty::tags::{ABSTRACT, CONTRAVARIANT, SEALED};
-use tasty::{SymbolId, Type, TypeId, TypeVars, Universe};
+use tasty::{SymbolId, Type, TypeId, TypeVars, Universe, nme};
 
 impl MirrorSynthesis {
     /// Whether sealed class `s`, selected from prefix `pre`, gets a sum mirror here (dotty's
@@ -32,7 +32,7 @@ impl MirrorSynthesis {
         }
         let scope = owner_scope(t.u, pre);
         for c in children {
-            if t.u.symbol(c).name.starts_with("$anon") {
+            if t.u.symbol(c).name.starts_with(nme::ANON_CLASS) {
                 return Ok(false);
             }
             let owner = t.u.symbol(c).owner.ok_or("sealed child without owner")?;

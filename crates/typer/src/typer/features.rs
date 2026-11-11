@@ -7,6 +7,7 @@ use super::Typer;
 use crate::ctx::{Ctx, Level};
 use syntax::config::Features;
 use tasty::NullMode;
+use tasty::nme;
 
 impl Typer<'_> {
     /// Whether feature `f`, `scala.language.name` (`name` dotted or not), is enabled in `ctx`.
@@ -25,7 +26,7 @@ impl Typer<'_> {
                 && let Some(info) = self.import_info(i)
                 && let Some(s) = info.selectors.iter().find(|s| s.name == name)
             {
-                let (qual, enabled) = (info.qual, s.rename != "_");
+                let (qual, enabled) = (info.qual, s.rename != nme::WILDCARD);
                 let site = self.import_site(qual);
                 if site.is_some_and(|s| self.u.full_name(s).replace('$', "") == object) {
                     return enabled;

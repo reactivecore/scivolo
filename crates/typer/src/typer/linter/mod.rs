@@ -10,6 +10,7 @@ use super::java_classes::is_java_member;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::config::Lints;
 use syntax::diag::{Message, MessageId};
+use tasty::nme;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// Decides whether a statement's value is worth a warning under `-Wnonunit-statement`: the
@@ -115,7 +116,7 @@ fn uninteresting_symbol(u: &mut Universe, s: SymbolId) -> bool {
     let b = u.defn();
     let sym = u.symbol(s);
     let name = sym.name.trim_end_matches('$');
-    name == "<init>"
+    name == nme::CONSTRUCTOR
         || sym.kind == Kind::Package
         || name == "package"
         || name.ends_with("$package")

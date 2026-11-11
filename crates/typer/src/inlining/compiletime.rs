@@ -8,7 +8,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 impl Inlining<'_> {
     /// The name of the `scala.compiletime` operation `call` calls, if it calls one.
@@ -139,7 +139,12 @@ impl Inlining<'_> {
             return Err((span, "constValueOpt of a type that is not constant"));
         };
         let some = self.scala_member("Some", Kind::Class).ok_or((span, crate::defn::SOME))?;
-        let ctor = self.u.decl(some, "<init>").ok().and_then(|d| d.first().copied()).ok_or((span, "Some"))?;
+        let ctor = self
+            .u
+            .decl(some, nme::CONSTRUCTOR)
+            .ok()
+            .and_then(|d| d.first().copied())
+            .ok_or((span, "Some"))?;
         let literal = self.literal(value, span);
         let elem = self.tpd.tpe(literal);
         let at = span.start_pos();

@@ -9,7 +9,7 @@ use crate::ctx::{Ctx, Level};
 use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::{Kind, NameId, Type, TypeId};
+use tasty::{Kind, NameId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// Function value `(params) => body` against the expected type `pt`, a pattern-matching
@@ -44,7 +44,7 @@ impl Typer<'_> {
         };
         let anonfun = self.syms.define(
             self.u,
-            "$anonfun",
+            nme::ANON_FUN,
             Kind::Def,
             ctx.owner,
             f::METHOD.or(f::SYNTHETIC).or(f::ARTIFACT),

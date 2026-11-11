@@ -2,6 +2,7 @@
 
 use super::{Refusal, Unpickler};
 use crate::tpd::TNodeId;
+use tasty::nme;
 use tasty::{NameId, Type, TypeId, Universe};
 
 impl Unpickler<'_> {
@@ -44,7 +45,9 @@ fn refusal(u: &mut Universe, t: TypeId, bound: &[(tasty::FileId, NameId)]) -> Op
                     Some(_) => None,
                     None if is_type && u.refinement_named(p, n).is_some() => None,
                     None if u.param_ref(p).is_some() => None,
-                    None if !is_type && u.name(n) == "apply" && u.poly_function_apply_of(p).is_some() => None,
+                    None if !is_type && u.name(n) == nme::APPLY && u.poly_function_apply_of(p).is_some() => {
+                        None
+                    }
                     None => Some("unresolved reference in a library inline body"),
                 }
             }

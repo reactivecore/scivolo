@@ -6,6 +6,7 @@ use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::NodeId;
+use tasty::nme;
 use tasty::tags::{ABSTRACT, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -121,7 +122,7 @@ impl Typer<'_> {
         prefix: Option<TypeId>,
     ) -> TypeId {
         let sym = self.u.symbol(s);
-        let Some(owner) = sym.owner.filter(|_| sym.name == "<init>" && sym.kind == Kind::Def) else {
+        let Some(owner) = sym.owner.filter(|_| sym.name == nme::CONSTRUCTOR && sym.kind == Kind::Def) else {
             return info;
         };
         let tycon = prefix.map(|p| self.u.applied(p).map_or(p, |(tc, _)| tc));

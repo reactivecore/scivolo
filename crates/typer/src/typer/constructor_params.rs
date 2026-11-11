@@ -5,6 +5,7 @@
 
 use super::Typer;
 use syntax::ast::{NodeId, Tree};
+use tasty::nme;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -12,7 +13,7 @@ impl Typer<'_> {
     /// parameter of its class at the same position from both sides; the infos replaced.
     pub fn link_constructor_params(&mut self, sym: SymbolId, def: NodeId) -> Vec<(SymbolId, TypeId)> {
         let Some(class) = self.u.symbol(sym).owner else { return Vec::new() };
-        if self.u.symbol(sym).name != "<init>" || self.syms.primary_ctors.get(&class) == Some(&sym) {
+        if self.u.symbol(sym).name != nme::CONSTRUCTOR || self.syms.primary_ctors.get(&class) == Some(&sym) {
             return Vec::new();
         }
         let Some(first) = self.def_clauses(def).into_iter().next() else { return Vec::new() };
@@ -25,7 +26,7 @@ impl Typer<'_> {
         if own.len() != class_params.len() {
             return Vec::new();
         }
-        for ctor in self.u.decls_named(class, "<init>") {
+        for ctor in self.u.decls_named(class, nme::CONSTRUCTOR) {
             self.complete(ctor);
         }
         let class_ref = self.u.intern_type(Type::Sym(None, class));

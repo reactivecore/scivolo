@@ -7,6 +7,7 @@ use super::super::Typer;
 use super::OverrideChecks;
 use crate::symbols::{Completion, Syms};
 use syntax::ast::{Ast, Tree};
+use tasty::nme;
 use tasty::tags::{ERASED, INLINE, MACRO, PRIVATE};
 use tasty::{Kind, SymbolId, Universe};
 
@@ -70,5 +71,5 @@ fn has_pending_annotations(syms: &Syms, ast: &Ast, s: SymbolId) -> bool {
 fn at_run_time(u: &Universe, s: SymbolId) -> bool {
     let sym = u.symbol(s);
     let absent = [PRIVATE, INLINE, ERASED, MACRO].iter().any(|&f| sym.flags.has(f));
-    matches!(sym.kind, Kind::Def | Kind::Val) && sym.name != "<init>" && !absent
+    matches!(sym.kind, Kind::Def | Kind::Val) && sym.name != nme::CONSTRUCTOR && !absent
 }

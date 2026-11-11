@@ -10,6 +10,7 @@ use crate::defn::INLINE_PARAM;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::{Span, TName};
+use tasty::nme;
 use tasty::tags::{INLINE, INLINEPROXY};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
@@ -118,7 +119,7 @@ pub fn replace_param(
     let T::Ident { name } = *i.tpd.tree(t) else { return None };
     let s = i.tpd.sym(t)?;
     let &bound = binding.get(&s)?;
-    if i.names.text(name.name) == "_" {
+    if i.names.text(name.name) == nme::WILDCARD {
         let sym = i.u.sym_of(bound);
         return Some(i.tpd.node(T::Ident { name }, i.tpd.span(t), Some(bound), sym));
     }

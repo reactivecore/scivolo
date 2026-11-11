@@ -12,6 +12,7 @@ mod projection;
 use super::{Inlining, Unsupported};
 use crate::tpd::{List, TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
+use tasty::nme;
 use tasty::tags::GIVEN;
 use tasty::{SymbolId, TypeId};
 
@@ -147,7 +148,7 @@ impl Reducer<'_, '_> {
         let inner = match *self.i.tpd.tree(expr) {
             T::Typed { expr, .. } => expr,
             T::TypeApply { fun, .. } => match (self.i.tpd.tree(fun).clone(), self.i.tpd.sym(fun)) {
-                (T::Select { qualifier, .. }, Some(s)) if self.i.u.symbol(s).name == "asInstanceOf" => {
+                (T::Select { qualifier, .. }, Some(s)) if self.i.u.symbol(s).name == nme::AS_INSTANCE_OF => {
                     qualifier
                 }
                 _ => return Ok(rhs),

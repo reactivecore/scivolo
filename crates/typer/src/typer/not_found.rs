@@ -8,6 +8,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
 use syntax::ast::children::Child;
 use syntax::ast::{Ast, NodeId, TName, Tree};
+use tasty::nme;
 use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
@@ -18,7 +19,7 @@ impl Typer<'_> {
         let text = self.text(name.name).to_owned();
         let plain = text.chars().next().is_some_and(|c| !c.is_ascii_digit())
             && text.chars().all(|c| c.is_alphanumeric() || c == '_');
-        if !plain || ctx.mode.is(Mode::PATTERN) || self.u.symbol(ctx.owner).name == "<init>" {
+        if !plain || ctx.mode.is(Mode::PATTERN) || self.u.symbol(ctx.owner).name == nme::CONSTRUCTOR {
             return None;
         }
         let root = self.enclosing_definition(id, ctx)?;

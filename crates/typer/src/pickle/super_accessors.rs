@@ -14,7 +14,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, INLINE, MACRO, SELECT, SELECTin};
 use tasty::write::Name;
-use tasty::{Flags, Kind, Symbol, SymbolId, Universe};
+use tasty::{Flags, Kind, Symbol, SymbolId, Universe, name_kinds};
 
 /// Super accessors pickled, each its class and name.
 pub type Accessors = Vec<(SymbolId, String)>;
@@ -120,12 +120,9 @@ impl TreePickler<'_> {
         let original = self.u.symbol(*member).name.clone();
         let trait_ = self.u.is_trait(class);
         let accessor_name = |u: &Universe, original: &str| {
-            let unexpanded = match mix.as_str() {
-                "" => format!("super${original}"),
-                mix => format!("{original}$super${mix}"),
-            };
+            let unexpanded = name_kinds::super_accessor(original, mix);
             match trait_ {
-                true => format!("{}$${unexpanded}", u.expanded_prefix(class)),
+                true => name_kinds::expanded(&u.expanded_prefix(class), &unexpanded),
                 false => unexpanded,
             }
         };

@@ -9,6 +9,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
+use tasty::nme;
 use tasty::tags::{MUTABLE, SYNTHETIC};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
@@ -26,7 +27,7 @@ impl Inlining<'_> {
             None => class.strip_prefix("scala.Function").is_some_and(|n| n.parse::<u32>().is_ok()),
             Some(_) => class == crate::defn::POLY_FUNCTION,
         };
-        if self.names.text(name.name) != "apply" || !fits {
+        if self.names.text(name.name) != nme::APPLY || !fits {
             return Ok(t);
         }
         let argss: Vec<Vec<TNodeId>> =
@@ -53,7 +54,7 @@ impl Inlining<'_> {
         }
         let mut widened = self.u.widen(self.tpd.get(t).tpe?);
         while let Type::Refined(parent, name, _) = *self.u.ty(widened)
-            && self.u.name(name) == "apply"
+            && self.u.name(name) == nme::APPLY
         {
             widened = parent;
         }

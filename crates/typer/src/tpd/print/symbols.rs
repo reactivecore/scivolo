@@ -4,7 +4,7 @@
 
 use crate::signatures::params_sig;
 use syntax::ast::print::quote;
-use tasty::{Kind, SymbolId, Universe};
+use tasty::{Kind, SymbolId, Universe, nme};
 
 /// dotty's `fullName`: owners joined by `.`, each term owner between `s` and its enclosing class
 /// as a `_$` before the name, the root and the empty package left out; the module class of `<:<`
@@ -45,7 +45,7 @@ pub fn full_name(u: &Universe, s: SymbolId) -> String {
 /// `s` quoted, a method with its signature, as in `"scala.Predef$.println#(java.lang.Object)"`.
 pub fn sym(u: &mut Universe, s: SymbolId) -> String {
     let mut text = full_name(u, s);
-    if u.symbol(s).kind == Kind::Def && u.symbol(s).name != "<init>" {
+    if u.symbol(s).kind == Kind::Def && u.symbol(s).name != nme::CONSTRUCTOR {
         text.push_str(&format!("#({})", params_sig(u, s).join(",")));
     }
     quote(&text.encode_utf16().collect::<Vec<_>>())

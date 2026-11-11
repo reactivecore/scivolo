@@ -13,6 +13,7 @@ use crate::symbols::Completion;
 use rustc_hash::FxHashSet;
 use syntax::ast::flags as f;
 use syntax::ast::{Ast, NodeId, TName, Tree};
+use tasty::nme;
 use tasty::tags::OBJECT;
 use tasty::{Kind, SymbolId, TypeId, Universe};
 
@@ -86,7 +87,7 @@ impl Typer<'_> {
                 let (qual, names): (_, Vec<String>) =
                     (info.qual, info.selectors.iter().map(|s| s.name.clone()).collect());
                 let site = self.import_site(qual)?;
-                let named = named && !names.iter().any(|n| n == "_" || n.is_empty());
+                let named = named && !names.iter().any(|n| n == nme::WILDCARD || n.is_empty());
                 if self.u.symbol(site).kind == Kind::Package {
                     for d in self.u.decls(site).ok()? {
                         let Some(c) = object_class(self.u, d) else { continue };

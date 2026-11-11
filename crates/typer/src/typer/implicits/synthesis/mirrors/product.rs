@@ -13,7 +13,7 @@ use crate::typer::Typer;
 use crate::typer::paths::MAX_PATH_DEPTH;
 use crate::typer::small_tuples::tuple_class_args;
 use tasty::tags::{CASE, CASEaccessor, PRIVATE, PROTECTED};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe, nme};
 
 impl MirrorSynthesis {
     /// Synthesizes the product mirror of a tuple, a case object, an enum value or a case class;
@@ -107,7 +107,7 @@ impl MirrorSynthesis {
     /// constructor.
     pub fn is_generic_product(self, t: &mut Typer<'_>, c: SymbolId) -> bool {
         t.complete(c);
-        if let Some(&ctor) = t.u.decls_named(c, "<init>").first() {
+        if let Some(&ctor) = t.u.decls_named(c, nme::CONSTRUCTOR).first() {
             t.complete(ctor);
         }
         let value_class = t.is_derived_value_class(c);
@@ -118,7 +118,7 @@ impl MirrorSynthesis {
     /// Whether the primary constructor of `c` is accessible here for an anonymous mirror (dotty's
     /// `canAccessCtor`).
     fn can_access_constructor(self, t: &mut Typer<'_>, c: SymbolId) -> bool {
-        let Some(&ctor) = t.u.decls_named(c, "<init>").first() else { return true };
+        let Some(&ctor) = t.u.decls_named(c, nme::CONSTRUCTOR).first() else { return true };
         let flags = t.u.symbol(ctor).flags;
         let owners: Vec<SymbolId> =
             std::iter::successors(Some(self.ctx.owner), |&o| t.u.symbol(o).owner).collect();

@@ -3,6 +3,7 @@
 //! Single abstract method types that function values also implement (dotty's `SAMType`).
 
 use super::Typer;
+use tasty::nme;
 use tasty::tags::{ABSTRACT, FINAL, SEALED, TRAIT};
 use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
@@ -140,7 +141,7 @@ impl Typer<'_> {
             return None;
         }
         if self.is_partial_function_class(c) {
-            return self.class_members(c, "apply").first().copied();
+            return self.class_members(c, nme::APPLY).first().copied();
         }
         let [method] = self.abstract_methods(c)[..] else { return None };
         Some(method)
@@ -161,7 +162,7 @@ impl Typer<'_> {
 
     fn takes_no_args(&mut self, c: SymbolId) -> bool {
         self.complete(c);
-        let ctors = self.u.decls_named(c, "<init>");
+        let ctors = self.u.decls_named(c, nme::CONSTRUCTOR);
         let mut applicable = 0;
         for &ctor in &ctors {
             self.complete(ctor);
@@ -188,7 +189,10 @@ impl Typer<'_> {
             self.complete(base);
             for d in self.u.decls(base).unwrap_or_default() {
                 let s = self.u.symbol(d);
-                if matches!(s.kind, Kind::Def | Kind::Val) && s.name != "<init>" && !names.contains(&s.name) {
+                if matches!(s.kind, Kind::Def | Kind::Val)
+                    && s.name != nme::CONSTRUCTOR
+                    && !names.contains(&s.name)
+                {
                     names.push(s.name.clone());
                 }
             }

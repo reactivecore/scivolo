@@ -9,6 +9,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, LevelId};
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, Tree};
+use tasty::nme;
 use tasty::{SymbolId, TypeId};
 
 /// A selector `name => rename`; `name` empty for `given`, `rename` `_` for an unimport; the
@@ -38,7 +39,7 @@ impl ImportInfo {
     /// (dotty's `isWildcardImport` and `excluded`).
     fn wildcard_imports(&self, name: &str) -> bool {
         let renamed = self.selectors.iter().any(|s| s.name == name && s.rename != s.name);
-        (self.has("_") || self.has("")) && name != "<init>" && !renamed
+        (self.has(nme::WILDCARD) || self.has("")) && name != nme::CONSTRUCTOR && !renamed
     }
 }
 
@@ -160,7 +161,7 @@ impl Typer<'_> {
     /// `selection`).
     fn selection(&mut self, i: usize, member: &str, is_type: bool, wildcard: bool) -> Option<Found> {
         let info = self.import_info(i)?;
-        let (qual, plain_wild) = (info.qual, info.has("_"));
+        let (qual, plain_wild) = (info.qual, info.has(nme::WILDCARD));
         let mut syms: Vec<SymbolId> = self.type_members(qual, member);
         syms.retain(|&s| self.u.is_type_symbol(s) == is_type);
         if wildcard {
@@ -182,7 +183,8 @@ impl Typer<'_> {
             return None;
         }
         let info = self.import_info(i)?;
-        let member = info.selectors.iter().find(|s| s.rename == name && s.rename != "_")?.name.clone();
+        let member =
+            info.selectors.iter().find(|s| s.rename == name && s.rename != nme::WILDCARD)?.name.clone();
         self.selection(i, &member, is_type, false)
     }
 

@@ -6,6 +6,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
 use syntax::diag::Diagnostic;
 use tasty::SymbolId;
+use tasty::nme;
 
 impl Typer<'_> {
     /// Reports the trees in quote pattern body `body` that a quote pattern cannot match and the
@@ -86,7 +87,7 @@ impl Typer<'_> {
         if text.starts_with("_$") {
             let msg = "Use of `_` for lambda in quoted pattern. Use explicit lambda instead or use `$_` to match any term.";
             self.warning_at(span, msg);
-        } else if !name.is_type && !span.is_synthetic() && text != "$anonfun" && text.starts_with('$') {
+        } else if !name.is_type && !span.is_synthetic() && text != nme::ANON_FUN && text.starts_with('$') {
             let at = span.point();
             let name_span = Span::new(at, at + text.len() as u32, at);
             let dollar_warning = |d: &Diagnostic| d.offset == Some(at) && d.id.is_some_and(|i| i.code == 230);

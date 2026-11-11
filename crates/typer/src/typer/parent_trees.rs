@@ -10,6 +10,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::SymbolId;
+use tasty::nme;
 
 impl Typer<'_> {
     /// The parent trees of class `cls`: those of `parents` typed in `ctx` without the duplicates
@@ -48,7 +49,7 @@ impl Typer<'_> {
     /// The class a parent tree extends: a constructor call's class, or its type's.
     fn parent_class(&mut self, tree: TNodeId) -> Option<SymbolId> {
         match self.tpd.sym(self.tpd.strip_apply(tree)) {
-            Some(ctor) if self.u.symbol(ctor).name == "<init>" => self.u.symbol(ctor).owner,
+            Some(ctor) if self.u.symbol(ctor).name == nme::CONSTRUCTOR => self.u.symbol(ctor).owner,
             _ => {
                 let tpe = self.tpd.tpe(tree);
                 self.u.class_symbol(tpe)
@@ -128,7 +129,7 @@ impl Typer<'_> {
         let new = self.ast.node(Tree::New { tpt: splice });
         self.ast.with_span(new, synthetic);
         self.parent_news.insert(new);
-        let init = TName { name: self.name("<init>"), is_type: false };
+        let init = TName { name: self.name(nme::CONSTRUCTOR), is_type: false };
         let select = self.ast.node(Tree::Select { qualifier: new, name: init });
         self.ast.with_span(select, synthetic);
         let args = self.ast.list(&[]);

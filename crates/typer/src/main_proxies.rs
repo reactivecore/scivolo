@@ -11,7 +11,7 @@ use crate::typer::Typer;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// The typed proxy classes of the `@main` methods among `stats` and their objects' members.
@@ -153,7 +153,7 @@ impl Typer<'_> {
         let main_meth =
             self.def_def("main", &[main_arg], unit_tpt, Some(body), f::JAVA_STATIC.or(f::SYNTHETIC));
         let empty_tpt = self.ast.node(Tree::TypeTree);
-        let constr = self.def_def("<init>", &[], empty_tpt, None, f::EMPTY);
+        let constr = self.def_def(nme::CONSTRUCTOR, &[], empty_tpt, None, f::EMPTY);
         let parents = self.ast.list(&[]);
         let body = self.ast.list(&[main_meth]);
         let template =

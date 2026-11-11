@@ -7,6 +7,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Attrs, List, NodeId, Tree};
 use syntax::config::Features;
+use tasty::nme;
 use tasty::{Kind, NameId, Type, TypeId};
 
 impl Typer<'_> {
@@ -225,7 +226,7 @@ impl Typer<'_> {
         let tpe = match *self.u.ty(self.tpd.tpe(callee)) {
             _ if erroneous => self.u.intern_type(Type::Error),
             Type::Sym(Some(class), s)
-                if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>
+                if self.u.symbol(s).name == nme::CONSTRUCTOR && self.u.symbol(s).kind == Kind::Def =>
             {
                 if self.u.this_of(class).is_some() || partial {
                     result

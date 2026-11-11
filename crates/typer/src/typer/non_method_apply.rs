@@ -11,7 +11,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
 use tasty::tags::{EXTENSION, LAZY, MUTABLE, OBJECT};
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{Kind, SymbolId, TypeId, nme};
 
 impl Typer<'_> {
     /// For application `id` of `fun`, typed as `f` without `apply`, to the arguments of `proto`:
@@ -64,10 +64,10 @@ impl Typer<'_> {
             _ if matches!(self.ast.tree(fun), Tree::Select { .. }) => return None,
             _ => None,
         };
-        if self.script_may_supply(Some("apply"))
+        if self.script_may_supply(Some(nme::APPLY))
             || qualifier.is_some() && self.script_may_supply(Some(&name))
             || name.contains('$')
-            || self.may_view_to(site, "apply", ctx)?
+            || self.may_view_to(site, nme::APPLY, ctx)?
             || qualifier.map_or(Some(false), |q| self.may_view_to(q, &name, ctx))?
         {
             return None;

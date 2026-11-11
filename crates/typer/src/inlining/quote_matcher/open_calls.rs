@@ -7,7 +7,7 @@ use super::super::Reflect;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashSet;
 use syntax::ast::TName;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, nme};
 
 impl Reflect<'_> {
     /// Rewrites the calls `f(args1)...(argsN)` in `t` of the parameters `functions`, which stand
@@ -52,13 +52,13 @@ impl Reflect<'_> {
     fn select_apply(&mut self, fun: TNodeId, info: TypeId) -> Result<TNodeId, &'static str> {
         let span = self.tpd.span(fun);
         if self.u.poly_function_apply_of(info).is_some() {
-            let apply = self.u.intern_name("apply");
+            let apply = self.u.intern_name(nme::APPLY);
             let tpe = self.u.intern_type(Type::TermRef(info, apply));
-            let name = TName { name: self.names.intern("apply"), is_type: false };
+            let name = TName { name: self.names.intern(nme::APPLY), is_type: false };
             return Ok(self.tpd.node(T::Select { qualifier: fun, name }, span, Some(tpe), None));
         }
         let apply =
-            self.u.member_of_type(info, "apply").into_iter().find(|&m| self.u.symbol(m).kind.is_term());
+            self.u.member_of_type(info, nme::APPLY).into_iter().find(|&m| self.u.symbol(m).kind.is_term());
         let apply = apply.ok_or("a captured method without a function type")?;
         Ok(self.build()?.select(fun, apply, span))
     }

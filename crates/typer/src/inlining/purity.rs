@@ -7,6 +7,7 @@
 use super::Inlining;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use rustc_hash::FxHashSet;
+use tasty::nme;
 use tasty::tags::{CASE, INLINE, LAZY, MUTABLE, STABLE, SYNTHETIC, TRAIT};
 use tasty::{Kind, SymbolId, Type, Universe};
 
@@ -151,7 +152,7 @@ impl Purity<'_> {
     /// constructor call or a synthetic case class `apply` (dotty's `isPureApply`).
     pub fn is_pure_apply(&mut self, t: TNodeId, callee: Option<SymbolId>) -> bool {
         let Some(s) = callee else { return false };
-        if self.u.symbol(s).name == "<init>" {
+        if self.u.symbol(s).name == nme::CONSTRUCTOR {
             return self.is_stable_member(s);
         }
         if self.is_pure_synthetic_case_apply(s) {
@@ -166,7 +167,7 @@ impl Purity<'_> {
     /// initialization code (dotty's `isPureSyntheticCaseApply`).
     fn is_pure_synthetic_case_apply(&mut self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
-        if sym.kind != Kind::Def || !sym.flags.has(SYNTHETIC) || sym.name != "apply" {
+        if sym.kind != Kind::Def || !sym.flags.has(SYNTHETIC) || sym.name != nme::APPLY {
             return false;
         }
         let Some(owner) = sym.owner.filter(|&o| self.u.is_module_class(o)) else { return false };

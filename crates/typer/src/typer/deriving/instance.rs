@@ -11,7 +11,7 @@ use super::{DerivedInstance, Deriver, Problem};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, name_kinds};
 
 /// How many aliases and type lambdas the class reference under a type class may lie below.
 const CLASS_REF_DEPTH: u32 = 16;
@@ -107,7 +107,7 @@ fn instance_def(
         .enumerate()
         .map(|(i, args)| {
             let tpt = tc_applied(t, tc.tpe, args, span);
-            let name = TName { name: t.name(&format!("x${i}")), is_type: false };
+            let name = TName { name: t.name(&name_kinds::synthetic_param(i)), is_type: false };
             let mods = t.ast.mods(Modifiers::with_flags(f::TERM_PARAM.or(f::IMPLICIT)));
             node(t, Tree::ValDef { name, tpt, rhs: None, mods }, span)
         })

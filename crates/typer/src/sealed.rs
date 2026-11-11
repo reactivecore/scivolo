@@ -5,7 +5,7 @@
 //! the lowering's mirror support both see them (dotty's `children`, `isGenericProduct`).
 
 use tasty::tags::{ABSTRACT, CASE, ENUM, OBJECT};
-use tasty::{Kind, SymbolId, Type, Universe};
+use tasty::{Kind, SymbolId, Type, Universe, nme};
 
 /// The cases of enum class `e`, in the order of their definitions.
 pub fn enum_cases(u: &mut Universe, e: SymbolId) -> Vec<SymbolId> {
@@ -62,7 +62,7 @@ pub fn upper_bound(u: &mut Universe, p: SymbolId) -> tasty::TypeId {
 
 /// The number of parameter lists of the primary constructor of class `c`.
 fn param_lists(u: &mut Universe, c: SymbolId) -> usize {
-    let Some(&ctor) = u.decls_named(c, "<init>").first() else { return 0 };
+    let Some(&ctor) = u.decls_named(c, nme::CONSTRUCTOR).first() else { return 0 };
     let mut t = u.info(ctor);
     let mut lists = 0;
     loop {

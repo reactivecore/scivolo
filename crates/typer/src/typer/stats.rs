@@ -6,6 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Tree};
+use tasty::nme;
 use tasty::{SymbolId, Type};
 
 impl Typer<'_> {
@@ -48,7 +49,7 @@ impl Typer<'_> {
             return;
         };
         let declares = self.u.symbol(c).decls.iter().any(|&d| {
-            self.u.symbol(d).name != "<init>"
+            self.u.symbol(d).name != nme::CONSTRUCTOR
                 && !self.syms.flags.get(&d).is_some_and(|fl| fl.is(syntax::ast::flags::SYNTHETIC))
         });
         let name = self.u.symbol(c).name.trim_end_matches('$').to_owned();

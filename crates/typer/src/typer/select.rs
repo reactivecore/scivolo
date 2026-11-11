@@ -10,6 +10,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName, Tree as S};
+use tasty::nme;
 use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
@@ -17,7 +18,7 @@ impl Typer<'_> {
         let path = matches!(self.ast.tree(qualifier), S::Ident { .. } | S::Select { .. });
         let text = self.text(name.name).to_owned();
         let mode = if path { Mode::QUALIFIER } else { Mode::NONE };
-        let mode = if text == "apply" && !name.is_type { mode.with(Mode::APPLY_QUALIFIER) } else { mode };
+        let mode = if text == nme::APPLY && !name.is_type { mode.with(Mode::APPLY_QUALIFIER) } else { mode };
         let mut qual = self.typed(qualifier, Pt::Any, ctx.with_mode(mode));
         if self.is_probe_target(id) {
             return self.probe_selection(id, qual, ctx);

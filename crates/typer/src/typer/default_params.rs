@@ -6,6 +6,7 @@
 
 use super::Typer;
 use syntax::ast::flags as f;
+use tasty::nme;
 use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
@@ -45,7 +46,7 @@ impl Typer<'_> {
         let Some(owner) = self.u.symbol(s).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class) else {
             return Vec::new();
         };
-        if name == "<init>" {
+        if name == nme::CONSTRUCTOR {
             return Vec::new();
         }
         let site = crate::defn::type_ref(self.u, owner);

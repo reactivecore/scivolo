@@ -5,6 +5,7 @@
 //! and the place of a member as `showLocated` shows it.
 
 use super::Typer;
+use tasty::nme;
 use tasty::tags::{OBJECT, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -18,13 +19,13 @@ impl Typer<'_> {
             Kind::Def | Kind::Val => String::new(),
             _ if self.u.is_package_object(owner) || name.starts_with("rs$line$") => {
                 let p = parent?;
-                match p == self.u.root() || self.u.symbol(p).name == "<empty>" {
+                match p == self.u.root() || self.u.symbol(p).name == nme::EMPTY_PACKAGE {
                     true => String::new(),
                     false => return None,
                 }
             }
-            Kind::Package if name == "<empty>" || owner == self.u.root() => String::new(),
-            Kind::Class if name.contains("$anon") => return None,
+            Kind::Package if name == nme::EMPTY_PACKAGE || owner == self.u.root() => String::new(),
+            Kind::Class if name.contains(nme::ANON_CLASS) => return None,
             Kind::Class if flags.has(OBJECT) => format!(" in object {}", tasty::module_name(&name)?),
             Kind::Class if flags.has(TRAIT) => format!(" in trait {name}"),
             Kind::Class if !name.contains('$') => format!(" in class {name}"),
@@ -109,6 +110,6 @@ impl Typer<'_> {
     fn is_empty_package(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         sym.kind == Kind::Package
-            && (sym.owner.is_none() || matches!(sym.name.as_str(), "" | "<empty>" | "<root>"))
+            && (sym.owner.is_none() || matches!(sym.name.as_str(), "" | nme::EMPTY_PACKAGE | "<root>"))
     }
 }

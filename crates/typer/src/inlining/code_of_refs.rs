@@ -4,6 +4,7 @@
 //! The prefixes and types of `codeOf`'s text.
 
 use super::Inlining;
+use tasty::nme;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
@@ -36,7 +37,7 @@ impl Inlining<'_> {
             Type::This(c) => {
                 let c = self.u.class_symbol(c)?;
                 let name = self.u.symbol(c).name.clone();
-                if name.starts_with("$anon") {
+                if name.starts_with(nme::ANON_CLASS) {
                     Some("this".into())
                 } else if self.u.is_module_class(c) {
                     let shown = self.u.is_static_symbol(c) && !self.u.is_package_object(c);
@@ -81,7 +82,7 @@ impl Inlining<'_> {
         let mut at = Some(s);
         while let Some(x) = at.filter(|&x| x != self.u.root()) {
             let sym = self.u.symbol(x);
-            if sym.kind == Kind::Package && sym.name == "<empty>" {
+            if sym.kind == Kind::Package && sym.name == nme::EMPTY_PACKAGE {
                 break;
             }
             names.push(sym.name.strip_suffix('$').unwrap_or(&sym.name));

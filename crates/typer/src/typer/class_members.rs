@@ -4,6 +4,7 @@
 
 use super::Typer;
 use crate::symbols::Completion;
+use tasty::nme;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -11,7 +12,7 @@ impl Typer<'_> {
     /// or the term members, of each overriding pair the one dotty's `preferSym` prefers.
     pub fn class_members(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
         let classes = self.completed_linearization(c);
-        if name == "<init>" {
+        if name == nme::CONSTRUCTOR {
             return self.u.decls_named(c, name);
         }
         self.members_of_bases(c, &classes, name, true)

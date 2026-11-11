@@ -9,7 +9,7 @@ use crate::ctx::Ctx;
 use crate::defn::type_ref;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::Type;
+use tasty::{Type, nme};
 
 impl Typer<'_> {
     /// `case ex$ => handler(ex$)` for handler expression `handler` of a `try` expecting `pt`, the
@@ -54,14 +54,14 @@ impl Typer<'_> {
             let q = tmp_ref(self);
             let cond = call(self, q, "isDefinedAt", end);
             let q = tmp_ref(self);
-            let thenp = call(self, q, "apply", end);
+            let thenp = call(self, q, nme::APPLY, end);
             let expr = ex_ref(self, end);
             let elsep = node(self, Tree::Throw { expr }, end);
             let test = node(self, Tree::If { cond, thenp, elsep: Some(elsep), inline: false }, end);
             let stats = self.ast.list(&[init]);
             node(self, Tree::Block { stats, expr: Some(test) }, whole)
         } else {
-            call(self, handler, "apply", whole)
+            call(self, handler, nme::APPLY, whole)
         };
         let pat = ex_ref(self, end);
         Ok(node(self, Tree::CaseDef { pat, guard: None, body: rhs }, whole))

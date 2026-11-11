@@ -12,7 +12,7 @@ use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe, name_kinds, nme};
 
 /// Makes `def inline$m(ps): T = C.this.m(ps)` in class `host` for `access`, or
 /// `def inline$m_=(x$0: T): Unit = C.this.m = x$0` for a setter; `None`, reported at `span`, if
@@ -33,7 +33,7 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
         return None;
     }
     let result = if access.setter {
-        let params = vec![(t.u.intern_name("x$0"), info)];
+        let params = vec![(t.u.intern_name(&name_kinds::synthetic_param(0)), info)];
         clauses.push(Clause { binder: None, params, flags: f::TERM_PARAM });
         crate::defn::type_ref(t.u, t.defn.unit)
     } else {
@@ -148,11 +148,11 @@ pub fn accessor_host(u: &mut Universe, accessed: SymbolId, owner: SymbolId) -> O
 /// have subclasses (dotty's `accessorNameOf`).
 fn accessor_name(u: &Universe, access: Access, host: SymbolId) -> String {
     let prefix = u.expanded_prefix(host);
-    let base = format!("inline${}", u.symbol(access.member).name);
+    let base = name_kinds::inline_accessor(&u.symbol(access.member).name);
     let s = u.symbol(host);
     let extensible =
-        !s.flags.has(tasty::tags::FINAL) && !u.is_module_class(host) && !s.name.starts_with("$anon");
-    let name = if extensible { format!("{prefix}$${base}") } else { base };
+        !s.flags.has(tasty::tags::FINAL) && !u.is_module_class(host) && !s.name.starts_with(nme::ANON_CLASS);
+    let name = if extensible { name_kinds::expanded(&prefix, &base) } else { base };
     if access.setter { format!("{name}_=") } else { name }
 }
 

@@ -11,6 +11,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Span, TName, Tree};
 use tasty::TypeId;
+use tasty::nme;
 
 /// Whether `name` is an assignment operator such as `+=` (dotty's `isOpAssignmentName`).
 fn is_op_assignment_name(name: &str) -> bool {
@@ -48,7 +49,7 @@ impl Typer<'_> {
             return self.typed_assign(assign, (target, rhs), Pt::Any, ctx);
         };
         let receiver = match *self.tpd.tree(fun) {
-            T::Select { qualifier, name } if self.text(name.name) == "apply" => qualifier,
+            T::Select { qualifier, name } if self.text(name.name) == nme::APPLY => qualifier,
             _ => return self.unsupported(id, "assignment operator on a call other than apply"),
         };
         let receiver = self.spliced(receiver);

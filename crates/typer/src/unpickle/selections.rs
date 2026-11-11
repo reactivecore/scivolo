@@ -8,6 +8,7 @@ use crate::defn::{ref_type, type_ref};
 use crate::signatures::params_sig;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::stability::is_stable_member;
+use tasty::nme;
 use tasty::tags::*;
 use tasty::{Kind, NodeId, SymbolId, Type, TypeId};
 
@@ -17,7 +18,7 @@ impl Unpickler<'_> {
         let tpe = self.ty(self.kids(id)[0]);
         let tpe = self.resolved(tpe);
         let name = self.tname(id, false);
-        if self.name(id) == "_" {
+        if self.name(id) == nme::WILDCARD {
             let sym = match self.u.type_ref(tpe) {
                 Some((p, n)) => self.u.resolve(p, n, true),
                 None => self.u.sym_of(tpe),
@@ -46,7 +47,10 @@ impl Unpickler<'_> {
             let name = self.tname(id, true);
             return Ok(self.bare(T::Select { qualifier: qual, name }, Some(tpe), None));
         }
-        if !is_type && found.is_empty() && name == "apply" && self.u.poly_function_apply_of(prefix).is_some()
+        if !is_type
+            && found.is_empty()
+            && name == nme::APPLY
+            && self.u.poly_function_apply_of(prefix).is_some()
         {
             let tpe = self.u.intern_type(Type::TermRef(prefix, n));
             let name = self.tname(id, false);
