@@ -376,14 +376,14 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 223 | 1144 |
-| attributes differ | 33 | 259 |
-| code differs | 229 | 1120 |
-| refused | 164 | |
+| same | 199 | 1288 |
+| attributes differ | 77 | 428 |
+| code differs | 243 | 1113 |
+| refused | 130 | |
 
-- **Refused:** `unresolved name FunctionalInterface` (87, a JDK annotation class); TASTy
-  pickling (39: an annotated sealed class 15, a type outside the subset 15);
-  member not found (13); adaptation (9); no applicable alternative (8).
+- **Refused:** `unresolved name FunctionalInterface` (87, a JDK annotation class); member not
+  found (10); adaptation (9); no applicable alternative (8); TASTy pickling (9: a reference to a
+  local definition outside the pickled trees 6, a type annotation with arguments 3).
 - **Code differs**, by first differing line: a missing `serialVersionUID` field (46), dotty's
   second `athrow` after a call of type `Nothing` (37), generic signatures of trait forwarders and
   extension methods (`compose`, `equals$extension`), field signatures (`underlying`).
