@@ -354,6 +354,14 @@ impl<'a> Lower<'a> {
         self.mixed_from.get(&m).or_else(|| self.forwarded.get(&m)).copied()
     }
 
+    /// Determines the member whose annotations `m` carries: the trait member of a mixin accessor
+    /// or forwarder (dotty's `mkForwarderSym`), the method of an extension method
+    /// (`ExtensionMethods`), else `m`.
+    pub fn annotations_holder(&self, m: SymbolId) -> SymbolId {
+        let extended = || self.extensions.iter().find(|&(_, &e)| e == m).map(|(&from, _)| from);
+        self.mixed_in_from(m).or_else(extended).unwrap_or(m)
+    }
+
     /// Whether `m` is the method of a closure a bridge returns (dotty's `Bridges.etaExpand`).
     pub fn is_bridge_closure(&self, m: SymbolId) -> bool {
         let mut from = self.lifted_from.get(&m);

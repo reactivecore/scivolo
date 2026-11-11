@@ -43,11 +43,12 @@ impl Gen<'_, '_> {
             && name.ends_with("_$eq")
             && !name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
         let erased = flags & ACC_BRIDGE != 0 || trait_init || self.l.is_lifted(sym) || mixed_setter;
+        let deprecated = self.is_deprecated(sym);
         let Some(rhs) = rhs else {
             let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;
             cf.method(flags, &name, &desc, None, &mut |a, b| self.jvm_lub(a, b));
             self.exceptions(cf, sym);
-            self.method_attributes(cf, sym, &desc, &param_syms, (erased, false));
+            self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, false));
             return Ok(());
         };
         let mut b = Body::new(&mut cf.pool, None, u16::from(!static_ || trait_init));
@@ -68,7 +69,7 @@ impl Gen<'_, '_> {
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
         self.exceptions(cf, sym);
-        self.method_attributes(cf, sym, &desc, &param_syms, (erased, trait_init));
+        self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, trait_init));
         let line = self.line_of(class_def);
         self.trait_forwarder(cf, (sym, flags), (&desc, &param_syms), line);
         Ok(())

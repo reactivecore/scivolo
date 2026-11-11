@@ -14,13 +14,17 @@ use tasty::tags::{ARTIFACT, PRIVATE};
 use tasty::{SymbolId, TypeId};
 use typer::tpd::TNodeId;
 
+/// The full name of the annotation the `Deprecated` attribute stands for.
+const DEPRECATED: &str = "scala.deprecated";
+
 impl Gen<'_, '_> {
     /// Adds to the method of `cf` added last, `sym` of descriptor `desc`, its generic signature
-    /// unless `erased`, and the names of its parameters `params`, `$this` first if `this_param`.
+    /// unless `erased`, `Deprecated` if `deprecated`, and the names of its parameters `params`,
+    /// `$this` first if `this_param`.
     pub fn method_attributes(
         &mut self,
         cf: &mut ClassFile,
-        sym: SymbolId,
+        (sym, deprecated): (SymbolId, bool),
         desc: &str,
         params: &[SymbolId],
         (erased, this_param): (bool, bool),
@@ -28,7 +32,7 @@ impl Gen<'_, '_> {
         if !erased && let Some(sig) = self.generic_signature(sym, desc) {
             cf.member_signature(Last::Method, &sig);
         }
-        if self.l.u.is_annotated(sym, "scala.deprecated") {
+        if deprecated {
             cf.member_deprecated(Last::Method);
         }
         let mut names: Vec<(String, u16)> = Vec::new();
@@ -87,6 +91,13 @@ impl Gen<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    /// Determines whether `sym` is `@deprecated` (dotty's `isDeprecated`): a field also if its
+    /// getter is, a mixin forwarder or an extension method if the member it copies is.
+    pub fn is_deprecated(&mut self, sym: SymbolId) -> bool {
+        let holders = [Some(sym), Some(self.l.annotations_holder(sym)), self.l.field_getter(sym)];
+        holders.into_iter().flatten().any(|s| self.l.u.is_annotated(s, DEPRECATED))
     }
 
     /// `ACC_TRANSIENT` and `ACC_VOLATILE` of field `field` annotated `@transient` and `@volatile`,

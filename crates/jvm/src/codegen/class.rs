@@ -61,7 +61,7 @@ impl Gen<'_, '_> {
                     if let Some(sig) = self.generic_signature(s, &desc) {
                         cf.member_signature(Last::Field, &sig);
                     }
-                    if self.l.u.is_annotated(s, "scala.deprecated") {
+                    if self.is_deprecated(s) {
                         cf.member_deprecated(Last::Field);
                     }
                     if self.l.var_handle_field(s).is_some() {
@@ -82,7 +82,7 @@ impl Gen<'_, '_> {
         }
         let signature = super::signatures::class(self.l.u, sym);
         cf.signature(&signature);
-        if self.l.u.is_annotated(sym, "scala.deprecated") {
+        if self.is_deprecated(sym) {
             cf.deprecated();
         }
         let source = self.source_name(td);
