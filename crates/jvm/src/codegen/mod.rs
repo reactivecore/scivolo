@@ -16,6 +16,7 @@ mod control;
 mod descriptors;
 mod deserialize;
 mod equality;
+mod generic_infos;
 mod jdk_statics;
 mod literals;
 mod locals;

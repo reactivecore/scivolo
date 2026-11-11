@@ -1,14 +1,15 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala
 //! Class signatures and type parameters with their bounds (dotty's `superSig`,
-//! `minimizeParents`, `polyParamSig`, `boundsSig`).
+//! `minimizeParents`, `polyParamSig`, `boundsSig`, `classSymbol`).
 
 use super::Sig;
-use tasty::{SymbolId, TypeId, Universe};
+use tasty::{SymbolId, Type, TypeId, Universe};
 
-/// The generic signature of class `c`: its type parameters and parents.
-pub fn class(u: &mut Universe, c: SymbolId) -> String {
-    let mut s = Sig::new(u, c);
+/// Builds the generic signature of class `c` within top-level class `top` before local classes
+/// were lifted: its type parameters and parents.
+pub fn class(u: &mut Universe, c: SymbolId, top: SymbolId) -> String {
+    let mut s = Sig::new(u, c, top);
     let params: Vec<(String, TypeId)> =
         (s.u.type_params(c).into_iter()).map(|p| (tasty::encode(&s.u.symbol(p).name), s.u.info(p))).collect();
     s.type_params(&params);
@@ -34,7 +35,39 @@ pub fn class(u: &mut Universe, c: SymbolId) -> String {
     s.out
 }
 
+/// How many lambdas, intersections and refined type members `Sig::class_of` follows.
+const MAX_BOUNDS: u32 = 32;
+
 impl Sig<'_> {
+    pub fn is_trait(&mut self, t: TypeId) -> bool {
+        self.class_of(t, MAX_BOUNDS).is_some_and(|c| self.u.is_trait(c))
+    }
+
+    /// The class `t` stands for (dotty's `classSymbol`): of a type lambda its result's, of an
+    /// intersection the side deriving from the other, of a type member of a refinement its
+    /// bound's; `depth` bounds the members followed.
+    fn class_of(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
+        let depth = depth.checked_sub(1)?;
+        let t = self.u.dealias(t);
+        let unresolved = self.u.resolve_ref(t).is_none();
+        match *self.u.ty(t) {
+            Type::Lambda { result, .. } | Type::Bounds(_, result) => self.class_of(result, depth),
+            Type::And(a, b) => {
+                let (a, b) = (self.class_of(a, depth)?, self.class_of(b, depth)?);
+                match (self.u.derives_from(a, b), self.u.derives_from(b, a)) {
+                    (true, _) => Some(a),
+                    (_, true) => Some(b),
+                    _ => None,
+                }
+            }
+            Type::TypeRef(p, n) if unresolved => {
+                let info = self.u.refinement_named(p, n)?;
+                self.class_of(info, depth)
+            }
+            _ => self.u.class_symbol(t),
+        }
+    }
+
     /// Type parameters by name and bounds, `<A:…;B::…;>`.
     pub fn type_params(&mut self, params: &[(String, TypeId)]) {
         if params.is_empty() {

@@ -71,8 +71,9 @@ impl Gen<'_, '_> {
             let info = unflattened.unwrap_or_else(|| self.l.u.member_info(this, target));
             self.exceptions(cf, m);
             let thrown = self.thrown(m);
+            let member = self.signed_member(target, target);
             if !self.l.is_mixin_accessor(m)
-                && let Some(sig) = super::signatures::member(self.l.u, (target, target), info, &desc, &thrown)
+                && let Some(sig) = super::signatures::member(self.l.u, member, info, &desc, &thrown)
                 && (unflattened.is_some() || super::signatures::erases_to(&sig, &desc))
             {
                 cf.member_signature(Last::Method, &sig);

@@ -7,6 +7,7 @@ mod classes;
 mod methods;
 mod needed;
 mod refs;
+mod values;
 
 pub use classes::class;
 pub use needed::erases_to;
@@ -26,7 +27,10 @@ struct Sig<'u> {
     sym0: SymbolId,
     /// The trait member a mixin forwarder `sym0` forwards to, else `sym0`.
     origin: SymbolId,
-    top: Option<SymbolId>,
+    /// The value class of an extension method `sym0`, whose type parameters it takes first.
+    extended: Option<SymbolId>,
+    /// The top-level classes `sym0` is in, after and before local classes were lifted.
+    tops: [SymbolId; 2],
     field: bool,
     constructor: bool,
     /// The method type parameters in scope: their binder, names and bounds.
@@ -34,21 +38,28 @@ struct Sig<'u> {
     out: String,
 }
 
-/// The generic signature of method or field `sym`, forwarding to `origin`, of type `info`,
-/// descriptor `desc` and thrown exception types `thrown`; none if it equals `desc`.
-pub fn member(
-    u: &mut Universe,
-    (sym, origin): (SymbolId, SymbolId),
-    info: TypeId,
-    desc: &str,
-    thrown: &[TypeId],
-) -> Option<String> {
+/// A method or field a generic signature is made for.
+#[derive(Clone, Copy)]
+pub struct Member {
+    pub sym: SymbolId,
+    /// The trait member a mixin forwarder `sym` forwards to, else `sym`.
+    pub origin: SymbolId,
+    /// The value class of an extension method `sym`.
+    pub extended: Option<SymbolId>,
+    /// The top-level class `sym` is in, before local classes were lifted.
+    pub top: SymbolId,
+}
+
+/// Builds the generic signature of `m` of type `info`, descriptor `desc` and thrown exception
+/// types `thrown`; none if it equals `desc`.
+pub fn member(u: &mut Universe, m: Member, info: TypeId, desc: &str, thrown: &[TypeId]) -> Option<String> {
     if !needed::may_need(u, info) {
         return None;
     }
     let method = desc.starts_with('(');
-    let mut s = Sig::new(u, sym);
-    s.origin = origin;
+    let mut s = Sig::new(u, m.sym, m.top);
+    s.origin = m.origin;
+    s.extended = m.extended;
     s.field = !method;
     match *s.u.ty(info) {
         Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => s.jsig(info, true, Boxing::Unbox),
@@ -66,14 +77,15 @@ pub fn member(
 }
 
 impl<'u> Sig<'u> {
-    fn new(u: &'u mut Universe, sym0: SymbolId) -> Sig<'u> {
-        let mut top = Some(sym0);
-        while let Some(o) = top.and_then(|t| u.symbol(t).owner).filter(|&o| u.symbol(o).kind != Kind::Package)
-        {
-            top = Some(o);
+    fn new(u: &'u mut Universe, sym0: SymbolId, original_top: SymbolId) -> Sig<'u> {
+        let mut top = sym0;
+        while let Some(o) = u.symbol(top).owner.filter(|&o| u.symbol(o).kind != Kind::Package) {
+            top = o;
         }
         let constructor = u.is_constructor(sym0);
-        Sig { u, sym0, origin: sym0, top, field: false, constructor, poly: Vec::new(), out: String::new() }
+        let (origin, extended, poly, out) = (sym0, None, Vec::new(), String::new());
+        let tops = [top, original_top];
+        Sig { u, sym0, origin, extended, tops, field: false, constructor, poly, out }
     }
 
     fn boxed(&mut self, t: TypeId) {
@@ -90,10 +102,6 @@ impl<'u> Sig<'u> {
             }
             _ => parts.push(t),
         }
-    }
-
-    fn is_trait(&mut self, t: TypeId) -> bool {
-        self.u.class_symbol(t).is_some_and(|c| self.u.is_trait(c))
     }
 
     fn result(&mut self, t: TypeId) {
@@ -185,7 +193,7 @@ impl<'u> Sig<'u> {
         }
         let mut o = Some(s);
         while let Some(x) = o {
-            if Some(x) == self.top || x == self.sym0 || x == self.origin {
+            if self.tops.contains(&x) || x == self.sym0 || x == self.origin || Some(x) == self.extended {
                 return Some(s);
             }
             o = self.u.symbol(x).owner;
