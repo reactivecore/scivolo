@@ -19,6 +19,7 @@ impl OverrideChecks {
     pub fn name_clash(&self, t: &mut Typer<'_>) -> Option<&'static str> {
         let decls = t.u.symbol(self.cls).decls.clone();
         let own: Vec<SymbolId> = decls.into_iter().filter(|&d| at_run_time(t.u, d)).collect();
+        own.iter().for_each(|&d| t.complete_erased_classes(d));
         for (k, &a) in own.iter().enumerate() {
             for &b in &own[..k] {
                 if t.u.symbol(a).run_name() == t.u.symbol(b).run_name()
@@ -45,6 +46,7 @@ impl OverrideChecks {
                         continue;
                     }
                     t.complete(m);
+                    t.complete_erased_classes(m);
                     if t.u.erased_method(m) == t.u.erased_method(d)
                         && (!same_name || !t.u.info_matches(self.site, d, m))
                     {
