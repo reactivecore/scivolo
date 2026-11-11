@@ -4,8 +4,8 @@
 
 use tasty::{Kind, Type, TypeId, Universe};
 
-/// Whether `t` names more than `Any`, `AnyRef`, `String` and primitive classes (dotty's
-/// `mayNeedSignature`).
+/// Whether `t` names more than `Any`, `AnyRef`, `String` and primitive classes, a by-name
+/// parameter `Function0` (dotty's `mayNeedSignature` after `ElimByName`).
 pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
     const PLAIN: [&str; 12] = [
         "scala.Any",
@@ -28,7 +28,7 @@ pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
             return may_need(u, result)
                 || (0..u.params_of(params).len()).any(|i| {
                     let p = u.params_of(params)[i].1;
-                    may_need(u, p)
+                    matches!(u.ty(p), Type::ByName(_)) || may_need(u, p)
                 });
         }
         Type::Sym(_, s) => Some(s),

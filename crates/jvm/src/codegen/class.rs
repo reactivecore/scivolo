@@ -71,7 +71,12 @@ impl Gen<'_, '_> {
                         init.handles.push(s);
                     }
                 }
-                Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => nested.push(stat),
+                Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => {
+                    if module {
+                        self.module_field(&mut cf, s);
+                    }
+                    nested.push(stat)
+                }
                 Tree::TypeDef { .. } | Tree::Import { .. } => {}
                 _ => return unsupported(self.l.tpd.span(stat), "statements in a class body"),
             }
@@ -138,6 +143,17 @@ impl Gen<'_, '_> {
             interfaces.push(serializable.into());
         }
         (superclass, interfaces)
+    }
+
+    /// Declares the static field of nested object `c` of a static object, which stays unassigned
+    /// (dotty's `isStaticModuleField` for the module val).
+    fn module_field(&mut self, cf: &mut ClassFile, c: SymbolId) {
+        if !self.l.u.is_module_class(c) {
+            return;
+        }
+        let Some(module) = self.l.u.source_module(c) else { return };
+        let name = tasty::encode(&self.l.u.symbol(module).name.clone());
+        cf.field(java_flags(self.l, module) | ACC_STATIC, &name, &class_descriptor(&self.class_name(c)));
     }
 
     pub fn class_name(&self, c: SymbolId) -> String {

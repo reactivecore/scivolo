@@ -103,7 +103,8 @@ impl Gen<'_, '_> {
             || owner.is_some_and(|o| self.l.u.symbol(o).kind.is_term())
     }
 
-    /// The method local class `c` is defined in, if it is in one and not in a field's initializer.
+    /// The method local class `c` is defined in, the getter of a field whose initializer defines
+    /// it, if any.
     fn enclosing_method(&self, c: SymbolId) -> Option<SymbolId> {
         let mut s = self.l.original_owner(c)?;
         loop {
@@ -111,6 +112,11 @@ impl Gen<'_, '_> {
                 Kind::Class | Kind::Package => return None,
                 Kind::Def if !self.l.u.symbol(s).flags.has(tasty::tags::SYNTHETIC) => {
                     return Some(self.l.lifted_method(s));
+                }
+                Kind::Val
+                    if self.l.has_getter(s) && !self.l.u.symbol(s).flags.has(tasty::tags::SYNTHETIC) =>
+                {
+                    return Some(s);
                 }
                 _ => s = self.l.original_owner(s)?,
             }

@@ -13,7 +13,7 @@ use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result};
 use rustc_hash::FxHashMap;
-use tasty::tags::{FINAL, PRIVATE, STATIC};
+use tasty::tags::{ARTIFACT, FINAL, PRIVATE, STATIC};
 use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -37,6 +37,10 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
             false => params.iter().map(|&(p, t)| (l.u.interned_name(p), t)).collect(),
         };
         let mut method = define(l, home(l, class, f), &name, &f.captured, &params, result, f.instance());
+        if l.u.symbol(f.sym).flags.has(ARTIFACT) {
+            let flags = l.u.symbol(method.sym).flags.with(ARTIFACT);
+            l.u.set_flags(method.sym, flags);
+        }
         if bunched {
             method.all_args = Some(super::bunched::define(l, method.sym));
         }
