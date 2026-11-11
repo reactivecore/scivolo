@@ -7,6 +7,7 @@
 use super::array_wraps::{array_of, repeated_array, seq_value, wrap_array, wrap_seq};
 use super::walk::try_walk_class;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
@@ -87,7 +88,7 @@ fn to_array(l: &mut Lower, seq: TNodeId, elem: TypeId, span: Span) -> Result<TNo
         let module = l.u.decls_named(runtime, "Arrays");
         let module = module.into_iter().find(|&m| l.u.is_module(m));
         let class = module.and_then(|m| l.u.module_class(m));
-        let method = class.and_then(|c| l.u.decls_named(c, "seqToArray").first().copied());
+        let method = class.and_then(|c| l.u.decls_named(c, nme::SEQ_TO_ARRAY).first().copied());
         let (Some(module), Some(method)) = (module, method) else {
             return unsupported(span, "scala.runtime.Arrays.seqToArray missing from the library");
         };

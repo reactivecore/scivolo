@@ -6,6 +6,7 @@
 //! parameters, sequence literals and arrays ascribed a repeated type outside arguments.
 
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::{Kind, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -81,7 +82,7 @@ pub fn array_of(l: &mut Lower, elem: TypeId) -> TypeId {
 fn wrapper(l: &mut Lower, elem: TypeId) -> String {
     let elem = l.u.dealias(elem);
     let Some(class) = l.u.class_symbol(elem).filter(|&c| l.u.symbol(c).kind == Kind::Class) else {
-        return "genericWrapArray".into();
+        return nme::GENERIC_WRAP_ARRAY.into();
     };
     let name = l.u.full_name(class);
     if let Some(p) = name.strip_prefix("scala.").filter(|p| PRIMITIVES.contains(p)) {
@@ -89,5 +90,5 @@ fn wrapper(l: &mut Lower, elem: TypeId) -> String {
     }
     let value_class = l.u.defn().any_val.is_some_and(|v| l.u.derives_from(class, v));
     let generic = value_class || NOT_RUNTIME.contains(&name.as_str());
-    if generic { "genericWrapArray" } else { "wrapRefArray" }.into()
+    if generic { nme::GENERIC_WRAP_ARRAY } else { nme::WRAP_REF_ARRAY }.into()
 }

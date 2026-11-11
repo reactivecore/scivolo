@@ -7,9 +7,10 @@
 use super::Quoted;
 use super::reflect::{Reflect, call};
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Kind, SymbolId, name_kinds, nme};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes quote application `t` in `owner` of literal `lit` the call lifting the literal's value.

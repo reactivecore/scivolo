@@ -6,9 +6,10 @@
 use super::avoid::avoided;
 use crate::Lower;
 use crate::definitions::symbol;
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
-use tasty::{Flags, Kind, SymbolId, TypeId, name_kinds, nme};
+use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `Expr.splice[T]((x$0: Quotes) ?=> body)` in `owner`, `body` made from a reference to `x$0`

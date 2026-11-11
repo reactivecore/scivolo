@@ -5,7 +5,8 @@
 
 use super::casts::class_named;
 use crate::Lower;
-use tasty::{Erased, SymbolId, TypeId, nme};
+use names::nme;
+use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The function class of the `apply` of polymorphic function type `t`, or of the one `t` is

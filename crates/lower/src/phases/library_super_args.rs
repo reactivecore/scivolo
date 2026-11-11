@@ -5,10 +5,11 @@
 
 use crate::Lower;
 use crate::definitions::symbol;
+use names::{name_kinds, nme};
 use tasty::tags::{
     APPLY, BLOCK, DEFDEF, LAMBDA, NEW, PARAM, SPLITCLAUSE, SYNTHETIC, TEMPLATE, TYPEAPPLY, TYPEPARAM,
 };
-use tasty::{Ast, Flags, Kind, NodeId, SymbolId, name_kinds, nme};
+use tasty::{Ast, Flags, Kind, NodeId, SymbolId};
 
 /// `C$superArg$N` in `class` for the `N`th argument defining a method member class `C` passes to
 /// its superclass constructor, of the type of the constructor of `C` with the function class of

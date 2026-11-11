@@ -11,9 +11,10 @@ use super::references_outer::references_outer;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, name_kinds};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {

@@ -11,8 +11,9 @@ use crate::phases::eval_once::{eval_once_as, is_idempotent};
 use crate::phases::literals::is_wildcard;
 use crate::phases::tree_copy::{Copier, copy};
 use crate::phases::vc_elide::elided;
+use names::nme;
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId, nme};
+use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `adapt` of `t` of erased type `from`, value classes boxed into references and unboxed from

@@ -5,9 +5,10 @@
 
 use super::beta_reduce::application;
 use crate::{Lower, Result};
+use names::nme;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, nme};
+use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree, Walk, traverse_up};
 
 /// Reduces the placeholders of inline extractors in unit `root`; the class definitions dropped.

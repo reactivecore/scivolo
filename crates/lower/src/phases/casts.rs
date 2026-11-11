@@ -8,6 +8,7 @@ use super::function_classes::{erased_derives, erased_function_class};
 use super::mixin::is_jdk;
 use crate::Lower;
 use crate::definitions::{Known, type_ref};
+use names::{name_kinds, nme};
 use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -19,7 +20,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, to: &Erased) -> TNodeId {
         (Erased::Array(e), Erased::Array(p)) if prim(&e) && !prim(p) => {
             let module = l.scala_run_time().expect("`ScalaRunTime`");
             let class = l.u.module_class(module).expect("ScalaRunTime's class");
-            let method = l.u.decls_named(class, "toObjectArray");
+            let method = l.u.decls_named(class, nme::TO_OBJECT_ARRAY);
             let method = *method.first().expect("`ScalaRunTime.toObjectArray`");
             super::adapt::converted(l, t, module, method)
         }
@@ -106,7 +107,7 @@ pub fn class_named(l: &mut Lower, name: &str) -> Option<SymbolId> {
         Some((pkg, rest)) => (l.u.package(pkg)?, rest),
         None => (l.u.package("")?, name),
     };
-    if let Some((prefix, _)) = rest.split_once(&tasty::name_kinds::EXPAND_SEPARATOR.repeat(2)) {
+    if let Some((prefix, _)) = rest.split_once(&name_kinds::EXPAND_SEPARATOR.repeat(2)) {
         let tops = l.u.symbol(pkg).decls.clone().into_iter().filter(|&c| l.u.is_class(c));
         let tops: Vec<SymbolId> = tops
             .filter(|&c| {

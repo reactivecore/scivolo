@@ -5,10 +5,11 @@
 use super::lazy_vals::Lazy;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::tags::{MUTABLE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, constant_type_of};
 
 pub fn object(l: &mut Lower) -> TypeId {

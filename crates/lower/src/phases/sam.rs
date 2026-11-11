@@ -9,7 +9,8 @@
 use super::local_outer::needs_outer_if_referenced;
 use crate::Lower;
 use crate::definitions::type_ref;
-use tasty::{Erased, Kind, SymbolId, Type, name_kinds, nme};
+use names::{name_kinds, nme};
+use tasty::{Erased, Kind, SymbolId, Type};
 
 /// The abstract methods of `class`, inherited ones too, but those of `Object`: of each name and
 /// erased parameters, the one of the first base declaring it, but those a method of an earlier

@@ -9,9 +9,10 @@ use super::local_free::{enclosing_class, is_term, within};
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::PRIVATE;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Passes the enclosing instance to each `new C` in class definition `td` of a class `C` that

@@ -1,5 +1,6 @@
 use super::member;
-use tasty::{Kind, SymbolId, Universe, nme};
+use names::nme;
+use tasty::{Kind, SymbolId, Universe};
 
 /// What `ArrayApply` builds lists from: `Nil` and `::`.
 #[derive(Clone, Copy)]

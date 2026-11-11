@@ -394,3 +394,31 @@ pub const PACKAGE: &str = "package";
 pub const REPL_ASSIGN_SUFFIX: &str = "$assign";
 /// The prefix `res` of the values the REPL binds expressions to.
 pub const REPL_RES_PREFIX: &str = "res";
+/// The name `acc`.
+pub const ACC: &str = "acc";
+/// The name `arity`.
+pub const ARITY: &str = "arity";
+/// The name `asTerm`.
+pub const AS_TERM: &str = "asTerm";
+/// The name `asType`.
+pub const AS_TYPE: &str = "asType";
+/// The name `contents`.
+pub const CONTENTS: &str = "contents";
+/// The name `ex`.
+pub const EX: &str = "ex";
+/// The name `format`.
+pub const FORMAT: &str = "format";
+/// The name `idx`.
+pub const IDX: &str = "idx";
+/// The name `key`.
+pub const KEY: &str = "key";
+/// The name `parts`.
+pub const PARTS: &str = "parts";
+/// The name `processEscapes`.
+pub const PROCESS_ESCAPES: &str = "processEscapes";
+/// The name `quotes`.
+pub const QUOTES: &str = "quotes";
+/// The name `reflect`.
+pub const REFLECT: &str = "reflect";
+/// The name `standardInterpolator`.
+pub const STANDARD_INTERPOLATOR: &str = "standardInterpolator";

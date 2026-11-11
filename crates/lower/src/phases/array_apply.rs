@@ -8,9 +8,10 @@ use super::array_literals::array_literal;
 use super::casts::cast;
 use super::walk::children;
 use crate::{Lower, Result};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId, nme};
+use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Rewrites the array and sequence constructions in class definitions `classes`; lifted lambdas
@@ -144,7 +145,7 @@ pub fn wrapped_literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::SeqLiteral { elems, .. } = *l.tpd.tree(literal) else { return None };
     let name = &l.u.symbol(m).name;
     let wrap = name.starts_with("wrap") && name.ends_with("Array");
-    let generic = name == "genericWrapArray" && l.tpd.items(elems).is_empty();
+    let generic = name == nme::GENERIC_WRAP_ARRAY && l.tpd.items(elems).is_empty();
     (wrap || generic).then_some(literal)
 }
 

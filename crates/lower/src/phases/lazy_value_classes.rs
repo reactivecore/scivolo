@@ -5,8 +5,9 @@
 
 use crate::definitions::type_ref;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
-use tasty::{SymbolId, TypeId, nme};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The value class of `info`, its underlying value and that value's type, if `info` is one.

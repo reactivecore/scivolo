@@ -6,9 +6,10 @@
 
 use super::first_transform::{is_literal, is_pure, literal, through};
 use crate::Lower;
+use names::nme;
 use rustc_hash::FxHashSet;
 use tasty::tags::CLASSconst;
-use tasty::{SymbolId, Type, nme};
+use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes `pre.getClass()` of a class constant type the constant, after `pre` unless `pre` is a

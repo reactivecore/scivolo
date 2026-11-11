@@ -13,9 +13,10 @@ use super::outer_args::declare_library;
 use super::trait_fields::{forwarder, implemented_by};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
+use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, LAZY};
-use tasty::{SymbolId, name_kinds, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// Whether class `class` gets a lazy value for member `getter` of a trait of the unit.

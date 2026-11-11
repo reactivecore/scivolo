@@ -9,9 +9,10 @@ use super::reflect::{Reflect, call};
 use super::tags::{TAG_PATH, encode, tag_ref};
 use super::{pickled, types, unpickled};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::defn::TYPE_OF;
-use tasty::{SymbolId, Type, nme};
+use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// A type quote: `Type.of[body]`, the type application the typer recorded the tags of, and the
@@ -76,7 +77,7 @@ pub fn pickle(l: &mut Lower, t: TNodeId, q: TypeQuote, owner: SymbolId) -> Resul
 fn tagged(l: &mut Lower, q: &TypeQuote, owner: SymbolId) -> Result<TNodeId> {
     let tpe = l.tpd.tpe(q.body);
     let reflect = Reflect { quotes: q.quotes, owner };
-    let as_type = reflect.method(l, "TypeReprMethods", "asType")?;
+    let as_type = reflect.method(l, "TypeReprMethods", nme::AS_TYPE)?;
     let of = reflect.method(l, "TypeRepr", "typeConstructorOf")?;
     let predef = l.u.class_ref("scala.Predef$");
     let predef = l.u.class_symbol(predef).expect("Predef");

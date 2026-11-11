@@ -9,9 +9,10 @@ use super::mirror_prefixes::new_seen_from;
 use super::mirrors::has_mirror_method;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, name_kinds, nme};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `def fromProduct(x$0: Product): M = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C[Ts](a$1, ...) }`
@@ -31,7 +32,7 @@ pub fn from_product(
     let binder = l.u.fresh_binder();
     let x0 = l.u.intern_name(&name_kinds::synthetic_param(0));
     let info = l.u.intern_method(binder, &[(x0, product)], mono, false, false);
-    let like = l.u.decls_named(cc.mirror_product, "fromProduct");
+    let like = l.u.decls_named(cc.mirror_product, nme::FROM_PRODUCT);
     let like = like.into_iter().next().expect("`Mirror.Product.fromProduct`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
@@ -53,7 +54,7 @@ pub fn from_product(
             let rhs = l.select(product_ref, cc.product_arity, Span::NONE);
             let rhs = l.positioned(rhs);
             let int = l.u.widen(l.tpd.tpe(rhs));
-            let (def, binding) = val_def(l, class, "arity", int, rhs);
+            let (def, binding) = val_def(l, class, nme::ARITY, int, rhs);
             locals.push(binding);
             defs.push(def);
             arity = Some(binding);
@@ -72,7 +73,7 @@ pub fn from_product(
             let mut element = l.call(product_ref, cc.product_element, &[index]);
             if let Some(arity) = arity.filter(|_| i >= unrolled_from) {
                 let (arity, index) = (l.ident(arity, Span::NONE), l.int_literal(i as i32));
-                let gt = l.operator(arity, ">", index).expect("`Int.>(Int)`");
+                let gt = l.operator(arity, nme::GT, index).expect("`Int.>(Int)`");
                 let cond = l.call(arity, gt, &[index]);
                 let module = l.ident(module, Span::NONE);
                 let default = l.select(module, getters[i - unrolled_from], Span::NONE);

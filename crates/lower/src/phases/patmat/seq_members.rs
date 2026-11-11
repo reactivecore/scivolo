@@ -6,7 +6,8 @@
 //! `lengthCompare(Int): Int` or `length: Int`; the length test's member.
 
 use super::Translator;
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use names::nme;
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// The members of a sequence-like type a sequence match calls.
 pub struct SeqMembers {
@@ -33,15 +34,15 @@ impl Translator<'_, '_> {
         let conforms = |t: &mut Self, r| t.l.u.is_subtype(r, seq);
         let is_int = |t: &mut Self, r| t.l.u.is_class_named(r, tasty::defn::INT);
         if self.seq_member(tpe, nme::LENGTH_COMPARE, is_int).is_none() {
-            self.seq_member(tpe, "length", is_int)?;
+            self.seq_member(tpe, nme::LENGTH, is_int)?;
         }
         let (length, result) = match self.seq_member(tpe, nme::LENGTH_COMPARE, |_, _| true) {
             Some(found) => found,
-            None => self.seq_member(tpe, "length", is_int)?,
+            None => self.seq_member(tpe, nme::LENGTH, is_int)?,
         };
         let int_length = is_int(self, result);
-        let (drop, _) = self.seq_member(tpe, "drop", conforms)?;
-        let (to_seq, _) = self.seq_member(tpe, "toSeq", conforms)?;
+        let (drop, _) = self.seq_member(tpe, nme::DROP, conforms)?;
+        let (to_seq, _) = self.seq_member(tpe, nme::TO_SEQ, conforms)?;
         Some(SeqMembers { apply, drop, to_seq, length, int_length })
     }
 
@@ -78,7 +79,7 @@ impl Translator<'_, '_> {
                     continue;
                 }
                 let shape = match name {
-                    "toSeq" | "length" => params.is_none(),
+                    nme::TO_SEQ | nme::LENGTH => params.is_none(),
                     _ => params.is_some_and(|p| {
                         let p = self.l.u.params_of(p);
                         p.len() == 1 && self.l.u.class_symbol(p[0].1) == int

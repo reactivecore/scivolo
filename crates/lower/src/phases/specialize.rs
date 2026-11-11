@@ -11,10 +11,11 @@ use super::walk::{subtrees, walk_class_up};
 use crate::definitions::{specialized_apply, symbol};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, PRIVATE, SYNTHETIC};
-use tasty::{Erased, Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Erased, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Specializes the `apply` methods of class definition `td` and the calls of functions' `apply`

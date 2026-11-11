@@ -9,9 +9,10 @@ use crate::definitions::symbol;
 use crate::phases::lazy_trees::{block, call, dup, eq, field_ref, if_, unit};
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, TypeId, name_kinds};
+use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The field, the flag if any and the accessor definition `stat` of lazy value `lazy`, the

@@ -25,6 +25,7 @@ pub use interfaces::{procedure, specialized, specialized_applies, specialized_ap
 pub use known::Known;
 pub use lazy_vals::LazyVals;
 pub use monitors::Monitors;
+use names::nme;
 pub use partial_functions::PartialFunctions;
 pub use patmat::Patmat;
 pub use primitives::{Primitive, boxed_class, primitive_class_name};
@@ -33,7 +34,7 @@ pub use resolved::Serialization;
 pub use sequences::Sequences;
 use std::cell::Cell;
 pub use strings::Strings;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe, nme};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 pub use tuples::{specialized_accessor, specialized_tuple_ctor, tuple_tags};
 
 pub struct Definitions {
@@ -87,17 +88,17 @@ impl Definitions {
         let boolean = member(u, b.scala, "Boolean", Kind::Class)?;
         Ok(Definitions {
             boolean,
-            as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
-            is_instance_of: member(u, b.any, "isInstanceOf", Kind::Def)?,
-            type_test: member(u, b.any, "$isInstanceOf$", Kind::Def)?,
-            type_cast: member(u, b.any, "$asInstanceOf$", Kind::Def)?,
-            any_eq: member(u, b.any, "==", Kind::Def)?,
-            any_ne: member(u, b.any, "!=", Kind::Def)?,
-            ne: member(u, b.object, "ne", Kind::Def)?,
-            eq: member(u, b.object, "eq", Kind::Def)?,
+            as_instance_of: member(u, b.any, nme::AS_INSTANCE_OF, Kind::Def)?,
+            is_instance_of: member(u, b.any, nme::IS_INSTANCE_OF, Kind::Def)?,
+            type_test: member(u, b.any, nme::IS_INSTANCE_OF_PM, Kind::Def)?,
+            type_cast: member(u, b.any, nme::AS_INSTANCE_OF_PM, Kind::Def)?,
+            any_eq: member(u, b.any, nme::EQ, Kind::Def)?,
+            any_ne: member(u, b.any, nme::NE, Kind::Def)?,
+            ne: member(u, b.object, nme::REF_NE, Kind::Def)?,
+            eq: member(u, b.object, nme::REF_EQ, Kind::Def)?,
             synchronized: member(u, b.object, nme::SYNCHRONIZED, Kind::Def)?,
             object_clone: member(u, b.object, nme::CLONE, Kind::Def)?,
-            and: member(u, boolean, "&&", Kind::Def)?,
+            and: member(u, boolean, nme::ZAND, Kind::Def)?,
             boxed_unit_unit: defined::boxed_unit_unit(u, runtime),
             boxed_unit_method: member(u, runtime, "BoxedUnit$", Kind::Class)
                 .and_then(|statics| member(u, statics, "UNIT", Kind::Def))

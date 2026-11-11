@@ -6,6 +6,7 @@
 use super::Gen;
 use super::externs::unboxed;
 use crate::{Result, unsupported};
+use names::nme;
 use nir::sig::{Scope, Sig};
 use nir::{Op, Type, TypeId, ValId};
 use syntax::ast::Span;
@@ -14,7 +15,7 @@ use typer::tpd::{TNodeId, Tree};
 /// Whether class `owner`, a full name, and method `name` are `CFuncPtrN.apply`.
 pub fn is_func_ptr_apply(owner: &str, name: &str) -> bool {
     let arity = owner.strip_prefix("scala.scalanative.unsafe.CFuncPtr").and_then(|n| n.parse::<u8>().ok());
-    name == "apply" && arity.is_some_and(|n| n <= 22)
+    name == nme::APPLY && arity.is_some_and(|n| n <= 22)
 }
 
 impl Gen<'_, '_> {

@@ -10,10 +10,11 @@ use super::trait_fields::{mixed_in, trait_defs};
 use crate::definitions::specialized_applies;
 use crate::symbols::{beyond_jdk_view, has};
 use crate::{Lower, Result, unsupported};
+use names::name_kinds;
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, INLINE, PRIVATE, STATIC};
-use tasty::{Kind, SymbolId, Type, TypeId, name_kinds};
+use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether member `s` has a body: in its TASTy for the library's, else unless deferred.

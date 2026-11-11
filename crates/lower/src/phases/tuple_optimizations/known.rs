@@ -9,8 +9,9 @@ use crate::Lower;
 use crate::definitions::applied;
 use crate::phases::eval_once::{eval_once, is_stable_path};
 use crate::phases::tree_copy::{Copier, copy};
+use names::nme;
 use syntax::ast::Span;
-use tasty::{SymbolId, TypeId, nme};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A value evaluated once (dotty's `evalOnce`): the expression itself if it is idempotent, else
@@ -124,7 +125,7 @@ pub fn from_iterator(l: &mut Lower, size: usize, it: &mut Once) -> Option<TNodeI
 
 /// `it.next()`.
 pub fn next(l: &mut Lower, it: &mut Once) -> Option<TNodeId> {
-    let next = class_member(l, "scala.collection.Iterator", "next")?;
+    let next = class_member(l, "scala.collection.Iterator", nme::NEXT)?;
     let qual = it.get(l);
     Some(l.call(qual, next, &[]))
 }

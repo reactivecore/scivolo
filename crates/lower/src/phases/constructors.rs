@@ -11,8 +11,9 @@ use super::initializers::constructor_params;
 use super::memoize::bottom;
 use super::param_forwarding::is_forwarder;
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
-use tasty::{SymbolId, name_kinds, nme};
+use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {

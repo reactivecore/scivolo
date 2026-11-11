@@ -8,8 +8,9 @@
 
 use crate::Lower;
 use crate::symbols::has;
+use names::{name_kinds, nme};
+use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, LOCAL, PRIVATE};
-use tasty::{SymbolId, name_kinds, nme};
 
 /// The name of trait `trait_`'s setter of value `x`: `T$_setter_$x_=`, `T` the names of the
 /// trait and its owners joined by `$`.

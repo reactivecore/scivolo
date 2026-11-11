@@ -8,9 +8,10 @@ use super::casts::class_named;
 use crate::Lower;
 use crate::definitions::primitive_class_name;
 use crate::symbols::has;
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
-use tasty::{Erased, Kind, SymbolId, nme};
+use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `t` without the allocation of a value class it undoes at once.
@@ -75,7 +76,7 @@ fn equal_values(l: &mut Lower, a: TNodeId, b: TNodeId) -> TNodeId {
         _ => None,
     };
     let class = name.and_then(|n| class_named(l, &n));
-    let ops = class.map(|c| l.u.decls_named(c, "==")).unwrap_or_default();
+    let ops = class.map(|c| l.u.decls_named(c, nme::EQ)).unwrap_or_default();
     let op = ops.into_iter().find(|&m| l.u.erased_method(m).0 == [eb.clone()]);
     l.call(a, op.unwrap_or(l.defs.any_eq), &[b])
 }

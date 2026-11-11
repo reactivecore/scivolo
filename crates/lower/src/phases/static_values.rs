@@ -7,9 +7,10 @@
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, name_kinds, nme};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Makes the `@static` values among `stats` of object class `module` with template body `body`

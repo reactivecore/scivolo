@@ -7,8 +7,9 @@ use super::erased_context_results::is_erased_context_function;
 use super::function_classes::function_class_arity;
 use super::walk::subtrees;
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use rustc_hash::{FxHashMap, FxHashSet};
-use tasty::{Kind, SymbolId, Type, TypeId, name_kinds, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A flattened method: its symbol, its original parameter clauses, how many closures.

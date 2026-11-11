@@ -9,8 +9,9 @@ use super::getters::is_const_final;
 use crate::Lower;
 use crate::definitions::symbol;
 use crate::symbols::has;
+use names::name_kinds;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, TypeId, name_kinds};
+use tasty::{Flags, Kind, SymbolId, TypeId};
 
 /// Gives the concrete values of library trait `trait_` their getters and setters, once.
 pub fn prepare(l: &mut Lower, trait_: SymbolId) {

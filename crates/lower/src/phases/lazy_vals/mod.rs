@@ -16,10 +16,11 @@ use crate::definitions::{LazyVals, symbol};
 use crate::symbols::has;
 use crate::{Lower, Result};
 use accessor::accessor_body;
+use names::name_kinds;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, name_kinds};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A lazy value's field: its class, the field, its accessor and the accessor's definition span

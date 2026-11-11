@@ -4,8 +4,8 @@
 //! is `true`, `false || y` is `y`.
 
 use crate::Lower;
+use names::nme;
 use syntax::ast::constant::Constant;
-use tasty::nme;
 use typer::tpd::{TNodeId, Tree};
 
 /// Replaces `t` by the operand it reduces to, if it is `&&` or `||` on a boolean literal.

@@ -8,9 +8,10 @@ use super::anon_class::{class_symbol, def, instance, param};
 use super::sam::abstract_methods;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, SYNTHETIC};
-use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes lambda block `block`, of method definition `fn_def` of `anon`, implementing class type

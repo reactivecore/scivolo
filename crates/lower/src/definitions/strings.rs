@@ -1,5 +1,6 @@
 use super::member;
-use tasty::{Erased, Kind, SymbolId, Universe, nme};
+use names::nme;
+use tasty::{Erased, Kind, SymbolId, Universe};
 
 /// What string concatenation calls (nscplugin's `jlStringBuilder*` definitions).
 #[derive(Clone)]
@@ -22,12 +23,12 @@ impl Strings {
         let companion = member(u, java_lang, "String", Kind::Val)?;
         let companion = u.module_class(companion).ok_or("java.lang.String's object missing")?;
         let object = Erased::object();
-        let value_of = with_params(u, companion, "valueOf", |ps| ps == [object.clone()])
+        let value_of = with_params(u, companion, nme::VALUE_OF, |ps| ps == [object.clone()])
             .ok_or("java.lang.String.valueOf(Object) missing")?;
         let builder = member(u, java_lang, "StringBuilder", Kind::Class)?;
         let builder_ctor = with_params(u, builder, nme::CONSTRUCTOR, |ps| ps == [Erased::Prim('i')])
             .ok_or("java.lang.StringBuilder(Int) missing")?;
-        let appends = all_with_params(u, builder, "append", |ps| ps.len() == 1);
+        let appends = all_with_params(u, builder, nme::APPEND, |ps| ps.len() == 1);
         let builder_to_string = with_params(u, builder, nme::TO_STRING, <[Erased]>::is_empty)
             .ok_or("java.lang.StringBuilder.toString missing")?;
         Ok(Strings {

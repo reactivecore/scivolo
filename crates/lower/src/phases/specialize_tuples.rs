@@ -8,10 +8,11 @@ use super::elideable::is_elideable;
 use super::walk::walk_class_up;
 use crate::definitions::{Known, specialized_accessor, specialized_tuple_ctor, tuple_tags};
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use rustc_hash::FxHashSet;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
-use tasty::{SymbolId, TypeId, name_kinds, nme};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Specializes the tuple creations and element selections in class definition `td`; `inits`
@@ -121,7 +122,7 @@ fn retype(
 fn selection(l: &mut Lower, t: TNodeId, qual: TNodeId) -> Result<()> {
     let Some(s) = l.tpd.sym(t) else { return Ok(()) };
     let field = l.u.symbol(s).name.clone();
-    if field != "_1" && field != "_2" {
+    if field != nme::SELECTOR_1 && field != nme::SELECTOR_2 {
         return Ok(());
     }
     let tpe = l.u.widen(l.tpd.tpe(qual));
@@ -138,7 +139,7 @@ fn selection(l: &mut Lower, t: TNodeId, qual: TNodeId) -> Result<()> {
         return Ok(());
     }
     let Some(tags) = tags(l, &elems) else { return Ok(()) };
-    let i = if field == "_1" { 0 } else { 1 };
+    let i = if field == nme::SELECTOR_1 { 0 } else { 1 };
     let tag = tags.chars().nth(i).expect("a tag per element");
     let accessor = specialized_accessor(l.u, n, &field, tag).or_else(|e| unsupported(l.tpd.span(t), e))?;
     let name = l.term_name(&name_kinds::specialized(&field, &tag.to_string()));

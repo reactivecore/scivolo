@@ -14,10 +14,11 @@ use super::walk::walk_class_up;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, INLINE, MACRO, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, Type, name_kinds, nme};
+use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewires the calls of value class methods in class definition `td`, children before their

@@ -5,6 +5,7 @@
 
 use super::Gen;
 use crate::{Result, unsupported};
+use names::nme;
 use nir::{Inst, Local, Next, Type, TypeId, Val, ValId};
 use syntax::ast::Span;
 use typer::tpd::{List, TNodeId, Tree};
@@ -55,7 +56,7 @@ impl Gen<'_, '_> {
             let lits = match *self.l.tpd.tree(pat) {
                 Tree::Literal { .. } => vec![pat],
                 Tree::Alternative { trees } => self.l.tpd.items(trees).to_vec(),
-                Tree::Ident { name } if self.l.names.text(name.name) == "_" => {
+                Tree::Ident { name } if self.l.names.text(name.name) == nme::WILDCARD => {
                     default = Some(body);
                     Vec::new()
                 }
@@ -146,7 +147,7 @@ impl Gen<'_, '_> {
         let saved = self.at_span(case.span);
         let span = self.l.tpd.span(case.body);
         let body = case.body;
-        let cond = self.gen_class_equality(selector, case.lit, "==", case.span);
+        let cond = self.gen_class_equality(selector, case.lit, nme::EQ, case.span);
         let out = self.gen_if_with(
             retty,
             [

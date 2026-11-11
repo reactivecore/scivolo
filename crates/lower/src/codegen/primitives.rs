@@ -7,6 +7,7 @@ use super::Gen;
 use super::callee::is_primitive;
 use super::numeric::{float, int};
 use crate::{Result, unsupported};
+use names::nme;
 use nir::{Bin, Comp, Op, Type, TypeId, Val, ValId};
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
@@ -35,8 +36,8 @@ impl Gen<'_, '_> {
         if sym == self.l.defs.synchronized {
             return self.gen_synchronized(fun, args).map(Some);
         }
-        let object_op =
-            [any, object].contains(&owner) && matches!(name.as_str(), "eq" | "ne" | "==" | "!=" | "##");
+        let object_op = [any, object].contains(&owner)
+            && matches!(name.as_str(), nme::REF_EQ | nme::REF_NE | nme::EQ | nme::NE | nme::HASHHASH);
         if !object_op && !is_primitive(&self.l.u.binary_name(owner)) {
             return Ok(None);
         }
@@ -58,7 +59,7 @@ impl Gen<'_, '_> {
                 }
             }
             let v = match (name.as_str(), args) {
-                ("##", []) => self.gen_hash_code(qualifier, span)?,
+                (nme::HASHHASH, []) => self.gen_hash_code(qualifier, span)?,
                 (op, [right]) => self.gen_class_equality(qualifier, *right, op, span)?,
                 _ => return unsupported(span, format!("the operation {name} of `Any`")),
             };
@@ -66,8 +67,10 @@ impl Gen<'_, '_> {
         }
         let retty = self.result_type(sym);
         let v = match (name.as_str(), args) {
-            ("unary_-" | "unary_+" | "unary_~" | "unary_!", []) => self.gen_unary(&name, qualifier, retty)?,
-            ("&&" | "||", [right]) => {
+            (nme::UNARY_MINUS | nme::UNARY_PLUS | nme::UNARY_TILDE | nme::UNARY_NOT, []) => {
+                self.gen_unary(&name, qualifier, retty)?
+            }
+            (nme::ZAND | nme::ZOR, [right]) => {
                 let literal = |g: &mut Self, b| {
                     let tpe = g.l.tpd.tpe(*right);
                     g.l.tpd.node(
@@ -77,12 +80,24 @@ impl Gen<'_, '_> {
                         None,
                     )
                 };
-                let (thenp, elsep) =
-                    if name == "&&" { (*right, literal(self, false)) } else { (literal(self, true), *right) };
+                let (thenp, elsep) = if name == nme::ZAND {
+                    (*right, literal(self, false))
+                } else {
+                    (literal(self, true), *right)
+                };
                 self.gen_if(retty, qualifier, thenp, elsep)?
             }
             (_, [right]) if bin_op(&name).is_some() => self.gen_binary(&name, qualifier, *right, retty)?,
-            ("toByte" | "toShort" | "toChar" | "toInt" | "toLong" | "toFloat" | "toDouble", []) => {
+            (
+                nme::TO_BYTE
+                | nme::TO_SHORT
+                | nme::TO_CHAR
+                | nme::TO_INT
+                | nme::TO_LONG
+                | nme::TO_FLOAT
+                | nme::TO_DOUBLE,
+                [],
+            ) => {
                 let value = self.gen_expr(qualifier)?;
                 let from = self.gen_type(self.l.tpd.tpe(qualifier));
                 self.coerce(value, from, retty)
@@ -109,16 +124,16 @@ impl Gen<'_, '_> {
             g.val(v)
         };
         Ok(match (name, int(&t).is_some() && t != Type::Bool, float(&t).is_some()) {
-            ("unary_+", _, _) => v,
-            ("unary_~", true, _) => {
+            (nme::UNARY_PLUS, _, _) => v,
+            (nme::UNARY_TILDE, true, _) => {
                 let minus_one = num(self, -1);
                 self.emit(Op::Bin { bin: Bin::Xor, ty, l: minus_one, r: v })
             }
-            ("unary_-", _, true) => {
+            (nme::UNARY_MINUS, _, true) => {
                 let minus_one = num(self, -1);
                 self.emit(Op::Bin { bin: Bin::Fmul, ty, l: minus_one, r: v })
             }
-            ("unary_-", true, _) => {
+            (nme::UNARY_MINUS, true, _) => {
                 let zero = num(self, 0);
                 self.emit(Op::Bin { bin: Bin::Isub, ty, l: zero, r: v })
             }
@@ -132,7 +147,7 @@ impl Gen<'_, '_> {
     fn gen_binary(&mut self, name: &str, left: TNodeId, right: TNodeId, retty: TypeId) -> Result<ValId> {
         let lty = self.gen_type(self.l.tpd.tpe(left));
         let rty = self.gen_type(self.l.tpd.tpe(right));
-        let shift = matches!(name, "<<" | ">>" | ">>>");
+        let shift = matches!(name, nme::LSL | nme::ASR | nme::LSR);
         let opty = if shift {
             self.ty(if *self.pool.ty(lty) == Type::Long { Type::Long } else { Type::Int })
         } else {
@@ -178,23 +193,23 @@ enum BinOp {
 
 fn bin_op(name: &str) -> Option<BinOp> {
     Some(match name {
-        "+" => BinOp::Arith(Bin::Iadd, Bin::Fadd),
-        "-" => BinOp::Arith(Bin::Isub, Bin::Fsub),
-        "*" => BinOp::Arith(Bin::Imul, Bin::Fmul),
-        "/" => BinOp::Arith(Bin::Sdiv, Bin::Fdiv),
-        "%" => BinOp::Arith(Bin::Srem, Bin::Frem),
-        "|" => BinOp::Bits(Bin::Or),
-        "&" => BinOp::Bits(Bin::And),
-        "^" => BinOp::Bits(Bin::Xor),
-        "<<" => BinOp::Bits(Bin::Shl),
-        ">>>" => BinOp::Bits(Bin::Lshr),
-        ">>" => BinOp::Bits(Bin::Ashr),
-        "==" => BinOp::Cmp(Comp::Ieq, Comp::Feq),
-        "!=" => BinOp::Cmp(Comp::Ine, Comp::Fne),
-        "<" => BinOp::Cmp(Comp::Slt, Comp::Flt),
-        "<=" => BinOp::Cmp(Comp::Sle, Comp::Fle),
-        ">" => BinOp::Cmp(Comp::Sgt, Comp::Fgt),
-        ">=" => BinOp::Cmp(Comp::Sge, Comp::Fge),
+        nme::ADD => BinOp::Arith(Bin::Iadd, Bin::Fadd),
+        nme::MINUS => BinOp::Arith(Bin::Isub, Bin::Fsub),
+        nme::MUL => BinOp::Arith(Bin::Imul, Bin::Fmul),
+        nme::DIV => BinOp::Arith(Bin::Sdiv, Bin::Fdiv),
+        nme::MOD => BinOp::Arith(Bin::Srem, Bin::Frem),
+        nme::OR => BinOp::Bits(Bin::Or),
+        nme::AND => BinOp::Bits(Bin::And),
+        nme::XOR => BinOp::Bits(Bin::Xor),
+        nme::LSL => BinOp::Bits(Bin::Shl),
+        nme::LSR => BinOp::Bits(Bin::Lshr),
+        nme::ASR => BinOp::Bits(Bin::Ashr),
+        nme::EQ => BinOp::Cmp(Comp::Ieq, Comp::Feq),
+        nme::NE => BinOp::Cmp(Comp::Ine, Comp::Fne),
+        nme::LT => BinOp::Cmp(Comp::Slt, Comp::Flt),
+        nme::LE => BinOp::Cmp(Comp::Sle, Comp::Fle),
+        nme::GT => BinOp::Cmp(Comp::Sgt, Comp::Fgt),
+        nme::GE => BinOp::Cmp(Comp::Sge, Comp::Fge),
         _ => return None,
     })
 }

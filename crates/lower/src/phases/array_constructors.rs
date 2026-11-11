@@ -10,8 +10,9 @@
 use super::walk::subtrees;
 use crate::Lower;
 use crate::definitions::applied;
+use names::nme;
 use syntax::ast::Span;
-use tasty::{Erased, Type, TypeId, nme};
+use tasty::{Erased, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Rewrites the calls of `Array.ofDim` in class definition `td`.

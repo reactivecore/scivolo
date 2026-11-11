@@ -7,10 +7,11 @@ use super::Gen;
 use super::callee::is_primitive;
 use crate::phases::adapt::erased_type;
 use crate::{Result, unsupported};
+use names::nme;
 use nir::{Op, Type, Val, ValId};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Erased, SymbolId, nme};
+use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {

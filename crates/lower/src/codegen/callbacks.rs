@@ -76,7 +76,7 @@ impl Gen<'_, '_> {
             .u
             .symbol(target)
             .name
-            .contains(&tasty::name_kinds::unique_prefix(tasty::name_kinds::ADAPTED_SUFFIX))
+            .contains(&names::name_kinds::unique_prefix(names::name_kinds::ADAPTED_SUFFIX))
         {
             return unsupported(span, "a C function pointer to an adapted lambda");
         }

@@ -6,9 +6,10 @@
 
 use crate::Lower;
 use crate::symbols::has;
+use names::nme;
 use rustc_hash::FxHashSet;
 use tasty::tags::{CASE, ERASED, LAZY, MUTABLE, STABLE, SYNTHETIC, TRAIT};
-use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId, Type, nme};
+use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Whether `t` is elideable, `inits` the unit's objects with initialization code.

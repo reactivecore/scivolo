@@ -8,10 +8,11 @@ use super::walk::{walk_class_up, without_type_args};
 use super::{format_interpolator, standard_interpolator};
 use crate::definitions::Known;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{SymbolId, TypeId, nme};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewrites the `s`, `raw` and `f` interpolations in class definition `td`, inner ones first;
@@ -147,7 +148,7 @@ pub fn process_escapes(s: &[u16]) -> Option<Vec<u16>> {
 /// `parts[0] + args[0] + parts[1] + …`, empty parts but the first dropped, each `+` at the span
 /// of what it appends.
 fn concat(l: &mut Lower, parts: &[TNodeId], args: &[TNodeId]) -> TNodeId {
-    let plus = l.u.decls_named(l.u.defn().string, "+")[0];
+    let plus = l.u.decls_named(l.u.defn().string, nme::ADD)[0];
     let tpe = l.u.class_ref(tasty::defn::STRING);
     let mut result = parts[0];
     for (&arg, &part) in args.iter().zip(&parts[1..]) {

@@ -7,8 +7,9 @@ use super::casts::class_named;
 use super::walk::{children, subtrees};
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::nme;
 use tasty::tags::{EXTENSION, IMPLICIT};
-use tasty::{SymbolId, Type, TypeId, nme};
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Drops the trailing `map` calls of `for` comprehensions in unit `root`, inner ones first; the

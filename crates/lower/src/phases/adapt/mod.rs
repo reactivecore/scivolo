@@ -18,9 +18,10 @@ use super::type_tests::primitive_conversion::{failed_conversion, primitive_conve
 use crate::Lower;
 use crate::definitions::Known;
 use crate::symbols::{has, is_java_field, is_java_static};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
-use tasty::{Erased, Kind, SymbolId, nme};
+use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 use units::boxed_unit;
 

@@ -8,9 +8,10 @@ use super::adapted::{function_adaptation, specialized_interface};
 use super::lift_names::{fresh, fresh_name};
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, FINAL, PRIVATE, SYNTHETIC};
-use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, TypeId, name_kinds, nme};
+use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The parameters of a method, each with its name.
