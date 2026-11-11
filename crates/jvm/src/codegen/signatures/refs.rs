@@ -49,7 +49,7 @@ impl Sig<'_> {
             Erased::Class(ref e) if internal(e) != own => {
                 let e = internal(e);
                 let function = e.starts_with("scala/Function") && full.contains("Function");
-                if function && !e.ends_with("XXL") {
+                if function && !e.ends_with("XXL") || full == tasty::defn::REPEATED {
                     self.class_sig(&e, &args)
                 } else {
                     self.erased_sig(&erased, boxing)
