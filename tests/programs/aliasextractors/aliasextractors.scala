@@ -21,9 +21,14 @@ def describe(t: Any): String = t match
   case New(tpt: Int) => s"new $tpt"
   case _ => "other"
 
+def size(t: Any): Int = t match
+  case tpd.New(tpt: Int) => tpt
+  case _ => 0
+
 @main def aliasextractors(): Unit =
   given String = "tag"
   println(describe(Block(List(1, 2), 3)))
   println(describe(Leaf(7)))
   println(describe(New("abcd")))
   println(describe("x"))
+  println(size(New(5)))

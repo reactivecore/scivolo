@@ -124,16 +124,29 @@ pub fn has_errors_since(t: &Typer<'_>, mark: usize) -> bool {
     t.diags.items[mark..].iter().any(|d| d.level == Level::Error)
 }
 
-/// Whether extractor `qual` is a name that refers to several methods taking explicit arguments,
+/// Whether extractor `qual`, `C` or `p.C`, refers to several methods taking explicit arguments,
 /// as `New` imported from `tpd` with `def New(tpt: Tree)` and `def New(tp: Type)`.
 fn names_overloaded_methods(t: &mut Typer<'_>, qual: NodeId, ctx: Ctx) -> bool {
-    let Tree::Ident { name } = *t.ast.tree(qual) else { return false };
+    let (prefix, name) = match *t.ast.tree(qual) {
+        Tree::Ident { name } => (None, name),
+        Tree::Select { qualifier, name } => (Some(qualifier), name),
+        _ => return false,
+    };
     let text = t.text(name.name).to_owned();
     let reported = t.diags.items.len();
-    let (found, clean, _) = t.speculatively(|t| t.find_ref(&text, false, ctx.with_mode(Mode::EXTRACTOR)));
+    let (found, clean, _) = t.speculatively(|t| match prefix {
+        None => t.find_ref(&text, false, ctx.with_mode(Mode::EXTRACTOR)).ok().flatten(),
+        Some(p) => {
+            let typed = t.typed(p, Pt::Any, ctx.with_mode(Mode::QUALIFIER));
+            let tpe = t.tpd.tpe(typed);
+            let tpe = t.widen_if_unstable(tpe);
+            t.members_found(tpe, &text, false)
+        }
+    });
+    let errors = has_errors_since(t, reported);
     t.retract_diags(reported);
-    let Ok(Some(found)) = found else { return false };
-    clean && found.syms.len() > 1 && found.syms.iter().all(|&s| t.takes_explicit_args(s))
+    let Some(found) = found.filter(|_| clean && !errors) else { return false };
+    found.syms.len() > 1 && found.syms.iter().all(|&s| t.takes_explicit_args(s))
 }
 
 /// Whether an implicit conversion or an extension method of an implicit value may give `qual`
