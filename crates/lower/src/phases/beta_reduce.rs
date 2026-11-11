@@ -14,7 +14,7 @@ use std::ops::ControlFlow;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::tags::SYNTHETIC;
-use tasty::{Erased, Flags, Kind, SymbolId, Type};
+use tasty::{Erased, Flags, Kind, SymbolId, Type, nme};
 use typer::tpd::{TNodeId, Template, Tree, Walk, traverse_up};
 
 /// Reduces the applications of lambdas and anonymous function classes in unit `root`, inner ones
@@ -41,7 +41,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
 fn reduce(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return Ok(()) };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return Ok(()) };
-    if l.tpd.sym(fun).is_none_or(|s| l.u.symbol(s).name != "apply") || !is_function_type(l, qualifier) {
+    if l.tpd.sym(fun).is_none_or(|s| l.u.symbol(s).name != nme::APPLY) || !is_function_type(l, qualifier) {
         return Ok(());
     }
     let args = l.tpd.items(args).to_vec();

@@ -8,7 +8,7 @@ use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::tags::{MUTABLE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Tree, constant_type_of};
 
 pub fn object(l: &mut Lower) -> TypeId {
@@ -40,7 +40,7 @@ pub fn call(l: &mut Lower, qual: TNodeId, m: SymbolId, args: &[TNodeId]) -> TNod
     let fun = l.positioned(fun);
     let info = l.u.info(m);
     let result = match *l.u.ty(info) {
-        _ if l.u.symbol(m).name == "<init>" => l.tpd.tpe(qual),
+        _ if l.u.symbol(m).name == nme::CONSTRUCTOR => l.tpd.tpe(qual),
         Type::Method { result, .. } => result,
         _ => info,
     };

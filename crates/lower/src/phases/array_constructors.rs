@@ -11,7 +11,7 @@ use super::walk::subtrees;
 use crate::Lower;
 use crate::definitions::applied;
 use syntax::ast::Span;
-use tasty::{Erased, Type, TypeId};
+use tasty::{Erased, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// Rewrites the calls of `Array.ofDim` in class definition `td`.
@@ -32,7 +32,7 @@ fn expanded(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::TypeApply { fun, args: targs } = *l.tpd.tree(targs_call) else { return None };
     let m = l.tpd.sym(fun)?;
     let owner = l.u.symbol(m).owner?;
-    if l.u.symbol(m).name != "ofDim" || !l.is_known(owner, crate::definitions::Known::ArrayModuleClass) {
+    if l.u.symbol(m).name != nme::OF_DIM || !l.is_known(owner, crate::definitions::Known::ArrayModuleClass) {
         return None;
     }
     let (dims, &[targ]) = (l.tpd.items(dims).to_vec(), l.tpd.items(targs)) else { return None };
@@ -41,7 +41,7 @@ fn expanded(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
         return None;
     }
     let elem = match l.u.erase(elem) {
-        Erased::Unit => l.u.class_ref("scala.runtime.BoxedUnit"),
+        Erased::Unit => l.u.class_ref(tasty::defn::BOXED_UNIT),
         _ => elem,
     };
     let span = l.tpd.span(t);
@@ -74,7 +74,7 @@ fn is_generic(l: &mut Lower, t: TypeId) -> bool {
 fn new_array(l: &mut Lower, elem: TypeId, n: TNodeId, span: Span) -> Option<TNodeId> {
     let array = l.u.class_ref(tasty::defn::ARRAY);
     let class = l.u.class_symbol(array)?;
-    let ctor = *l.u.decl(class, "<init>").ok()?.first()?;
+    let ctor = *l.u.decl(class, nme::CONSTRUCTOR).ok()?.first()?;
     let tpe = l.u.intern_applied(array, &[elem]);
     let tpt = l.type_tree(tpe, span);
     let new = l.tpd.node(Tree::New { tpt }, span, Some(tpe), None);

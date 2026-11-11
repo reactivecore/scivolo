@@ -7,6 +7,7 @@ use super::array_apply::{applied, qualifier_symbol, wrapped_literal};
 use crate::Lower;
 use crate::definitions::Known;
 use syntax::ast::Span;
+use tasty::nme;
 use typer::tpd::{TNodeId, Tree};
 
 /// The array literal for `Array.apply` call `t`, if it applies one.
@@ -14,7 +15,7 @@ pub fn array_literal(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::Apply { args, .. } = *l.tpd.tree(t) else { return None };
     let (m, qual) = applied(l, t)?;
     let module = qualifier_symbol(l, qual).filter(|&q| l.u.is_module(q))?;
-    if l.u.symbol(m).name != "apply" || !l.is_known(module, Known::ArrayModule) {
+    if l.u.symbol(m).name != nme::APPLY || !l.is_known(module, Known::ArrayModule) {
         return None;
     }
     match *l.tpd.items(args) {
@@ -43,7 +44,7 @@ fn is_class_tag_of_literal(l: &Lower, t: TNodeId) -> bool {
         return false;
     }
     let name = l.u.symbol(m).name.as_str();
-    if name != "apply" {
+    if name != nme::APPLY {
         return ["Byte", "Short", "Char", "Int", "Long", "Float", "Double", "Boolean", "Unit"]
             .contains(&name);
     }
@@ -57,8 +58,8 @@ fn is_class_tag_of_literal(l: &Lower, t: TNodeId) -> bool {
     }
     match *l.tpd.tree(runtime_class) {
         Tree::ClassLiteral { .. } => true,
-        Tree::TypeApply { fun, .. } => l.tpd.sym(fun).is_some_and(|s| l.u.symbol(s).name == "classOf"),
-        Tree::Ident { .. } => l.tpd.sym(runtime_class).is_some_and(|s| l.u.symbol(s).name == "classOf"),
+        Tree::TypeApply { fun, .. } => l.tpd.sym(fun).is_some_and(|s| l.u.symbol(s).name == nme::CLASS_OF),
+        Tree::Ident { .. } => l.tpd.sym(runtime_class).is_some_and(|s| l.u.symbol(s).name == nme::CLASS_OF),
         _ => false,
     }
 }

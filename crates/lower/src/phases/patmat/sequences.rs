@@ -12,7 +12,7 @@ use super::plan::{Plan, PlanId, Test};
 use super::seq_members::SeqMembers;
 use crate::{Result, unsupported};
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -155,7 +155,7 @@ impl Translator<'_, '_> {
         let tpe = self.l.tpd.tpe(scrutinee);
         let length = self.seq_members(tpe).expect("a sequence").length;
         let len = self.l.int_literal(len);
-        let (compared, operand) = if self.l.u.symbol(length).name == "lengthCompare" {
+        let (compared, operand) = if self.l.u.symbol(length).name == nme::LENGTH_COMPARE {
             (self.call_member(scrutinee, length, &[len]), self.l.int_literal(0))
         } else {
             (self.call_member(scrutinee, length, &[]), len)

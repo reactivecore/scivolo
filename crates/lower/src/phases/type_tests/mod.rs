@@ -89,10 +89,7 @@ fn type_test(
     if matches!(l.u.ty(dealiased), Type::Or(..) | Type::And(..)) {
         return unsupported(span, "type tests of unions or intersections of singletons");
     }
-    let test = match l.u.erase_boxed(target) {
-        Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
-        e => e,
-    };
+    let test = l.u.erase_boxed(target).boxing_unit();
     if !matches!(test, Erased::Class(_) | Erased::Prim(_) | Erased::Array(_)) {
         return unsupported(span, "type tests of singletons, Null or Nothing");
     }

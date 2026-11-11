@@ -1,5 +1,5 @@
 use super::{java_class, java_static, member, package, type_ref};
-use tasty::{Kind, SymbolId, TypeId, Universe};
+use tasty::{Kind, SymbolId, TypeId, Universe, name_kinds, nme};
 
 /// What `==` on references and `##` call, and the classes whose instances may be boxed values.
 #[derive(Clone, Copy)]
@@ -33,7 +33,7 @@ impl Equality {
         let int = type_ref(u, int);
         let boxes_runtime = java_class(u, runtime, "BoxesRunTime");
         let info = method(u, &[object, object], boolean);
-        let equals = java_static(u, boxes_runtime, "equals", Kind::Def, info);
+        let equals = java_static(u, boxes_runtime, nme::EQUALS, Kind::Def, info);
         let statics = java_class(u, runtime, "Statics");
         let info = method(u, &[object], int);
         let any_hash = java_static(u, statics, "anyHash", Kind::Def, info);
@@ -41,7 +41,7 @@ impl Equality {
         let info = method(u, &[], unit);
         let release_fence = java_static(u, statics, "releaseFence", Kind::Def, info);
         Ok(Equality {
-            any_equals: member(u, any, "equals", Kind::Def)?,
+            any_equals: member(u, any, nme::EQUALS, Kind::Def)?,
             boxes_runtime,
             equals,
             statics,
@@ -59,7 +59,10 @@ impl Equality {
 /// The type of a method taking `params` named `x$0`… and returning `result`.
 pub fn method(u: &mut Universe, params: &[TypeId], result: TypeId) -> TypeId {
     let binder = u.fresh_binder();
-    let params: Vec<_> =
-        params.iter().enumerate().map(|(i, &t)| (u.intern_name(&format!("x${i}")), t)).collect();
+    let params: Vec<_> = params
+        .iter()
+        .enumerate()
+        .map(|(i, &t)| (u.intern_name(&name_kinds::synthetic_param(i)), t))
+        .collect();
     u.intern_method(binder, &params, result, false, false)
 }

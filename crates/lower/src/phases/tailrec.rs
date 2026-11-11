@@ -13,7 +13,7 @@ use crate::symbols::{has, is_effectively_final, is_static};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, name_kinds, nme};
 use typer::tpd::{TNodeId, Template, Tree, Walk, traverse_up};
 
 /// Makes the tail recursive methods of class definition `td` loops.
@@ -125,7 +125,7 @@ impl TailCalls {
             return v;
         }
         let v = l.tail_vars.remove(&self.method).unwrap_or_else(|| {
-            let name = fresh(l, "$this$tailLocal");
+            let name = fresh(l, &name_kinds::tail_local(nme::SELF));
             let tpe = l.u.this_type(self.class);
             local(l, self.method, &name, tpe, true)
         });
@@ -145,7 +145,7 @@ impl TailCalls {
                 v
             }
             None => {
-                let name = fresh(l, &format!("{}$tailLocal", l.u.symbol(param).name));
+                let name = fresh(l, &name_kinds::tail_local(&l.u.symbol(param).name));
                 local(l, self.method, &name, info, true)
             }
         };

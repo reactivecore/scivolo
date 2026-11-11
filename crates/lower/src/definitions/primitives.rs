@@ -3,7 +3,7 @@
 
 use super::member;
 use crate::Lower;
-use tasty::{Kind, SymbolId, Universe};
+use tasty::{Kind, SymbolId, Universe, nme};
 
 /// A primitive value class: its erased letter, the class, its object and that object's `box` and
 /// `unbox` methods.
@@ -72,12 +72,12 @@ impl Lower<'_> {
     }
 
     pub fn is_box(&mut self, m: SymbolId) -> bool {
-        self.u.symbol(m).name == "box" && self.declaring_primitive(m).is_some_and(|p| p.box_method == m)
+        self.u.symbol(m).name == nme::BOX && self.declaring_primitive(m).is_some_and(|p| p.box_method == m)
     }
 
     /// The primitive whose `unbox` method `m` is.
     pub fn unboxed_by(&mut self, m: SymbolId) -> Option<Primitive> {
-        if self.u.symbol(m).name != "unbox" {
+        if self.u.symbol(m).name != nme::UNBOX {
             return None;
         }
         self.declaring_primitive(m).filter(|p| p.unbox_method == m)
@@ -89,8 +89,8 @@ fn resolve(u: &mut Universe, i: usize) -> Result<Primitive, String> {
     let scala = u.defn().scala;
     let module = member(u, scala, name, Kind::Val)?;
     let module_class = u.module_class(module).ok_or_else(|| format!("scala.{name}'s object missing"))?;
-    let box_method = member(u, module_class, "box", Kind::Def)?;
-    let unbox_method = member(u, module_class, "unbox", Kind::Def)?;
+    let box_method = member(u, module_class, nme::BOX, Kind::Def)?;
+    let unbox_method = member(u, module_class, nme::UNBOX, Kind::Def)?;
     let class = member(u, scala, name, Kind::Class)?;
     Ok(Primitive { letter, class, module, box_method, unbox_method })
 }

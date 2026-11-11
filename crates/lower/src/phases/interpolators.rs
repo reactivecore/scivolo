@@ -11,7 +11,7 @@ use crate::{Lower, Result, unsupported};
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{SymbolId, TypeId};
+use tasty::{SymbolId, TypeId, nme};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewrites the `s`, `raw` and `f` interpolations in class definition `td`, inner ones first;
@@ -74,7 +74,7 @@ pub fn interpolation(l: &Lower, t: TNodeId) -> Option<(Vec<TNodeId>, Vec<TNodeId
     let Tree::Select { qualifier: module, .. } = *l.tpd.tree(apply) else { return None };
     let module = l.tpd.sym(module);
     let apply = l.u.symbol(l.tpd.sym(apply)?);
-    if apply.name != "apply"
+    if apply.name != nme::APPLY
         || !apply.owner.is_some_and(|o| l.is_known(o, Known::StringContextModuleClass))
         || !module.is_some_and(|m| l.is_known(m, Known::StringContextModule))
     {

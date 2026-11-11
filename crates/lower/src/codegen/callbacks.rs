@@ -71,7 +71,13 @@ impl Gen<'_, '_> {
     /// The extern forwarder of anonymous class `anon` to static or object method `target`, its
     /// arguments boxed and result unboxed.
     fn gen_extern_forwarder(&mut self, anon: GlobalId, target: SymbolId, span: Span) -> Result<Defn> {
-        if self.l.u.symbol(target).name.contains("$adapted$") {
+        if self
+            .l
+            .u
+            .symbol(target)
+            .name
+            .contains(&tasty::name_kinds::unique_prefix(tasty::name_kinds::ADAPTED_SUFFIX))
+        {
             return unsupported(span, "a C function pointer to an adapted lambda");
         }
         let static_target = is_java_static(self.l.u, target);

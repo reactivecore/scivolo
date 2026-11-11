@@ -22,7 +22,7 @@ impl Translator<'_, '_> {
     /// Sequence `p` as a switch on `scrutinee`, if it has enough cases.
     pub fn switch(&mut self, scrutinee: TNodeId, p: PlanId) -> Option<TNodeId> {
         let erased = self.l.u.erase(self.l.tpd.tpe(scrutinee));
-        let string = Erased::Class("java.lang.String".into());
+        let string = Erased::string();
         if !matches!(erased, Erased::Prim('i' | 'b' | 's' | 'c')) && erased != string {
             return None;
         }

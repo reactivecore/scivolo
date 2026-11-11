@@ -14,7 +14,7 @@ use crate::{Lower, Result};
 use syntax::ast::Span;
 use syntax::ast::tree::MatchKind;
 use tasty::tags::{ABSTRACT, ENUM, SEALED, SYNTHETIC};
-use tasty::{Flags, SymbolId, Type, TypeId};
+use tasty::{Flags, SymbolId, Type, TypeId, name_kinds, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// The children of sealed class `sealed` in unit `root` in the order of their definitions:
@@ -52,7 +52,7 @@ pub fn is_generic_sum(l: &mut Lower, root: TNodeId, s: SymbolId) -> bool {
     let children = children(l, root, s);
     !children.is_empty()
         && children.into_iter().all(|c| {
-            let anonymous = l.u.symbol(c).name.starts_with("$anon");
+            let anonymous = l.u.symbol(c).name.starts_with(nme::ANON_CLASS);
             let visible = l.u.symbol(c).owner.is_some_and(|o| typer::sealed::visible_to_parent(l.u, s, o));
             let fits = !l.u.is_class(c) || is_generic_product(l, c) || is_generic_sum(l, root, c);
             !anonymous && visible && fits
@@ -70,7 +70,7 @@ pub fn enum_ordinal(
     let cc = l.case_classes()?;
     let int = l.u.class_ref(tasty::defn::INT);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("x$0"), param)];
+    let params = [(l.u.intern_name(&name_kinds::synthetic_param(0)), param)];
     let info = l.u.intern_method(binder, &params, int, false, false);
     let like = l.u.decls_named(cc.mirror_sum, "ordinal");
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
@@ -101,7 +101,7 @@ pub fn ordinal(
     let children = children(l, root, sealed);
     let int = l.u.class_ref(tasty::defn::INT);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("x$0"), param)];
+    let params = [(l.u.intern_name(&name_kinds::synthetic_param(0)), param)];
     let info = l.u.intern_method(binder, &params, int, false, false);
     let like = l.u.decls_named(cc.mirror_sum, "ordinal");
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");

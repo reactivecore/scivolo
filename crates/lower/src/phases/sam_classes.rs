@@ -10,7 +10,7 @@ use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{FINAL, SYNTHETIC};
-use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes lambda block `block`, of method definition `fn_def` of `anon`, implementing class type
@@ -110,7 +110,7 @@ fn forwarder(l: &mut Lower, cls: SymbolId, method: SymbolId, anon: SymbolId, spa
 
 /// The constructor of class `c` taking no arguments, or only repeated ones.
 fn no_arg_constructor(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
-    l.u.decls_named(c, "<init>").into_iter().find(|&ctor| {
+    l.u.decls_named(c, nme::CONSTRUCTOR).into_iter().find(|&ctor| {
         let info = l.u.info(ctor);
         let info = l.u.strip_poly(info);
         let Some((params, result)) = l.u.method(info).map(|m| (m.params.to_vec(), m.result)) else {

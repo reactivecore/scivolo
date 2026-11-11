@@ -80,7 +80,7 @@ impl Gen<'_, '_> {
         let mut bridged = Vec::new();
         for b in bases {
             let behind_jdk = !is_jdk(self.l, b) && jdk.iter().any(|&j| self.l.u.derives_from(j, b));
-            if plain.contains(&b) || self.l.u.symbol(b).name == "Matchable" {
+            if plain.contains(&b) || b == self.l.u.defn().matchable {
                 continue;
             }
             crate::phases::same_run::enter_specialized(self.l, b);

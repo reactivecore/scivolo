@@ -11,7 +11,7 @@ use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId, name_kinds, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// `def fromProduct(x$0: Product): M = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C[Ts](a$1, ...) }`
@@ -29,14 +29,14 @@ pub fn from_product(
     let cc = l.case_classes()?;
     let product = type_ref(l.u, cc.product);
     let binder = l.u.fresh_binder();
-    let x0 = l.u.intern_name("x$0");
+    let x0 = l.u.intern_name(&name_kinds::synthetic_param(0));
     let info = l.u.intern_method(binder, &[(x0, product)], mono, false, false);
     let like = l.u.decls_named(cc.mirror_product, "fromProduct");
     let like = like.into_iter().next().expect("`Mirror.Product.fromProduct`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
     }
-    let ctor = l.u.decls_named(case_class, "<init>");
+    let ctor = l.u.decls_named(case_class, nme::CONSTRUCTOR);
     let ctor = ctor.into_iter().next().expect("a case class constructor");
     let (created_type, param_types) = instantiated_constructor(l, case_class, ctor);
     let flags = Flags::default().with(SYNTHETIC);
@@ -135,7 +135,7 @@ fn unrolled_getters(
     let class = l.u.module_class(module).unwrap_or(module);
     let mut getters = Vec::new();
     for n in first..accessors.len() {
-        let name = format!("<init>$default${}", n + 1);
+        let name = name_kinds::default_getter(nme::CONSTRUCTOR, n + 1);
         let getter = l.u.decls_named(class, &name).into_iter().next();
         let info = getter.map(|g| l.u.info(g));
         let plain = info.is_some_and(|i| !matches!(l.u.ty(i), Type::Poly { .. } | Type::Method { .. }));

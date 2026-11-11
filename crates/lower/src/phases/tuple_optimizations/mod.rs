@@ -16,7 +16,7 @@ use crate::definitions::type_ref;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use tasty::tags::INTconst;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// The most elements the tuples built of selected elements have.
@@ -80,7 +80,7 @@ fn optimized(
         ("tail", &[tup]) => tuple_tail(l, t, owner, tup, kept),
         ("size", _) => size(l, t),
         ("concat", &[a, b]) => concat(l, t, owner, a, b, kept),
-        ("apply", &[tup, n]) => apply(l, t, tup, n),
+        (nme::APPLY, &[tup, n]) => apply(l, t, tup, n),
         ("toArray", &[tup]) => to_array(l, t, tup),
         _ => None,
     }

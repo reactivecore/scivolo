@@ -10,14 +10,14 @@ use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Erased, SymbolId};
+use tasty::{Erased, SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
     /// Whether `sym` is `String`'s `+`, or a primitive's `+` taking a `String`.
     pub fn is_string_concat(&mut self, sym: SymbolId) -> bool {
         let s = self.l.u.symbol(sym);
-        if s.name != "+" {
+        if s.name != nme::ADD {
             return false;
         }
         let Some(owner) = s.owner else { return false };

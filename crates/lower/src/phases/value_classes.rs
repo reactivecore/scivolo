@@ -17,7 +17,7 @@ use crate::{Lower, Result, unsupported};
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, INLINE, MACRO, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId, Type, name_kinds, nme};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewires the calls of value class methods in class definition `td`, children before their
@@ -150,7 +150,9 @@ fn cast_type(l: &mut Lower, tpe: tasty::TypeId, span: syntax::ast::Span) -> TNod
 /// Whether method `m` has an extension method (dotty's `isMethodWithExtension`).
 pub fn has_extension(l: &mut Lower, m: SymbolId) -> bool {
     let s = l.u.symbol(m);
-    let Some(owner) = s.owner.filter(|_| s.kind == Kind::Def && !s.name.starts_with("super$")) else {
+    let Some(owner) =
+        s.owner.filter(|_| s.kind == Kind::Def && !s.name.starts_with(name_kinds::SUPER_PREFIX))
+    else {
         return false;
     };
     !l.u.is_constructor(m)
@@ -173,7 +175,7 @@ pub fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     if let Some(&found) = l.extensions.get(&m) {
         return Some(found);
     }
-    let name = format!("{}$extension", l.u.symbol(m).name);
+    let name = name_kinds::ext_meth(&l.u.symbol(m).name);
     let flags = match l.u.symbol(m).flags.has(PRIVATE) {
         true => Flags::default().with(FINAL).with(PRIVATE),
         false => Flags::default().with(FINAL),
@@ -185,7 +187,7 @@ pub fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     l.extensions.insert(m, sym);
     let this = type_ref(l.u, class);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("$this"), this)];
+    let params = [(l.u.intern_name(nme::SELF), this)];
     let (poly, result) = match *l.u.ty(info) {
         Type::Poly { binder, params, result } => (Some((binder, params)), result),
         Type::ByName(result) => (None, result),

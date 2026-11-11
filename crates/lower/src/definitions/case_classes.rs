@@ -1,6 +1,6 @@
 use super::equality::{Equality, method};
 use super::{java_class, java_static, member, package, type_ref};
-use tasty::{Kind, SymbolId, Universe};
+use tasty::{Kind, SymbolId, Universe, nme};
 
 /// What the synthetic members of case classes and their companions refer to.
 #[derive(Clone, Copy)]
@@ -82,8 +82,8 @@ impl CaseClasses {
             java_static(u, statics, name, Kind::Def, info)
         };
         Ok(CaseClasses {
-            hash_code: member(u, any, "hashCode", Kind::Def)?,
-            to_string: member(u, any, "toString", Kind::Def)?,
+            hash_code: member(u, any, nme::HASH_CODE, Kind::Def)?,
+            to_string: member(u, any, nme::TO_STRING, Kind::Def)?,
             can_equal: member(u, equals, "canEqual", Kind::Def)?,
             product_arity: member(u, product, "productArity", Kind::Def)?,
             product_prefix: member(u, product, "productPrefix", Kind::Def)?,
@@ -103,20 +103,20 @@ impl CaseClasses {
             objects_hash_code: match objects_module {
                 Some(m) => {
                     let objects = module_class(u, m)?;
-                    with_params(u, objects, "hashCode", 1)?
+                    with_params(u, objects, nme::HASH_CODE, 1)?
                 }
                 None => {
                     let objects = java_class(u, java_util, "Objects");
                     let any = type_ref(u, any);
                     let info = method(u, &[any], int);
-                    java_static(u, objects, "hashCode", Kind::Def, info)
+                    java_static(u, objects, nme::HASH_CODE, Kind::Def, info)
                 }
             },
             objects_module,
             product_hash: with_params(u, murmur_class, "productHash", 3)?,
             murmur_hash3,
             ioobe,
-            ioobe_ctor: with_params(u, ioobe, "<init>", 1).and_then(|c| int_param(u, ioobe, c))?,
+            ioobe_ctor: with_params(u, ioobe, nme::CONSTRUCTOR, 1).and_then(|c| int_param(u, ioobe, c))?,
             mirror_product: member(u, mirror_class, "Product", Kind::Class)?,
             mirror_singleton: member(u, mirror_class, "Singleton", Kind::Class)?,
             mirror_sum: member(u, mirror_class, "Sum", Kind::Class)?,
@@ -150,7 +150,7 @@ fn with_params(u: &mut Universe, owner: SymbolId, name: &str, n: usize) -> Resul
 
 /// The constructor of `class` taking an `Int`, `first` if no other one does.
 fn int_param(u: &mut Universe, class: SymbolId, first: SymbolId) -> Result<SymbolId, String> {
-    let ctors = u.decl(class, "<init>").map_err(|e| e.to_string())?;
+    let ctors = u.decl(class, nme::CONSTRUCTOR).map_err(|e| e.to_string())?;
     let int = |u: &mut Universe, m: SymbolId| {
         let info = u.info(m);
         let Some(&[(_, p)]) = u.method(info).map(|m| m.params) else { return false };

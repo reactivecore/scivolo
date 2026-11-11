@@ -7,12 +7,13 @@ use crate::Lower;
 use crate::definitions::{symbol, type_ref};
 use syntax::ast::{Span, TName};
 use tasty::tags::{FINAL, OVERRIDE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// The symbol of a final synthetic class `$anon` of `owner` extending `parents`.
 pub fn class_symbol(l: &mut Lower, owner: SymbolId, parents: Vec<TypeId>) -> SymbolId {
-    let cls = l.u.define(symbol("$anon", Kind::Class, owner, Flags::default().with(FINAL).with(SYNTHETIC)));
+    let cls =
+        l.u.define(symbol(nme::ANON_CLASS, Kind::Class, owner, Flags::default().with(FINAL).with(SYNTHETIC)));
     l.u.set_parents(cls, parents);
     cls
 }
@@ -27,7 +28,7 @@ pub fn instance(
     body: &[TNodeId],
     span: Span,
 ) -> TNodeId {
-    let ctor = l.u.define(symbol("<init>", Kind::Def, cls, Flags::default().with(SYNTHETIC)));
+    let ctor = l.u.define(symbol(nme::CONSTRUCTOR, Kind::Def, cls, Flags::default().with(SYNTHETIC)));
     let class_ref = type_ref(l.u, cls);
     let info = nullary(l, class_ref);
     l.u.set_info(ctor, info);
@@ -45,7 +46,7 @@ pub fn instance(
     let template = Tree::Template { constr, parents, self_: None, body };
     let template = l.tpd.node(template, span, None, Some(cls));
     l.positioned(template);
-    let name = TName { name: l.names.intern("$anon"), is_type: true };
+    let name = TName { name: l.names.intern(nme::ANON_CLASS), is_type: true };
     let td = l.tpd.node(Tree::TypeDef { name, rhs: template }, span, None, Some(cls));
     l.positioned(td);
     let new = new_call(l, class_ref, ctor);

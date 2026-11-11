@@ -11,7 +11,7 @@ use crate::symbols::has;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::Reverse;
 use tasty::tags::{MUTABLE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, TypeId};
+use tasty::{Flags, Kind, SymbolId, TypeId, name_kinds};
 use typer::tpd::{TNodeId, Tree};
 
 /// Whether `t` is a literal, `this`, or a path of stable values and objects, their getters
@@ -64,7 +64,7 @@ pub fn eval_once(l: &mut Lower, expr: TNodeId, owner: SymbolId) -> (SymbolId, TN
 
 /// `eval_once` with a value of type `tpe`.
 pub fn eval_once_as(l: &mut Lower, expr: TNodeId, owner: SymbolId, tpe: TypeId) -> (SymbolId, TNodeId) {
-    let name = l.fresh.next(l.names, "ev$");
+    let name = l.fresh.next(l.names, name_kinds::TEMP_RESULT);
     let name = l.names.text(name).to_owned();
     let ev = l.u.define(symbol(&name, Kind::Val, owner, Flags::default().with(SYNTHETIC)));
     l.u.set_info(ev, tpe);
@@ -91,7 +91,7 @@ pub fn renumber(l: &mut Lower, root: TNodeId) {
             at.extend(l.tpd.sym(s).filter(|v| span.exists() && syms.contains(v)).map(|v| (v, span)));
         }
     }
-    let number = |n: &str| n.trim_start_matches("ev$").parse::<u32>().unwrap_or(0);
+    let number = |n: &str| n.trim_start_matches(name_kinds::TEMP_RESULT).parse::<u32>().unwrap_or(0);
     let mut names: Vec<String> = values.iter().map(|&(v, ..)| l.u.symbol(v).name.clone()).collect();
     names.sort_by_key(|n| number(n));
     let mut key = (false, 0, Reverse(0));

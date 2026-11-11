@@ -12,7 +12,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{CASE, LAZY, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, nme};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Expands the non-local returns in class definition `td` and the methods they return from.
@@ -102,7 +102,7 @@ fn field(l: &mut Lower, qual: TNodeId, class: SymbolId, name: &str) -> TNodeId {
 fn throw(l: &mut Lower, t: TNodeId, expr: TNodeId, key: SymbolId, class: SymbolId) {
     let span = l.tpd.span(t);
     let new = l.new_(class, Span::NONE);
-    let ctor = member(l, class, "<init>");
+    let ctor = member(l, class, nme::CONSTRUCTOR);
     let key = l.ident(key, Span::NONE);
     let created = l.call(new, ctor, &[key, expr]);
     let tpe = type_ref(l.u, class);
@@ -116,7 +116,7 @@ fn throw(l: &mut Lower, t: TNodeId, expr: TNodeId, key: SymbolId, class: SymbolI
 fn try_(l: &mut Lower, body: TNodeId, key: SymbolId, method: SymbolId, class: SymbolId) -> TNodeId {
     let object = l.u.defn().object;
     let new = l.new_(object, Span::NONE);
-    let ctor = member(l, object, "<init>");
+    let ctor = member(l, object, nme::CONSTRUCTOR);
     let created = l.call(new, ctor, &[]);
     let object_type = type_ref(l.u, object);
     l.tpd.get_mut(created).tpe = Some(object_type);

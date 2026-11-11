@@ -11,7 +11,7 @@ use crate::phases::casts::is_cast;
 use crate::phases::function_classes::erased_function_class;
 use crate::{Lower, Result};
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId};
+use tasty::{Erased, SymbolId, defn, nme};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Call `t` of `fun` to `args`, its argument lists flattened and its type arguments dropped; at
@@ -55,10 +55,10 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
     }
     let any_val_init = l.tpd.sym(sel).filter(|&m| l.u.is_constructor(m)).and_then(|m| l.u.symbol(m).owner);
     if any_val_init.is_some() && any_val_init == l.u.defn().any_val {
-        let init = l.u.decls_named(l.u.defn().object, "<init>");
+        let init = l.u.decls_named(l.u.defn().object, nme::CONSTRUCTOR);
         l.tpd.get_mut(sel).sym = init.first().copied();
     }
-    let clone = l.tpd.sym(fun).filter(|&m| l.u.symbol(m).name == "clone");
+    let clone = l.tpd.sym(fun).filter(|&m| l.u.symbol(m).name == nme::CLONE);
     if clone.is_some() && clone == Some(l.array_clone()?) {
         l.tpd.get_mut(fun).sym = Some(l.defs.object_clone);
     }
@@ -99,7 +99,7 @@ fn bunched_args(l: &mut Lower, args: &[TNodeId]) -> TNodeId {
 /// overrides `m`: `equals`, `hashCode`.
 pub fn inherited_by_class(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let s = l.u.symbol(m);
-    if !matches!(s.name.as_str(), "equals" | "hashCode") || l.u.binary_name(s.owner?) != "java.lang.Class" {
+    if !matches!(s.name.as_str(), nme::EQUALS | nme::HASH_CODE) || l.u.binary_name(s.owner?) != defn::CLASS {
         return None;
     }
     let name = s.name.clone();
@@ -118,6 +118,7 @@ pub fn function_member(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
 /// Whether `t` selects `Any.hashCode` without applying it, as `inherited_by_class` leaves
 /// `_Class`'s parameterless `hashCode`.
 pub fn is_unapplied_hash_code(l: &Lower, t: TNodeId) -> bool {
-    let any_hash_code = |m| l.u.symbol(m).name == "hashCode" && l.u.symbol(m).owner == Some(l.u.defn().any);
+    let any_hash_code =
+        |m| l.u.symbol(m).name == nme::HASH_CODE && l.u.symbol(m).owner == Some(l.u.defn().any);
     matches!(l.tpd.tree(t), Tree::Select { .. }) && l.tpd.sym(t).is_some_and(any_hash_code)
 }

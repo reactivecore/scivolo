@@ -14,7 +14,7 @@ use crate::definitions::symbol;
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId, Type, nme};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewrites the by-name arguments and references in class definition `td`.
@@ -97,7 +97,7 @@ fn apply_reference(l: &mut Lower, t: TNodeId) {
     let qual = l.tpd.node(tree, span, tpe, Some(x));
     let function = l.u.class_ref(tasty::defn::FUNCTION0);
     let class = l.u.class_symbol(function).expect("`Function0`");
-    let apply = l.u.decls_named(class, "apply");
+    let apply = l.u.decls_named(class, nme::APPLY);
     let apply = apply.into_iter().next().expect("`Function0.apply`");
     let fun = l.select(qual, apply, Span::NONE);
     let call = l.apply(fun, &[], result, Span::NONE);
@@ -140,7 +140,7 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
     let result = l.u.widen(formal);
     let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
     let owner = l.lazy_members.get(&owner).map_or(owner, |m| m.init);
-    let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, flags));
+    let anon = l.u.define(symbol(nme::ANON_FUN, Kind::Def, owner, flags));
     let binder = l.u.fresh_binder();
     let info = l.u.intern_method(binder, &[], result, false, false);
     l.u.set_info(anon, info);

@@ -15,7 +15,7 @@ use super::walk::children;
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{FIELDaccessor, LAZY, STATIC};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// A function to lift: its definition, the block it is in, its closure if a lambda, the function
@@ -41,7 +41,7 @@ impl Function {
 
     /// Whether this is a lambda's method, kept as a closure or not (dotty's `isAnonymousFunction`).
     pub fn is_anonymous(&self, l: &Lower) -> bool {
-        self.closure.is_some() || l.u.symbol(self.sym).name == "$anonfun"
+        self.closure.is_some() || l.u.symbol(self.sym).name == nme::ANON_FUN
     }
 }
 

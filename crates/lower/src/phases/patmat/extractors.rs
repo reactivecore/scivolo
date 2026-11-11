@@ -14,8 +14,8 @@ use crate::phases::type_tests::not_null::is_not_null;
 use crate::symbols::has;
 use crate::{Result, unsupported};
 use syntax::ast::Span;
-use tasty::SymbolId;
 use tasty::tags::SYNTHETIC;
+use tasty::{SymbolId, nme};
 use typer::tpd::{List, TNodeId};
 
 impl Translator<'_, '_> {
@@ -77,7 +77,7 @@ impl Translator<'_, '_> {
     ) -> Result<PlanId> {
         let extractor = self.l.tpd.sym(self.l.tpd.meth_part(unapp)).expect("an extractor's symbol");
         let span = self.l.tpd.span(unapp);
-        if self.l.u.symbol(extractor).name == "unapplySeq" {
+        if self.l.u.symbol(extractor).name == nme::UNAPPLY_SEQ {
             return self.let_abstract(unapp, None, |t, result| {
                 let result_type = t.l.u.info(result);
                 if t.is_sequence(result_type) {

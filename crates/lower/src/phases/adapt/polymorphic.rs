@@ -40,10 +40,7 @@ pub fn is_synchronized(l: &Lower, fun: TNodeId) -> bool {
 pub fn synchronized_type(l: &mut Lower, fun: TNodeId) -> Option<Erased> {
     let Tree::TypeApply { args, .. } = *l.tpd.tree(fun) else { return None };
     let &[targ] = l.tpd.items(args) else { return None };
-    is_synchronized(l, fun).then(|| match l.u.erase(l.tpd.tpe(targ)) {
-        Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
-        e => e,
-    })
+    is_synchronized(l, fun).then(|| l.u.erase(l.tpd.tpe(targ)).boxing_unit())
 }
 
 /// Makes identifier `sel` of `synchronized` its selection on the `this` of its type's prefix, as

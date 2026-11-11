@@ -11,7 +11,7 @@ use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{OVERRIDE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, TypeId};
+use tasty::{Flags, Kind, SymbolId, TypeId, name_kinds};
 use typer::protected_access::{self, host_for_accessor_of, needs_accessor_if_not_in_subclass};
 use typer::tpd::{TNodeId, Tree};
 
@@ -91,7 +91,7 @@ fn rewrite(l: &mut Lower, t: TNodeId, class: SymbolId, made: &mut Vec<Accessor>)
     if l.u.poly(info).is_some() {
         return unsupported(span, "protected accessors of polymorphic methods");
     }
-    let name = format!("protected${}", l.u.symbol(sym).name);
+    let name = name_kinds::protected_accessor(&l.u.symbol(sym).name);
     let acc = accessor(l, host, &name, info, (sym, false), made);
     let new = rewired(l, qualifier, acc, span);
     l.copy_node(t, new);
@@ -111,7 +111,7 @@ fn use_setter(l: &mut Lower, t: TNodeId, lhs: TNodeId, rhs: TNodeId, made: &mut 
     let getter_info = l.u.info(getter);
     let value = l.u.result_type(getter_info);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("x$0"), value)];
+    let params = [(l.u.intern_name(&name_kinds::synthetic_param(0)), value)];
     let info = l.u.intern_method(binder, &params, unit, false, false);
     let acc = accessor(l, host, &name, info, (accessed, true), made);
     let qualifier = match *l.tpd.tree(lhs) {

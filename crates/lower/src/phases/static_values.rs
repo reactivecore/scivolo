@@ -9,7 +9,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, name_kinds, nme};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Makes the `@static` values among `stats` of object class `module` with template body `body`
@@ -43,7 +43,7 @@ pub fn transform(
     let mut moved = Vec::new();
     let vars: Vec<SymbolId> = inits.iter().map(|&(s, _)| s).filter(|&s| has(l.u, s, MUTABLE)).collect();
     for var in vars {
-        let name = format!("{}_=", l.u.symbol(var).name);
+        let name = name_kinds::setter(&l.u.symbol(var).name);
         let setter = l.u.decls_named(module, &name).into_iter().next();
         let def = setter.and_then(|s| body.iter().copied().find(|&d| l.tpd.sym(d) == Some(s)));
         let Some(def) = def else { return unsupported(Span::NONE, "@static variables without a setter") };
@@ -141,7 +141,7 @@ fn clinit(
     if l.backend == crate::Backend::Jvm {
         flags = flags.with(PRIVATE);
     }
-    let sym = l.u.define(symbol("<clinit>", Kind::Def, class, flags));
+    let sym = l.u.define(symbol(nme::STATIC_CONSTRUCTOR, Kind::Def, class, flags));
     let unit = l.u.class_ref(tasty::defn::UNIT);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_method(binder, &[], unit, false, false);

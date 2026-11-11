@@ -13,7 +13,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, INLINE, PRIVATE, STATIC};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, name_kinds};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether member `s` has a body: in its TASTy for the library's, else unless deferred.
@@ -143,7 +143,10 @@ pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolI
 fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
-        || m.name.rsplit("$$").next().is_some_and(|n| n.starts_with("inline$"))
+        || m.name
+            .rsplit(name_kinds::EXPAND_SEPARATOR)
+            .next()
+            .is_some_and(|n| n.starts_with(name_kinds::INLINE_PREFIX))
         || l.u.is_constructor(meth)
         || has(l.u, meth, PRIVATE)
         || has(l.u, meth, FIELDaccessor)
@@ -287,7 +290,7 @@ pub fn with_java_param_names(l: &mut Lower, info: TypeId) -> TypeId {
                     .to_vec()
                     .into_iter()
                     .enumerate()
-                    .map(|(i, (_, t))| (l.u.intern_name(&format!("x${i}")), t))
+                    .map(|(i, (_, t))| (l.u.intern_name(&name_kinds::synthetic_param(i)), t))
                     .collect();
             l.u.intern_method(binder, &params, result, implicit, contextual)
         }

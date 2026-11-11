@@ -8,7 +8,7 @@ use crate::definitions::symbol;
 use tasty::tags::{
     APPLY, BLOCK, DEFDEF, LAMBDA, NEW, PARAM, SPLITCLAUSE, SYNTHETIC, TEMPLATE, TYPEAPPLY, TYPEPARAM,
 };
-use tasty::{Ast, Flags, Kind, NodeId, SymbolId};
+use tasty::{Ast, Flags, Kind, NodeId, SymbolId, name_kinds, nme};
 
 /// `C$superArg$N` in `class` for the `N`th argument defining a method member class `C` passes to
 /// its superclass constructor, of the type of the constructor of `C` with the function class of
@@ -30,12 +30,12 @@ pub fn hoisted(l: &mut Lower, class: SymbolId) -> Vec<(SymbolId, SymbolId)> {
             arities
         };
         let Some(arities) = arities.into_iter().collect::<Option<Vec<usize>>>() else { continue };
-        let Some(&ctor) = l.u.decls_named(c, "<init>").first() else { continue };
+        let Some(&ctor) = l.u.decls_named(c, nme::CONSTRUCTOR).first() else { continue };
         let ctor_info = l.u.info(ctor);
         let name = l.u.symbol(c).name.clone();
         for (i, arity) in arities.into_iter().enumerate() {
             let flags = Flags::default().with(SYNTHETIC);
-            let m = l.u.define(symbol(&format!("{name}$superArg${}", i + 1), Kind::Def, class, flags));
+            let m = l.u.define(symbol(&name_kinds::super_arg(&name, i + 1), Kind::Def, class, flags));
             let result = l.u.class_ref(&format!("scala.Function{arity}"));
             let info = super::context_results::with_result(l, ctor_info, result);
             l.u.set_info(m, info);

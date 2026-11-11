@@ -13,7 +13,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::{Span, TName};
 use tasty::tags::INLINE;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Tree, Walk, traverse};
 
 /// Encodes the quote patterns of unit `root`, owned by `owner`, outside its inline methods.
@@ -78,7 +78,7 @@ fn encode(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let module = l.select(quotes, module, Span::NONE);
     let module = l.positioned(module);
     let class = l.u.decl(class, unapply).ok().and_then(|d| d.first().copied()).expect("a matcher class");
-    let unapply = l.u.decl(class, "unapply").ok().and_then(|d| d.first().copied()).expect("unapply");
+    let unapply = l.u.decl(class, nme::UNAPPLY).ok().and_then(|d| d.first().copied()).expect("unapply");
     let fun = l.select(module, unapply, Span::NONE);
     let fun = l.positioned(fun);
     let bound = nested_pairs(l, &bindings.iter().map(|&b| l.tpd.tpe(b)).collect::<Vec<_>>());
@@ -103,7 +103,7 @@ fn quoted_term(l: &mut Lower, shape: TNodeId, quotes: TNodeId) -> TNodeId {
     let quote = l.apply(quote, &[shape], result, Span::NONE);
     let quote = l.positioned(quote);
     let class = l.u.class_symbol(result).expect("ContextFunction1");
-    let apply = l.u.member(class, "apply")[0];
+    let apply = l.u.member(class, nme::APPLY)[0];
     let fun = l.select(quote, apply, Span::NONE);
     let fun = l.positioned(fun);
     let expr = l.u.applied(result).map(|(_, args)| args[1]).expect("Expr[T]");
@@ -136,7 +136,8 @@ fn tuple_pattern(l: &mut Lower, patterns: &[TNodeId], types: &[TypeId], span: Sp
     if patterns.len() > tasty::defn::MAX_TUPLE_ARITY {
         return unsupported(span, "quote patterns of more than 22 splices and type variables");
     }
-    let unapply = runtime(l, &format!("scala.Tuple{}$", patterns.len()), "unapply", Span::NONE);
+    let tuple = tasty::module_class_name(&format!("{}{}", tasty::defn::TUPLE, patterns.len()));
+    let unapply = runtime(l, &tuple, nme::UNAPPLY, Span::NONE);
     let fun = poly_call(l, unapply, types, Span::NONE);
     let fun = l.positioned(fun);
     let tpe = tuple_type(l, types);

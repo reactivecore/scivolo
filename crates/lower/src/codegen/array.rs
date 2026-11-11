@@ -8,7 +8,7 @@ use super::Gen;
 use crate::definitions::Known;
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
-use tasty::SymbolId;
+use tasty::{SymbolId, nme};
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -65,7 +65,7 @@ impl Gen<'_, '_> {
         let name = self.l.u.symbol(sym).name.clone();
         let array = match *self.l.tpd.tree(fun) {
             Tree::Select { qualifier, .. } => match *self.l.tpd.tree(qualifier) {
-                Tree::New { .. } if name == "<init>" => {
+                Tree::New { .. } if name == nme::CONSTRUCTOR => {
                     let ty = self.gen_type(self.l.tpd.tpe(app));
                     let (Type::Array { elem, .. }, [length]) = (self.pool.ty(ty).clone(), args) else {
                         return unsupported(span, "arrays of generic or several dimensions");
@@ -87,7 +87,7 @@ impl Gen<'_, '_> {
         let saved = self.at_span(span);
         let arr = self.gen_expr(array)?;
         let v = match (name.as_str(), args) {
-            ("apply", [i]) => {
+            (nme::APPLY, [i]) => {
                 let idx = self.gen_expr(*i)?;
                 self.emit(Op::Arrayload { ty: elem, arr, idx })
             }

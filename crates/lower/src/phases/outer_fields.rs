@@ -16,7 +16,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, LOCAL, PRIVATE};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, nme};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Gives class definition `td` of `class` its constructor parameter for the instance of `outer`.
@@ -24,7 +24,7 @@ pub fn declare(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) {
     let Template { constr, .. } = l.tpd.class_template(td).expect("a class definition");
     let tpe = type_ref(l.u, outer);
     let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
-    let param = l.u.define(symbol("$outer", Kind::Param, ctor, Flags::default()));
+    let param = l.u.define(symbol(nme::OUTER, Kind::Param, ctor, Flags::default()));
     l.u.set_info(param, tpe);
     super::leading_params::add_params(l, constr, ctor, &[param]);
     l.outers.insert(class, (None, param));
@@ -169,7 +169,7 @@ fn field(l: &mut Lower, class: SymbolId) -> SymbolId {
     if let Some(f) = field {
         return f;
     }
-    let f = l.u.define(symbol("$outer", Kind::Val, class, Flags::default().with(PRIVATE).with(LOCAL)));
+    let f = l.u.define(symbol(nme::OUTER, Kind::Val, class, Flags::default().with(PRIVATE).with(LOCAL)));
     let tpe = l.u.info(param);
     l.u.set_info(f, tpe);
     l.fields.insert(f, f);

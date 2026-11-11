@@ -11,13 +11,13 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{CASE, ENUM, OVERRIDE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// Whether `class` is the anonymous class of an enum value.
 pub fn is_enum_value(l: &mut Lower, class: SymbolId) -> bool {
     let first = l.u.parents(class).first().and_then(|&p| l.u.class_symbol(p));
-    l.u.symbol(class).name.starts_with("$anon") && first.is_some_and(|c| has(l.u, c, ENUM))
+    l.u.symbol(class).name.starts_with(nme::ANON_CLASS) && first.is_some_and(|c| has(l.u, c, ENUM))
 }
 
 /// The synthetic members of enum value class `class` in unit `root`, at `span`'s point.
@@ -26,9 +26,9 @@ pub fn enum_value_members(l: &mut Lower, root: TNodeId, class: SymbolId, span: S
         return Ok(Vec::new());
     }
     let owner = l.u.symbol(class).owner.expect("a local class's owner");
-    let source = if l.u.symbol(owner).name == "$new" {
+    let source = if l.u.symbol(owner).name == nme::DOLLAR_NEW {
         let (Some(name), Some(ordinal)) =
-            (param(l, root, owner, "$name"), param(l, root, owner, "_$ordinal"))
+            (param(l, root, owner, nme::NAME_DOLLAR), param(l, root, owner, nme::ORDINAL_DOLLAR_))
         else {
             return unsupported(span, "an enum value constructor without its parameters");
         };
@@ -67,7 +67,7 @@ pub fn enum_value_members(l: &mut Lower, root: TNodeId, class: SymbolId, span: S
                 let name = source.name(l);
                 let tpe = l.u.widen(l.tpd.tpe(name));
                 let string = l.u.class_symbol(tpe);
-                let hash_code = string.map(|s| l.u.decls_named(s, "hashCode")).unwrap_or_default();
+                let hash_code = string.map(|s| l.u.decls_named(s, nme::HASH_CODE)).unwrap_or_default();
                 let hash_code = hash_code.into_iter().find(|&m| l.u.symbol(m).kind == Kind::Def);
                 l.call(name, hash_code.unwrap_or(cc.hash_code), &[])
             }

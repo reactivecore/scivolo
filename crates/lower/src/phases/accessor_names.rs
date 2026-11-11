@@ -8,22 +8,19 @@
 
 use crate::Lower;
 use crate::symbols::has;
-use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, LOCAL, PRIVATE};
-
-/// The separator in the names of trait setters.
-const TRAIT_SETTER: &str = "$_setter_$";
+use tasty::{SymbolId, name_kinds, nme};
 
 /// The name of trait `trait_`'s setter of value `x`: `T$_setter_$x_=`, `T` the names of the
 /// trait and its owners joined by `$`.
 pub fn trait_setter_name(l: &Lower, trait_: SymbolId, x: &str) -> String {
-    format!("{}{TRAIT_SETTER}{x}_=", trait_prefix(l, trait_))
+    name_kinds::trait_setter(&trait_prefix(l, trait_), x)
 }
 
 /// The name of the getter of setter `x_=` or of trait setter `T$_setter_$x_=`.
 pub fn setter_getter_name(setter: &str) -> &str {
-    let name = setter.rsplit(TRAIT_SETTER).next().unwrap_or(setter);
-    name.strip_suffix("_=").unwrap_or(name)
+    let name = setter.rsplit(name_kinds::TRAIT_SETTER_SEPARATOR).next().unwrap_or(setter);
+    name.strip_suffix(name_kinds::SETTER_SUFFIX).unwrap_or(name)
 }
 
 /// The name of accessor `s` outside its class: a private trait member's expanded.
@@ -31,7 +28,7 @@ pub fn accessor_name(l: &Lower, s: SymbolId) -> String {
     let sym = l.u.symbol(s);
     match sym.owner {
         Some(o) if has(l.u, s, PRIVATE) && l.u.is_trait(o) => {
-            format!("{}$${}", trait_prefix(l, o), sym.run_name())
+            name_kinds::expanded(&trait_prefix(l, o), sym.run_name())
         }
         _ => sym.run_name().to_owned(),
     }
@@ -41,7 +38,7 @@ pub fn accessor_name(l: &Lower, s: SymbolId) -> String {
 pub fn expand_private(l: &mut Lower, trait_: SymbolId) {
     for s in l.u.decls(trait_).unwrap_or_default() {
         if has(l.u, s, FIELDaccessor) && has(l.u, s, PRIVATE) {
-            let name = format!("{}$${}", trait_prefix(l, trait_), l.u.symbol(s).name);
+            let name = name_kinds::expanded(&trait_prefix(l, trait_), &l.u.symbol(s).name);
             l.u.rename(s, &name);
             let flags = l.u.symbol(s).flags.without(PRIVATE).without(LOCAL);
             l.u.set_flags(s, flags);
@@ -57,14 +54,14 @@ fn trait_prefix(l: &Lower, t: SymbolId) -> String {
     let mut filler = String::new();
     let mut owner = Some(term);
     while let Some(o) = owner.filter(|&o| l.u.symbol(o).kind.is_term()) {
-        filler.push_str("_$");
+        filler.push_str(name_kinds::TERM_FILLER);
         owner = l.u.symbol(l.lifted_to.get(&o).copied().unwrap_or(o)).owner;
     }
     let name = l.u.symbol(t).name.trim_end_matches(|c: char| c.is_ascii_digit());
     let name = name.strip_suffix('$').unwrap_or(name);
     let name = name.rsplit('$').next().unwrap_or(name);
     let enclosing = owner.map(|o| l.u.expanded_prefix(o)).unwrap_or_default();
-    format!("{enclosing}${filler}{name}")
+    name_kinds::flat(&enclosing, &[filler.as_str(), name].concat())
 }
 
 /// Gives private member `s` other than a constructor its expanded name `p$C$$x` (`p$O$$$x` in
@@ -76,18 +73,21 @@ pub fn ensure_not_private(l: &mut Lower, s: SymbolId) {
         let mut filler = String::new();
         let mut from = l.lifted_from.get(&s).copied();
         while let Some(term) = from.filter(|&t| l.u.symbol(t).kind.is_term()) {
-            filler.push_str("_$");
+            filler.push_str(name_kinds::TERM_FILLER);
             let term = l.lifted_to.get(&term).copied().unwrap_or(term);
             from = l.u.symbol(term).owner;
         }
         let base = from.or(l.u.symbol(s).owner).expect("a member's owner");
         let module = if l.u.symbol(base).name.ends_with('$') { "$" } else { "" };
         let own = &l.u.symbol(s).name;
-        let own = match own.strip_prefix("$init$$") {
-            Some(rest) if !filler.is_empty() && !l.u.is_trait(base) => format!("$lessinit$greater${rest}"),
+        let own = match own.strip_prefix(&name_kinds::unique_prefix(nme::TRAIT_CONSTRUCTOR)) {
+            Some(rest) if !filler.is_empty() && !l.u.is_trait(base) => {
+                name_kinds::flat(name_kinds::DEFAULT_GETTER_INIT, rest)
+            }
             _ => unique_unqualified(own),
         };
-        let name = format!("{}{module}$${filler}{own}", l.u.expanded_prefix(base));
+        let prefix = [l.u.expanded_prefix(base).as_str(), module].concat();
+        let name = name_kinds::expanded(&prefix, &[filler.as_str(), own.as_str()].concat());
         l.u.rename(s, &name);
     }
     let flags = l.u.symbol(s).flags.without(PRIVATE).without(LOCAL);

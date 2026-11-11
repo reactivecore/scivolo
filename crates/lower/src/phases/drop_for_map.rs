@@ -8,7 +8,7 @@ use super::walk::{children, subtrees};
 use crate::symbols::has;
 use crate::{Lower, Result};
 use tasty::tags::{EXTENSION, IMPLICIT};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, nme};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Drops the trailing `map` calls of `for` comprehensions in unit `root`, inner ones first; the
@@ -125,7 +125,7 @@ fn same_tree(l: &Lower, a: TNodeId, b: TNodeId) -> bool {
 
 /// The receiver, `map` method and innermost arguments of `t`, a call of `map`.
 fn map_call(l: &Lower, t: TNodeId, args: Vec<TNodeId>) -> Option<(Option<TNodeId>, SymbolId, Vec<TNodeId>)> {
-    let named_map = |l: &Lower, s: SymbolId| l.u.symbol(s).name == "map";
+    let named_map = |l: &Lower, s: SymbolId| l.u.symbol(s).name == nme::MAP;
     match *l.tpd.tree(t) {
         Tree::Ident { .. } => {
             let sym = l.tpd.sym(t).filter(|&s| named_map(l, s) && has(l.u, s, EXTENSION))?;
@@ -165,7 +165,7 @@ fn converted(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
                 _ => fun,
             };
             let s = l.tpd.sym(fun)?;
-            let conversion = l.u.symbol(s).name == "apply"
+            let conversion = l.u.symbol(s).name == nme::APPLY
                 && match (l.u.symbol(s).owner, class_named(l, "scala.Conversion")) {
                     (Some(o), Some(c)) => l.u.derives_from(o, c),
                     _ => false,

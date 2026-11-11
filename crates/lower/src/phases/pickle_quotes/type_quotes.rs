@@ -11,7 +11,7 @@ use super::{pickled, types, unpickled};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::defn::TYPE_OF;
-use tasty::{SymbolId, Type};
+use tasty::{SymbolId, Type, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// A type quote: `Type.of[body]`, the type application the typer recorded the tags of, and the
@@ -80,7 +80,7 @@ fn tagged(l: &mut Lower, q: &TypeQuote, owner: SymbolId) -> Result<TNodeId> {
     let of = reflect.method(l, "TypeRepr", "typeConstructorOf")?;
     let predef = l.u.class_ref("scala.Predef$");
     let predef = l.u.class_symbol(predef).expect("Predef");
-    let class_of = l.u.decl(predef, "classOf").ok().and_then(|d| d.first().copied()).expect("classOf");
+    let class_of = l.u.decl(predef, nme::CLASS_OF).ok().and_then(|d| d.first().copied()).expect("classOf");
     let class_of = l.ident(class_of, Span::NONE);
     let constant = l.u.intern_type(Type::Constant(tasty::tags::CLASSconst, i64::from(tpe.0)));
     let arg = l.type_tree(tpe, Span::NONE);

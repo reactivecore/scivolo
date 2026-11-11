@@ -11,7 +11,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
-use tasty::{SymbolId, TypeId};
+use tasty::{SymbolId, TypeId, name_kinds, nme};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Specializes the tuple creations and element selections in class definition `td`; `inits`
@@ -46,8 +46,8 @@ pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) -> Res
 fn tuple_of(l: &mut Lower, s: SymbolId) -> Option<SymbolId> {
     let owner = l.u.symbol(s).owner?;
     let class = match l.u.symbol(s).name.as_str() {
-        "apply" if l.u.is_module_class(owner) => l.u.companion_class(owner)?,
-        "<init>" => owner,
+        nme::APPLY if l.u.is_module_class(owner) => l.u.companion_class(owner)?,
+        nme::CONSTRUCTOR => owner,
         _ => return None,
     };
     matches!(l.u.full_name(class).as_str(), "scala.Tuple1" | "scala.Tuple2").then_some(class)
@@ -141,7 +141,7 @@ fn selection(l: &mut Lower, t: TNodeId, qual: TNodeId) -> Result<()> {
     let i = if field == "_1" { 0 } else { 1 };
     let tag = tags.chars().nth(i).expect("a tag per element");
     let accessor = specialized_accessor(l.u, n, &field, tag).or_else(|e| unsupported(l.tpd.span(t), e))?;
-    let name = l.term_name(&format!("{field}$mc{tag}$sp"));
+    let name = l.term_name(&name_kinds::specialized(&field, &tag.to_string()));
     let node = l.tpd.get_mut(t);
     (node.tree, node.sym, node.tpe) =
         (Tree::Select { qualifier: qual, name }, Some(accessor), Some(elems[i]));

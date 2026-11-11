@@ -10,7 +10,7 @@ use super::leading_params::add_params;
 use crate::Lower;
 use crate::definitions::symbol;
 use syntax::ast::Span;
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, nme};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Gives the secondary constructors of class definition `td` of `class` the parameter `$outer`
@@ -26,7 +26,7 @@ pub fn declare(l: &mut Lower, td: TNodeId, class: SymbolId) {
         if !matches!(l.tpd.tree(def), Tree::DefDef { .. }) {
             continue;
         }
-        let param = l.u.define(symbol("$outer", Kind::Param, ctor, Flags::default()));
+        let param = l.u.define(symbol(nme::OUTER, Kind::Param, ctor, Flags::default()));
         l.u.set_info(param, tpe);
         add_params(l, def, ctor, &[param]);
         for t in terms(l, def, false) {
@@ -57,5 +57,5 @@ pub fn param(l: &Lower, def: TNodeId) -> Option<SymbolId> {
     let ctor = l.tpd.sym(def).filter(|&s| l.u.is_constructor(s))?;
     let first = *l.tpd.clause_items(paramss).first()?;
     let p = l.tpd.items(first).first().and_then(|&p| l.tpd.sym(p))?;
-    (l.u.symbol(p).name == "$outer" && l.u.symbol(p).owner == Some(ctor)).then_some(p)
+    (l.u.symbol(p).name == nme::OUTER && l.u.symbol(p).owner == Some(ctor)).then_some(p)
 }

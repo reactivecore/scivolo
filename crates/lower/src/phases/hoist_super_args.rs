@@ -14,7 +14,7 @@ use crate::symbols::is_static;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, name_kinds};
 use typer::tpd::{TNodeId, Tree};
 
 /// The class whose superclass call is hoisted from, its constructor definition, whether it is
@@ -148,7 +148,7 @@ fn hoist(l: &mut Lower, h: &mut Hoister, arg: TNodeId, lifted: &[SymbolId], span
     }
     let mut originals = params(l, constr);
     originals.extend(lifted);
-    let name = fresh(l, &format!("{}$superArg", l.u.symbol(class).name));
+    let name = fresh(l, &name_kinds::super_arg_base(&l.u.symbol(class).name));
     let flags = Flags::default().with(PRIVATE).with(SYNTHETIC);
     let (flags, owner) = match h.nested {
         true => (flags, l.u.symbol(class).owner.expect("a nested class's owner")),

@@ -1,5 +1,5 @@
 use super::{member, symbol, type_ref};
-use tasty::{Flags, Kind, SymbolId, Universe};
+use tasty::{Flags, Kind, SymbolId, Universe, nme};
 
 /// What compiled pattern matches refer to beyond `Any`'s, `Object`'s and `Boolean`'s members.
 #[derive(Clone, Copy)]
@@ -16,14 +16,14 @@ impl Patmat {
         Ok(Patmat {
             int: member(u, scala, "Int", Kind::Class)?,
             match_error,
-            match_error_ctor: member(u, match_error, "<init>", Kind::Def)?,
+            match_error_ctor: member(u, match_error, nme::CONSTRUCTOR, Kind::Def)?,
         })
     }
 }
 
 /// `<special-ops>.throw(x: Throwable): Nothing`, defined if the typer has not.
 pub fn throw(u: &mut Universe) -> Result<SymbolId, String> {
-    let ops = u.enter_package("<special-ops>");
+    let ops = u.enter_package(nme::OPS_PACKAGE);
     if let Ok(found) = member(u, ops, "throw", Kind::Def) {
         return Ok(found);
     }

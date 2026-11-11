@@ -6,7 +6,7 @@
 //! `lengthCompare(Int): Int` or `length: Int`; the length test's member.
 
 use super::Translator;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 /// The members of a sequence-like type a sequence match calls.
 pub struct SeqMembers {
@@ -27,15 +27,15 @@ impl Translator<'_, '_> {
 
     /// The members of sequence-like `tpe`.
     pub fn seq_members(&mut self, tpe: TypeId) -> Option<SeqMembers> {
-        let (apply, elem) = self.seq_member(tpe, "apply", |_, _| true)?;
+        let (apply, elem) = self.seq_member(tpe, nme::APPLY, |_, _| true)?;
         let seq = self.l.u.class_ref("scala.collection.Seq");
         let seq = self.l.u.intern_applied(seq, &[elem]);
         let conforms = |t: &mut Self, r| t.l.u.is_subtype(r, seq);
         let is_int = |t: &mut Self, r| t.l.u.is_class_named(r, tasty::defn::INT);
-        if self.seq_member(tpe, "lengthCompare", is_int).is_none() {
+        if self.seq_member(tpe, nme::LENGTH_COMPARE, is_int).is_none() {
             self.seq_member(tpe, "length", is_int)?;
         }
-        let (length, result) = match self.seq_member(tpe, "lengthCompare", |_, _| true) {
+        let (length, result) = match self.seq_member(tpe, nme::LENGTH_COMPARE, |_, _| true) {
             Some(found) => found,
             None => self.seq_member(tpe, "length", is_int)?,
         };

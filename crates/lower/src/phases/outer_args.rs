@@ -11,7 +11,7 @@ use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::PRIVATE;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// Passes the enclosing instance to each `new C` in class definition `td` of a class `C` that
@@ -74,11 +74,11 @@ pub fn declare_library(l: &mut Lower, class: SymbolId, ctor: SymbolId, outer: Sy
     let info = l.u.info(ctor);
     let first = l.u.strip_poly(info);
     let declared =
-        l.u.method(first).is_some_and(|m| m.params.first().is_some_and(|&(n, _)| l.u.name(n) == "$outer"));
+        l.u.method(first).is_some_and(|m| m.params.first().is_some_and(|&(n, _)| l.u.name(n) == nme::OUTER));
     if declared && l.outers.contains_key(&class) {
         return;
     }
-    let param = l.u.define(symbol("$outer", Kind::Param, ctor, Flags::default()));
+    let param = l.u.define(symbol(nme::OUTER, Kind::Param, ctor, Flags::default()));
     l.u.set_info(param, tpe);
     if !declared {
         let info = with_leading_params(l, info, &[param]);

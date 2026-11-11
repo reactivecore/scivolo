@@ -6,7 +6,7 @@
 
 use super::{applied, member, symbol, type_ref};
 use tasty::tags::FINAL;
-use tasty::{Flags, Kind, SymbolId, TypeId, Universe};
+use tasty::{Flags, Kind, SymbolId, TypeId, Universe, name_kinds, nme};
 
 /// The element classes of the specialized `Tuple1` and `Tuple2` classes with their type tags
 /// (dotty's `Tuple1SpecializedParamTypes`, `Tuple2SpecializedParamTypes`, `typeTag`).
@@ -42,7 +42,7 @@ pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str) -> Result<SymbolId, 
     let elems: Vec<TypeId> = tags.chars().map(|t| tag_type(u, t)).collect();
     let scala = u.defn().scala;
     let base = member(u, scala, &format!("Tuple{}", elems.len()), Kind::Class)?;
-    let name = format!("Tuple{}$mc{tags}$sp", elems.len());
+    let name = name_kinds::specialized(&format!("Tuple{}", elems.len()), tags);
     let class = match member(u, scala, &name, Kind::Class) {
         Ok(c) => c,
         Err(_) => {
@@ -52,13 +52,16 @@ pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str) -> Result<SymbolId, 
             c
         }
     };
-    if let Ok(ctor) = member(u, class, "<init>", Kind::Def) {
+    if let Ok(ctor) = member(u, class, nme::CONSTRUCTOR, Kind::Def) {
         return Ok(ctor);
     }
-    let ctor = u.define(symbol("<init>", Kind::Def, class, Flags::default()));
+    let ctor = u.define(symbol(nme::CONSTRUCTOR, Kind::Def, class, Flags::default()));
     let params = tags.chars().zip(elems).enumerate();
-    let params: Vec<_> =
-        params.map(|(i, (t, e))| (u.intern_name(&format!("_{}$mc{t}$sp", i + 1)), e)).collect();
+    let params: Vec<_> = params
+        .map(|(i, (t, e))| {
+            (u.intern_name(&name_kinds::specialized(&format!("_{}", i + 1), &t.to_string())), e)
+        })
+        .collect();
     let result = type_ref(u, class);
     let binder = u.fresh_binder();
     let info = u.intern_method(binder, &params, result, false, false);
@@ -70,7 +73,7 @@ pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str) -> Result<SymbolId, 
 pub fn specialized_accessor(u: &mut Universe, n: usize, field: &str, tag: char) -> Result<SymbolId, String> {
     let elem = tag_type(u, tag);
     let base = member(u, u.defn().scala, &format!("Tuple{n}"), Kind::Class)?;
-    let name = format!("{field}$mc{tag}$sp");
+    let name = name_kinds::specialized(field, &tag.to_string());
     if let Ok(m) = member(u, base, &name, Kind::Def) {
         return Ok(m);
     }

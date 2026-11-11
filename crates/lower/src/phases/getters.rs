@@ -12,7 +12,7 @@ use syntax::ast::Span;
 use tasty::tags::{
     ERASED, FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC, SYNTHETIC,
 };
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId, Type, name_kinds};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Makes the values of class definition `td` getters, an object's lazy ones in a class; drops the
@@ -113,10 +113,15 @@ fn param_setter(l: &mut Lower, class: SymbolId, var: SymbolId, name: &str, span:
     let value = l.u.info(var);
     let unit = l.u.class_ref(tasty::defn::UNIT);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("x$0"), value)];
+    let params = [(l.u.intern_name(&name_kinds::synthetic_param(0)), value)];
     let info = l.u.intern_method(binder, &params, unit, false, false);
     l.u.set_info(setter, info);
-    let param = l.u.define(symbol("x$0", Kind::Param, setter, Flags::default().with(SYNTHETIC)));
+    let param = l.u.define(symbol(
+        &name_kinds::synthetic_param(0),
+        Kind::Param,
+        setter,
+        Flags::default().with(SYNTHETIC),
+    ));
     l.u.set_info(param, value);
     let param = l.param_def(param, span);
     let tpt = l.type_tree(unit, span);

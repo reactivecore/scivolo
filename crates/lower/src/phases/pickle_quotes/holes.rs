@@ -12,7 +12,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
 use typer::tpd::{MatchKind, TNodeId, Tree};
 use typer::unpickle::QuoteHole;
 
@@ -106,7 +106,7 @@ pub fn lambda(l: &mut Lower, contents: &[(TNodeId, Vec<SymbolId>)], owner: Symbo
         let n = fresh(l, n);
         (l.u.intern_name(&n), t)
     });
-    let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, Flags::default().with(SYNTHETIC)));
+    let anon = l.u.define(symbol(nme::ANON_FUN, Kind::Def, owner, Flags::default().with(SYNTHETIC)));
     let binder = l.u.fresh_binder();
     let info = l.u.intern_method(binder, &params, result, false, false);
     l.u.set_info(anon, info);
@@ -161,7 +161,7 @@ pub fn lambda(l: &mut Lower, contents: &[(TNodeId, Vec<SymbolId>)], owner: Symbo
 fn applied(l: &mut Lower, content: TNodeId, quotes: SymbolId, quotes_type: TypeId, at: &mut Span) -> TNodeId {
     let tpe = l.u.widen(l.tpd.tpe(content));
     let class = l.u.class_symbol(tpe).expect("a context function");
-    let apply = l.u.member(class, "apply")[0];
+    let apply = l.u.member(class, nme::APPLY)[0];
     let result = l.u.applied(tpe).and_then(|(_, args)| args.last().copied()).expect("a function's result");
     let fun = l.select(content, apply, Span::NONE);
     let fun = l.positioned(fun);

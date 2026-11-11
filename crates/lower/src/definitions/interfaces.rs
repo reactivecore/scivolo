@@ -7,7 +7,7 @@
 
 use super::{member, package, symbol, type_ref};
 use tasty::tags::TRAIT;
-use tasty::{Erased, Flags, Kind, SymbolId, TypeId, Universe};
+use tasty::{Erased, Flags, Kind, SymbolId, TypeId, Universe, name_kinds, nme};
 
 /// `JProcedure{arity}`, with abstract method `applyVoid` of object parameters.
 pub fn procedure(u: &mut Universe, arity: usize) -> Result<SymbolId, String> {
@@ -21,7 +21,7 @@ pub fn procedure(u: &mut Universe, arity: usize) -> Result<SymbolId, String> {
 /// with abstract method `apply$mc<R><Ps>$sp`.
 pub fn specialized(u: &mut Universe, params: &[Erased], result: &Erased) -> Result<SymbolId, String> {
     let method = specialized_name(params, result);
-    let name = format!("JFunction{}{}", params.len(), &method["apply".len()..]);
+    let name = format!("JFunction{}{}", params.len(), &method[nme::APPLY.len()..]);
     let types = params.iter().map(|p| primitive(u, p)).collect::<Result<Vec<_>, _>>()?;
     let result = primitive(u, result)?;
     interface(u, "scala.runtime.java8", &name, &method, &types, result)
@@ -79,8 +79,8 @@ fn specialized_name(params: &[Erased], result: &Erased) -> String {
         Erased::Prim(c) => c.to_ascii_uppercase(),
         _ => unreachable!("a primitive type"),
     };
-    let params: String = params.iter().map(letter).collect();
-    format!("apply$mc{}{params}$sp", letter(result))
+    let tags: String = std::iter::once(result).chain(params).map(letter).collect();
+    name_kinds::specialized(nme::APPLY, &tags)
 }
 
 /// The class type of erased primitive `e`.
@@ -124,7 +124,7 @@ fn interface(
     let abstract_ = method(u, class, method_name, params, result);
     u.set_deferred(abstract_, true);
     let object = type_ref(u, u.defn().object);
-    method(u, class, "apply", &vec![object; params.len()], object);
+    method(u, class, nme::APPLY, &vec![object; params.len()], object);
     Ok(class)
 }
 

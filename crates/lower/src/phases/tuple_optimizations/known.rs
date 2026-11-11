@@ -10,7 +10,7 @@ use crate::definitions::applied;
 use crate::phases::eval_once::{eval_once, is_stable_path};
 use crate::phases::tree_copy::{Copier, copy};
 use syntax::ast::Span;
-use tasty::{SymbolId, TypeId};
+use tasty::{SymbolId, TypeId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// A value evaluated once (dotty's `evalOnce`): the expression itself if it is idempotent, else
@@ -101,7 +101,7 @@ pub fn selectors(
 /// `TupleN.apply[tpes](elements)` (dotty's `knownTupleFromElements`).
 pub fn from_elements(l: &mut Lower, tpes: &[TypeId], elements: &[TNodeId]) -> Option<TNodeId> {
     let class = tuple_class(l, tpes.len())?;
-    let (module, apply) = module_member(l, "scala", &format!("Tuple{}", tpes.len()), "apply")?;
+    let (module, apply) = module_member(l, "scala", &format!("Tuple{}", tpes.len()), nme::APPLY)?;
     let qual = l.ident(module, Span::NONE);
     let fun = l.select(qual, apply, Span::NONE);
     let fun = l.positioned(fun);

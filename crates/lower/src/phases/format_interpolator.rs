@@ -40,7 +40,7 @@ pub fn transform(l: &mut Lower, t: TNodeId) -> Result<()> {
     let string_ops = l.u.class_ref("scala.collection.StringOps");
     let class = l.u.class_symbol(string_ops).expect("`StringOps`");
     let member = |l: &mut Lower, name: &str| *l.u.decls_named(class, name).first().expect(name);
-    let (init, format_method) = (member(l, "<init>"), member(l, "format"));
+    let (init, format_method) = (member(l, tasty::nme::CONSTRUCTOR), member(l, "format"));
     let value = Constant::String(format.into());
     let tpe = typer::tpd::constant_type_of(l.u, &value);
     let literal = l.tpd.node(Tree::Literal { value }, Span::NONE, Some(tpe), None);

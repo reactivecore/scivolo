@@ -112,7 +112,7 @@ fn evaluate(
                 }
                 _ => rhs,
             };
-            let boxed = adapt(l, value, &Erased::Class("java.lang.Object".into()));
+            let boxed = adapt(l, value, &Erased::object());
             l.positioned(boxed)
         }
         _ => rhs,

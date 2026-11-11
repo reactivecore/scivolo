@@ -10,7 +10,7 @@ use crate::definitions::{CaseClasses, primitive_class_name, symbol, type_ref};
 use crate::symbols::has;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, name_kinds};
 use typer::tpd::{MatchKind, TNodeId, Tree};
 
 impl Lower<'_> {
@@ -28,13 +28,18 @@ impl Lower<'_> {
     ) -> TNodeId {
         let class_type = applied_ref(self, class);
         let unchecked = unchecked_applied_ref(self, class);
-        let that_as_class = self.u.define(symbol("x$0", Kind::Val, class, Flags::default().with(SYNTHETIC)));
+        let that_as_class = self.u.define(symbol(
+            &name_kinds::synthetic_param(0),
+            Kind::Val,
+            class,
+            Flags::default().with(SYNTHETIC),
+        ));
         locals.push(that_as_class);
         self.u.set_info(that_as_class, class_type);
         let wildcard = self.wildcard(unchecked);
         let tpt = self.type_tree(unchecked, Span::NONE);
         let typed = self.tpd.node(Tree::Typed { expr: wildcard, tpt }, Span::NONE, Some(unchecked), None);
-        let name = self.term_name("x$0");
+        let name = self.term_name(&name_kinds::synthetic_param(0));
         let bind = Tree::Bind { name, body: typed };
         let pattern = self.tpd.node(bind, Span::NONE, Some(class_type), Some(that_as_class));
         let mut sorted = accessors.to_vec();

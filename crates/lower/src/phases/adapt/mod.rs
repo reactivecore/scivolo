@@ -20,7 +20,7 @@ use crate::definitions::Known;
 use crate::symbols::{has, is_java_field, is_java_static};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
-use tasty::{Erased, Kind, SymbolId};
+use tasty::{Erased, Kind, SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 use units::boxed_unit;
 
@@ -49,7 +49,7 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
 /// Whether `s` is `Predef.classOf`, a constant rather than a call.
 pub fn is_class_of(l: &Lower, s: tasty::SymbolId) -> bool {
     let sym = l.u.symbol(s);
-    sym.name == "classOf" && sym.owner.is_some_and(|o| l.is_known(o, Known::PredefClass))
+    sym.name == nme::CLASS_OF && sym.owner.is_some_and(|o| l.is_known(o, Known::PredefClass))
 }
 
 /// The erased type of `t` as erasure leaves it: a call's erased result type, a value's erased
@@ -69,14 +69,14 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
         Tree::If { .. } | Tree::Try { .. } if l.boxed_types.contains(&t) => l.u.erase_boxed(l.tpd.tpe(t)),
         Tree::Typed { tpt, .. } => ascription_type(l, tpt),
         Tree::Ident { .. } | Tree::Select { .. } if sym.is_some_and(|s| l.defs.is_boxed_unit(s)) => {
-            Erased::Class("scala.runtime.BoxedUnit".into())
+            Erased::boxed_unit()
         }
         Tree::Ident { .. } | Tree::Select { .. } => match sym {
             Some(s) if !l.u.is_module(s) && l.u.symbol(s).kind.is_term() => {
                 let info = l.u.info(s);
                 match l.u.erase_value(info) {
                     Erased::Unit if matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) => {
-                        Erased::Class("scala.runtime.BoxedUnit".into())
+                        Erased::boxed_unit()
                     }
                     e => e,
                 }
@@ -100,7 +100,7 @@ pub fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
         (Some(s), _) if is_java_static(l.u, s) => l.tpd.span(t),
         _ if l.non_erased.contains_key(&t) => l.non_erased[&t].1,
         (Some(s), &Tree::Select { qualifier, .. })
-            if l.u.symbol(s).name == "##" && l.u.symbol(s).owner == Some(l.u.defn().any) =>
+            if l.u.symbol(s).name == nme::HASHHASH && l.u.symbol(s).owner == Some(l.u.defn().any) =>
         {
             from_start(l.tpd.span(qualifier))
         }

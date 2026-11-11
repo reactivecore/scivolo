@@ -1,5 +1,5 @@
 use super::{member, package};
-use tasty::{Kind, SymbolId, Universe};
+use tasty::{Kind, SymbolId, Universe, nme};
 
 /// What lazy values' accessors refer to: dotty's `scala.runtime.LazyVals` states and Scala
 /// Native's compare-and-set on a field.
@@ -46,7 +46,7 @@ impl LazyVals {
             null_value: member(u, lazy_vals, "NullValue", Kind::Val)?,
             control_state: member(u, lazy_vals, "LazyValControlState", Kind::Class)?,
             waiting,
-            waiting_ctor: member(u, waiting, "<init>", Kind::Def)?,
+            waiting_ctor: member(u, waiting, nme::CONSTRUCTOR, Kind::Def)?,
             count_down,
             await_,
             native,

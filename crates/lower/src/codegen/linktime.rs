@@ -8,7 +8,7 @@ use super::Gen;
 use crate::{Result, unsupported};
 use nir::{Bin, Comp, Cond, Val};
 use syntax::ast::Span;
-use tasty::SymbolId;
+use tasty::{SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 pub const RESOLVED_AT_LINKTIME: &str = "scala.scalanative.unsafe.resolvedAtLinktime";
@@ -79,7 +79,7 @@ impl Gen<'_, '_> {
                 else {
                     return Ok(None);
                 };
-                let is_eq = self.l.tpd.sym(inner).is_some_and(|s| self.l.u.symbol(s).name == "==");
+                let is_eq = self.l.tpd.sym(inner).is_some_and(|s| self.l.u.symbol(s).name == nme::EQ);
                 match self.literal_value(arg) {
                     Some(value) if is_eq && self.property(prop).is_some() => {
                         Ok(self.simple(prop, comparison("!=", &value, span)?, value))

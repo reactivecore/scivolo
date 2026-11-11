@@ -8,7 +8,7 @@ use crate::Lower;
 use crate::symbols::has;
 use rustc_hash::FxHashSet;
 use tasty::tags::{CASE, ERASED, LAZY, MUTABLE, STABLE, SYNTHETIC, TRAIT};
-use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId, Type};
+use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId, Type, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// Whether `t` is elideable, `inits` the unit's objects with initialization code.
@@ -102,11 +102,11 @@ fn is_pure_apply(l: &mut Lower, t: TNodeId, fun: TNodeId, inits: &FxHashSet<Symb
     let constant = matches!(l.u.ty(l.tpd.tpe(t)), Type::Constant(..) | Type::Str(_));
     if constant && let Some(owner) = l.u.symbol(s).owner {
         let owner = l.u.full_name(owner);
-        if PRIMITIVE_VALUE_CLASSES.contains(&owner.as_str()) || owner == "java.lang.String" {
+        if PRIMITIVE_VALUE_CLASSES.contains(&owner.as_str()) || owner == tasty::defn::STRING {
             return true;
         }
     }
-    if l.u.symbol(s).name == "<init>" {
+    if l.u.symbol(s).name == nme::CONSTRUCTOR {
         let owner = l.u.symbol(s).owner.map(|o| l.u.full_name(o)).unwrap_or_default();
         let jdk = owner.starts_with("java.") || owner.starts_with("javax.");
         return has(l.u, s, STABLE) && !jdk;
@@ -116,7 +116,7 @@ fn is_pure_apply(l: &mut Lower, t: TNodeId, fun: TNodeId, inits: &FxHashSet<Symb
 
 /// dotty's `isPureSyntheticCaseApply`.
 fn is_pure_case_apply(l: &mut Lower, s: SymbolId, inits: &FxHashSet<SymbolId>) -> bool {
-    if l.u.symbol(s).name != "apply" || !has(l.u, s, SYNTHETIC) {
+    if l.u.symbol(s).name != nme::APPLY || !has(l.u, s, SYNTHETIC) {
         return false;
     }
     let Some(module_class) = l.u.symbol(s).owner.filter(|&o| l.u.is_module_class(o)) else { return false };
@@ -131,7 +131,7 @@ fn is_pure_case_apply(l: &mut Lower, s: SymbolId, inits: &FxHashSet<SymbolId>) -
 /// object or imported synthetically (dotty's `isCaseClassApply`).
 fn is_case_class_apply(l: &mut Lower, t: TNodeId, fun: TNodeId) -> bool {
     let Some(s) = callee(l, fun) else { return false };
-    if l.u.symbol(s).name != "apply" || !has(l.u, s, SYNTHETIC) {
+    if l.u.symbol(s).name != nme::APPLY || !has(l.u, s, SYNTHETIC) {
         return false;
     }
     let Some(owner) = l.u.symbol(s).owner.filter(|&o| l.u.is_module_class(o)) else { return false };

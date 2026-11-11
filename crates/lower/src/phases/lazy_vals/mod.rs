@@ -19,7 +19,7 @@ use accessor::accessor_body;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, name_kinds};
 use typer::tpd::{TNodeId, Tree};
 
 /// A lazy value's field: its class, the field, its accessor and the accessor's definition span
@@ -116,7 +116,7 @@ pub fn transform(
 /// The definition of the static `VarHandle` field `x$lzyN$lzyHandle` of lazy value field `field`
 /// of `class` (dotty's `transformMemberDefThreadSafeNew`), set in the class's `<clinit>`.
 fn var_handle(l: &mut Lower, class: SymbolId, field: SymbolId, defs: LazyVals) -> TNodeId {
-    let name = format!("{}$lzyHandle", l.u.symbol(field).name);
+    let name = name_kinds::lazy_var_handle(&l.u.symbol(field).name);
     let flags = Flags::default().with(PRIVATE).with(SYNTHETIC).with(STATIC);
     let handle = l.u.define(symbol(&name, Kind::Val, class, flags));
     let tpe = crate::definitions::type_ref(l.u, defs.var_handle);
@@ -174,12 +174,12 @@ pub fn define_members(l: &mut Lower, class: SymbolId, accessor: SymbolId, rhs: T
 pub fn name_members(l: &mut Lower, accessor: SymbolId) {
     let name = l.u.symbol(accessor).name.clone();
     let members = l.lazy_members[&accessor];
-    let field_name = fresh(l, &format!("{name}$lzy"));
+    let field_name = fresh(l, &name_kinds::lazy_local(&name));
     l.u.rename(members.field, &field_name);
     if is_eager_module(l, accessor) || thread_unsafe::is_thread_unsafe(l, accessor) {
         return;
     }
-    let init_name = fresh(l, &format!("{name}$lzyINIT"));
+    let init_name = fresh(l, &name_kinds::lazy_local_init(&name));
     l.u.rename(members.init, &init_name);
 }
 

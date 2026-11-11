@@ -106,7 +106,7 @@ pub fn class_named(l: &mut Lower, name: &str) -> Option<SymbolId> {
         Some((pkg, rest)) => (l.u.package(pkg)?, rest),
         None => (l.u.package("")?, name),
     };
-    if let Some((prefix, _)) = rest.split_once("$$$$") {
+    if let Some((prefix, _)) = rest.split_once(&tasty::name_kinds::EXPAND_SEPARATOR.repeat(2)) {
         let tops = l.u.symbol(pkg).decls.clone().into_iter().filter(|&c| l.u.is_class(c));
         let tops: Vec<SymbolId> = tops
             .filter(|&c| {

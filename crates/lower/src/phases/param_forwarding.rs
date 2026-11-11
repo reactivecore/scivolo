@@ -11,7 +11,7 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, MUTABLE, PARAMalias, PARAMsetter, PRIVATE, PRIVATEqualified, STABLE};
-use tasty::{Kind, NameId, SymbolId, Type};
+use tasty::{Kind, NameId, SymbolId, Type, name_kinds, nme};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// A parameter accessor `sym` defined by `stat` of class definition `td`, and the accessor of a
@@ -50,7 +50,8 @@ pub fn is_forwarder(l: &Lower, s: SymbolId) -> bool {
 /// The name of the class parameter of parameter accessor `s`.
 pub fn param_name<'a>(l: &'a Lower, s: SymbolId) -> &'a str {
     let name = &l.u.symbol(s).name;
-    if is_forwarder(l, s) { name.strip_suffix("$accessor").unwrap_or(name) } else { name }
+    let parameter = is_forwarder(l, s).then(|| name.strip_suffix(name_kinds::PARAM_ACCESSOR_SUFFIX));
+    parameter.flatten().unwrap_or(name)
 }
 
 /// The definitions and symbols of the private immutable parameter accessors of class definition
@@ -93,7 +94,7 @@ fn super_param_aliases(l: &mut Lower, td: TNodeId) -> Vec<(TNodeId, SymbolId)> {
 
 fn is_primary_constructor(l: &mut Lower, ctor: SymbolId) -> bool {
     let Some(class) = l.u.symbol(ctor).owner else { return false };
-    l.u.decls_named(class, "<init>").first() == Some(&ctor)
+    l.u.decls_named(class, nme::CONSTRUCTOR).first() == Some(&ctor)
 }
 
 /// The parameter names of clause `n` of constructor `ctor`.
@@ -155,7 +156,7 @@ fn is_accessible(l: &mut Lower, m: SymbolId, class: SymbolId) -> bool {
 fn forward(l: &mut Lower, root: TNodeId, f: &Forward) {
     let class = l.u.symbol(f.sym).owner.expect("a parameter accessor's class");
     let span = l.tpd.span(f.stat);
-    let name = format!("{}$accessor", l.u.symbol(f.sym).name);
+    let name = name_kinds::param_accessor(&l.u.symbol(f.sym).name);
     let flags = l.u.symbol(f.sym).flags.with(STABLE);
     let acc = l.u.define(symbol(&name, Kind::Def, class, flags));
     let info = l.u.info(f.sym);

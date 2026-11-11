@@ -8,7 +8,7 @@ use super::tailrec::fresh;
 use super::walk::children;
 use crate::Lower;
 use syntax::ast::Span;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, name_kinds, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// The rewriting of the tail calls of `method` of `class`, whose parameters are `params`.
@@ -153,7 +153,7 @@ impl TailCalls {
             _ => {
                 let (mut defs, mut assigns) = (Vec::new(), Vec::new());
                 for (var, rhs) in pairs {
-                    let name = fresh(l, &format!("{}$tmp", l.u.symbol(var).name));
+                    let name = fresh(l, &name_kinds::tail_temp(&l.u.symbol(var).name));
                     let info = l.u.info(var);
                     let temp = local(l, self.method, &name, info, false);
                     defs.push(val_def(l, temp, rhs));
@@ -191,6 +191,6 @@ impl TailCalls {
 fn is_boolean_op(l: &Lower, fun: TNodeId) -> bool {
     l.tpd.sym(fun).is_some_and(|m| {
         let s = l.u.symbol(m);
-        s.kind == Kind::Def && (s.name == "||" || s.name == "&&") && s.owner == Some(l.defs.boolean)
+        s.kind == Kind::Def && (s.name == nme::ZOR || s.name == nme::ZAND) && s.owner == Some(l.defs.boolean)
     })
 }

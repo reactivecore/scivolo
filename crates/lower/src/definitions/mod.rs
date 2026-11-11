@@ -33,7 +33,7 @@ pub use resolved::Serialization;
 pub use sequences::Sequences;
 use std::cell::Cell;
 pub use strings::Strings;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe, nme};
 pub use tuples::{specialized_accessor, specialized_tuple_ctor, tuple_tags};
 
 pub struct Definitions {
@@ -95,8 +95,8 @@ impl Definitions {
             any_ne: member(u, b.any, "!=", Kind::Def)?,
             ne: member(u, b.object, "ne", Kind::Def)?,
             eq: member(u, b.object, "eq", Kind::Def)?,
-            synchronized: member(u, b.object, "synchronized", Kind::Def)?,
-            object_clone: member(u, b.object, "clone", Kind::Def)?,
+            synchronized: member(u, b.object, nme::SYNCHRONIZED, Kind::Def)?,
+            object_clone: member(u, b.object, nme::CLONE, Kind::Def)?,
             and: member(u, boolean, "&&", Kind::Def)?,
             boxed_unit_unit: defined::boxed_unit_unit(u, runtime),
             boxed_unit_method: member(u, runtime, "BoxedUnit$", Kind::Class)

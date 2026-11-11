@@ -9,7 +9,7 @@ use crate::definitions::{applied, symbol};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// Rewrites interpolation `t`, of `raw` if `raw`, in `owner`.
@@ -82,7 +82,7 @@ fn process(
     let Some(m) = l.u.method(info) else { unreachable!("a method") };
     let name = m.params[0].0;
     let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
-    let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, flags));
+    let anon = l.u.define(symbol(nme::ANON_FUN, Kind::Def, owner, flags));
     let param = symbol(l.u.name(name), Kind::Param, anon, Flags::default());
     let param = l.u.define(param);
     l.u.set_info(param, string);

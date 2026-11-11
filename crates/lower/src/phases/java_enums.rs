@@ -11,7 +11,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ENUM, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether class `c` derives from `java.lang.Enum`.
@@ -55,7 +55,7 @@ fn complete_enum_class(l: &mut Lower, td: TNodeId) -> Result<()> {
     let string = l.u.class_ref(tasty::defn::STRING);
     let int = l.u.class_ref(tasty::defn::INT);
     let mut added = Vec::new();
-    for (n, t) in [("_$name", string), ("_$ordinal", int)] {
+    for (n, t) in [(nme::NAME_DOLLAR_, string), (nme::ORDINAL_DOLLAR_, int)] {
         let p = l.u.define(symbol(n, Kind::Param, ctor, flags));
         l.u.set_info(p, t);
         added.push(p);
@@ -86,9 +86,9 @@ fn complete_value_class(l: &mut Lower, root: TNodeId, td: TNodeId, class: Symbol
     let (_, parents) = template_parts(l, td);
     let owner = l.u.symbol(class).owner.expect("a local class's owner");
     let span = l.tpd.span(td);
-    let args = if l.u.symbol(owner).name == "$new" {
+    let args = if l.u.symbol(owner).name == nme::DOLLAR_NEW {
         let (Some(name), Some(ordinal)) =
-            (param(l, root, owner, "$name"), param(l, root, owner, "_$ordinal"))
+            (param(l, root, owner, nme::NAME_DOLLAR), param(l, root, owner, nme::ORDINAL_DOLLAR_))
         else {
             return unsupported(span, "an enum value constructor without its parameters");
         };
@@ -104,7 +104,7 @@ fn complete_value_class(l: &mut Lower, root: TNodeId, td: TNodeId, class: Symbol
     let Some(enum_class) = called_class(l, parent) else {
         return unsupported(span, "an enum value without a call of its enum's constructor");
     };
-    let ctor = l.u.decls_named(enum_class, "<init>").into_iter().next();
+    let ctor = l.u.decls_named(enum_class, nme::CONSTRUCTOR).into_iter().next();
     let info = ctor.map(|c| l.u.info(c));
     add_args(l, parent, &args, info);
     Ok(())
@@ -175,7 +175,8 @@ fn with_name_and_ordinal(l: &mut Lower, t: TypeId) -> TypeId {
             let string = l.u.class_ref(tasty::defn::STRING);
             let int = l.u.class_ref(tasty::defn::INT);
             let mut params = l.u.params_of(params).to_vec();
-            params.extend([(l.u.intern_name("_$name"), string), (l.u.intern_name("_$ordinal"), int)]);
+            let (name, ordinal) = (l.u.intern_name(nme::NAME_DOLLAR_), l.u.intern_name(nme::ORDINAL_DOLLAR_));
+            params.extend([(name, string), (ordinal, int)]);
             l.u.intern_method(binder, &params, result, implicit, contextual)
         }
         _ => t,

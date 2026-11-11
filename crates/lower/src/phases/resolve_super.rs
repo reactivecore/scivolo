@@ -9,7 +9,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId, name_kinds};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds to class definition `td` the implementations of the super accessors of the traits its
@@ -90,12 +90,8 @@ fn own_type_params(l: &mut Lower, sym: SymbolId, acc: SymbolId) {
 /// trait `T` (dotty's `decomposeSuperName`).
 pub fn decompose<'a>(l: &Lower, acc: SymbolId, name: &'a str) -> Option<(&'a str, &'a str)> {
     let owner = l.u.symbol(acc).owner?;
-    let prefix = format!("{}$$", l.u.expanded_prefix(owner));
-    let unexpanded = name.strip_prefix(prefix.as_str()).unwrap_or(name);
-    match unexpanded.strip_prefix("super$") {
-        Some(member) => Some((member, "")),
-        None => unexpanded.rsplit_once("$super$"),
-    }
+    let prefix = name_kinds::expanded(&l.u.expanded_prefix(owner), "");
+    name_kinds::decompose_super(name.strip_prefix(prefix.as_str()).unwrap_or(name))
 }
 
 /// The implementation in `class` of super accessor `acc` of a library trait, at `span`.

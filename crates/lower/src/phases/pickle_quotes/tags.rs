@@ -12,7 +12,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::{Span, TName};
 use tasty::tags::SYNTHETIC;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Tree};
 use typer::unpickle::QuoteHole;
 
@@ -78,7 +78,8 @@ pub fn tag_ref(l: &mut Lower, tag: TypeId, at: Span) -> std::result::Result<TNod
 
 /// Annotates `local` with `new C()` at `at`, `C` class `class`.
 pub fn annotate_new(l: &mut Lower, local: SymbolId, class: SymbolId, at: Span) {
-    let init = l.u.decl(class, "<init>").ok().and_then(|d| d.first().copied()).expect("a constructor");
+    let init =
+        l.u.decl(class, nme::CONSTRUCTOR).ok().and_then(|d| d.first().copied()).expect("a constructor");
     let tpe = l.u.intern_type(Type::Sym(None, class));
     let tpt = l.type_tree(tpe, at);
     let new = l.tpd.node(Tree::New { tpt }, at, Some(tpe), None);

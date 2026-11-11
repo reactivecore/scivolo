@@ -38,7 +38,7 @@ pub fn class_cast_exception(l: &mut Lower, message: Option<&str>) -> TNodeId {
     let class = l.u.class_symbol(class).expect("`ClassCastException`");
     let string = l.u.class_ref(tasty::defn::STRING);
     let string = l.u.class_symbol(string);
-    let ctors = l.u.decls_named(class, "<init>");
+    let ctors = l.u.decls_named(class, tasty::nme::CONSTRUCTOR);
     let ctor = ctors.into_iter().find(|&c| {
         let info = l.u.info(c);
         match l.u.method(info).map(|m| m.params) {

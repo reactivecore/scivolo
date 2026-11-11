@@ -10,7 +10,7 @@ use crate::definitions::primitive_class_name;
 use crate::symbols::has;
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
-use tasty::{Erased, Kind, SymbolId};
+use tasty::{Erased, Kind, SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// `t` without the allocation of a value class it undoes at once.
@@ -59,7 +59,7 @@ fn new_with_arg(l: &Lower, t: TNodeId) -> Option<(SymbolId, TNodeId)> {
 fn has_own_equals(l: &mut Lower, class: SymbolId) -> bool {
     let defn = l.u.defn();
     let plain = [defn.any, defn.object];
-    l.u.member(class, "equals").into_iter().any(|m| {
+    l.u.member(class, nme::EQUALS).into_iter().any(|m| {
         let s = l.u.symbol(m);
         s.kind == Kind::Def && !s.owner.is_some_and(|o| plain.contains(&o)) && !has(l.u, m, SYNTHETIC)
     })

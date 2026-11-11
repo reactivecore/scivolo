@@ -7,9 +7,9 @@
 use super::walk::{class_defs, subtrees};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
-use tasty::SymbolId;
 use tasty::defn::STATIC_ANNOT;
 use tasty::tags::STATIC;
+use tasty::{SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
@@ -103,7 +103,7 @@ fn check_movable(l: &Lower, stat: TNodeId) -> Result<()> {
 /// types or a class.
 pub fn check_needs_no_this(l: &Lower, t: TNodeId) -> Result<()> {
     for t in subtrees(l.tpd, t) {
-        let closure = l.tpd.sym(t).is_some_and(|s| l.u.symbol(s).name == "$anonfun");
+        let closure = l.tpd.sym(t).is_some_and(|s| l.u.symbol(s).name == nme::ANON_FUN);
         let local_def = matches!(l.tpd.tree(t), Tree::DefDef { .. }) && !closure;
         let sam = matches!(l.tpd.tree(t), Tree::Closure { tpt: Some(_), .. });
         let refused = matches!(l.tpd.tree(t), Tree::This { .. } | Tree::TypeDef { .. } | Tree::Super { .. });

@@ -13,7 +13,7 @@ use crate::definitions::{applied, symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the synthetic members each class of unit `root` lacks, inner classes first.
@@ -94,9 +94,9 @@ pub fn private_method(l: &mut Lower, class: SymbolId, name: &str) -> (SymbolId, 
 /// `SyntheticMembers` adds `m`.
 pub fn before_synthesized(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     const SYNTHESIZED: [&str; 9] = [
-        "hashCode",
-        "equals",
-        "toString",
+        nme::HASH_CODE,
+        nme::EQUALS,
+        nme::TO_STRING,
         "canEqual",
         "productArity",
         "productPrefix",
@@ -128,7 +128,7 @@ pub fn before_synthesized(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
 
 /// Whether `class` has a member `name(): AnyRef`, `writeReplace` or `readResolve`.
 pub fn has_serialization_method(l: &mut Lower, class: SymbolId, name: &str) -> bool {
-    let object = tasty::Erased::Class("java.lang.Object".into());
+    let object = tasty::Erased::object();
     l.u.member(class, name)
         .into_iter()
         .any(|m| l.u.symbol(m).kind == Kind::Def && l.u.erased_method(m) == (Vec::new(), object.clone()))

@@ -9,7 +9,7 @@ use crate::Lower;
 use crate::symbols::{has, is_jdk_object};
 use syntax::ast::Span;
 use tasty::tags::STATIC;
-use tasty::{SymbolId, Type};
+use tasty::{SymbolId, Type, defn, nme};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) {
@@ -40,7 +40,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
 
 /// Whether method `m` is static but neither `@static` nor a static initializer.
 fn is_lifted_static(l: &mut Lower, m: SymbolId) -> bool {
-    has(l.u, m, STATIC) && l.u.symbol(m).name != "<clinit>" && !l.u.is_annotated(m, "scala.annotation.static")
+    has(l.u, m, STATIC)
+        && l.u.symbol(m).name != nme::STATIC_CONSTRUCTOR
+        && !l.u.is_annotated(m, defn::STATIC_ANNOT)
 }
 
 /// Whether `t` is `C.this` of an object `C`, or an identifier of a member through it.

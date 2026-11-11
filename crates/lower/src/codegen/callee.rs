@@ -5,8 +5,8 @@ use crate::definitions::Known;
 use crate::symbols::{has, is_extern};
 use crate::{Result, unsupported};
 use syntax::ast::Span;
-use tasty::SymbolId;
 use tasty::tags::{INLINE, MACRO};
+use tasty::{SymbolId, nme};
 
 /// Whether binary class name `name` is a primitive value class.
 pub fn is_primitive(name: &str) -> bool {
@@ -25,7 +25,7 @@ const INTRINSICS: [(&str, &str); 2] = [
 fn is_intrinsic(owner: &str, name: &str) -> bool {
     let func = owner.strip_prefix("scala.scalanative.unsafe.CFuncPtr").map(|n| match n.strip_suffix('$') {
         Some(n) => (n, "fromScalaFunction"),
-        None => (n, "apply"),
+        None => (n, nme::APPLY),
     });
     let plain = ["multiplyHigh", "unsignedMultiplyHigh"].contains(&name);
     (owner.starts_with(super::intrinsics::INTRINSICS) && !plain)
@@ -74,7 +74,7 @@ impl Gen<'_, '_> {
     /// Whether `sym` is dotty's `<special-ops>.throw`.
     pub fn is_throw(&self, sym: SymbolId) -> bool {
         let s = self.l.u.symbol(sym);
-        s.name == "throw" && s.owner.is_some_and(|o| self.l.u.symbol(o).name == "<special-ops>")
+        s.name == nme::THROW && s.owner.is_some_and(|o| self.l.u.symbol(o).name == nme::OPS_PACKAGE)
     }
 
     /// Whether `sym` is an operation nscplugin generates inline: of `Any`, of a primitive class,

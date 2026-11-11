@@ -10,7 +10,7 @@ use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, FINAL, PRIVATE, SYNTHETIC};
-use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, TypeId};
+use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, TypeId, name_kinds, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// The parameters of a method, each with its name.
@@ -46,7 +46,7 @@ pub fn plan(
     for (k, context) in contexts.iter().enumerate() {
         let outer = anons.last().map_or(m, |a| a.sym);
         let prefix = l.u.symbol(outer).name.clone();
-        let name = fresh(l, &format!("{prefix}$$anonfun"));
+        let name = fresh(l, &name_kinds::flat(&prefix, nme::ANON_FUN));
         let sym = l.u.define(symbol(&name, Kind::Def, class, flags));
         if !anons.is_empty() {
             for ((name, _), &original) in captured.iter_mut().zip(&originals) {
@@ -76,7 +76,7 @@ pub fn plan(
             return unsupported(span, "context functions of this function type");
         };
         let adapted = (interface.is_none() && needed != (false, false)).then(|| {
-            let name = fresh(l, &format!("{prefix}$$anonfun$adapted"));
+            let name = fresh(l, &name_kinds::adapted_closure(&name_kinds::flat(&prefix, nme::ANON_FUN)));
             let adapted = l.u.define(symbol(&name, Kind::Def, class, adapted_flags));
             let first = captured.len() - context.len();
             let names = captured.iter().zip(&originals).enumerate();

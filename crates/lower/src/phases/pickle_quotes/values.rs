@@ -9,7 +9,7 @@ use super::reflect::{Reflect, call};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, name_kinds, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes quote application `t` in `owner` of literal `lit` the call lifting the literal's value.
@@ -22,9 +22,9 @@ pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId, owner: Symbol
         _ => None,
     } {
         let reflect = Reflect { quotes: q.quotes, owner };
-        let constant = reflect.method(l, constant, "apply")?;
+        let constant = reflect.method(l, constant, nme::APPLY)?;
         let constant = call(l, constant, &[]);
-        let literal = reflect.method(l, "Literal", "apply")?;
+        let literal = reflect.method(l, "Literal", nme::APPLY)?;
         let literal = call(l, literal, &[constant]);
         let tpe = l.tpd.tpe(q.body);
         let expr = reflect.as_expr(l, tpe, literal)?;
@@ -50,13 +50,13 @@ pub fn lifted(l: &mut Lower, t: TNodeId, q: &Quoted, lit: TNodeId, owner: Symbol
     let targ = l.type_tree(q.tpe, Span::NONE);
     let lifter = l.build().type_apply(fun, &[targ], instance, Span::NONE);
     let lifter_class = l.u.class_symbol(instance).expect("a ToExpr class");
-    let apply = l.u.member(lifter_class, "apply")[0];
+    let apply = l.u.member(lifter_class, nme::APPLY)[0];
     let fun = l.select(lifter, apply, Span::NONE);
     let expr = l.u.class_ref(tasty::defn::QUOTED_EXPR);
     let expr = l.u.intern_applied(expr, &[q.tpe]);
     let quotes_type = l.tpd.tpe(q.quotes);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("x$2"), quotes_type)];
+    let params = [(l.u.intern_name(&name_kinds::synthetic_param(2)), quotes_type)];
     let using = l.u.intern_method(binder, &params, expr, true, true);
     let first = l.apply(fun, &[lit], using, Span::NONE);
     let first = l.positioned(first);

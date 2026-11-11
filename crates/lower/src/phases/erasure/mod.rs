@@ -152,10 +152,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         Tree::ValDef { tpt, rhs: Some(rhs), .. } => {
             let sym = l.tpd.sym(t).expect("a value definition's symbol");
             let info = l.u.info(sym);
-            let erased = match l.u.erase_value(info) {
-                Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
-                e => e,
-            };
+            let erased = l.u.erase_value(info).boxing_unit();
             let span = l.tpd.span(rhs);
             typed_except(l, t, tpt, Some(&erased))?;
             members::keep_class_literal_start(l, t, span);

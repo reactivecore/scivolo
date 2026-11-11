@@ -7,7 +7,7 @@ use crate::symbols::{has, is_java_static, is_private};
 use nir::GlobalId;
 use nir::sig::{Scope, Sig};
 use tasty::tags::{ENUM, MACRO, PRIVATE, PROTECTED, STATIC};
-use tasty::{SymbolId, encode, module_class_name, module_name};
+use tasty::{SymbolId, encode, module_class_name, module_name, nme};
 
 /// Classes Scala Native defines under another name, and `Nothing` and `Null`.
 const MAPPED: [(&str, &str); 11] = [
@@ -71,11 +71,11 @@ impl Gen<'_, '_> {
         let params = self.param_types(m);
         let sig = match self.l.u.symbol(m).name.as_str() {
             _ if self.l.u.is_constructor(m) && self.l.u.is_trait(owner_sym) => {
-                Sig::Method("$init$".into(), vec![self.ty(nir::Type::Unit)], scope)
+                Sig::Method(nme::TRAIT_CONSTRUCTOR.into(), vec![self.ty(nir::Type::Unit)], scope)
             }
             _ if self.l.u.is_constructor(m) => Sig::Ctor(params),
-            "<clinit>" => Sig::Clinit,
-            "$init$" => Sig::Method(self.native_id(m), vec![self.ty(nir::Type::Unit)], scope),
+            nme::STATIC_CONSTRUCTOR => Sig::Clinit,
+            nme::TRAIT_CONSTRUCTOR => Sig::Method(self.native_id(m), vec![self.ty(nir::Type::Unit)], scope),
             _ => {
                 let mut types = params;
                 types.push(self.result_type(m));

@@ -401,8 +401,9 @@ impl<'a> Lower<'a> {
     pub fn is_lazy_storage(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         let base = sym.name.trim_end_matches(|c: char| c.is_ascii_digit());
-        let flag =
-            sym.flags.has(tasty::tags::SYNTHETIC) && base.len() < sym.name.len() && base.ends_with("bitmap$");
+        let flag = sym.flags.has(tasty::tags::SYNTHETIC)
+            && base.len() < sym.name.len()
+            && base.ends_with(tasty::name_kinds::BITMAP_PREFIX);
         flag || self.lazy_members.values().any(|m| m.field == s)
     }
 

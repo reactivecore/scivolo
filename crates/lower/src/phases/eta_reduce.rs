@@ -13,7 +13,7 @@ use super::walk::subtrees;
 use crate::Lower;
 use crate::symbols::has;
 use tasty::tags::{LAZY, LOCAL, PRIVATE};
-use tasty::{Erased, Kind, SymbolId};
+use tasty::{Erased, Kind, SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 /// Reduces the eta expansions in class definition `td`.
@@ -35,7 +35,7 @@ fn reduced(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
         return None;
     };
     let Tree::Closure { meth: closure_meth, tpt, .. } = *l.tpd.tree(expr) else { return None };
-    if l.tpd.sym(closure_meth) != Some(meth) || l.u.symbol(meth).name != "$anonfun" {
+    if l.tpd.sym(closure_meth) != Some(meth) || l.u.symbol(meth).name != nme::ANON_FUN {
         return None;
     }
     let meth_info = l.u.info(meth);
@@ -45,7 +45,7 @@ fn reduced(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     }
     let Tree::Apply { fun, args } = *l.tpd.tree(rhs) else { return None };
     let Tree::Select { qualifier: f, .. } = *l.tpd.tree(fun) else { return None };
-    if l.tpd.sym(fun).is_none_or(|m| l.u.symbol(m).name != "apply") {
+    if l.tpd.sym(fun).is_none_or(|m| l.u.symbol(m).name != nme::APPLY) {
         return None;
     }
     let params: Vec<Option<SymbolId>> =
@@ -98,7 +98,7 @@ fn is_underlying(l: &mut Lower, s: SymbolId) -> bool {
 fn function_erasure(l: &mut Lower, f: TNodeId) -> Option<Erased> {
     let s = l.tpd.sym(f)?;
     if is_by_name_param(l, s) {
-        return Some(Erased::Class("scala.Function0".into()));
+        return Some(Erased::function0());
     }
     let info = l.u.info(s);
     let tpe = l.u.widen(info);

@@ -16,7 +16,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, ARTIFACT, INLINE, OVERRIDE};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId, name_kinds};
 use typer::tpd::{TNodeId, Tree};
 
 /// A super selection: its tree, the class whose `super` it selects on, the mixin's name if
@@ -167,12 +167,9 @@ fn is_param(l: &Lower, s: TNodeId) -> bool {
 fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>) -> Result<SymbolId> {
     let trait_ = l.u.is_trait(s.clazz);
     let accessor_name = |l: &Lower, original: &str| {
-        let unexpanded = match s.mix.as_str() {
-            "" => format!("super${original}"),
-            mix => format!("{original}$super${mix}"),
-        };
+        let unexpanded = name_kinds::super_accessor(original, &s.mix);
         match trait_ {
-            true => format!("{}$${unexpanded}", l.u.expanded_prefix(s.clazz)),
+            true => name_kinds::expanded(&l.u.expanded_prefix(s.clazz), &unexpanded),
             false => unexpanded,
         }
     };

@@ -16,7 +16,7 @@ use super::poly_functions::poly_function_class;
 use super::sam::{abstract_methods, adaptation_needed};
 use crate::definitions::type_ref;
 use crate::{Lower, Result, unsupported};
-use tasty::{Erased, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId};
+use tasty::{Erased, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId, name_kinds};
 use typer::tpd::{TNodeId, Tree};
 
 /// How a lambda's closure is made: the interface it implements if not its function type, its
@@ -53,13 +53,7 @@ pub fn plan(
         return unsupported(span, "closures of a type without an abstract method");
     };
     let (sam_params, sam_result) = l.u.erased_method_value(sam);
-    let erased: Vec<Erased> = params
-        .iter()
-        .map(|&(_, t)| match l.u.erase_value(t) {
-            Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
-            e => e,
-        })
-        .collect();
+    let erased: Vec<Erased> = params.iter().map(|&(_, t)| l.u.erase_value(t).boxing_unit()).collect();
     let erased_result = l.u.erase_value(result);
     let needed = adaptation_needed(&erased, &erased_result, &sam_params, &sam_result);
     let specialized_interface =
@@ -69,7 +63,7 @@ pub fn plan(
     };
     let adapted = (specialized_interface.is_none() && needed != (false, false)).then(|| {
         let (types, result) = adapted_types(l, sam, needed, params, result);
-        let name = fresh(l, &format!("{prefix}$anonfun$adapted"));
+        let name = fresh(l, &name_kinds::adapted_closure(&name_kinds::anon_fun(prefix)));
         let adapted = define(l, home(l, class, f), &name, &f.captured, &types, result, f.instance());
         l.bridges.insert(adapted.sym);
         if let Some(owner) = l.u.symbol(f.sym).owner {
