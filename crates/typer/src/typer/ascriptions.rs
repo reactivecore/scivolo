@@ -4,6 +4,7 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::TName;
 use tasty::{Type, TypeId};
 
@@ -26,13 +27,13 @@ impl Typer<'_> {
             return self.tpd.node(T::Typed { expr, tpt }, span.to_synthetic(), Some(tpe), None);
         }
         let any = self.u.defn().any;
-        let cast = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
+        let cast = self.u.decl(any, nme::AS_INSTANCE_OF_PM).ok().and_then(|d| d.first().copied());
         let Some(cast) = cast else {
             self.unsupported_at(span, "a cast without Any.$asInstanceOf$");
             return expr;
         };
         let select_tpe = self.u.intern_type(Type::Sym(Some(actual), cast));
-        let name = TName { name: self.name("$asInstanceOf$"), is_type: false };
+        let name = TName { name: self.name(nme::AS_INSTANCE_OF_PM), is_type: false };
         let fun = self.tpd.node(T::Select { qualifier: expr, name }, span, Some(select_tpe), Some(cast));
         let args = self.tpd.list(&[tpt]);
         self.tpd.node(T::TypeApply { fun, args }, span, Some(tpe), None)

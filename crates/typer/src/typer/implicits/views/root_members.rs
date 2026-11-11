@@ -10,11 +10,12 @@ use super::super::super::Typer;
 use super::Goal;
 use crate::ctx::{Ctx, Level};
 use crate::symbols::Completion;
+use names::nme;
 use rustc_hash::FxHashSet;
 use syntax::ast::flags as f;
 use syntax::ast::{Ast, NodeId, TName, Tree};
 use tasty::tags::OBJECT;
-use tasty::{Kind, SymbolId, TypeId, Universe, nme};
+use tasty::{Kind, SymbolId, TypeId, Universe};
 
 impl Typer<'_> {
     /// Tells whether an extension method or implicit view may give class `q` of type `site`

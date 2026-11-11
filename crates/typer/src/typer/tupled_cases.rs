@@ -5,11 +5,11 @@
 //! `typedFunctionValue`, `patternsToParams`).
 
 use super::{Pt, Typer};
+use names::name_kinds;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::tree::MatchKind;
 use syntax::ast::{Attrs, List, NodeId, Span, TName, Tree};
-use tasty::name_kinds;
 
 impl Typer<'_> {
     /// `x$1 => x$1 match { case (a1, …, aN) => e }` of a synthetic parameter `x$1` as

@@ -197,7 +197,7 @@ impl Printer<'_> {
             Type::Skolem(_, info) => format!("?{}", self.tpe(info, n)),
             Type::Wildcard(None) => "?".into(),
             Type::Wildcard(Some(b)) => format!("?{}", self.tpe(b, n)),
-            Type::Error => "<error>".into(),
+            Type::Error => names::nme::ERROR.into(),
             Type::NoPrefix => "<noprefix>".into(),
             Type::Other(tasty::tags::TEMPLATE) => "<class>".into(),
             Type::Other(tag) => format!("<{}>", tasty::tags::name(tag)),

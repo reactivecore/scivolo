@@ -8,8 +8,9 @@ use super::applies::ApplyMember;
 use super::mapped::leading_implicit;
 use super::{NO_SIZE, Resolution, Unchosen, VALUE_APPLY};
 use crate::typer::{Pt, Typer};
+use names::nme;
 use tasty::tags::EXTENSION;
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// Why a method among parameterless alternatives whose results have `apply` methods, as
 /// `def f(x: Int)` beside `def f: Int => Int`, is not resolved.

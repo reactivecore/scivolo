@@ -5,7 +5,8 @@
 
 use super::Typer;
 use super::avoid::Avoid;
-use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId, nme};
+use names::nme;
+use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId};
 
 /// The parameter types and result of an `apply`, and the binder and names of its parameters.
 pub type ApplyParts = ((Vec<TypeId>, TypeId), (Binder, Vec<NameId>));

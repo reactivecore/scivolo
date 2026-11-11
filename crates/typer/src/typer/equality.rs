@@ -9,9 +9,10 @@ use super::implicits::is_misfit;
 use crate::ctx::{Ctx, Mode};
 use crate::defn::CAN_EQUAL;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::Features;
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Checks comparison `fun(arg)` at `at` of type `arg_tpe` in `ctx`, if `fun` selects `Any.==`
@@ -25,7 +26,7 @@ impl Typer<'_> {
     ) -> Result<(), &'static str> {
         let Some(sym) = self.tpd.sym(fun) else { return Ok(()) };
         let s = self.u.symbol(sym);
-        if s.owner != Some(self.u.defn().any) || !matches!(s.name.as_str(), "==" | "!=") {
+        if s.owner != Some(self.u.defn().any) || !matches!(s.name.as_str(), nme::EQ | nme::NE) {
             return Ok(());
         }
         let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return Err("comparison with this") };
@@ -143,7 +144,7 @@ impl Typer<'_> {
     /// type has a `CanEqual` with itself.
     pub fn is_strict_equality(&mut self, ctx: Ctx) -> bool {
         ctx.mode.is(Mode::STRICT_EQUALITY)
-            || self.feature_enabled(Features::STRICT_EQUALITY, "strictEquality", ctx)
+            || self.feature_enabled(Features::STRICT_EQUALITY, nme::STRICT_EQUALITY, ctx)
     }
 
     /// `t` with abstract types replaced by their upper bounds, singletons widened and refinements

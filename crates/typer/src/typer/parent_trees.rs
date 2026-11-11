@@ -8,8 +8,9 @@ use super::classes::Template;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{SymbolId, nme};
+use tasty::SymbolId;
 
 impl Typer<'_> {
     /// The parent trees of class `cls`: those of `parents` typed in `ctx` without the duplicates

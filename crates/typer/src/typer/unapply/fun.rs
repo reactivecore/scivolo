@@ -7,8 +7,8 @@ use super::super::{Pt, Typer};
 use super::{UnapplyPattern, proto};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::nme;
 
 impl UnapplyPattern {
     /// Selects `qual.unapply` for extractor `qual`, typed as an expression, a member or an

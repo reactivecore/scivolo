@@ -8,9 +8,10 @@ use super::copy::TreeTypeMap;
 use super::purity::PURE_PATH;
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, map_children};
+use names::nme;
 use rustc_hash::FxHashMap;
 use tasty::tags::{CASE, INLINE, MUTABLE, SYNTHETIC, TRAIT};
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
     /// `bindings` without the unused elideable ones and the inline ones, and `expansion`, owned by

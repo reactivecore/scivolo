@@ -7,10 +7,11 @@ use super::Typer;
 use super::not_found::{path_to, uncertain_edge};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::tree::NumberKind;
 use syntax::ast::{Attrs, NodeId, TName, Tree};
 use tasty::tags::{OBJECT, OPAQUE};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe, nme};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// The classes whose members dotty's selection finds otherwise or tries further.
 const SPECIAL_SITES: [&str; 5] =
@@ -46,7 +47,7 @@ impl Typer<'_> {
             && text.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
             && text.chars().any(|c| c != '_');
         if !plain
-            || matches!(&*text, "values" | "valueOf")
+            || matches!(&*text, nme::VALUES | nme::VALUE_OF)
             || !matches!(self.ast.tree(id), Tree::Select { .. })
             || self.ast.attrs(id).contains(Attrs::MULTI_LINE_INFIX)
             || ctx.mode.is(Mode::PATTERN)

@@ -422,3 +422,17 @@ pub const QUOTES: &str = "quotes";
 pub const REFLECT: &str = "reflect";
 /// The name `standardInterpolator`.
 pub const STANDARD_INTERPOLATOR: &str = "standardInterpolator";
+/// The name `<refinement>`.
+pub const REFINE_CLASS: &str = "<refinement>";
+/// The name `any2stringadd`.
+pub const ANY2STRINGADD: &str = "any2stringadd";
+/// The name `fromDigits`.
+pub const FROM_DIGITS: &str = "fromDigits";
+/// The name `throws`.
+pub const THROWS: &str = "throws";
+/// The name `arrayType`.
+pub const ARRAY_TYPE: &str = "arrayType";
+/// The name `classType`.
+pub const CLASS_TYPE: &str = "classType";
+/// The name `wildcardType`.
+pub const WILDCARD_TYPE: &str = "wildcardType";

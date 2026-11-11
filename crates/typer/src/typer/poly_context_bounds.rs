@@ -6,10 +6,11 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{Attrs, List, NodeId, Span, TName, Tree};
-use tasty::{Kind, Type, TypeId, nme};
+use tasty::{Kind, Type, TypeId};
 
 /// An evidence parameter: its name and its context bound.
 type Evidence = (TName, NodeId);

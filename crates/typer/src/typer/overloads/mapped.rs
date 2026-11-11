@@ -8,7 +8,8 @@
 
 use super::{Resolution, Unchosen};
 use crate::typer::{Pt, Typer};
-use tasty::{Binder, Kind, NameId, Symbol, SymbolId, Type, TypeId, Universe, nme};
+use names::nme;
+use tasty::{Binder, Kind, NameId, Symbol, SymbolId, Type, TypeId, Universe};
 
 /// An alternative's copy, paired with the alternative.
 type Mapped = (SymbolId, SymbolId);

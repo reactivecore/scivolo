@@ -6,9 +6,10 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags::{PARAM_ACCESSOR, TYPE_PARAM};
 use syntax::ast::{NodeId, Span, Tree};
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 
 /// The parts of a template.
 pub struct Template {

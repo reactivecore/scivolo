@@ -8,8 +8,9 @@ use super::super::unapply_args::{SeqArgs, UnapplyArgs};
 use super::super::{Pt, Typer};
 use super::{SEQ_WILDCARD, UnapplyPattern, is_named_pattern, is_seq_wildcard};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, Type, TypeId, nme};
+use tasty::{Kind, Type, TypeId};
 
 impl UnapplyPattern {
     /// Types the argument patterns of an `unapplySeq` with result type `result`, those before the
@@ -64,7 +65,8 @@ impl UnapplyPattern {
             let at = Span::at(star_span.start());
             (at, Span::synthetic(star_span.start(), star_span.end()), at)
         };
-        let star = TName { name: t.name(if anonymous { "_" } else { SEQ_WILDCARD }), is_type: false };
+        let star =
+            TName { name: t.name(if anonymous { nme::WILDCARD } else { SEQ_WILDCARD }), is_type: false };
         let ident = t.tpd.node(T::Ident { name: star }, ident_span, Some(seq), None);
         let tree_tpt = t.type_tree(repeated, tpt_at, false);
         let typed = t.tpd.node(T::Typed { expr: ident, tpt: tree_tpt }, typed_span, Some(repeated), None);

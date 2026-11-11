@@ -60,7 +60,7 @@ fn check_single(u: &Universe, s: SymbolId, recv: Option<SymbolId>, applied: bool
         let op = &u.symbol(f).name;
         let first = op.chars().next().unwrap_or('=');
         return op.ends_with('=')
-            && !matches!(op.as_str(), "!=" | "<=" | ">=")
+            && !matches!(op.as_str(), names::nme::NE | names::nme::LE | names::nme::GE)
             && first != '='
             && !first.is_alphanumeric()
             && first != '_';

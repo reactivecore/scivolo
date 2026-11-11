@@ -5,8 +5,9 @@
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
+use names::nme;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, NameId, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether the callee's parameter type may give a parameter of expected type `formal` its

@@ -20,9 +20,10 @@ use crate::typer::Typer;
 use crate::typer::constants::of_type;
 use crate::typer::paths::MAX_PATH_DEPTH;
 use manifests::ManifestKind;
+use names::nme;
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{NodeId, Span, Tree};
-use tasty::{SymbolId, Type, TypeId, nme};
+use tasty::{SymbolId, Type, TypeId};
 
 /// Makes one implicit argument the compiler synthesizes instead of finding it (dotty's
 /// `Synthesizer`).
@@ -111,7 +112,7 @@ impl Synthesizer {
         let select = t.build().select(new, ctor, at);
         let result = crate::defn::applied(t.u, class, vec![tpe]);
         let binder = t.u.fresh_binder();
-        let params = [(t.u.intern_name("value"), tpe)];
+        let params = [(t.u.intern_name(nme::VALUE), tpe)];
         let method = t.u.intern_method(binder, &params, result, false, false);
         let targ = t.type_tree(tpe, at, false);
         let fun = t.build().type_apply(select, &[targ], method, at);

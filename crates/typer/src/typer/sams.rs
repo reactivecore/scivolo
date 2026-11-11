@@ -3,8 +3,9 @@
 //! Single abstract method types that function values also implement (dotty's `SAMType`).
 
 use super::Typer;
+use names::nme;
 use tasty::tags::{ABSTRACT, FINAL, SEALED, TRAIT};
-use tasty::{Binding, Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 /// A single abstract method type: the method's parameter and result types, the base type of its
 /// class that a function value implementing it gets (dotty's `samParent`), and the method with

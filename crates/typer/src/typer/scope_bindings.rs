@@ -7,8 +7,9 @@ use super::Typer;
 use super::imports::ImportEntry;
 use super::java_classes::java_classes;
 use crate::ctx::{Ctx, Level};
+use names::nme;
 use tasty::tags::{PRIVATE, SYNTHETIC};
-use tasty::{Kind, SymbolId, TypeId, nme};
+use tasty::{Kind, SymbolId, TypeId};
 
 /// The bindings in scope with their prefixes, the names left out of them, and names that may be
 /// bound in ways not known.

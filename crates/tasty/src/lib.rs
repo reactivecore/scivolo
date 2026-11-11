@@ -17,7 +17,6 @@ mod types;
 mod view;
 pub mod write;
 
-pub use ::names::{name_kinds, nme};
 pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
 pub use positions::{TastySpan, decode_positions, line_sizes};
 pub use subtype::{Changes, Mark, NoVars, NullMode, TypeVars};

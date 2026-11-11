@@ -100,7 +100,7 @@ impl Reflect<'_> {
 
     /// `Wildcard()`: the pattern `_` of type `Any`, its symbol `Any`'s.
     pub fn wildcard(&mut self) -> TNodeId {
-        let name = TName { name: self.names.intern("_"), is_type: false };
+        let name = TName { name: self.names.intern(names::nme::WILDCARD), is_type: false };
         let any = self.u.class_symbol(ANY);
         self.tpd.node(T::Ident { name }, self.span, Some(ANY), any)
     }

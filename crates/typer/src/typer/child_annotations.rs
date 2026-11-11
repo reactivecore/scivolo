@@ -9,11 +9,12 @@ use super::Typer;
 use crate::defn::type_ref;
 use crate::sealed;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::defn::{CHILD, EXPERIMENTAL, SOURCE_FILE};
 use tasty::tags::{ENUM, SEALED};
-use tasty::{Kind, SymbolId, Universe, nme};
+use tasty::{Kind, SymbolId, Universe};
 
 impl Typer<'_> {
     /// Collects the annotation trees of each definition for its TASTy: a sealed class under

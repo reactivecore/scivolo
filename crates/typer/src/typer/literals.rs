@@ -6,6 +6,7 @@ use super::implicits::is_misfit;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::constant::Constant;
 use syntax::ast::from_digits;
 use syntax::ast::tree::NumberKind;
@@ -116,7 +117,7 @@ impl Typer<'_> {
         let pattern = ctx.mode.is(Mode::PATTERN);
         let ctx = ctx.with_mode(ctx.mode.without(Mode::PATTERN));
         let qualifier = self.spliced(arg);
-        let name = TName { name: self.name("fromDigits"), is_type: false };
+        let name = TName { name: self.name(nme::FROM_DIGITS), is_type: false };
         let fun = self.ast.node(Tree::Select { qualifier, name });
         self.ast.with_span(fun, span);
         let mut values = vec![Constant::String(digits.encode_utf16().collect())];

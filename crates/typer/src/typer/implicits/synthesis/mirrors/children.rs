@@ -7,8 +7,9 @@ use super::MirrorSynthesis;
 use super::child_prefixes::{is_visible_to_scope, owner_scope};
 use crate::sealed;
 use crate::typer::Typer;
+use names::nme;
 use tasty::tags::{ABSTRACT, CONTRAVARIANT, SEALED};
-use tasty::{SymbolId, Type, TypeId, TypeVars, Universe, nme};
+use tasty::{SymbolId, Type, TypeId, TypeVars, Universe};
 
 impl MirrorSynthesis {
     /// Whether sealed class `s`, selected from prefix `pre`, gets a sum mirror here (dotty's

@@ -5,9 +5,10 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{Attrs, List, NodeId, Tree};
 use syntax::config::Features;
-use tasty::{Kind, NameId, Type, TypeId, nme};
+use tasty::{Kind, NameId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, fun_ctx: Ctx) -> TNodeId {

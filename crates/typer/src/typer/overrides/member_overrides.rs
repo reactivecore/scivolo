@@ -5,9 +5,10 @@
 use super::super::Typer;
 use super::override_kinds::kind_refusal;
 use super::{OverrideChecks, overridable};
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use tasty::tags::{EXTENSION, FINAL, INLINE};
-use tasty::{Kind, SymbolId, Type, nme};
+use tasty::{Kind, SymbolId, Type};
 
 impl OverrideChecks {
     /// Why a member of `own`, the class's declarations, may not override a member of a base
@@ -19,7 +20,7 @@ impl OverrideChecks {
         for d in own {
             let (name, kind) = (t.u.symbol(d).name.clone(), t.u.symbol(d).kind);
             let exempt = f::PRIVATE.or(f::SYNTHETIC);
-            let getter = name.contains("$default$");
+            let getter = name.contains(name_kinds::DEFAULT_GETTER);
             let flags = t.syms.flags.get(&d).copied();
             if !kind.is_term()
                 || kind == Kind::Param

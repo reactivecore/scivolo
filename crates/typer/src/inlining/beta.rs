@@ -7,10 +7,11 @@ use super::copy::TreeTypeMap;
 use super::purity::{PURE, at_least};
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
 use tasty::tags::{MUTABLE, SYNTHETIC};
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// `t`, owned by `owner`, beta-reduced if it applies a closure's `apply` to arguments.

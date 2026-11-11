@@ -6,8 +6,9 @@
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId};
+use names::nme;
+use tasty::TypeId;
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
-use tasty::{TypeId, nme};
 
 impl TreePickler<'_> {
     /// Type `parent` annotated with class type `annot`, the annotation `new annot()`.

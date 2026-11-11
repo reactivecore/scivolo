@@ -6,9 +6,10 @@
 
 use crate::ctx::{Ctx, Level};
 use crate::typer::Typer;
+use names::{name_kinds, nme};
 use syntax::ast::NodeId;
 use syntax::ast::flags as f;
-use tasty::{Kind, nme};
+use tasty::Kind;
 
 impl Typer<'_> {
     /// Whether definition `tree` of `name` and `kind` in `ctx` conflicts with a definition this
@@ -22,7 +23,7 @@ impl Typer<'_> {
         let owner = ctx.owner;
         let is_type = !kind.is_term();
         let in_class = self.u.symbol(owner).kind == Kind::Class;
-        let getter = name.contains("$default$");
+        let getter = name.contains(name_kinds::DEFAULT_GETTER);
         let scope =
             self.levels.def_scope(ctx.level).filter(|&l| matches!(self.levels.get(l), Level::Scope(_)));
         let decls = match scope {

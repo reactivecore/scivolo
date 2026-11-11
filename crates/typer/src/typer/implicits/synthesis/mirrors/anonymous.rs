@@ -6,10 +6,11 @@
 use super::{MISSING, MirrorSynthesis};
 use crate::tpd::{AnonMirror, TNodeId, Tree as T};
 use crate::typer::{Pt, Typer};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, TName, Tree};
-use tasty::{TypeId, nme};
+use tasty::TypeId;
 
 impl MirrorSynthesis {
     /// Types an anonymous class as the sum (`sum`) or product mirror of `mono`, for a class whose

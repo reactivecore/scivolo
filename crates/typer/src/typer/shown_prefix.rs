@@ -5,8 +5,9 @@
 //! and the place of a member as `showLocated` shows it.
 
 use super::Typer;
+use names::nme;
 use tasty::tags::{OBJECT, TRAIT};
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Where dotty's `showLocated` places a member of `owner`: ` in object O`, or nothing for a
@@ -16,7 +17,7 @@ impl Typer<'_> {
         let (name, kind, flags, parent) = (o.name.clone(), o.kind, o.flags, o.owner);
         Some(match kind {
             Kind::Def | Kind::Val => String::new(),
-            _ if self.u.is_package_object(owner) || name.starts_with("rs$line$") => {
+            _ if self.u.is_package_object(owner) || name.starts_with(nme::REPL_SESSION_LINE) => {
                 let p = parent?;
                 match p == self.u.root() || self.u.symbol(p).name == nme::EMPTY_PACKAGE {
                     true => String::new(),
@@ -109,6 +110,6 @@ impl Typer<'_> {
     fn is_empty_package(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         sym.kind == Kind::Package
-            && (sym.owner.is_none() || matches!(sym.name.as_str(), "" | nme::EMPTY_PACKAGE | "<root>"))
+            && (sym.owner.is_none() || matches!(sym.name.as_str(), "" | nme::EMPTY_PACKAGE | nme::ROOT))
     }
 }

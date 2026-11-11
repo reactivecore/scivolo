@@ -6,9 +6,10 @@
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
+use names::nme;
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// The name of the `scala.compiletime` operation `call` calls, if it calls one.
@@ -156,7 +157,7 @@ impl Inlining<'_> {
         let select = self.tpd.node(T::Select { qualifier: new, name }, at, Some(ctor_ref), Some(ctor));
         let applied = crate::defn::applied(self.u, some, vec![elem]);
         let binder = self.u.fresh_binder();
-        let params = [(self.u.intern_name("value"), elem)];
+        let params = [(self.u.intern_name(nme::VALUE), elem)];
         let method = self.u.intern_method(binder, &params, applied, false, false);
         let targ = self.tpd.node(T::TypeTree { inferred: false }, at, Some(elem), None);
         let targs = self.tpd.list(&[targ]);

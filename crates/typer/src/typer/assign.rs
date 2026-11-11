@@ -75,7 +75,7 @@ impl Typer<'_> {
     /// `typedAssign`); `q.x = v` with a setter `x_=`, structural or a member, becomes `q.x_=(v)`.
     pub fn typed_assign(&mut self, id: NodeId, (lhs, rhs): (NodeId, NodeId), pt: Pt, ctx: Ctx) -> TNodeId {
         if let Tree::Apply { fun, args } = *self.ast.tree(lhs) {
-            let name = TName { name: self.name("update"), is_type: false };
+            let name = TName { name: self.name(names::nme::UPDATE), is_type: false };
             let select = self.ast.node(Tree::Select { qualifier: fun, name });
             let fun_span = self.ast.span(fun);
             self.ast.with_span(select, Span::synthetic(fun_span.start(), fun_span.end()));

@@ -6,6 +6,7 @@ use super::super::Typer;
 use super::{Flow, Nullables, union};
 use crate::ctx::Ctx;
 use crate::tpd::{List, TNodeId, Tpd, Tree as T};
+use names::nme;
 use syntax::ast::constant::Constant;
 use tasty::{TypeId, Universe};
 
@@ -24,8 +25,8 @@ impl Typer<'_> {
     pub fn nullable_in_arg_ctx(&mut self, f: TNodeId, ctx: Ctx) -> Ctx {
         let T::Select { qualifier, .. } = *self.tpd.tree(f) else { return ctx };
         let when = match boolean_op(&self.tpd, self.u, f).as_deref() {
-            Some("&&") => true,
-            Some("||") => false,
+            Some(nme::ZAND) => true,
+            Some(nme::ZOR) => false,
             _ => return ctx,
         };
         self.nullable_ctx_if(qualifier, when, ctx)
@@ -37,7 +38,9 @@ impl Nullables {
     pub fn not_null_conditional(&mut self, f: &mut Flow, t: TNodeId) -> Conditional {
         match f.tpd.tree(t).clone() {
             T::Block { expr, .. } | T::Inlined { expansion: expr, .. } => self.not_null_conditional(f, expr),
-            T::Select { qualifier, .. } if boolean_op(f.tpd, f.types.u, t).as_deref() == Some("unary_!") => {
+            T::Select { qualifier, .. }
+                if boolean_op(f.tpd, f.types.u, t).as_deref() == Some(nme::UNARY_NOT) =>
+            {
                 let Conditional { if_true, if_false } = self.not_null_conditional(f, qualifier);
                 Conditional { if_true: if_false, if_false: if_true }
             }
@@ -58,11 +61,11 @@ impl Nullables {
                 let (x, y) = (self.not_null_conditional(f, x), self.not_null_conditional(f, y));
                 let meet = |a: Vec<TypeId>, b: &[TypeId]| a.into_iter().filter(|r| b.contains(r)).collect();
                 match op.as_deref() {
-                    Some("&&") => Conditional {
+                    Some(nme::ZAND) => Conditional {
                         if_true: union(x.if_true, &y.if_true),
                         if_false: meet(x.if_false, &y.if_false),
                     },
-                    Some("||") => Conditional {
+                    Some(nme::ZOR) => Conditional {
                         if_true: meet(x.if_true, &y.if_true),
                         if_false: union(x.if_false, &y.if_false),
                     },
@@ -91,9 +94,9 @@ fn compare_null(f: &mut Flow, fun: TNodeId, args: List) -> Option<(TNodeId, bool
     let (name, owner) = (u.symbol(m).name.clone(), u.symbol(m).owner?);
     let b = u.defn();
     let known = match (op == fun, name.as_str()) {
-        (true, "==" | "!=") => owner == b.any,
-        (true, "eq" | "ne") => owner == b.object || owner == f.defn.object,
-        (false, "eq" | "ne") => u.module_class(f.defn.predef) == Some(owner),
+        (true, nme::EQ | nme::NE) => owner == b.any,
+        (true, nme::REF_EQ | nme::REF_NE) => owner == b.object || owner == f.defn.object,
+        (false, nme::REF_EQ | nme::REF_NE) => u.module_class(f.defn.predef) == Some(owner),
         _ => false,
     };
     let operand = match (is_null_literal(f.tpd, arg), is_null_literal(f.tpd, l)) {
@@ -102,7 +105,7 @@ fn compare_null(f: &mut Flow, fun: TNodeId, args: List) -> Option<(TNodeId, bool
         (_, true) => arg,
         _ => return None,
     };
-    Some((operand, matches!(name.as_str(), "==" | "eq")))
+    Some((operand, matches!(name.as_str(), nme::EQ | nme::REF_EQ)))
 }
 
 /// Tells whether `t` is the literal `null`.

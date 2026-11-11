@@ -7,8 +7,9 @@ use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Type, TypeId, nme};
+use tasty::{Type, TypeId};
 
 impl Typer<'_> {
     /// Selection `id` of member `name` of `qual`, which only a term refinement of its type `pre`
@@ -49,7 +50,7 @@ impl Typer<'_> {
             Ok(q) => q,
             Err(what) => return Some(self.unsupported(id, what)),
         };
-        let (fun, literal) = self.structural_fun(qual, "selectDynamic", &text, span);
+        let (fun, literal) = self.structural_fun(qual, nme::SELECT_DYNAMIC, &text, span);
         let (apply, _) = self.applied(fun, &[literal]);
         let call = self.typed(apply, Pt::Any, ctx);
         Some(self.structural_cast(span, (qual, call), tpe, ctx))

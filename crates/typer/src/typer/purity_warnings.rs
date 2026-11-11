@@ -5,8 +5,8 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::constant::Constant;
-use tasty::nme;
 
 impl Typer<'_> {
     /// Warns at `at` about pure statement `tree`, unless it is an inline call expanding to `()`.

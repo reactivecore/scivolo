@@ -10,9 +10,10 @@ use super::Typer;
 use super::dependent_function_types::ApplyParts;
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, NameId, Type, TypeId, name_kinds, nme};
+use tasty::{Kind, NameId, Type, TypeId};
 
 impl Typer<'_> {
     /// Function type `id` of arguments `args` (types or parameter definitions) and result `body`,

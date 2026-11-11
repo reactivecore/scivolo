@@ -8,8 +8,9 @@ use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::dependent_params::applied_result;
 use crate::typer::seen_from::resolve_class_params;
 use crate::typer::type_apply::instantiate_poly;
+use names::nme;
 use tasty::tags::{MUTABLE, OBJECT, SYNTHETIC};
-use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 
 impl Unpickler<'_> {
     /// The class of full name `full`.
@@ -104,7 +105,7 @@ impl Unpickler<'_> {
     fn repeated_type(&mut self, elem: TypeId) -> TypeId {
         let scala = self.u.package("scala").expect("package scala");
         let synthetic = Flags::default().with(SYNTHETIC);
-        let class = crate::special::special(self.u, scala, "<repeated>", Kind::Class, synthetic);
+        let class = crate::special::special(self.u, scala, nme::REPEATED_PARAM_CLASS, Kind::Class, synthetic);
         let class = type_ref(self.u, class);
         self.u.intern_applied(class, &[elem])
     }

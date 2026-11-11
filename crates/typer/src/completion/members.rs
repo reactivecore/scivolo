@@ -6,10 +6,11 @@
 use crate::ctx::Ctx;
 use crate::typer::Typer;
 use crate::typer::did_you_mean::{OBJECT_MEMBERS, is_jdk};
+use names::nme;
 use tasty::tags::{
     ARTIFACT, FIELDaccessor, LOCAL, MUTABLE, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified,
 };
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The names starting with `prefix` of the members of `qual` that a selection in `ctx`

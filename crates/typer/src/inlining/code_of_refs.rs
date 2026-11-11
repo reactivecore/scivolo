@@ -4,7 +4,8 @@
 //! The prefixes and types of `codeOf`'s text.
 
 use super::Inlining;
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use names::nme;
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// The prefix of a reference to `s` through `prefix`, with its dot, empty where dotty's
@@ -70,7 +71,7 @@ impl Inlining<'_> {
         let full = self.u.full_name(s);
         matches!(
             full.as_str(),
-            "scala" | "java.lang" | "scala.Predef" | "scala.Predef$" | "" | "<empty>" | "<root>"
+            "scala" | "java.lang" | "scala.Predef" | "scala.Predef$" | "" | nme::EMPTY_PACKAGE | nme::ROOT
         )
     }
 

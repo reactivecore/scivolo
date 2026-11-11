@@ -5,9 +5,10 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::NodeId;
 use tasty::tags::{ABSTRACT, TRAIT};
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_new(&mut self, id: NodeId, tpt: NodeId, ctx: Ctx) -> TNodeId {

@@ -12,8 +12,9 @@ use crate::tpd::TNodeId;
 use crate::typer::Typer;
 use crate::typer::paths::MAX_PATH_DEPTH;
 use crate::typer::small_tuples::tuple_class_args;
+use names::nme;
 use tasty::tags::{CASE, CASEaccessor, PRIVATE, PROTECTED};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe, nme};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl MirrorSynthesis {
     /// Synthesizes the product mirror of a tuple, a case object, an enum value or a case class;

@@ -6,9 +6,10 @@
 use super::Typer;
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Binder, Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Binder, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Function type `id` of the parameter definitions `params` and result `body`, a context

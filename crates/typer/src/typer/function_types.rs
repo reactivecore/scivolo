@@ -9,10 +9,11 @@ use super::type_ops::TypeOps;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::tree::ModsId;
 use syntax::ast::{List, NodeId};
-use tasty::{Type, TypeId, nme};
+use tasty::{Type, TypeId};
 
 /// The parameter and result types of a function type.
 type Parts = (Vec<TypeId>, TypeId);

@@ -5,13 +5,14 @@
 
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{
     ANNOTATION, APPLY, ARTIFACT, DEFDEF, EMPTYCLAUSE, NEW, PARAM, SELECTin, SPLITCLAUSE, STRINGconst,
     TYPEPARAM,
 };
 use tasty::write::Name;
-use tasty::{Flags, Kind, Symbol, SymbolId, TypeId, nme};
+use tasty::{Flags, Kind, Symbol, SymbolId, TypeId};
 
 impl TreePickler<'_> {
     /// Super accessor `acc`, declared without a body.

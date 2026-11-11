@@ -11,10 +11,11 @@ use crate::defn::type_ref;
 use crate::protected_access::super_accessor_needed;
 use crate::signatures::result_sig;
 use crate::tpd::{TNodeId, Tree as T};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, INLINE, MACRO, SELECT, SELECTin};
 use tasty::write::Name;
-use tasty::{Flags, Kind, Symbol, SymbolId, Universe, name_kinds};
+use tasty::{Flags, Kind, Symbol, SymbolId, Universe};
 
 /// Super accessors pickled, each its class and name.
 pub type Accessors = Vec<(SymbolId, String)>;

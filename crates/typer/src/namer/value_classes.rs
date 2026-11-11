@@ -7,10 +7,11 @@
 
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::Typer;
+use names::nme;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, Tree};
 use syntax::diag::{Message, MessageId};
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 
 const PRIMITIVES: [&str; 9] = [
     "scala.Boolean",

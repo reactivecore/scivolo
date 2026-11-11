@@ -44,7 +44,7 @@ impl Typer<'_> {
         if let Some(scope) = self.quote_pattern.as_mut() {
             scope.type_vars.push((text, sym));
         }
-        let wild = TName { name: self.name("_"), is_type: false };
+        let wild = TName { name: self.name(names::nme::WILDCARD), is_type: false };
         let wild = self.tpd.node(T::Ident { name: wild }, Span::at(span.start()), Some(info), None);
         let tpe = self.u.intern_type(Type::Sym(None, sym));
         self.tpd.node(T::Bind { name, body: wild }, span, Some(tpe), Some(sym))

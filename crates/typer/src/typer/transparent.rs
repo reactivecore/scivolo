@@ -8,10 +8,11 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::inlining::Unsupported;
 use crate::tpd::{MatchKind, TNodeId, Tree as T};
+use names::nme;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::NodeId;
 use tasty::tags::{INLINE, MACRO, TRANSPARENT};
-use tasty::{Kind, SymbolId, Type, TypeVars, nme};
+use tasty::{Kind, SymbolId, Type, TypeVars};
 
 /// The definition of an inline method of the unit.
 #[derive(Clone, Copy)]

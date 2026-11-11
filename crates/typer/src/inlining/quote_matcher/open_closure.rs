@@ -9,11 +9,12 @@ use super::super::reflect_beta::NoHost;
 use super::super::{Inlining, Reflect};
 use super::Captured;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::TName;
 use syntax::names::FreshNames;
 use tasty::tags::SYNTHETIC;
-use tasty::{ANY, Flags, Kind, NOTHING, Symbol, SymbolId, Type, TypeId, nme};
+use tasty::{ANY, Flags, Kind, NOTHING, Symbol, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
     /// The closure `[X0, ...] => (params) => t` owned by `owner`, its parameters, named as

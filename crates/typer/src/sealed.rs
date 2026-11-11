@@ -4,8 +4,9 @@
 //! The children of sealed classes and the shape of generic products, as the typer's mirrors and
 //! the lowering's mirror support both see them (dotty's `children`, `isGenericProduct`).
 
+use names::nme;
 use tasty::tags::{ABSTRACT, CASE, ENUM, OBJECT};
-use tasty::{Kind, SymbolId, Type, Universe, nme};
+use tasty::{Kind, SymbolId, Type, Universe};
 
 /// The cases of enum class `e`, in the order of their definitions.
 pub fn enum_cases(u: &mut Universe, e: SymbolId) -> Vec<SymbolId> {

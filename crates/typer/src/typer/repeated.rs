@@ -79,15 +79,17 @@ impl Typer<'_> {
     /// dotty's `scala.<repeated>`, defined on first use.
     fn repeated_class(&mut self) -> SymbolId {
         let scala = self.defn.scala;
-        if let Some(c) =
-            self.syms.repeated_class.or_else(|| entered(self.u, scala, "<repeated>", Kind::Class))
+        if let Some(c) = self
+            .syms
+            .repeated_class
+            .or_else(|| entered(self.u, scala, names::nme::REPEATED_PARAM_CLASS, Kind::Class))
         {
             self.syms.repeated_class = Some(c);
             return c;
         }
         let c = self.syms.define(
             self.u,
-            "<repeated>",
+            names::nme::REPEATED_PARAM_CLASS,
             Kind::Class,
             self.defn.scala,
             syntax::ast::flags::SYNTHETIC,

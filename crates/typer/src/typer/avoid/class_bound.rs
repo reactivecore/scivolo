@@ -4,7 +4,8 @@
 
 use super::Avoid;
 use crate::typer::Typer;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe, nme};
+use names::nme;
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Avoid<'_> {
     /// Determines the type that stands for local class `c` outside its block: for

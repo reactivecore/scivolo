@@ -5,8 +5,9 @@
 //! `hasDefaultParams`), its own or those of a method it overrides.
 
 use super::Typer;
+use names::nme;
 use syntax::ast::flags as f;
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     /// Per parameter of the first value clause of method `s`, whether it has a default argument,

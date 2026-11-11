@@ -7,9 +7,10 @@
 use super::{Pt, Typer, Widen};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::{Kind, NameId, Type, TypeId, nme};
+use tasty::{Kind, NameId, Type, TypeId};
 
 impl Typer<'_> {
     /// Function value `(params) => body` against the expected type `pt`, a pattern-matching

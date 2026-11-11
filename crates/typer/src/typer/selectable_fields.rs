@@ -38,7 +38,7 @@ impl Typer<'_> {
         let text = self.text(name.name).to_owned();
         let field = values[names.iter().position(|n| *n == text)?];
         let span = self.ast.span(id);
-        let (fun, literal) = self.structural_fun(qual, "selectDynamic", &text, span);
+        let (fun, literal) = self.structural_fun(qual, names::nme::SELECT_DYNAMIC, &text, span);
         let (apply, _) = self.applied(fun, &[literal]);
         let call = self.typed(apply, Pt::Any, ctx);
         let tpe = self.tpd.tpe(call);

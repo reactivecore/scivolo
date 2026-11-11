@@ -7,9 +7,10 @@ use super::Reducer;
 use crate::inlining::Unsupported;
 use crate::inlining::copy::TreeTypeMap;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::TName;
 use tasty::tags::{CASE, PARAMsetter, SYNTHETIC, TRAIT};
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 
 /// The class of an instance creation, its arguments, the bindings around it and whether it is
 /// evaluated before the selection.

@@ -8,9 +8,10 @@ use super::super::Typer;
 use super::OverrideChecks;
 use crate::defn::{EQUALS, PRODUCT};
 use crate::symbols::Syms;
+use names::{name_kinds, nme};
 use rustc_hash::FxHashMap;
 use tasty::tags::{ARTIFACT, CASE, ENUM, MUTABLE, PRIVATE};
-use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe, nme};
+use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe};
 
 impl OverrideChecks {
     /// Why the class, which is concrete, may not be defined, if it may not: an abstract term
@@ -35,7 +36,8 @@ impl OverrideChecks {
             for d in decls {
                 let (kind, name) = (t.u.symbol(d).kind, t.u.symbol(d).name.clone());
                 let accessor = t.u.symbol(d).flags.has(ARTIFACT) && name.contains("$super$");
-                let mixin = !t.syms.is_script(d) && (accessor || name.contains("$_setter_$"));
+                let mixin =
+                    !t.syms.is_script(d) && (accessor || name.contains(name_kinds::TRAIT_SETTER_SEPARATOR));
                 if !matches!(kind, Kind::Val | Kind::Def)
                     || name == nme::CONSTRUCTOR
                     || mixin

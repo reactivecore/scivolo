@@ -98,7 +98,7 @@ impl Typer<'_> {
         let top = o.kind == Kind::Class && o.owner == Some(self.u.root());
         let path = match o.kind {
             k if k.is_term() => name,
-            _ if top && o.name.starts_with("rs$line$") => name,
+            _ if top && o.name.starts_with(names::nme::REPL_SESSION_LINE) => name,
             _ if top && !o.name.contains('$') => format!("{}.this.{name}", o.name),
             _ if top && o.flags.has(OBJECT) => format!("{}.{name}", tasty::module_name(&o.name)?),
             _ => return None,

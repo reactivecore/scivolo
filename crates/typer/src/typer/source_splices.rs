@@ -6,10 +6,11 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName, Tree, flags as f};
+use tasty::SymbolId;
 use tasty::defn::RUNTIME_EXPR;
-use tasty::{SymbolId, nme};
 
 /// The refusal of a source reference to a member of `scala.quoted.runtime.Expr`.
 pub const STAGING_REFERENCE: &str = "reference to scala.quoted.runtime.Expr outside a quote or splice";

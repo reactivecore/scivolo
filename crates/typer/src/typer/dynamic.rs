@@ -8,10 +8,10 @@ use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::constant::Constant;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
 use syntax::config::Features;
-use tasty::nme;
 
 /// A selection over `Dynamic` left for the application or assignment around it (dotty's
 /// `TryDynamicCallType`).
@@ -23,7 +23,7 @@ pub struct DynamicCall {
 }
 
 fn is_dynamic_method(name: &str) -> bool {
-    matches!(name, "applyDynamic" | "selectDynamic" | "updateDynamic" | "applyDynamicNamed")
+    matches!(name, nme::APPLY_DYNAMIC | nme::SELECT_DYNAMIC | nme::UPDATE_DYNAMIC | nme::APPLY_DYNAMIC_NAMED)
 }
 
 impl Typer<'_> {
@@ -121,7 +121,7 @@ impl Typer<'_> {
     /// enable `scala.language.dynamics`.
     pub fn check_dynamics_enabled(&mut self, rhs: NodeId, parents: &[tasty::TypeId], ctx: Ctx) {
         let dynamic = parents.iter().any(|&p| self.u.is_class_named(p, crate::defn::DYNAMIC));
-        if dynamic && !self.feature_enabled(Features::DYNAMICS, "dynamics", ctx) {
+        if dynamic && !self.feature_enabled(Features::DYNAMICS, nme::DYNAMICS, ctx) {
             self.unsupported(rhs, "extension of Dynamic without the dynamics feature");
         }
     }
@@ -171,7 +171,7 @@ impl Typer<'_> {
     }
 
     fn typed_dynamic_select(&mut self, call: DynamicCall, pt: Pt, ctx: Ctx) -> TNodeId {
-        let (fun, name) = self.dynamic_fun(&call, "selectDynamic");
+        let (fun, name) = self.dynamic_fun(&call, nme::SELECT_DYNAMIC);
         let typed = self.typed_dynamic_call(fun, &[name], pt, ctx);
         if call.targs.is_empty() {
             self.tpd.get_mut(typed).span = call.span;
@@ -187,7 +187,7 @@ impl Typer<'_> {
         let args = self.protos[proto].args.clone();
         let named = args.iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. }));
         if !named {
-            let fun = self.core_dynamic(&call, "applyDynamic");
+            let fun = self.core_dynamic(&call, nme::APPLY_DYNAMIC);
             return self.typed_dynamic_call(fun, &args, pt, ctx);
         }
         let mut tuples = Vec::new();
@@ -209,7 +209,7 @@ impl Typer<'_> {
             self.ast.with_span(tuple, span.to_synthetic());
             tuples.push(tuple);
         }
-        let fun = self.core_dynamic(&call, "applyDynamicNamed");
+        let fun = self.core_dynamic(&call, nme::APPLY_DYNAMIC_NAMED);
         self.typed_dynamic_call(fun, &tuples, pt, ctx)
     }
 
@@ -217,7 +217,7 @@ impl Typer<'_> {
     /// `qual.updateDynamic("name")(rhs)`.
     pub fn typed_dynamic_assign(&mut self, lhs: TNodeId, rhs: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let call = self.dynamic_calls.remove(&lhs).expect("pending dynamic call");
-        let fun = self.core_dynamic(&call, "updateDynamic");
+        let fun = self.core_dynamic(&call, nme::UPDATE_DYNAMIC);
         self.typed_dynamic_call(fun, &[rhs], pt, ctx)
     }
 

@@ -9,10 +9,11 @@ use super::super::Typer;
 use super::Access;
 use super::accessor_types::{Clause, accessor_tpt};
 use crate::tpd::TNodeId;
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe, name_kinds, nme};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// Makes `def inline$m(ps): T = C.this.m(ps)` in class `host` for `access`, or
 /// `def inline$m_=(x$0: T): Unit = C.this.m = x$0` for a setter; `None`, reported at `span`, if

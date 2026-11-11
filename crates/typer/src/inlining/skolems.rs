@@ -9,6 +9,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::seen_from::normalized;
 use crate::typer::stability::is_stable_path;
+use names::nme;
 use syntax::ast::{Span, TName};
 use tasty::{Binder, SymbolId, Type, TypeId, Universe};
 
@@ -61,11 +62,11 @@ impl Inlining<'_> {
     pub fn cast(&mut self, expr: TNodeId, to: TypeId) -> Result<TNodeId, Unsupported> {
         let span = self.tpd.span(expr).to_synthetic();
         let any = self.u.defn().any;
-        let found = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
+        let found = self.u.decl(any, nme::AS_INSTANCE_OF_PM).ok().and_then(|d| d.first().copied());
         let m = found.ok_or((span, "a cast without Any.$asInstanceOf$"))?;
         let prefix = self.tpd.tpe(expr);
         let select_tpe = self.u.intern_type(Type::Sym(Some(prefix), m));
-        let name = TName { name: self.names.intern("$asInstanceOf$"), is_type: false };
+        let name = TName { name: self.names.intern(nme::AS_INSTANCE_OF_PM), is_type: false };
         let fun = self.tpd.node(T::Select { qualifier: expr, name }, span, Some(select_tpe), Some(m));
         let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(to), None);
         let args = self.tpd.list(&[tpt]);
