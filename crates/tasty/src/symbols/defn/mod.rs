@@ -89,6 +89,7 @@ pub const VARARGS: &str = "scala.annotation.varargs";
 pub const UNROLL: &str = "scala.annotation.unroll";
 pub const EXPERIMENTAL: &str = "scala.annotation.experimental";
 pub const STABLE_NULL: &str = "scala.annotation.stableNull";
+pub const UNUSED: &str = "scala.annotation.unused";
 pub const UNCHECKED_VARIANCE: &str = "scala.annotation.unchecked.uncheckedVariance";
 /// The annotation of the types of repeated parameters in TASTy.
 pub const REPEATED_ANNOT: &str = "scala.annotation.internal.Repeated";

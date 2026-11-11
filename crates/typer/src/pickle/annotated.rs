@@ -8,9 +8,9 @@ use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId};
 use names::nme;
-use tasty::defn::{EXPERIMENTAL, SOURCE_FILE};
+use tasty::defn::UNUSED;
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
-use tasty::{SymbolId, TypeId};
+use tasty::{Kind, SymbolId, TypeId};
 
 impl TreePickler<'_> {
     /// Type `parent` annotated with class type `annot`, the annotation `new annot()`.
@@ -33,25 +33,23 @@ impl TreePickler<'_> {
     }
 
     /// The annotation trees of `s`, in order; in a file, the ones of its definition last first
-    /// (dotty's `addAnnotation` prepends).
+    /// (dotty's `addAnnotation` prepends), and on a value parameter its `@unused` first
+    /// (`PostTyper`'s `transform` of a parameter).
     pub fn annotation_trees(&mut self, s: SymbolId) -> Vec<TNodeId> {
-        let Some(file) = self.file else { return self.tpd.annotations(s).to_vec() };
-        let mut trees = file.annotations.get(&s).cloned().unwrap_or_else(|| self.tpd.annotations(s).to_vec());
-        let own: Vec<TNodeId> =
-            self.tpd.annotations(s).iter().copied().filter(|&a| !self.is_post_typer(a)).collect();
+        let own = self.tpd.annotations(s).to_vec();
+        let Some(file) = self.file else { return own };
+        let mut trees = file.annotations.get(&s).cloned().unwrap_or_else(|| own.clone());
         let at: Vec<usize> = (0..trees.len()).filter(|&i| own.contains(&trees[i])).collect();
         for (&i, &a) in at.iter().zip(own.iter().rev()) {
             trees[i] = a;
         }
-        trees
-    }
 
-    /// Whether annotation `a` is one dotty's `PostTyper` adds: `@SourceFile`, or `@experimental`
-    /// without a position.
-    fn is_post_typer(&mut self, a: TNodeId) -> bool {
-        let class = self.u.class_symbol(self.tpd.tpe(a)).map(|c| self.u.full_name(c));
-        class.as_deref() == Some(SOURCE_FILE)
-            || class.as_deref() == Some(EXPERIMENTAL) && !self.tpd.span(a).exists()
+        if self.u.symbol(s).kind == Kind::Param
+            && let Some(i) = trees.iter().position(|&a| self.u.is_class_named(self.tpd.tpe(a), UNUSED))
+        {
+            trees[..=i].rotate_right(1);
+        }
+        trees
     }
 
     /// Whether class type `class` is capture checking's `caps.internal.inferred`.
