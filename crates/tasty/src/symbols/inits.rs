@@ -10,6 +10,7 @@ use crate::tags::{
     TYPEPARAM, VALDEF,
 };
 use crate::{Ast, NodeId, View, view};
+use names::nme;
 
 impl Universe {
     /// Whether class `c` has no initialization code: a trait whose body defines only methods,
@@ -66,7 +67,9 @@ fn initializes(ast: &Ast, names: &[String], s: NodeId, scala2: bool) -> bool {
             _ => true,
         },
         DEFDEF if scala2 => match view(ast, s) {
-            View::DefDef { name, parts } => parts.body.len() > 1 && names[name.0 as usize] != "<init>",
+            View::DefDef { name, parts } => {
+                parts.body.len() > 1 && names[name.0 as usize] != nme::CONSTRUCTOR
+            }
             _ => true,
         },
         TYPEDEF if scala2 => matches!(view(ast, s), View::TypeDef { is_class: true, .. }),

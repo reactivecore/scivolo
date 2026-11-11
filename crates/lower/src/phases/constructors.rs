@@ -11,6 +11,7 @@ use super::initializers::constructor_params;
 use super::memoize::bottom;
 use super::param_forwarding::is_forwarder;
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
@@ -160,7 +161,7 @@ fn avoid_field_clashes(l: &mut Lower, stats: &[TNodeId]) {
         fields.iter().filter(|&&f| !of_getter(l, f)).map(|&f| l.u.symbol(f).name.clone()).collect();
     for f in fields {
         if of_getter(l, f) && plain.contains(&l.u.symbol(f).name) {
-            let name = format!("{}$field", l.u.symbol(f).name);
+            let name = name_kinds::explicit_field(&l.u.symbol(f).name);
             l.u.rename(f, &name);
         }
     }
@@ -170,7 +171,7 @@ fn avoid_field_clashes(l: &mut Lower, stats: &[TNodeId]) {
 fn null_test(l: &mut Lower, param: SymbolId, span: Span) -> TNodeId {
     let npe = l.u.class_ref("java.lang.NullPointerException");
     let npe = l.u.class_symbol(npe).expect("`NullPointerException`");
-    let ctor = l.u.decls_named(npe, "<init>").into_iter().find(|&c| {
+    let ctor = l.u.decls_named(npe, nme::CONSTRUCTOR).into_iter().find(|&c| {
         let info = l.u.info(c);
         l.u.method(info).is_some_and(|m| m.params.is_empty())
     });
@@ -230,7 +231,7 @@ fn super_call(l: &mut Lower, class: SymbolId, parent: TNodeId) -> Result<TNodeId
 /// `super.<init>()` of `Object` for `class`, whose parent `Any` erases to it.
 fn object_init_call(l: &mut Lower, class: SymbolId, span: Span) -> Result<TNodeId> {
     let object = l.u.defn().object;
-    let ctor = super::lazy_trees::method(l, object, "<init>", span)?;
+    let ctor = super::lazy_trees::method(l, object, nme::CONSTRUCTOR, span)?;
     let object_type = crate::definitions::type_ref(l.u, object);
     let sup = l.super_(class, object_type, span);
     let fun = l.select(sup, ctor, span);

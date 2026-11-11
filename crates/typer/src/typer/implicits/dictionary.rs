@@ -7,6 +7,7 @@ use super::super::Typer;
 use super::history::Lazy;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
+use names::nme;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::flags as f;
 use syntax::ast::{Span, TName};
@@ -118,7 +119,7 @@ impl Dictionary {
         t.u.set_parents(cls, parents);
         t.syms.no_inits.insert(cls, false);
         t.u.set_inits(cls);
-        let ctor = t.syms.define(t.u, "<init>", Kind::Def, cls, f::METHOD.or(f::SYNTHETIC));
+        let ctor = t.syms.define(t.u, nme::CONSTRUCTOR, Kind::Def, cls, f::METHOD.or(f::SYNTHETIC));
         let binder = t.syms.fresh_binder();
         let result = type_ref(t.u, cls);
         let info = t.u.intern_method(binder, &[], result, false, false);
@@ -155,7 +156,8 @@ impl Dictionary {
     fn new_call(&self, t: &mut Typer<'_>, class: SymbolId) -> Result<TNodeId, &'static str> {
         let at = self.at;
         t.complete(class);
-        let ctor = t.u.decl(class, "<init>").ok().and_then(|d| d.first().copied()).ok_or("constructor")?;
+        let ctor =
+            t.u.decl(class, nme::CONSTRUCTOR).ok().and_then(|d| d.first().copied()).ok_or("constructor")?;
         let tpe = type_ref(t.u, class);
         let tpt = t.type_tree(tpe, at, false);
         let new = t.tpd.node(T::New { tpt }, at, Some(tpe), None);

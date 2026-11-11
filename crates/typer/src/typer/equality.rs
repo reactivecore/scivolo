@@ -9,6 +9,7 @@ use super::implicits::is_misfit;
 use crate::ctx::{Ctx, Mode};
 use crate::defn::CAN_EQUAL;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::Features;
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -25,7 +26,7 @@ impl Typer<'_> {
     ) -> Result<(), &'static str> {
         let Some(sym) = self.tpd.sym(fun) else { return Ok(()) };
         let s = self.u.symbol(sym);
-        if s.owner != Some(self.u.defn().any) || !matches!(s.name.as_str(), "==" | "!=") {
+        if s.owner != Some(self.u.defn().any) || !matches!(s.name.as_str(), nme::EQ | nme::NE) {
             return Ok(());
         }
         let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return Err("comparison with this") };
@@ -46,7 +47,8 @@ impl Typer<'_> {
     /// Checks that a value of type `pt` can be compared with literal or stable identifier
     /// pattern `pat` in `ctx` (dotty's `checkEqualityEvidence`).
     pub fn check_pattern_equality(&mut self, pat: TNodeId, pt: TypeId, ctx: Ctx) -> Result<(), &'static str> {
-        let wildcard = matches!(*self.tpd.tree(pat), T::Ident { name } if self.text(name.name) == "_");
+        let wildcard =
+            matches!(*self.tpd.tree(pat), T::Ident { name } if self.text(name.name) == nme::WILDCARD);
         if !matches!(self.tpd.tree(pat), T::Ident { .. } | T::Select { .. } | T::Literal { .. }) || wildcard {
             return Ok(());
         }
@@ -142,7 +144,7 @@ impl Typer<'_> {
     /// type has a `CanEqual` with itself.
     pub fn is_strict_equality(&mut self, ctx: Ctx) -> bool {
         ctx.mode.is(Mode::STRICT_EQUALITY)
-            || self.feature_enabled(Features::STRICT_EQUALITY, "strictEquality", ctx)
+            || self.feature_enabled(Features::STRICT_EQUALITY, nme::STRICT_EQUALITY, ctx)
     }
 
     /// `t` with abstract types replaced by their upper bounds, singletons widened and refinements

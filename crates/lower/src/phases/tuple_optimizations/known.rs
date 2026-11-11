@@ -9,6 +9,7 @@ use crate::Lower;
 use crate::definitions::applied;
 use crate::phases::eval_once::{eval_once, is_stable_path};
 use crate::phases::tree_copy::{Copier, copy};
+use names::nme;
 use syntax::ast::Span;
 use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -101,7 +102,7 @@ pub fn selectors(
 /// `TupleN.apply[tpes](elements)` (dotty's `knownTupleFromElements`).
 pub fn from_elements(l: &mut Lower, tpes: &[TypeId], elements: &[TNodeId]) -> Option<TNodeId> {
     let class = tuple_class(l, tpes.len())?;
-    let (module, apply) = module_member(l, "scala", &format!("Tuple{}", tpes.len()), "apply")?;
+    let (module, apply) = module_member(l, "scala", &format!("Tuple{}", tpes.len()), nme::APPLY)?;
     let qual = l.ident(module, Span::NONE);
     let fun = l.select(qual, apply, Span::NONE);
     let fun = l.positioned(fun);
@@ -124,7 +125,7 @@ pub fn from_iterator(l: &mut Lower, size: usize, it: &mut Once) -> Option<TNodeI
 
 /// `it.next()`.
 pub fn next(l: &mut Lower, it: &mut Once) -> Option<TNodeId> {
-    let next = class_member(l, "scala.collection.Iterator", "next")?;
+    let next = class_member(l, "scala.collection.Iterator", nme::NEXT)?;
     let qual = it.get(l);
     Some(l.call(qual, next, &[]))
 }

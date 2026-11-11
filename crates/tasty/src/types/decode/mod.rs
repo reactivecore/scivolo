@@ -10,6 +10,7 @@ pub use defs::param_tree_clauses;
 use super::{Binder, NameId, Type, TypeId, Types};
 use crate::tags::*;
 use crate::{Ast, FileId, NodeId, SymbolId};
+use names::nme;
 use rustc_hash::FxHashMap;
 
 /// What decoding a type of one file reads, and the arena it adds to.
@@ -98,8 +99,8 @@ impl<'a> Decoder<'a> {
             return None;
         }
         match self.types.name(name) {
-            "&" => Some(true),
-            "|" => Some(false),
+            nme::AND => Some(true),
+            nme::OR => Some(false),
             _ => None,
         }
     }

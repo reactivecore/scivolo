@@ -11,6 +11,7 @@ use crate::phases::eval_once::{eval_once_as, is_idempotent};
 use crate::phases::literals::is_wildcard;
 use crate::phases::tree_copy::{Copier, copy};
 use crate::phases::vc_elide::elided;
+use names::nme;
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
@@ -53,7 +54,7 @@ fn boxed(l: &mut Lower, t: TNodeId, class: &str, underlying: &Erased) -> TNodeId
     let tpt = l.type_tree(value_type, Span::NONE);
     let value = l.tpd.node(Tree::Typed { expr: t, tpt }, l.tpd.span(t), Some(value_type), None);
     let new = l.new_(class, span);
-    let ctor = l.u.decls_named(class, "<init>");
+    let ctor = l.u.decls_named(class, nme::CONSTRUCTOR);
     let ctor = *ctor.first().expect("a value class's constructor");
     let fun = l.select(new, ctor, span);
     let tpe = type_ref(l.u, class);

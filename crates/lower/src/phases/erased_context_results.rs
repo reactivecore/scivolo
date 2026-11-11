@@ -6,6 +6,7 @@
 
 use crate::Lower;
 use crate::symbols::has;
+use names::name_kinds;
 use tasty::tags::PRIVATE;
 use tasty::{SymbolId, Type, TypeId};
 
@@ -40,7 +41,7 @@ pub fn rename_direct(l: &mut Lower, m: SymbolId, info: TypeId) {
     });
     if l.u.is_trait(owner) || overrides {
         let target = l.u.symbol(m).target.clone().unwrap_or(name);
-        l.u.set_target(m, &format!("{target}$direct"));
+        l.u.set_target(m, &name_kinds::direct(&target));
     }
 }
 

@@ -9,6 +9,7 @@ use super::local_free::{Local, is_term};
 use crate::Lower;
 use crate::definitions::symbol;
 use crate::symbols::has;
+use names::name_kinds;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use syntax::source::Offset;
@@ -129,7 +130,7 @@ pub type NamingKey = ((Offset, Offset), usize);
 /// argument of, with its definition.
 fn hoisted_from(l: &Lower, classes: &[TNodeId], m: SymbolId) -> Option<(SymbolId, TNodeId)> {
     let sym = l.u.symbol(m);
-    let (name, _) = sym.name.split_once("$superArg$").filter(|_| sym.kind == Kind::Def)?;
+    let (name, _) = sym.name.split_once(name_kinds::SUPER_ARG_SEPARATOR).filter(|_| sym.kind == Kind::Def)?;
     let hoisting = |c: SymbolId| {
         l.u.symbol(c).name == name && (Some(c) == sym.owner || l.u.symbol(c).owner == sym.owner)
     };

@@ -4,8 +4,10 @@
 //! and the Java interfaces super calls name.
 
 use super::callee::Receiver;
+use super::descriptors::with_receiver;
 use super::{Gen, method_name};
 use classfile::{ACC_PRIVATE, ACC_STATIC, ClassFile, Code, Invoke};
+use names::name_kinds;
 use tasty::SymbolId;
 use typer::tpd::{List, TNodeId, Tree};
 
@@ -38,9 +40,10 @@ impl Gen<'_, '_> {
         }
         code.invoke_in(Invoke::Special, true, &mut cf.pool, (&trait_name, &name, desc));
         code.ret(result);
-        let static_desc = format!("(L{trait_name};{}", &desc[1..]);
+        let static_desc = with_receiver(&trait_name, desc);
         let flags = (flags & !classfile::ACC_ABSTRACT) | ACC_STATIC;
-        cf.method(flags, &format!("{name}$"), &static_desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
+        let static_name = name_kinds::trait_super_accessor(&name);
+        cf.method(flags, &static_name, &static_desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
         self.method_attributes(cf, m, &static_desc, params, (true, true));
     }
 

@@ -8,6 +8,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::dependent_params::applied_result;
 use crate::typer::seen_from::resolve_class_params;
 use crate::typer::type_apply::instantiate_poly;
+use names::nme;
 use tasty::tags::{MUTABLE, OBJECT, SYNTHETIC};
 use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 
@@ -40,7 +41,8 @@ impl Unpickler<'_> {
                 let info = resolve_class_params(self.u, info);
                 (self.with_repeated_class(info), Some(s))
             }
-            Type::TermRef(pre, n) if self.u.name(n) == "apply" => match self.u.poly_function_apply_of(pre) {
+            Type::TermRef(pre, n) if self.u.name(n) == nme::APPLY => match self.u.poly_function_apply_of(pre)
+            {
                 Some(info) => (info, meth),
                 None => (tpe, meth),
             },
@@ -103,7 +105,7 @@ impl Unpickler<'_> {
     fn repeated_type(&mut self, elem: TypeId) -> TypeId {
         let scala = self.u.package("scala").expect("package scala");
         let synthetic = Flags::default().with(SYNTHETIC);
-        let class = crate::special::special(self.u, scala, "<repeated>", Kind::Class, synthetic);
+        let class = crate::special::special(self.u, scala, nme::REPEATED_PARAM_CLASS, Kind::Class, synthetic);
         let class = type_ref(self.u, class);
         self.u.intern_applied(class, &[elem])
     }
@@ -123,7 +125,7 @@ impl Unpickler<'_> {
         let part = self.tpd.meth_part(fun);
         let curried = self.u.method(result).is_some();
         let mut result = result;
-        if self.tpd.sym(part).is_some_and(|s| self.u.symbol(s).name == "<init>") {
+        if self.tpd.sym(part).is_some_and(|s| self.u.symbol(s).name == nme::CONSTRUCTOR) {
             match *self.tpd.tree(part) {
                 T::Select { qualifier, .. } if matches!(self.tpd.tree(qualifier), T::New { .. }) => {
                     let class = self.tpd.tpe(qualifier);

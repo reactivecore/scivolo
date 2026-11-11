@@ -7,6 +7,7 @@ use super::cases::Bindings;
 use crate::inlining::Unsupported;
 use crate::inlining::quote_match::{bind_variances, bound_types};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{Span, TName};
 use tasty::tags::{CASE, ENUM, SYNTHETIC};
 use tasty::{Binding, Symbol, SymbolId, Type, TypeId};
@@ -72,7 +73,7 @@ impl Reducer<'_, '_> {
                 if !self.reduce_pattern(map, scrut, body)? {
                     return Ok(false);
                 }
-                if self.i.names.text(name.name) != "_"
+                if self.i.names.text(name.name) != nme::WILDCARD
                     && let Some(s) = self.i.tpd.sym(pat)
                 {
                     let at = Span::at(span.point());
@@ -81,7 +82,7 @@ impl Reducer<'_, '_> {
                 }
                 true
             }
-            T::Ident { name } if self.i.names.text(name.name) == "_" => true,
+            T::Ident { name } if self.i.names.text(name.name) == nme::WILDCARD => true,
             T::Literal { .. } => {
                 let widened = self.widen_term_ref(scrut);
                 let tpe = self.i.tpd.tpe(pat);

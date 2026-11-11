@@ -5,6 +5,7 @@
 use super::{Desugar, Mode, Owner};
 use crate::ast::tree::Clauses;
 use crate::ast::{Attrs, List, NodeId, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     /// The desugared tree `id` (the oracle's `Expander.transform`).
@@ -68,7 +69,7 @@ impl Desugar<'_> {
             Tree::New { tpt } => {
                 let tpt = if matches!(self.ast.tree(tpt), Tree::Template { .. }) {
                     let owner = Owner::Class { is_trait: false, is_package_object: false };
-                    let full_name = self.child_full_name("$anon");
+                    let full_name = self.child_full_name(nme::ANON_CLASS);
                     let class = self.new_class(full_name, Vec::new(), false, None);
                     self.in_class(class, owner, |d| d.transform_template(tpt))
                 } else {

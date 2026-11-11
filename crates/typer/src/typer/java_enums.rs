@@ -7,6 +7,7 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{Span, TName};
 use tasty::SymbolId;
 
@@ -24,10 +25,10 @@ impl Typer<'_> {
     /// `new java.lang.Enum[E]()` for parent type tree `parent` at `span`.
     pub fn java_enum_constr_call(&mut self, parent: TNodeId, psym: SymbolId, span: Span) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(parent);
-        let ctor = self.u.decl(psym, "<init>").ok()?.into_iter().next()?;
+        let ctor = self.u.decl(psym, nme::CONSTRUCTOR).ok()?.into_iter().next()?;
         let args = self.u.applied(tpe).map(|(_, args)| args.to_vec())?;
         let new = self.tpd.node(T::New { tpt: parent }, span, Some(tpe), None);
-        let name = TName { name: self.name("<init>"), is_type: false };
+        let name = TName { name: self.name(nme::CONSTRUCTOR), is_type: false };
         let ctor_tpe = self.ref_type(Some(tpe), ctor);
         let select = self.tpd.node(T::Select { qualifier: new, name }, span, Some(ctor_tpe), Some(ctor));
         let targs: Vec<TNodeId> = args.iter().map(|&a| self.type_tree(a, span.start_pos(), false)).collect();
@@ -44,7 +45,7 @@ impl Typer<'_> {
         if !flags.has(tasty::tags::ENUM) || flags.has(tasty::tags::CASE) {
             return false;
         }
-        self.class_members(c, "ordinal").into_iter().any(|m| {
+        self.class_members(c, nme::ORDINAL).into_iter().any(|m| {
             let owner = self.u.symbol(m).owner.map(|o| self.u.full_name(o));
             !self.u.symbol(m).flags.has(tasty::tags::SYNTHETIC)
                 && owner.as_deref() != Some("scala.reflect.Enum")
@@ -62,7 +63,7 @@ impl Typer<'_> {
             return None;
         }
         let flags = self.u.symbol(cls).flags;
-        if !flags.has(ENUM) && !flags.has(TRAIT) && !self.u.symbol(cls).name.starts_with("$anon") {
+        if !flags.has(ENUM) && !flags.has(TRAIT) && !self.u.symbol(cls).name.starts_with(nme::ANON_CLASS) {
             return Some("class extending java.lang.Enum");
         }
         if flags.has(ENUM) && flags.has(CASE) {

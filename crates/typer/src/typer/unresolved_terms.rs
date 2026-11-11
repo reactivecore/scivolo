@@ -19,7 +19,7 @@ impl Typer<'_> {
             return None;
         }
         let text = self.text(name.name).to_owned();
-        if text == "$scope" {
+        if text == names::nme::SCOPE {
             let Some(top) = self.resolve_full_name("scala.xml.TopScope", false) else {
                 return Some(self.unsupported(id, "unresolved name $scope"));
             };

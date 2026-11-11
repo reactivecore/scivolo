@@ -37,10 +37,7 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
                             Some(u.intern_type(Type::Bounds(tasty::NOTHING, hi)))
                         })
                     };
-                    let e = match u.erase(p) {
-                        Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
-                        e => e,
-                    };
+                    let e = u.erase(p).boxing_unit();
                     parts.push(sig_name(u, p, &e));
                 }
                 t = result;

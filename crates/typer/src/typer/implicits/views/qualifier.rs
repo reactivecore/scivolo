@@ -8,6 +8,7 @@ use super::super::super::{Pt, Typer};
 use super::{Goal, ViewSearch, Viewed};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::{Ast, NodeId, Tree};
 use syntax::config::Features;
 use tasty::{SymbolId, Type, TypeId};
@@ -36,7 +37,7 @@ impl Typer<'_> {
         let Pt::Fun(proto) = pt else { return None };
         let args = self.untupled_args(proto, syms).unwrap_or_else(|| self.protos[proto].args.clone());
         let arg_ctx = self.protos[proto].ctx;
-        if name == "<init>"
+        if name == nme::CONSTRUCTOR
             || self.protos[proto].typed.is_some()
             || !args.iter().all(|&a| is_plain_arg(self.ast, a))
             || auto_tupled(self, (prefix, syms), args.len(), ctx)
@@ -111,7 +112,7 @@ pub fn is_plain_arg(ast: &Ast, a: NodeId) -> bool {
 /// Tells whether `n` arguments are passed to the only one of `syms` as a tuple of their arity.
 fn auto_tupled(t: &mut Typer<'_>, (prefix, syms): (TypeId, &[SymbolId]), n: usize, ctx: Ctx) -> bool {
     let &[s] = syms else { return false };
-    if n < 2 || !t.is_unary(s) || t.feature_enabled(Features::NO_AUTO_TUPLING, "noAutoTupling", ctx) {
+    if n < 2 || !t.is_unary(s) || t.feature_enabled(Features::NO_AUTO_TUPLING, nme::NO_AUTO_TUPLING, ctx) {
         return false;
     }
     let Some(class) = t.resolve_full_name(&format!("scala.Tuple{n}"), true) else { return true };

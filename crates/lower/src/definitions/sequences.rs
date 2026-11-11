@@ -1,4 +1,5 @@
 use super::member;
+use names::nme;
 use tasty::{Kind, SymbolId, Universe};
 
 /// What `ArrayApply` builds lists from: `Nil` and `::`.
@@ -16,7 +17,7 @@ impl Sequences {
         Ok(Sequences {
             nil: member(u, immutable, "Nil", Kind::Val)?,
             cons,
-            cons_ctor: member(u, cons, "<init>", Kind::Def)?,
+            cons_ctor: member(u, cons, nme::CONSTRUCTOR, Kind::Def)?,
         })
     }
 }

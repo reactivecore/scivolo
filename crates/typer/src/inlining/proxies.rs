@@ -8,6 +8,7 @@ use super::expand::Expansion;
 use super::{Inlining, Unsupported};
 use crate::defn::INLINE_PARAM;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::{Span, TName};
 use tasty::tags::{INLINE, INLINEPROXY};
@@ -118,7 +119,7 @@ pub fn replace_param(
     let T::Ident { name } = *i.tpd.tree(t) else { return None };
     let s = i.tpd.sym(t)?;
     let &bound = binding.get(&s)?;
-    if i.names.text(name.name) == "_" {
+    if i.names.text(name.name) == nme::WILDCARD {
         let sym = i.u.sym_of(bound);
         return Some(i.tpd.node(T::Ident { name }, i.tpd.span(t), Some(bound), sym));
     }
@@ -172,7 +173,9 @@ impl Inlining<'_> {
     /// `Seq[T]` if `t` is `<repeated>[T]` (dotty's `translateFromRepeated(toArray = false)`).
     fn seq_of_repeated(&mut self, t: TypeId) -> Option<TypeId> {
         let (c, args) = self.u.applied(t).map(|(c, a)| (c, a.to_vec()))?;
-        if args.len() != 1 || self.u.class_symbol(c) != Some(self.scala_member("<repeated>", Kind::Class)?) {
+        if args.len() != 1
+            || self.u.class_symbol(c) != Some(self.scala_member(nme::REPEATED_PARAM_CLASS, Kind::Class)?)
+        {
             return None;
         }
         let seq = self.u.class_ref(crate::defn::IMMUTABLE_SEQ);

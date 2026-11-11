@@ -9,6 +9,7 @@ use super::imports::{ImportEntry, ImportInfo, Selector};
 use crate::ctx::{Ctx, Level};
 use crate::inlining::ImportSelector;
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::{List, NodeId, Tree};
 use tasty::{SymbolId, TypeId};
 
@@ -57,10 +58,9 @@ impl Typer<'_> {
     pub fn may_import_named(&self, i: usize, name: &str) -> bool {
         let ImportEntry::Pending { tree, .. } = self.imports[i] else { return true };
         let Tree::Import { selectors, .. } = *self.ast.tree(tree) else { return true };
-        self.ast
-            .items(selectors)
-            .iter()
-            .any(|&s| self.selector_names(s).is_some_and(|(_, rename)| rename == name && rename != "_"))
+        self.ast.items(selectors).iter().any(|&s| {
+            self.selector_names(s).is_some_and(|(_, rename)| rename == name && rename != nme::WILDCARD)
+        })
     }
 
     /// Whether a `given` selector of import `i` imports given or implicit `sym`: one without a

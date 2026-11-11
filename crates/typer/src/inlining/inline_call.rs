@@ -131,7 +131,7 @@ impl Inlining<'_> {
             (outer_call, outer_implicits, outer_macro);
         self.depth -= 1;
         let (bindings, expansion) = expanded?;
-        if op.as_deref() == Some("error") {
+        if op.as_deref() == Some(names::nme::ERROR_METHOD) {
             self.issue_error(call)?;
         }
         if let Some(inner) = self.inline_ref_in(expansion) {

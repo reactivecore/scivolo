@@ -7,6 +7,7 @@ use super::Gen;
 use super::callee::is_primitive;
 use crate::phases::adapt::erased_type;
 use crate::{Result, unsupported};
+use names::nme;
 use nir::{Op, Type, Val, ValId};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
@@ -17,7 +18,7 @@ impl Gen<'_, '_> {
     /// Whether `sym` is `String`'s `+`, or a primitive's `+` taking a `String`.
     pub fn is_string_concat(&mut self, sym: SymbolId) -> bool {
         let s = self.l.u.symbol(sym);
-        if s.name != "+" {
+        if s.name != nme::ADD {
             return false;
         }
         let Some(owner) = s.owner else { return false };

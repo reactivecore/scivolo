@@ -5,6 +5,7 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
+use names::nme;
 use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 use tasty::{SymbolId, Type, TypeId};
 
@@ -140,7 +141,7 @@ impl Typer<'_> {
         if s.kind.is_type() || s.owner.is_some_and(|o| self.u.is_module_class(o)) {
             return true;
         }
-        let constructor_in_super_call = s.name == "<init>" && self.super_call_class(ctx).is_some();
+        let constructor_in_super_call = s.name == nme::CONSTRUCTOR && self.super_call_class(ctx).is_some();
         let pre = prefix.map(|p| self.u.widen(p)).and_then(|p| self.u.class_symbol(p));
         constructor_in_super_call || pre.is_some_and(|p| self.u.derives_from(p, cls))
     }
@@ -177,7 +178,7 @@ impl Typer<'_> {
             return Ok(());
         }
         let super_call = new
-            && self.u.symbol(sym).name == "<init>"
+            && self.u.symbol(sym).name == nme::CONSTRUCTOR
             && self.super_call_class(ctx).zip(parent).is_some_and(|(c, p)| self.u.derives_from(c, p));
         if super_call { Ok(()) } else { Err("protected member through a path") }
     }

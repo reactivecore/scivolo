@@ -1,5 +1,6 @@
 use super::equality::{Equality, method};
 use super::{java_class, java_static, member, package, type_ref};
+use names::nme;
 use tasty::{Kind, SymbolId, Universe};
 
 /// What the synthetic members of case classes and their companions refer to.
@@ -82,48 +83,48 @@ impl CaseClasses {
             java_static(u, statics, name, Kind::Def, info)
         };
         Ok(CaseClasses {
-            hash_code: member(u, any, "hashCode", Kind::Def)?,
-            to_string: member(u, any, "toString", Kind::Def)?,
-            can_equal: member(u, equals, "canEqual", Kind::Def)?,
-            product_arity: member(u, product, "productArity", Kind::Def)?,
-            product_prefix: member(u, product, "productPrefix", Kind::Def)?,
-            product_element: member(u, product, "productElement", Kind::Def)?,
-            product_element_name: member(u, product, "productElementName", Kind::Def)?,
+            hash_code: member(u, any, nme::HASH_CODE, Kind::Def)?,
+            to_string: member(u, any, nme::TO_STRING, Kind::Def)?,
+            can_equal: member(u, equals, nme::CAN_EQUAL, Kind::Def)?,
+            product_arity: member(u, product, nme::PRODUCT_ARITY, Kind::Def)?,
+            product_prefix: member(u, product, nme::PRODUCT_PREFIX, Kind::Def)?,
+            product_element: member(u, product, nme::PRODUCT_ELEMENT, Kind::Def)?,
+            product_element_name: member(u, product, nme::PRODUCT_ELEMENT_NAME, Kind::Def)?,
             product,
-            eq: member(u, object, "eq", Kind::Def)?,
-            or: member(u, boolean, "||", Kind::Def)?,
+            eq: member(u, object, nme::REF_EQ, Kind::Def)?,
+            or: member(u, boolean, nme::ZOR, Kind::Def)?,
             any_equals: equality.any_equals,
             any_hash: equality.any_hash,
             runtime_to_string: member(u, run_time_class, "_toString", Kind::Def)?,
             mix: statics_method(u, "mix", &[int, int]),
             finalize_hash: statics_method(u, "finalizeHash", &[int, int]),
-            long_hash: statics_method(u, "longHash", &[long]),
-            double_hash: statics_method(u, "doubleHash", &[double]),
-            float_hash: statics_method(u, "floatHash", &[float]),
+            long_hash: statics_method(u, nme::LONG_HASH, &[long]),
+            double_hash: statics_method(u, nme::DOUBLE_HASH, &[double]),
+            float_hash: statics_method(u, nme::FLOAT_HASH, &[float]),
             objects_hash_code: match objects_module {
                 Some(m) => {
                     let objects = module_class(u, m)?;
-                    with_params(u, objects, "hashCode", 1)?
+                    with_params(u, objects, nme::HASH_CODE, 1)?
                 }
                 None => {
                     let objects = java_class(u, java_util, "Objects");
                     let any = type_ref(u, any);
                     let info = method(u, &[any], int);
-                    java_static(u, objects, "hashCode", Kind::Def, info)
+                    java_static(u, objects, nme::HASH_CODE, Kind::Def, info)
                 }
             },
             objects_module,
             product_hash: with_params(u, murmur_class, "productHash", 3)?,
             murmur_hash3,
             ioobe,
-            ioobe_ctor: with_params(u, ioobe, "<init>", 1).and_then(|c| int_param(u, ioobe, c))?,
+            ioobe_ctor: with_params(u, ioobe, nme::CONSTRUCTOR, 1).and_then(|c| int_param(u, ioobe, c))?,
             mirror_product: member(u, mirror_class, "Product", Kind::Class)?,
             mirror_singleton: member(u, mirror_class, "Singleton", Kind::Class)?,
             mirror_sum: member(u, mirror_class, "Sum", Kind::Class)?,
             enum_ordinal: {
                 let reflect = package(u, "scala.reflect")?;
                 let enum_ = member(u, reflect, "Enum", Kind::Class)?;
-                member(u, enum_, "ordinal", Kind::Def)?
+                member(u, enum_, nme::ORDINAL, Kind::Def)?
             },
         })
     }
@@ -150,7 +151,7 @@ fn with_params(u: &mut Universe, owner: SymbolId, name: &str, n: usize) -> Resul
 
 /// The constructor of `class` taking an `Int`, `first` if no other one does.
 fn int_param(u: &mut Universe, class: SymbolId, first: SymbolId) -> Result<SymbolId, String> {
-    let ctors = u.decl(class, "<init>").map_err(|e| e.to_string())?;
+    let ctors = u.decl(class, nme::CONSTRUCTOR).map_err(|e| e.to_string())?;
     let int = |u: &mut Universe, m: SymbolId| {
         let info = u.info(m);
         let Some(&[(_, p)]) = u.method(info).map(|m| m.params) else { return false };

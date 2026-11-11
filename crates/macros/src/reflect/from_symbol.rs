@@ -6,6 +6,7 @@
 
 use super::Fallible;
 use crate::host::Host;
+use names::nme;
 use std::collections::HashSet;
 use syntax::ast::TName;
 use tasty::tags::{CASE, ENUM, MACRO, OBJECT, SYNTHETIC};
@@ -113,7 +114,7 @@ impl Host {
         let mut decls = self.u.symbol(cls).decls.clone();
         let ctor = decls.iter().copied().find(|&d| self.u.is_constructor(d));
         let constr = ctor.unwrap_or_else(|| {
-            super::symbols::local(&mut self.u, "<init>", Kind::Def, cls, Flags::default())
+            super::symbols::local(&mut self.u, nme::CONSTRUCTOR, Kind::Def, cls, Flags::default())
         });
         let constr = self.definition_from_symbol(constr)?;
         decls.retain(|&d| Some(d) != ctor && !self.u.symbol(d).name.starts_with("<local "));

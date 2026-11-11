@@ -8,6 +8,8 @@ mod options;
 mod version;
 mod warnings;
 
+use names::nme;
+
 pub use version::SourceVersion;
 pub use warnings::{Lints, Warnings};
 
@@ -40,7 +42,7 @@ impl Features {
         Some(match name {
             "experimental.erasedDefinitions" => Features::ERASED_DEFINITIONS,
             "experimental.modularity" => Features::MODULARITY,
-            "postfixOps" => Features::POSTFIX_OPS,
+            nme::POSTFIX_OPS => Features::POSTFIX_OPS,
             "experimental.captureChecking" | "experimental.separationChecking" | "experimental.safe" => {
                 Features::CAPTURE_CHECKING
             }
@@ -50,13 +52,13 @@ impl Features {
             "experimental.multiSpreads" => Features::MULTI_SPREADS,
             "experimental.pureFunctions" => Features::PURE_FUNCTIONS,
             "experimental.into" => Features::INTO,
-            "strictEquality" => Features::STRICT_EQUALITY,
+            nme::STRICT_EQUALITY => Features::STRICT_EQUALITY,
             "experimental.genericNumberLiterals" => Features::GENERIC_NUMBER_LITERALS,
-            "dynamics" => Features::DYNAMICS,
-            "noAutoTupling" => Features::NO_AUTO_TUPLING,
+            nme::DYNAMICS => Features::DYNAMICS,
+            nme::NO_AUTO_TUPLING => Features::NO_AUTO_TUPLING,
             "experimental.namedTypeArguments" => Features::NAMED_TYPE_ARGUMENTS,
             "experimental.saferExceptions" => Features::SAFER_EXCEPTIONS,
-            "unsafeNulls" => Features::UNSAFE_NULLS,
+            nme::UNSAFE_NULLS => Features::UNSAFE_NULLS,
             "experimental.packageObjectValues" => Features::PACKAGE_OBJECT_VALUES,
             _ => return None,
         })

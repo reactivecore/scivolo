@@ -11,6 +11,7 @@ name = "typer"
 
 [dependencies]
 clap.workspace = true
+names.workspace = true
 rustc-hash.workspace = true
 syntax.workspace = true
 tasty.workspace = true

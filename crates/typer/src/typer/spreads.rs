@@ -9,12 +9,15 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::defn::ARRAY;
 use crate::tpd::{TNodeId, Tree as T};
+use names::{name_kinds, nme};
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{ANY, Type, TypeId};
 
 /// The builders of `VarArgsBuilder` for elements of a primitive class.
 const PRIMITIVE: [&str; 9] = ["Byte", "Short", "Char", "Int", "Long", "Float", "Double", "Boolean", "Unit"];
+/// The name of the `VarArgsBuilder` method that adds the elements of an array.
+const ADD_ARRAY: &str = "addArray";
 
 impl Typer<'_> {
     /// Sequence argument `a` among others passed to a repeated parameter of element type `elem`:
@@ -29,7 +32,7 @@ impl Typer<'_> {
         let fun = self.build().ident(spread, fun_tpe, at);
         let targ = self.type_tree(elem, at, true);
         let binder = self.u.fresh_binder();
-        let params = [(self.u.intern_name("x$0"), ANY)];
+        let params = [(self.u.intern_name(&name_kinds::synthetic_param(0)), ANY)];
         let info = self.u.intern_method(binder, &params, elem, false, false);
         let fun = self.build().type_apply(fun, &[targ], info, at);
         self.build().apply(fun, &[expr], elem, span.to_synthetic())
@@ -39,9 +42,9 @@ impl Typer<'_> {
     fn spread_of(&self, t: TNodeId) -> Option<TNodeId> {
         let T::Apply { fun, args } = *self.tpd.tree(t) else { return None };
         let s = self.tpd.sym(self.tpd.meth_part(fun))?;
-        let ops = self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).name == "<special-ops>");
+        let ops = self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).name == nme::OPS_PACKAGE);
         let &[xs] = self.tpd.items(args) else { return None };
-        (ops && self.u.symbol(s).name == "spread").then_some(xs)
+        (ops && self.u.symbol(s).name == nme::SPREAD).then_some(xs)
     }
 
     /// Records sequence literal `seq`, typed in `ctx`, if it has spreads; its element type tree
@@ -111,8 +114,8 @@ impl Typer<'_> {
         self.ast.with_span(total, span);
         for xs in spreads {
             let xs = self.spliced(xs);
-            let len = self.spread_select(xs, "length", span);
-            let plus = self.spread_select(total, "+", span);
+            let len = self.spread_select(xs, nme::LENGTH, span);
+            let plus = self.spread_select(total, nme::ADD, span);
             total = self.spread_applied(plus, &[len], span);
         }
         let class = self.u.class_symbol(elem);
@@ -135,7 +138,7 @@ impl Typer<'_> {
         for (e, spread) in items {
             let (method, arg) = match spread {
                 true => self.spread_added(e, elem),
-                false => ("add", self.spliced(e)),
+                false => (nme::ADD_METHOD, self.spliced(e)),
             };
             let add = self.spread_select(chain, method, span);
             chain = self.spread_applied(add, &[arg], span);
@@ -169,10 +172,10 @@ impl Typer<'_> {
         let array = self.u.class_ref(ARRAY);
         let array = self.u.intern_applied(array, &[elem]);
         if self.conforms(tpe, array) {
-            return ("addArray", xs_node);
+            return (ADD_ARRAY, xs_node);
         }
-        let fun = self.spread_select(xs_node, "asInstanceOf", span.to_synthetic());
-        ("addArray", self.spread_type_applied(fun, array, span.to_synthetic()))
+        let fun = self.spread_select(xs_node, nme::AS_INSTANCE_OF, span.to_synthetic());
+        (ADD_ARRAY, self.spread_type_applied(fun, array, span.to_synthetic()))
     }
 
     fn spread_type_applied(&mut self, fun: NodeId, targ: TypeId, span: Span) -> NodeId {

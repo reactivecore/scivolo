@@ -7,6 +7,7 @@
 use super::Gen;
 use crate::definitions::Known;
 use crate::{Result, unsupported};
+use names::nme;
 use nir::{Op, Type, Val, ValId};
 use tasty::SymbolId;
 use typer::tpd::{List, TNodeId, Tree};
@@ -65,7 +66,7 @@ impl Gen<'_, '_> {
         let name = self.l.u.symbol(sym).name.clone();
         let array = match *self.l.tpd.tree(fun) {
             Tree::Select { qualifier, .. } => match *self.l.tpd.tree(qualifier) {
-                Tree::New { .. } if name == "<init>" => {
+                Tree::New { .. } if name == nme::CONSTRUCTOR => {
                     let ty = self.gen_type(self.l.tpd.tpe(app));
                     let (Type::Array { elem, .. }, [length]) = (self.pool.ty(ty).clone(), args) else {
                         return unsupported(span, "arrays of generic or several dimensions");
@@ -87,16 +88,16 @@ impl Gen<'_, '_> {
         let saved = self.at_span(span);
         let arr = self.gen_expr(array)?;
         let v = match (name.as_str(), args) {
-            ("apply", [i]) => {
+            (nme::APPLY, [i]) => {
                 let idx = self.gen_expr(*i)?;
                 self.emit(Op::Arrayload { ty: elem, arr, idx })
             }
-            ("update", [i, value]) => {
+            (nme::UPDATE, [i, value]) => {
                 let idx = self.gen_expr(*i)?;
                 let value = self.gen_expr(*value)?;
                 self.emit(Op::Arraystore { ty: elem, arr, idx, value })
             }
-            ("length", []) => self.emit(Op::Arraylength(arr)),
+            (nme::LENGTH, []) => self.emit(Op::Arraylength(arr)),
             _ => return unsupported(span, "array operations"),
         };
         self.m.pos = saved;
@@ -107,7 +108,7 @@ impl Gen<'_, '_> {
     /// `newArrayMethod`).
     pub fn is_new_array_method(&self, m: SymbolId) -> bool {
         let owner = self.l.u.symbol(m).owner.map(|o| self.l.u.full_name(o));
-        self.l.u.symbol(m).name == "newArray" && owner.as_deref() == Some("scala.runtime.Arrays$")
+        self.l.u.symbol(m).name == nme::NEW_ARRAY && owner.as_deref() == Some("scala.runtime.Arrays$")
     }
 
     /// Whether `v` is a zero value: `false`, `null`, a numeric zero (NIR's `isZero`).

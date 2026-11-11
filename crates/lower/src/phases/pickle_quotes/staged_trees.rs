@@ -6,6 +6,7 @@
 use super::avoid::avoided;
 use crate::Lower;
 use crate::definitions::symbol;
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
 use tasty::{Flags, Kind, SymbolId, TypeId};
@@ -24,9 +25,9 @@ pub fn spliced(
     let quotes = l.u.class_ref(tasty::defn::QUOTES);
     let function = l.u.class_ref(tasty::defn::CONTEXT_FUNCTION1);
     let function = l.u.intern_applied(function, &[quotes, expr]);
-    let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, Flags::default().with(SYNTHETIC)));
+    let anon = l.u.define(symbol(nme::ANON_FUN, Kind::Def, owner, Flags::default().with(SYNTHETIC)));
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("x$0"), quotes)];
+    let params = [(l.u.intern_name(&name_kinds::synthetic_param(0)), quotes)];
     let info = l.u.intern_method(binder, &params, expr, false, true);
     l.u.set_info(anon, info);
     let def = l.forwarding_def(anon, Span::NONE, |l, args, _| body(l, args[0], anon));
@@ -54,7 +55,7 @@ pub fn quoted(l: &mut Lower, body: TNodeId, quotes: TNodeId) -> TNodeId {
     let quote = l.apply(fun, &[body], function, Span::NONE);
     let quote = l.positioned(quote);
     let class = l.u.class_symbol(function).expect("ContextFunction1");
-    let apply = l.u.member(class, "apply")[0];
+    let apply = l.u.member(class, nme::APPLY)[0];
     let fun = l.select(quote, apply, Span::NONE);
     let fun = l.positioned(fun);
     let applied = l.apply(fun, &[quotes], expr, Span::NONE);

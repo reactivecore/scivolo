@@ -7,6 +7,7 @@ use super::super::{Pt, Typer};
 use super::{UnapplyPattern, proto};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::{NodeId, Span, TName, Tree};
 
 impl UnapplyPattern {
@@ -21,11 +22,11 @@ impl UnapplyPattern {
         let typed = t.typed(qual, Pt::Any, if ident { ctx.with_mode(Mode::EXTRACTOR) } else { ctx });
         let tpe = t.tpd.tpe(typed);
         let tpe = t.widen_if_unstable(tpe);
-        let member = t.members_found(tpe, "unapply", false).is_some();
-        let extension = !member && t.extension_visible("unapply", ctx);
+        let member = t.members_found(tpe, nme::UNAPPLY, false).is_some();
+        let extension = !member && t.extension_visible(nme::UNAPPLY, ctx);
         let seq_found = !member
-            && (t.members_found(tpe, "unapplySeq", false).is_some()
-                || t.extension_visible("unapplySeq", ctx));
+            && (t.members_found(tpe, nme::UNAPPLY_SEQ, false).is_some()
+                || t.extension_visible(nme::UNAPPLY_SEQ, ctx));
         if extension && seq_found {
             return Err("extension method");
         }
@@ -38,7 +39,7 @@ impl UnapplyPattern {
         let splice = t.ast.node(Tree::TypeTree);
         t.ast.with_span(splice, span);
         t.splices.insert(splice, typed);
-        let name = TName { name: t.name(if seq { "unapplySeq" } else { "unapply" }), is_type: false };
+        let name = TName { name: t.name(if seq { nme::UNAPPLY_SEQ } else { nme::UNAPPLY }), is_type: false };
         let select = t.ast.node(Tree::Select { qualifier: splice, name });
         t.ast.with_span(select, Span::synthetic(span.start(), span.end()));
         let text = t.text(name.name).to_owned();
@@ -60,7 +61,7 @@ impl UnapplyPattern {
 /// a member `unapply`.
 fn view_may_supply_unapply(t: &mut Typer<'_>, qual: TNodeId, ctx: Ctx) -> bool {
     let reported = t.diags.items.len();
-    let (found, clean, _) = t.speculatively(|t| t.viewed(qual, Goal::Member("unapply"), ctx));
+    let (found, clean, _) = t.speculatively(|t| t.viewed(qual, Goal::Member(nme::UNAPPLY), ctx));
     t.retract_diags(reported);
     match found {
         Ok(None) if clean => false,
@@ -68,7 +69,7 @@ fn view_may_supply_unapply(t: &mut Typer<'_>, qual: TNodeId, ctx: Ctx) -> bool {
         _ => {
             let site = t.u.widen(t.tpd.tpe(qual));
             let q = t.u.class_symbol(site);
-            q.is_none_or(|q| t.may_view_to((q, site), "unapply", ctx) != Some(false))
+            q.is_none_or(|q| t.may_view_to((q, site), nme::UNAPPLY, ctx) != Some(false))
         }
     }
 }

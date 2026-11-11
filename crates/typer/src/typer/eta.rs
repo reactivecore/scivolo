@@ -9,6 +9,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
@@ -44,7 +45,7 @@ impl Typer<'_> {
 
     /// Whether `tree` refers to a constructor.
     pub fn is_constructor_ref(&mut self, tree: TNodeId) -> bool {
-        self.tpd.sym(self.tpd.meth_part(tree)).is_some_and(|s| self.u.symbol(s).name == "<init>")
+        self.tpd.sym(self.tpd.meth_part(tree)).is_some_and(|s| self.u.symbol(s).name == nme::CONSTRUCTOR)
     }
 
     /// Whether `tree` refers to an inline implicit method, which is not eta-expanded.
@@ -109,7 +110,7 @@ impl Typer<'_> {
                 let typed = self.type_tree(*p, start, false);
                 self.splices.insert(tpt, typed);
             }
-            let name = if java { format!("x${i}") } else { self.u.name(*name).to_owned() };
+            let name = if java { name_kinds::synthetic_param(i) } else { self.u.name(*name).to_owned() };
             let name = self.name(&name);
             let name = TName { name, is_type: false };
             let mods = self.ast.mods(Modifiers::with_flags(f::SYNTHETIC_TERM_PARAM));

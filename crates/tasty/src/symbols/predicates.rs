@@ -5,6 +5,7 @@
 use super::{Kind, SymbolId, Universe};
 use crate::TypeId;
 use crate::tags::{OBJECT, TRAIT};
+use names::nme;
 
 /// Whether `name` is the name of a package object's class: `package$`, or a source file's
 /// `F$package$`.
@@ -35,7 +36,7 @@ impl Universe {
     }
 
     pub fn is_constructor(&self, s: SymbolId) -> bool {
-        self.symbol(s).kind == Kind::Def && self.symbol(s).name == "<init>"
+        self.symbol(s).kind == Kind::Def && self.symbol(s).name == nme::CONSTRUCTOR
     }
 
     /// The class of a package object.

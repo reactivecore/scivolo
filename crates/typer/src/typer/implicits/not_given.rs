@@ -53,7 +53,7 @@ impl ImplicitSearch {
         }
         let module = t.resolve_full_name("scala.util.NotGiven", false).ok_or("NotGiven")?;
         let module_class = t.u.module_class(module).ok_or("NotGiven")?;
-        let value = t.u.decls_named(module_class, "value");
+        let value = t.u.decls_named(module_class, names::nme::VALUE);
         let value = value.into_iter().find(|&d| t.u.symbol(d).kind == Kind::Def).ok_or("NotGiven.value")?;
         let class = crate::defn::type_ref(t.u, module_class);
         let this = t.u.intern_type(Type::This(class));

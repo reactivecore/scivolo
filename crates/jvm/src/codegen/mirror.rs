@@ -3,11 +3,13 @@
 //! Static forwarders to the methods of a top-level object, in its companion class or in a mirror
 //! class (dotty's `genMirrorClass`, `addForwarders`, `addForwarder`).
 
-use super::{ClassBytes, Gen, method_descriptor, method_name, unsupported};
+use super::descriptors::{class_descriptor, method_descriptor};
+use super::{ClassBytes, Gen, method_name, unsupported};
 use classfile::{
     ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ClassFile, Code, FieldOp, Invoke, Last,
 };
 use lower::Result;
+use names::{name_kinds, nme};
 use std::collections::HashSet;
 use tasty::tags::{
     FIELDaccessor, INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC,
@@ -41,12 +43,18 @@ impl Gen<'_, '_> {
     /// whose names a member of its companion class `companion` has.
     pub fn add_forwarders(&mut self, cf: &mut ClassFile, module: SymbolId, companion: Option<SymbolId>) {
         let module_name = self.class_name(module);
-        let module_desc = format!("L{module_name};");
+        let module_desc = class_descriptor(&module_name);
         let mut methods = self.forwarded(module, companion);
         methods.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
         for (method, desc, synthetic, m) in methods {
             let mut code = Code::new(0);
-            code.field(FieldOp::GetStatic, &mut cf.pool, &module_name, "MODULE$", &module_desc);
+            code.field(
+                FieldOp::GetStatic,
+                &mut cf.pool,
+                &module_name,
+                nme::MODULE_INSTANCE_FIELD,
+                &module_desc,
+            );
             let (params, result) = classfile::split_method(&desc);
             let mut slot = 0;
             for param in params {
@@ -107,7 +115,7 @@ impl Gen<'_, '_> {
                     continue;
                 }
                 if !conflicting.contains(&name) {
-                    let synthetic = self.l.is_bridge(m) || name.contains("$_setter_$");
+                    let synthetic = self.l.is_bridge(m) || name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
                     out.push((name, desc, synthetic, m));
                 }
             }
@@ -143,7 +151,8 @@ impl Gen<'_, '_> {
     fn has_forwarder(&mut self, m: SymbolId) -> bool {
         let s = self.l.u.symbol(m);
         let excluded = [PRIVATE, PROTECTED, PRIVATEqualified, PROTECTEDqualified, STATIC, MACRO, INLINE];
-        let excluded = excluded.iter().any(|&f| s.flags.has(f)) || s.name.contains("$$");
+        let excluded =
+            excluded.iter().any(|&f| s.flags.has(f)) || s.name.contains(name_kinds::EXPAND_SEPARATOR);
         let deferred = match s.tree.is_some() {
             true => self.l.u.body(m).is_none(),
             false => self.l.u.is_deferred(m),

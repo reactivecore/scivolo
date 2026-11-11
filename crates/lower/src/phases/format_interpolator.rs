@@ -7,6 +7,7 @@ use super::format_checker::{Target, checked};
 use super::interpolators::interpolation;
 use crate::definitions::type_ref;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use typer::tpd::{TNodeId, Tree};
@@ -40,7 +41,7 @@ pub fn transform(l: &mut Lower, t: TNodeId) -> Result<()> {
     let string_ops = l.u.class_ref("scala.collection.StringOps");
     let class = l.u.class_symbol(string_ops).expect("`StringOps`");
     let member = |l: &mut Lower, name: &str| *l.u.decls_named(class, name).first().expect(name);
-    let (init, format_method) = (member(l, "<init>"), member(l, "format"));
+    let (init, format_method) = (member(l, nme::CONSTRUCTOR), member(l, nme::FORMAT));
     let value = Constant::String(format.into());
     let tpe = typer::tpd::constant_type_of(l.u, &value);
     let literal = l.tpd.node(Tree::Literal { value }, Span::NONE, Some(tpe), None);

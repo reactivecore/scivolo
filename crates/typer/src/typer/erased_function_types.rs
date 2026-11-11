@@ -10,6 +10,7 @@ use super::Typer;
 use super::dependent_function_types::ApplyParts;
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, NameId, Type, TypeId};
@@ -26,14 +27,14 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Option<TNodeId> {
         let refinement = self.refinement_class(ctx);
-        let owner = self.syms.define(self.u, "apply", Kind::Def, refinement, f::METHOD);
+        let owner = self.syms.define(self.u, nme::APPLY, Kind::Def, refinement, f::METHOD);
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
         let lctx = Ctx { level, ..ctx };
         let (mut syms, mut trees, mut any_erased) = (Vec::new(), Vec::new(), false);
         for (i, &a) in args.iter().enumerate() {
             let (name, tpt, synthetic) = match *self.ast.tree(a) {
                 Tree::ValDef { name, tpt, .. } => (self.text(name.name).to_owned(), tpt, false),
-                _ => (format!("x${}", i + 1), a, true),
+                _ => (name_kinds::synthetic_param(i + 1), a, true),
             };
             if matches!(self.ast.tree(tpt), Tree::ByNameTypeTree { .. }) {
                 return Some(self.unsupported(a, "erased function type with a by-name parameter"));
@@ -138,7 +139,7 @@ impl Typer<'_> {
             _ => None,
         });
         let method = self.u.intern_method(binder, &names, result, contextual, contextual);
-        let apply = self.u.intern_name("apply");
+        let apply = self.u.intern_name(nme::APPLY);
         Some(self.u.intern_type(Type::Refined(core, apply, method)))
     }
 }

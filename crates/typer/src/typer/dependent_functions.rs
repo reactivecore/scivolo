@@ -6,6 +6,7 @@
 use super::Typer;
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
 use tasty::{Binder, Kind, SymbolId, Type, TypeId};
@@ -21,7 +22,7 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> TNodeId {
         let refinement = self.refinement_class(ctx);
-        let owner = self.syms.define(self.u, "apply", Kind::Def, refinement, f::METHOD);
+        let owner = self.syms.define(self.u, nme::APPLY, Kind::Def, refinement, f::METHOD);
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
         let lctx = Ctx { level, ..ctx };
         let (mut syms, mut trees, mut spans) = (Vec::new(), Vec::new(), Vec::new());

@@ -9,6 +9,7 @@
 use super::Gen;
 use super::method::Method;
 use crate::Result;
+use names::name_kinds;
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, PosId, Type, Val};
 use tasty::{Kind, SymbolId};
@@ -47,7 +48,7 @@ impl Gen<'_, '_> {
             let (field, holder) = self.handle(c, f);
             let ty = self.handle_type()?;
             let class = self.type_name(c);
-            let id = format!("{}$lzyHandle", self.local_name(f));
+            let id = name_kinds::lazy_var_handle(&self.local_name(f));
             let name = self.pool.member(class, &Sig::Method(id, vec![ty], Scope::PrivateStatic(class)));
             self.m = Method::new(None, 0, pos);
             let entry = self.fresh();
@@ -76,11 +77,11 @@ impl Gen<'_, '_> {
             Some(h) => self.type_name(h),
             None => {
                 let top = self.type_name(class);
-                let name = format!("{}$", self.pool.top_name(top));
+                let name = tasty::module_class_name(self.pool.top_name(top));
                 self.pool.top(&name)
             }
         };
-        let id = format!("{}$lzyHandle", self.local_name(f));
+        let id = name_kinds::lazy_var_handle(&self.local_name(f));
         (self.pool.member(holder, &Sig::Field(id, Scope::Private(holder))), holder)
     }
 

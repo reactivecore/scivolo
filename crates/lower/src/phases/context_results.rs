@@ -7,6 +7,7 @@ use super::erased_context_results::is_erased_context_function;
 use super::function_classes::function_class_arity;
 use super::walk::subtrees;
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -34,7 +35,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             inline_rhss.extend(rhs);
         }
         let count = rhs.map_or(0, |rhs| context_result_count(l, tpt, rhs));
-        if count > 0 && l.u.symbol(m).name != "$anonfun" {
+        if count > 0 && l.u.symbol(m).name != nme::ANON_FUN {
             counts.insert(m, (t, count));
         }
     }
@@ -166,8 +167,11 @@ pub fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
     let Some(m) = l.u.method(t) else { return t };
     let (binder, result, implicit, contextual) = (m.binder, m.result, m.implicit, m.contextual);
     let params = m.params.to_vec();
-    let params: Vec<_> =
-        params.into_iter().enumerate().map(|(i, (_, p))| (l.u.intern_name(&format!("x${i}")), p)).collect();
+    let params: Vec<_> = params
+        .into_iter()
+        .enumerate()
+        .map(|(i, (_, p))| (l.u.intern_name(&name_kinds::synthetic_param(i)), p))
+        .collect();
     l.u.intern_method(binder, &params, result, implicit, contextual)
 }
 
@@ -228,10 +232,10 @@ fn references(l: &Lower, mut t: TNodeId, f: &Flattened) -> bool {
 fn is_context_apply(l: &mut Lower, t: TNodeId) -> bool {
     let Some(s) = l.tpd.sym(t) else {
         let Some((prefix, name)) = l.u.term_ref(l.tpd.tpe(t)) else { return false };
-        return l.u.name(name) == "apply" && is_erased_context_function(l, prefix);
+        return l.u.name(name) == nme::APPLY && is_erased_context_function(l, prefix);
     };
     let owner = l.u.symbol(s).owner;
-    l.u.symbol(s).name == "apply"
+    l.u.symbol(s).name == nme::APPLY
         && owner.and_then(|c| function_class_arity(l, c)).is_some_and(|(_, context)| context)
 }
 
@@ -245,7 +249,7 @@ pub fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
     let t = l.u.dealias(t);
     let mut base = t;
     while let Type::Refined(parent, name, _) = *l.u.ty(base)
-        && l.u.name(name) == "apply"
+        && l.u.name(name) == nme::APPLY
     {
         base = parent;
     }

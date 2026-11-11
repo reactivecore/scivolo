@@ -4,6 +4,7 @@
 
 use crate::phases::tree_copy::{Copier, copy};
 use crate::{Lower, Result};
+use names::nme;
 use syntax::ast::Span;
 use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -24,7 +25,7 @@ impl Reflect {
     /// `quotes.reflect`.
     pub fn this(self, l: &mut Lower) -> Result<TNodeId> {
         let quotes = self.copy(l)?;
-        Ok(member(l, quotes, "reflect"))
+        Ok(member(l, quotes, nme::REFLECT))
     }
 
     /// `quotes.reflect.module.method`.
@@ -46,7 +47,7 @@ impl Reflect {
     /// `quotes.reflect.asTerm(expr)`.
     pub fn as_term(self, l: &mut Lower, expr: TNodeId) -> Result<TNodeId> {
         let reflect = self.this(l)?;
-        let as_term = member(l, reflect, "asTerm");
+        let as_term = member(l, reflect, nme::AS_TERM);
         Ok(call(l, as_term, &[expr]))
     }
 }

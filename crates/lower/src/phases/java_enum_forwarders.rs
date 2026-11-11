@@ -8,6 +8,7 @@
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{ENUM, MUTABLE, PRIVATE, STATIC};
 use tasty::{Flags, Kind, SymbolId};
@@ -60,7 +61,7 @@ fn assign(l: &mut Lower, f: SymbolId, value: TNodeId) -> TNodeId {
 /// `private static def <clinit>(): Unit` of `class` running `stores`.
 fn clinit(l: &mut Lower, class: SymbolId, stores: &[TNodeId], span: Span) -> TNodeId {
     let flags = Flags::default().with(STATIC).with(PRIVATE);
-    let sym = l.u.define(symbol("<clinit>", Kind::Def, class, flags));
+    let sym = l.u.define(symbol(nme::STATIC_CONSTRUCTOR, Kind::Def, class, flags));
     let unit = l.u.class_ref(tasty::defn::UNIT);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_method(binder, &[], unit, false, false);

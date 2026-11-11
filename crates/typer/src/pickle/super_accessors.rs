@@ -11,6 +11,7 @@ use crate::defn::type_ref;
 use crate::protected_access::super_accessor_needed;
 use crate::signatures::result_sig;
 use crate::tpd::{TNodeId, Tree as T};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, INLINE, MACRO, SELECT, SELECTin};
 use tasty::write::Name;
@@ -120,12 +121,9 @@ impl TreePickler<'_> {
         let original = self.u.symbol(*member).name.clone();
         let trait_ = self.u.is_trait(class);
         let accessor_name = |u: &Universe, original: &str| {
-            let unexpanded = match mix.as_str() {
-                "" => format!("super${original}"),
-                mix => format!("{original}$super${mix}"),
-            };
+            let unexpanded = name_kinds::super_accessor(original, mix);
             match trait_ {
-                true => format!("{}$${unexpanded}", u.expanded_prefix(class)),
+                true => name_kinds::expanded(&u.expanded_prefix(class), &unexpanded),
                 false => unexpanded,
             }
         };

@@ -7,6 +7,7 @@ use super::implicits::{Goal, QualifierView, Viewed};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{Span, TName, Tree};
 use tasty::Type;
 
@@ -42,7 +43,7 @@ impl Typer<'_> {
         if let Some(apply) = self.poly_apply(f, tpe, self.tpd.span(f).to_synthetic()) {
             return Ok(apply);
         }
-        let Some(found) = self.members_found(tpe, "apply", false) else {
+        let Some(found) = self.members_found(tpe, nme::APPLY, false) else {
             let proxy = match pt {
                 Pt::Fun(_) | Pt::PolyFun(_) => self.proxy_companion(f, pt, ctx),
                 _ => None,
@@ -62,9 +63,9 @@ impl Typer<'_> {
             };
             return dynamic.ok_or("application of a non-method");
         };
-        if self.extension_visible("apply", ctx)
+        if self.extension_visible(nme::APPLY, ctx)
             && let Some(QualifierView::Extension) =
-                self.qualifier_view(f, (tpe, &found.syms), "apply", pt, ctx)
+                self.qualifier_view(f, (tpe, &found.syms), nme::APPLY, pt, ctx)
             && let Some(apply) = self.extension_apply(f, pt, ctx)
         {
             return Ok(apply);
@@ -74,7 +75,7 @@ impl Typer<'_> {
             chosen => chosen.map_err(|e| e.what)?,
         };
         self.check_reference(sym, Some(tpe), ctx)?;
-        let name = syntax::ast::TName { name: self.name("apply"), is_type: false };
+        let name = syntax::ast::TName { name: self.name(nme::APPLY), is_type: false };
         let apply_tpe = self.ref_type(Some(tpe), sym);
         let span = self.tpd.span(f).to_synthetic();
         Ok(self.tpd.node(T::Select { qualifier: f, name }, span, Some(apply_tpe), Some(sym)))
@@ -101,16 +102,16 @@ impl Typer<'_> {
     /// `f.apply` as a call of an extension method `apply` in scope or in the implicit scope of
     /// `f`'s type, or of the `apply` of `f` converted by an implicit view, if there is one.
     fn extension_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Option<TNodeId> {
-        let name = TName { name: self.name("apply"), is_type: false };
+        let name = TName { name: self.name(nme::APPLY), is_type: false };
         let span = self.tpd.span(f);
         let qualifier = self.spliced(f);
         let id = self.ast.node(Tree::Select { qualifier, name });
         self.ast.with_span(id, Span::synthetic(span.start(), span.end()));
-        if self.extension_visible("apply", ctx) {
+        if self.extension_visible(nme::APPLY, ctx) {
             return Some(self.extension_select(id, f, name, pt, ctx));
         }
         let unsupported = self.unsupported.clone();
-        match self.viewed(f, Goal::Member("apply"), ctx) {
+        match self.viewed(f, Goal::Member(nme::APPLY), ctx) {
             Ok(Some(Viewed::Extension(c))) => Some(self.implicit_extension_select(id, f, c, name, pt, ctx)),
             Ok(Some(Viewed::Converted(converted))) => self.with_apply(converted, pt, ctx).ok(),
             _ => {

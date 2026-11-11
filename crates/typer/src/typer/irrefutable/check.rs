@@ -10,6 +10,7 @@ use super::super::unapply_args::UnapplyArgs;
 use super::{RUNTIME_CHECKED, Refutable, UNCHECKED, has_annotation};
 use crate::defn::PRODUCT;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use tasty::{Const, Type, TypeId, Universe, constant};
 
 /// Finds the first reason dotty's `checkIrrefutable` finds why pattern `pat` may not match a
@@ -37,7 +38,7 @@ pub fn check_irrefutable(t: &mut Typer<'_>, pat: TNodeId, pt: TypeId) -> Result<
             check_conforms(t, pat, pt)?;
             check_irrefutable(t, expr, pt)
         }
-        T::Ident { name } if t.text(name.name) == "_" => Ok(()),
+        T::Ident { name } if t.text(name.name) == nme::WILDCARD => Ok(()),
         _ => check_conforms(t, pat, pt),
     }
 }
@@ -78,7 +79,7 @@ fn is_irrefutable_extractor(t: &mut Typer<'_>, fun: TNodeId, n: usize) -> bool {
         || n > 0
             && t.derives_from_named(result, PRODUCT)
             && product_selectors(t, result).is_ok_and(|s| s.len() == n)
-        || extractor_member(t, result, "isEmpty")
+        || extractor_member(t, result, nme::IS_EMPTY)
             .ok()
             .flatten()
             .is_some_and(|e| is_bool_constant(t.u, e, false))
@@ -102,7 +103,7 @@ fn is_bool_constant(u: &mut Universe, tpe: TypeId, value: bool) -> bool {
 /// The types extractor `fun` gives its `n` patterns (dotty's `UnapplyArgs.argTypes`).
 fn extractor_arg_types(t: &mut Typer<'_>, fun: TNodeId, n: usize) -> Option<Vec<TypeId>> {
     let result = extractor_result(t, fun);
-    let seq = t.tpd.sym(t.tpd.meth_part(fun)).is_some_and(|s| t.u.symbol(s).name == "unapplySeq");
+    let seq = t.tpd.sym(t.tpd.meth_part(fun)).is_some_and(|s| t.u.symbol(s).name == nme::UNAPPLY_SEQ);
     let args = UnapplyArgs { result, n };
     if !seq {
         return args.arg_types(t).ok();

@@ -6,6 +6,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
+use names::name_kinds;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags;
 use syntax::ast::modifiers::Modifiers;
@@ -30,7 +31,7 @@ impl Typer<'_> {
         };
         let (mut params, mut refs) = (Vec::new(), Vec::new());
         for i in 1..=n {
-            let name = TName { name: self.name(&format!("x${i}")), is_type: false };
+            let name = TName { name: self.name(&name_kinds::synthetic_param(i)), is_type: false };
             let tpt = self.ast.node(Tree::TypeTree);
             let mods = self.ast.mods(Modifiers::with_flags(flags::SYNTHETIC_TERM_PARAM));
             params.push(node(self, Tree::ValDef { name, tpt, rhs: None, mods }));

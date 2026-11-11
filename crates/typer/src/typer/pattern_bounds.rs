@@ -39,7 +39,7 @@ impl Typer<'_> {
         };
         let Some(name) = var else { return (self.typed_type(id, ctx), None) };
         let span = self.ast.span(id);
-        let wild = TName { name: self.name("_"), is_type: false };
+        let wild = TName { name: self.name(names::nme::WILDCARD), is_type: false };
         let bounds = match self.lambda_sub_param_bounds(tycon, i) {
             Ok(Some(bounds)) => bounds,
             _ => self.u.intern_type(Type::Bounds(NOTHING, ANY)),

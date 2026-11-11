@@ -11,6 +11,7 @@ use crate::diag::{Message, rewrite_notice};
 use crate::names::Name;
 use crate::source::Offset;
 use crate::token::Token;
+use names::nme;
 
 pub struct OpInfo {
     operand: NodeId,
@@ -80,7 +81,10 @@ impl Parser<'_> {
             return t;
         }
         let op = self.s.names.text(self.op_name(info.operator));
-        let named_tuple_op = matches!(op, "==" | "!=" | "eq" | "ne" | "++" | "zip" | "->");
+        let named_tuple_op = matches!(
+            op,
+            nme::EQ | nme::NE | nme::REF_EQ | nme::REF_NE | nme::PLUS_PLUS | nme::ZIP | nme::PURE_ARROW
+        );
         let Tree::InfixOp { right, .. } = *self.ast.tree(t) else { return t };
         let named_args = match self.ast.tree(right) {
             Tree::Tuple { trees } => {

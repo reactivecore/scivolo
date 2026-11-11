@@ -11,6 +11,7 @@ use super::references_outer::references_outer;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, PRIVATE};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
@@ -220,7 +221,7 @@ pub fn outer_accessor_from_elsewhere(l: &mut Lower, t: SymbolId, classes: &[TNod
 /// `separated_name` if in a term.
 pub fn outer_accessor_name(l: &Lower, class: SymbolId) -> String {
     match in_term(l, class) {
-        true => format!("{}$$$outer", super::local_outer::separated_name(l, class)),
-        false => format!("{}$$$outer", l.u.expanded_binary_name(class).replace('.', "$")),
+        true => name_kinds::outer_accessor(&super::local_outer::separated_name(l, class)),
+        false => name_kinds::outer_accessor(&l.u.expanded_binary_name(class).replace('.', "$")),
     }
 }

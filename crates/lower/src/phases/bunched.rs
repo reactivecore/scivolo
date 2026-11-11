@@ -10,6 +10,7 @@ use super::lazy_trees::{local, method};
 use super::lifted::substitute;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, TypeId};
@@ -48,7 +49,7 @@ pub fn define(l: &mut Lower, method: SymbolId) -> SymbolId {
 /// `Array.apply`.
 pub fn array_apply(l: &mut Lower) -> Result<SymbolId> {
     let array = class_named(l, tasty::defn::ARRAY).expect("`scala.Array`");
-    method(l, array, "apply", Span::NONE)
+    method(l, array, nme::APPLY, Span::NONE)
 }
 
 /// The elements of array parameter `all_args` by `Array.apply` `apply`, each adapted to its

@@ -5,8 +5,8 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::flags::{CASE, GIVEN};
-use syntax::ast::{NodeId, Span, TName, Tree, modifiers::Modifiers};
+use names::nme;
+use syntax::ast::{NodeId, Span, TName, Tree, flags::CASE, flags::GIVEN, modifiers::Modifiers};
 use syntax::names::is_var_pattern_name;
 use tasty::{Kind, Type, TypeId};
 
@@ -22,7 +22,7 @@ impl Typer<'_> {
             let (outer, inner) = (self.ast.span(id), self.ast.span(tpt));
             let parens = outer.end().saturating_sub(inner.end());
             let start = inner.start().saturating_sub(parens);
-            let wild = TName { name: self.name("_"), is_type: false };
+            let wild = TName { name: self.name(nme::WILDCARD), is_type: false };
             let wild = self.ast.node(Tree::Ident { name: wild });
             self.ast.with_span(wild, Span::at(start));
             let typed = self.ast.node(Tree::Typed { expr: wild, tpt });
@@ -74,12 +74,12 @@ impl Typer<'_> {
         };
         let body = self.typed(body, pt, ctx);
         let mut text = self.text(name.name).to_owned();
-        if text == "_"
+        if text == nme::WILDCARD
             && let Some(tpt) = given_tpt
         {
             text = syntax::desugar::given_type_name(self.ast, self.names, tpt);
         }
-        if text == "_" {
+        if text == nme::WILDCARD {
             return body;
         }
         if !given && let Some(tagged) = self.bind_in_type_test(id, body, ctx) {
@@ -88,7 +88,7 @@ impl Typer<'_> {
         let name = TName { name: self.name(&text), is_type: false };
         let body_tpe = self.tpd.tpe(body);
         let stable_or_literal = match *self.tpd.tree(body) {
-            T::Ident { name } => self.text(name.name) != "_",
+            T::Ident { name } => self.text(name.name) != nme::WILDCARD,
             T::Select { .. } | T::Literal { .. } => true,
             _ => false,
         };
@@ -169,7 +169,7 @@ impl Typer<'_> {
     /// Whether identifier `id` named `text` is a variable pattern: a lower-case name, not
     /// back-quoted.
     pub fn is_var_pattern(&self, id: NodeId, text: &str) -> bool {
-        text != "_"
+        text != nme::WILDCARD
             && is_var_pattern_name(text)
             && !self.ast.attrs(id).contains(syntax::ast::Attrs::BACKQUOTED)
     }
@@ -177,7 +177,7 @@ impl Typer<'_> {
     /// Variable pattern `x` as `x @ _` (dotty's `patternVar`).
     pub fn pattern_var(&mut self, id: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
         let span = self.ast.span(id);
-        let wild = TName { name: self.name("_"), is_type: false };
+        let wild = TName { name: self.name(nme::WILDCARD), is_type: false };
         let wild = self.ast.node(Tree::Ident { name: wild });
         self.ast.with_span(wild, syntax::ast::Span::synthetic(span.start(), span.start()));
         let mods = self.ast.mods(Modifiers::default());

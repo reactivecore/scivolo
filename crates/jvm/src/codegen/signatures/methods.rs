@@ -3,6 +3,7 @@
 //! Signatures of method types (dotty's `jsig` of `MethodOrPoly`).
 
 use super::{Boxing, Sig};
+use names::nme;
 use tasty::{Type, TypeId};
 
 impl Sig<'_> {
@@ -28,9 +29,10 @@ impl Sig<'_> {
                 Type::Method { params, result, .. } => {
                     let params = self.u.params_of(params);
                     let names: Vec<&str> = params.iter().map(|&(n, _)| self.u.name(n)).collect();
-                    let java_enum = self.constructor && names.ends_with(&["_$name", "_$ordinal"]);
+                    let java_enum =
+                        self.constructor && names.ends_with(&[nme::NAME_DOLLAR_, nme::ORDINAL_DOLLAR_]);
                     let keep = params.len() - if java_enum { 2 } else { 0 };
-                    let outer = usize::from(self.constructor && names.first() == Some(&"$outer"));
+                    let outer = usize::from(self.constructor && names.first() == Some(&nme::OUTER));
                     vparams.extend(params.iter().take(keep).skip(outer).map(|&(_, p)| p));
                     t = self.context_result(result, &mut vparams);
                 }

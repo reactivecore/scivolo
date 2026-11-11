@@ -8,6 +8,7 @@
 
 use super::{Resolution, Unchosen};
 use crate::typer::{Pt, Typer};
+use names::nme;
 use tasty::{Binder, Kind, NameId, Symbol, SymbolId, Type, TypeId, Universe};
 
 /// An alternative's copy, paired with the alternative.
@@ -126,7 +127,7 @@ fn skip_param_clause(
                 return Ok(Some(result));
             }
             match t.u.class_symbol(result) {
-                Some(_) if t.type_members(result, "apply").is_empty() => Ok(None),
+                Some(_) if t.type_members(result, nme::APPLY).is_empty() => Ok(None),
                 _ => Err("ambiguous overload resolved by an apply method of a later clause"),
             }
         }

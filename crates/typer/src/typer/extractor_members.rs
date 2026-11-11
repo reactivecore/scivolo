@@ -6,6 +6,7 @@
 
 use super::Typer;
 use crate::defn::{BOOLEAN, INT};
+use names::nme;
 use tasty::{Binding, Kind, Type, TypeId};
 
 /// The class of generic tuples `A *: B *: EmptyTuple`, whose elements patterns match.
@@ -26,11 +27,11 @@ pub fn product_selectors(t: &mut Typer<'_>, tpe: TypeId) -> Result<Vec<TypeId>, 
 /// Finds the type of `get` if `tpe` also has a `Boolean` member `isEmpty`, as `T` of an
 /// `Option[T]`.
 pub fn get_match(t: &mut Typer<'_>, tpe: TypeId) -> Result<Option<TypeId>, &'static str> {
-    let empty = extractor_member(t, tpe, "isEmpty")?;
+    let empty = extractor_member(t, tpe, nme::IS_EMPTY)?;
     if !empty.is_some_and(|e| t.derives_from_named(e, BOOLEAN)) {
         return Ok(None);
     }
-    extractor_member(t, tpe, "get")
+    extractor_member(t, tpe, nme::GET)
 }
 
 /// Finds the type of parameterless member `name` of `tpe` (dotty's `extractorMemberType`).
@@ -52,15 +53,15 @@ pub fn extractor_member(t: &mut Typer<'_>, tpe: TypeId, name: &str) -> Result<Op
 /// has `lengthCompare(Int): Int` or `length: Int`, and `drop(Int)` and `toSeq` that are
 /// `collection.Seq`s of it, as `T` of a `List[T]` (dotty's `unapplySeqTypeElemTp`).
 pub fn seq_elem_type(t: &mut Typer<'_>, tpe: TypeId) -> Option<TypeId> {
-    let elem = int_method_results(t, tpe, "apply").into_iter().next()?;
+    let elem = int_method_results(t, tpe, nme::APPLY).into_iter().next()?;
     let seq_class = t.resolve_full_name(SEQ, true)?;
     let seq_class = crate::defn::type_ref(t.u, seq_class);
     let seq = t.u.intern_applied(seq_class, &[elem]);
 
-    let length = int_method_results(t, tpe, "lengthCompare").into_iter().any(|r| is_int(t, r))
-        || parameterless_results(t, tpe, "length").into_iter().any(|r| is_int(t, r));
-    let drop = int_method_results(t, tpe, "drop").into_iter().any(|r| t.u.is_subtype(r, seq));
-    let to_seq = parameterless_results(t, tpe, "toSeq").into_iter().any(|r| t.u.is_subtype(r, seq));
+    let length = int_method_results(t, tpe, nme::LENGTH_COMPARE).into_iter().any(|r| is_int(t, r))
+        || parameterless_results(t, tpe, nme::LENGTH).into_iter().any(|r| is_int(t, r));
+    let drop = int_method_results(t, tpe, nme::DROP).into_iter().any(|r| t.u.is_subtype(r, seq));
+    let to_seq = parameterless_results(t, tpe, nme::TO_SEQ).into_iter().any(|r| t.u.is_subtype(r, seq));
     (length && drop && to_seq).then_some(elem)
 }
 

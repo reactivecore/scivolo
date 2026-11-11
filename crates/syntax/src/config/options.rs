@@ -1,10 +1,12 @@
 //! Scala compiler options read into a `Config`.
 
+use names::nme;
+
 use super::{Config, Features, KindProjector, SourceVersion};
 
 /// The `-language:` features that only silence feature warnings.
 const WARNING_ONLY_FEATURES: [&str; 4] =
-    ["implicitConversions", "reflectiveCalls", "higherKinds", "existentials"];
+    [nme::IMPLICIT_CONVERSIONS, "reflectiveCalls", nme::HIGHER_KINDS, "existentials"];
 
 /// The `-language:` features that make every top-level definition experimental, in the order
 /// of `scala.language.experimental` (dotty's `experimentalAutoEnableFeatures`), as dotty's

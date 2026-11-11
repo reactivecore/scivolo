@@ -8,6 +8,7 @@ use super::super::paths::MAX_PATH_DEPTH;
 use super::kinds::Instance;
 use super::trees::{node, tc_applied};
 use super::{DerivedInstance, Deriver, Problem};
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
@@ -84,7 +85,7 @@ fn derived_rhs(
     let explicit = derived_takes_explicit_params(t, module);
     let shown = ref_text(t, module_ref);
     let qualifier = t.spliced(qualifier);
-    let derived = TName { name: t.name("derived"), is_type: false };
+    let derived = TName { name: t.name(nme::DERIVED), is_type: false };
     let rhs = node(t, Tree::Select { qualifier, name: derived }, span);
     Some((rhs, explicit.then_some(Problem::ExplicitParams(shown))))
 }
@@ -107,7 +108,7 @@ fn instance_def(
         .enumerate()
         .map(|(i, args)| {
             let tpt = tc_applied(t, tc.tpe, args, span);
-            let name = TName { name: t.name(&format!("x${i}")), is_type: false };
+            let name = TName { name: t.name(&name_kinds::synthetic_param(i)), is_type: false };
             let mods = t.ast.mods(Modifiers::with_flags(f::TERM_PARAM.or(f::IMPLICIT)));
             node(t, Tree::ValDef { name, tpt, rhs: None, mods }, span)
         })
@@ -144,7 +145,7 @@ fn ref_text(t: &mut Typer<'_>, p: TypeId) -> String {
 /// parameters (dotty's `hasExplicitParams`).
 fn derived_takes_explicit_params(t: &mut Typer<'_>, module: SymbolId) -> bool {
     let Some(class) = t.u.module_class(module) else { return false };
-    let [m] = t.u.member(class, "derived")[..] else { return false };
+    let [m] = t.u.member(class, nme::DERIVED)[..] else { return false };
     t.complete(m);
     let mut info = t.u.info(m);
     loop {

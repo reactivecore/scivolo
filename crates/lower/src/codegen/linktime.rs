@@ -6,6 +6,7 @@
 
 use super::Gen;
 use crate::{Result, unsupported};
+use names::nme;
 use nir::{Bin, Comp, Cond, Val};
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -66,7 +67,7 @@ impl Gen<'_, '_> {
         };
         let op = self.l.u.symbol(op).name.clone();
         match (op.as_str(), &args[..]) {
-            ("unary_!", []) => {
+            (nme::UNARY_NOT, []) => {
                 let Tree::Apply { fun: inner, args: inner_args } = *self.l.tpd.tree(qualifier) else {
                     return Ok(None);
                 };
@@ -79,10 +80,10 @@ impl Gen<'_, '_> {
                 else {
                     return Ok(None);
                 };
-                let is_eq = self.l.tpd.sym(inner).is_some_and(|s| self.l.u.symbol(s).name == "==");
+                let is_eq = self.l.tpd.sym(inner).is_some_and(|s| self.l.u.symbol(s).name == nme::EQ);
                 match self.literal_value(arg) {
                     Some(value) if is_eq && self.property(prop).is_some() => {
-                        Ok(self.simple(prop, comparison("!=", &value, span)?, value))
+                        Ok(self.simple(prop, comparison(nme::NE, &value, span)?, value))
                     }
                     _ => Ok(None),
                 }
@@ -97,8 +98,8 @@ impl Gen<'_, '_> {
                     (None, None) => Ok(None),
                     (Some(left), Some(right)) => {
                         let bin = match op {
-                            "&&" => Bin::And,
-                            "||" => Bin::Or,
+                            nme::ZAND => Bin::And,
+                            nme::ZOR => Bin::Or,
                             _ => return unsupported(span, format!("`{op}` of link-time conditions")),
                         };
                         let pos = self.pos_or(span, self.m.pos);
@@ -123,12 +124,12 @@ impl Gen<'_, '_> {
 fn comparison(op: &str, value: &Val, span: Span) -> Result<Comp> {
     let float = matches!(value, Val::Float(_) | Val::Double(_));
     let (int, fl) = match op {
-        "==" => (Comp::Ieq, Comp::Feq),
-        "!=" => (Comp::Ine, Comp::Fne),
-        ">" => (Comp::Sgt, Comp::Fgt),
-        ">=" => (Comp::Sge, Comp::Fge),
-        "<" => (Comp::Slt, Comp::Flt),
-        "<=" => (Comp::Sle, Comp::Fle),
+        nme::EQ => (Comp::Ieq, Comp::Feq),
+        nme::NE => (Comp::Ine, Comp::Fne),
+        nme::GT => (Comp::Sgt, Comp::Fgt),
+        nme::GE => (Comp::Sge, Comp::Fge),
+        nme::LT => (Comp::Slt, Comp::Flt),
+        nme::LE => (Comp::Sle, Comp::Fle),
         _ => return unsupported(span, format!("the link-time condition `{op}`")),
     };
     Ok(if float { fl } else { int })

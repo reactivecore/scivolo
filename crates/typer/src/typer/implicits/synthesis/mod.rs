@@ -20,6 +20,7 @@ use crate::typer::Typer;
 use crate::typer::constants::of_type;
 use crate::typer::paths::MAX_PATH_DEPTH;
 use manifests::ManifestKind;
+use names::nme;
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::{SymbolId, Type, TypeId};
@@ -103,14 +104,15 @@ impl Synthesizer {
         };
         let value = value.ok_or("ValueOf of a path outside the subset")?;
         let tpe = t.tpd.tpe(value);
-        let ctor = t.u.decl(class, "<init>").ok().and_then(|d| d.first().copied()).ok_or("ValueOf")?;
+        let ctor =
+            t.u.decl(class, nme::CONSTRUCTOR).ok().and_then(|d| d.first().copied()).ok_or("ValueOf")?;
         let raw = crate::defn::type_ref(t.u, class);
         let tpt = t.tpd.node(T::TypeTree { inferred: false }, at, Some(raw), None);
         let new = t.tpd.node(T::New { tpt }, at, Some(raw), None);
         let select = t.build().select(new, ctor, at);
         let result = crate::defn::applied(t.u, class, vec![tpe]);
         let binder = t.u.fresh_binder();
-        let params = [(t.u.intern_name("value"), tpe)];
+        let params = [(t.u.intern_name(nme::VALUE), tpe)];
         let method = t.u.intern_method(binder, &params, result, false, false);
         let targ = t.type_tree(tpe, at, false);
         let fun = t.build().type_apply(select, &[targ], method, at);

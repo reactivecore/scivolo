@@ -6,6 +6,7 @@
 use super::local_free::{Free, within};
 use super::walk::{children, is_class_def};
 use crate::{Lower, Result};
+use names::name_kinds;
 use rustc_hash::FxHashSet;
 use tasty::tags::OBJECT;
 use tasty::{Kind, SymbolId};
@@ -81,14 +82,13 @@ pub fn name_class(l: &mut Lower, class: SymbolId, outer: SymbolId) {
     };
     let flags = l.u.symbol(class).flags.without(OBJECT);
     l.u.set_flags(class, flags);
-    let local = l.fresh.next(l.names, &format!("{base}$"));
-    let local = format!("{}{module}", l.names.text(local));
+    let local = l.fresh.next(l.names, &name_kinds::unique_prefix(base));
+    let local = [l.names.text(local), module].concat();
     let outer_name = l.u.binary_name(outer);
     let outer_name = outer_name.rsplit('.').next().unwrap_or(&outer_name).to_owned();
-    let name = if outer_name.ends_with('$') {
-        format!("{outer_name}{local}")
-    } else {
-        format!("{outer_name}${local}")
+    let name = match outer_name.strip_suffix('$') {
+        Some(module_class) => name_kinds::flat(module_class, &local),
+        None => name_kinds::flat(&outer_name, &local),
     };
     l.u.rename(class, &name);
 }

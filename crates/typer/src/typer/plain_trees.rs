@@ -3,6 +3,7 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::Tree;
 use tasty::tags::{ABSTRACT, INLINE, TRAIT};
 use tasty::{Kind, SymbolId, Type};
@@ -67,7 +68,7 @@ impl Typer<'_> {
     /// unit: a constructor's, written, or that of a literal right-hand side; not a closure's
     /// parameter's.
     pub fn type_is_settled(&self, s: SymbolId) -> bool {
-        if self.u.symbol(s).name == "<init>" {
+        if self.u.symbol(s).name == nme::CONSTRUCTOR {
             return true;
         }
         if self.syms.closure_syms.contains(&s) {

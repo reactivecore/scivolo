@@ -4,6 +4,7 @@
 //! `invalidateIfClashingSynthetic`).
 
 use super::Typer;
+use names::nme;
 use rustc_hash::FxHashSet;
 use syntax::ast::NodeId;
 use syntax::ast::flags as f;
@@ -11,7 +12,7 @@ use tasty::{SymbolId, Universe};
 
 /// The synthetic methods of a case class or its companion that a definition of the user removes,
 /// besides the default getters of `copy`.
-const RETRACTABLE: [&str; 4] = ["apply", "unapply", "unapplySeq", "copy"];
+const RETRACTABLE: [&str; 4] = [nme::APPLY, nme::UNAPPLY, nme::UNAPPLY_SEQ, nme::COPY];
 
 impl Typer<'_> {
     /// Body statements `stats` of class `cls` without the synthetic methods a member of the user

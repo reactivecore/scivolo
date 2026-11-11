@@ -12,6 +12,7 @@ use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::is_static;
 use crate::{Lower, Result, unsupported};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, STATIC, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId};
@@ -148,7 +149,7 @@ fn hoist(l: &mut Lower, h: &mut Hoister, arg: TNodeId, lifted: &[SymbolId], span
     }
     let mut originals = params(l, constr);
     originals.extend(lifted);
-    let name = fresh(l, &format!("{}$superArg", l.u.symbol(class).name));
+    let name = fresh(l, &name_kinds::super_arg_base(&l.u.symbol(class).name));
     let flags = Flags::default().with(PRIVATE).with(SYNTHETIC);
     let (flags, owner) = match h.nested {
         true => (flags, l.u.symbol(class).owner.expect("a nested class's owner")),

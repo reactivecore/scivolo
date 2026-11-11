@@ -7,6 +7,7 @@ use super::MirrorSynthesis;
 use super::child_prefixes::{is_visible_to_scope, owner_scope};
 use crate::sealed;
 use crate::typer::Typer;
+use names::nme;
 use tasty::tags::{ABSTRACT, CONTRAVARIANT, SEALED};
 use tasty::{SymbolId, Type, TypeId, TypeVars, Universe};
 
@@ -32,7 +33,7 @@ impl MirrorSynthesis {
         }
         let scope = owner_scope(t.u, pre);
         for c in children {
-            if t.u.symbol(c).name.starts_with("$anon") {
+            if t.u.symbol(c).name.starts_with(nme::ANON_CLASS) {
                 return Ok(false);
             }
             let owner = t.u.symbol(c).owner.ok_or("sealed child without owner")?;

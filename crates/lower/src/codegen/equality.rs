@@ -10,6 +10,7 @@ use super::branch::Part;
 use crate::Result;
 use crate::definitions::Equality;
 use crate::symbols::has;
+use names::nme;
 use nir::{Bin, Comp, Op, Type, Val, ValId};
 use std::cell::Cell;
 use syntax::ast::Span;
@@ -28,16 +29,16 @@ impl<'l, 'a> Gen<'l, 'a> {
         op: &str,
         span: Span,
     ) -> Result<ValId> {
-        if op == "!=" {
+        if op == nme::NE {
             let start = self.l.tpd.span(left);
             let inner = if start.exists() { Span::at(start.start()) } else { span };
             let saved = self.at_span(inner);
-            let v = self.gen_class_equality(left, right, "==", inner)?;
+            let v = self.gen_class_equality(left, right, nme::EQ, inner)?;
             self.m.pos = saved;
             return Ok(self.negate(v));
         }
-        if op != "==" || self.is_null(left) || self.is_null(right) {
-            let comp = if op == "ne" { Comp::Ine } else { Comp::Ieq };
+        if op != nme::EQ || self.is_null(left) || self.is_null(right) {
+            let comp = if op == nme::REF_NE { Comp::Ine } else { Comp::Ieq };
             let object = self.class_ref(self.l.u.defn().object);
             let (l, r) = (self.gen_expr(left)?, self.gen_expr(right)?);
             return Ok(self.emit(Op::Comp { comp, ty: object, l, r }));

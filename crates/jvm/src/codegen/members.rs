@@ -4,9 +4,11 @@
 //! The attributes of a method besides its code (dotty's `initJMethod`, `emitParamNames`).
 
 use super::body::Body;
+use super::descriptors::{class_internal, internal};
 use super::{Gen, unsupported};
 use classfile::{ACC_FINAL, ACC_SYNTHETIC, ClassFile, Last};
 use lower::Result;
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, PRIVATE};
 use tasty::{SymbolId, TypeId};
@@ -31,11 +33,11 @@ impl Gen<'_, '_> {
         }
         let mut names: Vec<(String, u16)> = Vec::new();
         if this_param {
-            names.push(("$this".into(), ACC_FINAL));
+            names.push((nme::SELF.into(), ACC_FINAL));
         }
         for &p in params {
             let s = self.l.u.symbol(p);
-            let synthetic = if s.flags.has(ARTIFACT) || s.name == "$outer" { ACC_SYNTHETIC } else { 0 };
+            let synthetic = if s.flags.has(ARTIFACT) || s.name == nme::OUTER { ACC_SYNTHETIC } else { 0 };
             names.push((tasty::encode(&s.name), ACC_FINAL | synthetic));
         }
         if !names.is_empty() {
@@ -48,8 +50,7 @@ impl Gen<'_, '_> {
     pub fn exceptions(&mut self, cf: &mut ClassFile, sym: SymbolId) {
         let thrown = self.thrown(sym);
         if !thrown.is_empty() {
-            let classes: Vec<String> =
-                thrown.iter().map(|&t| super::class_internal(&self.l.u.erase(t))).collect();
+            let classes: Vec<String> = thrown.iter().map(|&t| class_internal(&self.l.u.erase(t))).collect();
             cf.exceptions(&classes);
         }
     }
@@ -123,10 +124,10 @@ impl Gen<'_, '_> {
     pub fn seen_from_owner(&mut self, sym: SymbolId) -> TypeId {
         let owner = self.l.u.symbol(sym).owner.filter(|&o| self.l.u.is_class(o));
         let name = &self.l.u.symbol(sym).name;
-        if name == "$outer" || name.ends_with("$$$outer") {
+        if name_kinds::is_outer(name) {
             let (_, result) = self.l.u.erased_method(sym);
             if let tasty::Erased::Class(outer) = result
-                && let Some(Some(c)) = self.classes.get(&super::internal(&outer)).copied()
+                && let Some(Some(c)) = self.classes.get(&internal(&outer)).copied()
             {
                 return self.l.u.this_type(c);
             }

@@ -1,6 +1,7 @@
 //! The JDK classes' static members that javalib's objects stand for (ADR 0103, 0106).
 
-use super::{Gen, descriptor, internal, method_descriptor, unsupported};
+use super::descriptors::{descriptor, internal, method_descriptor};
+use super::{Gen, unsupported};
 use classfile::{ACC_INTERFACE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC};
 use lower::Result;
 use syntax::ast::Span;

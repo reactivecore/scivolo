@@ -8,6 +8,7 @@ use super::{Inlining, Unsupported};
 use crate::ctx::Ctx;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::{Span, TName};
 use tasty::tags::{FINAL, GIVEN, IMPLICIT, INLINE, SYNTHETIC, TRANSPARENT};
@@ -31,11 +32,12 @@ impl Inlining<'_> {
             return Err((span, "inline extractor of several parameters"));
         };
         let object = self.u.defn().object;
-        let cls = self.synthetic("$anon", Kind::Class, owner, Flags::default().with(FINAL).with(SYNTHETIC));
+        let cls =
+            self.synthetic(nme::ANON_CLASS, Kind::Class, owner, Flags::default().with(FINAL).with(SYNTHETIC));
         let object_type = type_ref(self.u, object);
         self.u.set_parents(cls, vec![object_type]);
         let cls_type = type_ref(self.u, cls);
-        let ctor = self.synthetic("<init>", Kind::Def, cls, Flags::default().with(SYNTHETIC));
+        let ctor = self.synthetic(nme::CONSTRUCTOR, Kind::Def, cls, Flags::default().with(SYNTHETIC));
         let ctor_info = self.nullary(cls_type);
         self.u.set_info(ctor, ctor_info);
         let name = self.u.symbol(meth).name.clone();
@@ -88,13 +90,13 @@ impl Inlining<'_> {
         let unapply_def = self.method_def(unapply, &vparams, (result, Some(body)), coord);
         self.tpd.get_mut(unapply_def).span = wide;
         let constr = self.method_def(ctor, &[Vec::new()], (cls_type, None), coord);
-        let object_ctor = self.u.decl(object, "<init>").ok().and_then(|d| d.first().copied());
+        let object_ctor = self.u.decl(object, nme::CONSTRUCTOR).ok().and_then(|d| d.first().copied());
         let object_ctor = object_ctor.ok_or((span, "Object without a constructor"))?;
         let super_call = self.new_call(object_type, object_ctor, coord);
         let (parents, body) = (self.tpd.list(&[super_call]), self.tpd.list(&[unapply_def]));
         let template = T::Template { constr, parents, self_: None, body };
         let template = self.tpd.node(template, wide, None, Some(cls));
-        let cls_name = TName { name: self.names.intern("$anon"), is_type: true };
+        let cls_name = TName { name: self.names.intern(nme::ANON_CLASS), is_type: true };
         let class_def = self.tpd.node(T::TypeDef { name: cls_name, rhs: template }, wide, None, Some(cls));
         let new = self.new_call(cls_type, ctor, at);
         let stats = self.tpd.list(&[class_def]);
@@ -170,7 +172,7 @@ impl Inlining<'_> {
         let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(tpe), None);
         let new = self.tpd.node(T::New { tpt }, span, Some(tpe), None);
         let ctor_type = self.u.intern_type(Type::Sym(Some(tpe), ctor));
-        let name = TName { name: self.names.intern("<init>"), is_type: false };
+        let name = TName { name: self.names.intern(nme::CONSTRUCTOR), is_type: false };
         let select = self.tpd.node(T::Select { qualifier: new, name }, span, Some(ctor_type), Some(ctor));
         let args = self.tpd.list(&[]);
         self.tpd.node(T::Apply { fun: select, args }, span, Some(tpe), None)

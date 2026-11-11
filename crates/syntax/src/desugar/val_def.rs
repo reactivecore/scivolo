@@ -9,6 +9,7 @@ use crate::ast::modifiers::Modifiers;
 use crate::ast::span::Span;
 use crate::ast::tree::{DerivedKind, ModsId};
 use crate::ast::{Attrs, NodeId, TName, Tree};
+use names::{name_kinds, nme};
 
 impl Desugar<'_> {
     /// `val named: tpt = rhs` for a pattern variable, at `span` with its point on the name.
@@ -44,10 +45,10 @@ impl Desugar<'_> {
         if !needs_setter {
             return vdef;
         }
-        let setter_name = self.term(&format!("{}_=", self.text(name)));
+        let setter_name = self.term(&name_kinds::setter(self.text(name)));
         let param_tpt =
             self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::SetterParam, watched: Some(name) });
-        let param_name = self.term("x$1");
+        let param_name = self.term(nme::X_1);
         let param_mods = self.mods(flags::SYNTHETIC_TERM_PARAM);
         let param =
             self.ast.node(Tree::ValDef { name: param_name, tpt: param_tpt, rhs: None, mods: param_mods });

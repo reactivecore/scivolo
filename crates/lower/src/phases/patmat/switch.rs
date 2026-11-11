@@ -7,6 +7,7 @@
 use super::Translator;
 use super::plan::{Plan, PlanId, Test};
 use crate::phases::walk::same;
+use names::nme;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::{Erased, Kind};
@@ -22,7 +23,7 @@ impl Translator<'_, '_> {
     /// Sequence `p` as a switch on `scrutinee`, if it has enough cases.
     pub fn switch(&mut self, scrutinee: TNodeId, p: PlanId) -> Option<TNodeId> {
         let erased = self.l.u.erase(self.l.tpd.tpe(scrutinee));
-        let string = Erased::Class("java.lang.String".into());
+        let string = Erased::string();
         if !matches!(erased, Erased::Prim('i' | 'b' | 's' | 'c')) && erased != string {
             return None;
         }
@@ -126,7 +127,7 @@ impl Translator<'_, '_> {
         let tpe = self.l.u.dealias(tpe);
         let tpe = self.l.u.widen(tpe);
         let class = self.l.u.class_symbol(tpe).expect("a primitive class");
-        let decls = self.l.u.decls_named(class, "toInt");
+        let decls = self.l.u.decls_named(class, nme::TO_INT);
         let to_int = decls.into_iter().find(|&d| self.l.u.symbol(d).kind == Kind::Def).expect("`toInt`");
         let select = self.l.select(t, to_int, Span::NONE);
         let int = crate::definitions::type_ref(self.l.u, self.defs.int);

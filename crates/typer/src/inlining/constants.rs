@@ -8,6 +8,7 @@
 
 use super::Inlining;
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
+use names::nme;
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
 use tasty::tags::{FINAL, INLINE, MUTABLE, PARAMsetter, TRAIT};
@@ -49,7 +50,7 @@ impl Inlining<'_> {
             T::Apply { fun, args } if args.is_empty() => {
                 let T::TypeApply { fun, .. } = *self.tpd.tree(fun) else { return None };
                 let T::Select { qualifier, name } = *self.tpd.tree(fun) else { return None };
-                (self.names.text(name.name) == "getClass").then_some(qualifier)
+                (self.names.text(name.name) == nme::GET_CLASS).then_some(qualifier)
             }
             _ => None,
         }

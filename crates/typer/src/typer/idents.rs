@@ -6,6 +6,7 @@ use super::overloads::{AMBIGUOUS, NO_APPLICABLE, NO_SIZE, Unchosen};
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, TName};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -28,7 +29,7 @@ impl Typer<'_> {
 
     pub fn typed_ident(&mut self, id: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
         let text = self.text(name.name).to_owned();
-        if ctx.mode.is(Mode::PATTERN) && text == "_" {
+        if ctx.mode.is(Mode::PATTERN) && text == nme::WILDCARD {
             return self.wildcard_pattern(id, name, pt);
         }
         if ctx.mode.is(Mode::PATTERN) && !name.is_type && self.is_var_pattern(id, &text) {
@@ -37,7 +38,7 @@ impl Typer<'_> {
         if self.quoted_type_var(id, ctx).is_some() {
             return self.typed_quoted_type_var(id, name, pt);
         }
-        if (text == "_root_" || text == "<empty>") && !name.is_type {
+        if (text == nme::ROOT_PKG || text == nme::EMPTY_PACKAGE) && !name.is_type {
             let root = self.u.root();
             let tpe = self.u.intern_type(Type::Package(root));
             let span = self.ast.span(id);
@@ -108,7 +109,7 @@ impl Typer<'_> {
         if name.is_type && self.u.full_name(sym).starts_with("scala.Impure") {
             return self.unsupported(id, "impure function type");
         }
-        if text == "deferred" && self.u.full_name(sym).starts_with("scala.compiletime.") {
+        if text == nme::DEFERRED && self.u.full_name(sym).starts_with("scala.compiletime.") {
             return self.unsupported(id, "deferred given");
         }
         let tpe = self.ref_type(found.prefix, sym);

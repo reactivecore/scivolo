@@ -15,7 +15,7 @@ impl Universe {
     pub fn erase_or(&mut self, a: TypeId, b: TypeId) -> Erased {
         let (ea, eb) = (self.erase(a), self.erase(b));
         if matches!((&ea, &eb), (Erased::Unit, Erased::Null) | (Erased::Null, Erased::Unit)) {
-            return Erased::Class("scala.runtime.BoxedUnit".into());
+            return Erased::boxed_unit();
         }
         let nothing = ea == Erased::Nothing || eb == Erased::Nothing;
         if !nothing && (self.is_value_class(a) || self.is_value_class(b)) {

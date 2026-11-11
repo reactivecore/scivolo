@@ -5,8 +5,10 @@
 //! locals and fields.
 
 use super::body::Body;
-use super::{Gen, descriptor, unsupported};
+use super::descriptors::descriptor;
+use super::{Gen, unsupported};
 use lower::Result;
+use names::nme;
 use syntax::ast::constant::Constant;
 use tasty::tags::MUTABLE;
 use tasty::{Erased, SymbolId};
@@ -93,9 +95,9 @@ impl Gen<'_, '_> {
             && let Tree::Literal { value } = self.l.tpd.tree(arg)
             && let Some(c) = int_like(value)
             && self.l.tpd.sym(receiver) == sym
-            && matches!(name.as_str(), "+" | "-")
+            && matches!(name.as_str(), nme::ADD | nme::MINUS)
             && desc == "I"
-            && b.code.iinc(slot, if name == "+" { c } else { c.wrapping_neg() }).is_some()
+            && b.code.iinc(slot, if name == nme::ADD { c } else { c.wrapping_neg() }).is_some()
         {
             return Ok(Some(0));
         }

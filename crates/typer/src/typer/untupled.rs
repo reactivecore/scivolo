@@ -7,6 +7,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
+use names::{name_kinds, nme};
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
@@ -71,7 +72,7 @@ impl Typer<'_> {
                 return None;
             }
         }
-        let x = TName { name: self.name("x$1"), is_type: false };
+        let x = TName { name: self.name(&name_kinds::synthetic_param(1)), is_type: false };
         let tpt = self.tuple_of_declared(&params);
         let mods = self.ast.mods(Modifiers::with_flags(f::SYNTHETIC_TERM_PARAM));
         let param = self.ast.node(Tree::ValDef { name: x, tpt, rhs: None, mods });
@@ -83,7 +84,7 @@ impl Typer<'_> {
                 self.ast
                     .exists_subtree(body, &|a, t| matches!(*a.tree(t), Tree::Ident { name: n } if n == name))
             };
-            if text == "_" || (text.starts_with("_$") && !used()) {
+            if text == nme::WILDCARD || (text.starts_with("_$") && !used()) {
                 continue;
             }
             let q_span = self.ast.span(q);
@@ -98,7 +99,7 @@ impl Typer<'_> {
             };
             let ident = self.ast.node(Tree::Ident { name: x });
             self.ast.with_span(ident, rhs_at);
-            let selector = if generic { "apply".to_owned() } else { format!("_{}", i + 1) };
+            let selector = if generic { nme::APPLY.to_owned() } else { format!("_{}", i + 1) };
             let selector = TName { name: self.name(&selector), is_type: false };
             let mut select = self.ast.node(Tree::Select { qualifier: ident, name: selector });
             self.ast.with_span(select, rhs_at);

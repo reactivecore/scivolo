@@ -6,6 +6,7 @@
 
 use super::first_transform::{is_literal, is_pure, literal, through};
 use crate::Lower;
+use names::nme;
 use rustc_hash::FxHashSet;
 use tasty::tags::CLASSconst;
 use tasty::{SymbolId, Type};
@@ -42,6 +43,6 @@ fn receiver(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::TypeApply { fun: select, .. } = *l.tpd.tree(fun) else { return None };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(select) else { return None };
     let s = l.tpd.sym(select)?;
-    let any_get_class = l.u.symbol(s).name == "getClass" && l.u.symbol(s).owner == Some(l.u.defn().any);
+    let any_get_class = l.u.symbol(s).name == nme::GET_CLASS && l.u.symbol(s).owner == Some(l.u.defn().any);
     (any_get_class && l.tpd.items(args).is_empty()).then_some(qualifier)
 }

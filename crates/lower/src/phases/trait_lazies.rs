@@ -13,6 +13,7 @@ use super::outer_args::declare_library;
 use super::trait_fields::{forwarder, implemented_by};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, LAZY};
@@ -32,8 +33,8 @@ pub fn name_mixed_in(l: &mut Lower, class: SymbolId) {
         for getter in l.u.decls(mixin).unwrap_or_default() {
             if is_mixed_in_lazy(l, class, getter) {
                 let name = accessor_name(l, getter);
-                let field = fresh(l, &format!("{name}$lzy"));
-                let init = fresh(l, &format!("{name}$lzyINIT"));
+                let field = fresh(l, &name_kinds::lazy_local(&name));
+                let init = fresh(l, &name_kinds::lazy_local_init(&name));
                 l.mixed_in_lazy_names.insert((class, getter), (field, init));
             }
         }
@@ -43,7 +44,7 @@ pub fn name_mixed_in(l: &mut Lower, class: SymbolId) {
 /// The lazy object `x = new T$x$(this)` of class `class` for object `getter` of a trait.
 pub fn module_forwarder(l: &mut Lower, class: SymbolId, getter: SymbolId, span: Span) -> Result<TNodeId> {
     let module_class = l.u.module_class(getter);
-    let ctor = module_class.and_then(|c| l.u.decls_named(c, "<init>").into_iter().next());
+    let ctor = module_class.and_then(|c| l.u.decls_named(c, nme::CONSTRUCTOR).into_iter().next());
     let (Some(module_class), Some(ctor)) = (module_class, ctor) else {
         return unsupported(span, "objects in traits without their class");
     };

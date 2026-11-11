@@ -8,6 +8,7 @@ use super::Erased;
 use super::special::special;
 use crate::Universe;
 use crate::types::{Type, TypeId};
+use names::nme;
 
 /// How many types `poly_function_apply_of` looks through.
 const MAX_STEPS: u32 = 16;
@@ -17,7 +18,8 @@ impl Universe {
     /// subclass of `PolyFunction` (dotty's `PolyFunctionOf.unapply`).
     pub fn poly_function_apply(&mut self, t: TypeId) -> Option<TypeId> {
         let Type::Refined(parent, name, info) = *self.ty(t) else { return None };
-        if self.name(name) != "apply" || !matches!(self.ty(info), Type::Method { .. } | Type::Poly { .. }) {
+        if self.name(name) != nme::APPLY || !matches!(self.ty(info), Type::Method { .. } | Type::Poly { .. })
+        {
             return None;
         }
         let poly_function = self.class_ref(crate::defn::POLY_FUNCTION);

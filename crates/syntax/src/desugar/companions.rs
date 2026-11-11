@@ -6,6 +6,7 @@
 use super::Desugar;
 use crate::ast::flags;
 use crate::ast::{Attrs, List, NodeId, TName, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     /// The expansions of a statement list with each synthetic module class folded into the
@@ -102,7 +103,7 @@ impl Desugar<'_> {
             .iter()
             .copied()
             .filter(
-                |&s| !matches!(*self.ast.tree(s), Tree::DefDef { name, .. } if self.text(name) == "toString"),
+                |&s| !matches!(*self.ast.tree(s), Tree::DefDef { name, .. } if self.text(name) == nme::TO_STRING),
             )
             .collect();
         stats.extend_from_slice(self.ast.items(body));

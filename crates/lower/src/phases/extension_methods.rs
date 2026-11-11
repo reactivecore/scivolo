@@ -12,6 +12,7 @@ use super::value_classes::{extension, has_extension};
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::{Span, TName};
 use tasty::{Flags, Kind, SymbolId};
 use typer::RETAINED_BODY;
@@ -51,7 +52,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<Vec<Moved>> {
             };
             let name = l.u.symbol(m).name.clone();
             if let Some(retained) = name.strip_suffix(RETAINED_BODY) {
-                l.u.rename(ext, &format!("{retained}$extension"));
+                l.u.rename(ext, &name_kinds::ext_meth(retained));
             }
             let def = move_body(l, (class, self_name), stat, ext);
             let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(def) else { unreachable!("a method") };
@@ -122,7 +123,7 @@ fn move_body(l: &mut Lower, owner: Owner, def: TNodeId, ext: SymbolId) -> TNodeI
     let m = l.tpd.sym(def).expect("a method definition's symbol");
     let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(def) else { unreachable!("a method") };
     let rhs = rhs.expect("a method with a body");
-    let this = l.u.define(symbol("$this", Kind::Param, ext, Flags::default()));
+    let this = l.u.define(symbol(nme::SELF, Kind::Param, ext, Flags::default()));
     let class_type = type_ref(l.u, class);
     l.u.set_info(this, class_type);
     let span = l.tpd.span(def);

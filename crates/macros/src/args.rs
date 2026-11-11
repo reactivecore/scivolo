@@ -16,8 +16,8 @@ pub enum Flat<'a> {
 /// Argument `a` for a parameter erased to `param`, appended to `out` as the VM passes it: a
 /// by-name argument in a `Function0`, the elements of a repeated one in a `Seq`.
 pub fn flatten<'a>(a: &'a MacroArg, param: &Erased, out: &mut Vec<Flat<'a>>) -> Result<(), &'static str> {
-    let object = Erased::Class("java.lang.Object".into());
-    if *param == Erased::Class("scala.Function0".into()) {
+    let object = Erased::object();
+    if *param == Erased::function0() {
         out.push(Flat::Ready(vm::MacroArg::ByName));
         return flatten(a, &object, out);
     }

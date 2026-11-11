@@ -11,6 +11,7 @@ use super::outer_traits::{is_pure_interface, outer_class};
 use super::references_outer::references_outer;
 use crate::Lower;
 use crate::symbols::has;
+use names::{name_kinds, nme};
 use tasty::tags::LAZY;
 use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
@@ -39,7 +40,8 @@ pub fn needs_outer_if_referenced(l: &Lower, c: SymbolId) -> bool {
         let Some(o) = l.u.symbol(owner).owner else { break };
         owner = o;
     }
-    if l.u.symbol(owner).kind == Kind::Def && l.u.symbol(owner).name.contains("$superArg$") {
+    if l.u.symbol(owner).kind == Kind::Def && l.u.symbol(owner).name.contains(name_kinds::SUPER_ARG_SEPARATOR)
+    {
         owner = enclosing_class(l, owner);
     }
     !(l.u.is_trait(c) && is_pure_interface(l.u, c) || l.u.is_static_owner(owner))
@@ -47,7 +49,7 @@ pub fn needs_outer_if_referenced(l: &Lower, c: SymbolId) -> bool {
 
 /// Whether local class `class` is anonymous.
 pub fn is_anonymous(l: &Lower, class: SymbolId) -> bool {
-    l.u.symbol(class).name.starts_with("$anon")
+    l.u.symbol(class).name.starts_with(nme::ANON_CLASS)
 }
 
 /// The prefix of the name of the accessor of the enclosing instance of class `class` defined in a
@@ -57,7 +59,7 @@ pub fn separated_name(l: &Lower, class: SymbolId) -> String {
     let mut filler = String::new();
     let mut owner = l.u.symbol(class).owner.expect("a class's owner");
     while is_term(l, owner) {
-        filler.push_str("_$");
+        filler.push_str(name_kinds::TERM_FILLER);
         owner = l.u.symbol(owner).owner.expect("a term's owner");
     }
     let enclosing = match super::explicit_outer::in_term(l, owner) {
@@ -65,5 +67,5 @@ pub fn separated_name(l: &Lower, class: SymbolId) -> String {
         false => l.u.binary_name(owner).replace('.', "$"),
     };
     let enclosing = enclosing.strip_suffix('$').filter(|_| l.u.is_module_class(owner)).unwrap_or(&enclosing);
-    format!("{enclosing}${filler}{}", l.u.symbol(class).name)
+    name_kinds::flat(enclosing, &[filler.as_str(), l.u.symbol(class).name.as_str()].concat())
 }

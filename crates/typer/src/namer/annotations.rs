@@ -7,6 +7,7 @@
 
 use crate::ctx::Ctx;
 use crate::typer::Typer;
+use names::nme;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
@@ -90,7 +91,7 @@ impl Typer<'_> {
         let name = self.string_arg(annot).filter(|n| !n.is_empty());
         let s = self.u.symbol(sym);
         let in_class = s.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Class);
-        let member = in_class && matches!(s.kind, Kind::Def | Kind::Val) && s.name != "<init>";
+        let member = in_class && matches!(s.kind, Kind::Def | Kind::Val) && s.name != nme::CONSTRUCTOR;
         match name {
             Some(n) if member && !self.u.is_module(sym) => self.u.set_target(sym, &n),
             _ => {
@@ -157,7 +158,7 @@ impl Typer<'_> {
                 }
                 let deprecated = match self.deprecated_name_arg(annot) {
                     Some(arg) => self.string_value(arg).unwrap_or_default(),
-                    None => "<none>".to_owned(),
+                    None => nme::NO_NAME.to_owned(),
                 };
                 if seen.contains(&deprecated) {
                     self.unsupported(annot, "deprecated parameter name equal to another name");
@@ -174,7 +175,7 @@ impl Typer<'_> {
         let Tree::Apply { args, .. } = *self.ast.tree(annot) else { return None };
         let args = self.ast.items(args);
         args.iter().copied().find(|&a| match *self.ast.tree(a) {
-            Tree::NamedArg { name, .. } => self.text(name.name) == "name",
+            Tree::NamedArg { name, .. } => self.text(name.name) == nme::NAME,
             _ => a == args[0],
         })
     }
@@ -193,7 +194,7 @@ impl Typer<'_> {
         let unrollable = method.zip(class).is_some_and(|(m, c)| {
             let final_method = self.syms.flags.get(&m).is_some_and(|fl| fl.is(f::FINAL));
             let final_class = self.u.symbol(c).flags.has(tasty::tags::FINAL) || self.u.is_module_class(c);
-            self.u.symbol(m).name == "<init>" || final_method || final_class
+            self.u.symbol(m).name == nme::CONSTRUCTOR || final_method || final_class
         });
         if !(has_default && unrollable) {
             self.unsupported(annot, "@unroll other than on a defaulted parameter of a final method");

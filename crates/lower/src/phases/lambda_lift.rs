@@ -14,6 +14,7 @@ use super::proxy_names::name_late;
 use super::walk::children;
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use tasty::tags::{FIELDaccessor, LAZY, STATIC};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
@@ -41,7 +42,7 @@ impl Function {
 
     /// Whether this is a lambda's method, kept as a closure or not (dotty's `isAnonymousFunction`).
     pub fn is_anonymous(&self, l: &Lower) -> bool {
-        self.closure.is_some() || l.u.symbol(self.sym).name == "$anonfun"
+        self.closure.is_some() || l.u.symbol(self.sym).name == nme::ANON_FUN
     }
 }
 

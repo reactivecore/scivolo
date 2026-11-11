@@ -7,6 +7,7 @@
 
 use super::Gen;
 use crate::{Result, unsupported};
+use names::nme;
 use nir::{Comp, Conv, MemoryOrder, Op, Type, TypeId, ValId};
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
@@ -156,8 +157,8 @@ impl Gen<'_, '_> {
         };
         let op = self.l.u.symbol(sym).name.clone();
         let comp = match op.as_str() {
-            "==" | "eq" | "!=" => Comp::Ieq,
-            "ne" => Comp::Ine,
+            nme::EQ | nme::REF_EQ | nme::NE => Comp::Ieq,
+            nme::REF_NE => Comp::Ine,
             _ => return Ok(None),
         };
         let (lty, rty) = (self.gen_type(self.l.tpd.tpe(left)), self.gen_type(self.l.tpd.tpe(right)));
@@ -177,7 +178,7 @@ impl Gen<'_, '_> {
         self.at_span(self.l.tpd.span(left));
         let v = self.emit(Op::Comp { comp, ty, l, r });
         self.m.pos = saved;
-        if op == "!=" {
+        if op == nme::NE {
             let (bool, tru) = (self.ty(Type::Bool), self.val(nir::Val::True));
             return Ok(Some(self.emit(Op::Bin { bin: nir::Bin::Xor, ty: bool, l: tru, r: v })));
         }

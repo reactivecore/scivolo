@@ -7,12 +7,13 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::special::entered;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Enters `scala.&` and `scala.|` unless the universe has them.
     pub fn enter_and_or(&mut self) {
-        for (name, and) in [("&", true), ("|", false)] {
+        for (name, and) in [(nme::AND, true), (nme::OR, false)] {
             if entered(self.u, self.defn.scala, name, Kind::Type).is_some() {
                 continue;
             }
@@ -92,8 +93,8 @@ impl Typer<'_> {
             return None;
         }
         let t = match self.u.symbol(alias).name.as_str() {
-            "&" => Type::And(a, b),
-            "|" => Type::Or(a, b, false),
+            nme::AND => Type::And(a, b),
+            nme::OR => Type::Or(a, b, false),
             _ => return None,
         };
         Some(self.u.intern_type(t))

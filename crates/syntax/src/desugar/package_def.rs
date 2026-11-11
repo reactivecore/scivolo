@@ -8,6 +8,7 @@ use crate::ast::span::Span;
 use crate::ast::{NodeId, TName, Tree};
 use crate::names::to_utf16;
 use crate::scan::chars::is_java_identifier_part;
+use names::nme;
 
 impl Desugar<'_> {
     /// Package `pdef` with the definitions that cannot be top-level moved into the package
@@ -61,7 +62,7 @@ impl Desugar<'_> {
 
     fn package_name(&self, pid: NodeId) -> String {
         let (prefix, name) = match *self.ast.tree(pid) {
-            Tree::Ident { name } if self.text(name) == "<empty>" => return String::new(),
+            Tree::Ident { name } if self.text(name) == nme::EMPTY_PACKAGE => return String::new(),
             Tree::Ident { name } => (self.package.clone(), name),
             Tree::Select { qualifier, name } => (self.package_name(qualifier), name),
             _ => return self.package.clone(),
@@ -71,7 +72,7 @@ impl Desugar<'_> {
 
     /// `def <init>()` with no parameters (dotty's `emptyConstructor`).
     pub fn empty_constructor(&mut self) -> NodeId {
-        let name = self.term("<init>");
+        let name = self.term(nme::CONSTRUCTOR);
         let paramss = self.ast.clauses(&[]);
         let tpt = self.type_tree();
         let mods = self.mods(flags::EMPTY);

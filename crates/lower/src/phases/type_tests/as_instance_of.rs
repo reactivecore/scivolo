@@ -72,7 +72,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
             None => return refused(),
         },
         (Erased::Unit, Erased::Class(_) | Erased::Array(_)) => {
-            let boxed_unit = Erased::Class("scala.runtime.BoxedUnit".into());
+            let boxed_unit = Erased::boxed_unit();
             let boxed = adapt(l, expr, &boxed_unit);
             match conforms(l, &boxed_unit, &to) {
                 true => l.tpd.node(Tree::Typed { expr: boxed, tpt }, span, Some(target), None),
@@ -177,7 +177,7 @@ fn value_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<
             None => return unsupported(span, "casts of primitive values to value classes"),
         },
         (_, Erased::Prim(_)) => {
-            let object = Erased::Class("java.lang.Object".into());
+            let object = Erased::object();
             let boxed = adapt(l, expr, &object);
             let object = crate::phases::casts::cast(l, boxed, &object);
             l.explicit_casts.insert(object);

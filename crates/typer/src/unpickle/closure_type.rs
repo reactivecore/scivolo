@@ -6,6 +6,7 @@ use super::{Refusal, Unpickler};
 use crate::tpd::TNodeId;
 use crate::typer::approx::{self, Approx};
 use crate::typer::dependent_params::mentions_params;
+use names::nme;
 use tasty::{Binder, Kind, NOTHING, NameId, SymbolId, Type, TypeId};
 
 /// The method type whose dependent result is approximated: its binder, parameter types and
@@ -19,7 +20,7 @@ impl Unpickler<'_> {
         let info = self.u.info(s);
         if self.u.poly(info).is_some() || self.u.has_erased_params(info) {
             let poly_function = self.u.class_ref(crate::defn::POLY_FUNCTION);
-            let apply = self.u.intern_name("apply");
+            let apply = self.u.intern_name(nme::APPLY);
             return Ok(self.u.intern_type(Type::Refined(poly_function, apply, info)));
         }
         let Some((binder, params, result, contextual)) =
@@ -39,7 +40,7 @@ impl Unpickler<'_> {
         let function = crate::defn::applied(self.u, class, types.into_iter().chain([approx]).collect());
         Ok(match dependent {
             true => {
-                let apply = self.u.intern_name("apply");
+                let apply = self.u.intern_name(nme::APPLY);
                 self.u.intern_type(Type::Refined(function, apply, info))
             }
             false => function,

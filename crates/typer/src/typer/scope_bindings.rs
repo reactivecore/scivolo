@@ -7,6 +7,7 @@ use super::Typer;
 use super::imports::ImportEntry;
 use super::java_classes::java_classes;
 use crate::ctx::{Ctx, Level};
+use names::nme;
 use tasty::tags::{PRIVATE, SYNTHETIC};
 use tasty::{Kind, SymbolId, TypeId};
 
@@ -29,7 +30,7 @@ impl Typer<'_> {
                 Level::Scope(entries) => {
                     for (n, s) in entries.clone() {
                         let sym = self.u.symbol(s);
-                        match sym.name == "<init>" || sym.flags.has(SYNTHETIC) {
+                        match sym.name == nme::CONSTRUCTOR || sym.flags.has(SYNTHETIC) {
                             true => b.left_out.push(n),
                             false => b.found.push((n, s, None)),
                         }
@@ -56,7 +57,7 @@ impl Typer<'_> {
         }
         let ImportEntry::Done(info) = &self.imports[i] else { return None };
         let qual = info.qual;
-        let wildcard = info.selectors.iter().any(|s| s.name == "_" || s.name.is_empty());
+        let wildcard = info.selectors.iter().any(|s| s.name == nme::WILDCARD || s.name.is_empty());
         let selectors: Vec<(String, String)> =
             info.selectors.iter().map(|s| (s.name.clone(), s.rename.clone())).collect();
         let site = self.import_site_class(qual)?;
@@ -71,7 +72,7 @@ impl Typer<'_> {
                 b.found.push((n.clone(), s, p));
             }
             for (_, rename) in selectors.iter().filter(|(name, _)| *name == n) {
-                if rename != "_" {
+                if rename != nme::WILDCARD {
                     b.found.push((rename.clone(), s, p));
                     bound = true;
                 }
@@ -102,7 +103,7 @@ impl Typer<'_> {
                     b.unknown.extend(inner.iter().map(|&m| self.u.symbol(m).name.clone()));
                 }
                 let s = self.u.symbol(d);
-                match s.name == "<init>" || s.flags.has(SYNTHETIC) || s.flags.has(PRIVATE) {
+                match s.name == nme::CONSTRUCTOR || s.flags.has(SYNTHETIC) || s.flags.has(PRIVATE) {
                     true => b.left_out.push(s.name.clone()),
                     false => b.found.push((s.name.clone(), d, prefix)),
                 }

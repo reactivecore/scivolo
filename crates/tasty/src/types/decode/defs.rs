@@ -7,6 +7,7 @@ use super::Decoder;
 use crate::tags::*;
 use crate::types::{Binder, Type, TypeId};
 use crate::{NodeId, Parts, View, view};
+use names::nme;
 
 /// The bit that sets the binder of a constructor's added empty clause apart from its first one's.
 const EMPTY_CLAUSE_BINDER: u32 = 1 << 31;
@@ -94,7 +95,7 @@ impl Decoder<'_> {
     pub fn definition_type(&mut self, id: NodeId) -> TypeId {
         match view(self.ast, id) {
             View::DefDef { name, parts } => {
-                let constructor = self.names.get(name.0 as usize).is_some_and(|n| n == "<init>");
+                let constructor = self.names.get(name.0 as usize).is_some_and(|n| n == nme::CONSTRUCTOR);
                 self.def_type(&parts, constructor)
             }
             _ => self.kid(id, 0),

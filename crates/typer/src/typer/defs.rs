@@ -5,6 +5,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Tree};
 use tasty::{SymbolId, Type};
 
@@ -26,7 +27,9 @@ impl Typer<'_> {
             return self.unsupported(id, "deferred given of another deferred");
         };
         let rhs = rhs.map(|r| match *self.ast.tree(r) {
-            Tree::Ident { name } if self.text(name.name) == "_" => self.default_initializer(id, r, sym, info),
+            Tree::Ident { name } if self.text(name.name) == nme::WILDCARD => {
+                self.default_initializer(id, r, sym, info)
+            }
             _ => self.typed(r, pt, rhs_ctx),
         });
         let span = self.ast.span(id);
@@ -97,7 +100,10 @@ impl Typer<'_> {
         let result = self.def_result(sym);
         let tpt = self.typed_tpt(tpt, Some(result), mctx);
         let owner = self.u.symbol(sym).owner;
-        if rhs.is_some() && self.u.symbol(sym).name == "<init>" && owner.is_some_and(|o| self.u.is_trait(o)) {
+        if rhs.is_some()
+            && self.u.symbol(sym).name == nme::CONSTRUCTOR
+            && owner.is_some_and(|o| self.u.is_trait(o))
+        {
             self.error_at(self.ast.span(id), "Traits cannot have secondary constructors");
         }
         let erasure_mark = self.erasure_diags.items.len();
@@ -105,13 +111,13 @@ impl Typer<'_> {
         let mut rhs = rhs.map(|r| self.typed_def_rhs((id, sym), r, result, mctx));
         self.unlink_constructor_params(linked);
         if let Some(r) = rhs
-            && self.u.symbol(sym).name == "<init>"
+            && self.u.symbol(sym).name == nme::CONSTRUCTOR
             && !self.calls_preceding_constructor(r, sym)
         {
             return self.unsupported(id, "secondary constructor calling a later constructor");
         }
         let flags = self.u.symbol(sym).flags;
-        if flags.has(tasty::tags::INLINE) && self.u.symbol(sym).name == "<init>" {
+        if flags.has(tasty::tags::INLINE) && self.u.symbol(sym).name == nme::CONSTRUCTOR {
             return self.unsupported(id, "inline constructor");
         }
         if flags.has(tasty::tags::INLINE) {
@@ -158,7 +164,7 @@ impl Typer<'_> {
                 let this_call = matches!(*self.tpd.tree(callee), T::Select { qualifier, .. }
                     if matches!(self.tpd.tree(qualifier), T::This { .. }));
                 let Some(target) =
-                    self.tpd.sym(callee).filter(|&s| this_call && self.u.symbol(s).name == "<init>")
+                    self.tpd.sym(callee).filter(|&s| this_call && self.u.symbol(s).name == nme::CONSTRUCTOR)
                 else {
                     return true;
                 };
@@ -185,7 +191,7 @@ impl Typer<'_> {
 
     /// The result type of method `sym`'s definition; `Unit` for a constructor.
     fn def_result(&mut self, sym: SymbolId) -> tasty::TypeId {
-        if self.u.symbol(sym).name == "<init>" {
+        if self.u.symbol(sym).name == nme::CONSTRUCTOR {
             return crate::defn::type_ref(self.u, self.defn.unit);
         }
         match self.syms.def_results.get(&sym) {

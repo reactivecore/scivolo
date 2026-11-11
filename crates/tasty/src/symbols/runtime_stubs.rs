@@ -7,6 +7,7 @@ use super::builtin::synthetic;
 use super::{Kind, SymbolId, Universe};
 use crate::tags::{FINAL, MUTABLE, OBJECT, STATIC};
 use crate::types::{Type, TypeId};
+use names::nme;
 
 /// The primitive types with a `*Ref` class.
 const REFS: [&str; 8] = ["Boolean", "Byte", "Char", "Double", "Float", "Int", "Long", "Short"];
@@ -20,16 +21,16 @@ pub fn enter(u: &mut Universe, object: SymbolId) {
         let float = class_type(u, "scala", "Float");
         let double = class_type(u, "scala", "Double");
         let unit = class_type(u, "scala", "Unit");
-        let two = [("x$0", int), ("x$1", int)];
+        let two = [(nme::X_0, int), (nme::X_1, int)];
         for name in ["mix", "mixLast", "finalizeHash"] {
             method(u, statics, name, &two, int, &[]);
         }
-        method(u, statics, "avalanche", &[("x$0", int)], int, &[]);
-        method(u, statics, "longHash", &[("x$0", long)], int, &[]);
-        method(u, statics, "doubleHash", &[("x$0", double)], int, &[]);
-        method(u, statics, "floatHash", &[("x$0", float)], int, &[]);
-        method(u, statics, "anyHash", &[("x$0", object)], int, &[]);
-        method(u, statics, "releaseFence", &[], unit, &[]);
+        method(u, statics, "avalanche", &[(nme::X_0, int)], int, &[]);
+        method(u, statics, nme::LONG_HASH, &[(nme::X_0, long)], int, &[]);
+        method(u, statics, nme::DOUBLE_HASH, &[(nme::X_0, double)], int, &[]);
+        method(u, statics, nme::FLOAT_HASH, &[(nme::X_0, float)], int, &[]);
+        method(u, statics, nme::ANY_HASH, &[(nme::X_0, object)], int, &[]);
+        method(u, statics, nme::RELEASE_FENCE, &[], unit, &[]);
     }
     if let Some((class, module)) = java_class(u, runtime, "BoxedUnit", object) {
         let unit = synthetic(u, module, "UNIT", Kind::Val, &[STATIC, FINAL]);
@@ -43,12 +44,12 @@ pub fn enter(u: &mut Universe, object: SymbolId) {
             let Some((class, module)) = java_class(u, runtime, &name, object) else { continue };
             let elem = class_type(u, "scala", primitive);
             let this = u.types.intern(Type::Sym(None, class));
-            let field = synthetic(u, class, "elem", Kind::Val, &[MUTABLE]);
+            let field = synthetic(u, class, nme::ELEM, Kind::Val, &[MUTABLE]);
             u.infos.insert(field, elem);
-            method(u, class, "<init>", &[("x$0", elem)], this, &[]);
-            method(u, class, "toString", &[], string, &[]);
-            method(u, module, "create", &[("x$0", elem)], this, &[]);
-            method(u, module, "zero", &[], this, &[]);
+            method(u, class, nme::CONSTRUCTOR, &[(nme::X_0, elem)], this, &[]);
+            method(u, class, nme::TO_STRING, &[], string, &[]);
+            method(u, module, nme::CREATE, &[(nme::X_0, elem)], this, &[]);
+            method(u, module, nme::ZERO, &[], this, &[]);
         }
     }
 }

@@ -8,6 +8,7 @@ use super::Typer;
 use super::poly_context_bounds::Fit;
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::{List, NodeId, TName, Tree};
 use tasty::{Kind, NameId, SymbolId, Type, TypeId};
@@ -30,7 +31,7 @@ impl Typer<'_> {
             return self.unsupported(id, "polymorphic function type with evidence among its parameters");
         }
         let class = self.refinement_class(ctx);
-        let owner = self.syms.define(self.u, "apply", Kind::Def, class, f::METHOD.or(f::SYNTHETIC));
+        let owner = self.syms.define(self.u, nme::APPLY, Kind::Def, class, f::METHOD.or(f::SYNTHETIC));
         let (tparams, lctx) = match self.poly_type_params(targs, owner, ctx) {
             Ok(entered) => entered,
             Err(refused) => return refused,
@@ -42,7 +43,7 @@ impl Typer<'_> {
         for (i, a) in self.ast.items(args).to_vec().into_iter().enumerate() {
             let (name, tpt, flags) = match *self.ast.tree(a) {
                 Tree::ValDef { name, tpt, .. } => (self.text(name.name).to_owned(), tpt, f::TERM_PARAM),
-                _ => (format!("x${}", i + 1), a, f::TERM_PARAM.or(f::SYNTHETIC)),
+                _ => (name_kinds::synthetic_param(i + 1), a, f::TERM_PARAM.or(f::SYNTHETIC)),
             };
             if matches!(self.ast.tree(tpt), Tree::ByNameTypeTree { .. }) {
                 return self.unsupported(a, "polymorphic function type with a by-name parameter");
@@ -93,7 +94,7 @@ impl Typer<'_> {
         pre: TypeId,
         name: TName,
     ) -> Option<TNodeId> {
-        if name.is_type || self.text(name.name) != "apply" {
+        if name.is_type || self.text(name.name) != nme::APPLY {
             return None;
         }
         self.poly_apply(qual, pre, self.ast.span(id))
@@ -102,7 +103,7 @@ impl Typer<'_> {
     /// The info of `pre.apply` referred to by `fun_tpe` if `pre` is of a polymorphic function type.
     pub fn poly_apply_info(&mut self, fun_tpe: TypeId) -> Option<TypeId> {
         let (pre, name) = self.u.term_ref(fun_tpe)?;
-        if self.u.name(name) != "apply" {
+        if self.u.name(name) != nme::APPLY {
             return None;
         }
         self.u.poly_function_apply_of(pre)
@@ -111,9 +112,9 @@ impl Typer<'_> {
     /// `qual.apply` at `span` if `qual`'s type `pre` is a polymorphic function type.
     pub fn poly_apply(&mut self, qual: TNodeId, pre: TypeId, span: syntax::ast::Span) -> Option<TNodeId> {
         self.u.poly_function_apply_of(pre)?;
-        let apply = self.u.intern_name("apply");
+        let apply = self.u.intern_name(nme::APPLY);
         let tpe = self.u.intern_type(Type::TermRef(pre, apply));
-        let name = TName { name: self.name("apply"), is_type: false };
+        let name = TName { name: self.name(nme::APPLY), is_type: false };
         Some(self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), None))
     }
 
@@ -130,7 +131,7 @@ impl Typer<'_> {
         let result = self.param_refs(method, tparams, binder);
         let info = self.u.intern_poly(binder, &params, result);
         let parent = self.u.class_ref(crate::defn::POLY_FUNCTION);
-        let apply = self.u.intern_name("apply");
+        let apply = self.u.intern_name(nme::APPLY);
         self.u.intern_type(Type::Refined(parent, apply, info))
     }
 
@@ -174,7 +175,7 @@ impl Typer<'_> {
     /// A synthetic method outside its owner's declarations, the owner of the parameters of a
     /// polymorphic function until its closure method exists.
     pub fn poly_apply_owner(&mut self, ctx: Ctx) -> SymbolId {
-        let owner = self.syms.define(self.u, "apply", Kind::Def, ctx.owner, f::METHOD.or(f::SYNTHETIC));
+        let owner = self.syms.define(self.u, nme::APPLY, Kind::Def, ctx.owner, f::METHOD.or(f::SYNTHETIC));
         self.u.unenter(owner);
         self.gadt.poly_owners.insert(owner);
         owner

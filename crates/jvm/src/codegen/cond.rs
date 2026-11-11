@@ -6,6 +6,7 @@ use super::body::Body;
 use super::{Gen, unsupported};
 use classfile::Label;
 use lower::Result;
+use names::nme;
 use syntax::ast::constant::Constant;
 use tasty::Erased;
 use typer::tpd::{TNodeId, Tree};
@@ -24,12 +25,12 @@ pub enum Test {
 impl Test {
     pub fn of(name: &str) -> Option<Test> {
         Some(match name {
-            "==" | "eq" => Test::Eq,
-            "!=" | "ne" => Test::Ne,
-            "<" => Test::Lt,
-            ">=" => Test::Ge,
-            ">" => Test::Gt,
-            "<=" => Test::Le,
+            nme::EQ | nme::REF_EQ => Test::Eq,
+            nme::NE | nme::REF_NE => Test::Ne,
+            nme::LT => Test::Lt,
+            nme::GE => Test::Ge,
+            nme::GT => Test::Gt,
+            nme::LE => Test::Le,
             _ => return None,
         })
     }
@@ -51,11 +52,11 @@ impl Gen<'_, '_> {
     ) -> Result<()> {
         if let Some((name, receiver, args)) = self.primitive_call(t) {
             match (name.as_str(), &args[..]) {
-                ("unary_!", []) => return self.cond(b, receiver, failure, success, fall),
-                ("&&" | "||", &[right]) => {
+                (nme::UNARY_NOT, []) => return self.cond(b, receiver, failure, success, fall),
+                (nme::ZAND | nme::ZOR, &[right]) => {
                     let next = b.code.new_label();
                     match name.as_str() {
-                        "&&" => self.cond(b, receiver, next, failure, next)?,
+                        nme::ZAND => self.cond(b, receiver, next, failure, next)?,
                         _ => self.cond(b, receiver, success, next, next)?,
                     }
                     b.code.place(next);
@@ -67,7 +68,7 @@ impl Gen<'_, '_> {
                     if mixed || kind == 'L' && !matches!(test, Test::Eq | Test::Ne) {
                         return unsupported(self.l.tpd.span(t), "an ordering of references");
                     }
-                    if kind == 'L' && matches!(op, "==" | "!=") {
+                    if kind == 'L' && matches!(op, nme::EQ | nme::NE) {
                         let labels = match test {
                             Test::Eq => [success, failure, fall],
                             _ => [failure, success, fall],

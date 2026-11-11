@@ -9,6 +9,7 @@ use crate::ast::constant::Constant;
 use crate::ast::flags;
 use crate::ast::tree::GenCheckMode;
 use crate::ast::{Attrs, NodeId, TName, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     /// The function `pat => body` of generator `gen_`: a lambda for a variable pattern, a
@@ -108,7 +109,7 @@ impl Desugar<'_> {
         let wildcard = self.ident(wildcard);
         let no = self.literal(Constant::Boolean(false));
         let case2 = self.ast.node(Tree::CaseDef { pat: wildcard, guard: None, body: no });
-        let with_filter = self.term("withFilter");
+        let with_filter = self.term(nme::WITH_FILTER);
         let select = self.select(rhs, with_filter);
         let lambda = self.make_case_lambda(&[case1, case2], MatchCheck::Unchecked);
         self.apply(select, &[lambda])

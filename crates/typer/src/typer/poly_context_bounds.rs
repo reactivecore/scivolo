@@ -6,6 +6,7 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{Attrs, List, NodeId, Span, TName, Tree};
@@ -95,7 +96,7 @@ impl Typer<'_> {
             return Err(self.unsupported(first, "context function type of that many parameters"));
         };
         let refinement = self.refinement_class(ctx);
-        let apply = self.syms.define(self.u, "apply", Kind::Def, refinement, f::METHOD);
+        let apply = self.syms.define(self.u, nme::APPLY, Kind::Def, refinement, f::METHOD);
         let (mut params, mut param_trees, mut args) = (Vec::new(), Vec::new(), Vec::new());
         for &(name, bound) in evidence {
             let typed = self.typed_type(bound, ctx);
@@ -123,7 +124,7 @@ impl Typer<'_> {
         let args = self.tpd.list(&args);
         let core = self.tpd.node(T::AppliedTypeTree { tpt: tycon, args }, span, Some(parent), None);
         let def = self.build().def_def(apply, &[&param_trees], result, None, result_span);
-        let apply = self.u.intern_name("apply");
+        let apply = self.u.intern_name(nme::APPLY);
         let tpe = self.u.intern_type(Type::Refined(parent, apply, method));
         let refinements = self.tpd.list(&[def]);
         Ok(self.tpd.node(T::RefinedTypeTree { tpt: core, refinements }, span, Some(tpe), None))

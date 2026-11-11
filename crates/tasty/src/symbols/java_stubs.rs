@@ -6,6 +6,7 @@ use super::builtin::synthetic;
 use super::{Kind, SymbolId, Universe};
 use crate::tags::{ABSTRACT, PROTECTED};
 use crate::types::Type;
+use names::nme;
 
 pub fn enter(u: &mut Universe, object: SymbolId) {
     super::runtime_stubs::enter(u, object);
@@ -20,7 +21,7 @@ pub fn enter(u: &mut Universe, object: SymbolId) {
     let boolean = class_type(u, "scala", "Boolean");
     let object = u.types.intern(Type::Sym(None, object));
     let this = u.types.intern(Type::Sym(None, number));
-    method(u, number, "<init>", &[], this, &[]);
+    method(u, number, nme::CONSTRUCTOR, &[], this, &[]);
     method(u, number, "isWhole", &[], boolean, &[PROTECTED]);
     method(u, number, "underlying", &[], object, &[]);
 }

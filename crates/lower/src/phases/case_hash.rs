@@ -5,6 +5,7 @@
 
 use crate::Lower;
 use crate::definitions::{CaseClasses, symbol};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{MUTABLE, SYNTHETIC};
 use tasty::{Erased, Flags, Kind, SymbolId};
@@ -38,12 +39,12 @@ impl Lower<'_> {
             return self.call(module, cc.product_hash, &[this, seed, ignore_prefix]);
         }
         let flags = Flags::default().with(MUTABLE).with(SYNTHETIC);
-        let acc = self.u.define(symbol("acc", Kind::Val, class, flags));
+        let acc = self.u.define(symbol(nme::ACC, Kind::Val, class, flags));
         locals.push(acc);
         let int = self.u.class_ref(tasty::defn::INT);
         self.u.set_info(acc, int);
         let init = self.int_literal(0xcafebabe_u32 as i32);
-        let name = self.term_name("acc");
+        let name = self.term_name(nme::ACC);
         let tpt = self.type_tree(int, Span::NONE);
         let def = Tree::ValDef { name, tpt, rhs: Some(init) };
         let mut stats = vec![self.tpd.node(def, Span::NONE, Some(int), Some(acc))];
@@ -86,7 +87,7 @@ impl Lower<'_> {
             Erased::Prim('i') => value,
             Erased::Prim('s' | 'b' | 'c') => {
                 let class = self.class_of(info).expect("a primitive class");
-                let to_int = self.u.decls_named(class, "toInt").into_iter().next();
+                let to_int = self.u.decls_named(class, nme::TO_INT).into_iter().next();
                 let sel = self.select(value, to_int.expect("`toInt`"), Span::NONE);
                 let int = self.u.class_ref(tasty::defn::INT);
                 self.tpd.get_mut(sel).tpe = Some(int);

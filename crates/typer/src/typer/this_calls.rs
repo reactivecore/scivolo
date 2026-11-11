@@ -6,6 +6,7 @@
 use super::Typer;
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Tree};
 use tasty::SymbolId;
 
@@ -17,9 +18,10 @@ impl Typer<'_> {
             meth = fun;
         }
         let self_call = match *self.ast.tree(meth) {
-            Tree::Ident { name } => self.text(name.name) == "<init>",
+            Tree::Ident { name } => self.text(name.name) == nme::CONSTRUCTOR,
             Tree::Select { qualifier, name } => {
-                self.text(name.name) == "<init>" && matches!(self.ast.tree(qualifier), Tree::This { .. })
+                self.text(name.name) == nme::CONSTRUCTOR
+                    && matches!(self.ast.tree(qualifier), Tree::This { .. })
             }
             _ => false,
         };
@@ -29,7 +31,7 @@ impl Typer<'_> {
     /// The context of the implicit arguments of typed application `tree` in `ctx`.
     pub fn implicit_args_ctx(&mut self, tree: TNodeId, ctx: Ctx) -> Ctx {
         let callee = self.tpd.meth_part(tree);
-        let self_call = self.tpd.sym(callee).is_some_and(|s| self.u.symbol(s).name == "<init>")
+        let self_call = self.tpd.sym(callee).is_some_and(|s| self.u.symbol(s).name == nme::CONSTRUCTOR)
             && matches!(*self.tpd.tree(callee), T::Select { qualifier, .. }
                 if matches!(self.tpd.tree(qualifier), T::This { .. }));
         if self_call { self.this_call_ctx(ctx) } else { ctx }
@@ -42,8 +44,9 @@ impl Typer<'_> {
         let mut secondary = false;
         while let Some(o) = owner.filter(|&o| o != cls) {
             let s = self.u.symbol(o);
-            secondary |=
-                s.name == "<init>" && s.owner == Some(cls) && self.syms.primary_ctors.get(&cls) != Some(&o);
+            secondary |= s.name == nme::CONSTRUCTOR
+                && s.owner == Some(cls)
+                && self.syms.primary_ctors.get(&cls) != Some(&o);
             owner = s.owner;
         }
         let mut level = Some(ctx.level);
@@ -59,7 +62,7 @@ impl Typer<'_> {
     /// `ctx` of a constructor body, the names of its scopes inside the class (its parameters)
     /// seen outside the class.
     fn this_call_ctx(&mut self, ctx: Ctx) -> Ctx {
-        if self.u.symbol(ctx.owner).name != "<init>" {
+        if self.u.symbol(ctx.owner).name != nme::CONSTRUCTOR {
             return ctx;
         }
         let mut level = ctx.level;

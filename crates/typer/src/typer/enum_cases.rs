@@ -4,6 +4,7 @@
 
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use tasty::SymbolId;
 use tasty::tags::{CASE, ENUM, SYNTHETIC};
 
@@ -19,8 +20,8 @@ impl Typer<'_> {
         let Some(m) = method.filter(|&m| self.u.symbol(m).flags.has(SYNTHETIC)) else { return apply };
         let Some(owner) = self.u.symbol(m).owner else { return apply };
         let applies = match self.u.symbol(m).name.as_str() {
-            "apply" => self.u.companion_class(owner).is_some_and(|c| self.is_enum_case(c)),
-            "copy" => self.is_enum_case(owner),
+            nme::APPLY => self.u.companion_class(owner).is_some_and(|c| self.is_enum_case(c)),
+            nme::COPY => self.is_enum_case(owner),
             _ => false,
         };
         let tpe = self.tpd.tpe(apply);

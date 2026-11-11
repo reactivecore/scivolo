@@ -9,6 +9,7 @@ use super::getters::is_param_accessor;
 use super::walk::{children, subtrees};
 use crate::symbols::{has, is_effectively_final};
 use crate::{Lower, Result};
+use names::nme;
 use rustc_hash::FxHashSet;
 use tasty::tags::{LAZY, LOCAL, MUTABLE, PRIVATE, STATIC};
 use tasty::{Kind, SymbolId};
@@ -188,7 +189,7 @@ pub fn foreign_refs(l: &Lower, classes: &[TNodeId]) -> FxHashSet<SymbolId> {
 
 /// Whether method `m` is a lambda of the constructor of class `class` (dotty's `checkAnonFun`).
 fn in_anonfun(l: &Lower, class: SymbolId, m: SymbolId) -> bool {
-    if l.u.symbol(m).name != "$anonfun" {
+    if l.u.symbol(m).name != nme::ANON_FUN {
         return false;
     }
     let Some(owner) = l.u.symbol(m).owner else { return false };

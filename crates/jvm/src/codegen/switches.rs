@@ -9,6 +9,7 @@ use super::locals::int_like;
 use super::{Gen, unsupported};
 use classfile::{Invoke, Label};
 use lower::Result;
+use names::nme;
 use std::collections::BTreeMap;
 use syntax::ast::constant::Constant;
 use typer::tpd::{List, TNodeId, Tree};
@@ -119,7 +120,7 @@ impl Gen<'_, '_> {
         b.code.place(other);
         b.code.set_stack(depth);
         self.expr_as(b, selector, 1)?;
-        b.code.invoke(Invoke::Virtual, b.pool, "java/lang/String", "hashCode", "()I");
+        b.code.invoke(Invoke::Virtual, b.pool, "java/lang/String", nme::HASH_CODE, "()I");
         b.code.place(hashed);
         let blocks: Vec<(i32, Label)> = by_hash.keys().map(|&h| (h, b.code.new_label())).collect();
         let mut keys = blocks.clone();
@@ -134,7 +135,7 @@ impl Gen<'_, '_> {
                 b.code.ldc(index);
                 self.expr_as(b, selector, 1)?;
                 let equals = "(Ljava/lang/Object;)Z";
-                b.code.invoke(Invoke::Virtual, b.pool, "java/lang/Object", "equals", equals);
+                b.code.invoke(Invoke::Virtual, b.pool, "java/lang/Object", nme::EQUALS, equals);
                 match target {
                     Target::Shared(label) => b.code.jump(0x9a, label),
                     Target::Body(body) => {
@@ -155,7 +156,7 @@ impl Gen<'_, '_> {
         b.code.new_object(b.pool, "scala/MatchError");
         b.code.dup();
         b.code.aconst_null();
-        b.code.invoke(Invoke::Special, b.pool, "scala/MatchError", "<init>", "(Ljava/lang/Object;)V");
+        b.code.invoke(Invoke::Special, b.pool, "scala/MatchError", nme::CONSTRUCTOR, "(Ljava/lang/Object;)V");
         b.code.insn(0xbf);
     }
 }

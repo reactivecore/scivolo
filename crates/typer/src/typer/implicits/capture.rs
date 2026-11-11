@@ -72,7 +72,7 @@ impl Typer<'_> {
     pub fn cast_to_captured(&mut self, tree: TNodeId, to: TypeId) -> Result<TNodeId, &'static str> {
         let span = self.tpd.span(tree).to_synthetic();
         let any = self.u.defn().any;
-        let found = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
+        let found = self.u.decl(any, names::nme::AS_INSTANCE_OF_PM).ok().and_then(|d| d.first().copied());
         let fun = self.build().select(tree, found.ok_or("Any.$asInstanceOf$")?, span);
         let tpt = self.tpd.node(T::TypeTree { inferred: false }, span.end_pos(), Some(to), None);
         Ok(self.build().type_apply(fun, &[tpt], to, span))

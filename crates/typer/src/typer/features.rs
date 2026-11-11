@@ -5,6 +5,7 @@
 
 use super::Typer;
 use crate::ctx::{Ctx, Level};
+use names::nme;
 use syntax::config::Features;
 use tasty::NullMode;
 
@@ -25,7 +26,7 @@ impl Typer<'_> {
                 && let Some(info) = self.import_info(i)
                 && let Some(s) = info.selectors.iter().find(|s| s.name == name)
             {
-                let (qual, enabled) = (info.qual, s.rename != "_");
+                let (qual, enabled) = (info.qual, s.rename != nme::WILDCARD);
                 let site = self.import_site(qual);
                 if site.is_some_and(|s| self.u.full_name(s).replace('$', "") == object) {
                     return enabled;
@@ -39,7 +40,7 @@ impl Typer<'_> {
     /// How comparisons in `ctx` treat `Null`: explicit nulls, and safe without `unsafeNulls`.
     pub fn null_mode(&mut self, ctx: Ctx) -> NullMode {
         let explicit = self.explicit_nulls;
-        let safe = explicit && !self.feature_enabled(Features::UNSAFE_NULLS, "unsafeNulls", ctx);
+        let safe = explicit && !self.feature_enabled(Features::UNSAFE_NULLS, nme::UNSAFE_NULLS, ctx);
         NullMode { explicit, safe }
     }
 }

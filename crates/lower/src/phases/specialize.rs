@@ -11,6 +11,7 @@ use super::walk::{subtrees, walk_class_up};
 use crate::definitions::{specialized_apply, symbol};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, PRIVATE, SYNTHETIC};
@@ -71,7 +72,7 @@ fn specialize(l: &mut Lower, app: TNodeId, fun: TNodeId, arity: usize) -> Result
     let Some(sym) = l.tpd.sym(fun) else { return Ok(()) };
     let owner = l.u.symbol(sym).owner;
     let function = owner.is_some_and(|o| l.u.is_class(o) && is_function(l, o, arity));
-    if arity > 2 || l.u.symbol(sym).name != "apply" || !function {
+    if arity > 2 || l.u.symbol(sym).name != nme::APPLY || !function {
         return Ok(());
     }
     let method = l.u.widen(l.tpd.tpe(fun));
@@ -132,7 +133,10 @@ fn specialized_for(l: &mut Lower, class: SymbolId, sym: SymbolId) -> Option<Symb
     let info = l.u.info(sym);
     let clauses = l.u.param_clauses(info);
     let [(_, param_types)] = clauses.as_slice() else { return None };
-    if l.u.symbol(sym).name != "apply" || has(l.u, sym, INLINE) || !is_function(l, class, param_types.len()) {
+    if l.u.symbol(sym).name != nme::APPLY
+        || has(l.u, sym, INLINE)
+        || !is_function(l, class, param_types.len())
+    {
         return None;
     }
     let params: Option<Vec<Erased>> = param_types.iter().map(|&t| primitive(l, t)).collect();

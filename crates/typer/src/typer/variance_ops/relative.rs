@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/typer/VarianceChecker.scala
 
 use super::{BIVARIANT, COVARIANT, INVARIANT, Misplaced, VarianceOps, declared, flip};
+use names::nme;
 use syntax::ast::flags as f;
 use tasty::{Kind, SymbolId};
 
@@ -21,7 +22,7 @@ impl VarianceOps<'_> {
             let param = matches!(kind, Kind::Param | Kind::TypeParam);
             if param && owner_kind.is_term() && !self.syms.flags_of(owner).is_all_of(f::PRIVATE_LOCAL) {
                 let outer = self.u.symbol(owner).owner;
-                let ctor = self.u.symbol(owner).name == "<init>";
+                let ctor = self.u.symbol(owner).name == nme::CONSTRUCTOR;
                 let outer = if ctor { outer.and_then(|o| self.u.symbol(o).owner) } else { outer };
                 let Some(outer) = outer else { return BIVARIANT };
                 (base, v) = (outer, flip(v));

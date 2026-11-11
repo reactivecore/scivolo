@@ -11,6 +11,7 @@ use crate::parse::Parser;
 use crate::parse::migration::Migration;
 use crate::source::Offset;
 use crate::token::Token;
+use names::nme;
 
 impl Parser<'_> {
     /// `DefSig [: Type] [= Expr]` or `this ParamClauses = ConstrExpr` after `def`.
@@ -165,7 +166,7 @@ impl Parser<'_> {
     fn self_invocation(&mut self) -> NodeId {
         let start = self.accept(Token::This);
         self.argument_start();
-        let init = self.term("<init>");
+        let init = self.term(nme::CONSTRUCTOR);
         let fun = self.ast.node(Tree::Ident { name: init });
         let app = self.argument_apply(fun);
         let t = self.argument_exprss(app);

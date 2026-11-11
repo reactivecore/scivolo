@@ -10,6 +10,7 @@ use super::passing_defs::{dealiased, passing_def};
 use super::{Access, MakeInlineable};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
@@ -37,7 +38,7 @@ impl MakeInlineable {
         let name = t.u.symbol(sym).name.clone();
         let unique = t.fresh.next(t.names, &format!("{name}$i"));
         let suffix = t.names.text(unique)[name.len()..].to_owned();
-        let getter = format!("inline${name}{suffix}");
+        let getter = name_kinds::inline_accessor(&format!("{name}{suffix}"));
         let access = Access { member: sym, setter: false };
         let Some(getter) = self.passing_accessor(t, host, &getter, access, &receiver, span) else {
             return false;
@@ -70,7 +71,7 @@ impl MakeInlineable {
         };
         let qualifier = t.tpd.items(args)[0];
         let receiver = self.receiver(t, qualifier);
-        let prefix = format!("inline${}", t.u.symbol(var).name);
+        let prefix = name_kinds::inline_accessor(&t.u.symbol(var).name);
         let setter = format!("{prefix}_={}", &t.u.symbol(getter).name[prefix.len()..]);
         let span = t.tpd.span(lhs);
         let access = Access { member: var, setter: true };
@@ -156,7 +157,7 @@ fn with_receiver_named(u: &mut Universe, info: TypeId) -> TypeId {
         }
         Type::Method { binder, params, result, implicit, contextual } => {
             let mut params = u.params_of(params).to_vec();
-            params[0].0 = u.intern_name("x$0");
+            params[0].0 = u.intern_name(&name_kinds::synthetic_param(0));
             u.intern_method(binder, &params, result, implicit, contextual)
         }
         _ => info,

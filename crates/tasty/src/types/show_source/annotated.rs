@@ -5,13 +5,14 @@
 
 use super::{Highlight, REFUSED, Shown, SourcePrinter};
 use crate::{TypeId, Universe};
+use names::nme;
 
 impl Universe {
     /// Whether the class of annotation type `annot` takes no arguments, so that the type shows
     /// the whole annotation.
     pub fn is_argless_annotation(&mut self, annot: TypeId) -> bool {
         let Some(class) = self.class_symbol(annot) else { return false };
-        let ctors = self.decls_named(class, "<init>");
+        let ctors = self.decls_named(class, nme::CONSTRUCTOR);
         !ctors.is_empty() && ctors.into_iter().all(|c| self.erased_method(c).0.is_empty())
     }
 }

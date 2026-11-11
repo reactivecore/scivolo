@@ -10,6 +10,7 @@ use crate::ast::modifiers::Modifiers;
 use crate::ast::span::Span;
 use crate::ast::{Attrs, NodeId, TName, Tree};
 use crate::names::to_utf16;
+use names::nme;
 
 impl Desugar<'_> {
     /// The ordinal of the next case `name` of kind `kind`, and the lookup methods of the enum if
@@ -64,7 +65,7 @@ impl Desugar<'_> {
             return self.expand_enum_module(name, imp, mods, lookups, span);
         }
         let (ordinal, scaffolding) = self.next_ordinal(name, CaseKind::Simple, lookups);
-        let new = self.term("$new");
+        let new = self.term(nme::DOLLAR_NEW);
         let new = self.ident(new);
         let ordinal = self.literal(Constant::Int(ordinal as i32));
         let text = self.literal(Constant::String(to_utf16(self.text(name)).into()));

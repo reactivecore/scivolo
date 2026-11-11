@@ -8,6 +8,7 @@ use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::signatures::result_sig;
 use crate::tpd::TNodeId;
+use names::{name_kinds, nme};
 use syntax::ast::TName;
 use tasty::tags::*;
 use tasty::write::Name;
@@ -18,7 +19,7 @@ impl TreePickler<'_> {
     pub fn tree_name(&self, name: TName, sym: Option<SymbolId>) -> Name {
         let text = self.names.text(name.name);
         match sym {
-            Some(s) if text.contains("$default$") => self.ref_name(s),
+            Some(s) if text.contains(name_kinds::DEFAULT_GETTER) => self.ref_name(s),
             Some(s) if self.u.symbol(s).name == text => sym_name(self.u, s),
             _ => Name::utf8(text),
         }
@@ -36,7 +37,7 @@ impl TreePickler<'_> {
         if let Some(class) = self.u.this_of(tpe) {
             return self.class_this(id, None, class);
         }
-        if self.is_term_ref(tpe) && self.names.text(name.name) != "_" {
+        if self.is_term_ref(tpe) && self.names.text(name.name) != nme::WILDCARD {
             return self.ty(tpe, false);
         }
         self.byte(if name.is_type { IDENTtpt } else { IDENT });

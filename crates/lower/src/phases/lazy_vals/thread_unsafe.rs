@@ -9,6 +9,7 @@ use crate::definitions::symbol;
 use crate::phases::lazy_trees::{block, call, dup, eq, field_ref, if_, unit};
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, TypeId};
@@ -64,7 +65,7 @@ pub fn flag(l: &mut Lower, lazy: &Lazy, tpe: TypeId) -> Option<SymbolId> {
     if l.u.class_symbol(tpe).is_some_and(|c| l.u.is_module_class(c)) {
         return None;
     }
-    let name = fresh(l, &format!("{}bitmap$", l.u.symbol(lazy.accessor).name));
+    let name = fresh(l, &name_kinds::lazy_bitmap(&l.u.symbol(lazy.accessor).name));
     let flags = Flags::default().with(SYNTHETIC).with(MUTABLE).with(PRIVATE);
     let flag = l.u.define(symbol(&name, Kind::Val, lazy.class, flags));
     let boolean = l.u.class_ref(tasty::defn::BOOLEAN);

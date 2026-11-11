@@ -4,12 +4,13 @@
 
 use super::jdk_declarations::JDK_DECLARATIONS;
 use super::{Flags, Kind, Symbol, SymbolId, Universe, jdk};
+use names::nme;
 
 impl Universe {
     /// The package of qualified name `name`, entered with its enclosing packages if new; `""`
     /// and `<empty>`, the package of files at the root of a jar, are the root.
     pub fn enter_package(&mut self, name: &str) -> SymbolId {
-        let name = if name == "<empty>" { "" } else { name };
+        let name = if name == nme::EMPTY_PACKAGE { "" } else { name };
         if let Some(&p) = self.packages.get(name) {
             return p;
         }

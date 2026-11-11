@@ -13,6 +13,7 @@ use super::first_transform::literal;
 use super::walk::{children, walk_class_up, without_type_args};
 use crate::Lower;
 use crate::definitions::type_ref;
+use names::nme;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use tasty::tags::INTconst;
@@ -77,11 +78,11 @@ fn optimized(
     let Tree::Apply { args, .. } = *l.tpd.tree(t) else { return None };
     match (name, l.tpd.items(args).to_vec().as_slice()) {
         ("cons", &[head, tail]) => cons(l, t, owner, head, tail, kept),
-        ("tail", &[tup]) => tuple_tail(l, t, owner, tup, kept),
+        (nme::TAIL, &[tup]) => tuple_tail(l, t, owner, tup, kept),
         ("size", _) => size(l, t),
         ("concat", &[a, b]) => concat(l, t, owner, a, b, kept),
-        ("apply", &[tup, n]) => apply(l, t, tup, n),
-        ("toArray", &[tup]) => to_array(l, t, tup),
+        (nme::APPLY, &[tup, n]) => apply(l, t, tup, n),
+        (nme::TO_ARRAY, &[tup]) => to_array(l, t, tup),
         _ => None,
     }
 }
@@ -147,7 +148,7 @@ fn tuple_tail(
     } else {
         let product = l.product().ok()?;
         let product_type = type_ref(l.u, product);
-        let product_iterator = method(l, product, "productIterator")?;
+        let product_iterator = method(l, product, nme::PRODUCT_ITERATOR)?;
         let qual = l.ensure_conforms(tup, product_type);
         let iterator = select_applied(l, qual, product_iterator);
         let mut it = Once::new(l, iterator, owner);

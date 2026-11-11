@@ -9,6 +9,7 @@ use super::Typer;
 use crate::defn::type_ref;
 use crate::sealed;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::defn::{CHILD, EXPERIMENTAL, SOURCE_FILE};
@@ -102,7 +103,7 @@ fn is_accessible_child(u: &Universe, c: SymbolId, parent: SymbolId) -> bool {
     let mut s = owner(c);
     while let Some(o) = s {
         if Some(o) == base || u.symbol(o).kind == Kind::Package {
-            return !u.symbol(c).name.starts_with("$anon");
+            return !u.symbol(c).name.starts_with(nme::ANON_CLASS);
         }
         s = owner(o).filter(|_| is_type(o));
     }
@@ -115,7 +116,7 @@ fn child_annotation(t: &mut Typer, c: SymbolId, at: Span) -> Result<TNodeId, &'s
     let package = t.u.package(pkg).ok_or("scala.annotation.internal missing")?;
     let classes = t.u.decls_named(package, name);
     let class = classes.into_iter().find(|&s| t.u.is_class(s)).ok_or("Child missing")?;
-    let ctor = t.u.decls_named(class, "<init>").into_iter().next();
+    let ctor = t.u.decls_named(class, nme::CONSTRUCTOR).into_iter().next();
     let ctor = ctor.ok_or("Child without a constructor")?;
     let tycon = type_ref(t.u, class);
     let child = type_ref(t.u, c);

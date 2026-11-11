@@ -5,6 +5,7 @@
 use super::lazy_vals::Lazy;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::tags::{MUTABLE, SYNTHETIC};
@@ -40,7 +41,7 @@ pub fn call(l: &mut Lower, qual: TNodeId, m: SymbolId, args: &[TNodeId]) -> TNod
     let fun = l.positioned(fun);
     let info = l.u.info(m);
     let result = match *l.u.ty(info) {
-        _ if l.u.symbol(m).name == "<init>" => l.tpd.tpe(qual),
+        _ if l.u.symbol(m).name == nme::CONSTRUCTOR => l.tpd.tpe(qual),
         Type::Method { result, .. } => result,
         _ => info,
     };

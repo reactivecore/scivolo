@@ -9,6 +9,7 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -26,7 +27,7 @@ impl Typer<'_> {
         let sym = self.syms.define(self.u, &text, Kind::Val, cls, f::PRIVATE.or(f::LOCAL));
         self.u.unenter(sym);
         self.syms.by_tree.insert(s, sym);
-        if text != "_" {
+        if text != nme::WILDCARD {
             self.syms.selves.insert(cls, sym);
         }
         self.syms.pending_selves.insert(cls, (s, cctx));
@@ -103,7 +104,7 @@ impl Typer<'_> {
                 return Err("class not conforming to a parent's self type");
             }
             if !own_module && !self.u.is_subtype(own, s) {
-                if self.u.symbol(cls).name == "$anon" || module.is_some() {
+                if self.u.symbol(cls).name == nme::ANON_CLASS || module.is_some() {
                     return Err("anonymous class or object not conforming to a parent's self type");
                 }
                 let (own_s, s) = (self.u.show_user(own), self.u.show_user(s));

@@ -6,6 +6,7 @@
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId};
+use names::nme;
 use tasty::TypeId;
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
 
@@ -13,7 +14,7 @@ impl TreePickler<'_> {
     /// Type `parent` annotated with class type `annot`, the annotation `new annot()`.
     pub fn annotated(&mut self, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
         let class = self.u.class_symbol(annot).ok_or("an annotation of no class")?;
-        let ctors = self.u.decls_named(class, "<init>");
+        let ctors = self.u.decls_named(class, nme::CONSTRUCTOR);
         let ctor = ctors.into_iter().find(|&c| self.u.erased_method(c).0.is_empty());
         let ctor = ctor.ok_or("a type annotation without a constructor of no parameters")?;
         self.with_length(ANNOTATEDtype, &mut |p| {
@@ -37,7 +38,7 @@ impl TreePickler<'_> {
     /// `new C()` of class type `class`, an annotation without arguments.
     pub fn new_annotation(&mut self, class: TypeId) -> Result<(), Refusal> {
         let c = self.u.class_symbol(class).ok_or("an annotation of no class")?;
-        let init = self.u.decl(c, "<init>").ok().and_then(|d| d.first().copied());
+        let init = self.u.decl(c, nme::CONSTRUCTOR).ok().and_then(|d| d.first().copied());
         let init = init.ok_or("an annotation class without a constructor")?;
         let ids = (u32::MAX - 2 * self.annots.len() as u32, u32::MAX - 2 * self.annots.len() as u32 - 1);
         if let Some(tpt) = self.type_tree.filter(|_| !self.keying) {

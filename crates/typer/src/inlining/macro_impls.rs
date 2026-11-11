@@ -6,6 +6,7 @@
 use super::macros::{MacroArg, MacroCall};
 use super::{Inlining, Unsupported};
 use crate::tpd::{List, TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::INLINE;
 use tasty::{Kind, SymbolId, Type};
@@ -130,8 +131,8 @@ impl Inlining<'_> {
         let class = self.u.symbol(apply).owner?;
         let is_quotes =
             |a: &TNodeId| self.tpd.sym(*a) == Some(quotes) && matches!(self.tpd.tree(*a), T::Ident { .. });
-        let context =
-            self.u.symbol(apply).name == "apply" && self.u.full_name(class) == crate::defn::CONTEXT_FUNCTION1;
+        let context = self.u.symbol(apply).name == nme::APPLY
+            && self.u.full_name(class) == crate::defn::CONTEXT_FUNCTION1;
         (context && matches!(args, [a] if is_quotes(a))).then_some(qualifier)
     }
 

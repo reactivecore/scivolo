@@ -2,6 +2,7 @@
 //! its parents and the `apply` its `applyOrElse` calls on the default function.
 
 use super::{member, package};
+use names::nme;
 use tasty::{Kind, SymbolId, Universe};
 
 #[derive(Clone, Copy)]
@@ -24,12 +25,12 @@ impl PartialFunctions {
         let function1 = member(u, scala, "Function1", Kind::Class)?;
         Ok(PartialFunctions {
             class,
-            is_defined_at: member(u, class, "isDefinedAt", Kind::Def)?,
-            apply_or_else: member(u, class, "applyOrElse", Kind::Def)?,
+            is_defined_at: member(u, class, nme::IS_DEFINED_AT, Kind::Def)?,
+            apply_or_else: member(u, class, nme::APPLY_OR_ELSE, Kind::Def)?,
             abstract_class,
-            abstract_ctor: member(u, abstract_class, "<init>", Kind::Def)?,
+            abstract_ctor: member(u, abstract_class, nme::CONSTRUCTOR, Kind::Def)?,
             serializable: member(u, package(u, "java.io")?, "Serializable", Kind::Class)?,
-            function1_apply: member(u, function1, "apply", Kind::Def)?,
+            function1_apply: member(u, function1, nme::APPLY, Kind::Def)?,
         })
     }
 }

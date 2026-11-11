@@ -8,6 +8,7 @@ use super::type_test;
 use crate::phases::eval_once::eval_once;
 use crate::phases::first_transform::is_pure;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::TypeId;
 use typer::tpd::{TNodeId, Tree};
@@ -52,7 +53,7 @@ fn both(
     let right = type_test(l, other, parts.1, in_match, span)?;
     let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
     let boolean = l.u.class_symbol(boolean).expect("`Boolean`");
-    let op = if or { "||" } else { "&&" };
+    let op = if or { nme::ZOR } else { nme::ZAND };
     let op = l.u.decl(boolean, op).ok().and_then(|ms| ms.into_iter().next()).expect("a `Boolean` operator");
     Ok(l.call(left, op, &[right]))
 }

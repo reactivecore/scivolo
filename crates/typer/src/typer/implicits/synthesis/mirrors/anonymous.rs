@@ -6,6 +6,7 @@
 use super::{MISSING, MirrorSynthesis};
 use crate::tpd::{AnonMirror, TNodeId, Tree as T};
 use crate::typer::{Pt, Typer};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, TName, Tree};
@@ -25,7 +26,7 @@ impl MirrorSynthesis {
         let mods = t.ast.mods(Modifiers::with_flags(f::EMPTY));
         let mono_def = self.node(t, Tree::TypeDef { name, rhs, mods });
         let body = t.ast.list(&[mono_def]);
-        let init = TName { name: t.name("<init>"), is_type: false };
+        let init = TName { name: t.name(nme::CONSTRUCTOR), is_type: false };
         let clause = t.ast.list(&[]);
         let paramss = t.ast.clauses(&[clause]);
         let tpt = self.node(t, Tree::TypeTree);

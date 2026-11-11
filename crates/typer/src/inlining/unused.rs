@@ -8,6 +8,7 @@ use super::copy::TreeTypeMap;
 use super::purity::PURE_PATH;
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, map_children};
+use names::nme;
 use rustc_hash::FxHashMap;
 use tasty::tags::{CASE, INLINE, MUTABLE, SYNTHETIC, TRAIT};
 use tasty::{Kind, SymbolId};
@@ -167,7 +168,7 @@ impl Inlining<'_> {
         let Some(f) = self.method_part(fun) else { return false };
         let Some(meth) = self.tpd.sym(f) else { return false };
         let s = self.u.symbol(meth);
-        if s.name != "apply" || !s.flags.has(SYNTHETIC) {
+        if s.name != nme::APPLY || !s.flags.has(SYNTHETIC) {
             return false;
         }
         let owner = s.owner;

@@ -1,4 +1,5 @@
 use super::{member, package};
+use names::nme;
 use tasty::{Kind, SymbolId, Universe};
 
 /// What lazy values' accessors refer to: dotty's `scala.runtime.LazyVals` states and Scala
@@ -46,12 +47,12 @@ impl LazyVals {
             null_value: member(u, lazy_vals, "NullValue", Kind::Val)?,
             control_state: member(u, lazy_vals, "LazyValControlState", Kind::Class)?,
             waiting,
-            waiting_ctor: member(u, waiting, "<init>", Kind::Def)?,
+            waiting_ctor: member(u, waiting, nme::CONSTRUCTOR, Kind::Def)?,
             count_down,
             await_,
             native,
-            obj_cas: member(u, native_class, "objCAS", Kind::Def)?,
-            not: member(u, boolean, "unary_!", Kind::Def)?,
+            obj_cas: member(u, native_class, nme::OBJ_CAS, Kind::Def)?,
+            not: member(u, boolean, nme::UNARY_NOT, Kind::Def)?,
             var_handle: member(u, invoke, "VarHandle", Kind::Class)?,
         })
     }

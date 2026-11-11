@@ -5,6 +5,7 @@
 
 use super::super::Typer;
 use super::{OverrideChecks, overridable};
+use names::nme;
 use syntax::ast::flags as f;
 use tasty::{SymbolId, Universe};
 
@@ -41,7 +42,7 @@ impl OverrideChecks {
             t.complete(m);
             !t.same_member(self.site, d, m) || incompatible_repeated_param(t, d, m)
         });
-        nothing && !(name == "getClass" && is_primitive_value_class(t.u, self.cls))
+        nothing && !(name == nme::GET_CLASS && is_primitive_value_class(t.u, self.cls))
     }
 }
 

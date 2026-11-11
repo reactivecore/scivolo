@@ -13,6 +13,7 @@ use super::walk;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::name_kinds;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, ARTIFACT, INLINE, OVERRIDE};
@@ -167,12 +168,9 @@ fn is_param(l: &Lower, s: TNodeId) -> bool {
 fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>) -> Result<SymbolId> {
     let trait_ = l.u.is_trait(s.clazz);
     let accessor_name = |l: &Lower, original: &str| {
-        let unexpanded = match s.mix.as_str() {
-            "" => format!("super${original}"),
-            mix => format!("{original}$super${mix}"),
-        };
+        let unexpanded = name_kinds::super_accessor(original, &s.mix);
         match trait_ {
-            true => format!("{}$${unexpanded}", l.u.expanded_prefix(s.clazz)),
+            true => name_kinds::expanded(&l.u.expanded_prefix(s.clazz), &unexpanded),
             false => unexpanded,
         }
     };

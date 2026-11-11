@@ -80,7 +80,7 @@ impl Gen<'_, '_> {
         let mut bridged = Vec::new();
         for b in bases {
             let behind_jdk = !is_jdk(self.l, b) && jdk.iter().any(|&j| self.l.u.derives_from(j, b));
-            if plain.contains(&b) || self.l.u.symbol(b).name == "Matchable" {
+            if plain.contains(&b) || b == self.l.u.defn().matchable {
                 continue;
             }
             crate::phases::same_run::enter_specialized(self.l, b);
@@ -134,7 +134,7 @@ impl Gen<'_, '_> {
     fn is_java_field_or_setter(&mut self, m: SymbolId) -> bool {
         let name = self.l.u.symbol(m).name.clone();
         let getter = match is_setter(self.l, m) {
-            true => name.strip_suffix("_=").unwrap_or(&name),
+            true => name.strip_suffix(names::name_kinds::SETTER_SUFFIX).unwrap_or(&name),
             false => return is_java_field(self.l.u, m),
         };
         let owner = self.l.u.symbol(m).owner.expect("a setter's class");

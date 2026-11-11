@@ -10,6 +10,7 @@ publish = false
 name = "macros"
 
 [dependencies]
+names.workspace = true
 syntax.workspace = true
 tasty.workspace = true
 typer.workspace = true

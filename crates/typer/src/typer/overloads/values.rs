@@ -10,6 +10,7 @@ use super::shapes::unknown_param_function;
 use super::{Resolution, VALUE_APPLY};
 use crate::ctx::Ctx;
 use crate::typer::Typer;
+use names::nme;
 use syntax::ast::Tree;
 use tasty::{Kind, SymbolId, TypeId};
 
@@ -38,7 +39,7 @@ impl Resolution {
 
         let vt = t.ref_type(self.prefix, value);
         let applies: Vec<SymbolId> =
-            t.type_members(vt, "apply").into_iter().filter(|&s| t.u.symbol(s).kind == Kind::Def).collect();
+            t.type_members(vt, nme::APPLY).into_iter().filter(|&s| t.u.symbol(s).kind == Kind::Def).collect();
         let arg_types = self.proto_arg_types(t, proto, methods)?;
         let alts = methods.iter().map(|&m| (m, self.prefix)).chain(applies.iter().map(|&a| (a, Some(vt))));
         let mut fitting = Vec::new();

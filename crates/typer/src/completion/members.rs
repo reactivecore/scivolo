@@ -6,6 +6,7 @@
 use crate::ctx::Ctx;
 use crate::typer::Typer;
 use crate::typer::did_you_mean::{OBJECT_MEMBERS, is_jdk};
+use names::nme;
 use tasty::tags::{
     ARTIFACT, FIELDaccessor, LOCAL, MUTABLE, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified,
 };
@@ -95,7 +96,8 @@ impl Typer<'_> {
         let setter = flags.has(MUTABLE) && flags.has(FIELDaccessor) && sym.name.ends_with("_=");
         let hidden =
             sym.owner == Some(self.defn.object) && !OBJECT_MEMBERS.split_whitespace().any(|m| m == sym.name);
-        let valid = sym.name != "<init>" && !sym.derived && !setter && !flags.has(ARTIFACT) && !hidden;
+        let valid =
+            sym.name != nme::CONSTRUCTOR && !sym.derived && !setter && !flags.has(ARTIFACT) && !hidden;
         let native = sym.kind == Kind::Package && self.u.full_name(s).starts_with("scala.scalanative");
         let valid = valid && !native;
         let package_object = self.u.module_class(s).is_some_and(|c| self.is_named_package_object(c));

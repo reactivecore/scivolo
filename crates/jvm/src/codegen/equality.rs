@@ -9,6 +9,7 @@ use super::cond::{Test, jump_zero};
 use super::{Gen, unsupported};
 use classfile::{Invoke, Label};
 use lower::Result;
+use names::nme;
 use syntax::ast::constant::Constant;
 use tasty::tags::FINAL;
 use tasty::{Erased, SymbolId};
@@ -30,7 +31,7 @@ impl Gen<'_, '_> {
         if self.must_use_any_comparator(left, right) {
             self.expr(b, left)?;
             self.expr(b, right)?;
-            b.code.invoke(Invoke::Static, b.pool, "scala/runtime/BoxesRunTime", "equals", OBJECTS.1);
+            b.code.invoke(Invoke::Static, b.pool, "scala/runtime/BoxesRunTime", nme::EQUALS, OBJECTS.1);
         } else if is_null(self, left) || is_null(self, right) {
             self.expr(b, if is_null(self, left) { right } else { left })?;
             jump_zero(b, true, Test::Eq, success, failure, fall);
@@ -38,11 +39,11 @@ impl Gen<'_, '_> {
         } else if self.is_non_null(left) {
             self.expr(b, left)?;
             self.expr(b, right)?;
-            b.code.invoke(Invoke::Virtual, b.pool, OBJECTS.0, "equals", "(Ljava/lang/Object;)Z");
+            b.code.invoke(Invoke::Virtual, b.pool, OBJECTS.0, nme::EQUALS, "(Ljava/lang/Object;)Z");
         } else {
             self.expr(b, left)?;
             self.expr(b, right)?;
-            b.code.invoke(Invoke::Static, b.pool, "java/util/Objects", "equals", OBJECTS.1);
+            b.code.invoke(Invoke::Static, b.pool, "java/util/Objects", nme::EQUALS, OBJECTS.1);
         }
         jump_zero(b, false, Test::Ne, success, failure, fall);
         Ok(())
@@ -52,7 +53,7 @@ impl Gen<'_, '_> {
     /// `Long`, `Double` or `Float`, else `Statics.anyHash`; `None` for another call.
     pub fn hash(&mut self, b: &mut Body, t: TNodeId) -> Result<Option<i32>> {
         let Tree::Apply { fun, args } = *self.l.tpd.tree(t) else { return Ok(None) };
-        let Some(m) = self.l.tpd.sym(fun).filter(|&m| self.l.u.symbol(m).name == "##") else {
+        let Some(m) = self.l.tpd.sym(fun).filter(|&m| self.l.u.symbol(m).name == nme::HASHHASH) else {
             return Ok(None);
         };
         let owner = self.l.u.symbol(m).owner.map(|o| self.l.u.binary_name(o));
@@ -72,16 +73,16 @@ impl Gen<'_, '_> {
             _ => match self.boxed_primitive(qualifier) {
                 Some((letter, value)) => {
                     let (name, d) = match letter {
-                        'j' => ("longHash", "(J)I"),
-                        'd' => ("doubleHash", "(D)I"),
-                        _ => ("floatHash", "(F)I"),
+                        'j' => (nme::LONG_HASH, "(J)I"),
+                        'd' => (nme::DOUBLE_HASH, "(D)I"),
+                        _ => (nme::FLOAT_HASH, "(F)I"),
                     };
                     self.expr(b, value)?;
                     b.code.invoke(Invoke::Static, b.pool, statics, name, d);
                 }
                 None => {
                     self.expr(b, qualifier)?;
-                    b.code.invoke(Invoke::Static, b.pool, statics, "anyHash", "(Ljava/lang/Object;)I");
+                    b.code.invoke(Invoke::Static, b.pool, statics, nme::ANY_HASH, "(Ljava/lang/Object;)I");
                 }
             },
         }

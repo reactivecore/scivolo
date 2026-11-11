@@ -6,6 +6,7 @@
 use super::Fallible;
 use super::decode::Expr;
 use crate::host::Host;
+use names::nme;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId};
 use typer::tpd::TNodeId;
 
@@ -39,7 +40,7 @@ impl Host {
         let info =
             self.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
         let synthetic = 1 << tasty::tags::SYNTHETIC;
-        let meth = self.reflect().new_term((owner, "$anonfun", Kind::Def), info, synthetic)?;
+        let meth = self.reflect().new_term((owner, nme::ANON_FUN, Kind::Def), info, synthetic)?;
         let params = self.method_params(meth)?;
         let mut refs = Vec::new();
         for p in params.iter().flatten() {

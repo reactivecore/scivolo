@@ -13,6 +13,7 @@ use crate::phases::case_members::case_accessors;
 use crate::phases::type_tests::not_null::is_not_null;
 use crate::symbols::has;
 use crate::{Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::SymbolId;
 use tasty::tags::SYNTHETIC;
@@ -77,7 +78,7 @@ impl Translator<'_, '_> {
     ) -> Result<PlanId> {
         let extractor = self.l.tpd.sym(self.l.tpd.meth_part(unapp)).expect("an extractor's symbol");
         let span = self.l.tpd.span(unapp);
-        if self.l.u.symbol(extractor).name == "unapplySeq" {
+        if self.l.u.symbol(extractor).name == nme::UNAPPLY_SEQ {
             return self.let_abstract(unapp, None, |t, result| {
                 let result_type = t.l.u.info(result);
                 if t.is_sequence(result_type) {
@@ -89,7 +90,7 @@ impl Translator<'_, '_> {
                 if let Some(plan) = t.generic_tuple_plan(result, args, on_success)? {
                     return Ok(plan);
                 }
-                let Some(get) = t.member_named(result_type, "get") else {
+                let Some(get) = t.member_named(result_type, nme::GET) else {
                     return unsupported(span, "sequence extractors without `get`");
                 };
                 let value = t.l.ident(result, Span::NONE);
@@ -147,7 +148,7 @@ impl Translator<'_, '_> {
             if let Some(plan) = t.generic_tuple_plan(result, args, on_success)? {
                 return Ok(plan);
             }
-            let Some(get) = t.member_named(result_type, "get") else {
+            let Some(get) = t.member_named(result_type, nme::GET) else {
                 return unsupported(span, "extractors without `get`");
             };
             let value = t.l.ident(result, Span::NONE);

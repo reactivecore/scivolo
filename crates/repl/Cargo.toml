@@ -13,6 +13,7 @@ name = "repl"
 libimage.workspace = true
 lower.workspace = true
 macros.workspace = true
+names.workspace = true
 syntax.workspace = true
 tasty.workspace = true
 typer.workspace = true

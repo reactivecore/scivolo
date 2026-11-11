@@ -4,6 +4,7 @@ use super::{
     CaseClasses, Equality, LazyVals, Monitors, PartialFunctions, Patmat, Sequences, Strings, member, package,
 };
 use crate::{Lower, Result, Unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Universe};
 
@@ -50,7 +51,7 @@ impl Lower<'_> {
         resolved(&mut self.defs.serialization, self.u, |u| {
             let class = member(u, u.defn().java_lang, "Class", Kind::Class)?;
             let proxy = member(u, package(u, "scala.runtime")?, "ModuleSerializationProxy", Kind::Class)?;
-            Ok(Serialization { class, proxy, proxy_ctor: member(u, proxy, "<init>", Kind::Def)? })
+            Ok(Serialization { class, proxy, proxy_ctor: member(u, proxy, nme::CONSTRUCTOR, Kind::Def)? })
         })
     }
 
@@ -74,7 +75,7 @@ impl Lower<'_> {
     pub fn array_clone(&mut self) -> Result<SymbolId> {
         resolved(&mut self.defs.array_clone, self.u, |u| {
             let array = u.defn().array(u)?;
-            member(u, array, "clone", Kind::Def)
+            member(u, array, nme::CLONE, Kind::Def)
         })
     }
 }

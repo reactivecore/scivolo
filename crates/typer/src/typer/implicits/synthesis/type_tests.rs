@@ -8,6 +8,7 @@ use super::Synthesizer;
 use crate::defn::TYPE_TEST;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use crate::typer::{Pt, Typer};
+use names::nme;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, TName, Tree};
 use tasty::{SymbolId, TypeId, Universe};
@@ -37,7 +38,7 @@ impl Synthesizer {
         if t.u.is_subtype(from, to) {
             let module = t.resolve_full_name(TYPE_TEST, false).ok_or("TypeTest")?;
             let module_class = t.u.module_class(module).ok_or("TypeTest")?;
-            let decl = t.u.decl(module_class, "identity").ok().and_then(|d| d.first().copied());
+            let decl = t.u.decl(module_class, nme::IDENTITY).ok().and_then(|d| d.first().copied());
             let identity = s.ref_splice(t, decl.ok_or("TypeTest.identity")?);
             let targ = s.type_splice(t, to);
             let tree = s.ast_apply(t, identity, targ, true);
@@ -52,18 +53,18 @@ impl Synthesizer {
         let mods = t.ast.mods(Modifiers::default());
         let param = s.node(t, Tree::ValDef { name, tpt, rhs: None, mods });
         let reference = s.node(t, Tree::Ident { name });
-        let test = s.ast_select(t, reference, "isInstanceOf");
+        let test = s.ast_select(t, reference, nme::IS_INSTANCE_OF);
         let targ = s.type_splice(t, to);
         let cond = s.ast_apply(t, test, targ, true);
         let reference = s.node(t, Tree::Ident { name });
         let singleton = s.node(t, Tree::SingletonTypeTree { reference });
-        let and = TName { name: t.name("&"), is_type: true };
+        let and = TName { name: t.name(nme::AND), is_type: true };
         let and = s.node(t, Tree::Ident { name: and });
         let targ = s.type_splice(t, to);
         let args = t.ast.list(&[singleton, targ]);
         let both = s.node(t, Tree::AppliedTypeTree { tpt: and, args });
         let reference = s.node(t, Tree::Ident { name });
-        let cast = s.ast_select(t, reference, "asInstanceOf");
+        let cast = s.ast_select(t, reference, nme::AS_INSTANCE_OF);
         let cast = s.ast_apply(t, cast, both, true);
         let some = t.resolve_full_name(crate::defn::SOME, false).ok_or("Some")?;
         let some = s.ref_splice(t, some);

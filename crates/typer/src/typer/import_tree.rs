@@ -8,6 +8,7 @@ use super::Typer;
 use super::imports::{ImportEntry, ImportInfo};
 use crate::ctx::Level;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{List, NodeId, TName, Tree};
 use tasty::{Type, TypeId};
 
@@ -75,7 +76,7 @@ impl Typer<'_> {
         let named: Vec<(String, String)> = info
             .selectors
             .iter()
-            .filter(|s| s.name != "_" && !s.name.is_empty())
+            .filter(|s| s.name != nme::WILDCARD && !s.name.is_empty())
             .map(|s| (s.name.clone(), s.rename.clone()))
             .collect();
         for (k, (name, rename)) in named.iter().enumerate() {
@@ -83,10 +84,10 @@ impl Typer<'_> {
                 return Err("import of a missing member");
             }
             let earlier = &named[..k];
-            if rename != "_" && earlier.iter().any(|(_, r)| r == rename) {
+            if rename != nme::WILDCARD && earlier.iter().any(|(_, r)| r == rename) {
                 return Err("name imported twice");
             }
-            let imported = |r: &str| r != "_";
+            let imported = |r: &str| r != nme::WILDCARD;
             if earlier.iter().any(|(n, r)| n == name && imported(r) != imported(rename)) {
                 return Err("name imported and unimported");
             }

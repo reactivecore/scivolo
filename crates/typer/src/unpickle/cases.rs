@@ -6,6 +6,7 @@
 
 use super::{Refusal, Unpickler};
 use crate::tpd::{MatchKind, TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::TName;
 use tasty::tags::*;
 use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, Type, TypeId, View, view};
@@ -53,7 +54,7 @@ impl Unpickler<'_> {
         let expr = self.term(self.kids(id)[0])?;
         let throw = crate::special::throw_method(self.u);
         let fun_tpe = self.u.intern_type(Type::Sym(None, throw));
-        let name = TName { name: self.names.intern("throw"), is_type: false };
+        let name = TName { name: self.names.intern(nme::THROW), is_type: false };
         let fun = self.bare(T::Ident { name }, Some(fun_tpe), Some(throw));
         let nothing = self.class_type("scala.Nothing")?;
         let args = self.tpd.list(&[expr]);
@@ -129,7 +130,7 @@ impl Unpickler<'_> {
             self.u.defined_at(self.file, id).ok_or("type binding outside a case in a library inline body")?;
         let k = self.kids(id);
         let info = self.u.info(s);
-        let body = match self.tag(k[1]) == IDENTtpt && self.name(k[1]) == "_" {
+        let body = match self.tag(k[1]) == IDENTtpt && self.name(k[1]) == nme::WILDCARD {
             true => self.bare(T::TypeTree { inferred: false }, Some(info), None),
             false => self.tpt(k[1])?,
         };

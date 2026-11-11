@@ -6,6 +6,7 @@
 use super::Typer;
 use super::java_classes::is_java_member;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
+use names::nme;
 use tasty::{Kind, SymbolId, Type, Universe};
 
 /// dotty's `PurityLevel` bits: evaluating twice gives the same, evaluating has no effect, the
@@ -153,7 +154,7 @@ fn is_method_typed(t: &mut Typer, tree: TNodeId) -> bool {
 /// class that initializes nothing.
 fn is_pure_apply(t: &mut Typer, tree: TNodeId, callee: Option<SymbolId>) -> bool {
     let Some(s) = callee else { return false };
-    if t.u.symbol(s).name == "<init>" {
+    if t.u.symbol(s).name == nme::CONSTRUCTOR {
         return t.is_stable_member(s) && !is_java_member(t.u, s);
     }
     if is_pure_case_apply(t, s) {
@@ -165,7 +166,7 @@ fn is_pure_apply(t: &mut Typer, tree: TNodeId, callee: Option<SymbolId>) -> bool
 /// dotty's `isPureSyntheticCaseApply`.
 fn is_pure_case_apply(t: &mut Typer, s: SymbolId) -> bool {
     let sym = t.u.symbol(s);
-    if sym.name != "apply" || !sym.flags.has(tasty::tags::SYNTHETIC) {
+    if sym.name != nme::APPLY || !sym.flags.has(tasty::tags::SYNTHETIC) {
         return false;
     }
     let Some(module) = sym.owner else { return false };

@@ -6,6 +6,7 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{List, NodeId, Tree};
 use tasty::Type;
 
@@ -25,7 +26,7 @@ impl Typer<'_> {
         let span = self.ast.span(id);
         self.ast.with_span(function, span);
         let refs = self.ast.items(refs).to_vec();
-        let retaining = self.ast.make_retaining(self.names, function, &refs, "retains");
+        let retaining = self.ast.make_retaining(self.names, function, &refs, nme::RETAINS);
         self.typed_type(retaining, ctx)
     }
 
@@ -41,6 +42,6 @@ impl Typer<'_> {
     fn by_name_retaining(&mut self, result: NodeId) -> NodeId {
         let Tree::CapturesAndResult { refs, parent } = *self.ast.tree(result) else { return result };
         let refs = self.ast.items(refs).to_vec();
-        self.ast.make_retaining(self.names, parent, &refs, "retainsByName")
+        self.ast.make_retaining(self.names, parent, &refs, nme::RETAINS_BY_NAME)
     }
 }

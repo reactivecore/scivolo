@@ -9,6 +9,7 @@ use crate::ast::{NodeId, Tree};
 use crate::source::Offset;
 use crate::token::Token;
 use crate::token::sets::MODIFIER_TOKENS;
+use names::nme;
 
 impl Parser<'_> {
     /// Parse the whole source.
@@ -35,7 +36,7 @@ impl Parser<'_> {
             [stat] if matches!(self.ast.tree(stat), Tree::PackageDef { .. }) => stat,
             [] => self.empty_tree(),
             _ => {
-                let name = self.term("<empty>");
+                let name = self.term(nme::EMPTY_PACKAGE);
                 let pid = self.ast.node(Tree::Ident { name });
                 let stats = self.ast.list(&stats);
                 self.ast.node(Tree::PackageDef { pid, stats })

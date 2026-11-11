@@ -23,7 +23,7 @@ mod value;
 
 use crate::tags::{PARAMsetter, TRAIT};
 use crate::types::{Type, TypeId};
-use crate::{Kind, SymbolId, Universe};
+use crate::{Kind, SymbolId, Universe, defn};
 pub use signatures::{MatchDegree, match_degree};
 pub use special::PRIMITIVE_VALUE_CLASSES;
 use special::special;
@@ -46,7 +46,34 @@ pub enum Erased {
 }
 
 fn object() -> Erased {
-    Erased::Class(crate::defn::OBJECT.into())
+    Erased::object()
+}
+
+impl Erased {
+    /// Returns the erasure of `java.lang.Object`.
+    pub fn object() -> Erased {
+        Erased::Class(defn::OBJECT.into())
+    }
+
+    /// Returns the erasure of `scala.runtime.BoxedUnit`, a boxed `Unit`.
+    pub fn boxed_unit() -> Erased {
+        Erased::Class(defn::BOXED_UNIT.into())
+    }
+
+    /// Returns the erasure of `java.lang.String`.
+    pub fn string() -> Erased {
+        Erased::Class(defn::STRING.into())
+    }
+
+    /// Returns the erasure of `scala.Function0`, a by-name parameter's.
+    pub fn function0() -> Erased {
+        Erased::Class(defn::FUNCTION0.into())
+    }
+
+    /// Replaces `Unit` by `BoxedUnit`, the erasure of a `Unit` value.
+    pub fn boxing_unit(self) -> Erased {
+        if self == Erased::Unit { Erased::boxed_unit() } else { self }
+    }
 }
 
 impl Universe {
@@ -95,12 +122,12 @@ impl Universe {
             },
             Type::Skolem(_, p) => self.erase(p),
             Type::Lambda { result, .. } => self.erase(result),
-            Type::ByName(_) => Erased::Class("scala.Function0".into()),
+            Type::ByName(_) => Erased::function0(),
             Type::And(..) if self.scala2_erasure() => self.erase_scala2_and(t),
             Type::And(a, b) => self.erase_and(a, b),
             Type::Or(a, b, _) => self.erase_or(a, b),
             Type::Constant(tag, _) => special::constant(tag),
-            Type::Str(_) => Erased::Class("java.lang.String".into()),
+            Type::Str(_) => Erased::string(),
             _ => object(),
         }
     }

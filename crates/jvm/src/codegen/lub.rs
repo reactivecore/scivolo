@@ -4,6 +4,7 @@
 //! The common superclass of two classes for stack map frames (dotty's `jvmWiseLUB`).
 
 use super::Gen;
+use names::name_kinds;
 use tasty::SymbolId;
 
 const OBJECT: &str = "java/lang/Object";
@@ -119,9 +120,9 @@ impl Gen<'_, '_> {
         if let Some(c) = self.member_class_named(package, name, internal) {
             return Some(c);
         }
-        let (prefix, _) = name.split_once("$$$$")?;
+        let (prefix, _) = name.split_once(&name_kinds::EXPAND_SEPARATOR.repeat(2))?;
         let tops = self.l.u.decls(package).unwrap_or_default().into_iter();
-        let outer = |n: &str| n.starts_with(prefix) || prefix.starts_with(&format!("{n}$"));
+        let outer = |n: &str| n.starts_with(prefix) || prefix.starts_with(&name_kinds::flat(n, ""));
         let tops: Vec<_> = tops.filter(|&c| outer(&self.l.u.symbol(c).name)).collect();
         tops.into_iter().find_map(|c| self.nested_class_named(c, internal))
     }

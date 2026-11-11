@@ -5,6 +5,7 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::{name_kinds, nme};
 use syntax::ast::TName;
 use tasty::tags::{OBJECT, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type};
@@ -50,15 +51,15 @@ impl Typer<'_> {
         }
         let span = self.tpd.span(f);
         let sym = self.u.symbol(method);
-        let ctor = sym.name == "<init>";
+        let ctor = sym.name == nme::CONSTRUCTOR;
         let values = clauses.iter().map(|c| if let Clause::Values(args) = c { args.len() } else { 0 });
         let n = n + values.sum::<usize>();
-        let base = if ctor || sym.name == "apply" && sym.flags.has(SYNTHETIC) {
-            "$lessinit$greater"
+        let base = if ctor || sym.name == nme::APPLY && sym.flags.has(SYNTHETIC) {
+            name_kinds::DEFAULT_GETTER_INIT
         } else {
             &sym.name
         };
-        let mut getter_name = format!("{base}$default${}", n + 1);
+        let mut getter_name = name_kinds::default_getter(base, n + 1);
         let local = matches!(*self.tpd.tree(mref), T::Ident { .. })
             && matches!(*self.u.ty(self.tpd.tpe(mref)), Type::Sym(None, _));
         let mut getter = if local {
@@ -76,13 +77,15 @@ impl Typer<'_> {
                 _ => return Err("default argument"),
             };
             let (mut receiver, mut site) = (receiver, self.tpd.tpe(receiver));
-            let mut sym_name = getter_name.replace("$lessinit$greater", "<init>");
+            let mut sym_name = getter_name.replace(name_kinds::DEFAULT_GETTER_INIT, nme::CONSTRUCTOR);
             if self.type_members(site, &sym_name).is_empty()
                 && let Some(module) = self.given_class_companion(method)
             {
-                (site, sym_name) =
-                    (crate::defn::type_ref(self.u, module), format!("<init>$default${}", n + 1));
-                getter_name = sym_name.replace("<init>", "$lessinit$greater");
+                (site, sym_name) = (
+                    crate::defn::type_ref(self.u, module),
+                    name_kinds::default_getter(nme::CONSTRUCTOR, n + 1),
+                );
+                getter_name = sym_name.replace(nme::CONSTRUCTOR, name_kinds::DEFAULT_GETTER_INIT);
                 receiver = self.build().ident(module, site, span);
             }
             let [getter] = self.type_members(site, &sym_name)[..] else { return Err("default getter") };
@@ -167,7 +170,7 @@ impl Typer<'_> {
 
     /// The package and the object of package object class `c` (a unit's top-level definitions).
     fn package_object(&mut self, c: SymbolId) -> Option<(SymbolId, SymbolId)> {
-        if !tasty::module_name(&self.u.symbol(c).name).is_some_and(|n| n.ends_with("$package")) {
+        if !tasty::module_name(&self.u.symbol(c).name).is_some_and(|n| n.ends_with(nme::TOPLEVEL_SUFFIX)) {
             return None;
         }
         let pkg = self.u.symbol(c).owner.filter(|&o| self.u.symbol(o).kind == Kind::Package)?;

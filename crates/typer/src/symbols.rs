@@ -179,7 +179,7 @@ impl Syms {
 fn is_derived(name: &str) -> bool {
     let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
     let unique = name.strip_prefix('$').and_then(|n| n.strip_suffix('$')).is_some_and(digits);
-    name.contains("$default$") || unique || name.strip_prefix("_$").is_some_and(digits)
+    name.contains(names::name_kinds::DEFAULT_GETTER) || unique || name.strip_prefix("_$").is_some_and(digits)
 }
 
 /// The TASTy modifiers `TreePickler.pickleFlags` writes for dotty flags `flags`.

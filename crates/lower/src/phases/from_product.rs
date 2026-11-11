@@ -9,6 +9,7 @@ use super::mirror_prefixes::new_seen_from;
 use super::mirrors::has_mirror_method;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
@@ -29,14 +30,14 @@ pub fn from_product(
     let cc = l.case_classes()?;
     let product = type_ref(l.u, cc.product);
     let binder = l.u.fresh_binder();
-    let x0 = l.u.intern_name("x$0");
+    let x0 = l.u.intern_name(&name_kinds::synthetic_param(0));
     let info = l.u.intern_method(binder, &[(x0, product)], mono, false, false);
-    let like = l.u.decls_named(cc.mirror_product, "fromProduct");
+    let like = l.u.decls_named(cc.mirror_product, nme::FROM_PRODUCT);
     let like = like.into_iter().next().expect("`Mirror.Product.fromProduct`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
     }
-    let ctor = l.u.decls_named(case_class, "<init>");
+    let ctor = l.u.decls_named(case_class, nme::CONSTRUCTOR);
     let ctor = ctor.into_iter().next().expect("a case class constructor");
     let (created_type, param_types) = instantiated_constructor(l, case_class, ctor);
     let flags = Flags::default().with(SYNTHETIC);
@@ -53,7 +54,7 @@ pub fn from_product(
             let rhs = l.select(product_ref, cc.product_arity, Span::NONE);
             let rhs = l.positioned(rhs);
             let int = l.u.widen(l.tpd.tpe(rhs));
-            let (def, binding) = val_def(l, class, "arity", int, rhs);
+            let (def, binding) = val_def(l, class, nme::ARITY, int, rhs);
             locals.push(binding);
             defs.push(def);
             arity = Some(binding);
@@ -72,7 +73,7 @@ pub fn from_product(
             let mut element = l.call(product_ref, cc.product_element, &[index]);
             if let Some(arity) = arity.filter(|_| i >= unrolled_from) {
                 let (arity, index) = (l.ident(arity, Span::NONE), l.int_literal(i as i32));
-                let gt = l.operator(arity, ">", index).expect("`Int.>(Int)`");
+                let gt = l.operator(arity, nme::GT, index).expect("`Int.>(Int)`");
                 let cond = l.call(arity, gt, &[index]);
                 let module = l.ident(module, Span::NONE);
                 let default = l.select(module, getters[i - unrolled_from], Span::NONE);
@@ -135,7 +136,7 @@ fn unrolled_getters(
     let class = l.u.module_class(module).unwrap_or(module);
     let mut getters = Vec::new();
     for n in first..accessors.len() {
-        let name = format!("<init>$default${}", n + 1);
+        let name = name_kinds::default_getter(nme::CONSTRUCTOR, n + 1);
         let getter = l.u.decls_named(class, &name).into_iter().next();
         let info = getter.map(|g| l.u.info(g));
         let plain = info.is_some_and(|i| !matches!(l.u.ty(i), Type::Poly { .. } | Type::Method { .. }));

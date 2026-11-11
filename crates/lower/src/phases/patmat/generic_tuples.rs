@@ -7,6 +7,7 @@ use super::super::tuple_optimizations::elements::tuple_element_types;
 use super::Translator;
 use super::plan::PlanId;
 use crate::{Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::SymbolId;
 use typer::tpd::TNodeId;
@@ -34,7 +35,7 @@ impl Translator<'_, '_> {
             let tuples =
                 self.l.u.decl(runtime, "Tuples").ok()?.into_iter().find(|&s| self.l.u.is_module(s))?;
             let class = self.l.u.module_class(tuples)?;
-            Some((tuples, *self.l.u.decl(class, "apply").ok()?.first()?))
+            Some((tuples, *self.l.u.decl(class, nme::APPLY).ok()?.first()?))
         });
         let Some((tuples, apply)) = found else { return unsupported(Span::NONE, "`Tuples.apply` not found") };
         let any = tasty::ANY;

@@ -8,6 +8,7 @@ mod signatures;
 use super::{Kind, SymbolId, Universe};
 use crate::Erased;
 use classfile::{ACC_ANNOTATION, ACC_MODULE, ACC_PUBLIC};
+use names::nme;
 
 impl Universe {
     /// Makes the JDK's packages and classes the library lacks known from `jdk`'s class files.
@@ -72,7 +73,8 @@ impl Universe {
             rest = r;
         }
         let owner = self.symbol(def).owner?;
-        let result = match self.symbol(def).name == "<init>" && self.symbol(owner).kind == Kind::Class {
+        let result = match self.symbol(def).name == nme::CONSTRUCTOR && self.symbol(owner).kind == Kind::Class
+        {
             true => Erased::Class(self.full_name(owner)),
             false => erase(result)?.0,
         };

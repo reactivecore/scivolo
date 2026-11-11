@@ -6,6 +6,7 @@
 use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::typer::{InlineDef, Typer};
+use names::nme;
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
@@ -110,7 +111,7 @@ impl Typer<'_> {
         let is_value = |c: &&Vec<SymbolId>| c.first().is_some_and(|&p| !self.u.is_type_symbol(p));
         let value_clauses = clauses.iter().filter(is_value).cloned().collect();
         self.syms.param_clauses.insert(sym, value_clauses);
-        let result = if self.u.symbol(sym).name == "<init>" {
+        let result = if self.u.symbol(sym).name == nme::CONSTRUCTOR {
             let class = self.u.symbol(sym).owner.expect("a constructor's class");
             let class_ref = crate::defn::type_ref(self.u, class);
             let tparams: Vec<SymbolId> =
@@ -128,8 +129,11 @@ impl Typer<'_> {
             self.result_type(sym, tpt, rhs, mctx)
         };
         self.syms.def_results.insert(sym, result);
-        let clauses =
-            if self.u.symbol(sym).name == "<init>" { self.normalized_constructor(clauses) } else { clauses };
+        let clauses = if self.u.symbol(sym).name == nme::CONSTRUCTOR {
+            self.normalized_constructor(clauses)
+        } else {
+            clauses
+        };
         self.clauses_info(clauses, result)
     }
 

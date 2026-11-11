@@ -7,6 +7,7 @@ use super::{Desugar, Mode, Owner};
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{NodeId, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     /// The value, method, type, class or object definition `id` transformed.
@@ -19,7 +20,7 @@ impl Desugar<'_> {
                 d.ast.derived(id, Tree::ValDef { name, tpt, rhs, mods })
             }),
             Tree::DefDef { name, paramss, tpt, rhs, mods } => {
-                let is_constructor = self.text(name) == "<init>";
+                let is_constructor = self.text(name) == nme::CONSTRUCTOR;
                 self.in_term(is_constructor, |d| {
                     let paramss = d.transform_clauses(paramss);
                     let tpt = d.in_mode(Mode::Type, |d| d.transform(tpt));
@@ -45,7 +46,8 @@ impl Desugar<'_> {
             }
             Tree::ModuleDef { name, imp, mods } => {
                 let is_package_object = self.owner == Owner::Package
-                    && (self.ast.modifiers(mods).is(flags::PACKAGE) || self.text(name).ends_with("$package"));
+                    && (self.ast.modifiers(mods).is(flags::PACKAGE)
+                        || self.text(name).ends_with(nme::TOPLEVEL_SUFFIX));
                 let owner = Owner::Class { is_trait: false, is_package_object };
                 let module_class =
                     if self.ast.modifiers(mods).is(flags::PACKAGE) { "package" } else { self.text(name) };

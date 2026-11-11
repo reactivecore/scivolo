@@ -5,6 +5,7 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
+use names::nme;
 use syntax::ast::{Ast, List, NodeId, Span, Tree};
 use tasty::tags::{MUTABLE, OBJECT};
 use tasty::{Binding, Kind, SymbolId, Type, TypeId};
@@ -14,7 +15,7 @@ impl Typer<'_> {
     /// type and reports a mismatch; the trees at `span` lie on one path.
     pub fn certain_context(&mut self, span: Span, ctx: Ctx) -> bool {
         let Some((root, path)) = self.mismatch_path(span) else { return false };
-        self.u.symbol(ctx.owner).name != "<init>"
+        self.u.symbol(ctx.owner).name != nme::CONSTRUCTOR
             && path.iter().filter(|&&n| has_span(self.ast, n, span)).count()
                 == count_spans(self.ast, root, span)
             && path.windows(2).all(|w| self.certain_edge(w[0], w[1], ctx))
@@ -42,7 +43,7 @@ impl Typer<'_> {
             Tree::Function { body, .. } => body == child,
             Tree::Typed { expr, tpt } => {
                 let plain = match *self.ast.tree(tpt) {
-                    Tree::Ident { name } => self.text(name.name) != "_*",
+                    Tree::Ident { name } => self.text(name.name) != nme::WILDCARD_STAR,
                     Tree::Annotated { .. } => false,
                     _ => true,
                 };
@@ -85,7 +86,7 @@ impl Typer<'_> {
                 if self.u.symbol(s).kind == Kind::Def {
                     return self.is_monomorphic(s, arity);
                 }
-                (s, "apply".to_owned())
+                (s, nme::APPLY.to_owned())
             }
             Tree::Select { qualifier, name } => {
                 let text = self.text(name.name).to_owned();
@@ -98,7 +99,9 @@ impl Typer<'_> {
                         let Some(s) = self.only_ref(&q, false, ctx) else { return false };
                         (s, text)
                     }
-                    Tree::New { tpt } if text == "<init>" => return self.plain_constructor(tpt, arity, ctx),
+                    Tree::New { tpt } if text == nme::CONSTRUCTOR => {
+                        return self.plain_constructor(tpt, arity, ctx);
+                    }
                     _ => return false,
                 }
             }
@@ -121,13 +124,11 @@ impl Typer<'_> {
         let Tree::Ident { name } = *self.ast.tree(tpt) else { return false };
         let text = self.text(name.name).to_owned();
         let Some(c) = self.only_ref(&text, true, ctx) else { return false };
-        if self.u.symbol(c).kind != Kind::Class
-            || !self.u.type_params(c).is_empty()
-            || !self.is_concrete_class(c)
-        {
+        let class = self.u.symbol(c).kind == Kind::Class;
+        if !class || !self.u.type_params(c).is_empty() || !self.is_concrete_class(c) {
             return false;
         }
-        matches!(self.class_members(c, "<init>")[..], [init] if self.is_monomorphic(init, arity))
+        matches!(self.class_members(c, nme::CONSTRUCTOR)[..], [init] if self.is_monomorphic(init, arity))
     }
 
     /// The only symbol `name` refers to in `ctx`, a term the class it is found in has no other

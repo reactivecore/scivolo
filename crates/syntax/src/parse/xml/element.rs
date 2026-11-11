@@ -8,6 +8,16 @@ use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{NodeId, Span, Tree};
 use crate::parse::Parser;
+use names::nme;
+
+/// The name of the scope a literal's namespace bindings build.
+const TMP_SCOPE: &str = "$tmpscope";
+/// The name of the attributes of an element.
+const METADATA: &str = "$md";
+/// The name of `scala.xml.NamespaceBinding`.
+const NAMESPACE_BINDING: &str = "NamespaceBinding";
+/// The name of `scala.xml.Null`, the empty attributes.
+const NULL: &str = "Null";
 
 impl Parser<'_> {
     /// Element `qname` with attributes `attrs` in the order written.
@@ -37,7 +47,7 @@ impl Parser<'_> {
         let attributes: Vec<NodeId> =
             attrs.iter().rev().map(|(key, value)| self.attribute(synthetic, key, *value)).collect();
         let symbolic_attrs =
-            if attributes.is_empty() { self.xml_term("Null") } else { self.xml_ident("$md") };
+            if attributes.is_empty() { self.xml_term(NULL) } else { self.xml_ident(METADATA) };
         let (attr_result, ns_result) = match (attributes.is_empty(), namespaces.is_empty()) {
             (true, true) => (Vec::new(), Vec::new()),
             (true, false) => (vec![self.scope_def()], [vec![self.tmp_scope_def()], namespaces].concat()),
@@ -48,7 +58,7 @@ impl Parser<'_> {
             ),
         };
         let label = self.xml_const(label);
-        let scope = self.xml_ident("$scope");
+        let scope = self.xml_ident(nme::SCOPE);
         let body = self.make_xml_elem(synthetic, [pre, label, symbolic_attrs, scope], empty, args);
         let inner = self.xml_block(&attr_result, body);
         let outer = self.xml_block(&ns_result, inner);
@@ -72,9 +82,9 @@ impl Parser<'_> {
             },
             _ => value,
         };
-        let tmp = self.xml_ident("$tmpscope");
-        let binding = self.xml_new("NamespaceBinding", &[prefix, uri, tmp]);
-        let lhs = self.xml_ident("$tmpscope");
+        let tmp = self.xml_ident(TMP_SCOPE);
+        let binding = self.xml_new(NAMESPACE_BINDING, &[prefix, uri, tmp]);
+        let lhs = self.xml_ident(TMP_SCOPE);
         self.ast.node(Tree::Assign { lhs, rhs: binding })
     }
 
@@ -90,9 +100,9 @@ impl Parser<'_> {
         };
         args.push(self.xml_const(key));
         args.push(value);
-        args.push(self.xml_ident("$md"));
+        args.push(self.xml_ident(METADATA));
         let rhs = self.xml_new(class, &args);
-        let lhs = self.xml_ident("$md");
+        let lhs = self.xml_ident(METADATA);
         let t = self.ast.node(Tree::Assign { lhs, rhs });
         self.at_span(span, t)
     }
@@ -105,17 +115,17 @@ impl Parser<'_> {
     }
 
     fn scope_def(&mut self) -> NodeId {
-        let (tpt, rhs) = (self.xml_type("NamespaceBinding"), self.xml_ident("$tmpscope"));
-        self.val_def("$scope", tpt, rhs, false)
+        let (tpt, rhs) = (self.xml_type(NAMESPACE_BINDING), self.xml_ident(TMP_SCOPE));
+        self.val_def(nme::SCOPE, tpt, rhs, false)
     }
 
     fn tmp_scope_def(&mut self) -> NodeId {
-        let (tpt, rhs) = (self.xml_type("NamespaceBinding"), self.xml_ident("$scope"));
-        self.val_def("$tmpscope", tpt, rhs, true)
+        let (tpt, rhs) = (self.xml_type(NAMESPACE_BINDING), self.xml_ident(nme::SCOPE));
+        self.val_def(TMP_SCOPE, tpt, rhs, true)
     }
 
     fn metadata_def(&mut self) -> NodeId {
-        let (tpt, rhs) = (self.xml_type("MetaData"), self.xml_term("Null"));
-        self.val_def("$md", tpt, rhs, true)
+        let (tpt, rhs) = (self.xml_type("MetaData"), self.xml_term(NULL));
+        self.val_def(METADATA, tpt, rhs, true)
     }
 }

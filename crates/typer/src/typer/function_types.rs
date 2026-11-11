@@ -9,6 +9,7 @@ use super::type_ops::TypeOps;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::tree::ModsId;
 use syntax::ast::{List, NodeId};
@@ -155,7 +156,7 @@ impl TypeOps<'_> {
         let z = self.zonk(t);
         let d = self.u.dealias(z);
         if let Type::Refined(parent, name, info) = *self.u.ty(d)
-            && self.u.name(name) == "apply"
+            && self.u.name(name) == nme::APPLY
             && let Type::Method { binder, result, .. } = *self.u.ty(info)
             && !mentions_params(self.u, result, binder, None)
         {

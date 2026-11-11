@@ -7,6 +7,7 @@
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::name_kinds;
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{
@@ -113,10 +114,15 @@ fn param_setter(l: &mut Lower, class: SymbolId, var: SymbolId, name: &str, span:
     let value = l.u.info(var);
     let unit = l.u.class_ref(tasty::defn::UNIT);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("x$0"), value)];
+    let params = [(l.u.intern_name(&name_kinds::synthetic_param(0)), value)];
     let info = l.u.intern_method(binder, &params, unit, false, false);
     l.u.set_info(setter, info);
-    let param = l.u.define(symbol("x$0", Kind::Param, setter, Flags::default().with(SYNTHETIC)));
+    let param = l.u.define(symbol(
+        &name_kinds::synthetic_param(0),
+        Kind::Param,
+        setter,
+        Flags::default().with(SYNTHETIC),
+    ));
     l.u.set_info(param, value);
     let param = l.param_def(param, span);
     let tpt = l.type_tree(unit, span);
@@ -157,12 +163,12 @@ pub fn is_const_final(l: &mut Lower, s: SymbolId) -> bool {
 /// `mixin`, an abstract variable's.
 pub fn is_abstract_var_setter(l: &mut Lower, class: SymbolId, mixin: SymbolId, setter: SymbolId) -> bool {
     let name = l.u.symbol(setter).name.clone();
-    let getters = l.u.decls_named(mixin, name.strip_suffix("_=").unwrap_or(&name));
+    let getters = l.u.decls_named(mixin, name.strip_suffix(name_kinds::SETTER_SUFFIX).unwrap_or(&name));
     let var = getters.into_iter().find(|&g| has(l.u, g, MUTABLE) && !is_setter(l, g));
     var.is_some_and(|g| !super::trait_fields::implemented_by(l, class, g))
 }
 
 /// Whether `s` is the setter `x_=` of a variable.
 pub fn is_setter(l: &Lower, s: SymbolId) -> bool {
-    has(l.u, s, FIELDaccessor) && l.u.symbol(s).name.ends_with("_=")
+    has(l.u, s, FIELDaccessor) && l.u.symbol(s).name.ends_with(name_kinds::SETTER_SUFFIX)
 }

@@ -6,6 +6,7 @@
 use super::super::Typer;
 use super::{OverrideChecks, overridable};
 use crate::case_members::is_synthesized_override;
+use names::nme;
 use syntax::ast::flags as f;
 use tasty::tags::{CASE, OVERRIDE, TRAIT};
 use tasty::{SymbolId, Universe};
@@ -21,7 +22,7 @@ impl OverrideChecks {
         for &tr in &traits {
             let names: Vec<String> =
                 t.u.symbol(tr).decls.iter().map(|&d| t.u.symbol(d).name.clone()).collect();
-            for name in names.iter().filter(|n| !own_names.contains(n) && n.as_str() != "<init>") {
+            for name in names.iter().filter(|n| !own_names.contains(n) && n.as_str() != nme::CONSTRUCTOR) {
                 let concrete: Vec<SymbolId> = self
                     .bases
                     .iter()

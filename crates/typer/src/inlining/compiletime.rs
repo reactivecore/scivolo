@@ -6,6 +6,7 @@
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
+use names::nme;
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -139,7 +140,12 @@ impl Inlining<'_> {
             return Err((span, "constValueOpt of a type that is not constant"));
         };
         let some = self.scala_member("Some", Kind::Class).ok_or((span, crate::defn::SOME))?;
-        let ctor = self.u.decl(some, "<init>").ok().and_then(|d| d.first().copied()).ok_or((span, "Some"))?;
+        let ctor = self
+            .u
+            .decl(some, nme::CONSTRUCTOR)
+            .ok()
+            .and_then(|d| d.first().copied())
+            .ok_or((span, "Some"))?;
         let literal = self.literal(value, span);
         let elem = self.tpd.tpe(literal);
         let at = span.start_pos();
@@ -151,7 +157,7 @@ impl Inlining<'_> {
         let select = self.tpd.node(T::Select { qualifier: new, name }, at, Some(ctor_ref), Some(ctor));
         let applied = crate::defn::applied(self.u, some, vec![elem]);
         let binder = self.u.fresh_binder();
-        let params = [(self.u.intern_name("value"), elem)];
+        let params = [(self.u.intern_name(nme::VALUE), elem)];
         let method = self.u.intern_method(binder, &params, applied, false, false);
         let targ = self.tpd.node(T::TypeTree { inferred: false }, at, Some(elem), None);
         let targs = self.tpd.list(&[targ]);

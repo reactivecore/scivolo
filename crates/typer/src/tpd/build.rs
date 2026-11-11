@@ -4,6 +4,7 @@
 
 use super::{List, TNodeId, Tpd, Tree as T};
 use crate::defn::type_ref;
+use names::nme;
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName};
 use syntax::names::Names;
@@ -124,10 +125,10 @@ impl<'a> Build<'a> {
     /// Builds the cast `tree.asInstanceOf[to]` at `span`, typed as `to`.
     pub fn cast_to(&mut self, tree: TNodeId, to: TypeId, span: Span) -> Result<TNodeId, &'static str> {
         let any = self.u.defn().any;
-        let m = self.u.decl(any, "$asInstanceOf$").ok().and_then(|d| d.first().copied());
+        let m = self.u.decl(any, nme::AS_INSTANCE_OF_PM).ok().and_then(|d| d.first().copied());
         let m = m.ok_or("cast without Any.asInstanceOf")?;
         let select_tpe = self.u.intern_type(Type::Sym(Some(self.tpd.tpe(tree)), m));
-        let name = TName { name: self.names.intern("$asInstanceOf$"), is_type: false };
+        let name = TName { name: self.names.intern(nme::AS_INSTANCE_OF_PM), is_type: false };
         let fun = self.tpd.node(T::Select { qualifier: tree, name }, span, Some(select_tpe), Some(m));
         let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(to), None);
         let args = self.tpd.list(&[tpt]);

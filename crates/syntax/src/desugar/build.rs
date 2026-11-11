@@ -10,6 +10,7 @@ use crate::ast::flags::FlagSet;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::tree::ModsId;
 use crate::ast::{Attrs, List, NodeId, TName, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     pub fn list(&mut self, items: &[NodeId]) -> List {
@@ -31,7 +32,7 @@ impl Desugar<'_> {
 
     /// `_root_.scala.name`.
     pub fn scala_dot(&mut self, name: TName) -> NodeId {
-        let (root, scala) = (self.term("_root_"), self.term("scala"));
+        let (root, scala) = (self.term(nme::ROOT_PKG), self.term(nme::SCALA));
         let root = self.ident(root);
         let scala = self.select(root, scala);
         self.select(scala, name)
@@ -67,7 +68,7 @@ impl Desugar<'_> {
         let class_tag = self.ast.node(Tree::TypeApply { fun: class_tag, args });
         let class_tag = self.apply(class_tag, &[class_of]);
         let array = self.sym_ref("scala.Array", false);
-        let apply = self.term("apply");
+        let apply = self.term(nme::APPLY);
         let apply = self.select(array, apply);
         let args = self.list(&[tpt]);
         let apply = self.ast.node(Tree::TypeApply { fun: apply, args });

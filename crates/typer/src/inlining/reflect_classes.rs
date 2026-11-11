@@ -7,6 +7,7 @@
 use super::Reflect;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::TName;
 use tasty::tags::{ABSTRACT, FINAL, OBJECT, PARAMsetter, TRAIT};
 use tasty::{Flags, Kind, Symbol, SymbolId, TypeId};
@@ -34,7 +35,7 @@ impl Reflect<'_> {
 
     fn class_of(&mut self, owner: SymbolId, name: &str, flags: Flags) -> SymbolId {
         let class = self.define(name, Kind::Class, owner, flags);
-        let ctor = self.define("<init>", Kind::Def, class, Flags::default());
+        let ctor = self.define(nme::CONSTRUCTOR, Kind::Def, class, Flags::default());
         self.u.enter(ctor);
         let dummy = self.define(&format!("<local {name}>"), Kind::Val, class, Flags::default());
         self.u.enter(dummy);
@@ -50,7 +51,7 @@ impl Reflect<'_> {
     }
 
     pub fn constructor(&mut self, class: SymbolId) -> Result<SymbolId, &'static str> {
-        let ctor = self.u.decl(class, "<init>").ok().and_then(|c| c.first().copied());
+        let ctor = self.u.decl(class, nme::CONSTRUCTOR).ok().and_then(|c| c.first().copied());
         ctor.ok_or("a class without a constructor")
     }
 
@@ -130,7 +131,7 @@ impl Reflect<'_> {
         if self.u.is_trait(c) || !type_tree {
             return Ok(p);
         }
-        let ctors = self.u.decls_named(c, "<init>");
+        let ctors = self.u.decls_named(c, nme::CONSTRUCTOR);
         let no_args = |r: &mut Self, k: SymbolId| {
             let info = r.u.info(k);
             r.u.method(info).is_some_and(|m| m.params.is_empty() && r.u.method(m.result).is_none())

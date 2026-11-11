@@ -14,7 +14,7 @@ impl TreePickler<'_> {
     pub fn package(&mut self, pid: TNodeId, stats: List) -> Result<(), Refusal> {
         let tpe = self.tpd.get(pid).tpe.ok_or("a package clause without a type")?;
         let stats = self.tpd.items(stats).to_vec();
-        let root = matches!(*self.tpd.tree(pid), T::Ident { name } if self.names.text(name.name) == "_root_");
+        let root = matches!(*self.tpd.tree(pid), T::Ident { name } if self.names.text(name.name) == names::nme::ROOT_PKG);
         let empty = self.tpd.sym(pid) == Some(self.u.root()) && !root;
         self.with_length(PACKAGE, &mut |p| {
             match empty {

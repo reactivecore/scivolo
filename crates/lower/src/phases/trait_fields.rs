@@ -16,6 +16,7 @@ use super::trait_params::TraitCall;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PARAMsetter, PRIVATE, SYNTHETIC};
 use tasty::{Kind, SymbolId};
@@ -76,7 +77,8 @@ fn trait_setter(l: &mut Lower, trait_: SymbolId, getter: SymbolId, span: Span) -
     let value = l.u.result_type(getter_info);
     let setter = define_setter(l, trait_, &name, value);
     let unit = l.u.class_ref(tasty::defn::UNIT);
-    let param = l.u.define(symbol("x$0", Kind::Param, setter, tasty::Flags::default()));
+    let param =
+        l.u.define(symbol(&name_kinds::synthetic_param(0), Kind::Param, setter, tasty::Flags::default()));
     l.u.set_info(param, value);
     let param = l.param_def(param, span);
     let tpt = l.type_tree(unit, span);
@@ -120,7 +122,7 @@ pub fn mixed_in(
     }
     let at = if span.exists() { Span::at(span.point()) } else { span };
     if !l.u.no_inits(mixin) && function_class_arity(l, mixin).is_none() {
-        let init = l.u.decls_named(mixin, "<init>");
+        let init = l.u.decls_named(mixin, nme::CONSTRUCTOR);
         let init = init.into_iter().next().expect("a trait constructor");
         let at = if call_span.exists() { Span::at(call_span.start()) } else { at };
         let sup = l.super_mix(class, mixin, at);

@@ -4,6 +4,7 @@
 //! is `true`, `false || y` is `y`.
 
 use crate::Lower;
+use names::nme;
 use syntax::ast::constant::Constant;
 use typer::tpd::{TNodeId, Tree};
 
@@ -15,7 +16,7 @@ pub fn fold(l: &mut Lower, t: TNodeId) {
     let &Tree::Literal { value: Constant::Boolean(c) } = l.tpd.tree(x) else { return };
     let and = match l.tpd.sym(fun) {
         Some(op) if op == l.defs.and => true,
-        Some(op) if l.u.symbol(op).name == "||" && l.case_classes().is_ok_and(|c| c.or == op) => false,
+        Some(op) if l.u.symbol(op).name == nme::ZOR && l.case_classes().is_ok_and(|c| c.or == op) => false,
         _ => return,
     };
     l.copy_node(t, if c == and { y } else { x });

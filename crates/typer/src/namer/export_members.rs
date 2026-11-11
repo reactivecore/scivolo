@@ -6,6 +6,7 @@
 use super::exports::Export;
 use crate::case_members::is_synthesized_override;
 use crate::typer::Typer;
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags as t;
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -31,9 +32,9 @@ impl Typer<'_> {
                 let flags = self.u.symbol(m).flags;
                 if flags.has(t::PRIVATE)
                     || flags.has(t::SYNTHETIC)
-                    || name.starts_with("super$")
+                    || name.starts_with(name_kinds::SUPER_PREFIX)
                     || name.starts_with("<local ")
-                    || name.contains("$default$")
+                    || name.contains(name_kinds::DEFAULT_GETTER)
                     || case_path && self.is_case_synthesized(m)
                 {
                     continue;
@@ -111,7 +112,8 @@ impl Typer<'_> {
         if !self.is_accessible(m, e.ctx) {
             return Some(false);
         }
-        if name == "<init>" || kind == Kind::Class && flags.has(t::OBJECT) || flags.has(t::INVISIBLE) {
+        if name == nme::CONSTRUCTOR || kind == Kind::Class && flags.has(t::OBJECT) || flags.has(t::INVISIBLE)
+        {
             return None;
         }
         let owner = owner?;
@@ -163,19 +165,19 @@ impl Typer<'_> {
             return;
         }
         let name = self.u.symbol(m).name.clone();
-        if name == "apply" && self.u.symbol(m).flags.has(t::SYNTHETIC) {
+        if name == nme::APPLY && self.u.symbol(m).flags.has(t::SYNTHETIC) {
             self.unsupported_at(span, "export of a synthesized apply with default arguments");
             return;
         }
         for n in defaults {
-            let getter_name = format!("{name}$default${n}");
+            let getter_name = name_kinds::default_getter(&name, n);
             let getter =
                 self.type_members(e.path, &getter_name).into_iter().find(|&g| !self.u.is_type_symbol(g));
             let Some(getter) = getter else {
                 self.unsupported_at(span, "export of a method without its default getter");
                 return;
             };
-            self.add_forwarder(e, &format!("{alias}$default${n}"), getter, span);
+            self.add_forwarder(e, &name_kinds::default_getter(alias, n), getter, span);
         }
     }
 }

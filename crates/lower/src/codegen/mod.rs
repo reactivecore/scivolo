@@ -7,6 +7,7 @@ mod apply;
 mod args;
 mod array;
 mod attrs;
+mod binary_ops;
 mod body;
 mod branch;
 mod buf;

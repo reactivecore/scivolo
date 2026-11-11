@@ -10,6 +10,7 @@ use super::walk::{children, subtrees};
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, LAZY, SYNTHETIC};
@@ -108,16 +109,16 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     }
     let holder = holder(l, owner, &name, info, span)?;
     let new = l.new_(holder.class, Span::NONE);
-    let ctor = method(l, holder.class, "<init>", span)?;
+    let ctor = method(l, holder.class, nme::CONSTRUCTOR, span)?;
     let alloc = call(l, new, ctor, &[]);
     let holder_def = val_def(l, holder.sym, alloc);
     let holder_ref = l.ident(holder.sym, Span::NONE);
-    let get_value = holder_call(l, &holder, holder_ref, "value", &[], span)?;
+    let get_value = holder_call(l, &holder, holder_ref, nme::VALUE, &[], span)?;
     let get_value = l.with_span(get_value, span);
     let receiver = dup(l, holder_ref);
     let initialized = holder_call(l, &holder, receiver, "initialized", &[], span)?;
     l.tpd.get_mut(initialized).tpe = Some(l.u.class_ref(tasty::defn::BOOLEAN));
-    let init_name = fresh(l, &format!("{name}$lzyINIT"));
+    let init_name = fresh(l, &name_kinds::lazy_local_init(&name));
     let init = method_symbol(l, &init_name, owner, info);
     for s in subtrees(l.tpd, rhs) {
         if let Some(sym) = l.tpd.sym(s).filter(|&sym| l.u.symbol(sym).owner == Some(value)) {
@@ -171,7 +172,7 @@ fn holder(l: &mut Lower, owner: SymbolId, name: &str, info: TypeId, span: Span) 
     let Some(class) = class_named(l, &class_name) else {
         return unsupported(span, format!("{class_name} missing"));
     };
-    let holder_name = fresh(l, &format!("{name}$lzy"));
+    let holder_name = fresh(l, &name_kinds::lazy_local(name));
     let sym = l.u.define(symbol(&holder_name, Kind::Val, owner, Flags::default().with(SYNTHETIC)));
     let tpe = type_ref(l.u, class);
     l.u.set_info(sym, tpe);
@@ -196,7 +197,7 @@ fn holder_call(
 /// `t`, cast to `info` if the holder's value is a reference that `info` does not erase to
 /// (dotty's `ensureConforms`).
 fn conform(l: &mut Lower, t: TNodeId, holder: &Holder, info: TypeId) -> TNodeId {
-    let erased_object = Erased::Class("java.lang.Object".into());
+    let erased_object = Erased::object();
     if holder.value != object(l) || l.u.erase(info) == erased_object {
         return t;
     }

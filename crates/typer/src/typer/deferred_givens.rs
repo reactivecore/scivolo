@@ -24,7 +24,7 @@ impl Typer<'_> {
             Tree::Ident { name } | Tree::Select { name, .. } => Some(self.text(name.name)),
             _ => None,
         };
-        match name == Some("deferred") && flags.is(f::GIVEN) && self.u.is_trait(ctx.owner) {
+        match name == Some(names::nme::DEFERRED) && flags.is(f::GIVEN) && self.u.is_trait(ctx.owner) {
             true => f::DEFERRED_GIVEN_FLAGS,
             false => f::EMPTY,
         }

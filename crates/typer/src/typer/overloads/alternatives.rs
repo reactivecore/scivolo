@@ -8,6 +8,7 @@ use super::applies::ApplyMember;
 use super::mapped::leading_implicit;
 use super::{NO_SIZE, Resolution, Unchosen, VALUE_APPLY};
 use crate::typer::{Pt, Typer};
+use names::nme;
 use tasty::tags::EXTENSION;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -51,7 +52,7 @@ impl Resolution {
                 continue;
             }
             let value = t.ref_type(self.prefix, s);
-            if !t.type_members(value, "apply").is_empty() {
+            if !t.type_members(value, nme::APPLY).is_empty() {
                 values.push(s);
             }
         }
@@ -138,7 +139,7 @@ fn result_applies(t: &mut Typer, info: TypeId, n: usize) -> Vec<ApplyMember> {
         _ => info,
     };
     let mut applies = Vec::new();
-    for apply in t.type_members(value, "apply") {
+    for apply in t.type_members(value, nme::APPLY) {
         t.complete(apply);
         let apply_info = t.u.info(apply);
         if let Some((_, aps)) = t.u.param_clauses(apply_info).into_iter().next()

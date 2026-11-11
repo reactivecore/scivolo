@@ -7,6 +7,7 @@
 use super::Typer;
 use super::did_you_mean::{OBJECT_MEMBERS, close, distance};
 use crate::ctx::Ctx;
+use names::nme;
 use tasty::tags::{PRIVATE, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -31,7 +32,7 @@ impl Typer<'_> {
                     true => s.kind.is_type(),
                     false => s.kind.is_term() || s.kind == Kind::Class && !module_class,
                 };
-                let excluded = s.name == "<init>" || s.flags.has(SYNTHETIC) || s.flags.has(PRIVATE);
+                let excluded = s.name == nme::CONSTRUCTOR || s.flags.has(SYNTHETIC) || s.flags.has(PRIVATE);
                 if !kind_ok || excluded || !close(&units, s.name.trim_end_matches('$')) {
                     continue;
                 }

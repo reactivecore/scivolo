@@ -8,6 +8,7 @@ mod this_type_results;
 use super::Typer;
 use super::java_classes::is_java_member;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
+use names::nme;
 use syntax::config::Lints;
 use syntax::diag::{Message, MessageId};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
@@ -115,10 +116,10 @@ fn uninteresting_symbol(u: &mut Universe, s: SymbolId) -> bool {
     let b = u.defn();
     let sym = u.symbol(s);
     let name = sym.name.trim_end_matches('$');
-    name == "<init>"
+    name == nme::CONSTRUCTOR
         || sym.kind == Kind::Package
         || name == "package"
-        || name.ends_with("$package")
+        || name.ends_with(nme::TOPLEVEL_SUFFIX)
         || [b.any, b.any_ref].contains(&s)
         || b.any_val == Some(s)
         || u.full_name(s) == crate::defn::BOXED_UNIT

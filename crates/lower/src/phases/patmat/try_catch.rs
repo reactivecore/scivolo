@@ -8,6 +8,7 @@ use crate::definitions::symbol;
 use crate::phases::literals::is_wildcard;
 use crate::symbols::is_static;
 use crate::{Lower, Result};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{CASE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
@@ -27,7 +28,7 @@ pub fn fallback(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<Option<TNo
     }
     let span = l.tpd.span(t);
     let throwable = l.u.class_ref(tasty::defn::THROWABLE);
-    let name = l.fresh.next(l.names, "ex");
+    let name = l.fresh.next(l.names, nme::EX);
     let name = l.names.text(name).to_owned();
     let flags = Flags::default().with(SYNTHETIC).with(CASE);
     let ex = l.u.define(symbol(&name, Kind::Val, owner, flags));

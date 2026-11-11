@@ -7,6 +7,7 @@ use super::Desugar;
 use super::class_parts::ClassParts;
 use crate::ast::flags::{self, FlagSet};
 use crate::ast::{Attrs, NodeId, TName, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     /// `new C[Ts](params)...`, made once per class.
@@ -47,7 +48,7 @@ impl Desugar<'_> {
             _ => (tpt, None),
         };
         let new = self.ast.node(Tree::New { tpt: tycon });
-        let init = self.term("<init>");
+        let init = self.term(nme::CONSTRUCTOR);
         let nu = self.select(new, init);
         match targs {
             Some(args) => self.ast.node(Tree::TypeApply { fun: nu, args }),

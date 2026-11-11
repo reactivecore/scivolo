@@ -9,6 +9,7 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::Span;
 use tasty::{SymbolId, Type, TypeId};
 
@@ -19,7 +20,7 @@ impl Typer<'_> {
         if let Some(&ctor) = self.syms.primary_ctors.get(&c) {
             return Some(ctor);
         }
-        self.u.decl(c, "<init>").ok()?.into_iter().next()
+        self.u.decl(c, nme::CONSTRUCTOR).ok()?.into_iter().next()
     }
 
     /// The value parameter clauses of the primary constructor of class `c`.
@@ -164,6 +165,6 @@ impl Typer<'_> {
             }
         }
         let ctor = self.tpd.sym(tree)?;
-        (self.u.symbol(ctor).name == "<init>").then(|| self.u.symbol(ctor).owner).flatten()
+        (self.u.symbol(ctor).name == nme::CONSTRUCTOR).then(|| self.u.symbol(ctor).owner).flatten()
     }
 }

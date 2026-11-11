@@ -1,6 +1,7 @@
 //! Members of `Any` and `Object` whose selection depends on the JDK classes and interfaces.
 
 use super::Typer;
+use names::nme;
 use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
@@ -9,28 +10,28 @@ impl Typer<'_> {
     /// is compiled.
     pub fn jdk_redeclares(&mut self, sym: SymbolId, qual: TypeId) -> bool {
         const REDECLARED: [(&str, &str); 22] = [
-            ("java.lang.CharSequence", "toString"),
-            ("java.util.Comparator", "equals"),
-            ("java.util.Collection", "equals"),
-            ("java.util.Collection", "hashCode"),
-            ("java.util.Map", "equals"),
-            ("java.util.Map", "hashCode"),
-            ("java.util.Map$.Entry", "equals"),
-            ("java.util.Map$.Entry", "hashCode"),
-            ("java.lang.annotation.Annotation", "equals"),
-            ("java.lang.annotation.Annotation", "hashCode"),
-            ("java.lang.annotation.Annotation", "toString"),
-            ("java.nio.file.Path", "equals"),
-            ("java.nio.file.Path", "hashCode"),
-            ("java.nio.file.Path", "toString"),
-            ("java.time.chrono.ChronoLocalDate", "equals"),
-            ("java.time.chrono.ChronoLocalDate", "hashCode"),
-            ("java.time.chrono.ChronoLocalDate", "toString"),
-            ("java.time.chrono.ChronoLocalDateTime", "equals"),
-            ("java.time.chrono.ChronoLocalDateTime", "hashCode"),
-            ("java.time.chrono.ChronoLocalDateTime", "toString"),
-            ("java.util.Set", "equals"),
-            ("java.util.List", "equals"),
+            ("java.lang.CharSequence", nme::TO_STRING),
+            ("java.util.Comparator", nme::EQUALS),
+            ("java.util.Collection", nme::EQUALS),
+            ("java.util.Collection", nme::HASH_CODE),
+            ("java.util.Map", nme::EQUALS),
+            ("java.util.Map", nme::HASH_CODE),
+            ("java.util.Map$.Entry", nme::EQUALS),
+            ("java.util.Map$.Entry", nme::HASH_CODE),
+            ("java.lang.annotation.Annotation", nme::EQUALS),
+            ("java.lang.annotation.Annotation", nme::HASH_CODE),
+            ("java.lang.annotation.Annotation", nme::TO_STRING),
+            ("java.nio.file.Path", nme::EQUALS),
+            ("java.nio.file.Path", nme::HASH_CODE),
+            ("java.nio.file.Path", nme::TO_STRING),
+            ("java.time.chrono.ChronoLocalDate", nme::EQUALS),
+            ("java.time.chrono.ChronoLocalDate", nme::HASH_CODE),
+            ("java.time.chrono.ChronoLocalDate", nme::TO_STRING),
+            ("java.time.chrono.ChronoLocalDateTime", nme::EQUALS),
+            ("java.time.chrono.ChronoLocalDateTime", nme::HASH_CODE),
+            ("java.time.chrono.ChronoLocalDateTime", nme::TO_STRING),
+            ("java.util.Set", nme::EQUALS),
+            ("java.util.List", nme::EQUALS),
         ];
         let b = self.u.defn();
         if !self.u.symbol(sym).owner.is_some_and(|o| o == b.any || o == b.object) {
@@ -50,7 +51,7 @@ impl Typer<'_> {
     pub fn jdk_inherited(&mut self, sym: SymbolId) -> SymbolId {
         let s = self.u.symbol(sym);
         let name = s.name.clone();
-        let Some(owner) = s.owner.filter(|_| matches!(name.as_str(), "equals" | "hashCode")) else {
+        let Some(owner) = s.owner.filter(|_| matches!(name.as_str(), nme::EQUALS | nme::HASH_CODE)) else {
             return sym;
         };
         if self.u.full_name(owner) != "java.lang.Class" {

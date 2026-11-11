@@ -8,6 +8,7 @@ use super::walk::{walk_class_up, without_type_args};
 use super::{format_interpolator, standard_interpolator};
 use crate::definitions::Known;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
@@ -74,7 +75,7 @@ pub fn interpolation(l: &Lower, t: TNodeId) -> Option<(Vec<TNodeId>, Vec<TNodeId
     let Tree::Select { qualifier: module, .. } = *l.tpd.tree(apply) else { return None };
     let module = l.tpd.sym(module);
     let apply = l.u.symbol(l.tpd.sym(apply)?);
-    if apply.name != "apply"
+    if apply.name != nme::APPLY
         || !apply.owner.is_some_and(|o| l.is_known(o, Known::StringContextModuleClass))
         || !module.is_some_and(|m| l.is_known(m, Known::StringContextModule))
     {
@@ -147,7 +148,7 @@ pub fn process_escapes(s: &[u16]) -> Option<Vec<u16>> {
 /// `parts[0] + args[0] + parts[1] + …`, empty parts but the first dropped, each `+` at the span
 /// of what it appends.
 fn concat(l: &mut Lower, parts: &[TNodeId], args: &[TNodeId]) -> TNodeId {
-    let plus = l.u.decls_named(l.u.defn().string, "+")[0];
+    let plus = l.u.decls_named(l.u.defn().string, nme::ADD)[0];
     let tpe = l.u.class_ref(tasty::defn::STRING);
     let mut result = parts[0];
     for (&arg, &part) in args.iter().zip(&parts[1..]) {

@@ -7,6 +7,7 @@ use super::Reducer;
 use crate::inlining::Unsupported;
 use crate::inlining::copy::TreeTypeMap;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::TName;
 use tasty::tags::{CASE, PARAMsetter, SYNTHETIC, TRAIT};
 use tasty::{Kind, SymbolId};
@@ -32,7 +33,7 @@ impl Reducer<'_, '_> {
                 };
                 if let T::Select { qualifier, .. } = *i.tpd.tree(callee)
                     && let T::New { tpt } = *i.tpd.tree(qualifier)
-                    && i.tpd.sym(callee).is_some_and(|s| i.u.symbol(s).name == "<init>")
+                    && i.tpd.sym(callee).is_some_and(|s| i.u.symbol(s).name == nme::CONSTRUCTOR)
                 {
                     let tpe = i.tpd.tpe(tpt);
                     let cls = i.u.class_symbol(tpe)?;
@@ -40,7 +41,7 @@ impl Reducer<'_, '_> {
                 }
                 let meth = i.tpd.sym(callee)?;
                 let s = i.u.symbol(meth);
-                if s.name != "apply" || !s.flags.has(SYNTHETIC) {
+                if s.name != nme::APPLY || !s.flags.has(SYNTHETIC) {
                     return None;
                 }
                 let cls = s

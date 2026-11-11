@@ -9,6 +9,7 @@ use super::function_classes::function_class_arity;
 use super::lazy_trees::method;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
 use tasty::{Flags, Kind, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId};
@@ -27,7 +28,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     for &stat in &stats {
         let Tree::DefDef { .. } = l.tpd.tree(stat) else { continue };
         let Some(meth) = l.tpd.sym(stat) else { continue };
-        if l.u.symbol(meth).name == "apply" && implements_xxl_apply(l, class, meth) {
+        if l.u.symbol(meth).name == nme::APPLY && implements_xxl_apply(l, class, meth) {
             forwarders.push(forwarder(l, class, meth)?);
         }
     }
@@ -57,7 +58,7 @@ fn implements_xxl_apply(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool 
         if function_class_arity(l, base).is_none_or(|(n, _)| n as usize <= MAX_IMPLEMENTED_ARITY) {
             continue;
         }
-        let applies = l.u.decls_named(base, "apply");
+        let applies = l.u.decls_named(base, nme::APPLY);
         if applies.into_iter().any(|apply| l.u.info_matches(site, meth, apply)) {
             return true;
         }
@@ -70,12 +71,12 @@ fn forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> Result<TNodeId> 
     let (_, array) = param(l);
     let object = type_ref(l.u, l.u.defn().object);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("args"), array)];
+    let params = [(l.u.intern_name(nme::ARGS), array)];
     let info = l.u.intern_method(binder, &params, object, false, false);
-    let sym = l.u.define(symbol("apply", Kind::Def, class, Flags::default().with(SYNTHETIC)));
+    let sym = l.u.define(symbol(nme::APPLY, Kind::Def, class, Flags::default().with(SYNTHETIC)));
     l.u.set_info(sym, info);
     let array_class = class_named(l, tasty::defn::ARRAY).expect("`scala.Array`");
-    let array_apply = method(l, array_class, "apply", Span::NONE)?;
+    let array_apply = method(l, array_class, nme::APPLY, Span::NONE)?;
     let types = param_types(l, meth);
     let info = l.u.info(meth);
     let result = l.u.result_type(info);

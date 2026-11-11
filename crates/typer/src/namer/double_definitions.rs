@@ -6,6 +6,7 @@
 
 use crate::ctx::{Ctx, Level};
 use crate::typer::Typer;
+use names::{name_kinds, nme};
 use syntax::ast::NodeId;
 use syntax::ast::flags as f;
 use tasty::Kind;
@@ -16,13 +17,13 @@ impl Typer<'_> {
     /// `ctx`. Two methods are left to `check_overrides`; in a class, a value and a method
     /// conflict only when all clauses of the method are empty.
     pub fn doubly_defined(&mut self, tree: NodeId, name: &str, kind: Kind, ctx: Ctx) -> bool {
-        if name == "$anon" {
+        if name == nme::ANON_CLASS {
             return false;
         }
         let owner = ctx.owner;
         let is_type = !kind.is_term();
         let in_class = self.u.symbol(owner).kind == Kind::Class;
-        let getter = name.contains("$default$");
+        let getter = name.contains(name_kinds::DEFAULT_GETTER);
         let scope =
             self.levels.def_scope(ctx.level).filter(|&l| matches!(self.levels.get(l), Level::Scope(_)));
         let decls = match scope {

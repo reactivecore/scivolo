@@ -11,6 +11,7 @@ use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::tree::DerivedKind;
 use crate::ast::{Attrs, NodeId, TName, Tree};
+use names::nme;
 
 impl Desugar<'_> {
     /// Whether `t` is an enum case: a value, class or object case.
@@ -112,7 +113,7 @@ impl Desugar<'_> {
             Tree::TypeApply { args, .. } => {
                 self.ast.items(args).to_vec().into_iter().any(|a| self.refers_to(a, names, report))
             }
-            Tree::Select { qualifier, name } if self.text(name) == "<init>" => {
+            Tree::Select { qualifier, name } if self.text(name) == nme::CONSTRUCTOR => {
                 self.parent_refers_to(qualifier, names, report)
             }
             Tree::New { tpt } => self.refers_to(tpt, names, report),

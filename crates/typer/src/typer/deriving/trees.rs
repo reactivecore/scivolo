@@ -2,6 +2,7 @@
 //! class, applied type class and class types.
 
 use super::super::Typer;
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
@@ -74,7 +75,7 @@ pub fn param_def(t: &mut Typer<'_>, name: &str, info: TypeId, span: Span) -> Res
             let mut tparams = Vec::new();
             for (i, &(n, b)) in params.iter().enumerate() {
                 let n = t.u.name(n);
-                let n = if n == "_" { format!("_${}", i + 1) } else { n.to_owned() };
+                let n = if n == nme::WILDCARD { format!("_${}", i + 1) } else { n.to_owned() };
                 tparams.push(param_def(t, &n, b, span)?);
             }
             let result = match *t.u.ty(result) {

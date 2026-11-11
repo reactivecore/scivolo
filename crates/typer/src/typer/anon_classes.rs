@@ -6,6 +6,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
@@ -43,7 +44,7 @@ impl Typer<'_> {
         if let Pt::Type(p) = pt {
             self.infer_parent_args(template, p, ctx);
         }
-        let name = TName { name: self.name("$anon"), is_type: true };
+        let name = TName { name: self.name(nme::ANON_CLASS), is_type: true };
         if let Tree::Template { self_: Some(s), .. } = *self.ast.tree(template)
             && let Tree::ValDef { tpt, .. } = *self.ast.tree(s)
             && matches!(self.ast.tree(tpt), Tree::TypeTree)
@@ -62,7 +63,7 @@ impl Typer<'_> {
         self.ast.with_span(ident, start);
         let new = self.ast.node(Tree::New { tpt: ident });
         self.ast.with_span(new, start);
-        let init = TName { name: self.name("<init>"), is_type: false };
+        let init = TName { name: self.name(nme::CONSTRUCTOR), is_type: false };
         let select = self.ast.node(Tree::Select { qualifier: new, name: init });
         self.ast.with_span(select, start);
         let args = self.ast.list(&[]);

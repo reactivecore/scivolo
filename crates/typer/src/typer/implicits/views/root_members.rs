@@ -10,6 +10,7 @@ use super::super::super::Typer;
 use super::Goal;
 use crate::ctx::{Ctx, Level};
 use crate::symbols::Completion;
+use names::nme;
 use rustc_hash::FxHashSet;
 use syntax::ast::flags as f;
 use syntax::ast::{Ast, NodeId, TName, Tree};
@@ -86,7 +87,7 @@ impl Typer<'_> {
                 let (qual, names): (_, Vec<String>) =
                     (info.qual, info.selectors.iter().map(|s| s.name.clone()).collect());
                 let site = self.import_site(qual)?;
-                let named = named && !names.iter().any(|n| n == "_" || n.is_empty());
+                let named = named && !names.iter().any(|n| n == nme::WILDCARD || n.is_empty());
                 if self.u.symbol(site).kind == Kind::Package {
                     for d in self.u.decls(site).ok()? {
                         let Some(c) = object_class(self.u, d) else { continue };

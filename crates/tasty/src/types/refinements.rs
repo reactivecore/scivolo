@@ -5,6 +5,7 @@
 
 use super::{Binder, NameId, Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
+use names::nme;
 
 /// How many steps finding a refinement takes at most.
 const MAX_STEPS: u32 = 64;
@@ -121,12 +122,12 @@ impl Universe {
         let sym = self.symbol(s);
         let function = |n: &str| n.starts_with("Function") || n.starts_with("ContextFunction");
         if sym.kind != Kind::Def
-            || sym.name != "apply"
+            || sym.name != nme::APPLY
             || !sym.owner.is_some_and(|o| function(&self.symbol(o).name))
         {
             return None;
         }
-        let apply = self.intern_name("apply");
+        let apply = self.intern_name(nme::APPLY);
         let info = self.term_refinement_named(prefix, apply)?;
         let Type::Method { binder, result, .. } = *self.ty(info) else { return None };
         let mut dependent = false;

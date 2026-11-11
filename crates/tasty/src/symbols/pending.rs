@@ -5,6 +5,7 @@ use super::lookup::encode;
 use super::predicates::is_package_object_name;
 use super::{Error, SymbolId, Universe};
 use crate::types::NameId;
+use names::nme;
 use rustc_hash::FxHashMap;
 use std::borrow::Cow;
 
@@ -31,7 +32,7 @@ impl PendingStems {
 }
 
 fn is_package_object_file(stem: &str) -> bool {
-    stem == "package" || stem.ends_with("$package")
+    stem == "package" || stem.ends_with(nme::TOPLEVEL_SUFFIX)
 }
 
 /// `encode(name)`, borrowing `name` where it is spelled as is.

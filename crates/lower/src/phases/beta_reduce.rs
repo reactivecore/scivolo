@@ -9,6 +9,7 @@ use super::module_purity::is_pure_value;
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use rustc_hash::FxHashMap;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
@@ -41,7 +42,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
 fn reduce(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return Ok(()) };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return Ok(()) };
-    if l.tpd.sym(fun).is_none_or(|s| l.u.symbol(s).name != "apply") || !is_function_type(l, qualifier) {
+    if l.tpd.sym(fun).is_none_or(|s| l.u.symbol(s).name != nme::APPLY) || !is_function_type(l, qualifier) {
         return Ok(());
     }
     let args = l.tpd.items(args).to_vec();

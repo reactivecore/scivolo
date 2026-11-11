@@ -9,6 +9,7 @@ use super::class_tag_erasure::{erased_class_type, has_stable_erasure};
 use crate::defn::ARRAY;
 use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
+use names::nme;
 use syntax::ast::{NodeId, TName, Tree};
 use tasty::{Kind, TypeId};
 
@@ -67,7 +68,7 @@ impl Synthesizer {
         if let Some(&[elem]) = t.types().class_args(tpe, ARRAY).as_deref() {
             let elem_kind = if kind == ManifestKind::Full { kind } else { ManifestKind::Clss };
             let Some(e) = self.manifest_or_none(t, elem, elem_kind, top)? else { return Ok(None) };
-            return self.factory_manifest(t, kind, "arrayType", elem, &[e]).map(Some);
+            return self.factory_manifest(t, kind, nme::ARRAY_TYPE, elem, &[e]).map(Some);
         }
         if let Some((_, hi)) = t.u.bounds(tpe) {
             if kind != ManifestKind::Full {
@@ -77,7 +78,7 @@ impl Synthesizer {
             let Some(upper) = self.manifest_or_none(t, hi, ManifestKind::Full, top)? else {
                 return Ok(None);
             };
-            return self.factory_manifest(t, kind, "wildcardType", tpe, &[nothing, upper]).map(Some);
+            return self.factory_manifest(t, kind, nme::WILDCARD_TYPE, tpe, &[nothing, upper]).map(Some);
         }
         let class = t.u.class_symbol(tpe);
         let abstract_type = t.referenced(tpe).is_some_and(|s| {
@@ -117,7 +118,7 @@ impl Synthesizer {
                 args.push(m);
             }
         }
-        self.factory_manifest(t, kind, "classType", tpe, &args).map(Some)
+        self.factory_manifest(t, kind, nme::CLASS_TYPE, tpe, &args).map(Some)
     }
 
     /// `ManifestFactory.name` of a primitive or special class.

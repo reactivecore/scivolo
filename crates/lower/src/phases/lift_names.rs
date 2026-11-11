@@ -12,6 +12,7 @@ use super::lifted::Method;
 use super::proxy_names::name_proxies;
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::{name_kinds, nme};
 use rustc_hash::FxHashSet;
 use syntax::source::Offset;
 use tasty::tags::LAZY;
@@ -110,7 +111,7 @@ pub fn name_all(l: &mut Lower, named: &[Named], pending: &mut Pending) -> Result
         let f = &n.functions[i];
         pending.name_classes_before(l, Some(at));
         let name = if f.is_anonymous(l) {
-            fresh(l, &format!("{}$anonfun", prefix(l, n.class, n.functions, n.methods, f)))
+            fresh(l, &name_kinds::anon_fun(&prefix(l, n.class, n.functions, n.methods, f)))
         } else {
             fresh(l, &l.u.symbol(f.sym).name.clone())
         };
@@ -130,14 +131,16 @@ pub fn prefix(
     f: &Function,
 ) -> String {
     match l.u.symbol(f.sym).owner {
-        Some(o) if l.u.is_constructor(o) && l.u.symbol(o).owner == Some(class) => "$init$$".to_owned(),
+        Some(o) if l.u.is_constructor(o) && l.u.symbol(o).owner == Some(class) => {
+            name_kinds::unique_prefix(nme::TRAIT_CONSTRUCTOR)
+        }
         Some(o) if l.u.symbol(o).kind == Kind::Def || has(l.u, o, LAZY) => {
             match functions.iter().position(|x| x.sym == o) {
-                Some(p) => format!("{}$", l.u.symbol(methods[p].sym).name),
-                None => format!("{}$", l.u.symbol(o).name),
+                Some(p) => name_kinds::unique_prefix(&l.u.symbol(methods[p].sym).name),
+                None => name_kinds::unique_prefix(&l.u.symbol(o).name),
             }
         }
-        Some(o) if f.ctor && in_field(l, o, class) => "$init$$".to_owned(),
+        Some(o) if f.ctor && in_field(l, o, class) => name_kinds::unique_prefix(nme::TRAIT_CONSTRUCTOR),
         _ => String::new(),
     }
 }
@@ -152,7 +155,7 @@ fn in_field(l: &Lower, o: SymbolId, class: SymbolId) -> bool {
 
 /// `base$N`, `N` counting the names made from `base` in the unit (dotty's `freshened`).
 pub fn fresh(l: &mut Lower, base: &str) -> String {
-    let name = l.fresh.next(l.names, &format!("{base}$"));
+    let name = l.fresh.next(l.names, &name_kinds::unique_prefix(base));
     l.names.text(name).to_owned()
 }
 

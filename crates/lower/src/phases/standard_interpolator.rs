@@ -7,6 +7,7 @@
 use super::eval_once::{eval_once, is_stable_path};
 use crate::definitions::{applied, symbol};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId};
@@ -32,10 +33,10 @@ pub fn transform(l: &mut Lower, t: TNodeId, raw: bool, owner: SymbolId) -> Resul
             None => unsupported(span, format!("StringContext.{name} missing from the library")),
         }
     };
-    let process_escapes = member(l, class, "processEscapes")?;
-    let standard = member(l, class, "standardInterpolator")?;
+    let process_escapes = member(l, class, nme::PROCESS_ESCAPES)?;
+    let standard = member(l, class, nme::STANDARD_INTERPOLATOR)?;
     let companion = l.u.companion_class(class).expect("the StringContext class");
-    let parts = member(l, companion, "parts")?;
+    let parts = member(l, companion, nme::PARTS)?;
     let process = process(l, owner, process_escapes, module, raw);
     let (sc, ev) = if is_stable_path(l, pre) {
         (pre, None)
@@ -82,7 +83,7 @@ fn process(
     let Some(m) = l.u.method(info) else { unreachable!("a method") };
     let name = m.params[0].0;
     let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
-    let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, flags));
+    let anon = l.u.define(symbol(nme::ANON_FUN, Kind::Def, owner, flags));
     let param = symbol(l.u.name(name), Kind::Param, anon, Flags::default());
     let param = l.u.define(param);
     l.u.set_info(param, string);

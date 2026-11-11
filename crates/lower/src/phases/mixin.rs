@@ -10,6 +10,7 @@ use super::trait_fields::{mixed_in, trait_defs};
 use crate::definitions::specialized_applies;
 use crate::symbols::{beyond_jdk_view, has};
 use crate::{Lower, Result, unsupported};
+use names::name_kinds;
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, INLINE, PRIVATE, STATIC};
@@ -143,7 +144,10 @@ pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolI
 fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
-        || m.name.rsplit("$$").next().is_some_and(|n| n.starts_with("inline$"))
+        || m.name
+            .rsplit(name_kinds::EXPAND_SEPARATOR)
+            .next()
+            .is_some_and(|n| n.starts_with(name_kinds::INLINE_PREFIX))
         || l.u.is_constructor(meth)
         || has(l.u, meth, PRIVATE)
         || has(l.u, meth, FIELDaccessor)
@@ -287,7 +291,7 @@ pub fn with_java_param_names(l: &mut Lower, info: TypeId) -> TypeId {
                     .to_vec()
                     .into_iter()
                     .enumerate()
-                    .map(|(i, (_, t))| (l.u.intern_name(&format!("x${i}")), t))
+                    .map(|(i, (_, t))| (l.u.intern_name(&name_kinds::synthetic_param(i)), t))
                     .collect();
             l.u.intern_method(binder, &params, result, implicit, contextual)
         }

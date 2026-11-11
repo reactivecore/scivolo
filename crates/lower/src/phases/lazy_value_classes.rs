@@ -5,6 +5,7 @@
 
 use crate::definitions::type_ref;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -48,7 +49,7 @@ pub fn unwrapped(l: &mut Lower, rhs: TNodeId, value: SymbolId, tpe: TypeId) -> T
 pub fn wrapped(l: &mut Lower, class: SymbolId, t: TNodeId) -> TNodeId {
     let span = l.tpd.span(t);
     let new = l.new_(class, span);
-    let ctor = l.u.decls_named(class, "<init>");
+    let ctor = l.u.decls_named(class, nme::CONSTRUCTOR);
     let ctor = *ctor.first().expect("a value class's constructor");
     let fun = l.select(new, ctor, span);
     let tpe = type_ref(l.u, class);

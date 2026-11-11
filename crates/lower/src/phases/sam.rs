@@ -9,6 +9,7 @@
 use super::local_outer::needs_outer_if_referenced;
 use crate::Lower;
 use crate::definitions::type_ref;
+use names::{name_kinds, nme};
 use tasty::{Erased, Kind, SymbolId, Type};
 
 /// The abstract methods of `class`, inherited ones too, but those of `Object`: of each name and
@@ -25,7 +26,8 @@ pub fn abstract_methods(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
         let function = l.u.full_name(base).starts_with("scala.Function");
         for d in l.u.decls(base).unwrap_or_default() {
             let s = l.u.symbol(d);
-            if s.kind != Kind::Def || s.name == "<init>" || function && s.name.starts_with("apply$mc") {
+            let specialized = function && name_kinds::is_specialized(&s.name, nme::APPLY);
+            if s.kind != Kind::Def || s.name == nme::CONSTRUCTOR || specialized {
                 continue;
             }
             let abstract_ = match s.tree.is_some() {

@@ -5,6 +5,7 @@
 
 use super::beta_reduce::application;
 use crate::{Lower, Result};
+use names::nme;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use tasty::{SymbolId, Type};
@@ -40,7 +41,7 @@ fn reduce(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<Option<TNodeId>>
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return Ok(None) };
     let Some(name) = l.tpd.sym(fun).map(|s| l.u.symbol(s).name.clone()) else { return Ok(None) };
     let tpe = l.tpd.tpe(t);
-    if !matches!(name.as_str(), "unapply" | "unapplySeq")
+    if !matches!(name.as_str(), nme::UNAPPLY | nme::UNAPPLY_SEQ)
         || matches!(l.u.ty(tpe), Type::Method { .. } | Type::Poly { .. })
     {
         return Ok(None);

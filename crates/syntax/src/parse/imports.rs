@@ -8,6 +8,7 @@ use crate::ast::{NodeId, Span, Tree};
 use crate::diag::rewrite_notice;
 use crate::token::Token;
 use crate::token::sets::CAN_START_INFIX_TYPE_TOKENS;
+use names::nme;
 
 impl Parser<'_> {
     pub fn import_clause(&mut self, outermost: bool) -> Vec<NodeId> {
@@ -137,7 +138,7 @@ impl Parser<'_> {
         let point = self.s.skip_token();
         let to = if self.tok() == Token::Uscore { self.wildcard_ident() } else { self.term_ident() };
         let renamed = match *self.ast.tree(to) {
-            Tree::Ident { name } if self.s.names.text(name.name) == "<error>" => None,
+            Tree::Ident { name } if self.s.names.text(name.name) == nme::ERROR => None,
             _ => Some(to),
         };
         let s = self.import_selector(from, renamed, None);

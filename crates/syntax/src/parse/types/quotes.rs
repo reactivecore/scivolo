@@ -6,6 +6,7 @@ use super::super::{Parser, stage};
 use crate::ast::{NodeId, Span, Tree};
 use crate::token::Token;
 use crate::token::sets::TokenSet;
+use names::nme;
 
 impl Parser<'_> {
     fn within_staged<T>(&mut self, kind: u8, body: impl FnOnce(&mut Self) -> T) -> T {
@@ -87,7 +88,7 @@ impl Parser<'_> {
             let msg = format!("Type splicing with `$` in quotes not supported anymore\n\nHint: {hint}");
             let span = Span::synthetic(start, self.last_offset());
             self.syntax_error_span(msg, span);
-            let name = self.type_name("<error>");
+            let name = self.type_name(nme::ERROR);
             self.ast.node(Tree::Ident { name })
         } else if in_pattern {
             self.ast.node(Tree::SplicePattern { body: expr })

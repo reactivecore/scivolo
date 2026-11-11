@@ -46,7 +46,7 @@ impl Gen<'_, '_> {
             let name = self.pool.top(&format!("scala.scalanative.runtime.{simple}Array"));
             return Ok(self.val(Val::ClassOf(name)));
         }
-        let object = tasty::Erased::Class("java.lang.Object".into());
+        let object = tasty::Erased::object();
         if self.l.u.erase_boxed(tpe) == object {
             let name = self.pool.top("java.lang.Object");
             return Ok(self.val(Val::ClassOf(name)));

@@ -5,6 +5,7 @@
 //! `typedFunctionValue`, `patternsToParams`).
 
 use super::{Pt, Typer};
+use names::name_kinds;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::tree::MatchKind;
@@ -59,7 +60,7 @@ impl Typer<'_> {
         let mut params = Vec::new();
         let mut idents = Vec::new();
         for i in 1..=n {
-            let name = TName { name: self.name(&format!("x${i}")), is_type: false };
+            let name = TName { name: self.name(&name_kinds::synthetic_param(i)), is_type: false };
             let tpt = match i {
                 1 => tpt,
                 _ => self.ast.node(Tree::TypeTree),

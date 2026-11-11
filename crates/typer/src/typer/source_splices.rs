@@ -6,6 +6,7 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName, Tree, flags as f};
 use tasty::SymbolId;
@@ -112,7 +113,7 @@ impl Typer<'_> {
 
     /// Whether `sym` is a member of object `scala.quoted.runtime.Expr` other than its constructor.
     pub fn is_staging_method(&self, sym: SymbolId) -> bool {
-        self.u.symbol(sym).name != "<init>"
+        self.u.symbol(sym).name != nme::CONSTRUCTOR
             && self.u.symbol(sym).owner.is_some_and(|o| self.u.full_name(o) == RUNTIME_EXPR)
     }
 

@@ -9,13 +9,14 @@ use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
 use tasty::TypeId;
 
 /// Whether `name` is an assignment operator such as `+=` (dotty's `isOpAssignmentName`).
 fn is_op_assignment_name(name: &str) -> bool {
     let Some(first) = name.chars().next() else { return false };
-    !matches!(name, "!=" | "<=" | ">=")
+    !matches!(name, nme::NE | nme::LE | nme::GE)
         && name.ends_with('=')
         && first != '='
         && syntax::scan::chars::is_operator_part(first)
@@ -48,11 +49,11 @@ impl Typer<'_> {
             return self.typed_assign(assign, (target, rhs), Pt::Any, ctx);
         };
         let receiver = match *self.tpd.tree(fun) {
-            T::Select { qualifier, name } if self.text(name.name) == "apply" => qualifier,
+            T::Select { qualifier, name } if self.text(name.name) == nme::APPLY => qualifier,
             _ => return self.unsupported(id, "assignment operator on a call other than apply"),
         };
         let receiver = self.spliced(receiver);
-        let name = TName { name: self.name("update"), is_type: false };
+        let name = TName { name: self.name(nme::UPDATE), is_type: false };
         let update = self.ast.node(Tree::Select { qualifier: receiver, name });
         let receiver_span = self.ast.span(receiver);
         self.ast.with_span(update, Span::synthetic(receiver_span.start(), receiver_span.end()));

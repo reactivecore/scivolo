@@ -9,6 +9,7 @@
 use super::{Defn, Flags, Kind, Symbol, SymbolId, Universe};
 use crate::tags::{ABSTRACT, FINAL, PRIVATE, PRIVATEqualified, TRAIT};
 use crate::types::{Type, TypeId};
+use names::nme;
 
 /// The type `scala.Nothing`, the first type every universe interns.
 pub const NOTHING: TypeId = TypeId(0);
@@ -72,7 +73,7 @@ pub fn enter(u: &mut Universe) -> Defn {
     }
     let any_ref = synthetic(u, scala, "AnyRef", Kind::Type, &[]);
     u.infos.insert(any_ref, object_ref);
-    let ops = u.enter_package("<special-ops>");
+    let ops = u.enter_package(nme::OPS_PACKAGE);
     let from_java_object = synthetic(u, ops, "<FromJavaObject>", Kind::Type, &[]);
     u.infos.insert(from_java_object, object_ref);
     let any_val =

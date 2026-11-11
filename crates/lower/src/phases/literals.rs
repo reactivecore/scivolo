@@ -3,6 +3,7 @@
 
 use crate::Lower;
 use crate::definitions::type_ref;
+use names::nme;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::{Erased, TypeId};
@@ -25,7 +26,7 @@ impl Lower<'_> {
 
     /// `_` of type `tpe`: a pattern, or the initializer of a field without one.
     pub fn wildcard(&mut self, tpe: TypeId) -> TNodeId {
-        let name = self.term_name("_");
+        let name = self.term_name(nme::WILDCARD);
         self.tpd.node(Tree::Ident { name }, Span::NONE, Some(tpe), None)
     }
 
@@ -81,5 +82,5 @@ impl Lower<'_> {
 
 /// Whether `t` is `_`, a wildcard.
 pub fn is_wildcard(l: &Lower, t: TNodeId) -> bool {
-    matches!(*l.tpd.tree(t), Tree::Ident { name } if l.names.text(name.name) == "_")
+    matches!(*l.tpd.tree(t), Tree::Ident { name } if l.names.text(name.name) == nme::WILDCARD)
 }

@@ -7,6 +7,7 @@ use super::Desugar;
 use crate::ast::flags;
 use crate::ast::span::Span;
 use crate::ast::{Attrs, NodeId, TName, Tree};
+use names::nme;
 
 /// How the right-hand side of a pattern definition is taken apart.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -167,7 +168,7 @@ impl Desugar<'_> {
     fn may_be_unchecked(&self, t: NodeId) -> bool {
         match *self.ast.tree(t) {
             Tree::Annotated { .. } => true,
-            Tree::Select { name, .. } => self.text(name) == "runtimeChecked",
+            Tree::Select { name, .. } => self.text(name) == nme::RUNTIME_CHECKED,
             _ => false,
         }
     }

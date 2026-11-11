@@ -12,6 +12,7 @@ use super::splicing::Splicer;
 use super::staged_trees::{quoted, spliced};
 use crate::Lower;
 use crate::phases::walk::subtrees;
+use names::nme;
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -79,7 +80,7 @@ impl Splicer<'_> {
             let lhs = r.as_term(l, lhs).expect(QUOTES);
             self.walk(l, (rhs, Span::NONE), level, anon);
             let rhs = quoted_term(l, r, rhs, owner);
-            let assign = r.method(l, "Assign", "apply").expect(QUOTES);
+            let assign = r.method(l, "Assign", nme::APPLY).expect(QUOTES);
             let assign = call(l, assign, &[lhs, rhs]);
             r.as_expr(l, tpe, assign).expect(QUOTES)
         }))
@@ -106,7 +107,7 @@ fn inferred(l: &mut Lower, r: Reflect, tpe: TypeId) -> TNodeId {
     let repr = r.method(l, "TypeRepr", "of").expect(QUOTES);
     let repr = type_applied(l, repr, tpe);
     let repr = call(l, repr, &[tag]);
-    let apply = r.method(l, "Inferred", "apply").expect(QUOTES);
+    let apply = r.method(l, "Inferred", nme::APPLY).expect(QUOTES);
     call(l, apply, &[repr])
 }
 
@@ -118,7 +119,7 @@ fn reflected(
     fun: TNodeId,
     args: &[TNodeId],
 ) -> TNodeId {
-    let apply = r.method(l, module, "apply").expect(QUOTES);
+    let apply = r.method(l, module, nme::APPLY).expect(QUOTES);
     let reflect = r.this(l).expect(QUOTES);
     let prefix = l.tpd.tpe(reflect);
     let class = l.u.widen(prefix);
@@ -135,7 +136,7 @@ fn list_of(l: &mut Lower, elem: TypeId, elems: &[TNodeId]) -> TNodeId {
     let class = l.u.class_symbol(module).expect("List");
     let module = l.u.source_module(class).expect("object List");
     let list = l.ident(module, Span::NONE);
-    let apply = member(l, list, "apply");
+    let apply = member(l, list, nme::APPLY);
     let fun = type_applied(l, apply, elem);
     let repeated = l.u.class_ref(tasty::defn::REPEATED);
     let repeated = l.u.intern_applied(repeated, &[elem]);

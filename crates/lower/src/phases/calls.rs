@@ -4,6 +4,7 @@
 use super::casts::class_named;
 use crate::Lower;
 use crate::definitions::{primitive_class_name, type_ref};
+use names::nme;
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::TNodeId;
@@ -21,7 +22,7 @@ impl Lower<'_> {
 
     /// `lhs == rhs`, with the `==` of `lhs`'s class taking `rhs`'s class if any, else `Any`'s.
     pub fn equal(&mut self, lhs: TNodeId, rhs: TNodeId) -> TNodeId {
-        let eq = self.operator(lhs, "==", rhs).unwrap_or(self.defs.any_eq);
+        let eq = self.operator(lhs, nme::EQ, rhs).unwrap_or(self.defs.any_eq);
         self.call(lhs, eq, &[rhs])
     }
 

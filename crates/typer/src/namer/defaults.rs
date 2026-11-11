@@ -4,6 +4,7 @@
 //! `defaultParamType` in `Namer.inferredResultType`).
 
 use crate::typer::Typer;
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -15,7 +16,7 @@ impl Typer<'_> {
     /// retracted synthetic one counted for a getter of the user, which dotty completes first.
     pub fn default_param_type(&mut self, getter: SymbolId) -> Option<(TypeId, TypeId)> {
         let name = self.u.symbol(getter).name.clone();
-        let (method, index) = name.rsplit_once("$default$")?;
+        let (method, index) = name.rsplit_once(name_kinds::DEFAULT_GETTER)?;
         let index: usize = index.parse().ok()?;
         let owner = self.u.symbol(getter).owner?;
         let mut candidates: Vec<SymbolId> = self.u.symbol(owner).decls.clone();
@@ -78,9 +79,9 @@ impl Typer<'_> {
     /// The constructors of the class `owner`, an object, accompanies, for `<init>`'s default
     /// getters, which live in the companion.
     fn constructor_of_companion(&mut self, owner: SymbolId, method: &str) -> Vec<SymbolId> {
-        let primary = if method == "<init>" { self.companion_constructor(owner) } else { None };
+        let primary = if method == nme::CONSTRUCTOR { self.companion_constructor(owner) } else { None };
         let class = primary.and_then(|p| self.u.symbol(p).owner);
-        class.map(|c| self.u.decls_named(c, "<init>")).unwrap_or_default()
+        class.map(|c| self.u.decls_named(c, nme::CONSTRUCTOR)).unwrap_or_default()
     }
 
     /// `t` with its references to type parameters of method `sym` made wildcards (dotty's

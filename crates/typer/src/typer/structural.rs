@@ -7,6 +7,7 @@ use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Type, TypeId};
 
@@ -49,7 +50,7 @@ impl Typer<'_> {
             Ok(q) => q,
             Err(what) => return Some(self.unsupported(id, what)),
         };
-        let (fun, literal) = self.structural_fun(qual, "selectDynamic", &text, span);
+        let (fun, literal) = self.structural_fun(qual, nme::SELECT_DYNAMIC, &text, span);
         let (apply, _) = self.applied(fun, &[literal]);
         let call = self.typed(apply, Pt::Any, ctx);
         Some(self.structural_cast(span, (qual, call), tpe, ctx))
@@ -114,7 +115,7 @@ impl Typer<'_> {
         let tpt = self.type_tree(class_ref, start, false);
         let new = self.tpd.node(T::New { tpt }, start, Some(class_ref), None);
         let new = self.spliced(new);
-        let init = TName { name: self.name("<init>"), is_type: false };
+        let init = TName { name: self.name(nme::CONSTRUCTOR), is_type: false };
         let mut fun = self.ast.node(Tree::Select { qualifier: new, name: init });
         self.ast.with_span(fun, start);
         if let Some(targs) = self.u.applied(value).map(|(_, targs)| targs.to_vec()) {

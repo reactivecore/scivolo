@@ -7,6 +7,7 @@
 use super::{Pt, Typer, Widen};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::{List, NodeId, Tree};
 use tasty::{Kind, NameId, Type, TypeId};
@@ -44,7 +45,7 @@ impl Typer<'_> {
         };
         let anonfun = self.syms.define(
             self.u,
-            "$anonfun",
+            nme::ANON_FUN,
             Kind::Def,
             ctx.owner,
             f::METHOD.or(f::SYNTHETIC).or(f::ARTIFACT),

@@ -4,6 +4,7 @@
 
 use crate::Lower;
 use crate::phases::lazy_trees::val_def;
+use names::nme;
 use syntax::ast::Span;
 use tasty::SymbolId;
 use typer::tpd::TNodeId;
@@ -23,7 +24,7 @@ pub fn bound(
     }
     let seq = l.u.class_ref(tasty::defn::IMMUTABLE_SEQ);
     let seq = l.u.class_symbol(seq).expect("Seq");
-    let apply = l.u.member(seq, "apply")[0];
+    let apply = l.u.member(seq, nme::APPLY)[0];
     if !at.exists() {
         *at = l.tpd.span(content).end_pos().to_synthetic();
     }

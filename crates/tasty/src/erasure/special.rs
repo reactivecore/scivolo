@@ -101,7 +101,7 @@ pub fn constant(tag: u8) -> Erased {
         DOUBLEconst => Erased::Prim('d'),
         UNITconst => Erased::Unit,
         NULLconst => Erased::Null,
-        STRINGconst => Erased::Class("java.lang.String".into()),
+        STRINGconst => Erased::string(),
         CLASSconst => Erased::Class("java.lang.Class".into()),
         _ => Erased::Class(OBJECT.into()),
     }

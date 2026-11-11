@@ -7,6 +7,7 @@ use super::super::Typer;
 use super::{UnapplyPattern, is_seq_wildcard};
 use crate::ctx::Mode;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Tree};
 use tasty::{Binder, NameId, Type, TypeId};
 
@@ -115,5 +116,5 @@ fn method_shape(t: &mut Typer<'_>, unapp: TNodeId) -> Result<MethodShape, &'stat
 fn is_new_instance(t: &Typer<'_>, sel: TNodeId) -> bool {
     let T::Select { qualifier, .. } = *t.tpd.tree(sel) else { return false };
     let ctor = t.tpd.sym(t.tpd.meth_part(qualifier));
-    ctor.is_some_and(|c| t.u.symbol(c).name == "<init>")
+    ctor.is_some_and(|c| t.u.symbol(c).name == nme::CONSTRUCTOR)
 }

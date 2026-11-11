@@ -8,6 +8,7 @@ use super::array_literals::array_literal;
 use super::casts::cast;
 use super::walk::children;
 use crate::{Lower, Result};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId};
@@ -111,7 +112,7 @@ fn seq_elems(l: &Lower, t: TNodeId) -> Option<Vec<TNodeId>> {
     let Tree::Apply { args, .. } = *l.tpd.tree(t) else { return None };
     let (m, qual) = applied(l, t)?;
     let full = l.u.full_name(qualifier_symbol(l, qual)?);
-    if l.u.symbol(m).name != "apply" || !SEQ_MODULES.contains(&full.as_str()) {
+    if l.u.symbol(m).name != nme::APPLY || !SEQ_MODULES.contains(&full.as_str()) {
         return None;
     }
     let &[arg] = l.tpd.items(args) else { return None };
@@ -144,14 +145,14 @@ pub fn wrapped_literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::SeqLiteral { elems, .. } = *l.tpd.tree(literal) else { return None };
     let name = &l.u.symbol(m).name;
     let wrap = name.starts_with("wrap") && name.ends_with("Array");
-    let generic = name == "genericWrapArray" && l.tpd.items(elems).is_empty();
+    let generic = name == nme::GENERIC_WRAP_ARRAY && l.tpd.items(elems).is_empty();
     (wrap || generic).then_some(literal)
 }
 
 /// `new ::(e1, ... new ::(en, Nil))` for `List(e1, ..., en)` call `t`, cast to its erased result.
 fn cons(l: &mut Lower, t: TNodeId, elems: &[TNodeId]) -> Result<()> {
     let defs = l.sequences()?;
-    let object = Erased::Class("java.lang.Object".into());
+    let object = Erased::object();
     let mut acc = l.ident(defs.nil, Span::NONE);
     for &e in elems.iter().rev() {
         let e = adapt(l, e, &object);

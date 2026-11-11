@@ -6,6 +6,7 @@ use super::Typer;
 use super::const_ops::{fold_binop, fold_unop};
 use super::constants::of_type;
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
+use names::nme;
 use syntax::ast::constant::Constant as C;
 use tasty::tags::CLASSconst;
 use tasty::{PRIMITIVE_VALUE_CLASSES, Type, TypeId};
@@ -52,7 +53,7 @@ impl Typer<'_> {
         let T::Apply { fun, args } = *self.tpd.tree(tree) else { return };
         if let T::TypeApply { fun: get_class, .. } = *self.tpd.tree(fun)
             && let T::Select { qualifier, name } = *self.tpd.tree(get_class)
-            && self.text(name.name) == "getClass"
+            && self.text(name.name) == nme::GET_CLASS
             && self.tpd.items(args).is_empty()
         {
             let widened = self.tpd.tpe(qualifier);
@@ -96,8 +97,8 @@ impl Typer<'_> {
 /// `==` or `!=` of a class constant and `null` (dotty's `foldNullOp` on tags that differ).
 fn class_null_op(op: &str) -> Option<C> {
     match op {
-        "==" => Some(C::Boolean(false)),
-        "!=" => Some(C::Boolean(true)),
+        nme::EQ => Some(C::Boolean(false)),
+        nme::NE => Some(C::Boolean(true)),
         _ => None,
     }
 }

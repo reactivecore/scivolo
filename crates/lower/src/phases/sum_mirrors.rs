@@ -11,6 +11,7 @@ use super::walk::class_defs;
 use crate::definitions::{Known, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use syntax::ast::tree::MatchKind;
 use tasty::tags::{ABSTRACT, ENUM, SEALED, SYNTHETIC};
@@ -52,7 +53,7 @@ pub fn is_generic_sum(l: &mut Lower, root: TNodeId, s: SymbolId) -> bool {
     let children = children(l, root, s);
     !children.is_empty()
         && children.into_iter().all(|c| {
-            let anonymous = l.u.symbol(c).name.starts_with("$anon");
+            let anonymous = l.u.symbol(c).name.starts_with(nme::ANON_CLASS);
             let visible = l.u.symbol(c).owner.is_some_and(|o| typer::sealed::visible_to_parent(l.u, s, o));
             let fits = !l.u.is_class(c) || is_generic_product(l, c) || is_generic_sum(l, root, c);
             !anonymous && visible && fits
@@ -70,16 +71,16 @@ pub fn enum_ordinal(
     let cc = l.case_classes()?;
     let int = l.u.class_ref(tasty::defn::INT);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("x$0"), param)];
+    let params = [(l.u.intern_name(&name_kinds::synthetic_param(0)), param)];
     let info = l.u.intern_method(binder, &params, int, false, false);
-    let like = l.u.decls_named(cc.mirror_sum, "ordinal");
+    let like = l.u.decls_named(cc.mirror_sum, nme::ORDINAL);
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
     }
     let flags = Flags::default().with(SYNTHETIC);
     let java = l.u.linearization(enum_class).into_iter().find(|&b| l.is_known(b, Known::JavaEnum));
-    let java_ordinal = java.and_then(|j| l.u.decl(j, "ordinal").ok()?.into_iter().next());
+    let java_ordinal = java.and_then(|j| l.u.decl(j, nme::ORDINAL).ok()?.into_iter().next());
     let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let x = l.copy_ident(args[0]);
         l.call(x, java_ordinal.unwrap_or(cc.enum_ordinal), &[])
@@ -101,9 +102,9 @@ pub fn ordinal(
     let children = children(l, root, sealed);
     let int = l.u.class_ref(tasty::defn::INT);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("x$0"), param)];
+    let params = [(l.u.intern_name(&name_kinds::synthetic_param(0)), param)];
     let info = l.u.intern_method(binder, &params, int, false, false);
-    let like = l.u.decls_named(cc.mirror_sum, "ordinal");
+    let like = l.u.decls_named(cc.mirror_sum, nme::ORDINAL);
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
@@ -119,7 +120,7 @@ pub fn ordinal(
                 Some(pre) => l.u.intern_type(Type::Sym(Some(pre), c)),
                 None => type_ref(l.u, c),
             };
-            let name = l.term_name("_");
+            let name = l.term_name(nme::WILDCARD);
             let wildcard = l.tpd.node(Tree::Ident { name }, Span::NONE, Some(tpe), None);
             let tpt = l.type_tree(tpe, Span::NONE);
             let pat = l.tpd.node(Tree::Typed { expr: wildcard, tpt }, Span::NONE, Some(tpe), None);

@@ -6,6 +6,7 @@
 
 use crate::line_names::PREFIX as WRAPPER_PREFIX;
 use crate::show_methods::SUFFIX;
+use names::{name_kinds, nme};
 use syntax::source::Offset;
 use tasty::tags::{ARTIFACT, LAZY, OBJECT, PRIVATE, SYNTHETIC};
 use tasty::{Erased, Kind, SymbolId, Universe};
@@ -91,7 +92,8 @@ pub fn results(u: &Universe, values: &[SymbolId]) -> u32 {
 }
 
 fn is_res(name: &str) -> bool {
-    name.strip_prefix("res").is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    name.strip_prefix(nme::REPL_RES_PREFIX)
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
 }
 
 fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
@@ -99,7 +101,7 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
     let (name, kind, flags) = (s.name.clone(), s.kind, s.flags);
     let hidden = [PRIVATE, SYNTHETIC, ARTIFACT].iter().any(|&f| flags.has(f));
     let special = name.strip_prefix('<').is_some_and(|n| n.starts_with(char::is_alphabetic));
-    let generated = name.ends_with("_=") || is_default_getter(&name);
+    let generated = name.ends_with(name_kinds::SETTER_SUFFIX) || is_default_getter(&name);
     if hidden || special || generated || name.ends_with(SUFFIX) {
         return None;
     }
@@ -113,7 +115,7 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
         Kind::Val | Kind::Param => {
             let info = u.info(d);
             let show = Some(tasty::encode(&format!("{name}{SUFFIX}")));
-            let text = match name.strip_suffix("$assign") {
+            let text = match name.strip_suffix(nme::REPL_ASSIGN_SUFFIX) {
                 Some(var) => format!("{var}: {}", u.show_user(info)),
                 None => u.show_def(d),
             };
@@ -126,7 +128,8 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
 
 /// Whether `name` has the form `m$default$N` (dotty's `DefaultGetterName`).
 fn is_default_getter(name: &str) -> bool {
-    name.rsplit_once("$default$").is_some_and(|(_, n)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    name.rsplit_once(name_kinds::DEFAULT_GETTER)
+        .is_some_and(|(_, n)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// The text that prints definition `d` of module `module` in `width` columns, running its show

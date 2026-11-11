@@ -5,6 +5,7 @@
 
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{
     ANNOTATION, APPLY, ARTIFACT, DEFDEF, EMPTYCLAUSE, NEW, PARAM, SELECTin, SPLITCLAUSE, STRINGconst,
@@ -70,7 +71,7 @@ impl TreePickler<'_> {
         let class = self.u.package("scala.annotation").and_then(|p| self.u.decl(p, "targetName").ok());
         let class = class.and_then(|d| d.into_iter().find(|&c| self.u.is_class(c)));
         let class = class.ok_or("a target name without the class targetName")?;
-        let init = self.u.decl(class, "<init>").ok().and_then(|d| d.first().copied());
+        let init = self.u.decl(class, nme::CONSTRUCTOR).ok().and_then(|d| d.first().copied());
         let init = init.ok_or("a target name without the constructor of targetName")?;
         let class = type_ref(self.u, class);
         self.with_length(ANNOTATION, &mut |p| {

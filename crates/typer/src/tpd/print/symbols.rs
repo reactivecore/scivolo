@@ -3,6 +3,7 @@
 //! Symbols as `scripts/typer-oracle` prints them: full names, and methods' erased signatures.
 
 use crate::signatures::params_sig;
+use names::nme;
 use syntax::ast::print::quote;
 use tasty::{Kind, SymbolId, Universe};
 
@@ -22,7 +23,7 @@ pub fn full_name(u: &Universe, s: SymbolId) -> String {
         _ => name.as_str(),
     };
     if s == u.root() {
-        return "<empty>".into();
+        return nme::EMPTY_PACKAGE.into();
     }
     let mut filler = String::new();
     let mut encl = u.symbol(s).owner;
@@ -45,7 +46,7 @@ pub fn full_name(u: &Universe, s: SymbolId) -> String {
 /// `s` quoted, a method with its signature, as in `"scala.Predef$.println#(java.lang.Object)"`.
 pub fn sym(u: &mut Universe, s: SymbolId) -> String {
     let mut text = full_name(u, s);
-    if u.symbol(s).kind == Kind::Def && u.symbol(s).name != "<init>" {
+    if u.symbol(s).kind == Kind::Def && u.symbol(s).name != nme::CONSTRUCTOR {
         text.push_str(&format!("#({})", params_sig(u, s).join(",")));
     }
     quote(&text.encode_utf16().collect::<Vec<_>>())

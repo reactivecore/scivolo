@@ -47,7 +47,7 @@ pub fn specialized_interface(
 /// The adaptations a closure of `FunctionN` needs for its method of erased parameters `params`
 /// and result `result`.
 pub fn function_adaptation(params: &[Erased], result: &Erased) -> (bool, bool) {
-    let object = Erased::Class("java.lang.Object".into());
+    let object = Erased::object();
     adaptation_needed(params, result, &vec![object.clone(); params.len()], &object)
 }
 
@@ -88,7 +88,7 @@ pub fn erased_adapted_def(
         let this = l.this(class, span);
         let fun = l.select(this, anon, span);
         let call = l.apply(fun, &args, result, span);
-        if needed.1 { adapt(l, call, &Erased::Class("java.lang.Object".into())) } else { call }
+        if needed.1 { adapt(l, call, &Erased::object()) } else { call }
     })
 }
 
@@ -107,8 +107,7 @@ pub fn adapted_types(
     let declared = l.u.method(info).map(|m| m.params.to_vec()).unwrap_or_default();
     let declared_result = l.u.result_type(info);
     let object = type_ref(l.u, l.u.defn().object);
-    let as_erased =
-        |e: &Erased, t: TypeId| if *e == Erased::Class("java.lang.Object".into()) { object } else { t };
+    let as_erased = |e: &Erased, t: TypeId| if *e == Erased::object() { object } else { t };
     let mut out: Vec<(NameId, TypeId)> = params.iter().map(|&(p, t)| (l.u.interned_name(p), t)).collect();
     if params_needed {
         for ((param, (name, t)), e) in out.iter_mut().zip(declared).zip(&erased) {

@@ -5,6 +5,7 @@
 
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Tree};
 use tasty::{ANY, NameId, Type, TypeId};
 
@@ -34,7 +35,7 @@ impl Typer<'_> {
         };
         match self.ast.tree(pat) {
             Tree::Typed { .. } => true,
-            Tree::Ident { name } => self.text(name.name) == "_",
+            Tree::Ident { name } => self.text(name.name) == nme::WILDCARD,
             _ => false,
         }
     }

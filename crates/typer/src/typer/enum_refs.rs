@@ -5,6 +5,7 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
+use names::nme;
 use tasty::tags::{CONTRAVARIANT, COVARIANT};
 use tasty::{Kind, SymbolId, TypeId};
 
@@ -64,9 +65,9 @@ impl Typer<'_> {
                 Kind::Class => break Some(self.desugared_name(o)),
                 Kind::Package => {
                     let package = self.u.full_name(o);
-                    break (!matches!(package.as_str(), "" | "<empty>")).then_some(package);
+                    break (!matches!(package.as_str(), "" | nme::EMPTY_PACKAGE)).then_some(package);
                 }
-                _ if self.u.symbol(o).name == "$anonfun" => {}
+                _ if self.u.symbol(o).name == nme::ANON_FUN => {}
                 _ if self.u.symbol(o).name == "$typingDummy" => break None,
                 _ => terms += 1,
             }
@@ -75,7 +76,7 @@ impl Typer<'_> {
         match (prefix, terms) {
             (None, 0) => name.clone(),
             (Some(p), 0) => format!("{p}.{name}"),
-            (p, t) => format!("{}.{}{name}", p.as_deref().unwrap_or("<empty>"), "_$".repeat(t)),
+            (p, t) => format!("{}.{}{name}", p.as_deref().unwrap_or(nme::EMPTY_PACKAGE), "_$".repeat(t)),
         }
     }
 

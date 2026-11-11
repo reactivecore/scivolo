@@ -83,10 +83,8 @@ impl Gen<'_, '_> {
 
     /// The NIR type of a value of type `t`: its erasure, `BoxedUnit` for `Unit`.
     pub fn value_type(&mut self, t: tasty::TypeId) -> TypeId {
-        match self.l.u.erase(t) {
-            Erased::Unit => self.erased(&Erased::Class("scala.runtime.BoxedUnit".into())),
-            e => self.erased(&e),
-        }
+        let e = self.l.u.erase(t).boxing_unit();
+        self.erased(&e)
     }
 
     /// The reference type of class `c`, the C struct of a `@struct` class.
