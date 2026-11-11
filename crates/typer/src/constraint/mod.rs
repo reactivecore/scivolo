@@ -32,6 +32,8 @@ pub struct Constraint {
     vars: Vec<Entry>,
     /// The fate of each variable, not undone by `rollback`.
     fates: Vec<Fate>,
+    /// The ids of the pending variables.
+    pending: std::collections::BTreeSet<u32>,
     /// The entries changed since a mark, their previous states.
     log: Vec<(usize, Entry)>,
     /// How many satisfiability checks are in progress, one inside another.
@@ -68,6 +70,7 @@ impl Constraint {
     fn fresh_at(&mut self, u: &mut Universe, at: At) -> TypeId {
         self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, hard: false, at });
         self.fates.push(Fate::Open);
+        self.pending.insert(self.vars.len() as u32 - 1);
         u.intern_type(Type::Var(VarId(self.vars.len() as u32 - 1)))
     }
 
@@ -81,6 +84,7 @@ impl Constraint {
         let i = v.0 as usize;
         self.log.push((i, self.vars[i]));
         self.vars[i].instance = Some(t);
+        self.pending.remove(&v.0);
     }
 
     fn set(&mut self, v: VarId, lo: TypeId, hi: TypeId) {
@@ -282,7 +286,11 @@ impl TypeVars for Constraint {
     fn rollback(&mut self, m: Mark) {
         while self.log.len() > m.0 {
             let (i, e) = self.log.pop().expect("a logged entry");
+            let instantiated = self.vars[i].instance.is_some();
             self.vars[i] = e;
+            if instantiated != e.instance.is_some() {
+                self.sync_pending(i);
+            }
         }
     }
 
@@ -305,6 +313,7 @@ impl TypeVars for Constraint {
         for (i, e) in *entries {
             self.log.push((i, self.vars[i]));
             self.vars[i] = e;
+            self.sync_pending(i);
         }
     }
 }
