@@ -376,20 +376,20 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 199 | 1288 |
-| attributes differ | 77 | 428 |
-| code differs | 243 | 1113 |
-| refused | 130 | |
+| same | 251 | 1995 |
+| attributes differ | 175 | 496 |
+| code differs | 186 | 505 |
+| refused | 37 | |
 
-- **Refused:** member not found (96, of them 86 `scala.runtime.java8` traits calling
-  `BoxesRunTime`, a Java class of the library's jar); adaptation (9); no applicable alternative
-  (8); TASTy pickling (9: a reference to a local definition outside the pickled trees 6, a type
-  annotation with arguments 3).
-- **Code differs**, by first differing line: a missing `serialVersionUID` field (46), dotty's
-  second `athrow` after a call of type `Nothing` (37), generic signatures of trait forwarders and
-  extension methods (`compose`, `equals$extension`), field signatures (`underlying`).
-- **Attributes differ:** line numbers (163), `private final` flags (30), `Deprecated` (25),
-  `InnerClasses` (11).
+- **Refused:** no applicable alternative (8); adaptation (8); TASTy pickling (12: a reference to
+  a local definition outside the pickled trees 6, a type annotation with arguments 4, a tree
+  outside the subset 2); member not found (4); ambiguous implicit conversions (2); the
+  package-private Java class `INodeBase` (1); `@SerialVersionUID` of no constant (1).
+- **Code differs**, by first differing line: branch offsets after dotty's dead second `athrow`
+  following an inlined `.nn` (`ifeq`, `ifnonnull`, `goto`; the library oracle inlines from source,
+  dotty compiling against the jar writes ours), `Comparator.thenComparing`'s bound taken from
+  Scala Native's javalib (18, #245).
+- **Attributes differ:** mostly line numbers.
 
 ### com-lihaoyi libraries from source
 
