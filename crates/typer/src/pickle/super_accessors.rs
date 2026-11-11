@@ -6,6 +6,7 @@
 //! `C`; declared without a body, each call a selection of its accessor on `C.this`.
 
 use super::names::expanded_prefix_name;
+use super::super_accessor_defs::accessor_info;
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::protected_access::super_accessor_needed;
@@ -143,6 +144,7 @@ impl TreePickler<'_> {
         let acc = self.u.define(symbol);
         self.u.set_owner(acc, class);
         let info = self.u.widen(self.tpd.tpe(sel));
+        let info = accessor_info(self.u, *member, info);
         self.u.set_info(acc, info);
         let tasty_name = |u: &Universe, original: &str| {
             let base = match trait_ {

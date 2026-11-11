@@ -1,14 +1,16 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //! Annotated and refined types and type trees (dotty's `AnnotatedType` case of
-//! `pickleNewType`, `Annotated` and `RefinedTypeTree` cases of `pickleTree`).
+//! `pickleNewType`, `Annotated` and `RefinedTypeTree` cases of `pickleTree`), and the order of a
+//! definition's annotations.
 
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId};
 use names::nme;
-use tasty::TypeId;
+use tasty::defn::UNUSED;
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
+use tasty::{Kind, SymbolId, TypeId};
 
 impl TreePickler<'_> {
     /// Type `parent` annotated with class type `annot`, the annotation `new annot()`.
@@ -28,6 +30,26 @@ impl TreePickler<'_> {
                 })
             })
         })
+    }
+
+    /// The annotation trees of `s`, in order; in a file, the ones of its definition last first
+    /// (dotty's `addAnnotation` prepends), and on a value parameter its `@unused` first
+    /// (`PostTyper`'s `transform` of a parameter).
+    pub fn annotation_trees(&mut self, s: SymbolId) -> Vec<TNodeId> {
+        let own = self.tpd.annotations(s).to_vec();
+        let Some(file) = self.file else { return own };
+        let mut trees = file.annotations.get(&s).cloned().unwrap_or_else(|| own.clone());
+        let at: Vec<usize> = (0..trees.len()).filter(|&i| own.contains(&trees[i])).collect();
+        for (&i, &a) in at.iter().zip(own.iter().rev()) {
+            trees[i] = a;
+        }
+
+        if self.u.symbol(s).kind == Kind::Param
+            && let Some(i) = trees.iter().position(|&a| self.u.is_class_named(self.tpd.tpe(a), UNUSED))
+        {
+            trees[..=i].rotate_right(1);
+        }
+        trees
     }
 
     /// Whether class type `class` is capture checking's `caps.internal.inferred`.
