@@ -6,9 +6,10 @@
 use super::local_free::{Free, within};
 use super::walk::{children, is_class_def};
 use crate::{Lower, Result};
+use names::name_kinds;
 use rustc_hash::FxHashSet;
 use tasty::tags::OBJECT;
-use tasty::{Kind, SymbolId, name_kinds};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Passes the values of `free`, or in `class` itself its `fields`, first to each constructor call

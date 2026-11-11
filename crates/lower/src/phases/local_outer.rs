@@ -11,8 +11,9 @@ use super::outer_traits::{is_pure_interface, outer_class};
 use super::references_outer::references_outer;
 use crate::Lower;
 use crate::symbols::has;
+use names::{name_kinds, nme};
 use tasty::tags::LAZY;
-use tasty::{Kind, SymbolId, name_kinds, nme};
+use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
 
 /// The class whose instance local class `class` of definition `td` takes, if any.

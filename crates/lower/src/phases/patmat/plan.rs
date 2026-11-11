@@ -6,6 +6,7 @@
 use super::Translator;
 use crate::phases::type_tests::singletons::has_value_class_this;
 use crate::{Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use syntax::names::is_var_pattern_name;
 use tasty::SymbolId;
@@ -179,7 +180,7 @@ impl Translator<'_, '_> {
                 self.unapply_pattern_plan(scrutinee, pat, (fun, implicits, patterns), on_success)
             }
             Tree::SeqLiteral { .. } => unsupported(span, "sequence patterns"),
-            Tree::Bind { name, body } if self.l.names.text(name.name) == "_" => {
+            Tree::Bind { name, body } if self.l.names.text(name.name) == nme::WILDCARD => {
                 self.pattern_plan(scrutinee, body, on_success)
             }
             Tree::Bind { body, .. } => {
@@ -216,11 +217,17 @@ impl Translator<'_, '_> {
     /// `WildcardPattern`): of identifiers, `_` and variable names not back-quoted.
     fn is_wildcard(&self, pat: TNodeId) -> bool {
         match *self.l.tpd.tree(pat) {
-            Tree::Ident { name } if matches!(self.l.names.text(name.name), "_" | "_*") => true,
+            Tree::Ident { name }
+                if matches!(self.l.names.text(name.name), nme::WILDCARD | nme::WILDCARD_STAR) =>
+            {
+                true
+            }
             Tree::Ident { name } => {
                 is_var_pattern_name(self.l.names.text(name.name)) && !self.l.tpd.is_backquoted(pat)
             }
-            Tree::Bind { name, body } => self.l.names.text(name.name) == "_" && self.is_wildcard(body),
+            Tree::Bind { name, body } => {
+                self.l.names.text(name.name) == nme::WILDCARD && self.is_wildcard(body)
+            }
             Tree::Alternative { trees } => self.l.tpd.items(trees).iter().all(|&p| self.is_wildcard(p)),
             _ => false,
         }

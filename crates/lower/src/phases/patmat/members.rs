@@ -5,6 +5,7 @@
 
 use super::Translator;
 use crate::Result;
+use names::nme;
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, TypeId};
 use typer::tpd::TNodeId;
@@ -13,10 +14,10 @@ impl Translator<'_, '_> {
     /// `!scrutinee.isEmpty`.
     pub fn non_empty(&mut self, scrutinee: TNodeId) -> TNodeId {
         let tpe = self.l.tpd.tpe(scrutinee);
-        let is_empty = self.member_named(tpe, "isEmpty").expect("`isEmpty`");
+        let is_empty = self.member_named(tpe, nme::IS_EMPTY).expect("`isEmpty`");
         let empty = self.select_member(scrutinee, is_empty);
         let boolean = self.l.tpd.tpe(empty);
-        let not = self.member_named(boolean, "unary_!").expect("`unary_!`");
+        let not = self.member_named(boolean, nme::UNARY_NOT).expect("`unary_!`");
         self.select_member(empty, not)
     }
 
@@ -43,7 +44,7 @@ impl Translator<'_, '_> {
         if !self.l.was_named_args.contains(arg) {
             return false;
         }
-        let Some(get) = self.member_named(result, "get") else { return false };
+        let Some(get) = self.member_named(result, nme::GET) else { return false };
         let get_type = self.member_type(result, get);
         self.named_tuple_values(get_type).is_some()
     }

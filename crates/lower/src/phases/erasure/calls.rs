@@ -10,8 +10,9 @@ use crate::phases::adapt::{array_op, from_start, is_synchronized, qualify_synchr
 use crate::phases::casts::is_cast;
 use crate::phases::function_classes::erased_function_class;
 use crate::{Lower, Result};
+use names::nme;
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId, defn, nme};
+use tasty::{Erased, SymbolId, defn};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Call `t` of `fun` to `args`, its argument lists flattened and its type arguments dropped; at

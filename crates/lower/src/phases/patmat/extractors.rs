@@ -13,9 +13,10 @@ use crate::phases::case_members::case_accessors;
 use crate::phases::type_tests::not_null::is_not_null;
 use crate::symbols::has;
 use crate::{Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
+use tasty::SymbolId;
 use tasty::tags::SYNTHETIC;
-use tasty::{SymbolId, nme};
 use typer::tpd::{List, TNodeId};
 
 impl Translator<'_, '_> {
@@ -89,7 +90,7 @@ impl Translator<'_, '_> {
                 if let Some(plan) = t.generic_tuple_plan(result, args, on_success)? {
                     return Ok(plan);
                 }
-                let Some(get) = t.member_named(result_type, "get") else {
+                let Some(get) = t.member_named(result_type, nme::GET) else {
                     return unsupported(span, "sequence extractors without `get`");
                 };
                 let value = t.l.ident(result, Span::NONE);
@@ -147,7 +148,7 @@ impl Translator<'_, '_> {
             if let Some(plan) = t.generic_tuple_plan(result, args, on_success)? {
                 return Ok(plan);
             }
-            let Some(get) = t.member_named(result_type, "get") else {
+            let Some(get) = t.member_named(result_type, nme::GET) else {
                 return unsupported(span, "extractors without `get`");
             };
             let value = t.l.ident(result, Span::NONE);

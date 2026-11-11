@@ -13,10 +13,11 @@ use super::walk;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::name_kinds;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, ARTIFACT, INLINE, OVERRIDE};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, name_kinds};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A super selection: its tree, the class whose `super` it selects on, the mixin's name if

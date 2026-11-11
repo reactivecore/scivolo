@@ -6,8 +6,9 @@
 //! `FunctionN` (dotty's `SpecializeApplyMethods`).
 
 use super::{member, package, symbol, type_ref};
+use names::{name_kinds, nme};
 use tasty::tags::TRAIT;
-use tasty::{Erased, Flags, Kind, SymbolId, TypeId, Universe, name_kinds, nme};
+use tasty::{Erased, Flags, Kind, SymbolId, TypeId, Universe};
 
 /// `JProcedure{arity}`, with abstract method `applyVoid` of object parameters.
 pub fn procedure(u: &mut Universe, arity: usize) -> Result<SymbolId, String> {

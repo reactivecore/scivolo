@@ -9,9 +9,10 @@ use super::enum_values::{child_index, param};
 use crate::definitions::{Known, symbol};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{ENUM, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether class `c` derives from `java.lang.Enum`.

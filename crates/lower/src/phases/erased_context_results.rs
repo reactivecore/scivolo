@@ -6,8 +6,9 @@
 
 use crate::Lower;
 use crate::symbols::has;
+use names::name_kinds;
 use tasty::tags::PRIVATE;
-use tasty::{SymbolId, Type, TypeId, name_kinds};
+use tasty::{SymbolId, Type, TypeId};
 
 /// Whether `t` is `PolyFunction { def apply(using …): R }` (dotty's `ContextFunctionType` of a
 /// `PolyFunctionOf`).

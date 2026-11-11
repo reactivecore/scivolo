@@ -5,6 +5,7 @@
 
 use super::walk::subtrees;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::{Erased, Kind, SymbolId, TypeId};
@@ -46,11 +47,12 @@ fn named_value(
 ) -> Result<TNodeId> {
     let next_name = method(l, enumeration, "nextName", |_, _| true)?;
     let iterator = l.u.info(next_name);
-    let [has_next, next] = ["hasNext", "next"].map(|n| l.u.member_of_type(iterator, n).first().copied());
+    let [has_next, next] =
+        [nme::HAS_NEXT, nme::NEXT].map(|n| l.u.member_of_type(iterator, n).first().copied());
     let (Some(has_next), Some(next)) = (has_next, next) else {
         return unsupported(Span::NONE, "Enumeration.nextName without hasNext and next");
     };
-    let ne = method(l, l.u.defn().any, "!=", |_, _| true)?;
+    let ne = method(l, l.u.defn().any, nme::NE, |_, _| true)?;
     let names = next_name_ref(l, class, next_name);
     let null = l.null_literal(Span::NONE);
     let not_null = call(l, names, ne, &[null]);

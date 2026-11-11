@@ -4,8 +4,9 @@
 
 use crate::Lower;
 use crate::phases::lazy_trees::val_def;
+use names::nme;
 use syntax::ast::Span;
-use tasty::{SymbolId, nme};
+use tasty::SymbolId;
 use typer::tpd::TNodeId;
 
 /// `{ val p_j = contents.apply(j).asInstanceOf[C[T_j]]; content }` of the parameters `params`

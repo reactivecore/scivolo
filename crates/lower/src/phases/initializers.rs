@@ -9,9 +9,10 @@ use super::getters::is_param_accessor;
 use super::walk::{children, subtrees};
 use crate::symbols::{has, is_effectively_final};
 use crate::{Lower, Result};
+use names::nme;
 use rustc_hash::FxHashSet;
 use tasty::tags::{LAZY, LOCAL, MUTABLE, PRIVATE, STATIC};
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the references to the parameter fields of class definition `td` in its field

@@ -7,8 +7,9 @@
 use super::Gen;
 use crate::definitions::Known;
 use crate::{Result, unsupported};
+use names::nme;
 use nir::{Op, Type, Val, ValId};
-use tasty::{SymbolId, nme};
+use tasty::SymbolId;
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -91,12 +92,12 @@ impl Gen<'_, '_> {
                 let idx = self.gen_expr(*i)?;
                 self.emit(Op::Arrayload { ty: elem, arr, idx })
             }
-            ("update", [i, value]) => {
+            (nme::UPDATE, [i, value]) => {
                 let idx = self.gen_expr(*i)?;
                 let value = self.gen_expr(*value)?;
                 self.emit(Op::Arraystore { ty: elem, arr, idx, value })
             }
-            ("length", []) => self.emit(Op::Arraylength(arr)),
+            (nme::LENGTH, []) => self.emit(Op::Arraylength(arr)),
             _ => return unsupported(span, "array operations"),
         };
         self.m.pos = saved;

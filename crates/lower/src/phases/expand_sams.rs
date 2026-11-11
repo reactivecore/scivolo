@@ -14,6 +14,7 @@ use super::tree_copy::{Copier, copy};
 use super::walk::subtrees;
 use crate::definitions::{PartialFunctions, applied, symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use syntax::ast::tree::MatchKind;
@@ -238,15 +239,16 @@ fn is_default_case(l: &Lower, c: TNodeId) -> bool {
     while let Tree::Bind { body, .. } = *l.tpd.tree(pat) {
         pat = body;
     }
-    matches!(*l.tpd.tree(pat), Tree::Ident { name } if l.names.text(name.name) == "_")
+    matches!(*l.tpd.tree(pat), Tree::Ident { name } if l.names.text(name.name) == nme::WILDCARD)
 }
 
 /// `case _ @ _ => value` of method `method` for a selector of type `tpe`.
 fn default_case(l: &mut Lower, method: SymbolId, tpe: TypeId, value: TNodeId) -> TNodeId {
-    let sym = l.u.define(symbol("_", Kind::Val, method, Flags::default().with(SYNTHETIC).with(CASE)));
+    let sym =
+        l.u.define(symbol(nme::WILDCARD, Kind::Val, method, Flags::default().with(SYNTHETIC).with(CASE)));
     l.u.set_info(sym, tpe);
     let body = wildcard(l, tpe);
-    let name = l.term_name("_");
+    let name = l.term_name(nme::WILDCARD);
     let bind_tpe = l.u.intern_type(Type::Sym(None, sym));
     let bind = l.tpd.node(Tree::Bind { name, body }, Span::NONE, Some(bind_tpe), Some(sym));
     l.positioned(bind);

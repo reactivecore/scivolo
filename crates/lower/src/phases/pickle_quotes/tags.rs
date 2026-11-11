@@ -9,10 +9,11 @@ use crate::definitions::symbol;
 use crate::phases::lift_names::fresh;
 use crate::phases::walk::subtrees;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::{Span, TName};
 use tasty::tags::SYNTHETIC;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 use typer::unpickle::QuoteHole;
 

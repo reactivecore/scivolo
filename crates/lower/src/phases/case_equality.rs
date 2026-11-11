@@ -8,9 +8,10 @@ use super::case_members::{applied_ref, unchecked_applied_ref};
 use crate::Lower;
 use crate::definitions::{CaseClasses, primitive_class_name, symbol, type_ref};
 use crate::symbols::has;
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, name_kinds};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{MatchKind, TNodeId, Tree};
 
 impl Lower<'_> {

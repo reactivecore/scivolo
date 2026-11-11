@@ -8,9 +8,10 @@
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{ENUM, MUTABLE, PRIVATE, STATIC};
-use tasty::{Flags, Kind, SymbolId, nme};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the forwarders to enum class definition `td`, one of `classes`.

@@ -5,9 +5,10 @@
 
 use crate::Lower;
 use crate::definitions::{symbol, type_ref};
+use names::nme;
 use syntax::ast::{Span, TName};
 use tasty::tags::{FINAL, OVERRIDE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The symbol of a final synthetic class `$anon` of `owner` extending `parents`.
@@ -112,7 +113,7 @@ pub fn def(
 
 /// The pattern `_` of type `tpe`.
 pub fn wildcard(l: &mut Lower, tpe: TypeId) -> TNodeId {
-    let name = l.term_name("_");
+    let name = l.term_name(nme::WILDCARD);
     let class = l.u.sym_of(tpe);
     l.tpd.node(Tree::Ident { name }, Span::NONE, Some(tpe), class)
 }

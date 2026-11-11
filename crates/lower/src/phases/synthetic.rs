@@ -11,9 +11,10 @@ use super::value_members::value_members;
 use super::walk::class_defs_inner_first;
 use crate::definitions::{applied, symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the synthetic members each class of unit `root` lacks, inner classes first.
@@ -59,14 +60,14 @@ fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()
 /// `private def writeReplace(): AnyRef = new ModuleSerializationProxy(classOf[C.type])` for a
 /// static object `C` without one (dotty's `serializableObjectMethod`).
 fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TNodeId>> {
-    if !l.u.is_static_module(class) || has_serialization_method(l, class, "writeReplace") {
+    if !l.u.is_static_module(class) || has_serialization_method(l, class, nme::WRITE_REPLACE) {
         return Ok(Vec::new());
     }
     let span = if span.exists() { Span::synthetic(span.point(), span.point()) } else { span };
     let Some(module) = l.u.source_module(class) else {
         return unsupported(span, "an object without its value");
     };
-    let (sym, any_ref) = private_method(l, class, "writeReplace");
+    let (sym, any_ref) = private_method(l, class, nme::WRITE_REPLACE);
     let s = l.serialization()?;
     let new = l.new_(s.proxy, span);
     let ctor = l.select(new, s.proxy_ctor, span);
@@ -97,12 +98,12 @@ pub fn before_synthesized(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
         nme::HASH_CODE,
         nme::EQUALS,
         nme::TO_STRING,
-        "canEqual",
-        "productArity",
-        "productPrefix",
-        "productElement",
-        "productElementName",
-        "ordinal",
+        nme::CAN_EQUAL,
+        nme::PRODUCT_ARITY,
+        nme::PRODUCT_PREFIX,
+        nme::PRODUCT_ELEMENT,
+        nme::PRODUCT_ELEMENT_NAME,
+        nme::ORDINAL,
     ];
     let s = l.u.symbol(m);
     let owner = s.owner.filter(|_| s.flags.has(SYNTHETIC) && SYNTHESIZED.contains(&s.name.as_str()))?;

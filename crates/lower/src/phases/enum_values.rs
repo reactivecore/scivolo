@@ -9,9 +9,10 @@ use super::synthetic::{has_serialization_method, private_method};
 use super::walk::subtrees;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{CASE, ENUM, OVERRIDE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, nme};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Whether `class` is the anonymous class of an enum value.
@@ -42,7 +43,7 @@ pub fn enum_value_members(l: &mut Lower, root: TNodeId, class: SymbolId, span: S
     let focus = Span::new(span.point(), span.point(), span.point());
     let java = super::java_enums::derives_from_java_enum(l, class);
     let mut out = Vec::new();
-    if !java && !has_serialization_method(l, class, "readResolve") {
+    if !java && !has_serialization_method(l, class, nme::READ_RESOLVE) {
         out.push(read_resolve(l, class, owner, focus)?);
     }
     let cc = l.case_classes()?;
@@ -50,7 +51,7 @@ pub fn enum_value_members(l: &mut Lower, root: TNodeId, class: SymbolId, span: S
         true => vec![cc.product_prefix],
         false => vec![cc.product_prefix, cc.to_string, cc.enum_ordinal, cc.hash_code],
     };
-    let java_name = l.u.member(class, "name").into_iter().find(|&m| l.u.symbol(m).kind == Kind::Def);
+    let java_name = l.u.member(class, nme::NAME).into_iter().find(|&m| l.u.symbol(m).kind == Kind::Def);
     for sym in synthesized {
         if existing_def(l, class, sym).is_some() {
             continue;
@@ -132,11 +133,11 @@ fn read_resolve(l: &mut Lower, class: SymbolId, owner: SymbolId, focus: Span) ->
     let Some(module) = l.u.source_module(companion) else {
         return unsupported(focus, "an enum companion without its value");
     };
-    let from_ordinal = l.u.decls_named(companion, "fromOrdinal");
+    let from_ordinal = l.u.decls_named(companion, nme::FROM_ORDINAL);
     let Some(from_ordinal) = from_ordinal.into_iter().find(|&m| l.u.symbol(m).kind == Kind::Def) else {
         return unsupported(focus, "an enum companion without `fromOrdinal`");
     };
-    let (sym, any_ref) = private_method(l, class, "readResolve");
+    let (sym, any_ref) = private_method(l, class, nme::READ_RESOLVE);
     let this = l.this(class, Span::NONE);
     let enum_ordinal = l.case_classes()?.enum_ordinal;
     let ordinal = l.call(this, enum_ordinal, &[]);

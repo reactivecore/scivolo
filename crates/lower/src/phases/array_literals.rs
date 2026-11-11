@@ -6,8 +6,8 @@
 use super::array_apply::{applied, qualifier_symbol, wrapped_literal};
 use crate::Lower;
 use crate::definitions::Known;
+use names::nme;
 use syntax::ast::Span;
-use tasty::nme;
 use typer::tpd::{TNodeId, Tree};
 
 /// The array literal for `Array.apply` call `t`, if it applies one.

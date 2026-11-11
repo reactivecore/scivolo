@@ -4,9 +4,10 @@ use super::Gen;
 use crate::definitions::Known;
 use crate::symbols::{has, is_extern};
 use crate::{Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
+use tasty::SymbolId;
 use tasty::tags::{INLINE, MACRO};
-use tasty::{SymbolId, nme};
 
 /// Whether binary class name `name` is a primitive value class.
 pub fn is_primitive(name: &str) -> bool {
@@ -83,12 +84,12 @@ impl Gen<'_, '_> {
         let Some(owner) = self.l.u.symbol(sym).owner else { return false };
         let name = self.l.u.symbol(sym).name.as_str();
         let owner_name = self.l.u.binary_name(owner);
-        let object_ops = ["eq", "ne", "synchronized", "==", "!=", "##"];
-        let any_ops = ["==", "!=", "##", "isInstanceOf", "asInstanceOf"];
+        let object_ops = [nme::REF_EQ, nme::REF_NE, nme::SYNCHRONIZED, nme::EQ, nme::NE, nme::HASHHASH];
+        let any_ops = [nme::EQ, nme::NE, nme::HASHHASH, nme::IS_INSTANCE_OF, nme::AS_INSTANCE_OF];
         let defn = self.l.u.defn();
         (owner == defn.any && any_ops.contains(&name))
             || is_primitive(&owner_name)
             || (owner == defn.object && object_ops.contains(&name))
-            || (owner_name == "java.lang.String" && name == "+")
+            || (owner_name == "java.lang.String" && name == nme::ADD)
     }
 }

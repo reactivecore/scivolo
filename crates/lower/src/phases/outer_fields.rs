@@ -13,10 +13,11 @@ use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, LOCAL, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, nme};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Gives class definition `td` of `class` its constructor parameter for the instance of `outer`.

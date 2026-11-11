@@ -9,12 +9,13 @@ use super::module_purity::is_pure_value;
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use rustc_hash::FxHashMap;
 use std::ops::ControlFlow;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::tags::SYNTHETIC;
-use tasty::{Erased, Flags, Kind, SymbolId, Type, nme};
+use tasty::{Erased, Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree, Walk, traverse_up};
 
 /// Reduces the applications of lambdas and anonymous function classes in unit `root`, inner ones

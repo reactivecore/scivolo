@@ -10,10 +10,11 @@ use super::walk::{children, subtrees};
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, LAZY, SYNTHETIC};
-use tasty::{Erased, Flags, Kind, SymbolId, TypeId, name_kinds, nme};
+use tasty::{Erased, Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A local lazy value made methods: its holder's, its `$lzyINIT` method's and its accessor's
@@ -112,7 +113,7 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let alloc = call(l, new, ctor, &[]);
     let holder_def = val_def(l, holder.sym, alloc);
     let holder_ref = l.ident(holder.sym, Span::NONE);
-    let get_value = holder_call(l, &holder, holder_ref, "value", &[], span)?;
+    let get_value = holder_call(l, &holder, holder_ref, nme::VALUE, &[], span)?;
     let get_value = l.with_span(get_value, span);
     let receiver = dup(l, holder_ref);
     let initialized = holder_call(l, &holder, receiver, "initialized", &[], span)?;

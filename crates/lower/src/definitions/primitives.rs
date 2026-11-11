@@ -3,7 +3,8 @@
 
 use super::member;
 use crate::Lower;
-use tasty::{Kind, SymbolId, Universe, nme};
+use names::nme;
+use tasty::{Kind, SymbolId, Universe};
 
 /// A primitive value class: its erased letter, the class, its object and that object's `box` and
 /// `unbox` methods.

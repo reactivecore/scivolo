@@ -4,6 +4,7 @@
 //! TASTy for them.
 
 use super::{java_class, java_static, member, package, type_ref};
+use names::nme;
 use tasty::tags::MUTABLE;
 use tasty::{Erased, Flags, Kind, SymbolId, TypeId, Universe};
 
@@ -38,18 +39,18 @@ pub fn ref_class(u: &mut Universe, e: &Erased) -> Result<Ref, String> {
             type_ref(u, c)
         }
     };
-    let elem = match member(u, class, "elem", Kind::Val) {
+    let elem = match member(u, class, nme::ELEM, Kind::Val) {
         Ok(f) => f,
         Err(_) => {
-            let f = u.define(super::symbol("elem", Kind::Val, class, Flags::default().with(MUTABLE)));
+            let f = u.define(super::symbol(nme::ELEM, Kind::Val, class, Flags::default().with(MUTABLE)));
             u.set_info(f, elem_type);
             f
         }
     };
     let ref_type = type_ref(u, class);
     let binder = u.fresh_binder();
-    let params = [(u.intern_name("elem"), elem_type)];
+    let params = [(u.intern_name(nme::ELEM), elem_type)];
     let info = u.intern_method(binder, &params, ref_type, false, false);
-    let create = java_static(u, class, "create", Kind::Def, info);
+    let create = java_static(u, class, nme::CREATE, Kind::Def, info);
     Ok(Ref { class, elem, create })
 }

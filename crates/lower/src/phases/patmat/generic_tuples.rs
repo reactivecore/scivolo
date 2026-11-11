@@ -7,8 +7,9 @@ use super::super::tuple_optimizations::elements::tuple_element_types;
 use super::Translator;
 use super::plan::PlanId;
 use crate::{Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
-use tasty::{SymbolId, nme};
+use tasty::SymbolId;
 use typer::tpd::TNodeId;
 
 impl Translator<'_, '_> {

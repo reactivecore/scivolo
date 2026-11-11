@@ -12,10 +12,11 @@ use super::lifted::Method;
 use super::proxy_names::name_proxies;
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::{name_kinds, nme};
 use rustc_hash::FxHashSet;
 use syntax::source::Offset;
 use tasty::tags::LAZY;
-use tasty::{Kind, NameId, SymbolId, name_kinds, nme};
+use tasty::{Kind, NameId, SymbolId};
 use typer::tpd::TNodeId;
 
 /// The proxy `sym` of a function, local class or constructor `owner` for value `value`.

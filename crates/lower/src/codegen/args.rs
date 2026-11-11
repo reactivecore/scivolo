@@ -4,9 +4,10 @@
 
 use super::Gen;
 use crate::{Result, unsupported};
+use names::nme;
 use nir::ValId;
 use syntax::ast::Span;
-use tasty::{SymbolId, nme};
+use tasty::SymbolId;
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {

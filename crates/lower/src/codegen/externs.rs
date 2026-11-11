@@ -65,7 +65,7 @@ impl Gen<'_, '_> {
         };
         if self.l.u.is_trait(sym) {
             let pos = self.pos_or(self.l.tpd.span(constr), pos);
-            let name = self.pool.member(name, &Sig::Extern(tasty::nme::TRAIT_CONSTRUCTOR.into()));
+            let name = self.pool.member(name, &Sig::Extern(names::nme::TRAIT_CONSTRUCTOR.into()));
             let unit = self.ty(Type::Unit);
             let ty = self.ty(Type::Function(Vec::new(), unit));
             let attrs = vec![Attr::Extern { blocking: false }];

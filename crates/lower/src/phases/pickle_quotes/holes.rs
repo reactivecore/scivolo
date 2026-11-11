@@ -9,10 +9,11 @@ use crate::definitions::symbol;
 use crate::phases::lift_names::fresh;
 use crate::phases::walk::{children, subtrees};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{MatchKind, TNodeId, Tree};
 use typer::unpickle::QuoteHole;
 
@@ -102,7 +103,7 @@ pub fn lambda(l: &mut Lower, contents: &[(TNodeId, Vec<SymbolId>)], owner: Symbo
             .map(|c| l.u.class_ref(&format!("scala.{c}")));
     let seq = l.u.intern_applied(seq, &[any]);
     let result = l.u.intern_applied(expr, &[any]);
-    let params = [("idx", int), ("contents", seq), ("quotes", quotes)].map(|(n, t)| {
+    let params = [(nme::IDX, int), (nme::CONTENTS, seq), (nme::QUOTES, quotes)].map(|(n, t)| {
         let n = fresh(l, n);
         (l.u.intern_name(&n), t)
     });

@@ -7,8 +7,9 @@ use super::lazy_trees::{assign, local, return_, val_def};
 use super::tailrec::fresh;
 use super::walk::children;
 use crate::Lower;
+use names::{name_kinds, nme};
 use syntax::ast::Span;
-use tasty::{Kind, SymbolId, name_kinds, nme};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The rewriting of the tail calls of `method` of `class`, whose parameters are `params`.

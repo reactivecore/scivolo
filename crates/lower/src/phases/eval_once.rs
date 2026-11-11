@@ -8,10 +8,11 @@ use super::walk::subtrees;
 use crate::Lower;
 use crate::definitions::symbol;
 use crate::symbols::has;
+use names::name_kinds;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::Reverse;
 use tasty::tags::{MUTABLE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, TypeId, name_kinds};
+use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Whether `t` is a literal, `this`, or a path of stable values and objects, their getters

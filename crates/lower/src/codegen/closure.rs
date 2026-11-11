@@ -46,7 +46,7 @@ impl Gen<'_, '_> {
         let class = self.class.expect("a closure's class");
         self.lambdas += 1;
         let top = self.type_name(class);
-        let anon = tasty::name_kinds::lambda_class(self.pool.top_name(top), self.lambdas);
+        let anon = names::name_kinds::lambda_class(self.pool.top_name(top), self.lambdas);
         let anon = self.pool.top(&anon);
         let env = self.l.tpd.items(env).to_vec();
         let mut captures: Vec<TypeId> = env.iter().map(|&e| self.value_type(self.l.tpd.tpe(e))).collect();

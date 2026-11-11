@@ -6,10 +6,11 @@
 
 use super::walk::{class_defs, subtrees};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use rustc_hash::FxHashSet;
+use tasty::SymbolId;
 use tasty::defn::STATIC_ANNOT;
 use tasty::tags::STATIC;
-use tasty::{SymbolId, nme};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {

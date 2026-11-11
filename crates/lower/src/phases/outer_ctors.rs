@@ -9,8 +9,9 @@ use super::explicit_outer::terms;
 use super::leading_params::add_params;
 use crate::Lower;
 use crate::definitions::symbol;
+use names::nme;
 use syntax::ast::Span;
-use tasty::{Flags, Kind, SymbolId, nme};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Gives the secondary constructors of class definition `td` of `class` the parameter `$outer`

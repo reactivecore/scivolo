@@ -9,11 +9,12 @@ use super::local_free::{Local, is_term};
 use crate::Lower;
 use crate::definitions::symbol;
 use crate::symbols::has;
+use names::name_kinds;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use syntax::source::Offset;
 use tasty::tags::{FIELDaccessor, LAZY, LOCAL, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, name_kinds};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// The fields and constructor parameters of each local class of `locals`, put in `pending` to

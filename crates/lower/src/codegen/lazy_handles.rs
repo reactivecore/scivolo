@@ -9,9 +9,10 @@
 use super::Gen;
 use super::method::Method;
 use crate::Result;
+use names::name_kinds;
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, PosId, Type, Val};
-use tasty::{Kind, SymbolId, name_kinds};
+use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {

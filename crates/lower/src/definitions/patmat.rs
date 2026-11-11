@@ -1,5 +1,6 @@
 use super::{member, symbol, type_ref};
-use tasty::{Flags, Kind, SymbolId, Universe, nme};
+use names::nme;
+use tasty::{Flags, Kind, SymbolId, Universe};
 
 /// What compiled pattern matches refer to beyond `Any`'s, `Object`'s and `Boolean`'s members.
 #[derive(Clone, Copy)]

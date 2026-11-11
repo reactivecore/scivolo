@@ -9,6 +9,7 @@ use super::walk::subtrees;
 use crate::definitions::{Ref, ref_class, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
@@ -154,7 +155,7 @@ fn to_elem(l: &mut Lower, t: TNodeId, refs: &FxHashMap<SymbolId, Ref>, read: boo
     let info = l.u.info(r.elem);
     let span = l.tpd.span(t);
     let var = l.ident(v, span);
-    let elem_name = l.term_name("elem");
+    let elem_name = l.term_name(nme::ELEM);
     let sel = l.tpd.node(Tree::Select { qualifier: var, name: elem_name }, span, Some(info), Some(r.elem));
     let elem = if read { as_variable(l, sel, v, r) } else { sel };
     l.copy_node(t, elem);

@@ -11,10 +11,11 @@ use super::getters::is_param_accessor;
 use super::walk::{subtrees, walk_class};
 use crate::Lower;
 use crate::definitions::symbol;
+use names::nme;
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, nme};
+use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewrites the by-name arguments and references in class definition `td`.

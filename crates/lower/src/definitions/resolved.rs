@@ -4,8 +4,9 @@ use super::{
     CaseClasses, Equality, LazyVals, Monitors, PartialFunctions, Patmat, Sequences, Strings, member, package,
 };
 use crate::{Lower, Result, Unsupported};
+use names::nme;
 use syntax::ast::Span;
-use tasty::{Kind, SymbolId, Universe, nme};
+use tasty::{Kind, SymbolId, Universe};
 
 /// What an object's `writeReplace` refers to: `java.lang.Class`,
 /// `scala.runtime.ModuleSerializationProxy` and its constructor.

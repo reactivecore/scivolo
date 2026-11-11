@@ -9,9 +9,10 @@ use super::walk::children;
 use crate::Lower;
 use crate::definitions::symbol;
 use crate::symbols::has;
+use names::{name_kinds, nme};
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, MUTABLE, PARAMalias, PARAMsetter, PRIVATE, PRIVATEqualified, STABLE};
-use tasty::{Kind, NameId, SymbolId, Type, name_kinds, nme};
+use tasty::{Kind, NameId, SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// A parameter accessor `sym` defined by `stat` of class definition `td`, and the accessor of a

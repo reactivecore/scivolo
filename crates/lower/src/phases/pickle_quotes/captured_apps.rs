@@ -12,8 +12,9 @@ use super::splicing::Splicer;
 use super::staged_trees::{quoted, spliced};
 use crate::Lower;
 use crate::phases::walk::subtrees;
+use names::nme;
 use syntax::ast::Span;
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 const QUOTES: &str = "a reference to Quotes";

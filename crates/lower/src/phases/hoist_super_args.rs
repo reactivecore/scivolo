@@ -12,9 +12,10 @@ use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::is_static;
 use crate::{Lower, Result, unsupported};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, name_kinds};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The class whose superclass call is hoisted from, its constructor definition, whether it is

@@ -11,8 +11,9 @@ use super::Translator;
 use super::plan::{Plan, PlanId, Test};
 use super::seq_members::SeqMembers;
 use crate::{Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId, nme};
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -97,7 +98,7 @@ impl Translator<'_, '_> {
     ) -> Result<PlanId> {
         let tpe = self.l.u.info(rest);
         let (Some(drop_right), Some(take_right)) =
-            (self.seq_method(tpe, "dropRight"), self.seq_method(tpe, "takeRight"))
+            (self.seq_method(tpe, nme::DROP_RIGHT), self.seq_method(tpe, nme::TAKE_RIGHT))
         else {
             return unsupported(self.l.tpd.span(trailing[0]), "element patterns after a vararg pattern");
         };
@@ -160,7 +161,7 @@ impl Translator<'_, '_> {
         } else {
             (self.call_member(scrutinee, length, &[]), len)
         };
-        let op = if exact { "==" } else { ">=" };
+        let op = if exact { nme::EQ } else { nme::GE };
         let op = self.l.operator(compared, op, operand).expect("an `Int` comparison");
         self.l.call(compared, op, &[operand])
     }

@@ -9,10 +9,11 @@ use super::walk::{subtrees, walk_class};
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{CASE, LAZY, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, nme};
+use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Expands the non-local returns in class definition `td` and the methods they return from.
@@ -124,22 +125,22 @@ fn try_(l: &mut Lower, body: TNodeId, key: SymbolId, method: SymbolId, class: Sy
     let key_def = l.build().val_def(key, key_tpt, Some(created), Span::NONE);
     let key_def = l.positioned(key_def);
     let nlrc = type_ref(l.u, class);
-    let ex = l.u.define(symbol("ex", Kind::Val, method, Flags::default().with(CASE)));
+    let ex = l.u.define(symbol(nme::EX, Kind::Val, method, Flags::default().with(CASE)));
     l.u.set_info(ex, nlrc);
     let wildcard = l.wildcard(nlrc);
     let tpt = l.type_tree(nlrc, Span::NONE);
     let typed = l.tpd.node(Tree::Typed { expr: wildcard, tpt }, Span::NONE, Some(nlrc), None);
     let typed = l.positioned(typed);
-    let ex_name = l.term_name("ex");
+    let ex_name = l.term_name(nme::EX);
     let pat = l.tpd.node(Tree::Bind { name: ex_name, body: typed }, Span::NONE, Some(nlrc), Some(ex));
     let pat = l.positioned(pat);
     let ex_ref = l.ident(ex, Span::NONE);
-    let key_of = field(l, ex_ref, class, "key");
+    let key_of = field(l, ex_ref, class, nme::KEY);
     let key_ref = l.ident(key, Span::NONE);
     let eq = l.defs.eq;
     let same = l.call(key_of, eq, &[key_ref]);
     let ex_ref = l.ident(ex, Span::NONE);
-    let value = field(l, ex_ref, class, "value");
+    let value = field(l, ex_ref, class, nme::VALUE);
     let info = l.u.info(method);
     let result = l.u.result_type(info);
     let value = if l.u.erase(result) == tasty::Erased::Unit {

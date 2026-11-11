@@ -12,8 +12,9 @@ use super::value_classes::{extension, has_extension};
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::{name_kinds, nme};
 use syntax::ast::{Span, TName};
-use tasty::{Flags, Kind, SymbolId, name_kinds, nme};
+use tasty::{Flags, Kind, SymbolId};
 use typer::RETAINED_BODY;
 use typer::tpd::{TNodeId, Tree};
 

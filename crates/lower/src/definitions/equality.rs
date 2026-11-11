@@ -1,5 +1,6 @@
 use super::{java_class, java_static, member, package, type_ref};
-use tasty::{Kind, SymbolId, TypeId, Universe, name_kinds, nme};
+use names::{name_kinds, nme};
+use tasty::{Kind, SymbolId, TypeId, Universe};
 
 /// What `==` on references and `##` call, and the classes whose instances may be boxed values.
 #[derive(Clone, Copy)]
@@ -36,10 +37,10 @@ impl Equality {
         let equals = java_static(u, boxes_runtime, nme::EQUALS, Kind::Def, info);
         let statics = java_class(u, runtime, "Statics");
         let info = method(u, &[object], int);
-        let any_hash = java_static(u, statics, "anyHash", Kind::Def, info);
+        let any_hash = java_static(u, statics, nme::ANY_HASH, Kind::Def, info);
         let unit = type_ref(u, defn.unit);
         let info = method(u, &[], unit);
-        let release_fence = java_static(u, statics, "releaseFence", Kind::Def, info);
+        let release_fence = java_static(u, statics, nme::RELEASE_FENCE, Kind::Def, info);
         Ok(Equality {
             any_equals: member(u, any, nme::EQUALS, Kind::Def)?,
             boxes_runtime,

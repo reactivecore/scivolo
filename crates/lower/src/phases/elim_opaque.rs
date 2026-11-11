@@ -6,6 +6,7 @@
 use super::walk::subtrees;
 use crate::codegen::callee::is_primitive;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::OPAQUE;
 use tasty::{SymbolId, Type};
@@ -17,10 +18,9 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         let Tree::Apply { fun, .. } = *l.tpd.tree(t) else { continue };
         let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { continue };
         let any = Some(l.u.defn().any);
-        let equality = l
-            .tpd
-            .sym(fun)
-            .filter(|&s| l.u.symbol(s).owner == any && matches!(l.u.symbol(s).name.as_str(), "==" | "!="));
+        let equality = l.tpd.sym(fun).filter(|&s| {
+            l.u.symbol(s).owner == any && matches!(l.u.symbol(s).name.as_str(), nme::EQ | nme::NE)
+        });
         if let Some(s) = equality.filter(|_| is_opaque(l, l.tpd.tpe(qualifier))) {
             equalities.push((t, s, qualifier));
         }

@@ -11,10 +11,11 @@ use super::walk::class_defs;
 use crate::definitions::{Known, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use syntax::ast::tree::MatchKind;
 use tasty::tags::{ABSTRACT, ENUM, SEALED, SYNTHETIC};
-use tasty::{Flags, SymbolId, Type, TypeId, name_kinds, nme};
+use tasty::{Flags, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The children of sealed class `sealed` in unit `root` in the order of their definitions:
@@ -72,14 +73,14 @@ pub fn enum_ordinal(
     let binder = l.u.fresh_binder();
     let params = [(l.u.intern_name(&name_kinds::synthetic_param(0)), param)];
     let info = l.u.intern_method(binder, &params, int, false, false);
-    let like = l.u.decls_named(cc.mirror_sum, "ordinal");
+    let like = l.u.decls_named(cc.mirror_sum, nme::ORDINAL);
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
     }
     let flags = Flags::default().with(SYNTHETIC);
     let java = l.u.linearization(enum_class).into_iter().find(|&b| l.is_known(b, Known::JavaEnum));
-    let java_ordinal = java.and_then(|j| l.u.decl(j, "ordinal").ok()?.into_iter().next());
+    let java_ordinal = java.and_then(|j| l.u.decl(j, nme::ORDINAL).ok()?.into_iter().next());
     let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let x = l.copy_ident(args[0]);
         l.call(x, java_ordinal.unwrap_or(cc.enum_ordinal), &[])
@@ -103,7 +104,7 @@ pub fn ordinal(
     let binder = l.u.fresh_binder();
     let params = [(l.u.intern_name(&name_kinds::synthetic_param(0)), param)];
     let info = l.u.intern_method(binder, &params, int, false, false);
-    let like = l.u.decls_named(cc.mirror_sum, "ordinal");
+    let like = l.u.decls_named(cc.mirror_sum, nme::ORDINAL);
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     if has_mirror_method(l, class, like, info) {
         return Ok(None);
@@ -119,7 +120,7 @@ pub fn ordinal(
                 Some(pre) => l.u.intern_type(Type::Sym(Some(pre), c)),
                 None => type_ref(l.u, c),
             };
-            let name = l.term_name("_");
+            let name = l.term_name(nme::WILDCARD);
             let wildcard = l.tpd.node(Tree::Ident { name }, Span::NONE, Some(tpe), None);
             let tpt = l.type_tree(tpe, Span::NONE);
             let pat = l.tpd.node(Tree::Typed { expr: wildcard, tpt }, Span::NONE, Some(tpe), None);

@@ -343,3 +343,31 @@ pub const UNARY_TILDE: &str = "unary_~";
 pub const UNARY_PLUS: &str = "unary_+";
 /// The name `unary_-`.
 pub const UNARY_MINUS: &str = "unary_-";
+/// The name `acc`.
+pub const ACC: &str = "acc";
+/// The name `arity`.
+pub const ARITY: &str = "arity";
+/// The name `asTerm`.
+pub const AS_TERM: &str = "asTerm";
+/// The name `asType`.
+pub const AS_TYPE: &str = "asType";
+/// The name `contents`.
+pub const CONTENTS: &str = "contents";
+/// The name `ex`.
+pub const EX: &str = "ex";
+/// The name `format`.
+pub const FORMAT: &str = "format";
+/// The name `idx`.
+pub const IDX: &str = "idx";
+/// The name `key`.
+pub const KEY: &str = "key";
+/// The name `parts`.
+pub const PARTS: &str = "parts";
+/// The name `processEscapes`.
+pub const PROCESS_ESCAPES: &str = "processEscapes";
+/// The name `quotes`.
+pub const QUOTES: &str = "quotes";
+/// The name `reflect`.
+pub const REFLECT: &str = "reflect";
+/// The name `standardInterpolator`.
+pub const STANDARD_INTERPOLATOR: &str = "standardInterpolator";

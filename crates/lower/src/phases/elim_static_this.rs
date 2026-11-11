@@ -7,9 +7,10 @@
 use super::walk::{children, subtrees};
 use crate::Lower;
 use crate::symbols::{has, is_jdk_object};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::STATIC;
-use tasty::{SymbolId, Type, defn, nme};
+use tasty::{SymbolId, Type, defn};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) {

@@ -16,9 +16,10 @@ use super::trait_params::TraitCall;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PARAMsetter, PRIVATE, SYNTHETIC};
-use tasty::{Kind, SymbolId, name_kinds, nme};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Whether `s` is a getter of a concrete value of a trait: a variable's or one with a trait setter.

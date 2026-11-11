@@ -5,8 +5,9 @@
 //! `withSpecMethods`), defined if the library has no TASTy for them.
 
 use super::{applied, member, symbol, type_ref};
+use names::{name_kinds, nme};
 use tasty::tags::FINAL;
-use tasty::{Flags, Kind, SymbolId, TypeId, Universe, name_kinds, nme};
+use tasty::{Flags, Kind, SymbolId, TypeId, Universe};
 
 /// The element classes of the specialized `Tuple1` and `Tuple2` classes with their type tags
 /// (dotty's `Tuple1SpecializedParamTypes`, `Tuple2SpecializedParamTypes`, `typeTag`).

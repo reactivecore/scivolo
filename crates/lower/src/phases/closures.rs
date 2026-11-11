@@ -16,7 +16,8 @@ use super::poly_functions::poly_function_class;
 use super::sam::{abstract_methods, adaptation_needed};
 use crate::definitions::type_ref;
 use crate::{Lower, Result, unsupported};
-use tasty::{Erased, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId, name_kinds};
+use names::name_kinds;
+use tasty::{Erased, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// How a lambda's closure is made: the interface it implements if not its function type, its

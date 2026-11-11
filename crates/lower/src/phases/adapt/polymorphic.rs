@@ -5,6 +5,7 @@
 //! element type and `synchronized`.
 
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use tasty::{Erased, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -21,9 +22,9 @@ pub fn array_op(l: &mut Lower, fun: TNodeId) -> Option<(Vec<Erased>, Erased)> {
     let Erased::Array(elem) = l.u.erase(array) else { return None };
     let int = Erased::Prim('i');
     match l.u.symbol(m).name.as_str() {
-        "apply" => Some((vec![int], *elem)),
-        "update" => Some((vec![int, *elem], Erased::Unit)),
-        "length" => Some((Vec::new(), int)),
+        nme::APPLY => Some((vec![int], *elem)),
+        nme::UPDATE => Some((vec![int, *elem], Erased::Unit)),
+        nme::LENGTH => Some((Vec::new(), int)),
         _ => None,
     }
 }

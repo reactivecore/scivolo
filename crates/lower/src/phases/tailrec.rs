@@ -10,10 +10,11 @@ use super::tail_calls::TailCalls;
 use super::walk::{children, subtrees};
 use crate::Lower;
 use crate::symbols::{has, is_effectively_final, is_static};
+use names::{name_kinds, nme};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
-use tasty::{Kind, SymbolId, name_kinds, nme};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree, Walk, traverse_up};
 
 /// Makes the tail recursive methods of class definition `td` loops.

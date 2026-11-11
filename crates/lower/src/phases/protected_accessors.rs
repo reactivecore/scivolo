@@ -9,9 +9,10 @@ use super::mixin::{has_body, java_named};
 use super::walk;
 use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{OVERRIDE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, TypeId, name_kinds};
+use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::protected_access::{self, host_for_accessor_of, needs_accessor_if_not_in_subclass};
 use typer::tpd::{TNodeId, Tree};
 

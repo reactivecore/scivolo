@@ -10,9 +10,10 @@ use super::lazy_trees::{local, method};
 use super::lifted::substitute;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, TypeId, nme};
+use tasty::{Erased, Flags, Kind, MAX_IMPLEMENTED_ARITY, NameId, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The name of the array parameter (dotty's `nme.ALLARGS`).

@@ -9,9 +9,10 @@ use super::function_classes::function_class_arity;
 use super::lazy_trees::method;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result};
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
-use tasty::{Flags, Kind, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId, nme};
+use tasty::{Flags, Kind, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the forwarders to class definition `td`.
@@ -70,7 +71,7 @@ fn forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> Result<TNodeId> 
     let (_, array) = param(l);
     let object = type_ref(l.u, l.u.defn().object);
     let binder = l.u.fresh_binder();
-    let params = [(l.u.intern_name("args"), array)];
+    let params = [(l.u.intern_name(nme::ARGS), array)];
     let info = l.u.intern_method(binder, &params, object, false, false);
     let sym = l.u.define(symbol(nme::APPLY, Kind::Def, class, Flags::default().with(SYNTHETIC)));
     l.u.set_info(sym, info);

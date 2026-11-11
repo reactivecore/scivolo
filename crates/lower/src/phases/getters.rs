@@ -7,12 +7,13 @@
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
+use names::name_kinds;
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{
     ERASED, FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC, SYNTHETIC,
 };
-use tasty::{Flags, Kind, SymbolId, Type, name_kinds};
+use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// Makes the values of class definition `td` getters, an object's lazy ones in a class; drops the
@@ -162,12 +163,12 @@ pub fn is_const_final(l: &mut Lower, s: SymbolId) -> bool {
 /// `mixin`, an abstract variable's.
 pub fn is_abstract_var_setter(l: &mut Lower, class: SymbolId, mixin: SymbolId, setter: SymbolId) -> bool {
     let name = l.u.symbol(setter).name.clone();
-    let getters = l.u.decls_named(mixin, name.strip_suffix("_=").unwrap_or(&name));
+    let getters = l.u.decls_named(mixin, name.strip_suffix(name_kinds::SETTER_SUFFIX).unwrap_or(&name));
     let var = getters.into_iter().find(|&g| has(l.u, g, MUTABLE) && !is_setter(l, g));
     var.is_some_and(|g| !super::trait_fields::implemented_by(l, class, g))
 }
 
 /// Whether `s` is the setter `x_=` of a variable.
 pub fn is_setter(l: &Lower, s: SymbolId) -> bool {
-    has(l.u, s, FIELDaccessor) && l.u.symbol(s).name.ends_with("_=")
+    has(l.u, s, FIELDaccessor) && l.u.symbol(s).name.ends_with(name_kinds::SETTER_SUFFIX)
 }

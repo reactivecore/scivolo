@@ -4,10 +4,11 @@
 
 use super::Gen;
 use crate::symbols::{has, is_java_static, is_private};
+use names::nme;
 use nir::GlobalId;
 use nir::sig::{Scope, Sig};
 use tasty::tags::{ENUM, MACRO, PRIVATE, PROTECTED, STATIC};
-use tasty::{SymbolId, encode, module_class_name, module_name, nme};
+use tasty::{SymbolId, encode, module_class_name, module_name};
 
 /// Classes Scala Native defines under another name, and `Nothing` and `Null`.
 const MAPPED: [(&str, &str); 11] = [

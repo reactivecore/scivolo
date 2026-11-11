@@ -6,6 +6,7 @@ use super::Gen;
 use super::apply::Receiver;
 use crate::definitions::Known;
 use crate::{Result, unsupported};
+use names::nme;
 use nir::sig::Sig;
 use nir::{Op, Type, TypeId, ValId};
 use syntax::ast::Span;
@@ -23,10 +24,10 @@ impl Gen<'_, '_> {
         args: &[TNodeId],
         span: Span,
     ) -> Result<Option<ValId>> {
-        if self.is_reflective(sym, "selectDynamic") {
+        if self.is_reflective(sym, nme::SELECT_DYNAMIC) {
             return self.gen_reflective_select(sym, recv, args, span).map(Some);
         }
-        if self.is_reflective(sym, "applyDynamic") {
+        if self.is_reflective(sym, nme::APPLY_DYNAMIC) {
             return self.gen_reflective_apply(sym, recv, args, span).map(Some);
         }
         Ok(None)
@@ -97,7 +98,7 @@ impl Gen<'_, '_> {
         };
         let wrap = self.l.tpd.sym(fun).is_some_and(|s| {
             let name = &self.l.u.symbol(s).name;
-            name.starts_with("wrap") && name.ends_with("Array") || name == "genericWrapArray"
+            name.starts_with("wrap") && name.ends_with("Array") || name == nme::GENERIC_WRAP_ARRAY
         });
         let (true, &[seq]) = (wrap, self.l.tpd.items(args)) else { return None };
         let seq = self.l.tpd.strip_typed(seq);

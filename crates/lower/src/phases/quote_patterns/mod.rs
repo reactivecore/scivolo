@@ -11,9 +11,10 @@ use crate::definitions::type_ref;
 use crate::phases::tree_copy::{Copier, copy};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use syntax::ast::{Span, TName};
 use tasty::tags::INLINE;
-use tasty::{SymbolId, Type, TypeId, nme};
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk, traverse};
 
 /// Encodes the quote patterns of unit `root`, owned by `owner`, outside its inline methods.
@@ -61,7 +62,7 @@ fn encode(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
             return unsupported(span, "quote patterns without the givens of their type variables");
         };
         let tpe = l.u.info(given);
-        let name = TName { name: l.names.intern("_"), is_type: false };
+        let name = TName { name: l.names.intern(nme::WILDCARD), is_type: false };
         let wild = l.tpd.node(Tree::Ident { name }, l.tpd.span(b), Some(tpe), None);
         let name = l.build().term_name(given);
         patterns.push(l.tpd.node(Tree::Bind { name, body: wild }, l.tpd.span(b), Some(tpe), Some(given)));

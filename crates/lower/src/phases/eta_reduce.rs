@@ -12,8 +12,9 @@ use super::module_purity::creates_impure_module;
 use super::walk::subtrees;
 use crate::Lower;
 use crate::symbols::has;
+use names::nme;
 use tasty::tags::{LAZY, LOCAL, PRIVATE};
-use tasty::{Erased, Kind, SymbolId, nme};
+use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Reduces the eta expansions in class definition `td`.

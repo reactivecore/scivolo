@@ -7,9 +7,10 @@ use super::mixin::{has_body, mixins};
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId, name_kinds};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds to class definition `td` the implementations of the super accessors of the traits its

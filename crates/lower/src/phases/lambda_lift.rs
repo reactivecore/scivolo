@@ -14,8 +14,9 @@ use super::proxy_names::name_late;
 use super::walk::children;
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
+use names::nme;
 use tasty::tags::{FIELDaccessor, LAZY, STATIC};
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A function to lift: its definition, the block it is in, its closure if a lambda, the function
