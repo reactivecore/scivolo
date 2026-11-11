@@ -7,7 +7,7 @@ use super::descriptors::{method_descriptor, with_receiver};
 use super::{Gen, java_flags, method_name, unsupported};
 use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile};
 use lower::Result;
-use names::{name_kinds, nme};
+use names::name_kinds;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
@@ -34,23 +34,25 @@ impl Gen<'_, '_> {
         let static_ = flags & ACC_STATIC != 0;
         let this_class = (!static_ || trait_init).then(|| self.class_name(owner));
         let name = method_name(self.l.u, sym);
-        if name.contains(nme::ANON_FUN) && !self.l.is_bridge_closure(sym) {
-            flags |= ACC_SYNTHETIC;
-        }
         let params = self.l.tpd.clause_items(paramss).iter().flat_map(|&c| self.l.tpd.items(c));
         let params: Vec<TNodeId> =
             params.filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. })).copied().collect();
         let param_syms: Vec<SymbolId> =
             params.iter().map(|&p| self.l.tpd.sym(p).expect("a parameter's symbol")).collect();
+        if self.has_kept_param_annotations(&param_syms) {
+            return unsupported(self.l.tpd.span(dd), "Java annotations of parameters on the JVM");
+        }
         let mixed_setter = self.l.mixed_in_from(sym).is_some()
             && name.ends_with("_$eq")
             && !name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
         let erased = flags & ACC_BRIDGE != 0 || trait_init || self.l.is_lifted(sym) || mixed_setter;
+        let deprecated = self.is_deprecated(sym);
         let Some(rhs) = rhs else {
             let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;
             cf.method(flags, &name, &desc, None, &mut |a, b| self.jvm_lub(a, b));
             self.exceptions(cf, sym);
-            self.method_attributes(cf, sym, &desc, &param_syms, (erased, false));
+            self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, false));
+            self.emit_method_annotations(cf, sym);
             return Ok(());
         };
         let mut b = Body::new(&mut cf.pool, None, u16::from(!static_ || trait_init));
@@ -71,7 +73,10 @@ impl Gen<'_, '_> {
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
         self.exceptions(cf, sym);
-        self.method_attributes(cf, sym, &desc, &param_syms, (erased, trait_init));
+        self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, trait_init));
+        if !trait_init {
+            self.emit_method_annotations(cf, sym);
+        }
         let line = self.line_of(class_def);
         self.trait_forwarder(cf, (sym, flags), (&desc, &param_syms), line);
         Ok(())

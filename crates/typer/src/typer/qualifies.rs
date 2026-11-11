@@ -48,6 +48,28 @@ impl Typer<'_> {
         matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. })
     }
 
+    /// Whether `s` is a method whose first term parameter clause is neither `using` nor
+    /// `implicit`, as `def New(tpt: Tree)(using Context)`.
+    pub fn takes_explicit_args(&mut self, s: SymbolId) -> bool {
+        if !self.is_real_method(s) {
+            return false;
+        }
+        let Some(&def) = self.syms.def_trees.get(&s) else {
+            let info = self.u.info(s);
+            let info = self.u.poly(info).map_or(info, |p| p.result);
+            return self.u.method(info).is_some_and(|m| !m.implicit);
+        };
+        let Tree::DefDef { paramss, .. } = *self.ast.tree(def) else { return false };
+        let clauses = self.ast.clause_items(paramss);
+        let first = clauses
+            .iter()
+            .map(|&c| self.ast.items(c).first().copied())
+            .find(|p| p.is_none_or(|p| !matches!(self.ast.tree(p), Tree::TypeDef { .. })));
+        let Some(first) = first else { return false };
+        let modifiers = first.and_then(|p| self.ast.mods_of(p));
+        !modifiers.is_some_and(|m| self.ast.modifiers(m).is(syntax::ast::flags::GIVEN_OR_IMPLICIT))
+    }
+
     fn enclosing_package(&self, owner: SymbolId) -> SymbolId {
         let mut o = owner;
         while self.u.symbol(o).kind != Kind::Package {

@@ -44,7 +44,7 @@ impl Gen<'_, '_> {
         let flags = (flags & !classfile::ACC_ABSTRACT) | ACC_STATIC;
         let static_name = name_kinds::trait_super_accessor(&name);
         cf.method(flags, &static_name, &static_desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
-        self.method_attributes(cf, m, &static_desc, params, (true, true));
+        self.method_attributes(cf, (m, false), &static_desc, params, (true, true));
     }
 
     /// The Java interfaces whose methods class body `stats` calls on `super` via a trait, which the

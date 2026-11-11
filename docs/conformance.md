@@ -372,7 +372,7 @@ sources jar is compiled alone by `scivolo-jvm --scalalib` and its class files co
 javap text, code and attributes apart, with dotty 3.9.0's from one run over the whole sources jar
 with the library build's options without `-opt`. The published jar is no oracle: its build adds
 the optimizer (1883 of its 3134 classes dotty also writes differ in code from dotty's) and takes
-139 classes and 2.13's specialized ones from Scala 2.13. Results (2026-11-09):
+139 classes and 2.13's specialized ones from Scala 2.13. Results (2026-11-11):
 
 | Outcome | Files | Classes |
 |---|---:|---:|
@@ -381,9 +381,10 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 | code differs | 243 | 1113 |
 | refused | 130 | |
 
-- **Refused:** `unresolved name FunctionalInterface` (87, a JDK annotation class); member not
-  found (10); adaptation (9); no applicable alternative (8); TASTy pickling (9: a reference to a
-  local definition outside the pickled trees 6, a type annotation with arguments 3).
+- **Refused:** member not found (96, of them 86 `scala.runtime.java8` traits calling
+  `BoxesRunTime`, a Java class of the library's jar); adaptation (9); no applicable alternative
+  (8); TASTy pickling (9: a reference to a local definition outside the pickled trees 6, a type
+  annotation with arguments 3).
 - **Code differs**, by first differing line: a missing `serialVersionUID` field (46), dotty's
   second `athrow` after a call of type `Nothing` (37), generic signatures of trait forwarders and
   extension methods (`compose`, `equals$extension`), field signatures (`underlying`).

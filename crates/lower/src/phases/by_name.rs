@@ -14,7 +14,7 @@ use crate::definitions::symbol;
 use names::nme;
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
-use tasty::tags::{ARTIFACT, SYNTHETIC};
+use tasty::tags::SYNTHETIC;
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree, Walk};
 
@@ -139,7 +139,7 @@ fn formals(l: &mut Lower, mut fun: TNodeId) -> (Vec<tasty::TypeId>, bool) {
 fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) -> TNodeId {
     let span = super::drop_inlined::span_before_erasure(l, arg);
     let result = l.u.widen(formal);
-    let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
+    let flags = Flags::default().with(SYNTHETIC);
     let owner = l.lazy_members.get(&owner).map_or(owner, |m| m.init);
     let anon = l.u.define(symbol(nme::ANON_FUN, Kind::Def, owner, flags));
     let binder = l.u.fresh_binder();

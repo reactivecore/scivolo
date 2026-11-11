@@ -34,7 +34,36 @@ fn sources_refer_to_each_other_and_errors_name_their_file() {
     let error = compile("class C", "object C").expect_err("split companions");
     assert!(error.contains("companion object in different source files"), "{error}");
     let error = compile("import scala.language.`3.9-migration`\nobject A", "object B");
-    assert!(error.expect_err("a language import").contains("language imports"));
+    assert!(error.expect_err("a migrating source version").contains("source versions"));
+    let a = "import scala.language.`3.7`\nobject A { def f = B.g }";
+    compile(a, "import scala.language.implicitConversions\nobject B { def g = 1 }")
+        .expect("per-file imports");
+    let a = "object A { def f = V(1, 2) }";
+    let v = "case class V private (a: Int, b: Int)\nobject V { def apply(a: Int, b: Int): V = new V(a, b) }";
+    compile(a, v).expect("the companion's apply replaces the private synthetic one");
+}
+
+#[test]
+fn a_refused_file_leaves_out_itself_and_the_files_needing_it() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let sources = [
+        SourceFile::new("a.scala", "object A { def f: Int = 1 }"),
+        SourceFile::new("b.scala", "object B { def g: Int = \"s\" }"),
+        SourceFile::new("c.scala", "object C { def h: Int = B.g + A.f }"),
+    ];
+    let mut open = || Universe::open(&jars).unwrap();
+    let isolated = lower::compile_sources_isolated(&mut open, &sources, Config::from_options(&[]), None)
+        .unwrap_or_else(|r| panic!("{}", r.what));
+    let names: Vec<String> = isolated.out.into_iter().map(|f| f.name).collect();
+    assert!(names.contains(&"A".to_owned()) && !names.iter().any(|n| n.starts_with(['B', 'C'])), "{names:?}");
+    let refused: Vec<&str> = isolated.refused.iter().map(|r| r.file.as_str()).collect();
+    assert_eq!(refused, ["b.scala", "c.scala"]);
+    assert!(isolated.refused[1].refusal.what.contains("c.scala:1:"), "{}", isolated.refused[1].refusal.what);
 }
 
 #[test]

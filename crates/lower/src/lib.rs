@@ -5,6 +5,7 @@ mod codegen;
 mod compile;
 mod definitions;
 pub mod directives;
+mod isolated;
 mod options;
 pub mod output;
 mod phases;
@@ -14,6 +15,7 @@ mod units;
 pub use codegen::names::{mapped as jdk_class_name, unmapped as jdk_class_source_name};
 pub use compile::{Refusal, compile, compile_with, lower};
 use definitions::Definitions;
+pub use isolated::{FileRefusal, Isolated, compile_isolated, compile_sources_isolated};
 pub use options::Options;
 pub use output::NirFile;
 pub use phases::adapt::erased_type;
@@ -354,6 +356,14 @@ impl<'a> Lower<'a> {
         self.mixed_from.get(&m).or_else(|| self.forwarded.get(&m)).copied()
     }
 
+    /// Determines the member whose annotations `m` carries: the trait member of a mixin accessor
+    /// or forwarder (dotty's `mkForwarderSym`), the method of an extension method
+    /// (`ExtensionMethods`), else `m`.
+    pub fn annotations_holder(&self, m: SymbolId) -> SymbolId {
+        let extended = || self.extensions.iter().find(|&(_, &e)| e == m).map(|(&from, _)| from);
+        self.mixed_in_from(m).or_else(extended).unwrap_or(m)
+    }
+
     /// Whether `m` is the method of a closure a bridge returns (dotty's `Bridges.etaExpand`).
     pub fn is_bridge_closure(&self, m: SymbolId) -> bool {
         let mut from = self.lifted_from.get(&m);
@@ -395,6 +405,11 @@ impl<'a> Lower<'a> {
     pub fn field_getter(&self, field: SymbolId) -> Option<SymbolId> {
         let getter = self.fields.get(&field).copied().filter(|&g| g != field);
         getter.or_else(|| self.lazy_members.iter().find(|(_, m)| m.field == field).map(|(&a, _)| a))
+    }
+
+    /// Whether `Memoize` made a field for getter `getter`.
+    pub fn has_field(&self, getter: SymbolId) -> bool {
+        self.fields.iter().any(|(&f, &g)| g == getter && f != getter)
     }
 
     /// Whether `s` is the field `x$lzyN` or the flag `xbitmap$N` of a lazy value.

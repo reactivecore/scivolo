@@ -9,7 +9,7 @@ use crate::definitions::{applied, symbol};
 use crate::{Lower, Result, unsupported};
 use names::nme;
 use syntax::ast::Span;
-use tasty::tags::{ARTIFACT, SYNTHETIC};
+use tasty::tags::SYNTHETIC;
 use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -82,7 +82,7 @@ fn process(
     let info = l.u.info(process_escapes);
     let Some(m) = l.u.method(info) else { unreachable!("a method") };
     let name = m.params[0].0;
-    let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
+    let flags = Flags::default().with(SYNTHETIC);
     let anon = l.u.define(symbol(nme::ANON_FUN, Kind::Def, owner, flags));
     let param = symbol(l.u.name(name), Kind::Param, anon, Flags::default());
     let param = l.u.define(param);
