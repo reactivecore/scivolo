@@ -39,7 +39,7 @@ impl Typer<'_> {
         let Some((s, cctx)) = self.syms.pending_selves.remove(&cls) else { return };
         let Tree::ValDef { tpt, .. } = *self.ast.tree(s) else { return };
         let sctx = self.self_ctx(s, cctx);
-        let typed = self.typed_type(tpt, sctx);
+        let typed = self.in_file_of(s, |t| t.typed_type(tpt, sctx));
         self.typed_ahead(tpt, typed, sctx);
         let tpe = self.tpd.tpe(typed);
         self.u.set_info(self.syms.by_tree[&s], tpe);

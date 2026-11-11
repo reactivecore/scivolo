@@ -107,6 +107,11 @@ fn library_java_classes_redefined_and_lifted_classes_in_units() {
     let b = "object B { def h(p: (Int, Int, Int)) = { val (a, b, c) = p; a + b + c } }";
     let b = dump(&[SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)], "B$");
     assert!(b.contains("\"$2$\"") && !b.contains("\"$3$\""), "{b}");
+    let a = SourceFile::new("a.scala", "object A { def f = p.Lib.f; def s = new p.S with p.T }");
+    let b = "package p\nimport q.O.*\nobject x\ntrait T\nclass S { self: T => }\nobject Lib { transparent inline def f: Any = x }";
+    let c = SourceFile::new("c.scala", "package q\nobject O { object x; trait T }");
+    let a = dump(&[a, SourceFile::new("b.scala", b), c], "A$");
+    assert!(a.contains("@p.x$") && !a.contains("@q.O$x$"), "{a}");
 }
 
 #[test]

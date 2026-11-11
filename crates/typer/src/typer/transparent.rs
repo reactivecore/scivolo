@@ -155,7 +155,8 @@ impl Typer<'_> {
             Some(InlineDef::Typed(def)) => def,
             Some(InlineDef::Pending(tree, ctx)) => {
                 self.inline_defs.insert(meth, InlineDef::Typing);
-                let def = self.outside_gadt_cases(ctx.level, |t| t.typed_def_def(tree, ctx));
+                let def = self
+                    .outside_gadt_cases(ctx.level, |t| t.in_file_of(tree, |t| t.typed_def_def(tree, ctx)));
                 self.typed_ahead(tree, def, ctx);
                 def
             }

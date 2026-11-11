@@ -6,6 +6,7 @@
 use super::Typer;
 use crate::ctx::{Ctx, Level};
 use names::nme;
+use syntax::ast::NodeId;
 use syntax::config::{Features, SourceVersion};
 use tasty::NullMode;
 
@@ -52,6 +53,15 @@ impl Typer<'_> {
             self.file = file;
         }
         outer
+    }
+
+    /// Runs `f` with the settings of the source file of `tree`, which is typed apart from its file.
+    pub fn in_file_of<R>(&mut self, tree: NodeId, f: impl FnOnce(&mut Self) -> R) -> R {
+        let span = self.ast.span(tree);
+        let outer = if span.exists() { self.enter_file(self.file_of(span)) } else { self.file };
+        let r = f(self);
+        self.enter_file(outer);
+        r
     }
 
     /// How comparisons in `ctx` treat `Null`: explicit nulls, and safe without `unsafeNulls`.
