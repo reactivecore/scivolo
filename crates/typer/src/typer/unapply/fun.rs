@@ -33,28 +33,33 @@ impl UnapplyPattern {
             return first;
         }
 
-        let first_diags = t.diags.items.split_off(reported);
-        if let Some(companion) = self.followed_type_alias(t, qual) {
+        let first_diags = t.diags.items[reported..].to_vec();
+        t.retract_diags(reported);
+        let kept = t.diags.items.len();
+        if let Some(companion) = self.followed_type_alias(t, qual)? {
             let second = self.select_unapply(t, companion, false);
-            if second.is_ok() && !has_errors_since(t, reported) && t.unsupported == unsupported {
+            if second.is_ok() && !has_errors_since(t, kept) && t.unsupported == unsupported {
                 return second;
             }
-            t.retract_diags(reported);
+            t.retract_diags(kept);
             t.unsupported = unsupported;
         }
         if first == Err(NO_EXTRACTOR_METHOD) {
             return self.select_unapply(t, qual, false);
         }
-        t.diags.items.extend(first_diags);
+
+        let completed = t.diags.items.split_off(kept);
+        t.diags.items.truncate(reported);
+        t.diags.items.extend(first_diags.into_iter().chain(completed));
         first
     }
 
     /// Selects `qual.unapply` for extractor `qual`, typed as an expression, a member or an
     /// extension method, or `qual.unapplySeq` if it has neither, an overloaded one applied to a
     /// value of the scrutinee's type; whether it is `unapplySeq` (dotty's `trySelectUnapply`).
-    /// With `stop_without`, stops before the selection if `qual` has neither and no implicit view
-    /// may give it one. Refuses extension methods beside an `unapplySeq` and an `unapply` an
-    /// implicit view may give beside one.
+    /// With `stop_without`, stops before the selection if `qual` names overloaded methods, or has
+    /// neither, is no `Dynamic` and no implicit view may give it one. Refuses extension methods
+    /// beside an `unapplySeq` and an `unapply` an implicit view may give beside one.
     fn select_unapply(
         &self,
         t: &mut Typer<'_>,
@@ -63,6 +68,9 @@ impl UnapplyPattern {
     ) -> Result<(TNodeId, bool), &'static str> {
         let unsupported = t.unsupported.clone();
         let ctx = self.ctx.with_mode(Mode::NONE);
+        if stop_without && names_overloaded_methods(t, qual, ctx) {
+            return Err(NO_EXTRACTOR_METHOD);
+        }
         let ident = matches!(t.ast.tree(qual), Tree::Ident { .. });
         let typed = t.typed(qual, Pt::Any, if ident { ctx.with_mode(Mode::EXTRACTOR) } else { ctx });
         let tpe = t.tpd.tpe(typed);
@@ -81,6 +89,7 @@ impl UnapplyPattern {
         if stop_without
             && !(member || extension || seq_found)
             && t.unsupported == unsupported
+            && !t.derives_dynamic(typed)
             && !view_may_supply(t, typed, nme::UNAPPLY, ctx)
             && !view_may_supply(t, typed, nme::UNAPPLY_SEQ, ctx)
         {
@@ -113,6 +122,18 @@ impl UnapplyPattern {
 /// Whether errors were reported from `mark` on.
 pub fn has_errors_since(t: &Typer<'_>, mark: usize) -> bool {
     t.diags.items[mark..].iter().any(|d| d.level == Level::Error)
+}
+
+/// Whether extractor `qual` is a name that refers to several methods taking explicit arguments,
+/// as `New` imported from `tpd` with `def New(tpt: Tree)` and `def New(tp: Type)`.
+fn names_overloaded_methods(t: &mut Typer<'_>, qual: NodeId, ctx: Ctx) -> bool {
+    let Tree::Ident { name } = *t.ast.tree(qual) else { return false };
+    let text = t.text(name.name).to_owned();
+    let reported = t.diags.items.len();
+    let (found, clean, _) = t.speculatively(|t| t.find_ref(&text, false, ctx.with_mode(Mode::EXTRACTOR)));
+    t.retract_diags(reported);
+    let Ok(Some(found)) = found else { return false };
+    clean && found.syms.len() > 1 && found.syms.iter().all(|&s| t.takes_explicit_args(s))
 }
 
 /// Whether an implicit conversion or an extension method of an implicit value may give `qual`

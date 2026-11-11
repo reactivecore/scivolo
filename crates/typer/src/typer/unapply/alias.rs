@@ -8,20 +8,24 @@ use super::super::Typer;
 use super::UnapplyPattern;
 use super::fun::has_errors_since;
 use crate::ctx::Mode;
-use crate::defn::owner_prefix;
 use syntax::ast::{NodeId, TName, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl UnapplyPattern {
     /// Reads extractor `qual`, `C` or `p.C`, as a type and, if it names a type alias of a class
     /// with a companion object, returns a reference to that companion at `qual`'s span; `None`
-    /// for other extractors and when `C` as a type does not type without errors.
-    pub fn followed_type_alias(&self, t: &mut Typer<'_>, qual: NodeId) -> Option<NodeId> {
+    /// for other extractors and when `C` as a type does not type without errors. Refuses a `C`
+    /// whose type is outside the subset.
+    pub fn followed_type_alias(
+        &self,
+        t: &mut Typer<'_>,
+        qual: NodeId,
+    ) -> Result<Option<NodeId>, &'static str> {
         let as_type = |name: TName| TName { is_type: true, ..name };
         let renamed = match *t.ast.tree(qual) {
             Tree::Ident { name } => Tree::Ident { name: as_type(name) },
             Tree::Select { qualifier, name } => Tree::Select { qualifier, name: as_type(name) },
-            _ => return None,
+            _ => return Ok(None),
         };
         let span = t.ast.span(qual);
         let renamed = t.ast.node(renamed);
@@ -35,25 +39,26 @@ impl UnapplyPattern {
         });
         let errors = has_errors_since(t, reported);
         t.retract_diags(reported);
-        if !clean || errors {
-            return None;
+        if !clean {
+            return Err("extractor type alias outside the subset");
+        }
+        if errors || t.u.referenced_alias(tpe).is_none() {
+            return Ok(None);
         }
 
-        t.u.referenced_alias(tpe)?;
-        let (prefix, module) = companion(t, tpe)?;
+        let Some((prefix, module)) = companion(t, tpe) else { return Ok(None) };
         let module_tpe = t.ref_type(prefix, module);
         let typed = t.ref_(prefix, module, module_tpe, span, ctx);
         let splice = t.ast.node(Tree::TypeTree);
         t.ast.with_span(splice, span);
         t.splices.insert(splice, typed);
-        Some(splice)
+        Ok(Some(splice))
     }
 }
 
 /// Follows aliases, type applications, refinements and annotations from `tpe` to a class and
-/// returns the class's companion object and its prefix, `this` of a static owner, else that of
-/// the class reference (dotty's `companionRef`); `None` if it arrives at no class or the class
-/// has no companion.
+/// returns the class's companion object and the prefix of the class reference (dotty's
+/// `companionRef`); `None` if it arrives at no class or the class has no companion.
 fn companion(t: &mut Typer<'_>, tpe: TypeId) -> Option<(Option<TypeId>, SymbolId)> {
     let mut tpe = t.u.dealias(tpe);
     loop {
@@ -74,9 +79,5 @@ fn companion(t: &mut Typer<'_>, tpe: TypeId) -> Option<(Option<TypeId>, SymbolId
         return None;
     }
     let module = t.u.companion_module(class)?;
-    let owner = t.u.symbol(module).owner?;
-    if t.u.is_static_owner(owner) {
-        return Some((Some(owner_prefix(t.u, owner)), module));
-    }
     Some((prefix, module))
 }
