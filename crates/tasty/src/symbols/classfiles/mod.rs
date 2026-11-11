@@ -4,6 +4,7 @@
 mod annotation;
 mod class;
 mod classpath;
+mod constant;
 mod javalib;
 mod signatures;
 
