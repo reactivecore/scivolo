@@ -114,7 +114,8 @@ impl Typer<'_> {
     }
 
     /// Sequence argument `a`, `xs*`, passed to a repeated parameter of element type `elem`:
-    /// `xs` typed as a `Seq[elem] | Array[? <: elem]`, without an expected type if no `elem`,
+    /// `xs` typed as a `Seq[elem] | Array[? <: elem]`, as a `Seq[elem]` in a quote pattern,
+    /// without an expected type if no `elem`,
     /// ascribed `<repeated>[T]` with `T` its element type.
     pub fn sequence_arg(
         &mut self,
@@ -133,6 +134,9 @@ impl Typer<'_> {
         let pt = elem.map_or(super::Pt::Any, |elem| {
             let seq = crate::defn::type_ref(self.u, seq_class);
             let seq = self.u.intern_applied(seq, &[elem]);
+            if ctx.mode.is(crate::ctx::Mode::QUOTED_PATTERN) {
+                return super::Pt::Type(seq);
+            }
             let array = crate::defn::type_ref(self.u, array_class);
             let below = self.u.intern_type(Type::Bounds(tasty::NOTHING, elem));
             let array = self.u.intern_applied(array, &[below]);
