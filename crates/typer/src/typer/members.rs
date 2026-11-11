@@ -12,13 +12,15 @@ const MAX_MEMBER_DEPTH: u32 = 32;
 impl Typer<'_> {
     /// The members named `name` of type `t`.
     pub fn type_members(&mut self, t: TypeId, name: &str) -> Vec<SymbolId> {
-        self.members_within(t, name, (MAX_MEMBER_DEPTH, None))
+        let found = self.members_within(t, name, (MAX_MEMBER_DEPTH, None));
+        self.without_clashing(found)
     }
 
     /// The members named `name` of type `t` as selected in `ctx`: of an intersection's matching
     /// members, those inaccessible in `ctx` hidden.
     pub fn type_members_in(&mut self, t: TypeId, name: &str, ctx: Ctx) -> Vec<SymbolId> {
-        self.members_within(t, name, (MAX_MEMBER_DEPTH, Some(ctx)))
+        let found = self.members_within(t, name, (MAX_MEMBER_DEPTH, Some(ctx)));
+        self.without_clashing(found)
     }
 
     /// The members named `name` of type `t`, none if finding them takes more than `depth` steps

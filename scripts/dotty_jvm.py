@@ -105,7 +105,7 @@ def scivolo(key, sources, cp, macro_cp, out=None):
             return "macro refused", m[1].removeprefix("scala.quoted.runtime.impl.")
         if m := re.search(r"panicked at [^:]+:\d+:\d+:\s*(.*)", err):
             return "frontend crashed", first_line(m[1])
-        if m := re.match(r"the (typer|lowering|JVM backend) does not support (.*?)( at (\S+:)?\d+:\d+)?$", message):
+        if m := re.match(r"(?:.*?: )?the (typer|lowering|JVM backend) does not support (.*?)( at (\S+:)?\d+:\d+)?$", message):
             stage = "jvm" if m[1] == "JVM backend" else m[1]
             return f"{stage} refused", m[2][:160]
         if "syntax error" in message:

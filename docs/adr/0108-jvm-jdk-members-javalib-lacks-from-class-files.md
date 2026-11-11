@@ -27,5 +27,5 @@ javalib lacks in a class javalib has stays unknown: `Class.getDeclaredMethods`,
   answers).
 - Classes javalib lacks altogether stay ADR 0107's: nested ones (`MethodHandles.Lookup`) and
   packages outside `java.*`/`javax.*` (`sun.misc.Unsafe`) are unknown; JDK annotation classes
-  (`Deprecated`) too, as the typer has no Java annotation constructor.
+  are ADR 0117's.
 - The NIR path, without a JDK, is unchanged.
