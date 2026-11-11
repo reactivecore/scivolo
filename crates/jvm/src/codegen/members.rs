@@ -77,8 +77,8 @@ impl Gen<'_, '_> {
         out
     }
 
-    /// Refuses Java annotations a class file would keep on `sym`, defined at `at`, and `@throws`
-    /// on a symbol other than a method of the unit.
+    /// Refuses the Java annotations of `sym`, defined at `at`, that `kept_annotations` refuses, and
+    /// `@throws` on a symbol other than a method of the unit.
     pub fn check_annotations(&mut self, sym: SymbolId, at: Span) -> Result<()> {
         let method = self.l.u.symbol(sym).kind == tasty::Kind::Def;
         if self.l.u.is_annotated(sym, "scala.throws") && !(method && !self.thrown(sym).is_empty()) {
@@ -86,11 +86,21 @@ impl Gen<'_, '_> {
         }
         let source_only = ["java.lang.Override", "java.lang.SuppressWarnings"];
         for c in self.l.u.annotations(sym).to_vec() {
-            if self.is_java_class(c) && !source_only.contains(&self.l.u.full_name(c).as_str()) {
-                return unsupported(at, "Java annotations (RuntimeVisibleAnnotations) on the JVM");
+            let from_classfile = self.l.u.classfile_retention(c).is_some();
+            if !from_classfile
+                && self.is_java_class(c)
+                && !source_only.contains(&self.l.u.full_name(c).as_str())
+            {
+                return unsupported(
+                    at,
+                    "Java annotations of the library (RuntimeVisibleAnnotations) on the JVM",
+                );
             }
         }
-        Ok(())
+        match self.kept_annotations(sym) {
+            Ok(_) => Ok(()),
+            Err(what) => unsupported(at, what),
+        }
     }
 
     /// Determines whether `sym` is `@deprecated` (dotty's `isDeprecated`): a field also if its

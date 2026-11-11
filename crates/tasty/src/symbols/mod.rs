@@ -60,6 +60,7 @@ use std::io;
 
 pub use bodies::BodyInfo;
 pub use builtin::{ANY, NOTHING};
+pub use classfiles::Retention;
 pub use companions::{module_class_name, module_name};
 pub use defn::Defn;
 pub use function_classes::MAX_IMPLEMENTED_ARITY;
@@ -119,6 +120,8 @@ pub struct Universe {
     classfile_classes: FxHashSet<SymbolId>,
     /// The descriptor of each member entered from them.
     classfile_descriptors: FxHashMap<SymbolId, String>,
+    /// The retention of each annotation class entered from them.
+    classfile_annotations: FxHashMap<SymbolId, classfiles::Retention>,
     /// The library's classes the JDK's class files were asked for the members they lack.
     jdk_member_classes: FxHashSet<SymbolId>,
     /// The given self type of each class whose self type was asked for or set.

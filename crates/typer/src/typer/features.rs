@@ -6,7 +6,7 @@
 use super::Typer;
 use crate::ctx::{Ctx, Level};
 use names::nme;
-use syntax::config::Features;
+use syntax::config::{Features, SourceVersion};
 use tasty::NullMode;
 
 impl Typer<'_> {
@@ -35,6 +35,23 @@ impl Typer<'_> {
             level = self.levels.outer(l);
         }
         false
+    }
+
+    /// Takes the features and source version of source file `file` of a unit of several (dotty's
+    /// `CompilationUnit` settings); the file it took them from before.
+    pub fn enter_file(&mut self, file: usize) -> usize {
+        let outer = self.file;
+        let Some(cfg) = self.file_cfgs.get(file).copied() else { return outer };
+        if file != outer {
+            let v = cfg.source_version;
+            self.features = cfg.features;
+            self.source_future = v.requires_new_syntax();
+            self.dollar_names_warned = v.is_at_least(SourceVersion::V3_9);
+            self.scala2 = v.is_scala2();
+            self.tpd.scala2 = self.scala2;
+            self.file = file;
+        }
+        outer
     }
 
     /// How comparisons in `ctx` treat `Null`: explicit nulls, and safe without `unsafeNulls`.

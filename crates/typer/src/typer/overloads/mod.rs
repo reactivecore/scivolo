@@ -79,7 +79,8 @@ impl Typer<'_> {
         prefix: Option<TypeId>,
         pt: Pt,
     ) -> Result<SymbolId, Unchosen> {
-        Resolution { prefix, pt }.choose(self, syms)
+        let syms = self.without_clashing(syms.to_vec());
+        Resolution { prefix, pt }.choose(self, &syms)
     }
 
     /// Checks whether an argument of type `arg` fits a parameter of type `param` in `ctx`,

@@ -29,6 +29,7 @@ impl Gen<'_, '_> {
     ) -> Result<()> {
         let name = module_name.strip_suffix('$').unwrap_or(module_name);
         let mut cf = ClassFile::new(ACC_PUBLIC | ACC_FINAL | ACC_SUPER, name, "java/lang/Object", &[]);
+        self.emit_annotations(&mut cf, None, module);
         self.add_forwarders(&mut cf, module, None);
         let source = self.source_name(td);
         cf.source_file(&source);
@@ -65,6 +66,7 @@ impl Gen<'_, '_> {
             code.ret(result);
             let flags = ACC_PUBLIC | ACC_STATIC | if synthetic { ACC_SYNTHETIC } else { 0 };
             cf.method(flags, &method, &desc, Some(code), &mut |_, _| None);
+            self.emit_method_annotations(cf, m);
             let target = self.l.mixed_in_from(m).unwrap_or(m);
             let this = self.l.u.this_type(module);
             let unflattened = self.l.unflattened_info(target);
