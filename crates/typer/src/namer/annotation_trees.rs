@@ -4,12 +4,12 @@
 //! The annotations of definitions typed as `new` expressions once their package's statements
 //! are typed (dotty's `annotContext`, `typedAnnotation`, `Checking.checkAnnotClass`).
 
-use crate::ctx::{Ctx, Level, Mode};
+use crate::ctx::{Ctx, Level};
 use crate::defn::STATIC_ANNOT;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::{Pt, Typer};
 use rustc_hash::FxHashMap;
-use syntax::ast::NodeId;
+use syntax::ast::{NodeId, Tree as S};
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
@@ -54,8 +54,9 @@ impl Typer<'_> {
             let typed = match typed_trees.get(&annot) {
                 Some(&t) => t,
                 None => {
-                    let typed =
-                        self.typed(annot, Pt::Any, Ctx { mode: ctx.mode.with(Mode::ANNOTATION), ..ctx });
+                    let new = self.annotation_new(annot);
+                    self.annotation_news.insert(new);
+                    let typed = self.typed(annot, Pt::Any, ctx);
                     let t = (!self.is_error(typed) && self.check_annot_class(annot, typed)).then_some(typed);
                     if t.is_some() {
                         self.check_annot_args(typed);
@@ -72,6 +73,18 @@ impl Typer<'_> {
             self.tpd.annotate(sym, typed);
         }
         self.syms.annotation_trees.clear();
+    }
+
+    /// The `new` of annotation tree `annot`, the tree itself if it has none.
+    fn annotation_new(&self, annot: NodeId) -> NodeId {
+        let mut t = annot;
+        loop {
+            match *self.ast.tree(t) {
+                S::Apply { fun, .. } | S::TypeApply { fun, .. } => t = fun,
+                S::Select { qualifier, .. } => t = qualifier,
+                _ => return t,
+            }
+        }
     }
 
     /// Whether typed annotation `typed` of tree `annot` is of a class that extends
