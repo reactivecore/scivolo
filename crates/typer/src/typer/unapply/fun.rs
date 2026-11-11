@@ -21,9 +21,11 @@ impl UnapplyPattern {
     /// Selects the extractor method of `qual` as `select_unapply` does or, if that fails with
     /// errors or `qual` has no `unapply` or `unapplySeq` and `qual` names a type alias of a
     /// class, that of the class's companion object, as `Block` for
-    /// `type Block = Trees.Block[Int]`; the errors of the first try if both fail.
+    /// `type Block = Trees.Block[Int]`; the errors of the first try if both fail. Each failed try's
+    /// changes to the constraint and the implicit dictionary are undone.
     pub fn unapply_fun(&self, t: &mut Typer<'_>, qual: NodeId) -> Result<(TNodeId, bool), &'static str> {
         let (reported, unsupported) = (t.diags.items.len(), t.unsupported.clone());
+        let (before, dictionary) = (t.constraint.attempt(), t.history.snapshot());
         let first = self.select_unapply(t, qual, true);
         let failed = match first {
             Ok(_) => has_errors_since(t, reported),
@@ -33,6 +35,8 @@ impl UnapplyPattern {
             return first;
         }
 
+        t.constraint.abandon(before);
+        t.history.restore(dictionary.clone());
         let first_diags = t.diags.items[reported..].to_vec();
         t.retract_diags(reported);
         let kept = t.diags.items.len();
@@ -43,6 +47,8 @@ impl UnapplyPattern {
             }
             t.retract_diags(kept);
             t.unsupported = unsupported;
+            t.constraint.abandon(before);
+            t.history.restore(dictionary);
         }
         if first == Err(NO_EXTRACTOR_METHOD) {
             return self.select_unapply(t, qual, false);
@@ -68,7 +74,7 @@ impl UnapplyPattern {
     ) -> Result<(TNodeId, bool), &'static str> {
         let unsupported = t.unsupported.clone();
         let ctx = self.ctx.with_mode(Mode::NONE);
-        if stop_without && names_overloaded_methods(t, qual, ctx) {
+        if stop_without && names_no_extractor(t, qual, ctx) {
             return Err(NO_EXTRACTOR_METHOD);
         }
         let ident = matches!(t.ast.tree(qual), Tree::Ident { .. });
@@ -125,8 +131,9 @@ pub fn has_errors_since(t: &Typer<'_>, mark: usize) -> bool {
 }
 
 /// Whether extractor `qual`, `C` or `p.C`, refers to several methods taking explicit arguments,
-/// as `New` imported from `tpd` with `def New(tpt: Tree)` and `def New(tp: Type)`.
-fn names_overloaded_methods(t: &mut Typer<'_>, qual: NodeId, ctx: Ctx) -> bool {
+/// as `New` imported from `tpd` with `def New(tpt: Tree)` and `def New(tp: Type)`, or `C` to no
+/// term at all, as `Block` inside a class inheriting only `type Block = Trees.Block[Int]`.
+fn names_no_extractor(t: &mut Typer<'_>, qual: NodeId, ctx: Ctx) -> bool {
     let (prefix, name) = match *t.ast.tree(qual) {
         Tree::Ident { name } => (None, name),
         Tree::Select { qualifier, name } => (Some(qualifier), name),
@@ -135,17 +142,18 @@ fn names_overloaded_methods(t: &mut Typer<'_>, qual: NodeId, ctx: Ctx) -> bool {
     let text = t.text(name.name).to_owned();
     let reported = t.diags.items.len();
     let (found, clean, _) = t.speculatively(|t| match prefix {
-        None => t.find_ref(&text, false, ctx.with_mode(Mode::EXTRACTOR)).ok().flatten(),
+        None => t.find_ref(&text, false, ctx.with_mode(Mode::EXTRACTOR)),
         Some(p) => {
             let typed = t.typed(p, Pt::Any, ctx.with_mode(Mode::QUALIFIER));
             let tpe = t.tpd.tpe(typed);
             let tpe = t.widen_if_unstable(tpe);
-            t.members_found(tpe, &text, false)
+            Ok(t.members_found(tpe, &text, false))
         }
     });
     let errors = has_errors_since(t, reported);
     t.retract_diags(reported);
-    let Some(found) = found.filter(|_| clean && !errors) else { return false };
+    let Some(found) = found.ok().filter(|_| clean && !errors) else { return false };
+    let Some(found) = found else { return prefix.is_none() };
     found.syms.len() > 1 && found.syms.iter().all(|&s| t.takes_explicit_args(s))
 }
 
