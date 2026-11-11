@@ -56,6 +56,12 @@ impl Constraint {
 
     /// Lists the pending variables of id `from` or later, by id.
     pub fn pending_from(&self, from: usize) -> impl Iterator<Item = VarId> + '_ {
+        debug_assert!(
+            self.pending
+                .iter()
+                .copied()
+                .eq((0..self.vars.len() as u32).filter(|&i| self.is_pending(VarId(i))))
+        );
         self.pending.range(from as u32..).map(|&i| VarId(i))
     }
 
