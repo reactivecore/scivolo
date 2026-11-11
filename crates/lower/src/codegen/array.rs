@@ -107,7 +107,7 @@ impl Gen<'_, '_> {
     /// `newArrayMethod`).
     pub fn is_new_array_method(&self, m: SymbolId) -> bool {
         let owner = self.l.u.symbol(m).owner.map(|o| self.l.u.full_name(o));
-        self.l.u.symbol(m).name == "newArray" && owner.as_deref() == Some("scala.runtime.Arrays$")
+        self.l.u.symbol(m).name == nme::NEW_ARRAY && owner.as_deref() == Some("scala.runtime.Arrays$")
     }
 
     /// Whether `v` is a zero value: `false`, `null`, a numeric zero (NIR's `isZero`).

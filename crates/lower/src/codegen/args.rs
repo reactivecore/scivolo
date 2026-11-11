@@ -6,7 +6,7 @@ use super::Gen;
 use crate::{Result, unsupported};
 use nir::ValId;
 use syntax::ast::Span;
-use tasty::SymbolId;
+use tasty::{SymbolId, nme};
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
@@ -19,7 +19,7 @@ impl Gen<'_, '_> {
         }
         let mut out = Vec::new();
         for (i, (&a, param)) in args.iter().zip(params).enumerate() {
-            if i == 0 && self.l.u.symbol(sym).name == "objCAS" && sym == self.l.lazy_vals()?.obj_cas {
+            if i == 0 && self.l.u.symbol(sym).name == nme::OBJ_CAS && sym == self.l.lazy_vals()?.obj_cas {
                 out.push(self.gen_field_ptr(a)?);
                 continue;
             }

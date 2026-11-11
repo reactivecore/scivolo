@@ -69,6 +69,10 @@ pub const OF_DIM: &str = "ofDim";
 pub const LENGTH_COMPARE: &str = "lengthCompare";
 /// The name `throw`.
 pub const THROW: &str = "throw";
+/// The name `newArray` of `scala.runtime.Arrays`' array factory.
+pub const NEW_ARRAY: &str = "newArray";
+/// The name `objCAS` of Scala Native's compare-and-set of a lazy value's field.
+pub const OBJ_CAS: &str = "objCAS";
 
 /// The name `##`.
 pub const HASHHASH: &str = "##";

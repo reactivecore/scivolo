@@ -88,7 +88,7 @@ fn new_arrays(l: &mut Lower, elem: TypeId, result: TypeId, dims: &[TNodeId], spa
     let runtime = l.u.package("scala.runtime")?;
     let module = l.u.decl(runtime, "Arrays").ok()?.into_iter().find(|&m| l.u.is_module(m))?;
     let class = l.u.module_class(module)?;
-    let method = *l.u.decl(class, "newArray").ok()?.first()?;
+    let method = *l.u.decl(class, nme::NEW_ARRAY).ok()?.first()?;
     let qual = l.ident(module, span);
     let fun = l.select(qual, method, span);
     let targ = l.type_tree(result, span);

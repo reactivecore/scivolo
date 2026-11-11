@@ -50,7 +50,7 @@ impl LazyVals {
             count_down,
             await_,
             native,
-            obj_cas: member(u, native_class, "objCAS", Kind::Def)?,
+            obj_cas: member(u, native_class, nme::OBJ_CAS, Kind::Def)?,
             not: member(u, boolean, "unary_!", Kind::Def)?,
             var_handle: member(u, invoke, "VarHandle", Kind::Class)?,
         })
