@@ -34,6 +34,8 @@ impl Typer<'_> {
 
     fn complete_pending(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) {
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        let span = self.ast.span(tree);
+        let outer_file = if span.exists() { self.enter_file(self.file_of(span)) } else { self.file };
         let reported = self.diags.items.len();
         self.set_provisional_info(sym, tree, ctx);
         let open = std::mem::take(&mut self.history.open);
@@ -83,6 +85,8 @@ impl Typer<'_> {
         self.record_completion_diags(reported);
         self.constraint.keep(start);
         self.history.open = open;
+        self.invalidate_if_clashing(sym);
+        self.enter_file(outer_file);
     }
 
     /// Completes the class of the top-level definitions among package statements `stats`.

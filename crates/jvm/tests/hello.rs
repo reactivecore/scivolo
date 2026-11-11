@@ -7,21 +7,32 @@ fn root() -> PathBuf {
 
 /// Runs scivolo-jvm on `source` into tmp/jvm-test/`name`.
 fn compile(name: &str, source: &Path) -> (PathBuf, Output) {
+    compile_all(name, &[source.to_owned()])
+}
+
+/// Runs scivolo-jvm on `sources` together into tmp/jvm-test/`name`.
+fn compile_all(name: &str, sources: &[PathBuf]) -> (PathBuf, Output) {
     let out = root().join("tmp/jvm-test").join(name);
     let _ = std::fs::remove_dir_all(&out);
-    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm")).arg("-d").arg(&out).arg(source).output();
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm")).arg("-d").arg(&out).args(sources).output();
     (out, run.expect("running scivolo-jvm"))
 }
 
-/// Compiles tests/jvm/`name` and runs it on `java -Xverify:all` in the en-US locale when that is
-/// on the PATH.
+/// Compiles the `.scala` files of tests/jvm/`name` in one run and runs it on `java -Xverify:all`
+/// in the en-US locale when that is on the PATH.
 fn runs_on_the_jvm(name: &str, main: &str) {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
         return;
     }
     let dir = root().join("tests/jvm").join(name);
-    let (out, compiled) = compile(name, &dir.join(format!("{name}.scala")));
+    let mut sources: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .expect("a test directory")
+        .map(|e| e.expect("a directory entry").path())
+        .filter(|p| p.extension().is_some_and(|x| x == "scala"))
+        .collect();
+    sources.sort();
+    let (out, compiled) = compile_all(name, &sources);
     assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
     let classpath =
         format!("{}:{}", out.display(), root().join("ref/libs/scala-library-3.9.0.jar").display());
@@ -40,6 +51,11 @@ fn runs_on_the_jvm(name: &str, main: &str) {
 #[test]
 fn hello_runs_on_the_jvm() {
     runs_on_the_jvm("hello", "Hello");
+}
+
+#[test]
+fn several_files_run_on_the_jvm() {
+    runs_on_the_jvm("units", "Units");
 }
 
 #[test]

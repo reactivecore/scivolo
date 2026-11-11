@@ -51,6 +51,15 @@ pub struct Typed {
     pub pickles: Vec<pickle::Pickled>,
 }
 
+/// A source file of a unit of several: its desugared root, the offset it starts at and the
+/// settings its parser ended with, its language imports added.
+#[derive(Clone, Copy)]
+pub struct SourceUnit {
+    pub root: NodeId,
+    pub start: syntax::source::Offset,
+    pub cfg: syntax::config::Config,
+}
+
 /// Types the desugared unit `root` of `ast`, parsed with options `cfg`, defining its symbols in
 /// `u`, and expands its inline calls, its macro calls through `macros`; `fresh` holds the
 /// counters of the unit's fresh names.
@@ -110,36 +119,51 @@ impl Units {
         self.finish(typer, typed, &[typed])
     }
 
-    /// Types the units of one `ast`, each the root of a source file with the offset it starts at,
-    /// in increasing order, as dotty's namer and typer do: enters the symbols of all, then types
-    /// each, expanding macro calls through `macros`. The result's root is a package clause of the
-    /// root package holding the typed units.
+    /// Types `units`, the source files of one `ast` in increasing order of their starts, as
+    /// dotty's namer and typer do: enters the symbols of all, then types each, under its file's
+    /// features and source version, expanding macro calls through `macros`. The result's root is
+    /// a package clause of the root package holding the typed units.
     pub fn type_units(
         &mut self,
         u: &mut Universe,
         ast: &mut Ast,
         (names, fresh): (&mut Names, &mut FreshNames),
-        (units, cfg): (&[(syntax::source::Offset, NodeId)], syntax::config::Config),
+        units: &[SourceUnit],
         macros: Option<&mut dyn Macros>,
     ) -> Result<Typed, Fallback> {
-        let roots: Vec<NodeId> = units
+        let file_roots: Vec<Vec<NodeId>> = units
             .iter()
-            .flat_map(|&(_, r)| match *ast.tree(r) {
+            .map(|unit| match *ast.tree(unit.root) {
                 Tree::Thicket { trees } => ast.items(trees).to_vec(),
                 Tree::Empty => Vec::new(),
-                _ => vec![r],
+                _ => vec![unit.root],
             })
             .collect();
+        let roots = file_roots.concat();
         let trees = ast.list(&roots);
         let unit = ast.node(Tree::Thicket { trees });
-        let mut typer = Typer::new(u, (ast, unit), (names, fresh), cfg, &mut self.syms)
-            .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
-        typer.file_starts = units.iter().skip(1).map(|&(start, _)| start).collect();
+        let unsupported = |what| Fallback::Unsupported { at: Span::NONE, what };
+        for unit in units {
+            typer::check_source_version(unit.cfg.source_version)
+                .map_err(|what| Fallback::Unsupported { at: ast.span(unit.root), what })?;
+        }
+        let cfg = units.first().map_or_else(|| syntax::config::Config::from_options(&[]), |unit| unit.cfg);
+        let mut typer =
+            Typer::new(u, (ast, unit), (names, fresh), cfg, &mut self.syms).map_err(unsupported)?;
+        typer.file_starts = units.iter().skip(1).map(|unit| unit.start).collect();
+        typer.file_cfgs = units.iter().map(|unit| unit.cfg).collect();
         typer.macros = macros.map(|m| m as &mut dyn Macros);
         let ctx = Ctx::root(&mut typer);
-        typer.index(&roots, ctx);
+        for (file, roots) in file_roots.iter().enumerate() {
+            typer.enter_file(file);
+            typer.index(roots, ctx);
+        }
         typer.check_split_companions();
-        let typed: Vec<TNodeId> = roots.iter().map(|&r| typer.typed(r, typer::Pt::Any, ctx)).collect();
+        let mut typed = Vec::new();
+        for (file, roots) in file_roots.iter().enumerate() {
+            typer.enter_file(file);
+            typed.extend(roots.iter().map(|&r| typer.typed(r, typer::Pt::Any, ctx)));
+        }
         let root = typer.u.root();
         let tpe = typer.u.intern_type(tasty::Type::Package(root));
         let name = syntax::ast::TName { name: typer.names.intern(names::nme::ROOT_PKG), is_type: false };

@@ -4,20 +4,20 @@ use crate::{NirFile, Refusal};
 use syntax::ast::Ast;
 use syntax::config::Config;
 use syntax::desugar::Desugar;
-use syntax::diag::Diagnostics;
+use syntax::diag::{Diagnostics, Level};
 use syntax::names::{FreshNames, Names};
 use syntax::parse::Parser;
 use syntax::source::{Offset, SourceFile, Sources};
 use tasty::Universe;
-use typer::Fallback;
 use typer::inlining::Macros;
 use typer::pickle::Pickled;
 use typer::tpd::TNodeId;
+use typer::{Fallback, SourceUnit};
 
-/// The NIR files and warnings of `files` under settings `cfg`, those of a single file's language
-/// imports added, typed together so that each sees
-/// the definitions of all, their macro calls expanded through `macros`, or why they take the JVM
-/// frontend; the warnings' offsets are those of `Sources::new(files)`.
+/// The NIR files and warnings of `files` under settings `cfg`, each file's language imports
+/// added for it, typed together so that each sees the definitions of all, their macro calls
+/// expanded through `macros`, or why they take the JVM frontend; the warnings' offsets are those
+/// of `Sources::new(files)`.
 pub fn compile_sources(
     u: &mut Universe,
     files: &[SourceFile],
@@ -34,20 +34,41 @@ pub fn compile_sources(
 pub fn compile_units<R>(
     u: &mut Universe,
     files: &[SourceFile],
-    mut cfg: Config,
+    cfg: Config,
     macros: Option<&mut dyn Macros>,
     (backend, generate): (
         crate::Backend,
         impl FnOnce(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
     ),
 ) -> Result<(R, Diagnostics), Refusal> {
-    let sources = Sources::new(files).map_err(refused)?;
+    compile_attributed(u, files, cfg, macros, (backend, generate)).map_err(|r| r.refusal)
+}
+
+/// A refusal of a unit and the indices of the files it lies in, none if it lies in no file.
+pub struct Attributed {
+    pub refusal: Refusal,
+    pub files: Vec<usize>,
+}
+
+/// `compile_units`, its refusals attributed to the files they lie in.
+pub fn compile_attributed<R>(
+    u: &mut Universe,
+    files: &[SourceFile],
+    cfg: Config,
+    macros: Option<&mut dyn Macros>,
+    (backend, generate): (
+        crate::Backend,
+        impl FnOnce(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
+    ),
+) -> Result<(R, Diagnostics), Attributed> {
+    let whole = |refusal| Attributed { refusal, files: Vec::new() };
+    let sources = Sources::new(files).map_err(|e| whole(refused(e)))?;
     let (mut names, mut ast) = (Names::default(), Ast::default());
     // Temporary until #115 (fresh names per file): the typer and the lowering count on from the
     // highest counters of the files' parsers.
     let mut fresh = FreshNames::default();
     let mut units = Vec::new();
-    for &(base, source) in sources.files() {
+    for (i, &(base, source)) in sources.files().iter().enumerate() {
         let mark = ast.mark();
         let mut p = Parser::new(source, &mut names, cfg);
         p.ast = std::mem::take(&mut ast);
@@ -57,19 +78,16 @@ pub fn compile_units<R>(
             Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, source, file_cfg).unit(root);
         if p.s.diags.has_errors() {
             let what = format!("syntax errors in {}", source.name);
-            return Err(refusal(&what, &p.s.diags, &Sources::one(source)));
-        }
-        // Temporary until #115 (settings per file): a unit is typed with one `Config`.
-        if files.len() == 1 {
-            cfg = file_cfg;
-        } else if file_cfg != cfg {
-            return Err(refused(format!("{}: language imports in a unit of several files", source.name)));
+            return Err(Attributed {
+                refusal: refusal(&what, &p.s.diags, &Sources::one(source)),
+                files: vec![i],
+            });
         }
         p.fresh.uniques.shift(base);
         fresh.include(&p.fresh);
         ast = p.ast;
         ast.shift_spans(mark, base);
-        units.push((base, root));
+        units.push(SourceUnit { root, start: base, cfg: file_cfg });
     }
     let mut typer = crate::typer_units();
     typer.source_names = files.iter().map(|f| f.name.clone()).collect();
@@ -77,23 +95,50 @@ pub fn compile_units<R>(
         let copies = sources.files().iter().map(|&(base, f)| (copy(f), base));
         typer.tasty_sources = Some(copies.collect());
     }
-    let typed = typer.type_units(u, &mut ast, (&mut names, &mut fresh), (&units, cfg), macros);
+    let typed = typer.type_units(u, &mut ast, (&mut names, &mut fresh), &units, macros);
     let mut typed = match typed {
         Ok(typed) => typed,
         Err(Fallback::Unsupported { what, at }) => {
-            return Err(refused(format!("the typer does not support {what}{}", at_point(&sources, at))));
+            let what = format!("the typer does not support {what}{}", at_point(&sources, at));
+            return Err(Attributed { refusal: refused(what), files: file_at(&sources, at) });
         }
-        Err(Fallback::Errors(diags)) => return Err(refusal("type errors", &diags, &sources)),
+        Err(Fallback::Errors(diags)) => {
+            let files = error_files(&diags, &sources);
+            return Err(Attributed { refusal: refusal("type errors", &diags, &sources), files });
+        }
     };
-    let located = Sources::new(files).map_err(refused)?;
+    let located = Sources::new(files).map_err(|e| whole(refused(e)))?;
     let sources = (sources, cfg.explicit_nulls);
     let pickles = std::mem::take(&mut typed.pickles);
     let generate = (backend, |l: &mut crate::Lower, root| generate(l, root, pickles));
     let trees = (&mut typed.tpd, &mut typed.diags);
     let out = crate::lower_trees(u, trees, typed.root, (&mut names, &mut fresh), sources, generate).map_err(
-        |e| refused(format!("the lowering does not support {}{}", e.what, at_point(&located, e.at))),
+        |e| {
+            let what = format!("the lowering does not support {}{}", e.what, at_point(&located, e.at));
+            Attributed { refusal: refused(what), files: file_at(&located, e.at) }
+        },
     )?;
     Ok((out, typed.diags))
+}
+
+/// The indices of the files the errors among `diags` are in, none if one of them has no position.
+fn error_files(diags: &Diagnostics, sources: &Sources) -> Vec<usize> {
+    let errors = diags.items.iter().filter(|d| d.level == Level::Error);
+    let Some(mut files) = errors.map(|d| d.offset.map(|o| sources.index(o))).collect::<Option<Vec<_>>>()
+    else {
+        return Vec::new();
+    };
+    files.sort_unstable();
+    files.dedup();
+    files
+}
+
+/// The index of the file the point of `at` is in, if it has one in `sources`.
+fn file_at(sources: &Sources, at: syntax::ast::Span) -> Vec<usize> {
+    match at.exists() && !at.is_in_other_source() {
+        true => vec![sources.index(at.without_inlined_call().point())],
+        false => Vec::new(),
+    }
 }
 
 fn copy(f: &SourceFile) -> SourceFile {
