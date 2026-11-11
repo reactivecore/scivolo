@@ -30,6 +30,12 @@ impl Sig<'_> {
         }
     }
 
+    /// Whether `t` derives from `AnyVal`.
+    pub fn is_value(&mut self, t: TypeId) -> bool {
+        let any_val = self.u.defn().any_val;
+        self.u.class_symbol(t).is_some_and(|c| any_val.is_some_and(|v| self.u.derives_from(c, v)))
+    }
+
     /// Whether `t` is a primitive class (dotty's `isPrimitiveValueType`).
     fn is_primitive(&mut self, t: TypeId) -> bool {
         let t = self.u.dealias(t);

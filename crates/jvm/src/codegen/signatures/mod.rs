@@ -173,11 +173,6 @@ impl<'u> Sig<'u> {
         }
     }
 
-    fn is_value(&mut self, t: TypeId) -> bool {
-        let any_val = self.u.defn().any_val;
-        self.u.class_symbol(t).is_some_and(|c| any_val.is_some_and(|v| self.u.derives_from(c, v)))
-    }
-
     /// The type parameter `t` refers to, if it appears in the signature by name.
     fn type_param(&mut self, t: TypeId) -> Option<SymbolId> {
         let s = match *self.u.ty(t) {
