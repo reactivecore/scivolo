@@ -38,6 +38,7 @@ mod opaques;
 mod open;
 mod overrides;
 mod packages;
+mod pending;
 mod predicates;
 mod resolve;
 mod runtime_stubs;
@@ -62,7 +63,7 @@ pub use companions::{module_class_name, module_name};
 pub use defn::Defn;
 pub use function_classes::MAX_IMPLEMENTED_ARITY;
 pub use jdk::{defined_name, jdk_name};
-pub use lookup::{decode, encode};
+pub use lookup::{LookupName, decode, encode};
 pub use packages::{PACKAGE_TABLE, package_table, package_table_version};
 pub use predicates::is_package_object_name;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
@@ -74,11 +75,15 @@ pub struct Universe {
     packages: FxHashMap<String, SymbolId>,
     /// Per package, the files not loaded yet: the file name without `.tasty`, and its path.
     pending: FxHashMap<SymbolId, Vec<(String, String)>>,
+    pending_stems: FxHashMap<SymbolId, pending::PendingStems>,
+    /// Per package, its package objects' classes, with the generation and number of
+    /// declarations they were found at.
+    package_objects: FxHashMap<SymbolId, ((u64, usize), Vec<SymbolId>)>,
     files: Vec<loaded::Loaded>,
     /// The symbol each definition tree defines.
     by_tree: FxHashMap<(FileId, NodeId), SymbolId>,
     /// Per owner whose declarations were looked up by name, its declarations by name.
-    by_name: FxHashMap<SymbolId, FxHashMap<String, Vec<SymbolId>>>,
+    by_name: FxHashMap<SymbolId, FxHashMap<crate::NameId, Vec<SymbolId>>>,
     /// The symbol each `TypeRef` or `TermRef` resolved to.
     resolved: FxHashMap<TypeId, SymbolId>,
     generation: u64,

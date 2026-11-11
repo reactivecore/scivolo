@@ -1,6 +1,6 @@
 //! Classes' parents, linearization and inherited members.
 
-use super::{FileId, Kind, SymbolId, Universe};
+use super::{FileId, Kind, LookupName, SymbolId, Universe};
 use crate::tags::{
     APPLY, BLOCK, DEFDEF, EMPTYCLAUSE, NEW, PARAM, PRIVATE, SELECT, SELECTin, SELFDEF, SPLITCLAUSE,
     TYPEAPPLY, TYPEDEF, TYPEPARAM, VALDEF,
@@ -93,9 +93,10 @@ impl Universe {
     pub fn member_where(
         &mut self,
         c: SymbolId,
-        name: &str,
+        name: impl LookupName,
         keep: impl Fn(&Self, SymbolId) -> bool,
     ) -> Vec<SymbolId> {
+        let name = name.id(self);
         let mut i = 0;
         while let Some(&base) = self.linearized(c).get(i) {
             i += 1;
@@ -113,7 +114,7 @@ impl Universe {
     }
 
     /// The members of class `c` named `name`.
-    pub fn member(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
+    pub fn member(&mut self, c: SymbolId, name: impl LookupName) -> Vec<SymbolId> {
         self.member_where(c, name, |_, _| true)
     }
 

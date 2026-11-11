@@ -31,6 +31,8 @@ impl Universe {
             symbols: Vec::new(),
             packages: FxHashMap::default(),
             pending: FxHashMap::default(),
+            pending_stems: FxHashMap::default(),
+            package_objects: FxHashMap::default(),
             files: Vec::new(),
             by_tree: FxHashMap::default(),
             by_name: FxHashMap::default(),

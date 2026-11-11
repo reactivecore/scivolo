@@ -13,7 +13,7 @@ impl Universe {
         if let Some(o) = s.owner {
             self.symbols[o.0 as usize].decls.push(id);
             if let Some(index) = self.by_name.get_mut(&o) {
-                let named = index.entry(s.name.clone()).or_default();
+                let named = index.entry(self.types.intern_name(&s.name)).or_default();
                 let new_name = named.is_empty();
                 named.push(id);
                 if new_name || s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {

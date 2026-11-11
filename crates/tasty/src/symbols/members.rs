@@ -5,20 +5,21 @@
 //! parts of a union that declares the name, a match type's reduction or else its bound.
 //! Refinements carry no symbols, so a refinement's parent answers for it.
 
-use super::{Kind, SymbolId, Universe};
+use super::{Kind, LookupName, SymbolId, Universe};
 use crate::tags::PRIVATE;
-use crate::types::{Type, TypeId};
+use crate::types::{NameId, Type, TypeId};
 
 /// How many types `member_of_type` looks through.
 const MAX_STEPS: u32 = 64;
 
 impl Universe {
     /// The members named `name` of type `t`.
-    pub fn member_of_type(&mut self, t: TypeId, name: &str) -> Vec<SymbolId> {
+    pub fn member_of_type(&mut self, t: TypeId, name: impl LookupName) -> Vec<SymbolId> {
+        let name = name.id(self);
         self.member_of_type_within(t, name, MAX_STEPS)
     }
 
-    fn member_of_type_within(&mut self, t: TypeId, name: &str, steps: u32) -> Vec<SymbolId> {
+    fn member_of_type_within(&mut self, t: TypeId, name: NameId, steps: u32) -> Vec<SymbolId> {
         let Some(steps) = steps.checked_sub(1) else { return Vec::new() };
         match *self.ty(t) {
             Type::And(a, b) => {
@@ -103,7 +104,7 @@ impl Universe {
     }
 
     /// The members named `name` of the first base class common to `classes` that declares any.
-    fn common_member(&mut self, classes: &[SymbolId], name: &str) -> Vec<SymbolId> {
+    fn common_member(&mut self, classes: &[SymbolId], name: NameId) -> Vec<SymbolId> {
         let Some(&first) = classes.first() else { return Vec::new() };
         for base in self.linearization(first) {
             if !classes.iter().all(|&c| self.derives_from(c, base)) {

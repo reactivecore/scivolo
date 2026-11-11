@@ -120,8 +120,7 @@ impl Unpickler<'_> {
         let member = match member {
             Ok(m) => m,
             Err(name) => {
-                let name = self.u.name(name).to_owned();
-                self.u.member_of_type(param, &name).into_iter().find(|&m| self.u.is_type_symbol(m))?
+                self.u.member_of_type(param, name).into_iter().find(|&m| self.u.is_type_symbol(m))?
             }
         };
         let info = self.u.member_info(param, member);
