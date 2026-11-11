@@ -5,8 +5,9 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
+use names::nme;
 use tasty::tags::{CONTRAVARIANT, COVARIANT};
-use tasty::{Kind, SymbolId, TypeId, nme};
+use tasty::{Kind, SymbolId, TypeId};
 
 impl Typer<'_> {
     /// The type of full name `full`; for an enum parent `E[...]`, the enum class applied to the
@@ -75,7 +76,7 @@ impl Typer<'_> {
         match (prefix, terms) {
             (None, 0) => name.clone(),
             (Some(p), 0) => format!("{p}.{name}"),
-            (p, t) => format!("{}.{}{name}", p.as_deref().unwrap_or("<empty>"), "_$".repeat(t)),
+            (p, t) => format!("{}.{}{name}", p.as_deref().unwrap_or(nme::EMPTY_PACKAGE), "_$".repeat(t)),
         }
     }
 

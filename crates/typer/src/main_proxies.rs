@@ -8,10 +8,11 @@ use crate::ctx::Ctx;
 use crate::defn::{applied, owner_prefix, type_ref};
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::Typer;
+use names::nme;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The typed proxy classes of the `@main` methods among `stats` and their objects' members.
@@ -127,11 +128,11 @@ impl Typer<'_> {
             return None;
         };
         let parse_error = type_ref(self.u, parse_error);
-        let err_var = self.ident("error", false);
+        let err_var = self.ident(nme::ERROR_METHOD, false);
         let tpt = self.splice_type(parse_error);
         let pat = self.ast.node(Tree::Typed { expr: err_var, tpt });
         let show = self.splice_ref(show_error);
-        let err_ref = self.ident("error", false);
+        let err_ref = self.ident(nme::ERROR_METHOD, false);
         let args = self.ast.list(&[err_ref]);
         let handler_body = self.ast.node(Tree::Apply { fun: show, args });
         let handler = self.ast.node(Tree::CaseDef { pat, guard: None, body: handler_body });
@@ -144,14 +145,14 @@ impl Typer<'_> {
         let string = type_ref(self.u, self.defn.string);
         let array_of_string = applied(self.u, array, vec![string]);
         let args_tpt = self.splice_type(array_of_string);
-        let args_name = TName { name: self.name("args"), is_type: false };
+        let args_name = TName { name: self.name(nme::ARGS), is_type: false };
         let arg_mods = self.ast.mods(Modifiers::with_flags(f::TERM_PARAM));
         let main_arg =
             self.ast.node(Tree::ValDef { name: args_name, tpt: args_tpt, rhs: None, mods: arg_mods });
         let unit = type_ref(self.u, self.defn.unit);
         let unit_tpt = self.splice_type(unit);
         let main_meth =
-            self.def_def("main", &[main_arg], unit_tpt, Some(body), f::JAVA_STATIC.or(f::SYNTHETIC));
+            self.def_def(nme::MAIN, &[main_arg], unit_tpt, Some(body), f::JAVA_STATIC.or(f::SYNTHETIC));
         let empty_tpt = self.ast.node(Tree::TypeTree);
         let constr = self.def_def(nme::CONSTRUCTOR, &[], empty_tpt, None, f::EMPTY);
         let parents = self.ast.list(&[]);
@@ -173,7 +174,7 @@ impl Typer<'_> {
         let targ = self.splice_type(tpe);
         let targs = self.ast.list(&[targ]);
         let fun = self.ast.node(Tree::TypeApply { fun, args: targs });
-        let args = self.ident("args", false);
+        let args = self.ident(nme::ARGS, false);
         let index = self.ast.node(Tree::Literal { value: syntax::ast::constant::Constant::Int(i as i32) });
         let args = self.ast.list(&[args, index]);
         self.ast.node(Tree::Apply { fun, args })

@@ -18,7 +18,7 @@ use syntax::ast::{List, NodeId, Tree};
 use tasty::TypeId;
 
 /// The written name of a sequence wildcard's type, `x: _*`.
-const SEQ_WILDCARD: &str = "_*";
+const SEQ_WILDCARD: &str = names::nme::WILDCARD_STAR;
 
 /// One extractor pattern `C(p1, ..., pn)` against a value of the scrutinee's type (dotty's
 /// `typedUnApply`): `C.unapply`, or `C.unapplySeq` for `C(p, xs*)`, selected on `C`, applied to

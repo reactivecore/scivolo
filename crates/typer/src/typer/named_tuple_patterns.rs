@@ -71,7 +71,7 @@ pub fn adapt_pattern_args(
     }
 
     let span = t.ast.span(args[0]).start_pos();
-    let wildcard = TName { name: t.name("_"), is_type: false };
+    let wildcard = TName { name: t.name(names::nme::WILDCARD), is_type: false };
     Ok(placed
         .into_iter()
         .map(|a| {

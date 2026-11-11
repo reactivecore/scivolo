@@ -8,10 +8,11 @@ use super::{Inlining, Unsupported};
 use crate::ctx::Ctx;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::{Span, TName};
 use tasty::tags::{FINAL, GIVEN, IMPLICIT, INLINE, SYNTHETIC, TRANSPARENT};
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, nme};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// Function `fun` of an extractor pattern owned by `owner`, wrapped as above if it applies an

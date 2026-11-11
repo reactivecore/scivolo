@@ -159,7 +159,7 @@ impl Typer<'_> {
         if !self.is_named_tuple_type(self.tpd.tpe(tree)) || self.u.base_type(pt, tuple).is_none() {
             return None;
         }
-        let name = TName { name: self.name("toTuple"), is_type: false };
+        let name = TName { name: self.name(names::nme::TO_TUPLE), is_type: false };
         let qualifier = self.spliced(tree);
         let select = self.ast.node(Tree::Select { qualifier, name });
         self.ast.with_span(select, self.tpd.span(tree).to_synthetic());

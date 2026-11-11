@@ -39,7 +39,7 @@ impl Typer<'_> {
             Ok(found) => found?,
             Err(what) => return Some(self.unsupported(id, what)),
         };
-        if self.u.symbol(ctx.owner).name.contains("$default$") {
+        if self.u.symbol(ctx.owner).name.contains(names::name_kinds::DEFAULT_GETTER) {
             return Some(self.unsupported(id, "default argument of a context function type"));
         }
         let wildcard = formals.iter().any(|&t| self.has_proto_wildcard(t));

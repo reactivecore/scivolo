@@ -7,9 +7,10 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::defn::type_ref;
+use names::nme;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Type, nme};
+use tasty::Type;
 
 impl Typer<'_> {
     /// `case ex$ => handler(ex$)` for handler expression `handler` of a `try` expecting `pt`, the
@@ -31,7 +32,7 @@ impl Typer<'_> {
             t.ast.with_span(node, span);
             node
         };
-        let ex = TName { name: self.name("ex$"), is_type: false };
+        let ex = TName { name: self.name(nme::DEFAULT_EXCEPTION_NAME), is_type: false };
         let ex_ref = |t: &mut Self, span| node(t, Tree::Ident { name: ex }, span);
         let call = |t: &mut Self, qualifier: NodeId, method: &str, span| {
             let name = TName { name: t.name(method), is_type: false };
@@ -52,7 +53,7 @@ impl Typer<'_> {
             let init = node(self, Tree::ValDef { name: tmp, tpt, rhs: Some(handler), mods }, whole);
             let tmp_ref = |t: &mut Self| node(t, Tree::Ident { name: tmp }, end);
             let q = tmp_ref(self);
-            let cond = call(self, q, "isDefinedAt", end);
+            let cond = call(self, q, nme::IS_DEFINED_AT, end);
             let q = tmp_ref(self);
             let thenp = call(self, q, nme::APPLY, end);
             let expr = ex_ref(self, end);

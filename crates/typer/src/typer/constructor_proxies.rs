@@ -7,9 +7,10 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::tags::{ABSTRACT, CASE, INVISIBLE, OBJECT, SYNTHETIC, TRAIT};
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, Universe, nme};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, Universe};
 
 /// Whether class `c` gets constructor proxies (dotty's `needsConstructorProxies`).
 pub fn needs_constructor_proxies(u: &Universe, c: SymbolId) -> bool {

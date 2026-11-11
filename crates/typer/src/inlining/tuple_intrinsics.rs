@@ -6,9 +6,10 @@
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::Span;
 use tasty::defn::MAX_TUPLE_ARITY;
-use tasty::{Binding, Kind, NameId, Type, TypeId, nme};
+use tasty::{Binding, Kind, NameId, Type, TypeId};
 
 /// The largest number of tuple elements unrolled.
 const MAX_UNROLLED: usize = 1024;
@@ -164,7 +165,7 @@ impl Inlining<'_> {
 
     /// `<repeated>[object]`.
     fn repeated_object(&mut self, object: TypeId) -> Option<TypeId> {
-        let class = self.scala_member("<repeated>", Kind::Class)?;
+        let class = self.scala_member(nme::REPEATED_PARAM_CLASS, Kind::Class)?;
         let class = crate::defn::type_ref(self.u, class);
         Some(self.u.intern_applied(class, &[object]))
     }

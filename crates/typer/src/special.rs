@@ -3,7 +3,8 @@
 //! Symbols the typer enters itself where the library has none.
 
 use crate::defn::type_ref;
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, Universe, name_kinds, nme};
+use names::{name_kinds, nme};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, Universe};
 
 /// The declaration `name` of `kind` already entered in `owner`, loading nothing.
 pub fn entered(u: &Universe, owner: SymbolId, name: &str, kind: Kind) -> Option<SymbolId> {
@@ -31,7 +32,7 @@ pub fn special(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flags:
 /// dotty's `<special-ops>.spread[T](x$0: Any): T`, defined if no one has.
 pub fn spread_method(u: &mut Universe) -> SymbolId {
     let ops = u.enter_package(nme::OPS_PACKAGE);
-    if let Some(s) = entered(u, ops, "spread", Kind::Def) {
+    if let Some(s) = entered(u, ops, nme::SPREAD, Kind::Def) {
         return s;
     }
     let (poly, method) = (u.fresh_binder(), u.fresh_binder());
@@ -41,7 +42,7 @@ pub fn spread_method(u: &mut Universe) -> SymbolId {
     let bounds = u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY));
     let params = [(u.intern_name("T"), bounds)];
     let info = u.intern_poly(poly, &params, result);
-    let spread = special(u, ops, "spread", Kind::Def, Flags::default());
+    let spread = special(u, ops, nme::SPREAD, Kind::Def, Flags::default());
     u.set_info(spread, info);
     spread
 }

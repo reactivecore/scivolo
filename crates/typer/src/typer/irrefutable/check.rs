@@ -10,7 +10,8 @@ use super::super::unapply_args::UnapplyArgs;
 use super::{RUNTIME_CHECKED, Refutable, UNCHECKED, has_annotation};
 use crate::defn::PRODUCT;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Const, Type, TypeId, Universe, constant, nme};
+use names::nme;
+use tasty::{Const, Type, TypeId, Universe, constant};
 
 /// Finds the first reason dotty's `checkIrrefutable` finds why pattern `pat` may not match a
 /// value of type `pt`.
@@ -78,7 +79,7 @@ fn is_irrefutable_extractor(t: &mut Typer<'_>, fun: TNodeId, n: usize) -> bool {
         || n > 0
             && t.derives_from_named(result, PRODUCT)
             && product_selectors(t, result).is_ok_and(|s| s.len() == n)
-        || extractor_member(t, result, "isEmpty")
+        || extractor_member(t, result, nme::IS_EMPTY)
             .ok()
             .flatten()
             .is_some_and(|e| is_bool_constant(t.u, e, false))

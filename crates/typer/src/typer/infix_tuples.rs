@@ -25,7 +25,7 @@ impl Typer<'_> {
         if args.len() < 2 || self.repeated_param_elem(p).is_some() {
             return Ok(());
         }
-        if self.feature_enabled(Features::NO_AUTO_TUPLING, "noAutoTupling", ctx) {
+        if self.feature_enabled(Features::NO_AUTO_TUPLING, names::nme::NO_AUTO_TUPLING, ctx) {
             return Ok(());
         }
         if self.protos[proto].typed.is_some() {

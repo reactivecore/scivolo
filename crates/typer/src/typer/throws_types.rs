@@ -17,7 +17,7 @@ impl Typer<'_> {
         let Tree::Ident { name } = *self.ast.tree(op) else { return None };
         if !self.ast.attrs(id).contains(Attrs::INFIX_OP)
             || !name.is_type
-            || self.text(name.name) != "throws"
+            || self.text(name.name) != names::nme::THROWS
             || !self.feature_enabled(Features::SAFER_EXCEPTIONS, "experimental.saferExceptions", ctx)
         {
             return None;
@@ -30,7 +30,7 @@ impl Typer<'_> {
     fn throws_of(&mut self, left: NodeId, (op, alias): (NodeId, tasty::TypeId), right: NodeId) -> NodeId {
         if let Tree::AppliedTypeTree { tpt: bar, args } = *self.ast.tree(right)
             && self.ast.attrs(right).contains(Attrs::INFIX_OP)
-            && matches!(*self.ast.tree(bar), Tree::Ident { name } if self.text(name.name) == "|")
+            && matches!(*self.ast.tree(bar), Tree::Ident { name } if self.text(name.name) == names::nme::OR)
             && let &[l, r] = self.ast.items(args)
         {
             let inner = self.throws_of(left, (op, alias), l);

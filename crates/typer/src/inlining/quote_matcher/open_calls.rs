@@ -5,9 +5,10 @@
 
 use super::super::Reflect;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use rustc_hash::FxHashSet;
 use syntax::ast::TName;
-use tasty::{SymbolId, Type, TypeId, nme};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
     /// Rewrites the calls `f(args1)...(argsN)` in `t` of the parameters `functions`, which stand

@@ -2,8 +2,9 @@
 //   compiler/src/dotty/tools/dotc/typer/VarianceChecker.scala
 
 use super::{BIVARIANT, COVARIANT, INVARIANT, Misplaced, VarianceOps, declared, flip};
+use names::nme;
 use syntax::ast::flags as f;
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 
 impl VarianceOps<'_> {
     /// Determines the variance of an occurrence of type parameter `tvar` in the type of `base`,

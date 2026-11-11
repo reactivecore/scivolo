@@ -6,7 +6,8 @@
 use super::Typer;
 use super::java_classes::is_java_member;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
-use tasty::{Kind, SymbolId, Type, Universe, nme};
+use names::nme;
+use tasty::{Kind, SymbolId, Type, Universe};
 
 /// dotty's `PurityLevel` bits: evaluating twice gives the same, evaluating has no effect, the
 /// tree is a path; the weaker of two levels is their intersection.

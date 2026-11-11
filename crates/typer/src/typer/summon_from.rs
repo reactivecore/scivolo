@@ -7,10 +7,11 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::tree::MatchKind;
 use syntax::ast::{List, NodeId, TName, Tree};
-use tasty::{Flags, Kind, NOTHING, Type, TypeId, nme};
+use tasty::{Flags, Kind, NOTHING, Type, TypeId};
 
 impl Typer<'_> {
     /// `summonFrom(args)`: its one argument a pattern matching closure.

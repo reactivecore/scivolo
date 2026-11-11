@@ -7,8 +7,9 @@ use super::implicits::{Goal, QualifierView, Viewed};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{Span, TName, Tree};
-use tasty::{Type, nme};
+use tasty::Type;
 
 impl Typer<'_> {
     /// `f`, or `f.apply` if `f` is not a method, the alternative chosen by `pt`, arguments or

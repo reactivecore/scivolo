@@ -10,10 +10,11 @@ use super::accessor_defs::accessor_span;
 use super::accessor_types::passing_tpt;
 use super::passing::Receiver;
 use crate::tpd::{TNodeId, Tree as T};
+use names::name_kinds;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Type, TypeId, Universe, name_kinds};
+use tasty::{Type, TypeId, Universe};
 
 /// The name the receiver parameter of a setter has until it is typed, renamed to `x$0` then.
 const SETTER_RECEIVER: &str = "x$0$receiver";

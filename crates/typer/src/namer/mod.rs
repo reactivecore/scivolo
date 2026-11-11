@@ -34,9 +34,10 @@ mod value_classes;
 use crate::ctx::{Ctx, Level};
 use crate::symbols::Completion;
 use crate::typer::Typer;
+use names::{name_kinds, nme};
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId, name_kinds, nme};
+use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     /// Enters the symbols `stats` define in `ctx`'s owner and, if it is a scope, in its level;

@@ -2,10 +2,11 @@
 //! class, applied type class and class types.
 
 use super::super::Typer;
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// Makes a new untyped node of `tree` at `span`.
 pub fn node(t: &mut Typer<'_>, tree: Tree, span: Span) -> NodeId {

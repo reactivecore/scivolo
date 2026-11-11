@@ -7,6 +7,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::defn::ARRAY;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Binding, Type, TypeId};
 
@@ -78,7 +79,7 @@ impl Typer<'_> {
             false => Vec::new(),
         };
         let text = self.text(name.name).to_owned();
-        let (fun, literal) = self.structural_fun(qual, "applyDynamic", &text, self.tpd.span(f));
+        let (fun, literal) = self.structural_fun(qual, nme::APPLY_DYNAMIC, &text, self.tpd.span(f));
         let first: Vec<NodeId> = std::iter::once(literal).chain(class_ofs).collect();
         let (inner, _) = self.applied(fun, &first);
         let spliced: Vec<NodeId> = args.into_iter().map(|a| self.spliced(a)).collect();
@@ -116,7 +117,7 @@ impl Typer<'_> {
     /// `(name: String, paramClasses: Class[?]*)` (dotty's `addClassOfs`).
     fn takes_class_ofs(&mut self, qual_tpe: TypeId) -> bool {
         let class = self.resolve_full_name("java.lang.Class", true);
-        let members = self.type_members(qual_tpe, "applyDynamic");
+        let members = self.type_members(qual_tpe, nme::APPLY_DYNAMIC);
         members.into_iter().any(|m| {
             let info = self.u.member_info(qual_tpe, m);
             let Some(Binding { params: &[_, (_, p)], .. }) = self.u.method(info) else { return false };

@@ -8,10 +8,11 @@ use super::implicits::Goal;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
 use tasty::tags::{EXTENSION, LAZY, MUTABLE, OBJECT};
-use tasty::{Kind, SymbolId, TypeId, nme};
+use tasty::{Kind, SymbolId, TypeId};
 
 impl Typer<'_> {
     /// For application `id` of `fun`, typed as `f` without `apply`, to the arguments of `proto`:

@@ -7,8 +7,9 @@ use super::super::Typer;
 use super::{UnapplyPattern, is_seq_wildcard};
 use crate::ctx::Mode;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Binder, NameId, Type, TypeId, nme};
+use tasty::{Binder, NameId, Type, TypeId};
 
 /// The extractor method of a pattern, applied to everything before its scrutinee.
 pub struct Extractor {

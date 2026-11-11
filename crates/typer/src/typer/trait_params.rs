@@ -9,8 +9,9 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId, nme};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The primary constructor of class `c`.

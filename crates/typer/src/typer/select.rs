@@ -9,8 +9,9 @@ use super::source_splices::STAGING_REFERENCE;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, TName, Tree as S};
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -181,7 +182,7 @@ impl Typer<'_> {
                 return self.alias_projection(id, (qual, name), sym, alias);
             }
         }
-        if text == "deferred" && self.u.full_name(sym).starts_with("scala.compiletime.") {
+        if text == nme::DEFERRED && self.u.full_name(sym).starts_with("scala.compiletime.") {
             return self.unsupported(id, "deferred given");
         }
         if self.is_staging_method(sym) && !matches!(self.ast.tree(qualifier), S::TypedSplice { .. }) {

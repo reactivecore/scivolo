@@ -8,14 +8,15 @@
 use super::Typer;
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::defn::{EXPERIMENTAL, SOURCE_FILE};
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 
 /// The experimental features whose imports do not make the unit experimental (dotty's
 /// `nonViralExperimentalFeatures` and `scala2macros`).
-const NOT_VIRAL: [&str; 4] = ["captureChecking", "separationChecking", "safe", "macros"];
+const NOT_VIRAL: [&str; 4] = [nme::CAPTURE_CHECKING, "separationChecking", "safe", "macros"];
 
 /// The top-level definitions of one source file as dotty annotates them: each gets
 /// `@experimental` under a top-level `import scala.language.experimental.namedTypeArguments` or

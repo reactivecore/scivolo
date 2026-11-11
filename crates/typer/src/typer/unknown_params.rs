@@ -8,9 +8,10 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::tpd::TNodeId;
+use names::{name_kinds, nme};
 use syntax::ast::{NodeId, Tree};
 use tasty::tags::{ABSTRACT, FINAL, OBJECT, SEALED, TRAIT};
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether `p` is a parameter without a type.
@@ -156,7 +157,7 @@ impl Typer<'_> {
     /// the owner and its base classes completed.
     fn inherits_nothing(&mut self, sym: SymbolId) -> bool {
         let name = self.u.symbol(sym).name.clone();
-        if name.contains("$default$") {
+        if name.contains(name_kinds::DEFAULT_GETTER) {
             return false;
         }
         let Some(cls) = self.u.symbol(sym).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class) else {

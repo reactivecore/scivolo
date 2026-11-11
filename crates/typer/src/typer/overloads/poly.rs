@@ -8,7 +8,8 @@ use super::poly_instances::mapped_info;
 use super::{Resolution, Unchosen};
 use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
-use tasty::{NameId, SymbolId, Type, TypeId, Universe, nme};
+use names::nme;
+use tasty::{NameId, SymbolId, Type, TypeId, Universe};
 
 /// Why type arguments select no alternative, or several.
 const MISS: &str = "overloaded reference with type arguments";

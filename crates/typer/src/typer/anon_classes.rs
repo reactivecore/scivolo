@@ -6,11 +6,12 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::tags::FINAL;
-use tasty::{Type, TypeId, nme};
+use tasty::{Type, TypeId};
 
 impl Typer<'_> {
     /// `new` of template `template` at `id`, against `pt`.

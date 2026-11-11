@@ -6,9 +6,10 @@
 use super::exports::Export;
 use crate::case_members::is_synthesized_override;
 use crate::typer::Typer;
+use names::{name_kinds, nme};
 use syntax::ast::Span;
+use tasty::tags as t;
 use tasty::{Kind, SymbolId, Type, TypeId};
-use tasty::{name_kinds, nme, tags as t};
 
 impl Typer<'_> {
     /// Adds the forwarders of a wildcard selector at `span` of `e`, of givens if `given`, of the
@@ -31,9 +32,9 @@ impl Typer<'_> {
                 let flags = self.u.symbol(m).flags;
                 if flags.has(t::PRIVATE)
                     || flags.has(t::SYNTHETIC)
-                    || name.starts_with("super$")
+                    || name.starts_with(name_kinds::SUPER_PREFIX)
                     || name.starts_with("<local ")
-                    || name.contains("$default$")
+                    || name.contains(name_kinds::DEFAULT_GETTER)
                     || case_path && self.is_case_synthesized(m)
                 {
                     continue;

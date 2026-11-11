@@ -9,8 +9,9 @@ use super::imports::{ImportEntry, ImportInfo, Selector};
 use crate::ctx::{Ctx, Level};
 use crate::inlining::ImportSelector;
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::{SymbolId, TypeId, nme};
+use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
     /// The selectors `selectors`, their bounds typed in `ctx`.

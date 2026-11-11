@@ -7,9 +7,10 @@ use super::cases::Bindings;
 use crate::inlining::Unsupported;
 use crate::inlining::quote_match::{bind_variances, bound_types};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{Span, TName};
 use tasty::tags::{CASE, ENUM, SYNTHETIC};
-use tasty::{Binding, Symbol, SymbolId, Type, TypeId, nme};
+use tasty::{Binding, Symbol, SymbolId, Type, TypeId};
 
 impl Reducer<'_, '_> {
     /// Whether pattern `pat` matches the value `scrut` refers to; the bindings of its variables

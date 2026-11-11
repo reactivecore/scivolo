@@ -7,10 +7,11 @@
 
 use crate::ctx::Ctx;
 use crate::typer::Typer;
+use names::nme;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 
 /// The annotation classes refused: those whose meaning dotty's later phases implement and the
 /// lowering does not. A backend's own annotations are its code generator's to read or refuse.
@@ -157,7 +158,7 @@ impl Typer<'_> {
                 }
                 let deprecated = match self.deprecated_name_arg(annot) {
                     Some(arg) => self.string_value(arg).unwrap_or_default(),
-                    None => "<none>".to_owned(),
+                    None => nme::NO_NAME.to_owned(),
                 };
                 if seen.contains(&deprecated) {
                     self.unsupported(annot, "deprecated parameter name equal to another name");
@@ -174,7 +175,7 @@ impl Typer<'_> {
         let Tree::Apply { args, .. } = *self.ast.tree(annot) else { return None };
         let args = self.ast.items(args);
         args.iter().copied().find(|&a| match *self.ast.tree(a) {
-            Tree::NamedArg { name, .. } => self.text(name.name) == "name",
+            Tree::NamedArg { name, .. } => self.text(name.name) == nme::NAME,
             _ => a == args[0],
         })
     }

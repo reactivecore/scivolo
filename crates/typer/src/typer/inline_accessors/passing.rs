@@ -10,8 +10,9 @@ use super::passing_defs::{dealiased, passing_def};
 use super::{Access, MakeInlineable};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::name_kinds;
 use syntax::ast::Span;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe, name_kinds};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// The receiver a passing accessor takes: its type, aliases expanded, and the types defined in
 /// the inline method that it refers to, which become the accessor's type parameters.

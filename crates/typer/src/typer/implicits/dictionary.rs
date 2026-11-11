@@ -7,10 +7,11 @@ use super::super::Typer;
 use super::history::Lazy;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
+use names::nme;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::flags as f;
 use syntax::ast::{Span, TName};
-use tasty::{Kind, SymbolId, Type, nme};
+use tasty::{Kind, SymbolId, Type};
 
 /// The emission of the by-name implicits an outermost search linked, as for
 /// `given Codec[List[A]] = ...` that needs itself by name: the local class

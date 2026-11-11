@@ -6,9 +6,10 @@ use super::Typer;
 use super::const_ops::{fold_binop, fold_unop};
 use super::constants::of_type;
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
+use names::nme;
 use syntax::ast::constant::Constant as C;
 use tasty::tags::CLASSconst;
-use tasty::{PRIMITIVE_VALUE_CLASSES, Type, TypeId, nme};
+use tasty::{PRIMITIVE_VALUE_CLASSES, Type, TypeId};
 
 impl Typer<'_> {
     /// The constant `tree` denotes, by its form or its type (dotty's `ConstantTree`).
@@ -96,8 +97,8 @@ impl Typer<'_> {
 /// `==` or `!=` of a class constant and `null` (dotty's `foldNullOp` on tags that differ).
 fn class_null_op(op: &str) -> Option<C> {
     match op {
-        "==" => Some(C::Boolean(false)),
-        "!=" => Some(C::Boolean(true)),
+        nme::EQ => Some(C::Boolean(false)),
+        nme::NE => Some(C::Boolean(true)),
         _ => None,
     }
 }

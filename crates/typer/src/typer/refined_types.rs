@@ -6,8 +6,9 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{List, NodeId, TName, Tree};
-use tasty::{Type, TypeId, nme};
+use tasty::{Type, TypeId};
 
 impl Typer<'_> {
     /// `tpt { type X = … }`: the parent, `Object` if none, refined by each member in turn; a

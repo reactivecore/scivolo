@@ -6,8 +6,9 @@ use super::overloads::{AMBIGUOUS, NO_APPLICABLE, NO_SIZE, Unchosen};
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, TName};
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// What a name refers to: its prefix (`None` for a local) and the symbols it denotes, several
 /// for an overloaded method.
@@ -37,7 +38,7 @@ impl Typer<'_> {
         if self.quoted_type_var(id, ctx).is_some() {
             return self.typed_quoted_type_var(id, name, pt);
         }
-        if (text == "_root_" || text == nme::EMPTY_PACKAGE) && !name.is_type {
+        if (text == nme::ROOT_PKG || text == nme::EMPTY_PACKAGE) && !name.is_type {
             let root = self.u.root();
             let tpe = self.u.intern_type(Type::Package(root));
             let span = self.ast.span(id);
@@ -108,7 +109,7 @@ impl Typer<'_> {
         if name.is_type && self.u.full_name(sym).starts_with("scala.Impure") {
             return self.unsupported(id, "impure function type");
         }
-        if text == "deferred" && self.u.full_name(sym).starts_with("scala.compiletime.") {
+        if text == nme::DEFERRED && self.u.full_name(sym).starts_with("scala.compiletime.") {
             return self.unsupported(id, "deferred given");
         }
         let tpe = self.ref_type(found.prefix, sym);

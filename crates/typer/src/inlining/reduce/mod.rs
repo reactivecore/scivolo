@@ -11,9 +11,10 @@ mod projection;
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{List, TNodeId, Tree as T};
+use names::nme;
 use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::tags::GIVEN;
-use tasty::{SymbolId, TypeId, nme};
+use tasty::{SymbolId, TypeId};
 
 /// The reduction of one inline match in an expansion.
 pub struct Reducer<'r, 'a> {

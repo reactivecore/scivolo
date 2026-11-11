@@ -6,36 +6,37 @@ use super::constants::{
     BOOLEAN, BYTE, DOUBLE, FLOAT, INT, LONG, NULL, STRING, double_value, float_value, int_value, is_numeric,
     long_value, tag,
 };
+use names::nme;
 use syntax::ast::constant::Constant as C;
 
 /// Unary operation `op` on `x`, if it folds.
 pub fn fold_unop(op: &str, x: &C) -> Option<C> {
     Some(match (op, x) {
-        ("unary_!", C::Boolean(b)) => C::Boolean(!b),
-        ("unary_~", C::Int(i)) => C::Int(!i),
-        ("unary_~", C::Long(l)) => C::Long(!l),
-        ("unary_+", C::Int(_) | C::Long(_) | C::Float(_) | C::Double(_)) => x.clone(),
-        ("unary_-", C::Int(i)) => C::Int(i.wrapping_neg()),
-        ("unary_-", C::Long(l)) => C::Long(l.wrapping_neg()),
-        ("unary_-", C::Float(f)) => C::Float(-f),
-        ("unary_-", C::Double(d)) => C::Double(-d),
-        ("toChar", _) if is_numeric(x) => C::Char(int_value(x) as u16),
-        ("toInt", _) if is_numeric(x) => C::Int(int_value(x)),
-        ("toLong", _) if is_numeric(x) => C::Long(long_value(x)),
-        ("toFloat", _) if is_numeric(x) => C::Float(float_value(x)),
-        ("toDouble", _) if is_numeric(x) => C::Double(double_value(x)),
+        (nme::UNARY_NOT, C::Boolean(b)) => C::Boolean(!b),
+        (nme::UNARY_TILDE, C::Int(i)) => C::Int(!i),
+        (nme::UNARY_TILDE, C::Long(l)) => C::Long(!l),
+        (nme::UNARY_PLUS, C::Int(_) | C::Long(_) | C::Float(_) | C::Double(_)) => x.clone(),
+        (nme::UNARY_MINUS, C::Int(i)) => C::Int(i.wrapping_neg()),
+        (nme::UNARY_MINUS, C::Long(l)) => C::Long(l.wrapping_neg()),
+        (nme::UNARY_MINUS, C::Float(f)) => C::Float(-f),
+        (nme::UNARY_MINUS, C::Double(d)) => C::Double(-d),
+        (nme::TO_CHAR, _) if is_numeric(x) => C::Char(int_value(x) as u16),
+        (nme::TO_INT, _) if is_numeric(x) => C::Int(int_value(x)),
+        (nme::TO_LONG, _) if is_numeric(x) => C::Long(long_value(x)),
+        (nme::TO_FLOAT, _) if is_numeric(x) => C::Float(float_value(x)),
+        (nme::TO_DOUBLE, _) if is_numeric(x) => C::Double(double_value(x)),
         _ => return None,
     })
 }
 
 fn compare<V: PartialOrd>(op: &str, a: V, b: V) -> Option<C> {
     Some(C::Boolean(match op {
-        "==" => a == b,
-        "!=" => a != b,
-        "<" => a < b,
-        ">" => a > b,
-        "<=" => a <= b,
-        ">=" => a >= b,
+        nme::EQ => a == b,
+        nme::NE => a != b,
+        nme::LT => a < b,
+        nme::GT => a > b,
+        nme::LE => a <= b,
+        nme::GE => a >= b,
         _ => return None,
     }))
 }
@@ -55,33 +56,33 @@ pub fn fold_binop(op: &str, x: &C, y: &C) -> Option<C> {
         BOOLEAN => {
             let (&C::Boolean(a), &C::Boolean(b)) = (x, y) else { return None };
             Some(C::Boolean(match op {
-                "||" | "|" => a | b,
-                "^" => a ^ b,
-                "&&" | "&" => a & b,
-                "==" => a == b,
-                "!=" => a != b,
+                nme::ZOR | nme::OR => a | b,
+                nme::XOR => a ^ b,
+                nme::ZAND | nme::AND => a & b,
+                nme::EQ => a == b,
+                nme::NE => a != b,
                 _ => return None,
             }))
         }
         BYTE..=INT => int_op(op, int_value(x), int_value(y)),
-        LONG if tag(x) <= INT && matches!(op, "<<" | ">>>" | ">>") => {
+        LONG if tag(x) <= INT && matches!(op, nme::LSL | nme::LSR | nme::ASR) => {
             int_op(op, int_value(x), long_value(y) as i32)
         }
         LONG => {
             let (a, b) = (long_value(x), long_value(y));
             Some(C::Long(match op {
-                "|" => a | b,
-                "^" => a ^ b,
-                "&" => a & b,
-                "<<" => a.wrapping_shl(b as u32),
-                ">>>" => (a as u64).wrapping_shr(b as u32) as i64,
-                ">>" => a.wrapping_shr(b as u32),
-                "+" => a.wrapping_add(b),
-                "-" => a.wrapping_sub(b),
-                "*" => a.wrapping_mul(b),
-                "/" if b != 0 => a.wrapping_div(b),
-                "%" if b != 0 => a.wrapping_rem(b),
-                "/" | "%" => return None,
+                nme::OR => a | b,
+                nme::XOR => a ^ b,
+                nme::AND => a & b,
+                nme::LSL => a.wrapping_shl(b as u32),
+                nme::LSR => (a as u64).wrapping_shr(b as u32) as i64,
+                nme::ASR => a.wrapping_shr(b as u32),
+                nme::ADD => a.wrapping_add(b),
+                nme::MINUS => a.wrapping_sub(b),
+                nme::MUL => a.wrapping_mul(b),
+                nme::DIV if b != 0 => a.wrapping_div(b),
+                nme::MOD if b != 0 => a.wrapping_rem(b),
+                nme::DIV | nme::MOD => return None,
                 _ => return compare(op, a, b),
             }))
         }
@@ -90,14 +91,14 @@ pub fn fold_binop(op: &str, x: &C, y: &C) -> Option<C> {
         STRING => {
             let (C::String(a), C::String(b)) = (x, y) else { return None };
             match op {
-                "+" => Some(C::String([&a[..], &b[..]].concat().into())),
-                "==" | "!=" => compare(op, a, b),
+                nme::ADD => Some(C::String([&a[..], &b[..]].concat().into())),
+                nme::EQ | nme::NE => compare(op, a, b),
                 _ => None,
             }
         }
         NULL => match op {
-            "==" => Some(C::Boolean(tag(x) == tag(y))),
-            "!=" => Some(C::Boolean(tag(x) != tag(y))),
+            nme::EQ => Some(C::Boolean(tag(x) == tag(y))),
+            nme::NE => Some(C::Boolean(tag(x) != tag(y))),
             _ => None,
         },
         _ => None,
@@ -106,18 +107,18 @@ pub fn fold_binop(op: &str, x: &C, y: &C) -> Option<C> {
 
 fn int_op(op: &str, a: i32, b: i32) -> Option<C> {
     Some(C::Int(match op {
-        "|" => a | b,
-        "^" => a ^ b,
-        "&" => a & b,
-        "<<" => a.wrapping_shl(b as u32),
-        ">>>" => (a as u32).wrapping_shr(b as u32) as i32,
-        ">>" => a.wrapping_shr(b as u32),
-        "+" => a.wrapping_add(b),
-        "-" => a.wrapping_sub(b),
-        "*" => a.wrapping_mul(b),
-        "/" if b != 0 => a.wrapping_div(b),
-        "%" if b != 0 => a.wrapping_rem(b),
-        "/" | "%" => return None,
+        nme::OR => a | b,
+        nme::XOR => a ^ b,
+        nme::AND => a & b,
+        nme::LSL => a.wrapping_shl(b as u32),
+        nme::LSR => (a as u32).wrapping_shr(b as u32) as i32,
+        nme::ASR => a.wrapping_shr(b as u32),
+        nme::ADD => a.wrapping_add(b),
+        nme::MINUS => a.wrapping_sub(b),
+        nme::MUL => a.wrapping_mul(b),
+        nme::DIV if b != 0 => a.wrapping_div(b),
+        nme::MOD if b != 0 => a.wrapping_rem(b),
+        nme::DIV | nme::MOD => return None,
         _ => return compare(op, a, b),
     }))
 }
@@ -128,11 +129,11 @@ where
     V: std::ops::Mul<Output = V> + std::ops::Div<Output = V> + std::ops::Rem<Output = V>,
 {
     Some(make(match op {
-        "+" => a + b,
-        "-" => a - b,
-        "*" => a * b,
-        "/" => a / b,
-        "%" => a % b,
+        nme::ADD => a + b,
+        nme::MINUS => a - b,
+        nme::MUL => a * b,
+        nme::DIV => a / b,
+        nme::MOD => a % b,
         _ => return compare(op, a, b),
     }))
 }

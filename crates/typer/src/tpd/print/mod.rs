@@ -123,7 +123,7 @@ impl Printer<'_> {
         write!(self.out, "({} {}", class_name(&tree), self.span(node.span)).unwrap();
         if let Tree::Ident { name } = tree
             && node.sym == Some(self.u.root())
-            && self.names.text(name.name) == "_root_"
+            && self.names.text(name.name) == names::nme::ROOT_PKG
         {
             self.out.push_str(" sym=\"_root_\" :t:_root_");
             self.fields(&mut tree);

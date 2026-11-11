@@ -238,12 +238,13 @@ use crate::defn::Defn;
 use crate::special::entered;
 use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd};
+use ::names::nme;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::{Ast, NodeId, Span};
 use syntax::config::{Config, Features, Lints, SourceVersion};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
-use tasty::{Kind, SymbolId, Universe, nme};
+use tasty::{Kind, SymbolId, Universe};
 
 pub use const_ops::{fold_binop, fold_unop};
 pub use inline_accessors::RETAINED_BODY;
@@ -401,7 +402,7 @@ impl<'a> Typer<'a> {
         let ops = u.package(nme::OPS_PACKAGE);
         syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, nme::THROW, Kind::Def));
         syms.repeated_class =
-            syms.repeated_class.or_else(|| entered(u, defn.scala, "<repeated>", Kind::Class));
+            syms.repeated_class.or_else(|| entered(u, defn.scala, nme::REPEATED_PARAM_CLASS, Kind::Class));
         let mut typer = Typer {
             u,
             ast,

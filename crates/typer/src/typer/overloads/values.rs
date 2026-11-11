@@ -10,8 +10,9 @@ use super::shapes::unknown_param_function;
 use super::{Resolution, VALUE_APPLY};
 use crate::ctx::Ctx;
 use crate::typer::Typer;
+use names::nme;
 use syntax::ast::Tree;
-use tasty::{Kind, SymbolId, TypeId, nme};
+use tasty::{Kind, SymbolId, TypeId};
 
 /// An alternative and the type it is a member of.
 type Member = (SymbolId, Option<TypeId>);

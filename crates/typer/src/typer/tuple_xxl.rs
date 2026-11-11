@@ -8,6 +8,7 @@ use super::widen_inferred::Widen;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
 use tasty::{Type, TypeId};
 
@@ -125,11 +126,11 @@ impl Typer<'_> {
     pub fn type_cast(&mut self, qual: TNodeId, to: TypeId) -> TNodeId {
         let tpe = self.tpd.tpe(qual);
         let any = self.u.defn().any;
-        let m = self.u.decl(any, "$asInstanceOf$").ok().and_then(|ms| ms.first().copied());
+        let m = self.u.decl(any, nme::AS_INSTANCE_OF_PM).ok().and_then(|ms| ms.first().copied());
         let Some(m) = m else { return qual };
         let span = self.tpd.span(qual).to_synthetic();
         let select_tpe = self.u.intern_type(Type::Sym(Some(tpe), m));
-        let name = TName { name: self.names.intern("$asInstanceOf$"), is_type: false };
+        let name = TName { name: self.names.intern(nme::AS_INSTANCE_OF_PM), is_type: false };
         let fun = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(select_tpe), Some(m));
         let tpt = self.tpd.node(T::TypeTree { inferred: false }, span.end_pos(), Some(to), None);
         let args = self.tpd.list(&[tpt]);

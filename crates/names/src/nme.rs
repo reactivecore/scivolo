@@ -343,3 +343,23 @@ pub const UNARY_TILDE: &str = "unary_~";
 pub const UNARY_PLUS: &str = "unary_+";
 /// The name `unary_-`.
 pub const UNARY_MINUS: &str = "unary_-";
+/// The name `$package`.
+pub const TOPLEVEL_SUFFIX: &str = "$package";
+/// The name `rs$line$`.
+pub const REPL_SESSION_LINE: &str = "rs$line$";
+/// The name `<refinement>`.
+pub const REFINE_CLASS: &str = "<refinement>";
+/// The name `any2stringadd`.
+pub const ANY2STRINGADD: &str = "any2stringadd";
+/// The name `fromDigits`.
+pub const FROM_DIGITS: &str = "fromDigits";
+/// The name `throws`.
+pub const THROWS: &str = "throws";
+/// The name `arrayType`.
+pub const ARRAY_TYPE: &str = "arrayType";
+/// The name `classType`.
+pub const CLASS_TYPE: &str = "classType";
+/// The name `wildcardType`.
+pub const WILDCARD_TYPE: &str = "wildcardType";
+/// The name `!`.
+pub const BANG: &str = "!";

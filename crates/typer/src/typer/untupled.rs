@@ -7,11 +7,11 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
+use names::{name_kinds, nme};
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
-use tasty::{name_kinds, nme};
 
 impl Typer<'_> {
     /// Function value `id` of parameters `args` and `body` untupled against `pt`, if `pt` is a

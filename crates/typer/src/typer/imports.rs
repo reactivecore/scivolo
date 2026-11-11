@@ -8,8 +8,9 @@ use super::idents::Found;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, LevelId};
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::{NodeId, Tree};
-use tasty::{SymbolId, TypeId, nme};
+use tasty::{SymbolId, TypeId};
 
 /// A selector `name => rename`; `name` empty for `given`, `rename` `_` for an unimport; the
 /// typed bound of a `given T`.
@@ -62,9 +63,9 @@ impl Typer<'_> {
     pub fn root_import(&mut self, outer: Option<LevelId>, qual: TypeId) -> LevelId {
         let selector =
             |name: &str, rename: &str| Selector { name: name.into(), rename: rename.into(), bound: None };
-        let mut selectors = vec![selector("_", "_"), selector("", "")];
+        let mut selectors = vec![selector(nme::WILDCARD, nme::WILDCARD), selector("", "")];
         if self.import_site(qual) == Some(self.defn.predef) {
-            selectors.insert(0, selector("any2stringadd", "_"));
+            selectors.insert(0, selector(nme::ANY2STRINGADD, nme::WILDCARD));
         }
         self.imports.push(ImportEntry::Done(ImportInfo { qual, selectors, expr: None, owner: None }));
         self.levels.push(outer, Level::Import(self.imports.len() - 1))
@@ -148,11 +149,11 @@ impl Typer<'_> {
             }
         }
         names.reverse();
-        let rest = match names.iter().position(|n| n == "language") {
+        let rest = match names.iter().position(|n| n == nme::LANGUAGE) {
             Some(i) => &names[..i],
             None => return false,
         };
-        rest.is_empty() || rest == ["scala"] || rest == ["_root_", "scala"]
+        rest.is_empty() || rest == [nme::SCALA] || rest == [nme::ROOT_PKG, nme::SCALA]
     }
 
     /// The members named `member` of import `i`'s path; for a wildcard, the givens only if a

@@ -3,8 +3,9 @@
 //! Symbols as `scripts/typer-oracle` prints them: full names, and methods' erased signatures.
 
 use crate::signatures::params_sig;
+use names::nme;
 use syntax::ast::print::quote;
-use tasty::{Kind, SymbolId, Universe, nme};
+use tasty::{Kind, SymbolId, Universe};
 
 /// dotty's `fullName`: owners joined by `.`, each term owner between `s` and its enclosing class
 /// as a `_$` before the name, the root and the empty package left out; the module class of `<:<`
@@ -22,7 +23,7 @@ pub fn full_name(u: &Universe, s: SymbolId) -> String {
         _ => name.as_str(),
     };
     if s == u.root() {
-        return "<empty>".into();
+        return nme::EMPTY_PACKAGE.into();
     }
     let mut filler = String::new();
     let mut encl = u.symbol(s).owner;

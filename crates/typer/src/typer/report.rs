@@ -59,7 +59,7 @@ impl Typer<'_> {
     }
 
     pub fn error_tree(&mut self, span: Span) -> TNodeId {
-        let name = TName { name: self.name("<error>"), is_type: false };
+        let name = TName { name: self.name(names::nme::ERROR), is_type: false };
         let tpe = self.u.intern_type(Type::Error);
         self.tpd.node(T::Ident { name }, span, Some(tpe), None)
     }

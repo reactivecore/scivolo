@@ -9,10 +9,11 @@ use super::macro_definitions::is_definition;
 use super::macros::{AnnotationCall, Expanded, MacroError};
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::OBJECT;
-use tasty::{SymbolId, Type, nme};
+use tasty::{SymbolId, Type};
 
 const MACRO_ANNOTATION: &str = "scala.annotation.MacroAnnotation";
 

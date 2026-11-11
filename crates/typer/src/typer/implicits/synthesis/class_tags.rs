@@ -12,7 +12,8 @@ use crate::defn::{ARRAY, CLASS_TAG};
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::Typer;
 use crate::typer::type_ops::TypeOps;
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe, nme};
+use names::nme;
+use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe};
 
 /// How many type variables instantiating the argument of a class tag passes at most.
 const MAX_INSTANTIATIONS: u32 = 8;
@@ -54,7 +55,7 @@ impl Synthesizer {
         let elem_tag = crate::defn::applied(t.u, class_tag, vec![elem]);
         let elem_tag = t.implicit_arg(elem_tag, at, self.ctx, self.depth + 1)?;
         let wrap =
-            t.u.decl(class_tag, "wrap").ok().and_then(|d| d.first().copied()).ok_or("ClassTag.wrap")?;
+            t.u.decl(class_tag, nme::WRAP).ok().and_then(|d| d.first().copied()).ok_or("ClassTag.wrap")?;
         let prefix = t.tpd.tpe(elem_tag);
         let prefix = t.widen_if_unstable(prefix);
         let tpe = t.u.intern_type(Type::Sym(Some(prefix), wrap));

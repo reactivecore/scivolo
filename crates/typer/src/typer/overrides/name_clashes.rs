@@ -6,9 +6,10 @@
 use super::super::Typer;
 use super::OverrideChecks;
 use crate::symbols::{Completion, Syms};
+use names::nme;
 use syntax::ast::{Ast, Tree};
 use tasty::tags::{ERASED, INLINE, MACRO, PRIVATE};
-use tasty::{Kind, SymbolId, Universe, nme};
+use tasty::{Kind, SymbolId, Universe};
 
 impl OverrideChecks {
     /// Why two members of the class, or one of them and an inherited member of another name or

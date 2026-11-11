@@ -4,8 +4,9 @@
 //! `defaultParamType` in `Namer.inferredResultType`).
 
 use crate::typer::Typer;
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The type of the parameter default getter `getter` supplies, if it is one, and that type
@@ -15,7 +16,7 @@ impl Typer<'_> {
     /// retracted synthetic one counted for a getter of the user, which dotty completes first.
     pub fn default_param_type(&mut self, getter: SymbolId) -> Option<(TypeId, TypeId)> {
         let name = self.u.symbol(getter).name.clone();
-        let (method, index) = name.rsplit_once("$default$")?;
+        let (method, index) = name.rsplit_once(name_kinds::DEFAULT_GETTER)?;
         let index: usize = index.parse().ok()?;
         let owner = self.u.symbol(getter).owner?;
         let mut candidates: Vec<SymbolId> = self.u.symbol(owner).decls.clone();

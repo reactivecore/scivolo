@@ -7,8 +7,9 @@
 
 use super::Typer;
 use crate::symbols::Completion;
+use names::nme;
 use syntax::ast::flags as f;
-use tasty::{Kind, SymbolId, Type, TypeId, nme};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether members `a` and `b` of `site` have the same run-time name and match (dotty's

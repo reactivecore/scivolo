@@ -6,7 +6,8 @@ use super::{Refusal, Unpickler};
 use crate::tpd::TNodeId;
 use crate::typer::approx::{self, Approx};
 use crate::typer::dependent_params::mentions_params;
-use tasty::{Binder, Kind, NOTHING, NameId, SymbolId, Type, TypeId, nme};
+use names::nme;
+use tasty::{Binder, Kind, NOTHING, NameId, SymbolId, Type, TypeId};
 
 /// The method type whose dependent result is approximated: its binder, parameter types and
 /// method symbol.

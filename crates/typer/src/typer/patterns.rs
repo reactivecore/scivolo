@@ -5,10 +5,10 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::flags::{CASE, GIVEN};
-use syntax::ast::{NodeId, Span, TName, Tree, modifiers::Modifiers};
+use names::nme;
+use syntax::ast::{NodeId, Span, TName, Tree, flags::CASE, flags::GIVEN, modifiers::Modifiers};
 use syntax::names::is_var_pattern_name;
-use tasty::{Kind, Type, TypeId, nme};
+use tasty::{Kind, Type, TypeId};
 
 /// How many type aliases a pattern's type or a match-type reference is followed through at most.
 pub const MAX_ALIAS_STEPS: usize = 8;
@@ -22,7 +22,7 @@ impl Typer<'_> {
             let (outer, inner) = (self.ast.span(id), self.ast.span(tpt));
             let parens = outer.end().saturating_sub(inner.end());
             let start = inner.start().saturating_sub(parens);
-            let wild = TName { name: self.name("_"), is_type: false };
+            let wild = TName { name: self.name(nme::WILDCARD), is_type: false };
             let wild = self.ast.node(Tree::Ident { name: wild });
             self.ast.with_span(wild, Span::at(start));
             let typed = self.ast.node(Tree::Typed { expr: wild, tpt });
@@ -177,7 +177,7 @@ impl Typer<'_> {
     /// Variable pattern `x` as `x @ _` (dotty's `patternVar`).
     pub fn pattern_var(&mut self, id: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
         let span = self.ast.span(id);
-        let wild = TName { name: self.name("_"), is_type: false };
+        let wild = TName { name: self.name(nme::WILDCARD), is_type: false };
         let wild = self.ast.node(Tree::Ident { name: wild });
         self.ast.with_span(wild, syntax::ast::Span::synthetic(span.start(), span.start()));
         let mods = self.ast.mods(Modifiers::default());

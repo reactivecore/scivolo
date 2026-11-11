@@ -6,9 +6,10 @@
 
 use super::Inlining;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
+use names::nme;
 use rustc_hash::FxHashSet;
 use tasty::tags::{CASE, INLINE, LAZY, MUTABLE, STABLE, SYNTHETIC, TRAIT};
-use tasty::{Kind, SymbolId, Type, Universe, nme};
+use tasty::{Kind, SymbolId, Type, Universe};
 
 pub const IMPURE: u8 = 0;
 pub const IDEMPOTENT: u8 = 1;

@@ -3,9 +3,10 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{Span, TName};
 use syntax::diag::Diagnostic;
-use tasty::{SymbolId, nme};
+use tasty::SymbolId;
 
 impl Typer<'_> {
     /// Reports the trees in quote pattern body `body` that a quote pattern cannot match and the

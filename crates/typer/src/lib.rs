@@ -142,7 +142,7 @@ impl Units {
         let typed: Vec<TNodeId> = roots.iter().map(|&r| typer.typed(r, typer::Pt::Any, ctx)).collect();
         let root = typer.u.root();
         let tpe = typer.u.intern_type(tasty::Type::Package(root));
-        let name = syntax::ast::TName { name: typer.names.intern("_root_"), is_type: false };
+        let name = syntax::ast::TName { name: typer.names.intern(names::nme::ROOT_PKG), is_type: false };
         let pid = typer.tpd.node(tpd::Tree::Ident { name }, Span::NONE, Some(tpe), Some(root));
         let stats = typer.tpd.list(&typed);
         let unit = typer.tpd.node(tpd::Tree::PackageDef { pid, stats }, Span::NONE, Some(tpe), None);

@@ -8,10 +8,11 @@ use super::super::paths::MAX_PATH_DEPTH;
 use super::kinds::Instance;
 use super::trees::{node, tc_applied};
 use super::{DerivedInstance, Deriver, Problem};
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId, name_kinds};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// How many aliases and type lambdas the class reference under a type class may lie below.
 const CLASS_REF_DEPTH: u32 = 16;
@@ -84,7 +85,7 @@ fn derived_rhs(
     let explicit = derived_takes_explicit_params(t, module);
     let shown = ref_text(t, module_ref);
     let qualifier = t.spliced(qualifier);
-    let derived = TName { name: t.name("derived"), is_type: false };
+    let derived = TName { name: t.name(nme::DERIVED), is_type: false };
     let rhs = node(t, Tree::Select { qualifier, name: derived }, span);
     Some((rhs, explicit.then_some(Problem::ExplicitParams(shown))))
 }
@@ -144,7 +145,7 @@ fn ref_text(t: &mut Typer<'_>, p: TypeId) -> String {
 /// parameters (dotty's `hasExplicitParams`).
 fn derived_takes_explicit_params(t: &mut Typer<'_>, module: SymbolId) -> bool {
     let Some(class) = t.u.module_class(module) else { return false };
-    let [m] = t.u.member(class, "derived")[..] else { return false };
+    let [m] = t.u.member(class, nme::DERIVED)[..] else { return false };
     t.complete(m);
     let mut info = t.u.info(m);
     loop {

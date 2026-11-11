@@ -10,10 +10,11 @@ use super::conditionals::is_null_literal;
 use super::{NotNullInfo, flow};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
+use names::nme;
 use syntax::ast::NodeId;
 use syntax::ast::constant::Constant;
 use syntax::names::Names;
-use tasty::{TypeId, nme};
+use tasty::TypeId;
 
 impl Typer<'_> {
     /// Types cases `ids` against selector `sel` of widened type `selector`, each with the body

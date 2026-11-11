@@ -17,7 +17,7 @@ pub type Refinement = (String, TypeId, TNodeId);
 impl Typer<'_> {
     /// The class the members of a refined type tree typed in `ctx` belong to.
     pub fn refinement_class(&mut self, ctx: Ctx) -> SymbolId {
-        let class = self.syms.define(self.u, "<refinement>", Kind::Class, ctx.owner, f::SYNTHETIC);
+        let class = self.syms.define(self.u, names::nme::REFINE_CLASS, Kind::Class, ctx.owner, f::SYNTHETIC);
         self.u.unenter(class);
         class
     }

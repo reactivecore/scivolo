@@ -6,12 +6,12 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
+use names::name_kinds;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::tree::MatchKind;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
-use tasty::name_kinds;
 
 impl Typer<'_> {
     /// `{ cases }` as `(x$1, ..., x$n) => (x$1, ..., x$n) match { cases }`, `n` the arity of the

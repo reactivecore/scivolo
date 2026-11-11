@@ -6,9 +6,10 @@
 use super::Typer;
 use crate::ctx::{Ctx, Level, LevelId, Mode};
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::flags::CASE;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::{ANY, Kind, NOTHING, NameId, SymbolId, Type, TypeId, nme};
+use tasty::{ANY, Kind, NOTHING, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_match_type_tree(

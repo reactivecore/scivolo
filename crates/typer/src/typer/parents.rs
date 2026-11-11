@@ -7,8 +7,9 @@
 use super::Typer;
 use crate::ctx::{Ctx, Mode};
 use crate::defn::type_ref;
+use names::nme;
 use syntax::ast::{NodeId, Tree};
-use tasty::{SymbolId, TypeId, nme};
+use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
     /// The type tree of a parent: the class of a constructor call, whose `new` it records as a

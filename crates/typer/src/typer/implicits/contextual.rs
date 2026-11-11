@@ -7,7 +7,8 @@ use super::super::Typer;
 use super::candidates::{Candidate, implicit_members, imported_implicits, this_implicit_members};
 use super::too_late::comes_too_late;
 use crate::ctx::{Ctx, Level, LevelId};
-use tasty::{SymbolId, Type, nme};
+use names::nme;
+use tasty::{SymbolId, Type};
 
 /// How a level binds its implicits (dotty's `BindingPrec`).
 #[derive(Clone, Copy, PartialEq)]

@@ -4,8 +4,9 @@
 //! (dotty's `linkConstructorParams`).
 
 use super::Typer;
+use names::nme;
 use syntax::ast::{NodeId, Tree};
-use tasty::{SymbolId, Type, TypeId, nme};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Bounds each type parameter of secondary constructor `sym`, defined by `def`, by the type

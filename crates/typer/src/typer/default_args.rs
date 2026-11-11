@@ -5,9 +5,10 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use names::{name_kinds, nme};
 use syntax::ast::TName;
 use tasty::tags::{OBJECT, SYNTHETIC};
-use tasty::{Kind, SymbolId, Type, name_kinds, nme};
+use tasty::{Kind, SymbolId, Type};
 
 /// A clause a call applies: its value or type arguments.
 enum Clause {
@@ -169,7 +170,7 @@ impl Typer<'_> {
 
     /// The package and the object of package object class `c` (a unit's top-level definitions).
     fn package_object(&mut self, c: SymbolId) -> Option<(SymbolId, SymbolId)> {
-        if !tasty::module_name(&self.u.symbol(c).name).is_some_and(|n| n.ends_with("$package")) {
+        if !tasty::module_name(&self.u.symbol(c).name).is_some_and(|n| n.ends_with(nme::TOPLEVEL_SUFFIX)) {
             return None;
         }
         let pkg = self.u.symbol(c).owner.filter(|&o| self.u.symbol(o).kind == Kind::Package)?;

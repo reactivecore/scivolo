@@ -8,9 +8,10 @@ use super::Synthesizer;
 use crate::defn::TYPE_TEST;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use crate::typer::{Pt, Typer};
+use names::nme;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, TName, Tree};
-use tasty::{SymbolId, TypeId, Universe, nme};
+use tasty::{SymbolId, TypeId, Universe};
 
 const NO_TEST: [&str; 3] = ["scala.AnyVal", "scala.AnyRef", "java.lang.Object"];
 
@@ -37,7 +38,7 @@ impl Synthesizer {
         if t.u.is_subtype(from, to) {
             let module = t.resolve_full_name(TYPE_TEST, false).ok_or("TypeTest")?;
             let module_class = t.u.module_class(module).ok_or("TypeTest")?;
-            let decl = t.u.decl(module_class, "identity").ok().and_then(|d| d.first().copied());
+            let decl = t.u.decl(module_class, nme::IDENTITY).ok().and_then(|d| d.first().copied());
             let identity = s.ref_splice(t, decl.ok_or("TypeTest.identity")?);
             let targ = s.type_splice(t, to);
             let tree = s.ast_apply(t, identity, targ, true);
@@ -57,7 +58,7 @@ impl Synthesizer {
         let cond = s.ast_apply(t, test, targ, true);
         let reference = s.node(t, Tree::Ident { name });
         let singleton = s.node(t, Tree::SingletonTypeTree { reference });
-        let and = TName { name: t.name("&"), is_type: true };
+        let and = TName { name: t.name(nme::AND), is_type: true };
         let and = s.node(t, Tree::Ident { name: and });
         let targ = s.type_splice(t, to);
         let args = t.ast.list(&[singleton, targ]);

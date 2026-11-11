@@ -7,8 +7,9 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{Span, TName};
-use tasty::{SymbolId, nme};
+use tasty::SymbolId;
 
 impl Typer<'_> {
     /// Whether `c` is `java.lang.Enum`.
@@ -44,7 +45,7 @@ impl Typer<'_> {
         if !flags.has(tasty::tags::ENUM) || flags.has(tasty::tags::CASE) {
             return false;
         }
-        self.class_members(c, "ordinal").into_iter().any(|m| {
+        self.class_members(c, nme::ORDINAL).into_iter().any(|m| {
             let owner = self.u.symbol(m).owner.map(|o| self.u.full_name(o));
             !self.u.symbol(m).flags.has(tasty::tags::SYNTHETIC)
                 && owner.as_deref() != Some("scala.reflect.Enum")

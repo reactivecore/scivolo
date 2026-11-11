@@ -8,9 +8,10 @@ use super::Typer;
 use super::poly_context_bounds::Fit;
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::{List, NodeId, TName, Tree};
-use tasty::{Kind, NameId, SymbolId, Type, TypeId, name_kinds, nme};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Polymorphic function type `id`: `PolyFunction { def apply[T](x$1: P): R }` (dotty's

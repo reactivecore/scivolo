@@ -8,9 +8,10 @@ use super::small_tuples::MAX_TUPLE_ARITY;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::constant::Constant;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
-use tasty::{TypeId, nme};
+use tasty::TypeId;
 
 impl Typer<'_> {
     /// The names and values of tuple `trees` if any element is a named argument; `Err` if only

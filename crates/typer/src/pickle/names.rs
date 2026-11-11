@@ -4,6 +4,7 @@
 //! names, default getters and unique names as derived names.
 
 use super::TreePickler;
+use names::{name_kinds, nme};
 use tasty::tags::{OBJECT, PARAMsetter, TERMREFpkg};
 use tasty::write::Name;
 use tasty::{Kind, SymbolId, Universe};
@@ -45,7 +46,7 @@ fn derived_name(name: &str) -> Option<Name> {
     }
     let digits = name.trim_end_matches(|c: char| c.is_ascii_digit());
     let num: u32 = name[digits.len()..].parse().ok().filter(|_| !name[digits.len()..].starts_with('0'))?;
-    if let Some(method) = digits.strip_suffix("$default$")
+    if let Some(method) = digits.strip_suffix(name_kinds::DEFAULT_GETTER)
         && num > 0
     {
         return Some(Name::DefaultGetter(utf8(method), num - 1));
@@ -69,7 +70,7 @@ pub fn param_name(name: &str) -> Name {
 
 /// The full name of package `p` (dotty's `fullName`), the root package's `<empty>`.
 pub fn package_name(u: &Universe, p: SymbolId) -> Name {
-    let name = if p == u.root() { "<empty>" } else { u.symbol(p).name.as_str() };
+    let name = if p == u.root() { nme::EMPTY_PACKAGE } else { u.symbol(p).name.as_str() };
     match u.symbol(p).owner.filter(|&o| o != u.root()) {
         Some(o) => Name::Qualified(Box::new(package_name(u, o)), utf8(name)),
         None => Name::utf8(name),
@@ -97,7 +98,7 @@ pub fn expanded_prefix_name(u: &Universe, s: SymbolId) -> Name {
     let last = Box::new(Name::utf8(&name));
     match owner {
         Some(o) if u.symbol(o).kind == Kind::Package => match u.full_name(o).as_str() {
-            "" | "<empty>" => *last,
+            "" | nme::EMPTY_PACKAGE => *last,
             package => {
                 let mut parts = package.split('.').map(Name::utf8);
                 let first = parts.next().expect("a package's name");
@@ -134,7 +135,7 @@ impl TreePickler<'_> {
     pub fn package_ref(&mut self, p: SymbolId) {
         self.byte(TERMREFpkg);
         match p == self.u.root() {
-            true => self.name(&Name::utf8("_root_")),
+            true => self.name(&Name::utf8(nme::ROOT_PKG)),
             false => self.package_name(p),
         }
     }

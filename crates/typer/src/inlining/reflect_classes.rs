@@ -7,9 +7,10 @@
 use super::Reflect;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::TName;
 use tasty::tags::{ABSTRACT, FINAL, OBJECT, PARAMsetter, TRAIT};
-use tasty::{Flags, Kind, Symbol, SymbolId, TypeId, nme};
+use tasty::{Flags, Kind, Symbol, SymbolId, TypeId};
 
 impl Reflect<'_> {
     /// `Symbol.newClass(owner, name, ..)` with class flags `flags`: a class with a constructor,

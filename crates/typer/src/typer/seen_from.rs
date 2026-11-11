@@ -104,7 +104,8 @@ pub fn class_param_arg(u: &mut tasty::Universe, t: TypeId) -> Option<TypeId> {
 /// annotations dropped, as `Typer::normalized`.
 pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     let retains = |u: &mut tasty::Universe, a| {
-        u.class_symbol(a).is_some_and(|c| member_of(u, c, "scala.annotation", |n| n.starts_with("retains")))
+        u.class_symbol(a)
+            .is_some_and(|c| member_of(u, c, "scala.annotation", |n| n.starts_with(names::nme::RETAINS)))
     };
     let mut again = false;
     let out = u.map_type(t, &mut |u, part| {

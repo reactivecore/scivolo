@@ -7,8 +7,9 @@ use super::super::did_you_mean::is_jdk;
 use super::super::paths::MAX_PATH_DEPTH;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId, nme};
+use tasty::{SymbolId, Type, TypeId};
 
 /// An implicit value or method and the prefix it is referenced through.
 #[derive(Clone, Copy, PartialEq, Debug)]

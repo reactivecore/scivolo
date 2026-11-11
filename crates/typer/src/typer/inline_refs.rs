@@ -11,7 +11,7 @@ use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTED
 /// The inline operations of `scala.compiletime` that inlining expands.
 const EXPANDED: [&str; 10] = [
     "asMatchable",
-    "error",
+    names::nme::ERROR_METHOD,
     "codeOf",
     "requireConst",
     "constValue",

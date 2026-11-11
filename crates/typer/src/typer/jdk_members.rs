@@ -1,7 +1,8 @@
 //! Members of `Any` and `Object` whose selection depends on the JDK classes and interfaces.
 
 use super::Typer;
-use tasty::{SymbolId, TypeId, nme};
+use names::nme;
+use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
     /// Whether member `sym` of `Any` or `Object`, selected from `qual`, is one a JDK interface

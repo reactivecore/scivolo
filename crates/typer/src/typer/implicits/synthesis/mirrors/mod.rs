@@ -19,9 +19,10 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::Typer;
 use formal::{MirrorFormal, MirrorKind};
+use names::nme;
 use sources::MirrorSource;
 use syntax::ast::Span;
-use tasty::{TypeId, nme};
+use tasty::TypeId;
 
 /// The refusal when the library lacks a class a mirror needs.
 const MISSING: &str = "Mirror without its library classes";

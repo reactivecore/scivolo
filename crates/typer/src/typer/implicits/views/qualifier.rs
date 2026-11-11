@@ -8,9 +8,10 @@ use super::super::super::{Pt, Typer};
 use super::{Goal, ViewSearch, Viewed};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
+use names::nme;
 use syntax::ast::{Ast, NodeId, Tree};
 use syntax::config::Features;
-use tasty::{SymbolId, Type, TypeId, nme};
+use tasty::{SymbolId, Type, TypeId};
 
 /// How a selection whose members do not apply to the arguments is retried.
 pub enum QualifierView {
@@ -111,7 +112,7 @@ pub fn is_plain_arg(ast: &Ast, a: NodeId) -> bool {
 /// Tells whether `n` arguments are passed to the only one of `syms` as a tuple of their arity.
 fn auto_tupled(t: &mut Typer<'_>, (prefix, syms): (TypeId, &[SymbolId]), n: usize, ctx: Ctx) -> bool {
     let &[s] = syms else { return false };
-    if n < 2 || !t.is_unary(s) || t.feature_enabled(Features::NO_AUTO_TUPLING, "noAutoTupling", ctx) {
+    if n < 2 || !t.is_unary(s) || t.feature_enabled(Features::NO_AUTO_TUPLING, nme::NO_AUTO_TUPLING, ctx) {
         return false;
     }
     let Some(class) = t.resolve_full_name(&format!("scala.Tuple{n}"), true) else { return true };

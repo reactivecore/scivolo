@@ -5,8 +5,9 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::{SymbolId, Type, nme};
+use tasty::{SymbolId, Type};
 
 impl Typer<'_> {
     pub fn typed_package_def(&mut self, id: NodeId, pid: NodeId, stats: List, ctx: Ctx) -> TNodeId {
@@ -71,7 +72,7 @@ impl Typer<'_> {
             Some(q) => self.tpd.sym(q)?,
             None => owner,
         };
-        let pkg = if outer.is_none() && text == "_root_" {
+        let pkg = if outer.is_none() && text == nme::ROOT_PKG {
             self.u.root()
         } else if prefix == self.u.root() {
             self.u.enter_package(&text)
