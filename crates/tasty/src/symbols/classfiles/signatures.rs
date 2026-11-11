@@ -201,8 +201,11 @@ pub fn bounded_by_object(bounds: &str) -> bool {
 /// type, one whose JDK class file has type parameters (dotty's `cook`).
 pub fn cooked(u: &mut Universe, internal: &str) -> TypeId {
     let class = class_ref(u, internal);
-    let jdk = u.jdk.as_mut().and_then(|jdk| jdk.class(internal));
-    let Some(signature) = jdk.and_then(|c| c.signature.clone()) else { return class };
+    let signature = match super::classpath::java_class(u, internal) {
+        Some(info) => info.signature,
+        None => u.jdk.as_mut().and_then(|jdk| jdk.class(internal)).and_then(|c| c.signature.clone()),
+    };
+    let Some(signature) = signature else { return class };
     let n = Sig::new(&signature).type_params(u).map_or(0, |params| params.len());
     if n == 0 {
         return class;

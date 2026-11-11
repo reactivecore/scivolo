@@ -27,10 +27,10 @@ pub struct Owners<'a> {
     pub vars: Vec<Var>,
 }
 
-/// Enters class `info` into package `pkg` with its object: the class, the object's class and
-/// the object; none, with nothing entered, if its signature is one this reader refuses.
-pub fn enter(u: &mut Universe, pkg: SymbolId, info: &ClassInfo) -> Option<Vec<SymbolId>> {
-    let simple = info.name.rsplit_once('/').map_or(info.name.as_str(), |(_, n)| n);
+/// Enters class `info` into package or class `pkg` as `simple` with its object: the class, the
+/// object's class and the object; none, with nothing entered, if its signature is one this
+/// reader refuses.
+pub fn enter(u: &mut Universe, pkg: SymbolId, simple: &str, info: &ClassInfo) -> Option<Vec<SymbolId>> {
     let interface = info.access & ACC_INTERFACE != 0;
     let mut flags = Vec::new();
     let sealed = info.access & ACC_ENUM != 0 && info.fields.iter().any(|f| f.access & ACC_ENUM != 0);

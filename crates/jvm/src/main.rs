@@ -13,7 +13,7 @@ use tasty::Universe;
 #[derive(Parser)]
 #[command(name = "scivolo-jvm")]
 struct Cli {
-    /// A jar or directory of TASTy files the sources see.
+    /// A jar or directory of TASTy and Java class files the sources see.
     #[arg(long)]
     cp: Vec<PathBuf>,
     /// A jar or directory of NIR files compiled before; macro calls run in a VM over the library's NIR
@@ -44,6 +44,7 @@ fn main() {
     let jars = [&typer::dump::library_jars(&libs)[..], &cp].concat();
     let mut u = Universe::open(&jars).unwrap_or_else(|e| fail(&format!("opening the library: {e:?}")));
     u.set_jdk(classfile::Jdk::default());
+    u.use_java_classfiles().unwrap_or_else(|e| fail(&format!("reading the class files of {jars:?}: {e}")));
     if scalalib {
         u.set_same_run_jar(0);
     }

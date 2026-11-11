@@ -37,7 +37,7 @@ impl Library {
         for (i, jar) in jars.iter().enumerate() {
             let archive = if jar.is_dir() {
                 let mut names = Vec::new();
-                tasty_files(jar, "", &mut names)?;
+                files_ending(jar, "", ".tasty", &mut names)?;
                 names.into_iter().for_each(|n| _ = files.entry(n).or_insert(i));
                 Archive::Dir(jar.clone())
             } else {
@@ -80,16 +80,7 @@ impl Library {
         match self {
             Library::Jars { jars, files } => {
                 let Some(&jar) = files.get(path) else { return Err(io::ErrorKind::NotFound.into()) };
-                let bytes = match &mut jars[jar] {
-                    Archive::Zip(zip) => {
-                        let mut file = zip.by_name(path).map_err(io::Error::other)?;
-                        let mut bytes = Vec::with_capacity(file.size() as usize);
-                        file.read_to_end(&mut bytes)?;
-                        bytes
-                    }
-                    Archive::Dir(dir) => std::fs::read(dir.join(path))?,
-                };
-                Ok((Cow::Owned(bytes), None))
+                Ok((Cow::Owned(jars[jar].bytes(path)?), None))
             }
             Library::Image(image) => match image.find(path) {
                 Some((data, table)) => Ok((Cow::Borrowed(data), table)),
@@ -97,16 +88,70 @@ impl Library {
             },
         }
     }
+
+    /// Lists the Java class files of the jars, those of a package of no `.tasty` file of their
+    /// top-level class's name: each internal name, e.g. `scala/runtime/BoxesRunTime`, with the
+    /// first jar that has it; none in an image.
+    pub fn java_classes(&self) -> io::Result<FxHashMap<String, usize>> {
+        let Library::Jars { jars, files } = self else { return Ok(FxHashMap::default()) };
+        let mut classes = FxHashMap::default();
+        for (i, jar) in jars.iter().enumerate() {
+            let names = match jar {
+                Archive::Zip(zip) => zip
+                    .file_names()
+                    .map(|n| n.map(|n| n.into_owned()))
+                    .collect::<Result<_, _>>()
+                    .map_err(io::Error::other)?,
+                Archive::Dir(dir) => {
+                    let mut names = Vec::new();
+                    files_ending(dir, "", ".class", &mut names)?;
+                    names
+                }
+            };
+            for name in names {
+                let Some(class) = name.strip_suffix(".class") else { continue };
+                let (dir, simple) = class.rsplit_once('/').unwrap_or(("", class));
+                let top = simple.split('$').next().unwrap_or(simple);
+                let tasty =
+                    if dir.is_empty() { format!("{top}.tasty") } else { format!("{dir}/{top}.tasty") };
+                let info = simple == "module-info" || simple == "package-info";
+                if !info && !name.starts_with("META-INF/") && !files.contains_key(&tasty) {
+                    classes.entry(class.to_owned()).or_insert(i);
+                }
+            }
+        }
+        Ok(classes)
+    }
+
+    /// Reads the class file of internal name `class` from jar `jar`.
+    pub fn read_class(&mut self, jar: usize, class: &str) -> io::Result<Vec<u8>> {
+        let Library::Jars { jars, .. } = self else { return Err(io::ErrorKind::NotFound.into()) };
+        jars[jar].bytes(&format!("{class}.class"))
+    }
 }
 
-/// Adds the `.tasty` paths under `dir`/`prefix` to `names`, relative to `dir`.
-fn tasty_files(dir: &Path, prefix: &str, names: &mut Vec<String>) -> io::Result<()> {
+impl Archive {
+    fn bytes(&mut self, path: &str) -> io::Result<Vec<u8>> {
+        match self {
+            Archive::Zip(zip) => {
+                let mut file = zip.by_name(path).map_err(io::Error::other)?;
+                let mut bytes = Vec::with_capacity(file.size() as usize);
+                file.read_to_end(&mut bytes)?;
+                Ok(bytes)
+            }
+            Archive::Dir(dir) => std::fs::read(dir.join(path)),
+        }
+    }
+}
+
+/// Adds the paths ending in `suffix` under `dir`/`prefix` to `names`, relative to `dir`.
+fn files_ending(dir: &Path, prefix: &str, suffix: &str, names: &mut Vec<String>) -> io::Result<()> {
     for entry in std::fs::read_dir(dir.join(prefix))? {
         let entry = entry?;
         let name = format!("{prefix}{}", entry.file_name().to_string_lossy());
         if entry.file_type()?.is_dir() {
-            tasty_files(dir, &format!("{name}/"), names)?;
-        } else if name.ends_with(".tasty") {
+            files_ending(dir, &format!("{name}/"), suffix, names)?;
+        } else if name.ends_with(suffix) {
             names.push(name);
         }
     }

@@ -1,4 +1,4 @@
-# ADR 0117 — On the JVM, JDK annotation classes javalib lacks are entered from class files
+# ADR 0117 — On the JVM, JDK annotation classes javalib lacks and Java classes of jars are entered from class files
 
 Status: accepted · Date: 2026-11-11 · Amends ADR 0107
 
@@ -22,4 +22,16 @@ is `SOURCE` (`shouldEmitAnnotation`).
 - Refused: an annotation with arguments (dotty's named arguments and `_` defaults are not built;
   one with a defaulted element and no arguments is refused by the typer as a default getter),
   and several kept Java annotations on one definition (their order is not settled).
-- Java annotations of a jar on `--cp` are #239's next step.
+
+## Java classes of jars
+- A Java class file of a jar the JVM backend sees (on `--cp`, or the Scala library's own such as
+  `scala.runtime.BoxesRunTime`) whose package lacks a TASTy file of its top-level class's name
+  is entered on lookup as ADR 0107 enters a JDK class, annotation classes included; packages of
+  such class files are entered when the universe is opened. A class file with a `Scala`,
+  `ScalaSig` or `TASTY` attribute is not entered (Scala 2 pickles are not read).
+- Its public and protected nested classes of its `InnerClasses` are entered with it: a static one
+  into its object's class, the others into the class (dotty's `enterOwnInnerClasses`).
+- The Native backend does not read class files; the library's runtime stubs (`Statics`,
+  `BoxedUnit`, the `*Ref` classes) stay ahead of their class files.
+- Refused: a signature naming a non-static inner class (it is referred to as `Outer.Inner`, a
+  member of the object).

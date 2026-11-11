@@ -3,10 +3,12 @@
 
 mod annotation;
 mod class;
+mod classpath;
 mod javalib;
 mod signatures;
 
 pub use annotation::Retention;
+pub use classpath::JavaClasses;
 
 use super::{Kind, SymbolId, Universe};
 use crate::Erased;
@@ -48,7 +50,7 @@ impl Universe {
         if info.access & ACC_PUBLIC == 0 || info.access & ACC_MODULE != 0 {
             return Vec::new();
         }
-        let entered = class::enter(self, pkg, &info).unwrap_or_default();
+        let entered = class::enter(self, pkg, class, &info).unwrap_or_default();
         entered.into_iter().filter(|&d| self.symbol(d).name == name).collect()
     }
 
