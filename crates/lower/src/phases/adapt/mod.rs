@@ -12,7 +12,7 @@ mod value;
 pub use polymorphic::{array_op, is_synchronized, qualify_synchronized, synchronized_type};
 pub use units::ascription_type;
 
-use super::casts::{cast, conforms, is_cast, is_new_array};
+use super::casts::{cast, class_named, conforms, is_cast, is_new_array};
 use super::select_static::is_static_enum_value;
 use super::type_tests::primitive_conversion::{failed_conversion, primitive_conversion};
 use crate::Lower;
@@ -20,7 +20,7 @@ use crate::definitions::Known;
 use crate::symbols::{has, is_java_field, is_java_static};
 use names::nme;
 use syntax::ast::Span;
-use tasty::tags::FIELDaccessor;
+use tasty::tags::{FIELDaccessor, OBJECT};
 use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 use units::boxed_unit;
@@ -161,6 +161,13 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
             cast(l, t, to)
         }
         (Erased::Null, Erased::Array(_)) => cast(l, t, pt),
+        (Erased::Null, Erased::Class(name))
+            if class_named(l, name).is_some_and(|c| l.u.symbol(c).flags.has(OBJECT)) =>
+        {
+            let c = cast(l, t, pt);
+            l.null_casts.insert(c);
+            c
+        }
         (Erased::Array(_), Erased::Array(_)) if from != pt && is_new_array(l, t) => {
             let c = cast(l, t, pt);
             l.explicit_casts.insert(c);

@@ -17,7 +17,7 @@ impl Typer<'_> {
         captured(self, t, true)
     }
 
-    /// Captures the wildcards of `t`, the type of an argument or adapted tree, as
+    /// Captures the wildcards of `t`, the type of an argument of an overload, as
     /// `captured_wildcards` does; `None` for a stable path, which dotty's `compareCaptured`
     /// captures by selecting the type parameters on it, and for a Java class such as
     /// `java.util.List[?]` whose parameter has no upper bound (dotty's `FromJavaObject`).
@@ -30,9 +30,13 @@ impl Typer<'_> {
     }
 
     /// `tree` cast to its type with wildcards captured if that conforms to `pt` (dotty's
-    /// `captureWildcardsCompat` in `adapt`).
+    /// `captureWildcardsCompat` in `adapt`); `None` for a stable path, as `captured_args`.
     pub fn captured_cast(&mut self, tree: TNodeId, pt: TypeId) -> Option<Result<TNodeId, &'static str>> {
-        let captured = self.captured_args(self.tpd.tpe(tree))?;
+        let t = self.zonk(self.tpd.tpe(tree));
+        if self.u.sym_of(t).is_some() && super::super::stability::is_stable_path(self.u, t) {
+            return None;
+        }
+        let captured = captured(self, t, true)?;
         self.conforms(captured, pt).then(|| self.cast_to_captured(tree, captured))
     }
 
@@ -79,12 +83,36 @@ impl Typer<'_> {
     }
 }
 
-/// Captures the wildcards of `tpe` as `captured_wildcards` does; unless `java_unbounded`, gives
+/// Captures the wildcards of `tpe` as `captured_wildcards` does, also under a flexible,
+/// annotated or refined type and in both sides of `&` and `|`; unless `java_unbounded`, gives
 /// `None` also for a Java class whose parameter has no upper bound.
 fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<TypeId> {
     let tpe = t.zonk(tpe);
     let tpe = t.u.widen(tpe);
     let tpe = t.u.dealias(tpe);
+    match *t.u.ty(tpe) {
+        Type::Flexible(hi) => {
+            let hi = captured(t, hi, java_unbounded)?;
+            return Some(t.u.flexible(hi));
+        }
+        Type::Annotated(p, annot) => {
+            let p = captured(t, p, java_unbounded)?;
+            return Some(t.u.intern_type(Type::Annotated(p, annot)));
+        }
+        Type::Refined(p, name, info) => {
+            let p = captured(t, p, java_unbounded)?;
+            return Some(t.u.intern_type(Type::Refined(p, name, info)));
+        }
+        Type::And(a, b) => {
+            let [a, b] = captured_sides(t, [a, b], java_unbounded)?;
+            return Some(t.u.intern_type(Type::And(a, b)));
+        }
+        Type::Or(a, b, soft) => {
+            let [a, b] = captured_sides(t, [a, b], java_unbounded)?;
+            return Some(t.u.intern_type(Type::Or(a, b, soft)));
+        }
+        _ => {}
+    }
     let (tycon, args) = t.u.applied(tpe).map(|(tycon, args)| (tycon, args.to_vec()))?;
     if !args.iter().any(|&a| t.u.bounds(a).is_some()) {
         return None;
@@ -113,4 +141,11 @@ fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<Type
         captured.push(t.u.intern_type(Type::Sym(Some(skolem), cap)));
     }
     Some(t.u.intern_applied(tycon, &captured))
+}
+
+/// Captures the wildcards of both sides of `&` or `|`, a side without any kept; `None` if
+/// neither has one.
+fn captured_sides(t: &mut Typer<'_>, sides: [TypeId; 2], java_unbounded: bool) -> Option<[TypeId; 2]> {
+    let [a, b] = sides.map(|s| captured(t, s, java_unbounded));
+    (a.is_some() || b.is_some()).then(|| [a.unwrap_or(sides[0]), b.unwrap_or(sides[1])])
 }

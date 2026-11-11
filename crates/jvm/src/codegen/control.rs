@@ -21,8 +21,8 @@ impl Gen<'_, '_> {
         let depth = b.code.stack();
         let got = self.expr(b, t)?;
         match got - slots {
-            0 => {}
             _ if !b.code.live() => b.code.set_stack(depth + slots),
+            0 => {}
             1 if slots == 0 => b.code.insn(0x57),
             2 if slots == 0 => b.code.insn(0x58),
             -1 if got == 0 => {

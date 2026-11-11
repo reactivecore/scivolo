@@ -379,12 +379,24 @@ pub struct Typer<'a> {
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
     pub file_starts: Vec<syntax::source::Offset>,
+    /// The settings of each source file of a unit of several, none for a unit of one.
+    pub file_cfgs: Vec<Config>,
+    /// The index of the source file whose settings are in use.
+    pub file: usize,
     /// What runs macro implementations; without it, macro calls are refused.
     pub macros: Option<&'a mut dyn crate::inlining::Macros>,
 }
 
 /// How many `typed` calls may be in progress at once.
 const MAX_DEPTH: u32 = 400;
+
+/// Refuses source versions before 3.7 and migrating ones.
+pub fn check_source_version(v: SourceVersion) -> Result<(), String> {
+    match v.is_at_least(SourceVersion::V3_7) && !v.migrating {
+        true => Ok(()),
+        false => Err("source versions other than 3.7 to 3.9".into()),
+    }
+}
 
 impl<'a> Typer<'a> {
     pub fn new(
@@ -395,9 +407,7 @@ impl<'a> Typer<'a> {
         syms: &mut Syms,
     ) -> Result<Self, String> {
         let v = cfg.source_version;
-        if !v.is_at_least(SourceVersion::V3_7) || v.migrating {
-            return Err("source versions other than 3.7 to 3.9".into());
-        }
+        check_source_version(v)?;
         let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
         let mut syms = std::mem::take(syms);
@@ -470,6 +480,8 @@ impl<'a> Typer<'a> {
             quote_pattern: None,
             depth: 0,
             file_starts: Vec::new(),
+            file_cfgs: Vec::new(),
+            file: 0,
             macros: None,
         };
         typer.tpd.scala2 = typer.scala2;

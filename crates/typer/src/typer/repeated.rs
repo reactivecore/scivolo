@@ -114,25 +114,27 @@ impl Typer<'_> {
     }
 
     /// Sequence argument `a`, `xs*`, passed to a repeated parameter of element type `elem`:
-    /// `xs` typed as a `Seq[elem] | Array[? <: elem]`, without an expected type if no `elem`,
-    /// ascribed `<repeated>[T]` with `T` its element type.
+    /// `xs` typed as a `Seq[elem] | Array[? <: elem]` (a `Seq[elem]` in a quote pattern), without
+    /// an expected type if no `elem`, ascribed `<repeated>[T]` with `T` its element type.
     pub fn sequence_arg(
         &mut self,
         a: syntax::ast::NodeId,
         elem: Option<TypeId>,
         ctx: crate::ctx::Ctx,
     ) -> TNodeId {
-        let syntax::ast::Tree::Typed { expr, tpt } = *self.ast.tree(a) else {
-            return self.unsupported(a, "sequence argument");
-        };
-        let (Some(seq_class), Some(array_class)) =
-            (self.resolve_full_name(IMMUTABLE_SEQ, true), self.resolve_full_name(ARRAY, true))
-        else {
+        let (Some(seq_class), Some(array_class), &syntax::ast::Tree::Typed { expr, tpt }) = (
+            self.resolve_full_name(IMMUTABLE_SEQ, true),
+            self.resolve_full_name(ARRAY, true),
+            self.ast.tree(a),
+        ) else {
             return self.unsupported(a, "sequence argument");
         };
         let pt = elem.map_or(super::Pt::Any, |elem| {
             let seq = crate::defn::type_ref(self.u, seq_class);
             let seq = self.u.intern_applied(seq, &[elem]);
+            if ctx.mode.is(crate::ctx::Mode::QUOTED_PATTERN) {
+                return super::Pt::Type(seq);
+            }
             let array = crate::defn::type_ref(self.u, array_class);
             let below = self.u.intern_type(Type::Bounds(tasty::NOTHING, elem));
             let array = self.u.intern_applied(array, &[below]);
@@ -140,8 +142,8 @@ impl Typer<'_> {
         });
         let expr = self.typed(expr, pt, ctx);
         let expr_tpe = self.tpd.tpe(expr);
-        let null = self.resolve_full_name("scala.Null", true);
-        if self.u.class_symbol(expr_tpe).is_some_and(|c| Some(c) == null || c == self.u.defn().nothing) {
+        let b = self.u.defn();
+        if self.u.class_symbol(expr_tpe).is_some_and(|c| c == b.null || c == b.nothing) {
             return self.unsupported(a, "sequence argument of a bottom type");
         }
         let widened = self.u.widen(expr_tpe);

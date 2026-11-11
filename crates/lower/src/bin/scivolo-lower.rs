@@ -1,5 +1,5 @@
 use clap::Parser;
-use lower::Options;
+use lower::{Isolated, Options};
 use macros::{Macros, VmMacros};
 use std::path::{Path, PathBuf};
 use syntax::source::SourceFile;
@@ -75,18 +75,20 @@ fn main() {
         true => ([&jars[..], &jdk_tasty].concat(), jars.len()..jars.len() + jdk_tasty.len()),
         false => ([&jdk_tasty[..], &jars].concat(), 0..jdk_tasty.len()),
     };
-    let mut u = Universe::open(&all).expect("opening the library");
-    let scala_library = jdk.end;
-    u.set_jdk_jars(jdk);
-    if javalib {
-        u.set_javalib_sources();
-    }
-    if scalalib {
-        u.set_same_run_jar(scala_library);
-    }
-    if jdk_17 {
-        u.set_jdk_17_view();
-    }
+    let mut open = || {
+        let mut u = Universe::open(&all).expect("opening the library");
+        u.set_jdk_jars(jdk.clone());
+        if javalib {
+            u.set_javalib_sources();
+        }
+        if scalalib {
+            u.set_same_run_jar(jdk.end);
+        }
+        if jdk_17 {
+            u.set_jdk_17_view();
+        }
+        u
+    };
     let sources: Vec<SourceFile> = files
         .iter()
         .map(|f| {
@@ -113,10 +115,16 @@ fn main() {
     let copies = || sources.iter().map(|s| SourceFile::new(s.name.clone(), s.text.clone())).collect();
     let mut runner = vm.as_mut().map(|vm| VmMacros { vm, sources: copies(), settings });
     let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
-    let lowered = match &sources[..] {
-        [one] => lower::compile_with(&mut u, one, cfg, macros),
-        many => lower::compile_sources(&mut u, many, cfg, macros),
+    let (lowered, refused) = match &sources[..] {
+        [one] => (lower::compile_with(&mut open(), one, cfg, macros), Vec::new()),
+        many => match lower::compile_sources_isolated(&mut open, many, cfg, macros) {
+            Ok(Isolated { out, diags, refused }) => (Ok((out, diags)), refused),
+            Err(e) => (Err(e), Vec::new()),
+        },
     };
+    for r in &refused {
+        eprintln!("{}: {}", r.file, r.refusal.what.replace("\n  ", " "));
+    }
     match lowered {
         Ok((_, warnings)) if fatal && !warnings.items.is_empty() => {
             fail("the typer does not support warnings under -Werror or -Wconf")
@@ -131,6 +139,9 @@ fn main() {
                 }
                 std::fs::write(&path, f.bytes).expect("writing NIR");
                 println!("{}.nir", f.name);
+            }
+            if !refused.is_empty() {
+                std::process::exit(1);
             }
         }
         Err(e) => {

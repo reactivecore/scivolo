@@ -13,7 +13,7 @@ use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result};
 use rustc_hash::FxHashMap;
-use tasty::tags::{FINAL, PRIVATE, STATIC};
+use tasty::tags::{ARTIFACT, FINAL, PRIVATE, STATIC};
 use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -45,6 +45,10 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
         }
         if let Some(owner) = l.u.symbol(f.sym).owner {
             l.lifted_from.insert(method.sym, owner);
+        }
+        if l.u.symbol(f.sym).flags.has(ARTIFACT) && !l.is_bridge_closure(method.sym) {
+            let flags = l.u.symbol(method.sym).flags.with(ARTIFACT);
+            l.u.set_flags(method.sym, flags);
         }
         l.lifted_to.insert(f.sym, method.sym);
         methods.push(method);
