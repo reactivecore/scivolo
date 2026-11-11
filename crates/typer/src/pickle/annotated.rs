@@ -1,14 +1,16 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //! Annotated and refined types and type trees (dotty's `AnnotatedType` case of
-//! `pickleNewType`, `Annotated` and `RefinedTypeTree` cases of `pickleTree`).
+//! `pickleNewType`, `Annotated` and `RefinedTypeTree` cases of `pickleTree`), and the order of a
+//! definition's annotations.
 
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId};
 use names::nme;
-use tasty::TypeId;
+use tasty::defn::{EXPERIMENTAL, SOURCE_FILE};
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
+use tasty::{SymbolId, TypeId};
 
 impl TreePickler<'_> {
     /// Type `parent` annotated with class type `annot`, the annotation `new annot()`.
@@ -28,6 +30,28 @@ impl TreePickler<'_> {
                 })
             })
         })
+    }
+
+    /// The annotation trees of `s`, in order; in a file, the ones of its definition last first
+    /// (dotty's `addAnnotation` prepends).
+    pub fn annotation_trees(&mut self, s: SymbolId) -> Vec<TNodeId> {
+        let Some(file) = self.file else { return self.tpd.annotations(s).to_vec() };
+        let mut trees = file.annotations.get(&s).cloned().unwrap_or_else(|| self.tpd.annotations(s).to_vec());
+        let own: Vec<TNodeId> =
+            self.tpd.annotations(s).iter().copied().filter(|&a| !self.is_post_typer(a)).collect();
+        let at: Vec<usize> = (0..trees.len()).filter(|&i| own.contains(&trees[i])).collect();
+        for (&i, &a) in at.iter().zip(own.iter().rev()) {
+            trees[i] = a;
+        }
+        trees
+    }
+
+    /// Whether annotation `a` is one dotty's `PostTyper` adds: `@SourceFile`, or `@experimental`
+    /// without a position.
+    fn is_post_typer(&mut self, a: TNodeId) -> bool {
+        let class = self.u.class_symbol(self.tpd.tpe(a)).map(|c| self.u.full_name(c));
+        class.as_deref() == Some(SOURCE_FILE)
+            || class.as_deref() == Some(EXPERIMENTAL) && !self.tpd.span(a).exists()
     }
 
     /// Whether class type `class` is capture checking's `caps.internal.inferred`.

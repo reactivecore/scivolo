@@ -134,14 +134,6 @@ fn top_level_class(u: &mut Universe, mut s: SymbolId) -> Option<SymbolId> {
 }
 
 impl TreePickler<'_> {
-    /// The annotation trees of `s`, in order.
-    pub fn annotation_trees(&self, s: SymbolId) -> Vec<TNodeId> {
-        match self.file.and_then(|f| f.annotations.get(&s)) {
-            Some(trees) => trees.clone(),
-            None => self.tpd.annotations(s).to_vec(),
-        }
-    }
-
     /// Whether `s` is defined in the top-level class pickled or its companion (dotty's
     /// `isLocallyDefined`).
     pub fn is_locally_defined(&mut self, s: SymbolId) -> bool {
