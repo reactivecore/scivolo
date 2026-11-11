@@ -4,13 +4,13 @@
 //! The attributes of a method besides its code (dotty's `initJMethod`, `emitParamNames`).
 
 use super::body::Body;
-use super::descriptors::{class_internal, internal};
+use super::descriptors::class_internal;
 use super::{Gen, unsupported};
 use classfile::{ACC_FINAL, ACC_SYNTHETIC, ClassFile, Last};
 use lower::Result;
-use names::{name_kinds, nme};
+use names::nme;
 use syntax::ast::Span;
-use tasty::tags::{ARTIFACT, PRIVATE};
+use tasty::tags::ARTIFACT;
 use tasty::{SymbolId, TypeId};
 use typer::tpd::TNodeId;
 
@@ -117,61 +117,6 @@ impl Gen<'_, '_> {
         let mut annotated = |full| holders.into_iter().flatten().any(|s| self.l.u.is_annotated(s, full));
         let transient = if annotated("scala.transient") { classfile::ACC_TRANSIENT } else { 0 };
         transient | if annotated("scala.volatile") { classfile::ACC_VOLATILE } else { 0 }
-    }
-
-    /// The generic signature of member `sym` of descriptor `desc` (dotty's `getGenericSignature`
-    /// with `Mixin`'s `mixinGenericInfos`): none for an accessor of a private trait value, nor for
-    /// a mixin forwarder whose signature does not erase to `desc`; of a method whose context
-    /// closures became parameter clauses, from its type before.
-    pub fn generic_signature(&mut self, sym: SymbolId, desc: &str) -> Option<String> {
-        let mixed = self.mixed_origin(sym);
-        let origin = mixed.unwrap_or(sym);
-        let info = match self.l.unflattened_info(origin) {
-            Some(info) => info,
-            None => self.seen_from_owner(sym),
-        };
-        if mixed.is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) {
-            return None;
-        }
-        let thrown = self.thrown(sym);
-        let syms = (sym, origin);
-        let sig = super::signatures::member(self.l.u, syms, info, desc, &thrown)?;
-        let forwarder = self.l.mixed_in_from(sym).is_some() && !self.l.is_mixin_accessor(sym);
-        (!forwarder || super::signatures::erases_to(&sig, desc)).then_some(sig)
-    }
-
-    /// The type of member `sym` seen from its class (dotty's `memberInfo` of the owner's
-    /// `thisType`), of a mixin accessor or forwarder that of the trait member.
-    pub fn seen_from_owner(&mut self, sym: SymbolId) -> TypeId {
-        let owner = self.l.u.symbol(sym).owner.filter(|&o| self.l.u.is_class(o));
-        let name = &self.l.u.symbol(sym).name;
-        if name_kinds::is_outer(name) {
-            let (_, result) = self.l.u.erased_method(sym);
-            if let tasty::Erased::Class(outer) = result
-                && let Some(Some(c)) = self.classes.get(&internal(&outer)).copied()
-            {
-                return self.l.u.this_type(c);
-            }
-        }
-        match owner {
-            Some(o) => {
-                let this = self.l.u.this_type(o);
-                let member = self.mixed_origin(sym).unwrap_or(sym);
-                self.l.u.member_info(this, member)
-            }
-            None => self.l.u.info(sym),
-        }
-    }
-
-    /// The trait member mixin accessor or forwarder `sym` copies, or the field of a mixin getter
-    /// its getter's.
-    fn mixed_origin(&mut self, sym: SymbolId) -> Option<SymbolId> {
-        if let Some(m) = self.l.mixed_in_from(sym) {
-            return Some(m);
-        }
-        let (owner, name) = (self.l.u.symbol(sym).owner?, self.l.u.symbol(sym).name.clone());
-        let getters = self.l.u.decls_named(owner, &name);
-        getters.into_iter().find(|&g| g != sym).and_then(|g| self.l.mixed_in_from(g))
     }
 
     /// Marks the code from here as of the source line of `t` (dotty's `lineNumber`).

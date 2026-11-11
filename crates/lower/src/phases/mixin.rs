@@ -247,9 +247,10 @@ fn forwarder(
         all.extend_from_slice(args);
         l.apply(fun, &all, result, span)
     })?;
-    if !jdk {
-        l.forwarded.insert(sym, meth);
-    }
+    match jdk {
+        true => l.jdk_forwarded.insert(sym, meth),
+        false => l.forwarded.insert(sym, meth),
+    };
     Ok(def)
 }
 

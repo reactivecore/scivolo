@@ -4,8 +4,8 @@
 
 use super::applied::Applied;
 use super::{Boxing, Sig};
-use crate::codegen::descriptors::internal;
-use tasty::{Binder, Erased, Kind, SymbolId, Type, TypeId};
+use crate::codegen::descriptors::{internal, primitive_box};
+use tasty::{Binder, Erased, Kind, ParamList, SymbolId, Type, TypeId};
 
 impl Sig<'_> {
     /// A class, type parameter or type member reference, applied or not.
@@ -34,6 +34,11 @@ impl Sig<'_> {
         if full == "scala.Array" && args.len() == 1 {
             return self.array(args[0]);
         }
+        if boxing == Boxing::Unbox
+            && let Some(value) = self.u.underlying(c)
+        {
+            return self.value_class(t, c, value);
+        }
         let plain = self.u.intern_type(Type::Sym(None, c));
         let erased = self.u.erase(plain);
         let own = internal(&self.u.binary_name(c));
@@ -44,15 +49,11 @@ impl Sig<'_> {
             Erased::Class(ref e) if internal(e) != own => {
                 let e = internal(e);
                 let function = e.starts_with("scala/Function") && full.contains("Function");
-                if function && !e.ends_with("XXL") {
+                if function && !e.ends_with("XXL") || full == tasty::defn::REPEATED {
                     self.class_sig(&e, &args)
                 } else {
                     self.erased_sig(&erased, boxing)
                 }
-            }
-            _ if boxing == Boxing::Unbox && self.u.underlying(c).is_some() => {
-                let e = self.u.erase_value(t).full();
-                self.erased_sig(&e, boxing);
             }
             _ if let Some((outer, outer_args)) = self.generic_outer(c, tycon) => {
                 let outer = internal(&self.u.binary_name(outer));
@@ -108,7 +109,9 @@ impl Sig<'_> {
         let a = self.u.dealias(a);
         match *self.u.ty(a) {
             Type::Bounds(lo, hi) => {
-                if !self.class_named(hi, "scala.Any") {
+                let java_top =
+                    matches!(*self.u.ty(hi), Type::Sym(_, s) if s == self.u.defn().from_java_object);
+                if !java_top && !self.class_named(hi, "scala.Any") {
                     self.out.push('+');
                     self.boxed(hi);
                 } else if !self.class_named(lo, "scala.Nothing") {
@@ -118,9 +121,52 @@ impl Sig<'_> {
                     self.out.push('*');
                 }
             }
-            Type::Lambda { .. } => self.out.push('*'),
+            Type::Lambda { params, result, .. } => self.lambda_arg(params, result),
             _ => self.boxed(a),
         }
+    }
+
+    /// A type lambda argument with parameters `params` and result `result`: an unbounded one
+    /// applying a class as that class, applying another type as `*`, a bounded one as its
+    /// constructor's erasure, any other as its result.
+    fn lambda_arg(&mut self, params: ParamList, result: TypeId) {
+        let Some((tycon, _)) = self.u.applied(result) else {
+            return match self.u.erase(result) {
+                Erased::Unit => self.out.push_str("Lscala/runtime/BoxedUnit;"),
+                e @ Erased::Prim(_) => self.class_sig(primitive_box(&e).unwrap_or_default(), &[]),
+                _ => self.jsig(result, false, Boxing::Unbox),
+            };
+        };
+        let bounds: Vec<TypeId> = self.u.params_of(params).iter().map(|p| p.1).collect();
+        let unbounded = bounds.into_iter().all(|b| {
+            self.u.bounds(b).is_some_and(|(lo, hi)| {
+                self.class_named(lo, "scala.Nothing") && self.class_named(hi, "scala.Any")
+            })
+        });
+        match unbounded {
+            true if self.class_ref(tycon).is_some() => self.jsig(tycon, false, Boxing::Unbox),
+            true => self.out.push('*'),
+            false => {
+                let e = self.u.erase(tycon);
+                self.erased_sig(&e, Boxing::Box);
+            }
+        }
+    }
+
+    /// Whether `t` refers to the class of full name `name`.
+    pub fn class_named(&mut self, t: TypeId, name: &str) -> bool {
+        self.class_ref(t).is_some_and(|c| self.u.full_name(c) == name)
+    }
+
+    /// The class `t` refers to after dealiasing, none for a type parameter or member.
+    pub fn class_ref(&mut self, t: TypeId) -> Option<SymbolId> {
+        let t = self.u.dealias(t);
+        let s = match *self.u.ty(t) {
+            Type::Sym(_, s) => Some(s),
+            Type::TypeRef(..) => self.u.resolve_ref(t),
+            _ => None,
+        };
+        s.filter(|&s| self.u.symbol(s).kind == Kind::Class)
     }
 
     /// The name and bounds of method type parameter `i` of `binder`, if in scope.
