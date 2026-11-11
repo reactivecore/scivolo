@@ -9,13 +9,58 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
 use names::nme;
 use syntax::ast::{NodeId, Span, TName, Tree};
+use syntax::diag::Level;
+
+/// The refusal of an extractor whose selected method is not `unapply` or `unapplySeq`.
+const NOT_AN_EXTRACTOR: &str = "not an extractor";
+
+/// The refusal of an extractor without a member, extension or view `unapply` or `unapplySeq`.
+const NO_EXTRACTOR_METHOD: &str = "extractor without unapply";
 
 impl UnapplyPattern {
+    /// Selects the extractor method of `qual` as `select_unapply` does or, if that fails with
+    /// errors or `qual` has no `unapply` or `unapplySeq` and `qual` names a type alias of a
+    /// class, that of the class's companion object, as `Block` for
+    /// `type Block = Trees.Block[Int]`; the errors of the first try if both fail.
+    pub fn unapply_fun(&self, t: &mut Typer<'_>, qual: NodeId) -> Result<(TNodeId, bool), &'static str> {
+        let (reported, unsupported) = (t.diags.items.len(), t.unsupported.clone());
+        let first = self.select_unapply(t, qual, true);
+        let failed = match first {
+            Ok(_) => has_errors_since(t, reported),
+            Err(what) => what == NOT_AN_EXTRACTOR || what == NO_EXTRACTOR_METHOD,
+        };
+        if !failed || t.unsupported != unsupported {
+            return first;
+        }
+
+        let first_diags = t.diags.items.split_off(reported);
+        if let Some(companion) = self.followed_type_alias(t, qual) {
+            let second = self.select_unapply(t, companion, false);
+            if second.is_ok() && !has_errors_since(t, reported) && t.unsupported == unsupported {
+                return second;
+            }
+            t.retract_diags(reported);
+            t.unsupported = unsupported;
+        }
+        if first == Err(NO_EXTRACTOR_METHOD) {
+            return self.select_unapply(t, qual, false);
+        }
+        t.diags.items.extend(first_diags);
+        first
+    }
+
     /// Selects `qual.unapply` for extractor `qual`, typed as an expression, a member or an
     /// extension method, or `qual.unapplySeq` if it has neither, an overloaded one applied to a
-    /// value of the scrutinee's type; whether it is `unapplySeq`. Refuses extension methods
-    /// beside an `unapplySeq` and an `unapply` an implicit view may give beside one.
-    pub fn unapply_fun(&self, t: &mut Typer<'_>, qual: NodeId) -> Result<(TNodeId, bool), &'static str> {
+    /// value of the scrutinee's type; whether it is `unapplySeq` (dotty's `trySelectUnapply`).
+    /// With `stop_without`, stops before the selection if `qual` has neither and no implicit view
+    /// may give it one. Refuses extension methods beside an `unapplySeq` and an `unapply` an
+    /// implicit view may give beside one.
+    fn select_unapply(
+        &self,
+        t: &mut Typer<'_>,
+        qual: NodeId,
+        stop_without: bool,
+    ) -> Result<(TNodeId, bool), &'static str> {
         let unsupported = t.unsupported.clone();
         let ctx = self.ctx.with_mode(Mode::NONE);
         let ident = matches!(t.ast.tree(qual), Tree::Ident { .. });
@@ -30,8 +75,16 @@ impl UnapplyPattern {
         if extension && seq_found {
             return Err("extension method");
         }
-        if seq_found && !extension && view_may_supply_unapply(t, typed, ctx) {
+        if seq_found && !extension && view_may_supply(t, typed, nme::UNAPPLY, ctx) {
             return Err("unapply of an implicit view beside unapplySeq");
+        }
+        if stop_without
+            && !(member || extension || seq_found)
+            && t.unsupported == unsupported
+            && !view_may_supply(t, typed, nme::UNAPPLY, ctx)
+            && !view_may_supply(t, typed, nme::UNAPPLY_SEQ, ctx)
+        {
+            return Err(NO_EXTRACTOR_METHOD);
         }
 
         let seq = !extension && seq_found;
@@ -51,17 +104,22 @@ impl UnapplyPattern {
 
         let chosen = t.tpd.sym(t.tpd.meth_part(unapp)).map(|s| t.u.symbol(s).name.as_str());
         if chosen != Some(t.text(name.name)) {
-            return Err("not an extractor");
+            return Err(NOT_AN_EXTRACTOR);
         }
         Ok((unapp, seq))
     }
 }
 
+/// Whether errors were reported from `mark` on.
+pub fn has_errors_since(t: &Typer<'_>, mark: usize) -> bool {
+    t.diags.items[mark..].iter().any(|d| d.level == Level::Error)
+}
+
 /// Whether an implicit conversion or an extension method of an implicit value may give `qual`
-/// a member `unapply`.
-fn view_may_supply_unapply(t: &mut Typer<'_>, qual: TNodeId, ctx: Ctx) -> bool {
+/// a member `name`.
+fn view_may_supply(t: &mut Typer<'_>, qual: TNodeId, name: &str, ctx: Ctx) -> bool {
     let reported = t.diags.items.len();
-    let (found, clean, _) = t.speculatively(|t| t.viewed(qual, Goal::Member(nme::UNAPPLY), ctx));
+    let (found, clean, _) = t.speculatively(|t| t.viewed(qual, Goal::Member(name), ctx));
     t.retract_diags(reported);
     match found {
         Ok(None) if clean => false,
@@ -69,7 +127,7 @@ fn view_may_supply_unapply(t: &mut Typer<'_>, qual: TNodeId, ctx: Ctx) -> bool {
         _ => {
             let site = t.u.widen(t.tpd.tpe(qual));
             let q = t.u.class_symbol(site);
-            q.is_none_or(|q| t.may_view_to((q, site), nme::UNAPPLY, ctx) != Some(false))
+            q.is_none_or(|q| t.may_view_to((q, site), name, ctx) != Some(false))
         }
     }
 }
