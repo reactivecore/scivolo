@@ -51,6 +51,8 @@ impl Mode {
     /// The reference of a singleton type, where a context function value stays unapplied
     /// (dotty's `SingletonTypeProto`).
     pub const SINGLETON_REF: Mode = Mode(65536);
+    /// An annotation of a definition, whose `new` may create a Java annotation.
+    pub const ANNOTATION: Mode = Mode(131072);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

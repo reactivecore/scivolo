@@ -147,6 +147,11 @@ mod tests {
         );
         let list = jdk.class("java/util/ArrayList").expect("ArrayList");
         assert!(list.signature.as_deref().is_some_and(|s| s.starts_with("<E:Ljava/lang/Object;>")));
+        let functional = jdk.class("java/lang/FunctionalInterface").expect("FunctionalInterface");
+        let runtime = [("value".to_owned(), "RUNTIME".to_owned())];
+        let retention =
+            functional.annotations.iter().find(|a| a.descriptor == "Ljava/lang/annotation/Retention;");
+        assert_eq!(retention.map(|a| &a.enum_elements[..]), Some(&runtime[..]));
         assert!(
             jdk.has_package("java/time")
                 && jdk.has_package("java")

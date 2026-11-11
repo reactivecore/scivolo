@@ -4,7 +4,7 @@
 //! The annotations of definitions typed as `new` expressions once their package's statements
 //! are typed (dotty's `annotContext`, `typedAnnotation`, `Checking.checkAnnotClass`).
 
-use crate::ctx::{Ctx, Level};
+use crate::ctx::{Ctx, Level, Mode};
 use crate::defn::STATIC_ANNOT;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::{Pt, Typer};
@@ -54,7 +54,8 @@ impl Typer<'_> {
             let typed = match typed_trees.get(&annot) {
                 Some(&t) => t,
                 None => {
-                    let typed = self.typed(annot, Pt::Any, ctx);
+                    let typed =
+                        self.typed(annot, Pt::Any, Ctx { mode: ctx.mode.with(Mode::ANNOTATION), ..ctx });
                     let t = (!self.is_error(typed) && self.check_annot_class(annot, typed)).then_some(typed);
                     if t.is_some() {
                         self.check_annot_args(typed);
@@ -74,10 +75,11 @@ impl Typer<'_> {
     }
 
     /// Whether typed annotation `typed` of tree `annot` is of a class that extends
-    /// `scala.annotation.Annotation`; reports it if not.
+    /// `scala.annotation.Annotation` or of a Java annotation class; reports it if not.
     fn check_annot_class(&mut self, annot: NodeId, typed: TNodeId) -> bool {
         let tpe = self.tpd.tpe(typed);
-        if self.derives_from_named(tpe, "scala.annotation.Annotation") {
+        let java = self.u.class_symbol(tpe).is_some_and(|c| self.u.classfile_retention(c).is_some());
+        if java || self.derives_from_named(tpe, "scala.annotation.Annotation") {
             return true;
         }
         let name = self.u.class_symbol(tpe).map(|c| self.u.symbol(c).name.clone()).unwrap_or_default();
