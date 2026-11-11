@@ -87,7 +87,8 @@ impl Gen<'_, '_> {
         if let Some(companion) = companion.filter(|&c| !module && self.l.u.is_static_module(c)) {
             self.add_forwarders(&mut cf, companion, Some(sym));
         }
-        let signature = super::signatures::class(self.l.u, sym);
+        let original_top = self.original_top(sym);
+        let signature = super::signatures::class(self.l.u, sym, original_top);
         cf.signature(&signature);
         if self.is_deprecated(sym) {
             cf.deprecated();

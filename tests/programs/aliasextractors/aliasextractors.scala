@@ -13,6 +13,14 @@ object tpd:
   def New(tpt: Int)(using tag: String): New = Trees.New(tpt)
   def New(tpt: String)(using tag: String): New = Trees.New(tpt.length)
 
+trait Aliases:
+  type Block = Trees.Block[Int]
+
+class Inherited extends Aliases:
+  def last(t: Any): Any = t match
+    case Block(_, expr) => expr
+    case _ => "none"
+
 import tpd.*
 
 def describe(t: Any): String = t match
@@ -32,3 +40,4 @@ def size(t: Any): Int = t match
   println(describe(New("abcd")))
   println(describe("x"))
   println(size(New(5)))
+  println(Inherited().last(Block(Nil, 9)))
