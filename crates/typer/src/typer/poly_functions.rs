@@ -10,8 +10,7 @@ use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::{List, NodeId, TName, Tree};
-use tasty::{Kind, NameId, SymbolId, Type, TypeId};
-use tasty::{name_kinds, nme};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId, name_kinds, nme};
 
 impl Typer<'_> {
     /// Polymorphic function type `id`: `PolyFunction { def apply[T](x$1: P): R }` (dotty's

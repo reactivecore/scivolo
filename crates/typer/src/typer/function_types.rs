@@ -12,8 +12,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::tree::ModsId;
 use syntax::ast::{List, NodeId};
-use tasty::nme;
-use tasty::{Type, TypeId};
+use tasty::{Type, TypeId, nme};
 
 /// The parameter and result types of a function type.
 type Parts = (Vec<TypeId>, TypeId);

@@ -9,9 +9,8 @@ use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, Tree};
-use tasty::nme;
 use tasty::tags::{ABSTRACT, FINAL, OBJECT, SEALED, TRAIT};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// Whether `p` is a parameter without a type.

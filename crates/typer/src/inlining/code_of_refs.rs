@@ -4,8 +4,7 @@
 //! The prefixes and types of `codeOf`'s text.
 
 use super::Inlining;
-use tasty::nme;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 impl Inlining<'_> {
     /// The prefix of a reference to `s` through `prefix`, with its dot, empty where dotty's

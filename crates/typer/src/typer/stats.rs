@@ -6,8 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Tree};
-use tasty::nme;
-use tasty::{SymbolId, Type};
+use tasty::{SymbolId, Type, nme};
 
 impl Typer<'_> {
     pub fn typed_package_def(&mut self, id: NodeId, pid: NodeId, stats: List, ctx: Ctx) -> TNodeId {

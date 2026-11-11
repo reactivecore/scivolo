@@ -7,9 +7,8 @@ use super::super::Typer;
 use super::{OverrideChecks, overridable};
 use crate::case_members::is_synthesized_override;
 use syntax::ast::flags as f;
-use tasty::nme;
 use tasty::tags::{CASE, OVERRIDE, TRAIT};
-use tasty::{SymbolId, Universe};
+use tasty::{SymbolId, Universe, nme};
 
 impl OverrideChecks {
     /// Whether the class inherits two concrete members of its base classes and neither overrides

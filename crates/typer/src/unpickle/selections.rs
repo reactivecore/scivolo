@@ -8,9 +8,8 @@ use crate::defn::{ref_type, type_ref};
 use crate::signatures::params_sig;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::stability::is_stable_member;
-use tasty::nme;
 use tasty::tags::*;
-use tasty::{Kind, NodeId, SymbolId, Type, TypeId};
+use tasty::{Kind, NodeId, SymbolId, Type, TypeId, nme};
 
 impl Unpickler<'_> {
     /// `IDENT`: an identifier of the type the tree states.

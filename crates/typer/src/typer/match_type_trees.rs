@@ -8,8 +8,7 @@ use crate::ctx::{Ctx, Level, LevelId, Mode};
 use crate::tpd::TNodeId;
 use syntax::ast::flags::CASE;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::nme;
-use tasty::{ANY, Kind, NOTHING, NameId, SymbolId, Type, TypeId};
+use tasty::{ANY, Kind, NOTHING, NameId, SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     pub fn typed_match_type_tree(

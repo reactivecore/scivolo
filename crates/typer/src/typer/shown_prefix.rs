@@ -5,9 +5,8 @@
 //! and the place of a member as `showLocated` shows it.
 
 use super::Typer;
-use tasty::nme;
 use tasty::tags::{OBJECT, TRAIT};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// Where dotty's `showLocated` places a member of `owner`: ` in object O`, or nothing for a

@@ -8,9 +8,8 @@ use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::dependent_params::applied_result;
 use crate::typer::seen_from::resolve_class_params;
 use crate::typer::type_apply::instantiate_poly;
-use tasty::nme;
 use tasty::tags::{MUTABLE, OBJECT, SYNTHETIC};
-use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId, nme};
 
 impl Unpickler<'_> {
     /// The class of full name `full`.

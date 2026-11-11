@@ -8,8 +8,7 @@ use crate::ctx::{Ctx, Level};
 use crate::typer::Typer;
 use syntax::ast::NodeId;
 use syntax::ast::flags as f;
-use tasty::Kind;
-use tasty::nme;
+use tasty::{Kind, nme};
 
 impl Typer<'_> {
     /// Whether definition `tree` of `name` and `kind` in `ctx` conflicts with a definition this

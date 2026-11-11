@@ -7,9 +7,8 @@ use super::super::Typer;
 use super::OverrideChecks;
 use crate::symbols::{Completion, Syms};
 use syntax::ast::{Ast, Tree};
-use tasty::nme;
 use tasty::tags::{ERASED, INLINE, MACRO, PRIVATE};
-use tasty::{Kind, SymbolId, Universe};
+use tasty::{Kind, SymbolId, Universe, nme};
 
 impl OverrideChecks {
     /// Why two members of the class, or one of them and an inherited member of another name or

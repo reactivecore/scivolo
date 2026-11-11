@@ -7,9 +7,8 @@ use super::macros::{MacroArg, MacroCall};
 use super::{Inlining, Unsupported};
 use crate::tpd::{List, TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::nme;
 use tasty::tags::INLINE;
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, nme};
 
 impl Inlining<'_> {
     /// The call of the macro implementation that splice argument `closure`, a context function

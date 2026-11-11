@@ -6,9 +6,8 @@ use super::super::Typer;
 use super::override_kinds::kind_refusal;
 use super::{OverrideChecks, overridable};
 use syntax::ast::flags as f;
-use tasty::nme;
 use tasty::tags::{EXTENSION, FINAL, INLINE};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, nme};
 
 impl OverrideChecks {
     /// Why a member of `own`, the class's declarations, may not override a member of a base

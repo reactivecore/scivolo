@@ -7,9 +7,8 @@
 use super::Typer;
 use syntax::ast::{Attrs, NodeId, Span, Tree};
 use syntax::scan::chars::{is_identifier_part, is_operator_part};
-use tasty::SymbolId;
-use tasty::nme;
 use tasty::tags::{CASE, INFIX};
+use tasty::{SymbolId, nme};
 
 impl Typer<'_> {
     /// Checks call `id` of `meth` through `fun` written infix: an alphanumeric operator, not

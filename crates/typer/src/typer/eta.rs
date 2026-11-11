@@ -12,8 +12,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId};
-use tasty::{name_kinds, nme};
+use tasty::{MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId, name_kinds, nme};
 
 impl Typer<'_> {
     /// The arity of the function method reference `tree` is eta-expanded to against `pt`, `None`

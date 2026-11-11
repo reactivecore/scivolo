@@ -7,9 +7,8 @@ use super::exports::Export;
 use crate::case_members::is_synthesized_override;
 use crate::typer::Typer;
 use syntax::ast::Span;
-use tasty::tags as t;
 use tasty::{Kind, SymbolId, Type, TypeId};
-use tasty::{name_kinds, nme};
+use tasty::{name_kinds, nme, tags as t};
 
 impl Typer<'_> {
     /// Adds the forwarders of a wildcard selector at `span` of `e`, of givens if `given`, of the

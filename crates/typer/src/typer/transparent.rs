@@ -10,9 +10,8 @@ use crate::inlining::Unsupported;
 use crate::tpd::{MatchKind, TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::NodeId;
-use tasty::nme;
 use tasty::tags::{INLINE, MACRO, TRANSPARENT};
-use tasty::{Kind, SymbolId, Type, TypeVars};
+use tasty::{Kind, SymbolId, Type, TypeVars, nme};
 
 /// The definition of an inline method of the unit.
 #[derive(Clone, Copy)]

@@ -6,8 +6,7 @@
 use super::super::Typer;
 use super::{OverrideChecks, overridable};
 use syntax::ast::flags as f;
-use tasty::nme;
-use tasty::{SymbolId, Universe};
+use tasty::{SymbolId, Universe, nme};
 
 impl OverrideChecks {
     /// Whether a member of the class with an `override` modifier overrides nothing in its base

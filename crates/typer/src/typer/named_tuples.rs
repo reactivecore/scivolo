@@ -10,8 +10,7 @@ use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::constant::Constant;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
-use tasty::TypeId;
-use tasty::nme;
+use tasty::{TypeId, nme};
 
 impl Typer<'_> {
     /// The names and values of tuple `trees` if any element is a named argument; `Err` if only

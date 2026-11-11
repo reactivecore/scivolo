@@ -10,8 +10,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Span, TName, Tree};
-use tasty::TypeId;
-use tasty::nme;
+use tasty::{TypeId, nme};
 
 /// Whether `name` is an assignment operator such as `+=` (dotty's `isOpAssignmentName`).
 fn is_op_assignment_name(name: &str) -> bool {

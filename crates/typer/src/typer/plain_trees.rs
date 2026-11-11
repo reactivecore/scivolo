@@ -4,9 +4,8 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Tree;
-use tasty::nme;
 use tasty::tags::{ABSTRACT, INLINE, TRAIT};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, nme};
 
 impl Typer<'_> {
     /// Whether dotty types `tree` the same whatever the expected type: a literal, `this`, a

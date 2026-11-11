@@ -10,8 +10,7 @@ use super::super::unapply_args::UnapplyArgs;
 use super::{RUNTIME_CHECKED, Refutable, UNCHECKED, has_annotation};
 use crate::defn::PRODUCT;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::nme;
-use tasty::{Const, Type, TypeId, Universe, constant};
+use tasty::{Const, Type, TypeId, Universe, constant, nme};
 
 /// Finds the first reason dotty's `checkIrrefutable` finds why pattern `pat` may not match a
 /// value of type `pt`.

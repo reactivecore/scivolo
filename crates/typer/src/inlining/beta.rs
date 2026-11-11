@@ -9,9 +9,8 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
-use tasty::nme;
 use tasty::tags::{MUTABLE, SYNTHETIC};
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, nme};
 
 impl Inlining<'_> {
     /// `t`, owned by `owner`, beta-reduced if it applies a closure's `apply` to arguments.

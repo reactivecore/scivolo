@@ -7,8 +7,7 @@ use super::Typer;
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::SymbolId;
-use tasty::nme;
+use tasty::{SymbolId, nme};
 
 impl Typer<'_> {
     /// The context of the arguments applied to `fun` in `ctx`.

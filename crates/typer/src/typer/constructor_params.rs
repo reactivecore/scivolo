@@ -5,8 +5,7 @@
 
 use super::Typer;
 use syntax::ast::{NodeId, Tree};
-use tasty::nme;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// Bounds each type parameter of secondary constructor `sym`, defined by `def`, by the type

@@ -10,8 +10,7 @@ use crate::typer::Typer;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
-use tasty::nme;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 
 /// The annotation classes refused: those whose meaning dotty's later phases implement and the
 /// lowering does not. A backend's own annotations are its code generator's to read or refuse.

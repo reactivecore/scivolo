@@ -5,9 +5,8 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
-use tasty::nme;
 use tasty::tags::{CONTRAVARIANT, COVARIANT};
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{Kind, SymbolId, TypeId, nme};
 
 impl Typer<'_> {
     /// The type of full name `full`; for an enum parent `E[...]`, the enum class applied to the

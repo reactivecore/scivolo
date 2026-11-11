@@ -8,8 +8,7 @@ use super::super::paths::MAX_PATH_DEPTH;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
-use tasty::nme;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, nme};
 
 /// An implicit value or method and the prefix it is referenced through.
 #[derive(Clone, Copy, PartialEq, Debug)]

@@ -10,9 +10,8 @@ use crate::defn::INLINE_PARAM;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::{Span, TName};
-use tasty::nme;
 use tasty::tags::{INLINE, INLINEPROXY};
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, nme};
 
 impl Expansion<'_, '_> {
     /// The type of a new proxy binding argument `arg` of parameter `p` of type `formal`: a value,

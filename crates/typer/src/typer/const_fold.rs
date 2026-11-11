@@ -7,9 +7,8 @@ use super::const_ops::{fold_binop, fold_unop};
 use super::constants::of_type;
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
 use syntax::ast::constant::Constant as C;
-use tasty::nme;
 use tasty::tags::CLASSconst;
-use tasty::{PRIMITIVE_VALUE_CLASSES, Type, TypeId};
+use tasty::{PRIMITIVE_VALUE_CLASSES, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// The constant `tree` denotes, by its form or its type (dotty's `ConstantTree`).

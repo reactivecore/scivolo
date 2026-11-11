@@ -4,9 +4,8 @@
 
 use super::unify::meet;
 use super::{At, Constraint};
-use tasty::nme;
 use tasty::tags::PRIVATE;
-use tasty::{ANY, Kind, SymbolId, Type, TypeId, TypeVars, Universe};
+use tasty::{ANY, Kind, SymbolId, Type, TypeId, TypeVars, Universe, nme};
 
 impl Constraint {
     /// Whether a local symbol escaped into the bound of a variable made before it.

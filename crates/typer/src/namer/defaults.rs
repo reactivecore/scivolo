@@ -5,8 +5,7 @@
 
 use crate::typer::Typer;
 use syntax::ast::flags as f;
-use tasty::nme;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// The type of the parameter default getter `getter` supplies, if it is one, and that type

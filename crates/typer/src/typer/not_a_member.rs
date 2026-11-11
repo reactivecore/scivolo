@@ -9,9 +9,8 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::tree::NumberKind;
 use syntax::ast::{Attrs, NodeId, TName, Tree};
-use tasty::nme;
 use tasty::tags::{OBJECT, OPAQUE};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe, nme};
 
 /// The classes whose members dotty's selection finds otherwise or tries further.
 const SPECIAL_SITES: [&str; 5] =

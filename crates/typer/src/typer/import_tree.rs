@@ -9,8 +9,7 @@ use super::imports::{ImportEntry, ImportInfo};
 use crate::ctx::Level;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, TName, Tree};
-use tasty::nme;
-use tasty::{Type, TypeId};
+use tasty::{Type, TypeId, nme};
 
 impl Typer<'_> {
     /// The typed import `id`, its path typed when its level was first searched or now.

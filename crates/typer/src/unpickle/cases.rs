@@ -7,9 +7,8 @@
 use super::{Refusal, Unpickler};
 use crate::tpd::{MatchKind, TNodeId, Tree as T};
 use syntax::ast::TName;
-use tasty::nme;
 use tasty::tags::*;
-use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, Type, TypeId, View, view};
+use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, Type, TypeId, View, nme, view};
 
 impl Unpickler<'_> {
     /// `MATCH` of a selector, or a `summonFrom` without one; typed as its cases' lub.

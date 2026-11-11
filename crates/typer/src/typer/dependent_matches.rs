@@ -6,8 +6,7 @@
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::nme;
-use tasty::{ANY, NameId, Type, TypeId};
+use tasty::{ANY, NameId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// The cases of match type `pt` if a match on `sel` with cases `cases` has its shape: as many

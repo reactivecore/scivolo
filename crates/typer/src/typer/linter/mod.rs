@@ -10,8 +10,7 @@ use super::java_classes::is_java_member;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::config::Lints;
 use syntax::diag::{Message, MessageId};
-use tasty::nme;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe, nme};
 
 /// Decides whether a statement's value is worth a warning under `-Wnonunit-statement`: the
 /// result of a call such as `list.map(f)` is, while `()`, `sb.append(x)` returning its receiver,

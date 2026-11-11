@@ -9,9 +9,8 @@ use super::OverrideChecks;
 use crate::defn::{EQUALS, PRODUCT};
 use crate::symbols::Syms;
 use rustc_hash::FxHashMap;
-use tasty::nme;
 use tasty::tags::{ARTIFACT, CASE, ENUM, MUTABLE, PRIVATE};
-use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe, nme};
 
 impl OverrideChecks {
     /// Why the class, which is concrete, may not be defined, if it may not: an abstract term

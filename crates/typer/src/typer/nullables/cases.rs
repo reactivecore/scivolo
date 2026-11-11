@@ -13,8 +13,7 @@ use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::NodeId;
 use syntax::ast::constant::Constant;
 use syntax::names::Names;
-use tasty::TypeId;
-use tasty::nme;
+use tasty::{TypeId, nme};
 
 impl Typer<'_> {
     /// Types cases `ids` against selector `sel` of widened type `selector`, each with the body

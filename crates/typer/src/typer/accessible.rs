@@ -5,9 +5,8 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
-use tasty::nme;
 use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// Whether `sym` may be referred to from `ctx` through some prefix.

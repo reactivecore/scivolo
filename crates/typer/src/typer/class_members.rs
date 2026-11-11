@@ -4,8 +4,7 @@
 
 use super::Typer;
 use crate::symbols::Completion;
-use tasty::nme;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// The members named `name` of class `c`, its base classes' included: the first type member,

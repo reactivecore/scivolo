@@ -8,8 +8,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
 use syntax::ast::children::Child;
 use syntax::ast::{Ast, NodeId, TName, Tree};
-use tasty::nme;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 
 impl Typer<'_> {
     /// `MissingIdent` for identifier `id` named `name` that `find_ref` finds nowhere in `ctx`, an

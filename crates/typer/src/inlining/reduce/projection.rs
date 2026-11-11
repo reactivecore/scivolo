@@ -8,9 +8,8 @@ use crate::inlining::Unsupported;
 use crate::inlining::copy::TreeTypeMap;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
-use tasty::nme;
 use tasty::tags::{CASE, PARAMsetter, SYNTHETIC, TRAIT};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 
 /// The class of an instance creation, its arguments, the bindings around it and whether it is
 /// evaluated before the selection.

@@ -10,9 +10,8 @@ use super::Inlining;
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
-use tasty::nme;
 use tasty::tags::{FINAL, INLINE, MUTABLE, PARAMsetter, TRAIT};
-use tasty::{Const, Kind, SymbolId, Type, TypeId, constant};
+use tasty::{Const, Kind, SymbolId, Type, TypeId, constant, nme};
 
 impl Inlining<'_> {
     /// `t` as a literal if its type is a constant and it is pure, or idempotent when it is an

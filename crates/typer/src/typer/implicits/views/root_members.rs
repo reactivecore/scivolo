@@ -13,9 +13,8 @@ use crate::symbols::Completion;
 use rustc_hash::FxHashSet;
 use syntax::ast::flags as f;
 use syntax::ast::{Ast, NodeId, TName, Tree};
-use tasty::nme;
 use tasty::tags::OBJECT;
-use tasty::{Kind, SymbolId, TypeId, Universe};
+use tasty::{Kind, SymbolId, TypeId, Universe, nme};
 
 impl Typer<'_> {
     /// Tells whether an extension method or implicit view may give class `q` of type `site`

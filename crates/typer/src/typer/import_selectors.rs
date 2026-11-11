@@ -10,8 +10,7 @@ use crate::ctx::{Ctx, Level};
 use crate::inlining::ImportSelector;
 use crate::tpd::TNodeId;
 use syntax::ast::{List, NodeId, Tree};
-use tasty::nme;
-use tasty::{SymbolId, TypeId};
+use tasty::{SymbolId, TypeId, nme};
 
 impl Typer<'_> {
     /// The selectors `selectors`, their bounds typed in `ctx`.

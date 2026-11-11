@@ -11,8 +11,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Span, Tree};
-use tasty::nme;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// Defines the self symbol of class `cls` from self definition `s`, its type left to

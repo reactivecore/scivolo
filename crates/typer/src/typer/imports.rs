@@ -9,8 +9,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, LevelId};
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, Tree};
-use tasty::nme;
-use tasty::{SymbolId, TypeId};
+use tasty::{SymbolId, TypeId, nme};
 
 /// A selector `name => rename`; `name` empty for `given`, `rename` `_` for an unimport; the
 /// typed bound of a `given T`.

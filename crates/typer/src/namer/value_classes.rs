@@ -10,8 +10,7 @@ use crate::typer::Typer;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, Tree};
 use syntax::diag::{Message, MessageId};
-use tasty::nme;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 
 const PRIMITIVES: [&str; 9] = [
     "scala.Boolean",

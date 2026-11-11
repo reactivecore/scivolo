@@ -4,9 +4,8 @@
 
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::SymbolId;
-use tasty::nme;
 use tasty::tags::{CASE, ENUM, SYNTHETIC};
+use tasty::{SymbolId, nme};
 
 impl Typer<'_> {
     fn is_enum_case(&self, c: SymbolId) -> bool {

@@ -6,9 +6,8 @@
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, map_children};
-use tasty::nme;
 use tasty::tags::{CASE, PARAMsetter, SYNTHETIC, TRAIT};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 
 impl Inlining<'_> {
     /// `t` with each selection `new C(args).x` or `C(args).x` of parameter `x` of a class

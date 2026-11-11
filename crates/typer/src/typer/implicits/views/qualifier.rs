@@ -10,8 +10,7 @@ use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::{Ast, NodeId, Tree};
 use syntax::config::Features;
-use tasty::nme;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, nme};
 
 /// How a selection whose members do not apply to the arguments is retried.
 pub enum QualifierView {

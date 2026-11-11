@@ -10,8 +10,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName, Tree as S};
-use tasty::nme;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {

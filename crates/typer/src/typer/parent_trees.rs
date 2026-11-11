@@ -9,8 +9,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::SymbolId;
-use tasty::nme;
+use tasty::{SymbolId, nme};
 
 impl Typer<'_> {
     /// The parent trees of class `cls`: those of `parents` typed in `ctx` without the duplicates

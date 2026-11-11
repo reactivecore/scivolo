@@ -6,8 +6,7 @@
 
 use super::Typer;
 use syntax::ast::flags as f;
-use tasty::nme;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 
 impl Typer<'_> {
     /// Per parameter of the first value clause of method `s`, whether it has a default argument,

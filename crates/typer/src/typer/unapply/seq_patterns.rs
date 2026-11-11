@@ -9,8 +9,7 @@ use super::super::{Pt, Typer};
 use super::{SEQ_WILDCARD, UnapplyPattern, is_named_pattern, is_seq_wildcard};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::nme;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, Type, TypeId, nme};
 
 impl UnapplyPattern {
     /// Types the argument patterns of an `unapplySeq` with result type `result`, those before the

@@ -2,8 +2,7 @@
 
 use super::{Refusal, Unpickler};
 use crate::tpd::TNodeId;
-use tasty::nme;
-use tasty::{NameId, Type, TypeId, Universe};
+use tasty::{NameId, Type, TypeId, Universe, nme};
 
 impl Unpickler<'_> {
     /// Refuses tree `t` if its type is not admitted.

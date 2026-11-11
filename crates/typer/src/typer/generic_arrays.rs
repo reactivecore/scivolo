@@ -7,9 +7,8 @@
 use super::Typer;
 use crate::defn::ARRAY;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::nme;
 use tasty::tags::OPAQUE;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     pub fn converted_new_generic_array(&mut self, tree: TNodeId) -> Result<TNodeId, &'static str> {

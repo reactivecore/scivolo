@@ -7,8 +7,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName};
-use tasty::nme;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 /// What a name refers to: its prefix (`None` for a local) and the symbols it denotes, several
 /// for an overloaded method.

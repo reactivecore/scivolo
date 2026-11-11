@@ -9,10 +9,9 @@ use crate::defn::type_ref;
 use crate::signatures::result_sig;
 use crate::tpd::TNodeId;
 use syntax::ast::TName;
-use tasty::nme;
 use tasty::tags::*;
-use tasty::write::Name;
 use tasty::{SymbolId, Type, TypeId};
+use tasty::{nme, write::Name};
 
 impl TreePickler<'_> {
     /// The name of tree name `name`: a default getter's, else `sym`'s name if it is the symbol's.

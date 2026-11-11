@@ -8,9 +8,8 @@ use crate::typer::Typer;
 use crate::typer::stability::is_stable_path;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{List, NodeId, Span, Tree};
-use tasty::nme;
-use tasty::tags as t;
 use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{nme, tags as t};
 
 /// A forwarder of an export clause: `sym` forwards to member `target` of the clause's path.
 #[derive(Clone, Copy)]

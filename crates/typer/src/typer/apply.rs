@@ -7,8 +7,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Attrs, List, NodeId, Tree};
 use syntax::config::Features;
-use tasty::nme;
-use tasty::{Kind, NameId, Type, TypeId};
+use tasty::{Kind, NameId, Type, TypeId, nme};
 
 impl Typer<'_> {
     pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, fun_ctx: Ctx) -> TNodeId {

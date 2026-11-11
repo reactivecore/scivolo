@@ -6,8 +6,7 @@
 use super::Typer;
 use crate::ctx::{Ctx, Level};
 use syntax::config::Features;
-use tasty::NullMode;
-use tasty::nme;
+use tasty::{NullMode, nme};
 
 impl Typer<'_> {
     /// Whether feature `f`, `scala.language.name` (`name` dotted or not), is enabled in `ctx`.

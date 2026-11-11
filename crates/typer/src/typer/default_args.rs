@@ -7,8 +7,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
 use tasty::tags::{OBJECT, SYNTHETIC};
-use tasty::{Kind, SymbolId, Type};
-use tasty::{name_kinds, nme};
+use tasty::{Kind, SymbolId, Type, name_kinds, nme};
 
 /// A clause a call applies: its value or type arguments.
 enum Clause {

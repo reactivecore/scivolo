@@ -7,8 +7,7 @@ use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::typer::{InlineDef, Typer};
 use syntax::ast::{NodeId, Span, Tree};
-use tasty::nme;
-use tasty::{Kind, NameId, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// Completes the info of `sym` if it is a script symbol not completed yet.

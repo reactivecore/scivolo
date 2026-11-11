@@ -8,8 +8,7 @@ use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span};
-use tasty::nme;
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{Kind, SymbolId, TypeId, nme};
 
 impl Typer<'_> {
     pub fn boolean(&mut self) -> TypeId {

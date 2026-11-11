@@ -7,9 +7,8 @@
 use super::Typer;
 use super::did_you_mean::{OBJECT_MEMBERS, close, distance};
 use crate::ctx::Ctx;
-use tasty::nme;
 use tasty::tags::{PRIVATE, SYNTHETIC};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// The hint for missing member `missing`, a type if `is_type`, of class `class` selected from

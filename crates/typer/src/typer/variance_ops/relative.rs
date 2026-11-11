@@ -3,8 +3,7 @@
 
 use super::{BIVARIANT, COVARIANT, INVARIANT, Misplaced, VarianceOps, declared, flip};
 use syntax::ast::flags as f;
-use tasty::nme;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, nme};
 
 impl VarianceOps<'_> {
     /// Determines the variance of an occurrence of type parameter `tvar` in the type of `base`,

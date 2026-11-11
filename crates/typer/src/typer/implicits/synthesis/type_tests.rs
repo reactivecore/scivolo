@@ -10,8 +10,7 @@ use crate::tpd::{TNodeId, Tpd, Tree as T};
 use crate::typer::{Pt, Typer};
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, TName, Tree};
-use tasty::nme;
-use tasty::{SymbolId, TypeId, Universe};
+use tasty::{SymbolId, TypeId, Universe, nme};
 
 const NO_TEST: [&str; 3] = ["scala.AnyVal", "scala.AnyRef", "java.lang.Object"];
 

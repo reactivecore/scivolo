@@ -11,8 +11,7 @@ use crate::defn::CAN_EQUAL;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::Features;
-use tasty::nme;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, nme};
 
 impl Typer<'_> {
     /// Checks comparison `fun(arg)` at `at` of type `arg_tpe` in `ctx`, if `fun` selects `Any.==`
