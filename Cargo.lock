@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "clap",
  "libc",
@@ -642,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-aot"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "clap",
  "cranelift-codegen",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-classfile"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "rustc-hash",
  "zip",
@@ -672,7 +672,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-jvm"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "clap",
  "scivolo-classfile",
@@ -689,7 +689,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-libimage"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "libc",
  "rustc-hash",
@@ -698,7 +698,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-libs"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "scivolo-libimage",
  "scivolo-tasty",
@@ -707,7 +707,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-lower"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "clap",
  "rustc-hash",
@@ -723,7 +723,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-macros"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "scivolo-libs",
  "scivolo-names",
@@ -735,18 +735,18 @@ dependencies = [
 
 [[package]]
 name = "scivolo-names"
-version = "0.1.6"
+version = "0.2.0"
 
 [[package]]
 name = "scivolo-nir"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "rustc-hash",
 ]
 
 [[package]]
 name = "scivolo-nir-dump"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "clap",
  "rustc-hash",
@@ -756,7 +756,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-repl"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "libc",
  "scivolo-libimage",
@@ -772,11 +772,11 @@ dependencies = [
 
 [[package]]
 name = "scivolo-snrt"
-version = "0.1.6"
+version = "0.2.0"
 
 [[package]]
 name = "scivolo-syntax"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "clap",
  "hashbrown 0.17.1",
@@ -787,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-tasty"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "hashbrown 0.17.1",
  "md-5",
@@ -801,7 +801,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-typer"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "clap",
  "rustc-hash",
@@ -812,7 +812,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-vm"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "corosensei",
  "libc",
