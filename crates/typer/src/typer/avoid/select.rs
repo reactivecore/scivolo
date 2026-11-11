@@ -44,6 +44,17 @@ impl Avoid<'_> {
         Some(approx::range(t.u, Approx::Exact(lo), Approx::Exact(hi), v))
     }
 
+    /// Approximates `tpe`, a reference `pre.name` by name, as the reference to the symbol it
+    /// resolves to if `pre` mentions a local; gives up if it resolves to none.
+    pub fn named(self, t: &mut Typer, tpe: TypeId, pre: TypeId, v: i8) -> Option<Approx> {
+        if !t.refers_to(pre, self.locals) {
+            return Some(Approx::Exact(tpe));
+        }
+        let s = t.u.resolve_ref(tpe)?;
+        let resolved = t.u.intern_type(Type::Sym(Some(pre), s));
+        self.at(t, resolved, v)
+    }
+
     /// Approximates a selection such as `x.T` whose prefix `x` cannot be approximated: by what the
     /// member stands for when that is known, or by the type of a value member where a supertype
     /// will do; gives up otherwise.
