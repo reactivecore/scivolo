@@ -6,6 +6,7 @@
 use super::{Kind, SymbolId, Universe};
 use crate::tags::{ENUM, GIVEN, IMPLICIT};
 use crate::types::{Type, TypeId};
+use names::nme;
 
 /// Whether the type being mapped and the result of a method type in it are made flexible.
 #[derive(Clone, Copy)]
@@ -19,7 +20,7 @@ impl Universe {
     pub fn nullified_member(&mut self, def: SymbolId, t: TypeId) -> TypeId {
         let s = self.symbol(def);
         let Some(owner) = s.owner else { return t };
-        let skipped = matches!(s.name.as_str(), "TYPE" | "getClass" | "toString")
+        let skipped = matches!(s.name.as_str(), nme::TYPE_ | nme::GET_CLASS | nme::TO_STRING)
             || !matches!(s.kind, Kind::Def | Kind::Val)
             || s.flags.has(ENUM)
             || self.is_module(def)

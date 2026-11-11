@@ -9,9 +9,10 @@ use super::descriptors::{class_internal, method_descriptor, with_receiver};
 use super::{Gen, is_static_member, method_name, unsupported};
 use classfile::{FieldOp, Invoke};
 use lower::Result;
+use names::{name_kinds, nme};
 use syntax::ast::Span;
+use tasty::SymbolId;
 use tasty::tags::PRIVATE;
-use tasty::{SymbolId, name_kinds, nme};
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {

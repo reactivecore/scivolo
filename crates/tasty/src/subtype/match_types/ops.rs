@@ -9,6 +9,7 @@ use super::super::Cmp;
 use crate::Kind;
 use crate::tags::{FALSEconst, INTconst, LONGconst, TRUEconst};
 use crate::types::{Type, TypeId};
+use names::nme;
 
 /// How many term references `widen_term_refs` widens.
 const MAX_WIDENINGS: u32 = 64;
@@ -119,8 +120,8 @@ impl Cmp<'_> {
 fn fold(module: &str, name: &str, args: &[C]) -> Option<C> {
     use C::*;
     Some(match (module, name, args) {
-        ("any", "==", [a, b]) => Bool(equal(a, b)),
-        ("any", "!=", [a, b]) => Bool(!equal(a, b)),
+        ("any", nme::EQ, [a, b]) => Bool(equal(a, b)),
+        ("any", nme::NE, [a, b]) => Bool(!equal(a, b)),
         ("int", "S", [Int(n)]) if *n >= 0 && *n < i32::MAX => Int(n + 1),
         ("int", "Abs", [Int(n)]) => Int(n.wrapping_abs()),
         ("int", "Negate", [Int(n)]) => Int(n.wrapping_neg()),
@@ -133,10 +134,10 @@ fn fold(module: &str, name: &str, args: &[C]) -> Option<C> {
             c => c,
         },
         ("long", _, [Long(a), Long(b)]) => int_op(name, *a, *b)?,
-        ("boolean", "!", [Bool(a)]) => Bool(!a),
-        ("boolean", "&&", [Bool(a), Bool(b)]) => Bool(*a && *b),
-        ("boolean", "||", [Bool(a), Bool(b)]) => Bool(*a || *b),
-        ("boolean", "^", [Bool(a), Bool(b)]) => Bool(a ^ b),
+        ("boolean", nme::NOT, [Bool(a)]) => Bool(!a),
+        ("boolean", nme::ZAND, [Bool(a), Bool(b)]) => Bool(*a && *b),
+        ("boolean", nme::ZOR, [Bool(a), Bool(b)]) => Bool(*a || *b),
+        ("boolean", nme::XOR, [Bool(a), Bool(b)]) => Bool(a ^ b),
         _ => return None,
     })
 }
@@ -159,17 +160,17 @@ fn equal(a: &C, b: &C) -> bool {
 fn int_op(name: &str, a: i64, b: i64) -> Option<C> {
     use C::*;
     Some(match name {
-        "+" => Long(a.wrapping_add(b)),
-        "-" => Long(a.wrapping_sub(b)),
-        "*" => Long(a.wrapping_mul(b)),
-        "/" if b != 0 => Long(a.wrapping_div(b)),
-        "%" if b != 0 => Long(a.wrapping_rem(b)),
+        nme::ADD => Long(a.wrapping_add(b)),
+        nme::MINUS => Long(a.wrapping_sub(b)),
+        nme::MUL => Long(a.wrapping_mul(b)),
+        nme::DIV if b != 0 => Long(a.wrapping_div(b)),
+        nme::MOD if b != 0 => Long(a.wrapping_rem(b)),
         "Min" => Long(a.min(b)),
         "Max" => Long(a.max(b)),
-        "<" => Bool(a < b),
-        ">" => Bool(a > b),
-        "<=" => Bool(a <= b),
-        ">=" => Bool(a >= b),
+        nme::LT => Bool(a < b),
+        nme::GT => Bool(a > b),
+        nme::LE => Bool(a <= b),
+        nme::GE => Bool(a >= b),
         _ => return None,
     })
 }

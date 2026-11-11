@@ -7,7 +7,8 @@ use super::descriptors::{method_descriptor, with_receiver};
 use super::{Gen, java_flags, method_name, unsupported};
 use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile};
 use lower::Result;
-use tasty::{SymbolId, name_kinds, nme};
+use names::{name_kinds, nme};
+use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {

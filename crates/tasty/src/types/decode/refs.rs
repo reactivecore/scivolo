@@ -4,6 +4,7 @@ use super::Decoder;
 use crate::NodeId;
 use crate::tags::*;
 use crate::types::{Binder, Type};
+use names::nme;
 
 impl Decoder<'_> {
     /// A `TYPEREFdirect`, `TERMREFdirect`, `TYPEREFsymbol` or `TERMREFsymbol` at `id`.
@@ -25,8 +26,8 @@ impl Decoder<'_> {
     /// A `TYPEREFpkg` or `TERMREFpkg` at `id`.
     pub fn package_ref(&mut self, id: NodeId) -> Type {
         let name = self.text(id);
-        let name = name.strip_prefix("_root_").map_or(name, |n| n.trim_start_matches('.'));
-        let key = if name == "<empty>" { "" } else { name };
+        let name = name.strip_prefix(nme::ROOT_PKG).map_or(name, |n| n.trim_start_matches('.'));
+        let key = if name == nme::EMPTY_PACKAGE { "" } else { name };
         match self.packages.get(key) {
             Some(&p) => Type::Package(p),
             None => Type::PackageName(self.types.intern_name(name)),

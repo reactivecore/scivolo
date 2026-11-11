@@ -10,7 +10,8 @@ use super::descriptors::{class_descriptor, method_type};
 use super::{Gen, unsupported};
 use classfile::{ACC_PRIVATE, ACC_PUBLIC, ACC_STATIC, ClassFile, FieldOp, Invoke};
 use lower::Result;
-use tasty::{SymbolId, nme};
+use names::nme;
+use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
 const VAR_HANDLE: &str = "Ljava/lang/invoke/VarHandle;";

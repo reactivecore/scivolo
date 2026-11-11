@@ -3,7 +3,8 @@
 //! Signatures of method types (dotty's `jsig` of `MethodOrPoly`).
 
 use super::{Boxing, Sig};
-use tasty::{Type, TypeId, nme};
+use names::nme;
+use tasty::{Type, TypeId};
 
 impl Sig<'_> {
     /// A method type: type parameters at the top, parameters, result.

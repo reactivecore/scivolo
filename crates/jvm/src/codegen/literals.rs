@@ -7,8 +7,9 @@ use super::descriptors::{class_descriptor, class_internal, method_type, primitiv
 use super::{Gen, unsupported};
 use classfile::{FieldOp, Invoke};
 use lower::Result;
+use names::nme;
 use syntax::ast::constant::Constant;
-use tasty::{Erased, nme};
+use tasty::Erased;
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {

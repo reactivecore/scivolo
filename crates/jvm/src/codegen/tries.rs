@@ -8,7 +8,8 @@ use super::descriptors::{class_internal, descriptor};
 use super::{Gen, stash, unsupported};
 use classfile::{Label, value_slots};
 use lower::Result;
-use tasty::{SymbolId, nme};
+use names::nme;
+use tasty::SymbolId;
 use typer::tpd::{List, TNodeId, Tree};
 
 const THROWABLE: &str = "java/lang/Throwable";

@@ -54,6 +54,7 @@ use crate::library::Library;
 use crate::subtype::Unions;
 use crate::types::{Binder, TypeId, Types};
 use crate::{Ast, NodeId};
+use names::nme;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::io;
 
@@ -232,7 +233,7 @@ impl Universe {
         }
         match owner {
             Some(o) if self.symbol(o).kind == Kind::Package => match self.full_name(o).as_str() {
-                "" | "<empty>" => name.to_owned(),
+                "" | nme::EMPTY_PACKAGE => name.to_owned(),
                 package => format!("{}${name}", package.replace('.', "$")),
             },
             Some(o) => format!("{}${name}", self.expanded_prefix(o)),

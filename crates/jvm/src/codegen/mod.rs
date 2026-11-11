@@ -36,10 +36,11 @@ mod tries;
 pub use class_bytes::ClassBytes;
 
 use lower::{Lower, Result, Unsupported};
+use names::{name_kinds, nme};
 use std::collections::HashMap;
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, ARTIFACT, ENUM, FIELDaccessor, FINAL, MUTABLE, PRIVATE, STATIC, TRAIT};
-use tasty::{SymbolId, Universe, name_kinds, nme};
+use tasty::{SymbolId, Universe};
 use typer::pickle::Pickled;
 use typer::tpd::{TNodeId, Tree};
 

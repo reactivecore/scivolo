@@ -7,7 +7,8 @@ use super::callee::Receiver;
 use super::descriptors::with_receiver;
 use super::{Gen, method_name};
 use classfile::{ACC_PRIVATE, ACC_STATIC, ClassFile, Code, Invoke};
-use tasty::{SymbolId, name_kinds};
+use names::name_kinds;
+use tasty::SymbolId;
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {

@@ -17,6 +17,7 @@ use super::{Binder, NameId, Type, TypeId};
 use crate::Universe;
 use crate::tags::INFIX;
 use crate::view::{Const, constant};
+use names::nme;
 
 type Shown = Result<(), &'static str>;
 
@@ -94,7 +95,7 @@ impl SourcePrinter<'_> {
                 self.term_ref(p, &n)?
             }
             Type::This(c) => self.this(c)?,
-            Type::Package(s) if s == self.u.root() => self.paint(Highlight::Type, "_root_"),
+            Type::Package(s) if s == self.u.root() => self.paint(Highlight::Type, nme::ROOT_PKG),
             Type::Package(s) if self.full => self.package_name(s, true),
             Type::Package(s) => self.paint(Highlight::Type, &self.u.symbol(s).name.clone()),
             Type::Super(this, _) => {

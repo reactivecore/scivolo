@@ -11,6 +11,7 @@ use crate::symbols::encode;
 use crate::tags::{ERASED, INLINE, PRIVATE};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
+use names::{name_kinds, nme};
 
 /// `id` as a mangled identifier: its length in UTF-16 units, a `-` if it starts with a digit or
 /// `-`, then itself.
@@ -41,7 +42,11 @@ impl Universe {
     pub fn method_signature(&mut self, def: SymbolId) -> Option<String> {
         let s = self.symbol(def);
         let runtime = !s.flags.has(PRIVATE) && !s.flags.has(ERASED);
-        if s.kind != Kind::Def || !runtime || s.name == "<init>" || s.name.starts_with("super$") {
+        if s.kind != Kind::Def
+            || !runtime
+            || s.name == nme::CONSTRUCTOR
+            || s.name.starts_with(name_kinds::SUPER_PREFIX)
+        {
             return None;
         }
         if s.is_extern || s.owner.is_some_and(|o| self.symbol(o).is_extern) {
@@ -50,8 +55,10 @@ impl Universe {
         let builtins = self.defn();
         let primitive = match s.owner {
             Some(o) if o == builtins.any => true,
-            Some(o) if o == builtins.object => matches!(s.name.as_str(), "eq" | "ne" | "synchronized"),
-            Some(o) if s.name == "+" => self.full_name(o) == crate::defn::STRING,
+            Some(o) if o == builtins.object => {
+                matches!(s.name.as_str(), nme::REF_EQ | nme::REF_NE | nme::SYNCHRONIZED)
+            }
+            Some(o) if s.name == nme::ADD => self.full_name(o) == crate::defn::STRING,
             _ => false,
         };
         if primitive {

@@ -15,6 +15,7 @@ use classfile::{
     ACC_ABSTRACT, ACC_BRIDGE, ACC_ENUM, ACC_FINAL, ACC_INTERFACE, ACC_NATIVE, ACC_PROTECTED, ACC_PUBLIC,
     ACC_STATIC, ACC_SYNTHETIC, ACC_VARARGS, ClassInfo, ConstantValue, MemberInfo,
 };
+use names::nme;
 
 /// The class being entered: it, its object's class, and its type parameters with their bounds'
 /// text.
@@ -105,7 +106,7 @@ pub fn member(
     let visible = m.access & (ACC_PUBLIC | ACC_PROTECTED) != 0;
     let artifact = m.access & ACC_SYNTHETIC != 0 || method && m.access & ACC_BRIDGE != 0;
     let polymorphic = method && m.access & (ACC_NATIVE | ACC_VARARGS) == ACC_NATIVE | ACC_VARARGS;
-    if !visible || artifact || m.name == "<clinit>" {
+    if !visible || artifact || m.name == nme::STATIC_CONSTRUCTOR {
         return Ok(None);
     }
     if polymorphic {
@@ -162,7 +163,7 @@ fn constant_type(u: &mut Universe, descriptor: &str, c: &ConstantValue) -> Resul
 fn method_type(u: &mut Universe, owners: &Owners, m: &MemberInfo, text: &str) -> Result<TypeId, String> {
     let mut sig = Sig::new(text);
     let own = sig.type_params(u)?;
-    let constructor = m.name == "<init>";
+    let constructor = m.name == nme::CONSTRUCTOR;
     if constructor && !own.is_empty() {
         return Err(format!("constructor of signature `{text}` with type parameters of its own"));
     }

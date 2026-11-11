@@ -4,7 +4,8 @@
 //! The common superclass of two classes for stack map frames (dotty's `jvmWiseLUB`).
 
 use super::Gen;
-use tasty::{SymbolId, name_kinds};
+use names::name_kinds;
+use tasty::SymbolId;
 
 const OBJECT: &str = "java/lang/Object";
 

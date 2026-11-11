@@ -8,9 +8,10 @@ use super::descriptors::{class_internal, internal};
 use super::{Gen, unsupported};
 use classfile::{ACC_FINAL, ACC_SYNTHETIC, ClassFile, Last};
 use lower::Result;
+use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, PRIVATE};
-use tasty::{SymbolId, TypeId, name_kinds, nme};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {

@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/tasty/TastyUnpickler.scala
 //   tasty/src/dotty/tools/tasty/TastyFormat.scala
 use crate::cursor::{Cursor, Result};
+use ::names::name_kinds;
 use std::fmt::Write;
 
 /// 0-based index into the name table.
@@ -102,7 +103,7 @@ impl<'a> Names<'a> {
         match n {
             Name::Utf8(t) => s.push_str(t),
             Name::Qualified(a, b) => pair(s, *a, ".", *b),
-            Name::Expanded(a, b) => pair(s, *a, "$$", *b),
+            Name::Expanded(a, b) => pair(s, *a, name_kinds::EXPAND_SEPARATOR, *b),
             Name::ExpandPrefix(a, b) => pair(s, *a, "$", *b),
             Name::Unique { sep, num, under } => {
                 if let Some(u) = under {
@@ -115,8 +116,8 @@ impl<'a> Names<'a> {
                 self.write(s, *u, sig);
                 let _ = write!(s, "$default${}", i + 1);
             }
-            Name::SuperAccessor(u) => self.write_prefixed(s, "super$", *u, sig),
-            Name::InlineAccessor(u) => self.write_prefixed(s, "inline$", *u, sig),
+            Name::SuperAccessor(u) => self.write_prefixed(s, name_kinds::SUPER_PREFIX, *u, sig),
+            Name::InlineAccessor(u) => self.write_prefixed(s, name_kinds::INLINE_PREFIX, *u, sig),
             Name::BodyRetainer(u) => {
                 self.write(s, *u, sig);
                 s.push_str("$retainedBody");
@@ -157,7 +158,7 @@ impl<'a> Names<'a> {
     fn write_prefixed(&self, s: &mut String, prefix: &str, u: NameRef, sig: bool) {
         let split = match self.get(u) {
             Some(Name::Qualified(a, b)) => Some((*a, ".", *b)),
-            Some(Name::Expanded(a, b)) => Some((*a, "$$", *b)),
+            Some(Name::Expanded(a, b)) => Some((*a, name_kinds::EXPAND_SEPARATOR, *b)),
             Some(Name::ExpandPrefix(a, b)) => Some((*a, "$", *b)),
             _ => None,
         };

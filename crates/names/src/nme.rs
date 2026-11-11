@@ -343,3 +343,13 @@ pub const UNARY_TILDE: &str = "unary_~";
 pub const UNARY_PLUS: &str = "unary_+";
 /// The name `unary_-`.
 pub const UNARY_MINUS: &str = "unary_-";
+/// The name `!`.
+pub const NOT: &str = "!";
+/// The name `zero`.
+pub const ZERO: &str = "zero";
+/// The name `TYPE`.
+pub const TYPE_: &str = "TYPE";
+/// The suffix `$package` of a source file's package object.
+pub const TOPLEVEL_SUFFIX: &str = "$package";
+/// The prefix `rs$line$` of a REPL line's wrapper object.
+pub const REPL_SESSION_LINE: &str = "rs$line$";

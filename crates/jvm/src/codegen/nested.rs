@@ -8,8 +8,9 @@
 use super::descriptors::method_descriptor;
 use super::{Gen, java_flags, method_name};
 use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ClassFile, InnerClass};
+use names::nme;
 use std::collections::BTreeMap;
-use tasty::{Kind, SymbolId, nme};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The flags an `InnerClasses` entry keeps: all but `ACC_SUPER` and `ACC_MODULE`.

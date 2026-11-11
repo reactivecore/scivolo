@@ -6,7 +6,7 @@ use super::body::Body;
 use super::descriptors::{class_internal, descriptor};
 use super::{Gen, unsupported};
 use lower::Result;
-use tasty::nme;
+use names::nme;
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -45,13 +45,13 @@ impl Gen<'_, '_> {
                 b.code.element(&elem, false);
                 classfile::value_slots(&elem)
             }
-            ("update", &[i, value]) => {
+            (nme::UPDATE, &[i, value]) => {
                 self.operand(b, i, 'I')?;
                 self.expr_as(b, value, classfile::value_slots(&elem))?;
                 b.code.element(&elem, true);
                 0
             }
-            ("length", []) => {
+            (nme::LENGTH, []) => {
                 b.code.insn(0xbe);
                 1
             }

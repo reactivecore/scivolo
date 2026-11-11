@@ -9,9 +9,10 @@ use super::cond::{Test, jump_zero};
 use super::{Gen, unsupported};
 use classfile::{Invoke, Label};
 use lower::Result;
+use names::nme;
 use syntax::ast::constant::Constant;
 use tasty::tags::FINAL;
-use tasty::{Erased, SymbolId, nme};
+use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 const OBJECTS: (&str, &str) = ("java/lang/Object", "(Ljava/lang/Object;Ljava/lang/Object;)Z");
@@ -72,16 +73,16 @@ impl Gen<'_, '_> {
             _ => match self.boxed_primitive(qualifier) {
                 Some((letter, value)) => {
                     let (name, d) = match letter {
-                        'j' => ("longHash", "(J)I"),
-                        'd' => ("doubleHash", "(D)I"),
-                        _ => ("floatHash", "(F)I"),
+                        'j' => (nme::LONG_HASH, "(J)I"),
+                        'd' => (nme::DOUBLE_HASH, "(D)I"),
+                        _ => (nme::FLOAT_HASH, "(F)I"),
                     };
                     self.expr(b, value)?;
                     b.code.invoke(Invoke::Static, b.pool, statics, name, d);
                 }
                 None => {
                     self.expr(b, qualifier)?;
-                    b.code.invoke(Invoke::Static, b.pool, statics, "anyHash", "(Ljava/lang/Object;)I");
+                    b.code.invoke(Invoke::Static, b.pool, statics, nme::ANY_HASH, "(Ljava/lang/Object;)I");
                 }
             },
         }

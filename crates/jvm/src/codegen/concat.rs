@@ -10,8 +10,8 @@ use super::closures::BOOTSTRAP;
 use super::descriptors::{descriptor, method_type};
 use classfile::{Constant, Handle, Invoke};
 use lower::Result;
+use names::nme;
 use syntax::ast::constant::Constant as Literal;
-use tasty::nme;
 use typer::tpd::{TNodeId, Tree};
 
 /// The most argument slots of one `makeConcatWithConstants` call site.
@@ -57,7 +57,7 @@ impl Gen<'_, '_> {
         {
             self.expr(b, arg)?;
             let d = "(Ljava/lang/Object;)Ljava/lang/String;";
-            b.code.invoke(Invoke::Static, b.pool, "java/lang/String", "valueOf", d);
+            b.code.invoke(Invoke::Static, b.pool, "java/lang/String", nme::VALUE_OF, d);
             return Ok(1);
         }
         let mut operands: Vec<TNodeId> = operands.into_iter().filter(|&o| !empty(self, o)).collect();

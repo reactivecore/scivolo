@@ -8,7 +8,7 @@ use super::tries::{nop_if_needed, pending_cleanups};
 use super::{Gen, unsupported};
 use classfile::value_slots;
 use lower::Result;
-use tasty::nme;
+use names::nme;
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {

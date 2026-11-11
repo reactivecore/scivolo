@@ -8,9 +8,10 @@ use super::descriptors::{class_descriptor, descriptor};
 use super::{Gen, unsupported};
 use classfile::FieldOp;
 use lower::Result;
+use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
-use tasty::{Erased, SymbolId, Type, nme};
+use tasty::{Erased, SymbolId, Type};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// The class or array type a virtual call names.
@@ -20,7 +21,7 @@ pub enum Receiver {
 }
 
 /// `Object`'s methods a trait may override.
-const OBJECT_METHODS: [&str; 5] = [nme::EQUALS, nme::HASH_CODE, nme::TO_STRING, nme::CLONE, "finalize"];
+const OBJECT_METHODS: [&str; 5] = [nme::EQUALS, nme::HASH_CODE, nme::TO_STRING, nme::CLONE, nme::FINALIZE];
 
 /// After a call returning `Nothing$` an `athrow`, after one returning `Null$` a `null` in place
 /// of its value (dotty's `adapt`).
@@ -80,8 +81,8 @@ impl Gen<'_, '_> {
     pub fn check_call(&mut self, m: SymbolId, owner: SymbolId, span: Span) -> Result<()> {
         let name = self.l.u.symbol(m).name.clone();
         let owner_name = self.l.u.binary_name(owner);
-        let object_ops = ["eq", "ne", nme::SYNCHRONIZED, nme::EQ, "!=", nme::HASHHASH];
-        let any_ops = [nme::EQ, "!=", nme::HASHHASH, nme::IS_INSTANCE_OF, nme::AS_INSTANCE_OF];
+        let object_ops = [nme::REF_EQ, nme::REF_NE, nme::SYNCHRONIZED, nme::EQ, nme::NE, nme::HASHHASH];
+        let any_ops = [nme::EQ, nme::NE, nme::HASHHASH, nme::IS_INSTANCE_OF, nme::AS_INSTANCE_OF];
         let primitive = (owner_name == "scala.Any" && any_ops.contains(&name.as_str()))
             || (owner_name == "java.lang.Object" && object_ops.contains(&name.as_str()))
             || (owner_name == "java.lang.String" && name == nme::ADD)

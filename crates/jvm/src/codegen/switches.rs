@@ -9,9 +9,9 @@ use super::locals::int_like;
 use super::{Gen, unsupported};
 use classfile::{Invoke, Label};
 use lower::Result;
+use names::nme;
 use std::collections::BTreeMap;
 use syntax::ast::constant::Constant;
-use tasty::nme;
 use typer::tpd::{List, TNodeId, Tree};
 
 /// The least share of keys in the key range for a `tableswitch`.

@@ -8,6 +8,7 @@ use super::{DOT, GLOBAL, Printer, simple};
 use crate::tags::{CASE, LAZY, MUTABLE, OBJECT, TRAIT};
 use crate::types::{NameId, Type, TypeId};
 use crate::{Kind, SymbolId, module_name};
+use names::nme;
 
 impl Printer<'_> {
     pub fn def(&mut self, s: SymbolId) -> String {
@@ -187,7 +188,7 @@ impl Printer<'_> {
             t = parent;
         }
         if let [(name, info)] = &members[..]
-            && name == "apply"
+            && name == nme::APPLY
             && self.is_function_class(t)
         {
             return super::paren(GLOBAL, prec, self.as_function(*info));

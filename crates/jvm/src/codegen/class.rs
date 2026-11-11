@@ -9,8 +9,9 @@ use super::descriptors::{class_descriptor, class_internal, internal, method_desc
 use super::{ClassBytes, Gen, java_flags, unsupported};
 use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile, Last};
 use lower::Result;
+use names::nme;
+use tasty::SymbolId;
 use tasty::tags::MUTABLE;
-use tasty::{SymbolId, nme};
 use typer::tpd::{TNodeId, Template, Tree};
 
 impl Gen<'_, '_> {

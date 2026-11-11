@@ -9,6 +9,7 @@ use super::{Printer, simple};
 use crate::tags::OBJECT;
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe, is_package_object_name, module_class_name, module_name};
+use names::nme;
 use rustc_hash::FxHashSet;
 
 /// A path by its qualified name and by its text.
@@ -39,7 +40,7 @@ pub fn is_omitted(full: &str) -> bool {
 
 /// Qualified name `full` after its last REPL wrapper object: `O` for `rs$line$3.O`.
 pub fn after_wrapper(full: &str) -> &str {
-    match full.rfind("rs$line$") {
+    match full.rfind(nme::REPL_SESSION_LINE) {
         Some(at) => full[at..].split_once('.').map_or("", |(_, rest)| rest),
         None => full,
     }
@@ -48,7 +49,7 @@ pub fn after_wrapper(full: &str) -> &str {
 /// The text of `path` as a prefix, `.` included; empty if the prefix is omitted.
 pub fn prefix_text(path: Path) -> String {
     let last = path.full.rsplit('.').next().unwrap_or("");
-    match is_omitted(&path.full) || last.contains("rs$line$") || path.shown.is_empty() {
+    match is_omitted(&path.full) || last.contains(nme::REPL_SESSION_LINE) || path.shown.is_empty() {
         true => String::new(),
         false => format!("{}.", path.shown),
     }
@@ -152,7 +153,7 @@ fn select(prefix: Path, name: &str) -> Path {
     if is_package_object(name) {
         return prefix;
     }
-    if matches!(name, "" | "_root_" | "<root>" | "<empty>") {
+    if matches!(name, "" | nme::ROOT_PKG | nme::ROOT | nme::EMPTY_PACKAGE) {
         return Path::default();
     }
     let full = join(&prefix.full, name);

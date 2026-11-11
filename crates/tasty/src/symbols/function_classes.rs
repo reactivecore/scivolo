@@ -9,6 +9,7 @@ use super::{Kind, SymbolId, Universe};
 use crate::tags::{CONTRAVARIANT, COVARIANT, TRAIT};
 use crate::types::{Type, TypeId};
 use crate::{ANY, NOTHING};
+use names::nme;
 
 /// The largest arity of a function class the library defines (dotty's
 /// `MaxImplementedFunctionArity`).
@@ -58,7 +59,7 @@ pub fn enter_class(
     let params: Vec<_> =
         args.iter().enumerate().map(|(i, &t)| (u.types.intern_name(&format!("x${i}")), t)).collect();
     let info = u.types.intern_method(binder, &params, result, contextual, contextual);
-    let apply = synthetic(u, class, "apply", Kind::Def, &[]);
+    let apply = synthetic(u, class, nme::APPLY, Kind::Def, &[]);
     u.infos.insert(apply, info);
     u.set_deferred(apply, true);
     class

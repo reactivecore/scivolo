@@ -8,8 +8,8 @@ use super::body::{Body, Operand};
 use super::cond::{Test, kind};
 use super::{Gen, unsupported};
 use lower::Result;
+use names::nme;
 use syntax::ast::constant::Constant;
-use tasty::nme;
 use typer::tpd::{TNodeId, Tree};
 
 const PRIMITIVES: [&str; 8] = [
@@ -33,7 +33,7 @@ impl Gen<'_, '_> {
         let owner = self.l.u.binary_name(self.l.u.symbol(m).owner?);
         let name = self.l.u.symbol(m).name.clone();
         let reference = matches!(owner.as_str(), "scala.Any" | "scala.AnyRef" | "java.lang.Object")
-            && matches!(name.as_str(), "eq" | "ne" | nme::EQ | "!=");
+            && matches!(name.as_str(), nme::REF_EQ | nme::REF_NE | nme::EQ | nme::NE);
         if !PRIMITIVES.contains(&owner.as_str()) && !reference {
             return None;
         }
@@ -76,7 +76,8 @@ impl Gen<'_, '_> {
         if name.starts_with("to") {
             return self.conversion(b, &name, receiver, &args, to);
         }
-        let logical = matches!(name.as_str(), "unary_!" | nme::ZAND | nme::ZOR) || Test::of(&name).is_some();
+        let logical =
+            matches!(name.as_str(), nme::UNARY_NOT | nme::ZAND | nme::ZOR) || Test::of(&name).is_some();
         match (name.as_str(), &args[..]) {
             _ if logical => {
                 let (success, failure, after) = (b.code.new_label(), b.code.new_label(), b.code.new_label());
@@ -89,12 +90,12 @@ impl Gen<'_, '_> {
                 b.code.insn(0x03);
                 b.code.place(after);
             }
-            ("unary_+", []) => self.operand(b, receiver, to as char)?,
-            ("unary_-", []) => {
+            (nme::UNARY_PLUS, []) => self.operand(b, receiver, to as char)?,
+            (nme::UNARY_MINUS, []) => {
                 self.operand(b, receiver, to as char)?;
                 b.code.insn(0x74 + k(to));
             }
-            ("unary_~", []) => {
+            (nme::UNARY_TILDE, []) => {
                 self.operand(b, receiver, to as char)?;
                 match to {
                     b'J' => b.code.long(b.pool, -1),
@@ -103,7 +104,7 @@ impl Gen<'_, '_> {
                 b.code.insn(0x82 + k(to));
             }
             (op, &[right]) => {
-                let shift = matches!(op, "<<" | ">>" | ">>>");
+                let shift = matches!(op, nme::LSL | nme::ASR | nme::LSR);
                 let opk = match shift {
                     true if self.kind_of(receiver) == 'J' => 'J',
                     true => 'I',
@@ -113,16 +114,16 @@ impl Gen<'_, '_> {
                 self.operand(b, right, if shift { 'I' } else { opk })?;
                 let base = match op {
                     nme::ADD => 0x60,
-                    "-" => 0x64,
-                    "*" => 0x68,
-                    "/" => 0x6c,
-                    "%" => 0x70,
-                    "<<" => 0x78,
-                    ">>" => 0x7a,
-                    ">>>" => 0x7c,
-                    "&" => 0x7e,
-                    "|" => 0x80,
-                    "^" => 0x82,
+                    nme::MINUS => 0x64,
+                    nme::MUL => 0x68,
+                    nme::DIV => 0x6c,
+                    nme::MOD => 0x70,
+                    nme::LSL => 0x78,
+                    nme::ASR => 0x7a,
+                    nme::LSR => 0x7c,
+                    nme::AND => 0x7e,
+                    nme::OR => 0x80,
+                    nme::XOR => 0x82,
                     _ => return unsupported(self.l.tpd.span(t), format!("the primitive operation {name}")),
                 };
                 if opk == 'L' || base >= 0x78 && matches!(opk, 'F' | 'D') {
@@ -134,7 +135,7 @@ impl Gen<'_, '_> {
             }
             _ => return unsupported(self.l.tpd.span(t), format!("the primitive operation {name}")),
         }
-        if name.starts_with("unary_") && name != "unary_!" {
+        if name.starts_with(nme::UNARY_PREFIX) && name != nme::UNARY_NOT {
             self.line(b, t);
         }
         Ok(Some(classfile::value_slots(&result)))
@@ -148,7 +149,15 @@ impl Gen<'_, '_> {
         args: &[TNodeId],
         to: u8,
     ) -> Result<Option<i32>> {
-        let known = ["toByte", "toShort", "toChar", "toInt", "toLong", "toFloat", "toDouble"];
+        let known = [
+            nme::TO_BYTE,
+            nme::TO_SHORT,
+            nme::TO_CHAR,
+            nme::TO_INT,
+            nme::TO_LONG,
+            nme::TO_FLOAT,
+            nme::TO_DOUBLE,
+        ];
         if !args.is_empty() || !known.contains(&name) {
             return unsupported(self.l.tpd.span(receiver), format!("the primitive operation {name}"));
         }

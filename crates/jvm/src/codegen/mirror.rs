@@ -9,11 +9,12 @@ use classfile::{
     ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ClassFile, Code, FieldOp, Invoke, Last,
 };
 use lower::Result;
+use names::{name_kinds, nme};
 use std::collections::HashSet;
 use tasty::tags::{
     FIELDaccessor, INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC,
 };
-use tasty::{Kind, SymbolId, name_kinds, nme};
+use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
@@ -150,7 +151,8 @@ impl Gen<'_, '_> {
     fn has_forwarder(&mut self, m: SymbolId) -> bool {
         let s = self.l.u.symbol(m);
         let excluded = [PRIVATE, PROTECTED, PRIVATEqualified, PROTECTEDqualified, STATIC, MACRO, INLINE];
-        let excluded = excluded.iter().any(|&f| s.flags.has(f)) || s.name.contains("$$");
+        let excluded =
+            excluded.iter().any(|&f| s.flags.has(f)) || s.name.contains(name_kinds::EXPAND_SEPARATOR);
         let deferred = match s.tree.is_some() {
             true => self.l.u.body(m).is_none(),
             false => self.l.u.is_deferred(m),
