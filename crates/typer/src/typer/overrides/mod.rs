@@ -94,7 +94,10 @@ impl OverrideChecks {
                 if t.u.symbol(a).name != t.u.symbol(b).name {
                     continue;
                 }
-                if t.same_member(self.site, a, b) && t.u.erased_method(a).0 == t.u.erased_method(b).0 {
+                if t.is_scala_static(a) == t.is_scala_static(b)
+                    && t.same_member(self.site, a, b)
+                    && t.u.erased_method(a).0 == t.u.erased_method(b).0
+                {
                     return Some("double definition");
                 }
                 if has_default_args(&t.syms, a) && has_default_args(&t.syms, b) {

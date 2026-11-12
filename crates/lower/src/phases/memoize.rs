@@ -13,7 +13,7 @@ use crate::symbols::has;
 use crate::{Lower, Result};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
-use tasty::tags::{FIELDaccessor, LAZY, LOCAL, MUTABLE, PRIVATE};
+use tasty::tags::{FIELDaccessor, INLINE, LAZY, LOCAL, MUTABLE, PRIVATE};
 use tasty::{Erased, Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -37,7 +37,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             if is_setter(l, accessor) {
                 l.u.set_deferred(accessor, false);
                 setter(l, class, stat, accessor, &memoized, &mut fence);
-            } else if !is_const_final(l, accessor) && !has(l.u, accessor, LAZY) {
+            } else if !is_const_final(l, accessor)
+                && !has(l.u, accessor, LAZY)
+                && !(has(l.u, accessor, INLINE) && !mixed)
+            {
                 fields.extend(getter(l, class, stat, accessor).map(|f| (stat, f)));
                 memoized.insert(l.u.symbol(accessor).name.clone());
             }
