@@ -10,10 +10,10 @@ use crate::ctx::Ctx;
 use tasty::{Binder, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Result `result` of the clause of binder `binder` and parameters `params` of method `meth`
-    /// with each parameter replaced by a fresh type variable below its type and `Singleton`, only
-    /// `Singleton` where its type refers to the clause (dotty's `resultTypeApprox` with
-    /// `newDepTypeVar`); `None` unless `pt` is a fully defined type.
+    /// Approximates result `result` of the clause of binder `binder` and parameters `params` of
+    /// method `meth` by replacing each parameter with a fresh type variable below its type and
+    /// `Singleton`, only `Singleton` where its type refers to the clause (dotty's
+    /// `resultTypeApprox` with `newDepTypeVar`); `None` unless `pt` is a fully defined type.
     pub fn result_type_approx(
         &mut self,
         result: TypeId,
