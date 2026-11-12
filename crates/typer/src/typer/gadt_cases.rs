@@ -138,6 +138,16 @@ impl Gadt {
         self.saved.push((s, old));
     }
 
+    /// Undoes the bounds narrowed after the first `mark` and gives each type narrowed since with
+    /// its bounds before undoing, in narrowing order.
+    pub fn undo_since(&mut self, u: &mut Universe, mark: usize) -> Vec<(SymbolId, Option<(TypeId, TypeId)>)> {
+        let now = self.saved[mark..].iter().map(|&(s, _)| (s, u.gadt_bounds(s))).collect();
+        for (s, bounds) in self.saved.drain(mark..).rev() {
+            u.set_gadt_bounds(s, bounds);
+        }
+        now
+    }
+
     /// Tells whether `a` conforms to `b` without the GADT bounds, constraining type variables.
     pub fn conforms_without(&self, ops: &mut TypeOps, a: TypeId, b: TypeId) -> bool {
         let narrowed = self.narrowed();

@@ -52,12 +52,24 @@ impl UnapplyPattern {
             }
         }
 
+        if !gadt.is_empty() && has_f_bounded_param(t, arg_type) {
+            return Err("GADT bounds from a pattern of a class with an F-bounded type parameter");
+        }
         let bound = t.maximize_type(arg_type, (vars, &gadt), unapp, self.ctx)?;
         t.narrow_gadt(&gadt)?;
         t.gadt.bind(&bound);
         t.add_binders(unapp, &bound);
         Ok(t.zonk(arg_type))
     }
+}
+
+/// Whether the class of `t` has a type parameter whose bounds refer to it (`C[D <: Doc[D]]`).
+fn has_f_bounded_param(t: &mut Typer<'_>, tpe: TypeId) -> bool {
+    let Some(class) = t.u.class_symbol(tpe) else { return false };
+    t.u.type_params(class).into_iter().any(|p| {
+        let info = t.u.info(p);
+        t.refers_to(info, &[p])
+    })
 }
 
 /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type
