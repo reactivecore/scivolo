@@ -13,3 +13,6 @@ object MatchAliasResults:
   def applied = id(mk(("a", 1)))
   def typeApplied = f[(Boolean, Int)]
   def implicitArg = show(mk(("a", 1)))
+  def inGeneric[T](t: T): Int =
+    val x = mk((1, t))
+    x

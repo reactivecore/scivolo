@@ -16,7 +16,7 @@ impl Typer<'_> {
     pub fn settle_type(&mut self, tree: TNodeId, ctx: Ctx) {
         self.zonk_type(tree);
         if !(ctx.mode.is(Mode::PATTERN) && matches!(self.tpd.tree(tree), T::Typed { .. })) {
-            self.simplify_tree_type(tree, ctx);
+            self.simplify_tree_type(tree);
         }
     }
 
@@ -45,9 +45,9 @@ impl Typer<'_> {
     }
 
     /// The type of term tree `tree` simplified and its match types reduced, unless it is a
-    /// method's or a match type that reduces using a type parameter `ctx` may narrow (dotty's
+    /// method's or a match type that reduces using a type parameter a case narrowed (dotty's
     /// `simplify` of a typed tree); a reduction that leaves a match type is not taken.
-    fn simplify_tree_type(&mut self, tree: TNodeId, ctx: Ctx) {
+    fn simplify_tree_type(&mut self, tree: TNodeId) {
         let is_type = match *self.tpd.tree(tree) {
             T::Ident { name } | T::Select { name, .. } => name.is_type,
             T::TypeTree { .. }
@@ -67,7 +67,7 @@ impl Typer<'_> {
 
         let t = self.with_match_alias_vars_defined(t);
         let reduced = self.simplified_inferred(t);
-        let kept = if self.reduces_using_gadt(t, ctx) {
+        let kept = if self.reduces_using_gadt(t) {
             t
         } else if has_match_type(self.u, reduced) {
             self.simplified(t)
@@ -98,19 +98,20 @@ impl Typer<'_> {
         self.zonk(t)
     }
 
-    /// Whether `t` is a match type whose scrutinee refers to a type parameter a case typed in
-    /// `ctx` may narrow (dotty's `MatchType.thatReducesUsingGadt`).
-    fn reduces_using_gadt(&mut self, t: TypeId, ctx: Ctx) -> bool {
+    /// Whether `t` is a match type whose scrutinee refers to a type parameter a case being typed
+    /// narrowed or to a type its pattern binds (dotty's `MatchType.thatReducesUsingGadt`).
+    fn reduces_using_gadt(&mut self, t: TypeId) -> bool {
         let Some(m) = self.u.underlying_match(t) else { return false };
         let Type::Match { scrutinee, .. } = *self.u.ty(m) else { return false };
-        let mut params = Vec::new();
+        let bound = &self.gadt.bound;
+        let mut found = false;
         self.u.map_type(scrutinee, &mut |u, part| {
-            if let Some(s) = u.sym_of(part).filter(|&s| u.symbol(s).kind == Kind::TypeParam) {
-                params.push(s);
-            }
+            found |= u.sym_of(part).is_some_and(|s| {
+                bound.contains(&s) || u.symbol(s).kind == Kind::TypeParam && u.gadt_bounds(s).is_some()
+            });
             None
         });
-        params.into_iter().any(|s| self.gadt.is_symbol(self.u, s, ctx))
+        found
     }
 }
 
