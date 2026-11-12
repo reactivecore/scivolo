@@ -18,8 +18,8 @@ impl Inlining<'_> {
         Ok(())
     }
 
-    /// Expands the inline calls of unit `root` in place; refuses with each of its definitions in
-    /// package clauses whose calls do not expand, the first refusal first.
+    /// Expands the inline calls of unit `root` in place; gives the refusal of each definition in
+    /// its package clauses whose calls do not expand, the first refusal first.
     pub fn run_all(&mut self, root: TNodeId) -> Vec<Unsupported> {
         let first = self.run(root).err();
         let mut all = std::mem::take(&mut self.refusals);

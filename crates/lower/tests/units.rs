@@ -76,7 +76,8 @@ fn refusals_after_typing_are_collected_from_all_files_at_once() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let deferred = |o: &str| format!("trait T{o} {{ inline def f: Int }}\nobject {o} {{ def g(t: T{o}) = t.f }}");
+    let deferred =
+        |o: &str| format!("trait T{o} {{ inline def f: Int }}\nobject {o} {{ def g(t: T{o}) = t.f }}");
     let sources = [
         SourceFile::new("a.scala", "object A { def f = ${ ??? } }".to_owned()),
         SourceFile::new("b.scala", deferred("B")),
@@ -92,7 +93,11 @@ fn refusals_after_typing_are_collected_from_all_files_at_once() {
         .unwrap_or_else(|r| panic!("{}", r.what));
     let refused: Vec<&str> = isolated.refused.iter().map(|r| r.file.as_str()).collect();
     assert_eq!(refused, ["a.scala", "b.scala", "c.scala"]);
-    assert!(isolated.refused[2].refusal.what.contains("deferred inline"), "{}", isolated.refused[2].refusal.what);
+    assert!(
+        isolated.refused[2].refusal.what.contains("deferred inline"),
+        "{}",
+        isolated.refused[2].refusal.what
+    );
     assert!(isolated.out.iter().any(|f| f.name == "D$"));
     assert_eq!(attempts, 2);
 }

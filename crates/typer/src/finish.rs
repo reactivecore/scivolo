@@ -94,9 +94,9 @@ impl Units {
             self.pickle_files(typer, &kept, pickles);
         }
         if let Some(root) = self.kept_root(typer, typed, files) {
-            for (at, what) in typer.with_inlining(false, |i| i.run_all(root)) {
-                self.refused.push((at, what.to_owned()));
-            }
+            let refusals = typer.with_inlining(false, |i| i.run_all(root));
+            self.note(typer);
+            self.refused.extend(refusals.into_iter().map(|(at, what)| (at, what.to_owned())));
         }
     }
 
